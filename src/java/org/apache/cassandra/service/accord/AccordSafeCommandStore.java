@@ -18,10 +18,8 @@
 
 package org.apache.cassandra.service.accord;
 
-import java.util.AbstractCollection;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.NavigableMap;

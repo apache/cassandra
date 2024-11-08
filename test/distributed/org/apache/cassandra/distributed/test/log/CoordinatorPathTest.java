@@ -27,28 +27,30 @@ import java.util.function.BooleanSupplier;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
-import org.apache.cassandra.harry.sut.TokenPlacementModel.Replica;
 import org.junit.Assert;
 import org.junit.Test;
 
-import org.apache.cassandra.harry.core.Configuration;
-import org.apache.cassandra.harry.core.Run;
-import org.apache.cassandra.harry.model.OpSelectors;
-import org.apache.cassandra.harry.operations.CompiledStatement;
-import org.apache.cassandra.harry.operations.WriteHelper;
-import org.apache.cassandra.harry.sut.injvm.InJvmSut;
-import org.apache.cassandra.harry.util.ByteUtils;
-import org.apache.cassandra.harry.util.TokenUtil;
 import org.apache.cassandra.db.Mutation;
 import org.apache.cassandra.db.ReadCommand;
 import org.apache.cassandra.db.ReadResponse;
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
-import org.apache.cassandra.harry.HarryHelper;
-import org.apache.cassandra.harry.sut.TokenPlacementModel;
+import org.apache.cassandra.harry.SchemaSpec;
+import org.apache.cassandra.harry.ValueGeneratorHelper;
+import org.apache.cassandra.harry.cql.WriteHelper;
+import org.apache.cassandra.harry.execution.CompiledStatement;
+import org.apache.cassandra.harry.gen.Generator;
+import org.apache.cassandra.harry.gen.SchemaGenerators;
+import org.apache.cassandra.harry.model.TokenPlacementModel;
+import org.apache.cassandra.harry.model.TokenPlacementModel.Replica;
+import org.apache.cassandra.harry.op.Operations;
+import org.apache.cassandra.harry.util.ByteUtils;
+import org.apache.cassandra.harry.util.TokenUtil;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.NoPayload;
 import org.apache.cassandra.net.Verb;
 import org.apache.cassandra.utils.concurrent.Future;
+
+import static org.apache.cassandra.harry.checker.TestHelper.withRandom;
 
 public class CoordinatorPathTest extends CoordinatorPathTestBase
 {
@@ -57,11 +59,8 @@ public class CoordinatorPathTest extends CoordinatorPathTestBase
     @Test
     public void writeConsistencyTest() throws Throwable
     {
+        Generator<SchemaSpec> schemaGen = SchemaGenerators.schemaSpecGen(KEYSPACE, "write_consistency_test", 1000);
         coordinatorPathTest(RF, (cluster, simulatedCluster) -> {
-            Configuration.ConfigurationBuilder configBuilder = HarryHelper.defaultConfiguration()
-                                                                          .setSUT(() -> new InJvmSut(cluster));
-            Run run = configBuilder.build().createRun();
-
             for (int ignored : new int[]{ 2, 3, 4, 5 })
                 simulatedCluster.createNode().register();
 
@@ -75,68 +74,71 @@ public class CoordinatorPathTest extends CoordinatorPathTestBase
                       .prepareJoin()
                       .startJoin();
 
-            cluster.schemaChange("CREATE KEYSPACE " + run.schemaSpec.keyspace +
-                                 " WITH replication = {'class': 'SimpleStrategy', 'replication_factor' : 3};");
-            cluster.schemaChange(run.schemaSpec.compile().cql());
+            withRandom(rng -> {
+                SchemaSpec schema = schemaGen.generate(rng);
+                cluster.schemaChange("CREATE KEYSPACE " + schema.keyspace +
+                                     " WITH replication = {'class': 'SimpleStrategy', 'replication_factor' : 3};");
+                cluster.schemaChange(schema.compile());
 
-            while (true)
-            {
-                long lts = run.clock.nextLts();
-
-                long pd = run.pdSelector.pd(run.clock.nextLts(), run.schemaSpec);
-
-                ByteBuffer[] pk = ByteUtils.objectsToBytes(run.schemaSpec.inflatePartitionKey(pd));
-                long token = TokenUtil.token(ByteUtils.compose(pk));
-                if (!prediction.state.get().isWriteTargetFor(token, prediction.node(6).matcher))
-                    continue;
-
-                simulatedCluster.waitForQuiescense();
-                List<Replica> replicas = simulatedCluster.state.get().writePlacementsFor(token);
-                // At most 2 replicas should respond, so that when the pending node is added, results would be insufficient for recomputed blockFor
-                BooleanSupplier shouldRespond = atMostResponses(simulatedCluster.state.get().isWriteTargetFor(token, simulatedCluster.node(1).matcher) ? 1 : 2);
-                List<WaitingAction<?,?>> waiting = simulatedCluster
-                                                   .filter((n) -> replicas.stream().map(Replica::node).anyMatch(n.matcher) && n.node.idx() != 1)
-                                                   .map((nodeToBlockOn) -> nodeToBlockOn.blockOnReplica((node) -> new MutationAction(node, shouldRespond)))
-                                                   .collect(Collectors.toList());
-
-                Future<?> writeQuery = async(() -> {
-                    long cd = run.descriptorSelector.cd(pd, lts, 0, run.schemaSpec);
-                    CompiledStatement s = WriteHelper.inflateInsert(run.schemaSpec,
-                                                                    pd,
-                                                                    cd,
-                                                                    run.descriptorSelector.vds(pd, cd, lts, 0, OpSelectors.OperationKind.INSERT_WITH_STATICS, run.schemaSpec),
-                                                                    run.descriptorSelector.sds(pd, cd, lts, 0, OpSelectors.OperationKind.INSERT_WITH_STATICS, run.schemaSpec),
-                                                                    run.clock.rts(lts));
-                    cluster.coordinator(1).execute(s.cql(), ConsistencyLevel.QUORUM, s.bindings());
-                    return null;
-                });
-
-                waiting.forEach(WaitingAction::waitForMessage);
-
-                simulatedCluster.createNode().register();
-                simulatedCluster.node(6)
-                                .lazyJoin()
-                                .prepareJoin()
-                                .startJoin();
-
-                simulatedCluster.waitForQuiescense();
-
-                waiting.forEach(WaitingAction::resume);
-
-                try
+                for (int i = 0; i < schema.valueGenerators.pkPopulation(); i++)
                 {
-                    writeQuery.get();
-                    Assert.fail("Should have thrown");
+                    long pd = schema.valueGenerators.pkGen.descriptorAt(i);
+
+                    ByteBuffer[] pk = ByteUtils.objectsToBytes(schema.valueGenerators.pkGen.inflate(pd));
+                    long token = TokenUtil.token(ByteUtils.compose(pk));
+                    if (!prediction.state.get().isWriteTargetFor(token, prediction.node(6).matcher))
+                        continue;
+
+                    simulatedCluster.waitForQuiescense();
+                    List<Replica> replicas = simulatedCluster.state.get().writePlacementsFor(token);
+                    // At most 2 replicas should respond, so that when the pending node is added, results would be insufficient for recomputed blockFor
+                    BooleanSupplier shouldRespond = atMostResponses(simulatedCluster.state.get().isWriteTargetFor(token, simulatedCluster.node(1).matcher) ? 1 : 2);
+                    List<WaitingAction<?,?>> waiting = simulatedCluster
+                                                       .filter((n) -> replicas.stream().map(Replica::node).anyMatch(n.matcher) && n.node.idx() != 1)
+                                                       .map((nodeToBlockOn) -> nodeToBlockOn.blockOnReplica((node) -> new MutationAction(node, shouldRespond)))
+                                                       .collect(Collectors.toList());
+
+                    long lts = 1L;
+                    Future<?> writeQuery = async(() -> {
+
+                        CompiledStatement s = WriteHelper.inflateInsert(new Operations.WriteOp(lts, pd, 0,
+                                                                                               ValueGeneratorHelper.randomDescriptors(rng, schema.valueGenerators.regularColumnGens),
+                                                                                               ValueGeneratorHelper.randomDescriptors(rng, schema.valueGenerators.staticColumnGens),
+                                                                                               Operations.Kind.INSERT),
+                                                                        schema,
+                                                                        lts);
+                        cluster.coordinator(1).execute(s.cql(), ConsistencyLevel.QUORUM, s.bindings());
+                        return null;
+                    });
+
+                    waiting.forEach(WaitingAction::waitForMessage);
+
+                    simulatedCluster.createNode().register();
+                    simulatedCluster.node(6)
+                                    .lazyJoin()
+                                    .prepareJoin()
+                                    .startJoin();
+
+                    simulatedCluster.waitForQuiescense();
+
+                    waiting.forEach(WaitingAction::resume);
+
+                    try
+                    {
+                        writeQuery.get();
+                        Assert.fail("Should have thrown");
+                    }
+                    catch (Throwable t)
+                    {
+                        if (t.getMessage() == null)
+                            throw t;
+                        Assert.assertTrue("Expected a different error message, but got " + t.getMessage(),
+                                          t.getMessage().contains("the ring has changed"));
+                        return;
+                    }
                 }
-                catch (Throwable t)
-                {
-                    if (t.getMessage() == null)
-                        throw t;
-                    Assert.assertTrue("Expected a different error message, but got " + t.getMessage(),
-                                      t.getMessage().contains("the ring has changed"));
-                    return;
-                }
-            }
+
+            });
         });
     }
 

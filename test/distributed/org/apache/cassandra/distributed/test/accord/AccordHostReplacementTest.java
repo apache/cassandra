@@ -19,37 +19,34 @@
 package org.apache.cassandra.distributed.test.accord;
 
 import java.io.IOException;
-import java.util.List;
-import java.util.Optional;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import org.junit.Test;
 
-import accord.utils.Gens;
 import org.apache.cassandra.distributed.Cluster;
+import org.apache.cassandra.distributed.api.ConsistencyLevel;
 import org.apache.cassandra.distributed.api.Feature;
 import org.apache.cassandra.distributed.api.TokenSupplier;
 import org.apache.cassandra.distributed.shared.ClusterUtils;
 import org.apache.cassandra.distributed.test.TestBaseImpl;
-import org.apache.cassandra.harry.HarryHelper;
-import org.apache.cassandra.harry.ddl.SchemaSpec;
+import org.apache.cassandra.harry.SchemaSpec;
+import org.apache.cassandra.harry.dsl.HistoryBuilder;
 import org.apache.cassandra.harry.dsl.ReplayingHistoryBuilder;
+import org.apache.cassandra.harry.execution.RingAwareInJvmDTestVisitExecutor;
+import org.apache.cassandra.harry.gen.Generator;
 import org.apache.cassandra.harry.gen.Generators;
-import org.apache.cassandra.harry.sut.SystemUnderTest;
-import org.apache.cassandra.harry.sut.TokenPlacementModel;
-import org.apache.cassandra.harry.sut.injvm.InJvmSut;
-import org.apache.cassandra.harry.tracker.DefaultDataTracker;
+import org.apache.cassandra.harry.gen.SchemaGenerators;
+import org.apache.cassandra.harry.model.TokenPlacementModel;
 import org.apache.cassandra.service.consensus.TransactionalMode;
 
-import static accord.utils.Property.qt;
-import static java.lang.String.format;
 import static org.apache.cassandra.distributed.shared.ClusterUtils.stopUnchecked;
 import static org.apache.cassandra.distributed.shared.ClusterUtils.waitForCMSToQuiesce;
+import static org.apache.cassandra.harry.checker.TestHelper.withRandom;
 
 public class AccordHostReplacementTest extends TestBaseImpl
 {
-    private static final List<TransactionalMode> TRANSACTIONAL_MODES = Stream.of(TransactionalMode.values()).filter(t -> t.accordIsEnabled).collect(Collectors.toList());
+    private static final Generator<TransactionalMode> transactionalModeGen = Generators.pick(Stream.of(TransactionalMode.values()).filter(t -> t.accordIsEnabled).collect(Collectors.toList()));
 
     @Test
     public void hostReplace() throws IOException
@@ -68,25 +65,39 @@ public class AccordHostReplacementTest extends TestBaseImpl
             fixDistributedSchemas(cluster);
             init(cluster);
 
-            qt().withExamples(1).check(rs -> {
-                SchemaSpec schema = HarryHelper.schemaSpecBuilder(HarryHelper.KEYSPACE, "tbl")
-                                               .transactionalMode(Generators.toHarry(Gens.pick(TRANSACTIONAL_MODES).map(Optional::of)))
-                                               .surjection()
-                                               .inflate(rs.nextLong());
-                ReplayingHistoryBuilder harry = new ReplayingHistoryBuilder(rs.nextLong(), 100, 1, new DefaultDataTracker(), new InJvmSut(cluster), schema, new TokenPlacementModel.SimpleReplicationFactor(3), SystemUnderTest.ConsistencyLevel.ALL);
-                cluster.schemaChange(format("CREATE KEYSPACE %s WITH replication = {'class': 'SimpleStrategy', 'replication_factor' : 3};", HarryHelper.KEYSPACE));
-                cluster.schemaChange(schema.compile().cql());
+            withRandom(rng -> {
+                Generator<SchemaSpec> schemaGen = SchemaGenerators.schemaSpecGen(KEYSPACE, "host_replace", 1000,
+                                                                                 SchemaSpec.optionsBuilder().withTransactionalMode(transactionalModeGen.generate(rng)));
+                SchemaSpec schema = schemaGen.generate(rng);
+                Generators.TrackingGenerator<Integer> pkGen = Generators.tracking(Generators.int32(0, Math.min(schema.valueGenerators.pkPopulation(), 1000)));
+
+                HistoryBuilder history = historyBuilder(schema, cluster);
                 waitForCMSToQuiesce(cluster, cluster.get(1));
 
                 for (int i = 0; i < 1000; i++)
-                    harry.insert();
-                harry.validateAll(harry.quiescentLocalChecker());
+                    history.insert(pkGen.generate(rng));
+                for (int pk : pkGen.generated())
+                    history.selectPartition(pk);
 
-                stopUnchecked(cluster.get(nodeToReplace));
-                ClusterUtils.replaceHostAndStart(cluster, cluster.get(nodeToReplace));
+                history.custom(() -> {
+                    stopUnchecked(cluster.get(nodeToReplace));
+                    ClusterUtils.replaceHostAndStart(cluster, cluster.get(nodeToReplace));
+                }, "Replace");
 
-                harry.validateAll(harry.quiescentLocalChecker());
+                for (int pk : pkGen.generated())
+                    history.selectPartition(pk);
             });
         }
+    }
+
+    private static HistoryBuilder historyBuilder(SchemaSpec schema, Cluster cluster)
+    {
+        HistoryBuilder history = new ReplayingHistoryBuilder(schema.valueGenerators,
+                                                             hb -> RingAwareInJvmDTestVisitExecutor.builder()
+                                                                                                   .replicationFactor(new TokenPlacementModel.SimpleReplicationFactor(3))
+                                                                                                   .consistencyLevel(ConsistencyLevel.ALL)
+                                                                                                   .build(schema, hb, cluster));
+        history.customThrowing(() -> cluster.schemaChange(schema.compile()), "Setup");
+        return history;
     }
 }

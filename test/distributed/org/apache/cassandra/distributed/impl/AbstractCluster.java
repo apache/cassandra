@@ -727,6 +727,10 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster<I
         return stream().map(IInstance::coordinator);
     }
 
+    public I firstAlive()
+    {
+        return stream().filter(i -> !i.isShutdown()).findFirst().get();
+    }
     public List<I> get(int... nodes)
     {
         if (nodes == null || nodes.length == 0)

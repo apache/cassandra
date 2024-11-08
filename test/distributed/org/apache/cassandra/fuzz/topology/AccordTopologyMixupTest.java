@@ -175,7 +175,7 @@ public class AccordTopologyMixupTest extends TopologyMixupTestBase<AccordTopolog
         });
     }
 
-    public static class Spec implements TopologyMixupTestBase.SchemaSpec
+    public static class Spec implements Schema
     {
         private final TransactionalMode mode;
         private final boolean enableMigration;
@@ -189,13 +189,13 @@ public class AccordTopologyMixupTest extends TopologyMixupTestBase<AccordTopolog
         }
 
         @Override
-        public String name()
+        public String table()
         {
             return metadata.name;
         }
 
         @Override
-        public String keyspaceName()
+        public String keyspace()
         {
             return metadata.keyspace;
         }

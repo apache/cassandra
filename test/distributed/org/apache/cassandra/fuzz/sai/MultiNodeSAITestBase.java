@@ -23,22 +23,13 @@ import org.junit.BeforeClass;
 
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.test.sai.SAIUtil;
-import org.apache.cassandra.harry.ddl.SchemaSpec;
-import org.apache.cassandra.harry.sut.injvm.InJvmSut;
-import org.apache.cassandra.harry.sut.injvm.InJvmSutBase;
+import org.apache.cassandra.harry.SchemaSpec;
 
 import static org.apache.cassandra.distributed.api.Feature.GOSSIP;
 import static org.apache.cassandra.distributed.api.Feature.NETWORK;
 
 public abstract class MultiNodeSAITestBase extends SingleNodeSAITestBase
 {
-    /**
-     * Chosing a fetch size has implications for how well this test will excercise paging, short-read protection, and
-     * other important parts of the distributed query apparatus. This should be set low enough to ensure a significant
-     * number of queries during validation page, but not too low that more expesive queries time out and fail the test.
-     */
-    private static final int FETCH_SIZE = 10;
-
     public MultiNodeSAITestBase(boolean withAccord)
     {
         super(withAccord);
@@ -47,43 +38,19 @@ public abstract class MultiNodeSAITestBase extends SingleNodeSAITestBase
     @BeforeClass
     public static void before() throws Throwable
     {
-        before(false);
-    }
-
-    public static void before(boolean withAccord) throws Throwable
-    {
         cluster = Cluster.build()
                          .withNodes(2)
-                         // At lower fetch sizes, queries w/ hundreds or thousands of matches can take a very long time. 
-                         .withConfig(InJvmSutBase.defaultConfig().andThen(c -> c.set("range_request_timeout", "180s")
-                                                                                .set("read_request_timeout", "180s")
-                                                                                .set("transaction_timeout", "180s")
-                                                                                .set("write_request_timeout", "180s")
-                                                                                .set("native_transport_timeout", "180s")
-                                                                                .set("slow_query_log_timeout", "180s")
-                                                                                .with(GOSSIP).with(NETWORK)))
+                         // At lower fetch sizes, queries w/ hundreds or thousands of matches can take a very long time.
+                         .withConfig(defaultConfig().andThen(c -> c.set("range_request_timeout", "180s")
+                                                                   .set("read_request_timeout", "180s")
+                                                                   .set("transaction_timeout", "180s")
+                                                                   .set("write_request_timeout", "180s")
+                                                                   .set("native_transport_timeout", "180s")
+                                                                   .set("slow_query_log_timeout", "180s")
+                                                                   .with(GOSSIP).with(NETWORK)))
                          .createWithoutStarting();
-        cluster.setUncaughtExceptionsFilter(t -> {
-            logger.error("Caught exception, reporting during shutdown. Ignoring.", t);
-            return true;
-        });
         cluster.startup();
         cluster = init(cluster);
-        sut = new InJvmSut(cluster) {
-            @Override
-            public Object[][] execute(String cql, ConsistencyLevel cl, Object[] bindings)
-            {
-                if (cql.contains("SELECT"))
-                    return super.execute(cql, ConsistencyLevel.ALL, FETCH_SIZE, bindings);
-
-                // The goal here is to make replicas as out of date as possible, modulo the efforts of repair
-                // and read-repair in the test itself. node_local bypasses Accord which breaks any attempt at testing Accord
-                // so if we are running with Accord use QUORUM (which Accord will ignore since it runs with transactional
-                // mode full).
-                ConsistencyLevel consistencyLevel = withAccord ? ConsistencyLevel.QUORUM : ConsistencyLevel.NODE_LOCAL;
-                return super.execute(cql, consistencyLevel, bindings);
-            }
-        };
     }
 
     @Before
@@ -96,8 +63,7 @@ public abstract class MultiNodeSAITestBase extends SingleNodeSAITestBase
     @Override
     protected void flush(SchemaSpec schema)
     {
-        cluster.get(1).nodetool("flush", schema.keyspace, schema.table);
-        cluster.get(2).nodetool("flush", schema.keyspace, schema.table);
+        cluster.forEach(i -> i.nodetool("flush", schema.keyspace));
     }
 
     @Override
@@ -109,8 +75,7 @@ public abstract class MultiNodeSAITestBase extends SingleNodeSAITestBase
     @Override
     protected void compact(SchemaSpec schema)
     {
-        cluster.get(1).nodetool("compact", schema.keyspace);
-        cluster.get(2).nodetool("compact", schema.keyspace);
+        cluster.forEach(i -> i.nodetool("compact", schema.keyspace));
     }
 
     @Override

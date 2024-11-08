@@ -1,237 +1,215 @@
 /*
-  * Licensed to the Apache Software Foundation (ASF) under one
-  * or more contributor license agreements.  See the NOTICE file
-  * distributed with this work for additional information
-  * regarding copyright ownership.  The ASF licenses this file
-  * to you under the Apache License, Version 2.0 (the
-  * "License"); you may not use this file except in compliance
-  * with the License.  You may obtain a copy of the License at
-  *
-  *     http://www.apache.org/licenses/LICENSE-2.0
-  *
-  * Unless required by applicable law or agreed to in writing, software
-  * distributed under the License is distributed on an "AS IS" BASIS,
-  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-  * See the License for the specific language governing permissions and
-  * limitations under the License.
-  */
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
 
 package org.apache.cassandra.harry.model;
 
-import java.util.*;
-import java.util.function.Supplier;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.Iterator;
+import java.util.List;
+import java.util.NavigableMap;
 
-import javax.annotation.Nullable;
+import accord.utils.Invariants;
+import org.apache.cassandra.harry.execution.DataTracker;
+import org.apache.cassandra.harry.op.Operations;
+import org.apache.cassandra.harry.execution.ResultSetRow;
+import org.apache.cassandra.harry.gen.ValueGenerators;
 
-import org.apache.cassandra.harry.core.Run;
-import org.apache.cassandra.harry.data.ResultSetRow;
-import org.apache.cassandra.harry.ddl.ColumnSpec;
-import org.apache.cassandra.harry.ddl.SchemaSpec;
-import org.apache.cassandra.harry.sut.SystemUnderTest;
-import org.apache.cassandra.harry.model.reconciler.PartitionState;
-import org.apache.cassandra.harry.operations.Query;
-import org.apache.cassandra.harry.model.reconciler.Reconciler;
-import org.apache.cassandra.harry.tracker.DataTracker;
+import static org.apache.cassandra.harry.MagicConstants.LTS_UNKNOWN;
+import static org.apache.cassandra.harry.MagicConstants.NIL_DESCR;
+import static org.apache.cassandra.harry.MagicConstants.NO_TIMESTAMP;
+import static org.apache.cassandra.harry.MagicConstants.UNKNOWN_DESCR;
+import static org.apache.cassandra.harry.MagicConstants.UNSET_DESCR;
 
-import static org.apache.cassandra.harry.gen.DataGenerators.NIL_DESCR;
-import static org.apache.cassandra.harry.gen.DataGenerators.UNSET_DESCR;
-
+/**
+ * Unfortunately model is not reducible to a simple interface of apply/validate, at least not if
+ * we intend to support concurrent validation and in-flight/timed out queries. Validation needs to
+ * know which queries might have been applied.
+ *
+ *
+ */
 public class QuiescentChecker implements Model
 {
-    protected final OpSelectors.Clock clock;
+    private final DataTracker tracker;
+    private final Replay replay;
+    private final ValueGenerators valueGenerators;
 
-    protected final DataTracker tracker;
-    protected final SystemUnderTest sut;
-    protected final Reconciler reconciler;
-    protected final SchemaSpec schema;
-
-    public QuiescentChecker(Run run)
+    public QuiescentChecker(ValueGenerators valueGenerators, DataTracker tracker, Replay replay)
     {
-        this(run, new Reconciler(run));
-    }
-
-    public QuiescentChecker(Run run, Reconciler reconciler)
-    {
-        this(run.clock, run.sut, run.tracker, run.schemaSpec, reconciler);
-    }
-
-    public QuiescentChecker(OpSelectors.Clock clock,
-                            SystemUnderTest sut,
-                            DataTracker tracker,
-                            SchemaSpec schema,
-                            Reconciler reconciler)
-    {
-        this.clock = clock;
-        this.sut = sut;
-        this.reconciler = reconciler;
+        this.valueGenerators = valueGenerators;
         this.tracker = tracker;
-        this.schema = schema;
+        this.replay = replay;
     }
 
-    public void validate(Query query)
+    @Override
+    public void validate(Operations.SelectStatement select, List<ResultSetRow> actualRows)
     {
-        tracker.beginValidation(query.pd);
-        validate(() -> SelectHelper.execute(sut, clock, query), query);
-        tracker.endValidation(query.pd);
-    }
+        PartitionState partitionState = new PartitionState(select.pd, valueGenerators);
+        PartitionStateBuilder stateBuilder = new PartitionStateBuilder(valueGenerators, partitionState);
 
-    protected void validate(Supplier<List<ResultSetRow>> rowsSupplier, Query query)
-    {
-        List<ResultSetRow> actualRows = rowsSupplier.get();
-        PartitionState partitionState = reconciler.inflatePartitionState(query.pd, tracker, query);
-        validate(schema, tracker, partitionState, actualRows, query);
-    }
-
-    public static void validate(SchemaSpec schema, DataTracker tracker, PartitionState partitionState, List<ResultSetRow> actualRows, Query query)
-    {
-        Set<ColumnSpec<?>> columns = schema.isWriteTimeFromAccord() ? null : new HashSet<>(schema.allColumns);
-        validate(schema, tracker, columns, partitionState, actualRows, query);
-    }
-
-    public static Reconciler.RowState adjustForSelection(Reconciler.RowState row, SchemaSpec schema, Set<ColumnSpec<?>> selection, boolean isStatic)
-    {
-        if (selection.size() == schema.allColumns.size())
-            return row;
-
-        List<ColumnSpec<?>> columns = isStatic ? schema.staticColumns : schema.regularColumns;
-        Reconciler.RowState newRowState = row.clone();
-        assert newRowState.vds.length == columns.size();
-        for (int i = 0; i < columns.size(); i++)
+        long prevLts = -1;
+        for (LtsOperationPair potentialVisit : tracker.potentialVisits(select.pd()))
         {
-            if (!selection.contains(columns.get(i)))
+            if (tracker.isFinished(potentialVisit.lts))
             {
-                newRowState.vds[i] = UNSET_DESCR;
-                newRowState.lts[i] = NO_TIMESTAMP;
+                if (potentialVisit.lts != prevLts)
+                {
+                    if (prevLts != -1)
+                        stateBuilder.endLts(prevLts);
+                    stateBuilder.beginLts(potentialVisit.lts);
+                    prevLts = potentialVisit.lts;
+                }
+                Operations.Operation op = replay.replay(potentialVisit.lts, potentialVisit.opId);
+                stateBuilder.operation(op);
             }
         }
-        return newRowState;
+
+        // Close last open LTS
+        if (prevLts != -1)
+            stateBuilder.endLts(prevLts);
+
+        partitionState.filter(select);
+        if (select.orderBy() == Operations.ClusteringOrderBy.DESC)
+        {
+            partitionState.reverse();
+        }
+
+        validate(valueGenerators, partitionState, actualRows);
     }
 
-    public static void validate(SchemaSpec schema, DataTracker tracker, @Nullable Set<ColumnSpec<?>> selection, PartitionState partitionState, List<ResultSetRow> actualRows, Query query)
+    // TODO: reverse
+    public static void validate(ValueGenerators valueGenerators, PartitionState partitionState, List<ResultSetRow> actualRows)
     {
-        boolean isWildcardQuery = selection == null;
-        String trackerBefore = tracker.toString();
-        if (isWildcardQuery)
-            selection = new HashSet<>(schema.allColumns);
-
         Iterator<ResultSetRow> actual = actualRows.iterator();
-        Collection<Reconciler.RowState> expectedRows = partitionState.rows(query.reverse);
+        NavigableMap<Long, PartitionState.RowState> expectedRows = partitionState.rows();
 
-        Iterator<Reconciler.RowState> expected = expectedRows.iterator();
-
-        String trackerState = String.format("Tracker before: %s, Tracker after: %s", trackerBefore, tracker);
+        Iterator<PartitionState.RowState> expected = expectedRows.values().iterator();
 
         // It is possible that we only get a single row in response, and it is equal to static row
         if (partitionState.isEmpty() && partitionState.staticRow() != null && actual.hasNext())
         {
             ResultSetRow actualRowState = actual.next();
+            // TODO: it is possible to start distinguising between unknown and null values
             if (actualRowState.cd != UNSET_DESCR && actualRowState.cd != partitionState.staticRow().cd)
             {
-                throw new ValidationException(trackerState,
-                                              partitionState.toString(schema),
-                                              toString(actualRows),
+                throw new ValidationException(partitionState.toString(),
+                                              toString(valueGenerators, actualRows),
                                               "Found a row while model predicts statics only:" +
                                               "\nExpected: %s" +
-                                              "\nActual: %s" +
-                                              "\nQuery: %s",
+                                              "\nActual: %s",
                                               partitionState.staticRow(),
-                                              actualRowState,
-                                              query.toSelectStatement());
+                                              actualRowState);
             }
 
             for (int i = 0; i < actualRowState.vds.length; i++)
             {
-                if (actualRowState.vds[i] != NIL_DESCR || actualRowState.lts[i] != NO_TIMESTAMP)
-                    throw new ValidationException(trackerState,
-                                                  partitionState.toString(schema),
-                                                  toString(actualRows),
+                // If clustering is unset, all values should be equal to NIL: we have received a row with statics only.
+                if (actualRowState.vds[i] != NIL_DESCR || (actualRowState.lts != LTS_UNKNOWN && actualRowState.lts[i] != NO_TIMESTAMP))
+                    throw new ValidationException(partitionState.toString(),
+                                                  toString(valueGenerators, actualRows),
                                                   "Found a row while model predicts statics only:" +
-                                                  "\nActual: %s" +
-                                                  "\nQuery: %s",
-                                                  actualRowState, query.toSelectStatement());
+                                                  "\nActual: %s",
+                                                  actualRowState);
             }
 
-            assertStaticRow(partitionState, actualRows,
-                            adjustForSelection(partitionState.staticRow(), schema, selection, true),
-                            actualRowState, query, trackerState, schema);
+            assertStaticRow(partitionState,
+                            actualRows,
+                            partitionState.staticRow(),
+                            actualRowState,
+                            valueGenerators);
         }
 
-        int rowId = 0;
         while (actual.hasNext() && expected.hasNext())
         {
             ResultSetRow actualRowState = actual.next();
-            Reconciler.RowState originalExpectedRowState = expected.next();
-            Reconciler.RowState expectedRowState = adjustForSelection(originalExpectedRowState, schema, selection, false);
-
-            if (schema.trackLts)
-                partitionState.compareVisitedLts(actualRowState.visited_lts);
+            PartitionState.RowState expectedRowState = expected.next();
 
             // TODO: this is not necessarily true. It can also be that ordering is incorrect.
-            if (actualRowState.cd != UNSET_DESCR && actualRowState.cd != expectedRowState.cd)
+            if (actualRowState.cd != UNKNOWN_DESCR && actualRowState.cd != expectedRowState.cd)
             {
-                throw new ValidationException(trackerState,
-                                              partitionState.toString(schema),
-                                              toString(actualRows),
+                throw new ValidationException(partitionState.toString(),
+                                              toString(valueGenerators, actualRows),
                                               "Found a row in the model that is not present in the resultset:" +
                                               "\nExpected: %s" +
-                                              "\nActual: %s" +
-                                              "\nQuery: %s",
-                                              expectedRowState.toString(schema),
-                                              actualRowState, query.toSelectStatement());
+                                              "\nActual: %s",
+                                              expectedRowState.toString(valueGenerators),
+                                              actualRowState);
             }
 
-            if (!Arrays.equals(expectedRowState.vds, actualRowState.vds))
-                throw new ValidationException(trackerState,
-                                              partitionState.toString(schema),
-                                              toString(actualRows),
+            if (!vdsEqual(expectedRowState.vds, actualRowState.vds))
+                throw new ValidationException(partitionState.toString(),
+                                              toString(valueGenerators, actualRows),
                                               "Returned row state doesn't match the one predicted by the model:" +
-                                              "\nExpected: %s (%s)" +
-                                              "\nActual:   %s (%s)." +
-                                              "\nQuery: %s",
-                                              descriptorsToString(expectedRowState.vds), expectedRowState.toString(schema),
-                                              descriptorsToString(actualRowState.vds), actualRowState,
-                                              query.toSelectStatement());
+                                              "\nExpected: %s" +
+                                              "\nActual:   %s.",
+                                              expectedRowState.toString(valueGenerators),
+                                              actualRowState.toString(valueGenerators));
 
-            if (!schema.isWriteTimeFromAccord() && !ltsEqual(expectedRowState.lts, actualRowState.lts))
-                throw new ValidationException(trackerState,
-                                              partitionState.toString(schema),
-                                              toString(actualRows),
+            if (!ltsEqual(expectedRowState.lts, actualRowState.lts))
+                throw new ValidationException(partitionState.toString(),
+                                              toString(valueGenerators, actualRows),
                                               "Timestamps in the row state don't match ones predicted by the model:" +
-                                              "\nExpected: %s (%s)" +
-                                              "\nActual:   %s (%s)." +
-                                              "\nQuery: %s",
-                                              Arrays.toString(expectedRowState.lts), expectedRowState.toString(schema),
-                                              Arrays.toString(actualRowState.lts), actualRowState,
-                                              query.toSelectStatement());
+                                              "\nExpected: %s" +
+                                              "\nActual:   %s.",
+                                              expectedRowState.toString(valueGenerators),
+                                              actualRowState.toString(valueGenerators));
 
             if (partitionState.staticRow() != null || actualRowState.hasStaticColumns())
             {
-                Reconciler.RowState expectedStaticRowState = adjustForSelection(partitionState.staticRow(), schema, selection, true);
-                assertStaticRow(partitionState, actualRows, expectedStaticRowState, actualRowState, query, trackerState, schema);
+                PartitionState.RowState expectedStaticRowState = partitionState.staticRow();
+                assertStaticRow(partitionState, actualRows, expectedStaticRowState, actualRowState, valueGenerators);
             }
-
-            rowId++;
         }
 
         if (actual.hasNext() || expected.hasNext())
         {
-            throw new ValidationException(trackerState,
-                                          partitionState.toString(schema),
-                                          toString(actualRows),
-                                          "Expected results to have the same number of results (different at row id %d), but %s result iterator has more results." +
+            throw new ValidationException(partitionState.toString(),
+                                          toString(valueGenerators, actualRows),
+                                          "Expected results to have the same number of results, but %s result iterator has more results." +
                                           "\nExpected: %s" +
-                                          "\nActual:   %s" +
-                                          "\nQuery: %s",
-                                          rowId,
+                                          "\nActual:   %s",
                                           actual.hasNext() ? "actual" : "expected",
                                           expectedRows,
-                                          actualRows,
-                                          query.toSelectStatement());
+                                          actualRows);
         }
+    }
+
+    public static boolean vdsEqual(long[] expected, long[] actual)
+    {
+        Invariants.checkState(expected.length == actual.length);
+        for (int i = 0; i < actual.length; i++)
+        {
+            long expectedD = expected[i];
+            long actualD = actual[i];
+            // An unset column will show as NIL
+            if (expectedD == UNSET_DESCR && actualD == NIL_DESCR)
+                continue;
+            if (actualD != expectedD)
+                return false;
+        }
+        return true;
     }
 
     public static boolean ltsEqual(long[] expected, long[] actual)
     {
+        if (actual == LTS_UNKNOWN)
+            return true;
+
         if (actual == expected)
             return true;
         if (actual == null || expected == null)
@@ -253,35 +231,27 @@ public class QuiescentChecker implements Model
 
     public static void assertStaticRow(PartitionState partitionState,
                                        List<ResultSetRow> actualRows,
-                                       Reconciler.RowState staticRow,
+                                       PartitionState.RowState staticRow,
                                        ResultSetRow actualRowState,
-                                       Query query,
-                                       String trackerState,
-                                       SchemaSpec schemaSpec)
+                                       ValueGenerators valueGenerators)
     {
-        if (!Arrays.equals(staticRow.vds, actualRowState.sds))
-            throw new ValidationException(trackerState,
-                                          partitionState.toString(schemaSpec),
-                                          toString(actualRows),
+        if (!vdsEqual(staticRow.vds, actualRowState.sds))
+            throw new ValidationException(partitionState.toString(),
+                                          toString(valueGenerators, actualRows),
                                           "Returned static row state doesn't match the one predicted by the model:" +
                                           "\nExpected: %s (%s)" +
-                                          "\nActual:   %s (%s)." +
-                                          "\nQuery: %s",
-                                          descriptorsToString(staticRow.vds), staticRow.toString(schemaSpec),
-                                          descriptorsToString(actualRowState.sds), actualRowState,
-                                          query.toSelectStatement());
+                                          "\nActual:   %s (%s).",
+                                          descriptorsToString(staticRow.vds), staticRow.toString(valueGenerators),
+                                          descriptorsToString(actualRowState.sds), actualRowState);
 
         if (!ltsEqual(staticRow.lts, actualRowState.slts))
-            throw new ValidationException(trackerState,
-                                          partitionState.toString(schemaSpec),
-                                          toString(actualRows),
+            throw new ValidationException(partitionState.toString(),
+                                          toString(valueGenerators, actualRows),
                                           "Timestamps in the static row state don't match ones predicted by the model:" +
                                           "\nExpected: %s (%s)" +
-                                          "\nActual:   %s (%s)." +
-                                          "\nQuery: %s",
-                                          Arrays.toString(staticRow.lts), staticRow.toString(schemaSpec),
-                                          Arrays.toString(actualRowState.slts), actualRowState,
-                                          query.toSelectStatement());
+                                          "\nActual:   %s (%s).",
+                                          Arrays.toString(staticRow.lts), staticRow.toString(valueGenerators),
+                                          Arrays.toString(actualRowState.slts), actualRowState);
     }
 
     public static String descriptorsToString(long[] descriptors)
@@ -289,33 +259,44 @@ public class QuiescentChecker implements Model
         StringBuilder sb = new StringBuilder();
         for (int i = 0; i < descriptors.length; i++)
         {
+            if (i > 0)
+                sb.append(", ");
             if (descriptors[i] == NIL_DESCR)
                 sb.append("NIL");
-            if (descriptors[i] == UNSET_DESCR)
+            else if (descriptors[i] == UNSET_DESCR)
                 sb.append("UNSET");
             else
                 sb.append(descriptors[i]);
-            if (i > 0)
-                sb.append(", ");
         }
         return sb.toString();
     }
 
-    public static String toString(Collection<Reconciler.RowState> collection, SchemaSpec schema)
+    public static String toString(Collection<PartitionState.RowState> collection, ValueGenerators valueGenerators)
     {
         StringBuilder builder = new StringBuilder();
 
-        for (Reconciler.RowState rowState : collection)
-            builder.append(rowState.toString(schema)).append("\n");
+        for (PartitionState.RowState rowState : collection)
+            builder.append(rowState.toString(valueGenerators)).append("\n");
         return builder.toString();
     }
 
-    public static String toString(List<ResultSetRow> collection)
+    public static String toString(ValueGenerators valueGenerators, List<ResultSetRow> collection)
     {
         StringBuilder builder = new StringBuilder();
 
         for (ResultSetRow rowState : collection)
-            builder.append(rowState.toString()).append("\n");
+            builder.append(rowState.toString(valueGenerators)).append("\n");
         return builder.toString();
+    }
+
+
+    public static class ValidationException extends RuntimeException
+    {
+        public ValidationException(String partitionState, String observedState, String format, Object... objects)
+        {
+            super(String.format(format, objects) +
+                  "\nPartition state:\n" + partitionState +
+                  "\nObserved state:\n" + observedState);
+        }
     }
 }

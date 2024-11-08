@@ -27,6 +27,8 @@ import java.io.DataInput;
 import java.io.EOFException;
 import java.io.IOException;
 import java.io.InputStream;
+import java.math.BigDecimal;
+import java.math.BigInteger;
 import java.net.InetAddress;
 import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
@@ -45,7 +47,6 @@ import java.util.stream.Collectors;
 
 import net.nicoulaj.compilecommand.annotations.DontInline;
 import net.nicoulaj.compilecommand.annotations.Inline;
-
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.db.marshal.BooleanType;
 import org.apache.cassandra.db.marshal.BytesType;
@@ -575,6 +576,21 @@ public class ByteBufferUtil
             return ByteBuffer.wrap((byte[]) obj);
         else if (obj instanceof ByteBuffer)
             return (ByteBuffer) obj;
+        else if (obj instanceof BigInteger)
+            return ByteBuffer.wrap(((BigInteger)obj).toByteArray());
+        else if (obj instanceof BigDecimal)
+        {
+            BigDecimal cast = (BigDecimal) obj;
+            BigInteger bi = cast.unscaledValue();
+            int scale = cast.scale();
+            byte[] bibytes = bi.toByteArray();
+
+            ByteBuffer bytes = ByteBuffer.allocate(4 + bibytes.length);
+            bytes.putInt(scale);
+            bytes.put(bibytes);
+            bytes.rewind();
+            return bytes;
+        }
         else if (obj instanceof List)
         {
             List<?> list = (List<?>) obj;

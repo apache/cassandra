@@ -18,120 +18,117 @@
 
 package org.apache.cassandra.fuzz.harry.examples;
 
-import java.util.concurrent.atomic.AtomicInteger;
-import java.util.function.Supplier;
-
 import org.junit.Test;
 
+import org.apache.cassandra.distributed.test.IntegrationTestBase;
+import org.apache.cassandra.harry.SchemaSpec;
 import org.apache.cassandra.harry.checker.ModelChecker;
-import org.apache.cassandra.harry.ddl.SchemaGenerators;
-import org.apache.cassandra.harry.ddl.SchemaSpec;
+import org.apache.cassandra.harry.dsl.HistoryBuilderHelper;
 import org.apache.cassandra.harry.dsl.ReplayingHistoryBuilder;
-import org.apache.cassandra.harry.gen.EntropySource;
-import org.apache.cassandra.harry.gen.rng.JdkRandomEntropySource;
-import org.apache.cassandra.harry.model.AgainstSutChecker;
-import org.apache.cassandra.fuzz.harry.integration.model.IntegrationTestBase;
-import org.apache.cassandra.harry.sut.QueryModifyingSut;
-import org.apache.cassandra.harry.sut.SystemUnderTest;
-import org.apache.cassandra.harry.sut.TokenPlacementModel;
-import org.apache.cassandra.harry.tracker.DataTracker;
-import org.apache.cassandra.harry.tracker.DefaultDataTracker;
+import org.apache.cassandra.harry.dsl.SingleOperationBuilder;
+import org.apache.cassandra.harry.execution.InJvmDTestVisitExecutor;
+import org.apache.cassandra.harry.gen.Generator;
+import org.apache.cassandra.harry.gen.Generators;
+import org.apache.cassandra.harry.gen.SchemaGenerators;
+
+import static org.apache.cassandra.harry.checker.TestHelper.withRandom;
 
 public class RangeTombstoneBurnTest extends IntegrationTestBase
 {
-    private final long seed = 1;
-    private final int ITERATIONS = 5;
-    private final int STEPS_PER_ITERATION = 100;
+    private final int ITERATIONS = 10;
+    private final int STEPS_PER_ITERATION = 1000;
 
     @Test
-    public void rangeTombstoneBurnTest() throws Throwable
+    public void rangeTombstoneBurnTest()
     {
-        Supplier<SchemaSpec> supplier = SchemaGenerators.progression(SchemaGenerators.DEFAULT_SWITCH_AFTER);
-
-        for (int i = 0; i < SchemaGenerators.DEFAULT_RUNS; i++)
-        {
-            SchemaSpec schema = supplier.get();
-            beforeEach();
-            SchemaSpec doubleWriteSchema = schema.cloneWithName(schema.keyspace, schema.keyspace + "_debug");
-
-            sut.schemaChange(schema.compile().cql());
-            sut.schemaChange(doubleWriteSchema.compile().cql());
-
-            QueryModifyingSut sut = new QueryModifyingSut(this.sut,
-                                                          schema.table,
-                                                          doubleWriteSchema.table);
-
+        Generator<SchemaSpec> schemaGen = SchemaGenerators.schemaSpecGen(KEYSPACE, "range_tombstone", 100);
+        withRandom(rng -> {
+            SchemaSpec schema = schemaGen.generate(rng);
             cluster.get(1).nodetool("disableautocompaction");
+            cluster.schemaChange(schema.compile());
+
+            int perIteration = Math.min(10, schema.valueGenerators.pkPopulation());;
+            int maxPartitions = Math.max(perIteration, schema.valueGenerators.pkPopulation());
 
             for (int iteration = 0; iteration < ITERATIONS; iteration++)
             {
-                ModelChecker<ReplayingHistoryBuilder, Void> modelChecker = new ModelChecker<>();
-                EntropySource entropySource = new JdkRandomEntropySource(iteration);
-
-                int maxPartitionSize = entropySource.nextInt(1, 1 << entropySource.nextInt(5, 11));
-
-                int[] partitions = new int[10];
-                for (int j = 0; j < partitions.length; j++)
+                Integer[] partitions = new Integer[perIteration];
+                for (int j = 0; j < partitions.length && iteration * 10 < maxPartitions; j++)
                     partitions[j] = iteration * partitions.length + j;
 
-                float deleteRowChance = entropySource.nextFloat(0.99f, 1.0f);
-                float deletePartitionChance = entropySource.nextFloat(0.999f, 1.0f);
-                float deleteRangeChance = entropySource.nextFloat(0.95f, 1.0f);
-                float flushChance = entropySource.nextFloat(0.999f, 1.0f);
-                AtomicInteger flushes = new AtomicInteger();
+                float deleteRowChance = rng.nextFloat(0.99f, 1.0f);
+                float deletePartitionChance = rng.nextFloat(0.999f, 1.0f);
+                float deleteColumnsChance = rng.nextFloat(0.95f, 1.0f);
+                float deleteRangeChance = rng.nextFloat(0.95f, 1.0f);
+                float flushChance = rng.nextFloat(0.999f, 1.0f);
+                int maxPartitionSize = Math.min(rng.nextInt(1, 1 << rng.nextInt(5, 11)), schema.valueGenerators.ckPopulation());
 
-                TokenPlacementModel.ReplicationFactor rf = new TokenPlacementModel.SimpleReplicationFactor(1);
+                Generator<Integer> partitionPicker = Generators.pick(partitions);
+                Generator<Integer> rowPicker = Generators.int32(0, maxPartitionSize);
+                ModelChecker<SingleOperationBuilder, Void> model = new ModelChecker<>();
+                ReplayingHistoryBuilder historyBuilder = new ReplayingHistoryBuilder(schema.valueGenerators,
+                                                                                     (hb) -> InJvmDTestVisitExecutor.builder().build(schema, hb, cluster));
 
-                DataTracker tracker = new DefaultDataTracker();
-                modelChecker.init(new ReplayingHistoryBuilder(seed, maxPartitionSize, STEPS_PER_ITERATION, new DefaultDataTracker(), sut, schema, rf, SystemUnderTest.ConsistencyLevel.ALL))
-                            .step((history, rng) -> {
-                                      int rowIdx = rng.nextInt(maxPartitionSize);
-                                      int partitionIdx = partitions[rng.nextInt(partitions.length)];
-                                      history.visitPartition(partitionIdx).insert(rowIdx);
-                                  })
-                            .step((history, rng) -> rng.nextFloat() > deleteRowChance,
-                                  (history, rng) -> {
-                                      int partitionIdx = partitions[rng.nextInt(partitions.length)];
-                                      history.visitPartition(partitionIdx).deleteRow();
-                                  })
-                            .step((history, rng) -> rng.nextFloat() > deleteRowChance,
-                                  (history, rng) -> {
-                                      int partitionIdx = partitions[rng.nextInt(partitions.length)];
-                                      history.visitPartition(partitionIdx).deleteColumns();
-                                  })
-                            .step((history, rng) -> rng.nextFloat() > deletePartitionChance,
-                                  (history, rng) -> {
-                                      int partitionIdx = partitions[rng.nextInt(partitions.length)];
-                                      history.visitPartition(partitionIdx).deletePartition();
-                                  })
-                            .step((history, rng) -> rng.nextFloat() > flushChance,
-                                  (history, rng) -> {
-                                      cluster.get(1).nodetool("flush", schema.keyspace, schema.table);
-                                      flushes.incrementAndGet();
-                                  })
-                            .step((history, rng) -> rng.nextFloat() > deleteRangeChance,
-                                  (history, rng) -> {
-                                      int partitionIdx = partitions[rng.nextInt(partitions.length)];
-                                      history.visitPartition(partitionIdx).deleteRowSlice();
-                                  })
-                            .step((history, rng) -> rng.nextFloat() > deleteRangeChance,
-                                  (history, rng) -> {
-                                      int row1 = rng.nextInt(maxPartitionSize);
-                                      int row2 = rng.nextInt(maxPartitionSize);
-                                      int partitionIdx = partitions[rng.nextInt(partitions.length)];
-                                      history.visitPartition(partitionIdx).deleteRowRange(Math.min(row1, row2),
-                                                                                          Math.max(row1, row2),
-                                                                                          entropySource.nextBoolean(),
-                                                                                          entropySource.nextBoolean());
-                                  })
-                            .afterAll((history) -> {
-                                // Sanity check
-                                history.validate(new AgainstSutChecker(tracker, history.clock(), sut, schema, doubleWriteSchema),
-                                                 partitions);
-                                history.validate(partitions);
-                            })
-                            .run(STEPS_PER_ITERATION, seed, entropySource);
+                model.init(historyBuilder)
+                     .step((history, rng_) -> {
+                         int pdIdx = partitionPicker.generate(rng);
+                         history.insert(pdIdx, rowPicker.generate(rng));
+                         history.selectPartition(pdIdx);
+                     })
+                     .step((history, rng_) -> rng.nextDouble() >= deleteRowChance,
+                           (history, rng_) -> {
+                               int pdIdx = partitionPicker.generate(rng);
+                               history.deleteRow(pdIdx, rowPicker.generate(rng));
+                               history.selectPartition(pdIdx);
+                           })
+                     .step((history, rng_) -> rng.nextDouble() >= deletePartitionChance,
+                           (history, rng_) -> {
+                               int pdIdx = partitionPicker.generate(rng);
+                               history.deletePartition(pdIdx);
+                               history.selectPartition(pdIdx);
+                           })
+                     .step((history, rng_) -> rng.nextDouble() >= deleteColumnsChance,
+                           (history, rng_) -> {
+                               int pdIdx = partitionPicker.generate(rng);
+                               HistoryBuilderHelper.deleteRandomColumns(schema, pdIdx, rowPicker.generate(rng), rng, history);
+                               history.selectPartition(pdIdx);
+                           })
+                     .step((history, rng_) -> rng.nextDouble() >= deleteRangeChance,
+                           (history, rng_) -> {
+                               int pdIdx = partitionPicker.generate(rng);
+                               history.deleteRowRange(pdIdx,
+                                                      rowPicker.generate(rng),
+                                                      rowPicker.generate(rng),
+                                                      rng.nextInt(schema.clusteringKeys.size()),
+                                                      rng.nextBoolean(),
+                                                      rng.nextBoolean()
+                               );
+                               history.selectPartition(pdIdx);
+                           })
+                     .step((history, rng_) -> {
+                         int pdIdx = partitionPicker.generate(rng);
+                         history.selectRow(pdIdx, rowPicker.generate(rng));
+                     })
+                     .step((history, rng_) -> {
+                         int pdIdx = partitionPicker.generate(rng);
+                         history.selectRowRange(pdIdx,
+                                                rowPicker.generate(rng),
+                                                rowPicker.generate(rng),
+                                                rng.nextInt(schema.clusteringKeys.size()),
+                                                rng.nextBoolean(),
+                                                rng.nextBoolean());
+                     })
+                     .step((history, rng_) -> rng.nextDouble() >= flushChance,
+                           (history, rng_) -> {
+                               history.custom(() -> cluster.get(1).nodetool("flush", schema.keyspace, schema.table), "FLUSH");
+                           })
+                     .exitCondition((history) -> {
+                         if (historyBuilder.size() < STEPS_PER_ITERATION)
+                             return false;
+                         return true;
+                     })
+                     .run(0, Long.MAX_VALUE, rng);
             }
-        }
+        });
     }
 }

@@ -79,6 +79,7 @@ FROM [keyspace_name.] table_name
         this.orderBy = orderBy;
         this.limit = limit;
         this.allowFiltering = allowFiltering;
+
         if (!source.isPresent())
         {
             if (where.isPresent())
@@ -271,6 +272,7 @@ FROM [keyspace_name.] table_name
 
     public static class Builder
     {
+        private boolean filtering = false;
         @Nullable // null means wildcard
         private List<Expression> selections = new ArrayList<>();
         private Optional<TableReference> source = Optional.empty();
@@ -289,6 +291,12 @@ FROM [keyspace_name.] table_name
         public Builder withColumnSelection(String name, AbstractType<?> type)
         {
             return withSelection(Reference.of(new Symbol(name, type)));
+        }
+
+        public Builder allowFiltering()
+        {
+            filtering = true;
+            return this;
         }
 
         public Builder withSelection(Expression e)
@@ -388,7 +396,8 @@ FROM [keyspace_name.] table_name
                               source,
                               where.isEmpty() ? Optional.empty() : Optional.of(where.build()),
                               orderBy.isEmpty() ? Optional.empty() : Optional.of(orderBy.build()),
-                              limit);
+                              limit,
+                              filtering);
         }
     }
 }

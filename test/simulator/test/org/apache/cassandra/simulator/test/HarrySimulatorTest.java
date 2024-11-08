@@ -25,13 +25,13 @@ import java.util.Collections;
 import java.util.EnumMap;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Random;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
@@ -41,18 +41,7 @@ import org.junit.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import org.apache.cassandra.harry.clock.OffsetClock;
-import org.apache.cassandra.harry.core.Configuration;
-import org.apache.cassandra.harry.core.Run;
-import org.apache.cassandra.harry.ddl.ColumnSpec;
-import org.apache.cassandra.harry.ddl.SchemaGenerators;
-import org.apache.cassandra.harry.ddl.SchemaSpec;
-import org.apache.cassandra.harry.gen.Surjections;
-import org.apache.cassandra.harry.operations.Query;
-import org.apache.cassandra.harry.sut.SystemUnderTest;
-import org.apache.cassandra.harry.sut.injvm.InJvmSut;
-import org.apache.cassandra.harry.tracker.DefaultDataTracker;
-import org.apache.cassandra.harry.visitors.GeneratingVisitor;
+import accord.utils.Invariants;
 import io.airlift.airline.Command;
 import io.airlift.airline.HelpOption;
 import io.airlift.airline.Option;
@@ -63,9 +52,23 @@ import org.apache.cassandra.distributed.api.ConsistencyLevel;
 import org.apache.cassandra.distributed.api.IInstanceConfig;
 import org.apache.cassandra.distributed.api.IInvokableInstance;
 import org.apache.cassandra.distributed.api.IIsolatedExecutor;
-import org.apache.cassandra.harry.HarryHelper;
+import org.apache.cassandra.distributed.api.SimpleQueryResult;
+import org.apache.cassandra.distributed.impl.Query;
 import org.apache.cassandra.distributed.shared.WithProperties;
-import org.apache.cassandra.harry.sut.TokenPlacementModel;
+import org.apache.cassandra.harry.SchemaSpec;
+import org.apache.cassandra.harry.op.Visit;
+import org.apache.cassandra.harry.op.Operations;
+import org.apache.cassandra.harry.gen.OperationsGenerators;
+import org.apache.cassandra.harry.execution.CompiledStatement;
+import org.apache.cassandra.harry.execution.DataTracker;
+import org.apache.cassandra.harry.execution.QueryBuildingVisitExecutor;
+import org.apache.cassandra.harry.gen.EntropySource;
+import org.apache.cassandra.harry.gen.Generator;
+import org.apache.cassandra.harry.gen.SchemaGenerators;
+import org.apache.cassandra.harry.gen.rng.JdkRandomEntropySource;
+import org.apache.cassandra.harry.model.Model;
+import org.apache.cassandra.harry.model.QuiescentChecker;
+import org.apache.cassandra.harry.model.TokenPlacementModel;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.net.Verb;
 import org.apache.cassandra.schema.ReplicationParams;
@@ -88,10 +91,10 @@ import org.apache.cassandra.simulator.SimulatorUtils;
 import org.apache.cassandra.simulator.cluster.ClusterActionListener.NoOpListener;
 import org.apache.cassandra.simulator.cluster.ClusterActions;
 import org.apache.cassandra.simulator.cluster.ClusterActions.Options;
-import org.apache.cassandra.simulator.harry.HarryValidatingQuery;
 import org.apache.cassandra.simulator.systems.Failures;
 import org.apache.cassandra.simulator.systems.InterceptedExecution;
 import org.apache.cassandra.simulator.systems.InterceptingExecutor;
+import org.apache.cassandra.simulator.systems.SimulatedActionCallable;
 import org.apache.cassandra.simulator.systems.SimulatedActionTask;
 import org.apache.cassandra.simulator.systems.SimulatedSystems;
 import org.apache.cassandra.simulator.systems.SimulatedTime;
@@ -103,10 +106,11 @@ import org.apache.cassandra.tcm.membership.NodeState;
 import org.apache.cassandra.tcm.sequences.SingleNodeSequences;
 import org.apache.cassandra.tcm.transformations.PrepareJoin;
 import org.apache.cassandra.utils.CloseableIterator;
+import org.apache.cassandra.utils.concurrent.UncheckedInterruptedException;
 
 import static java.util.concurrent.TimeUnit.SECONDS;
 import static org.apache.cassandra.distributed.api.ConsistencyLevel.ALL;
-import static org.apache.cassandra.harry.sut.TokenPlacementModel.constantLookup;
+import static org.apache.cassandra.harry.model.TokenPlacementModel.constantLookup;
 import static org.apache.cassandra.simulator.ActionSchedule.Mode.UNLIMITED;
 import static org.apache.cassandra.simulator.cluster.ClusterActions.Options.noActions;
 
@@ -205,9 +209,9 @@ public class HarrySimulatorTest
     @Test
     public void test() throws Exception
     {
-        rowsPerPhase = 1;
         // To rerun a failing test for a given seed, uncomment the below and set the seed
 //        this.seed = "<your seed here>";
+        this.seed = "0xdd3bb3793a6b925a";
         harryTest();
     }
 
@@ -248,17 +252,6 @@ public class HarrySimulatorTest
                                    // Backoff should be larger than read timeout, since otherwise we will simply saturate the stage with retries
                                    .set("progress_barrier_backoff", "1000ms")
                                    .set("cms_await_timeout", "600000ms"),
-                 HarryHelper.defaultConfiguration()
-                            .setSchemaProvider(new Configuration.SchemaProviderConfiguration()
-                            {
-                                private final Surjections.Surjection<SchemaSpec> schema = schemaSpecGen("harry", "tbl");
-                                public SchemaSpec make(long l, SystemUnderTest systemUnderTest)
-                                {
-                                    return schema.inflate(l);
-                                }
-                            })
-                            .setPartitionDescriptorSelector(new Configuration.DefaultPDSelectorConfiguration(2, 1))
-                            .setClusteringDescriptorSelector(HarryHelper.singleRowPerModification().setMaxPartitionSize(100).build()),
                  arr(),
                  (simulation) -> {
                      simulation.cluster.stream().forEach((IInvokableInstance i) -> {
@@ -285,16 +278,16 @@ public class HarrySimulatorTest
                      work.add(work("Create Keyspace",
                                    simulation.clusterActions.schemaChange(1,
                                                                           String.format("CREATE KEYSPACE %s WITH replication = {'class': 'NetworkTopologyStrategy', " + rfString + "};",
-                                                                                        simulation.harryRun.schemaSpec.keyspace))));
+                                                                                        simulation.schema.keyspace))));
                      work.add(work("Create table",
                                    simulation.clusterActions.schemaChange(1,
-                                                                          simulation.harryRun.schemaSpec.compile().cql())));
+                                                                          simulation.schema.compile())));
                      simulation.cluster.stream().forEach(i -> {
                          work.add(work("Output epoch",
                                        lazy(simulation.simulated, i, () -> logger.warn(ClusterMetadata.current().epoch.toString()))));
                      });
 
-                     work.add(interleave("Start generating", HarrySimulatorTest.generate(rowsPerPhase, simulation, cl)));
+                     work.add(interleave("Start generating", HarrySimulatorTest.generateWrites(rowsPerPhase, simulation, cl)));
                      work.add(work("Validate all data locally",
                                    lazy(() -> validateAllLocal(simulation, simulation.nodeState.ring, rf))));
 
@@ -319,7 +312,7 @@ public class HarrySimulatorTest
                              long token = simulation.simulated.random.uniform(Long.MIN_VALUE, Long.MAX_VALUE);
                              work.add(interleave("Bootstrap and generate data",
                                                  ActionList.of(bootstrap(simulation.simulated, simulation.cluster, token, node)),
-                                                 generate(rowsPerPhase, simulation, cl)
+                                                 generateWrites(rowsPerPhase, simulation, cl)
                              ));
                              simulation.cluster.stream().forEach(i -> {
                                  work.add(work("Output epoch",
@@ -337,7 +330,7 @@ public class HarrySimulatorTest
                              node = bootstrappedNodes.remove(0);
                              work.add(interleave("Decommission and generate data",
                                                  ActionList.of(decommission(simulation.simulated, simulation.cluster, node)),
-                                                 generate(rowsPerPhase, simulation, cl)
+                                                 generateWrites(rowsPerPhase, simulation, cl)
                              ));
                              simulation.cluster.stream().forEach(i -> {
                                  work.add(work("Output epoch",
@@ -372,41 +365,94 @@ public class HarrySimulatorTest
     {
         protected final ClusterActions clusterActions;
         protected final SimulatedNodeState nodeState;
-        protected final Run harryRun;
 
         protected final SimulatedSystems simulated;
         protected final RunnableActionScheduler scheduler;
         protected final Cluster cluster;
         protected final Function<HarrySimulation, ActionSchedule.Work[]> schedule;
 
-        public HarrySimulation(SimulatedSystems simulated, RunnableActionScheduler scheduler, Cluster cluster, Run run, Function<HarrySimulation, ActionSchedule.Work[]> schedule)
-        {
-            this(simulated, scheduler, cluster, run, SimulatedNodeState::new, schedule);
-        }
+        protected final EntropySource rng;
+        protected final SchemaSpec schema;
+        protected final Generator<OperationsGenerators.ToOp> insertGen;
+        protected final QueryBuildingVisitExecutor queryBuilder;
+        protected final QuiescentChecker model;
 
-        protected HarrySimulation(SimulatedSystems simulated,
-                                  RunnableActionScheduler scheduler,
-                                  Cluster cluster,
-                                  Run run,
-                                  Function<HarrySimulation, SimulatedNodeState> nodeState,
-                                  Function<HarrySimulation, ActionSchedule.Work[]> schedule)
+        protected final Map<Long, Visit> log;
+        protected final Generator<Long> ltsGen;
+        protected final DataTracker tracker;
+
+        private HarrySimulation(SchemaSpec schema,
+                                EntropySource rng,
+                                SimulatedSystems simulated,
+                                RunnableActionScheduler scheduler,
+                                Cluster cluster,
+                                Function<HarrySimulation, SimulatedNodeState> nodeState,
+                                Function<HarrySimulation, ActionSchedule.Work[]> schedule,
+                                Map<Long, Visit> log,
+                                Generator<Long> ltsGen,
+                                DataTracker tracker)
         {
+            this.rng = rng;
+            this.schema = schema;
+            this.insertGen = OperationsGenerators.writeOp(schema);
+            this.queryBuilder = new QueryBuildingVisitExecutor(schema, QueryBuildingVisitExecutor.WrapQueries.UNLOGGED_BATCH);
+            this.model = new QuiescentChecker(schema.valueGenerators, tracker, new Model.Replay()
+            {
+                @Override
+                public Visit replay(long lts)
+                {
+                    return log.get(lts);
+                }
+
+                @Override
+                public Operations.Operation replay(long lts, int opId)
+                {
+                    return log.get(lts).operations[opId];
+                }
+
+                @Override
+                public Iterator<Visit> iterator()
+                {
+                    List<Long> visited = new ArrayList<>(log.keySet());
+                    visited.sort(Long::compare);
+                    return new Iterator<>()
+                    {
+                        int idx = 0;
+
+                        @Override
+                        public boolean hasNext()
+                        {
+                            return idx < visited.size();
+                        }
+
+                        @Override
+                        public Visit next()
+                        {
+                            return replay(visited.get(idx++));
+                        }
+                    };
+                }
+            });
+
             this.simulated = simulated;
             this.scheduler = scheduler;
             this.cluster = cluster;
 
-            this.harryRun = run;
             Options options = noActions(cluster.size());
             this.clusterActions = new ClusterActions(simulated, cluster,
                                                      options, new NoOpListener(), new Debug(new EnumMap<>(Debug.Info.class), new int[0]));
 
             this.nodeState = nodeState.apply(this);
             this.schedule = schedule;
+
+            this.log = log;
+            this.ltsGen = ltsGen;
+            this.tracker = tracker;
         }
 
         public HarrySimulation withScheduler(RunnableActionScheduler scheduler)
         {
-            return new HarrySimulation(simulated, scheduler, cluster, harryRun, (ignore) -> nodeState, schedule);
+            return new HarrySimulation(schema, rng, simulated, scheduler, cluster, (ignore) -> nodeState, schedule, log, ltsGen, tracker);
         }
 
         public HarrySimulation withSchedulers(Function<HarrySimulation, Map<Verb, FutureActionScheduler>> schedulers)
@@ -423,12 +469,12 @@ public class HarrySimulatorTest
                                                               perVerbFutureActionScheduler,
                                                               this.simulated.debug,
                                                               this.simulated.failures);
-            return new HarrySimulation(simulated, scheduler, cluster, harryRun, (ignore) -> nodeState, schedule);
+            return new HarrySimulation(schema, rng, simulated, scheduler, cluster, (ignore) -> nodeState, schedule, log, ltsGen, tracker);
         }
 
         public HarrySimulation withSchedule(Function<HarrySimulation, ActionSchedule.Work[]> schedule)
         {
-            return new HarrySimulation(simulated, scheduler, cluster, harryRun, (ignore) -> nodeState, schedule);
+            return new HarrySimulation(schema, rng, simulated, scheduler, cluster, (ignore) -> nodeState, schedule, log, ltsGen, tracker);
         }
 
         @Override
@@ -470,13 +516,10 @@ public class HarrySimulatorTest
 
     static class HarrySimulationBuilder extends ClusterSimulation.Builder<HarrySimulation>
     {
-        protected final Configuration.ConfigurationBuilder harryConfig;
         protected final Consumer<IInstanceConfig> configUpdater;
 
-        HarrySimulationBuilder(Configuration.ConfigurationBuilder harryConfig,
-                               Consumer<IInstanceConfig> configUpdater)
+        HarrySimulationBuilder(Consumer<IInstanceConfig> configUpdater)
         {
-            this.harryConfig = harryConfig;
             this.configUpdater = configUpdater;
         }
 
@@ -497,29 +540,22 @@ public class HarrySimulatorTest
         {
             RandomSource random = new RandomSource.Default();
             random.reset(seed);
-            this.harryConfig.setSeed(seed);
-
 
             return new ClusterSimulation<>(random, seed, 1, this, configUpdater,
                                            (simulated, scheduler, cluster, options) -> {
-
-                                               InJvmSut sut = new InJvmSut(cluster)
-                                               {
-                                                   public void shutdown()
-                                                   {
-                                                       // Let simulation shut down the cluster, as it uses `nanoTime`
-                                                   }
-                                               };
-
-                                               Configuration configuration = harryConfig.setClock(() -> new OffsetClock(1000))
-                                                                                        .setSUT(() -> sut)
-                                                                                        .build();
-                                               return new HarrySimulation(simulated,
+                                               EntropySource rng = new JdkRandomEntropySource(seed);
+                                               SchemaSpec schema = schemaSpecGen("harry", "tbl").generate(rng);
+                                               return new HarrySimulation(schema,
+                                                                          rng,
+                                                                          simulated,
                                                                           scheduler,
                                                                           cluster,
-                                                                          configuration.createRun(),
+                                                                          SimulatedNodeState::new,
                                                                           // No work initially
-                                                                          (sim) -> new ActionSchedule.Work[0]);
+                                                                          (sim) -> new ActionSchedule.Work[0],
+                                                                          new HashMap<>(),
+                                                                          OperationsGenerators.lts(),
+                                                                          new DataTracker.SimpleDataTracker());
                                            });
         }
     }
@@ -529,13 +565,12 @@ public class HarrySimulatorTest
      */
     void simulate(Consumer<ClusterSimulation.Builder<HarrySimulation>> configure,
                   Consumer<IInstanceConfig> instanceConfigUpdater,
-                  Configuration.ConfigurationBuilder harryConfig,
                   String[] properties,
                   Function<HarrySimulation, ActionSchedule.Work[]>... phases) throws IOException
     {
         try (WithProperties p = new WithProperties().with(properties))
         {
-            HarrySimulationBuilder factory = new HarrySimulationBuilder(harryConfig, instanceConfigUpdater);
+            HarrySimulationBuilder factory = new HarrySimulationBuilder(instanceConfigUpdater);
 
             SimulationRunner.beforeAll();
             long seed = SimulationRunner.parseHex(Optional.ofNullable(this.seed)).orElseGet(() -> new Random().nextLong());
@@ -569,7 +604,6 @@ public class HarrySimulatorTest
     {
         Set<Verb> extremelyLossy = new HashSet<>(Arrays.asList(Verb.TCM_ABORT_MIG, Verb.TCM_REPLICATION,
                                                                Verb.TCM_COMMIT_REQ, Verb.TCM_NOTIFY_REQ,
-                                                               Verb.TCM_FETCH_CMS_LOG_REQ, Verb.TCM_FETCH_PEER_LOG_REQ,
                                                                Verb.TCM_INIT_MIG_REQ, Verb.TCM_INIT_MIG_RSP,
                                                                Verb.TCM_DISCOVER_REQ, Verb.TCM_DISCOVER_RSP));
 
@@ -578,6 +612,7 @@ public class HarrySimulatorTest
         Set<Verb> somewhatLossy = new HashSet<>(Arrays.asList(Verb.TCM_CURRENT_EPOCH_REQ,
                                                               Verb.TCM_NOTIFY_RSP, Verb.TCM_FETCH_CMS_LOG_RSP,
                                                               Verb.TCM_FETCH_PEER_LOG_RSP, Verb.TCM_COMMIT_RSP,
+                                                              Verb.TCM_FETCH_CMS_LOG_REQ, Verb.TCM_FETCH_PEER_LOG_REQ,
                                                               Verb.PAXOS2_COMMIT_REMOTE_REQ, Verb.PAXOS2_COMMIT_REMOTE_RSP,
                                                               Verb.PAXOS2_PREPARE_REQ, Verb.PAXOS2_PREPARE_RSP,
                                                               Verb.PAXOS2_PROPOSE_REQ, Verb.PAXOS2_PROPOSE_RSP,
@@ -713,74 +748,101 @@ public class HarrySimulatorTest
     /**
      * Creates an action list with a fixed number of data-generating operations that conform to the given Harry configuration.
      */
-    public static ActionList generate(int ops, HarrySimulation simulation, ConsistencyLevel cl)
+    public static ActionList generateWrites(int ops, HarrySimulation simulation, ConsistencyLevel cl)
     {
         Action[] actions = new Action[ops];
         OrderOn orderOn = new OrderOn.Strict(actions, 2);
-        generate(ops, simulation, new Consumer<Action>()
-                 {
-                     int i = 0;
+        for (int i = 0; i < ops; i++)
+        {
+            long lts = simulation.ltsGen.generate(simulation.rng);
 
-                     public void accept(Action action)
-                     {
-                         actions[i++] = action;
-                     }
-                 },
-                 cl);
+            Visit visit = new Visit(lts, new Operations.Operation[]{ simulation.insertGen.generate(simulation.rng).toOp(lts) });
+            Visit prev_ = simulation.log.put(lts, visit);
+            Invariants.checkState(prev_ == null);
+
+            actions[i] = new Actions.LambdaAction("", Action.Modifiers.RELIABLE_NO_TIMEOUTS, () -> {
+                CompiledStatement compiledStatement = simulation.queryBuilder.compile(visit);
+                DataTracker tracker = simulation.tracker;
+
+                RetryingQuery query = new RetryingQuery(compiledStatement.cql(), cl, compiledStatement.bindings());
+                Action wrapper = new SimulatedActionCallable<>("Query",
+                                                               Action.Modifiers.RELIABLE_NO_TIMEOUTS,
+                                                               Action.Modifiers.RELIABLE_NO_TIMEOUTS,
+                                                               simulation.simulated,
+                                                               simulation.cluster.get((int) ((lts % simulation.cluster.size()) + 1)),
+                                                               query)
+                {
+                    @Override
+                    protected InterceptedExecution.InterceptedTaskExecution task()
+                    {
+                        return new InterceptedExecution.InterceptedTaskExecution((InterceptingExecutor) on.executor())
+                        {
+                            public void run()
+                            {
+                                tracker.begin(visit);
+                                System.out.println("Started visit = " + visit);
+                                // we'll be invoked on the node's executor, but we need to ensure the task is loaded on its classloader
+                                try
+                                {
+                                    accept(on.unsafeCallOnThisThread(execute), null);
+                                }
+                                catch (Throwable t)
+                                {
+                                    accept(null, t);
+                                }
+                                finally
+                                {
+                                    execute = null;
+                                }
+                            }
+                        };
+                    }
+
+                    @Override
+                    public void accept(SimpleQueryResult result, Throwable failure)
+                    {
+                        if (failure != null)
+                            simulated.failures.accept(failure);
+                        else
+                        {
+                            System.out.println("Finished visit = " + visit);
+                            tracker.end(visit);
+                        }
+                    }
+                };
+
+                return ActionList.of(wrapper);
+            });
+        }
         return ActionList.of(actions).orderOn(orderOn);
     }
 
-    public static void generate(int ops, HarrySimulation simulation, Consumer<Action> add, org.apache.cassandra.distributed.api.ConsistencyLevel cl)
+    public static class RetryingQuery extends Query
     {
-        SimulatedVisitExectuor visitExectuor = new SimulatedVisitExectuor(simulation,
-                                                                          simulation.harryRun,
-                                                                          cl);
-        GeneratingVisitor generatingVisitor = new GeneratingVisitor(simulation.harryRun, visitExectuor);
-
-        for (int i = 0; i < ops; i++)
+        public RetryingQuery(String query, ConsistencyLevel cl, Object[] boundValues)
         {
-            generatingVisitor.visit(simulation.harryRun.clock.nextLts());
-            // A tiny chance of executing a multi-partition batch
-            if (ops % 10 == 0)
-                generatingVisitor.visit(simulation.harryRun.clock.nextLts());
-            add.accept(visitExectuor.build());
+            super(query, -1, cl, null, boundValues);
         }
 
-    }
-
-    /**
-     * Create an infinite stream to generate data.
-     */
-    public static Supplier<Action> generate(HarrySimulation simulation, org.apache.cassandra.distributed.api.ConsistencyLevel cl)
-    {
-        SimulatedVisitExectuor visitExectuor = new SimulatedVisitExectuor(simulation,
-                                                                          simulation.harryRun,
-                                                                          cl);
-        GeneratingVisitor generatingVisitor = new GeneratingVisitor(simulation.harryRun, visitExectuor);
-
-        DefaultDataTracker tracker = (DefaultDataTracker) simulation.harryRun.tracker;
-        return new Supplier<Action>()
+        @Override
+        public SimpleQueryResult call()
         {
-            public Action get()
+            while (true)
             {
-                // Limit how many queries can be in-flight simultaneously to reduce noise
-                if (tracker.maxStarted() - tracker.maxConsecutiveFinished() == 0)
+                try
                 {
-                    generatingVisitor.visit();
-                    return visitExectuor.build();
+                    return super.call();
                 }
-                else
+                catch (UncheckedInterruptedException e)
                 {
-                    // No-op
-                    return run(() -> {});
+                    throw new RuntimeException(e);
+                }
+                catch (Throwable t)
+                {
+                    logger.error("Caught error while executing query. Will ignore and retry: " + t.getMessage());
                 }
             }
-
-            public String toString()
-            {
-                return "Query Generator";
-            }
-        };
+        }
     }
 
     /**
@@ -791,22 +853,35 @@ public class HarrySimulatorTest
     {
         return new Actions.LambdaAction("Validate", Action.Modifiers.RELIABLE_NO_TIMEOUTS,
                                         () -> {
-                                            if (!simulation.harryRun.tracker.isFinished(simulation.harryRun.tracker.maxStarted()))
-                                                throw new IllegalStateException("Can not begin validation, as writing has not quiesced yet: " + simulation.harryRun.tracker);
+                                            if (!simulation.tracker.allFinished())
+                                                throw new IllegalStateException("Can not begin validation, as writing has not quiesced yet: " + simulation.tracker);
+
+                                            logger.warn("Starting validation. Ring view: {}", simulation.nodeState);
+                                            Set<Long> pds = visitedPds(simulation);
                                             List<Action> actions = new ArrayList<>();
-                                            long maxLts = simulation.harryRun.tracker.maxStarted();
-                                            long maxPosition = simulation.harryRun.pdSelector.maxPosition(maxLts);
-                                            logger.warn("Starting validation of {} written partitions. Highest LTS is {}. Ring view: {}", maxPosition, maxLts, simulation.nodeState);
-                                            for (int position = 0; position < maxPosition; position++)
+                                            for (Long pd : pds)
                                             {
-                                                long minLts = simulation.harryRun.pdSelector.minLtsAt(position);
-                                                long pd = simulation.harryRun.pdSelector.pd(minLts, simulation.harryRun.schemaSpec);
-                                                Query query = Query.selectAllColumns(simulation.harryRun.schemaSpec, pd, false);
-                                                actions.add(new HarryValidatingQuery(simulation.simulated, simulation.cluster, rf,
-                                                                                     simulation.harryRun, owernship, query));
+                                                Operations.SelectPartition select = new Operations.SelectPartition(Long.MAX_VALUE, pd);
+                                                actions.add(new HarryValidatingQuery(simulation, simulation.cluster, rf,
+                                                                                     owernship, new Visit(Long.MAX_VALUE, new Operations.Operation[]{ select }),
+                                                                                     simulation.queryBuilder));
                                             }
                                             return ActionList.of(actions).setStrictlySequential();
                                         });
+    }
+
+    private static Set<Long> visitedPds(HarrySimulation simulation)
+    {
+        Set<Long> pds = new HashSet<>();
+        for (Visit visit : simulation.log.values())
+        {
+            for (Operations.Operation operation : visit.operations)
+            {
+                if (operation instanceof Operations.PartitionOperation)
+                    pds.add(((Operations.PartitionOperation) operation).pd);
+            }
+        }
+        return pds;
     }
 
     private static ActionSchedule.Work work(String toString, Action... actions)
@@ -963,29 +1038,9 @@ public class HarrySimulatorTest
         return arr;
     }
 
-    // Use only types that can guarantee we will et 64 bits of entropy here, at least for now.
-    public static Surjections.Surjection<SchemaSpec> schemaSpecGen(String keyspace, String prefix)
+    public static Generator<SchemaSpec> schemaSpecGen(String keyspace, String prefix)
     {
-        AtomicInteger counter = new AtomicInteger();
-        return new SchemaGenerators.Builder(keyspace, () -> prefix + counter.getAndIncrement())
-               .partitionKeySpec(1, 2,
-                                 ColumnSpec.int64Type,
-                                 ColumnSpec.asciiType,
-                                 ColumnSpec.textType)
-               .clusteringKeySpec(1, 1,
-                                  ColumnSpec.int64Type,
-                                  ColumnSpec.asciiType,
-                                  ColumnSpec.textType,
-                                  ColumnSpec.ReversedType.getInstance(ColumnSpec.int64Type),
-                                  ColumnSpec.ReversedType.getInstance(ColumnSpec.asciiType),
-                                  ColumnSpec.ReversedType.getInstance(ColumnSpec.textType))
-               .regularColumnSpec(5, 5,
-                                  ColumnSpec.int64Type,
-                                  ColumnSpec.asciiType(4, 128))
-               .staticColumnSpec(5, 5,
-                                 ColumnSpec.int64Type,
-                                 ColumnSpec.asciiType(4, 128))
-               .surjection();
+        return SchemaGenerators.schemaSpecGen(keyspace, prefix, 1000);
     }
 
     public static class HaltOnError extends Failures

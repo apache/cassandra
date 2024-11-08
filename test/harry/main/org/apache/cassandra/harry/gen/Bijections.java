@@ -18,6 +18,7 @@
 
 package org.apache.cassandra.harry.gen;
 
+import java.util.Comparator;
 import java.util.Date;
 import java.util.UUID;
 
@@ -52,7 +53,10 @@ public class Bijections
 
         // TODO: byteSize is great, but you know what's better? Bit size! For example, for `boolean`, we only need a single bit.
         int byteSize();
-
+        default int population()
+        {
+            return byteSize() * Byte.SIZE;
+        }
         /**
          * Compare as if we were comparing the values in question
          */
@@ -77,9 +81,28 @@ public class Bijections
         {
             return false;
         }
+
+        default Comparator<Long> descriptorsComparator()
+        {
+            return Long::compare;
+        }
     }
 
-    protected static long minForSize(int size)
+    /**
+     * Indexed bijection allows to decouple descriptor order from value order, which makes data generation simpler.
+     *
+     * For regular Harry bijections, this is done at no cost, since values are inflated in a way that preserves
+     * descriptor order, which means that idx order is consistent with descriptor order and consistent with value order.
+     *
+     * An indexed bijection allows order to be established via index, and use descriptor simply as a seed for random values.
+     */
+    public interface IndexedBijection<T> extends Bijection<T>
+    {
+        int idxFor(long descriptor);
+        long descriptorAt(int idx);
+    }
+
+    public static long minForSize(int size)
     {
         long min = 1L << (size * Byte.SIZE - 1);
 
@@ -89,7 +112,7 @@ public class Bijections
         return min;
     }
 
-    protected static long maxForSize(int size)
+    public static long maxForSize(int size)
     {
         long max = Bytes.bytePatternFor(size) >>> 1;
 

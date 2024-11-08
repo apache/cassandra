@@ -28,8 +28,10 @@ import java.util.Random;
 import java.util.Set;
 import java.util.TreeMap;
 
-import org.apache.cassandra.harry.sut.TokenPlacementModel;
-import org.apache.cassandra.harry.sut.TokenPlacementModel.DCReplicas;
+import static org.apache.cassandra.harry.model.TokenPlacementModel.DCReplicas;
+import static org.apache.cassandra.harry.model.TokenPlacementModel.Node;
+import static org.apache.cassandra.harry.model.TokenPlacementModel.NodeFactory;
+import static org.apache.cassandra.harry.model.TokenPlacementModel.ReplicationFactor;
 
 public class ModelState
 {
@@ -40,17 +42,17 @@ public class ModelState
     public final int[] cancelled;
     public final int[] finished;
     public final int bootstrappingCount;
-    public final List<TokenPlacementModel.Node> currentNodes;
-    public final Map<String, List<TokenPlacementModel.Node>> nodesByDc;
-    public final List<TokenPlacementModel.Node> registeredNodes;
-    public final List<TokenPlacementModel.Node> leavingNodes;
-    public final List<TokenPlacementModel.Node> movingNodes;
+    public final List<Node> currentNodes;
+    public final Map<String, List<Node>> nodesByDc;
+    public final List<Node> registeredNodes;
+    public final List<Node> leavingNodes;
+    public final List<Node> movingNodes;
     public final List<SimulatedOperation> inFlightOperations;
     public final PlacementSimulator.SimulatedPlacements simulatedPlacements;
-    public final TokenPlacementModel.NodeFactory nodeFactory;
+    public final NodeFactory nodeFactory;
 
 
-    public static ModelState empty(TokenPlacementModel.NodeFactory nodeFactory, int maxClusterSize, int maxConcurrency)
+    public static ModelState empty(NodeFactory nodeFactory, int maxClusterSize, int maxConcurrency)
     {
         return new ModelState(maxClusterSize, maxConcurrency,
                               0, 0,
@@ -61,11 +63,11 @@ public class ModelState
                               nodeFactory);
     }
 
-    public static Map<String, List<TokenPlacementModel.Node>> groupByDc(List<TokenPlacementModel.Node> nodes)
+    public static Map<String, List<Node>> groupByDc(List<Node> nodes)
     {
         // using treemap here since it is much easier to read/debug when it comes to that
-        Map<String, List<TokenPlacementModel.Node>> grouped = new TreeMap<>();
-        for (TokenPlacementModel.Node node : nodes)
+        Map<String, List<Node>> grouped = new TreeMap<>();
+        for (Node node : nodes)
         {
             grouped.computeIfAbsent(node.dc(), (k) -> new ArrayList<>())
                    .add(node);
@@ -79,13 +81,13 @@ public class ModelState
                        int rejected,
                        int[] cancelled,
                        int[] finished,
-                       List<TokenPlacementModel.Node> currentNodes,
-                       List<TokenPlacementModel.Node> registeredNodes,
-                       List<TokenPlacementModel.Node> leavingNodes,
-                       List<TokenPlacementModel.Node> movingNodes,
+                       List<Node> currentNodes,
+                       List<Node> registeredNodes,
+                       List<Node> leavingNodes,
+                       List<Node> movingNodes,
                        List<SimulatedOperation> operationStates,
                        PlacementSimulator.SimulatedPlacements simulatedPlacements,
-                       TokenPlacementModel.NodeFactory nodeFactory)
+                       NodeFactory nodeFactory)
     {
         this.maxClusterSize = maxClusterSize;
         this.maxConcurrency = maxConcurrency;
@@ -121,30 +123,30 @@ public class ModelState
         return withinConcurrencyLimit() && bootstrappingCount + currentNodes.size() < maxClusterSize;
     }
 
-    public boolean shouldLeave(TokenPlacementModel.ReplicationFactor rf, Random rng)
+    public boolean shouldLeave(ReplicationFactor rf, Random rng)
     {
         return canRemove(rf) && rng.nextDouble() > 0.7;
     }
 
-    public boolean shouldMove(TokenPlacementModel.ReplicationFactor rf, Random rng)
+    public boolean shouldMove(ReplicationFactor rf, Random rng)
     {
         return canRemove(rf) && rng.nextDouble() > 0.7;
     }
 
-    public boolean shouldReplace(TokenPlacementModel.ReplicationFactor rf, Random rng)
+    public boolean shouldReplace(ReplicationFactor rf, Random rng)
     {
         return canRemove(rf) && rng.nextDouble() > 0.8;
     }
 
-    private boolean canRemove(TokenPlacementModel.ReplicationFactor rfs)
+    private boolean canRemove(ReplicationFactor rfs)
     {
         if (!withinConcurrencyLimit()) return false;
         for (Map.Entry<String, DCReplicas> e : rfs.asMap().entrySet())
         {
             String dc = e.getKey();
             int rf = e.getValue().totalCount;
-            List<TokenPlacementModel.Node> nodes = nodesByDc.get(dc);
-            Set<TokenPlacementModel.Node> nodesInDc = nodes == null ? new HashSet<>() : new HashSet<>(nodes);
+            List<Node> nodes = nodesByDc.get(dc);
+            Set<Node> nodesInDc = nodes == null ? new HashSet<>() : new HashSet<>(nodes);
             for (SimulatedOperation op : inFlightOperations)
                 nodesInDc.removeAll(Arrays.asList(op.nodes));
             if (nodesInDc.size() > rf)
@@ -182,13 +184,13 @@ public class ModelState
         // join/replace/leave/move
         private int[] cancelled;
         private int[] finished;
-        private List<TokenPlacementModel.Node> currentNodes;
-        private List<TokenPlacementModel.Node> registeredNodes;
-        private List<TokenPlacementModel.Node> leavingNodes;
-        private List<TokenPlacementModel.Node> movingNodes;
+        private List<Node> currentNodes;
+        private List<Node> registeredNodes;
+        private List<Node> leavingNodes;
+        private List<Node> movingNodes;
         private List<SimulatedOperation> operationStates;
         private PlacementSimulator.SimulatedPlacements simulatedPlacements;
-        private TokenPlacementModel.NodeFactory nodeFactory;
+        private NodeFactory nodeFactory;
 
         private Transformer(ModelState source)
         {
@@ -257,26 +259,26 @@ public class ModelState
             return this;
         }
 
-        public Transformer withJoined(TokenPlacementModel.Node node)
+        public Transformer withJoined(Node node)
         {
             addToCluster(node);
             finished[0]++;
             return this;
         }
 
-        public Transformer recycleRejected(TokenPlacementModel.Node node)
+        public Transformer recycleRejected(Node node)
         {
             registeredNodes = new ArrayList<>(registeredNodes);
             registeredNodes.add(node);
             return this;
         }
 
-        public Transformer withMoved(TokenPlacementModel.Node movingNode, TokenPlacementModel.Node movedTo)
+        public Transformer withMoved(Node movingNode, Node movedTo)
         {
             assert currentNodes.contains(movingNode) : movingNode;
-            List<TokenPlacementModel.Node> tmp = currentNodes;
+            List<Node> tmp = currentNodes;
             currentNodes = new ArrayList<>();
-            for (TokenPlacementModel.Node n : tmp)
+            for (Node n : tmp)
             {
                 if (n.idx() == movingNode.idx())
                     currentNodes.add(movedTo);
@@ -291,14 +293,14 @@ public class ModelState
             return this;
         }
 
-        private void addToCluster(TokenPlacementModel.Node node)
+        private void addToCluster(Node node)
         {
             // called during both join and replacement
             currentNodes = new ArrayList<>(currentNodes);
             currentNodes.add(node);
         }
 
-        public Transformer markMoving(TokenPlacementModel.Node moving)
+        public Transformer markMoving(Node moving)
         {
             assert currentNodes.contains(moving);
             movingNodes = new ArrayList<>(movingNodes);
@@ -306,7 +308,7 @@ public class ModelState
             return this;
         }
 
-        public Transformer markLeaving(TokenPlacementModel.Node leaving)
+        public Transformer markLeaving(Node leaving)
         {
             assert currentNodes.contains(leaving);
             leavingNodes = new ArrayList<>(leavingNodes);
@@ -314,7 +316,7 @@ public class ModelState
             return this;
         }
 
-        public Transformer withLeft(TokenPlacementModel.Node node)
+        public Transformer withLeft(Node node)
         {
             assert currentNodes.contains(node);
             // for now... assassinate may change this assertion
@@ -324,7 +326,7 @@ public class ModelState
             return this;
         }
 
-        private void removeFromCluster(TokenPlacementModel.Node node)
+        private void removeFromCluster(Node node)
         {
             // called during both decommission and replacement
             currentNodes = new ArrayList<>(currentNodes);
@@ -333,7 +335,7 @@ public class ModelState
             leavingNodes.remove(node);
         }
 
-        public Transformer withReplaced(TokenPlacementModel.Node oldNode, TokenPlacementModel.Node newNode)
+        public Transformer withReplaced(Node oldNode, Node newNode)
         {
             addToCluster(newNode);
             removeFromCluster(oldNode);

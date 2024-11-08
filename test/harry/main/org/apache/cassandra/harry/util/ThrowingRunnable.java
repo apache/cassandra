@@ -21,10 +21,10 @@ package org.apache.cassandra.harry.util;
 public interface ThrowingRunnable {
     void run() throws Throwable;
 
-    static Runnable toRunnable(ThrowingRunnable runnable) {
+    default Runnable toRunnable() {
         return () -> {
             try {
-                runnable.run();
+                this.run();
             } catch (Throwable var2) {
                 throw new RuntimeException(var2);
             }

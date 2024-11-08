@@ -49,8 +49,7 @@ import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.harry.checker.ModelChecker;
 import org.apache.cassandra.harry.gen.EntropySource;
-import org.apache.cassandra.harry.sut.TokenPlacementModel;
-import org.apache.cassandra.harry.sut.TokenPlacementModel.DCReplicas;
+import org.apache.cassandra.harry.model.TokenPlacementModel;
 import org.apache.cassandra.locator.CMSPlacementStrategy;
 import org.apache.cassandra.locator.EndpointsForRange;
 import org.apache.cassandra.locator.InetAddressAndPort;
@@ -73,12 +72,13 @@ import org.apache.cassandra.tcm.transformations.Register;
 import org.apache.cassandra.tcm.transformations.TriggerSnapshot;
 
 import static org.apache.cassandra.distributed.test.log.PlacementSimulator.SimulatedPlacements;
-import static org.apache.cassandra.harry.sut.TokenPlacementModel.Node;
-import static org.apache.cassandra.harry.sut.TokenPlacementModel.NtsReplicationFactor;
-import static org.apache.cassandra.harry.sut.TokenPlacementModel.ReplicationFactor;
-import static org.apache.cassandra.harry.sut.TokenPlacementModel.SimpleReplicationFactor;
-import static org.apache.cassandra.harry.sut.TokenPlacementModel.nodeFactory;
-import static org.apache.cassandra.harry.sut.TokenPlacementModel.nodeFactoryHumanReadable;
+import static org.apache.cassandra.harry.model.TokenPlacementModel.DCReplicas;
+import static org.apache.cassandra.harry.model.TokenPlacementModel.Node;
+import static org.apache.cassandra.harry.model.TokenPlacementModel.NtsReplicationFactor;
+import static org.apache.cassandra.harry.model.TokenPlacementModel.ReplicationFactor;
+import static org.apache.cassandra.harry.model.TokenPlacementModel.SimpleReplicationFactor;
+import static org.apache.cassandra.harry.model.TokenPlacementModel.nodeFactory;
+import static org.apache.cassandra.harry.model.TokenPlacementModel.nodeFactoryHumanReadable;
 
 public class MetadataChangeSimulationTest extends CMSTestBase
 {

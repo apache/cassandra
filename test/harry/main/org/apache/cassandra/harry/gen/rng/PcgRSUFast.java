@@ -109,6 +109,12 @@ public class PcgRSUFast implements EntropySource
     }
 
     @Override
+    public double nextDouble()
+    {
+        return RngUtils.asDouble(next());
+    }
+
+    @Override
     public boolean nextBoolean()
     {
         return RngUtils.asBoolean(next());

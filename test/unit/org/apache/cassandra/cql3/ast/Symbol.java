@@ -62,14 +62,18 @@ public class Symbol implements ReferenceExpression, Comparable<Symbol>
 
     public static void maybeQuote(StringBuilder sb, String symbol)
     {
+        sb.append(maybeQuote(symbol));
+    }
+
+    public static String maybeQuote(String symbol)
+    {
         if (ReservedKeywords.isReserved(symbol))
         {
-            // does not matter the casing, if its reserved it MUST be quoted
-            sb.append(quote(symbol));
+            return quote(symbol);
         }
         else
         {
-            sb.append(ColumnIdentifier.maybeQuote(symbol));
+            return ColumnIdentifier.maybeQuote(symbol);
         }
     }
 

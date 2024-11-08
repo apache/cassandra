@@ -53,8 +53,7 @@ import org.apache.cassandra.distributed.Constants;
 import org.apache.cassandra.distributed.api.ICoordinator;
 import org.apache.cassandra.distributed.api.Row;
 import org.apache.cassandra.distributed.api.SimpleQueryResult;
-import org.apache.cassandra.harry.sut.TokenPlacementModel.Range;
-import org.apache.cassandra.harry.sut.TokenPlacementModel.Replica;
+
 import org.junit.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -78,8 +77,7 @@ import org.apache.cassandra.distributed.impl.INodeProvisionStrategy;
 import org.apache.cassandra.distributed.impl.InstanceConfig;
 import org.apache.cassandra.distributed.shared.ClusterUtils;
 import org.apache.cassandra.distributed.test.TestBaseImpl;
-import org.apache.cassandra.harry.sut.TokenPlacementModel;
-import org.apache.cassandra.harry.sut.injvm.InJVMTokenAwareVisitExecutor;
+import org.apache.cassandra.harry.model.TokenPlacementModelHelper;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.schema.ReplicationParams;
 import org.apache.cassandra.tcm.ClusterMetadata;
@@ -94,13 +92,14 @@ import static accord.utils.Property.commands;
 import static accord.utils.Property.ignoreCommand;
 import static accord.utils.Property.multistep;
 import static accord.utils.Property.stateful;
+import static org.apache.cassandra.harry.model.TokenPlacementModel.*;
 
 /**
  * These tests can create many instances, so mac users may need to run the following to avoid address bind failures
  * <p>
  * {@code for id in $(seq 0 15); do sudo ifconfig lo0 alias "127.0.0.$id"; done;}
  */
-public abstract class TopologyMixupTestBase<S extends TopologyMixupTestBase.SchemaSpec> extends TestBaseImpl
+public abstract class TopologyMixupTestBase<S extends TopologyMixupTestBase.Schema> extends TestBaseImpl
 {
     private static final Logger logger = LoggerFactory.getLogger(TopologyMixupTestBase.class);
 
@@ -137,11 +136,11 @@ public abstract class TopologyMixupTestBase<S extends TopologyMixupTestBase.Sche
     // common commands
     private Command<State<S>, Void, ?> repairCommand(int toCoordinate)
     {
-        return new SimpleCommand<>(state -> "nodetool repair " + state.schemaSpec.keyspaceName() + ' ' + state.schemaSpec.name() + " from node" + toCoordinate + state.commandNamePostfix(),
-                                   state -> state.cluster.get(toCoordinate).nodetoolResult("repair", state.schemaSpec.keyspaceName(), state.schemaSpec.name(), "--force").asserts().success());
+        return new SimpleCommand<>(state -> "nodetool repair " + state.schema.keyspace() + ' ' + state.schema.table() + " from node" + toCoordinate + state.commandNamePostfix(),
+                                   state -> state.cluster.get(toCoordinate).nodetoolResult("repair", state.schema.keyspace(), state.schema.table(), "--force").asserts().success());
     }
 
-    private static <S extends TopologyMixupTestBase.SchemaSpec> Command<State<S>, Void, ?> repairCommand(int toCoordinate, String ks, String... tables) {
+    private static <S extends Schema> Command<State<S>, Void, ?> repairCommand(int toCoordinate, String ks, String... tables) {
         return new SimpleCommand<>(state -> "nodetool repair " + ks + (tables.length == 0 ? "" : " " + Arrays.asList(tables)) + " from node" + toCoordinate + state.commandNamePostfix(),
                 state -> {
                     if (tables.length == 0) {
@@ -466,14 +465,13 @@ public abstract class TopologyMixupTestBase<S extends TopologyMixupTestBase.Sche
         return set;
     }
 
-    public interface SchemaSpec
+    public interface Schema
     {
-        String name();
-
-        String keyspaceName();
+        String table();
+        String keyspace();
     }
 
-    protected interface CommandGen<S extends TopologyMixupTestBase.SchemaSpec>
+    protected interface CommandGen<S extends Schema>
     {
         Command<State<S>, Void, ?> apply(RandomSource rs, State<S> state);
     }
@@ -507,11 +505,11 @@ public abstract class TopologyMixupTestBase<S extends TopologyMixupTestBase.Sche
         }
     }
 
-    protected static class State<S extends SchemaSpec> implements AutoCloseable
+    protected static class State<S extends Schema> implements AutoCloseable
     {
         final TopologyHistory topologyHistory;
         final Cluster cluster;
-        final S schemaSpec;
+        final S schema;
         final List<BiFunction<State<S>, Gen<Command<State<S>, Void, ?>>, Gen<Command<State<S>, Void, ?>>>> commandsTransformers = new ArrayList<>();
         final List<Runnable> preActions = new CopyOnWriteArrayList<>();
         final AtomicLong currentEpoch = new AtomicLong();
@@ -519,13 +517,13 @@ public abstract class TopologyMixupTestBase<S extends TopologyMixupTestBase.Sche
         final Gen<RemoveType> removeTypeGen;
         private final Map<String, Object> yamlConfigOverrides;
         int[] cmsGroup = new int[0];
-        private TokenPlacementModel.ReplicationFactor rf;
+        private ReplicationFactor rf;
         private final RingModel ring = new RingModel();
 
         public State(RandomSource rs, BiFunction<RandomSource, Cluster, S> schemaSpecGen, Function<S, CommandGen<S>> cqlOperationsGen)
         {
             this.topologyHistory = new TopologyHistory(rs.fork(), 2, 4);
-            rf = new TokenPlacementModel.SimpleReplicationFactor(2);
+            rf = new SimpleReplicationFactor(2);
             try
             {
 
@@ -626,7 +624,7 @@ public abstract class TopologyMixupTestBase<S extends TopologyMixupTestBase.Sche
                             fixDistributedSchemas(cluster));
                     SimpleCommand<State<S>> fixTestKeyspace = new SimpleCommand<>("Set " + KEYSPACE + " keyspace to RF=" + TARGET_RF, s -> {
                         cluster.schemaChange("ALTER KEYSPACE " + KEYSPACE + " WITH replication = {'class': 'SimpleStrategy', 'replication_factor': " + TARGET_RF + "}");
-                        rf = new TokenPlacementModel.SimpleReplicationFactor(TARGET_RF);
+                        rf = new SimpleReplicationFactor(TARGET_RF);
                     });
                     var self = this;
                     return rs -> {
@@ -674,8 +672,8 @@ public abstract class TopologyMixupTestBase<S extends TopologyMixupTestBase.Sche
                 // ring must know about the up nodes
             });
             preActions.add(() -> cluster.checkAndResetUncaughtExceptions());
-            this.schemaSpec = schemaSpecGen.apply(rs, cluster);
-            statementGen = cqlOperationsGen.apply(schemaSpec);
+            this.schema = schemaSpecGen.apply(rs, cluster);
+            statementGen = cqlOperationsGen.apply(schema);
 
             removeTypeGen = REMOVE_TYPE_DISTRIBUTION.next(rs);
 
@@ -988,12 +986,12 @@ public abstract class TopologyMixupTestBase<S extends TopologyMixupTestBase.Sche
 
     private static class RingModel
     {
-        TokenPlacementModel.ReplicatedRanges ring = null;
+        ReplicatedRanges ring = null;
         Int2ObjectHashMap<Replica> idToReplica = null;
 
-        private void rebuild(ICoordinator coordinator, TokenPlacementModel.ReplicationFactor rf, int[] up)
+        private void rebuild(ICoordinator coordinator, ReplicationFactor rf, int[] up)
         {
-            ring = InJVMTokenAwareVisitExecutor.getRing(coordinator, rf);
+            ring = TokenPlacementModelHelper.getRing(coordinator, rf);
 
             Int2ObjectHashMap<Replica> idToReplica = new Int2ObjectHashMap<>();
             for (Map.Entry<Range, List<Replica>> e : ring.asMap().entrySet())

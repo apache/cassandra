@@ -72,6 +72,12 @@ public class RandomSourceEntropySource implements EntropySource
     }
 
     @Override
+    public double nextDouble()
+    {
+        return delegate.nextDouble();
+    }
+
+    @Override
     public boolean nextBoolean()
     {
         return delegate.nextBoolean();

@@ -18,16 +18,8 @@
 
 package org.apache.cassandra.fuzz.sai;
 
-import org.junit.BeforeClass;
-
 public class MultiNodeSAITest extends MultiNodeSAITestBase
 {
-    @BeforeClass
-    public static void before() throws Throwable
-    {
-        MultiNodeSAITestBase.before(false);
-    }
-
     public MultiNodeSAITest()
     {
         super(false);
