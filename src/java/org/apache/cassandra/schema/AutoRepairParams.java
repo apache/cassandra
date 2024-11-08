@@ -17,6 +17,8 @@
  */
 package org.apache.cassandra.schema;
 
+import java.util.Arrays;
+import java.util.EnumMap;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
@@ -35,7 +37,8 @@ public final class AutoRepairParams
 {
     public enum Option
     {
-        ENABLED;
+        ENABLED,
+        PRIORITY;
 
         @Override
         public String toString()
@@ -44,10 +47,15 @@ public final class AutoRepairParams
         }
     }
 
+    public static final Map<String, String> DEFAULT_SUB_OPTIONS = ImmutableMap.of(
+        Option.ENABLED.toString(), Boolean.toString(true),
+        Option.PRIORITY.toString(), "0"
+    );
+
     public static final Map<AutoRepairConfig.RepairType, Map<String, String>> DEFAULT_OPTIONS =
-    ImmutableMap.of(AutoRepairConfig.RepairType.FULL, ImmutableMap.of(Option.ENABLED.toString(), Boolean.toString(true)),
-                    AutoRepairConfig.RepairType.INCREMENTAL, ImmutableMap.of(Option.ENABLED.toString(), Boolean.toString(true)),
-                    AutoRepairConfig.RepairType.PREVIEW_REPAIRED, ImmutableMap.of(Option.ENABLED.toString(), Boolean.toString(true)));
+    ImmutableMap.of(AutoRepairConfig.RepairType.FULL, DEFAULT_SUB_OPTIONS,
+                    AutoRepairConfig.RepairType.INCREMENTAL, DEFAULT_SUB_OPTIONS,
+                    AutoRepairConfig.RepairType.PREVIEW_REPAIRED, DEFAULT_SUB_OPTIONS);
 
     public final AutoRepairConfig.RepairType type;
 
@@ -60,7 +68,7 @@ public final class AutoRepairParams
 
     public static AutoRepairParams create(AutoRepairConfig.RepairType repairType, Map<String, String> options)
     {
-        Map<AutoRepairConfig.RepairType, Map<String, String>> optionsMap = new HashMap<>();
+        Map<AutoRepairConfig.RepairType, Map<String, String>> optionsMap = new EnumMap<>(AutoRepairConfig.RepairType.class);
         for (Map.Entry<AutoRepairConfig.RepairType, Map<String, String>> entry : DEFAULT_OPTIONS.entrySet())
         {
             optionsMap.put(entry.getKey(), new HashMap<>(entry.getValue()));
@@ -69,7 +77,7 @@ public final class AutoRepairParams
         {
             for (Map.Entry<String, String> entry : options.entrySet())
             {
-                if (!Option.ENABLED.toString().equals(toLowerCaseLocalized(entry.getKey())))
+                if (Arrays.stream(Option.values()).noneMatch(option -> option.toString().equalsIgnoreCase(entry.getKey())))
                 {
                     throw new ConfigurationException(format("Unknown property '%s'", entry.getKey()));
                 }
@@ -87,6 +95,14 @@ public final class AutoRepairParams
         return enabled == null
                ? Boolean.parseBoolean(DEFAULT_OPTIONS.get(type).get(Option.ENABLED.toString()))
                : Boolean.parseBoolean(enabled);
+    }
+
+    public int priority()
+    {
+        String priority = options.get(type).get(Option.PRIORITY.toString());
+        return priority == null
+               ? Integer.parseInt(DEFAULT_OPTIONS.get(type).get(Option.PRIORITY.toString()))
+               : Integer.parseInt(priority);
     }
 
     public void validate()

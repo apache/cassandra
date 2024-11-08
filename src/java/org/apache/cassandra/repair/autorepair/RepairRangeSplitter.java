@@ -4,6 +4,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -141,6 +142,16 @@ public class RepairRangeSplitter implements IAutoRepairTokenRangeSplitter
         // this is used for batching minimal single assignment tables together
         List<RepairAssignment> currentAssignments = new ArrayList<>();
 
+        // sort the tables by size so can batch the smallest ones together
+        tableNames.sort((t1, t2) -> {
+            ColumnFamilyStore cfs1 = ColumnFamilyStore.getIfExists(keyspaceName, t1);
+            ColumnFamilyStore cfs2 = ColumnFamilyStore.getIfExists(keyspaceName, t2);
+            if (cfs1 == null || cfs2 == null)
+            {
+                throw new IllegalArgumentException(String.format("Could not resolve ColumnFamilyStore from %s.%s", keyspaceName, t1));
+            }
+            return Long.compare(cfs1.metric.totalDiskSpaceUsed.getCount(), cfs2.metric.totalDiskSpaceUsed.getCount());
+        });
         for (String tableName : tableNames)
         {
             List<RepairAssignment> tableAssignments = getRepairAssignmentsForTable(repairType, keyspaceName, tableName, tokenRanges);
@@ -166,6 +177,8 @@ public class RepairRangeSplitter implements IAutoRepairTokenRangeSplitter
         }
         if (!currentAssignments.isEmpty())
             repairAssignments.add(merge(currentAssignments));
+
+        reorderByPriority(repairAssignments, repairType);
         return repairAssignments;
     }
 

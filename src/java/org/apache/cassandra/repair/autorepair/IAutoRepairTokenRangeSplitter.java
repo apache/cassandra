@@ -18,11 +18,17 @@
 package org.apache.cassandra.repair.autorepair;
 
 
+import java.util.Comparator;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 
+import com.google.common.annotations.VisibleForTesting;
+
+import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
+import org.apache.cassandra.schema.AutoRepairParams;
 
 public interface IAutoRepairTokenRangeSplitter
 {
@@ -37,6 +43,21 @@ public interface IAutoRepairTokenRangeSplitter
      * @return repair assignments broken up by range, keyspace and tables.
      */
     List<RepairAssignment> getRepairAssignments(AutoRepairConfig.RepairType repairType, boolean primaryRangeOnly, String keyspaceName, List<String> tableNames);
+
+    /**
+     * Reorders the list of {@link RepairAssignment} objects based on their priority for a given repair type.
+     * The list is sorted in descending order, so higher priority assignments appear first.
+     * If two assignments have the same priority for the specified repair type, their original order is preserved.
+     *
+     * @param repairAssignments A list of {@link RepairAssignment} objects to be reordered.
+     * @param repairType The {@link AutoRepairConfig.RepairType} used to determine the priority of each assignment.
+     *                   The priority is determined using the {@link RepairAssignment#getPriority(AutoRepairConfig.RepairType)} method.
+     */
+    @VisibleForTesting
+    default void reorderByPriority(List<RepairAssignment> repairAssignments, AutoRepairConfig.RepairType repairType)
+    {
+        repairAssignments.sort(Comparator.comparingInt(a -> ((RepairAssignment) a).getPriority(repairType)).reversed());
+    }
 
     /**
      * Defines a repair assignment to be issued by the autorepair framework.
@@ -69,6 +90,18 @@ public interface IAutoRepairTokenRangeSplitter
         public List<String> getTableNames()
         {
             return tableNames;
+        }
+
+        public int getPriority(AutoRepairConfig.RepairType type)
+        {
+            int max = 0;
+            for (String table : tableNames)
+            {
+                ColumnFamilyStore cfs = ColumnFamilyStore.getIfExists(keyspaceName, table);
+                if (cfs != null)
+                    max = Math.max(max, cfs.metadata().params.automatedRepair.get(type).priority());
+            }
+            return max;
         }
 
         @Override
