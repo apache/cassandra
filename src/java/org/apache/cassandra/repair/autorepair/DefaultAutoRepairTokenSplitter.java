@@ -74,6 +74,7 @@ public class DefaultAutoRepairTokenSplitter implements IAutoRepairTokenRangeSpli
                 }
             }
         }
+        reorderByPriority(repairAssignments, repairType);
         return repairAssignments;
     }
 }
