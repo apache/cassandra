@@ -147,9 +147,7 @@ public class RepairRangeSplitter implements IAutoRepairTokenRangeSplitter
             ColumnFamilyStore cfs1 = ColumnFamilyStore.getIfExists(keyspaceName, t1);
             ColumnFamilyStore cfs2 = ColumnFamilyStore.getIfExists(keyspaceName, t2);
             if (cfs1 == null || cfs2 == null)
-            {
                 throw new IllegalArgumentException(String.format("Could not resolve ColumnFamilyStore from %s.%s", keyspaceName, t1));
-            }
             return Long.compare(cfs1.metric.totalDiskSpaceUsed.getCount(), cfs2.metric.totalDiskSpaceUsed.getCount());
         });
         for (String tableName : tableNames)
@@ -310,7 +308,8 @@ public class RepairRangeSplitter implements IAutoRepairTokenRangeSplitter
         return sizeEstimates;
     }
 
-    private static SizeEstimate getSizesForRangeOfSSTables(String keyspace, String table, Range<Token> tokenRange, Refs<SSTableReader> refs)
+    @VisibleForTesting
+    static SizeEstimate getSizesForRangeOfSSTables(String keyspace, String table, Range<Token> tokenRange, Refs<SSTableReader> refs)
     {
         ICardinality cardinality = new HyperLogLogPlus(13, 25);
         long approxBytesInRange = 0L;
@@ -360,7 +359,8 @@ public class RepairRangeSplitter implements IAutoRepairTokenRangeSplitter
         return new SizeEstimate(keyspace, table, tokenRange, partitions, approxBytesInRange, totalBytes);
     }
 
-    private static Refs<SSTableReader> getSSTableReaderRefs(AutoRepairConfig.RepairType repairType, String keyspaceName, String tableName, Range<Token> tokenRange)
+    @VisibleForTesting
+    static Refs<SSTableReader> getSSTableReaderRefs(AutoRepairConfig.RepairType repairType, String keyspaceName, String tableName, Range<Token> tokenRange)
     {
         final ColumnFamilyStore cfs = ColumnFamilyStore.getIfExists(keyspaceName, tableName);
 
