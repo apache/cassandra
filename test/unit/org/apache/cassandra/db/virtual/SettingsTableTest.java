@@ -52,6 +52,7 @@ public class SettingsTableTest extends CQLTester
         config = new Config();
         config.client_encryption_options.applyConfig();
         config.server_encryption_options.applyConfig();
+        config.jmx_encryption_options.applyConfig();
         config.sstable_preemptive_open_interval = null;
         config.index_summary_resize_interval = null;
         config.cache_load_timeout = new DurationSpec.IntSecondsBound(0);
