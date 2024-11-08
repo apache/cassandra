@@ -267,8 +267,7 @@ public class SingleNodeTokenConflictTest extends StatefulASTBase
                                   .addIf(State::hasEnoughMemtable, StatefulASTBase::flushTable)
                                   .addIf(State::hasEnoughSSTables, StatefulASTBase::compactTable)
                                   .destroyState(State::close)
-                    // TODO: add back when accord-core Property supports it
-                                  //.onSuccess(onSuccess(logger))
+                                  .onSuccess(onSuccess(logger))
                                   .build());
         }
     }

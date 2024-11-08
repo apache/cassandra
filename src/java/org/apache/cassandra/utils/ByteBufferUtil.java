@@ -47,7 +47,6 @@ import java.util.stream.Collectors;
 
 import net.nicoulaj.compilecommand.annotations.DontInline;
 import net.nicoulaj.compilecommand.annotations.Inline;
-
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.db.marshal.BooleanType;
 import org.apache.cassandra.db.marshal.BytesType;

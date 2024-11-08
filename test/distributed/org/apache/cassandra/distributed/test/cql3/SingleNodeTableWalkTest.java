@@ -371,8 +371,7 @@ public class SingleNodeTableWalkTest extends StatefulASTBase
                                   .addIf(State::allowNonPartitionMultiColumnQuery, this::multiColumnQuery)
                                   .addIf(State::allowPartitionQuery, this::partitionRestrictedQuery)
                                   .destroyState(State::close)
-                    // TODO: add back when accord-core Property supports it
-//                                  .onSuccess(onSuccess(logger))
+                                  .onSuccess(onSuccess(logger))
                                   .build());
         }
     }

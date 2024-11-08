@@ -71,7 +71,7 @@ public abstract class SingleNodeSAITestBase extends TestBaseImpl
 
     private static final int NUM_PARTITIONS = 64;
     private static final int NUM_VISITED_PARTITIONS = 16;
-    private static final int MAX_PARTITION_SIZE = 2000;
+    protected static final int MAX_PARTITION_SIZE = 2000;
 
     private static final int UNIQUE_CELL_VALUES = 5;
 
