@@ -120,6 +120,9 @@ abstract public class AbstractJmxSocketFactory
         else if (jmxEncryptionOptionsProvided)
         {
             logger.info("Enabling JMX SSL using jmx_encryption_options from cassandra.yaml");
+            // Here we can continue to use the SslRMIClientSocketFactory for client sockets.
+            // However, we should still set System properties for cipher_suites and enabled_protocols
+            // to have the same behavior as cassandra-env.sh based JMX SSL settings
             setJmxSystemProperties(jmxEncryptionOptions);
 
             requireClientAuth = jmxEncryptionOptions.getClientAuth() == EncryptionOptions.ClientAuth.REQUIRED;
