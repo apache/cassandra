@@ -16,12 +16,13 @@
  * limitations under the License.
  */
 
-package org.apache.cassandra.utils;
+package org.apache.cassandra.utils.jmx;
 
 import java.net.InetAddress;
 import java.util.Map;
 import javax.management.remote.rmi.RMIConnectorServer;
 import javax.net.ssl.SSLException;
+import javax.rmi.ssl.SslRMIServerSocketFactory;
 
 import org.apache.commons.lang3.StringUtils;
 import org.junit.After;
@@ -33,6 +34,8 @@ import org.junit.Test;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.EncryptionOptions;
 import org.apache.cassandra.distributed.shared.WithProperties;
+import org.apache.cassandra.exceptions.ConfigurationException;
+import org.apache.cassandra.utils.JMXServerUtils;
 
 import static org.apache.cassandra.config.CassandraRelevantProperties.CASSANDRA_CONFIG;
 import static org.apache.cassandra.config.CassandraRelevantProperties.COM_SUN_MANAGEMENT_JMXREMOTE_SSL;
@@ -43,16 +46,18 @@ import static org.apache.cassandra.config.CassandraRelevantProperties.JAVAX_RMI_
 import static org.apache.cassandra.config.CassandraRelevantProperties.JAVAX_RMI_SSL_CLIENT_ENABLED_PROTOCOLS;
 
 /**
- * Tests for JMX SSL config using keystore/trusstore in the PEM format with jmx_encryption_options in the cassandra.yaml.
+ * Tests for Default JMX SSL configuration specified in the cassandra.yaml using jmx_encryption_options.
+ * The default configurtion means keystore/truststore configured with file paths and using {@code DefaultSslContextFactory}
+ * to initialize the SSLContext.
  */
-public class JMXSslPEMConfigTest
+public class JMXSslDefaultEncryptionOptionsTest
 {
     static WithProperties properties;
 
     @BeforeClass
     public static void setupDatabaseDescriptor()
     {
-        properties = new WithProperties().set(CASSANDRA_CONFIG, "cassandra-jmx-pem-sslconfig.yaml");
+        properties = new WithProperties().set(CASSANDRA_CONFIG, "cassandra-jmx-sslconfig.yaml");
         DatabaseDescriptor.daemonInitialization();
     }
 
@@ -74,7 +79,7 @@ public class JMXSslPEMConfigTest
     }
 
     @Test
-    public void testPEMBasedJmxSslConfig() throws SSLException
+    public void testDefaultJmxEncryptionOptions() throws SSLException
     {
         EncryptionOptions jmxEncryptionOptions = DatabaseDescriptor.getJmxEncryptionOptions();
         String expectedProtocols = StringUtils.join(jmxEncryptionOptions.getAcceptedProtocols(), ",");
@@ -86,10 +91,23 @@ public class JMXSslPEMConfigTest
 
         Assert.assertTrue("com.sun.management.jmxremote.ssl must be true", COM_SUN_MANAGEMENT_JMXREMOTE_SSL.getBoolean());
         Assert.assertNotNull("ServerSocketFactory must not be null", env.get(RMIConnectorServer.RMI_SERVER_SOCKET_FACTORY_ATTRIBUTE));
-        Assert.assertTrue("RMI_SERVER_SOCKET_FACTORY must be of JMXSslRMIServerSocketFactory type", env.get(RMIConnectorServer.RMI_SERVER_SOCKET_FACTORY_ATTRIBUTE) instanceof JmxSslRMIServerSocketFactory);
+        Assert.assertTrue("RMI_SERVER_SOCKET_FACTORY must be of JMXSslRMIServerSocketFactory type", env.get(RMIConnectorServer.RMI_SERVER_SOCKET_FACTORY_ATTRIBUTE) instanceof SslRMIServerSocketFactory);
         Assert.assertNotNull("ClientSocketFactory must not be null", env.get(RMIConnectorServer.RMI_CLIENT_SOCKET_FACTORY_ATTRIBUTE));
         Assert.assertNotNull("com.sun.jndi.rmi.factory.socket must be set in the env", env.get("com.sun.jndi.rmi.factory.socket"));
         Assert.assertEquals("javax.rmi.ssl.client.enabledProtocols must match", expectedProtocols, JAVAX_RMI_SSL_CLIENT_ENABLED_PROTOCOLS.getString());
-        Assert.assertEquals("javax.rmi.ssl.client.enabledCipherSuites must match", expectedCipherSuites, JAVAX_RMI_SSL_CLIENT_ENABLED_CIPHER_SUITES.getString() );
+        Assert.assertEquals("javax.rmi.ssl.client.enabledCipherSuites must match", expectedCipherSuites, JAVAX_RMI_SSL_CLIENT_ENABLED_CIPHER_SUITES.getString());
+    }
+
+    /**
+     * Tests for the error scenario when the JMX SSL configuration is provided as
+     * system configuration as well as encryption_options.
+     * @throws SSLException
+     */
+    @Test(expected = ConfigurationException.class)
+    public void testDuplicateConfig() throws SSLException
+    {
+        InetAddress serverAddress = InetAddress.getLoopbackAddress();
+        COM_SUN_MANAGEMENT_JMXREMOTE_SSL.setBoolean(true);
+        JMXServerUtils.configureJmxSocketFactories(serverAddress, false);
     }
 }

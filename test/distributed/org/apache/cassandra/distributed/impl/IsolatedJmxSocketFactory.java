@@ -23,13 +23,12 @@ import java.util.Arrays;
 import java.util.Map;
 import java.util.stream.Collectors;
 import javax.management.remote.rmi.RMIConnectorServer;
-import javax.net.ssl.SSLException;
+import javax.net.ssl.SSLContext;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.CassandraRelevantProperties;
-import org.apache.cassandra.config.EncryptionOptions;
 import org.apache.cassandra.utils.RMIClientSocketFactoryImpl;
 import org.apache.cassandra.utils.jmx.AbstractJmxSocketFactory;
 
@@ -74,11 +73,14 @@ public class IsolatedJmxSocketFactory extends AbstractJmxSocketFactory
     }
 
     @Override
-    public void configureSslServerSocketFactory(Map<String, Object> env, InetAddress serverAddress,
-                                                EncryptionOptions jmxEncryptionOptions) throws SSLException
+    public void configureSslServerSocketFactory(Map<String, Object> env, InetAddress serverAddress, String[] enabledCipherSuites,
+                                                String[] enabledProtocols, boolean needClientAuth, SSLContext sslContext)
     {
-        CollectingSslRMIServerSocketFactoryImpl serverFactory = new CollectingSslRMIServerSocketFactoryImpl
-                                                                (serverAddress, jmxEncryptionOptions);
+        CollectingSslRMIServerSocketFactoryImpl serverFactory = new CollectingSslRMIServerSocketFactoryImpl(serverAddress,
+                                                                                                            enabledCipherSuites,
+                                                                                                            enabledProtocols,
+                                                                                                            needClientAuth,
+                                                                                                            sslContext);
         env.put(RMIConnectorServer.RMI_SERVER_SOCKET_FACTORY_ATTRIBUTE, serverFactory);
         logJmxSslConfig(serverFactory);
     }

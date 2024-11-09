@@ -21,6 +21,7 @@ package org.apache.cassandra.utils.jmx;
 import java.net.InetAddress;
 import java.util.HashMap;
 import java.util.Map;
+import javax.net.ssl.SSLContext;
 import javax.net.ssl.SSLException;
 
 import org.apache.commons.lang3.StringUtils;
@@ -89,13 +90,17 @@ abstract public class AbstractJmxSocketFactory
                                              "cassandra.yaml, not in both locations");
         }
 
+        boolean requireClientAuth = false;
+        String[] ciphers = null;
+        String[] protocols = null;
+        SSLContext sslContext = null;
+
         if (jmxRemoteSslSystemConfigProvided)
         {
             logger.info("Enabling JMX SSL using environment file properties");
             logger.warn("Consider using the jmx_encryption_options section of cassandra.yaml instead to prevent " +
                         "sensitive information being exposed");
-            boolean requireClientAuth = COM_SUN_MANAGEMENT_JMXREMOTE_SSL_NEED_CLIENT_AUTH.getBoolean();
-            String[] protocols = null;
+            requireClientAuth = COM_SUN_MANAGEMENT_JMXREMOTE_SSL_NEED_CLIENT_AUTH.getBoolean();
             String protocolList = COM_SUN_MANAGEMENT_JMXREMOTE_SSL_ENABLED_PROTOCOLS.getString();
             if (protocolList != null)
             {
@@ -103,14 +108,12 @@ abstract public class AbstractJmxSocketFactory
                 protocols = StringUtils.split(protocolList, ',');
             }
 
-            String[] ciphers = null;
             String cipherList = COM_SUN_MANAGEMENT_JMXREMOTE_SSL_ENABLED_CIPHER_SUITES.getString();
             if (cipherList != null)
             {
                 JAVAX_RMI_SSL_CLIENT_ENABLED_CIPHER_SUITES.setString(cipherList);
                 ciphers = StringUtils.split(cipherList, ',');
             }
-
             configureSslClientSocketFactory(env, serverAddress);
             configureSslServerSocketFactory(env, serverAddress, ciphers, protocols, requireClientAuth);
         }
@@ -118,12 +121,18 @@ abstract public class AbstractJmxSocketFactory
         {
             logger.info("Enabling JMX SSL using jmx_encryption_options from cassandra.yaml");
             setJmxSystemProperties(jmxEncryptionOptions);
+
+            requireClientAuth = jmxEncryptionOptions.getClientAuth() == EncryptionOptions.ClientAuth.REQUIRED;
+            ciphers = jmxEncryptionOptions.cipherSuitesArray();
+            protocols = jmxEncryptionOptions.acceptedProtocolsArray();
+            sslContext = jmxEncryptionOptions.sslContextFactoryInstance
+                         .createJSSESslContext(jmxEncryptionOptions.getClientAuth());
             configureSslClientSocketFactory(env, serverAddress);
-            configureSslServerSocketFactory(env, serverAddress, jmxEncryptionOptions);
+            configureSslServerSocketFactory(env, serverAddress, ciphers, protocols, requireClientAuth, sslContext);
         }
         else if (localOnly)
         {
-            configureLocalSocketFactory(env,serverAddress);
+            configureLocalSocketFactory(env, serverAddress);
         }
 
         return env;
@@ -156,14 +165,17 @@ abstract public class AbstractJmxSocketFactory
                                                          boolean needClientAuth);
 
     /**
-     * Configures SSL based server socket factory based on provided encryption_options.
+     * Configures SSL based server socket factory based on custom SSLContext.
      * @param env output param containing the configured socket factories
      * @param serverAddress the JMX server is bound to
-     * @param jmxEncryptionOptions for the SSL communication
-     * @throws SSLException if fails to configure the SSL based server socket factory
+     * @param enabledCipherSuites for the SSL communication
+     * @param enabledProtocols for the SSL communication
+     * @param needClientAuth {@code true} if it requires the client-auth; {@code false} otherwise
+     * @param sslContext for the SSL communication
      */
     abstract public void configureSslServerSocketFactory(Map<String, Object> env, InetAddress serverAddress,
-                                                         EncryptionOptions jmxEncryptionOptions) throws SSLException;
+                                                         String[] enabledCipherSuites, String[] enabledProtocols,
+                                                         boolean needClientAuth, SSLContext sslContext);
 
     /**
      * Sets the following JMX system properties.

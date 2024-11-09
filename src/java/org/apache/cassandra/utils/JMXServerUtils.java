@@ -236,7 +236,7 @@ public class JMXServerUtils
      * @see DefaultJmxSocketFactory
      */
     @VisibleForTesting
-    static Map<String, Object> configureJmxSocketFactories(InetAddress serverAddress, boolean localOnly) throws SSLException
+    public static Map<String, Object> configureJmxSocketFactories(InetAddress serverAddress, boolean localOnly) throws SSLException
     {
         return new DefaultJmxSocketFactory().configure(serverAddress, localOnly, DatabaseDescriptor.getJmxEncryptionOptions());
     }
@@ -248,7 +248,7 @@ public class JMXServerUtils
     }
 
     @VisibleForTesting
-    public static String getJmxServiceUrl(InetAddress serverAddress, int port)
+    private static String getJmxServiceUrl(InetAddress serverAddress, int port)
     {
         String urlTemplate = "service:jmx:rmi://%1$s/jndi/rmi://%1$s:%2$d/jmxrmi";
         String hostName;

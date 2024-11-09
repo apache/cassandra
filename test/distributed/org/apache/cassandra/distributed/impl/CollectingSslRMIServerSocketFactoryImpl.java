@@ -27,12 +27,9 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 import javax.net.ssl.SSLContext;
-import javax.net.ssl.SSLException;
 import javax.net.ssl.SSLSocket;
 import javax.net.ssl.SSLSocketFactory;
 
-import org.apache.cassandra.config.EncryptionOptions;
-import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.utils.RMICloseableServerSocketFactory;
 
 
@@ -50,20 +47,14 @@ class CollectingSslRMIServerSocketFactoryImpl implements RMICloseableServerSocke
     private SSLContext sslContext;
     List<ServerSocket> sockets = new ArrayList<>();
 
-    public CollectingSslRMIServerSocketFactoryImpl(InetAddress bindAddress, EncryptionOptions jmxEncryptionOptions)
+    public CollectingSslRMIServerSocketFactoryImpl(InetAddress bindAddress, String[] enabledCipherSuites,
+                                                   String[] enabledProtocols, boolean needClientAuth, SSLContext sslContext)
     {
         this.bindAddress = bindAddress;
-        try
-        {
-            this.sslContext = jmxEncryptionOptions.sslContextFactoryInstance.createJSSESslContext(jmxEncryptionOptions.getClientAuth());
-        }
-        catch (SSLException e)
-        {
-            throw new ConfigurationException("Failed to create SSLContext for the RMIServerSocketFactory",e);
-        }
-        this.enabledCipherSuites = jmxEncryptionOptions.cipherSuitesArray();
-        this.enabledProtocols = jmxEncryptionOptions.acceptedProtocolsArray();
-        this.needClientAuth = jmxEncryptionOptions.getClientAuth() == EncryptionOptions.ClientAuth.REQUIRED;
+        this.sslContext = sslContext;
+        this.enabledCipherSuites = enabledCipherSuites;
+        this.enabledProtocols = enabledProtocols;
+        this.needClientAuth = needClientAuth;
     }
 
     public CollectingSslRMIServerSocketFactoryImpl(InetAddress bindAddress, String[] enabledCipherSuites,
