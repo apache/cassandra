@@ -18,7 +18,6 @@
 
 package org.apache.cassandra.repair.autorepair;
 
-import java.util.EnumMap;
 import java.util.Objects;
 import java.util.Collections;
 import java.util.Set;
@@ -63,7 +62,6 @@ public class AutoRepairConfigTest extends CQLTester
     public void setUp()
     {
         config = new AutoRepairConfig(true);
-        config.repair_type_overrides = null;
         AutoRepair.SLEEP_IF_REPAIR_FINISHES_QUICKLY = new DurationSpec.IntSecondsBound("0s");
     }
 
@@ -80,7 +78,7 @@ public class AutoRepairConfigTest extends CQLTester
         AutoRepairConfig config = new AutoRepairConfig();
         for (AutoRepairConfig.RepairType repairType : AutoRepairConfig.RepairType.values())
         {
-            assertNotNull(config.repair_type_overrides.get(repairType));
+            assertNotNull(config.getOptions(repairType));
         }
     }
 
@@ -105,10 +103,8 @@ public class AutoRepairConfigTest extends CQLTester
     public void testIsAutoRepairEnabledReturnsTrueWhenRepairIsDisabledForRepairType()
     {
         config.global_settings.enabled = true;
-        config.repair_type_overrides = new EnumMap<>(AutoRepairConfig.RepairType.class);
-        config.repair_type_overrides.put(repairType, new Options());
-        config.repair_type_overrides.get(repairType).enabled = false;
-        assertFalse(config.isAutoRepairEnabled(repairType));
+        config.setAutoRepairEnabled(repairType, false);
+        assertFalse(config.getOptions(repairType).enabled);
     }
 
     @Test
@@ -118,7 +114,7 @@ public class AutoRepairConfigTest extends CQLTester
         DatabaseDescriptor.setMaterializedViewsEnabled(false);
         config.setAutoRepairEnabled(repairType, true);
 
-        assertTrue(config.repair_type_overrides.get(repairType).enabled);
+        assertTrue(config.getOptions(repairType).enabled);
     }
 
     @Test
@@ -126,7 +122,7 @@ public class AutoRepairConfigTest extends CQLTester
     {
         config.setRepairByKeyspace(repairType, true);
 
-        assertTrue(config.repair_type_overrides.get(repairType).repair_by_keyspace);
+        assertTrue(config.getOptions(repairType).repair_by_keyspace);
     }
 
     @Test
@@ -144,7 +140,7 @@ public class AutoRepairConfigTest extends CQLTester
     {
         config.setRepairThreads(repairType, 5);
 
-        assert config.repair_type_overrides.get(repairType).number_of_repair_threads == 5;
+        assert config.getOptions(repairType).number_of_repair_threads == 5;
     }
 
     @Test
@@ -172,7 +168,7 @@ public class AutoRepairConfigTest extends CQLTester
     {
         config.setRepairSubRangeNum(repairType, 5);
 
-        assert config.repair_type_overrides.get(repairType).number_of_subranges == 5;
+        assert config.getOptions(repairType).number_of_subranges == 5;
     }
 
     @Test
@@ -190,7 +186,7 @@ public class AutoRepairConfigTest extends CQLTester
     {
         config.setRepairMinInterval(repairType, "5s");
 
-        assert config.repair_type_overrides.get(repairType).min_repair_interval.toSeconds() == 5;
+        assert config.getOptions(repairType).min_repair_interval.toSeconds() == 5;
     }
 
     @Test
@@ -226,7 +222,7 @@ public class AutoRepairConfigTest extends CQLTester
     {
         config.setRepairSSTableCountHigherThreshold(repairType, 5);
 
-        assert config.repair_type_overrides.get(repairType).sstable_upper_threshold == 5;
+        assert config.getOptions(repairType).sstable_upper_threshold == 5;
     }
 
     @Test
@@ -244,7 +240,7 @@ public class AutoRepairConfigTest extends CQLTester
     {
         config.setAutoRepairTableMaxRepairTime(repairType, "5s");
 
-        assert config.repair_type_overrides.get(repairType).table_max_repair_time.toSeconds() == 5;
+        assert config.getOptions(repairType).table_max_repair_time.toSeconds() == 5;
     }
 
     @Test
@@ -262,7 +258,7 @@ public class AutoRepairConfigTest extends CQLTester
     {
         config.setIgnoreDCs(repairType, testSet);
 
-        assertEquals(config.repair_type_overrides.get(repairType).ignore_dcs, testSet);
+        assertEquals(config.getOptions(repairType).ignore_dcs, testSet);
     }
 
     @Test
@@ -280,7 +276,7 @@ public class AutoRepairConfigTest extends CQLTester
     {
         config.setRepairPrimaryTokenRangeOnly(repairType, true);
 
-        assertTrue(config.repair_type_overrides.get(repairType).repair_primary_token_range_only);
+        assertTrue(config.getOptions(repairType).repair_primary_token_range_only);
     }
 
     @Test
@@ -298,7 +294,7 @@ public class AutoRepairConfigTest extends CQLTester
     {
         config.setParallelRepairPercentage(repairType, 5);
 
-        assert config.repair_type_overrides.get(repairType).parallel_repair_percentage == 5;
+        assert config.getOptions(repairType).parallel_repair_percentage == 5;
     }
 
     @Test
@@ -316,7 +312,7 @@ public class AutoRepairConfigTest extends CQLTester
     {
         config.setParallelRepairCount(repairType, 5);
 
-        assert config.repair_type_overrides.get(repairType).parallel_repair_count == 5;
+        assert config.getOptions(repairType).parallel_repair_count == 5;
     }
 
     @Test
@@ -334,7 +330,7 @@ public class AutoRepairConfigTest extends CQLTester
     {
         config.setMVRepairEnabled(repairType, true);
 
-        assertTrue(config.repair_type_overrides.get(repairType).mv_repair_enabled);
+        assertTrue(config.getOptions(repairType).mv_repair_enabled);
     }
 
     @Test
@@ -342,7 +338,7 @@ public class AutoRepairConfigTest extends CQLTester
     {
         config.setForceRepairNewNode(repairType, true);
 
-        assertTrue(config.repair_type_overrides.get(repairType).force_repair_new_node);
+        assertTrue(config.getOptions(repairType).force_repair_new_node);
     }
 
     @Test
@@ -403,7 +399,7 @@ public class AutoRepairConfigTest extends CQLTester
     {
         config.setInitialSchedulerDelay(repairType, "5s");
 
-        assert config.repair_type_overrides.get(repairType).initial_scheduler_delay.toSeconds() == 5;
+        assert config.getOptions(repairType).initial_scheduler_delay.toSeconds() == 5;
     }
 
     @Test
@@ -421,7 +417,7 @@ public class AutoRepairConfigTest extends CQLTester
     {
         config.setRepairSessionTimeout(repairType, "1h");
 
-        assert config.repair_type_overrides.get(repairType).repair_session_timeout.toSeconds() == 3600;
+        assert config.getOptions(repairType).repair_session_timeout.toSeconds() == 3600;
     }
 
 }
