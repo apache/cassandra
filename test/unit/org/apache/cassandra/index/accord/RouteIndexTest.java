@@ -105,29 +105,62 @@ public class RouteIndexTest extends CQLTester.InMemory
         ROUTES_SEARCHER = new RoutesSearcher();
     }
 
-    @Test
-    public void test()
+    private Command<State, ColumnFamilyStore, ?> insert(RandomSource rs, State state)
     {
-        cfs().disableAutoCompaction(); // let the test control compaction
-        //TODO (coverage): include with the ability to mark ranges as durable for compaction cleanup
-        AccordService.unsafeSetNoop(); // disable accord service since compaction touches it.  It would be nice to include this for cleanup support....
-        stateful().withExamples(50).check(commands(() -> State::new, i -> cfs())
-                                          .destroySut(sut -> sut.truncateBlocking())
-                                          .add(FLUSH)
-                                          .add(COMPACT)
-                                          .add((rs, state) -> {
-                                              int storeId = rs.nextInt(0, state.numStores);
-                                              Domain domain = state.domainGen.next(rs);
-                                              TxnId txnId = state.nextTxnId(domain);
-                                              Route<?> route = createRoute(state, rs, domain, rs.nextInt(1, 20));
-                                              return new InsertTxn(storeId, txnId, SaveStatus.PreAccepted, Durability.NotDurable, route);
-                                          })
-                                          .add((rs, state) -> new RangeSearch(rs.nextInt(0, state.numStores), state.rangeGen.next(rs)))
-                                          .addIf(state -> !state.storeToTableToRangesToTxns.isEmpty(), RouteIndexTest::rangeSearch)
-                                          .build());
+        int storeId = rs.nextInt(0, state.numStores);
+        Domain domain = state.domainGen.next(rs);
+        TxnId txnId = state.nextTxnId(domain);
+        Route<?> route = createRoute(state, rs, domain, rs.nextInt(1, 20));
+        return new InsertTxn(storeId, txnId, SaveStatus.PreAccepted, Durability.NotDurable, route);
     }
 
-    private static RangeSearch rangeSearch(RandomSource rs, State state)
+    private static KeySearch keySearchExisting(RandomSource rs, State state)
+    {
+        int storeId = rs.pickUnorderedSet(state.storeToTableToRangesToTxns.keySet());
+        var tables = state.storeToTableToRangesToTxns.get(storeId);
+        TableId tableId = rs.pickUnorderedSet(tables.keySet());
+        var ranges = tables.get(tableId);
+        TreeSet<TokenRange> distinctRanges = ranges.stream().map(Map.Entry::getKey).collect(Collectors.toCollection(() -> new TreeSet<>(TokenRange::compareTo)));
+        TokenRange range;
+        if (distinctRanges.size() == 1)
+        {
+            range = Iterables.getFirst(distinctRanges, null);
+        }
+        else
+        {
+            switch (rs.nextInt(0, 2))
+            {
+                case 0: // perfect match
+                    range = rs.pickOrderedSet(distinctRanges);
+                    break;
+                case 1: // mutli-match
+                {
+                    TokenRange a = rs.pickOrderedSet(distinctRanges);
+                    TokenRange b = rs.pickOrderedSet(distinctRanges);
+                    while (a.equals(b))
+                        b = rs.pickOrderedSet(distinctRanges);
+                    if (b.compareTo(a) < 0)
+                    {
+                        TokenRange tmp = a;
+                        a = b;
+                        b = tmp;
+                    }
+                    range = new TokenRange((AccordRoutingKey) a.start(), (AccordRoutingKey) b.end());
+                }
+                break;
+                default:
+                    throw new AssertionError();
+            }
+        }
+
+        // have a key, so find a key within the range
+        long start = range.start().kindOfRoutingKey() == AccordRoutingKey.RoutingKeyKind.SENTINEL ? Long.MIN_VALUE : ((LongToken) range.start().token()).token;
+        long end = range.end().kindOfRoutingKey() == AccordRoutingKey.RoutingKeyKind.SENTINEL ? Long.MAX_VALUE : ((LongToken) range.end().token()).token;
+        long token = 1 + rs.nextLong(start, end);
+        return new KeySearch(storeId, new TokenKey(tableId, new LongToken(token)));
+    }
+
+    private static RangeSearch rangeSearchExisting(RandomSource rs, State state)
     {
         int storeId = rs.pickUnorderedSet(state.storeToTableToRangesToTxns.keySet());
         var tables = state.storeToTableToRangesToTxns.get(storeId);
@@ -166,6 +199,34 @@ public class RouteIndexTest extends CQLTester.InMemory
             }
         }
         return new RangeSearch(storeId, range);
+    }
+
+    private static Command<State, ColumnFamilyStore, ?> rangeSearch(RandomSource rs, State state)
+    {
+        return new RangeSearch(rs.nextInt(0, state.numStores), state.rangeGen.next(rs));
+    }
+
+    private static Command<State, ColumnFamilyStore, ?> keySearch(RandomSource rs, State state)
+    {
+        return new KeySearch(rs.nextInt(0, state.numStores), new TokenKey(rs.pick(state.tables), new LongToken(state.tokenGen.nextInt(rs))));
+    }
+
+    @Test
+    public void test()
+    {
+        cfs().disableAutoCompaction(); // let the test control compaction
+        //TODO (coverage): include with the ability to mark ranges as durable for compaction cleanup
+        AccordService.unsafeSetNoop(); // disable accord service since compaction touches it.  It would be nice to include this for cleanup support....
+        stateful().withExamples(50).check(commands(() -> State::new, i -> cfs())
+                                          .destroySut(sut -> sut.truncateBlocking())
+                                          .add(FLUSH)
+                                          .add(COMPACT)
+                                          .add(this::insert)
+                                          .add(RouteIndexTest::rangeSearch)
+                                          .add(RouteIndexTest::keySearch)
+                                          .addIf(state -> !state.storeToTableToRangesToTxns.isEmpty(), RouteIndexTest::rangeSearchExisting)
+                                          .addIf(state -> !state.storeToTableToRangesToTxns.isEmpty(), RouteIndexTest::keySearchExisting)
+                                          .build());
     }
 
     private static ColumnFamilyStore cfs()
@@ -321,6 +382,54 @@ public class RouteIndexTest extends CQLTester.InMemory
         }
     }
 
+    private static class KeySearch implements Command<State, ColumnFamilyStore, Set<TxnId>>
+    {
+        private final int storeId;
+        private final AccordRoutingKey key;
+
+        private KeySearch(int storeId, AccordRoutingKey key)
+        {
+            this.storeId = storeId;
+            this.key = key;
+        }
+
+        @Override
+        public Set<TxnId> apply(State state) throws Throwable
+        {
+            var tables = state.storeToTableToRangesToTxns.get(storeId);
+            if (tables == null) return Collections.emptySet();
+            var ranges = tables.get(key.table());
+            if (ranges == null) return Collections.emptySet();
+            Set<TxnId> matches = new HashSet<>();
+            ranges.searchToken(key, e -> matches.add(e.getValue()));
+            return matches;
+        }
+
+        @Override
+        public Set<TxnId> run(ColumnFamilyStore sut) throws Throwable
+        {
+            Set<TxnId> result = new ObjectHashSet<>();
+            ROUTES_SEARCHER.intersects(storeId, key, TxnId.NONE, Timestamp.MAX, result::add);
+            return result;
+        }
+
+        @Override
+        public void checkPostconditions(State state, Set<TxnId> expected,
+                                        ColumnFamilyStore sut, Set<TxnId> actual)
+        {
+            Assertions.assertThat(actual).describedAs("Unexpected txns for key %s", key).isEqualTo(expected);
+        }
+
+        @Override
+        public String toString()
+        {
+            return "KeySearch{" +
+                   "storeId=" + storeId +
+                   ", key=" + key +
+                   '}';
+        }
+    }
+
     private static class RangeSearch implements Command<State, ColumnFamilyStore, Set<TxnId>>
     {
         private final int storeId;
@@ -347,9 +456,9 @@ public class RouteIndexTest extends CQLTester.InMemory
         @Override
         public Set<TxnId> run(ColumnFamilyStore sut) throws Throwable
         {
-            Set<TxnId> out = new ObjectHashSet<>();
-            ROUTES_SEARCHER.intersects(storeId, range, TxnId.NONE, Timestamp.MAX, out::add);
-            return out;
+            Set<TxnId> result = new ObjectHashSet<>();
+            ROUTES_SEARCHER.intersects(storeId, range, TxnId.NONE, Timestamp.MAX, result::add);
+            return result;
         }
 
         @Override

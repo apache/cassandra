@@ -108,4 +108,12 @@ public class RouteMemtableIndexManager implements MemtableIndexManager
         liveMemtableIndexMap.values().forEach(m -> matches.addAll(m.search(storeId, tableId, start, startInclusive, end, endInclusive)));
         return matches;
     }
+
+    @Override
+    public NavigableSet<ByteBuffer> search(int storeId, TableId tableId, byte[] key)
+    {
+        TreeSet<ByteBuffer> matches = new TreeSet<>();
+        liveMemtableIndexMap.values().forEach(m -> matches.addAll(m.search(storeId, tableId, key)));
+        return matches;
+    }
 }

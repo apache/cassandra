@@ -67,4 +67,9 @@ public class MemtableIndex
     {
         return memoryIndex.search(storeId, tableId, start, startInclusive, end, endInclusive);
     }
+
+    public Collection<ByteBuffer> search(int storeId, TableId tableId, byte[] key)
+    {
+        return memoryIndex.search(storeId, tableId, key);
+    }
 }

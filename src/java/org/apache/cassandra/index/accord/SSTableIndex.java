@@ -81,6 +81,40 @@ public class SSTableIndex extends SharedCloseableImpl
         return new SSTableIndex(id, files, segments, cleanup);
     }
 
+    public Collection<? extends ByteBuffer> search(Group group, byte[] key)
+    {
+        List<Segment> matches = segments.stream().filter(s -> {
+                                            Segment.Metadata metadata = s.groups.get(group);
+                                            if (metadata == null) return false;
+                                            return ByteArrayUtil.compareUnsigned(metadata.minTerm, key) < 0
+                                                   && ByteArrayUtil.compareUnsigned(metadata.maxTerm, key) >= 0;
+                                        })
+                                        .collect(Collectors.toList());
+        if (matches.isEmpty()) return Collections.emptyList();
+        if (matches.size() == 1) return search(matches.get(0), group, key);
+        Set<ByteBuffer> found =  new HashSet<>();
+        for (Segment s : matches)
+            found.addAll(search(s, group, key));
+        return found;
+    }
+
+    private Collection<? extends ByteBuffer> search(Segment segment, Group group, byte[] key)
+    {
+        Set<ByteBuffer> matches = new HashSet<>();
+        Segment.Metadata metadata = Objects.requireNonNull(segment.groups.get(group), () -> "Unknown group: " + group);
+        try
+        {
+            SegmentSearcher searcher = new SegmentSearcher(fileFor(IndexComponent.CINTIA_SORTED_LIST), metadata.metas.get(IndexComponent.CINTIA_SORTED_LIST).offset,
+                                                           fileFor(IndexComponent.CINTIA_CHECKPOINTS), metadata.metas.get(IndexComponent.CINTIA_CHECKPOINTS).offset);
+            searcher.contains(key, interval -> matches.add(ByteBuffer.wrap(interval.value)));
+        }
+        catch (IOException e)
+        {
+            throw new FSReadError(e, id.fileFor(IndexComponent.CINTIA_SORTED_LIST));
+        }
+        return matches;
+    }
+
     public Collection<? extends ByteBuffer> search(Group group, byte[] start, boolean startInclusive, byte[] end, boolean endInclusive)
     {
         List<Segment> matches = segments.stream().filter(s -> {

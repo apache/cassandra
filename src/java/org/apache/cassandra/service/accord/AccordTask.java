@@ -23,7 +23,6 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.TreeMap;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
@@ -190,13 +189,15 @@ public abstract class AccordTask<R> extends Task implements Runnable, Function<S
     private final PreLoadContext preLoadContext;
     private final String loggingId;
 
+    // TODO (expected): merge all of these maps into one
     @Nullable Object2ObjectHashMap<TxnId, AccordSafeCommand> commands;
     @Nullable Object2ObjectHashMap<RoutingKey, AccordSafeTimestampsForKey> timestampsForKey;
     @Nullable Object2ObjectHashMap<RoutingKey, AccordSafeCommandsForKey> commandsForKey;
     @Nullable Object2ObjectHashMap<Object, AccordSafeState<?, ?>> loading;
     // TODO (expected): collection supporting faster deletes but still fast poll (e.g. some ordered collection)
     @Nullable ArrayDeque<AccordCacheEntry<?, ?>> waitingToLoad;
-    @Nullable RangeScanner rangeScanner;
+    @Nullable RangeTxnScanner rangeScanner;
+    boolean hasRanges;
     @Nullable CommandsForRanges commandsForRanges;
     @Nullable private TaskQueue queued;
 
@@ -292,6 +293,7 @@ public abstract class AccordTask<R> extends Task implements Runnable, Function<S
         this.state = state;
         if (state == WAITING_TO_RUN)
         {
+            Invariants.checkState(rangeScanner == null || rangeScanner.scanned);
             Invariants.checkState(loading == null && waitingToLoad == null, "WAITING_TO_RUN => no loading or waiting; found %s", this, AccordTask::toDescription);
             loadedAt = nanoTime();
         }
@@ -385,12 +387,12 @@ public abstract class AccordTask<R> extends Task implements Runnable, Function<S
 
         switch (preLoadContext.keys().domain())
         {
-            case Key: setupKeyLoadsExclusive(caches, (AbstractUnseekableKeys)preLoadContext.keys()); break;
+            case Key: setupKeyLoadsExclusive(caches, (AbstractUnseekableKeys)preLoadContext.keys(), false); break;
             case Range: setupRangeLoadsExclusive(caches);
         }
     }
 
-    private void setupKeyLoadsExclusive(Caches caches, Iterable<? extends RoutingKey> keys)
+    private void setupKeyLoadsExclusive(Caches caches, Iterable<? extends RoutingKey> keys, boolean isToCompleteRangeScan)
     {
         switch (preLoadContext.keyHistory())
         {
@@ -408,8 +410,14 @@ public abstract class AccordTask<R> extends Task implements Runnable, Function<S
                 }
                 break;
             }
-            case ASYNC:
             case RECOVER:
+                if (!isToCompleteRangeScan)
+                {
+                    Invariants.checkState(rangeScanner == null);
+                    rangeScanner = new RangeTxnScanner();
+                }
+
+            case ASYNC:
             case INCR:
             case SYNC:
             {
@@ -441,7 +449,8 @@ public abstract class AccordTask<R> extends Task implements Runnable, Function<S
 
             case RECOVER:
             case SYNC:
-                rangeScanner = new RangeScanner(caches.commandsForKeys());
+                hasRanges = true;
+                rangeScanner = new RangeTxnAndKeyScanner(caches.commandsForKeys());
         }
     }
 
@@ -789,14 +798,15 @@ public abstract class AccordTask<R> extends Task implements Runnable, Function<S
             state(FAILED);
     }
 
-    public RangeScanner rangeScanner()
+    @Nullable
+    public RangeTxnScanner rangeScanner()
     {
         return rangeScanner;
     }
 
     public boolean hasRanges()
     {
-        return rangeScanner != null;
+        return hasRanges;
     }
 
     @Override
@@ -832,8 +842,7 @@ public abstract class AccordTask<R> extends Task implements Runnable, Function<S
             // TODO (expected): we should destructively iterate to avoid invoking second time in fail; or else read and set to null
             if (rangeScanner != null)
             {
-                caches.commands().tryUnregister(rangeScanner.commandWatcher);
-                caches.commandsForKeys().tryUnregister(rangeScanner.keyWatcher);
+                rangeScanner.cleanup(caches);
                 rangeScanner = null;
             }
             if (commands != null)
@@ -941,7 +950,36 @@ public abstract class AccordTask<R> extends Task implements Runnable, Function<S
             commandsForKey.forEach((k, v) -> v.revert());
     }
 
-    public class RangeScanner implements Runnable
+    protected void addToQueue(TaskQueue queue)
+    {
+        Invariants.checkState(queue.kind == state || (queue.kind == State.WAITING_TO_LOAD && state == WAITING_TO_SCAN_RANGES), "Invalid queue type: %s vs %s", queue.kind, this, AccordTask::toDescription);
+        Invariants.checkState(this.queued == null, "Already queued with state: %s", this, AccordTask::toDescription);
+        queued = queue;
+        queue.append(this);
+    }
+
+    @Nullable
+    TaskQueue<?> queued()
+    {
+        return queued;
+    }
+
+    TaskQueue<?> unqueue()
+    {
+        TaskQueue<?> wasQueued = queued;
+        queued.remove(this);
+        queued = null;
+        return wasQueued;
+    }
+
+    TaskQueue<?> unqueueIfQueued()
+    {
+        if (queued == null)
+            return null;
+        return unqueue();
+    }
+
+    public class RangeTxnAndKeyScanner extends RangeTxnScanner
     {
         class KeyWatcher implements AccordCache.Listener<RoutingKey, CommandsForKey>
         {
@@ -953,63 +991,28 @@ public abstract class AccordTask<R> extends Task implements Runnable, Function<S
             }
         }
 
-        class CommandWatcher implements AccordCache.Listener<TxnId, Command>
-        {
-            @Override
-            public void onUpdate(AccordCacheEntry<TxnId, Command> state)
-            {
-                CommandsForRangesLoader.Summary summary = summaryLoader.from(state);
-                if (summary != null)
-                    summaries.put(summary.txnId, summary);
-            }
-        }
-
-        final ConcurrentHashMap<TxnId, CommandsForRangesLoader.Summary> summaries = new ConcurrentHashMap<>();
-        // TODO (expected): produce key summaries to avoid locking all in memory
         final Set<AccordRoutingKey.TokenKey> intersectingKeys = new ObjectHashSet<>();
         final KeyWatcher keyWatcher = new KeyWatcher();
-        final CommandWatcher commandWatcher = new CommandWatcher();
         final Ranges ranges = ((AbstractRanges) preLoadContext.keys()).toRanges();
         final AccordCache.Type<RoutingKey, CommandsForKey, AccordSafeCommandsForKey>.Instance commandsForKeyCache;
 
-        public RangeScanner(AccordCache.Type<RoutingKey, CommandsForKey, AccordSafeCommandsForKey>.Instance commandsForKeyCache)
+        public RangeTxnAndKeyScanner(AccordCache.Type<RoutingKey, CommandsForKey, AccordSafeCommandsForKey>.Instance commandsForKeyCache)
         {
             this.commandsForKeyCache = commandsForKeyCache;
         }
 
-        CommandsForRangesLoader.Loader summaryLoader;
         boolean scanned;
 
-        @Override
-        public void run()
+        void runInternal()
         {
-            try
+            for (Range range : ranges)
             {
-                for (Range range : ranges)
-                {
-                    AccordKeyspace.findAllKeysBetween(commandStore.id(),
-                                                      (AccordRoutingKey) range.start(), range.startInclusive(),
-                                                      (AccordRoutingKey) range.end(), range.endInclusive(),
-                                                      intersectingKeys::add);
-                }
-
-                Collection<TxnId> txnIds = summaryLoader.intersects();
-                for (TxnId txnId : txnIds)
-                {
-                    if (summaries.containsKey(txnId))
-                        continue;
-
-                    CommandsForRangesLoader.Summary summary = summaryLoader.load(txnId);
-                    if (summary != null)
-                        summaries.putIfAbsent(txnId, summary);
-                }
+                AccordKeyspace.findAllKeysBetween(commandStore.id(),
+                                                  (AccordRoutingKey) range.start(), range.startInclusive(),
+                                                  (AccordRoutingKey) range.end(), range.endInclusive(),
+                                                  intersectingKeys::add);
             }
-            catch (Throwable t)
-            {
-                commandStore.executor().onScannedRanges(AccordTask.this, t);
-                throw t;
-            }
-            commandStore.executor().onScannedRanges(AccordTask.this, null);
+            super.runInternal();
         }
 
         private void reference(AccordCacheEntry<RoutingKey, CommandsForKey> entry)
@@ -1041,74 +1044,127 @@ public abstract class AccordTask<R> extends Task implements Runnable, Function<S
             }
         }
 
-        public void start(BiFunction<Task, Runnable, Cancellable> executor)
+        void startInternal(Caches caches)
         {
-            Caches caches = commandStore.cachesExclusive();
-            state(SCANNING_RANGES);
-
             for (RoutingKey key : caches.commandsForKeys().keySet())
             {
                 if (ranges.contains(key))
                     intersectingKeys.add((AccordRoutingKey.TokenKey) key);
             }
-
-            summaryLoader = commandStore.diskCommandsForRanges().loader(preLoadContext.primaryTxnId(), preLoadContext.keyHistory(), ranges);
-            summaryLoader.forEachInCache(summary -> summaries.put(summary.txnId, summary), caches);
             caches.commandsForKeys().register(keyWatcher);
-            caches.commands().register(commandWatcher);
-            // TODO (expected): support cancellation here
+            super.startInternal(caches);
+        }
+
+        void scannedInternal()
+        {
+            if (commandsForKey != null)
+                intersectingKeys.removeAll(commandsForKey.keySet());
+            if (loading != null)
+                intersectingKeys.removeAll(loading.keySet());
+            setupKeyLoadsExclusive(commandStore.cachesExclusive(), intersectingKeys, true);
+            super.scannedInternal();
+        }
+
+        void cleanup(Caches caches)
+        {
+            caches.commandsForKeys().tryUnregister(keyWatcher);
+            super.cleanup(caches);
+        }
+
+        CommandsForRanges finish(Caches caches)
+        {
+            caches.commandsForKeys().unregister(keyWatcher);
+            return super.finish(caches);
+        }
+    }
+
+    public class RangeTxnScanner implements Runnable
+    {
+        class CommandWatcher implements AccordCache.Listener<TxnId, Command>
+        {
+            @Override
+            public void onUpdate(AccordCacheEntry<TxnId, Command> state)
+            {
+                CommandsForRanges.Summary summary = summaryLoader.from(state);
+                if (summary != null)
+                    summaries.put(summary.txnId, summary);
+            }
+        }
+
+        final ConcurrentHashMap<TxnId, CommandsForRanges.Summary> summaries = new ConcurrentHashMap<>();
+        // TODO (expected): produce key summaries to avoid locking all in memory
+        final CommandWatcher commandWatcher = new CommandWatcher();
+        final Unseekables<?> keysOrRanges = preLoadContext.keys();
+
+        CommandsForRanges.Loader summaryLoader;
+        boolean scanned;
+
+        @Override
+        public void run()
+        {
+            try
+            {
+                runInternal();
+            }
+            catch (Throwable t)
+            {
+                commandStore.executor().onScannedRanges(AccordTask.this, t);
+                throw t;
+            }
+            commandStore.executor().onScannedRanges(AccordTask.this, null);
+        }
+
+        void runInternal()
+        {
+            summaryLoader.intersects(txnId -> {
+                if (summaries.containsKey(txnId))
+                    return;
+
+                CommandsForRanges.Summary summary = summaryLoader.load(txnId);
+                if (summary != null)
+                    summaries.putIfAbsent(txnId, summary);
+            });
+        }
+
+        public void start(BiFunction<Task, Runnable, Cancellable> executor)
+        {
+            Caches caches = commandStore.cachesExclusive();
+            state(SCANNING_RANGES);
+            startInternal(caches);
             executor.apply(AccordTask.this, this);
+        }
+
+        void startInternal(Caches caches)
+        {
+            summaryLoader = commandStore.diskCommandsForRanges().loader(preLoadContext.primaryTxnId(), preLoadContext.keyHistory(), keysOrRanges);
+            summaryLoader.forEachInCache(summary -> summaries.put(summary.txnId, summary), caches);
+            caches.commands().register(commandWatcher);
         }
 
         public void scannedExclusive()
         {
             Invariants.checkState(state == SCANNING_RANGES, "Expected SCANNING_RANGES; found %s", AccordTask.this, AccordTask::toDescription);
             scanned = true;
-
-            if (commandsForKey != null)
-                intersectingKeys.removeAll(commandsForKey.keySet());
-            if (loading != null)
-                intersectingKeys.removeAll(loading.keySet());
-            setupKeyLoadsExclusive(commandStore.cachesExclusive(), intersectingKeys);
-
+            scannedInternal();
             if (loading == null) state(WAITING_TO_RUN);
             else if (waitingToLoad == null) state(LOADING);
             else state(State.WAITING_TO_LOAD);
         }
 
+        void scannedInternal()
+        {
+        }
+
+        void cleanup(Caches caches)
+        {
+            caches.commands().tryUnregister(commandWatcher);
+        }
+
         CommandsForRanges finish(Caches caches)
         {
-            caches.commandsForKeys().unregister(keyWatcher);
             caches.commands().unregister(commandWatcher);
-            return CommandsForRanges.create(ranges, new TreeMap<>(summaries));
+            return new CommandsForRanges(summaries);
         }
     }
 
-    protected void addToQueue(TaskQueue queue)
-    {
-        Invariants.checkState(queue.kind == state || (queue.kind == State.WAITING_TO_LOAD && state == WAITING_TO_SCAN_RANGES), "Invalid queue type: %s vs %s", queue.kind, this, AccordTask::toDescription);
-        Invariants.checkState(this.queued == null, "Already queued with state: %s", this, AccordTask::toDescription);
-        queued = queue;
-        queue.append(this);
-    }
-
-    TaskQueue<?> queued()
-    {
-        return queued;
-    }
-
-    TaskQueue<?> unqueue()
-    {
-        TaskQueue<?> wasQueued = queued;
-        queued.remove(this);
-        queued = null;
-        return wasQueued;
-    }
-
-    TaskQueue<?> unqueueIfQueued()
-    {
-        if (queued == null)
-            return null;
-        return unqueue();
-    }
 }
