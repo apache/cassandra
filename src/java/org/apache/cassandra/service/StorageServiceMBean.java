@@ -1109,7 +1109,7 @@ public interface StorageServiceMBean extends NotificationEmitter
     /** are using the creation time of the mutation for determining hint ttl **/
     public boolean isHintTtlUseMutationCreationTime();
     /** use the creation time of the mutation for determining hint ttl **/
-    public void setHintTtlUseMutationCreationTime(boolean enabled);
+    public void setUseCreationTimeForHintTtl(boolean enabled);
 
     /**
      * Resume bootstrap streaming when there is failed data streaming.

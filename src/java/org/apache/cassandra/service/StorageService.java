@@ -4763,13 +4763,13 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
     public boolean isHintTtlUseMutationCreationTime()
     {
-        return DatabaseDescriptor.isHintTtlUseMutationCreationTime();
+        return DatabaseDescriptor.isUseCreationTimeForHintTtl();
     }
 
-    public void setHintTtlUseMutationCreationTime(boolean enabled)
+    public void setUseCreationTimeForHintTtl(boolean enabled)
     {
-        DatabaseDescriptor.setHintTtlUseMutationCreationTime(enabled);
-        logger.info("updated hint_ttl_use_mutation_creation_time to {}", enabled);
+        DatabaseDescriptor.setUseCreationTimeForHintTtl(enabled);
+        logger.info("updated use_creation_time_for_hint_ttl to {}", enabled);
     }
 
     @Override

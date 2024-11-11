@@ -88,9 +88,6 @@ public class HintDataReappearingTest extends AbstractHintWindowTest
         doHintReappearData(false, true);
     }
 
-
-
-
     public void doHintReappearData(final boolean preventReappearance, final boolean dropTwoWrites) throws Exception
     {
         try (Cluster cluster = init(Cluster.build(3)
@@ -99,7 +96,7 @@ public class HintDataReappearingTest extends AbstractHintWindowTest
                 .withConfig(config -> config.with(NETWORK, GOSSIP, NATIVE_PROTOCOL)
                         .set("hinted_handoff_enabled", true)
                         .set("max_hints_delivery_threads", "1")
-                        .set("hint_ttl_use_mutation_creation_time", preventReappearance ? "true" : "false")
+                        .set("use_creation_time_for_hint_ttl", preventReappearance ? "true" : "false")
                         .set("write_request_timeout", "30000ms")
                         .set("hints_flush_period", "1s")
                         .set("max_hints_file_size", "10MiB"))
@@ -132,7 +129,7 @@ public class HintDataReappearingTest extends AbstractHintWindowTest
                     .drop();
 
 
-            logger.info("Pausing hint delivery ");
+            logger.info("Pausing hint delivery");
             // pause hint delivery to imitate hints being behind/backed up
             pauseHintsDelivery(node1);
 
@@ -160,7 +157,7 @@ public class HintDataReappearingTest extends AbstractHintWindowTest
             node2.flush(KEYSPACE);
             node3.flush(KEYSPACE);
 
-            logger.info("deleting data ");
+            logger.info("Deleting data");
             deleteData(cluster, keys);
             long afterDelete = System.currentTimeMillis();
 
@@ -169,18 +166,18 @@ public class HintDataReappearingTest extends AbstractHintWindowTest
             node3.flush(KEYSPACE);
 
 
-            logger.info("repairing");
+            logger.info("Repairing");
             for (IInvokableInstance node : Arrays.asList(node1, node2, node3))
             {
                 node.nodetoolResult(ArrayUtils.addAll(new String[]{ "repair", KEYSPACE }, "--full")).asserts().success();
             }
-            logger.info("done repairing");
+            logger.info("Done repairing");
 
 
             for (SimpleQueryResult result : selectData(cluster, keys))
             {
                 Object[][] objectArrays = result.toObjectArrays();
-                logger.info("result after delete: {} {}", result, Arrays.deepToString(objectArrays));
+                logger.info("Result after delete: {} {}", result, Arrays.deepToString(objectArrays));
                 // We expect the data to appear to be deleted initially
                 Assert.assertNull(objectArrays[0][1]);
             }
@@ -188,7 +185,7 @@ public class HintDataReappearingTest extends AbstractHintWindowTest
             // wait to pass gc_grace_seconds with slight buffer of 2 seconds to ensure delete persisted long enough to be gced
             long msSinceDelete = Math.abs(System.currentTimeMillis() - afterDelete);
             long sleepFor = Math.max(0, 1000 * gc_grace_seconds + 2000 - msSinceDelete);
-            logger.info("sleeping {} ms to ensure gc_grace_seconds has ellapsed after tombstone creation", sleepFor);
+            logger.info("Sleeping {} ms to ensure gc_grace_seconds has ellapsed after tombstone creation", sleepFor);
             Thread.sleep(sleepFor);
 
             // ensure tombstone purged on all 3 nodes
@@ -202,27 +199,26 @@ public class HintDataReappearingTest extends AbstractHintWindowTest
             transferHints(node1, node2hostId.call());
 
             // Sleep a bit more to ensure hint is delivered after tombstone is GCed
-            Thread.sleep(20000);
-            logger.info("Hints after sleeping: {}", getTotalHintsCount(node1));
-
+            Thread.sleep(200);
+            logger.info("Total Hints after sleeping: {}", getTotalHintsCount(node1));
 
             String hintInfo = node1.callsOnInstance(() -> String.valueOf(HintsService.instance.getPendingHintsInfo().size())).call();
-            logger.info("number of pending hints: {}", hintInfo);
+            logger.info("Number of pending hints after sleeping: {}", hintInfo);
 
             // Check the results of reading, we expect the data to remain deleted
             // and hint not to cause data to be visibile again as the hint should have expired
             for (SimpleQueryResult result : selectData(cluster, keys))
             {
-                logger.info("result: {}", result);
+                logger.info("Result: {}", result);
                 Object[][] objectArrays = result.toObjectArrays();
                 if (preventReappearance)
                 {
-                    logger.info("preventing reappearance with mutation ttl time hence expecting null as column value");
+                    logger.info("Preventing reappearance with mutation ttl time, hence expecting null as column value");
                     Assert.assertNull(objectArrays[0][1]);
                 }
                 else
                 {
-                    logger.info("demonstrating reappearance possible hence observing non null, non empty column");
+                    logger.info("Demonstrating reappearance possible, hence observing non null, non empty column");
                     Assert.assertFalse(UUID.fromString((String) objectArrays[0][1]).toString().isEmpty());
                 }
             }

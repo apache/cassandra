@@ -3925,14 +3925,14 @@ public class DatabaseDescriptor
         conf.transfer_hints_on_decommission = enabled;
     }
 
-    public static boolean isHintTtlUseMutationCreationTime()
+    public static boolean isUseCreationTimeForHintTtl()
     {
-        return conf.hint_ttl_use_mutation_creation_time;
+        return conf.use_creation_time_for_hint_ttl;
     }
 
-    public static void setHintTtlUseMutationCreationTime(boolean enabled)
+    public static void setUseCreationTimeForHintTtl(boolean enabled)
     {
-        conf.hint_ttl_use_mutation_creation_time = enabled;
+        conf.use_creation_time_for_hint_ttl = enabled;
     }
 
     public static boolean isIncrementalBackupsEnabled()
