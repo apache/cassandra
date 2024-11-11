@@ -18,6 +18,8 @@
 
 package org.apache.cassandra.index.accord;
 
+import java.nio.ByteBuffer;
+import java.util.Iterator;
 import java.util.function.Consumer;
 
 import accord.primitives.Timestamp;
@@ -27,6 +29,7 @@ import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.DataRange;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.PartitionRangeReadCommand;
+import org.apache.cassandra.db.ReadExecutionController;
 import org.apache.cassandra.db.filter.ColumnFilter;
 import org.apache.cassandra.db.filter.DataLimits;
 import org.apache.cassandra.db.filter.RowFilter;
@@ -44,7 +47,7 @@ import org.apache.cassandra.utils.FBUtilities;
 public class RoutesSearcher
 {
     private final ColumnFamilyStore cfs = Keyspace.open("system_accord").getColumnFamilyStore("commands");
-    private final Index index = cfs.indexManager.getIndexByName("route");;
+    private final Index index = cfs.indexManager.getIndexByName("route");
     private final ColumnMetadata participants = AccordKeyspace.CommandsColumns.participants;
     private final ColumnMetadata store_id = AccordKeyspace.CommandsColumns.store_id;
     private final ColumnMetadata txn_id = AccordKeyspace.CommandsColumns.txn_id;
@@ -52,7 +55,7 @@ public class RoutesSearcher
     private final DataLimits limits = DataLimits.NONE;
     private final DataRange dataRange = DataRange.allData(cfs.getPartitioner());
 
-    private CloseableIterator<Entry> searchKeysAccord(int store, AccordRoutingKey start, AccordRoutingKey end)
+    private CloseableIterator<Entry> searchRange(int store, AccordRoutingKey start, AccordRoutingKey end)
     {
         RowFilter rowFilter = RowFilter.create(false);
         rowFilter.add(participants, Operator.GT, OrderedRouteSerializer.serializeRoutingKey(start));
@@ -97,22 +100,80 @@ public class RoutesSearcher
         }
     }
 
-    public void intersects(int store, TokenRange range, TxnId minTxnId, Timestamp maxTxnId, Consumer<TxnId> forEach)
+    private CloseableIterator<Entry> searchKey(int store, AccordRoutingKey key)
     {
-        intersects(store, range.start(), range.end(), minTxnId, maxTxnId, forEach);
+        RowFilter rowFilter = RowFilter.create(false);
+        rowFilter.add(participants, Operator.GTE, OrderedRouteSerializer.serializeRoutingKey(key));
+        rowFilter.add(participants, Operator.LTE, OrderedRouteSerializer.serializeRoutingKey(key));
+        rowFilter.add(store_id, Operator.EQ, Int32Type.instance.decompose(store));
+
+        var cmd = PartitionRangeReadCommand.create(cfs.metadata(),
+                                                   FBUtilities.nowInSeconds(),
+                                                   columnFilter,
+                                                   rowFilter,
+                                                   limits,
+                                                   dataRange);
+        Index.Searcher s = index.searcherFor(cmd);
+        try (ReadExecutionController controller = cmd.executionController())
+        {
+            UnfilteredPartitionIterator partitionIterator = s.search(controller);
+            return new CloseableIterator<>()
+            {
+                private final Entry entry = new Entry();
+                @Override
+                public void close()
+                {
+                    partitionIterator.close();
+                }
+
+                @Override
+                public boolean hasNext()
+                {
+                    return partitionIterator.hasNext();
+                }
+
+                @Override
+                public Entry next()
+                {
+                    UnfilteredRowIterator next = partitionIterator.next();
+                    ByteBuffer[] partitionKeyComponents = AccordKeyspace.CommandRows.splitPartitionKey(next.partitionKey());
+                    entry.store_id = AccordKeyspace.CommandRows.getStoreId(partitionKeyComponents);
+                    entry.txnId = AccordKeyspace.CommandRows.getTxnId(partitionKeyComponents);
+                    return entry;
+                }
+            };
+        }
     }
 
-    void intersects(int store, AccordRoutingKey start, AccordRoutingKey end, TxnId minTxnId, Timestamp maxTxnId, Consumer<TxnId> forEach)
+    public void intersects(int storeId, TokenRange range, TxnId minTxnId, Timestamp maxTxnId, Consumer<TxnId> forEach)
     {
-        try (var it = searchKeysAccord(store, start, end))
+        intersects(storeId, range.start(), range.end(), minTxnId, maxTxnId, forEach);
+    }
+
+    void intersects(int storeId, AccordRoutingKey start, AccordRoutingKey end, TxnId minTxnId, Timestamp maxTxnId, Consumer<TxnId> forEach)
+    {
+        try (CloseableIterator<RoutesSearcher.Entry> it = searchRange(storeId, start, end))
         {
-            while (it.hasNext())
-            {
-                Entry next = it.next();
-                if (next.store_id != store) continue; // the index should filter out, but just in case...
-                if (next.txnId.compareTo(minTxnId) >= 0 && next.txnId.compareTo(maxTxnId) < 0)
-                    forEach.accept(next.txnId);
-            }
+            consume(it, storeId, minTxnId, maxTxnId, forEach);
+        }
+    }
+
+    public void intersects(int storeId, AccordRoutingKey key, TxnId minTxnId, Timestamp maxTxnId, Consumer<TxnId> forEach)
+    {
+        try (CloseableIterator<RoutesSearcher.Entry> it = searchKey(storeId, key))
+        {
+            consume(it, storeId, minTxnId, maxTxnId, forEach);
+        }
+    }
+
+    private void consume(Iterator<Entry> it, int storeId, TxnId minTxnId, Timestamp maxTxnId, Consumer<TxnId> forEach)
+    {
+        while (it.hasNext())
+        {
+            Entry next = it.next();
+            if (next.store_id != storeId) continue; // the index should filter out, but just in case...
+            if (next.txnId.compareTo(minTxnId) >= 0 && next.txnId.compareTo(maxTxnId) < 0)
+                forEach.accept(next.txnId);
         }
     }
 

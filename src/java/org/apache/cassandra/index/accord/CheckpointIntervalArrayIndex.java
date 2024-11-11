@@ -96,6 +96,26 @@ public class CheckpointIntervalArrayIndex
         }
 
         @Override
+        public int compareEndTo(Interval interval, byte[] key)
+        {
+            return ByteArrayUtil.compareUnsigned(interval.end, key);
+        }
+
+        @Override
+        public int compareStartTo(Interval interval, byte[] key)
+        {
+            int c = ByteArrayUtil.compareUnsigned(interval.start, key);
+            if (c == 0) c = -1;
+            return c;
+        }
+
+        @Override
+        public boolean endInclusive(Interval[] checksumedRandomAccessReader)
+        {
+            return true;
+        }
+
+        @Override
         public int binarySearch(Interval[] intervals, int from, int to, byte[] find, AsymmetricComparator<byte[], Interval> comparator, SortedArrays.Search op)
         {
             return SortedArrays.binarySearch(intervals, from, to, find, comparator, op);
@@ -520,109 +540,24 @@ public class CheckpointIntervalArrayIndex
             this.checkpoints = new CheckpointReader(checkpointFile, checkpointPosition);
         }
 
-        public Stats intersects(byte[] start, byte[] end, Consumer<Interval> callback) throws IOException
+        // contains
+        public Stats contains(byte[] key, Consumer<Interval> callback) throws IOException
         {
-            var keyBuffer = new byte[reader.bytesPerKey];
-            var recordBuffer = new byte[reader.recordSize - Integer.BYTES];
-            var stats = new Stats();
-            long startNanos = Clock.Global.nanoTime();
-            try (ChecksumedRandomAccessReader indexInput = new ChecksumedRandomAccessReader(reader.fh.createReader(), CHECKSUM_SUPPLIER))
-            {
-                var buffer = new Interval();
-                Accessor<ChecksumedRandomAccessReader, byte[], byte[]> accessor = new Accessor<>()
-                {
-                    @Override
-                    public int size(ChecksumedRandomAccessReader indexInput)
-                    {
-                        return reader.count;
-                    }
-
-                    @Override
-                    public byte[] get(ChecksumedRandomAccessReader indexInput, int index)
-                    {
-                        try
-                        {
-                            return reader.getRecord(indexInput, stats, SortedListReader.SeekReason.GET, recordBuffer, index);
-                        }
-                        catch (IOException e)
-                        {
-                            throw new UncheckedIOException(e);
-                        }
-                    }
-
-                    @Override
-                    public byte[] start(ChecksumedRandomAccessReader indexInput, int index)
-                    {
-                        try
-                        {
-                            return reader.readStart(indexInput, stats, recordBuffer, keyBuffer, index);
-                        }
-                        catch (IOException e)
-                        {
-                            throw new UncheckedIOException(e);
-                        }
-                    }
-
-                    @Override
-                    public byte[] start(byte[] bytes)
-                    {
-                        return reader.copyStart(bytes, keyBuffer);
-                    }
-
-                    @Override
-                    public byte[] end(ChecksumedRandomAccessReader indexInput, int index)
-                    {
-                        try
-                        {
-                            return reader.readEnd(indexInput, stats, recordBuffer, keyBuffer, index);
-                        }
-                        catch (IOException e)
-                        {
-                            throw new UncheckedIOException(e);
-                        }
-                    }
-
-                    @Override
-                    public byte[] end(byte[] bytes)
-                    {
-                        return reader.copyEnd(bytes, keyBuffer);
-                    }
-
-                    @Override
-                    public Comparator<byte[]> keyComparator()
-                    {
-                        return (a, b) -> ByteArrayUtil.compareUnsigned(a, 0, b, 0, a.length);
-                    }
-
-                    @Override
-                    public int binarySearch(ChecksumedRandomAccessReader indexInput, int from, int to, byte[] find, AsymmetricComparator<byte[], byte[]> comparator, SortedArrays.Search op)
-                    {
-                        try
-                        {
-                            return reader.binarySearch(indexInput, stats, recordBuffer, from, to, find, comparator, op);
-                        }
-                        catch (IOException e)
-                        {
-                            throw new UncheckedIOException(e);
-                        }
-                    }
-                };
-                var searcher = new CheckpointIntervalArray<>(accessor, indexInput, checkpoints.bounds, checkpoints.headers, checkpoints.lists, checkpoints.maxScanAndCheckpointMatches);
-
-                searcher.forEachRange(start, end, (i1, i2, i3, i4, index) -> {
-                    stats.matches++;
-                    callback.accept(reader.copyTo(accessor.get(indexInput, index), buffer));
+            return run(ctx -> {
+                ctx.searcher.forEachKey(key, (i1, i2, i3, i4, index) -> {
+                    ctx.stats.matches++;
+                    callback.accept(reader.copyTo(ctx.accessor.get(ctx.indexInput, index), ctx.buffer));
                 }, (i1, i2, i3, i4, startIdx, endIdx) -> {
                     try
                     {
                         if (startIdx == endIdx)
                             return;
-                        reader.maybeSeek(indexInput, stats, SortedListReader.SeekReason.SCAN, reader.fileOffsetStart(startIdx));
+                        reader.maybeSeek(ctx.indexInput, ctx.stats, SortedListReader.SeekReason.SCAN, reader.fileOffsetStart(startIdx));
                         for (int i = startIdx; i < endIdx; i++)
                         {
-                            stats.matches++;
-                            reader.getCurrentRecord(indexInput, stats, recordBuffer);
-                            callback.accept(reader.copyTo(recordBuffer, buffer));
+                            ctx.stats.matches++;
+                            reader.getCurrentRecord(ctx.indexInput, ctx.stats, ctx.recordBuffer);
+                            callback.accept(reader.copyTo(ctx.recordBuffer, ctx.buffer));
                         }
                     }
                     catch (IOException e)
@@ -630,12 +565,49 @@ public class CheckpointIntervalArrayIndex
                         throw new UncheckedIOException(e);
                     }
                 }, 0, 0, 0, 0, 0);
+            });
+        }
+
+        public Stats intersects(byte[] start, byte[] end, Consumer<Interval> callback) throws IOException
+        {
+            return run(ctx -> {
+                ctx.searcher.forEachRange(start, end, (i1, i2, i3, i4, index) -> {
+                    ctx.stats.matches++;
+                    callback.accept(reader.copyTo(ctx.accessor.get(ctx.indexInput, index), ctx.buffer));
+                }, (i1, i2, i3, i4, startIdx, endIdx) -> {
+                    try
+                    {
+                        if (startIdx == endIdx)
+                            return;
+                        reader.maybeSeek(ctx.indexInput, ctx.stats, SortedListReader.SeekReason.SCAN, reader.fileOffsetStart(startIdx));
+                        for (int i = startIdx; i < endIdx; i++)
+                        {
+                            ctx.stats.matches++;
+                            reader.getCurrentRecord(ctx.indexInput, ctx.stats, ctx.recordBuffer);
+                            callback.accept(reader.copyTo(ctx.recordBuffer, ctx.buffer));
+                        }
+                    }
+                    catch (IOException e)
+                    {
+                        throw new UncheckedIOException(e);
+                    }
+                }, 0, 0, 0, 0, 0);
+            });
+        }
+
+        private Stats run(Consumer<Context> fn) throws IOException
+        {
+            long startNanos = Clock.Global.nanoTime();
+            Context ctx = new Context();
+            try (ctx)
+            {
+                fn.accept(ctx);
             }
             finally
             {
-                stats.durationNs = Clock.Global.nanoTime() - startNanos;
+                ctx.stats.durationNs = Clock.Global.nanoTime() - startNanos;
             }
-            return stats;
+            return ctx.stats;
         }
 
         @Override
@@ -643,6 +615,120 @@ public class CheckpointIntervalArrayIndex
         {
             FileUtils.closeQuietly(checkpoints);
             FileUtils.closeQuietly(reader);
+        }
+
+        private class Context implements Closeable
+        {
+            final byte[] keyBuffer = new byte[reader.bytesPerKey];
+            final byte[] recordBuffer = new byte[reader.recordSize - Integer.BYTES];
+            final Stats stats = new Stats();
+            final ChecksumedRandomAccessReader indexInput = new ChecksumedRandomAccessReader(reader.fh.createReader(), CHECKSUM_SUPPLIER);
+            final Interval buffer = new Interval();
+            final Accessor<ChecksumedRandomAccessReader, byte[], byte[]> accessor = new Accessor<>()
+            {
+                @Override
+                public int size(ChecksumedRandomAccessReader indexInput)
+                {
+                    return reader.count;
+                }
+
+                @Override
+                public byte[] get(ChecksumedRandomAccessReader indexInput, int index)
+                {
+                    try
+                    {
+                        return reader.getRecord(indexInput, stats, SortedListReader.SeekReason.GET, recordBuffer, index);
+                    }
+                    catch (IOException e)
+                    {
+                        throw new UncheckedIOException(e);
+                    }
+                }
+
+                @Override
+                public byte[] start(ChecksumedRandomAccessReader indexInput, int index)
+                {
+                    try
+                    {
+                        return reader.readStart(indexInput, stats, recordBuffer, keyBuffer, index);
+                    }
+                    catch (IOException e)
+                    {
+                        throw new UncheckedIOException(e);
+                    }
+                }
+
+                @Override
+                public byte[] start(byte[] bytes)
+                {
+                    return reader.copyStart(bytes, keyBuffer);
+                }
+
+                @Override
+                public byte[] end(ChecksumedRandomAccessReader indexInput, int index)
+                {
+                    try
+                    {
+                        return reader.readEnd(indexInput, stats, recordBuffer, keyBuffer, index);
+                    }
+                    catch (IOException e)
+                    {
+                        throw new UncheckedIOException(e);
+                    }
+                }
+
+                @Override
+                public byte[] end(byte[] bytes)
+                {
+                    return reader.copyEnd(bytes, keyBuffer);
+                }
+
+                @Override
+                public Comparator<byte[]> keyComparator()
+                {
+                    return (a, b) -> ByteArrayUtil.compareUnsigned(a, 0, b, 0, a.length);
+                }
+
+                @Override
+                public int compareEndTo(byte[] range, byte[] key)
+                {
+                    return ByteArrayUtil.compareUnsigned(end(range), key);
+                }
+
+                @Override
+                public int compareStartTo(byte[] range, byte[] key)
+                {
+                    int c = ByteArrayUtil.compareUnsigned(start(range), key);
+                    if (c == 0) c = 1;
+                    return c;
+                }
+
+                @Override
+                public boolean endInclusive(ChecksumedRandomAccessReader checksumedRandomAccessReader)
+                {
+                    return true;
+                }
+
+                @Override
+                public int binarySearch(ChecksumedRandomAccessReader indexInput, int from, int to, byte[] find, AsymmetricComparator<byte[], byte[]> comparator, SortedArrays.Search op)
+                {
+                    try
+                    {
+                        return reader.binarySearch(indexInput, stats, recordBuffer, from, to, find, comparator, op);
+                    }
+                    catch (IOException e)
+                    {
+                        throw new UncheckedIOException(e);
+                    }
+                }
+            };
+            final CheckpointIntervalArray<ChecksumedRandomAccessReader, byte[], byte[]> searcher = new CheckpointIntervalArray<>(accessor, indexInput, checkpoints.bounds, checkpoints.headers, checkpoints.lists, checkpoints.maxScanAndCheckpointMatches);
+
+            @Override
+            public void close() throws IOException
+            {
+                indexInput.close();
+            }
         }
     }
 

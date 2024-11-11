@@ -142,7 +142,7 @@ public class AccordCommandStore extends CommandStore
     private final Executor taskExecutor;
     private final ExclusiveCaches caches;
     private long lastSystemTimestampMicros = Long.MIN_VALUE;
-    private final CommandsForRangesLoader commandsForRangesLoader;
+    private final CommandsForRanges.Manager commandsForRanges;
 
     private AccordSafeCommandStore current;
     private Thread currentThread;
@@ -174,7 +174,7 @@ public class AccordCommandStore extends CommandStore
         }
 
         this.taskExecutor = executor.executor(this);
-        this.commandsForRangesLoader = new CommandsForRangesLoader(this);
+        this.commandsForRanges = new CommandsForRanges.Manager(this);
         loadRedundantBefore(journal.loadRedundantBefore(id()));
         loadBootstrapBeganAt(journal.loadBootstrapBeganAt(id()));
         loadSafeToRead(journal.loadSafeToRead(id()));
@@ -187,16 +187,16 @@ public class AccordCommandStore extends CommandStore
                new AccordCommandStore(id, node, agent, dataStore, progressLogFactory, listenerFactory, rangesForEpoch, journal, executorFactory.apply(id));
     }
 
-    public CommandsForRangesLoader diskCommandsForRanges()
+    public CommandsForRanges.Manager diskCommandsForRanges()
     {
-        return commandsForRangesLoader;
+        return commandsForRanges;
     }
 
     public void markShardDurable(SafeCommandStore safeStore, TxnId globalSyncId, Ranges ranges)
     {
         store.snapshot(ranges, globalSyncId);
         super.markShardDurable(safeStore, globalSyncId, ranges);
-        commandsForRangesLoader.gcBefore(globalSyncId, ranges);
+        commandsForRanges.gcBefore(globalSyncId, ranges);
     }
 
     @Override

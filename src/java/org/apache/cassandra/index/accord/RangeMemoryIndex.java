@@ -44,9 +44,9 @@ import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.service.accord.AccordKeyspace;
 import org.apache.cassandra.service.accord.TokenRange;
-import org.apache.cassandra.service.accord.api.AccordRoutingKey;
 import org.apache.cassandra.utils.ByteArrayUtil;
 import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.utils.FastByteOperations;
 import org.apache.cassandra.utils.ObjectSizes;
 import org.apache.cassandra.utils.RTree;
 import org.apache.cassandra.utils.RangeTree;
@@ -82,7 +82,9 @@ public class RangeMemoryIndex
             @Override
             public boolean contains(byte[] start, byte[] end, byte[] bytes)
             {
-                throw new UnsupportedOperationException();
+                // bytes are ordered, start is exclusive, end is inclusive
+                return FastByteOperations.compareUnsigned(start, bytes) < 0
+                       && FastByteOperations.compareUnsigned(end, bytes) >= 0;
             }
 
             @Override
@@ -134,8 +136,8 @@ public class RangeMemoryIndex
         var storeId = AccordKeyspace.CommandRows.getStoreId(key);
         var tableId = ts.table();
         var group = new Group(storeId, tableId);
-        var start = OrderedRouteSerializer.serializeRoutingKeyNoTable((AccordRoutingKey) ts.start());
-        var end = OrderedRouteSerializer.serializeRoutingKeyNoTable((AccordRoutingKey) ts.end());
+        var start = OrderedRouteSerializer.serializeRoutingKeyNoTable(ts.start());
+        var end = OrderedRouteSerializer.serializeRoutingKeyNoTable(ts.end());
         var range = new Range(start, end);
         map.computeIfAbsent(group, ignore -> createRangeTree()).add(range, key);
         Metadata metadata = groupMetadata.computeIfAbsent(group, ignore -> new Metadata());
@@ -158,12 +160,26 @@ public class RangeMemoryIndex
         return pks;
     }
 
-    private TreeMap<Range, Set<DecoratedKey>> search(RangeTree<byte[], Range, DecoratedKey> tokensToPks, byte[] start, byte[] end)
+    public TreeMap<Range, Set<DecoratedKey>> search(RangeTree<byte[], Range, DecoratedKey> tokensToPks, byte[] start, byte[] end)
     {
 
         TreeMap<Range, Set<DecoratedKey>> matches = new TreeMap<>();
         tokensToPks.search(new Range(start, end), e -> matches.computeIfAbsent(e.getKey(), ignore -> new HashSet<>()).add(e.getValue()));
         return matches;
+    }
+
+    public synchronized NavigableSet<ByteBuffer> search(int storeId, TableId tableId, byte[] key)
+    {
+        RangeTree<byte[], Range, DecoratedKey> rangesToPks = map.get(new Group(storeId, tableId));
+        if (rangesToPks == null || rangesToPks.isEmpty())
+            return Collections.emptyNavigableSet();
+
+        TreeMap<Range, Set<DecoratedKey>> matches = new TreeMap<>();
+        rangesToPks.searchToken(key, e -> matches.computeIfAbsent(e.getKey(), ignore -> new HashSet<>()).add(e.getValue()));
+
+        TreeSet<ByteBuffer> pks = new TreeSet<>();
+        matches.values().forEach(s -> s.forEach(d -> pks.add(d.getKey())));
+        return pks;
     }
 
     public synchronized boolean isEmpty()

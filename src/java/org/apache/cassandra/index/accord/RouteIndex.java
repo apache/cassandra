@@ -414,11 +414,13 @@ public class RouteIndex implements Index, INotificationConsumer
         }
         if (start == null || end == null || storeId == null)
             return null;
-        int finalStoreId = storeId;
-        ByteBuffer finalStart = start;
-        boolean finalStartInclusive = startInclusive;
-        ByteBuffer finalEnd = end;
-        boolean finalEndInclusive = endInclusive;
+        if (start.equals(end))
+            return keySearcher(command, storeId, start);
+        return rangeSearcher(command, storeId, start, startInclusive, end, endInclusive);
+    }
+
+    private Searcher keySearcher(ReadCommand command, Integer storeId, ByteBuffer key)
+    {
         return new Searcher()
         {
             @Override
@@ -431,14 +433,50 @@ public class RouteIndex implements Index, INotificationConsumer
             public UnfilteredPartitionIterator search(ReadExecutionController executionController)
             {
                 // find all partitions from memtable / sstable
-                NavigableSet<ByteBuffer> partitions = search(finalStoreId, finalStart, finalStartInclusive, finalEnd, finalEndInclusive);
+                NavigableSet<ByteBuffer> partitions = search(storeId, key);
+                // do SinglePartitionReadCommand per partition
+                return new SearchIterator(executionController, command, partitions);
+            }
+
+            NavigableSet<ByteBuffer> search(int storeId, ByteBuffer key)
+            {
+                TableId tableId;
+                byte[] start;
+                {
+
+                    AccordRoutingKey route = OrderedRouteSerializer.deserializeRoutingKey(key);
+                    tableId = route.table();
+                    start = OrderedRouteSerializer.serializeRoutingKeyNoTable(route);
+                }
+                NavigableSet<ByteBuffer> matches = sstableManager.search(storeId, tableId, start);
+                matches.addAll(memtableIndexManager.search(storeId, tableId, start));
+                return matches;
+            }
+        };
+    }
+
+    private Searcher rangeSearcher(ReadCommand command, int storeId, ByteBuffer start, boolean startInclusive, ByteBuffer end, boolean endInclusive)
+    {
+        return new Searcher()
+        {
+            @Override
+            public ReadCommand command()
+            {
+                return command;
+            }
+
+            @Override
+            public UnfilteredPartitionIterator search(ReadExecutionController executionController)
+            {
+                // find all partitions from memtable / sstable
+                NavigableSet<ByteBuffer> partitions = search(storeId, start, startInclusive, end, endInclusive);
                 // do SinglePartitionReadCommand per partition
                 return new SearchIterator(executionController, command, partitions);
             }
 
             NavigableSet<ByteBuffer> search(int storeId,
-                                              ByteBuffer startTableWithToken, boolean startInclusive,
-                                              ByteBuffer endTableWithToken, boolean endInclusive)
+                                            ByteBuffer startTableWithToken, boolean startInclusive,
+                                            ByteBuffer endTableWithToken, boolean endInclusive)
             {
                 TableId tableId;
                 byte[] start;

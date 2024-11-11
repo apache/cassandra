@@ -47,7 +47,6 @@ import accord.local.RedundantBefore;
 import accord.local.SafeCommandStore;
 import accord.local.cfk.CommandsForKey;
 import accord.primitives.AbstractKeys;
-import accord.primitives.AbstractRanges;
 import accord.primitives.AbstractUnseekableKeys;
 import accord.primitives.Participants;
 import accord.primitives.Ranges;
@@ -95,18 +94,21 @@ public class AccordSafeCommandStore extends SafeCommandStore
     }
 
     @Override
-    public PreLoadContext canExecute(PreLoadContext context)
+    public PreLoadContext canExecute(PreLoadContext with)
     {
-        if (context.isEmpty()) return context;
-        if (context.keys().domain() == Routable.Domain.Range)
-            return context.isSubsetOf(this.context) ? context : null;
+        if (with.isEmpty()) return with;
+        if (with.keys().domain() == Routable.Domain.Range)
+            return with.isSubsetOf(this.context) ? with : null;
+
+        if (!context().keyHistory().satisfies(with.keyHistory()))
+            return null;
 
         try (ExclusiveCaches caches = commandStore.tryLockCaches())
         {
             if (caches == null)
-                return context.isSubsetOf(this.context) ? context : null;
+                return with.isSubsetOf(this.context) ? with : null;
 
-            for (TxnId txnId : context.txnIds())
+            for (TxnId txnId : with.txnIds())
             {
                 if (null != getInternal(txnId))
                     continue;
@@ -118,14 +120,14 @@ public class AccordSafeCommandStore extends SafeCommandStore
                 add(safeCommand, caches);
             }
 
-            KeyHistory keyHistory = context.keyHistory();
+            KeyHistory keyHistory = with.keyHistory();
             if (keyHistory == KeyHistory.NONE)
-                return context;
+                return with;
 
             List<RoutingKey> unavailable = null;
             AbstractUnseekableKeys keys = (AbstractUnseekableKeys) context.keys();
             if (keys.size() == 0)
-                return context;
+                return with;
 
             for (int i = 0 ; i < keys.size() ; ++i)
             {
@@ -160,7 +162,7 @@ public class AccordSafeCommandStore extends SafeCommandStore
             }
 
             if (unavailable == null)
-                return context;
+                return with;
 
             if (unavailable.size() == keys.size())
                 return null;
@@ -346,6 +348,7 @@ public class AccordSafeCommandStore extends SafeCommandStore
 
     private <O> O mapReduce(Routables<?> keysOrRanges, BiFunction<CommandsSummary, O, O> map, O accumulate)
     {
+        Invariants.checkState(context.keys().containsAll(keysOrRanges), "Attempted to access keysOrRanges outside of what was asked for; asked for %s, accessed %s", context.keys(), keysOrRanges);
         accumulate = mapReduceForRange(keysOrRanges, map, accumulate);
         return mapReduceForKey(keysOrRanges, map, accumulate);
     }
@@ -355,25 +358,6 @@ public class AccordSafeCommandStore extends SafeCommandStore
         if (commandsForRanges == null)
             return accumulate;
 
-        switch (keysOrRanges.domain())
-        {
-            case Key:
-            {
-                AbstractKeys<Key> keys = (AbstractKeys<Key>) keysOrRanges;
-                if (!commandsForRanges.ranges.intersects(keys))
-                    return accumulate;
-            }
-            break;
-            case Range:
-            {
-                AbstractRanges ranges = (AbstractRanges) keysOrRanges;
-                if (!commandsForRanges.ranges.intersects(ranges))
-                    return accumulate;
-            }
-            break;
-            default:
-                throw new AssertionError("Unknown domain: " + keysOrRanges.domain());
-        }
         return map.apply(commandsForRanges, accumulate);
     }
 
@@ -421,7 +405,7 @@ public class AccordSafeCommandStore extends SafeCommandStore
     public <P1, T> T mapReduceActive(Unseekables<?> keysOrRanges, @Nullable Timestamp withLowerTxnId, Txn.Kind.Kinds testKind, CommandFunction<P1, T, T> map, P1 p1, T accumulate)
     {
         return mapReduce(keysOrRanges, (summary, in) -> {
-            return summary.mapReduceActive(withLowerTxnId, testKind, map, p1, in);
+            return summary.mapReduceActive(keysOrRanges, withLowerTxnId, testKind, map, p1, in);
         }, accumulate);
     }
 
@@ -429,7 +413,7 @@ public class AccordSafeCommandStore extends SafeCommandStore
     public <P1, T> T mapReduceFull(Unseekables<?> keysOrRanges, TxnId testTxnId, Txn.Kind.Kinds testKind, TestStartedAt testStartedAt, TestDep testDep, TestStatus testStatus, CommandFunction<P1, T, T> map, P1 p1, T accumulate)
     {
         return mapReduce(keysOrRanges, (summary, in) -> {
-            return summary.mapReduceFull(testTxnId, testKind, testStartedAt, testDep, testStatus, map, p1, in);
+            return summary.mapReduceFull(keysOrRanges, testTxnId, testKind, testStartedAt, testDep, testStatus, map, p1, in);
         }, accumulate);
     }
 

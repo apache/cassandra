@@ -38,4 +38,5 @@ public interface MemtableIndexManager
     void renewMemtable(Memtable renewed);
 
     NavigableSet<ByteBuffer> search(int storeId, TableId tableId, byte[] start, boolean startInclusive, byte[] end, boolean endInclusive);
+    NavigableSet<ByteBuffer> search(int storeId, TableId tableId, byte[] key);
 }

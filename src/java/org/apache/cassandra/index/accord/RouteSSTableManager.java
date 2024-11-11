@@ -88,4 +88,14 @@ public class RouteSSTableManager implements SSTableManager
             matches.addAll(index.search(group, start, startInclusive, end, endInclusive));
         return matches;
     }
+
+    @Override
+    public synchronized NavigableSet<ByteBuffer> search(int storeId, TableId tableId, byte[] key)
+    {
+        Group group = new Group(storeId, tableId);
+        TreeSet<ByteBuffer> matches = new TreeSet<>();
+        for (SSTableIndex index : sstables.values())
+            matches.addAll(index.search(group, key));
+        return matches;
+    }
 }

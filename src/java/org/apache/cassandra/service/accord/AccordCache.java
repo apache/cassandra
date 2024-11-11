@@ -67,6 +67,7 @@ import org.apache.cassandra.utils.NoSpamLogger.NoSpamLogStatement;
 import org.apache.cassandra.utils.ObjectSizes;
 
 import static accord.utils.Invariants.checkState;
+import static accord.utils.Invariants.illegalState;
 import static org.apache.cassandra.net.MessagingService.current_version;
 import static org.apache.cassandra.service.accord.AccordCacheEntry.Status.EVICTED;
 import static org.apache.cassandra.service.accord.AccordCacheEntry.Status.LOADED;
@@ -659,7 +660,7 @@ public class AccordCache implements CacheSize
             public void unregister(Listener<K, V> l)
             {
                 if (!tryUnregister(l))
-                    throw new AssertionError("Listener was not registered");
+                    throw illegalState("Listener was not registered");
             }
 
             public boolean tryUnregister(Listener<K, V> l)
