@@ -70,7 +70,7 @@ public class RepairRangeSplitterTest extends CQLTester
         insertAndFlushTable(tableName, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10);
         Refs<SSTableReader> sstables = RepairRangeSplitter.getSSTableReaderRefs(AutoRepairConfig.RepairType.FULL, KEYSPACE, tableName, FULL_RANGE);
         assertEquals(10, sstables.iterator().next().getEstimatedPartitionSize().count());
-        RepairRangeSplitter.SizeEstimate sizes = RepairRangeSplitter.getSizesForRangeOfSSTables(KEYSPACE, tableName, FULL_RANGE, sstables);
+        RepairRangeSplitter.SizeEstimate sizes = RepairRangeSplitter.getSizesForRangeOfSSTables(AutoRepairConfig.RepairType.FULL, KEYSPACE, tableName, FULL_RANGE, sstables);
         assertEquals(10, sizes.partitions);
     }
 
@@ -88,8 +88,8 @@ public class RepairRangeSplitterTest extends CQLTester
 
         Refs<SSTableReader> sstables1 = RepairRangeSplitter.getSSTableReaderRefs(AutoRepairConfig.RepairType.FULL, KEYSPACE, tableName, tokenRange1);
         Refs<SSTableReader> sstables2 = RepairRangeSplitter.getSSTableReaderRefs(AutoRepairConfig.RepairType.FULL, KEYSPACE, tableName, tokenRange2);
-        RepairRangeSplitter.SizeEstimate sizes1 = RepairRangeSplitter.getSizesForRangeOfSSTables(KEYSPACE, tableName, tokenRange1, sstables1);
-        RepairRangeSplitter.SizeEstimate sizes2 = RepairRangeSplitter.getSizesForRangeOfSSTables(KEYSPACE, tableName, tokenRange2, sstables2);
+        RepairRangeSplitter.SizeEstimate sizes1 = RepairRangeSplitter.getSizesForRangeOfSSTables(AutoRepairConfig.RepairType.FULL, KEYSPACE, tableName, tokenRange1, sstables1);
+        RepairRangeSplitter.SizeEstimate sizes2 = RepairRangeSplitter.getSizesForRangeOfSSTables(AutoRepairConfig.RepairType.FULL, KEYSPACE, tableName, tokenRange2, sstables2);
         // +-5% because HLL merge and the applying of range size approx ratio causes estimation errors
         assertTrue(Math.abs(10000 - (sizes1.partitions + sizes2.partitions)) <= 60);
     }
