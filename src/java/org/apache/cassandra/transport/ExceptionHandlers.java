@@ -148,7 +148,7 @@ public class ExceptionHandlers
         else
         {
             ClientMetrics.instance.markUnknownException();
-            logger.warn("Unknown exception in client networking", cause);
+            logger.warn("Unknown exception in client networking with peer {} {}", clientAddress, cause.getMessage());
         }
     }
 
