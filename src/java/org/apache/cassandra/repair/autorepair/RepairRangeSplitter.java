@@ -22,7 +22,6 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -51,6 +50,7 @@ import org.apache.cassandra.io.sstable.format.big.BigTableReader;
 import org.apache.cassandra.io.sstable.format.big.BigTableScanner;
 import org.apache.cassandra.io.sstable.metadata.CompactionMetadata;
 import org.apache.cassandra.io.sstable.metadata.MetadataType;
+import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.concurrent.Refs;
 
@@ -90,7 +90,7 @@ public class RepairRangeSplitter implements IAutoRepairTokenRangeSplitter
     static final String MAX_BYTES_PER_SCHEDULE = "max_bytes_per_schedule";
 
     private final int tablesPerAssignmentLimit;
-    private final long maxBytesPerScheduleBytes;
+    private final long maxBytesPerSchedule;
     private final long bytesPerSubrange;
     private final long partitionsPerSubrange;
 
@@ -115,11 +115,11 @@ public class RepairRangeSplitter implements IAutoRepairTokenRangeSplitter
 
         if (parameters.containsKey(MAX_BYTES_PER_SCHEDULE))
         {
-            maxBytesPerScheduleBytes = new DataStorageSpec.LongBytesBound(parameters.get(MAX_BYTES_PER_SCHEDULE)).toBytes();
+            maxBytesPerSchedule = new DataStorageSpec.LongBytesBound(parameters.get(MAX_BYTES_PER_SCHEDULE)).toBytes();
         }
         else
         {
-            maxBytesPerScheduleBytes = DEFAULT_MAX_BYTES_PER_SCHEDULE;
+            maxBytesPerSchedule = DEFAULT_MAX_BYTES_PER_SCHEDULE;
         }
 
         if (parameters.containsKey(PARTITION_COUNT))
@@ -141,7 +141,7 @@ public class RepairRangeSplitter implements IAutoRepairTokenRangeSplitter
         }
 
         logger.info("Configured {} with {}={}, {}={}, {}={}, {}={}", RepairRangeSplitter.class.getName(),
-                    SUBRANGE_SIZE, subrangeSize, MAX_BYTES_PER_SCHEDULE, maxBytesPerScheduleBytes,
+                    SUBRANGE_SIZE, subrangeSize, MAX_BYTES_PER_SCHEDULE, maxBytesPerSchedule,
                     PARTITION_COUNT, partitionsPerSubrange, TABLE_BATCH_LIMIT, tablesPerAssignmentLimit);
     }
 
@@ -234,7 +234,10 @@ public class RepairRangeSplitter implements IAutoRepairTokenRangeSplitter
         Collections.shuffle(sizeEstimates);
         for (SizeEstimate estimate : sizeEstimates)
         {
-            if (estimate.sizeInRange == 0)
+            // Calculate the smallest subrange if we were to split, this can be used to determine if we can do any
+            // work if we have a non-zero estimate.
+            long smallestSubrange = Math.min(estimate.sizeForRepair, bytesPerSubrange);
+            if (estimate.sizeForRepair == 0)
             {
                 ColumnFamilyStore cfs = ColumnFamilyStore.getIfExists(keyspaceName, tableName);
                 long memtableSize = cfs.getTracker().getView().getCurrentMemtable().getLiveDataSize();
@@ -249,31 +252,40 @@ public class RepairRangeSplitter implements IAutoRepairTokenRangeSplitter
                     logger.debug("Skipping {}.{} for range {} because it had no unrepaired SSTables and no memtable data", keyspaceName, tableName, estimate.tokenRange);
                 }
             }
-            else if (targetBytesSoFar + estimate.sizeInRange < maxBytesPerScheduleBytes)
+            else if (targetBytesSoFar + smallestSubrange < maxBytesPerSchedule)
             {
-                targetBytesSoFar += estimate.sizeInRange;
                 // Check if the estimate needs splitting based on the criteria
-                boolean needsSplitting = estimate.sizeInRange > bytesPerSubrange || estimate.partitions > partitionsPerSubrange;
+                boolean needsSplitting = estimate.sizeForRepair > bytesPerSubrange || estimate.partitions > partitionsPerSubrange;
 
                 if (needsSplitting)
                 {
-                    // Calculate the number of splits needed for size and partitions
-                    int splitsForSize = (int) Math.ceil((double) estimate.sizeInRange / bytesPerSubrange);
-                    int splitsForPartitions = (int) Math.ceil((double) estimate.partitions / partitionsPerSubrange);
-
-                    // Choose the larger of the two as the number of splits
-                    int numberOfSplits = Math.max(splitsForSize, splitsForPartitions);
-
-                    // Split the token range into subranges
+                    int numberOfSplits = calculateNumberOfSplits(estimate);
+                    long approximateBytesPerSplit = estimate.sizeForRepair / numberOfSplits;
                     Collection<Range<Token>> subranges = split(estimate.tokenRange, numberOfSplits);
                     for (Range<Token> subrange : subranges)
                     {
+                        if (targetBytesSoFar + approximateBytesPerSplit > maxBytesPerSchedule)
+                        {
+                            logger.warn("Refusing to add repair assignment for {}.{} for subrange {} with a approximateBytesPerSplit={} because it would increase total repair bytes to {} which is greater than {}={}",
+                                        keyspaceName, tableName, subrange, FileUtils.stringifyFileSize(approximateBytesPerSplit), FileUtils.stringifyFileSize(targetBytesSoFar + approximateBytesPerSplit),
+                                        MAX_BYTES_PER_SCHEDULE, FileUtils.stringifyFileSize(maxBytesPerSchedule));
+                            break;
+                        }
+                        logger.info("Added repair assignment for {}.{} for subrange {} (#{}/{})",
+                                    keyspaceName, tableName, subrange, repairAssignments.size() + 1, numberOfSplits);
                         RepairAssignment assignment = new RepairAssignment(subrange, keyspaceName, Collections.singletonList(tableName));
                         repairAssignments.add(assignment);
+                        targetBytesSoFar += approximateBytesPerSplit;
                     }
                 }
                 else
                 {
+                    logger.info("Using 1 repair assignment for {}.{} for range {} as rangeBytes={} is less than {}={} and partitionEstimate={} is less than {}={}",
+                                keyspaceName, tableName, estimate.tokenRange,
+                                FileUtils.stringifyFileSize(estimate.sizeForRepair),
+                                SUBRANGE_SIZE, FileUtils.stringifyFileSize(bytesPerSubrange),
+                                estimate.partitions,
+                                PARTITION_COUNT, partitionsPerSubrange);
                     // No splitting needed, repair the entire range as-is
                     RepairAssignment assignment = new RepairAssignment(estimate.tokenRange, keyspaceName, Collections.singletonList(tableName));
                     repairAssignments.add(assignment);
@@ -281,11 +293,43 @@ public class RepairRangeSplitter implements IAutoRepairTokenRangeSplitter
             }
             else
             {
+                long calculatedSize = targetBytesSoFar + estimate.sizeForRepair;
                 // Really this is "Ok" but it does mean we are relying on randomness to cover the other ranges
-                logger.info("Skipping range {} for {}.{} as it would exceed maxBytesPerScheduleBytes, consider increasing maxBytesPerScheduleBytes, reducing node density or monitoring to ensure all ranges do get repaired within gc_grace_seconds", estimate.tokenRange, keyspaceName, tableName);
+                logger.info("Skipping range {} for {}.{} as {} would exceed {}={}, " +
+                            "consider increasing {}, reducing node denity or monitoring to ensure all ranges do get repaired within gc_grace_seconds",
+                            estimate.tokenRange,
+                            keyspaceName, tableName,
+                            FileUtils.stringifyFileSize(calculatedSize),
+                            MAX_BYTES_PER_SCHEDULE, FileUtils.stringifyFileSize(calculatedSize), MAX_BYTES_PER_SCHEDULE);
             }
         }
         return repairAssignments;
+    }
+
+    private int calculateNumberOfSplits(SizeEstimate estimate)
+    {
+        // Calculate the number of splits needed for size and partitions
+        int splitsForSize = (int) Math.ceil((double) estimate.sizeForRepair / bytesPerSubrange);
+        int splitsForPartitions = (int) Math.ceil((double) estimate.partitions / partitionsPerSubrange);
+
+        // Split the token range into subranges based on whichever (partitions, bytes) would generate the most splits.
+        boolean splitBySize = splitsForSize > splitsForPartitions;
+        int splits = splitBySize ? splitsForSize : splitsForPartitions;
+
+        // calculate approximation for logging purposes
+        long approximateBytesPerSplit = estimate.sizeForRepair / splits;
+        long approximatePartitionsPerSplit = estimate.partitions / splits;
+
+        logger.info("Splitting {}.{} for range {} into {} sub ranges by {} (splitsForSize={}, splitsForPartitions={}, " +
+                    "approximateBytesInRange={}, approximatePartitionsInRange={}, " +
+                    "approximateBytesPerSplit={}, approximatePartitionsPerSplit={})",
+                    estimate.keyspace, estimate.table, estimate.tokenRange,
+                    splits, splitBySize ? "size" : "partitions",
+                    splitsForSize, splitsForPartitions,
+                    FileUtils.stringifyFileSize(estimate.sizeForRepair), estimate.partitions,
+                    FileUtils.stringifyFileSize(approximateBytesPerSplit), approximatePartitionsPerSplit
+        );
+        return splits;
     }
 
     public Collection<Range<Token>> getTokenRanges(boolean primaryRangeOnly, String keyspaceName)
@@ -318,7 +362,7 @@ public class RepairRangeSplitter implements IAutoRepairTokenRangeSplitter
             logger.debug("Calculating size estimate for {}.{} for range {}", keyspace, table, tokenRange);
             try (Refs<SSTableReader> refs = getSSTableReaderRefs(repairType, keyspace, table, tokenRange))
             {
-                SizeEstimate estimate = getSizesForRangeOfSSTables(keyspace, table, tokenRange, refs);
+                SizeEstimate estimate = getSizesForRangeOfSSTables(repairType, keyspace, table, tokenRange, refs);
                 logger.debug("Size estimate for {}.{} for range {} is {}", keyspace, table, tokenRange, estimate);
                 sizeEstimates.add(estimate);
             }
@@ -327,7 +371,7 @@ public class RepairRangeSplitter implements IAutoRepairTokenRangeSplitter
     }
 
     @VisibleForTesting
-    static SizeEstimate getSizesForRangeOfSSTables(String keyspace, String table, Range<Token> tokenRange, Refs<SSTableReader> refs)
+    static SizeEstimate getSizesForRangeOfSSTables(AutoRepairConfig.RepairType repairType, String keyspace, String table, Range<Token> tokenRange, Refs<SSTableReader> refs)
     {
         ICardinality cardinality = new HyperLogLogPlus(13, 25);
         long approxBytesInRange = 0L;
@@ -374,7 +418,7 @@ public class RepairRangeSplitter implements IAutoRepairTokenRangeSplitter
         double ratio = approxBytesInRange / (double) totalBytes;
         // use the ratio from size to estimate the partitions in the range as well
         long partitions = (long) Math.max(1, Math.ceil(cardinality.cardinality() * ratio));
-        return new SizeEstimate(keyspace, table, tokenRange, partitions, approxBytesInRange, totalBytes);
+        return new SizeEstimate(repairType, keyspace, table, tokenRange, partitions, approxBytesInRange, totalBytes);
     }
 
     @VisibleForTesting
@@ -397,7 +441,7 @@ public class RepairRangeSplitter implements IAutoRepairTokenRangeSplitter
             List<SSTableReader> canonicalSSTables = View.sstablesInBounds(r.left, r.right, tree);
             if (repairType == AutoRepairConfig.RepairType.INCREMENTAL)
             {
-                canonicalSSTables = canonicalSSTables.stream().filter(SSTableReader::isRepaired).collect(Collectors.toList());
+                canonicalSSTables = canonicalSSTables.stream().filter((sstable) -> !sstable.isRepaired()).collect(Collectors.toList());
             }
             refs = Refs.tryRef(canonicalSSTables);
         }
@@ -407,21 +451,33 @@ public class RepairRangeSplitter implements IAutoRepairTokenRangeSplitter
     @VisibleForTesting
     protected static class SizeEstimate
     {
+        public final AutoRepairConfig.RepairType repairType;
         public final String keyspace;
         public final String table;
         public final Range<Token> tokenRange;
         public final long partitions;
         public final long sizeInRange;
         public final long totalSize;
+        /**
+         * Size to consider in the repair.  For incremental repair, we want to consider the total size
+         * of the estimate as we have to factor in anticompacting the entire SSTable.
+         * For full repair, just use the size containing the range.
+         */
+        public final long sizeForRepair;
 
-        public SizeEstimate(String keyspace, String table, Range<Token> tokenRange, long partitions, long sizeInRange, long totalSize)
+        public SizeEstimate(AutoRepairConfig.RepairType repairType,
+                            String keyspace, String table, Range<Token> tokenRange,
+                            long partitions, long sizeInRange, long totalSize)
         {
+            this.repairType = repairType;
             this.keyspace = keyspace;
             this.table = table;
             this.tokenRange = tokenRange;
             this.partitions = partitions;
             this.sizeInRange = sizeInRange;
             this.totalSize = totalSize;
+
+            this.sizeForRepair = repairType == AutoRepairConfig.RepairType.INCREMENTAL ? totalSize : sizeInRange;
         }
     }
 }
