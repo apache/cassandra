@@ -23,14 +23,18 @@ import java.io.Closeable;
 import java.nio.ByteBuffer;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Collection;
 import java.util.Collections;
+import java.util.Objects;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Consumer;
 import java.util.stream.Stream;
 
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
 import org.apache.cassandra.db.rows.EncodingStats;
 import org.apache.cassandra.io.sstable.format.SSTableFormat;
+import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.schema.TableMetadataRef;
 import org.apache.cassandra.service.ActiveRepairService;
@@ -46,6 +50,8 @@ abstract class AbstractSSTableSimpleWriter implements Closeable
     protected SSTableFormat.Type formatType = SSTableFormat.Type.current();
     protected static final AtomicReference<SSTableId> id = new AtomicReference<>(SSTableIdFactory.instance.defaultBuilder().generator(Stream.empty()).get());
     protected boolean makeRangeAware = false;
+    protected Consumer<Collection<SSTableReader>> sstableProducedListener;
+    protected boolean openSSTableOnProduced = false;
 
     protected AbstractSSTableSimpleWriter(File directory, TableMetadataRef metadata, RegularAndStaticColumns columns)
     {
@@ -62,6 +68,32 @@ abstract class AbstractSSTableSimpleWriter implements Closeable
     protected void setRangeAwareWriting(boolean makeRangeAware)
     {
         this.makeRangeAware = makeRangeAware;
+    }
+
+    protected void setSSTableProducedListener(Consumer<Collection<SSTableReader>> listener)
+    {
+        this.sstableProducedListener = Objects.requireNonNull(listener);
+    }
+
+    protected void setShouldOpenProducedSSTable(boolean openSSTableOnProduced)
+    {
+        this.openSSTableOnProduced = openSSTableOnProduced;
+    }
+
+    /**
+     * Indicate whether the produced sstable should be opened or not.
+     */
+    protected boolean shouldOpenSSTables()
+    {
+        return openSSTableOnProduced;
+    }
+
+    protected void notifySSTableProduced(Collection<SSTableReader> sstables)
+    {
+        if (sstableProducedListener == null)
+            return;
+
+        sstableProducedListener.accept(sstables);
     }
 
     protected SSTableTxnWriter createWriter() throws IOException
