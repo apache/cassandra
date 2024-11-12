@@ -23,14 +23,18 @@ import java.io.IOException;
 import java.io.Closeable;
 import java.nio.ByteBuffer;
 import java.util.Collections;
+import java.util.Collection;
 import java.util.HashSet;
+import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Consumer;
 
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
 import org.apache.cassandra.db.rows.EncodingStats;
 import org.apache.cassandra.io.sstable.format.SSTableFormat;
+import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.schema.TableMetadataRef;
 import org.apache.cassandra.service.ActiveRepairService;
 
@@ -45,6 +49,8 @@ abstract class AbstractSSTableSimpleWriter implements Closeable
     protected SSTableFormat.Type formatType = SSTableFormat.Type.current();
     protected static AtomicInteger generation = new AtomicInteger(0);
     protected boolean makeRangeAware = false;
+    protected Consumer<Collection<SSTableReader>> sstableProducedListener;
+    protected boolean openSSTableOnProduced = false;
 
     protected AbstractSSTableSimpleWriter(File directory, TableMetadataRef metadata, RegularAndStaticColumns columns)
     {
@@ -63,6 +69,31 @@ abstract class AbstractSSTableSimpleWriter implements Closeable
         this.makeRangeAware = makeRangeAware;
     }
 
+    protected void setSSTableProducedListener(Consumer<Collection<SSTableReader>> listener)
+    {
+        this.sstableProducedListener = Objects.requireNonNull(listener);
+    }
+
+    protected void setShouldOpenProducedSSTable(boolean openSSTableOnProduced)
+    {
+        this.openSSTableOnProduced = openSSTableOnProduced;
+    }
+
+    /**
+     * Indicate whether the produced sstable should be opened or not.
+     */
+    protected boolean shouldOpenSSTables()
+    {
+        return openSSTableOnProduced;
+    }
+
+    protected void notifySSTableProduced(Collection<SSTableReader> sstables)
+    {
+        if (sstableProducedListener == null)
+            return;
+
+        sstableProducedListener.accept(sstables);
+    }
 
     protected SSTableTxnWriter createWriter()
     {
