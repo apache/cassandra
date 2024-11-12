@@ -45,7 +45,7 @@ public abstract class AbstractCommitLogService
     private volatile boolean shutdown = false;
 
     // all Allocations written before this time will be synced
-    protected volatile long lastSyncedAt = System.currentTimeMillis();
+    protected volatile long lastSyncedAt = MonotonicClock.preciseTime.now();
 
     // counts of total written, and pending, log messages
     private final AtomicLong written = new AtomicLong(0);
