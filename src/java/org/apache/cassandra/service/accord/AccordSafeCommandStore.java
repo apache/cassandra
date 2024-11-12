@@ -46,6 +46,8 @@ import accord.local.SafeCommandStore;
 import accord.local.cfk.CommandsForKey;
 import accord.primitives.AbstractKeys;
 import accord.primitives.AbstractRanges;
+import accord.primitives.AbstractUnseekableKeys;
+import accord.primitives.Participants;
 import accord.primitives.Ranges;
 import accord.primitives.Routable;
 import accord.primitives.Routables;
@@ -119,13 +121,13 @@ public class AccordSafeCommandStore extends SafeCommandStore
                 return context;
 
             List<RoutingKey> unavailable = null;
-            Unseekables<?> keys = context.keys();
+            AbstractUnseekableKeys keys = (AbstractUnseekableKeys) context.keys();
             if (keys.size() == 0)
                 return context;
 
             for (int i = 0 ; i < keys.size() ; ++i)
             {
-                RoutingKey key = (RoutingKey) keys.get(i);
+                RoutingKey key = keys.get(i);
                 if (keyHistory == TIMESTAMPS)
                 {
                     if (null != timestampsForKeyInternal(key))
@@ -161,7 +163,8 @@ public class AccordSafeCommandStore extends SafeCommandStore
             if (unavailable.size() == keys.size())
                 return null;
 
-            return PreLoadContext.contextFor(context.primaryTxnId(), context.additionalTxnId(), keys.without(RoutingKeys.ofSortedUnique(unavailable)), keyHistory);
+            Participants<RoutingKey> available = keys.without(RoutingKeys.ofSortedUnique(unavailable));
+            return PreLoadContext.contextFor(context.primaryTxnId(), context.additionalTxnId(), available, keyHistory);
         }
     }
 
