@@ -466,8 +466,7 @@ public abstract class ReadCommand extends AbstractReadQuery
                 iterator = withQuerySizeTracking(iterator);
                 iterator = maybeSlowDownForTesting(iterator);
                 iterator = withQueryCancellation(iterator);
-                if (DatabaseDescriptor.getPurgeableTobmstonesMetricGranularity() != Config.TombstonesMetricGranularity.disabled)
-                    iterator = withPurgeableTombstonesMetricRecording(iterator, cfs);
+                iterator = maybeRecordPurgeableTombstones(iterator, cfs);
                 iterator = RTBoundValidator.validate(withoutPurgeableTombstones(iterator, cfs, executionController), Stage.PURGED, false);
                 iterator = withMetricsRecording(iterator, cfs.metric, startTimeNanos);
 
@@ -902,8 +901,8 @@ public abstract class ReadCommand extends AbstractReadQuery
      * It tracks only tombstones with localDeletionTime < now - gc_grace_period.
      * Other (non-purgeable) tombstones will be tracked by regular Cassandra logic later.
      */
-    private UnfilteredPartitionIterator withPurgeableTombstonesMetricRecording(UnfilteredPartitionIterator iter,
-                                                                               ColumnFamilyStore cfs)
+    private UnfilteredPartitionIterator maybeRecordPurgeableTombstones(UnfilteredPartitionIterator iter,
+                                                                       ColumnFamilyStore cfs)
     {
         class PurgeableTombstonesMetricRecording extends Transformation<UnfilteredRowIterator>
         {
@@ -929,7 +928,8 @@ public abstract class ReadCommand extends AbstractReadQuery
                 final long nowInSec = nowInSec();
                 boolean hasTombstones = false;
 
-                if (DatabaseDescriptor.getPurgeableTobmstonesMetricGranularity() == Config.TombstonesMetricGranularity.cell)
+                if (isPurgeableCellTombstonesTrackingEnabled())
+                {
                     for (Cell<?> cell : row.cells())
                     {
                         if (!cell.isLive(nowInSec) && isPurgeable(cell.localDeletionTime(), nowInSec))
@@ -938,6 +938,7 @@ public abstract class ReadCommand extends AbstractReadQuery
                             hasTombstones = true; // allows to avoid counting an extra tombstone if the whole row expired
                         }
                     }
+                }
 
                 // we replicate the logic is used for non-purged tombstones metric here
                 if (!row.primaryKeyLivenessInfo().isLive(nowInSec)
@@ -1019,9 +1020,17 @@ public abstract class ReadCommand extends AbstractReadQuery
             {
                 return localDeletionTime < cfs.gcBefore(nowInSec);
             }
+
+            private boolean isPurgeableCellTombstonesTrackingEnabled()
+            {
+                return DatabaseDescriptor.getPurgeableTobmstonesMetricGranularity() == Config.TombstonesMetricGranularity.cell;
+            }
         }
 
-        return Transformation.apply(iter, new PurgeableTombstonesMetricRecording());
+        if (DatabaseDescriptor.getPurgeableTobmstonesMetricGranularity() != Config.TombstonesMetricGranularity.disabled)
+            return Transformation.apply(iter, new PurgeableTombstonesMetricRecording());
+        else
+            return iter;
     }
 
     /**
