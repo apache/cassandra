@@ -56,6 +56,7 @@ import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.auth.jmx.AuthenticationProxy;
 
+import static org.apache.cassandra.config.CassandraRelevantProperties.JAVA_VERSION;
 import static org.apache.cassandra.config.CassandraRelevantProperties.COM_SUN_MANAGEMENT_JMXREMOTE_ACCESS_FILE;
 import static org.apache.cassandra.config.CassandraRelevantProperties.COM_SUN_MANAGEMENT_JMXREMOTE_AUTHENTICATE;
 import static org.apache.cassandra.config.CassandraRelevantProperties.COM_SUN_MANAGEMENT_JMXREMOTE_PASSWORD_FILE;
@@ -64,6 +65,7 @@ import static org.apache.cassandra.config.CassandraRelevantProperties.COM_SUN_MA
 import static org.apache.cassandra.config.CassandraRelevantProperties.COM_SUN_MANAGEMENT_JMXREMOTE_SSL_ENABLED_CIPHER_SUITES;
 import static org.apache.cassandra.config.CassandraRelevantProperties.COM_SUN_MANAGEMENT_JMXREMOTE_SSL_ENABLED_PROTOCOLS;
 import static org.apache.cassandra.config.CassandraRelevantProperties.COM_SUN_MANAGEMENT_JMXREMOTE_SSL_NEED_CLIENT_AUTH;
+
 
 public class JMXServerUtils
 {
@@ -100,6 +102,8 @@ public class JMXServerUtils
         // via a JAAS configuration entry, or one which delegates to the standard file based authenticator.
         // Authn is disabled if com.sun.management.jmxremote.authenticate=false
         env.putAll(configureJmxAuthentication());
+        // Secure credential passing to avoid deserialization attacks
+        env.putAll(configureSecureCredentials());
 
         // Configure authz - if a custom proxy class is specified an instance will be returned.
         // If not, but a location for the standard access file is set in system properties, the
@@ -151,6 +155,19 @@ public class JMXServerUtils
         return createJMXServer(port, null, local);
     }
 
+    private static Map<String, Object> configureSecureCredentials()
+    {
+        Map<String, Object> env = new HashMap<>();
+        if (JAVA_VERSION.getString().startsWith("1.8"))
+        {
+            env.put("jmx.remote.rmi.server.credential.types",
+                    new String[] { String[].class.getName(), String.class.getName() });
+        } else {
+            env.put("jmx.remote.rmi.server.credentials.filter.pattern", String.class.getName() + ";!*");
+        }
+        return env;
+    }
+
     private static Map<String, Object> configureJmxAuthentication()
     {
         Map<String, Object> env = new HashMap<>();
@@ -184,8 +201,6 @@ public class JMXServerUtils
 
             env.put(JMXConnectorServer.AUTHENTICATOR, new JMXPluggableAuthenticatorWrapper(env));
         }
-        env.put("jmx.remote.rmi.server.credential.types",
-            new String[] { String[].class.getName(), String.class.getName() });
         return env;
     }
 
