@@ -175,6 +175,7 @@ Merged from 3.0:
  * Fix CQLSH online help topic link (CASSANDRA-17534)
  * Remove unused suppressions (CASSANDRA-18724)
 Unreleased
+ * [SO-36789] Implement streaming count-down latch for committing SSTables
  * [SO-37198] Feature flag to switch on new behavior for building interval tree & tests to verify the trees are identical
  * [SO-36792] IntervalTree build should do sort only once (CASSANDRA-19596)
  * [SO-34847] Implement inbound stream throuttler

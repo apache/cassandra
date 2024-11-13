@@ -66,6 +66,7 @@ import org.apache.cassandra.streaming.StreamSummary;
 import org.apache.cassandra.streaming.messages.StreamMessageHeader;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.concurrent.CountDownLatch;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
 import org.openjdk.jmh.annotations.Fork;
@@ -130,7 +131,7 @@ public class ZeroCopyStreamingBench
             serializedBlockStream = blockStreamCaptureChannel.getSerializedStream();
             out.close();
 
-            session.prepareReceiving(new StreamSummary(sstable.metadata().id, 1, serializedBlockStream.readableBytes()));
+            session.prepareReceiving(new StreamSummary(sstable.metadata().id, 1, serializedBlockStream.readableBytes()), new CountDownLatch.Sync(0));
 
             CassandraStreamHeader entireSSTableStreamHeader =
                 CassandraStreamHeader.builder()

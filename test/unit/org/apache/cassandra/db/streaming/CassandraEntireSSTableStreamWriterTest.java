@@ -145,7 +145,7 @@ public class CassandraEntireSSTableStreamWriterTest
             CassandraEntireSSTableStreamWriter writer = new CassandraEntireSSTableStreamWriter(sstable, session, context);
             writer.write(out);
 
-            session.prepareReceiving(new StreamSummary(sstable.metadata().id, 1, 5104));
+            session.prepareReceiving(new StreamSummary(sstable.metadata().id, 1, 5104), new org.apache.cassandra.utils.concurrent.CountDownLatch.Sync(0));
 
             CassandraStreamHeader header =
             CassandraStreamHeader.builder()

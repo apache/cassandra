@@ -228,7 +228,7 @@ public class EntireSSTableStreamConcurrentComponentMutationTest
         streaming.get(3, TimeUnit.MINUTES);
         concurrentMutations.get(3, TimeUnit.MINUTES);
 
-        session.prepareReceiving(new StreamSummary(sstable.metadata().id, 1, 5104));
+        session.prepareReceiving(new StreamSummary(sstable.metadata().id, 1, 5104), new org.apache.cassandra.utils.concurrent.CountDownLatch.Sync(0));
         StreamMessageHeader messageHeader = new StreamMessageHeader(sstable.metadata().id, peer, session.planId(), false, 0, 0, 0, null);
 
         try (DataInputBuffer in = new DataInputBuffer(serializedFile.nioBuffer(), false))

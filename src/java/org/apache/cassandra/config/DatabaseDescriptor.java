@@ -3716,6 +3716,16 @@ public class DatabaseDescriptor
         return conf.streaming_keep_alive_period.toSeconds();
     }
 
+    public static long getStreamingCommitLatchTimeout()
+    {
+        return conf.streaming_commit_latch_timeout.toSeconds();
+    }
+
+    public static void setStreamingCommitLatchTimeout(DurationSpec.LongSecondsBound timeout)
+    {
+        conf.streaming_commit_latch_timeout = timeout;
+    }
+
     public static int getStreamingConnectionsPerHost()
     {
         return conf.streaming_connections_per_host;

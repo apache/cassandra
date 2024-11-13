@@ -29,13 +29,16 @@ import org.slf4j.LoggerFactory;
 import org.apache.cassandra.audit.AuditLogEntry;
 import org.apache.cassandra.audit.AuditLogEntryType;
 import org.apache.cassandra.audit.AuditLogManager;
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.metrics.StreamingMetrics;
 import org.apache.cassandra.service.QueryState;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.utils.JVMStabilityInspector;
+import org.apache.cassandra.utils.concurrent.CountDownLatch;
 
 import static org.apache.cassandra.concurrent.ExecutorFactory.Global.executorFactory;
+import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
 import static org.apache.cassandra.utils.ExecutorUtils.awaitTermination;
 import static org.apache.cassandra.utils.ExecutorUtils.shutdown;
 
@@ -61,13 +64,16 @@ public class StreamReceiveTask extends StreamTask
 
     private int remoteStreamsReceived = 0;
     private long bytesReceived = 0;
+    @VisibleForTesting
+    protected CountDownLatch commitLatch;
 
-    public StreamReceiveTask(StreamSession session, TableId tableId, int totalStreams, long totalSize)
+    public StreamReceiveTask(StreamSession session, TableId tableId, int totalStreams, long totalSize, CountDownLatch commitLatch)
     {
         super(session, tableId);
         this.receiver = ColumnFamilyStore.getIfExists(tableId).getStreamManager().createStreamReceiver(session, totalStreams);
         this.totalStreams = totalStreams;
         this.totalSize = totalSize;
+        this.commitLatch = commitLatch;
     }
 
     /**
@@ -98,6 +104,7 @@ public class StreamReceiveTask extends StreamTask
         if (remoteStreamsReceived == totalStreams)
         {
             done = true;
+            commitLatch.decrement();
             executor.submit(new OnCompletionRunnable(this));
         }
     }
@@ -119,7 +126,8 @@ public class StreamReceiveTask extends StreamTask
         return receiver;
     }
 
-    private static class OnCompletionRunnable implements Runnable
+    @VisibleForTesting
+    protected static class OnCompletionRunnable implements Runnable
     {
         private final StreamReceiveTask task;
 
@@ -168,6 +176,8 @@ public class StreamReceiveTask extends StreamTask
                     return;
                 }
 
+                awaitCommitLatch();
+
                 task.receiver.finished();
                 task.session.taskCompleted(task);
 
@@ -201,6 +211,22 @@ public class StreamReceiveTask extends StreamTask
                 task.receiver.cleanup();
             }
         }
+
+        @VisibleForTesting
+        protected void awaitCommitLatch() throws InterruptedException
+        {
+            long waitStartTime = currentTimeMillis();
+            logger.debug("[{}] Waiting for commit latch to be lifted for table {}", task.session.planId(), task.tableId);
+            if (!task.commitLatch.await(DatabaseDescriptor.getStreamingCommitLatchTimeout(), TimeUnit.SECONDS))
+            {
+                StreamingMetrics.commitLatchTimeout.inc();
+                logger.debug("[{}] Commit latch was not lifted in time. Committing stream receive task for table {} " +
+                             "before session checkpoint.", task.session.planId(), task.tableId);
+            }
+            long waitTime = currentTimeMillis() - waitStartTime;
+            StreamingMetrics.commitLatchWaitTime.update(waitTime, TimeUnit.MILLISECONDS);
+            logger.debug("[{}] Waited {} ms for commit latch to be lifted for table {}", task.session.planId(), waitTime, task.tableId);
+        }
     }
 
     /**
@@ -215,6 +241,7 @@ public class StreamReceiveTask extends StreamTask
             return;
 
         done = true;
+        commitLatch.decrement();
         receiver.abort();
     }
 

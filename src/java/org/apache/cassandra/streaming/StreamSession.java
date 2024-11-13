@@ -67,6 +67,7 @@ import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.JVMStabilityInspector;
 import org.apache.cassandra.utils.NoSpamLogger;
 import org.apache.cassandra.utils.TimeUUID;
+import org.apache.cassandra.utils.concurrent.CountDownLatch;
 import org.apache.cassandra.utils.concurrent.FutureCombiner;
 
 import static com.google.common.collect.Iterables.all;
@@ -772,8 +773,9 @@ public class StreamSession implements IEndpointStateChangeSubscriber
     public void prepareAsync(Collection<StreamRequest> requests, Collection<StreamSummary> summaries)
     {
         processStreamRequests(requests);
+        CountDownLatch commitLatch = new CountDownLatch.Sync(summaries.size());
         for (StreamSummary summary : summaries)
-            prepareReceiving(summary);
+            prepareReceiving(summary, commitLatch);
 
         PrepareSynAckMessage prepareSynAck = new PrepareSynAckMessage();
         if (!peer.equals(FBUtilities.getBroadcastAddressAndPort()))
@@ -800,8 +802,9 @@ public class StreamSession implements IEndpointStateChangeSubscriber
     {
         if (!msg.summaries.isEmpty())
         {
+            CountDownLatch commitLatch = new CountDownLatch.Sync(msg.summaries.size());
             for (StreamSummary summary : msg.summaries)
-                prepareReceiving(summary);
+                prepareReceiving(summary, commitLatch);
 
             // only send the (final) ACK if we are expecting the peer to send this node (the initiator) some files
             if (!isPreview())
@@ -1080,11 +1083,11 @@ public class StreamSession implements IEndpointStateChangeSubscriber
     }
 
     @VisibleForTesting
-    public synchronized void prepareReceiving(StreamSummary summary)
+    public synchronized void prepareReceiving(StreamSummary summary, CountDownLatch commitLatch)
     {
         failIfFinished();
         if (summary.files > 0)
-            receivers.put(summary.tableId, new StreamReceiveTask(this, summary.tableId, summary.files, summary.totalSize));
+            receivers.put(summary.tableId, new StreamReceiveTask(this, summary.tableId, summary.files, summary.totalSize, commitLatch));
     }
 
     private void startStreamingFiles(@Nullable PrepareDirection prepareDirection)

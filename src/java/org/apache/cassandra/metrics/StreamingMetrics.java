@@ -45,6 +45,8 @@ public class StreamingMetrics
     public static final Counter totalOutgoingRepairSSTables = Metrics.counter(DefaultNameFactory.createMetricName(TYPE_NAME, "TotalOutgoingRepairSSTables", null));
     public static final Counter bulkLoadTaskCompleted = Metrics.counter(DefaultNameFactory.createMetricName(TYPE_NAME, "BulkLoadTaskCompleted", null));
     public static final Counter bulkLoadTaskFailed = Metrics.counter(DefaultNameFactory.createMetricName(TYPE_NAME, "BulkLoadTaskFailed", null));
+    public static final Counter commitLatchTimeout = Metrics.counter(DefaultNameFactory.createMetricName(TYPE_NAME, "CommitLatchTimeout", null));
+    public static final Timer commitLatchWaitTime = Metrics.timer(DefaultNameFactory.createMetricName(TYPE_NAME, "CommitLatchWaitTime", null));
     public final Counter incomingBytes;
     public final Counter outgoingBytes;
     /* Measures the time taken for processing the incoming stream message after being deserialized, including the time to flush to disk. */
