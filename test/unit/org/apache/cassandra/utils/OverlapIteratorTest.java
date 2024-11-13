@@ -22,17 +22,40 @@ package org.apache.cassandra.utils;
 
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.TreeSet;
 import java.util.concurrent.ThreadLocalRandom;
 
+import org.junit.BeforeClass;
 import org.junit.Test;
+import org.junit.runner.RunWith;
+import org.junit.runners.Parameterized;
+
+import org.apache.cassandra.config.DatabaseDescriptor;
 
 import static org.junit.Assert.assertTrue;
 
+@RunWith(Parameterized.class)
 public class OverlapIteratorTest
 {
+    @BeforeClass
+    public static void setup() throws Exception
+    {
+        DatabaseDescriptor.daemonInitialization();
+    }
+
+    public OverlapIteratorTest(Boolean useNewBehavior)
+    {
+        DatabaseDescriptor.setUseNewBehaviorForIntervalTreeBuild(useNewBehavior);
+    }
+
+    @Parameterized.Parameters()
+    public static List<Boolean> buildParameterizedVariants()
+    {
+        return Arrays.asList(true, false);
+    }
 
     private static List<Interval<Integer, Integer>> randomIntervals(int range, int increment, int count)
     {

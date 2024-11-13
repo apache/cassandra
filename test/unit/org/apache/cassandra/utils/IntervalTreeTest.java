@@ -24,10 +24,17 @@ package org.apache.cassandra.utils;
 import java.io.IOException;
 import java.lang.reflect.Constructor;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 
+import org.junit.BeforeClass;
 import org.junit.Test;
+import org.junit.runner.RunWith;
+import org.junit.runners.Parameterized;
+import org.junit.runners.Parameterized.Parameters;
+
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.io.ISerializer;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputBuffer;
@@ -37,8 +44,26 @@ import org.apache.cassandra.io.util.DataOutputPlus;
 
 import static org.junit.Assert.assertEquals;
 
+@RunWith(Parameterized.class)
 public class IntervalTreeTest
 {
+    @BeforeClass
+    public static void setup() throws Exception
+    {
+        DatabaseDescriptor.daemonInitialization();
+    }
+
+    public IntervalTreeTest(Boolean useNewBehavior)
+    {
+        DatabaseDescriptor.setUseNewBehaviorForIntervalTreeBuild(useNewBehavior);
+    }
+
+    @Parameters()
+    public static List<Boolean> buildParameterizedVariants()
+    {
+        return Arrays.asList(true, false);
+    }
+
     @Test
     public void testSearch() throws Exception
     {

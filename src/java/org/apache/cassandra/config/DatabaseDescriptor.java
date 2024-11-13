@@ -5091,6 +5091,16 @@ public class DatabaseDescriptor
         return conf.ignore_repairedat_enabled;
     }
 
+    public static boolean getUseNewBehaviorForIntervalTreeBuild()
+    {
+        return conf.use_new_behavior_for_interval_tree_build;
+    }
+
+    public static void setUseNewBehaviorForIntervalTreeBuild(boolean isEnabled)
+    {
+        conf.use_new_behavior_for_interval_tree_build = isEnabled;
+    }
+
     public static boolean getDirectMaterializedViewModificationEnabled() {
         return conf.direct_materialized_view_modification_enabled;
     }

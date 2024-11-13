@@ -19,6 +19,8 @@ package org.apache.cassandra.utils;
 
 import com.google.common.base.Joiner;
 import com.google.common.collect.Iterators;
+
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.io.ISerializer;
 import org.apache.cassandra.io.IVersionedSerializer;
@@ -52,24 +54,33 @@ public class IntervalTree<C extends Comparable<? super C>, D, I extends Interval
 
     protected IntervalTree(Collection<I> intervals)
     {
-        if (intervals == null || intervals.isEmpty())
+        if (DatabaseDescriptor.getUseNewBehaviorForIntervalTreeBuild())
         {
-            this.head = null;
-            this.count = 0;
-        }
-        else if (intervals.size() == 1)
-        {
-            this.head = new IntervalNode(intervals.iterator().next());
-            this.count = intervals.size();
+            // CASSANDRA-19596
+            if (intervals == null || intervals.isEmpty())
+            {
+                this.head = null;
+                this.count = 0;
+            }
+            else if (intervals.size() == 1)
+            {
+                this.head = new IntervalNode(intervals.iterator().next());
+                this.count = intervals.size();
+            }
+            else
+            {
+                List<I> minSortedIntervals = new ArrayList<>(intervals);
+                Collections.sort(minSortedIntervals, Interval.minOrdering());
+                List<I> maxSortedIntervals = new ArrayList<>(intervals);
+                Collections.sort(maxSortedIntervals, Interval.maxOrdering());
+                this.head = new IntervalNode(minSortedIntervals, minSortedIntervals, maxSortedIntervals);
+                this.count = intervals.size();
+            }
         }
         else
         {
-            List<I> minSortedIntervals = new ArrayList<>(intervals);
-            Collections.sort(minSortedIntervals, Interval.minOrdering());
-            List<I> maxSortedIntervals = new ArrayList<>(intervals);
-            Collections.sort(maxSortedIntervals, Interval.maxOrdering());
-            this.head = new IntervalNode(minSortedIntervals, minSortedIntervals, maxSortedIntervals);
-            this.count = intervals.size();
+            this.head = intervals == null || intervals.isEmpty() ? null : new IntervalNode(intervals);
+            this.count = intervals == null ? 0 : intervals.size();
         }
     }
 
@@ -187,6 +198,69 @@ public class IntervalTree<C extends Comparable<? super C>, D, I extends Interval
             intersectsRight = l;
             left = null;
             right = null;
+        }
+
+        public IntervalNode(Collection<I> toBisect)
+        {
+            assert !toBisect.isEmpty();
+            logger.trace("Creating IntervalNode from {}", toBisect);
+
+            // Building IntervalTree with one interval will be a reasonably
+            // common case for range tombstones, so it's worth optimizing
+            if (toBisect.size() == 1)
+            {
+                I interval = toBisect.iterator().next();
+                low = interval.min;
+                center = interval.max;
+                high = interval.max;
+                List<I> l = Collections.singletonList(interval);
+                intersectsLeft = l;
+                intersectsRight = l;
+                left = null;
+                right = null;
+            }
+            else
+            {
+                // Find min, median and max
+                List<C> allEndpoints = new ArrayList<C>(toBisect.size() * 2);
+                for (I interval : toBisect)
+                {
+                    allEndpoints.add(interval.min);
+                    allEndpoints.add(interval.max);
+                }
+
+                Collections.sort(allEndpoints);
+
+                low = allEndpoints.get(0);
+                center = allEndpoints.get(toBisect.size());
+                high = allEndpoints.get(allEndpoints.size() - 1);
+
+                // Separate interval in intersecting center, left of center and right of center
+                List<I> intersects = new ArrayList<I>();
+                List<I> leftSegment = new ArrayList<I>();
+                List<I> rightSegment = new ArrayList<I>();
+
+                for (I candidate : toBisect)
+                {
+                    if (candidate.max.compareTo(center) < 0)
+                        leftSegment.add(candidate);
+                    else if (candidate.min.compareTo(center) > 0)
+                        rightSegment.add(candidate);
+                    else
+                        intersects.add(candidate);
+                }
+
+                intersectsLeft = Interval.<C, D>minOrdering().sortedCopy(intersects);
+                intersectsRight = Interval.<C, D>maxOrdering().sortedCopy(intersects);
+                left = leftSegment.isEmpty() ? null : new IntervalNode(leftSegment);
+                right = rightSegment.isEmpty() ? null : new IntervalNode(rightSegment);
+
+                assert (intersects.size() + leftSegment.size() + rightSegment.size()) == toBisect.size() :
+                "intersects (" + String.valueOf(intersects.size()) +
+                ") + leftSegment (" + String.valueOf(leftSegment.size()) +
+                ") + rightSegment (" + String.valueOf(rightSegment.size()) +
+                ") != toBisect (" + String.valueOf(toBisect.size()) + ")";
+            }
         }
 
         public IntervalNode(List<I> toBisect, List<I> minOrder, List<I> maxOrder)
