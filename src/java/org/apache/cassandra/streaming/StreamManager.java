@@ -94,13 +94,49 @@ public class StreamManager implements StreamManagerMBean
                                      DatabaseDescriptor.getEntireSSTableInterDCStreamThroughputOutboundBytesPerSec());
     }
 
-    public static class StreamRateLimiter implements StreamingDataOutputPlus.RateLimiter
+    /**
+     * Get incoming streaming rate limiter for stream operations.
+     * When {@code stream_throughput_inbound}
+     * is less than or equal ot {@code 0}, this returns rate limiter with the
+     * rate of {@link Double.MAX_VALUE} bytes per second.
+     * Rate unit is bytes per sec.
+     *
+     * @return {@link  StreamRateLimiter}
+     */
+    public static StreamRateLimiter getInboundRateLimiter()
+    {
+        return new StreamRateLimiter(StreamRateLimiter.INBOUND_LIMITTER,
+                                     null,
+                                     DatabaseDescriptor.getStreamThroughputInboundBytesPerSec(),
+                                     0);
+    }
+
+    /**
+     * Get incoming streaming rate limiter for entire sstable stream operations.
+     * When {@code entire_sstable_stream_throughput_inbound}
+     * is less than or equal ot {@code 0}, this returns rate limiter with the
+     * rate of {@link Double.MAX_VALUE} bytes per second.
+     * Rate unit is bytes per sec.
+     *
+     * @return {@link  StreamRateLimiter
+     */
+    public static StreamRateLimiter getEntireSSTableInboundRateLimiter()
+    {
+        return new StreamRateLimiter(StreamRateLimiter.ENTIRE_SSTABLE_INBOUND_LIMITTER,
+                                     null,
+                                     DatabaseDescriptor.getEntireSSTableStreamThroughputInboundBytesPerSec(),
+                                     0);
+    }
+
+    public static class StreamRateLimiter implements org.apache.cassandra.streaming.RateLimiter
     {
         public static final double BYTES_PER_MEBIBYTE = 1024.0 * 1024.0;
         private static final RateLimiter LIMITER = RateLimiter.create(calculateRateInBytes());
         private static final RateLimiter INTER_DC_LIMITER = RateLimiter.create(calculateInterDCRateInBytes());
         private static final RateLimiter ENTIRE_SSTABLE_LIMITER = RateLimiter.create(calculateEntireSSTableRateInBytes());
         private static final RateLimiter ENTIRE_SSTABLE_INTER_DC_LIMITER = RateLimiter.create(calculateEntireSSTableInterDCRateInBytes());
+        private static final RateLimiter INBOUND_LIMITTER = RateLimiter.create(calculateInboundRateInBytes());
+        private static final RateLimiter ENTIRE_SSTABLE_INBOUND_LIMITTER = RateLimiter.create(calculateEntireSSTableInboundRateInBytes());
 
         private final RateLimiter limiter;
         private final RateLimiter interDCLimiter;
@@ -121,11 +157,22 @@ public class StreamManager implements StreamManagerMBean
                 isLocalDC = true;
         }
 
+        private StreamRateLimiter(RateLimiter limiter, RateLimiter interDCLimiter, double throughput, double interDCThroughput)
+        {
+            this.limiter = limiter;
+            this.interDCLimiter = interDCLimiter;
+            this.throughput = throughput;
+            this.interDCThroughput = interDCThroughput;
+            this.isLocalDC = true;
+        }
+
         @Override
         public void acquire(int toTransfer)
         {
+            if (toTransfer <= 0)
+                return;
             limiter.acquire(toTransfer);
-            if (!isLocalDC)
+            if (!isLocalDC && interDCLimiter != null)
                 interDCLimiter.acquire(toTransfer);
         }
 
@@ -142,6 +189,11 @@ public class StreamManager implements StreamManagerMBean
             LIMITER.setRate(calculateRateInBytes());
         }
 
+        public static void updateInboundThroughput()
+        {
+            INBOUND_LIMITTER.setRate(calculateInboundRateInBytes());
+        }
+
         public static void updateInterDCThroughput()
         {
             INTER_DC_LIMITER.setRate(calculateInterDCRateInBytes());
@@ -150,6 +202,11 @@ public class StreamManager implements StreamManagerMBean
         public static void updateEntireSSTableThroughput()
         {
             ENTIRE_SSTABLE_LIMITER.setRate(calculateEntireSSTableRateInBytes());
+        }
+
+        public static void updateEntireSSTableInboundThroughput()
+        {
+            ENTIRE_SSTABLE_INBOUND_LIMITTER.setRate(calculateEntireSSTableInboundRateInBytes());
         }
 
         public static void updateEntireSSTableInterDCThroughput()
@@ -175,9 +232,21 @@ public class StreamManager implements StreamManagerMBean
             return calculateEffectiveRateInBytes(throughput);
         }
 
+        private static double calculateEntireSSTableInboundRateInBytes()
+        {
+            double throughput = DatabaseDescriptor.getEntireSSTableStreamThroughputInboundBytesPerSec();
+            return calculateEffectiveRateInBytes(throughput);
+        }
+
         private static double calculateEntireSSTableInterDCRateInBytes()
         {
             double throughput = DatabaseDescriptor.getEntireSSTableInterDCStreamThroughputOutboundBytesPerSec();
+            return calculateEffectiveRateInBytes(throughput);
+        }
+
+        private static double calculateInboundRateInBytes()
+        {
+            double throughput = DatabaseDescriptor.getStreamThroughputInboundBytesPerSec();
             return calculateEffectiveRateInBytes(throughput);
         }
 

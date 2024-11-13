@@ -35,6 +35,7 @@ import org.apache.cassandra.distributed.api.IInvokableInstance;
 import org.apache.cassandra.io.util.BufferedDataOutputStreamPlus;
 import org.apache.cassandra.io.util.RebufferingInputStream;
 import org.apache.cassandra.net.OutboundConnectionSettings;
+import org.apache.cassandra.streaming.RateLimiter;
 import org.apache.cassandra.streaming.StreamDeserializingTask;
 import org.apache.cassandra.streaming.StreamingDataInputPlus;
 import org.apache.cassandra.streaming.StreamingDataOutputPlus;

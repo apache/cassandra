@@ -1293,9 +1293,22 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         logger.info("setstreamthroughput: throttle set to {}{} MiB/s (was {} MiB/s)", value, value <= 0 ? " (unlimited)" : "", oldValue);
     }
 
+    public void setStreamThroughputInboundMebibytesPerSec(int value)
+    {
+        double oldValue = DatabaseDescriptor.getStreamThroughputInboundMebibytesPerSec();
+        DatabaseDescriptor.setStreamThroughputInboundMebibytesPerSecAsInt(value);
+        StreamManager.StreamRateLimiter.updateInboundThroughput();
+        logger.info("setinboundstreamthroughput: throttle set to {}{} MiB/s (was {} MiB/s)", value, value <= 0 ? " (unlimited)" : "", oldValue);
+    }
+
     public double getStreamThroughputMebibytesPerSecAsDouble()
     {
         return DatabaseDescriptor.getStreamThroughputOutboundMebibytesPerSec();
+    }
+
+    public double getStreamThroughputInboundMebibytesPerSecAsDouble()
+    {
+        return DatabaseDescriptor.getStreamThroughputInboundMebibytesPerSec();
     }
 
     public int getStreamThroughputMebibytesPerSec()
@@ -1331,9 +1344,23 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
                     value, value <= 0 ? " (unlimited)" : "", oldValue);
     }
 
+    public void setEntireSSTableStreamThroughputInboundMebibytesPerSec(int value)
+    {
+        double oldValue = DatabaseDescriptor.getEntireSSTableStreamThroughputInboundMebibytesPerSec();
+        DatabaseDescriptor.setEntireSSTableStreamThroughputInboundMebibytesPerSec(value);
+        StreamManager.StreamRateLimiter.updateEntireSSTableInboundThroughput();
+        logger.info("setinboundstreamthroughput (entire SSTable): throttle set to {}{} MiB/s (was {} MiB/s)",
+                    value, value <= 0 ? " (unlimited)" : "", oldValue);
+    }
+
     public double getEntireSSTableStreamThroughputMebibytesPerSecAsDouble()
     {
         return DatabaseDescriptor.getEntireSSTableStreamThroughputOutboundMebibytesPerSec();
+    }
+
+    public double getEntireSSTableStreamThroughputInboundMebibytesPerSecAsDouble()
+    {
+        return DatabaseDescriptor.getEntireSSTableStreamThroughputInboundMebibytesPerSec();
     }
 
     /** @deprecated See CASSANDRA-15234 */

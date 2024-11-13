@@ -26,7 +26,7 @@ import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.io.sstable.SSTableMultiWriter;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.util.DataInputPlus;
-import org.apache.cassandra.io.util.TrackedDataInputPlus;
+import org.apache.cassandra.io.util.RateLimitedTrackedDataInputPlus;
 import org.apache.cassandra.streaming.ProgressInfo;
 import org.apache.cassandra.streaming.StreamSession;
 import org.apache.cassandra.streaming.messages.StreamMessageHeader;
@@ -73,7 +73,7 @@ public class CassandraCompressedStreamReader extends CassandraStreamReader
         SSTableMultiWriter writer = null;
         try (CompressedInputStream cis = new CompressedInputStream(inputPlus, compressionInfo, ChecksumType.CRC32, cfs::getCrcCheckChance))
         {
-            TrackedDataInputPlus in = new TrackedDataInputPlus(cis);
+            RateLimitedTrackedDataInputPlus in = new RateLimitedTrackedDataInputPlus(cis, -1, limiter, totalSize, 1 << 16);
             writer = createWriter(cfs, totalSize, repairedAt, pendingRepair, inputVersion.format);
             deserializer = new StreamDeserializer(cfs.metadata(), in, inputVersion, getHeader(cfs.metadata()), session, writer);
             String filename = writer.getFilename();
@@ -90,7 +90,7 @@ public class CassandraCompressedStreamReader extends CassandraStreamReader
 
                 // skip to beginning of section inside chunk
                 cis.position(section.lowerPosition);
-                in.reset(0);
+                in.reset(0, sectionLength);
 
                 long lastBytesRead = 0;
                 while (in.getBytesRead() < sectionLength)

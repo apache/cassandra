@@ -24,13 +24,14 @@ import java.io.IOException;
 
 import net.nicoulaj.compilecommand.annotations.Inline;
 import org.apache.cassandra.db.TypeSizes;
+import org.apache.cassandra.streaming.RateLimiter;
 
 /**
  * This class is to track bytes read from given DataInput
  */
 public class TrackedDataInputPlus implements DataInputPlus, BytesReadTracker
 {
-    private long bytesRead;
+    protected long bytesRead;
     private final long limit;
     final DataInput source;
 
@@ -179,7 +180,7 @@ public class TrackedDataInputPlus implements DataInputPlus, BytesReadTracker
     }
 
     @Inline
-    private void checkCanRead(int size) throws IOException
+    protected void checkCanRead(int size) throws IOException
     {
         if (limit >= 0 && bytesRead + size > limit)
         {

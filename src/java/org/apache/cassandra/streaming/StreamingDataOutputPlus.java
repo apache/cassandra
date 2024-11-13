@@ -55,13 +55,6 @@ public interface StreamingDataOutputPlus extends DataOutputPlus, Closeable
         void write(BufferSupplier supplier) throws IOException;
     }
 
-    interface RateLimiter
-    {
-        void acquire(int bytes);
-
-        boolean isRateLimited();
-    }
-
     /**
      * Provide a lambda that can request a buffer of suitable size, then fill the buffer and have
      * that buffer written and flushed to the underlying channel, without having to handle buffer

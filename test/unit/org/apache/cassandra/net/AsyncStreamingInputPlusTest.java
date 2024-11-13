@@ -33,7 +33,10 @@ import org.junit.Test;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
 import io.netty.channel.embedded.EmbeddedChannel;
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.io.util.BufferedDataOutputStreamPlus;
+import org.apache.cassandra.streaming.RateLimiter;
+import org.apache.cassandra.streaming.StreamManager;
 
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.fail;
@@ -47,6 +50,7 @@ public class AsyncStreamingInputPlusTest
     @Before
     public void setUp()
     {
+        DatabaseDescriptor.daemonInitialization();
         channel = new EmbeddedChannel();
     }
 
@@ -184,42 +188,74 @@ public class AsyncStreamingInputPlusTest
     }
 
     @Test
+    public void consumeUntil_SingleBuffer_Partial_HappyPath_No_Throttling() throws IOException
+    {
+        DatabaseDescriptor.setStreamThroughputInboundMebibytesPerSecAsInt(0);
+        StreamManager.StreamRateLimiter.updateInboundThroughput();
+        consumeUntilTestCycle(1, 8, 0, 4, false);
+    }
+
+    @Test
+    public void consumeUntil_SingleBuffer_Partial_HappyPath_Entire_SSTable_No_Throttling() throws IOException
+    {
+        DatabaseDescriptor.setEntireSSTableStreamThroughputInboundMebibytesPerSec(0);
+        StreamManager.StreamRateLimiter.updateEntireSSTableInboundThroughput();
+        consumeUntilTestCycle(1, 8, 0, 4, true);
+    }
+
+    @Test
+    public void consumeUntil_SingleBuffer_Partial_HappyPath_Throttling() throws IOException
+    {
+        DatabaseDescriptor.setStreamThroughputInboundMebibytesPerSecAsInt(50);
+        StreamManager.StreamRateLimiter.updateInboundThroughput();
+        consumeUntilTestCycle(1, 8, 0, 4, false);
+    }
+
+    @Test
+    public void consumeUntil_SingleBuffer_Partial_HappyPath_Entire_SSTable_Throttling() throws IOException
+    {
+        DatabaseDescriptor.setEntireSSTableStreamThroughputInboundMebibytesPerSec(50);
+        StreamManager.StreamRateLimiter.updateEntireSSTableInboundThroughput();
+        consumeUntilTestCycle(1, 8, 0, 4, true);
+    }
+
+    @Test
     public void consumeUntil_SingleBuffer_Partial_HappyPath() throws IOException
     {
-        consumeUntilTestCycle(1, 8, 0, 4);
+        consumeUntilTestCycle(1, 8, 0, 4, false);
     }
 
     @Test
     public void consumeUntil_SingleBuffer_AllBytes_HappyPath() throws IOException
     {
-        consumeUntilTestCycle(1, 8, 0, 8);
+        consumeUntilTestCycle(1, 8, 0, 8, false);
     }
 
     @Test
     public void consumeUntil_MultipleBufferr_Partial_HappyPath() throws IOException
     {
-        consumeUntilTestCycle(2, 8, 0, 13);
+        consumeUntilTestCycle(2, 8, 0, 13, false);
     }
 
     @Test
     public void consumeUntil_MultipleBuffer_AllBytes_HappyPath() throws IOException
     {
-        consumeUntilTestCycle(2, 8, 0, 16);
+        consumeUntilTestCycle(2, 8, 0, 16, false);
     }
 
     @Test(expected = ClosedChannelException.class)
     public void consumeUntil_SingleBuffer_Fails() throws IOException
     {
-        consumeUntilTestCycle(1, 8, 0, 9);
+        consumeUntilTestCycle(1, 8, 0, 9, false);
     }
 
     @Test(expected = ClosedChannelException.class)
     public void consumeUntil_MultipleBuffer_Fails() throws IOException
     {
-        consumeUntilTestCycle(2, 8, 0, 17);
+        consumeUntilTestCycle(2, 8, 0, 17, false);
     }
 
-    private void consumeUntilTestCycle(int nBuffs, int buffSize, int startOffset, int len) throws IOException
+    private void consumeUntilTestCycle(int nBuffs, int buffSize, int startOffset, int len, boolean zeroCopy) throws IOException
     {
         inputPlus = new AsyncStreamingInputPlus(channel);
 
@@ -244,7 +280,8 @@ public class AsyncStreamingInputPlusTest
 
         inputPlus.skipBytesFully(startOffset);
         BufferedDataOutputStreamPlus writer = new BufferedDataOutputStreamPlus(wbc);
-        inputPlus.consume(buffer -> { writer.write(buffer); return buffer.remaining(); }, len);
+        RateLimiter limiter = zeroCopy ? StreamManager.getEntireSSTableInboundRateLimiter() : StreamManager.getInboundRateLimiter();
+        inputPlus.consume(buffer -> { writer.write(buffer); return buffer.remaining(); }, len, limiter);
         writer.close();
 
         Assert.assertEquals(String.format("Test with %d buffers starting at %d consuming %d bytes", nBuffs, startOffset, len),
