@@ -130,7 +130,7 @@ public class JMXTestsUtil
                 for(Named error: errors)
                 {
                     // The Named object's message has the cause also so this only logs the message
-                    logger.warn("Error {}", error.getMessage());
+                    logger.error("Error {}", error.getMessage());
                     root.addSuppressed(error);
                 }
                 throw root;
