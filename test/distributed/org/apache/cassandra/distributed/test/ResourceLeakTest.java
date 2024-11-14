@@ -49,7 +49,7 @@ import static org.apache.cassandra.distributed.api.Feature.GOSSIP;
 import static org.apache.cassandra.distributed.api.Feature.JMX;
 import static org.apache.cassandra.distributed.api.Feature.NATIVE_PROTOCOL;
 import static org.apache.cassandra.distributed.api.Feature.NETWORK;
-import static org.apache.cassandra.distributed.test.jmx.JMXGetterCheckTest.testAllValidGetters;
+import static org.apache.cassandra.distributed.test.jmx.JMXTestsUtil.testAllValidGetters;
 import static org.apache.cassandra.utils.FBUtilities.now;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.startsWith;
@@ -167,7 +167,7 @@ public class ResourceLeakTest extends TestBaseImpl
                     Assert.assertThat(defaultDomain, startsWith(JMXUtil.getJmxHost(config) + ":" + config.jmxPort()));
                 }
             }
-            testAllValidGetters(cluster);
+            testAllValidGetters(cluster, null);
         }
         catch (Exception e)
         {

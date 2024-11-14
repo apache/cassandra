@@ -17,8 +17,6 @@
  */
 package org.apache.cassandra.distributed.test.jmx;
 
-import java.util.Map;
-
 import org.junit.Test;
 
 import org.apache.cassandra.distributed.Cluster;
@@ -35,22 +33,8 @@ public class JMXGetterCheckTest extends TestBaseImpl
         {
             try (Cluster cluster = Cluster.build(1).withConfig(c -> c.with(Feature.values())).start())
             {
-                testAllValidGetters(cluster);
+                JMXTestsUtil.testAllValidGetters(cluster, null);
             }
         }
-    }
-
-    /**
-     * Tests JMX getters and operations.
-     * Useful for more than just testing getters, it also is used in JMXFeatureTest
-     * to make sure we've touched the complete JMX code path. If you want to pass additional JMX Env for the client
-     * JMX connection then use {@link JMXTestsUtil#testAllValidGetters(Cluster, Map)} instead.
-     *
-     * @param cluster the cluster to test
-     * @throws Exception several kinds of exceptions can be thrown, mostly from JMX infrastructure issues.
-     */
-    public static void testAllValidGetters(Cluster cluster) throws Exception
-    {
-        JMXTestsUtil.testAllValidGetters(cluster, null);
     }
 }

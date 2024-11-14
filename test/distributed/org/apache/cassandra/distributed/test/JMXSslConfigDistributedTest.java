@@ -35,7 +35,6 @@ import org.apache.cassandra.distributed.api.Feature;
 import org.apache.cassandra.distributed.impl.JmxTestClientSslContextFactory;
 import org.apache.cassandra.distributed.impl.JmxTestClientSslSocketFactory;
 import org.apache.cassandra.distributed.shared.WithProperties;
-import org.apache.cassandra.distributed.test.jmx.JMXGetterCheckTest;
 import org.apache.cassandra.distributed.test.jmx.JMXTestsUtil;
 
 import static org.apache.cassandra.config.CassandraRelevantProperties.COM_SUN_MANAGEMENT_JMXREMOTE_SSL;
@@ -183,7 +182,7 @@ public class JMXSslConfigDistributedTest extends AbstractEncryptionOptionsImpl
         }).start())
         {
             // Invoke the same code vs duplicating any code from the JMXGetterCheckTest
-            JMXGetterCheckTest.testAllValidGetters(cluster);
+            JMXTestsUtil.testAllValidGetters(cluster, null);
         }
     }
 
