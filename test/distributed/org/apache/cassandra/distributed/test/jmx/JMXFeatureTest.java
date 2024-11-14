@@ -36,7 +36,7 @@ import org.apache.cassandra.distributed.shared.ClusterUtils;
 import org.apache.cassandra.distributed.shared.JMXUtil;
 import org.apache.cassandra.distributed.test.TestBaseImpl;
 
-import static org.apache.cassandra.distributed.test.jmx.JMXTestsUtil.testAllValidGetters;
+import static org.apache.cassandra.distributed.test.jmx.JMXGetterCheckTest.testAllValidGetters;
 import static org.hamcrest.Matchers.blankOrNullString;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
