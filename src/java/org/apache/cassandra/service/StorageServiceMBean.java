@@ -245,6 +245,19 @@ public interface StorageServiceMBean extends NotificationEmitter
     public List<String> getNaturalEndpointsWithPort(String keysapceName, ByteBuffer key);
 
     /**
+     * This method returns a json string containing the following information
+     *   1. a list of all the token ranges with tokens coming from the given dc only
+     *   2. for each token range, a list of natural endpoints, in the given dc, that are responsible for the token range r.w.t to the given keyspace
+     *   3. (Optional) status of all the nodes
+     * This method assumes that the keyspace uses NetworkTopologyStrategy. An illegal state exception is thrown otherwise.
+     *
+     * @param dc the datacenter of interest
+     * @param keyspace the keyspace of interest
+     * @param alsoGetNodeStatus whether we need to also output and node status
+     */
+    public String getNaturalEndpointsForAllTokenRangesInOneDcForKsWithNTS(String dc, String keyspace, boolean alsoGetNodeStatus) throws IllegalStateException;
+
+    /**
      * @deprecated use {@link #takeSnapshot(String tag, Map options, String... entities)} instead.
      */
     @Deprecated

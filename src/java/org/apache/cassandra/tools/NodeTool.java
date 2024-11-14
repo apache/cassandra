@@ -166,6 +166,7 @@ public class NodeTool
                 GetGuardrailsConfig.class,
                 GetMaxHintWindow.class,
                 GetNativeTransportTimeoutThreshold.class,
+                GetNaturalEndpointsForAllTokenRanges.class,
                 GetPersistPreparedStatementsEnabled.class,
                 GetSSTables.class,
                 GetSeeds.class,

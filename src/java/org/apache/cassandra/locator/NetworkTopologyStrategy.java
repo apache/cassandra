@@ -225,6 +225,95 @@ public class NetworkTopologyStrategy extends AbstractReplicationStrategy
         return builder.build();
     }
 
+    /**
+     * return a list of EndpointsForRange, one for each range in a ring that consists of tokens from only one dc, the given dc.
+     */
+    public List<EndpointsForRange> calculateNaturalReplicasForAllRangesOfOneDc(TokenMetadata tokenMetadata, String dc) throws IllegalStateException
+    {
+        // snapshoting all topology-related information needed by the subsequent calculation:
+        // tokenToEndpointMap, topology, replicationFactor, nodeCountInDc, rackCountInDc
+        Map<Token, InetAddressAndPort> tokenToEndpointMapSnapshot = tokenMetadata.getTokenToEndpointMapForReading();
+        Topology topologySnapshot = tokenMetadata.getTopology();
+        ReplicationFactor replicationFactorSnapshot = datacenters.get(dc);
+        if (replicationFactorSnapshot == null || replicationFactorSnapshot.allReplicas <= 0)
+        {
+            throw new IllegalStateException("dc " + dc + " does not exist in replication setting of " + keyspaceName);
+        }
+
+        // all endpoints in each DC, so we can check when we have exhausted all the members of a DC
+        Multimap<String, InetAddressAndPort> allEndpoints = topologySnapshot.getDatacenterEndpoints();
+        // all racks in a DC so we can check when we have exhausted all racks in a DC
+        Map<String, ImmutableMultimap<String, InetAddressAndPort>> racks = topologySnapshot.getDatacenterRacks();
+        int nodeCountInDc = sizeOrZero(allEndpoints.get(dc));
+        int rackCountInDc = sizeOrZero(racks.get(dc));
+        if (nodeCountInDc == 0)
+        {
+            throw new IllegalStateException("dc " + dc + " contains no nodes");
+        }
+
+        ArrayList<Token> sortedTokensForDc = getSortedTokenForDc(tokenMetadata.sortedTokens(), tokenToEndpointMapSnapshot, topologySnapshot, dc);
+        List<EndpointsForRange> res = new ArrayList<>(sortedTokensForDc.size());
+        for (int i = 0; i < sortedTokensForDc.size(); ++i)
+        {
+            Token rangeEnd = sortedTokensForDc.get(i);
+            Token rangeStart = i == 0 ? sortedTokensForDc.get(sortedTokensForDc.size() - 1) : sortedTokensForDc.get(i - 1);
+
+            EndpointsForRange endpointsForRange = calculateNaturalReplicasForOneRangeOfOneDc(
+            sortedTokensForDc, rangeStart, rangeEnd, topologySnapshot, replicationFactorSnapshot,
+            nodeCountInDc, rackCountInDc, tokenToEndpointMapSnapshot);
+
+            res.add(endpointsForRange);
+        }
+        return res;
+    }
+
+    private EndpointsForRange calculateNaturalReplicasForOneRangeOfOneDc(ArrayList<Token> sortedTokensOfOneDc,
+                                                               Token rangeStart,
+                                                               Token rangeEnd,
+                                                               Topology topology,
+                                                               ReplicationFactor replicationFactor,
+                                                               int nodeCountInDc,
+                                                               int rackCountInDc,
+                                                               Map<Token, InetAddressAndPort> tokenToEndpointMap)
+    {
+        Range<Token> replicatedRange = new Range<>(rangeStart, rangeEnd);
+        EndpointsForRange.Builder builder = new EndpointsForRange.Builder(replicatedRange);
+        Set<Pair<String, String>> seenRacks = new HashSet<>();
+
+        DatacenterEndpoints dcEndpoints = new DatacenterEndpoints(replicationFactor, rackCountInDc, nodeCountInDc, builder, seenRacks);
+
+        Iterator<Token> tokenIter = TokenMetadata.ringIterator(sortedTokensOfOneDc, rangeEnd, false);
+        while (tokenIter.hasNext())
+        {
+            Token next = tokenIter.next();
+            InetAddressAndPort ep = tokenToEndpointMap.get(next);
+            Pair<String, String> location = topology.getLocation(ep);
+            if (dcEndpoints.addEndpointAndCheckIfDone(ep, location, replicatedRange))
+                break;
+        }
+        return builder.build();
+    }
+
+    private ArrayList<Token> getSortedTokenForDc(ArrayList<Token> sortedTokens, Map<Token, InetAddressAndPort> tokenToEndpointMapSnapshot, Topology topologySnapshot, String dc) throws IllegalStateException
+    {
+        ArrayList<Token> res = new ArrayList<>();
+        for (Token token : sortedTokens)
+        {
+            InetAddressAndPort endpoint = tokenToEndpointMapSnapshot.get(token);
+            if (endpoint == null) {
+                throw new IllegalStateException("token " + token + " does not have an endpoint");
+            }
+            Pair<String, String> location = topologySnapshot.getLocation(endpoint);
+            String dcOfEndpoint = location != null ? location.left : null;
+            if (!dc.equals(dcOfEndpoint))
+            {
+                continue;
+            }
+            res.add(token);
+        }
+        return res;
+    }
+
     private int sizeOrZero(Multimap<?, ?> collection)
     {
         return collection != null ? collection.asMap().size() : 0;

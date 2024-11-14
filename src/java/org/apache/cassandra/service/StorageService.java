@@ -98,6 +98,7 @@ import org.apache.cassandra.fql.FullQueryLoggerOptionsCompositeData;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.locator.ReplicaCollection.Builder.Conflict;
 import org.apache.cassandra.db.monitoring.BadQuery;
+import org.apache.cassandra.metrics.GetEndpointsForAllTokenRangesMetrics;
 import org.apache.cassandra.repair.AutoRepairConfig;
 import org.apache.cassandra.repair.AutoRepairConfig.RepairType;
 import org.apache.cassandra.repair.AutoRepairUtilsV2;
@@ -5136,6 +5137,93 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     {
         Token token = tokenMetadata.partitioner.getToken(key);
         return Keyspace.open(keyspaceName).getReplicationStrategy().getNaturalReplicasForToken(token);
+    }
+
+    /**
+     * This method returns a json string containing the following information
+     *   1. a list of all the token ranges with tokens coming from the given dc only
+     *   2. for each token range, a list of natural endpoints, in the given dc, that are responsible for the token range r.w.t to the given keyspace
+     *   3. (Optional) status of all the nodes
+     * This method assumes that the keyspace uses NetworkTopologyStrategy. An illegal state exception is thrown otherwise.
+     *
+     * @param dc the datacenter of interest
+     * @param keyspaceName the keyspace of interest
+     * @param alsoGetNodeStatus whether we need to also output and node status
+     */
+    public String getNaturalEndpointsForAllTokenRangesInOneDcForKsWithNTS(String dc, String keyspaceName, boolean alsoGetNodeStatus) throws IllegalStateException
+    {
+        long startTime = nanoTime();
+        GetEndpointsForAllTokenRangesMetrics.call.inc();
+
+        if (!DatabaseDescriptor.getEnableGetNaturalEndpointsForAllTokenRanges())
+        {
+            throw new IllegalStateException("getNaturalEndpointsForAllTokenRanges is disabled");
+        }
+
+        final long ringVersionBefore = tokenMetadata.getRingVersion();
+
+        if (Keyspace.open(keyspaceName) == null || !(Keyspace.open(keyspaceName).getReplicationStrategy() instanceof NetworkTopologyStrategy))
+        {
+            throw new IllegalStateException("Keyspace " + keyspaceName + " either doesn't exist or does not use NetworkTopologyStrategy");
+        }
+
+        NetworkTopologyStrategy strategy = (NetworkTopologyStrategy) Keyspace.open(keyspaceName).getReplicationStrategy();
+        TokenMetadata tokenMetadataCopy = tokenMetadata.cloneOnlyTokenMap();
+        List<EndpointsForRange> calculateNaturalReplicasRes = strategy.calculateNaturalReplicasForAllRangesOfOneDc(tokenMetadataCopy, dc);
+
+        // for node status
+        List<String> liveNodes = null, unreachableNodes = null, joiningNodes = null, leavingNodes = null, movingNodes = null;
+        if (alsoGetNodeStatus) {
+            liveNodes = getLiveNodesWithPort();
+            unreachableNodes = getUnreachableNodesWithPort();
+            joiningNodes = getJoiningNodesWithPort();
+            leavingNodes = getLeavingNodesWithPort();
+            movingNodes = getMovingNodesWithPort();
+        }
+
+        // check if ring version has changed during the calculation, as
+        // we expect all the calcualtion up til this point to be done with the same ring version
+        if (ringVersionBefore != tokenMetadata.getRingVersion())
+        {
+            throw new IllegalStateException("ring version changed during getNaturalEndpointsForAllTokenRanges");
+        }
+
+        // convert the returned data into a JSON string
+        final String TOKEN_RANGE_AND_ENDPOINTS = "token_range_and_endpoints";
+        final String TOKEN_RANGE = "token_range";
+        final String ENDPOINTS = "endpoints";
+        final String NODE_STATUS = "node_status";
+        final String LIVE_NODES = "live_nodes";
+        final String UNREACHABLE_NODES = "unreachable_nodes";
+        final String JOINING_NODES = "joining_nodes";
+        final String LEAVING_NODES = "leaving_nodes";
+        final String MOVING_NODES = "moving_nodes";
+        Map<String, Object> jsonMap = new HashMap<>();
+        List<Map<String, Object>> tokenRangeList = new ArrayList<>();
+        for (EndpointsForRange tokenRange : calculateNaturalReplicasRes)
+        {
+            Map<String,Object> tokenRangeInfo = new HashMap<>();
+            tokenRangeInfo.put(TOKEN_RANGE, tokenRange.range().toString());
+            List<String> endpointStringList = tokenRange.endpointList().stream()
+                                                        .map(inetAddressAndPort -> inetAddressAndPort.toString())
+                                                        .collect(Collectors.toList());
+            tokenRangeInfo.put(ENDPOINTS, endpointStringList);
+            tokenRangeList.add(tokenRangeInfo);
+        }
+        jsonMap.put(TOKEN_RANGE_AND_ENDPOINTS, tokenRangeList);
+        if (alsoGetNodeStatus) {
+            Map<String, List<String>> nodeStatus = new HashMap<>();
+            nodeStatus.put(LIVE_NODES, liveNodes);
+            nodeStatus.put(UNREACHABLE_NODES, unreachableNodes);
+            nodeStatus.put(JOINING_NODES, joiningNodes);
+            nodeStatus.put(LEAVING_NODES, leavingNodes);
+            nodeStatus.put(MOVING_NODES, movingNodes);
+            jsonMap.put(NODE_STATUS, nodeStatus);
+        }
+
+        logger.info("getNaturalEndpointsForAllTokenRanges completed in {} ms, dc = {} and keyspace = {} and alsoGetNodeStatus = {}",
+                    TimeUnit.NANOSECONDS.toMillis(nanoTime() - startTime), dc, keyspaceName, alsoGetNodeStatus);
+        return FBUtilities.json(jsonMap);
     }
 
     public DecoratedKey getKeyFromPartition(String keyspaceName, String table, String partitionKey)

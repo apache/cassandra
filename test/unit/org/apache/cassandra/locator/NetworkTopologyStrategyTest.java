@@ -38,6 +38,7 @@ import org.junit.rules.ExpectedException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.Util;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.dht.Murmur3Partitioner;
@@ -47,19 +48,137 @@ import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.locator.TokenMetadata.Topology;
+import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.service.ClientWarn;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.Pair;
 
 import static org.apache.cassandra.locator.NetworkTopologyStrategy.REPLICATION_FACTOR;
 import static org.apache.cassandra.locator.Replica.fullReplica;
 import static org.apache.cassandra.locator.Replica.transientReplica;
+import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
 public class NetworkTopologyStrategyTest
 {
     private static final String KEYSPACE = "Keyspace1";
     private static final Logger logger = LoggerFactory.getLogger(NetworkTopologyStrategyTest.class);
+
+    // RingGenerator generates a token ring based on how many data centers, racks and nodes in each data center.
+    // It generates LongTokens and supposed to be used together with RackInferringSnitch, as the generated IP address will reflect dc and rack info
+    class RingGenerator
+    {
+        int[] dcToNodeCount; // index is the dc name, value is the node count of the dc
+        int[] dcToRackCount; // index is the dc name, value is the rack count of the dc
+        int tokenCountPerNode;
+        long intervalBetweenTokens = 1000L;
+
+        // A bucket contains many same items.
+        // A Pair<Integer, Integer> object is a bucket where the left is the item id, and right is the item count.
+        // Maintain a list of buckets, to support the use case where we need to
+        // each time randonly pull one element from a random bucket.
+        // Use listSize to indicate how many buckets are non-empty. Once a bucket becomes empty, listSize will be
+        // decremented and the empty bucket will be swapped with the last non-empty bucket. This way the first listSize
+        // bucket are guarateed to be non-empty.
+        class Buckets {
+            ArrayList<Pair<Integer, Integer>> bucketList;
+            int listSize;
+            Random random;
+
+            Buckets(ArrayList<Pair<Integer, Integer>> bucketList, long seed)
+            {
+                this.bucketList = bucketList;
+                listSize = bucketList.size();
+                random = new Random(seed);
+            }
+
+            // Time complexity: O(1)
+            Integer getRandomNext()
+            {
+                if (listSize <= 0)
+                {
+                    return null;
+                }
+
+                int indexOfList = random.nextInt(listSize);
+                Pair<Integer, Integer> bucket = bucketList.get(indexOfList);
+                int item = bucket.left;
+                int remainingItemCount = bucket.right - 1;
+                if (remainingItemCount <= 0)
+                {
+                    bucketList.set(indexOfList, bucketList.get(--listSize));
+                }
+                else
+                {
+                    bucketList.set(indexOfList, Pair.create(item, remainingItemCount));
+                }
+                return item;
+            }
+        }
+
+        RingGenerator(int[] dcToNodeCount, int[] dcToRackCount, int tokenCountPerNode)
+        {
+            this.dcToNodeCount = dcToNodeCount;
+            this.dcToRackCount = dcToRackCount;
+            this.tokenCountPerNode = tokenCountPerNode;
+
+            assert dcToNodeCount != null && dcToRackCount != null && dcToNodeCount.length == dcToRackCount.length;
+        }
+
+        // compaible with RackInferringSnitch, as the generated IP address will reflect dc and rack info
+        Multimap<InetAddressAndPort, Token> generateEndpointToTokenMap(long seed) throws UnknownHostException
+        {
+            Multimap<InetAddressAndPort, Token> res = HashMultimap.create();
+            /* first, gnerate the nodes (endpoints), dc by dc */
+            int dcCount = dcToNodeCount.length;
+            int totalNodes = 0;
+            for (int nodeCountOfOneDc : dcToNodeCount) {
+                totalNodes += nodeCountOfOneDc;
+            }
+            InetAddressAndPort[] nodes = new InetAddressAndPort[totalNodes];
+            int nodeIndex = 0;
+            for (int dc = 0; dc < dcCount; ++dc)
+            {
+                int increaseingID = 1;
+                int rackCount = dcToRackCount[dc];
+                int nodeCount = dcToNodeCount[dc];
+                while (nodeCount > 0)
+                {
+                    int rack = nodeCount % rackCount;
+                    // generate the IP address based on the dc, rack and the increasing id
+                    // the second and third section of the IP address is the dc and rack number, to be compatible with RackInferringSnitch
+                    int firstIPSection = increaseingID / 256;
+                    int forthIPSection = increaseingID % 256;
+                    byte[] ipBytes = new byte[]{(byte)firstIPSection, (byte)dc, (byte)rack, (byte)forthIPSection};
+                    InetAddressAndPort address = InetAddressAndPort.getByAddress(ipBytes);
+                    nodes[nodeIndex++] = address;
+
+                    --nodeCount;
+                    ++increaseingID;
+                }
+            }
+
+            /* then, generates the tokens */
+            ArrayList<Pair<Integer, Integer>> bucketList = new ArrayList<>();
+            for (nodeIndex = 0; nodeIndex < totalNodes; ++nodeIndex)
+            {
+                bucketList.add(Pair.create(nodeIndex, tokenCountPerNode));
+            }
+            Buckets buckets = new Buckets(bucketList, seed);
+
+            int totalTokens = totalNodes * tokenCountPerNode;
+            long tokenStartOffset = -((long)totalTokens * intervalBetweenTokens / 2L); // with this offset, half of the tokens are negative and half are positive
+            for (int i = 0; i < totalTokens; ++i)
+            {
+                int nodeIndexForToken = buckets.getRandomNext();
+                LongToken token = new LongToken(tokenStartOffset + (long)i * intervalBetweenTokens);
+                res.put(nodes[nodeIndexForToken], token);
+            }
+
+            return res;
+        }
+    }
 
     @BeforeClass
     public static void setupDD()
@@ -162,6 +281,167 @@ public class NetworkTopologyStrategyTest
             Assert.assertEquals(totalRF, endpointSet.size());
             logger.debug("{}: {}", testToken, replicas);
         }
+    }
+
+    @Test
+    public void testRingGenerator() throws UnknownHostException
+    {
+        int[] dcToNodeCount = new int[]{ 3, 4 };
+        int[] dcToRackCount = new int[]{ 1, 3 };
+        int tokenCountPerNode = 5;
+        RingGenerator ringGenerator = new RingGenerator(dcToNodeCount, dcToRackCount, tokenCountPerNode);
+        Multimap<InetAddressAndPort, Token> tokenToEndpointMap = ringGenerator.generateEndpointToTokenMap(1L);
+
+        Set<String> inetAddressAndPortSet = new HashSet<>();
+        Set<Token> tokenSet = new HashSet<>();
+
+        for (Map.Entry<InetAddressAndPort, Token> entry : tokenToEndpointMap.entries())
+        {
+            inetAddressAndPortSet.add(entry.getKey().toString());
+            tokenSet.add(entry.getValue());
+        }
+
+        Assert.assertEquals(7, inetAddressAndPortSet.size());
+        Assert.assertEquals(35, tokenSet.size());
+    }
+
+    // test the correctness of the calculateNaturalReplicasForAllRangesOfOneDc.
+    // calculateNaturalReplicasForAllRangesOfOneDc is supposed to return larger token ranges, compared to calling
+    // calculateNaturalReplicas(Token, TokenMetadata), because the formmer is based on a token ring with tokens from
+    // only one dc, while the latter is based on a token ring with tokens from all dcs.
+    // The test is to verify that the returned larger token ranges of the formmer call are indeed the
+    // union of the smaller token ranges of the latter call. Moreover, the replicas of the larger token ranges
+    // should be the same as the replicas of the smaller token ranges, r.w.t the dc of the test.
+    @Test
+    public void testCalculateNaturalReplicasForAllRangesOfOneDc() throws UnknownHostException, ConfigurationException
+    {
+        int[] dcToNodeCount = new int[]{200,201};
+        int[] dcToRackCount = new int[]{3,3};
+        int tokenCountPerNode = 16;
+        int[] dcToReplication = new int[]{3,3};
+        final int dcForTest = 0;
+
+        IEndpointSnitch snitch = new RackInferringSnitch();
+        DatabaseDescriptor.setEndpointSnitch(snitch);
+        StorageService.instance.setPartitionerUnsafe(Murmur3Partitioner.instance);
+        TokenMetadata metadata = new TokenMetadata();
+        RingGenerator ringGenerator = new RingGenerator(dcToNodeCount, dcToRackCount, tokenCountPerNode);
+        metadata.updateNormalTokens(ringGenerator.generateEndpointToTokenMap(1L));
+
+        Map<String, String> configOptions = new HashMap<>();
+        int totalNodes = 0;
+        for (int dc = 0; dc < dcToNodeCount.length; ++dc)
+        {
+            configOptions.put(Integer.toString(dc), Integer.toString(dcToReplication[dc]));
+            totalNodes += dcToNodeCount[dc];
+        }
+        NetworkTopologyStrategy strategy = new NetworkTopologyStrategy(KEYSPACE, metadata, snitch, configOptions);
+
+        List<EndpointsForRange> largerRanges = strategy.calculateNaturalReplicasForAllRangesOfOneDc(metadata, dcForTest + "");
+        Assert.assertFalse(largerRanges.isEmpty());
+        Token comparisionStartAtToken = largerRanges.get(0).range().left;
+
+        ArrayList<Token> tokensOfAllDc = metadata.sortedTokens();
+        Assert.assertEquals(totalNodes * tokenCountPerNode, tokensOfAllDc.size());
+        int indexOfComparisionStartToken = Collections.binarySearch(tokensOfAllDc, comparisionStartAtToken);
+        Assert.assertTrue(indexOfComparisionStartToken >= 0);
+
+        int indexInlargerRanges = 0;
+        EndpointsForRange curLargerRangeReplicas = largerRanges.get(0);
+        Range<Token> remainingRangeAfterSubtractSmallerRange = curLargerRangeReplicas.range();
+        for (int i = 0; i < tokensOfAllDc.size(); i++) {
+            Token smallerRangeStart = tokensOfAllDc.get((i + indexOfComparisionStartToken) % tokensOfAllDc.size());
+            Token smallerRangeEnd = tokensOfAllDc.get((i + indexOfComparisionStartToken + 1) % tokensOfAllDc.size());
+            EndpointsForRange smallerRangeReplicas = strategy.calculateNaturalReplicas(smallerRangeEnd, metadata);
+
+            Assert.assertTrue(remainingRangeAfterSubtractSmallerRange.contains(smallerRangeReplicas.range()));
+            List<InetAddressAndPort> replicasOfLargerRange = filterInReplicasInDc(curLargerRangeReplicas, dcForTest + "");
+            List<InetAddressAndPort> replicasOfSmallerRange = filterInReplicasInDc(smallerRangeReplicas, dcForTest + "");
+            assertEquals(replicasOfLargerRange.size(), dcToReplication[dcForTest]);
+            assertEquals(replicasOfLargerRange, replicasOfSmallerRange);
+            Set<Range<Token>> substarctRes = remainingRangeAfterSubtractSmallerRange.subtract(smallerRangeReplicas.range());
+            assertTrue(substarctRes.size() <= 1);
+            if (substarctRes.size() == 1) {
+                remainingRangeAfterSubtractSmallerRange = substarctRes.iterator().next();
+            } else { // curLargerRange has been fully covered by the smaller ranges
+                if (i == tokensOfAllDc.size() - 1) {
+                    assertEquals(largerRanges.size() - 1, indexInlargerRanges);
+                } else {
+                    ++indexInlargerRanges;
+                    assertTrue(indexInlargerRanges < largerRanges.size());
+                    curLargerRangeReplicas = largerRanges.get(indexInlargerRanges);
+                    remainingRangeAfterSubtractSmallerRange = curLargerRangeReplicas.range();
+                }
+            }
+        }
+    }
+
+    @Test
+    public void testGetNaturalEndpointsForAllTokenRanges() throws UnknownHostException
+    {
+        final String TEST_KEYSPACE = "test_keyspace1";
+        final String TEST_DC = "0";
+
+        int[] dcToNodeCount = new int[]{3,6};
+        int[] dcToRackCount = new int[]{1,1};
+        int tokenCountPerNode = 1;
+
+        SchemaLoader.loadSchema();
+        IEndpointSnitch snitch = new RackInferringSnitch();
+        DatabaseDescriptor.setEndpointSnitch(snitch);
+        StorageService.instance.setPartitionerUnsafe(Murmur3Partitioner.instance);
+        TokenMetadata originalMetadata =  StorageService.instance.tokenMetadata;
+        StorageService.instance.tokenMetadata =  new TokenMetadata();
+        TokenMetadata metadata =  StorageService.instance.tokenMetadata;
+        RingGenerator ringGenerator = new RingGenerator(dcToNodeCount, dcToRackCount, tokenCountPerNode);
+        Multimap<InetAddressAndPort, Token> endpointTokens = ringGenerator.generateEndpointToTokenMap(1L);
+        metadata.updateNormalTokens(endpointTokens);
+        for (InetAddressAndPort ep: endpointTokens.keySet())
+        {
+            metadata.updateHostId(UUID.randomUUID(), ep);
+        }
+
+        SchemaLoader.createKeyspace(TEST_KEYSPACE, KeyspaceParams.nts(TEST_DC, 3));
+
+        String res = StorageService.instance.getNaturalEndpointsForAllTokenRangesInOneDcForKsWithNTS(TEST_DC, TEST_KEYSPACE, true);
+        assertEquals(1, countOccurrences(res, "token_range_and_endpoints"));
+        assertEquals(3, countOccurrences(res, "\"token_range\""));
+        assertEquals(1, countOccurrences(res, "node_status"));
+        assertEquals(1, countOccurrences(res, "live_nodes"));
+        assertEquals(1, countOccurrences(res, "unreachable_nodes"));
+        assertEquals(1, countOccurrences(res, "joining_nodes"));
+        assertEquals(1, countOccurrences(res, "leaving_nodes"));
+        assertEquals(1, countOccurrences(res, "moving_nodes"));
+
+        StorageService.instance.tokenMetadata = originalMetadata;
+    }
+
+    private static int countOccurrences(String text, String word) {
+        int count = 0;
+        int index = text.toLowerCase().indexOf(word.toLowerCase());
+
+        while (index != -1) {
+            // Check word boundaries to ensure it's a whole word
+            if ((index == 0 || !Character.isLetterOrDigit(text.charAt(index - 1))) &&
+                (index + word.length() == text.length() || !Character.isLetterOrDigit(text.charAt(index + word.length())))) {
+                count++;
+            }
+            index = text.toLowerCase().indexOf(word.toLowerCase(), index + 1);
+        }
+        return count;
+    }
+
+    private List<InetAddressAndPort> filterInReplicasInDc(EndpointsForRange replicas, String dc)
+    {
+        List<InetAddressAndPort> res = new ArrayList<>();
+        for (InetAddressAndPort endpoint : replicas.endpointList())
+        {
+            if (DatabaseDescriptor.getEndpointSnitch().getDatacenter(endpoint).equals(dc))
+            {
+                res.add(endpoint);
+            }
+        }
+        return res;
     }
 
     public void createDummyTokens(TokenMetadata metadata, boolean populateDC3) throws UnknownHostException
@@ -479,7 +759,7 @@ public class NetworkTopologyStrategyTest
         NetworkTopologyStrategy strategy = new NetworkTopologyStrategy("ks", new TokenMetadata(), snitch, configOptions);
         StorageService.instance.getTokenMetadata().updateHostId(UUID.randomUUID(), FBUtilities.getBroadcastAddressAndPort());
         StorageService.instance.getTokenMetadata().updateNormalToken(new LongToken(1), FBUtilities.getBroadcastAddressAndPort());
-        
+
         ClientWarn.instance.captureWarnings();
         strategy.maybeWarnOnOptions(null);
         assertTrue(ClientWarn.instance.getWarnings().stream().anyMatch(s -> s.contains("Your replication factor")));

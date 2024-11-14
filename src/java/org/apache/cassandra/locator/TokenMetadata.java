@@ -1384,6 +1384,22 @@ public class TokenMetadata
         }
     }
 
+    /** @return a token to endpoint hashmap representation of tokenToEndpointMap (a copy) */
+    public Map<Token, InetAddressAndPort> getTokenToEndpointMapForReading()
+    {
+        lock.readLock().lock();
+        try
+        {
+            Map<Token, InetAddressAndPort> cloned = new HashMap<>(tokenToEndpointMap.size() * 2);
+            cloned.putAll(tokenToEndpointMap);
+            return cloned;
+        }
+        finally
+        {
+            lock.readLock().unlock();
+        }
+    }
+
     /**
      * @return a (stable copy, won't be modified) Token to Endpoint map for all the normal and bootstrapping nodes
      *         in the cluster.

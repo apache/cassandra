@@ -5189,4 +5189,9 @@ public class DatabaseDescriptor
     {
         return conf.query_analytics;
     }
+
+    public static boolean getEnableGetNaturalEndpointsForAllTokenRanges()
+    {
+        return conf.enable_get_natural_endpoints_for_all_token_ranges;
+    }
 }

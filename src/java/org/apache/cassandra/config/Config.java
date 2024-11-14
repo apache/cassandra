@@ -1486,4 +1486,6 @@ public class Config
 
     // Whether to enable the logging of the custom_payload in the query message, by default is false, this is mainly used for debugging
     public boolean enable_custom_payload_logging = false;
+
+    public volatile boolean enable_get_natural_endpoints_for_all_token_ranges = true;
 }
