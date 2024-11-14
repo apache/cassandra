@@ -36,6 +36,7 @@ import org.apache.cassandra.distributed.impl.JmxTestClientSslContextFactory;
 import org.apache.cassandra.distributed.impl.JmxTestClientSslSocketFactory;
 import org.apache.cassandra.distributed.shared.WithProperties;
 import org.apache.cassandra.distributed.test.jmx.JMXGetterCheckTest;
+import org.apache.cassandra.distributed.test.jmx.JMXTestsUtil;
 
 import static org.apache.cassandra.config.CassandraRelevantProperties.COM_SUN_MANAGEMENT_JMXREMOTE_SSL;
 import static org.apache.cassandra.config.CassandraRelevantProperties.COM_SUN_MANAGEMENT_JMXREMOTE_SSL_ENABLED_CIPHER_SUITES;
@@ -89,7 +90,7 @@ public class JMXSslConfigDistributedTest extends AbstractEncryptionOptionsImpl
                 Map<String, Object> jmxEnv = new HashMap<>();
                 configureClientSocketFactory(jmxEnv, encryptionOptionsMap);
                 // Invoke the same code vs duplicating any code from the JMXGetterCheckTest
-                JMXGetterCheckTest.testAllValidGetters(cluster, jmxEnv);
+                JMXTestsUtil.testAllValidGetters(cluster, jmxEnv);
             }
         }
     }
@@ -116,7 +117,7 @@ public class JMXSslConfigDistributedTest extends AbstractEncryptionOptionsImpl
                 Map<String, Object> jmxEnv = new HashMap<>();
                 configureClientSocketFactory(jmxEnv, encryptionOptionsMap);
                 // Invoke the same code vs duplicating any code from the JMXGetterCheckTest
-                JMXGetterCheckTest.testAllValidGetters(cluster, jmxEnv);
+                JMXTestsUtil.testAllValidGetters(cluster, jmxEnv);
             }
         }
     }
@@ -143,7 +144,7 @@ public class JMXSslConfigDistributedTest extends AbstractEncryptionOptionsImpl
                 jmxEnv.put(RMIConnectorServer.RMI_CLIENT_SOCKET_FACTORY_ATTRIBUTE, clientFactory);
                 jmxEnv.put("com.sun.jndi.rmi.factory.socket", clientFactory);
                 // Invoke the same code vs duplicating any code from the JMXGetterCheckTest
-                JMXGetterCheckTest.testAllValidGetters(cluster, jmxEnv);
+                JMXTestsUtil.testAllValidGetters(cluster, jmxEnv);
             }
         }
     }
