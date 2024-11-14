@@ -99,7 +99,12 @@ public class SSTableRewriter extends Transactional.AbstractTransactional impleme
 
     public static SSTableRewriter construct(ColumnFamilyStore cfs, ILifecycleTransaction transaction, boolean keepOriginals, long maxAge)
     {
-        return new SSTableRewriter(transaction, maxAge, calculateOpenInterval(cfs.supportsEarlyOpen()), keepOriginals, true);
+        return construct(cfs, transaction, keepOriginals, maxAge, true);
+    }
+
+    public static SSTableRewriter construct(ColumnFamilyStore cfs, ILifecycleTransaction transaction, boolean keepOriginals, long maxAge, boolean earlyOpenAllowed)
+    {
+        return new SSTableRewriter(transaction, maxAge, calculateOpenInterval(earlyOpenAllowed && cfs.supportsEarlyOpen()), keepOriginals, true);
     }
 
     private static long calculateOpenInterval(boolean shouldOpenEarly)

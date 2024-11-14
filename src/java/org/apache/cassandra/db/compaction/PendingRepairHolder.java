@@ -116,7 +116,7 @@ public class PendingRepairHolder extends AbstractStrategyHolder
     {
         List<TaskSupplier> suppliers = new ArrayList<>(managers.size());
         for (PendingRepairManager manager : managers)
-            suppliers.add(new TaskSupplier(manager.getMaxEstimatedRemainingTasks(), () -> manager.getNextBackgroundTask(gcBefore)));
+            suppliers.add(new TaskSupplier(manager.getMaxEstimatedRemainingTasks(), () -> manager.getNextBackgroundTasks(gcBefore)));
 
         return suppliers;
     }
@@ -156,7 +156,7 @@ public class PendingRepairHolder extends AbstractStrategyHolder
         managers.get(router.getIndexForSSTable(sstable)).addSSTable(sstable);
     }
 
-    AbstractCompactionTask getNextRepairFinishedTask()
+    Collection<AbstractCompactionTask> getNextRepairFinishedTasks()
     {
         List<TaskSupplier> repairFinishedSuppliers = getRepairFinishedTaskSuppliers();
         if (!repairFinishedSuppliers.isEmpty())
@@ -164,9 +164,9 @@ public class PendingRepairHolder extends AbstractStrategyHolder
             Collections.sort(repairFinishedSuppliers);
             for (TaskSupplier supplier : repairFinishedSuppliers)
             {
-                AbstractCompactionTask task = supplier.getTask();
-                if (task != null)
-                    return task;
+                Collection<AbstractCompactionTask> tasks = supplier.getTasks();
+                if (tasks != null && !tasks.isEmpty())
+                    return tasks;
             }
         }
         return null;
@@ -180,7 +180,7 @@ public class PendingRepairHolder extends AbstractStrategyHolder
             int numPending = manager.getNumPendingRepairFinishedTasks();
             if (numPending > 0)
             {
-                suppliers.add(new TaskSupplier(numPending, manager::getNextRepairFinishedTask));
+                suppliers.add(new TaskSupplier(numPending, manager::getNextRepairFinishedTasks));
             }
         }
 

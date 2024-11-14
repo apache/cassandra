@@ -83,7 +83,7 @@ public class UpgradeSSTablesTest extends TestBaseImpl
 
             Future<?> future = cluster.get(1).asyncAcceptsOnInstance((String ks) -> {
                 ColumnFamilyStore cfs = Keyspace.open(ks).getColumnFamilyStore("tbl");
-                CompactionManager.instance.submitMaximal(cfs, FBUtilities.nowInSeconds(), false, OperationType.COMPACTION);
+                CompactionManager.instance.submitMaximal(cfs, FBUtilities.nowInSeconds(), false, 1, OperationType.COMPACTION);
             }).apply(KEYSPACE);
 
             Assert.assertTrue(cluster.get(1).callOnInstance(() -> CompactionLatchByteman.starting.awaitUninterruptibly(1, TimeUnit.MINUTES)));
@@ -129,7 +129,7 @@ public class UpgradeSSTablesTest extends TestBaseImpl
 
             cluster.get(1).acceptsOnInstance((String ks) -> {
                 ColumnFamilyStore cfs = Keyspace.open(ks).getColumnFamilyStore("tbl");
-                FBUtilities.allOf(CompactionManager.instance.submitMaximal(cfs, FBUtilities.nowInSeconds(), false, OperationType.COMPACTION))
+                FBUtilities.allOf(CompactionManager.instance.submitMaximal(cfs, FBUtilities.nowInSeconds(), false, 1, OperationType.COMPACTION))
                            .awaitUninterruptibly(1, TimeUnit.MINUTES);
 
             }).accept(KEYSPACE);

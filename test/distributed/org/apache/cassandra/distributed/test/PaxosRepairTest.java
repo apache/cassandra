@@ -597,7 +597,7 @@ public class PaxosRepairTest extends TestBaseImpl
     {
         ColumnFamilyStore paxos = Keyspace.open(SYSTEM_KEYSPACE_NAME).getColumnFamilyStore(SystemKeyspace.PAXOS);
         FBUtilities.waitOnFuture(paxos.forceFlush(ColumnFamilyStore.FlushReason.UNIT_TESTS));
-        FBUtilities.waitOnFutures(CompactionManager.instance.submitMaximal(paxos, 0, false));
+        FBUtilities.waitOnFutures(CompactionManager.instance.submitMaximal(paxos, 0, false, 0));
     }
 
     private static Map<Integer, PaxosRow> getPaxosRows()

@@ -239,7 +239,7 @@ public abstract class CompactionStress implements Runnable
             List<Future<?>> futures = new ArrayList<>(threads);
             if (maximal)
             {
-                futures = CompactionManager.instance.submitMaximal(cfs, FBUtilities.nowInSeconds(), false);
+                futures = CompactionManager.instance.submitMaximal(cfs, FBUtilities.nowInSeconds(), false, Integer.MAX_VALUE);
             }
             else
             {

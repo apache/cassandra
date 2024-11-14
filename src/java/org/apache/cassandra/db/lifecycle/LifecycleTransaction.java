@@ -125,7 +125,7 @@ public class LifecycleTransaction extends Transactional.AbstractTransactional im
         }
     }
 
-    public final Tracker tracker;
+    private final Tracker tracker;
     // The transaction logs keep track of new and old sstable files
     private final LogTransaction log;
     // the original readers this transaction was opened over, and that it guards
@@ -184,6 +184,11 @@ public class LifecycleTransaction extends Transactional.AbstractTransactional im
         this(tracker, new LogTransaction(operationType, tracker), readers);
     }
 
+    LifecycleTransaction(Tracker tracker, OperationType operationType, Iterable<? extends SSTableReader> readers, TimeUUID id)
+    {
+        this(tracker, new LogTransaction(operationType, tracker, id), readers);
+    }
+
     LifecycleTransaction(Tracker tracker, LogTransaction log, Iterable<? extends SSTableReader> readers)
     {
         this.tracker = tracker;
@@ -207,9 +212,16 @@ public class LifecycleTransaction extends Transactional.AbstractTransactional im
         return log.type();
     }
 
+    @Override
     public TimeUUID opId()
     {
         return log.id();
+    }
+
+    @VisibleForTesting
+    public Tracker tracker()
+    {
+        return tracker;
     }
 
     public void doPrepare()
@@ -576,6 +588,7 @@ public class LifecycleTransaction extends Transactional.AbstractTransactional im
     }
 
     // convenience method for callers that know only one sstable is involved in the transaction
+    // overridden to avoid defensive copying
     public SSTableReader onlyOne()
     {
         assert originals.size() == 1;

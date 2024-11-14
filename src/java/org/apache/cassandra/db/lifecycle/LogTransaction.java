@@ -134,8 +134,13 @@ class LogTransaction extends Transactional.AbstractTransactional implements Tran
 
     LogTransaction(OperationType opType, Tracker tracker)
     {
+        this(opType, tracker, nextTimeUUID());
+    }
+
+    LogTransaction(OperationType opType, Tracker tracker, TimeUUID id)
+    {
         this.tracker = tracker;
-        this.txnFile = new LogFile(opType, nextTimeUUID());
+        this.txnFile = new LogFile(opType, id);
         this.lock = new Object();
         this.selfRef = new Ref<>(this, new TransactionTidier(txnFile, lock));
 

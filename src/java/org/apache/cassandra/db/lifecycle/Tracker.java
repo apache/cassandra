@@ -62,6 +62,7 @@ import org.apache.cassandra.notifications.TablePreScrubNotification;
 import org.apache.cassandra.notifications.TruncationNotification;
 import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.Throwables;
+import org.apache.cassandra.utils.TimeUUID;
 import org.apache.cassandra.utils.concurrent.OpOrder;
 
 import static com.google.common.base.Predicates.and;
@@ -123,11 +124,19 @@ public class Tracker
      */
     public LifecycleTransaction tryModify(Iterable<? extends SSTableReader> sstables, OperationType operationType)
     {
+        return tryModify(sstables, operationType, TimeUUID.Generator.nextTimeUUID());
+    }
+
+    /**
+     * @return a Transaction over the provided sstables if we are able to mark the given @param sstables as compacted, before anyone else
+     */
+    public LifecycleTransaction tryModify(Iterable<? extends SSTableReader> sstables, OperationType operationType, TimeUUID operationId)
+    {
         if (Iterables.isEmpty(sstables))
-            return new LifecycleTransaction(this, operationType, sstables);
+            return new LifecycleTransaction(this, operationType, sstables, operationId);
         if (null == apply(permitCompacting(sstables), updateCompacting(emptySet(), sstables)))
             return null;
-        return new LifecycleTransaction(this, operationType, sstables);
+        return new LifecycleTransaction(this, operationType, sstables, operationId);
     }
 
 

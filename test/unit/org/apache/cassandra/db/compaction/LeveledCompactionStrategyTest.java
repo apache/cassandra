@@ -593,7 +593,7 @@ public class LeveledCompactionStrategyTest
         {
             for (AbstractCompactionStrategy strategy : strategies)
             {
-                AbstractCompactionTask task = strategy.getNextBackgroundTask(0);
+                AbstractCompactionTask task = Iterables.getOnlyElement(strategy.getNextBackgroundTasks(0), null);
                 if (task != null)
                 {
                     try
@@ -922,7 +922,7 @@ public class LeveledCompactionStrategyTest
             l0sstables.add(MockSchema.sstable(i, (i + 1) * 1024 * 1024, cfs));
         try (LifecycleTransaction txn = LifecycleTransaction.offline(OperationType.COMPACTION, Iterables.concat(l0sstables, l1sstables)))
         {
-            Set<SSTableReader> nonExpired = Sets.difference(txn.originals(), Collections.emptySet());
+            Set<SSTableReader> nonExpired = new HashSet<>(Sets.difference(txn.originals(), Collections.emptySet()));
             CompactionTask task = new LeveledCompactionTask(cfs, txn, 1, 0, 1024*1024, false);
             SSTableReader lastRemoved = null;
             boolean removed = true;
@@ -974,7 +974,8 @@ public class LeveledCompactionStrategyTest
             for (int i = 0; i < l0sstables.size(); i++)
             {
                 Set<SSTableReader> before = new HashSet<>(txn.originals());
-                removed = task.reduceScopeForLimitedSpace(before, 0);
+                Set<SSTableReader> sources = new HashSet<>(before);
+                removed = task.reduceScopeForLimitedSpace(sources, 0);
                 SSTableReader removedSSTable = Sets.difference(before, txn.originals()).stream().findFirst().orElse(null);
                 if (removed)
                 {

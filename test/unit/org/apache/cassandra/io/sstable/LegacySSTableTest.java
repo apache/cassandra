@@ -44,7 +44,6 @@ import org.apache.cassandra.cql3.UntypedResultSet;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.SinglePartitionSliceCommandTest;
-import org.apache.cassandra.db.compaction.AbstractCompactionTask;
 import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.db.repair.PendingAntiCompaction;
 import org.apache.cassandra.db.rows.RangeTombstoneMarker;
@@ -398,9 +397,9 @@ public class LegacySSTableTest
             truncateLegacyTables(legacyVersion);
             loadLegacyTables(legacyVersion);
             ColumnFamilyStore cfs = Keyspace.open(LEGACY_TABLES_KEYSPACE).getColumnFamilyStore(String.format("legacy_%s_simple", legacyVersion));
-            AbstractCompactionTask act = cfs.getCompactionStrategyManager().getNextBackgroundTask(0);
+            var act = cfs.getCompactionStrategyManager().getNextBackgroundTasks(0);
             // there should be no compactions to run with auto upgrades disabled:
-            assertEquals(null, act);
+            assertEquals(0, act.size());
         }
 
         DatabaseDescriptor.setAutomaticSSTableUpgradeEnabled(true);

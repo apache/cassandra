@@ -195,26 +195,26 @@ public class CompactionStrategyManager implements INotificationConsumer
      *
      * Returns a task for the compaction strategy that needs it the most (most estimated remaining tasks)
      */
-    public AbstractCompactionTask getNextBackgroundTask(long gcBefore)
+    public Collection<AbstractCompactionTask> getNextBackgroundTasks(long gcBefore)
     {
         maybeReloadDiskBoundaries();
         readLock.lock();
         try
         {
             if (!isEnabled())
-                return null;
+                return Collections.emptyList();
 
             int numPartitions = getNumTokenPartitions();
 
             // first try to promote/demote sstables from completed repairs
-            AbstractCompactionTask repairFinishedTask;
-            repairFinishedTask = pendingRepairs.getNextRepairFinishedTask();
-            if (repairFinishedTask != null)
-                return repairFinishedTask;
+            Collection<AbstractCompactionTask> repairFinishedTasks;
+            repairFinishedTasks = pendingRepairs.getNextRepairFinishedTasks();
+            if (repairFinishedTasks != null && !repairFinishedTasks.isEmpty())
+                return repairFinishedTasks;
 
-            repairFinishedTask = transientRepairs.getNextRepairFinishedTask();
-            if (repairFinishedTask != null)
-                return repairFinishedTask;
+            repairFinishedTasks = transientRepairs.getNextRepairFinishedTasks();
+            if (repairFinishedTasks != null && !repairFinishedTasks.isEmpty())
+                return repairFinishedTasks;
 
             // sort compaction task suppliers by remaining tasks descending
             List<TaskSupplier> suppliers = new ArrayList<>(numPartitions * holders.size());
@@ -226,12 +226,12 @@ public class CompactionStrategyManager implements INotificationConsumer
             // return the first non-null task
             for (TaskSupplier supplier : suppliers)
             {
-                AbstractCompactionTask task = supplier.getTask();
-                if (task != null)
-                    return task;
+                Collection<AbstractCompactionTask> tasks = supplier.getTasks();
+                if (tasks != null && !tasks.isEmpty())
+                    return tasks;
             }
 
-            return null;
+            return Collections.emptyList();
         }
         finally
         {
@@ -1079,7 +1079,7 @@ public class CompactionStrategyManager implements INotificationConsumer
         }
     }
 
-    public CompactionTasks getMaximalTasks(final long gcBefore, final boolean splitOutput, OperationType operationType)
+    public CompactionTasks getMaximalTasks(final long gcBefore, final boolean splitOutput, int permittedParallelism, OperationType operationType)
     {
         maybeReloadDiskBoundaries();
         // runWithCompactionsDisabled cancels active compactions and disables them, then we are able
@@ -1097,6 +1097,7 @@ public class CompactionStrategyManager implements INotificationConsumer
                         tasks.add(task.setCompactionType(operationType));
                     }
                 }
+                tasks = CompositeCompactionTask.applyParallelismLimit(tasks, permittedParallelism);
             }
             finally
             {

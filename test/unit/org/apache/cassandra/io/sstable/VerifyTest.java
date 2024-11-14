@@ -108,6 +108,7 @@ public class VerifyTest
     public static final String COUNTER_CF4 = "Counter4";
     public static final String CORRUPT_CF = "Corrupt1";
     public static final String CORRUPT_CF2 = "Corrupt2";
+    public static final String CORRUPT_CF3 = "Corrupt3";
     public static final String CORRUPTCOUNTER_CF = "CounterCorrupt1";
     public static final String CORRUPTCOUNTER_CF2 = "CounterCorrupt2";
 
@@ -130,6 +131,7 @@ public class VerifyTest
                        standardCFMD(KEYSPACE, CF4),
                        standardCFMD(KEYSPACE, CORRUPT_CF),
                        standardCFMD(KEYSPACE, CORRUPT_CF2),
+                       standardCFMD(KEYSPACE, CORRUPT_CF3),
                        counterCFMD(KEYSPACE, COUNTER_CF).compression(compressionParameters),
                        counterCFMD(KEYSPACE, COUNTER_CF2).compression(compressionParameters),
                        counterCFMD(KEYSPACE, COUNTER_CF3),
@@ -516,7 +518,7 @@ public class VerifyTest
     {
         CompactionManager.instance.disableAutoCompaction();
         Keyspace keyspace = Keyspace.open(KEYSPACE);
-        ColumnFamilyStore cfs = keyspace.getColumnFamilyStore(CORRUPT_CF2);
+        ColumnFamilyStore cfs = keyspace.getColumnFamilyStore(CORRUPT_CF3);
 
         fillCF(cfs, 2);
 

@@ -1019,7 +1019,8 @@ public abstract class SSTableReader extends SSTable implements UnfilteredSource,
     {
         if (range == null)
             return getScanner();
-        return getScanner(Collections.singletonList(range));
+        else
+            return getScanner(Collections.singletonList(range));
     }
 
     /**

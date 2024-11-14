@@ -159,7 +159,7 @@ public class SSTableReaderTest
                 .applyUnsafe();
         }
         Util.flush(store);
-        CompactionManager.instance.performMaximal(store, false);
+        CompactionManager.instance.performMaximal(store);
 
         List<Range<Token>> ranges = new ArrayList<>();
         // 1 key
@@ -397,7 +397,7 @@ public class SSTableReaderTest
                 .applyUnsafe();
             }
             Util.flush(store);
-            CompactionManager.instance.performMaximal(store, false);
+            CompactionManager.instance.performMaximal(store);
 
             // check that all our keys are found correctly
             SSTableReader sstable = store.getLiveSSTables().iterator().next();
@@ -522,7 +522,7 @@ public class SSTableReaderTest
 
         }
         Util.flush(store);
-        CompactionManager.instance.performMaximal(store, false);
+        CompactionManager.instance.performMaximal(store);
 
         SSTableReader sstable = store.getLiveSSTables().iterator().next();
         long p2 = sstable.getPosition(dk(2), SSTableReader.Operator.EQ);
@@ -576,7 +576,7 @@ public class SSTableReaderTest
             .applyUnsafe();
         }
         Util.flush(store);
-        CompactionManager.instance.performMaximal(store, false);
+        CompactionManager.instance.performMaximal(store);
 
         SSTableReader sstable = store.getLiveSSTables().iterator().next();
         KeyCache keyCache = ((KeyCacheSupport<?>) sstable).getKeyCache();
@@ -773,7 +773,7 @@ public class SSTableReaderTest
             }
         }
         Util.flush(store);
-        CompactionManager.instance.performMaximal(store, false);
+        CompactionManager.instance.performMaximal(store);
 
         SSTableReaderWithFilter sstable = (SSTableReaderWithFilter) store.getLiveSSTables().iterator().next();
         sstable = (SSTableReaderWithFilter) sstable.cloneWithNewStart(dk(3));
@@ -1114,7 +1114,7 @@ public class SSTableReaderTest
 
         }
         Util.flush(store);
-        CompactionManager.instance.performMaximal(store, false);
+        CompactionManager.instance.performMaximal(store);
 
         // construct a range which is present in the sstable, but whose
         // keys are not found in the first segment of the index.
@@ -1151,7 +1151,7 @@ public class SSTableReaderTest
             .applyUnsafe();
         }
         Util.flush(store);
-        CompactionManager.instance.performMaximal(store, false);
+        CompactionManager.instance.performMaximal(store);
 
         Collection<SSTableReader> sstables = store.getLiveSSTables();
         assert sstables.size() == 1;
@@ -1228,7 +1228,7 @@ public class SSTableReaderTest
             .applyUnsafe();
         }
         Util.flush(store);
-        CompactionManager.instance.performMaximal(store, false);
+        CompactionManager.instance.performMaximal(store);
 
         Collection<R> sstables = ServerTestUtils.<R>getLiveIndexSummarySupportingReaders(store);
         assert sstables.size() == 1;
