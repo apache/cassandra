@@ -419,7 +419,7 @@ public class KeyspaceTest extends CQLTester
 
         // compact so we have a big row with more than the minimum index count
         if (cfs.getLiveSSTables().size() > 1)
-            CompactionManager.instance.performMaximal(cfs, false);
+            CompactionManager.instance.performMaximal(cfs);
 
         // verify that we do indeed have multiple index entries
         SSTableReader sstable = cfs.getLiveSSTables().iterator().next();

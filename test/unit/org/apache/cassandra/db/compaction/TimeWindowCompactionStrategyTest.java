@@ -297,11 +297,13 @@ public class TimeWindowCompactionStrategyTest extends SchemaLoader
             twcs.addSSTable(sstable);
 
         twcs.startup();
-        assertNull(twcs.getNextBackgroundTask(nowInSeconds()));
+        long gcBefore1 = nowInSeconds();
+        assertNull(Iterables.<AbstractCompactionTask>getOnlyElement(twcs.getNextBackgroundTasks(gcBefore1), null));
 
         // Wait for the expiration of the first sstable
         Thread.sleep(TimeUnit.SECONDS.toMillis(TTL_SECONDS + 1));
-        AbstractCompactionTask t = twcs.getNextBackgroundTask(nowInSeconds());
+        long gcBefore = nowInSeconds();
+        AbstractCompactionTask t = Iterables.getOnlyElement(twcs.getNextBackgroundTasks(gcBefore), null);
         assertNotNull(t);
         assertEquals(1, Iterables.size(t.transaction.originals()));
         SSTableReader sstable = t.transaction.originals().iterator().next();
@@ -352,11 +354,13 @@ public class TimeWindowCompactionStrategyTest extends SchemaLoader
             twcs.addSSTable(sstable);
 
         twcs.startup();
-        assertNull(twcs.getNextBackgroundTask(nowInSeconds()));
+        long gcBefore2 = nowInSeconds();
+        assertNull(Iterables.<AbstractCompactionTask>getOnlyElement(twcs.getNextBackgroundTasks(gcBefore2), null));
 
         // Wait for the expiration of the first sstable
         Thread.sleep(TimeUnit.SECONDS.toMillis(TTL_SECONDS + 1));
-        assertNull(twcs.getNextBackgroundTask(nowInSeconds()));
+        long gcBefore1 = nowInSeconds();
+        assertNull(Iterables.<AbstractCompactionTask>getOnlyElement(twcs.getNextBackgroundTasks(gcBefore1), null));
 
         options.put(TimeWindowCompactionStrategyOptions.UNSAFE_AGGRESSIVE_SSTABLE_EXPIRATION_KEY, "true");
         twcs = new TimeWindowCompactionStrategy(cfs, options);
@@ -364,7 +368,8 @@ public class TimeWindowCompactionStrategyTest extends SchemaLoader
             twcs.addSSTable(sstable);
 
         twcs.startup();
-        AbstractCompactionTask t = twcs.getNextBackgroundTask(nowInSeconds());
+        long gcBefore = nowInSeconds();
+        AbstractCompactionTask t = Iterables.getOnlyElement(twcs.getNextBackgroundTasks(gcBefore), null);
         assertNotNull(t);
         assertEquals(1, Iterables.size(t.transaction.originals()));
         SSTableReader sstable = t.transaction.originals().iterator().next();

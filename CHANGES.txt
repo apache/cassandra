@@ -1,4 +1,5 @@
 5.1
+ * Parallelized UCS compactions (CASSANDRA-18802)
  * Avoid prepared statement invalidation race when committing schema changes (CASSANDRA-20116)
  * Restore optimization in MultiCBuilder around building one clustering (CASSANDRA-20129)
  * Consolidate all snapshot management to SnapshotManager and introduce SnapshotManagerMBean (CASSANDRA-18111)

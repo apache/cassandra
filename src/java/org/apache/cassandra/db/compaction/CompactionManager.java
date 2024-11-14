@@ -34,6 +34,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BooleanSupplier;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
@@ -57,6 +58,7 @@ import com.google.common.util.concurrent.RateLimiter;
 import com.google.common.util.concurrent.Uninterruptibles;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
 import com.codahale.metrics.Meter;
 import net.openhft.chronicle.core.util.ThrowingSupplier;
 import org.apache.cassandra.cache.AutoSavingCache;
@@ -108,6 +110,8 @@ import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.ActiveRepairService;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.streaming.PreviewKind;
+import org.apache.cassandra.tcm.ClusterMetadata;
+import org.apache.cassandra.tcm.ownership.DataPlacement;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.JVMStabilityInspector;
 import org.apache.cassandra.utils.MBeanWrapper;
@@ -115,10 +119,10 @@ import org.apache.cassandra.utils.OutputHandler;
 import org.apache.cassandra.utils.Throwables;
 import org.apache.cassandra.utils.TimeUUID;
 import org.apache.cassandra.utils.WrappedRunnable;
-import org.apache.cassandra.tcm.ClusterMetadata;
-import org.apache.cassandra.tcm.ownership.DataPlacement;
+import org.apache.cassandra.utils.concurrent.AsyncPromise;
 import org.apache.cassandra.utils.concurrent.Future;
 import org.apache.cassandra.utils.concurrent.ImmediateFuture;
+import org.apache.cassandra.utils.concurrent.Promise;
 import org.apache.cassandra.utils.concurrent.Refs;
 
 import static java.util.Collections.singleton;
@@ -268,9 +272,9 @@ public class CompactionManager implements CompactionManagerMBean, ICompactionMan
                      cfs.getCompactionStrategyManager().getName());
 
         List<Future<?>> futures = new ArrayList<>(1);
-        Future<?> fut = executor.submitIfRunning(new BackgroundCompactionCandidate(cfs), "background task");
-        if (!fut.isCancelled())
-            futures.add(fut);
+        Promise<Void> promise = new AsyncPromise<>();
+        if (!executor.submitIfRunning(new BackgroundCompactionCandidate(cfs, promise), "background task").isCancelled())
+            futures.add(promise);
         else
             compactingCF.remove(cfs);
         return futures;
@@ -356,16 +360,22 @@ public class CompactionManager implements CompactionManagerMBean, ICompactionMan
     class BackgroundCompactionCandidate implements Runnable
     {
         private final ColumnFamilyStore cfs;
+        private final Promise<Void> toSignalWhenDone;
+        private final AtomicReference<Throwable> asyncErrors = new AtomicReference<>(null);
 
-        BackgroundCompactionCandidate(ColumnFamilyStore cfs)
+        BackgroundCompactionCandidate(ColumnFamilyStore cfs, Promise<Void> toSignalWhenDone)
         {
             compactingCF.add(cfs);
             this.cfs = cfs;
+            this.toSignalWhenDone = toSignalWhenDone;
         }
 
         public void run()
         {
             boolean ranCompaction = false;
+            boolean async = false;
+            Throwable error = null;
+            Collection<AbstractCompactionTask> tasks = null;
             try
             {
                 logger.trace("Checking {}.{}", cfs.getKeyspaceName(), cfs.name);
@@ -376,24 +386,131 @@ public class CompactionManager implements CompactionManagerMBean, ICompactionMan
                 }
 
                 CompactionStrategyManager strategy = cfs.getCompactionStrategyManager();
-                AbstractCompactionTask task = strategy.getNextBackgroundTask(getDefaultGcBefore(cfs, FBUtilities.nowInSeconds()));
-                if (task == null)
+                tasks = strategy.getNextBackgroundTasks(getDefaultGcBefore(cfs, FBUtilities.nowInSeconds()));
+                if (tasks == null || tasks.isEmpty())
                 {
                     if (DatabaseDescriptor.automaticSSTableUpgrade())
                         ranCompaction = maybeRunUpgradeTask(strategy);
                 }
-                else
+                else if (tasks.size() == 1)
                 {
-                    task.execute(active);
+                    // If just one task, run it directly on this thread
+                    for (AbstractCompactionTask task : tasks)
+                        task.execute(active);
                     ranCompaction = true;
                 }
+                else
+                {
+                    // more than 1 task: we need to do this outside the catch and complete block
+                    async = true;
+                }
+            }
+            catch (Throwable t)
+            {
+                error = t;
+            }
+
+            if (!async)
+            {
+                complete(ranCompaction, error);
+                Throwables.maybeFail(error);
+            }
+            else    // async
+                processTasksAsync(tasks);
+        }
+
+        private void processTasksAsync(Collection<AbstractCompactionTask> tasks)
+        {
+            assert tasks != null;
+
+            // We should only signal overall completion when all tasks are done
+            AtomicInteger toComplete = new AtomicInteger(tasks.size());
+
+            AbstractCompactionTask lastTask = null;
+            // Submit all but the last task for execution,
+            for (AbstractCompactionTask task : tasks)
+            {
+                if (lastTask != null)
+                {
+                    AbstractCompactionTask toRun = lastTask;
+                    try
+                    {
+                        executor.submit(() -> runTask(toRun, toComplete));
+                    }
+                    catch (RejectedExecutionException e)
+                    {
+                        logger.debug("Failed to submit background compaction task: {}", e.getMessage());
+                        rejectTask(toRun, toComplete);
+                    }
+                }
+                lastTask = task;
+            }
+
+            // and run the last task directly in this thread.
+            assert lastTask != null;
+            runTask(lastTask, toComplete);
+        }
+
+        private void runTask(AbstractCompactionTask task, AtomicInteger toComplete)
+        {
+            try
+            {
+                task.execute(active);
+            }
+            catch (Throwable t)
+            {
+                addAsyncError(t);
             }
             finally
             {
-                compactingCF.remove(cfs);
+                if (toComplete.decrementAndGet() == 0)
+                    complete(true, asyncErrors.get());
             }
-            if (ranCompaction) // only submit background if we actually ran a compaction - otherwise we end up in an infinite loop submitting noop background tasks
-                submitBackground(cfs);
+        }
+
+        private void rejectTask(AbstractCompactionTask task, AtomicInteger toComplete)
+        {
+            try
+            {
+                task.rejected();
+                throw new RuntimeException("Failed to submit background compaction task");
+            }
+            catch (Throwable t) // make sure we catch exceptions thrown by task.rejected() as well
+            {
+                addAsyncError(t);
+            }
+            finally
+            {
+                if (toComplete.decrementAndGet() == 0)
+                    complete(false, asyncErrors.get());
+            }
+        }
+
+        private void complete(boolean submitNew, Throwable error)
+        {
+            compactingCF.remove(cfs);
+            if (error == null)
+            {
+                toSignalWhenDone.setSuccess(null);
+                if (submitNew)
+                    submitBackground(cfs);
+            }
+            else
+                toSignalWhenDone.setFailure(error);
+        }
+
+        private void addAsyncError(Throwable t)
+        {
+            asyncErrors.accumulateAndGet(t, (a, b) ->
+            {
+                if (a == null)
+                    return b;
+                else
+                {
+                    a.addSuppressed(b);
+                    return a;
+                }
+            });
         }
 
         boolean maybeRunUpgradeTask(CompactionStrategyManager strategy)
@@ -423,7 +540,7 @@ public class CompactionManager implements CompactionManagerMBean, ICompactionMan
     @VisibleForTesting
     public BackgroundCompactionCandidate getBackgroundCompactionCandidate(ColumnFamilyStore cfs)
     {
-        return new BackgroundCompactionCandidate(cfs);
+        return new BackgroundCompactionCandidate(cfs, new AsyncPromise<>());
     }
 
     /**
@@ -721,7 +838,7 @@ public class CompactionManager implements CompactionManagerMBean, ICompactionMan
                             }
                             catch (Throwable t)
                             {
-                                logger.warn(String.format("Unable to cancel %s from transaction %s", sstable, transaction.opId()), t);
+                                logger.warn(String.format("Unable to cancel %s from transaction %s", sstable, transaction.opIdString()), t);
                             }
                         }
                         else
@@ -1004,22 +1121,32 @@ public class CompactionManager implements CompactionManagerMBean, ICompactionMan
         return fullyContainedSSTables;
     }
 
-    public void performMaximal(final ColumnFamilyStore cfStore, boolean splitOutput)
+    public void performMaximal(final ColumnFamilyStore cfStore)
     {
-        FBUtilities.waitOnFutures(submitMaximal(cfStore, getDefaultGcBefore(cfStore, FBUtilities.nowInSeconds()), splitOutput));
+        performMaximal(cfStore, false, -1);
     }
 
-    public List<Future<?>> submitMaximal(final ColumnFamilyStore cfStore, final long gcBefore, boolean splitOutput)
+    public void performMaximal(final ColumnFamilyStore cfStore, boolean splitOutput, int permittedParallelism)
     {
-            return submitMaximal(cfStore, gcBefore, splitOutput, OperationType.MAJOR_COMPACTION);
+        FBUtilities.waitOnFutures(submitMaximal(cfStore, getDefaultGcBefore(cfStore, FBUtilities.nowInSeconds()), splitOutput, permittedParallelism));
     }
 
-    public List<Future<?>> submitMaximal(final ColumnFamilyStore cfStore, final long gcBefore, boolean splitOutput, OperationType operationType)
+    public List<Future<?>> submitMaximal(final ColumnFamilyStore cfStore, final long gcBefore, boolean splitOutput, int permittedParallelism)
     {
+            return submitMaximal(cfStore, gcBefore, splitOutput, permittedParallelism, OperationType.MAJOR_COMPACTION);
+    }
+
+    public List<Future<?>> submitMaximal(final ColumnFamilyStore cfStore, final long gcBefore, boolean splitOutput, int permittedParallelism, OperationType operationType)
+    {
+        if (permittedParallelism < 0)
+            permittedParallelism = getCoreCompactorThreads() / 2;
+        else if (permittedParallelism == 0)
+            permittedParallelism = Integer.MAX_VALUE;
+
         // here we compute the task off the compaction executor, so having that present doesn't
         // confuse runWithCompactionsDisabled -- i.e., we don't want to deadlock ourselves, waiting
         // for ourselves to finish/acknowledge cancellation before continuing.
-        CompactionTasks tasks = cfStore.getCompactionStrategyManager().getMaximalTasks(gcBefore, splitOutput, operationType);
+        CompactionTasks tasks = cfStore.getCompactionStrategyManager().getMaximalTasks(gcBefore, splitOutput, permittedParallelism, operationType);
 
         if (tasks.isEmpty())
             return Collections.emptyList();
@@ -1043,6 +1170,8 @@ public class CompactionManager implements CompactionManagerMBean, ICompactionMan
             Future<?> fut = executor.submitIfRunning(runnable, "maximal task");
             if (!fut.isCancelled())
                 futures.add(fut);
+            else
+                task.rejected();
         }
         if (nonEmptyTasks > 1)
             logger.info("Major compaction will not result in a single sstable - repaired and unrepaired data is kept separate and compaction runs per data_file_directory.");

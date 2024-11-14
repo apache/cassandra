@@ -26,6 +26,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.LongPredicate;
+import java.util.function.UnaryOperator;
 
 import com.google.common.base.Predicates;
 import com.google.common.collect.Iterables;
@@ -130,7 +131,12 @@ public class CompactionController extends AbstractCompactionController
 
     public Set<SSTableReader> getFullyExpiredSSTables()
     {
-        return getFullyExpiredSSTables(cfs, compacting, overlappingSSTables, gcBefore, ignoreOverlaps());
+        return getFullyExpiredSSTables(cfs,
+                                       compacting,
+                                       x -> overlappingSSTables != null ? overlappingSSTables
+                                                                        : Collections.emptyList(),
+                                       gcBefore,
+                                       ignoreOverlaps());
     }
 
     /**
@@ -145,20 +151,20 @@ public class CompactionController extends AbstractCompactionController
      *
      * @param cfStore
      * @param compacting we take the drop-candidates from this set, it is usually the sstables included in the compaction
-     * @param overlapping the sstables that overlap the ones in compacting.
+     * @param overlappingSupplier called on the compacting sstables to compute the set of sstables that overlap with them if needed
      * @param gcBefore
      * @param ignoreOverlaps don't check if data shadows/overlaps any data in other sstables
      * @return
      */
     public static Set<SSTableReader> getFullyExpiredSSTables(ColumnFamilyStore cfStore,
                                                              Iterable<SSTableReader> compacting,
-                                                             Iterable<SSTableReader> overlapping,
+                                                             UnaryOperator<Iterable<SSTableReader>> overlappingSupplier,
                                                              long gcBefore,
                                                              boolean ignoreOverlaps)
     {
         logger.trace("Checking droppable sstables in {}", cfStore);
 
-        if (NEVER_PURGE_TOMBSTONES_PROPERTY_VALUE || compacting == null || cfStore.getNeverPurgeTombstones() || overlapping == null)
+        if (NEVER_PURGE_TOMBSTONES_PROPERTY_VALUE || compacting == null || cfStore.getNeverPurgeTombstones())
             return Collections.emptySet();
 
         if (cfStore.getCompactionStrategyManager().onlyPurgeRepairedTombstones() && !Iterables.all(compacting, SSTableReader::isRepaired))
@@ -183,7 +189,7 @@ public class CompactionController extends AbstractCompactionController
         List<SSTableReader> candidates = new ArrayList<>();
         long minTimestamp = Long.MAX_VALUE;
 
-        for (SSTableReader sstable : overlapping)
+        for (SSTableReader sstable : overlappingSupplier.apply(compacting))
         {
             // Overlapping might include fully expired sstables. What we care about here is
             // the min timestamp of the overlapping sstables that actually contain live data.
@@ -230,10 +236,10 @@ public class CompactionController extends AbstractCompactionController
 
     public static Set<SSTableReader> getFullyExpiredSSTables(ColumnFamilyStore cfStore,
                                                              Iterable<SSTableReader> compacting,
-                                                             Iterable<SSTableReader> overlapping,
+                                                             UnaryOperator<Iterable<SSTableReader>> overlappingSupplier,
                                                              long gcBefore)
     {
-        return getFullyExpiredSSTables(cfStore, compacting, overlapping, gcBefore, false);
+        return getFullyExpiredSSTables(cfStore, compacting, overlappingSupplier, gcBefore, false);
     }
 
     /**

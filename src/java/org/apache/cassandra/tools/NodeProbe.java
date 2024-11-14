@@ -469,6 +469,11 @@ public class NodeProbe implements AutoCloseable
         compactionProxy.forceUserDefinedCompaction(datafiles);
     }
 
+    public void forceKeyspaceCompaction(boolean splitOutput, int parallelism, String keyspaceName, String... tableNames) throws IOException, ExecutionException, InterruptedException
+    {
+        ssProxy.forceKeyspaceCompaction(splitOutput, parallelism, keyspaceName, tableNames);
+    }
+
     public void forceKeyspaceCompaction(boolean splitOutput, String keyspaceName, String... tableNames) throws IOException, ExecutionException, InterruptedException
     {
         ssProxy.forceKeyspaceCompaction(splitOutput, keyspaceName, tableNames);

@@ -31,6 +31,7 @@ import org.slf4j.LoggerFactory;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.db.ColumnFamilyStore;
+import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.db.compaction.UnifiedCompactionStrategy;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.utils.FBUtilities;
@@ -150,6 +151,14 @@ public class Controller
     static final Overlaps.InclusionMethod DEFAULT_OVERLAP_INCLUSION_METHOD =
         CassandraRelevantProperties.UCS_OVERLAP_INCLUSION_METHOD.getEnum(Overlaps.InclusionMethod.TRANSITIVE);
 
+    /**
+     * Whether to create subtask for the output shards of individual compactions and execute them in parallel.
+     * Defaults to true for improved parallelization and efficiency.
+     */
+    static final String PARALLELIZE_OUTPUT_SHARDS_OPTION = "parallelize_output_shards";
+    static final boolean DEFAULT_PARALLELIZE_OUTPUT_SHARDS =
+            CassandraRelevantProperties.UCS_PARALLELIZE_OUTPUT_SHARDS.getBoolean(true);
+
     protected final ColumnFamilyStore cfs;
     protected final MonotonicClock clock;
     private final int[] scalingParameters;
@@ -172,6 +181,7 @@ public class Controller
     private static final double INVERSE_LOG_2 = 1.0 / Math.log(2);
 
     protected final Overlaps.InclusionMethod overlapInclusionMethod;
+    protected final boolean parallelizeOutputShards;
 
     Controller(ColumnFamilyStore cfs,
                MonotonicClock clock,
@@ -185,7 +195,8 @@ public class Controller
                int baseShardCount,
                double targetSStableSize,
                double sstableGrowthModifier,
-               Overlaps.InclusionMethod overlapInclusionMethod)
+               Overlaps.InclusionMethod overlapInclusionMethod,
+               boolean parallelizeOutputShards)
     {
         this.cfs = cfs;
         this.clock = clock;
@@ -199,6 +210,7 @@ public class Controller
         this.targetSSTableSize = targetSStableSize;
         this.overlapInclusionMethod = overlapInclusionMethod;
         this.sstableGrowthModifier = sstableGrowthModifier;
+        this.parallelizeOutputShards = parallelizeOutputShards;
 
         if (maxSSTablesToCompact <= 0)
             maxSSTablesToCompact = Integer.MAX_VALUE;
@@ -356,6 +368,11 @@ public class Controller
         }
     }
 
+    public boolean parallelizeOutputShards()
+    {
+        return parallelizeOutputShards;
+    }
+
     /**
      * @return the survival factor o
      * @param index
@@ -446,6 +463,10 @@ public class Controller
                 ? Overlaps.InclusionMethod.valueOf(toUpperCaseLocalized(options.get(OVERLAP_INCLUSION_METHOD_OPTION)))
                 : DEFAULT_OVERLAP_INCLUSION_METHOD;
 
+        boolean parallelizeOutputShards = options.containsKey(PARALLELIZE_OUTPUT_SHARDS_OPTION)
+                ? Boolean.parseBoolean(options.get(PARALLELIZE_OUTPUT_SHARDS_OPTION))
+                : DEFAULT_PARALLELIZE_OUTPUT_SHARDS;
+
         return new Controller(cfs,
                               MonotonicClock.Global.preciseTime,
                               Ws,
@@ -458,7 +479,8 @@ public class Controller
                               baseShardCount,
                               targetSStableSize,
                               sstableGrowthModifier,
-                              inclusionMethod);
+                              inclusionMethod,
+                parallelizeOutputShards);
     }
 
     public static Map<String, String> validateOptions(Map<String, String> options) throws ConfigurationException
@@ -572,12 +594,8 @@ public class Controller
             }
         }
 
-        s = options.remove(ALLOW_UNSAFE_AGGRESSIVE_SSTABLE_EXPIRATION_OPTION);
-        if (s != null && !s.equalsIgnoreCase("true") && !s.equalsIgnoreCase("false"))
-        {
-            throw new ConfigurationException(String.format("%s should either be 'true' or 'false', not %s",
-                                                           ALLOW_UNSAFE_AGGRESSIVE_SSTABLE_EXPIRATION_OPTION, s));
-        }
+        validateBoolean(options, ALLOW_UNSAFE_AGGRESSIVE_SSTABLE_EXPIRATION_OPTION);
+        validateBoolean(options, PARALLELIZE_OUTPUT_SHARDS_OPTION);
 
         s = options.remove(OVERLAP_INCLUSION_METHOD_OPTION);
         if (s != null)
@@ -645,6 +663,16 @@ public class Controller
         return options;
     }
 
+    private static void validateBoolean(Map<String, String> options, String option)
+    {
+        String s;
+        s = options.remove(option);
+        if (s != null && !s.equalsIgnoreCase("true") && !s.equalsIgnoreCase("false")) {
+            throw new ConfigurationException(String.format("%s should either be 'true' or 'false', not %s",
+                    option, s));
+        }
+    }
+
     // The methods below are implemented here (rather than directly in UCS) to aid testability.
 
     public double getBaseSstableSize(int F)
@@ -675,7 +703,7 @@ public class Controller
 
     public int maxConcurrentCompactions()
     {
-        return DatabaseDescriptor.getConcurrentCompactors();
+        return CompactionManager.instance.getMaximumCompactorThreads();
     }
 
     public int maxSSTablesToCompact()

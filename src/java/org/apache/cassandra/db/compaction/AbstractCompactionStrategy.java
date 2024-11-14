@@ -92,7 +92,7 @@ public abstract class AbstractCompactionStrategy
     private final Directories directories;
 
     /**
-     * pause/resume/getNextBackgroundTask must synchronize.  This guarantees that after pause completes,
+     * pause/resume/getNextBackgroundTasks must synchronize.  This guarantees that after pause completes,
      * no new tasks will be generated; or put another way, pause can't run until in-progress tasks are
      * done being created.
      *
@@ -176,21 +176,22 @@ public abstract class AbstractCompactionStrategy
     /**
      * @param gcBefore throw away tombstones older than this
      *
-     * @return the next background/minor compaction task to run; null if nothing to do.
+     * @return the next background/minor compaction tasks to run; an empty collection if nothing to do.
      *
      * Is responsible for marking its sstables as compaction-pending.
      */
-    public abstract AbstractCompactionTask getNextBackgroundTask(final long gcBefore);
+    public abstract Collection<AbstractCompactionTask> getNextBackgroundTasks(final long gcBefore);
 
     /**
-     * @param gcBefore throw away tombstones older than this
-     *
-     * @return a compaction task that should be run to compact this columnfamilystore
-     * as much as possible.  Null if nothing to do.
-     *
+     * @param gcBefore             throw away tombstones older than this
+     * @return A list of compaction tasks that should be run to compact this columnfamilystore
+     *         as much as possible. Empty if nothing to do.
+     *         Order matters if a parallelism limit is applied, as the tasks are run in way that parallelizes ones that
+     *         are close together in the list.
+     * <p>
      * Is responsible for marking its sstables as compaction-pending.
      */
-    public abstract Collection<AbstractCompactionTask> getMaximalTask(final long gcBefore, boolean splitOutput);
+    public abstract List<AbstractCompactionTask> getMaximalTasks(final long gcBefore, boolean splitOutput);
 
     /**
      * @param sstables SSTables to compact. Must be marked as compacting.
@@ -418,7 +419,7 @@ public abstract class AbstractCompactionStrategy
             // there is no overlap, tombstones are safely droppable
             return true;
         }
-        else if (CompactionController.getFullyExpiredSSTables(cfs, Collections.singleton(sstable), overlaps, gcBefore).size() > 0)
+        else if (CompactionController.getFullyExpiredSSTables(cfs, Collections.singleton(sstable), s -> overlaps, gcBefore).size() > 0)
         {
             return true;
         }

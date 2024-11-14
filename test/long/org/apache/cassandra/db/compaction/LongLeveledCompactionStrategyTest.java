@@ -99,16 +99,19 @@ public class LongLeveledCompactionStrategyTest
         {
             while (true)
             {
-                final AbstractCompactionTask nextTask = lcs.getNextBackgroundTask(Integer.MIN_VALUE);
-                if (nextTask == null)
+                final var nextTasks = lcs.getNextBackgroundTasks(Integer.MIN_VALUE);
+                if (nextTasks == null || nextTasks.isEmpty())
                     break;
-                tasks.add(new Runnable()
+                for (var nextTask : nextTasks)
                 {
-                    public void run()
+                    tasks.add(new Runnable()
                     {
-                        nextTask.execute(ActiveCompactionsTracker.NOOP);
-                    }
-                });
+                        public void run()
+                        {
+                            nextTask.execute(ActiveCompactionsTracker.NOOP);
+                        }
+                    });
+                }
             }
             if (tasks.isEmpty())
                 break;

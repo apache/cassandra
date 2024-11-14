@@ -104,7 +104,7 @@ public class CassandraEntireSSTableStreamWriterTest
             .applyUnsafe();
         }
         Util.flush(store);
-        CompactionManager.instance.performMaximal(store, false);
+        CompactionManager.instance.performMaximal(store);
 
         sstable = store.getLiveSSTables().iterator().next();
         descriptor = sstable.descriptor;

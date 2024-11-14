@@ -293,6 +293,25 @@ public class TimeUUID implements Serializable, Comparable<TimeUUID>
         return ballot == null ? "null" : String.format("%s(%d:%s)", kind, ballot.uuidTimestamp(), ballot);
     }
 
+    public int sequence()
+    {
+        return (int) ((lsb >> 48) & 0x0000000000003FFFL);
+    }
+
+    /**
+     * Returns a new TimeUUID with the same data as this one, but with the provided sequence value.
+     *
+     * <b>Warning:</b> the uniqueness of the returned TimeUUID is not guaranteed by this method. Caller must ensure that
+     * the sequence numbers in use are distinct.
+     */
+    public TimeUUID withSequence(long sequence)
+    {
+        long sequenceBits = 0x0000000000003FFFL;
+        long sequenceMask = ~(sequenceBits << 48);
+        final long bits = (sequence & sequenceBits) << 48;
+        return new TimeUUID(uuidTimestamp, lsb() & sequenceMask | bits);
+    }
+
     @Override
     public int compareTo(TimeUUID that)
     {

@@ -18,7 +18,8 @@
 
 package org.apache.cassandra.db.compaction;
 
-import java.util.Set;
+import java.util.*;
+import java.util.function.BiFunction;
 import java.util.stream.Collectors;
 
 import com.google.common.collect.ImmutableList;
@@ -144,7 +145,7 @@ public interface ShardManager
     /**
      * Estimate the density of the sstable that will be the result of compacting the given sources.
      */
-    default double calculateCombinedDensity(Set<? extends SSTableReader> sstables)
+    default double calculateCombinedDensity(Collection<SSTableReader> sstables)
     {
         if (sstables.isEmpty())
             return 0;
@@ -162,5 +163,44 @@ public interface ShardManager
             return onDiskLength / span;
         else
             return onDiskLength;
+    }
+
+    /**
+     * Seggregate the given sstables into the shard ranges that intersect sstables from the collection, and call
+     * the given function on the combination of each shard range and the intersecting sstable set.
+     */
+    default <T> List<T> splitSSTablesInShards(Collection<SSTableReader> sstables,
+                                              int numShardsForDensity,
+                                              BiFunction<Collection<SSTableReader>, Range<Token>, T> maker)
+    {
+        ShardTracker boundaries = boundaries(numShardsForDensity);
+        List<T> tasks = new ArrayList<>();
+        SSTableReader[] items = sstables.toArray(SSTableReader[]::new);
+        Arrays.sort(items, SSTableReader.firstKeyComparator);
+        PriorityQueue<SSTableReader> active = new PriorityQueue<>(SSTableReader.lastKeyComparator);
+        int i = 0;
+        while (i < items.length || !active.isEmpty())
+        {
+            if (active.isEmpty())
+            {
+                boundaries.advanceTo(items[i].getFirst().getToken());
+                active.add(items[i++]);
+            }
+            Token shardEnd = boundaries.shardEnd();
+
+            while (i < items.length && (shardEnd == null || items[i].getFirst().getToken().compareTo(shardEnd) <= 0))
+                active.add(items[i++]);
+
+            final T result = maker.apply(active, boundaries.shardSpan());
+            if (result != null)
+                tasks.add(result);
+
+            while (!active.isEmpty() && (shardEnd == null || active.peek().getLast().getToken().compareTo(shardEnd) <= 0))
+                active.poll();
+
+            if (!active.isEmpty()) // shardEnd must be non-null (otherwise the line above exhausts all)
+                boundaries.advanceTo(shardEnd.nextValidToken());
+        }
+        return tasks;
     }
 }

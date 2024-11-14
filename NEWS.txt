@@ -92,6 +92,16 @@ New features
     - There is new MBean of name org.apache.cassandra.service.snapshot:type=SnapshotManager which exposes user-facing
       snapshot operations. Snapshot-related methods on StorageServiceMBean are still present and functional
       but marked as deprecated.
+    - The unified compaction strategy will now parallelize individual compactions by splitting operations into separate
+      tasks per output shard. This significantly shortens compaction durations but cannot take advantage of preemptive
+      SSTable opening and thus can be less efficient if the strategy is configured to create large sstables.
+      This functionality is controlled by the parallelize_output_shards compaction option (the default can also be set
+      using -Dunified_compaction.parallelize_output_shards=false/true).
+    - Compaction parallelism for the unified compaction strategy also applies to major compactions. Because the number
+      of shards for a major compaction is usually quite high, this can dramatically improve the duration of major
+      compactions. To avoid the possibility of starving background compactions from resources, the number of threads
+      used for major compactions is limited to half the available compaction threads by default, and can be controlled
+      by a new --jobs / -j option of nodetool compact.
 
 
 Upgrading

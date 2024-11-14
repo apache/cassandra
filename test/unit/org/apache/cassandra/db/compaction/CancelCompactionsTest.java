@@ -31,6 +31,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 import com.google.common.collect.ImmutableSet;
+import com.google.common.collect.Iterables;
 import com.google.common.util.concurrent.Uninterruptibles;
 import org.junit.Assume;
 import org.junit.Test;
@@ -485,7 +486,7 @@ public class CancelCompactionsTest extends CQLTester
         {
             for (AbstractCompactionStrategy cs : css)
             {
-                ct = cs.getNextBackgroundTask(0);
+                ct = Iterables.getOnlyElement(cs.getNextBackgroundTasks(0), null);
                 if (ct != null)
                     break;
             }
