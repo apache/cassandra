@@ -251,25 +251,33 @@ public class AlterSchema implements Transformation
         public void serialize(Transformation t, DataOutputPlus out, Version version) throws IOException
         {
             SchemaTransformation.serializer.serialize(((AlterSchema) t).schemaTransformation, out, version);
-            long fixedTimestamp = ((AlterSchema)t).schemaTransformation.fixedTimestampMicros().orElse(NO_EXECUTION_TIMESTAMP);
-            out.writeVInt(fixedTimestamp);
+            if (version.isAtLeast(Version.V5))
+            {
+                long fixedTimestamp = ((AlterSchema)t).schemaTransformation.fixedTimestampMicros().orElse(NO_EXECUTION_TIMESTAMP);
+                out.writeVInt(fixedTimestamp);
+            }
         }
 
         @Override
         public AlterSchema deserialize(DataInputPlus in, Version version) throws IOException
         {
             SchemaTransformation transformation = SchemaTransformation.serializer.deserialize(in, version);
-            long timestamp = in.readVInt();
-            if (transformation instanceof AlterSchemaStatement)
-                ((AlterSchemaStatement)transformation).setExecutionTimestamp(timestamp);
+            if (version.isAtLeast(Version.V5))
+            {
+                long timestamp = in.readVInt();
+                if (transformation instanceof AlterSchemaStatement)
+                    ((AlterSchemaStatement) transformation).setExecutionTimestamp(timestamp);
+            }
             return new AlterSchema(transformation);
         }
 
         @Override
         public long serializedSize(Transformation t, Version version)
         {
-            return SchemaTransformation.serializer.serializedSize(((AlterSchema) t).schemaTransformation, version)
-                   + VIntCoding.computeVIntSize(((AlterSchema)t).schemaTransformation.fixedTimestampMicros().orElse(NO_EXECUTION_TIMESTAMP));
+            long size = SchemaTransformation.serializer.serializedSize(((AlterSchema) t).schemaTransformation, version);
+            if (version.isAtLeast(Version.V5))
+                size += VIntCoding.computeVIntSize(((AlterSchema)t).schemaTransformation.fixedTimestampMicros().orElse(NO_EXECUTION_TIMESTAMP));
+            return size;
         }
     }
 
