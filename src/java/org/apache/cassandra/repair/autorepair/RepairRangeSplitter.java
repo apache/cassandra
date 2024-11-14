@@ -101,7 +101,6 @@ public class RepairRangeSplitter implements IAutoRepairTokenRangeSplitter
 
     public RepairRangeSplitter(Map<String, String> parameters)
     {
-        // Demonstrates parameterizing a range splitter so we can have splitter specific options.
         DataStorageSpec.LongBytesBound subrangeSize;
         if (parameters.containsKey(SUBRANGE_SIZE))
         {
@@ -175,7 +174,7 @@ public class RepairRangeSplitter implements IAutoRepairTokenRangeSplitter
             if (tableAssignments.isEmpty())
                 continue;
 
-            // If the table assignments are for the same token range and we have room to add more tables to the current assignment
+            // If the table assignments are for the same token range, and we have room to add more tables to the current assignment
             if (tableAssignments.size() == 1 && currentAssignments.size() < tablesPerAssignmentLimit &&
                 (currentAssignments.isEmpty() || currentAssignments.get(0).getTokenRange().equals(tableAssignments.get(0).getTokenRange())))
             {
@@ -229,7 +228,7 @@ public class RepairRangeSplitter implements IAutoRepairTokenRangeSplitter
         long targetBytesSoFar = 0;
 
         List<SizeEstimate> sizeEstimates = getRangeSizeEstimate(repairType, keyspaceName, tableName, tokenRanges);
-        // since its possible for us to hit maxBytesPerScheduleBytes before seeing all ranges, shuffle so there is chance
+        // since its possible for us to hit maxBytesPerSchedule before seeing all ranges, shuffle so there is chance
         // at least of hitting all the ranges _eventually_ for the worst case scenarios
         Collections.shuffle(sizeEstimates);
         for (SizeEstimate estimate : sizeEstimates)
@@ -266,9 +265,7 @@ public class RepairRangeSplitter implements IAutoRepairTokenRangeSplitter
                     {
                         if (targetBytesSoFar + approximateBytesPerSplit > maxBytesPerSchedule)
                         {
-                            logger.warn("Refusing to add repair assignment for {}.{} for subrange {} with a approximateBytesPerSplit={} because it would increase total repair bytes to {} which is greater than {}={}",
-                                        keyspaceName, tableName, subrange, FileUtils.stringifyFileSize(approximateBytesPerSplit), FileUtils.stringifyFileSize(targetBytesSoFar + approximateBytesPerSplit),
-                                        MAX_BYTES_PER_SCHEDULE, FileUtils.stringifyFileSize(maxBytesPerSchedule));
+                            warnMaxBytesPerSchedule(repairType, keyspaceName, tableName);
                             break;
                         }
                         logger.info("Added repair assignment for {}.{} for subrange {} (#{}/{})",
@@ -293,17 +290,21 @@ public class RepairRangeSplitter implements IAutoRepairTokenRangeSplitter
             }
             else
             {
-                long calculatedSize = targetBytesSoFar + estimate.sizeForRepair;
                 // Really this is "Ok" but it does mean we are relying on randomness to cover the other ranges
-                logger.info("Skipping range {} for {}.{} as {} would exceed {}={}, " +
-                            "consider increasing {}, reducing node denity or monitoring to ensure all ranges do get repaired within gc_grace_seconds",
-                            estimate.tokenRange,
-                            keyspaceName, tableName,
-                            FileUtils.stringifyFileSize(calculatedSize),
-                            MAX_BYTES_PER_SCHEDULE, FileUtils.stringifyFileSize(calculatedSize), MAX_BYTES_PER_SCHEDULE);
+                warnMaxBytesPerSchedule(repairType, keyspaceName, tableName);
             }
         }
         return repairAssignments;
+    }
+
+    private void warnMaxBytesPerSchedule(AutoRepairConfig.RepairType repairType, String keyspaceName, String tableName)
+    {
+        String warning = "Refusing to add repair assignment for {}.{} because it would increase total repair bytes greater {}";
+        if (repairType == AutoRepairConfig.RepairType.FULL)
+        {
+            warning = warning + ", everything will not be repaired this schedule. Consider increasing maxBytesPerSchedule, reducing node density or monitoring to ensure all ranges do get repaired within gc_grace_seconds";
+        }
+        logger.warn(warning, keyspaceName, tableName, FileUtils.stringifyFileSize(maxBytesPerSchedule));
     }
 
     private int calculateNumberOfSplits(SizeEstimate estimate)
