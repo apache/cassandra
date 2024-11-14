@@ -19,6 +19,7 @@
 package org.apache.cassandra.service.accord.txn;
 
 import java.io.IOException;
+import java.util.function.Supplier;
 import javax.annotation.Nullable;
 
 import com.google.common.base.Preconditions;
@@ -35,6 +36,7 @@ import org.apache.cassandra.db.EmptyIterators;
 import org.apache.cassandra.db.PartitionRangeReadCommand;
 import org.apache.cassandra.db.SinglePartitionReadCommand;
 import org.apache.cassandra.db.TypeSizes;
+import org.apache.cassandra.db.partitions.PartitionIterator;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
@@ -173,10 +175,17 @@ public abstract class TxnQuery implements Query
 
         private Result concat(TxnData data, Read read)
         {
-            TxnRangeRead txnRead = (TxnRangeRead)read;
+            TxnRangeRead txnRead = (TxnRangeRead) read;
             PartitionRangeReadCommand command = (PartitionRangeReadCommand) txnRead.get();
-            TxnDataRangeValue value = (TxnDataRangeValue)data.get(txnDataName(TxnDataNameKind.USER));
-            return new TxnRangeReadResult(value.toPartitionIterator(command.isReversed()));
+            TxnDataRangeValue value = (TxnDataRangeValue) data.get(txnDataName(TxnDataNameKind.USER));
+            Supplier<PartitionIterator> source = value.toPartitionIterator(command.isReversed());
+            // Because the query was split across multiple command stores the pushed down limit won't be sufficient
+            // to return correct results and has to be applied again here
+            Supplier<PartitionIterator> sourceWithLimits = () -> command.limits().filter(source.get(),
+                                                                                         0,
+                                                                                         command.selectsFullPartition(),
+                                                                                         command.metadata().enforceStrictLiveness());
+            return new TxnRangeReadResult(sourceWithLimits);
         }
     };
 

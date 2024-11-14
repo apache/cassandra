@@ -24,7 +24,6 @@ import com.google.common.annotations.VisibleForTesting;
 
 import accord.api.RoutingKey;
 import accord.primitives.Range;
-import accord.primitives.Ranges;
 import accord.utils.Invariants;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.dht.IPartitioner;
@@ -83,15 +82,6 @@ public class TokenRange extends Range.EndInclusive
     public TokenRange newRange(RoutingKey start, RoutingKey end)
     {
         return new TokenRange((AccordRoutingKey) start, (AccordRoutingKey) end);
-    }
-
-    @Override
-    public RoutingKey someIntersectingRoutingKey(Ranges ranges)
-    {
-        RoutingKey pick = super.someIntersectingRoutingKey(ranges);
-        if (pick instanceof SentinelKey)
-            pick = ((SentinelKey) pick).toTokenKeyBroken();
-        return pick;
     }
 
     public org.apache.cassandra.dht.Range<Token> toKeyspaceRange ()

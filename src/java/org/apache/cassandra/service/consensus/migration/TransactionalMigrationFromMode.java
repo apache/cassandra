@@ -33,7 +33,8 @@ public enum TransactionalMigrationFromMode
     unsafe(TransactionalMode.unsafe),
     unsafe_writes(TransactionalMode.unsafe_writes),
     mixed_reads(TransactionalMode.mixed_reads),
-    full(TransactionalMode.full);
+    full(TransactionalMode.full),
+    test_interop_read(TransactionalMode.test_interop_read);
 
     public final TransactionalMode from;
 
@@ -55,6 +56,7 @@ public enum TransactionalMigrationFromMode
             case unsafe_writes: return unsafe_writes;
             case mixed_reads: return mixed_reads;
             case full: return full;
+            case test_interop_read: return test_interop_read;
         }
     }
 

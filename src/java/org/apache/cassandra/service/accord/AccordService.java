@@ -768,14 +768,14 @@ public class AccordService implements IAccordService, Shutdownable
      * with non-Accord operations.
      */
     @Override
-    public @Nonnull TxnResult coordinate(@Nonnull Txn txn, @Nonnull ConsistencyLevel consistencyLevel, Dispatcher.RequestTime requestTime)
+    public @Nonnull TxnResult coordinate(long minEpoch, @Nonnull Txn txn, @Nonnull ConsistencyLevel consistencyLevel, @Nonnull Dispatcher.RequestTime requestTime)
     {
-        AsyncTxnResult asyncTxnResult = coordinateAsync(txn, consistencyLevel, requestTime);
+        AsyncTxnResult asyncTxnResult = coordinateAsync(minEpoch, txn, consistencyLevel, requestTime);
         return getTxnResult(asyncTxnResult, txn.isWrite(), consistencyLevel, requestTime);
     }
 
     @Override
-    public @Nonnull AsyncTxnResult coordinateAsync(Txn txn, ConsistencyLevel consistencyLevel, Dispatcher.RequestTime requestTime)
+    public @Nonnull AsyncTxnResult coordinateAsync(long minEpoch, @Nonnull Txn txn, @Nonnull ConsistencyLevel consistencyLevel, @Nonnull Dispatcher.RequestTime requestTime)
     {
         TxnId txnId = node.nextTxnId(txn.kind(), txn.keys().domain());
         ClientRequestMetrics sharedMetrics;
@@ -791,7 +791,8 @@ public class AccordService implements IAccordService, Shutdownable
             metrics = accordReadMetrics;
         }
         metrics.keySize.update(txn.keys().size());
-        AsyncResult<Result> asyncResult = node.coordinate(txnId, txn);
+        long deadlineNanos = requestTime.computeDeadline(DatabaseDescriptor.getTransactionTimeout(NANOSECONDS));
+        AsyncResult<Result> asyncResult = node.coordinate(txnId, txn, minEpoch, deadlineNanos);
         AsyncTxnResult asyncTxnResult = new AsyncTxnResult(txnId);
         asyncResult.addCallback((success, failure) -> {
             long durationNanos = nanoTime() - requestTime.startedAtNanos();

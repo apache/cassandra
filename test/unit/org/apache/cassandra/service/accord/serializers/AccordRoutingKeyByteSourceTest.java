@@ -51,8 +51,10 @@ public class AccordRoutingKeyByteSourceTest
     {
         qt().forAll(fromQT(CassandraGenerators.partitioners().map(CassandraGenerators::simplify).flatMap(CassandraGenerators::token))).check(token -> {
             var serializer = AccordRoutingKeyByteSource.create(token.getPartitioner());
-            byte[] min = ByteSourceInverse.readBytes(serializer.minAsComparableBytes());
-            byte[] max = ByteSourceInverse.readBytes(serializer.maxAsComparableBytes());
+            byte[] minMin = ByteSourceInverse.readBytes(serializer.minMinAsComparableBytes());
+            byte[] minMax = ByteSourceInverse.readBytes(serializer.minMaxAsComparableBytes());
+            byte[] maxMin = ByteSourceInverse.readBytes(serializer.maxMinAsComparableBytes());
+            byte[] maxMax = ByteSourceInverse.readBytes(serializer.maxMaxAsComparableBytes());
 
             var bytes = serializer.serialize(token);
             if (serializer instanceof FixedLength)
@@ -60,12 +62,16 @@ public class AccordRoutingKeyByteSourceTest
                 FixedLength fl = (FixedLength) serializer;
                 Assertions.assertThat(bytes)
                           .hasSize(fl.valueSize())
-                          .hasSize(min.length)
-                          .hasSize(max.length);
+                          .hasSize(minMin.length)
+                          .hasSize(minMax.length)
+                          .hasSize(maxMin.length)
+                          .hasSize(maxMax.length);
             }
 
-            Assertions.assertThat(ByteArrayUtil.compareUnsigned(min, 0, bytes, 0, bytes.length)).isLessThan(0);
-            Assertions.assertThat(ByteArrayUtil.compareUnsigned(max, 0, bytes, 0, bytes.length)).isGreaterThan(0);
+            Assertions.assertThat(ByteArrayUtil.compareUnsigned(minMin, 0, bytes, 0, bytes.length)).isLessThan(0);
+            Assertions.assertThat(ByteArrayUtil.compareUnsigned(minMax, 0, bytes, 0, bytes.length)).isLessThan(0);
+            Assertions.assertThat(ByteArrayUtil.compareUnsigned(maxMin, 0, bytes, 0, bytes.length)).isGreaterThan(0);
+            Assertions.assertThat(ByteArrayUtil.compareUnsigned(maxMax, 0, bytes, 0, bytes.length)).isGreaterThan(0);
 
             var read = serializer.tokenFromComparableBytes(ByteArrayAccessor.instance, bytes);
             Assertions.assertThat(read).isEqualTo(token);

@@ -37,7 +37,6 @@ import accord.local.CommonAttributes;
 import accord.local.DurableBefore;
 import accord.local.RedundantBefore;
 import accord.local.StoreParticipants;
-import accord.primitives.SaveStatus;
 import accord.primitives.Ballot;
 import accord.primitives.Deps;
 import accord.primitives.FullRoute;
@@ -48,6 +47,7 @@ import accord.primitives.Range;
 import accord.primitives.RangeDeps;
 import accord.primitives.Ranges;
 import accord.primitives.Routable;
+import accord.primitives.SaveStatus;
 import accord.primitives.Seekables;
 import accord.primitives.Timestamp;
 import accord.primitives.Txn;
@@ -67,6 +67,7 @@ import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.service.accord.AccordTestUtils;
 import org.apache.cassandra.service.accord.TokenRange;
 import org.apache.cassandra.service.accord.api.AccordRoutingKey;
+import org.apache.cassandra.service.accord.api.AccordRoutingKey.MinTokenKey;
 import org.apache.cassandra.service.accord.api.PartitionKey;
 import org.apache.cassandra.service.accord.txn.TxnData;
 import org.apache.cassandra.service.accord.txn.TxnWrite;
@@ -320,6 +321,8 @@ public class AccordGenerators
             {
                 case TOKEN:
                     return new AccordRoutingKey.TokenKey(tableId, tokenGen.next(rs));
+                case MIN_TOKEN:
+                    return new MinTokenKey(tableId, tokenGen.next(rs));
                 case SENTINEL:
                     return rs.nextBoolean() ? AccordRoutingKey.SentinelKey.min(tableId) : AccordRoutingKey.SentinelKey.max(tableId);
                 default:

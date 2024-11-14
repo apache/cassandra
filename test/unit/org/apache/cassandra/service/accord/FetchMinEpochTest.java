@@ -44,7 +44,7 @@ import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.net.MessageDelivery;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.net.SimulatedMessageDelivery.Action;
-import org.apache.cassandra.service.accord.api.AccordRoutingKey;
+import org.apache.cassandra.service.accord.api.AccordRoutingKey.RoutingKeyKind;
 import org.apache.cassandra.utils.AccordGenerators;
 import org.apache.cassandra.utils.CassandraGenerators;
 import org.apache.cassandra.utils.SimulatedMiniCluster;
@@ -240,9 +240,9 @@ public class FetchMinEpochTest
         for (TokenRange r : req.ranges)
         {
             IPartitioner rangePartitioner = null;
-            if (r.start().kindOfRoutingKey() == AccordRoutingKey.RoutingKeyKind.TOKEN)
+            if (r.start().kindOfRoutingKey() != RoutingKeyKind.SENTINEL)
                 rangePartitioner = r.start().token().getPartitioner();
-            if (rangePartitioner == null && r.end().kindOfRoutingKey() == AccordRoutingKey.RoutingKeyKind.TOKEN)
+            if (rangePartitioner == null && r.end().kindOfRoutingKey() != RoutingKeyKind.SENTINEL)
                 rangePartitioner = r.end().token().getPartitioner();
             if (rangePartitioner == null)
                 continue;

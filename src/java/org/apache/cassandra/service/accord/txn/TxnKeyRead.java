@@ -203,6 +203,9 @@ public class TxnKeyRead extends AbstractKeySorted<TxnNamedRead> implements TxnRe
     @Override
     public AsyncChain<Data> read(Seekable key, SafeCommandStore safeStore, Timestamp executeAt, DataStore store)
     {
+        // Set to null since we don't need it and interop can pass in null
+        safeStore = null;
+
         List<AsyncChain<Data>> results = new ArrayList<>();
         forEachWithKey((PartitionKey) key, read -> results.add(read.read(cassandraConsistencyLevel, executeAt)));
 

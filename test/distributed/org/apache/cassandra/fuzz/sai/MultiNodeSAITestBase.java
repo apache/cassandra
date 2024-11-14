@@ -23,25 +23,20 @@ import org.junit.BeforeClass;
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.test.sai.SAIUtil;
 import org.apache.cassandra.harry.SchemaSpec;
+import org.apache.cassandra.service.consensus.TransactionalMode;
 
 import static org.apache.cassandra.distributed.api.Feature.GOSSIP;
 import static org.apache.cassandra.distributed.api.Feature.NETWORK;
 
 public abstract class MultiNodeSAITestBase extends SingleNodeSAITestBase
 {
-    public MultiNodeSAITestBase(boolean withAccord)
+    public MultiNodeSAITestBase(TransactionalMode transactionalMode)
     {
-        super(withAccord);
+        super(transactionalMode);
     }
 
     @BeforeClass
     public static void before() throws Throwable
-    {
-        before(false);
-    }
-
-    @BeforeClass
-    public static void before(boolean withAccord) throws Throwable
     {
         cluster = Cluster.build()
                          .withNodes(2)

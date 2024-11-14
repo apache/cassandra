@@ -18,10 +18,21 @@
 
 package org.apache.cassandra.fuzz.sai;
 
-public class SingleNodeSAITest extends SingleNodeSAITestBase
+import org.apache.cassandra.harry.SchemaSpec;
+import org.apache.cassandra.harry.gen.Generator;
+import org.apache.cassandra.harry.gen.SchemaGenerators;
+import org.apache.cassandra.service.consensus.TransactionalMode;
+
+public class AccordFullSingleNodeSAITest extends SingleNodeSAITestBase
 {
-    public SingleNodeSAITest()
+    public AccordFullSingleNodeSAITest()
     {
-        super(null);
+        super(TransactionalMode.full);
+    }
+
+    @Override
+    protected Generator<SchemaSpec> schemaGenerator(boolean disableReadRepair)
+    {
+        return SchemaGenerators.schemaSpecGen(KEYSPACE, "basic_sai", MAX_PARTITION_SIZE, SchemaSpec.optionsBuilder().withTransactionalMode(TransactionalMode.full));
     }
 }

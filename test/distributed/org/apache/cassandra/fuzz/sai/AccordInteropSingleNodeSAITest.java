@@ -23,17 +23,17 @@ import org.apache.cassandra.harry.gen.Generator;
 import org.apache.cassandra.harry.gen.SchemaGenerators;
 import org.apache.cassandra.service.consensus.TransactionalMode;
 
-public class AccordMultiNodeSAITest extends MultiNodeSAITestBase
+public class AccordInteropSingleNodeSAITest extends SingleNodeSAITestBase
 {
-    public AccordMultiNodeSAITest()
+    public AccordInteropSingleNodeSAITest()
     {
-        super(true);
+        super(TransactionalMode.test_interop_read);
     }
 
     @Override
     protected Generator<SchemaSpec> schemaGenerator(boolean disableReadRepair)
     {
         return SchemaGenerators.schemaSpecGen(KEYSPACE, "basic_sai", MAX_PARTITION_SIZE,
-                                              SchemaSpec.optionsBuilder().disableReadRepair(disableReadRepair).withTransactionalMode(TransactionalMode.full));
+                                              SchemaSpec.optionsBuilder().withTransactionalMode(TransactionalMode.test_interop_read));
     }
 }

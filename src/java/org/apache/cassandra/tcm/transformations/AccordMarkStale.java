@@ -92,8 +92,8 @@ public class AccordMarkStale implements Transformation
 
                     // ...but reject the transformation if this would bring us below quorum.
                     if (nonStaleNodes.size() < quorumSize)
-                        return new Rejected(INVALID, String.format("Can not mark nodes %s stale as that would leave fewer than a quorum of nodes active for range %s in keyspace '%s'.",
-                                                                   accordIds, shard.range(), keyspace.name));
+                        return new Rejected(INVALID, String.format("Can not mark nodes %s stale as that would leave fewer than a quorum of nodes active for ranges %s in keyspace '%s'.",
+                                                                   accordIds, shard.ranges(), keyspace.name));
                 }
             }
         }

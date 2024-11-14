@@ -24,6 +24,7 @@ import java.util.List;
 import java.util.concurrent.TimeUnit;
 
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.collect.ImmutableList;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -216,7 +217,7 @@ public class RangeCommandIterator extends AbstractIterator<RowIterator> implemen
             //TODO (nicetohave): This is very inefficient because it will not map the the command store owned ranges
             // so every command store will return results and most will be discarded due to the limit
             // Really we want to split the ranges by command stores owned ranges and then query one at a time
-            AsyncTxnResult result = StorageProxy.readWithAccord(cm, rangeCommand, replicaPlan.consistencyLevel(), requestTime);
+            AsyncTxnResult result = StorageProxy.readWithAccord(cm, rangeCommand, ImmutableList.of(rangeCommand.dataRange().keyRange()), replicaPlan.consistencyLevel(), requestTime);
             return new AccordRangeResponse(result, rangeCommand.isReversed(), replicaPlan.consistencyLevel(), requestTime);
         }
         else

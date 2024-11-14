@@ -61,6 +61,7 @@ import org.apache.cassandra.service.accord.txn.TxnUpdate;
 import org.apache.cassandra.service.accord.txn.TxnWrite;
 import org.apache.cassandra.service.consensus.TransactionalMode;
 import org.apache.cassandra.tcm.ClusterMetadata;
+import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.transport.Dispatcher;
 
@@ -243,12 +244,14 @@ public class ConsensusMigrationMutationHelper
         int fragmentIndex = 0;
         List<TxnWrite.Fragment> fragments = new ArrayList<>(mutations.size());
         List<PartitionKey> partitionKeys = new ArrayList<>(mutations.size());
+        long minEpoch = Epoch.EMPTY.getEpoch();
         for (IMutation mutation : mutations)
         {
             for (PartitionUpdate update : mutation.getPartitionUpdates())
             {
                 PartitionKey pk = PartitionKey.of(update);
                 partitionKeys.add(pk);
+                minEpoch = Math.max(minEpoch, update.metadata().epoch.getEpoch());
                 fragments.add(new TxnWrite.Fragment(PartitionKey.of(update), fragmentIndex++, update, TxnReferenceOperations.empty()));
             }
         }
@@ -259,7 +262,7 @@ public class ConsensusMigrationMutationHelper
         IAccordService accordService = AccordService.instance();
         try
         {
-            return accordService.coordinateAsync(txn, consistencyLevel, requestTime);
+            return accordService.coordinateAsync(minEpoch, txn, consistencyLevel, requestTime);
         }
         catch (CoordinationFailed coordinationFailed)
         {

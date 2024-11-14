@@ -25,6 +25,7 @@ import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.schema.TableId;
+import org.apache.cassandra.service.accord.api.AccordRoutingKey.MinTokenKey;
 import org.apache.cassandra.service.accord.api.AccordRoutingKey.SentinelKey;
 import org.apache.cassandra.service.accord.api.AccordRoutingKey.TokenKey;
 
@@ -79,20 +80,31 @@ public abstract class AccordRoutableKey implements RoutableKey
         if (cmp != 0)
             return cmp;
 
-        if (this.getClass() == SentinelKey.class || that.getClass() == SentinelKey.class)
+        Class<?> thisClass = this.getClass();
+        Class<?> thatClass = that.getClass();
+        if (thisClass == SentinelKey.class || thatClass == SentinelKey.class)
         {
-            int leftInt = this.getClass() == SentinelKey.class ? ((SentinelKey) this).asInt() : 0;
-            int rightInt = that.getClass() == SentinelKey.class ? ((SentinelKey) that).asInt() : 0;
+            int leftInt = thisClass == SentinelKey.class ? ((SentinelKey) this).asInt() : 0;
+            int rightInt = thatClass == SentinelKey.class ? ((SentinelKey) that).asInt() : 0;
             return Integer.compare(leftInt, rightInt);
         }
 
         cmp = this.token().compareTo(that.token());
-        if (cmp != 0)
-            return cmp;
 
-        if (this.getClass() == TokenKey.class)
-            return that.getClass() == TokenKey.class ? 0 : 1;
-        return that.getClass() == TokenKey.class ? -1 : 0;
+        if (cmp != 0)
+        {
+            return cmp;
+        }
+
+        // MinTokenKey is < all TokenKey, PartitionKey with the same token
+        if (thisClass == MinTokenKey.class)
+            return thatClass == MinTokenKey.class ? 0 : -1;
+        if (thatClass == MinTokenKey.class)
+            return 1;
+
+        if (thisClass == TokenKey.class)
+            return thatClass == TokenKey.class ? 0 : 1;
+        return thatClass == TokenKey.class ? -1 : 0;
     }
 
     @Override

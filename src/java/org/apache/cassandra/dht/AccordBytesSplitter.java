@@ -24,6 +24,7 @@ import accord.api.RoutingKey;
 import accord.primitives.Ranges;
 import accord.utils.Invariants;
 import org.apache.cassandra.service.accord.api.AccordRoutingKey;
+import org.apache.cassandra.service.accord.api.AccordRoutingKey.SentinelKey;
 
 import static accord.utils.Invariants.checkArgument;
 import static java.math.BigInteger.ONE;
@@ -40,6 +41,20 @@ public class AccordBytesSplitter extends AccordSplitter
         {
             bytesLength = Integer.max(bytesLength, byteLength(range.start()));
             bytesLength = Integer.max(bytesLength, byteLength(range.end()));
+        }
+        // In the single node single token case the ranges in TCM are merged to +/-inf which have no token
+        // and no byte length. This isn't really a problem because byte length isn't really that important it just means
+        // the shard boundaries will be arbitrary. You won't notice a problem until you go to add nodes and more tokens
+        // and suddenly the splitter might use a different length and now your shards are laid out slightly differently at
+        // each node which would result in a small amount of metadata moving between command stores.
+        // Since BOP is already not working/supported I think it's fine to punt on this.
+        if (bytesLength == 0)
+        {
+            checkArgument(ranges.size() <= 1);
+            checkArgument(ranges.isEmpty() || ranges.get(0).start().getClass() == SentinelKey.class);
+            checkArgument(ranges.isEmpty() || ranges.get(0).end().getClass() == SentinelKey.class);
+            // Intentionally does not match 16 that is used by ServerTestUtils.getRandomToken to elicit breakage
+            bytesLength = 8;
         }
         this.byteLength = bytesLength;
     }

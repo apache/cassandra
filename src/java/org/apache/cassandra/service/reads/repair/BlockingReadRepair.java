@@ -242,7 +242,7 @@ public class BlockingReadRepair<E extends Endpoints<E>, P extends ReplicaPlan.Fo
          * the two things into the same mechanism and we can't tell the origin of the writes needing read repair anyways.
          */
         Txn txn = new Txn.InMemory(Txn.Kind.Read, key, TxnKeyRead.createNoOpRead(key), TxnQuery.NONE, repairUpdate);
-        Future<TxnResult> repairFuture = Stage.ACCORD_MIGRATION.submit(() -> AccordService.instance().coordinate(txn, ConsistencyLevel.ANY, requestTime));
+        Future<TxnResult> repairFuture = Stage.ACCORD_MIGRATION.submit(() -> AccordService.instance().coordinate(command.metadata().epoch.getEpoch(), txn, ConsistencyLevel.ANY, requestTime));
 
         repairs.add(new PendingPartitionRepair()
         {

@@ -83,14 +83,14 @@ public class AccordTopology
     public static class KeyspaceShard
     {
         private final KeyspaceMetadata keyspace;
-        private final Range<Token> range;
+        private final List<Range<Token>> ranges;
         private final SortedArrayList<Id> nodes;
         private final Set<Id> pending;
 
-        private KeyspaceShard(KeyspaceMetadata keyspace, Range<Token> range, SortedArrayList<Id> nodes, Set<Id> pending)
+        private KeyspaceShard(KeyspaceMetadata keyspace, List<Range<Token>> ranges, SortedArrayList<Id> nodes, Set<Id> pending)
         {
             this.keyspace = keyspace;
-            this.range = range;
+            this.ranges = ranges;
             this.nodes = nodes;
             this.pending = pending;
         }
@@ -105,27 +105,32 @@ public class AccordTopology
             return strategy;
         }
 
-        Shard createForTable(TableMetadata metadata, Set<Id> unavailable, Map<Id, String> dcMap, ShardLookup lookup)
+        List<Shard> createForTable(TableMetadata metadata, Set<Id> unavailable, Map<Id, String> dcMap, ShardLookup lookup)
         {
-            TokenRange tokenRange = AccordTopology.range(metadata.id, range);
+            Ranges ranges = this.ranges.stream()
+                                       .map(range -> Ranges.single(AccordTopology.range(metadata.id, range)))
+                                       .reduce(Ranges.EMPTY, Ranges::with)
+                                       .mergeTouching();
 
             SortedArrayList<Id> fastPath = strategyFor(metadata).calculateFastPath(nodes, unavailable, dcMap);
 
-            return lookup.createOrReuse(metadata.params.pendingDrop, tokenRange, nodes, fastPath, pending);
+            List<Shard> shards = new ArrayList<>(ranges.size());
+            for (accord.primitives.Range range : ranges)
+                shards.add(lookup.createOrReuse(metadata.params.pendingDrop, range, nodes, fastPath, pending));
+            return shards;
         }
 
-        private static KeyspaceShard forRange(KeyspaceMetadata keyspace, Range<Token> range, Directory directory, VersionedEndpoints.ForRange reads, VersionedEndpoints.ForRange writes)
+        private static KeyspaceShard forRange(KeyspaceMetadata keyspace, List<Range<Token>> ranges, Directory directory, Set<InetAddressAndPort> readEndpoints, Set<InetAddressAndPort> writeEndpoints)
         {
             // TCM doesn't create wrap around ranges
-            Invariants.checkArgument(!range.isWrapAround() || range.right.equals(range.right.minValue()),
-                                     "wrap around range %s found", range);
+            for (Range<Token> range : ranges)
+                Invariants.checkArgument(!range.isWrapAround() || range.right.equals(range.right.minValue()),
+                                         "wrap around range %s found", range);
 
-            Set<InetAddressAndPort> readEndpoints = reads.endpoints();
-            Set<InetAddressAndPort> writeEndpoints = writes.endpoints();
             Sets.SetView<InetAddressAndPort> readOnly = Sets.difference(readEndpoints, writeEndpoints);
             Invariants.checkState(readOnly.isEmpty(), "Read only replicas detected: %s", readOnly);
 
-            SortedArrayList<Id> nodes = new SortedArrayList<>(writes.endpoints().stream()
+            SortedArrayList<Id> nodes = new SortedArrayList<>(writeEndpoints.stream()
                                                                     .map(directory::peerId)
                                                                     .map(AccordTopology::tcmIdToAccord)
                                                                     .sorted().toArray(Id[]::new));
@@ -138,21 +143,52 @@ public class AccordTopology
                                                  .map(AccordTopology::tcmIdToAccord)
                                                  .collect(Collectors.toSet());
 
-            return new KeyspaceShard(keyspace, range, nodes, pending);
+            return new KeyspaceShard(keyspace, ranges, nodes, pending);
         }
 
         public static List<KeyspaceShard> forKeyspace(KeyspaceMetadata keyspace, DataPlacements placements, Directory directory)
         {
+            class Group
+            {
+                private final Set<InetAddressAndPort> reads, writes;
+
+                Group(Set<InetAddressAndPort> reads, Set<InetAddressAndPort> writes)
+                {
+                    this.reads = reads;
+                    this.writes = writes;
+                }
+
+                @Override
+                public boolean equals(Object o)
+                {
+                    if (this == o) return true;
+                    if (o == null || getClass() != o.getClass()) return false;
+                    Group group = (Group) o;
+                    return reads.equals(group.reads) && writes.equals(group.writes);
+                }
+
+                @Override
+                public int hashCode()
+                {
+                    return Objects.hash(reads, writes);
+                }
+            }
             ReplicationParams replication = keyspace.params.replication;
             DataPlacement placement = placements.get(replication);
 
             List<Range<Token>> ranges = placement.reads.ranges();
             List<KeyspaceShard> shards = new ArrayList<>(ranges.size());
+            Map<Group, List<Range<Token>>> groupRanges = new LinkedHashMap<>();
             for (Range<Token> range : ranges)
             {
                 VersionedEndpoints.ForRange reads = placement.reads.forRange(range);
                 VersionedEndpoints.ForRange writes = placement.writes.forRange(range);
-                shards.add(forRange(keyspace, range, directory, reads, writes));
+                groupRanges.computeIfAbsent(new Group(reads.endpoints(), writes.endpoints()), i -> new ArrayList<>()).add(range);
+            }
+            for (Map.Entry<Group, List<Range<Token>>> e : groupRanges.entrySet())
+            {
+                Group group = e.getKey();
+                shards.add(forRange(keyspace, e.getValue(), directory, group.reads, group.writes));
             }
             return shards;
         }
@@ -162,9 +198,9 @@ public class AccordTopology
             return nodes;
         }
 
-        public Range<Token> range()
+        public List<Range<Token>> ranges()
         {
-            return range;
+            return ranges;
         }
     }
 
@@ -245,7 +281,7 @@ public class AccordTopology
             if (tables.isEmpty())
                 continue;
             List<KeyspaceShard> ksShards = KeyspaceShard.forKeyspace(keyspace, placements, directory);
-            tables.forEach(table -> ksShards.forEach(shard -> shards.add(shard.createForTable(table, unavailable, dcMap, lookup))));
+            tables.forEach(table -> ksShards.forEach(shard -> shards.addAll(shard.createForTable(table, unavailable, dcMap, lookup))));
         }
 
         shards.sort((a, b) -> a.range.compare(b.range));

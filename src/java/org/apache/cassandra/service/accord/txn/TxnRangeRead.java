@@ -58,6 +58,7 @@ import org.apache.cassandra.db.partitions.UnfilteredPartitionIterators;
 import org.apache.cassandra.db.rows.RowIterator;
 import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.dht.Token;
+import org.apache.cassandra.dht.Token.KeyBound;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
@@ -65,6 +66,7 @@ import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.service.accord.AccordObjectSizes;
 import org.apache.cassandra.service.accord.TokenRange;
 import org.apache.cassandra.service.accord.api.AccordRoutingKey;
+import org.apache.cassandra.service.accord.api.AccordRoutingKey.MinTokenKey;
 import org.apache.cassandra.service.accord.api.AccordRoutingKey.SentinelKey;
 import org.apache.cassandra.service.accord.api.AccordRoutingKey.TokenKey;
 import org.apache.cassandra.service.accord.serializers.KeySerializers;
@@ -74,6 +76,7 @@ import org.apache.cassandra.utils.MonotonicClock;
 import org.apache.cassandra.utils.ObjectSizes;
 
 import static com.google.common.base.Preconditions.checkArgument;
+import static com.google.common.base.Preconditions.checkState;
 import static org.apache.cassandra.service.accord.AccordSerializers.consistencyLevelSerializer;
 import static org.apache.cassandra.service.accord.IAccordService.SUPPORTED_READ_CONSISTENCY_LEVELS;
 import static org.apache.cassandra.utils.ByteBufferUtil.readWithVIntLength;
@@ -87,7 +90,7 @@ public class TxnRangeRead extends AbstractSerialized<ReadCommand> implements Txn
 {
     private static final Logger logger = LoggerFactory.getLogger(TxnRangeRead.class);
 
-    public static final TxnRangeRead EMPTY = new TxnRangeRead(null, null, null);
+    public static final TxnRangeRead EMPTY = new TxnRangeRead(null, null, (Ranges)null);
     private static final long EMPTY_SIZE = ObjectSizes.measure(EMPTY);
 
     @Nonnull
@@ -95,36 +98,51 @@ public class TxnRangeRead extends AbstractSerialized<ReadCommand> implements Txn
     @Nonnull
     private final Ranges covering;
 
-    public TxnRangeRead(@Nonnull PartitionRangeReadCommand command, @Nonnull ConsistencyLevel cassandraConsistencyLevel)
+    public TxnRangeRead(@Nonnull PartitionRangeReadCommand command, @Nonnull List<AbstractBounds<PartitionPosition>> ranges, @Nonnull ConsistencyLevel cassandraConsistencyLevel)
     {
         super(command);
         checkArgument(cassandraConsistencyLevel == null || SUPPORTED_READ_CONSISTENCY_LEVELS.contains(cassandraConsistencyLevel), "Unsupported consistency level for read");
         this.cassandraConsistencyLevel = cassandraConsistencyLevel;
         TableId tableId = command.metadata().id;
 
-        AbstractBounds<PartitionPosition> range = command.dataRange().keyRange();
+        TokenRange[] accordRanges = new TokenRange[ranges.size()];
+        for (int i = 0; i < ranges.size(); i++)
+        {
+            AbstractBounds<PartitionPosition> range = ranges.get(i);
+            // Should already have been unwrapped
+            checkState(!AbstractBounds.strictlyWrapsAround(range.left, range.right));
 
-        // Read commands can contain a mix of different kinds of bounds to facilitate paging
-        // and we need to communicate that to Accord as its own ranges. We will use
-        // TokenKey and Sentinel key and stick exclusively with left exclusive/right inclusive
-        // ranges rather add more types of ranges to the mix
-        boolean inclusiveLeft = range.inclusiveLeft();
-        Token startToken = range.left.getToken();
-        AccordRoutingKey startAccordRoutingKey;
-        if (startToken.isMinimum() && inclusiveLeft)
-            startAccordRoutingKey = SentinelKey.min(tableId);
-        else
-            startAccordRoutingKey = new TokenKey(tableId, startToken);
+            // Read commands can contain a mix of different kinds of bounds to facilitate paging
+            // and we need to communicate that to Accord as its own ranges. This uses
+            // TokenKey, SentinelKey, and MinTokenKey and sticks exclusively with left exclusive/right inclusive
+            // ranges rather add more types of ranges to the mix
+            // MinTokenKey allows emulating inclusive left and exclusive right with Range
+            boolean inclusiveLeft = range.inclusiveLeft();
+            PartitionPosition startPP = range.left;
+            boolean startIsMinKeyBound = startPP.getClass() == KeyBound.class ? ((KeyBound)startPP).isMinimumBound : false;
+            Token startToken = startPP.getToken();
+            AccordRoutingKey startAccordRoutingKey;
+            if (startToken.isMinimum() && inclusiveLeft)
+                startAccordRoutingKey = SentinelKey.min(tableId);
+            else if (inclusiveLeft || startIsMinKeyBound)
+                startAccordRoutingKey = new MinTokenKey(tableId, startToken);
+            else
+                startAccordRoutingKey = new TokenKey(tableId, startToken);
 
-        boolean inclusiveRight = range.inclusiveRight();
-        Token stopToken = range.right.getToken();
-        AccordRoutingKey stopAccordRoutingKey;
-        if (inclusiveRight)
-            stopAccordRoutingKey = new TokenKey(tableId, stopToken);
-        else
-            stopAccordRoutingKey = new TokenKey(tableId, stopToken.decreaseSlightly());
-
-        covering = Ranges.of(new TokenRange(startAccordRoutingKey, stopAccordRoutingKey));
+            boolean inclusiveRight = range.inclusiveRight();
+            PartitionPosition endPP = range.right;
+            boolean endIsMinKeyBound = endPP.getClass() == KeyBound.class ? ((KeyBound)endPP).isMinimumBound : false;
+            Token stopToken = range.right.getToken();
+            AccordRoutingKey stopAccordRoutingKey;
+            if (stopToken.isMinimum())
+                stopAccordRoutingKey = SentinelKey.max(tableId);
+            else if (inclusiveRight && !endIsMinKeyBound)
+                stopAccordRoutingKey = new TokenKey(tableId, stopToken);
+            else
+                stopAccordRoutingKey = new MinTokenKey(tableId, stopToken);
+            accordRanges[i] = new TokenRange(startAccordRoutingKey, stopAccordRoutingKey);
+        }
+        covering = Ranges.of(accordRanges);
     }
 
     private TxnRangeRead(@Nonnull ByteBuffer commandBytes, @Nonnull ConsistencyLevel cassandraConsistencyLevel, @Nonnull Ranges covering)
@@ -144,13 +162,19 @@ public class TxnRangeRead extends AbstractSerialized<ReadCommand> implements Txn
     @Override
     public AsyncChain<Data> read(Seekable range, SafeCommandStore commandStore, Timestamp executeAt, DataStore store)
     {
+        // Set to null since we don't need it and interop can pass in null
+        commandStore = null;
+
         // It's fine for our nowInSeconds to lag slightly our insertion timestamp, as to the user
         // this simply looks like the transaction witnessed TTL'd data and the data then expired
         // immediately after the transaction executed, and this simplifies things a great deal
-        int nowInSeconds = (int) TimeUnit.MICROSECONDS.toSeconds(executeAt.hlc());
+        long nowInSeconds = TimeUnit.MICROSECONDS.toSeconds(executeAt.hlc());
 
         List<AsyncChain<Data>> results = new ArrayList<>();
         PartitionRangeReadCommand command = (PartitionRangeReadCommand)get();
+        if (cassandraConsistencyLevel == null || cassandraConsistencyLevel == ConsistencyLevel.ONE)
+            command = command.withoutReconciliation();
+
         Ranges intersecting = covering.slice(Ranges.of(range.asRange()), Slice.Minimal);
         for (Range subRange : intersecting)
             results.add(performLocalRead(command, subRange, nowInSeconds));
@@ -161,44 +185,57 @@ public class TxnRangeRead extends AbstractSerialized<ReadCommand> implements Txn
         return AsyncChains.reduce(results, Data::merge);
     }
 
-    private AsyncChain<Data> performLocalRead(PartitionRangeReadCommand command, Range r, int nowInSeconds)
+    public PartitionRangeReadCommand commandForSubrange(Range r, long nowInSeconds)
+    {
+        return commandForSubrange((PartitionRangeReadCommand) get(), r, nowInSeconds);
+    }
+
+    public PartitionRangeReadCommand commandForSubrange(PartitionRangeReadCommand command, Range r, long nowInSeconds)
+    {
+        AbstractBounds<PartitionPosition> bounds = command.dataRange().keyRange();
+        PartitionPosition startPP = bounds.left;
+        PartitionPosition endPP = bounds.right;
+        TokenKey startTokenKey = new TokenKey(command.metadata().id, startPP.getToken());
+        AccordRoutingKey startRoutingKey = ((AccordRoutingKey)r.start());
+        AccordRoutingKey endRoutingKey = ((AccordRoutingKey)r.end());
+        Token subRangeStartToken = startRoutingKey.getClass() == SentinelKey.class ? startPP.getToken() : ((AccordRoutingKey)r.start()).asTokenKey().token();
+        Token subRangeEndToken = endRoutingKey.getClass() == SentinelKey.class ? endPP.getToken() : ((AccordRoutingKey)r.end()).asTokenKey().token();
+
+        /*
+         * The way ranges/bounds work for range queries is that the beginning and ending bounds from the command
+         * could be tokens (and min/max key bounds) or actual keys depending on the bounds of the top level query we
+         * are running and where we are in paging. We need to preserve whatever is in the command in case it is a
+         * key and not a token, or it's a token but might be a min/max key bound.
+         *
+         * Then Accord will further subdivide the range in the command so need to inject additional bounds in the middle
+         * that match the range ownership of Accord.
+         *
+         * The command still contains the original bound and then the Accord range passed in determines what subset of
+         * that bound we want. We have to make sure to use the bounds from the command if it is the start or end instead
+         * of a key bound created from the Accord range since it could be a real key or min/max bound.
+         *
+         * When we are dealing with a bound created by Accord's further subdivision we use a maxKeyBound (exclusive)
+         * for both beginning and end because Bounds is left and right inclusive while Range is only left inclusive.
+         * We only use TokenRange with Accord which matches the left/right inclusivity of Cassandra's Range.
+         *
+         * That means the Range we get from Accord overlaps the previous Range on the left which when converted to a Bound
+         * would potentially read the same Token twice. So the left needs to be a maxKeyBound to exclude the data that isn't
+         * owned here and to avoid potentially reading the same data twice. The right bound also needs to be a maxKeyBound since Range
+         * is right inclusive so every partition we find needs to be < the right bound.
+         */
+        boolean isFirstSubrange = startPP.getToken().equals(subRangeStartToken);
+        PartitionPosition subRangeStartPP = isFirstSubrange ? startPP : subRangeStartToken.maxKeyBound();
+        PartitionPosition subRangeEndPP = endPP.getToken().equals(subRangeEndToken) ? endPP : subRangeEndToken.maxKeyBound();
+        // Need to preserve the fact it is a bounds for paging to work, a range is not left inclusive and will not start from where we left off
+        AbstractBounds<PartitionPosition> subRange = isFirstSubrange ? bounds.withNewRight(subRangeEndPP) : new org.apache.cassandra.dht.Range(subRangeStartPP, subRangeEndPP);
+        return command.forSubRangeWithNowInSeconds(nowInSeconds, subRange, startTokenKey.equals(r.start()));
+    }
+
+    private AsyncChain<Data> performLocalRead(PartitionRangeReadCommand command, Range r, long nowInSeconds)
     {
         Callable<Data> readCallable = () ->
         {
-            AbstractBounds<PartitionPosition> bounds = command.dataRange().keyRange();
-            PartitionPosition startPP = bounds.left;
-            PartitionPosition endPP = bounds.right;
-            TokenKey startTokenKey = new TokenKey(command.metadata().id, startPP.getToken());
-            Token subRangeStartToken = ((AccordRoutingKey)r.start()).asTokenKey().token();
-            Token subRangeEndToken = ((AccordRoutingKey)r.end()).asTokenKey().token();
-            /*
-             * The way ranges/bounds work for range queries is that the beginning and ending bounds from the command
-             * could be tokens (and min/max key bounds) or actual keys depending on the bounds of the top level query we
-             * are running and where we are in paging. We need to preserve whatever is in the command in case it is a
-             * key and not a token, or it's a token but might be a min/max key bound.
-             *
-             * Then Accord will further subdivide the range in the command so need to inject additional bounds in the middle
-             * that match the range ownership of Accord.
-             *
-             * The command still contains the original bound and then the Accord range passed in determines what subset of
-             * that bound we want. We have to make sure to use the bounds from the command if it is the start or end instead
-             * of a key bound created from the Accord range since it could be a real key or min/max bound.
-             *
-             * When we are dealing with a bound created by Accord's further subdivision we use a maxKeyBound (exclusive)
-             * for both beginning and end because Bounds is left and right inclusive while Range is only left inclusive.
-             * We only use TokenRange with Accord which matches the left/right inclusivity of Cassandra's Range.
-             *
-             * That means the Range we get from Accord overlaps the previous Range on the left which when converted to a Bound
-             * would potentially read the same Token twice. So the left needs to be a maxKeyBound to exclude the data that isn't
-             * owned here and to avoid potentially reading the same data twice. The right bound also needs to be a maxKeyBound since Range
-             * is right inclusive so every partition we find needs to be < the right bound.
-             */
-            boolean isFirstSubrange = startPP.getToken().equals(subRangeStartToken);
-            PartitionPosition subRangeStartPP = isFirstSubrange ? startPP : subRangeStartToken.maxKeyBound();
-            PartitionPosition subRangeEndPP = endPP.getToken().equals(subRangeEndToken) ? endPP : subRangeEndToken.maxKeyBound();
-            // Need to preserve the fact it is a bounds for paging to work, a range is not left inclusive and will not start from where we left off
-            AbstractBounds<PartitionPosition> subRange = isFirstSubrange ? bounds.withNewRight(subRangeEndPP) : new org.apache.cassandra.dht.Range(subRangeStartPP, subRangeEndPP);
-            PartitionRangeReadCommand read = command.forSubRangeWithNowInSeconds(nowInSeconds, subRange, startTokenKey.equals(r.start()));
+            PartitionRangeReadCommand read = commandForSubrange(command, r, nowInSeconds);
 
             try (ReadExecutionController controller = read.executionController();
                  UnfilteredPartitionIterator partition = read.executeLocally(controller);
@@ -301,6 +338,11 @@ public class TxnRangeRead extends AbstractSerialized<ReadCommand> implements Txn
         return size;
     }
 
+    public PartitionRangeReadCommand command()
+    {
+        return (PartitionRangeReadCommand) get();
+    }
+
     public static final TxnReadSerializer<TxnRangeRead> serializer = new TxnReadSerializer<TxnRangeRead>()
     {
         @Override
@@ -340,6 +382,6 @@ public class TxnRangeRead extends AbstractSerialized<ReadCommand> implements Txn
     @Override
     public ConsistencyLevel cassandraConsistencyLevel()
     {
-        return null;
+        return cassandraConsistencyLevel;
     }
 }

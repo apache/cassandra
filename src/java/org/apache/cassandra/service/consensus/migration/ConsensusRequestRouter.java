@@ -23,6 +23,11 @@ import javax.annotation.Nonnull;
 
 import com.google.common.annotations.VisibleForTesting;
 
+import accord.primitives.Routable.Domain;
+import accord.primitives.Seekables;
+import accord.primitives.Txn;
+import accord.primitives.Txn.Kind;
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.db.DecoratedKey;
@@ -35,6 +40,7 @@ import org.apache.cassandra.schema.Keyspaces;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.schema.TableMetadata;
+import org.apache.cassandra.schema.TableParams;
 import org.apache.cassandra.service.consensus.TransactionalMode;
 import org.apache.cassandra.service.paxos.Paxos;
 import org.apache.cassandra.tcm.ClusterMetadata;
@@ -295,6 +301,23 @@ public class ConsensusRequestRouter
             return true;
 
         return false;
+    }
+
+    public static Txn.Kind shouldReadEphemerally(Seekables<?, ?> keys, TableParams tableParams, Txn.Kind kind)
+    {
+        if (kind != Kind.Read)
+            return kind;
+        if (!DatabaseDescriptor.getAccordEphemeralReadEnabledEnabled())
+            return kind;
+        // TODO (nicetohave): this could be enhanced to check the token or the range during migration or work in other modes besides full
+        if (tableParams.transactionalMode != TransactionalMode.full || tableParams.transactionalMigrationFrom != TransactionalMigrationFromMode.none)
+            return kind;
+        // Number of ranges doesn't matter
+        if (keys.domain() == Domain.Range)
+            return Kind.EphemeralRead;
+        if (keys.size() > 1)
+            return kind;
+        return Kind.EphemeralRead;
     }
 
     private static ConsensusRoutingDecision pickMigrated(ConsensusMigrationTarget targetProtocol)

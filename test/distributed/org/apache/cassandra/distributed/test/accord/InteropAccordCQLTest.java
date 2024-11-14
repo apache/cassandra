@@ -16,23 +16,14 @@
  * limitations under the License.
  */
 
-package org.apache.cassandra.fuzz.sai;
+package org.apache.cassandra.distributed.test.accord;
 
-import org.apache.cassandra.harry.SchemaSpec;
-import org.apache.cassandra.harry.gen.Generator;
-import org.apache.cassandra.harry.gen.SchemaGenerators;
 import org.apache.cassandra.service.consensus.TransactionalMode;
 
-public class AccordSingleNodeSAITest extends SingleNodeSAITestBase
+public class InteropAccordCQLTest extends AccordCQLTestBase
 {
-    public AccordSingleNodeSAITest()
+    public InteropAccordCQLTest()
     {
-        super(true);
-    }
-
-    @Override
-    protected Generator<SchemaSpec> schemaGenerator(boolean disableReadRepair)
-    {
-        return SchemaGenerators.schemaSpecGen(KEYSPACE, "basic_sai", MAX_PARTITION_SIZE, SchemaSpec.optionsBuilder().withTransactionalMode(TransactionalMode.full));
+        super(TransactionalMode.test_interop_read);
     }
 }

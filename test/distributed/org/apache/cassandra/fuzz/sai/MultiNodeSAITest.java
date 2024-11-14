@@ -22,6 +22,6 @@ public class MultiNodeSAITest extends MultiNodeSAITestBase
 {
     public MultiNodeSAITest()
     {
-        super(false);
+        super(null);
     }
 }

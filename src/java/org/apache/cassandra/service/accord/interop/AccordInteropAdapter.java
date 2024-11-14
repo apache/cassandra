@@ -44,7 +44,7 @@ import org.apache.cassandra.service.accord.AccordEndpointMapper;
 import org.apache.cassandra.service.accord.api.AccordAgent;
 import org.apache.cassandra.service.accord.interop.AccordInteropExecution.InteropExecutor;
 import org.apache.cassandra.service.accord.txn.AccordUpdate;
-import org.apache.cassandra.service.accord.txn.TxnKeyRead;
+import org.apache.cassandra.service.accord.txn.TxnRead;
 
 import static accord.messages.Apply.Kind.Maximal;
 import static accord.messages.Apply.Kind.Minimal;
@@ -103,7 +103,7 @@ public class AccordInteropAdapter extends AbstractTxnAdapter
     {
         // Unrecoverable repair always needs to be run by AccordInteropExecution
         AccordUpdate.Kind updateKind = AccordUpdate.kind(txn.update());
-        ConsistencyLevel consistencyLevel = txn.read() instanceof TxnKeyRead ? ((TxnKeyRead) txn.read()).cassandraConsistencyLevel() : null;
+        ConsistencyLevel consistencyLevel = txn.read() instanceof TxnRead ? ((TxnRead) txn.read()).cassandraConsistencyLevel() : null;
         if (updateKind != AccordUpdate.Kind.UNRECOVERABLE_REPAIR && (consistencyLevel == null || consistencyLevel == ConsistencyLevel.ONE || txn.read().keys().isEmpty()))
             return false;
 

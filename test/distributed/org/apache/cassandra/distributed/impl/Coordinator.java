@@ -42,9 +42,9 @@ import org.apache.cassandra.distributed.api.QueryResults;
 import org.apache.cassandra.distributed.api.SimpleQueryResult;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.QueryState;
+import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.transport.Dispatcher;
 import org.apache.cassandra.transport.ProtocolVersion;
-import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.transport.messages.ResultMessage;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.TimeUUID;
@@ -176,7 +176,7 @@ public class Coordinator implements ICoordinator
 
             ResultMessage.Rows initialRows = selectStatement.execute(queryState, initialOptions, requestTime);
             Iterator<Object[]> iter = new Iterator<Object[]>() {
-                ResultMessage.Rows rows = selectStatement.execute(queryState, initialOptions, requestTime);
+                ResultMessage.Rows rows = initialRows;
                 Iterator<Object[]> iter = RowUtil.toIter(rows);
 
                 public boolean hasNext()

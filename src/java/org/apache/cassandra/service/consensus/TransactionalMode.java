@@ -113,7 +113,10 @@ public enum TransactionalMode
      * Execute writes through Accord skipping StorageProxy's normal write path. Ignores the provided consistency level
      * which makes Accord commit writes at ANY similar to Paxos with commit consistency level ANY.
      */
-    full(true, true, true, true, true);
+    full(true, true, true, true, true),
+
+    // For tests, Accord will read and be forced to do interop reads
+    test_interop_read(true, false, false, true, true);
 
     public final boolean accordIsEnabled;
     public final boolean ignoresSuppliedCommitCL;
