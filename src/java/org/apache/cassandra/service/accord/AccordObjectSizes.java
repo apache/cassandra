@@ -62,7 +62,7 @@ import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.service.accord.api.AccordRoutingKey;
 import org.apache.cassandra.service.accord.api.AccordRoutingKey.TokenKey;
 import org.apache.cassandra.service.accord.api.PartitionKey;
-import org.apache.cassandra.service.accord.serializers.CommandSerializers;
+import org.apache.cassandra.service.accord.serializers.ResultSerializers;
 import org.apache.cassandra.service.accord.serializers.WaitingOnSerializer;
 import org.apache.cassandra.service.accord.txn.AccordUpdate;
 import org.apache.cassandra.service.accord.txn.TxnQuery;
@@ -296,7 +296,7 @@ public class AccordObjectSizes
         final static long PREACCEPTED = measure(Command.SerializerSupport.preaccepted(attrs(false, true), EMPTY_TXNID, Ballot.ZERO));;
         final static long ACCEPTED = measure(Command.SerializerSupport.accepted(attrs(true, false), SaveStatus.Accepted, EMPTY_TXNID, Ballot.ZERO, Ballot.ZERO));
         final static long COMMITTED = measure(Command.SerializerSupport.committed(attrs(true, true), SaveStatus.Committed, EMPTY_TXNID, Ballot.ZERO, Ballot.ZERO, null));
-        final static long EXECUTED = measure(Command.SerializerSupport.executed(attrs(true, true), SaveStatus.Applied, EMPTY_TXNID, Ballot.ZERO, Ballot.ZERO, WaitingOn.empty(Domain.Key), EMPTY_WRITES, CommandSerializers.APPLIED));
+        final static long EXECUTED = measure(Command.SerializerSupport.executed(attrs(true, true), SaveStatus.Applied, EMPTY_TXNID, Ballot.ZERO, Ballot.ZERO, WaitingOn.empty(Domain.Key), EMPTY_WRITES, ResultSerializers.APPLIED));
         final static long TRUNCATED = measure(Command.SerializerSupport.truncatedApply(attrs(false, false), SaveStatus.TruncatedApply,  EMPTY_TXNID, null, null));
         final static long INVALIDATED = measure(Command.SerializerSupport.invalidated(EMPTY_TXNID));
 

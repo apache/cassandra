@@ -38,7 +38,7 @@ import org.apache.cassandra.io.util.DataOutputPlus;
 
 public class ApplySerializers
 {
-    private static final IVersionedSerializer<Apply.Kind> kind = new IVersionedSerializer<Apply.Kind>()
+    private static final IVersionedSerializer<Apply.Kind> kind = new IVersionedSerializer<>()
     {
         public void serialize(Apply.Kind kind, DataOutputPlus out, int version) throws IOException
         {
@@ -64,7 +64,7 @@ public class ApplySerializers
         {
             kind.serialize(apply.kind, out, version);
             CommandSerializers.timestamp.serialize(apply.executeAt, out, version);
-            DepsSerializer.partialDeps.serialize(apply.deps, out, version);
+            DepsSerializers.partialDeps.serialize(apply.deps, out, version);
             CommandSerializers.nullablePartialTxn.serialize(apply.txn, out, version);
             KeySerializers.nullableFullRoute.serialize(apply.fullRoute, out, version);
             CommandSerializers.writes.serialize(apply.writes, out, version);
@@ -79,19 +79,19 @@ public class ApplySerializers
             return deserializeApply(txnId, scope, waitForEpoch,
                                     kind.deserialize(in, version),
                                     CommandSerializers.timestamp.deserialize(in, version),
-                                    DepsSerializer.partialDeps.deserialize(in, version),
+                                    DepsSerializers.partialDeps.deserialize(in, version),
                                     CommandSerializers.nullablePartialTxn.deserialize(in, version),
                                     KeySerializers.nullableFullRoute.deserialize(in, version),
                                     CommandSerializers.writes.deserialize(in, version),
-                                    CommandSerializers.APPLIED);
+                                    ResultSerializers.APPLIED);
         }
 
         @Override
         public long serializedBodySize(A apply, int version)
         {
-            return   kind.serializedSize(apply.kind, version)
+            return kind.serializedSize(apply.kind, version)
                    + CommandSerializers.timestamp.serializedSize(apply.executeAt, version)
-                   + DepsSerializer.partialDeps.serializedSize(apply.deps, version)
+                   + DepsSerializers.partialDeps.serializedSize(apply.deps, version)
                    + CommandSerializers.nullablePartialTxn.serializedSize(apply.txn, version)
                    + KeySerializers.nullableFullRoute.serializedSize(apply.fullRoute, version)
                    + CommandSerializers.writes.serializedSize(apply.writes, version);

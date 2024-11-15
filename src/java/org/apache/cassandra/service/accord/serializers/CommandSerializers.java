@@ -21,30 +21,30 @@ package org.apache.cassandra.service.accord.serializers;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 
 import accord.api.Query;
 import accord.api.Read;
-import accord.api.Result;
 import accord.api.Update;
+import accord.api.Write;
 import accord.coordinate.Infer;
 import accord.local.Node;
 import accord.local.StoreParticipants;
+import accord.primitives.Ballot;
+import accord.primitives.Known;
 import accord.primitives.Known.Definition;
 import accord.primitives.Known.KnownDeps;
 import accord.primitives.Known.KnownExecuteAt;
 import accord.primitives.Known.KnownRoute;
 import accord.primitives.Known.Outcome;
+import accord.primitives.PartialTxn;
 import accord.primitives.Participants;
 import accord.primitives.Route;
 import accord.primitives.SaveStatus;
+import accord.primitives.Seekables;
 import accord.primitives.Status;
 import accord.primitives.Status.Durability;
-import accord.primitives.Known;
-import accord.primitives.Ballot;
-import accord.primitives.PartialTxn;
-import accord.primitives.ProgressToken;
-import accord.primitives.Seekables;
 import accord.primitives.Timestamp;
 import accord.primitives.Txn;
 import accord.primitives.TxnId;
@@ -65,17 +65,9 @@ import org.apache.cassandra.utils.NullableSerializer;
 
 public class CommandSerializers
 {
-    private CommandSerializers() {}
-
-    // TODO (expected): this is meant to encode e.g. whether the transaction's condition met or not
-    public static final Result APPLIED = new Result()
+    private CommandSerializers()
     {
-        @Override
-        public ProgressToken asProgressToken()
-        {
-            return ProgressToken.APPLIED;
-        }
-    };
+    }
 
     public static final TimestampSerializer<TxnId> txnId = new TimestampSerializer<>(TxnId::fromBits);
     public static final IVersionedSerializer<TxnId> nullableTxnId = NullableSerializer.wrap(txnId);
@@ -93,6 +85,7 @@ public class CommandSerializers
         static final int HAS_TOUCHED_EQUALS_ROUTE = 0x2;
         static final int TOUCHES_EQUALS_HAS_TOUCHED = 0x4;
         static final int OWNS_EQUALS_TOUCHES = 0x8;
+
         @Override
         public void serialize(StoreParticipants t, DataOutputPlus out, int version) throws IOException
         {
@@ -255,7 +248,8 @@ public class CommandSerializers
         }
     }
 
-    public static class PartialTxnSerializer extends AbstractWithKeysSerializer implements IVersionedSerializer<PartialTxn>
+    public static class PartialTxnSerializer extends AbstractWithKeysSerializer
+    implements IVersionedSerializer<PartialTxn>
     {
         private final IVersionedSerializer<Read> readSerializer;
         private final IVersionedSerializer<Query> querySerializer;
@@ -321,12 +315,60 @@ public class CommandSerializers
         }
     }
 
-    private static final IVersionedSerializer<Read> read = new CastingSerializer<>(TxnRead.class, TxnRead.serializer);
-    private static final IVersionedSerializer<Query> query = new CastingSerializer<>(TxnQuery.class, TxnQuery.serializer);
-    private static final IVersionedSerializer<Update> update = new CastingSerializer<>(AccordUpdate.class, AccordUpdate.serializer);
+    public static final IVersionedSerializer<Read> read;
+    public static final IVersionedSerializer<Query> query;
+    public static final IVersionedSerializer<Update> update;
+    public static final IVersionedSerializer<Write> write;
 
-    public static final IVersionedSerializer<PartialTxn> partialTxn = new PartialTxnSerializer(read, query, update);
-    public static final IVersionedSerializer<PartialTxn> nullablePartialTxn = NullableSerializer.wrap(partialTxn);
+    public static final IVersionedSerializer<PartialTxn> partialTxn;
+    public static final IVersionedSerializer<PartialTxn> nullablePartialTxn;
+
+    static
+    {
+        // We use a separate class for initialization to make it easier for BurnTest to plug its own serializers.
+        QuerySerializers querySerializers = new QuerySerializers();
+        read = querySerializers.read;
+        query = querySerializers.query;
+        update = querySerializers.update;
+        write = querySerializers.write;
+
+        partialTxn = querySerializers.partialTxn;
+        nullablePartialTxn = querySerializers.nullablePartialTxn;
+    }
+
+    @VisibleForTesting
+    public static class QuerySerializers
+    {
+        public final IVersionedSerializer<Read> read;
+        public final IVersionedSerializer<Query> query;
+        public final IVersionedSerializer<Update> update;
+        public final IVersionedSerializer<Write> write;
+
+        public final IVersionedSerializer<PartialTxn> partialTxn;
+        public final IVersionedSerializer<PartialTxn> nullablePartialTxn;
+
+        private QuerySerializers()
+        {
+            this(new CastingSerializer<>(TxnRead.class, TxnRead.serializer),
+                 new CastingSerializer<>(TxnQuery.class, TxnQuery.serializer),
+                 new CastingSerializer<>(AccordUpdate.class, AccordUpdate.serializer),
+                 new CastingSerializer<>(TxnWrite.class, TxnWrite.serializer));
+        }
+
+        public QuerySerializers(IVersionedSerializer<Read> read,
+                                IVersionedSerializer<Query> query,
+                                IVersionedSerializer<Update> update,
+                                IVersionedSerializer<Write> write)
+        {
+            this.read = read;
+            this.query = query;
+            this.update = update;
+            this.write = write;
+
+            this.partialTxn = new PartialTxnSerializer(read, query, update);
+            this.nullablePartialTxn = NullableSerializer.wrap(partialTxn);
+        }
+    }
 
     public static final EnumSerializer<SaveStatus> saveStatus = new EnumSerializer<>(SaveStatus.class);
     public static final EnumSerializer<Status> status = new EnumSerializer<>(Status.class);
@@ -342,8 +384,9 @@ public class CommandSerializers
             KeySerializers.seekables.serialize(writes.keys, out, version);
             boolean hasWrites = writes.write != null;
             out.writeBoolean(hasWrites);
+
             if (hasWrites)
-                TxnWrite.serializer.serialize((TxnWrite) writes.write, out, version);
+                CommandSerializers.write.serialize(writes.write, out, version);
         }
 
         @Override
@@ -351,7 +394,7 @@ public class CommandSerializers
         {
             return new Writes(txnId.deserialize(in, version), timestamp.deserialize(in, version),
                               KeySerializers.seekables.deserialize(in, version),
-                              in.readBoolean() ? TxnWrite.serializer.deserialize(in, version) : null);
+                              in.readBoolean() ? CommandSerializers.write.deserialize(in, version) : null);
         }
 
         @Override
@@ -363,7 +406,7 @@ public class CommandSerializers
             boolean hasWrites = writes.write != null;
             size += TypeSizes.sizeof(hasWrites);
             if (hasWrites)
-                size += TxnWrite.serializer.serializedSize((TxnWrite) writes.write, version);
+                size += CommandSerializers.write.serializedSize(writes.write, version);
             return size;
         }
     };

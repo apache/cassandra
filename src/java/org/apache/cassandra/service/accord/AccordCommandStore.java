@@ -38,9 +38,9 @@ import accord.api.DataStore;
 import accord.api.LocalListeners;
 import accord.api.ProgressLog;
 import accord.api.RoutingKey;
+import accord.impl.AbstractLoader;
 import accord.impl.AbstractSafeCommandStore.CommandStoreCaches;
 import accord.impl.TimestampsForKey;
-import accord.local.Cleanup;
 import accord.local.Command;
 import accord.local.CommandStore;
 import accord.local.CommandStores;
@@ -49,7 +49,6 @@ import accord.local.KeyHistory;
 import accord.local.NodeCommandStoreService;
 import accord.local.PreLoadContext;
 import accord.local.RedundantBefore;
-import accord.local.SafeCommand;
 import accord.local.SafeCommandStore;
 import accord.local.cfk.CommandsForKey;
 import accord.primitives.PartialTxn;
@@ -69,15 +68,14 @@ import org.apache.cassandra.service.accord.SavedCommand.MinimalCommand;
 import org.apache.cassandra.service.accord.api.AccordRoutingKey.TokenKey;
 import org.apache.cassandra.service.accord.txn.TxnRead;
 import org.apache.cassandra.utils.Clock;
-import org.apache.cassandra.utils.concurrent.AsyncPromise;
-import org.apache.cassandra.utils.concurrent.Promise;
 import org.apache.cassandra.utils.concurrent.UncheckedInterruptedException;
 
+import static accord.api.Journal.CommandUpdate;
+import static accord.api.Journal.FieldUpdates;
+import static accord.api.Journal.Loader;
+import static accord.api.Journal.OnDone;
 import static accord.local.KeyHistory.SYNC;
-import static accord.primitives.SaveStatus.Applying;
 import static accord.primitives.Status.Committed;
-import static accord.primitives.Status.Invalidated;
-import static accord.primitives.Status.Truncated;
 import static accord.utils.Invariants.checkState;
 import static org.apache.cassandra.service.accord.SavedCommand.Load.MINIMAL;
 
@@ -167,6 +165,8 @@ public class AccordCommandStore extends CommandStore
     private AccordSafeCommandStore current;
     private Thread currentThread;
 
+    private final CommandStoreLoader loader;
+
     public AccordCommandStore(int id,
                               NodeCommandStoreService node,
                               Agent agent,
@@ -195,6 +195,8 @@ public class AccordCommandStore extends CommandStore
 
         this.taskExecutor = executor.executor(this);
         this.commandsForRanges = new CommandsForRanges.Manager(this);
+        this.loader = new CommandStoreLoader(this);
+
         loadRedundantBefore(journal.loadRedundantBefore(id()));
         loadBootstrapBeganAt(journal.loadBootstrapBeganAt(id()));
         loadSafeToRead(journal.loadSafeToRead(id()));
@@ -292,16 +294,16 @@ public class AccordCommandStore extends CommandStore
         return null;
     }
 
-    public void persistFieldUpdates(AccordSafeCommandStore.FieldUpdates fieldUpdates, Runnable onFlush)
+    public void persistFieldUpdates(FieldUpdates fieldUpdates, Runnable onFlush)
     {
-        journal.persistStoreState(id, fieldUpdates, onFlush);
+        journal.saveStoreState(id, fieldUpdates, onFlush);
     }
 
     @Nullable
     @VisibleForTesting
     public void appendToLog(Command before, Command after, Runnable onFlush)
     {
-        journal.appendCommand(id, SavedCommand.diff(before, after), onFlush);
+        journal.saveCommand(id, new CommandUpdate(before, after), onFlush);
     }
 
     boolean validateCommand(TxnId txnId, Command evicting)
@@ -490,13 +492,13 @@ public class AccordCommandStore extends CommandStore
         }
     }
 
-    public void appendCommands(List<SavedCommand.Writer> diffs, Runnable onFlush)
+    public void appendCommands(List<CommandUpdate> diffs, Runnable onFlush)
     {
         for (int i = 0; i < diffs.size(); i++)
         {
             boolean isLast = i == diffs.size() - 1;
-            SavedCommand.Writer writer = diffs.get(i);
-            journal.appendCommand(id, writer, isLast  ? onFlush : null);
+            CommandUpdate change = diffs.get(i);
+            journal.saveCommand(id, change, isLast ? onFlush : null);
         }
     }
 
@@ -526,92 +528,65 @@ public class AccordCommandStore extends CommandStore
         return journal.loadMinimal(id, txnId, MINIMAL, unsafeGetRedundantBefore(), durableBefore());
     }
 
-    public interface Loader
-    {
-        Promise<?> load(Command next);
-        Promise<?> apply(Command next);
-    }
-
     public Loader loader()
     {
-        return new Loader()
+        return loader;
+    }
+
+    private static class CommandStoreLoader extends AbstractLoader
+    {
+        private final AccordCommandStore store;
+
+        private CommandStoreLoader(AccordCommandStore store)
         {
-            private PreLoadContext context(Command command, KeyHistory keyHistory)
-            {
-                TxnId txnId = command.txnId();
-                Participants<?> keys = null;
-                if (CommandsForKey.manages(txnId))
-                    keys = command.hasBeen(Committed) ? command.participants().hasTouched() : command.participants().touches();
-                else if (!CommandsForKey.managesExecution(txnId) && command.hasBeen(Status.Stable) && !command.hasBeen(Status.Truncated))
-                    keys = command.asCommitted().waitingOn.keys;
+            this.store = store;
+        }
 
-                if (keys != null)
-                    return PreLoadContext.contextFor(txnId, keys, keyHistory);
+        private PreLoadContext context(Command command, KeyHistory keyHistory)
+        {
+            TxnId txnId = command.txnId();
+            Participants<?> keys = null;
+            if (CommandsForKey.manages(txnId))
+                keys = command.hasBeen(Committed) ? command.participants().hasTouched() : command.participants().touches();
+            else if (!CommandsForKey.managesExecution(txnId) && command.hasBeen(Status.Stable) && !command.hasBeen(Status.Truncated))
+                keys = command.asCommitted().waitingOn.keys;
 
-                return PreLoadContext.contextFor(txnId);
-            }
+            if (keys != null)
+                return PreLoadContext.contextFor(txnId, keys, keyHistory);
 
-            public Promise<?> load(Command command)
-            {
-                TxnId txnId = command.txnId();
+            return PreLoadContext.contextFor(txnId);
+        }
 
-                AsyncPromise<?> future = new AsyncPromise<>();
-                execute(context(command, SYNC),
-                        safeStore -> {
-                            Command local = command;
-                            if (local.status() != Truncated && local.status() != Invalidated)
-                            {
-                                Cleanup cleanup = Cleanup.shouldCleanup(agent, local, unsafeGetRedundantBefore(), durableBefore());
-                                switch (cleanup)
-                                {
-                                    case NO:
-                                        break;
-                                    case INVALIDATE:
-                                    case TRUNCATE_WITH_OUTCOME:
-                                    case TRUNCATE:
-                                    case ERASE:
-                                        local = Commands.purge(local, local.participants(), cleanup);
-                                }
-                            }
+        @Override
+        public void load(Command command, OnDone onDone)
+        {
+            store.execute(context(command, SYNC),
+                          safeStore -> loadInternal(command, safeStore))
+                 .begin((unused, throwable) -> {
+                     if (throwable != null)
+                         onDone.failure(throwable);
+                     else
+                         onDone.success();
+                 });
+        }
 
-                            local = safeStore.unsafeGet(txnId).update(safeStore, local);
-                            if (local.status() == Truncated)
-                                safeStore.progressLog().clear(local.txnId());
-                        })
-                .begin((unused, throwable) -> {
-                    if (throwable != null)
-                        future.setFailure(throwable);
-                    else
-                        future.setSuccess(null);
-                });
-                return future;
-            }
-
-            public Promise<?> apply(Command command)
-            {
-                TxnId txnId = command.txnId();
-
-                AsyncPromise<?> future = new AsyncPromise<>();
-                PreLoadContext context = context(command, KeyHistory.TIMESTAMPS);
-                execute(context,
-                         safeStore -> {
-                             SafeCommand safeCommand = safeStore.unsafeGet(txnId);
-                             Command local = safeCommand.current();
-                             if (local.hasBeen(Truncated))
-                                 return;
-
-                             if (local.saveStatus().compareTo(Applying) >= 0) Commands.applyWrites(safeStore, context, local).begin(agent);
-                             else Commands.maybeExecute(safeStore, safeCommand, local, true, true);
-                         })
-                .begin((unused, throwable) -> {
-                    if (throwable != null)
-                        future.setFailure(throwable);
-                    else
-                        future.setSuccess(null);
-                });
-                return future;
-            }
-        };
+        @Override
+        public void apply(Command command, OnDone onDone)
+        {
+            PreLoadContext context = context(command, KeyHistory.TIMESTAMPS);
+            store.execute(context,
+                          safeStore -> {
+                              applyWrites(command, safeStore, (safeCommand, cmd) -> {
+                                  Commands.applyWrites(safeStore, context, cmd).begin(store.agent);
+                              });
+                          })
+                 .begin((unused, throwable) -> {
+                     if (throwable != null)
+                         onDone.failure(throwable);
+                     else
+                         onDone.success();
+                 });
+        }
     }
 
     /**

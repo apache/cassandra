@@ -91,7 +91,7 @@ public class AccordInteropRead extends ReadData
 
     private static class LocalReadData implements Data
     {
-        static final IVersionedSerializer<LocalReadData> serializer = new IVersionedSerializer<LocalReadData>()
+        static final IVersionedSerializer<LocalReadData> serializer = new IVersionedSerializer<>()
         {
             @Override
             public void serialize(LocalReadData data, DataOutputPlus out, int version) throws IOException

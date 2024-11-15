@@ -38,7 +38,7 @@ import org.mockito.Mockito;
 import static accord.utils.Property.qt;
 import static org.apache.cassandra.net.MessagingService.Version.VERSION_51;
 
-public class DepsSerializerTest
+public class DepsSerializersTest
 {
     static
     {
@@ -59,7 +59,7 @@ public class DepsSerializerTest
             Mockito.when(Schema.instance.getExistingTablePartitioner(Mockito.any())).thenReturn(partitioner);
             Deps deps = AccordGenerators.depsGen(partitioner).next(rs);
             for (MessagingService.Version version : SUPPORTED_VERSIONS)
-                IVersionedSerializers.testSerde(buffer, DepsSerializer.deps, deps, version.value);
+                IVersionedSerializers.testSerde(buffer, DepsSerializers.deps, deps, version.value);
         });
     }
 }

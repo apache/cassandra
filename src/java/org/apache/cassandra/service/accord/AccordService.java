@@ -72,6 +72,7 @@ import accord.impl.DefaultRemoteListeners;
 import accord.impl.DurabilityScheduling;
 import accord.impl.RequestCallbacks;
 import accord.impl.SizeOfIntersectionSorter;
+import accord.impl.TimestampsForKey;
 import accord.impl.progresslog.DefaultProgressLogs;
 import accord.local.Command;
 import accord.local.CommandStore;
@@ -264,9 +265,26 @@ public class AccordService implements IAccordService, Shutdownable
         }
         instance = as;
 
-        as.journal().replay();
+        replayJournal(as);
     }
 
+    private static void replayJournal(AccordService as)
+    {
+        logger.info("Starting journal replay.");
+        TimestampsForKey.unsafeSetReplay(true);
+        CommandsForKey.disableLinearizabilityViolationsReporting();
+        AccordKeyspace.truncateAllCaches();
+
+        as.journal().replay(as.node().commandStores());
+
+        logger.info("Waiting for command stores to quiesce.");
+        ((AccordCommandStores)as.node.commandStores()).waitForQuiescense();
+        CommandsForKey.enableLinearizabilityViolationsReporting();
+        TimestampsForKey.unsafeSetReplay(false);
+        as.journal.unsafeSetStarted();
+
+        logger.info("Finished journal replay.");
+    }
     public static void shutdownServiceAndWait(long timeout, TimeUnit unit) throws InterruptedException, TimeoutException
     {
         IAccordService i = instance;

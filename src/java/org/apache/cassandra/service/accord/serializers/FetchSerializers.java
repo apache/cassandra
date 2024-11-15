@@ -40,7 +40,7 @@ import static org.apache.cassandra.utils.NullableSerializer.serializedNullableSi
 
 public class FetchSerializers
 {
-    public static final IVersionedSerializer<FetchRequest> request = new IVersionedSerializer<FetchRequest>()
+    public static final IVersionedSerializer<FetchRequest> request = new IVersionedSerializer<>()
     {
         @Override
         public void serialize(FetchRequest request, DataOutputPlus out, int version) throws IOException
@@ -48,7 +48,7 @@ public class FetchSerializers
             out.writeUnsignedVInt(request.executeAtEpoch);
             CommandSerializers.txnId.serialize(request.txnId, out, version);
             KeySerializers.ranges.serialize((Ranges) request.readScope, out, version);
-            DepsSerializer.partialDeps.serialize(request.partialDeps, out, version);
+            DepsSerializers.partialDeps.serialize(request.partialDeps, out, version);
             StreamingTxn.serializer.serialize(request.read, out, version);
         }
 
@@ -58,7 +58,7 @@ public class FetchSerializers
             return new FetchRequest(in.readUnsignedVInt(),
                                     CommandSerializers.txnId.deserialize(in, version),
                                     KeySerializers.ranges.deserialize(in, version),
-                                    DepsSerializer.partialDeps.deserialize(in, version),
+                                    DepsSerializers.partialDeps.deserialize(in, version),
                                     StreamingTxn.serializer.deserialize(in, version));
         }
 
@@ -68,12 +68,12 @@ public class FetchSerializers
             return TypeSizes.sizeofUnsignedVInt(request.executeAtEpoch)
                    + CommandSerializers.txnId.serializedSize(request.txnId, version)
                    + KeySerializers.ranges.serializedSize((Ranges) request.readScope, version)
-                   + DepsSerializer.partialDeps.serializedSize(request.partialDeps, version)
+                   + DepsSerializers.partialDeps.serializedSize(request.partialDeps, version)
                    + StreamingTxn.serializer.serializedSize(request.read, version);
         }
     };
 
-    public static final IVersionedSerializer<ReadReply> reply = new IVersionedSerializer<ReadReply>()
+    public static final IVersionedSerializer<ReadReply> reply = new IVersionedSerializer<>()
     {
         final CommitOrReadNack[] nacks = CommitOrReadNack.values();
         final IVersionedSerializer<Data> streamDataSerializer = new CastingSerializer<>(StreamData.class, StreamData.serializer);

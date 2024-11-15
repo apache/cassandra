@@ -90,7 +90,7 @@ public class AccordFetchCoordinator extends AbstractFetchCoordinator implements 
                 this.hasData = hasData;
             }
 
-            static final IVersionedSerializer<SessionInfo> serializer = new IVersionedSerializer<SessionInfo>()
+            static final IVersionedSerializer<SessionInfo> serializer = new IVersionedSerializer<>()
             {
                 public void serialize(SessionInfo info, DataOutputPlus out, int version) throws IOException
                 {
@@ -110,7 +110,7 @@ public class AccordFetchCoordinator extends AbstractFetchCoordinator implements 
                 }
             };
         }
-        public static final IVersionedSerializer<StreamData> serializer = new IVersionedSerializer<StreamData>()
+        public static final IVersionedSerializer<StreamData> serializer = new IVersionedSerializer<>()
         {
             @Override
             public void serialize(StreamData data, DataOutputPlus out, int version) throws IOException
@@ -303,7 +303,7 @@ public class AccordFetchCoordinator extends AbstractFetchCoordinator implements 
         private static final IVersionedSerializer<Read> read = new CastingSerializer<>(StreamingRead.class,
                                                                                        StreamingRead.serializer);
 
-        private static final IVersionedSerializer<Query> query = new IVersionedSerializer<Query>()
+        private static final IVersionedSerializer<Query> query = new IVersionedSerializer<>()
         {
             @Override
             public void serialize(Query t, DataOutputPlus out, int version)
@@ -325,7 +325,7 @@ public class AccordFetchCoordinator extends AbstractFetchCoordinator implements 
             }
         };
 
-        private static final IVersionedSerializer<Update> update = new IVersionedSerializer<Update>()
+        private static final IVersionedSerializer<Update> update = new IVersionedSerializer<>()
         {
             @Override
             public void serialize(Update t, DataOutputPlus out, int version)

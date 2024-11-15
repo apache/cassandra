@@ -36,6 +36,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.slf4j.MDC;
 
+import accord.api.Journal;
 import accord.api.RoutingKey;
 import accord.local.Command;
 import accord.local.CommandStore;
@@ -649,7 +650,7 @@ public abstract class AccordTask<R> extends Task implements Runnable, Function<S
         }
     }
 
-    private void save(List<SavedCommand.Writer> diffs, Runnable onFlush)
+    private void save(List<Journal.CommandUpdate> diffs, Runnable onFlush)
     {
         if (sanityCheck != null)
         {
@@ -701,7 +702,7 @@ public abstract class AccordTask<R> extends Task implements Runnable, Function<S
             R result = apply(safeStore);
 
             // TODO (required): currently, we are not very efficient about ensuring that we persist the absolute minimum amount of state. Improve that.
-            List<SavedCommand.Writer> diffs = null;
+            List<Journal.CommandUpdate> changes = null;
             if (commands != null)
             {
                 for (AccordSafeCommand safeCommand : commands.values())
@@ -709,27 +710,27 @@ public abstract class AccordTask<R> extends Task implements Runnable, Function<S
                     if (safeCommand.txnId().is(EphemeralRead))
                         continue;
 
-                    SavedCommand.Writer diff = safeCommand.diff();
+                    Journal.CommandUpdate diff = safeCommand.update();
                     if (diff == null)
                         continue;
 
-                    if (diffs == null)
-                        diffs = new ArrayList<>(commands.size());
-                    diffs.add(diff);
+                    if (changes == null)
+                        changes = new ArrayList<>(commands.size());
+                    changes.add(diff);
 
                     maybeSanityCheck(safeCommand);
                 }
             }
 
-            boolean flush = diffs != null || safeStore.fieldUpdates() != null;
+            boolean flush = changes != null || safeStore.fieldUpdates() != null;
             if (flush)
             {
                 state(PERSISTING);
                 Runnable onFlush = () -> finish(result, null);
                 if (safeStore.fieldUpdates() != null)
-                    commandStore.persistFieldUpdates(safeStore.fieldUpdates(), diffs == null ? onFlush : null);
-                if (diffs != null)
-                    save(diffs, onFlush);
+                    commandStore.persistFieldUpdates(safeStore.fieldUpdates(), changes == null ? onFlush : null);
+                if (changes != null)
+                    save(changes, onFlush);
             }
 
             commandStore.complete(safeStore);

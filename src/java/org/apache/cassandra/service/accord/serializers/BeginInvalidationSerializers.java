@@ -34,7 +34,7 @@ import org.apache.cassandra.io.util.DataOutputPlus;
 
 public class BeginInvalidationSerializers
 {
-    public static final IVersionedSerializer<BeginInvalidation> request = new IVersionedSerializer<BeginInvalidation>()
+    public static final IVersionedSerializer<BeginInvalidation> request = new IVersionedSerializer<>()
     {
         @Override
         public void serialize(BeginInvalidation begin, DataOutputPlus out, int version) throws IOException
@@ -61,7 +61,7 @@ public class BeginInvalidationSerializers
         }
     };
 
-    public static final IVersionedSerializer<InvalidateReply> reply = new IVersionedSerializer<InvalidateReply>()
+    public static final IVersionedSerializer<InvalidateReply> reply = new IVersionedSerializer<>()
     {
         @Override
         public void serialize(InvalidateReply reply, DataOutputPlus out, int version) throws IOException

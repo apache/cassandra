@@ -20,7 +20,6 @@ package org.apache.cassandra.service.accord;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.util.EnumSet;
 import java.util.function.Function;
 import javax.annotation.Nullable;
 
@@ -37,7 +36,6 @@ import accord.local.StoreParticipants;
 import accord.primitives.Ballot;
 import accord.primitives.PartialDeps;
 import accord.primitives.PartialTxn;
-import accord.primitives.Route;
 import accord.primitives.SaveStatus;
 import accord.primitives.Status;
 import accord.primitives.Timestamp;
@@ -49,7 +47,8 @@ import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.journal.Journal;
 import org.apache.cassandra.service.accord.serializers.CommandSerializers;
-import org.apache.cassandra.service.accord.serializers.DepsSerializer;
+import org.apache.cassandra.service.accord.serializers.DepsSerializers;
+import org.apache.cassandra.service.accord.serializers.ResultSerializers;
 import org.apache.cassandra.service.accord.serializers.WaitingOnSerializer;
 import org.apache.cassandra.utils.Throwables;
 
@@ -64,6 +63,7 @@ import static accord.utils.Invariants.illegalState;
 import static org.apache.cassandra.service.accord.SavedCommand.Fields.DURABILITY;
 import static org.apache.cassandra.service.accord.SavedCommand.Fields.EXECUTE_AT;
 import static org.apache.cassandra.service.accord.SavedCommand.Fields.PARTICIPANTS;
+import static org.apache.cassandra.service.accord.SavedCommand.Fields.RESULT;
 import static org.apache.cassandra.service.accord.SavedCommand.Fields.SAVE_STATUS;
 import static org.apache.cassandra.service.accord.SavedCommand.Fields.WRITES;
 import static org.apache.cassandra.service.accord.SavedCommand.Load.ALL;
@@ -85,6 +85,7 @@ public class SavedCommand
         PARTIAL_TXN,
         WRITES,
         CLEANUP,
+        RESULT,
         ;
 
         public static final Fields[] FIELDS = values();
@@ -142,18 +143,18 @@ public class SavedCommand
     }
 
     @Nullable
-    public static Writer diff(Command original, Command current)
+    public static Writer diff(Command before, Command after)
     {
-        if (original == current
-            || current == null
-            || current.saveStatus() == SaveStatus.Uninitialised)
+        if (before == after
+            || after == null
+            || after.saveStatus() == SaveStatus.Uninitialised)
             return null;
 
-        int flags = validateFlags(getFlags(original, current));
+        int flags = validateFlags(getFlags(before, after));
         if (!anyFieldChanged(flags))
             return null;
 
-        return new Writer(current, flags);
+        return new Writer(after, flags);
     }
 
     // TODO (required): calculate flags once
@@ -210,7 +211,7 @@ public class SavedCommand
                     CommandSerializers.partialTxn.serialize(after.partialTxn(), out, userVersion);
                     break;
                 case PARTIAL_DEPS:
-                    DepsSerializer.partialDeps.serialize(after.partialDeps(), out, userVersion);
+                    DepsSerializers.partialDeps.serialize(after.partialDeps(), out, userVersion);
                     break;
                 case WAITING_ON:
                     Command.WaitingOn waitingOn = getWaitingOn(after);
@@ -222,6 +223,9 @@ public class SavedCommand
                     break;
                 case WRITES:
                     CommandSerializers.writes.serialize(after.writes(), out, userVersion);
+                    break;
+                case RESULT:
+                    ResultSerializers.result.serialize(after.result(), out, userVersion);
                     break;
                 case CLEANUP:
                     throw new IllegalStateException();
@@ -248,9 +252,17 @@ public class SavedCommand
         flags = collectFlags(before, after, Command::partialTxn, false, Fields.PARTIAL_TXN, flags);
         flags = collectFlags(before, after, Command::partialDeps, false, Fields.PARTIAL_DEPS, flags);
 
-        flags = collectFlags(before, after, SavedCommand::getWaitingOn, false, Fields.WAITING_ON, flags);
+        // TODO: waitingOn vs WaitingOnWithExecutedAt?
+        flags = collectFlags(before, after, SavedCommand::getWaitingOn, true, Fields.WAITING_ON, flags);
 
         flags = collectFlags(before, after, Command::writes, false, WRITES, flags);
+
+        // Special-cased for Journal BurnTest integration
+        if ((before != null && before.result() != null && before.result() != ResultSerializers.APPLIED) ||
+            (after.result() != null && after.result() != ResultSerializers.APPLIED))
+        {
+            flags = collectFlags(before, after, Command::writes, false, RESULT, flags);
+        }
 
         return flags;
     }
@@ -298,17 +310,6 @@ public class SavedCommand
         return (oldFlags & (0x10000 << field.ordinal())) != 0;
     }
 
-    static EnumSet<Fields> getFieldsChanged(int flags)
-    {
-        EnumSet<Fields> fields = EnumSet.noneOf(Fields.class);
-        for (Fields field : Fields.FIELDS)
-        {
-            if ((flags & (0x10000 << field.ordinal())) != 0)
-                fields.add(field);
-        }
-        return fields;
-    }
-
     static int toIterableSetFields(int flags)
     {
         return flags >>> 16;
@@ -334,11 +335,6 @@ public class SavedCommand
     private static int setFieldIsNull(Fields field, int oldFlags)
     {
         return oldFlags | (1 << field.ordinal());
-    }
-
-    private static int unsetFieldIsNull(Fields field, int oldFlags)
-    {
-        return oldFlags & ~(1 << field.ordinal());
     }
 
     public enum Load
@@ -536,7 +532,7 @@ public class SavedCommand
             durability = NotDurable;
             acceptedOrCommitted = promised = Ballot.ZERO;
             waitingOn = (txn, deps) -> null;
-            result = CommandSerializers.APPLIED;
+            result = ResultSerializers.APPLIED;
         }
 
         public boolean isEmpty()
@@ -592,7 +588,7 @@ public class SavedCommand
                     throw new IllegalStateException("Unknown cleanup: " + cleanup);}
         }
 
-        public Builder expungePartial(Cleanup cleanup, SaveStatus saveStatus, boolean includeOutcome)
+        private Builder expungePartial(Cleanup cleanup, SaveStatus saveStatus, boolean includeOutcome)
         {
             Invariants.checkState(txnId != null);
             Builder builder = new Builder(txnId, ALL);
@@ -629,7 +625,7 @@ public class SavedCommand
             return builder;
         }
 
-        public Builder saveStatusOnly()
+        private Builder saveStatusOnly()
         {
             Invariants.checkState(txnId != null);
             Builder builder = new Builder(txnId, ALL);
@@ -659,16 +655,6 @@ public class SavedCommand
         public MinimalCommand asMinimal()
         {
             return new MinimalCommand(txnId, saveStatus, participants, durability, executeAt, writes);
-        }
-
-        public static Route<?> deserializeRouteOrNull(DataInputPlus in, int userVersion) throws IOException
-        {
-            int flags = in.readInt();
-
-            if (!getFieldChanged(PARTICIPANTS, flags) || getFieldIsNull(PARTICIPANTS, flags))
-                return null;
-
-            return CommandSerializers.participants.deserializeRouteOnly(in, userVersion);
         }
 
         public void serialize(DataOutputPlus out, int userVersion) throws IOException
@@ -714,7 +700,7 @@ public class SavedCommand
                         CommandSerializers.partialTxn.serialize(partialTxn(), out, userVersion);
                         break;
                     case PARTIAL_DEPS:
-                        DepsSerializer.partialDeps.serialize(partialDeps(), out, userVersion);
+                        DepsSerializers.partialDeps.serialize(partialDeps(), out, userVersion);
                         break;
                     case WAITING_ON:
                         out.writeInt(waitingOnBytes.length);
@@ -725,6 +711,9 @@ public class SavedCommand
                         break;
                     case CLEANUP:
                         out.writeByte(cleanup.ordinal());
+                        break;
+                    case RESULT:
+                        ResultSerializers.result.serialize(result(), out, userVersion);
                         break;
                 }
 
@@ -796,7 +785,7 @@ public class SavedCommand
                     partialTxn = CommandSerializers.partialTxn.deserialize(in, userVersion);
                     break;
                 case PARTIAL_DEPS:
-                    partialDeps = DepsSerializer.partialDeps.deserialize(in, userVersion);
+                    partialDeps = DepsSerializers.partialDeps.deserialize(in, userVersion);
                     break;
                 case WAITING_ON:
                     int size = in.readInt();
@@ -823,6 +812,9 @@ public class SavedCommand
                     if (cleanup == null || newCleanup.compareTo(cleanup) > 0)
                         cleanup = newCleanup;
                     break;
+                case RESULT:
+                    result = ResultSerializers.result.deserialize(in, userVersion);
+                    break;
             }
         }
 
@@ -845,13 +837,15 @@ public class SavedCommand
                     CommandSerializers.ballot.skip(in, userVersion);
                     break;
                 case PARTICIPANTS:
+                    // TODO (expected): skip
                     CommandSerializers.participants.deserialize(in, userVersion);
                     break;
                 case PARTIAL_TXN:
                     CommandSerializers.partialTxn.deserialize(in, userVersion);
                     break;
                 case PARTIAL_DEPS:
-                    DepsSerializer.partialDeps.deserialize(in, userVersion);
+                    // TODO (expected): skip
+                    DepsSerializers.partialDeps.deserialize(in, userVersion);
                     break;
                 case WAITING_ON:
                     int size = in.readInt();
@@ -863,6 +857,10 @@ public class SavedCommand
                     break;
                 case CLEANUP:
                     in.readByte();
+                    break;
+                case RESULT:
+                    // TODO (expected): skip
+                    result = ResultSerializers.result.deserialize(in, userVersion);
                     break;
             }
         }
@@ -885,11 +883,22 @@ public class SavedCommand
                 attrs.durability(durability);
             if (participants != null)
                 attrs.setParticipants(participants);
+            else
+                attrs.setParticipants(StoreParticipants.empty(txnId));
             if (partialDeps != null &&
                 (saveStatus.known.deps != NoDeps &&
                  saveStatus.known.deps != DepsErased &&
                  saveStatus.known.deps != DepsUnknown))
                 attrs.partialDeps(partialDeps);
+
+            switch (saveStatus.known.outcome)
+            {
+                case Erased:
+                case WasApply:
+                    writes = null;
+                    result = null;
+                    break;
+            }
 
             Command.WaitingOn waitingOn = null;
             if (this.waitingOn != null)

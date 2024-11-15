@@ -61,7 +61,7 @@ public class CommitSerializers
             CommandSerializers.ballot.serialize(msg.ballot, out, version);
             CommandSerializers.timestamp.serialize(msg.executeAt, out, version);
             CommandSerializers.nullablePartialTxn.serialize(msg.partialTxn, out, version);
-            DepsSerializer.partialDeps.serialize(msg.scope, msg.partialDeps, out, version);
+            DepsSerializers.partialDeps.serialize(msg.scope, msg.partialDeps, out, version);
             serializeNullable(msg.route, out, version, KeySerializers.fullRoute);
             serializeNullable(msg.readData, out, version, read);
         }
@@ -78,7 +78,7 @@ public class CommitSerializers
             Ballot ballot = CommandSerializers.ballot.deserialize(in, version);
             Timestamp executeAt = CommandSerializers.timestamp.deserialize(in, version);
             PartialTxn txn = CommandSerializers.nullablePartialTxn.deserialize(in, version);
-            PartialDeps deps = DepsSerializer.partialDeps.deserialize(scope, in, version);
+            PartialDeps deps = DepsSerializers.partialDeps.deserialize(scope, in, version);
             FullRoute<?> route = deserializeNullable(in, version, KeySerializers.fullRoute);
             ReadData read = deserializeNullable(in, version, this.read);
             return deserializeCommit(txnId, scope, waitForEpoch, minEpoch, kind, ballot, executeAt, txn, deps, route, read);
@@ -91,7 +91,7 @@ public class CommitSerializers
                    + CommandSerializers.ballot.serializedSize(msg.ballot, version)
                    + CommandSerializers.timestamp.serializedSize(msg.executeAt, version)
                    + CommandSerializers.nullablePartialTxn.serializedSize(msg.partialTxn, version)
-                   + DepsSerializer.partialDeps.serializedSize(msg.scope, msg.partialDeps, version)
+                   + DepsSerializers.partialDeps.serializedSize(msg.scope, msg.partialDeps, version)
                    + serializedNullableSize(msg.route, version, KeySerializers.fullRoute)
                    + serializedNullableSize(msg.readData, version, read);
         }
