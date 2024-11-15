@@ -23,6 +23,8 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.Callable;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
@@ -31,9 +33,15 @@ import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
 
+import net.bytebuddy.ByteBuddy;
+import net.bytebuddy.dynamic.loading.ClassLoadingStrategy;
+import net.bytebuddy.implementation.MethodDelegation;
+import net.bytebuddy.implementation.bind.annotation.SuperCall;
 import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.db.ColumnFamilyStore;
+import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
@@ -46,8 +54,11 @@ import org.apache.cassandra.distributed.api.TokenSupplier;
 import org.apache.cassandra.distributed.shared.NetworkTopology;
 import org.apache.cassandra.distributed.test.TestBaseImpl;
 import org.apache.cassandra.schema.SchemaConstants;
+import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.streaming.StreamSession;
 
 import static java.util.Arrays.asList;
+import static net.bytebuddy.matcher.ElementMatchers.named;
 import static org.apache.cassandra.config.CassandraRelevantProperties.RESET_BOOTSTRAP_PROGRESS;
 import static org.apache.cassandra.distributed.action.GossipHelper.bootstrap;
 import static org.apache.cassandra.distributed.action.GossipHelper.pullSchemaFrom;
@@ -85,6 +96,100 @@ public class BootstrapTest extends TestBaseImpl
             RESET_BOOTSTRAP_PROGRESS.clearValue();
         else
             RESET_BOOTSTRAP_PROGRESS.setString(originalResetBootstrapProgress);
+    }
+
+    public static class BBStreamFailure
+    {
+        public static final AtomicBoolean failStream = new AtomicBoolean();
+        public static void install(ClassLoader cl, Integer i)
+        {
+            new ByteBuddy().rebase(StreamSession.class)
+                           .method(named("startStreamingFiles"))
+                           .intercept(MethodDelegation.to(BootstrapTest.BBStreamFailure.class))
+                           .make()
+                           .load(cl, ClassLoadingStrategy.Default.INJECTION);
+        }
+
+        public static void startStreamingFiles(StreamSession.PrepareDirection prepareDirection, @SuperCall Callable<Boolean> zuper) throws Exception
+        {
+            if (failStream.get())
+            {
+                throw new RuntimeException("Trigger stream failure");
+            }
+            zuper.call();
+        }
+    }
+
+    @Test
+    public void bootstrapStreamFailedResumeTestWithResetBootstrapProgress() throws Throwable
+    {
+        bootstrapStreamFailedAndResumeTest(true);
+    }
+
+    @Test
+    public void bootstrapStreamFailedResumeTestWithoutResetBootstrapProgress() throws Throwable
+    {
+        bootstrapStreamFailedAndResumeTest(false);
+    }
+
+    private void bootstrapStreamFailedAndResumeTest(boolean resetBootstrapProgress) throws Throwable
+    {
+        RESET_BOOTSTRAP_PROGRESS.setBoolean(resetBootstrapProgress);
+
+        int originalNodeCount = 2;
+        int expandedNodeCount = originalNodeCount + 1;
+
+        try (Cluster cluster = builder().withNodes(originalNodeCount)
+                                        .withTokenSupplier(TokenSupplier.evenlyDistributedTokens(expandedNodeCount, 1))
+                                        .withNodeIdTopology(NetworkTopology.singleDcNetworkTopology(expandedNodeCount, "dc0", "rack0"))
+                                        .withConfig(config -> config.with(NETWORK, GOSSIP))
+                                        .withInstanceInitializer(BootstrapTest.BBStreamFailure::install)
+                                        .start())
+        {
+            populate(cluster, 0, 100);
+
+            // Make node 1 stream fail
+            cluster.get(1).runOnInstance(
+            ()-> {
+                BBStreamFailure.failStream.set(true);
+            }
+            );
+
+            IInstanceConfig config = cluster.newInstanceConfig();
+            config.set("auto_bootstrap", true);
+            IInvokableInstance newInstance = cluster.bootstrap(config);
+            newInstance.startup(cluster);
+            newInstance.logs().watchFor("Stream failed");
+
+            // Make node 1 stream normal
+            cluster.get(1).runOnInstance(
+            ()-> {
+                BBStreamFailure.failStream.set(false);
+            }
+            );
+            // verify that there is some data streamed to the new node and start bootstrap resume
+            newInstance.runOnInstance(
+            () -> {
+                ColumnFamilyStore populatedStore = Keyspace.open(KEYSPACE).getColumnFamilyStore("tbl");
+                // received some sstable from node2
+                Assert.assertTrue(populatedStore.getLiveSSTables().size() > 0);
+
+                // Bootstrap resume
+                StorageService.instance.resumeBootstrap();
+            }
+            );
+            // Existing sstables are deleted
+            if (resetBootstrapProgress)
+                newInstance.logs().watchFor(String.format("Truncating %s.%s", KEYSPACE, "tbl"));
+            
+            // Wait for bootstrap to complete
+            newInstance.logs().watchFor("Resume complete");
+
+            for (Map.Entry<Integer, Long> e : count(cluster).entrySet())
+                Assert.assertEquals("Node " + e.getKey() + " has incorrect row state",
+                                    100L,
+                                    e.getValue().longValue());
+        }
     }
 
     @Test
