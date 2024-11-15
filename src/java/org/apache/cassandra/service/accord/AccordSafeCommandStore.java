@@ -29,7 +29,6 @@ import com.google.common.annotations.VisibleForTesting;
 
 import accord.api.Agent;
 import accord.api.DataStore;
-import accord.api.Key;
 import accord.api.ProgressLog;
 import accord.api.RoutingKey;
 import accord.impl.AbstractSafeCommandStore;
@@ -49,6 +48,7 @@ import accord.primitives.Unseekables;
 import accord.utils.Invariants;
 import org.apache.cassandra.service.accord.AccordCommandStore.ExclusiveCaches;
 
+import static accord.api.Journal.*;
 import static accord.utils.Invariants.illegalState;
 
 public class AccordSafeCommandStore extends AbstractSafeCommandStore<AccordSafeCommand, AccordSafeTimestampsForKey, AccordSafeCommandsForKey, AccordCommandStore.ExclusiveCaches>
@@ -284,7 +284,7 @@ public class AccordSafeCommandStore extends AbstractSafeCommandStore<AccordSafeC
     {
         // TODO (required): this is a temporary measure, see comment on AccordJournalValueSerializers; upsert instead
         //  when modifying, only modify together with AccordJournalValueSerializers
-        ensureFieldUpdates().newRedundantBefore = ensureFieldUpdates().addRedundantBefore = RedundantBefore.merge(redundantBefore(), addRedundantBefore);
+        ensureFieldUpdates().newRedundantBefore = RedundantBefore.merge(redundantBefore(), addRedundantBefore);
     }
 
     @Override
@@ -360,13 +360,5 @@ public class AccordSafeCommandStore extends AbstractSafeCommandStore<AccordSafeC
 
         if (fieldUpdates.newRangesForEpoch != null)
             super.setRangesForEpoch(ranges);
-    }
-
-    public static class FieldUpdates
-    {
-        public RedundantBefore addRedundantBefore, newRedundantBefore;
-        public NavigableMap<TxnId, Ranges> newBootstrapBeganAt;
-        public NavigableMap<Timestamp, Ranges> newSafeToRead;
-        public RangesForEpoch.Snapshot newRangesForEpoch;
     }
 }

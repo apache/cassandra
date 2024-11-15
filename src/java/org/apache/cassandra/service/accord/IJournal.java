@@ -18,31 +18,21 @@
 
 package org.apache.cassandra.service.accord;
 
-import java.util.NavigableMap;
-
+import accord.api.Journal;
 import accord.local.Command;
-import accord.local.CommandStores;
 import accord.local.DurableBefore;
 import accord.local.RedundantBefore;
-import accord.primitives.Ranges;
-import accord.primitives.Timestamp;
 import accord.primitives.TxnId;
 import accord.utils.PersistentField.Persister;
 
-public interface IJournal
+public interface IJournal extends Journal
 {
-    Command loadCommand(int commandStoreId, TxnId txnId, RedundantBefore redundantBefore, DurableBefore durableBefore);
-    SavedCommand.MinimalCommand loadMinimal(int commandStoreId, TxnId txnId, SavedCommand.Load load, RedundantBefore redundantBefore, DurableBefore durableBefore);
+    // TODO (required): migrate to accord.api.Journal
+    default SavedCommand.MinimalCommand loadMinimal(int commandStoreId, TxnId txnId, SavedCommand.Load load, RedundantBefore redundantBefore, DurableBefore durableBefore)
+    {
+        Command command = loadCommand(commandStoreId, txnId, redundantBefore, durableBefore);
+        return new SavedCommand.MinimalCommand(command.txnId(), command.saveStatus(), command.participants(), command.durability(), command.executeAt(), command.writes());
+    }
 
-    RedundantBefore loadRedundantBefore(int commandStoreId);
-    NavigableMap<TxnId, Ranges> loadBootstrapBeganAt(int commandStoreId);
-    NavigableMap<Timestamp, Ranges> loadSafeToRead(int commandStoreId);
-    CommandStores.RangesForEpoch.Snapshot loadRangesForEpoch(int commandStoreId);
-
-    void appendCommand(int store, SavedCommand.Writer value, Runnable onFlush);
     Persister<DurableBefore, DurableBefore> durableBeforePersister();
-    void persistStoreState(int store,
-                           // TODO: this class should not live under ASCS
-                           AccordSafeCommandStore.FieldUpdates fieldUpdates,
-                           Runnable onFlush);
 }

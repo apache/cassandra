@@ -53,24 +53,24 @@ public class CalculateDepsSerializers
         }
     };
 
-    public static final IVersionedSerializer<CalculateDepsOk> reply = new IVersionedSerializer<CalculateDepsOk>()
+    public static final IVersionedSerializer<CalculateDepsOk> reply = new IVersionedSerializer<>()
     {
         @Override
         public void serialize(CalculateDepsOk reply, DataOutputPlus out, int version) throws IOException
         {
-            DepsSerializer.deps.serialize(reply.deps, out, version);
+            DepsSerializers.deps.serialize(reply.deps, out, version);
         }
 
         @Override
         public CalculateDepsOk deserialize(DataInputPlus in, int version) throws IOException
         {
-            return new CalculateDepsOk(DepsSerializer.deps.deserialize(in, version));
+            return new CalculateDepsOk(DepsSerializers.deps.deserialize(in, version));
         }
 
         @Override
         public long serializedSize(CalculateDepsOk reply, int version)
         {
-            return DepsSerializer.deps.serializedSize(reply.deps, version);
+            return DepsSerializers.deps.serializedSize(reply.deps, version);
         }
     };
 }

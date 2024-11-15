@@ -35,6 +35,7 @@ import com.google.common.collect.Sets;
 import org.junit.Assert;
 
 import accord.api.Data;
+import accord.api.Journal;
 import accord.api.ProgressLog.NoOpProgressLog;
 import accord.api.RemoteListeners.NoOpRemoteListeners;
 import accord.api.Result;
@@ -504,15 +505,9 @@ public class AccordTestUtils
         return range(token(left), token(right));
     }
 
-    public static void appendCommandsBlocking(AccordCommandStore commandStore, Command after)
-    {
-        appendCommandsBlocking(commandStore, null, after);
-    }
-
     public static void appendCommandsBlocking(AccordCommandStore commandStore, Command before, Command after)
     {
-        SavedCommand.Writer diff = SavedCommand.diff(before, after);
-        if (diff == null) return;
+        Journal.CommandUpdate diff = new Journal.CommandUpdate(before, after);
         Condition condition = Condition.newOneTimeCondition();
         commandStore.appendCommands(Collections.singletonList(diff), condition::signal);
         condition.awaitUninterruptibly(30, TimeUnit.SECONDS);

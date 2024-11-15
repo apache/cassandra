@@ -1,4 +1,3 @@
-package org.apache.cassandra;
 /*
  *
  * Licensed to the Apache Software Foundation (ASF) under one
@@ -18,6 +17,7 @@ package org.apache.cassandra;
  * under the License.
  *
  */
+package org.apache.cassandra;
 
 import java.io.Closeable;
 import java.io.DataInputStream;

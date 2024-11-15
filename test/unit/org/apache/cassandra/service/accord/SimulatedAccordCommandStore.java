@@ -46,10 +46,10 @@ import accord.local.CommandStores;
 import accord.local.DurableBefore;
 import accord.local.Node;
 import accord.local.NodeCommandStoreService;
-import accord.local.TimeService;
 import accord.local.PreLoadContext;
 import accord.local.SafeCommand;
 import accord.local.SafeCommandStore;
+import accord.local.TimeService;
 import accord.messages.BeginRecovery;
 import accord.messages.PreAccept;
 import accord.messages.Reply;
@@ -68,6 +68,7 @@ import accord.primitives.Unseekables;
 import accord.topology.Topologies;
 import accord.topology.Topology;
 import accord.utils.Gens;
+import accord.utils.PersistentField;
 import accord.utils.RandomSource;
 import accord.utils.async.AsyncChains;
 import accord.utils.async.AsyncResult;
@@ -104,7 +105,7 @@ public class SimulatedAccordCommandStore implements AutoCloseable
     public final Node.Id nodeId;
     public final Topology topology;
     public final Topologies topologies;
-    public final MockJournal journal;
+    public final IJournal journal;
     public final ScheduledExecutorPlus unorderedScheduled;
     public final List<String> evictions = new ArrayList<>();
     public Predicate<Throwable> ignoreExceptions = ignore -> false;
@@ -184,7 +185,7 @@ public class SimulatedAccordCommandStore implements AutoCloseable
             }
         };
 
-        this.journal = new MockJournal();
+        this.journal = new InMemoryJournal(nodeId);
         TestAgent.RethrowAgent agent = new TestAgent.RethrowAgent()
         {
             @Override
@@ -204,12 +205,12 @@ public class SimulatedAccordCommandStore implements AutoCloseable
                                                    storeService,
                                                    agent,
                                                    null,
-                                            ignore -> new ProgressLog.NoOpProgressLog(),
-                                            cs -> new DefaultLocalListeners(new RemoteListeners.NoOpRemoteListeners(), new DefaultLocalListeners.NotifySink()
-                                            {
-                                                @Override public void notify(SafeCommandStore safeStore, SafeCommand safeCommand, TxnId listener) {}
-                                                @Override public boolean notify(SafeCommandStore safeStore, SafeCommand safeCommand, LocalListeners.ComplexListener listener) { return false; }
-                                            }),
+                                                   ignore -> new ProgressLog.NoOpProgressLog(),
+                                                   cs -> new DefaultLocalListeners(new RemoteListeners.NoOpRemoteListeners(), new DefaultLocalListeners.NotifySink()
+                                                   {
+                                                       @Override public void notify(SafeCommandStore safeStore, SafeCommand safeCommand, TxnId listener) {}
+                                                       @Override public boolean notify(SafeCommandStore safeStore, SafeCommand safeCommand, LocalListeners.ComplexListener listener) { return false; }
+                                                   }),
                                                    updateHolder,
                                                    journal,
                                                    new AccordExecutorSimple(0, CommandStore.class.getSimpleName() + '[' + 0 + ']', new AccordCacheMetrics("test"), agent));
@@ -243,6 +244,19 @@ public class SimulatedAccordCommandStore implements AutoCloseable
                 }
             });
         });
+    }
+
+    private final class InMemoryJournal extends accord.impl.basic.InMemoryJournal implements IJournal
+    {
+        public InMemoryJournal(Node.Id id)
+        {
+            super(id);
+        }
+
+        public PersistentField.Persister<DurableBefore, DurableBefore> durableBeforePersister()
+        {
+            throw new IllegalArgumentException("Not implemented");
+        }
     }
 
     private <K, V> void updateLoadFunction(AccordCache.Type<K, V, ?> i, FunctionWrapper wrapper)

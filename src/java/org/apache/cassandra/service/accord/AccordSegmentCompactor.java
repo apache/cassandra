@@ -47,10 +47,12 @@ public class AccordSegmentCompactor<V> implements SegmentCompactor<JournalKey, V
 {
     private static final Logger logger = LoggerFactory.getLogger(AccordSegmentCompactor.class);
     private final int userVersion;
+    private final ColumnFamilyStore cfs;
 
-    public AccordSegmentCompactor(int userVersion)
+    public AccordSegmentCompactor(int userVersion, ColumnFamilyStore cfs)
     {
         this.userVersion = userVersion;
+        this.cfs = cfs;
     }
 
     @Override
@@ -72,7 +74,6 @@ public class AccordSegmentCompactor<V> implements SegmentCompactor<JournalKey, V
         if (readers.isEmpty())
             return Collections.emptyList();
 
-        ColumnFamilyStore cfs = AccordKeyspace.AccordColumnFamilyStores.journal;
         Descriptor descriptor = cfs.newSSTableDescriptor(cfs.getDirectories().getDirectoryForNewSSTables());
         SerializationHeader header = new SerializationHeader(true, cfs.metadata(), cfs.metadata().regularAndStaticColumns(), EncodingStats.NO_STATS);
 
@@ -90,7 +91,7 @@ public class AccordSegmentCompactor<V> implements SegmentCompactor<JournalKey, V
                 {
                     if (key == null || !reader.key().equals(key))
                     {
-                        maybeWritePartition(cfs, writer, key, builder, serializer, firstDescriptor, firstOffset);
+                        maybeWritePartition(writer, key, builder, serializer, firstDescriptor, firstOffset);
 
                         key = reader.key();
                         serializer = (FlyweightSerializer<Object, Object>) key.type.serializer;
@@ -127,7 +128,7 @@ public class AccordSegmentCompactor<V> implements SegmentCompactor<JournalKey, V
                     if (advanced) readers.offer(reader); // there is more to this reader, but not with this key
                 }
 
-                maybeWritePartition(cfs, writer, key, builder, serializer, firstDescriptor, firstOffset);
+                maybeWritePartition(writer, key, builder, serializer, firstDescriptor, firstOffset);
             }
             catch (Throwable t)
             {
@@ -140,11 +141,11 @@ public class AccordSegmentCompactor<V> implements SegmentCompactor<JournalKey, V
         }
     }
 
-    private void maybeWritePartition(ColumnFamilyStore cfs, SSTableTxnWriter writer, JournalKey key, Object builder, FlyweightSerializer<Object, Object> serializer, long descriptor, int offset) throws IOException
+    private void maybeWritePartition(SSTableTxnWriter writer, JournalKey key, Object builder, FlyweightSerializer<Object, Object> serializer, long descriptor, int offset) throws IOException
     {
         if (builder != null)
         {
-            SimpleBuilder partitionBuilder = PartitionUpdate.simpleBuilder(AccordKeyspace.Journal, AccordKeyspace.JournalColumns.decorate(key));
+            SimpleBuilder partitionBuilder = PartitionUpdate.simpleBuilder(cfs.metadata(), AccordKeyspace.JournalColumns.decorate(key));
             try (DataOutputBuffer out = DataOutputBuffer.scratchBuffer.get())
             {
                 serializer.reserialize(key, builder, out, userVersion);

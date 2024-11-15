@@ -22,6 +22,7 @@ import java.util.Objects;
 
 import com.google.common.annotations.VisibleForTesting;
 
+import accord.api.Journal;
 import accord.local.Command;
 import accord.local.SafeCommand;
 import accord.primitives.TxnId;
@@ -120,9 +121,9 @@ public class AccordSafeCommand extends SafeCommand implements AccordSafeState<Tx
         return original;
     }
 
-    public SavedCommand.Writer diff()
+    public Journal.CommandUpdate update()
     {
-        return SavedCommand.diff(original, current);
+        return new Journal.CommandUpdate(original, current);
     }
 
     @Override

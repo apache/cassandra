@@ -157,7 +157,7 @@ public class CheckStatusSerializers
 
             CheckStatusOkFull okFull = (CheckStatusOkFull) ok;
             CommandSerializers.nullablePartialTxn.serialize(okFull.partialTxn, out, version);
-            DepsSerializer.nullablePartialDeps.serialize(okFull.stableDeps, out, version);
+            DepsSerializers.nullablePartialDeps.serialize(okFull.stableDeps, out, version);
             CommandSerializers.nullableWrites.serialize(okFull.writes, out, version);
         }
 
@@ -190,12 +190,12 @@ public class CheckStatusSerializers
                                         isCoordinating, durability, route, homeKey, invalidIf);
 
                     PartialTxn partialTxn = CommandSerializers.nullablePartialTxn.deserialize(in, version);
-                    PartialDeps committedDeps = DepsSerializer.nullablePartialDeps.deserialize(in, version);
+                    PartialDeps committedDeps = DepsSerializers.nullablePartialDeps.deserialize(in, version);
                     Writes writes = CommandSerializers.nullableWrites.deserialize(in, version);
 
                     Result result = null;
                     if (maxKnowledgeStatus.known.outcome.isOrWasApply())
-                        result = CommandSerializers.APPLIED;
+                        result = ResultSerializers.APPLIED;
 
                     return createOk(map, maxKnowledgeStatus, maxStatus, maxPromised, maxAcceptedOrCommitted, acceptedOrCommitted, executeAt,
                                     isCoordinating, durability, route, homeKey, invalidIf, partialTxn, committedDeps, writes, result);
@@ -229,7 +229,7 @@ public class CheckStatusSerializers
 
             CheckStatusOkFull okFull = (CheckStatusOkFull) ok;
             size += CommandSerializers.nullablePartialTxn.serializedSize(okFull.partialTxn, version);
-            size += DepsSerializer.nullablePartialDeps.serializedSize(okFull.stableDeps, version);
+            size += DepsSerializers.nullablePartialDeps.serializedSize(okFull.stableDeps, version);
             size += CommandSerializers.nullableWrites.serializedSize(okFull.writes, version);
             return size;
         }

@@ -51,6 +51,7 @@ public final class JournalKey
 
     public JournalKey(TxnId id, Type type, int commandStoreId)
     {
+        Invariants.checkState((id.lsb & (0xffff & ~TxnId.IDENTITY_FLAGS)) == 0);
         Invariants.nonNull(type);
         Invariants.nonNull(id);
         this.type = type;
@@ -252,7 +253,7 @@ public final class JournalKey
     {
         return "Key{" +
                "id=" + id +
-               "type=" + type +
+               ", type=" + type +
                ", commandStoreId=" + commandStoreId +
                '}';
     }

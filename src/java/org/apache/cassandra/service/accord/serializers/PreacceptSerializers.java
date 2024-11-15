@@ -83,7 +83,7 @@ public class PreacceptSerializers
             PreAcceptOk preAcceptOk = (PreAcceptOk) reply;
             CommandSerializers.txnId.serialize(preAcceptOk.txnId, out, version);
             CommandSerializers.timestamp.serialize(preAcceptOk.witnessedAt, out, version);
-            DepsSerializer.deps.serialize(preAcceptOk.deps, out, version);
+            DepsSerializers.deps.serialize(preAcceptOk.deps, out, version);
         }
 
         @Override
@@ -94,7 +94,7 @@ public class PreacceptSerializers
 
             return new PreAcceptOk(CommandSerializers.txnId.deserialize(in, version),
                                    CommandSerializers.timestamp.deserialize(in, version),
-                                   DepsSerializer.deps.deserialize(in, version));
+                                   DepsSerializers.deps.deserialize(in, version));
         }
 
         @Override
@@ -107,7 +107,7 @@ public class PreacceptSerializers
             PreAcceptOk preAcceptOk = (PreAcceptOk) reply;
             size += CommandSerializers.txnId.serializedSize(preAcceptOk.txnId, version);
             size += CommandSerializers.timestamp.serializedSize(preAcceptOk.witnessedAt, version);
-            size += DepsSerializer.deps.serializedSize(preAcceptOk.deps, version);
+            size += DepsSerializers.deps.serializedSize(preAcceptOk.deps, version);
 
             return size;
         }

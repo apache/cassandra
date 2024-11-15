@@ -31,7 +31,6 @@ import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.ColumnFamilyStore.RefViewFragment;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.EmptyIterators;
-import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.Slices;
 import org.apache.cassandra.db.StorageHook;
 import org.apache.cassandra.db.filter.ColumnFilter;
@@ -70,14 +69,19 @@ public class AccordJournalTable<K extends JournalKey, V>
     private final KeySupport<K> keySupport;
     private final int accordJournalVersion;
 
-    public AccordJournalTable(Journal<K, V> journal, KeySupport<K> keySupport, int accordJournalVersion)
+    public AccordJournalTable(Journal<K, V> journal, KeySupport<K> keySupport, ColumnFamilyStore cfs, int accordJournalVersion)
     {
         this.journal = journal;
-        this.cfs = Keyspace.open(AccordKeyspace.metadata().name).getColumnFamilyStore(AccordKeyspace.JOURNAL);
+        this.cfs = cfs;
         this.recordColumn = cfs.metadata().getColumn(ColumnIdentifier.getInterned("record", false));
         this.versionColumn = cfs.metadata().getColumn(ColumnIdentifier.getInterned("user_version", false));
         this.keySupport = keySupport;
         this.accordJournalVersion = accordJournalVersion;
+    }
+
+    public void forceCompaction()
+    {
+        cfs.forceMajorCompaction();
     }
 
     public interface Reader

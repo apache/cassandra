@@ -52,9 +52,9 @@ import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.service.accord.api.AccordAgent;
 import org.apache.cassandra.utils.AccordGenerators;
 
+import static accord.api.Journal.FieldUpdates;
 import static accord.local.CommandStores.RangesForEpoch;
 import static org.apache.cassandra.service.accord.AccordJournalValueSerializers.DurableBeforeAccumulator;
-import static org.apache.cassandra.service.accord.AccordJournalValueSerializers.RedundantBeforeAccumulator;
 
 
 public class AccordJournalCompactionTest
@@ -86,7 +86,7 @@ public class AccordJournalCompactionTest
         ColumnFamilyStore cfs = Keyspace.open(SchemaConstants.ACCORD_KEYSPACE_NAME).getColumnFamilyStore(AccordKeyspace.JOURNAL);
         cfs.disableAutoCompaction();
 
-        RedundantBeforeAccumulator redundantBeforeAccumulator = new RedundantBeforeAccumulator();
+        RedundantBefore redundantBeforeAccumulator = RedundantBefore.EMPTY;
         DurableBeforeAccumulator durableBeforeAccumulator = new DurableBeforeAccumulator();
         NavigableMap<Timestamp, Ranges> safeToReadAtAccumulator = ImmutableSortedMap.of(Timestamp.NONE, Ranges.EMPTY);
         NavigableMap<TxnId, Ranges> bootstrapBeganAtAccumulator = ImmutableSortedMap.of(TxnId.NONE, Ranges.EMPTY);
@@ -126,7 +126,7 @@ public class AccordJournalCompactionTest
             for (int i = 0; i <= count; i++)
             {
                 timestamp = timestamp.next();
-                AccordSafeCommandStore.FieldUpdates updates = new AccordSafeCommandStore.FieldUpdates();
+                FieldUpdates updates = new FieldUpdates();
                 DurableBefore addDurableBefore = durableBeforeGen.next(rs);
                 // TODO: improve redundant before generator and re-enable
 //                updates.addRedundantBefore = redundantBeforeGen.next(rs);
@@ -135,9 +135,9 @@ public class AccordJournalCompactionTest
                 updates.newRangesForEpoch = rangesForEpochGen.next(rs);
 
                 journal.durableBeforePersister().persist(addDurableBefore, null);
-                journal.persistStoreState(1, updates, null);
+                journal.saveStoreState(1, updates, null);
 
-                redundantBeforeAccumulator.update(updates.newRedundantBefore);
+                redundantBeforeAccumulator = updates.newRedundantBefore;
                 durableBeforeAccumulator.update(addDurableBefore);
                 if (updates.newBootstrapBeganAt != null)
                     bootstrapBeganAtAccumulator = updates.newBootstrapBeganAt;

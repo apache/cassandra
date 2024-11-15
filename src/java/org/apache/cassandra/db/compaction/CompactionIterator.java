@@ -244,7 +244,7 @@ public class CompactionIterator extends CompactionInfo.Holder implements Unfilte
         if (isAccordTimestampsForKey(cfs))
             return new AccordTimestampsForKeyPurger(accordService);
         if (isAccordJournal(cfs))
-            return new AccordJournalPurger(accordService);
+            return new AccordJournalPurger(accordService, cfs);
         if (isAccordCommandsForKey(cfs))
             return new AccordCommandsForKeyPurger(AccordKeyspace.CommandsForKeysAccessor, accordService);
 
@@ -1035,7 +1035,7 @@ public class CompactionIterator extends CompactionInfo.Holder implements Unfilte
         long lastDescriptor = -1;
         int lastOffset = -1;
 
-        public AccordJournalPurger(Supplier<IAccordService> serviceSupplier)
+        public AccordJournalPurger(Supplier<IAccordService> serviceSupplier, ColumnFamilyStore cfs)
         {
             service = (AccordService) serviceSupplier.get();
             // TODO: test serialization version logic
@@ -1046,7 +1046,6 @@ public class CompactionIterator extends CompactionInfo.Holder implements Unfilte
             this.redundantBefores = compactionInfo.redundantBefores;
             this.ranges = compactionInfo.ranges;
             this.durableBefores = compactionInfo.durableBefores;
-            ColumnFamilyStore cfs = Keyspace.open(AccordKeyspace.metadata().name).getColumnFamilyStore(AccordKeyspace.JOURNAL);
             this.recordColumn = cfs.metadata().getColumn(ColumnIdentifier.getInterned("record", false));
             this.versionColumn = cfs.metadata().getColumn(ColumnIdentifier.getInterned("user_version", false));
         }
@@ -1240,7 +1239,7 @@ public class CompactionIterator extends CompactionInfo.Holder implements Unfilte
 
     private static boolean isAccordJournal(ColumnFamilyStore cfs)
     {
-        return isAccordTable(cfs, AccordKeyspace.JOURNAL);
+        return cfs.getKeyspaceName().equals(SchemaConstants.ACCORD_KEYSPACE_NAME) && cfs.name.startsWith(AccordKeyspace.JOURNAL);
     }
 
     private static boolean isAccordCommands(ColumnFamilyStore cfs)

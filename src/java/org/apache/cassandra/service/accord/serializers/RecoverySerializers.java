@@ -96,8 +96,8 @@ public class RecoverySerializers
             CommandSerializers.ballot.serialize(recoverOk.accepted, out, version);
             CommandSerializers.nullableTimestamp.serialize(recoverOk.executeAt, out, version);
             latestDeps.serialize(recoverOk.deps, out, version);
-            DepsSerializer.deps.serialize(recoverOk.earlierCommittedWitness, out, version);
-            DepsSerializer.deps.serialize(recoverOk.earlierAcceptedNoWitness, out, version);
+            DepsSerializers.deps.serialize(recoverOk.earlierCommittedWitness, out, version);
+            DepsSerializers.deps.serialize(recoverOk.earlierAcceptedNoWitness, out, version);
             out.writeBoolean(recoverOk.acceptsFastPath);
             out.writeBoolean(recoverOk.rejectsFastPath);
             CommandSerializers.nullableWrites.serialize(recoverOk.writes, out, version);
@@ -135,15 +135,15 @@ public class RecoverySerializers
 
             Result result = null;
             if (status == Status.PreApplied || status == Status.Applied || status == Status.Truncated)
-                result = CommandSerializers.APPLIED;
+                result = ResultSerializers.APPLIED;
 
             return deserializeOk(id,
                                  status,
                                  CommandSerializers.ballot.deserialize(in, version),
                                  CommandSerializers.nullableTimestamp.deserialize(in, version),
                                  latestDeps.deserialize(in, version),
-                                 DepsSerializer.deps.deserialize(in, version),
-                                 DepsSerializer.deps.deserialize(in, version),
+                                 DepsSerializers.deps.deserialize(in, version),
+                                 DepsSerializers.deps.deserialize(in, version),
                                  in.readBoolean(),
                                  in.readBoolean(),
                                  CommandSerializers.nullableWrites.deserialize(in, version),
@@ -164,8 +164,8 @@ public class RecoverySerializers
             size += CommandSerializers.ballot.serializedSize(recoverOk.accepted, version);
             size += CommandSerializers.nullableTimestamp.serializedSize(recoverOk.executeAt, version);
             size += latestDeps.serializedSize(recoverOk.deps, version);
-            size += DepsSerializer.deps.serializedSize(recoverOk.earlierCommittedWitness, version);
-            size += DepsSerializer.deps.serializedSize(recoverOk.earlierAcceptedNoWitness, version);
+            size += DepsSerializers.deps.serializedSize(recoverOk.earlierCommittedWitness, version);
+            size += DepsSerializers.deps.serializedSize(recoverOk.earlierAcceptedNoWitness, version);
             size += TypeSizes.sizeof(recoverOk.acceptsFastPath);
             size += TypeSizes.sizeof(recoverOk.rejectsFastPath);
             size += CommandSerializers.nullableWrites.serializedSize(recoverOk.writes, version);
@@ -199,8 +199,8 @@ public class RecoverySerializers
                 {
                     CommandSerializers.nullableKnownDeps.serialize(e.known, out, version);
                     CommandSerializers.ballot.serialize(e.ballot, out, version);
-                    DepsSerializer.nullableDeps.serialize(e.coordinatedDeps, out, version);
-                    DepsSerializer.nullableDeps.serialize(e.localDeps, out, version);
+                    DepsSerializers.nullableDeps.serialize(e.coordinatedDeps, out, version);
+                    DepsSerializers.nullableDeps.serialize(e.localDeps, out, version);
                 }
             }
             KeySerializers.routingKey.serialize(t.startAt(t.size()), out, version);
@@ -220,8 +220,8 @@ public class RecoverySerializers
                     continue;
 
                 Ballot ballot = CommandSerializers.ballot.deserialize(in, version);
-                Deps coordinatedDeps = DepsSerializer.nullableDeps.deserialize(in, version);
-                Deps localDeps = DepsSerializer.nullableDeps.deserialize(in, version);
+                Deps coordinatedDeps = DepsSerializers.nullableDeps.deserialize(in, version);
+                Deps localDeps = DepsSerializers.nullableDeps.deserialize(in, version);
                 values[i] = new LatestDeps.LatestEntry(knownDeps, ballot, coordinatedDeps, localDeps);
             }
             starts[size] = KeySerializers.routingKey.deserialize(in, version);
@@ -247,8 +247,8 @@ public class RecoverySerializers
                 {
                     size += CommandSerializers.nullableKnownDeps.serializedSize(e.known, version);
                     size += CommandSerializers.ballot.serializedSize(e.ballot, version);
-                    size += DepsSerializer.nullableDeps.serializedSize(e.coordinatedDeps, version);
-                    size += DepsSerializer.nullableDeps.serializedSize(e.localDeps, version);
+                    size += DepsSerializers.nullableDeps.serializedSize(e.coordinatedDeps, version);
+                    size += DepsSerializers.nullableDeps.serializedSize(e.localDeps, version);
                 }
             }
             size += KeySerializers.routingKey.serializedSize(t.startAt(t.size()), version);

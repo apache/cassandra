@@ -809,8 +809,8 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         Gossiper.instance.addLocalApplicationState(ApplicationState.SSTABLE_VERSIONS,
                                                    valueFactory.sstableVersions(sstablesTracker.versionsInUse()));
 
-        if (ClusterMetadataService.state() == ClusterMetadataService.State.REMOTE)
-            Gossiper.instance.triggerRoundWithCMS();
+        Gossiper.instance.triggerRoundWithCMS();
+
         // Has to be called after the host id has potentially changed
         try
         {

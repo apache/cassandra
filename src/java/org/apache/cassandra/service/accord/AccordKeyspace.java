@@ -228,25 +228,28 @@ public class AccordKeyspace
         }
     }
 
-    public static final TableMetadata Journal =
-        parse(JOURNAL,
-              "accord journal",
-              "CREATE TABLE %s ("
-              + "store_id int,"
-              + "type tinyint,"
-              + "id blob,"
-              + "descriptor bigint,"
-              + "offset int,"
-              + "user_version int,"
-              + "record blob,"
-              + "PRIMARY KEY((store_id, type, id), descriptor, offset)"
-              + ") WITH CLUSTERING ORDER BY (descriptor DESC, offset DESC)" +
-              " WITH compression = {'class':'NoopCompressor'};")
-        .compaction(CompactionParams.lcs(emptyMap()))
-        .bloomFilterFpChance(0.01)
-        .partitioner(new LocalPartitioner(BytesType.instance))
-        .build();
+    public static TableMetadata journalMetadata(String tableName)
+    {
+        return parse(tableName,
+                     "accord journal",
+                     "CREATE TABLE %s ("
+                     + "store_id int,"
+                     + "type tinyint,"
+                     + "id blob,"
+                     + "descriptor bigint,"
+                     + "offset int,"
+                     + "user_version int,"
+                     + "record blob,"
+                     + "PRIMARY KEY((store_id, type, id), descriptor, offset)"
+                     + ") WITH CLUSTERING ORDER BY (descriptor DESC, offset DESC)" +
+                     " WITH compression = {'class':'NoopCompressor'};")
+               .compaction(CompactionParams.lcs(emptyMap()))
+               .bloomFilterFpChance(0.01)
+               .partitioner(new LocalPartitioner(BytesType.instance))
+               .build();
+    }
 
+    public static final TableMetadata Journal = journalMetadata(JOURNAL);
 
     // TODO: store timestamps as blobs (confirm there are no negative numbers, or offset)
     public static final TableMetadata Commands =
@@ -470,7 +473,7 @@ public class AccordKeyspace
         }
     }
 
-    private static final TableMetadata TimestampsForKeys =
+    public static final TableMetadata TimestampsForKeys =
         parse(TIMESTAMPS_FOR_KEY,
               "accord timestamps per key",
               "CREATE TABLE %s ("
@@ -596,7 +599,7 @@ public class AccordKeyspace
     }
 
     private static final LocalCompositePrefixPartitioner CFKPartitioner = new LocalCompositePrefixPartitioner(Int32Type.instance, UUIDType.instance, BytesType.instance);
-    private static final TableMetadata CommandsForKeys = commandsForKeysTable(COMMANDS_FOR_KEY);
+    public static final TableMetadata CommandsForKeys = commandsForKeysTable(COMMANDS_FOR_KEY);
 
     private static TableMetadata commandsForKeysTable(String tableName)
     {
@@ -723,7 +726,7 @@ public class AccordKeyspace
 
     public static final CommandsForKeyAccessor CommandsForKeysAccessor = new CommandsForKeyAccessor(CommandsForKeys);
 
-    private static final TableMetadata Topologies =
+    public static final TableMetadata Topologies =
         parse(TOPOLOGIES,
               "accord topologies",
               "CREATE TABLE %s (" +
@@ -735,7 +738,7 @@ public class AccordKeyspace
               "redundant map<blob, blob>" +
               ')').build();
 
-    private static final TableMetadata EpochMetadata =
+    public static final TableMetadata EpochMetadata =
         parse(EPOCH_METADATA,
               "global epoch info",
               "CREATE TABLE %s (" +
@@ -762,9 +765,10 @@ public class AccordKeyspace
         return KeyspaceMetadata.create(ACCORD_KEYSPACE_NAME, KeyspaceParams.local(), tables(), Views.none(), Types.none(), UserFunctions.none());
     }
 
+    public static Tables tables = Tables.of(Commands, TimestampsForKeys, CommandsForKeys, Topologies, EpochMetadata, Journal);
     public static Tables tables()
     {
-        return Tables.of(Commands, TimestampsForKeys, CommandsForKeys, Topologies, EpochMetadata, Journal);
+        return tables;
     }
 
     public static void truncateAllCaches()

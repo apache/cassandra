@@ -31,7 +31,7 @@ import org.apache.cassandra.io.util.DataOutputPlus;
 
 public class SetDurableSerializers
 {
-    public static final IVersionedSerializer<SetShardDurable> shardDurable = new IVersionedSerializer<SetShardDurable>()
+    public static final IVersionedSerializer<SetShardDurable> shardDurable = new IVersionedSerializer<>()
     {
         @Override
         public void serialize(SetShardDurable msg, DataOutputPlus out, int version) throws IOException
@@ -52,7 +52,7 @@ public class SetDurableSerializers
         }
     };
 
-    public static final IVersionedSerializer<SetGloballyDurable> globallyDurable = new IVersionedSerializer<SetGloballyDurable>()
+    public static final IVersionedSerializer<SetGloballyDurable> globallyDurable = new IVersionedSerializer<>()
     {
         @Override
         public void serialize(SetGloballyDurable msg, DataOutputPlus out, int version) throws IOException
@@ -73,13 +73,13 @@ public class SetDurableSerializers
         }
     };
 
-    public static final IVersionedSerializer<SyncPoint> syncPoint = new IVersionedSerializer<SyncPoint>()
+    public static final IVersionedSerializer<SyncPoint> syncPoint = new IVersionedSerializer<>()
     {
         @Override
         public void serialize(SyncPoint sp, DataOutputPlus out, int version) throws IOException
         {
             CommandSerializers.txnId.serialize(sp.syncId, out, version);
-            DepsSerializer.deps.serialize(sp.waitFor, out, version);
+            DepsSerializers.deps.serialize(sp.waitFor, out, version);
             KeySerializers.fullRoute.serialize(sp.route, out, version);
         }
 
@@ -87,7 +87,7 @@ public class SetDurableSerializers
         public SyncPoint deserialize(DataInputPlus in, int version) throws IOException
         {
             TxnId syncId = CommandSerializers.txnId.deserialize(in, version);
-            Deps waitFor = DepsSerializer.deps.deserialize(in, version);
+            Deps waitFor = DepsSerializers.deps.deserialize(in, version);
             FullRoute<?> route = KeySerializers.fullRoute.deserialize(in, version);
             return SyncPoint.SerializationSupport.construct(syncId, waitFor, route);
         }
@@ -96,7 +96,7 @@ public class SetDurableSerializers
         public long serializedSize(SyncPoint sp, int version)
         {
             return CommandSerializers.txnId.serializedSize(sp.syncId, version)
-                   + DepsSerializer.deps.serializedSize(sp.waitFor, version)
+                   + DepsSerializers.deps.serializedSize(sp.waitFor, version)
                    + KeySerializers.fullRoute.serializedSize(sp.route, version);
         }
     };

@@ -97,8 +97,11 @@ public class Journal<K, V> implements Shutdownable
     final ValueSerializer<K, V> valueSerializer;
 
     final Metrics<K, V> metrics;
+
     final Flusher<K, V> flusher;
     final Compactor<K, V> compactor;
+    Interruptible allocator;
+    SequentialExecutorPlus closer, releaser;
 
     volatile long replayLimit;
     final AtomicLong nextSegmentId = new AtomicLong();
@@ -112,15 +115,14 @@ public class Journal<K, V> implements Shutdownable
 
     final AtomicReference<State> state = new AtomicReference<>(State.UNINITIALIZED);
 
-    Interruptible allocator;
     // TODO (required): we do not need wait queues here, we can just wait on a signal on a segment while its byte buffer is being allocated
     private final WaitQueue segmentPrepared = newWaitQueue();
     private final WaitQueue allocatorThreadWaitQueue = newWaitQueue();
     private final BooleanSupplier allocatorThreadWaitCondition = () -> (availableSegment == null);
-    private final FlusherCallbacks flusherCallbacks;
-    final OpOrder readOrder = new OpOrder();
 
-    SequentialExecutorPlus closer, releaser;
+    private final FlusherCallbacks flusherCallbacks;
+
+    final OpOrder readOrder = new OpOrder();
 
     private class FlusherCallbacks implements Flusher.Callbacks
     {

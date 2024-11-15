@@ -26,6 +26,7 @@ import org.junit.Assert;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
+import accord.api.Journal;
 import accord.local.Command;
 import accord.local.CommonAttributes;
 import accord.primitives.Ballot;
@@ -47,7 +48,6 @@ import org.apache.cassandra.service.consensus.TransactionalMode;
 import org.apache.cassandra.utils.StorageCompatibilityMode;
 
 import static org.apache.cassandra.cql3.statements.schema.CreateTableStatement.parse;
-import static org.apache.cassandra.service.accord.SavedCommand.getFlags;
 
 public class AccordJournalOrderTest
 {
@@ -81,9 +81,9 @@ public class AccordJournalOrderTest
             JournalKey key = new JournalKey(txnId, JournalKey.Type.COMMAND_DIFF, randomSource.nextInt(5));
             res.compute(key, (k, prev) -> prev == null ? 1 : prev + 1);
             Command command = Command.NotDefined.notDefined(new CommonAttributes.Mutable(txnId), Ballot.ZERO);
-            accordJournal.appendCommand(key.commandStoreId,
-                                        new SavedCommand.Writer(command, getFlags(null, command)),
-                                        () -> {});
+            accordJournal.saveCommand(key.commandStoreId,
+                                      new Journal.CommandUpdate(null, command),
+                                      () -> {});
         }
 
         Runnable check = () -> {

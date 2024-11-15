@@ -59,14 +59,14 @@ public class GetEphmrlReadDepsSerializers
         @Override
         public void serialize(GetEphemeralReadDepsOk reply, DataOutputPlus out, int version) throws IOException
         {
-            DepsSerializer.deps.serialize(reply.deps, out, version);
+            DepsSerializers.deps.serialize(reply.deps, out, version);
             out.writeUnsignedVInt(reply.latestEpoch);
         }
 
         @Override
         public GetEphemeralReadDepsOk deserialize(DataInputPlus in, int version) throws IOException
         {
-            Deps deps = DepsSerializer.deps.deserialize(in, version);
+            Deps deps = DepsSerializers.deps.deserialize(in, version);
             long latestEpoch = in.readUnsignedVInt();
             return new GetEphemeralReadDepsOk(deps, latestEpoch);
         }
@@ -74,7 +74,7 @@ public class GetEphmrlReadDepsSerializers
         @Override
         public long serializedSize(GetEphemeralReadDepsOk reply, int version)
         {
-            return DepsSerializer.deps.serializedSize(reply.deps, version)
+            return DepsSerializers.deps.serializedSize(reply.deps, version)
                    + TypeSizes.sizeofUnsignedVInt(reply.latestEpoch);
         }
     };

@@ -45,7 +45,7 @@ public class AcceptSerializers
         {
             CommandSerializers.ballot.serialize(accept.ballot, out, version);
             CommandSerializers.timestamp.serialize(accept.executeAt, out, version);
-            DepsSerializer.partialDeps.serialize(accept.partialDeps, out, version);
+            DepsSerializers.partialDeps.serialize(accept.partialDeps, out, version);
         }
 
         @Override
@@ -54,7 +54,7 @@ public class AcceptSerializers
             return create(txnId, scope, waitForEpoch, minEpoch,
                           CommandSerializers.ballot.deserialize(in, version),
                           CommandSerializers.timestamp.deserialize(in, version),
-                          DepsSerializer.partialDeps.deserialize(in, version));
+                          DepsSerializers.partialDeps.deserialize(in, version));
         }
 
         @Override
@@ -62,7 +62,7 @@ public class AcceptSerializers
         {
             return CommandSerializers.ballot.serializedSize(accept.ballot, version)
                    + CommandSerializers.timestamp.serializedSize(accept.executeAt, version)
-                   + DepsSerializer.partialDeps.serializedSize(accept.partialDeps, version);
+                   + DepsSerializers.partialDeps.serializedSize(accept.partialDeps, version);
         }
     };
 
@@ -93,7 +93,7 @@ public class AcceptSerializers
         }
     };
 
-    public static final IVersionedSerializer<AcceptReply> reply = new IVersionedSerializer<AcceptReply>()
+    public static final IVersionedSerializer<AcceptReply> reply = new IVersionedSerializer<>()
     {
         @Override
         public void serialize(AcceptReply reply, DataOutputPlus out, int version) throws IOException
@@ -105,7 +105,7 @@ public class AcceptSerializers
                     if (reply.deps != null)
                     {
                         out.writeByte(1);
-                        DepsSerializer.deps.serialize(reply.deps, out, version);
+                        DepsSerializers.deps.serialize(reply.deps, out, version);
                     }
                     else
                     {
@@ -138,7 +138,7 @@ public class AcceptSerializers
             {
                 default: throw new IllegalStateException("Unexpected AcceptNack type: " + (flags & 0x7));
                 case 1:
-                    return new AcceptReply(DepsSerializer.deps.deserialize(in, version));
+                    return new AcceptReply(DepsSerializers.deps.deserialize(in, version));
                 case 2:
                     return AcceptReply.ACCEPT_INVALIDATE;
                 case 3:
@@ -161,7 +161,7 @@ public class AcceptSerializers
                 default: throw new AssertionError();
                 case Success:
                     if (reply.deps != null)
-                        size += DepsSerializer.deps.serializedSize(reply.deps, version);
+                        size += DepsSerializers.deps.serializedSize(reply.deps, version);
                     break;
                 case Truncated:
                     break;

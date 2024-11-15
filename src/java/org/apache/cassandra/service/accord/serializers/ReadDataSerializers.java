@@ -84,7 +84,7 @@ public class ReadDataSerializers
             CommandSerializers.timestamp.serialize(msg.executeAt, out, version);
             KeySerializers.fullRoute.serialize(msg.route, out, version);
             CommandSerializers.partialTxn.serialize(msg.txn, out, version);
-            DepsSerializer.partialDeps.serialize(msg.deps, out, version);
+            DepsSerializers.partialDeps.serialize(msg.deps, out, version);
             CommandSerializers.writes.serialize(msg.writes, out, version);
         }
 
@@ -98,9 +98,9 @@ public class ReadDataSerializers
             CommandSerializers.timestamp.deserialize(in, version),
             KeySerializers.fullRoute.deserialize(in, version),
             CommandSerializers.partialTxn.deserialize(in, version),
-            DepsSerializer.partialDeps.deserialize(in, version),
+            DepsSerializers.partialDeps.deserialize(in, version),
             CommandSerializers.writes.deserialize(in, version),
-            CommandSerializers.APPLIED);
+            ResultSerializers.APPLIED);
          }
 
         @Override
@@ -112,7 +112,7 @@ public class ReadDataSerializers
                    + CommandSerializers.timestamp.serializedSize(msg.executeAt, version)
                    + KeySerializers.fullRoute.serializedSize(msg.route, version)
                    + CommandSerializers.partialTxn.serializedSize(msg.txn, version)
-                   + DepsSerializer.partialDeps.serializedSize(msg.deps, version)
+                   + DepsSerializers.partialDeps.serializedSize(msg.deps, version)
                    + CommandSerializers.writes.serializedSize(msg.writes, version);
         }
     }
@@ -154,7 +154,7 @@ public class ReadDataSerializers
             KeySerializers.participants.serialize(read.readScope, out, version);
             out.writeUnsignedVInt(read.executeAtEpoch);
             CommandSerializers.partialTxn.serialize(read.partialTxn(), out, version);
-            DepsSerializer.partialDeps.serialize(read.partialDeps(), out, version);
+            DepsSerializers.partialDeps.serialize(read.partialDeps(), out, version);
             KeySerializers.fullRoute.serialize(read.route(), out, version);
         }
 
@@ -165,7 +165,7 @@ public class ReadDataSerializers
             Participants<?> readScope = KeySerializers.participants.deserialize(in, version);
             long executeAtEpoch = in.readUnsignedVInt();
             PartialTxn partialTxn = CommandSerializers.partialTxn.deserialize(in, version);
-            PartialDeps partialDeps = DepsSerializer.partialDeps.deserialize(in, version);
+            PartialDeps partialDeps = DepsSerializers.partialDeps.deserialize(in, version);
             FullRoute<?> route = KeySerializers.fullRoute.deserialize(in, version);
             return ReadEphemeralTxnData.SerializerSupport.create(txnId, readScope, executeAtEpoch, partialTxn, partialDeps, route);
         }
@@ -177,7 +177,7 @@ public class ReadDataSerializers
                    + KeySerializers.participants.serializedSize(read.readScope, version)
                    + TypeSizes.sizeofUnsignedVInt(read.executeAtEpoch)
                    + CommandSerializers.partialTxn.serializedSize(read.partialTxn(), version)
-                   + DepsSerializer.partialDeps.serializedSize(read.partialDeps(), version)
+                   + DepsSerializers.partialDeps.serializedSize(read.partialDeps(), version)
                    + KeySerializers.fullRoute.serializedSize(read.route(), version);
         }
     };

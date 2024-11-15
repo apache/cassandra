@@ -129,27 +129,13 @@ public class AccordJournalValueSerializers
         }
     }
 
-    public static class RedundantBeforeAccumulator extends Accumulator<RedundantBefore, RedundantBefore>
-    {
-        public RedundantBeforeAccumulator()
-        {
-            super(RedundantBefore.EMPTY);
-        }
-
-        @Override
-        protected RedundantBefore accumulate(RedundantBefore oldValue, RedundantBefore newValue)
-        {
-            return RedundantBefore.merge(oldValue, newValue);
-        }
-    }
-
     public static class RedundantBeforeSerializer
-    implements FlyweightSerializer<RedundantBefore, RedundantBeforeAccumulator>
+    implements FlyweightSerializer<RedundantBefore, IdentityAccumulator<RedundantBefore>>
     {
         @Override
-        public RedundantBeforeAccumulator mergerFor(JournalKey journalKey)
+        public IdentityAccumulator<RedundantBefore> mergerFor(JournalKey journalKey)
         {
-            return new RedundantBeforeAccumulator();
+            return new IdentityAccumulator<>(RedundantBefore.EMPTY);
         }
 
         @Override
@@ -172,13 +158,13 @@ public class AccordJournalValueSerializers
         }
 
         @Override
-        public void reserialize(JournalKey key, RedundantBeforeAccumulator from, DataOutputPlus out, int userVersion) throws IOException
+        public void reserialize(JournalKey key, IdentityAccumulator<RedundantBefore> from, DataOutputPlus out, int userVersion) throws IOException
         {
             serialize(key, from.get(), out, userVersion);
         }
 
         @Override
-        public void deserialize(JournalKey journalKey, RedundantBeforeAccumulator into, DataInputPlus in, int userVersion) throws IOException
+        public void deserialize(JournalKey journalKey, IdentityAccumulator<RedundantBefore> into, DataInputPlus in, int userVersion) throws IOException
         {
             if (in.readInt() == 0)
             {

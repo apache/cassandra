@@ -34,10 +34,9 @@ import accord.api.Result;
 import accord.impl.TimestampsForKey;
 import accord.impl.TimestampsForKeys;
 import accord.local.Command;
+import accord.local.CommonAttributes;
 import accord.local.StoreParticipants;
 import accord.local.cfk.CommandsForKey;
-import accord.local.CommonAttributes;
-import accord.primitives.SaveStatus;
 import accord.primitives.Ballot;
 import accord.primitives.PartialDeps;
 import accord.primitives.PartialTxn;
@@ -46,6 +45,7 @@ import accord.primitives.Ranges;
 import accord.primitives.Routable;
 import accord.primitives.Route;
 import accord.primitives.RoutingKeys;
+import accord.primitives.SaveStatus;
 import accord.primitives.Timestamp;
 import accord.primitives.Txn;
 import accord.primitives.TxnId;
@@ -64,7 +64,7 @@ import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.service.accord.api.AccordRoutingKey.TokenKey;
 import org.apache.cassandra.service.accord.api.PartitionKey;
-import org.apache.cassandra.service.accord.serializers.CommandSerializers;
+import org.apache.cassandra.service.accord.serializers.ResultSerializers;
 import org.apache.cassandra.service.consensus.TransactionalMode;
 import org.apache.cassandra.utils.Pair;
 
@@ -140,7 +140,7 @@ public class AccordCommandStoreTest
         Pair<Writes, Result> result = AccordTestUtils.processTxnResult(commandStore, txnId, txn, executeAt);
 
         Command expected = Command.SerializerSupport.executed(attrs, SaveStatus.Applied, executeAt, promised, accepted,
-                                                              waitingOn, result.left, CommandSerializers.APPLIED);
+                                                              waitingOn, result.left, ResultSerializers.APPLIED);
         AccordSafeCommand safeCommand = new AccordSafeCommand(loaded(txnId, null));
         safeCommand.set(expected);
 
@@ -159,8 +159,6 @@ public class AccordCommandStoreTest
     {
         AtomicLong clock = new AtomicLong(0);
         AccordCommandStore commandStore = createAccordCommandStore(clock::incrementAndGet, "ks", "tbl");
-//        SafeCommandStore safeStore =
-        Timestamp maxTimestamp = timestamp(1, clock.incrementAndGet(), 1);
 
         PartialTxn txn = createPartialTxn(1);
         TokenKey key = ((PartitionKey) getOnlyElement(txn.keys())).toUnseekable();
