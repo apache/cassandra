@@ -87,6 +87,11 @@ New features
     - New Guardrails added:
       - Whether bulk loading of SSTables is allowed.
 
+    - Changed default on resumable bootstrap to be disabled. Resumable bootstrap has edge cases with potential correctness
+          violations or data loss scenarios if nodes go down during bootstrap, tombstones are written, and operations race with
+          repair. As streaming is considerably faster in the 4.0+ era (as well as with zero copy streaming), the risks of
+          having these edge cases during a failed and resumed bootstrap are no longer deemed acceptable.
+          To re-enable this feature, use the -Dcassandra.reset_bootstrap_progress=false environment flag.
 Upgrading
 ---------
     - Please beware that if you use Ec2Snitch or Ec2MultiRegionSnitch, by default it will 

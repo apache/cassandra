@@ -175,6 +175,7 @@ Merged from 3.0:
  * Fix CQLSH online help topic link (CASSANDRA-17534)
  * Remove unused suppressions (CASSANDRA-18724)
 Unreleased
+ * Disable resumable bootstrap by default (CASSANDRA-17679)
  * [SO-36731] add a nodetool command to get natural endpoints for all token ranges
  * [SO-36789] Implement streaming count-down latch for committing SSTables
  * [SO-37198] Feature flag to switch on new behavior for building interval tree & tests to verify the trees are identical

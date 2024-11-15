@@ -1696,10 +1696,16 @@ public final class SystemKeyspace
         }
     }
 
-    public static void resetAvailableRanges()
+    public static void resetAvailableStreamedRanges()
     {
         ColumnFamilyStore availableRanges = Keyspace.open(SchemaConstants.SYSTEM_KEYSPACE_NAME).getColumnFamilyStore(AVAILABLE_RANGES_V2);
         availableRanges.truncateBlockingWithoutSnapshot();
+    }
+
+    public static void resetAvailableStreamedRangesForKeyspace(String keyspace)
+    {
+        String cql = "DELETE FROM %s.%s WHERE keyspace_name = ?";
+        executeInternal(format(cql, SchemaConstants.SYSTEM_KEYSPACE_NAME, AVAILABLE_RANGES_V2), keyspace);
     }
 
     public static synchronized void updateTransferredRanges(StreamOperation streamOperation,
@@ -1811,7 +1817,8 @@ public final class SystemKeyspace
         return rawRanges.stream().map(buf -> byteBufferToRange(buf, partitioner)).collect(Collectors.toSet());
     }
 
-    static ByteBuffer rangeToBytes(Range<Token> range)
+    @VisibleForTesting
+    public static ByteBuffer rangeToBytes(Range<Token> range)
     {
         try (DataOutputBuffer out = new DataOutputBuffer())
         {
