@@ -55,7 +55,7 @@ import static org.apache.cassandra.streaming.messages.StreamMessage.Type.STREAM_
 public class StreamingTest extends TestBaseImpl
 {
 
-    private void testStreaming(int nodes, int replicationFactor, int rowCount, String compactionStrategy) throws Throwable
+    private void testStreaming(int nodes, int replicationFactor, int rowCount, String compactionStrategy, boolean refetchData) throws Throwable
     {
         try (Cluster cluster = builder().withNodes(nodes)
                                         .withDataDirCount(1) // this test expects there to only be a single sstable to stream (with ddirs = 3, we get 3 sstables)
@@ -70,7 +70,11 @@ public class StreamingTest extends TestBaseImpl
                     cluster.get(n).executeInternal(String.format("INSERT INTO %s.cf (k, c1, c2) VALUES (?, 'value1', 'value2');", KEYSPACE), Integer.toString(i));
             }
 
-            cluster.get(nodes).executeInternal("TRUNCATE system.available_ranges;");
+            if (!refetchData)
+            {
+                cluster.get(nodes).executeInternal("TRUNCATE system.available_ranges;");
+                cluster.get(nodes).executeInternal("TRUNCATE system.available_ranges_v2;");
+            }
             {
                 Object[][] results = cluster.get(nodes).executeInternal(String.format("SELECT k, c1, c2 FROM %s.cf;", KEYSPACE));
                 Assert.assertEquals(0, results.length);
@@ -79,7 +83,7 @@ public class StreamingTest extends TestBaseImpl
             // collect message and state
             registerSink(cluster, nodes);
 
-            cluster.get(nodes).runOnInstance(() -> StorageService.instance.rebuild(null, KEYSPACE, null, null));
+            cluster.get(nodes).runOnInstance(() -> StorageService.instance.rebuild(null, KEYSPACE, null, null, refetchData));
             {
                 Object[][] results = cluster.get(nodes).executeInternal(String.format("SELECT k, c1, c2 FROM %s.cf;", KEYSPACE));
                 Assert.assertEquals(1000, results.length);
@@ -95,9 +99,15 @@ public class StreamingTest extends TestBaseImpl
     }
 
     @Test
-    public void test() throws Throwable
+    public void testRebuild() throws Throwable
     {
-        testStreaming(2, 2, 1000, "LeveledCompactionStrategy");
+        testStreaming(2, 2, 1000, "LeveledCompactionStrategy", false);
+    }
+
+    @Test
+    public void testRebuildRefetchData() throws Throwable
+    {
+        testStreaming(2, 2, 1000, "LeveledCompactionStrategy", true);
     }
 
     public static void registerSink(Cluster cluster, int initiatorNodeId)

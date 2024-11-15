@@ -2824,6 +2824,7 @@ org.apache.cassandra.db:type=StorageService:
     - {name: p2, type: java.lang.String}
     - {name: p3, type: java.lang.String}
     - {name: p4, type: java.lang.String}
+    - {name: p5, type: boolean}
     returnType: void
   - name: rebuildSecondaryIndex
     parameters:

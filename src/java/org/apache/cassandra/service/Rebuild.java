@@ -35,6 +35,7 @@ import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.Keyspace;
+import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.RangeStreamer;
 import org.apache.cassandra.dht.Token;
@@ -65,7 +66,7 @@ public class Rebuild
         isRebuilding.set(false);
     }
 
-    public static void rebuild(String sourceDc, String keyspace, String tokens, String specificSources, boolean excludeLocalDatacenterNodes)
+    public static void rebuild(String sourceDc, String keyspace, String tokens, String specificSources, boolean excludeLocalDatacenterNodes, boolean refetchData)
     {
         // check ongoing rebuild
         if (!isRebuilding.compareAndSet(false, true))
@@ -83,6 +84,13 @@ public class Rebuild
                 throw new IllegalArgumentException(String.format("Provided datacenter '%s' is not a valid datacenter, available datacenters are: %s",
                                                                  sourceDc, String.join(",", availableDCs)));
             }
+        }
+
+        // if refetchData is set to true, truncate local available_ranges_v2 table so the node will fetch all data
+        // from remote sources
+        if (refetchData)
+        {
+            SystemKeyspace.resetAvailableStreamedRanges();
         }
 
         try

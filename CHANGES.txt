@@ -1,4 +1,5 @@
 5.1
+ * Nodetool rebuild should have option to truncate available ranges table (CASSANDRA-?????)
  * Add post-filtering support for the IN operator in SAI queries (CASSANDRA-20025)
  * Don’t finish ongoing decommission and move operations during startup (CASSANDRA-20040)
  * Nodetool reconfigure cms has correct return code when streaming fails (CASSANDRA-19972)

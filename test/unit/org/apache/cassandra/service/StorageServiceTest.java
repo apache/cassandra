@@ -291,7 +291,7 @@ public class StorageServiceTest extends TestBaseImpl
 
         try
         {
-            StorageService.instance.rebuild(nonExistentDC, "StorageServiceTest", null, null, true);
+            StorageService.instance.rebuild(nonExistentDC, "StorageServiceTest", null, null, true, false);
             fail();
         }
         catch (IllegalArgumentException ex)
@@ -308,7 +308,7 @@ public class StorageServiceTest extends TestBaseImpl
     {
         try
         {
-            StorageService.instance.rebuild("datacenter1", null, "123", null);
+            StorageService.instance.rebuild("datacenter1", null, "123", null, false);
             fail();
         }
         catch (IllegalArgumentException ex)

@@ -864,8 +864,10 @@ public interface StorageServiceMBean extends NotificationEmitter
      *               "(start_token_1,end_token_1],(start_token_2,end_token_2],...(start_token_n,end_token_n]"
      * @param specificSources list of sources that can be used for rebuilding. Must be other nodes in the cluster.
      *                        The format of the string is comma separated values.
+     * @param refetchData When set to true, will first truncate local available_ranges_v2 table so the node
+     *                    will fetch all data from remote sources.
      */
-    public void rebuild(String sourceDc, String keyspace, String tokens, String specificSources);
+    public void rebuild(String sourceDc, String keyspace, String tokens, String specificSources, boolean refetchData);
 
     /**
     * Same as {@link #rebuild(String)}, but only for specified keyspace and ranges. It excludes local data center nodes
@@ -876,8 +878,10 @@ public interface StorageServiceMBean extends NotificationEmitter
     *               "(start_token_1,end_token_1],(start_token_2,end_token_2],...(start_token_n,end_token_n]"
     * @param specificSources list of sources that can be used for rebuilding. Mostly other nodes in the cluster.
     * @param excludeLocalDatacenterNodes Flag to indicate whether local data center nodes should be excluded as sources for streaming.
+    * @param refetchData When set to true, will first truncate local available_ranges_v2 table so the node
+    *                    will fetch all data from remote sources.
     */
-    public void rebuild(String sourceDc, String keyspace, String tokens, String specificSources, boolean excludeLocalDatacenterNodes);
+    public void rebuild(String sourceDc, String keyspace, String tokens, String specificSources, boolean excludeLocalDatacenterNodes, boolean refetchData);
 
     /** Starts a bulk load and blocks until it completes. */
     public void bulkLoad(String directory);
