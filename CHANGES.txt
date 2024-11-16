@@ -175,6 +175,7 @@ Merged from 3.0:
  * Fix CQLSH online help topic link (CASSANDRA-17534)
  * Remove unused suppressions (CASSANDRA-18724)
 Unreleased
+4.1.3.15
  * [SO-37329] Truncate all data if reset bootstrap progress is set to true
  * Disable resumable bootstrap by default (CASSANDRA-17679)
  * [SO-36731] add a nodetool command to get natural endpoints for all token ranges
