@@ -579,11 +579,6 @@ public class DatabaseDescriptor
             conf.native_transport_max_request_data_in_flight_per_ip = new DataStorageSpec.LongBytesBound(Runtime.getRuntime().maxMemory() / 40);
         }
 
-        if (conf.native_transport_max_message_size == null)
-        {
-            conf.native_transport_max_message_size = conf.native_transport_max_request_data_in_flight_per_ip;
-        }
-
         if (conf.native_transport_rate_limiting_enabled)
             logger.info("Native transport rate-limiting enabled at {} requests/second.", conf.native_transport_max_requests_per_second);
         else
@@ -826,6 +821,25 @@ public class DatabaseDescriptor
             conf.max_mutation_size = new DataStorageSpec.IntKibibytesBound(conf.commitlog_segment_size.toKibibytes() / 2);
         else if (conf.commitlog_segment_size.toKibibytes() < 2 * conf.max_mutation_size.toKibibytes())
             throw new ConfigurationException("commitlog_segment_size must be at least twice the size of max_mutation_size / 1024", false);
+
+        if (conf.native_transport_max_message_size == null)
+        {
+            conf.native_transport_max_message_size = new DataStorageSpec.LongBytesBound(
+            Math.min(conf.max_mutation_size.toBytes(),
+                     Math.min(
+                        conf.native_transport_max_request_data_in_flight.toBytes(),
+                        conf.native_transport_max_request_data_in_flight_per_ip.toBytes()
+                     )
+            ));
+        } else {
+            long maxCqlMessageSize = conf.native_transport_max_message_size.toBytes();
+            if (maxCqlMessageSize > conf.native_transport_max_request_data_in_flight.toBytes())
+                throw new ConfigurationException("native_transport_max_message_size must no exceed native_transport_max_request_data_in_flight", false);
+
+            if (maxCqlMessageSize > conf.native_transport_max_request_data_in_flight_per_ip.toBytes())
+                throw new ConfigurationException("native_transport_max_message_size must no exceed native_transport_max_request_data_in_flight_per_ip", false);
+
+        }
 
         // native transport encryption options
         if (conf.client_encryption_options != null)

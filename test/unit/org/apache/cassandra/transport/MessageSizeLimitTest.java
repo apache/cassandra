@@ -19,6 +19,9 @@
 package org.apache.cassandra.transport;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import org.junit.After;
 import org.junit.Assert;
@@ -26,22 +29,21 @@ import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
-import org.apache.cassandra.Util;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.cql3.QueryOptions;
 import org.apache.cassandra.cql3.QueryProcessor;
+import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.net.FrameEncoder;
 import org.apache.cassandra.transport.messages.QueryMessage;
 
 public class MessageSizeLimitTest extends CQLTester
 {
-    // set MAX_CQL_MESSAGE_SIZE less than a frame size to be able to test both decoding options on a server side:
-    // - org.apache.cassandra.transport.CQLMessageHandler.processOneContainedMessage
-    // - org.apache.cassandra.transport.CQLMessageHandler.processFirstFrameOfLargeMessage
-    private static final int MAX_CQL_MESSAGE_SIZE = FrameEncoder.Payload.MAX_SIZE - 1000;
-    private static final int TOO_BIG_SINGLE_FRAME_MESSAGE_SIZE = FrameEncoder.Payload.MAX_SIZE - 500;
-    private static final int TOO_BIG_MULTI_FRAME_MESSAGE_SIZE = 2 * FrameEncoder.Payload.MAX_SIZE;
+    private static final int MAX_CQL_MESSAGE_SIZE = FrameEncoder.Payload.MAX_SIZE * 3;
+    private static final int TOO_BIG_MESSAGE_SIZE = MAX_CQL_MESSAGE_SIZE * 2;
+
+    private static final int NORMAL_MESSAGE_SIZE = MAX_CQL_MESSAGE_SIZE - 500;
+
 
 
     private static final QueryOptions V5_DEFAULT_OPTIONS =
@@ -104,62 +106,95 @@ public class MessageSizeLimitTest extends CQLTester
     }
 
     @Test
-    public void sendMessageWithSizeMoreThanMaxMessageSizeAndLessThanFrameSize()
+    public void sendMessageWithSizeMoreThanMaxMessageSize()
     {
-        sendTooBigMessage(TOO_BIG_SINGLE_FRAME_MESSAGE_SIZE);
-    }
-
-    @Test
-    public void sendMessageWithSizeMoreThanMaxMessageSizeAndMoreThanFrameSize()
-    {
-        sendTooBigMessage(TOO_BIG_MULTI_FRAME_MESSAGE_SIZE);
-    }
-
-    private void sendTooBigMessage(int valueSize)
-    {
-        doTest((client) ->
+        runClientLogic((client) ->
                {
-                   QueryMessage queryMessage = createQueryMessage(valueSize);
                    try
                    {
-                       client.execute(queryMessage);
+                       QueryMessage tooBigQueryMessage = createQueryMessage(TOO_BIG_MESSAGE_SIZE);
+                       client.execute(tooBigQueryMessage);
                    } catch (RuntimeException e) {
-                       // ProtocolException: CQL Message of size 120070 bytes exceeds allowed maximum of 60000 bytes
-                       Assert.assertTrue(e.getCause() instanceof ProtocolException);
+                       // InvalidRequestException: CQL Message of size 524362 bytes exceeds allowed maximum of 262144 bytes
+                       Assert.assertTrue(e.getCause() instanceof InvalidRequestException);
                    }
-                   Util.spinAssertEquals(false, () -> client.connection.channel().isOpen(), 10);
+
+                   // we send one more message to check that the server continues to process new messages in the opened connection
+                   QueryMessage queryMessage = createQueryMessage(NORMAL_MESSAGE_SIZE);
+                   client.execute(queryMessage);
 
                }
         );
+    }
+
+    @Test(timeout = 30_000)
+    public void checkThatThereIsNoStarvationForMultiFrameMessages() throws InterruptedException
+    {
+        runClientLogic((client) -> {}, true); // to create table
+        AtomicInteger completedSuccessfully = new AtomicInteger(0);
+        int threadsCount = 2;
+        List<Thread> threads = new ArrayList<>();
+        for (int i = 0; i < threadsCount; i++)
+        {
+            threads.add(new Thread(() -> runClientLogic((client) -> {
+                    sendMessages(client, 100, NORMAL_MESSAGE_SIZE);
+                    completedSuccessfully.incrementAndGet();
+                }, false))
+            );
+        }
+        for (Thread thread : threads)
+            thread.start();
+
+        for (Thread thread : threads)
+            thread.join();
+
+        Assert.assertEquals("not all messages were sent successfully by all threads",
+                            threadsCount, completedSuccessfully.get());
+    }
+
+    private void sendMessages(SimpleClient client, int messagesCount, int messageSize)
+    {
+        for (int i = 0; i < messagesCount; i++)
+        {
+            QueryMessage queryMessage1 = createQueryMessage(messageSize);
+            client.execute(queryMessage1);
+        }
     }
 
     @Test
     public void sendMessageWithSizeBelowLimit()
     {
-        doTest((client) ->
+        runClientLogic((client) ->
                {
-                   int valueLessThanMessageMaxSize = MAX_CQL_MESSAGE_SIZE - 500;
-                   QueryMessage queryMessage = createQueryMessage(valueLessThanMessageMaxSize);
+                   QueryMessage queryMessage = createQueryMessage(NORMAL_MESSAGE_SIZE);
                    client.execute(queryMessage);
 
                    // run one more time, to validate that the connection is still alive
-                   queryMessage = createQueryMessage(valueLessThanMessageMaxSize);
+                   queryMessage = createQueryMessage(NORMAL_MESSAGE_SIZE);
                    client.execute(queryMessage);
                }
         );
     }
 
-    private void doTest(TestLogic testLogic)
+    private void runClientLogic(ClientLogic clientLogic)
+    {
+        runClientLogic(clientLogic, true);
+    }
+
+    private void runClientLogic(ClientLogic clientLogic, boolean createTable)
     {
         try (SimpleClient client = client())
         {
-            QueryMessage queryMessage = new QueryMessage("CREATE TABLE test_table (pk int PRIMARY KEY, v text)",
-                                                         V5_DEFAULT_OPTIONS);
-            client.execute(queryMessage);
-            testLogic.run(client);
+            if (createTable)
+            {
+                QueryMessage queryMessage = new QueryMessage("CREATE TABLE test_table (pk int PRIMARY KEY, v text)",
+                                                             V5_DEFAULT_OPTIONS);
+                client.execute(queryMessage);
+            }
+            clientLogic.run(client);
         }
     }
-    private interface TestLogic
+    private interface ClientLogic
     {
         void run(SimpleClient simpleClient);
     }
