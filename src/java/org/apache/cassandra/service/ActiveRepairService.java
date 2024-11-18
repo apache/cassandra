@@ -454,6 +454,7 @@ public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFai
                                              boolean optimiseStreams,
                                              boolean repairPaxos,
                                              boolean paxosOnly,
+                                             boolean dontPurgeTombstones,
                                              ExecutorPlus executor,
                                              Scheduler validationScheduler,
                                              String... cfnames)
@@ -469,7 +470,7 @@ public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFai
 
         final RepairSession session = new RepairSession(ctx, validationScheduler, parentRepairSession, range, keyspace,
                                                         parallelismDegree, isIncremental, pullRepair,
-                                                        previewKind, optimiseStreams, repairPaxos, paxosOnly, cfnames);
+                                                        previewKind, optimiseStreams, repairPaxos, paxosOnly, dontPurgeTombstones, cfnames);
         repairs.getIfPresent(parentRepairSession).register(session.state);
 
         sessions.put(session.getId(), session);

@@ -79,6 +79,6 @@ public class ValidationTaskTest
     private ValidationTask createTask() throws UnknownHostException {
         InetAddressAndPort addressAndPort = InetAddressAndPort.getByName("127.0.0.1");
         RepairJobDesc desc = new RepairJobDesc(nextTimeUUID(), nextTimeUUID(), UUID.randomUUID().toString(), UUID.randomUUID().toString(), null);
-        return new ValidationTask(SharedContext.Global.instance, desc, addressAndPort, 0, PreviewKind.NONE);
+        return new ValidationTask(SharedContext.Global.instance, desc, addressAndPort, 0, PreviewKind.NONE, false);
     }
 }

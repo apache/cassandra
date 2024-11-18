@@ -262,7 +262,7 @@ public class RepairMessageVerbHandlerOutOfRangeTest
                                                                  true,
                                                                  PreviewKind.NONE);
         return new ValidationRequest(new RepairJobDesc(parentId, uuid(), KEYSPACE, TABLE, Collections.singleton(range)),
-                                     randomInt());
+                                     randomInt(), false);
     }
 
     public static TimeUUID uuid()

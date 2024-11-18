@@ -243,7 +243,9 @@ public class RepairMessageVerbHandler implements IVerbHandler<RepairMessage>
                         sendAck(message);
 
                         Validator validator = new Validator(ctx, vState, validationRequest.nowInSec,
-                                                            isIncremental(desc.parentSessionId), previewKind);
+                                                            isIncremental(desc.parentSessionId),
+                                                            previewKind,
+                                                            validationRequest.dontPurgeTombstones);
                         ctx.validationManager().submitValidation(store, validator);
                     }
                     catch (Throwable t)

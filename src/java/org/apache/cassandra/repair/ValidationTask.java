@@ -40,15 +40,17 @@ public class ValidationTask extends AsyncFuture<TreeResponse> implements Runnabl
     private final InetAddressAndPort endpoint;
     private final long nowInSec;
     private final PreviewKind previewKind;
+    private final boolean dontPurgeTombstones;
     private final SharedContext ctx;
 
-    public ValidationTask(SharedContext ctx, RepairJobDesc desc, InetAddressAndPort endpoint, long nowInSec, PreviewKind previewKind)
+    public ValidationTask(SharedContext ctx, RepairJobDesc desc, InetAddressAndPort endpoint, long nowInSec, PreviewKind previewKind, boolean dontPurgeTombstones)
     {
         this.ctx = ctx;
         this.desc = desc;
         this.endpoint = endpoint;
         this.nowInSec = nowInSec;
         this.previewKind = previewKind;
+        this.dontPurgeTombstones = dontPurgeTombstones;
     }
 
     /**
@@ -57,7 +59,7 @@ public class ValidationTask extends AsyncFuture<TreeResponse> implements Runnabl
     public void run()
     {
         RepairMessage.sendMessageWithFailureCB(ctx, notDone(this),
-                                               new ValidationRequest(desc, nowInSec),
+                                               new ValidationRequest(desc, nowInSec, dontPurgeTombstones),
                                                VALIDATION_REQ,
                                                endpoint,
                                                this::tryFailure);
