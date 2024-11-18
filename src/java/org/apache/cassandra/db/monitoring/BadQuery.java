@@ -48,7 +48,8 @@ public class BadQuery
         INCORRECT_CONSISTENCY_LEVEL("incorrect consistency level"),
         TOO_MANY_TOMBSTONES("too many tombstones"),
         MV_IN_USE("mv is in use"),
-        PREPARED_CACHE_OVERFLOW("too many prepared statements");
+        PREPARED_CACHE_OVERFLOW("too many prepared statements"),
+        TIER_MISMATCH("service tier lower than cassandra tier");
 
         private final String text;
 
@@ -293,5 +294,17 @@ public class BadQuery
     public static void checkForPreparedCacheOverflow(long count)
     {
         PreparedCacheOverflow.checkForPreparedCacheOverflow(count);
+    }
+
+    /**
+     * Check if the tier of the connecting service is lower than the tier of the database.
+     * More critical services should not connect to less critical Cassandra instances.
+     *
+     * @param serviceTier is the tier of the connecting service
+     * @param serviceName is the name of the connecting service
+     */
+    public static void checkForTierMismatch(String serviceTier, String serviceName)
+    {
+        TierMismatch.checkForTierMismatch(serviceTier, serviceName);
     }
 }

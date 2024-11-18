@@ -280,4 +280,43 @@ public class BadQueryTest extends CQLTester
         BadQuery.checkForPreparedCacheOverflow(1000);
         Assert.assertTrue(bq.getBadQueryCategoryQueues().get(BadQuery.BadQueryCategory.PREPARED_CACHE_OVERFLOW).size() > 0);
     }
+
+    @Test
+    public void testTierMismatch()
+    {
+        DatabaseDescriptor.setBadQueryTracingStatus(true);
+        Assert.assertTrue(bq.getBadQueryCategoryQueues().get(BadQuery.BadQueryCategory.TIER_MISMATCH).size() == 0);
+
+        System.setProperty("cassandra.db_tier", "5");
+        BadQuery.checkForTierMismatch("4", "");
+        Assert.assertTrue(bq.getBadQueryCategoryQueues().get(BadQuery.BadQueryCategory.TIER_MISMATCH).size() == 1);
+
+        System.setProperty("cassandra.db_tier", "1");
+        BadQuery.checkForTierMismatch("0", "");
+        Assert.assertTrue(bq.getBadQueryCategoryQueues().get(BadQuery.BadQueryCategory.TIER_MISMATCH).size() == 2);
+
+        System.setProperty("cassandra.db_tier", "4");
+        BadQuery.checkForTierMismatch("4", "");
+        Assert.assertTrue(bq.getBadQueryCategoryQueues().get(BadQuery.BadQueryCategory.TIER_MISMATCH).size() == 2);
+
+        System.setProperty("cassandra.db_tier", "3");
+        BadQuery.checkForTierMismatch("4", "");
+        Assert.assertTrue(bq.getBadQueryCategoryQueues().get(BadQuery.BadQueryCategory.TIER_MISMATCH).size() == 2);
+
+        System.setProperty("cassandra.db_tier", "-1");
+        BadQuery.checkForTierMismatch("4", "");
+        Assert.assertTrue(bq.getBadQueryCategoryQueues().get(BadQuery.BadQueryCategory.TIER_MISMATCH).size() == 2);
+
+        System.setProperty("cassandra.db_tier", "3");
+        BadQuery.checkForTierMismatch("-1", "");
+        Assert.assertTrue(bq.getBadQueryCategoryQueues().get(BadQuery.BadQueryCategory.TIER_MISMATCH).size() == 2);
+
+        System.setProperty("cassandra.db_tier", "invalid tier");
+        BadQuery.checkForTierMismatch("3", "");
+        Assert.assertTrue(bq.getBadQueryCategoryQueues().get(BadQuery.BadQueryCategory.TIER_MISMATCH).size() == 2);
+
+        System.setProperty("cassandra.db_tier", "3");
+        BadQuery.checkForTierMismatch("invalid tier", "");
+        Assert.assertTrue(bq.getBadQueryCategoryQueues().get(BadQuery.BadQueryCategory.TIER_MISMATCH).size() == 2);
+    }
 }

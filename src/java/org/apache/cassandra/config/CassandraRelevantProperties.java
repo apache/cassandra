@@ -383,6 +383,11 @@ public enum CassandraRelevantProperties
      * (Uber specific) If set to true, streamed mutations via the regular write path for CDC.
      */
     STREAMING_REQUIRES_CDC_REPLAY("cassandra.streaming.requires_cdc_replay", "false"),
+
+    /**
+     * (Uber specific) The tier of the Cassandra instance
+     */
+    DB_TIER("cassandra.db_tier", "-1")
     ;
 
     CassandraRelevantProperties(String key, String defaultVal)
