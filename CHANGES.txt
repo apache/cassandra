@@ -1,3 +1,6 @@
+4.0.16
+
+
 4.0.15
  * Backport of CASSANDRA-17812: Rate-limit new client connection auth setup to avoid overwhelming bcrypt (CASSANDRA-20057)
  * Support UDTs and vectors as clustering keys in descending order (CASSANDRA-20050)
