@@ -350,14 +350,14 @@ public class KeyCacheTest
 
         LifecycleTransaction.waitForDeletions();
 
-        // after releasing the reference this should drop to 2
-        assertKeyCacheSize(2, KEYSPACE1, cf);
+        // after releasing the reference this should drop to 2, unless we don't invalidate keycache on sstable deletion
+        assertKeyCacheSize(DatabaseDescriptor.shouldInvalidateKeycacheOnSSTableDeletion() ? 2 : 4, KEYSPACE1, cf);
 
         // re-read same keys to verify that key cache didn't grow further
         Util.getAll(Util.cmd(cfs, "key1").build());
         Util.getAll(Util.cmd(cfs, "key2").build());
 
-        assertKeyCacheSize( 2, KEYSPACE1, cf);
+        assertKeyCacheSize( DatabaseDescriptor.shouldInvalidateKeycacheOnSSTableDeletion() ? 2 : 4, KEYSPACE1, cf);
     }
 
     @Test
