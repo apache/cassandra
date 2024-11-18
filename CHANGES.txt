@@ -1,3 +1,6 @@
+4.0.16
+
+
 4.0.15
  * Change the resolution of AbstractCommitLogService#lastSyncedAt to nanos to be aligned with later comparisons (CASSANDRA-20074)
  * Backport of CASSANDRA-17812: Rate-limit new client connection auth setup to avoid overwhelming bcrypt (CASSANDRA-20057)
