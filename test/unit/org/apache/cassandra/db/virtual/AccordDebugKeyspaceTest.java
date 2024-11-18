@@ -46,6 +46,7 @@ import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.net.Verb;
+import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.service.accord.AccordService;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.utils.ByteBufferUtil;
@@ -58,7 +59,8 @@ public class AccordDebugKeyspaceTest extends CQLTester
 {
     private static final Logger logger = LoggerFactory.getLogger(AccordDebugKeyspaceTest.class);
 
-    private static final String QUERY_TXN_BLOCKED_BY = "SELECT * FROM system_accord_debug.txn_blocked_by WHERE txn_id=?";
+    private static final String QUERY_TXN_BLOCKED_BY =
+        String.format("SELECT * FROM %s.%s WHERE txn_id=?", SchemaConstants.VIRTUAL_ACCORD_DEBUG, AccordDebugKeyspace.TXN_BLOCKED_BY);
 
     @BeforeClass
     public static void setUpClass()

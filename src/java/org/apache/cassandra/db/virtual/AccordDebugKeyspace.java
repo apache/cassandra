@@ -48,9 +48,13 @@ import org.apache.cassandra.cql3.statements.schema.CreateTableStatement;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.Keyspace;
+import org.apache.cassandra.db.marshal.AbstractType;
+import org.apache.cassandra.db.marshal.CompositeType;
+import org.apache.cassandra.db.marshal.Int32Type;
 import org.apache.cassandra.db.marshal.TupleType;
 import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.db.marshal.UUIDType;
+import org.apache.cassandra.dht.LocalPartitioner;
 import org.apache.cassandra.dht.NormalizedRanges;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.exceptions.InvalidRequestException;
@@ -129,7 +133,7 @@ public class AccordDebugKeyspace extends VirtualKeyspace
                         "  retry_delay_micros bigint,\n" +
                         "  is_defunct boolean,\n" +
                         "  PRIMARY KEY ((range_start, range_end))" +
-                        ')'));
+                        ')', CompositeType.getInstance(ROUTING_KEY_TYPE, ROUTING_KEY_TYPE)));
         }
 
         @Override
@@ -165,7 +169,7 @@ public class AccordDebugKeyspace extends VirtualKeyspace
                         "  majority_before text,\n" +
                         "  universal_before text,\n" +
                         "  PRIMARY KEY ((range_start, range_end))" +
-                        ')'));
+                        ')', CompositeType.getInstance(ROUTING_KEY_TYPE, ROUTING_KEY_TYPE)));
         }
 
         @Override
@@ -198,7 +202,7 @@ public class AccordDebugKeyspace extends VirtualKeyspace
                         "  hits bigint,\n" +
                         "  misses bigint,\n" +
                         "  PRIMARY KEY (executor_id, scope)" +
-                        ')'));
+                        ')', Int32Type.instance));
         }
 
         @Override
@@ -240,7 +244,7 @@ public class AccordDebugKeyspace extends VirtualKeyspace
                            format("range_end %s,\n", ROUTING_KEY_TYPE_STRING) +
                         "  timestamp text,\n" +
                         "  PRIMARY KEY (command_store_id, range_start, range_end)" +
-                        ')'));
+                        ')', Int32Type.instance));
         }
 
         @Override
@@ -286,7 +290,7 @@ public class AccordDebugKeyspace extends VirtualKeyspace
                         "  repair_pending_ranges frozen<list<text>>,\n" +
                         "  migrating_ranges_by_epoch frozen<map<bigint, list<text>>>,\n" +
                         "  PRIMARY KEY (keyspace_name, table_name)" +
-                        ')'));
+                        ')', UTF8Type.instance));
         }
 
         @Override
@@ -381,7 +385,7 @@ public class AccordDebugKeyspace extends VirtualKeyspace
                         "  home_retry_counter int,\n" +
                         "  home_scheduled_at timestamp,\n" +
                         "  PRIMARY KEY (command_store_id, txn_id)" +
-                        ')'));
+                        ')', Int32Type.instance));
         }
 
         @Override
@@ -447,7 +451,7 @@ public class AccordDebugKeyspace extends VirtualKeyspace
                         "  bootstrapped_at text,\n" +
                         "  stale_until_at_least text,\n" +
                         "  PRIMARY KEY (command_store_id, range_start, range_end)" +
-                        ')'));
+                        ')', Int32Type.instance));
         }
 
         @Override
@@ -498,7 +502,7 @@ public class AccordDebugKeyspace extends VirtualKeyspace
                            format("range_end %s,\n", ROUTING_KEY_TYPE_STRING) +
                         "  txn_id text,\n" +
                         "  PRIMARY KEY (command_store_id, range_start, range_end)" +
-                        ')'));
+                        ')', Int32Type.instance));
         }
 
         @Override
@@ -546,7 +550,7 @@ public class AccordDebugKeyspace extends VirtualKeyspace
                         "  execute_at text,\n" +
                            format("key %s,\n", ROUTING_KEY_TYPE_STRING) +
                         "  PRIMARY KEY (txn_id, command_store_id, depth, blocked_by, reason)" +
-                        ')'));
+                        ')', UTF8Type.instance));
         }
 
         @Override
@@ -624,11 +628,12 @@ public class AccordDebugKeyspace extends VirtualKeyspace
         }
     }
 
-    private static TableMetadata parse(String keyspace, String table, String comment, String schema)
+    private static TableMetadata parse(String keyspace, String table, String comment, String schema, AbstractType<?> partitionKeyType)
     {
         return CreateTableStatement.parse(format(schema, table), keyspace)
                                    .comment(comment)
                                    .kind(TableMetadata.Kind.VIRTUAL)
+                                   .partitioner(new LocalPartitioner(partitionKeyType))
                                    .build();
     }
 }
