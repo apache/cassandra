@@ -1229,6 +1229,12 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean, 
         return endpointStateMap.get(ep);
     }
 
+    @VisibleForTesting
+    public boolean inJustRemovedEndpoints(InetAddressAndPort ep)
+    {
+        return justRemovedEndpoints.containsKey(ep);
+    }
+
     public EndpointState copyEndpointStateForEndpoint(InetAddressAndPort ep)
     {
         EndpointState epState = endpointStateMap.get(ep);
@@ -1935,7 +1941,7 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean, 
                     /* we request everything from the gossiper */
                     requestAll(gDigest, deltaGossipDigestList, remoteGeneration);
                 }
-                else if (remoteGeneration < localGeneration)
+                else if (remoteGeneration < localGeneration || FBUtilities.getBroadcastAddressAndPort().equals(gDigest.getEndpoint()))
                 {
                     /* send all data with generation = localgeneration and version > -1 */
                     sendAll(gDigest, deltaEpStateMap, HeartBeatState.EMPTY_VERSION);
