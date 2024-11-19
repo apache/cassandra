@@ -458,4 +458,19 @@ public class MerkleTrees implements Iterable<Map.Entry<Range<Token>, MerkleTree>
             return rt1.compareTo(rt2);
         }
     }
+
+    /**
+     * For purposes of our checking in test, either "nothing is or was ever here" or "what was here is now gone" suffice.
+     */
+    @VisibleForTesting
+    public boolean isReleased()
+    {
+        if (merkleTrees.isEmpty())
+            return true;
+
+        boolean result = true;
+        for (MerkleTree mt : merkleTrees.values())
+            result &= mt.isReleased();
+        return result;
+    }
 }

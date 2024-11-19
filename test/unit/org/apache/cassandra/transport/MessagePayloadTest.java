@@ -17,14 +17,11 @@
  */
 package org.apache.cassandra.transport;
 
-import java.lang.reflect.Field;
-import java.lang.reflect.Modifier;
 import java.nio.ByteBuffer;
 import java.util.Collections;
 import java.util.Map;
 
 import org.junit.After;
-import org.junit.AfterClass;
 import org.junit.Assert;
 import org.junit.BeforeClass;
 import org.junit.Test;
@@ -48,8 +45,8 @@ import org.apache.cassandra.transport.messages.QueryMessage;
 import org.apache.cassandra.transport.messages.ResultMessage;
 import org.apache.cassandra.utils.ByteArrayUtil;
 import org.apache.cassandra.utils.MD5Digest;
-import org.apache.cassandra.utils.ReflectionUtils;
 
+import static org.apache.cassandra.config.CassandraRelevantProperties.CUSTOM_QUERY_HANDLER_CLASS;
 import static org.apache.cassandra.utils.ByteBufferUtil.bytes;
 
 public class MessagePayloadTest extends CQLTester
@@ -57,47 +54,11 @@ public class MessagePayloadTest extends CQLTester
     public static Map<String, ByteBuffer> requestPayload;
     public static Map<String, ByteBuffer> responsePayload;
 
-    private static Field cqlQueryHandlerField;
-    private static boolean modifiersAccessible;
-
     @BeforeClass
-    public static void makeCqlQueryHandlerAccessible()
+    public static void setUpClass()
     {
-        try
-        {
-            cqlQueryHandlerField = ClientState.class.getDeclaredField("cqlQueryHandler");
-            cqlQueryHandlerField.setAccessible(true);
-
-            Field modifiersField = ReflectionUtils.getModifiersField();
-            modifiersAccessible = modifiersField.isAccessible();
-            modifiersField.setAccessible(true);
-            modifiersField.setInt(cqlQueryHandlerField, cqlQueryHandlerField.getModifiers() & ~Modifier.FINAL);
-        }
-        catch (IllegalAccessException | NoSuchFieldException e)
-        {
-            throw new RuntimeException(e);
-        }
-    }
-
-    @AfterClass
-    public static void resetCqlQueryHandlerField()
-    {
-        if (cqlQueryHandlerField == null)
-            return;
-        try
-        {
-            Field modifiersField = ReflectionUtils.getModifiersField();
-            modifiersField.setAccessible(true);
-            modifiersField.setInt(cqlQueryHandlerField, cqlQueryHandlerField.getModifiers() | Modifier.FINAL);
-
-            cqlQueryHandlerField.setAccessible(false);
-
-            modifiersField.setAccessible(modifiersAccessible);
-        }
-        catch (IllegalAccessException | NoSuchFieldException e)
-        {
-            throw new RuntimeException(e);
-        }
+        CUSTOM_QUERY_HANDLER_CLASS.setString("org.apache.cassandra.transport.MessagePayloadTest$TestQueryHandler");
+        CQLTester.setUpClass();
     }
 
     @After
@@ -116,13 +77,9 @@ public class MessagePayloadTest extends CQLTester
     @Test
     public void testMessagePayloadBeta() throws Throwable
     {
-        QueryHandler queryHandler = (QueryHandler) cqlQueryHandlerField.get(null);
-        cqlQueryHandlerField.set(null, new TestQueryHandler());
-        try
-        {
-            requireNetwork();
+        requireNetwork();
 
-            Assert.assertSame(TestQueryHandler.class, ClientState.getCQLQueryHandler().getClass());
+        Assert.assertSame(TestQueryHandler.class, ClientState.getCQLQueryHandler().getClass());
 
             SimpleClient client = new SimpleClient(nativeAddr.getHostAddress(),
                                                    nativePort,
@@ -133,239 +90,216 @@ public class MessagePayloadTest extends CQLTester
             {
                 client.connect(false);
 
-                Map<String, ByteBuffer> reqMap;
-                Map<String, ByteBuffer> respMap;
+            Map<String, ByteBuffer> reqMap;
+            Map<String, ByteBuffer> respMap;
 
-                QueryOptions queryOptions = QueryOptions.create(
-                  QueryOptions.DEFAULT.getConsistency(),
-                  QueryOptions.DEFAULT.getValues(),
-                  QueryOptions.DEFAULT.skipMetadata(),
-                  QueryOptions.DEFAULT.getPageSize(),
-                  QueryOptions.DEFAULT.getPagingState(),
-                  QueryOptions.DEFAULT.getSerialConsistency(),
-                  ProtocolVersion.V5,
-                  KEYSPACE);
-                QueryMessage queryMessage = new QueryMessage("CREATE TABLE atable (pk int PRIMARY KEY, v text)",
-                                                             queryOptions);
-                PrepareMessage prepareMessage = new PrepareMessage("SELECT * FROM atable", KEYSPACE);
+            QueryOptions queryOptions = QueryOptions.create(
+              QueryOptions.DEFAULT.getConsistency(),
+              QueryOptions.DEFAULT.getValues(),
+              QueryOptions.DEFAULT.skipMetadata(),
+              QueryOptions.DEFAULT.getPageSize(),
+              QueryOptions.DEFAULT.getPagingState(),
+              QueryOptions.DEFAULT.getSerialConsistency(),
+              ProtocolVersion.V5,
+              KEYSPACE);
+            QueryMessage queryMessage = new QueryMessage("CREATE TABLE atable (pk int PRIMARY KEY, v text)",
+                                                         queryOptions);
+            PrepareMessage prepareMessage = new PrepareMessage("SELECT * FROM atable", KEYSPACE);
 
-                reqMap = Collections.singletonMap("foo", bytes(42));
-                responsePayload = respMap = Collections.singletonMap("bar", bytes(42));
-                queryMessage.setCustomPayload(reqMap);
-                Message.Response queryResponse = client.execute(queryMessage);
-                payloadEquals(reqMap, requestPayload);
-                payloadEquals(respMap, queryResponse.getCustomPayload());
+            reqMap = Collections.singletonMap("foo", bytes(42));
+            responsePayload = respMap = Collections.singletonMap("bar", bytes(42));
+            queryMessage.setCustomPayload(reqMap);
+            Message.Response queryResponse = client.execute(queryMessage);
+            payloadEquals(reqMap, requestPayload);
+            payloadEquals(respMap, queryResponse.getCustomPayload());
 
-                reqMap = Collections.singletonMap("foo", bytes(43));
-                responsePayload = respMap = Collections.singletonMap("bar", bytes(43));
-                prepareMessage.setCustomPayload(reqMap);
-                ResultMessage.Prepared prepareResponse = (ResultMessage.Prepared) client.execute(prepareMessage);
-                payloadEquals(reqMap, requestPayload);
-                payloadEquals(respMap, prepareResponse.getCustomPayload());
+            reqMap = Collections.singletonMap("foo", bytes(43));
+            responsePayload = respMap = Collections.singletonMap("bar", bytes(43));
+            prepareMessage.setCustomPayload(reqMap);
+            ResultMessage.Prepared prepareResponse = (ResultMessage.Prepared) client.execute(prepareMessage);
+            payloadEquals(reqMap, requestPayload);
+            payloadEquals(respMap, prepareResponse.getCustomPayload());
 
-                ExecuteMessage executeMessage = new ExecuteMessage(prepareResponse.statementId, prepareResponse.resultMetadataId, QueryOptions.DEFAULT);
-                reqMap = Collections.singletonMap("foo", bytes(44));
-                responsePayload = respMap = Collections.singletonMap("bar", bytes(44));
-                executeMessage.setCustomPayload(reqMap);
-                Message.Response executeResponse = client.execute(executeMessage);
-                payloadEquals(reqMap, requestPayload);
-                payloadEquals(respMap, executeResponse.getCustomPayload());
+            ExecuteMessage executeMessage = new ExecuteMessage(prepareResponse.statementId, prepareResponse.resultMetadataId, QueryOptions.DEFAULT);
+            reqMap = Collections.singletonMap("foo", bytes(44));
+            responsePayload = respMap = Collections.singletonMap("bar", bytes(44));
+            executeMessage.setCustomPayload(reqMap);
+            Message.Response executeResponse = client.execute(executeMessage);
+            payloadEquals(reqMap, requestPayload);
+            payloadEquals(respMap, executeResponse.getCustomPayload());
 
-                BatchMessage batchMessage = new BatchMessage(BatchStatement.Type.UNLOGGED,
-                                                             Collections.<Object>singletonList("INSERT INTO " + KEYSPACE + ".atable (pk,v) VALUES (1, 'foo')"),
-                                                             Collections.singletonList(ByteArrayUtil.EMPTY_ARRAY_OF_BYTE_ARRAYS),
-                                                             queryOptions);
-                reqMap = Collections.singletonMap("foo", bytes(45));
-                responsePayload = respMap = Collections.singletonMap("bar", bytes(45));
-                batchMessage.setCustomPayload(reqMap);
-                Message.Response batchResponse = client.execute(batchMessage);
-                payloadEquals(reqMap, requestPayload);
-                payloadEquals(respMap, batchResponse.getCustomPayload());
-            }
-            finally
-            {
-                client.close();
-            }
+            BatchMessage batchMessage = new BatchMessage(BatchStatement.Type.UNLOGGED,
+                                                         Collections.<Object>singletonList("INSERT INTO " + KEYSPACE + ".atable (pk,v) VALUES (1, 'foo')"),
+                                                         Collections.singletonList(ByteArrayUtil.EMPTY_ARRAY_OF_BYTE_ARRAYS),
+                                                         queryOptions);
+            reqMap = Collections.singletonMap("foo", bytes(45));
+            responsePayload = respMap = Collections.singletonMap("bar", bytes(45));
+            batchMessage.setCustomPayload(reqMap);
+            Message.Response batchResponse = client.execute(batchMessage);
+            payloadEquals(reqMap, requestPayload);
+            payloadEquals(respMap, batchResponse.getCustomPayload());
         }
         finally
         {
-            cqlQueryHandlerField.set(null, queryHandler);
+            client.close();
         }
     }
 
     @Test
     public void testMessagePayload() throws Throwable
     {
-        QueryHandler queryHandler = (QueryHandler) cqlQueryHandlerField.get(null);
-        cqlQueryHandlerField.set(null, new TestQueryHandler());
+        requireNetwork();
+
+        Assert.assertSame(TestQueryHandler.class, ClientState.getCQLQueryHandler().getClass());
+
+        SimpleClient client = new SimpleClient(nativeAddr.getHostAddress(), nativePort);
         try
         {
-            requireNetwork();
+            client.connect(false);
 
-            Assert.assertSame(TestQueryHandler.class, ClientState.getCQLQueryHandler().getClass());
+            Map<String, ByteBuffer> reqMap;
+            Map<String, ByteBuffer> respMap;
 
-            SimpleClient client = new SimpleClient(nativeAddr.getHostAddress(), nativePort);
-            try
-            {
-                client.connect(false);
+            QueryMessage queryMessage = new QueryMessage(
+                                                        "CREATE TABLE " + KEYSPACE + ".atable (pk int PRIMARY KEY, v text)",
+                                                        QueryOptions.DEFAULT
+            );
+            PrepareMessage prepareMessage = new PrepareMessage("SELECT * FROM " + KEYSPACE + ".atable", null);
 
-                Map<String, ByteBuffer> reqMap;
-                Map<String, ByteBuffer> respMap;
+            reqMap = Collections.singletonMap("foo", bytes(42));
+            responsePayload = respMap = Collections.singletonMap("bar", bytes(42));
+            queryMessage.setCustomPayload(reqMap);
+            Message.Response queryResponse = client.execute(queryMessage);
+            payloadEquals(reqMap, requestPayload);
+            payloadEquals(respMap, queryResponse.getCustomPayload());
 
-                QueryMessage queryMessage = new QueryMessage(
-                                                            "CREATE TABLE " + KEYSPACE + ".atable (pk int PRIMARY KEY, v text)",
-                                                            QueryOptions.DEFAULT
-                );
-                PrepareMessage prepareMessage = new PrepareMessage("SELECT * FROM " + KEYSPACE + ".atable", null);
+            reqMap = Collections.singletonMap("foo", bytes(43));
+            responsePayload = respMap = Collections.singletonMap("bar", bytes(43));
+            prepareMessage.setCustomPayload(reqMap);
+            ResultMessage.Prepared prepareResponse = (ResultMessage.Prepared) client.execute(prepareMessage);
+            payloadEquals(reqMap, requestPayload);
+            payloadEquals(respMap, prepareResponse.getCustomPayload());
 
-                reqMap = Collections.singletonMap("foo", bytes(42));
-                responsePayload = respMap = Collections.singletonMap("bar", bytes(42));
-                queryMessage.setCustomPayload(reqMap);
-                Message.Response queryResponse = client.execute(queryMessage);
-                payloadEquals(reqMap, requestPayload);
-                payloadEquals(respMap, queryResponse.getCustomPayload());
+            ExecuteMessage executeMessage = new ExecuteMessage(prepareResponse.statementId, prepareResponse.resultMetadataId, QueryOptions.DEFAULT);
+            reqMap = Collections.singletonMap("foo", bytes(44));
+            responsePayload = respMap = Collections.singletonMap("bar", bytes(44));
+            executeMessage.setCustomPayload(reqMap);
+            Message.Response executeResponse = client.execute(executeMessage);
+            payloadEquals(reqMap, requestPayload);
+            payloadEquals(respMap, executeResponse.getCustomPayload());
 
-                reqMap = Collections.singletonMap("foo", bytes(43));
-                responsePayload = respMap = Collections.singletonMap("bar", bytes(43));
-                prepareMessage.setCustomPayload(reqMap);
-                ResultMessage.Prepared prepareResponse = (ResultMessage.Prepared) client.execute(prepareMessage);
-                payloadEquals(reqMap, requestPayload);
-                payloadEquals(respMap, prepareResponse.getCustomPayload());
-
-                ExecuteMessage executeMessage = new ExecuteMessage(prepareResponse.statementId, prepareResponse.resultMetadataId, QueryOptions.DEFAULT);
-                reqMap = Collections.singletonMap("foo", bytes(44));
-                responsePayload = respMap = Collections.singletonMap("bar", bytes(44));
-                executeMessage.setCustomPayload(reqMap);
-                Message.Response executeResponse = client.execute(executeMessage);
-                payloadEquals(reqMap, requestPayload);
-                payloadEquals(respMap, executeResponse.getCustomPayload());
-
-                BatchMessage batchMessage = new BatchMessage(BatchStatement.Type.UNLOGGED,
-                                                             Collections.<Object>singletonList("INSERT INTO " + KEYSPACE + ".atable (pk,v) VALUES (1, 'foo')"),
-                                                             Collections.singletonList(ByteArrayUtil.EMPTY_ARRAY_OF_BYTE_ARRAYS),
-                                                             QueryOptions.DEFAULT);
-                reqMap = Collections.singletonMap("foo", bytes(45));
-                responsePayload = respMap = Collections.singletonMap("bar", bytes(45));
-                batchMessage.setCustomPayload(reqMap);
-                Message.Response batchResponse = client.execute(batchMessage);
-                payloadEquals(reqMap, requestPayload);
-                payloadEquals(respMap, batchResponse.getCustomPayload());
-            }
-            finally
-            {
-                client.close();
-            }
+            BatchMessage batchMessage = new BatchMessage(BatchStatement.Type.UNLOGGED,
+                                                         Collections.<Object>singletonList("INSERT INTO " + KEYSPACE + ".atable (pk,v) VALUES (1, 'foo')"),
+                                                         Collections.singletonList(ByteArrayUtil.EMPTY_ARRAY_OF_BYTE_ARRAYS),
+                                                         QueryOptions.DEFAULT);
+            reqMap = Collections.singletonMap("foo", bytes(45));
+            responsePayload = respMap = Collections.singletonMap("bar", bytes(45));
+            batchMessage.setCustomPayload(reqMap);
+            Message.Response batchResponse = client.execute(batchMessage);
+            payloadEquals(reqMap, requestPayload);
+            payloadEquals(respMap, batchResponse.getCustomPayload());
         }
         finally
         {
-            cqlQueryHandlerField.set(null, queryHandler);
+            client.close();
         }
     }
 
     @Test
     public void testMessagePayloadVersion3() throws Throwable
     {
-        QueryHandler queryHandler = (QueryHandler) cqlQueryHandlerField.get(null);
-        cqlQueryHandlerField.set(null, new TestQueryHandler());
+        requireNetwork();
+
+        Assert.assertSame(TestQueryHandler.class, ClientState.getCQLQueryHandler().getClass());
+
+        SimpleClient client = new SimpleClient(nativeAddr.getHostAddress(), nativePort, ProtocolVersion.V3);
         try
         {
-            requireNetwork();
+            client.connect(false);
 
-            Assert.assertSame(TestQueryHandler.class, ClientState.getCQLQueryHandler().getClass());
+            Map<String, ByteBuffer> reqMap;
 
-            SimpleClient client = new SimpleClient(nativeAddr.getHostAddress(), nativePort, ProtocolVersion.V3);
+            QueryMessage queryMessage = new QueryMessage(
+                                                        "CREATE TABLE " + KEYSPACE + ".atable (pk int PRIMARY KEY, v text)",
+                                                        QueryOptions.DEFAULT
+            );
+            PrepareMessage prepareMessage = new PrepareMessage("SELECT * FROM " + KEYSPACE + ".atable", null);
+
+            reqMap = Collections.singletonMap("foo", bytes(42));
+            responsePayload = Collections.singletonMap("bar", bytes(42));
+            queryMessage.setCustomPayload(reqMap);
             try
             {
-                client.connect(false);
-
-                Map<String, ByteBuffer> reqMap;
-
-                QueryMessage queryMessage = new QueryMessage(
-                                                            "CREATE TABLE " + KEYSPACE + ".atable (pk int PRIMARY KEY, v text)",
-                                                            QueryOptions.DEFAULT
-                );
-                PrepareMessage prepareMessage = new PrepareMessage("SELECT * FROM " + KEYSPACE + ".atable", null);
-
-                reqMap = Collections.singletonMap("foo", bytes(42));
-                responsePayload = Collections.singletonMap("bar", bytes(42));
-                queryMessage.setCustomPayload(reqMap);
-                try
-                {
-                    client.execute(queryMessage);
-                    Assert.fail();
-                }
-                catch (RuntimeException e)
-                {
-                    Assert.assertTrue(e.getCause() instanceof ProtocolException);
-                }
-                // when a protocol exception is thrown by the server the connection is closed, so need to re-connect
-                client.close();
-                client.connect(false);
-
-                queryMessage.setCustomPayload(null);
                 client.execute(queryMessage);
-
-                reqMap = Collections.singletonMap("foo", bytes(43));
-                responsePayload = Collections.singletonMap("bar", bytes(43));
-                prepareMessage.setCustomPayload(reqMap);
-                try
-                {
-                    client.execute(prepareMessage);
-                    Assert.fail();
-                }
-                catch (RuntimeException e)
-                {
-                    Assert.assertTrue(e.getCause() instanceof ProtocolException);
-                }
-                // when a protocol exception is thrown by the server the connection is closed, so need to re-connect
-                client.close();
-                client.connect(false);
-
-                prepareMessage.setCustomPayload(null);
-                ResultMessage.Prepared prepareResponse = (ResultMessage.Prepared) client.execute(prepareMessage);
-
-                ExecuteMessage executeMessage = new ExecuteMessage(prepareResponse.statementId, prepareResponse.resultMetadataId, QueryOptions.DEFAULT);
-                reqMap = Collections.singletonMap("foo", bytes(44));
-                responsePayload = Collections.singletonMap("bar", bytes(44));
-                executeMessage.setCustomPayload(reqMap);
-                try
-                {
-                    client.execute(executeMessage);
-                    Assert.fail();
-                }
-                catch (RuntimeException e)
-                {
-                    Assert.assertTrue(e.getCause() instanceof ProtocolException);
-                }
-                // when a protocol exception is thrown by the server the connection is closed, so need to re-connect
-                client.close();
-                client.connect(false);
-
-                BatchMessage batchMessage = new BatchMessage(BatchStatement.Type.UNLOGGED,
-                                                             Collections.<Object>singletonList("INSERT INTO " + KEYSPACE + ".atable (pk,v) VALUES (1, 'foo')"),
-                                                             Collections.singletonList(ByteArrayUtil.EMPTY_ARRAY_OF_BYTE_ARRAYS),
-                                                             QueryOptions.DEFAULT);
-                reqMap = Collections.singletonMap("foo", bytes(45));
-                responsePayload = Collections.singletonMap("bar", bytes(45));
-                batchMessage.setCustomPayload(reqMap);
-                try
-                {
-                    client.execute(batchMessage);
-                    Assert.fail();
-                }
-                catch (RuntimeException e)
-                {
-                    Assert.assertTrue(e.getCause() instanceof ProtocolException);
-                }
+                Assert.fail();
             }
-            finally
+            catch (RuntimeException e)
             {
-                client.close();
+                Assert.assertTrue(e.getCause() instanceof ProtocolException);
+            }
+            // when a protocol exception is thrown by the server the connection is closed, so need to re-connect
+            client.close();
+            client.connect(false);
+
+            queryMessage.setCustomPayload(null);
+            client.execute(queryMessage);
+
+            reqMap = Collections.singletonMap("foo", bytes(43));
+            responsePayload = Collections.singletonMap("bar", bytes(43));
+            prepareMessage.setCustomPayload(reqMap);
+            try
+            {
+                client.execute(prepareMessage);
+                Assert.fail();
+            }
+            catch (RuntimeException e)
+            {
+                Assert.assertTrue(e.getCause() instanceof ProtocolException);
+            }
+            // when a protocol exception is thrown by the server the connection is closed, so need to re-connect
+            client.close();
+            client.connect(false);
+
+            prepareMessage.setCustomPayload(null);
+            ResultMessage.Prepared prepareResponse = (ResultMessage.Prepared) client.execute(prepareMessage);
+
+            ExecuteMessage executeMessage = new ExecuteMessage(prepareResponse.statementId, prepareResponse.resultMetadataId, QueryOptions.DEFAULT);
+            reqMap = Collections.singletonMap("foo", bytes(44));
+            responsePayload = Collections.singletonMap("bar", bytes(44));
+            executeMessage.setCustomPayload(reqMap);
+            try
+            {
+                client.execute(executeMessage);
+                Assert.fail();
+            }
+            catch (RuntimeException e)
+            {
+                Assert.assertTrue(e.getCause() instanceof ProtocolException);
+            }
+            // when a protocol exception is thrown by the server the connection is closed, so need to re-connect
+            client.close();
+            client.connect(false);
+
+            BatchMessage batchMessage = new BatchMessage(BatchStatement.Type.UNLOGGED,
+                                                         Collections.<Object>singletonList("INSERT INTO " + KEYSPACE + ".atable (pk,v) VALUES (1, 'foo')"),
+                                                         Collections.singletonList(ByteArrayUtil.EMPTY_ARRAY_OF_BYTE_ARRAYS),
+                                                         QueryOptions.DEFAULT);
+            reqMap = Collections.singletonMap("foo", bytes(45));
+            responsePayload = Collections.singletonMap("bar", bytes(45));
+            batchMessage.setCustomPayload(reqMap);
+            try
+            {
+                client.execute(batchMessage);
+                Assert.fail();
+            }
+            catch (RuntimeException e)
+            {
+                Assert.assertTrue(e.getCause() instanceof ProtocolException);
             }
         }
         finally
         {
-            cqlQueryHandlerField.set(null, queryHandler);
+            client.close();
         }
     }
 

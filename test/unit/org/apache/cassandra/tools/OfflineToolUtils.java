@@ -27,15 +27,13 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
-import java.util.Set;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
-import java.util.stream.StreamSupport;
-
-import com.google.common.collect.Iterables;
 
 import org.apache.commons.io.FileUtils;
+import org.junit.Assert;
 import org.junit.BeforeClass;
+import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.CassandraRelevantProperties;
@@ -44,7 +42,6 @@ import org.apache.cassandra.io.util.File;
 
 import static org.apache.cassandra.utils.FBUtilities.preventIllegalAccessWarnings;
 import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
 /**
@@ -52,6 +49,8 @@ import static org.junit.Assert.fail;
  */
 public abstract class OfflineToolUtils
 {
+    private static final Logger logger = LoggerFactory.getLogger(OfflineToolUtils.class);
+
     static
     {
         preventIllegalAccessWarnings();
@@ -60,68 +59,77 @@ public abstract class OfflineToolUtils
     private static List<ThreadInfo> initialThreads;
 
     static final String[] OPTIONAL_THREADS_WITH_SCHEMA = {
-    "ScheduledTasks:[1-9]",
-    "ScheduledFastTasks:[1-9]",
-    "OptionalTasks:[1-9]",
-    "Reference-Reaper",
-    "LocalPool-Cleaner(-networking|-chunk-cache)",
-    "CacheCleanupExecutor:[1-9]",
-    "CompactionExecutor:[1-9]",
-    "ValidationExecutor:[1-9]",
-    "NonPeriodicTasks:[1-9]",
-    "Sampler:[1-9]",
-    "SecondaryIndexManagement:[1-9]",
-    "Strong-Reference-Leak-Detector:[1-9]",
-    "Background_Reporter:[1-9]",
-    "EXPIRING-MAP-REAPER:[1-9]",
-    "ObjectCleanerThread",
-    "process reaper",  // spawned by the jvm when executing external processes
-                       // and may still be active when we check
-    "Attach Listener", // spawned in intellij IDEA
-    "JNA Cleaner",     // spawned by JNA
-    "ThreadLocalMetrics-Cleaner", // spawned by org.apache.cassandra.metrics.ThreadLocalMetrics
-    "Native reference cleanup thread",
-    "^ForkJoinPool\\.commonPool-worker-\\d+$"
+        "ScheduledTasks:[1-9]",
+        "ScheduledFastTasks:[1-9]",
+        "OptionalTasks:[1-9]",
+        "Reference-Reaper",
+        "LocalPool-Cleaner(-networking|-chunk-cache)",
+        "CacheCleanupExecutor:[1-9]",
+        "CompactionExecutor:[1-9]",
+        "ValidationExecutor:[1-9]",
+        "NonPeriodicTasks:[1-9]",
+        "Sampler:[1-9]",
+        "SecondaryIndexManagement:[1-9]",
+        "Strong-Reference-Leak-Detector:[1-9]",
+        "Background_Reporter:[1-9]",
+        "EXPIRING-MAP-REAPER:[1-9]",
+        "ObjectCleanerThread",
+        "process reaper",               // spawned by the jvm when executing external processes and may still be active when we check
+                                        // and may still be active when we check
+        "Attach Listener",              // spawned in intellij IDEA
+        "JNA Cleaner",                  // spawned by JNA
+        "ThreadLocalMetrics-Cleaner",   // spawned by org.apache.cassandra.metrics.ThreadLocalMetrics
+        "Native reference cleanup thread",
+        "^ForkJoinPool\\.commonPool-worker-\\d+$"
     };
 
     static final String[] NON_DEFAULT_MEMTABLE_THREADS =
     {
-    "((Native|Slab|Heap)Pool|Logged)Cleaner"
+        "((Native|Slab|Heap)Pool|Logged)Cleaner"
     };
 
-    public void assertNoUnexpectedThreadsStarted(String[] optionalThreadNames, boolean allowNonDefaultMemtableThreads)
+    /** We have some threads that show up in the presence of other JDK's; account for those here */
+    private static final String[] EXTRA_JDK_THREADS = new String[]{
+            "Native reference cleanup thread",      // Corretto janitor thread
+    };
+
+    /**
+     * When unexpected threads or core singleton objects are inadvertantly initialized during tool runs it can lead to
+     * the tool hanging on shutdown. We have a whitelisted number of threads above along with whatever initial threads
+     * were there on first tool creation we can diff against; if we find _anything_ new, it's an error condition - this
+     * needs to either be added to the list above or debugged and fixed.
+     */
+    public void assertNoUnexpectedThreadsStarted(boolean allowNonDefaultMemtableThreads, String... optionalThreadNames)
     {
-        ThreadMXBean threads = ManagementFactory.getThreadMXBean();
+        var allowedThreadNames = initialThreads.stream()
+                                               .map(ThreadInfo::getThreadName)
+                                               .collect(Collectors.toSet());
 
-        Set<String> initial = initialThreads
-                              .stream()
-                              .map(ThreadInfo::getThreadName)
-                              .collect(Collectors.toSet());
+        Collections.addAll(allowedThreadNames, EXTRA_JDK_THREADS);
+        Collections.addAll(allowedThreadNames, optionalThreadNames);
 
-        Set<String> current = Arrays.stream(threads.getThreadInfo(threads.getAllThreadIds()))
-                                    .filter(Objects::nonNull)
-                                    .map(ThreadInfo::getThreadName)
-                                    .collect(Collectors.toSet());
-        Iterable<String> optionalNames = optionalThreadNames != null
-                                         ? Arrays.asList(optionalThreadNames)
-                                         : Collections.emptyList();
         if (allowNonDefaultMemtableThreads && DatabaseDescriptor.getMemtableConfigurations().containsKey("default"))
-            optionalNames = Iterables.concat(optionalNames, Arrays.asList(NON_DEFAULT_MEMTABLE_THREADS));
+            Collections.addAll(allowedThreadNames, NON_DEFAULT_MEMTABLE_THREADS);
 
-        List<Pattern> optional = StreamSupport.stream(optionalNames.spliterator(), false)
-                                              .map(Pattern::compile)
-                                              .collect(Collectors.toList());
+        var allowedRegexes = allowedThreadNames.stream()
+                                               .map(Pattern::compile)
+                                               .collect(Collectors.toList());
 
-        current.removeAll(initial);
+        var threads = ManagementFactory.getThreadMXBean();
+        var badThreads = Arrays.stream(threads.getThreadInfo(threads.getAllThreadIds()))
+                               .filter(Objects::nonNull)
+                               .filter(threadInfo -> allowedRegexes.stream().noneMatch(pattern -> pattern.matcher(threadInfo.getThreadName()).matches()))
+                               .collect(Collectors.toSet());
 
-        Set<String> remain = current.stream()
-                                    .filter(threadName -> optional.stream().noneMatch(pattern -> pattern.matcher(threadName).matches()))
-                                    .collect(Collectors.toSet());
-
-        if (!remain.isEmpty())
-            System.err.println("Unexpected thread names: " + remain);
-
-        assertTrue("Wrong thread status, active threads unaccounted for: " + remain, remain.isEmpty());
+        if (!badThreads.isEmpty())
+        {
+            logger.error("Found unexpected disallowed threads during check. Printing thread details.");
+            badThreads.forEach(info -> logger.error(info.toString()));
+            var errorMessage = new StringBuilder("Bad threads found:");
+            badThreads.forEach(ti -> errorMessage.append("\n   ").append(ti.getThreadName()));
+            errorMessage.append("\n-Tools should not start threads that initialize singletons or other system resources");
+            Assert.fail(errorMessage.toString());
+        }
     }
 
     public void assertSchemaNotLoaded()
@@ -239,7 +247,7 @@ public abstract class OfflineToolUtils
     
     protected void assertCorrectEnvPostTest()
     {
-        assertNoUnexpectedThreadsStarted(OPTIONAL_THREADS_WITH_SCHEMA, true);
+        assertNoUnexpectedThreadsStarted(true, OPTIONAL_THREADS_WITH_SCHEMA);
         assertSchemaLoaded();
         assertServerNotLoaded();
     }

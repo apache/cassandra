@@ -11,7 +11,7 @@
 # limitations under the License.
 
 FROM ubuntu:20.04
-MAINTAINER Apache Cassandra <dev@cassandra.apache.org>
+LABEL org.opencontainers.image.authors="Apache Cassandra <dev@cassandra.apache.org>"
 
 # CONTEXT is expected to be cassandra/.build
 
@@ -52,7 +52,7 @@ RUN export DEBIAN_FRONTEND=noninteractive && \
         python3.11 python3.11-venv python3.11-dev \
         virtualenv net-tools libev4 libev-dev wget gcc libxml2 libxslt1-dev \
         vim lsof sudo libjemalloc2 dumb-init locales rsync \
-        openjdk-8-jdk openjdk-11-jdk openjdk-17-jdk ant ant-optional
+        openjdk-8-jdk openjdk-11-jdk openjdk-17-jdk openjdk-21-jdk ant ant-optional
 
 
 RUN update-alternatives --install /usr/bin/python python /usr/bin/python3.8 2
@@ -71,8 +71,9 @@ RUN chmod 0644 /opt/requirements.txt
 RUN pip3 install virtualenv virtualenv-clone
 RUN pip3 install --upgrade wheel
 
-# make Java 8 the default executable (we use to run all tests against Java 8)
-RUN update-java-alternatives --set java-1.8.0-openjdk-$(dpkg --print-architecture)
+# make Java 11 the default executable
+RUN update-alternatives --set java /usr/lib/jvm/java-11-openjdk-$(dpkg --print-architecture)/bin/java
+RUN update-alternatives --set javac /usr/lib/jvm/java-11-openjdk-$(dpkg --print-architecture)/bin/javac
 
 # enable legacy TLSv1 and TLSv1.1 (CASSANDRA-16848)
 RUN find /etc -type f -name java.security -exec sed -i 's/TLSv1, TLSv1.1//' {} \;

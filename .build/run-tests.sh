@@ -254,7 +254,11 @@ _run_testlist() {
     for ((i=0; i < _test_iterations; i++)); do
       [ "${_test_iterations}" -eq 1 ] || printf "–––– run ${i}\n"
       set +o errexit
-      ant "$_testlist_target" -Dtest.classlistprefix="${_target_prefix}" -Dtest.classlistfile=<(echo "${testlist}") -Dtest.timeout="${_test_timeout}" ${ANT_TEST_OPTS}
+      ant "$_testlist_target" \
+        -Dtest.classlistprefix="${_target_prefix}" \
+        -Dtest.classlistfile=<(echo "${testlist}") \
+        -Dtest.timeout="${_test_timeout}" \
+        ${ANT_TEST_OPTS}
       ant_status=$?
       set -o errexit
       if [[ $ant_status -ne 0 ]]; then

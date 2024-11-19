@@ -62,7 +62,7 @@ public class CommitlogShutdownTest
     @BMRule(name = "Make removing commitlog segments slow",
     targetClass = "CommitLogSegment",
     targetMethod = "discard",
-    action = "Thread.sleep(50)")
+    action = "Thread.sleep(250L)") // We need to add the unit to Thread.sleep calls in ByteBuddy now
     public void testShutdownWithPendingTasks() throws Exception
     {
         new Random().nextBytes(entropy);
@@ -77,8 +77,7 @@ public class CommitlogShutdownTest
                                     KeyspaceParams.simple(1),
                                     SchemaLoader.standardCFMD(KEYSPACE1, STANDARD1, 0, AsciiType.instance, BytesType.instance));
 
-                                    CompactionManager.instance.disableAutoCompaction();
-
+        CompactionManager.instance.disableAutoCompaction();
         ColumnFamilyStore cfs1 = Keyspace.open(KEYSPACE1).getColumnFamilyStore(STANDARD1);
 
         final Mutation m = new RowUpdateBuilder(cfs1.metadata.get(), 0, "k")

@@ -31,11 +31,12 @@ public class BinLogOptions
      */
     public boolean allow_nodetool_archive_command = false;
     /**
-     * How often to roll BinLog segments so they can potentially be reclaimed. Available options are:
-     * MINUTELY, HOURLY, DAILY, LARGE_DAILY, XLARGE_DAILY, HUGE_DAILY.
-     * For more options, refer: net.openhft.chronicle.queue.RollCycles
+     * How often to roll BinLog segments so they can potentially be reclaimed. Some available options are:
+     * FIVE_MINUTELY, FAST_HOURLY, FAST_DAILY, LargeRollCycles.LARGE_DAILY, LargeRollCycles.XLARGE_DAILY, LargeRollCycles.HUGE_DAILY.
+     * See FAQ: <a href="https://github.com/OpenHFT/Chronicle-Queue/blob/50af322d0022fb8d265779ed6f4c1073d32b6b54/docs/FAQ.adoc" />
+     * For more options, refer: {@link net.openhft.chronicle.queue.RollCycles}
      */
-    public String roll_cycle = "HOURLY";
+    public String roll_cycle = "FAST_HOURLY";
     /**
      * Indicates if the BinLog should block if the it falls behind or should drop bin log records.
      * Default is set to true so that BinLog records wont be lost

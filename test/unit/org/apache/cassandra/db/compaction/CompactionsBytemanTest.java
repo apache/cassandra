@@ -121,7 +121,7 @@ public class CompactionsBytemanTest extends CQLTester
             targetMethod = "submitBackground",
             targetLocation = "AT INVOKE java.util.concurrent.Future.isCancelled",
             condition = "!$cfs.getKeyspaceName().contains(\"system\")",
-            action = "Thread.sleep(5000)")
+            action = "Thread.sleep(5000L)") // We need to add the unit to Thread.sleep calls in ByteBuddy now
     public void testCompactingCFCounting() throws Throwable
     {
         createTable("CREATE TABLE %s (k INT, c INT, v INT, PRIMARY KEY (k, c))");

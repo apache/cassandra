@@ -1216,7 +1216,7 @@ public interface StorageServiceMBean extends NotificationEmitter
      * Start the fully query logger.
      *
      * @param path Path where the full query log will be stored. If null cassandra.yaml value is used.
-     * @param rollCycle How often to create a new file for query data (MINUTELY, DAILY, HOURLY)
+     * @param rollCycle How often to create a new file for query data (FIVE_MINUTELY, FAST_DAILY, FAST_HOURLY)
      * @param blocking Whether threads submitting queries to the query log should block if they can't be drained to the filesystem or alternatively drops samples and log
      * @param maxQueueWeight How many bytes of query data to queue before blocking or dropping samples
      * @param maxLogSize How many bytes of log data to store before dropping segments. Might not be respected if a log file hasn't rolled so it can be deleted.

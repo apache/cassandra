@@ -80,6 +80,9 @@ using the provided 'sstableupgrade' tool.
 
 New features
 ------------
+    - JDK21 and Generational ZGC are now officially supported and generational ZGC is now the default Garbage Collector
+    when using JDK21. See jvm21-server.options for more details and configuration parameters. We do not recommend using
+    non-generational ZGC with Apache Cassandra.
     [The following is a placeholder, to be revised asap]
     - CEP-37 Auto Repair is a fully automated scheduler that provides repair orchestration within Apache Cassandra. This
     significantly reduces operational overhead by eliminating the need for operators to deploy external tools to submit
@@ -205,6 +208,11 @@ Upgrading
 Deprecation
 -----------
     - `use_deterministic_table_id` is no longer supported and should be removed from cassandra.yaml. Table IDs may still be supplied explicitly on CREATE.
+    - Updating dependencies for JDK21 necessitated updating Chronicle Queue, which has changed the enums used for log
+    rolling (cassandra.yaml -> full_query_logging_options:roll_cycle). Older legacy options will still work for the
+    foreseeable future but you will see warnings in logs and future dependency upgrades may break your log rolling param.
+    The default log rolling param has been changed from HOURLY to FAST_HOURLY, primarily different on how frequently
+    indexes are built (256 in FAST_HOURLY vs. 16 in HOURLY).
     - IEndpointSnitch has been deprecated as ClusterMetadata is now the source of truth regarding topology information.
       The responsibilities of the snitch have been broken out to a handful of new classes:
       * o.a.c.locator.Locator provides datacenter and rack info for endpoints. This is not configurable as topology is

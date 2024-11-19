@@ -100,6 +100,8 @@ echo $JVM_OPTS | grep -q UseConcMarkSweepGC
 USING_CMS=$?
 echo $JVM_OPTS | grep -q +UseG1GC
 USING_G1=$?
+echo $JVM_OPTS | grep -q +UseZGC
+USING_ZGC=$?
 
 calculate_heap_sizes
 
@@ -175,6 +177,11 @@ if [ $DEFINED_XMN -eq 0 ] && [ $USING_G1 -eq 0 ]; then
     # More info: http://www.oracle.com/technetwork/articles/java/g1gc-1984535.html
     echo "It is not recommended to set -Xmn with the G1 garbage collector. See comments for -Xmn in jvm-server.options for details."
     exit 1
+fi
+
+# If a user tries to use -Xmn with ZGC we should let them know it's not going to work. Not worth killing the node over though.
+if [ $DEFINED_XMN -eq 0 ] && [ $USING_ZGC -eq 0]; then
+    echo "-Xmn does nothing when used in conjunction with ZGC; this setting will be ignored."
 fi
 
 if [ $USING_G1 -eq 0 ] && [ $DEFINED_PARALLEL_GC_THREADS -ne 0 ] && [ $DEFINED_CONC_GC_THREADS -ne 0 ] ; then

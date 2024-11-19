@@ -38,6 +38,7 @@ import net.openhft.chronicle.queue.ExcerptAppender;
 import net.openhft.chronicle.queue.RollCycles;
 import net.openhft.chronicle.queue.impl.single.SingleChronicleQueue;
 import net.openhft.chronicle.queue.impl.single.SingleChronicleQueueBuilder;
+import net.openhft.chronicle.queue.rollcycles.TestRollCycles;
 import net.openhft.chronicle.wire.WireOut;
 import net.openhft.chronicle.wire.WriteMarshallable;
 import net.openhft.posix.PosixAPI;
@@ -55,6 +56,7 @@ import org.apache.cassandra.utils.concurrent.UncheckedInterruptedException;
 import org.apache.cassandra.utils.concurrent.WeightedQueue;
 
 import static java.lang.String.format;
+import static net.openhft.chronicle.queue.rollcycles.TestRollCycles.TEST_SECONDLY;
 import static org.apache.cassandra.config.CassandraRelevantProperties.CHRONICLE_ANNOUNCER_DISABLE;
 import static org.apache.cassandra.utils.LocalizeString.toUpperCaseLocalized;
 
@@ -140,7 +142,11 @@ public class BinLog implements Runnable
         Preconditions.checkNotNull(options.roll_cycle, "roll_cycle was null");
         Preconditions.checkArgument(options.max_queue_weight > 0, "max_queue_weight must be > 0");
         SingleChronicleQueueBuilder builder = SingleChronicleQueueBuilder.single(path.toFile()); // checkstyle: permit this invocation
-        builder.rollCycle(RollCycles.valueOf(options.roll_cycle));
+
+        // RollCycles.TEST_SECONDLY is deprecated; avoid logging a warning here in cases where test code may be referencing the old value.
+        builder.rollCycle(options.roll_cycle.equals("TEST_SECONDLY")
+                ? TEST_SECONDLY
+                : RollCycles.valueOf(options.roll_cycle));
 
         sampleQueue = new WeightedQueue<>(options.max_queue_weight);
         this.archiver = archiver;
@@ -394,7 +400,10 @@ public class BinLog implements Runnable
             Preconditions.checkNotNull(rollCycle, "rollCycle was null");
             rollCycle = toUpperCaseLocalized(rollCycle);
             Preconditions.checkNotNull(RollCycles.valueOf(rollCycle), "unrecognized roll cycle");
-            this.rollCycle = rollCycle;
+            // Avoid using deprecated RollCycles.TEST_SECONDLY in test cases where we pass the text blindly; logs a warning
+            this.rollCycle = rollCycle.equals("TEST_SECONDLY")
+                    ? TestRollCycles.TEST_SECONDLY.toString()
+                    : rollCycle;
             return this;
         }
 

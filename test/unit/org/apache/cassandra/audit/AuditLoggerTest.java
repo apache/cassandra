@@ -755,7 +755,7 @@ public class AuditLoggerTest extends CQLTester
         assertEquals(1, AuthEvents.instance.listenerCount());
 
         Path p = Files.createTempDirectory("fql");
-        StorageService.instance.enableFullQueryLogger(p.toString(), RollCycles.HOURLY.toString(), false, 1000, 1000, null, 0);
+        StorageService.instance.enableFullQueryLogger(p.toString(), RollCycles.FAST_HOURLY.toString(), false, 1000, 1000, null, 0);
         assertEquals(2, QueryEvents.instance.listenerCount());
         assertEquals(1, AuthEvents.instance.listenerCount()); // fql not listening to auth events
         StorageService.instance.resetFullQueryLogger();
@@ -778,7 +778,7 @@ public class AuditLoggerTest extends CQLTester
         {
             assertEquals(1, QueryEvents.instance.listenerCount());
             assertEquals(1, AuthEvents.instance.listenerCount());
-            StorageService.instance.enableFullQueryLogger(options.audit_logs_dir, RollCycles.HOURLY.toString(), false, 1000, 1000, null, 0);
+            StorageService.instance.enableFullQueryLogger(options.audit_logs_dir, RollCycles.FAST_HOURLY.toString(), false, 1000, 1000, null, 0);
             fail("Conflicting directories - should throw exception");
         }
         catch (IllegalStateException e)
@@ -796,7 +796,7 @@ public class AuditLoggerTest extends CQLTester
         disableAuditLogOptions();
         AuditLogOptions options = getBaseAuditLogOptions();
         DatabaseDescriptor.setAuditLoggingOptions(options);
-        StorageService.instance.enableFullQueryLogger(options.audit_logs_dir, RollCycles.HOURLY.toString(), false, 1000, 1000, null, 0);
+        StorageService.instance.enableFullQueryLogger(options.audit_logs_dir, RollCycles.FAST_HOURLY.toString(), false, 1000, 1000, null, 0);
         try
         {
             assertEquals(1, QueryEvents.instance.listenerCount());

@@ -49,7 +49,7 @@ public class EnableAuditLog extends AbstractCommand
     @Option(paramLabel = "excluded_users", names = { "--excluded-users" }, description = "Comma separated list of users to be excluded for audit log. If not set the value from cassandra.yaml will be used")
     private String excluded_users = null;
 
-    @Option(paramLabel = "roll_cycle", names = { "--roll-cycle" }, description = "How often to roll the log file (MINUTELY, HOURLY, DAILY).")
+    @Option(paramLabel = "roll_cycle", names = { "--roll-cycle" }, description = "How often to roll the log file (FAST_MINUTELY, FAST_HOURLY, FAST_DAILY).")
     private String rollCycle = null;
 
     @Option(paramLabel = "blocking", names = { "--blocking" }, description = "If the queue is full whether to block producers or drop samples [true|false].")

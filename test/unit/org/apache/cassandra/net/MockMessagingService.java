@@ -33,7 +33,6 @@ import org.apache.cassandra.locator.InetAddressAndPort;
  */
 public class MockMessagingService
 {
-
     private MockMessagingService()
     {
     }

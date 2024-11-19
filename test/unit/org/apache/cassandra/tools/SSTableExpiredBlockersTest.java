@@ -37,7 +37,7 @@ public class SSTableExpiredBlockersTest extends OfflineToolUtils
         assertThat(tool.getCleanedStderr(), CoreMatchers.containsStringIgnoringCase("Missing arguments"));
         assertEquals(1, tool.getExitCode());
 
-        assertNoUnexpectedThreadsStarted(null, false);
+        assertNoUnexpectedThreadsStarted(false);
         assertSchemaNotLoaded();
         assertCLSMNotLoaded();
         assertSystemKSNotLoaded();

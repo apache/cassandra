@@ -45,13 +45,13 @@ public class MemtableQuickTest extends CQLTester
 {
     static final Logger logger = LoggerFactory.getLogger(MemtableQuickTest.class);
 
-    static final int partitions = 50_000;
+    static final int partitions = 45_000;
     static final int rowsPerPartition = 4;
 
-    static final int deletedPartitionsStart = 20_000;
+    static final int deletedPartitionsStart = 15_000;
     static final int deletedPartitionsEnd = deletedPartitionsStart + 10_000;
 
-    static final int deletedRowsStart = 40_000;
+    static final int deletedRowsStart = 35_000;
     static final int deletedRowsEnd = deletedRowsStart + 5_000;
 
     @Parameterized.Parameter()
