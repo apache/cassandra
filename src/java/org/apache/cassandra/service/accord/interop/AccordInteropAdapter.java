@@ -33,7 +33,7 @@ import accord.local.Node;
 import accord.messages.Apply;
 import accord.primitives.Deps;
 import accord.primitives.FullRoute;
-import accord.primitives.Participants;
+import accord.primitives.Route;
 import accord.primitives.Timestamp;
 import accord.primitives.Txn;
 import accord.primitives.TxnId;
@@ -89,14 +89,13 @@ public class AccordInteropAdapter extends AbstractTxnAdapter
     }
 
     @Override
-    public void persist(Node node, Topologies all, FullRoute<?> route, Participants<?> sendTo, TxnId txnId, Txn txn, Timestamp executeAt, Deps deps, Writes writes, Result result, BiConsumer<? super Result, Throwable> callback)
+    public void persist(Node node, Topologies all, FullRoute<?> fullRoute, Route<?> sendTo, TxnId txnId, Txn txn, Timestamp executeAt, Deps deps, Writes writes, Result result, BiConsumer<? super Result, Throwable> callback)
     {
-        // TODO (required): we aren't using sendTo
-        if (applyKind == Minimal && doInteropPersist(node, all, route, txnId, txn, executeAt, deps, writes, result, callback))
+        if (applyKind == Minimal && doInteropPersist(node, all, sendTo, txnId, txn, executeAt, deps, writes, result, fullRoute, callback))
             return;
 
         if (callback != null) callback.accept(result, null);
-        new PersistTxn(node, all, txnId, route, txn, executeAt, deps, writes, result)
+        new PersistTxn(node, all, txnId, sendTo, txn, executeAt, deps, writes, result, fullRoute)
             .start(Apply.FACTORY, applyKind, all, writes, result);
     }
 
@@ -113,14 +112,14 @@ public class AccordInteropAdapter extends AbstractTxnAdapter
         return true;
     }
 
-    private static boolean doInteropPersist(Node node, Topologies all, FullRoute<?> route, TxnId txnId, Txn txn, Timestamp executeAt, Deps deps, Writes writes, Result result, BiConsumer<? super Result, Throwable> callback)
+    private static boolean doInteropPersist(Node node, Topologies all, Route<?> sendTo, TxnId txnId, Txn txn, Timestamp executeAt, Deps deps, Writes writes, Result result, FullRoute<?> fullRoute, BiConsumer<? super Result, Throwable> callback)
     {
         Update update = txn.update();
         ConsistencyLevel consistencyLevel = update instanceof AccordUpdate ? ((AccordUpdate) update).cassandraCommitCL() : null;
         if (consistencyLevel == null || consistencyLevel == ConsistencyLevel.ANY || writes.isEmpty())
             return false;
 
-        new AccordInteropPersist(node, all, txnId, route, txn, executeAt, deps, writes, result, consistencyLevel, callback)
+        new AccordInteropPersist(node, all, txnId, sendTo, txn, executeAt, deps, writes, result, fullRoute, consistencyLevel, callback)
             .start(AccordInteropApply.FACTORY, Minimal, all, writes, result);
         return true;
     }

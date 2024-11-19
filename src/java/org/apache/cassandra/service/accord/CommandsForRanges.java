@@ -57,7 +57,7 @@ import org.apache.cassandra.index.accord.RoutesSearcher;
 import org.apache.cassandra.service.accord.api.AccordRoutingKey;
 
 import static accord.local.SafeCommandStore.TestDep.ANY_DEPS;
-import static accord.local.SafeCommandStore.TestDep.WITH;
+import static accord.local.SafeCommandStore.TestDep.WITH_OR_INVALIDATED;
 import static accord.local.SafeCommandStore.TestStartedAt.STARTED_BEFORE;
 import static accord.local.SafeCommandStore.TestStatus.ANY_STATUS;
 import static accord.primitives.Routables.Slice.Minimal;
@@ -129,6 +129,9 @@ public class CommandsForRanges extends TreeMap<Timestamp, CommandsForRanges.Summ
                 case IS_STABLE:
                     if (!summary.saveStatus.hasBeen(Stable) || summary.saveStatus.hasBeen(Truncated))
                         return;
+                case IS_STABLE_OR_INVALIDATED:
+                    if (!summary.saveStatus.hasBeen(Stable) || summary.saveStatus.status == Truncated)
+                        return;
             }
 
             if (testDep != ANY_DEPS)
@@ -152,7 +155,7 @@ public class CommandsForRanges extends TreeMap<Timestamp, CommandsForRanges.Summ
                 // and so it is safe to execute, when in fact it is only a dependency on a different shard
                 // (and that other shard, perhaps, does not know that it is a dependency - and so it is not durably known)
                 // TODO (required): consider this some more
-                if ((testDep == WITH) == !summary.hasAsDep)
+                if ((testDep == WITH_OR_INVALIDATED) == (!summary.hasAsDep || summary.saveStatus == SaveStatus.Invalidated))
                     return;
 
                 Invariants.checkState(testTxnId.equals(summary.findAsDep));

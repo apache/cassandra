@@ -45,7 +45,8 @@ public class AwaitSerializer
             CommandSerializers.txnId.serialize(await.txnId, out, version);
             KeySerializers.participants.serialize(await.scope, out, version);
             out.writeByte(await.blockedUntil.ordinal());
-            out.writeUnsignedVInt(await.awaitEpoch - await.txnId.epoch());
+            out.writeUnsignedVInt(await.maxAwaitEpoch - await.txnId.epoch());
+            out.writeUnsignedVInt(await.maxAwaitEpoch - await.minAwaitEpoch);
             out.writeUnsignedVInt32(await.callbackId + 1);
             Invariants.checkState(await.callbackId >= -1);
         }
@@ -56,10 +57,11 @@ public class AwaitSerializer
             TxnId txnId = CommandSerializers.txnId.deserialize(in, version);
             Participants<?> scope = KeySerializers.participants.deserialize(in, version);
             BlockedUntil blockedUntil = BlockedUntil.forOrdinal(in.readByte());
-            long awaitEpoch = in.readUnsignedVInt() + txnId.epoch();
+            long maxAwaitEpoch = in.readUnsignedVInt() + txnId.epoch();
+            long minAwaitEpoch = maxAwaitEpoch - in.readUnsignedVInt();
             int callbackId = in.readUnsignedVInt32() - 1;
             Invariants.checkState(callbackId >= -1);
-            return Await.SerializerSupport.create(txnId, scope, blockedUntil, awaitEpoch, callbackId);
+            return Await.SerializerSupport.create(txnId, scope, blockedUntil, minAwaitEpoch, maxAwaitEpoch, callbackId);
         }
 
         @Override
@@ -68,7 +70,8 @@ public class AwaitSerializer
             return CommandSerializers.txnId.serializedSize(await.txnId, version)
                    + KeySerializers.participants.serializedSize(await.scope, version)
                    + TypeSizes.BYTE_SIZE
-                   + VIntCoding.computeUnsignedVIntSize(await.awaitEpoch - await.txnId.epoch())
+                   + VIntCoding.computeUnsignedVIntSize(await.maxAwaitEpoch - await.txnId.epoch())
+                   + VIntCoding.computeUnsignedVIntSize(await.maxAwaitEpoch - await.minAwaitEpoch)
                    + VIntCoding.computeUnsignedVIntSize(await.callbackId + 1);
         }
     };

@@ -62,14 +62,14 @@ public class AccordInteropApply extends Apply implements LocalListeners.ComplexL
     public static final Apply.Factory FACTORY = new Apply.Factory()
     {
         @Override
-        public Apply create(Kind kind, Id to, Topologies participates, TxnId txnId, FullRoute<?> route, Txn txn, Timestamp executeAt, Deps deps, Writes writes, Result result)
+        public Apply create(Kind kind, Id to, Topologies participates, TxnId txnId, Route<?> route, Txn txn, Timestamp executeAt, Deps deps, Writes writes, Result result, FullRoute<?> fullRoute)
         {
             checkArgument(kind != Kind.Maximal, "Shouldn't need to send a maximal commit with interop support");
             ConsistencyLevel commitCL = txn.update() instanceof AccordUpdate ? ((AccordUpdate) txn.update()).cassandraCommitCL() : null;
             // Any asynchronous apply option should use the regular Apply that doesn't wait for writes to complete
             if (commitCL == null || commitCL == ConsistencyLevel.ANY)
-                return Apply.FACTORY.create(kind, to, participates, txnId, route, txn, executeAt, deps, writes, result);
-            return new AccordInteropApply(kind, to, participates, txnId, route, txn, executeAt, deps, writes, result);
+                return Apply.FACTORY.create(kind, to, participates, txnId, route, txn, executeAt, deps, writes, result, fullRoute);
+            return new AccordInteropApply(kind, to, participates, txnId, route, txn, executeAt, deps, writes, result, fullRoute);
         }
     };
 
@@ -91,9 +91,9 @@ public class AccordInteropApply extends Apply implements LocalListeners.ComplexL
         super(kind, txnId, route, waitForEpoch, executeAt, deps, txn, fullRoute, writes, result);
     }
 
-    private AccordInteropApply(Kind kind, Id to, Topologies participates, TxnId txnId, FullRoute<?> route, Txn txn, Timestamp executeAt, Deps deps, Writes writes, Result result)
+    private AccordInteropApply(Kind kind, Id to, Topologies participates, TxnId txnId, Route<?> route, Txn txn, Timestamp executeAt, Deps deps, Writes writes, Result result, FullRoute<?> fullRoute)
     {
-        super(kind, to, participates, txnId, route, txn, executeAt, deps, writes, result);
+        super(kind, to, participates, txnId, route, txn, executeAt, deps, writes, result, fullRoute);
     }
 
     @Override

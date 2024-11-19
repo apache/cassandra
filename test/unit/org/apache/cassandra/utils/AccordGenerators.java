@@ -443,7 +443,7 @@ public class AccordGenerators
 
     public static Gen<RedundantBefore.Entry> redundantBeforeEntry(IPartitioner partitioner)
     {
-        return redundantBeforeEntry(Gens.bools().all(), range(partitioner), AccordGens.txnIds(Gens.pick(Txn.Kind.SyncPoint, Txn.Kind.ExclusiveSyncPoint), ignore -> Routable.Domain.Range));
+        return redundantBeforeEntry(Gens.bools().all(), range(partitioner), AccordGens.txnIds(Gens.pick(Txn.Kind.ExclusiveSyncPoint), ignore -> Routable.Domain.Range));
     }
 
     public static Gen<RedundantBefore.Entry> redundantBeforeEntry(Gen<Boolean> emptyGen, Gen<Range> rangeGen, Gen<TxnId> txnIdGen)
@@ -451,11 +451,11 @@ public class AccordGenerators
         return rs -> {
             Range range = rangeGen.next(rs);
             TxnId locallyWitnessedOrInvalidatedBefore = emptyGen.next(rs) ? TxnId.NONE : txnIdGen.next(rs); // emptyable or range
-            TxnId locallyAppliedOrInvalidatedBefore = emptyGen.next(rs) ? TxnId.NONE : txnIdGen.next(rs); // emptyable or range
-            TxnId locallyDecidedAndAppliedOrInvalidatedBefore = locallyAppliedOrInvalidatedBefore;
-            TxnId shardAppliedOrInvalidatedBefore = emptyGen.next(rs) ? TxnId.NONE : txnIdGen.next(rs); // emptyable or range
-            TxnId shardOnlyAppliedOrInvalidatedBefore = shardAppliedOrInvalidatedBefore;
-            TxnId gcBefore = shardAppliedOrInvalidatedBefore;
+            TxnId locallyAppliedOrInvalidatedBefore = TxnId.nonNullOrMin(locallyWitnessedOrInvalidatedBefore, emptyGen.next(rs) ? TxnId.NONE : txnIdGen.next(rs)); // emptyable or range
+            TxnId locallyDecidedAndAppliedOrInvalidatedBefore = TxnId.nonNullOrMin(locallyAppliedOrInvalidatedBefore, emptyGen.next(rs) ? TxnId.NONE : txnIdGen.next(rs)); // emptyable or range
+            TxnId shardOnlyAppliedOrInvalidatedBefore = emptyGen.next(rs) ? TxnId.NONE : txnIdGen.next(rs); // emptyable or range
+            TxnId shardAppliedOrInvalidatedBefore = TxnId.nonNullOrMin(locallyAppliedOrInvalidatedBefore, TxnId.nonNullOrMin(shardOnlyAppliedOrInvalidatedBefore, emptyGen.next(rs) ? TxnId.NONE : txnIdGen.next(rs))); // emptyable or range
+            TxnId gcBefore = TxnId.nonNullOrMin(shardAppliedOrInvalidatedBefore, emptyGen.next(rs) ? TxnId.NONE : txnIdGen.next(rs)); // emptyable or range
             TxnId bootstrappedAt = txnIdGen.next(rs);
             Timestamp staleUntilAtLeast = emptyGen.next(rs) ? null : txnIdGen.next(rs); // nullable
 
@@ -469,7 +469,7 @@ public class AccordGenerators
     public static Gen<RedundantBefore> redundantBefore(IPartitioner partitioner)
     {
         Gen<Ranges> rangeGen = rangesArbitrary(partitioner);
-        Gen<TxnId> txnIdGen = AccordGens.txnIds(Gens.pick(Txn.Kind.SyncPoint, Txn.Kind.ExclusiveSyncPoint), ignore -> Routable.Domain.Range);
+        Gen<TxnId> txnIdGen = AccordGens.txnIds(Gens.pick(Txn.Kind.ExclusiveSyncPoint), ignore -> Routable.Domain.Range);
         BiFunction<RandomSource, Range, RedundantBefore.Entry> entryGen = (rs, range) -> redundantBeforeEntry(Gens.bools().all(), i -> range, txnIdGen).next(rs);
         return AccordGens.redundantBefore(rangeGen, entryGen);
     }
@@ -477,7 +477,7 @@ public class AccordGenerators
     public static Gen<DurableBefore> durableBeforeGen(IPartitioner partitioner)
     {
         Gen<Ranges> rangeGen = rangesArbitrary(partitioner);
-        Gen<TxnId> txnIdGen = AccordGens.txnIds(Gens.pick(Txn.Kind.SyncPoint, Txn.Kind.ExclusiveSyncPoint), ignore -> Routable.Domain.Range);
+        Gen<TxnId> txnIdGen = AccordGens.txnIds(Gens.pick(Txn.Kind.ExclusiveSyncPoint), ignore -> Routable.Domain.Range);
 
         return (rs) -> {
             Ranges ranges = rangeGen.next(rs);

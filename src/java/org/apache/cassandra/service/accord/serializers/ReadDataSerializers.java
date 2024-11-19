@@ -80,6 +80,7 @@ public class ReadDataSerializers
         {
             CommandSerializers.txnId.serialize(msg.txnId, out, version);
             KeySerializers.participants.serialize(msg.readScope, out, version);
+            out.writeUnsignedVInt(msg.minEpoch());
             CommandSerializers.timestamp.serialize(msg.executeAt, out, version);
             KeySerializers.fullRoute.serialize(msg.route, out, version);
             CommandSerializers.partialTxn.serialize(msg.txn, out, version);
@@ -93,6 +94,7 @@ public class ReadDataSerializers
             return ApplyThenWaitUntilApplied.SerializerSupport.create(
             CommandSerializers.txnId.deserialize(in, version),
             KeySerializers.participants.deserialize(in, version),
+            in.readUnsignedVInt(),
             CommandSerializers.timestamp.deserialize(in, version),
             KeySerializers.fullRoute.deserialize(in, version),
             CommandSerializers.partialTxn.deserialize(in, version),
@@ -106,6 +108,7 @@ public class ReadDataSerializers
         {
             return CommandSerializers.txnId.serializedSize(msg.txnId, version)
                    + KeySerializers.participants.serializedSize(msg.readScope, version)
+                   + TypeSizes.sizeofUnsignedVInt(msg.minEpoch())
                    + CommandSerializers.timestamp.serializedSize(msg.executeAt, version)
                    + KeySerializers.fullRoute.serializedSize(msg.route, version)
                    + CommandSerializers.partialTxn.serializedSize(msg.txn, version)
@@ -279,7 +282,8 @@ public class ReadDataSerializers
         {
             CommandSerializers.txnId.serialize(waitUntilApplied.txnId, out, version);
             KeySerializers.participants.serialize(waitUntilApplied.readScope, out, version);
-            out.writeUnsignedVInt(waitUntilApplied.executeAtEpoch);
+            out.writeUnsignedVInt(waitUntilApplied.minEpoch());
+            out.writeUnsignedVInt(waitUntilApplied.executeAtEpoch - waitUntilApplied.minEpoch());
         }
 
         @Override
@@ -287,8 +291,9 @@ public class ReadDataSerializers
         {
             TxnId txnId = CommandSerializers.txnId.deserialize(in, version);
             Participants<?> readScope = KeySerializers.participants.deserialize(in, version);
-            long executeAtEpoch = in.readUnsignedVInt();
-            return WaitUntilApplied.SerializerSupport.create(txnId, readScope, executeAtEpoch);
+            long minEpoch = in.readUnsignedVInt();
+            long executeAtEpoch = minEpoch + in.readUnsignedVInt();
+            return WaitUntilApplied.SerializerSupport.create(txnId, readScope, minEpoch, executeAtEpoch);
         }
 
         @Override
@@ -296,7 +301,8 @@ public class ReadDataSerializers
         {
             return CommandSerializers.txnId.serializedSize(waitUntilApplied.txnId, version)
                    + KeySerializers.participants.serializedSize(waitUntilApplied.readScope, version)
-                   + TypeSizes.sizeofUnsignedVInt(waitUntilApplied.executeAtEpoch);
+                   + TypeSizes.sizeofUnsignedVInt(waitUntilApplied.minEpoch())
+                   + TypeSizes.sizeofUnsignedVInt(waitUntilApplied.executeAtEpoch - waitUntilApplied.minEpoch());
         }
     };
 }

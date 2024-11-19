@@ -38,6 +38,7 @@ import accord.api.DataStore;
 import accord.api.LocalListeners;
 import accord.api.ProgressLog;
 import accord.api.RoutingKey;
+import accord.impl.AbstractSafeCommandStore.CommandStoreCaches;
 import accord.impl.TimestampsForKey;
 import accord.local.Cleanup;
 import accord.local.Command;
@@ -119,7 +120,7 @@ public class AccordCommandStore extends CommandStore
         }
     }
 
-    public static final class ExclusiveCaches extends Caches implements AutoCloseable
+    public static final class ExclusiveCaches extends Caches implements CommandStoreCaches<AccordSafeCommand, AccordSafeTimestampsForKey, AccordSafeCommandsForKey>
     {
         private final Lock lock;
 
@@ -127,6 +128,25 @@ public class AccordCommandStore extends CommandStore
         {
             super(global, commands, timestampsForKeys, commandsForKeys);
             this.lock = lock;
+        }
+
+
+        @Override
+        public AccordSafeCommand acquireIfLoaded(TxnId txnId)
+        {
+            return commands().acquireIfLoaded(txnId);
+        }
+
+        @Override
+        public AccordSafeCommandsForKey acquireIfLoaded(RoutingKey key)
+        {
+            return commandsForKeys().acquireIfLoaded(key);
+        }
+
+        @Override
+        public AccordSafeTimestampsForKey acquireTfkIfLoaded(RoutingKey key)
+        {
+            return timestampsForKeys().acquireIfLoaded(key);
         }
 
         @Override
