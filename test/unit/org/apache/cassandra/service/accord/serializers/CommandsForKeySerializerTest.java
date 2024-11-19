@@ -23,6 +23,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.EnumSet;
 import java.util.List;
 import java.util.Random;
 import java.util.Set;
@@ -202,6 +203,8 @@ public class CommandsForKeySerializerTest
 
                 case Erased:
                 case ErasedOrVestigial:
+                    return Command.Truncated.erased(txnId, Status.Durability.UniversalOrInvalidated, StoreParticipants.empty(txnId));
+
                 case Invalidated:
                     return Command.SerializerSupport.invalidated(txnId);
             }
@@ -431,7 +434,8 @@ public class CommandsForKeySerializerTest
                 }
             }
 
-            Choices<SaveStatus> saveStatusChoices = Choices.uniform(SaveStatus.values());
+            // TODO (expected): we currently don't explore TruncatedApply statuses because we don't transition through all phases and therefore don't adopt the Applied status
+            Choices<SaveStatus> saveStatusChoices = Choices.uniform(EnumSet.complementOf(EnumSet.of(SaveStatus.TruncatedApply, SaveStatus.TruncatedApplyWithOutcome, SaveStatus.TruncatedApplyWithDeps)).toArray(SaveStatus[]::new));
             Supplier<SaveStatus> saveStatusSupplier = () -> {
                 SaveStatus result = saveStatusChoices.choose(source);
                 while (result == SaveStatus.TruncatedApplyWithDeps) // not a real save status
@@ -471,7 +475,8 @@ public class CommandsForKeySerializerTest
             while (commands.size() > 0)
             {
                 int next = source.nextInt(commands.size());
-                cfk = cfk.update(commands.get(next)).cfk();
+                Command command = commands.get(next);
+                cfk = cfk.update(command).cfk();
                 commands.set(next, commands.get(commands.size() - 1));
                 commands.remove(commands.size() - 1);
             }
@@ -486,7 +491,7 @@ public class CommandsForKeySerializerTest
                 }
                 TxnInfo info = cfk.get(i);
                 InternalStatus expectStatus = InternalStatus.from(cmd.saveStatus);
-                if (expectStatus == null) expectStatus = InternalStatus.TRANSITIVELY_KNOWN;
+                if (expectStatus == null) expectStatus = InternalStatus.TRANSITIVE;
                 if (expectStatus.hasExecuteAtOrDeps)
                     Assert.assertEquals(cmd.executeAt, info.executeAt);
                 Assert.assertEquals(expectStatus, info.status());
@@ -545,7 +550,7 @@ public class CommandsForKeySerializerTest
                 {
                     int idx = Arrays.binarySearch(ids, u.txnId);
                     if (idx < 0)
-                        missing.add(TxnInfo.create(u.txnId, InternalStatus.TRANSITIVELY_KNOWN, true, u.txnId, Ballot.ZERO));
+                        missing.add(TxnInfo.create(u.txnId, InternalStatus.TRANSITIVE, true, u.txnId, Ballot.ZERO));
                 }
                 if (!missing.isEmpty())
                 {

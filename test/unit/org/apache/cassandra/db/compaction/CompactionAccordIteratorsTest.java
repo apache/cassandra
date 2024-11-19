@@ -207,8 +207,8 @@ public class CompactionAccordIteratorsTest
         testAccordCommandsPurger(redundantBefore(GT_TXN_ID), durableBefore(UNIVERSAL), expectAccordCommandsErase());
         // Universally durable but not locally; we're stale, but shouldn't erase
         testAccordCommandsPurger(redundantBefore(LT_TXN_ID), durableBefore(UNIVERSAL), expectAccordCommandsNoChange());
-        // With redundantBefore at the txnId there should be no change because it is < not <=
-        testAccordCommandsPurger(redundantBefore(TXN_ID), durableBefore(MAJORITY), expectAccordCommandsNoChange());
+        // redundantBefore will be > txnId as must be exclusive sync point, so will truncate
+        testAccordCommandsPurger(redundantBefore(TXN_ID), durableBefore(MAJORITY), expectAccordCommandsTruncated());
         testAccordCommandsPurger(redundantBefore(LT_TXN_ID), durableBefore(MAJORITY), expectAccordCommandsNoChange());
         // Durable at a majority can be truncated with minimal data preserved, it must be redundant for this to occur
         testAccordCommandsPurger(redundantBefore(GT_TXN_ID), durableBefore(MAJORITY), expectAccordCommandsTruncated());
@@ -249,10 +249,11 @@ public class CompactionAccordIteratorsTest
         testAccordCommandsForKeyPurger(null, expectedAccordCommandsForKeyNoChange());
         testAccordTimestampsForKeyPurger(redundantBefore(LT_TXN_ID), expectedAccordTimestampsForKeyNoChange());
         testAccordCommandsForKeyPurger(redundantBefore(LT_TXN_ID), expectedAccordCommandsForKeyNoChange());
-        testAccordTimestampsForKeyPurger(redundantBefore(TXN_ID), expectedAccordTimestampsForKeyNoChange());
-        testAccordCommandsForKeyPurger(redundantBefore(TXN_ID), expectedAccordCommandsForKeyNoChange());
-        testAccordTimestampsForKeyPurger(redundantBefore(GT_TXN_ID), expectedAccordTimestampsForKeyEraseOne());
-        testAccordCommandsForKeyPurger(redundantBefore(GT_TXN_ID), expectedAccordCommandsForKeyEraseOne());
+        // will erase one more than expected as converted to ExclusiveSyncPoint id which is > base id
+        testAccordTimestampsForKeyPurger(redundantBefore(TXN_ID), expectedAccordTimestampsForKeyEraseOne());
+        testAccordCommandsForKeyPurger(redundantBefore(TXN_ID), expectedAccordCommandsForKeyEraseOne());
+        testAccordTimestampsForKeyPurger(redundantBefore(GT_TXN_ID), expectedAccordTimestampsForKeyEraseAll());
+        testAccordCommandsForKeyPurger(redundantBefore(GT_TXN_ID), expectedAccordCommandsForKeyEraseAll());
         testAccordTimestampsForKeyPurger(redundantBefore(GT_SECOND_TXN_ID), expectedAccordTimestampsForKeyEraseAll());
         testAccordCommandsForKeyPurger(redundantBefore(GT_SECOND_TXN_ID), expectedAccordCommandsForKeyEraseAll());
     }
@@ -399,7 +400,7 @@ public class CompactionAccordIteratorsTest
     private static RedundantBefore redundantBefore(TxnId txnId)
     {
         Ranges ranges = AccordTestUtils.fullRange(AccordTestUtils.keys(table, 42));
-        txnId = txnId.as(Kind.Read, Range);
+        txnId = txnId.as(Kind.ExclusiveSyncPoint, Range);
         return RedundantBefore.create(ranges, Long.MIN_VALUE, Long.MAX_VALUE, txnId, txnId, txnId, txnId, LT_TXN_ID.as(Range));
     }
 

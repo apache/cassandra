@@ -133,7 +133,7 @@ public class AccordTaskTest
             // TODO review: This change to `ifInitialized` was done in a lot of places and it doesn't preserve this property
             // I fixed this reference to point to `ifLoadedAndInitialised` and but didn't update other places
             Assert.assertNull(instance.ifInitialised(txnId));
-            Assert.assertNull(instance.ifLoadedAndInitialisedAndNotErased(txnId));
+            Assert.assertNull(instance.ifLoadedAndInitialised(txnId));
         }));
 
         UntypedResultSet result = AccordKeyspace.loadCommandRow(commandStore, txnId);

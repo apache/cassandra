@@ -1037,7 +1037,7 @@ public class AccordService implements IAccordService, Shutdownable
         {
             if (state.knows(blockedBy)) continue;
             // need to fetch the state
-            if (safeStore.ifLoadedAndInitialisedAndNotErased(blockedBy) != null)
+            if (safeStore.ifLoadedAndInitialised(blockedBy) != null)
             {
                 AsyncChain<Void> chain = populate(state, safeStore, blockedBy);
                 if (chain != null)
@@ -1077,7 +1077,7 @@ public class AccordService implements IAccordService, Shutdownable
             blocking = ((CommandsForKey.TxnInfo) blocking).plainTxnId();
         state.keys.put(pk, blocking);
         if (state.txns.containsKey(blocking)) return null;
-        if (safeStore.ifLoadedAndInitialisedAndNotErased(blocking) != null) return populate(state, safeStore, blocking);
+        if (safeStore.ifLoadedAndInitialised(blocking) != null) return populate(state, safeStore, blocking);
         return populate(state, safeStore.commandStore(), blocking);
     }
 
@@ -1437,7 +1437,7 @@ public class AccordService implements IAccordService, Shutdownable
             {
                 if (tracker.recordSuccess(from) == RequestStatus.Success)
                 {
-                    node.configService().reportEpochRedundant(exclusiveSyncPoint.route.toRanges(), exclusiveSyncPoint.syncId.epoch());
+                    node.configService().reportEpochRedundant(exclusiveSyncPoint.route.toRanges(), exclusiveSyncPoint.syncId.epoch() - 1);
                     trySuccess(exclusiveSyncPoint);
                 }
             }

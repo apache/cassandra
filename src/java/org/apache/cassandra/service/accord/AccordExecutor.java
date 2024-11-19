@@ -561,7 +561,8 @@ public abstract class AccordExecutor implements CacheSize, AccordCacheEntry.OnLo
     private <K, V> void onLoadedExclusive(AccordCacheEntry<K, V> loaded, V value, Throwable fail, boolean isForRange)
     {
         --activeLoads;
-        --activeRangeLoads;
+        if (isForRange)
+            --activeRangeLoads;
 
         if (loaded.status() != EVICTED)
         {
