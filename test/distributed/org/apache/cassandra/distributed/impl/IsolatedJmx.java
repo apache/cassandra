@@ -151,8 +151,6 @@ public class IsolatedJmx
     @SuppressWarnings("unchecked")
     private EncryptionOptions getJmxEncryptionOptions(Map<String,Object> encryptionOptionsMap)
     {
-    private EncryptionOptions getJmxEncryptionOptions(Map<String,Object> encryptionOptionsMap)
-    {
         if (encryptionOptionsMap == null)
         {
             return null;
@@ -185,7 +183,6 @@ public class IsolatedJmx
                .withRequireClientAuth(requireClientAuth)
                .withEnabled(enabled);
         return jmxEncryptionOptions;
-    }
     }
 
     private void waitForJmxAvailability(Map<String, ?> env)
