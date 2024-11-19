@@ -18,17 +18,12 @@
 
 package org.apache.cassandra.utils;
 
-import java.io.IOException;
 import java.rmi.server.RMIClientSocketFactory;
 
 /**
- * This represents closeable RMI Client Socket factory.
+ * This represents closeable RMI Client Socket factory. It extends {@link AutoCloseable} and can be used with
+ * {@code try-with-resources}.
  */
-public interface RMICloseableClientSocketFactory extends RMIClientSocketFactory
+public interface RMICloseableClientSocketFactory extends RMIClientSocketFactory, AutoCloseable
 {
-    /**
-     * Closes the underlying RMI socket factory appropriately.
-     * @throws IOException in case if fails to close the underlying RMI socket factory
-     */
-    void close() throws IOException;
 }

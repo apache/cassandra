@@ -44,17 +44,17 @@ class CollectingSslRMIServerSocketFactoryImpl implements RMICloseableServerSocke
     private final String[] enabledCipherSuites;
     private final String[] enabledProtocols;
     private final boolean needClientAuth;
-    private SSLContext sslContext;
+    private final SSLSocketFactory sslSocketFactory;
     List<ServerSocket> sockets = new ArrayList<>();
 
     public CollectingSslRMIServerSocketFactoryImpl(InetAddress bindAddress, String[] enabledCipherSuites,
                                                    String[] enabledProtocols, boolean needClientAuth, SSLContext sslContext)
     {
         this.bindAddress = bindAddress;
-        this.sslContext = sslContext;
         this.enabledCipherSuites = enabledCipherSuites;
         this.enabledProtocols = enabledProtocols;
         this.needClientAuth = needClientAuth;
+        this.sslSocketFactory = sslContext.getSocketFactory();
     }
 
     public CollectingSslRMIServerSocketFactoryImpl(InetAddress bindAddress, String[] enabledCipherSuites,
@@ -64,6 +64,7 @@ class CollectingSslRMIServerSocketFactoryImpl implements RMICloseableServerSocke
         this.enabledCipherSuites = enabledCipherSuites;
         this.enabledProtocols = enabledProtocols;
         this.needClientAuth = needClientAuth;
+        this.sslSocketFactory = getDefaultSSLSocketFactory();
     }
 
     public String[] getEnabledCipherSuites()
@@ -100,9 +101,6 @@ class CollectingSslRMIServerSocketFactoryImpl implements RMICloseableServerSocke
 
     private ServerSocket createSslServerSocket(int pPort) throws IOException
     {
-        final SSLSocketFactory sslSocketFactory =
-        sslContext == null ?
-        getDefaultSSLSocketFactory() : sslContext.getSocketFactory();
         return new ServerSocket(pPort, 0, bindAddress) {
             public Socket accept() throws IOException {
                 Socket socket = super.accept();
