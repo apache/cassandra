@@ -744,7 +744,7 @@ public abstract class SSTableReader extends SSTable implements UnfilteredSource,
     /**
      * Determine the minimal set of sections that can be extracted from this SSTable to cover the given ranges.
      *
-     * @return A sorted list of (offset,end) pairs that cover the given ranges in the datafile for this SSTable.
+     * @return A sorted list of [offset,end) pairs that cover the given ranges in the datafile for this SSTable.
      */
     public List<PartitionPositionBounds> getPositionsForRanges(Collection<Range<Token>> ranges)
     {
@@ -753,27 +753,110 @@ public abstract class SSTableReader extends SSTable implements UnfilteredSource,
         for (Range<Token> range : Range.normalize(ranges))
         {
             assert !range.isWrapAround() || range.right.isMinimum();
-            // truncate the range so it at most covers the sstable
             AbstractBounds<PartitionPosition> bounds = Range.makeRowRange(range);
-            PartitionPosition leftBound = bounds.left.compareTo(first) > 0 ? bounds.left : first.getToken().minKeyBound();
-            PartitionPosition rightBound = bounds.right.isMinimum() ? last.getToken().maxKeyBound() : bounds.right;
-
-            if (leftBound.compareTo(last) > 0 || rightBound.compareTo(first) < 0)
-                continue;
-
-            long left = getPosition(leftBound, Operator.GT);
-            long right = (rightBound.compareTo(last) > 0)
-                         ? uncompressedLength()
-                         : getPosition(rightBound, Operator.GT);
-
-            if (left == right)
-                // empty range
-                continue;
-
-            assert left < right : String.format("Range=%s openReason=%s first=%s last=%s left=%d right=%d", range, openReason, first, last, left, right);
-            positions.add(new PartitionPositionBounds(left, right));
+            PartitionPositionBounds pb = getPositionsForBounds(bounds);
+            if (pb != null)
+                positions.add(pb);
         }
         return positions;
+    }
+
+    /**
+     * Get a list of data positions in this SSTable that correspond to the given list of bounds. This method will remove
+     * non-covered intervals, but will not correct order or overlap in the supplied list, e.g. if bounds overlap, the
+     * result will be sections of the data file that repeat the same positions.
+     *
+     * @return A sorted list of [offset,end) pairs corresponding to the given boundsList in the datafile for this
+     *         SSTable.
+     */
+    public List<PartitionPositionBounds> getPositionsForBoundsIterator(Iterator<AbstractBounds<PartitionPosition>> boundsList)
+    {
+        // use the index to determine a minimal section for each range
+        List<PartitionPositionBounds> positions = new ArrayList<>();
+        while (boundsList.hasNext())
+        {
+            AbstractBounds<PartitionPosition> bounds = boundsList.next();
+            PartitionPositionBounds pb = getPositionsForBounds(bounds);
+            if (pb != null)
+                positions.add(pb);
+        }
+        return positions;
+    }
+
+    /**
+     * Determine the data positions in this SSTable that cover the given bounds.
+     *
+     * @return An [offset,end) pair that cover the given bounds in the datafile for this SSTable, or null if the range
+     *         is not covered by the sstable or is empty.
+     */
+    public PartitionPositionBounds getPositionsForBounds(AbstractBounds<PartitionPosition> bounds)
+    {
+        long left = getPosition(bounds.left, bounds.inclusiveLeft() ? Operator.GE : Operator.GT);
+        // Note: getPosition will apply a moved start if the sstable is in MOVED_START state.
+        if (left < 0) // empty range
+            return null;
+
+        long right = bounds.right.isMinimum() ? -1
+                                              : getPosition(bounds.right, bounds.inclusiveRight() ? Operator.GT
+                                                                                                  : Operator.GE);
+        if (right < 0) // right is beyond end
+            right = uncompressedLength();   // this should also be correct for EARLY readers
+
+        if (left >= right) // empty range
+            return null;
+
+        return new PartitionPositionBounds(left, right);
+    }
+
+    /**
+     * Return an [offset,end) pair that covers the whole file. This could be null if the sstable's moved start has
+     * made the sstable effectively empty.
+     */
+    public PartitionPositionBounds getPositionsForFullRange()
+    {
+        if (openReason != OpenReason.MOVED_START)
+            return new PartitionPositionBounds(0, uncompressedLength());
+        else
+        {
+            // query a full range, so that the required adjustments can be applied
+            PartitionPosition minToken = getPartitioner().getMinimumToken().minKeyBound();
+            return getPositionsForBounds(new Range<>(minToken, minToken));
+        }
+    }
+
+    /**
+     * Calculate a total on-disk (compressed) size for the given partition positions. For uncompressed files this is
+     * equal to the sum of the size of the covered ranges. For compressed files this is the sum of the size of the
+     * chunks that contain the requested ranges and may be significantly bigger than the size of the requested ranges.
+     *
+     * @param positionBounds a list of [offset,end) pairs that specify the relevant sections of the data file; this must
+     *                       be non-overlapping and in ascending order.
+     */
+    public long onDiskSizeForPartitionPositions(Collection<PartitionPositionBounds> positionBounds)
+    {
+        long total = 0;
+        if (!compression)
+        {
+            for (PartitionPositionBounds position : positionBounds)
+                total += position.upperPosition - position.lowerPosition;
+        }
+        else
+        {
+            final CompressionMetadata compressionMetadata = getCompressionMetadata();
+            long lastEnd = 0;
+            for (PartitionPositionBounds position : positionBounds)
+            {
+                // The end of the chunk that contains the last required byte from the range.
+                long upperChunkEnd = compressionMetadata.chunkFor(position.upperPosition - 1).chunkEnd();
+                // The start of the chunk that contains the first required byte from the range.
+                long lowerChunkStart = compressionMetadata.chunkFor(position.lowerPosition).offset;
+                if (lowerChunkStart < lastEnd)  // if regions include the same chunk, count it only once
+                    lowerChunkStart = lastEnd;
+                total += upperChunkEnd - lowerChunkStart;
+                lastEnd = upperChunkEnd;
+            }
+        }
+        return total;
     }
 
     /**
@@ -965,11 +1048,18 @@ public abstract class SSTableReader extends SSTable implements UnfilteredSource,
     }
 
     /**
-     * Direct I/O SSTableScanner over the entirety of the sstable..
+     * Direct I/O SSTableScanner over the entirety of the sstable.
      *
      * @return A Scanner over the full content of the SSTable.
      */
-    public abstract ISSTableScanner getScanner();
+    public ISSTableScanner getScanner()
+    {
+        PartitionPositionBounds fullRange = getPositionsForFullRange();
+        if (fullRange != null)
+            return new SSTableSimpleScanner(this, Collections.singletonList(fullRange));
+        else
+            return new SSTableSimpleScanner(this, Collections.emptyList());
+    }
 
     /**
      * Direct I/O SSTableScanner over a defined collection of ranges of tokens.
@@ -977,15 +1067,25 @@ public abstract class SSTableReader extends SSTable implements UnfilteredSource,
      * @param ranges the range of keys to cover
      * @return A Scanner for seeking over the rows of the SSTable.
      */
-    public abstract ISSTableScanner getScanner(Collection<Range<Token>> ranges);
+    public ISSTableScanner getScanner(Collection<Range<Token>> ranges)
+    {
+        if (ranges != null)
+            return new SSTableSimpleScanner(this, getPositionsForRanges(ranges));
+        else
+            return getScanner();
+    }
 
     /**
      * Direct I/O SSTableScanner over an iterator of bounds.
      *
-     * @param rangeIterator the keys to cover
+     * @param boundsIterator the keys to cover
      * @return A Scanner for seeking over the rows of the SSTable.
      */
-    public abstract ISSTableScanner getScanner(Iterator<AbstractBounds<PartitionPosition>> rangeIterator);
+    public ISSTableScanner getScanner(Iterator<AbstractBounds<PartitionPosition>> boundsIterator)
+    {
+        return new SSTableSimpleScanner(this, getPositionsForBoundsIterator(boundsIterator));
+    }
+
 
     /**
      * Create a {@link FileDataInput} for the data file of the sstable represented by this reader. This method returns

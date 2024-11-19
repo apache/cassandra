@@ -1,5 +1,7 @@
 5.0.5
  * Grant permission on keyspaces system_views and system_virtual_schema not possible (CASSANDRA-20171)
+ * Fix marking an SSTable as suspected and BufferPool leakage in case of a corrupted SSTable read during a compaction (CASSANDRA-20396)
+ * Introduce SSTableSimpleScanner for compaction (CASSANDRA-20092)
  * Avoid purging deletions in RowFilter when reconciliation is required (CASSANDRA-20541)
  * Fixed multiple single-node SAI query bugs relating to static columns (CASSANDRA-20338)
  * Upgrade com.datastax.cassandra:cassandra-driver-core:3.11.5 to org.apache.cassandra:cassandra-driver-core:3.12.1 (CASSANDRA-17231)
