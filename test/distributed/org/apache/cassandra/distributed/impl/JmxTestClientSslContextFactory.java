@@ -34,7 +34,7 @@ import org.apache.cassandra.config.EncryptionOptions;
 import org.apache.cassandra.io.util.File;
 
 /**
- * Simplied and independent version of {@link org.apache.cassandra.security.FileBasedSslContextFactory} for
+ * Simplified and independent version of {@link org.apache.cassandra.security.FileBasedSslContextFactory} for
  * testing SSL based JMX clients that require configuring keystore and/or truststore.
  */
 public class JmxTestClientSslContextFactory
