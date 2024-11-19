@@ -36,7 +36,7 @@ public class SSTableLevelResetterTest extends OfflineToolUtils
         assertThat(tool.getStdout(), CoreMatchers.containsStringIgnoringCase("usage:"));
         Assertions.assertThat(tool.getCleanedStderr()).isEmpty();
         assertEquals(1, tool.getExitCode());
-        assertNoUnexpectedThreadsStarted(null, false);
+        assertNoUnexpectedThreadsStarted(false);
         assertSchemaNotLoaded();
         assertCLSMNotLoaded();
         assertSystemKSNotLoaded();

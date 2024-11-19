@@ -36,8 +36,8 @@
     </license>
   </licenses>
   <properties>
-    <bytebuddy.version>1.12.13</bytebuddy.version>
-    <byteman.version>4.0.20</byteman.version>
+    <bytebuddy.version>1.17.8</bytebuddy.version>
+    <byteman.version>4.0.26</byteman.version>
     <netty.version>4.1.130.Final</netty.version>
     <ohc.version>0.5.1</ohc.version>
     <async-profiler.version>4.2</async-profiler.version>
@@ -494,13 +494,13 @@
       <dependency>
         <groupId>org.mockito</groupId>
         <artifactId>mockito-core</artifactId>
-        <version>4.7.0</version>
+        <version>5.12.0</version>
         <scope>test</scope>
       </dependency>
       <dependency>
         <groupId>org.mockito</groupId>
         <artifactId>mockito-inline</artifactId>
-        <version>4.7.0</version>
+        <version>5.2.0</version>
         <scope>test</scope>
       </dependency>
       <dependency>
@@ -891,7 +891,8 @@
       <dependency>
         <groupId>net.openhft</groupId>
         <artifactId>chronicle-queue</artifactId>
-        <version>5.23.37</version>
+        <!-- chronicle ea builds before the corresponding Final are code identical; Final builds are not made available on Maven -->
+        <version>5.25ea16</version>
         <exclusions>
           <exclusion>
             <artifactId>tools</artifactId>
@@ -907,7 +908,12 @@
       <dependency>
         <groupId>net.openhft</groupId>
         <artifactId>chronicle-core</artifactId>
-        <version>2.23.36</version>
+        <!-- While we broadly don't want to use ea libraries in the project, the Chronicle ecosystem has moved
+             to an approach of only allowing paid usage for non-ea builds. The ea builds are identical to the .0 release
+             of the next major version, so "ea" in this context signifies "stable GA build" for this major release line.
+             We plan to move away from chronicle for this and other reasons; the details of the conversation on the mailing
+             list can be found here: https://issues.apache.org/jira/browse/CASSANDRA-18831?focusedCommentId=17902034&page=com.atlassian.jira.plugin.system.issuetabpanels:comment-tabpanel#comment-17902034 -->
+        <version>2.25ea14</version>
         <exclusions>
           <exclusion>
             <artifactId>chronicle-analytics</artifactId>
@@ -922,7 +928,8 @@
       <dependency>
         <groupId>net.openhft</groupId>
         <artifactId>chronicle-bytes</artifactId>
-        <version>2.23.33</version>
+        <!-- See above for details about exception re: inclusion of ea lib -->
+        <version>2.25ea10</version>
         <exclusions>
           <exclusion>
             <artifactId>annotations</artifactId>
@@ -933,7 +940,8 @@
       <dependency>
         <groupId>net.openhft</groupId>
         <artifactId>chronicle-wire</artifactId>
-        <version>2.23.39</version>
+        <!-- See above for details about exception re: inclusion of ea lib -->
+        <version>2.25ea15</version>
         <exclusions>
           <exclusion>
             <artifactId>compiler</artifactId>
@@ -949,7 +957,8 @@
       <dependency>
         <groupId>net.openhft</groupId>
         <artifactId>chronicle-threads</artifactId>
-        <version>2.23.25</version>
+        <!-- See above for details about exception re: inclusion of ea lib -->
+        <version>2.25ea7</version>
         <exclusions>
           <exclusion>
               <!-- pulls in affinity-3.23ea1 which pulls in third-party-bom-3.22.4-SNAPSHOT -->

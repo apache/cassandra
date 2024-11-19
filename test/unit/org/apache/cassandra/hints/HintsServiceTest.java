@@ -32,7 +32,9 @@ import com.google.common.util.concurrent.MoreExecutors;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.BeforeClass;
+import org.junit.Rule;
 import org.junit.Test;
+import org.junit.rules.Timeout;
 
 import accord.primitives.Keys;
 import accord.primitives.TxnId;
@@ -64,6 +66,7 @@ import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.transport.Dispatcher;
 import org.apache.cassandra.utils.MockFailureDetector;
 
+import static java.util.concurrent.TimeUnit.MINUTES;
 import static org.apache.cassandra.Util.spinAssertEquals;
 import static org.apache.cassandra.config.CassandraRelevantProperties.HINT_DISPATCH_INTERVAL_MS;
 import static org.apache.cassandra.hints.HintsTestUtil.sendHintsAndResponses;
@@ -82,6 +85,14 @@ public class HintsServiceTest
 
     private final MockFailureDetector failureDetector = new MockFailureDetector();
     private static TableMetadata metadata;
+
+    // Had some trouble with this test OOM'ing and misbehaving; trying to tighten things up a bit. It's good now but leaving
+    // this here to defend against future long CI hangs making workers burn cycles.
+    @Rule
+    public final Timeout perTestTimeout = Timeout.builder()
+                                          .withTimeout(8, MINUTES)              // match test.timeout in build.xml
+                                          .withLookingForStuckThread(true)      // dumps stack of a likely stuck thread
+                                          .build();
 
     @BeforeClass
     public static void defineSchema()

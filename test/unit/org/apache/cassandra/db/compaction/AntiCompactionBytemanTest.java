@@ -61,7 +61,7 @@ public class AntiCompactionBytemanTest extends CQLTester
              targetMethod = "antiCompactGroup",
              condition = "not flagged(\"done\")",
              targetLocation = "AFTER INVOKE prepareToCommit",
-             action = "Thread.sleep(2000);") } )
+             action = "Thread.sleep(2000L);") } ) // We need to add the unit to Thread.sleep calls in ByteBuddy now
     public void testRedundantTransitions() throws Throwable
     {
         createTable("create table %s (id int primary key, i int)");

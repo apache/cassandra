@@ -134,7 +134,7 @@ docker --version
 pushd ${cassandra_dir}/.build >/dev/null
 
 # build test image
-dockerfile="ubuntu2004_test.docker"
+dockerfile="ubuntu-test.docker"
 image_tag="$(md5sum docker/${dockerfile} | cut -d' ' -f1)"
 image_name="apache/cassandra-${dockerfile/.docker/}:${image_tag}"
 docker_mounts="-v ${cassandra_dir}:/home/cassandra/cassandra -v "${build_dir}":/home/cassandra/cassandra/build -v ${m2_dir}:/home/cassandra/.m2/repository"

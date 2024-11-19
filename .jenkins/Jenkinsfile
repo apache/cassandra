@@ -352,7 +352,7 @@ def build(command, cell) {
               test -f .jenkins/Jenkinsfile || { echo "Invalid git fork/branch"; exit 1; }
               grep -q "Jenkins CI declaration" .jenkins/Jenkinsfile || { echo "Only Cassandra 5.0+ supported"; exit 1; }
              """
-          fetchDockerImages("redhat" == cell.step ? ['almalinux-build'] : ['bullseye-build'])
+          fetchDockerImages("redhat" == cell.step ? ['almalinux-build'] : ['debian-build'])
           def cell_suffix = "_jdk${cell.jdk}_${cell.arch}"
           def logfile = "stage-logs/${JOB_NAME}_${BUILD_NUMBER}_${cell.step}${cell_suffix}_attempt${attempt}.log.xz"
           def script_vars = "#!/bin/bash \n set -o pipefail ; " // pipe to tee needs pipefail
@@ -391,7 +391,7 @@ def test(command, cell) {
       withEnv(cell.collect { k, v -> "${k}=${v}" }) {
         ws("workspace/${JOB_NAME}/${BUILD_NUMBER}/${cell.step}/${cell.arch}/jdk-${cell.jdk}/python-${cell.python}") {
           fetchSource(cell.step, cell.arch, cell.jdk)
-          fetchDockerImages(['ubuntu2004_test'])
+          fetchDockerImages(['ubuntu-test'])
           def cell_suffix = "_jdk${cell.jdk}_python_${cell.python}_${cell.cython}_${cell.arch}_${cell.split}_${splits}"
           def logfile = "stage-logs/${JOB_NAME}_${BUILD_NUMBER}_${cell.step}${cell_suffix}_attempt${attempt}.log.xz"
           def script_vars = "#!/bin/bash \n set -o pipefail ; " // pipe to tee needs pipefail
@@ -594,11 +594,11 @@ def generateTestReports() {
               echo "Report for \${target} (\$(find build/test/output/\${target} -name '*.xml' | wc -l) test files)"
               CASSANDRA_DOCKER_ANT_OPTS="-Dbuild.test.output.dir=build/test/output/\${target} -Dbuild.test.report.dir=build/test/reports/\${target}"
               export CASSANDRA_DOCKER_ANT_OPTS
-              .build/docker/_docker_run.sh bullseye-build.docker ci/generate-test-report.sh
+              .build/docker/_docker_run.sh debian-build.docker ci/generate-test-report.sh
             fi
           done
 
-          .build/docker/_docker_run.sh bullseye-build.docker ci/generate-ci-summary.sh || echo "failed generate-ci-summary.sh"
+          .build/docker/_docker_run.sh debian-build.docker ci/generate-ci-summary.sh || echo "failed generate-ci-summary.sh"
 
           tar -cf build/results_details.tar -C build/test/ reports
           xz -8f build/results_details.tar ) ${teeSuffix}

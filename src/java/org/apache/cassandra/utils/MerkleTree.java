@@ -1630,6 +1630,12 @@ public class MerkleTree
         return getHelper(root, fullRange.left, fullRange.right, t);
     }
 
+    @VisibleForTesting
+    public boolean isReleased()
+    {
+        return root == null;
+    }
+
     private TreeRange getHelper(Node node, Token pleft, Token pright, Token t)
     {
         int depth = 0;

@@ -4779,15 +4779,31 @@ public class DatabaseDescriptor
 
     public static void setGCLogThreshold(int threshold)
     {
-        if (threshold <= 0)
-            throw new IllegalArgumentException("Threshold value for gc_log_threshold must be greater than 0");
-
-        long gcWarnThresholdInMs = getGCWarnThreshold();
-        if (gcWarnThresholdInMs != 0 && threshold > gcWarnThresholdInMs)
-            throw new IllegalArgumentException("Threshold value for gc_log_threshold (" + threshold + ") must be less than gc_warn_threshold which is currently "
-                                               + gcWarnThresholdInMs);
-
+        validateGCParams(threshold, getGCWarnThreshold());
         conf.gc_log_threshold = new DurationSpec.IntMillisecondsBound(threshold);
+    }
+
+    public static void validateGCParams(long logThreshold, long warnThreshold)
+    {
+        if (logThreshold <= 0)
+            throw new IllegalArgumentException("Threshold value for gc_log*_threshold must be greater than 0");
+        if (logThreshold > Integer.MAX_VALUE)
+            throw new IllegalArgumentException("Threshold value for gc_log*_threshold must be less than Integer.MAX_VALUE");
+
+        if (warnThreshold <= 0)
+            throw new IllegalArgumentException("Threshold value for gc_warn*_threshold must be greater than 0");
+        if (warnThreshold > Integer.MAX_VALUE)
+            throw new IllegalArgumentException("Threshold value for gc_warn*_threshold must be less than Integer.MAX_VALUE");
+
+        if (warnThreshold != 0 && logThreshold > warnThreshold)
+            throw new IllegalArgumentException("Threshold value for gc_log*_threshold (" + logThreshold + ") must be less than gc_warn*_threshold which is currently "
+                    + warnThreshold);
+    }
+
+    public static EncryptionContext getEncryptionContext()
+    {
+        return encryptionContext;
+
     }
 
     public static long getGCWarnThreshold()
@@ -4795,10 +4811,13 @@ public class DatabaseDescriptor
         return conf.gc_warn_threshold.toMilliseconds();
     }
 
-    public static void setGCWarnThreshold(int threshold)
+    public static void setGCWarnThreshold(long threshold)
     {
         if (threshold < 0)
             throw new IllegalArgumentException("Threshold value for gc_warn_threshold must be greater than or equal to 0");
+
+        if (threshold > Integer.MAX_VALUE)
+            throw new IllegalArgumentException("Threshold must be less than Integer.MAX_VALUE");
 
         long gcLogThresholdInMs = getGCLogThreshold();
         if (threshold != 0 && threshold <= gcLogThresholdInMs)
@@ -4842,11 +4861,6 @@ public class DatabaseDescriptor
                                                + gcConcurrentPhaseLogThresholdInMs);
 
         conf.gc_concurrent_phase_warn_threshold = new DurationSpec.IntMillisecondsBound(threshold);
-    }
-
-    public static EncryptionContext getEncryptionContext()
-    {
-        return encryptionContext;
     }
 
     public static boolean isCDCEnabled()

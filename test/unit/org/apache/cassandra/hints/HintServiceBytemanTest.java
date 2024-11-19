@@ -22,9 +22,12 @@ import java.time.Duration;
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 
 import org.awaitility.Awaitility;
 import org.jboss.byteman.contrib.bmunit.BMRule;
+import org.jboss.byteman.contrib.bmunit.BMUnitConfig;
 import org.jboss.byteman.contrib.bmunit.BMUnitRunner;
 import org.junit.After;
 import org.junit.Before;
@@ -91,12 +94,14 @@ public class HintServiceBytemanTest
         HintsService.instance.startDispatch();
     }
 
-    @Test
+    // When this test hangs it does it _hard_. Working now but don't want to make the worker in CI hang out for full timeout.
+    @Test (timeout = 300000)
+    @BMUnitConfig(bmunitVerbose=true, verbose=true)
     @BMRule(name = "Delay delivering hints",
     targetClass = "DispatchHintsTask",
     targetMethod = "run",
     action = "Thread.sleep(DatabaseDescriptor.getHintsFlushPeriodInMS() * 3L)")
-    public void testListPendingHints() throws InterruptedException, ExecutionException
+    public void testListPendingHints() throws InterruptedException, ExecutionException, TimeoutException
     {
         HintsService.instance.resumeDispatch();
         MockMessagingSpy spy = sendHintsAndResponses(metadata, 20000, -1);
@@ -111,7 +116,9 @@ public class HintServiceBytemanTest
         assertEquals(1, info.totalFiles);
         assertEquals(info.oldestTimestamp, info.newestTimestamp); // there is 1 descriptor with only 1 timestamp
 
-        spy.interceptMessageOut(20000).get();
+        // JDK21 genZGC uncovered some flakiness / hanging here waiting on Condition
+        spy.interceptMessageOut(20000).get(60, TimeUnit.SECONDS);
+        spy.printMessageCounts();
         assertEquals(Collections.emptyList(), HintsService.instance.getPendingHints());
     }
 }

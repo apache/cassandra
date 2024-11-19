@@ -185,6 +185,9 @@
 # For production use you may wish to adjust this for your environment.
 # If that's the case, see MAX_HEAP_SIZE (and HEAP_NEWSIZE for CMS) in cassandra-env.sh
 
+# Need experimental bytebuddy for JDK21
+-Dnet.bytebuddy.experimental
+
 #####################
 # OFF-HEAP SETTINGS #
 #####################

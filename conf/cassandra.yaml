@@ -2129,7 +2129,7 @@ audit_logging_options:
   # excluded_categories:
   # included_users:
   # excluded_users:
-  # roll_cycle: HOURLY
+  # roll_cycle: FAST_HOURLY
   # block: true
   # max_queue_weight: 268435456 # 256 MiB
   # max_log_size: 17179869184 # 16 GiB
@@ -2144,7 +2144,7 @@ audit_logging_options:
 # nodetool enablefullquerylog
 # full_query_logging_options:
   # log_dir:
-  # roll_cycle: HOURLY
+  # roll_cycle: FAST_HOURLY
   # block: true
   # max_queue_weight: 268435456 # 256 MiB
   # max_log_size: 17179869184 # 16 GiB

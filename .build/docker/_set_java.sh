@@ -56,7 +56,8 @@ fi
 ################################
 
 if grep "^ID=" /etc/os-release | grep -q 'debian\|ubuntu' ; then
-    sudo update-java-alternatives --set java-1.${java_version}.0-openjdk-$(dpkg --print-architecture)
+    sudo update-alternatives --set java /usr/lib/jvm/java-${java_version}-openjdk-$(dpkg --print-architecture)/bin/java
+    sudo update-alternatives --set javac /usr/lib/jvm/java-${java_version}-openjdk-$(dpkg --print-architecture)/bin/javac
 else
     sudo alternatives --set java $(alternatives --display java | grep "family java-${java_version}-openjdk" | cut -d' ' -f1)
     sudo alternatives --set javac $(alternatives --display javac | grep "family java-${java_version}-openjdk" | cut -d' ' -f1)

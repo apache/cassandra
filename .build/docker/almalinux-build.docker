@@ -42,6 +42,7 @@ RUN yum -y install \
    git \
    java-11-openjdk-devel \
    java-17-openjdk-devel \
+   java-21-openjdk-devel \
    make \
    rpm-build \
    sudo \

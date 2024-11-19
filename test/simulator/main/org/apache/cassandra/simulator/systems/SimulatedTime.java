@@ -49,7 +49,8 @@ import static org.apache.cassandra.simulator.RandomSource.Choices.uniform;
 // TODO (cleanup): when we encounter an exception and unwind the simulation, we should restore normal time to go with normal waits etc.
 public class SimulatedTime
 {
-    private static final Pattern PERMITTED_TIME_THREADS = Pattern.compile("(logback|SimulationLiveness|Reconcile)[-:][0-9]+|RMI Scheduler\\(\\d+\\)");
+    private static final Pattern PERMITTED_TIME_THREADS = Pattern.compile("(logback|SimulationLiveness|Reconcile|Reference-Reaper)[-:][0-9]+|RMI Scheduler\\(\\d+\\)");
+    private static final Pattern PERMITTED_TIME_CLEANER_THREADS = Pattern.compile("(LocalPool-Cleaner[-a-z]+[-:][0-9]+|Common-Cleaner)");
 
     @Shared(scope = Shared.Scope.SIMULATION)
     public interface Listener
@@ -148,7 +149,7 @@ public class SimulatedTime
                 if (interceptibleThread.isIntercepting())
                     return interceptibleThread.time();
             }
-            if (PERMITTED_TIME_THREADS.matcher(Thread.currentThread().getName()).matches())
+            if (PERMITTED_TIME_THREADS.matcher(Thread.currentThread().getName()).matches() || PERMITTED_TIME_CLEANER_THREADS.matcher(Thread.currentThread().getName()).matches())
                 return disabled;
             throw new IllegalStateException("Using time is not allowed during simulation");
         }

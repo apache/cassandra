@@ -640,6 +640,7 @@ public abstract class CommitLogSegment
         {
             TableMetadata m = Schema.instance.getTableMetadata(tableId);
             sb.append(m == null ? "<deleted>" : m.name).append(" (").append(tableId)
+              .append(", keyspace: ").append(m.keyspace)
               .append(", dirty: ").append(tableDirty.get(tableId))
               .append(", clean: ").append(tableClean.get(tableId))
               .append("), ");
