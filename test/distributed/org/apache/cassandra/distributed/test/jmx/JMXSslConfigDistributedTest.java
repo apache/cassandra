@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 
-package org.apache.cassandra.distributed.test;
+package org.apache.cassandra.distributed.test.jmx;
 
 import java.util.Arrays;
 import java.util.HashMap;
@@ -35,7 +35,7 @@ import org.apache.cassandra.distributed.api.Feature;
 import org.apache.cassandra.distributed.impl.JmxTestClientSslContextFactory;
 import org.apache.cassandra.distributed.impl.JmxTestClientSslSocketFactory;
 import org.apache.cassandra.distributed.shared.WithProperties;
-import org.apache.cassandra.distributed.test.jmx.JMXTestsUtil;
+import org.apache.cassandra.distributed.test.AbstractEncryptionOptionsImpl;
 
 import static org.apache.cassandra.config.CassandraRelevantProperties.COM_SUN_MANAGEMENT_JMXREMOTE_SSL;
 import static org.apache.cassandra.config.CassandraRelevantProperties.COM_SUN_MANAGEMENT_JMXREMOTE_SSL_ENABLED_CIPHER_SUITES;
