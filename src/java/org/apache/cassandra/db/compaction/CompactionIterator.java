@@ -290,7 +290,7 @@ public class CompactionIterator extends CompactionInfo.Holder implements Unfilte
     {
         long n = 0;
         for (ISSTableScanner scanner : scanners)
-            n += scanner.getCurrentPosition();
+            n += scanner.getBytesScanned();
         bytesRead = n;
     }
 

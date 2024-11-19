@@ -539,6 +539,14 @@ public class CompressionMetadata extends WrappedSharedCloseable
         {
             return String.format("Chunk<offset: %d, length: %d>", offset, length);
         }
+
+        /**
+         * @return the end of the chunk in the file, including the checksum
+         */
+        public long chunkEnd()
+        {
+            return offset + length + 4;
+        }
     }
 
     static class ChunkSerializer implements IVersionedSerializer<Chunk>
