@@ -33,6 +33,8 @@ import com.google.common.base.Strings;
 import com.google.common.collect.*;
 import com.google.common.primitives.Longs;
 import com.google.common.util.concurrent.FutureCallback;
+
+import org.apache.cassandra.db.partitions.ImmutableBTreePartition;
 import org.apache.cassandra.utils.Throwables;
 import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
@@ -918,14 +920,21 @@ public class SecondaryIndexManager implements IndexRegistry, INotificationConsum
             SinglePartitionPager pager = new SinglePartitionPager(cmd, null, ProtocolVersion.CURRENT);
             while (!pager.isExhausted())
             {
+                UnfilteredRowIterator partition;
                 try (ReadExecutionController controller = cmd.executionController();
-                     WriteContext ctx = keyspace.getWriteHandler().createContextForIndexing();
                      UnfilteredPartitionIterator page = pager.fetchPageUnfiltered(baseCfs.metadata(), pageSize, controller))
                 {
                     if (!page.hasNext())
                         break;
 
-                    try (UnfilteredRowIterator partition = page.next())
+                    try (UnfilteredRowIterator onePartition = page.next())
+                    {
+                        partition = ImmutableBTreePartition.create(onePartition).unfilteredIterator();
+                    }
+                }
+
+                try (WriteContext ctx = keyspace.getWriteHandler().createContextForIndexing())
+                {
                     {
                         Set<Index.Indexer> indexers = indexes.stream()
                                                              .map(index -> index.indexerFor(key,

@@ -515,14 +515,6 @@ public enum CassandraRelevantProperties
     }
 
     /**
-     * Clears the value set in the system property.
-     */
-    public void clearValue()
-    {
-        System.clearProperty(key);
-    }
-
-    /**
      * Gets the value of a system property as a int.
      * @return system property int value if it exists, defaultValue otherwise.
      */
