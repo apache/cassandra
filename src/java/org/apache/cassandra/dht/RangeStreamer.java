@@ -685,8 +685,8 @@ public class RangeStreamer
                 // bootstraps and just restart with all.
                 if (RESET_BOOTSTRAP_PROGRESS.getBoolean())
                 {
-                    // TODO: Also remove the files on disk. See discussion in CASSANDRA-17679
                     SystemKeyspace.resetAvailableStreamedRangesForKeyspace(keyspace);
+                    Keyspace.truncateBlockingWithoutSnapshot(keyspace);
                     remaining = new ArrayList<>(fetchReplicas);
                 }
                 else
