@@ -52,6 +52,7 @@ import org.apache.cassandra.db.filter.RowFilter;
 import org.apache.cassandra.db.lifecycle.SSTableSet;
 import org.apache.cassandra.db.lifecycle.View;
 import org.apache.cassandra.db.memtable.Memtable;
+import org.apache.cassandra.db.partitions.ImmutableBTreePartition;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
 import org.apache.cassandra.db.partitions.UnfilteredPartitionIterator;
 import org.apache.cassandra.db.rows.*;
@@ -918,14 +919,21 @@ public class SecondaryIndexManager implements IndexRegistry, INotificationConsum
             SinglePartitionPager pager = new SinglePartitionPager(cmd, null, ProtocolVersion.CURRENT);
             while (!pager.isExhausted())
             {
+                UnfilteredRowIterator partition;
                 try (ReadExecutionController controller = cmd.executionController();
-                     WriteContext ctx = keyspace.getWriteHandler().createContextForIndexing();
                      UnfilteredPartitionIterator page = pager.fetchPageUnfiltered(baseCfs.metadata(), pageSize, controller))
                 {
                     if (!page.hasNext())
                         break;
 
-                    try (UnfilteredRowIterator partition = page.next())
+                    try (UnfilteredRowIterator onePartition = page.next())
+                    {
+                        partition = ImmutableBTreePartition.create(onePartition).unfilteredIterator();
+                    }
+                }
+
+                try (WriteContext ctx = keyspace.getWriteHandler().createContextForIndexing())
+                {
                     {
                         Set<Index.Indexer> indexers = indexes.stream()
                                                              .map(index -> index.indexerFor(key,
@@ -981,6 +989,13 @@ public class SecondaryIndexManager implements IndexRegistry, INotificationConsum
                         }
 
                         indexers.forEach(Index.Indexer::finish);
+                    }
+                }
+                finally
+                {
+                    if (partition != null)
+                    {
+                        partition.close();
                     }
                 }
             }

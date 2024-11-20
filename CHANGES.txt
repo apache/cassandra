@@ -1,4 +1,5 @@
 4.1.12
+ * ReadCommandController should close fast to avoid deadlock when building secondary index (CASSANDRA-19564)
 Merged from 4.0
  * Updated dtest-api to 0.0.18 and removed JMX-related classes that now live in the dtest-api (CASSANDRA-20884)
 
