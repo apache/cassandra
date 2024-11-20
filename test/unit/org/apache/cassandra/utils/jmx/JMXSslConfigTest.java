@@ -34,10 +34,6 @@ import org.apache.cassandra.distributed.shared.WithProperties;
 import org.apache.cassandra.utils.JMXServerUtils;
 
 import static org.apache.cassandra.config.CassandraRelevantProperties.CASSANDRA_CONFIG;
-import static org.apache.cassandra.config.CassandraRelevantProperties.COM_SUN_MANAGEMENT_JMXREMOTE_SSL;
-import static org.apache.cassandra.config.CassandraRelevantProperties.COM_SUN_MANAGEMENT_JMXREMOTE_SSL_ENABLED_CIPHER_SUITES;
-import static org.apache.cassandra.config.CassandraRelevantProperties.COM_SUN_MANAGEMENT_JMXREMOTE_SSL_ENABLED_PROTOCOLS;
-import static org.apache.cassandra.config.CassandraRelevantProperties.COM_SUN_MANAGEMENT_JMXREMOTE_SSL_NEED_CLIENT_AUTH;
 import static org.apache.cassandra.config.CassandraRelevantProperties.JAVAX_RMI_SSL_CLIENT_ENABLED_CIPHER_SUITES;
 import static org.apache.cassandra.config.CassandraRelevantProperties.JAVAX_RMI_SSL_CLIENT_ENABLED_PROTOCOLS;
 
@@ -72,14 +68,8 @@ public class JMXSslConfigTest
         String enabledProtocols = "TLSv1.2,TLSv1.3,TLSv1.1";
         String cipherSuites = "TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384,TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256";
 
-        try(WithProperties ignored = new WithProperties()
-                                            .set(COM_SUN_MANAGEMENT_JMXREMOTE_SSL, true)
-                                            .set(COM_SUN_MANAGEMENT_JMXREMOTE_SSL_NEED_CLIENT_AUTH, true)
-                                            .set(COM_SUN_MANAGEMENT_JMXREMOTE_SSL_ENABLED_PROTOCOLS, enabledProtocols)
-                                            .set(COM_SUN_MANAGEMENT_JMXREMOTE_SSL_ENABLED_CIPHER_SUITES, cipherSuites)
-                                            .preserve(JAVAX_RMI_SSL_CLIENT_ENABLED_PROTOCOLS)
-                                            .preserve(JAVAX_RMI_SSL_CLIENT_ENABLED_CIPHER_SUITES)
-        )
+        try (WithProperties ignored = JMXSslPropertiesUtil.use(true, true, enabledProtocols,
+                                                               cipherSuites))
         {
             Map<String, Object> env = JMXServerUtils.configureJmxSocketFactories(serverAddress, false);
             Assert.assertNotNull("ServerSocketFactory must not be null", env.get(RMIConnectorServer.RMI_SERVER_SOCKET_FACTORY_ATTRIBUTE));
@@ -98,7 +88,7 @@ public class JMXSslConfigTest
     public void testLocalJmxServer() throws SSLException
     {
         InetAddress serverAddress = InetAddress.getLoopbackAddress();
-        try(WithProperties ignored = new WithProperties().set(COM_SUN_MANAGEMENT_JMXREMOTE_SSL, false))
+        try(WithProperties ignored = JMXSslPropertiesUtil.use(false))
         {
             Map<String, Object> env = JMXServerUtils.configureJmxSocketFactories(serverAddress, true);
 
