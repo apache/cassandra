@@ -315,6 +315,18 @@ public class Keyspace
     }
 
     /**
+     * Clear(trucate) all data for a given keyspace without taking snapshot
+     * @param keyspace the keyspace name to be cleared
+     */
+    public static void truncateBlockingWithoutSnapshot(String keyspace)
+    {
+        for (ColumnFamilyStore store : Keyspace.open(keyspace).getColumnFamilyStores())
+        {
+            store.truncateBlockingWithoutSnapshot();
+        }
+    }
+
+    /**
      * @return A list of open SSTableReaders
      */
     public List<SSTableReader> getAllSSTables(SSTableSet sstableSet)
