@@ -19,6 +19,7 @@ package org.apache.cassandra.auth;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.function.Predicate;
 
 import org.apache.cassandra.utils.Hex;
 
@@ -27,18 +28,33 @@ public final class Resources
     /**
      * Construct a chain of resource parents starting with the resource and ending with the root.
      *
-     * @param resource The staring point.
+     * @param resource The starting point.
      * @return list of resource in the chain form start to the root.
      */
     public static List<? extends IResource> chain(IResource resource)
     {
-        List<IResource> chain = new ArrayList<IResource>();
+        return chain(resource, (r) -> true);
+    }
+
+    /**
+     * Construct a chain of resource parents starting with the resource and ending with the root. Only resources which
+     * satisfy the supplied predicate will be included.
+     *
+     * @param resource The starting point.
+     * @param filter can be used to omit specific resources from the chain
+     * @return list of resource in the chain form start to the root.
+     */
+    public static List<? extends IResource> chain(IResource resource, Predicate<IResource> filter)
+    {
+
+        List<IResource> chain = new ArrayList<>(4);
         while (true)
         {
-           chain.add(resource);
-           if (!resource.hasParent())
-               break;
-           resource = resource.getParent();
+            if (filter.test(resource))
+                chain.add(resource);
+            if (!resource.hasParent())
+                break;
+            resource = resource.getParent();
         }
         return chain;
     }

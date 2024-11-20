@@ -45,6 +45,7 @@ import com.datastax.driver.core.ResultSet;
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.concurrent.ScheduledExecutors;
 import org.apache.cassandra.config.CFMetaData;
+import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.metrics.ClientMetrics;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.Schema;
@@ -87,7 +88,7 @@ public abstract class CQLTester
     private static final AtomicInteger seqNumber = new AtomicInteger();
     protected static final ByteBuffer TOO_BIG = ByteBuffer.allocate(FBUtilities.MAX_UNSIGNED_SHORT + 1024);
 
-    private static org.apache.cassandra.transport.Server server;
+    protected static org.apache.cassandra.transport.Server server;
     protected static final int nativePort;
     protected static final InetAddress nativeAddr;
     protected static ConfiguredLimit protocolVersionLimit;
@@ -568,8 +569,13 @@ public abstract class CQLTester
 
     protected String createType(String query)
     {
+        return createType(KEYSPACE, query);
+    }
+
+    protected String createType(String keyspace, String query)
+    {
         String typeName = createTypeName();
-        String fullQuery = String.format(query, KEYSPACE + "." + typeName);
+        String fullQuery = String.format(query, keyspace + "." + typeName);
         logger.info(fullQuery);
         schemaChange(fullQuery);
         return typeName;
@@ -706,7 +712,12 @@ public abstract class CQLTester
 
     protected void createIndex(String query)
     {
-        createFormattedIndex(formatQuery(query));
+        createIndex(KEYSPACE, query);
+    }
+
+    protected void createIndex(String keyspace, String query)
+    {
+        createFormattedIndex(formatQuery(keyspace, query));
     }
 
     protected void createFormattedIndex(String formattedQuery)
@@ -803,10 +814,18 @@ public abstract class CQLTester
         return Schema.instance.getCFMetaData(KEYSPACE, currentTable());
     }
 
+    protected com.datastax.driver.core.ResultSet executeNet(int protocolVersion, ConsistencyLevel consistency, String query) throws Throwable
+    {
+        Statement statement = new SimpleStatement(formatQuery(query));
+        statement = statement.setConsistencyLevel(com.datastax.driver.core.ConsistencyLevel.valueOf(consistency.name()));
+        return sessionNet(protocolVersion).execute(statement);
+    }
+
     protected com.datastax.driver.core.ResultSet executeNet(String query, Object... values) throws Throwable
     {
         return sessionNet().execute(formatQuery(query), values);
     }
+
     protected com.datastax.driver.core.ResultSet executeNet(int protocolVersion, String query, Object... values) throws Throwable
     {
         return sessionNet(protocolVersion).execute(formatQuery(query), values);
@@ -1312,7 +1331,7 @@ public abstract class CQLTester
      * @param text the text that the exception message must contains
      * @param e the exception to check
      */
-    private static void assertMessageContains(String text, Exception e)
+    protected static void assertMessageContains(String text, Exception e)
     {
         Assert.assertTrue("Expected error message to contain '" + text + "', but got '" + e.getMessage() + "'",
                 e.getMessage().contains(text));

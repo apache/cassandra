@@ -862,14 +862,29 @@ public class DatabaseDescriptor
         return authenticator;
     }
 
+    public static void setAuthenticator(IAuthenticator authenticator)
+    {
+        DatabaseDescriptor.authenticator = authenticator;
+    }
+
     public static IAuthorizer getAuthorizer()
     {
         return authorizer;
     }
 
+    public static void setAuthorizer(IAuthorizer authorizer)
+    {
+        DatabaseDescriptor.authorizer = authorizer;
+    }
+
     public static IRoleManager getRoleManager()
     {
         return roleManager;
+    }
+
+    public static void setRoleManager(IRoleManager roleManager)
+    {
+        DatabaseDescriptor.roleManager = roleManager;
     }
 
     public static int getPermissionsValidity()

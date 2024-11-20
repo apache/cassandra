@@ -125,6 +125,12 @@ public class Schema
         return REPLICATED_SYSTEM_KEYSPACE_NAMES.contains(keyspaceName.toLowerCase());
     }
 
+    public static boolean isSystemKeyspace(String keyspaceName)
+    {
+        final String lowercaseKeyspaceName = keyspaceName.toLowerCase();
+        return LOCAL_SYSTEM_KEYSPACE_NAMES.contains(lowercaseKeyspaceName)
+               || REPLICATED_SYSTEM_KEYSPACE_NAMES.contains(lowercaseKeyspaceName);
+    }
     /**
      * load keyspace (keyspace) definitions, but do not initialize the keyspace instances.
      * Schema version may be updated as the result.
