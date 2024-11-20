@@ -25,7 +25,6 @@ import javax.net.ssl.SSLException;
 import javax.rmi.ssl.SslRMIServerSocketFactory;
 
 import org.apache.commons.lang3.StringUtils;
-import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.Assert;
 import org.junit.BeforeClass;
@@ -64,17 +63,6 @@ public class JMXSslPEMConfigTest
         properties.close();
     }
 
-    @After
-    public void resetJmxSslSystemProperties()
-    {
-        COM_SUN_MANAGEMENT_JMXREMOTE_SSL.reset();
-        COM_SUN_MANAGEMENT_JMXREMOTE_SSL_NEED_CLIENT_AUTH.reset();
-        COM_SUN_MANAGEMENT_JMXREMOTE_SSL_ENABLED_PROTOCOLS.reset();
-        COM_SUN_MANAGEMENT_JMXREMOTE_SSL_ENABLED_CIPHER_SUITES.reset();
-        JAVAX_RMI_SSL_CLIENT_ENABLED_PROTOCOLS.reset();
-        JAVAX_RMI_SSL_CLIENT_ENABLED_CIPHER_SUITES.reset();
-    }
-
     @Test
     public void testPEMBasedJmxSslConfig() throws SSLException
     {
@@ -83,15 +71,24 @@ public class JMXSslPEMConfigTest
         String expectedCipherSuites = StringUtils.join(jmxEncryptionOptions.cipherSuitesArray(), ",");
 
         InetAddress serverAddress = InetAddress.getLoopbackAddress();
-        COM_SUN_MANAGEMENT_JMXREMOTE_SSL.setBoolean(false);
-        Map<String, Object> env = JMXServerUtils.configureJmxSocketFactories(serverAddress, false);
 
-        Assert.assertTrue("com.sun.management.jmxremote.ssl must be true", COM_SUN_MANAGEMENT_JMXREMOTE_SSL.getBoolean());
-        Assert.assertNotNull("ServerSocketFactory must not be null", env.get(RMIConnectorServer.RMI_SERVER_SOCKET_FACTORY_ATTRIBUTE));
-        Assert.assertTrue("RMI_SERVER_SOCKET_FACTORY must be of JMXSslRMIServerSocketFactory type", env.get(RMIConnectorServer.RMI_SERVER_SOCKET_FACTORY_ATTRIBUTE) instanceof SslRMIServerSocketFactory);
-        Assert.assertNotNull("ClientSocketFactory must not be null", env.get(RMIConnectorServer.RMI_CLIENT_SOCKET_FACTORY_ATTRIBUTE));
-        Assert.assertNotNull("com.sun.jndi.rmi.factory.socket must be set in the env", env.get("com.sun.jndi.rmi.factory.socket"));
-        Assert.assertEquals("javax.rmi.ssl.client.enabledProtocols must match", expectedProtocols, JAVAX_RMI_SSL_CLIENT_ENABLED_PROTOCOLS.getString());
-        Assert.assertEquals("javax.rmi.ssl.client.enabledCipherSuites must match", expectedCipherSuites, JAVAX_RMI_SSL_CLIENT_ENABLED_CIPHER_SUITES.getString() );
+        try(WithProperties ignored = new WithProperties()
+                                     .set(COM_SUN_MANAGEMENT_JMXREMOTE_SSL, false)
+                                     .preserve(COM_SUN_MANAGEMENT_JMXREMOTE_SSL_NEED_CLIENT_AUTH)
+                                     .preserve(COM_SUN_MANAGEMENT_JMXREMOTE_SSL_ENABLED_PROTOCOLS)
+                                     .preserve(COM_SUN_MANAGEMENT_JMXREMOTE_SSL_ENABLED_CIPHER_SUITES)
+                                     .preserve(JAVAX_RMI_SSL_CLIENT_ENABLED_PROTOCOLS)
+                                     .preserve(JAVAX_RMI_SSL_CLIENT_ENABLED_CIPHER_SUITES)
+        )
+        {
+            Map<String, Object> env = JMXServerUtils.configureJmxSocketFactories(serverAddress, false);
+            Assert.assertTrue("com.sun.management.jmxremote.ssl must be true", COM_SUN_MANAGEMENT_JMXREMOTE_SSL.getBoolean());
+            Assert.assertNotNull("ServerSocketFactory must not be null", env.get(RMIConnectorServer.RMI_SERVER_SOCKET_FACTORY_ATTRIBUTE));
+            Assert.assertTrue("RMI_SERVER_SOCKET_FACTORY must be of JMXSslRMIServerSocketFactory type", env.get(RMIConnectorServer.RMI_SERVER_SOCKET_FACTORY_ATTRIBUTE) instanceof SslRMIServerSocketFactory);
+            Assert.assertNotNull("ClientSocketFactory must not be null", env.get(RMIConnectorServer.RMI_CLIENT_SOCKET_FACTORY_ATTRIBUTE));
+            Assert.assertNotNull("com.sun.jndi.rmi.factory.socket must be set in the env", env.get("com.sun.jndi.rmi.factory.socket"));
+            Assert.assertEquals("javax.rmi.ssl.client.enabledProtocols must match", expectedProtocols, JAVAX_RMI_SSL_CLIENT_ENABLED_PROTOCOLS.getString());
+            Assert.assertEquals("javax.rmi.ssl.client.enabledCipherSuites must match", expectedCipherSuites, JAVAX_RMI_SSL_CLIENT_ENABLED_CIPHER_SUITES.getString() );
+        }
     }
 }

@@ -40,7 +40,7 @@ public class IsolatedJmxSocketFactory extends AbstractJmxSocketFactory
     private static final Logger logger = LoggerFactory.getLogger(IsolatedJmxSocketFactory.class);
 
     @Override
-    public void configureLocalSocketFactory(Map<String, Object> env, InetAddress serverAddress)
+    public void configureLocalSocketFactories(Map<String, Object> env, InetAddress serverAddress)
     {
         CollectingRMIServerSocketFactoryImpl serverSocketFactory = new CollectingRMIServerSocketFactoryImpl(serverAddress);
         env.put(RMIConnectorServer.RMI_SERVER_SOCKET_FACTORY_ATTRIBUTE,

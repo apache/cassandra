@@ -39,16 +39,16 @@ import org.apache.cassandra.io.util.File;
  */
 public class JmxTestClientSslContextFactory
 {
-    protected final Map<String, Object> parameters;
+    private final Map<String, Object> parameters;
     // keystore is not needed when the JMX server does not require client-auth
-    protected String keystore;
+    private final String keystore;
     // keystore could be null in case JMX server does not require client-auth
-    protected String keystore_password;
-    protected final String truststore;
-    protected final String truststore_password;
-    protected final String protocol;
-    protected final String algorithm;
-    protected final String store_type;
+    private final String keystore_password;
+    private final String truststore;
+    private final String truststore_password;
+    private final String protocol;
+    private final String algorithm;
+    private final String store_type;
 
     public JmxTestClientSslContextFactory(Map<String, Object> parameters)
     {
@@ -62,27 +62,17 @@ public class JmxTestClientSslContextFactory
         store_type = getString(EncryptionOptions.ConfigKey.STORE_TYPE.toString(), "JKS");
     }
 
-    protected String getString(String key, String defaultValue)
+    private String getString(String key, String defaultValue)
     {
         return parameters.get(key) == null ? defaultValue : (String) parameters.get(key);
     }
 
-    protected String getString(String key)
+    private String getString(String key)
     {
         return (String) parameters.get(key);
     }
 
-    protected Boolean getBoolean(String key, boolean defaultValue)
-    {
-        return parameters.get(key) == null ? defaultValue : (Boolean) parameters.get(key);
-    }
-
-    protected Boolean getBoolean(String key)
-    {
-        return (Boolean) this.parameters.get(key);
-    }
-
-    protected TrustManagerFactory buildTrustManagerFactory() throws SSLException
+    private TrustManagerFactory buildTrustManagerFactory() throws SSLException
     {
         try (InputStream tsf = Files.newInputStream(File.getPath(truststore)))
         {
@@ -101,7 +91,7 @@ public class JmxTestClientSslContextFactory
         }
     }
 
-    protected KeyManagerFactory buildKeyManagerFactory() throws SSLException
+    private KeyManagerFactory buildKeyManagerFactory() throws SSLException
     {
         final String algorithm = this.algorithm == null ? KeyManagerFactory.getDefaultAlgorithm() : this.algorithm;
 

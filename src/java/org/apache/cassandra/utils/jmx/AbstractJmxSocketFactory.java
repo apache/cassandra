@@ -135,7 +135,7 @@ abstract public class AbstractJmxSocketFactory
         }
         else if (localOnly)
         {
-            configureLocalSocketFactory(env, serverAddress);
+            configureLocalSocketFactories(env, serverAddress);
         }
 
         return env;
@@ -146,7 +146,7 @@ abstract public class AbstractJmxSocketFactory
      * @param env output param containing the configured socket factories
      * @param serverAddress the JMX server is bound to
      */
-    abstract public void configureLocalSocketFactory(Map<String, Object> env, InetAddress serverAddress);
+    abstract public void configureLocalSocketFactories(Map<String, Object> env, InetAddress serverAddress);
 
     /**
      * Configures SSL based client socket factory.

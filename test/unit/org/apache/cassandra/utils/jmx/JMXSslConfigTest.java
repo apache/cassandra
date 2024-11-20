@@ -24,7 +24,6 @@ import javax.management.remote.rmi.RMIConnectorServer;
 import javax.net.ssl.SSLException;
 import javax.rmi.ssl.SslRMIServerSocketFactory;
 
-import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.Assert;
 import org.junit.BeforeClass;
@@ -63,15 +62,6 @@ public class JMXSslConfigTest
         properties.close();
     }
 
-    @After
-    public void resetJmxSslSystemProperties()
-    {
-        // The below properties are set as side effect of other properties when tests run. Hence, these are reset here
-        // vs using try-with-resouces block
-        JAVAX_RMI_SSL_CLIENT_ENABLED_PROTOCOLS.reset();
-        JAVAX_RMI_SSL_CLIENT_ENABLED_CIPHER_SUITES.reset();
-    }
-
     /**
      * Tests for remote JMX SSL configuration specified via the System properties.
      */
@@ -87,6 +77,8 @@ public class JMXSslConfigTest
                                             .set(COM_SUN_MANAGEMENT_JMXREMOTE_SSL_NEED_CLIENT_AUTH, true)
                                             .set(COM_SUN_MANAGEMENT_JMXREMOTE_SSL_ENABLED_PROTOCOLS, enabledProtocols)
                                             .set(COM_SUN_MANAGEMENT_JMXREMOTE_SSL_ENABLED_CIPHER_SUITES, cipherSuites)
+                                            .preserve(JAVAX_RMI_SSL_CLIENT_ENABLED_PROTOCOLS)
+                                            .preserve(JAVAX_RMI_SSL_CLIENT_ENABLED_CIPHER_SUITES)
         )
         {
             Map<String, Object> env = JMXServerUtils.configureJmxSocketFactories(serverAddress, false);

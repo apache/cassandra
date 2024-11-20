@@ -42,7 +42,6 @@ public class RMISslClientSocketFactoryImpl implements Serializable, RMICloseable
 {
     private static final long serialVersionUID = 9054380061905145241L;
     private static final List<Socket> sockets = new ArrayList<>();
-    private static SocketFactory defaultSocketFactory = null;
     private final InetAddress localAddress;
     private final String enabledCipherSuites;
     private final String enabledProtocols;
@@ -52,13 +51,6 @@ public class RMISslClientSocketFactoryImpl implements Serializable, RMICloseable
         this.localAddress = localAddress;
         this.enabledCipherSuites = enabledCipherSuites;
         this.enabledProtocols = enabledProtocls;
-    }
-
-    private static synchronized SocketFactory getDefaultClientSocketFactory()
-    {
-        if (defaultSocketFactory == null)
-            defaultSocketFactory = SSLSocketFactory.getDefault();
-        return defaultSocketFactory;
     }
 
     @Override
@@ -71,7 +63,7 @@ public class RMISslClientSocketFactoryImpl implements Serializable, RMICloseable
 
     private Socket createSslSocket(int port) throws IOException
     {
-        final SocketFactory sslSocketFactory = getDefaultClientSocketFactory();
+        final SocketFactory sslSocketFactory = SSLSocketFactory.getDefault();
         final SSLSocket sslSocket = (SSLSocket)
                                     sslSocketFactory.createSocket(localAddress, port);
         if (enabledCipherSuites != null)
