@@ -18,12 +18,16 @@
 
 package org.apache.cassandra.index;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.stream.Collectors;
 
 import org.junit.Test;
+import org.junit.runner.RunWith;
+import org.junit.runners.Parameterized;
 import org.mockito.Mockito;
 
 import org.apache.cassandra.db.ConsistencyLevel;
@@ -43,8 +47,21 @@ import static org.apache.cassandra.locator.ReplicaUtils.full;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.junit.Assert.assertArrayEquals;
 
+@RunWith(Parameterized.class)
 public class IndexStatusManagerTest
 {
+    @Parameterized.Parameter
+    public boolean legacyStatusFormat;
+
+    @Parameterized.Parameters(name = "{0}")
+    public static List<Object[]> parameters()
+    {
+        List<Object[]> parameters = new ArrayList<>();
+        parameters.add(new Object[] { true });
+        parameters.add(new Object[] { false });
+        return parameters;
+    }
+
     static class Testcase
     {
         String keyspace;
@@ -362,11 +379,12 @@ public class IndexStatusManagerTest
                 .collect(Collectors.toSet());
 
         // send indexStatus for each endpoint
-        testcase.indexStatus.forEach((endpoint, indexStatus) ->
-                IndexStatusManager.instance.receivePeerIndexStatus(
-                        endpoint,
-                        VersionedValue.unsafeMakeVersionedValue(JsonUtils.writeAsJsonString(indexStatus), 1)
-                ));
+        testcase.indexStatus.forEach((endpoint, indexStatusMap) ->
+        {
+            String serialized = legacyStatusFormat ? JsonUtils.writeAsJsonString(indexStatusMap) 
+                                                   : IndexStatusManager.toSerializedFormat(indexStatusMap);
+            IndexStatusManager.instance.receivePeerIndexStatus(endpoint, VersionedValue.unsafeMakeVersionedValue(serialized, 1));
+        });
 
         // sort the replicas here, so that we can assert the order later
         EndpointsForRange endpoints = EndpointsForRange.copyOf(new TreeSet<>(replicas));
