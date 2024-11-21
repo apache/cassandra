@@ -31,35 +31,25 @@ public final class JMXSslPropertiesUtil
 {
     public static WithProperties use(boolean enableRemoteSsl, boolean needClientAuth, String enabledProtocols, String cipherSuites)
     {
-        return new WithProperties()
+        return preserveAllProperties()
                .set(COM_SUN_MANAGEMENT_JMXREMOTE_SSL, enableRemoteSsl)
                .set(COM_SUN_MANAGEMENT_JMXREMOTE_SSL_NEED_CLIENT_AUTH, needClientAuth)
                .set(COM_SUN_MANAGEMENT_JMXREMOTE_SSL_ENABLED_PROTOCOLS, enabledProtocols)
-               .set(COM_SUN_MANAGEMENT_JMXREMOTE_SSL_ENABLED_CIPHER_SUITES, cipherSuites)
-               .preserve(JAVAX_RMI_SSL_CLIENT_ENABLED_PROTOCOLS)
-               .preserve(JAVAX_RMI_SSL_CLIENT_ENABLED_CIPHER_SUITES);
+               .set(COM_SUN_MANAGEMENT_JMXREMOTE_SSL_ENABLED_CIPHER_SUITES, cipherSuites);
     }
 
     public static WithProperties use(boolean enableRemoteSsl, boolean needClientAuth, String enabledProtocols)
     {
-        return new WithProperties()
+        return preserveAllProperties()
                .set(COM_SUN_MANAGEMENT_JMXREMOTE_SSL, enableRemoteSsl)
                .set(COM_SUN_MANAGEMENT_JMXREMOTE_SSL_NEED_CLIENT_AUTH, needClientAuth)
-               .set(COM_SUN_MANAGEMENT_JMXREMOTE_SSL_ENABLED_PROTOCOLS, enabledProtocols)
-               .preserve(COM_SUN_MANAGEMENT_JMXREMOTE_SSL_ENABLED_CIPHER_SUITES)
-               .preserve(JAVAX_RMI_SSL_CLIENT_ENABLED_PROTOCOLS)
-               .preserve(JAVAX_RMI_SSL_CLIENT_ENABLED_CIPHER_SUITES);
+               .set(COM_SUN_MANAGEMENT_JMXREMOTE_SSL_ENABLED_PROTOCOLS, enabledProtocols);
     }
 
     public static WithProperties use(boolean enableRemoteSsl)
     {
-        return new WithProperties()
-               .set(COM_SUN_MANAGEMENT_JMXREMOTE_SSL, enableRemoteSsl)
-               .preserve(COM_SUN_MANAGEMENT_JMXREMOTE_SSL_NEED_CLIENT_AUTH)
-               .preserve(COM_SUN_MANAGEMENT_JMXREMOTE_SSL_ENABLED_PROTOCOLS)
-               .preserve(COM_SUN_MANAGEMENT_JMXREMOTE_SSL_ENABLED_CIPHER_SUITES)
-               .preserve(JAVAX_RMI_SSL_CLIENT_ENABLED_PROTOCOLS)
-               .preserve(JAVAX_RMI_SSL_CLIENT_ENABLED_CIPHER_SUITES);
+        return preserveAllProperties()
+               .set(COM_SUN_MANAGEMENT_JMXREMOTE_SSL, enableRemoteSsl);
     }
 
     public static WithProperties preserveAllProperties()
