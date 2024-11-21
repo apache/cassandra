@@ -18,10 +18,18 @@
 
 package org.apache.cassandra.utils;
 
+import java.util.HashSet;
+import java.util.Set;
+import java.util.UUID;
+
 import com.google.common.net.InternetDomainName;
+import org.junit.Assert;
 import org.junit.Test;
 
 import org.assertj.core.api.Assertions;
+import org.quicktheories.core.Gen;
+import org.quicktheories.core.RandomnessSource;
+import org.quicktheories.impl.JavaRandom;
 
 import static org.quicktheories.QuickTheory.qt;
 
@@ -39,6 +47,28 @@ public class GeneratorsTest
                       .isEqualTo(2);
         });
     }
+
+    @Test
+    public void randomUUIDEntropy()
+    {
+        UUIDEntropy(Generators.UUID_RANDOM_GEN);
+    }
+
+    @Test
+    public void timeUUIDEntropy()
+    {
+        UUIDEntropy(Generators.UUID_TIME_GEN);
+    }
+
+    private void UUIDEntropy(Gen<UUID> gen)
+    {
+        RandomnessSource rng = new JavaRandom(100);
+        Set<UUID> uuids = new HashSet<>();
+        for (int i = 0; i < 100_000; i++)
+            uuids.add(gen.generate(rng));
+        Assert.assertEquals(100_000, uuids.size());
+    }
+
 
     @Test
     public void dnsDomainName()

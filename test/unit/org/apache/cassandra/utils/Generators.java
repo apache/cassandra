@@ -98,21 +98,21 @@ public final class Generators
 
     public static final Gen<UUID> UUID_RANDOM_GEN = rnd -> {
         long most = rnd.next(Constraint.none());
-        most &= 0x0f << 8; /* clear version        */
-        most += 0x40 << 8; /* set to version 4     */
         long least = rnd.next(Constraint.none());
-        least &= 0x3fl << 56; /* clear variant        */
-        least |= 0x80l << 56; /* set to IETF variant  */
+        most &= ~(0xFL << 12);  /* clear version       */
+        most |= 0x40L << 8;     /* set to version 4    */
+        least &= ~(0x3L << 62); /* clear variant       */
+        least |= 0x80l << 56;   /* set to IETF variant */
         return new UUID(most, least);
     };
 
     public static final Gen<UUID> UUID_TIME_GEN = rnd -> {
         long most = rnd.next(Constraint.none());
-        most &= 0x0f << 8; /* clear version        */
-        most += 0x10 << 8; /* set to version 1     */
+        most &= ~(0xFL << 12);  /* clear version       */
+        most |= 0x10 << 8;      /* set to version 1    */
         long least = rnd.next(Constraint.none());
-        least &= 0x3fl << 56; /* clear variant        */
-        least |= 0x80l << 56; /* set to IETF variant  */
+        least &= ~(0x3L << 62); /* clear variant       */
+        least |= 0x80l << 56  ; /* set to IETF variant */
         return new UUID(most, least);
     };
 
