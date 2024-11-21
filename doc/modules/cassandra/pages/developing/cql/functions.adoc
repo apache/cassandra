@@ -231,6 +231,54 @@ For every xref:cassandra:developing/cql/types.adoc#native-types[type] supported 
 Conversely, the function `blob_as_type` takes a 64-bit `blob` argument and converts it to a `bigint` value.
 For example, `bigint_as_blob(3)` returns `0x0000000000000003` and `blob_as_bigint(0x0000000000000003)` returns `3`.
 
+==== Length Functions
+CQL supports two functions to retrieve the length of data without returning the data itself. Note that while
+network bandwidth is reduced and memory is freed earlier, these functions still require data to be read from disk.
+
+[cols=",,",options="header",]
+|===
+|Function name |Input type |Description
+
+| `octet_length` | All xref:cassandra:developing/cql/types.adoc#native-types[types] | Returns the length of the data in bytes.
+
+| `length` | `text` | Returns the string's length - the count of UTF-8 code units.
+|===
+
+The `octet_length` function is defined for every xref:cassandra:developing/cql/types.adoc#native-types[type]
+supported by CQL, and represents the number of bytes of the underlying `ByteBuffer` representation, not accounting for
+metadata overhead. Equivalent to Java's
+https://docs.oracle.com/en/java/javase/22/docs/api/java.base/java/nio/Buffer.html#remaining()[`ByteBuffer#remaining()`]
+when data has just been read, which is also the `length` of the type when encoded to `byte[]`. Some examples
+for common types:
+
+[cols=",,",options="header",]
+|===
+|CQL Type | `octet_length` |Description
+
+| `tinyint` | `1` | 8-bit signed integer
+
+| `smallint` | `2` | 16-bit signed integer
+
+| `int` | `4` | 32-bit signed integer
+
+| `bigint` | `8` | 64-bit signed integer
+
+| `float` | `4` | 32-bit IEEE-754 floating point
+
+| `double` | `8` | 64-bit IEEE-754 floating point
+
+| `blob` | Number of bytes in blob | Variable length byte string
+
+| `text` | Number of bytes in `text_as_blob` representation | Variable length character string
+|===
+
+The `length` function is only defined for UTF-8 strings (`text`) and returns the length of that string, meaning the
+number of UTF-8 code units. Equivalent to Java's
+https://docs.oracle.com/en/java/javase/22/docs/api/java.base/java/lang/String.html#length()[`String#length()`] or
+Python 3's `len` function when applied to a string.
+
+These length functions return `null` when the input is `null`.
+
 ==== Math Functions
 
 Cql provides the following math functions: `abs`, `exp`, `log`, `log10`, and `round`.
