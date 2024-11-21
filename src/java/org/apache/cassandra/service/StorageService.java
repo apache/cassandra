@@ -124,6 +124,7 @@ import org.apache.cassandra.gms.FailureDetector;
 import org.apache.cassandra.gms.Gossiper;
 import org.apache.cassandra.gms.IEndpointStateChangeSubscriber;
 import org.apache.cassandra.gms.VersionedValue;
+import org.apache.cassandra.hints.Hint;
 import org.apache.cassandra.hints.HintsService;
 import org.apache.cassandra.index.IndexStatusManager;
 import org.apache.cassandra.io.sstable.IScrubber;
@@ -4761,15 +4762,30 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         logger.info("updated transfer_hints_on_decommission to {}", enabled);
     }
 
+    @Override
     public boolean isHintTtlUseMutationCreationTime()
     {
         return DatabaseDescriptor.isUseCreationTimeForHintTtl();
     }
 
+    @Override
     public void setUseCreationTimeForHintTtl(boolean enabled)
     {
         DatabaseDescriptor.setUseCreationTimeForHintTtl(enabled);
         logger.info("updated use_creation_time_for_hint_ttl to {}", enabled);
+    }
+
+    @Override
+    public int getMaxHintTTL()
+    {
+        return Hint.maxHintTTL;
+    }
+
+    @Override
+    public void setMaxHintTTL(int maxHintTTL)
+    {
+        Hint.maxHintTTL = maxHintTTL;
+        logger.info("updated Hint.maxHintTTL to {}", maxHintTTL);
     }
 
     @Override
