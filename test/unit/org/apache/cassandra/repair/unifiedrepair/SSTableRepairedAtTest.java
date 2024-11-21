@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 
-package org.apache.cassandra.repair.autorepair;
+package org.apache.cassandra.repair.unifiedrepair;
 
 import java.net.UnknownHostException;
 import java.util.Arrays;
@@ -55,8 +55,8 @@ public class SSTableRepairedAtTest extends CQLTester
     public static void setUp() throws ConfigurationException, UnknownHostException
     {
         requireNetwork();
-        AutoRepairUtils.setup();
-        StorageService.instance.doAutoRepairSetup();
+        UnifiedRepairUtils.setup();
+        StorageService.instance.doUnifiedRepairSetup();
         DatabaseDescriptor.setCDCEnabled(false);
     }
 

@@ -35,7 +35,7 @@ import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.tcm.serialization.MetadataSerializer;
 import org.apache.cassandra.tcm.serialization.Version;
-import org.apache.cassandra.repair.autorepair.AutoRepairConfig;
+import org.apache.cassandra.repair.unifiedrepair.UnifiedRepairConfig;
 import org.apache.cassandra.service.reads.PercentileSpeculativeRetryPolicy;
 import org.apache.cassandra.service.reads.SpeculativeRetryPolicy;
 import org.apache.cassandra.service.reads.repair.ReadRepairStrategy;
@@ -102,7 +102,7 @@ public final class TableParams
     public final boolean cdc;
     public final ReadRepairStrategy readRepair;
 
-    public final Map<AutoRepairConfig.RepairType, AutoRepairParams> automatedRepair;
+    public final Map<UnifiedRepairConfig.RepairType, UnifiedRepairParams> unifiedRepair;
 
     private TableParams(Builder builder)
     {
@@ -127,11 +127,11 @@ public final class TableParams
         extensions = builder.extensions;
         cdc = builder.cdc;
         readRepair = builder.readRepair;
-        automatedRepair = new EnumMap<AutoRepairConfig.RepairType, AutoRepairParams>(AutoRepairConfig.RepairType.class)
+        unifiedRepair = new EnumMap<UnifiedRepairConfig.RepairType, UnifiedRepairParams>(UnifiedRepairConfig.RepairType.class)
         {
             {
-                put(AutoRepairConfig.RepairType.full, builder.automatedRepairFull);
-                put(AutoRepairConfig.RepairType.incremental, builder.automatedRepairIncremental);
+                put(UnifiedRepairConfig.RepairType.full, builder.unifiedRepairFull);
+                put(UnifiedRepairConfig.RepairType.incremental, builder.unifiedRepairIncremental);
             }
         };
     }
@@ -162,8 +162,8 @@ public final class TableParams
                             .extensions(params.extensions)
                             .cdc(params.cdc)
                             .readRepair(params.readRepair)
-                            .automatedRepairFull(params.automatedRepair.get(AutoRepairConfig.RepairType.full))
-                            .automatedRepairIncremental(params.automatedRepair.get(AutoRepairConfig.RepairType.incremental))
+                            .unifiedRepairFull(params.unifiedRepair.get(UnifiedRepairConfig.RepairType.full))
+                            .unifiedRepairIncremental(params.unifiedRepair.get(UnifiedRepairConfig.RepairType.incremental))
         ;
     }
 
@@ -220,7 +220,7 @@ public final class TableParams
         if (cdc && memtable.factory().writesShouldSkipCommitLog())
             fail("CDC cannot work if writes skip the commit log. Check your memtable configuration.");
 
-        for (Map.Entry<AutoRepairConfig.RepairType, AutoRepairParams> entry : automatedRepair.entrySet())
+        for (Map.Entry<UnifiedRepairConfig.RepairType, UnifiedRepairParams> entry : unifiedRepair.entrySet())
         {
             entry.getValue().validate();
         }
@@ -243,25 +243,25 @@ public final class TableParams
         TableParams p = (TableParams) o;
 
         return comment.equals(p.comment)
-            && additionalWritePolicy.equals(p.additionalWritePolicy)
-            && allowAutoSnapshot == p.allowAutoSnapshot
-            && bloomFilterFpChance == p.bloomFilterFpChance
-            && crcCheckChance == p.crcCheckChance
-            && gcGraceSeconds == p.gcGraceSeconds 
-            && incrementalBackups == p.incrementalBackups
-            && defaultTimeToLive == p.defaultTimeToLive
-            && memtableFlushPeriodInMs == p.memtableFlushPeriodInMs
-            && minIndexInterval == p.minIndexInterval
-            && maxIndexInterval == p.maxIndexInterval
-            && speculativeRetry.equals(p.speculativeRetry)
-            && caching.equals(p.caching)
-            && compaction.equals(p.compaction)
-            && compression.equals(p.compression)
-            && memtable.equals(p.memtable)
-            && extensions.equals(p.extensions)
-            && cdc == p.cdc
-            && readRepair == p.readRepair
-            && automatedRepair.equals(p.automatedRepair);
+               && additionalWritePolicy.equals(p.additionalWritePolicy)
+               && allowAutoSnapshot == p.allowAutoSnapshot
+               && bloomFilterFpChance == p.bloomFilterFpChance
+               && crcCheckChance == p.crcCheckChance
+               && gcGraceSeconds == p.gcGraceSeconds
+               && incrementalBackups == p.incrementalBackups
+               && defaultTimeToLive == p.defaultTimeToLive
+               && memtableFlushPeriodInMs == p.memtableFlushPeriodInMs
+               && minIndexInterval == p.minIndexInterval
+               && maxIndexInterval == p.maxIndexInterval
+               && speculativeRetry.equals(p.speculativeRetry)
+               && caching.equals(p.caching)
+               && compaction.equals(p.compaction)
+               && compression.equals(p.compression)
+               && memtable.equals(p.memtable)
+               && extensions.equals(p.extensions)
+               && cdc == p.cdc
+               && readRepair == p.readRepair
+               && unifiedRepair.equals(p.unifiedRepair);
     }
 
     @Override
@@ -286,7 +286,7 @@ public final class TableParams
                                 extensions,
                                 cdc,
                                 readRepair,
-                                automatedRepair);
+                                unifiedRepair);
     }
 
     @Override
@@ -312,8 +312,8 @@ public final class TableParams
                           .add(EXTENSIONS.toString(), extensions)
                           .add(CDC.toString(), cdc)
                           .add(READ_REPAIR.toString(), readRepair)
-                          .add(Option.REPAIR_FULL.toString(), automatedRepair.get(AutoRepairConfig.RepairType.full))
-                          .add(Option.REPAIR_INCREMENTAL.toString(), automatedRepair.get(AutoRepairConfig.RepairType.incremental))
+                          .add(Option.REPAIR_FULL.toString(), unifiedRepair.get(UnifiedRepairConfig.RepairType.full))
+                          .add(Option.REPAIR_INCREMENTAL.toString(), unifiedRepair.get(UnifiedRepairConfig.RepairType.incremental))
                           .toString();
     }
 
@@ -367,9 +367,9 @@ public final class TableParams
                .newLine()
                .append("AND speculative_retry = ").appendWithSingleQuotes(speculativeRetry.toString())
                .newLine()
-               .append("AND repair_full = ").append(automatedRepair.get(AutoRepairConfig.RepairType.full).asMap())
+               .append("AND repair_full = ").append(unifiedRepair.get(UnifiedRepairConfig.RepairType.full).asMap())
                .newLine()
-               .append("AND repair_incremental = ").append(automatedRepair.get(AutoRepairConfig.RepairType.incremental).asMap());
+               .append("AND repair_incremental = ").append(unifiedRepair.get(UnifiedRepairConfig.RepairType.incremental).asMap());
     }
 
     public static final class Builder
@@ -394,8 +394,8 @@ public final class TableParams
         private boolean cdc;
         private ReadRepairStrategy readRepair = ReadRepairStrategy.BLOCKING;
 
-        private AutoRepairParams automatedRepairFull = new AutoRepairParams(AutoRepairConfig.RepairType.full);
-        private AutoRepairParams automatedRepairIncremental = new AutoRepairParams(AutoRepairConfig.RepairType.incremental);
+        private UnifiedRepairParams unifiedRepairFull = new UnifiedRepairParams(UnifiedRepairConfig.RepairType.full);
+        private UnifiedRepairParams unifiedRepairIncremental = new UnifiedRepairParams(UnifiedRepairConfig.RepairType.incremental);
 
         public Builder()
         {
@@ -520,15 +520,15 @@ public final class TableParams
             return this;
         }
 
-        public Builder automatedRepairFull(AutoRepairParams val)
+        public Builder unifiedRepairFull(UnifiedRepairParams val)
         {
-            automatedRepairFull = val;
+            unifiedRepairFull = val;
             return this;
         }
 
-        public Builder automatedRepairIncremental(AutoRepairParams val)
+        public Builder unifiedRepairIncremental(UnifiedRepairParams val)
         {
-            automatedRepairIncremental = val;
+            unifiedRepairIncremental = val;
             return this;
         }
     }

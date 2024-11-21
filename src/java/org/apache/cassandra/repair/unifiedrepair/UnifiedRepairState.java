@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 
-package org.apache.cassandra.repair.autorepair;
+package org.apache.cassandra.repair.unifiedrepair;
 
 import com.google.common.annotations.VisibleForTesting;
 
@@ -26,14 +26,14 @@ import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.view.TableViews;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
-import org.apache.cassandra.metrics.AutoRepairMetricsManager;
-import org.apache.cassandra.metrics.AutoRepairMetrics;
+import org.apache.cassandra.metrics.UnifiedRepairMetricsManager;
+import org.apache.cassandra.metrics.UnifiedRepairMetrics;
 import org.apache.cassandra.repair.RepairCoordinator;
-import org.apache.cassandra.repair.autorepair.AutoRepairConfig.RepairType;
-import org.apache.cassandra.repair.autorepair.AutoRepairUtils.AutoRepairHistory;
+import org.apache.cassandra.repair.unifiedrepair.UnifiedRepairConfig.RepairType;
+import org.apache.cassandra.repair.unifiedrepair.UnifiedRepairUtils.UnifiedRepairHistory;
 import org.apache.cassandra.repair.RepairParallelism;
 import org.apache.cassandra.repair.messages.RepairOption;
-import org.apache.cassandra.service.AutoRepairService;
+import org.apache.cassandra.service.UnifiedRepairService;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.streaming.PreviewKind;
 import org.apache.cassandra.utils.Clock;
@@ -55,10 +55,10 @@ import java.util.stream.Collectors;
 import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
 import static org.apache.cassandra.utils.concurrent.Condition.newOneTimeCondition;
 
-// AutoRepairState represents the state of automated repair for a given repair type.
-public abstract class AutoRepairState implements ProgressListener
+// UnifiedRepairState represents the state of unified repair for a given repair type.
+public abstract class UnifiedRepairState implements ProgressListener
 {
-    protected static final Logger logger = LoggerFactory.getLogger(AutoRepairState.class);
+    protected static final Logger logger = LoggerFactory.getLogger(UnifiedRepairState.class);
     private final SimpleDateFormat format = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss,SSS");
     @VisibleForTesting
     protected static Supplier<Long> timeFunc = Clock.Global::currentTimeMillis;
@@ -93,16 +93,16 @@ public abstract class AutoRepairState implements ProgressListener
     protected int skippedTablesCount = 0;
 
     @VisibleForTesting
-    protected AutoRepairHistory longestUnrepairedNode;
+    protected UnifiedRepairHistory longestUnrepairedNode;
     @VisibleForTesting
     protected Condition condition = newOneTimeCondition();
     @VisibleForTesting
     protected boolean success = true;
-    protected final AutoRepairMetrics metrics;
+    protected final UnifiedRepairMetrics metrics;
 
-    protected AutoRepairState(RepairType repairType)
+    protected UnifiedRepairState(RepairType repairType)
     {
-        metrics = AutoRepairMetricsManager.getMetrics(repairType);
+        metrics = UnifiedRepairMetricsManager.getMetrics(repairType);
         this.repairType = repairType;
     }
 
@@ -229,7 +229,7 @@ public abstract class AutoRepairState implements ProgressListener
         return repairKeyspaceCount;
     }
 
-    public void setLongestUnrepairedNode(AutoRepairHistory longestUnrepairedNode)
+    public void setLongestUnrepairedNode(UnifiedRepairHistory longestUnrepairedNode)
     {
         this.longestUnrepairedNode = longestUnrepairedNode;
     }
@@ -279,7 +279,7 @@ public abstract class AutoRepairState implements ProgressListener
         return success;
     }
 
-    public void recordTurn(AutoRepairUtils.RepairTurn turn)
+    public void recordTurn(UnifiedRepairUtils.RepairTurn turn)
     {
         metrics.recordTurn(turn);
     }
@@ -300,7 +300,7 @@ public abstract class AutoRepairState implements ProgressListener
     }
 }
 
-class IncrementalRepairState extends AutoRepairState
+class IncrementalRepairState extends UnifiedRepairState
 {
     public IncrementalRepairState()
     {
@@ -311,7 +311,7 @@ class IncrementalRepairState extends AutoRepairState
     public RepairCoordinator getRepairRunnable(String keyspace, List<String> tables, Set<Range<Token>> ranges, boolean primaryRangeOnly)
     {
         RepairOption option = new RepairOption(RepairParallelism.PARALLEL, primaryRangeOnly, true, false,
-                                               AutoRepairService.instance.getAutoRepairConfig().getRepairThreads(repairType), ranges,
+                                               UnifiedRepairService.instance.getUnifiedRepairConfig().getRepairThreads(repairType), ranges,
                                                !ranges.isEmpty(), false, false, PreviewKind.NONE, true, true, false, false);
 
         option.getColumnFamilies().addAll(filterOutUnsafeTables(keyspace, tables));
@@ -345,7 +345,7 @@ class IncrementalRepairState extends AutoRepairState
     }
 }
 
-class FullRepairState extends AutoRepairState
+class FullRepairState extends UnifiedRepairState
 {
     public FullRepairState()
     {
@@ -356,7 +356,7 @@ class FullRepairState extends AutoRepairState
     public RepairCoordinator getRepairRunnable(String keyspace, List<String> tables, Set<Range<Token>> ranges, boolean primaryRangeOnly)
     {
         RepairOption option = new RepairOption(RepairParallelism.PARALLEL, primaryRangeOnly, false, false,
-                                               AutoRepairService.instance.getAutoRepairConfig().getRepairThreads(repairType), ranges,
+                                               UnifiedRepairService.instance.getUnifiedRepairConfig().getRepairThreads(repairType), ranges,
                                                !ranges.isEmpty(), false, false, PreviewKind.NONE, true, true, false, false);
 
         option.getColumnFamilies().addAll(tables);

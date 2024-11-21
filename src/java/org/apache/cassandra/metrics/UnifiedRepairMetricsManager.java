@@ -18,17 +18,17 @@
 
 package org.apache.cassandra.metrics;
 
-import org.apache.cassandra.repair.autorepair.AutoRepairConfig.RepairType;
+import org.apache.cassandra.repair.unifiedrepair.UnifiedRepairConfig.RepairType;
 
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
-public class AutoRepairMetricsManager
+public class UnifiedRepairMetricsManager
 {
-    private static final Map<RepairType, AutoRepairMetrics> metrics = new ConcurrentHashMap<>();
+    private static final Map<RepairType, UnifiedRepairMetrics> metrics = new ConcurrentHashMap<>();
 
-    public static AutoRepairMetrics getMetrics(RepairType repairType)
+    public static UnifiedRepairMetrics getMetrics(RepairType repairType)
     {
-        return metrics.computeIfAbsent(repairType, k -> new AutoRepairMetrics(repairType));
+        return metrics.computeIfAbsent(repairType, k -> new UnifiedRepairMetrics(repairType));
     }
 }

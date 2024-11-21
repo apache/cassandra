@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 
-package org.apache.cassandra.repair.autorepair;
+package org.apache.cassandra.repair.unifiedrepair;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -34,38 +34,38 @@ import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.schema.ReplicationParams;
-import org.apache.cassandra.repair.autorepair.AutoRepairConfig.RepairType;
+import org.apache.cassandra.repair.unifiedrepair.UnifiedRepairConfig.RepairType;
 import org.apache.cassandra.schema.SchemaTestUtil;
-import org.apache.cassandra.service.AutoRepairService;
+import org.apache.cassandra.service.UnifiedRepairService;
 
-import static org.apache.cassandra.Util.setAutoRepairEnabled;
+import static org.apache.cassandra.Util.setUnifiedRepairEnabled;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
-public class AutoRepairTest extends CQLTester
+public class UnifiedRepairTest extends CQLTester
 {
     @BeforeClass
     public static void setupClass() throws Exception
     {
-        setAutoRepairEnabled(true);
+        setUnifiedRepairEnabled(true);
         requireNetwork();
     }
 
     @Before
     public void setup()
     {
-        AutoRepair.SLEEP_IF_REPAIR_FINISHES_QUICKLY = new DurationSpec.IntSecondsBound("0s");
+        UnifiedRepair.SLEEP_IF_REPAIR_FINISHES_QUICKLY = new DurationSpec.IntSecondsBound("0s");
         DatabaseDescriptor.setCDCOnRepairEnabled(false);
         DatabaseDescriptor.setMaterializedViewsOnRepairEnabled(false);
-        DatabaseDescriptor.getAutoRepairConfig().setAutoRepairEnabled(RepairType.full, true);
-        DatabaseDescriptor.getAutoRepairConfig().setAutoRepairEnabled(RepairType.incremental, true);
-        AutoRepairService.setup();
+        DatabaseDescriptor.getUnifiedRepairConfig().setUnifiedRepairEnabled(RepairType.full, true);
+        DatabaseDescriptor.getUnifiedRepairConfig().setUnifiedRepairEnabled(RepairType.incremental, true);
+        UnifiedRepairService.setup();
     }
 
     @Test
     public void testSetup()
     {
-        AutoRepair instance = new AutoRepair();
+        UnifiedRepair instance = new UnifiedRepair();
         instance.setup();
 
         assertEquals(RepairType.values().length, instance.repairExecutors.size());
@@ -81,7 +81,7 @@ public class AutoRepairTest extends CQLTester
     @Test
     public void testSafeGuardSetupCall()
     {
-        AutoRepair instance = new AutoRepair();
+        UnifiedRepair instance = new UnifiedRepair();
 
         // only one should be setup, and rest should be ignored
         instance.setup();
@@ -101,22 +101,22 @@ public class AutoRepairTest extends CQLTester
     @Test(expected = ConfigurationException.class)
     public void testSetupFailsWhenIREnabledWithCDCReplay()
     {
-        DatabaseDescriptor.getAutoRepairConfig().setAutoRepairEnabled(RepairType.incremental, true);
+        DatabaseDescriptor.getUnifiedRepairConfig().setUnifiedRepairEnabled(RepairType.incremental, true);
         DatabaseDescriptor.setMaterializedViewsOnRepairEnabled(true);
         DatabaseDescriptor.setCDCEnabled(true);
         DatabaseDescriptor.setCDCOnRepairEnabled(true);
 
-        AutoRepair instance = new AutoRepair();
+        UnifiedRepair instance = new UnifiedRepair();
         instance.setup();
     }
 
     @Test(expected = ConfigurationException.class)
     public void testSetupFailsWhenIREnabledWithMVReplay()
     {
-        DatabaseDescriptor.getAutoRepairConfig().setAutoRepairEnabled(RepairType.incremental, true);
+        DatabaseDescriptor.getUnifiedRepairConfig().setUnifiedRepairEnabled(RepairType.incremental, true);
         DatabaseDescriptor.setCDCOnRepairEnabled(false);
         DatabaseDescriptor.setMaterializedViewsOnRepairEnabled(true);
-        AutoRepair instance = new AutoRepair();
+        UnifiedRepair instance = new UnifiedRepair();
         instance.setup();
     }
 
@@ -141,14 +141,14 @@ public class AutoRepairTest extends CQLTester
                 // case 1 :
                 // node reside in "datacenter1"
                 // keyspace has replica in "datacenter1"
-                Assert.assertTrue(AutoRepairUtils.checkNodeContainsKeyspaceReplica(ks));
+                Assert.assertTrue(UnifiedRepairUtils.checkNodeContainsKeyspaceReplica(ks));
             }
             else if (ks.getName().equals(ksname2))
             {
                 // case 2 :
                 // node reside in "datacenter1"
                 // keyspace has replica in "datacenter2"
-                Assert.assertFalse(AutoRepairUtils.checkNodeContainsKeyspaceReplica(ks));
+                Assert.assertFalse(UnifiedRepairUtils.checkNodeContainsKeyspaceReplica(ks));
             }
         }
     }
