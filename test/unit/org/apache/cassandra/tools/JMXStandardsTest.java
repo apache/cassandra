@@ -52,7 +52,7 @@ import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.locator.InetAddressAndPort;
-import org.apache.cassandra.repair.autorepair.AutoRepairConfig;
+import org.apache.cassandra.repair.unifiedrepair.UnifiedRepairConfig;
 import org.apache.cassandra.utils.BreaksJMX;
 import org.assertj.core.api.Assertions;
 import org.reflections.Reflections;
@@ -102,9 +102,9 @@ public class JMXStandardsTest
                                                        .add(ClassNotFoundException.class)
                                                        .add(OpenDataException.class)
                                                        .add(InvalidRequestException.class)
-                                                       .add(AutoRepairConfig.RepairType.class)
+                                                       .add(UnifiedRepairConfig.RepairType.class)
                                                        .add(InetAddressAndPort.class)
-                                                       .add(AutoRepairConfig.class)
+                                                       .add(UnifiedRepairConfig.class)
                                                        .build();
     /**
      * This list is a set of types under java.* and javax.*, but are too vague that could cause issues; this does not

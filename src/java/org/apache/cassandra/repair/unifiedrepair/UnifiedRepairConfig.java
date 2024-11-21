@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 
-package org.apache.cassandra.repair.autorepair;
+package org.apache.cassandra.repair.unifiedrepair;
 
 import java.io.Serializable;
 import java.util.ArrayList;
@@ -34,9 +34,9 @@ import com.google.common.annotations.VisibleForTesting;
 import org.apache.cassandra.config.DurationSpec;
 import org.apache.cassandra.config.ParameterizedClass;
 
-public class AutoRepairConfig implements Serializable
+public class UnifiedRepairConfig implements Serializable
 {
-    // enable/disable auto repair globally, overrides all other settings. Cannot be modified dynamically.
+    // enable/disable unified repair globally, overrides all other settings. Cannot be modified dynamically.
     // if it is set to false, then no repair will be scheduled, including full and incremental repairs by this framework.
     // if it is set to true, then this repair scheduler will consult another config available for each RepairType, and based on that config, it will schedule repairs.
     public volatile Boolean enabled;
@@ -61,7 +61,7 @@ public class AutoRepairConfig implements Serializable
         full,
         incremental;
 
-        public static AutoRepairState getAutoRepairState(RepairType repairType)
+        public static UnifiedRepairState getUnifiedRepairState(RepairType repairType)
         {
             switch (repairType)
             {
@@ -78,12 +78,12 @@ public class AutoRepairConfig implements Serializable
     // repair_type_overrides overrides the global_settings for a specific repair type
     public volatile Map<RepairType, Options> repair_type_overrides = new EnumMap<>(RepairType.class);
 
-    public AutoRepairConfig()
+    public UnifiedRepairConfig()
     {
         this(false);
     }
 
-    public AutoRepairConfig(boolean enabled)
+    public UnifiedRepairConfig(boolean enabled)
     {
         this.enabled = enabled;
         global_settings = Options.getDefaultOptions();
@@ -98,12 +98,12 @@ public class AutoRepairConfig implements Serializable
         return repair_check_interval;
     }
 
-    public boolean isAutoRepairSchedulingEnabled()
+    public boolean isUnifiedRepairSchedulingEnabled()
     {
         return enabled;
     }
 
-    public DurationSpec.IntSecondsBound getAutoRepairHistoryClearDeleteHostsBufferInterval()
+    public DurationSpec.IntSecondsBound getUnifiedRepairHistoryClearDeleteHostsBufferInterval()
     {
         return history_clear_delete_hosts_buffer_interval;
     }
@@ -111,10 +111,10 @@ public class AutoRepairConfig implements Serializable
     public void startScheduler()
     {
         enabled = true;
-        AutoRepair.instance.setup();
+        UnifiedRepair.instance.setup();
     }
 
-    public void setAutoRepairHistoryClearDeleteHostsBufferInterval(String duration)
+    public void setUnifiedRepairHistoryClearDeleteHostsBufferInterval(String duration)
     {
         history_clear_delete_hosts_buffer_interval = new DurationSpec.IntSecondsBound(duration);
     }
@@ -139,12 +139,12 @@ public class AutoRepairConfig implements Serializable
         repair_retry_backoff = new DurationSpec.LongSecondsBound(interval);
     }
 
-    public boolean isAutoRepairEnabled(RepairType repairType)
+    public boolean isUnifiedRepairEnabled(RepairType repairType)
     {
         return enabled && applyOverrides(repairType, opt -> opt.enabled);
     }
 
-    public void setAutoRepairEnabled(RepairType repairType, boolean enabled)
+    public void setUnifiedRepairEnabled(RepairType repairType, boolean enabled)
     {
         ensureOverrides(repairType);
         repair_type_overrides.get(repairType).enabled = enabled;
@@ -205,15 +205,15 @@ public class AutoRepairConfig implements Serializable
         repair_type_overrides.get(repairType).sstable_upper_threshold = sstableHigherThreshold;
     }
 
-    public DurationSpec.IntSecondsBound getAutoRepairTableMaxRepairTime(RepairType repairType)
+    public DurationSpec.IntSecondsBound getUnifiedRepairTableMaxRepairTime(RepairType repairType)
     {
         return applyOverrides(repairType, opt -> opt.table_max_repair_time);
     }
 
-    public void setAutoRepairTableMaxRepairTime(RepairType repairType, String autoRepairTableMaxRepairTime)
+    public void setUnifiedRepairTableMaxRepairTime(RepairType repairType, String unifiedRepairTableMaxRepairTime)
     {
         ensureOverrides(repairType);
-        repair_type_overrides.get(repairType).table_max_repair_time = new DurationSpec.IntSecondsBound(autoRepairTableMaxRepairTime);
+        repair_type_overrides.get(repairType).table_max_repair_time = new DurationSpec.IntSecondsBound(unifiedRepairTableMaxRepairTime);
     }
 
     public Set<String> getIgnoreDCs(RepairType repairType)
@@ -309,11 +309,11 @@ public class AutoRepairConfig implements Serializable
         repair_type_overrides.get(repairType).repair_session_timeout = new DurationSpec.IntSecondsBound(repairSessionTimeout);
     }
 
-    // Options configures auto-repair behavior for a given repair type.
+    // Options configures unified-repair behavior for a given repair type.
     // All fields can be modified dynamically.
     public static class Options implements Serializable
     {
-        // defaultOptions defines the default auto-repair behavior when no overrides are defined
+        // defaultOptions defines the default unified-repair behavior when no overrides are defined
         @VisibleForTesting
         protected static final Options defaultOptions = getDefaultOptions();
 
@@ -339,16 +339,16 @@ public class AutoRepairConfig implements Serializable
             opts.force_repair_new_node = false;
             opts.table_max_repair_time = new DurationSpec.IntSecondsBound("6h");
             opts.mv_repair_enabled = false;
-            opts.token_range_splitter = new ParameterizedClass(DefaultAutoRepairTokenSplitter.class.getName(), Collections.emptyMap());
+            opts.token_range_splitter = new ParameterizedClass(DefaultUnifiedRepairTokenSplitter.class.getName(), Collections.emptyMap());
             opts.initial_scheduler_delay = new DurationSpec.IntSecondsBound("5m"); // 5 minutes
             opts.repair_session_timeout = new DurationSpec.IntSecondsBound("3h"); // 3 hours
 
             return opts;
         }
 
-        // enable/disable auto repair for the given repair type
+        // enable/disable unified repair for the given repair type
         public volatile Boolean enabled;
-        // auto repair is default repair table by table, if this is enabled, the framework will repair all the tables in a keyspace in one go.
+        // unified repair is default repair table by table, if this is enabled, the framework will repair all the tables in a keyspace in one go.
         public volatile Boolean repair_by_keyspace;
         // the number of subranges to split each to-be-repaired token range into,
         // the higher this number, the smaller the repair sessions will be
@@ -387,7 +387,7 @@ public class AutoRepairConfig implements Serializable
         // specifies a denylist of datacenters to repair
         // This is useful if you want to completely avoid running repairs in one or more data centers. By default, it is empty, i.e., the framework will repair nodes in all the datacenters.
         public volatile Set<String> ignore_dcs;
-        // Set this 'true' if AutoRepair should repair only the primary ranges owned by this node; else, 'false'
+        // Set this 'true' if UnifiedRepair should repair only the primary ranges owned by this node; else, 'false'
         // It is the same as -pr in nodetool repair options.
         public volatile Boolean repair_primary_token_range_only;
         // configures whether to force immediate repair on new nodes
@@ -401,9 +401,9 @@ public class AutoRepairConfig implements Serializable
         // So, the idea here is to penalize the outliers instead of good candidates. This can easily be configured with a higher value if we want to disable the functionality.
         public volatile DurationSpec.IntSecondsBound table_max_repair_time;
         // the default is 'true'.
-        // This flag determines whether the auto-repair framework needs to run anti-entropy, a.k.a, repair on the MV table or not.
+        // This flag determines whether the unified-repair framework needs to run anti-entropy, a.k.a, repair on the MV table or not.
         public volatile Boolean mv_repair_enabled;
-        // the default is DefaultAutoRepairTokenSplitter. The class should implement IAutoRepairTokenRangeSplitter.
+        // the default is DefaultUnifiedRepairTokenSplitter. The class should implement IUnifiedRepairTokenRangeSplitter.
         // The default implementation splits the tokens based on the token ranges owned by this node divided by the number of 'number_of_subranges'
         public volatile ParameterizedClass token_range_splitter;
         // the minimum delay after a node starts before the scheduler starts running repair

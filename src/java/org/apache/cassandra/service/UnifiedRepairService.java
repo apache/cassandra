@@ -20,9 +20,9 @@ package org.apache.cassandra.service;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.locator.InetAddressAndPort;
-import org.apache.cassandra.repair.autorepair.AutoRepairConfig;
-import org.apache.cassandra.repair.autorepair.AutoRepairConfig.RepairType;
-import org.apache.cassandra.repair.autorepair.AutoRepairUtils;
+import org.apache.cassandra.repair.unifiedrepair.UnifiedRepairConfig;
+import org.apache.cassandra.repair.unifiedrepair.UnifiedRepairConfig.RepairType;
+import org.apache.cassandra.repair.unifiedrepair.UnifiedRepairUtils;
 import org.apache.cassandra.utils.MBeanWrapper;
 
 import java.util.HashSet;
@@ -32,23 +32,23 @@ import java.util.UUID;
 
 import com.google.common.annotations.VisibleForTesting;
 
-public class AutoRepairService implements AutoRepairServiceMBean
+public class UnifiedRepairService implements UnifiedRepairServiceMBean
 {
-    public static final String MBEAN_NAME = "org.apache.cassandra.db:type=AutoRepairService";
+    public static final String MBEAN_NAME = "org.apache.cassandra.db:type=UnifiedRepairService";
 
     @VisibleForTesting
-    protected AutoRepairConfig config;
+    protected UnifiedRepairConfig config;
 
-    public static final AutoRepairService instance = new AutoRepairService();
+    public static final UnifiedRepairService instance = new UnifiedRepairService();
 
     @VisibleForTesting
-    protected AutoRepairService()
+    protected UnifiedRepairService()
     {
     }
 
     public static void setup()
     {
-        instance.config = DatabaseDescriptor.getAutoRepairConfig();
+        instance.config = DatabaseDescriptor.getUnifiedRepairConfig();
     }
 
     static
@@ -58,8 +58,8 @@ public class AutoRepairService implements AutoRepairServiceMBean
 
     public void checkCanRun(RepairType repairType)
     {
-        if (!config.isAutoRepairSchedulingEnabled())
-            throw new ConfigurationException("Auto-repair scheduller is disabled.");
+        if (!config.isUnifiedRepairSchedulingEnabled())
+            throw new ConfigurationException("Unified-repair scheduller is disabled.");
 
         if (repairType != RepairType.incremental)
             return;
@@ -72,16 +72,16 @@ public class AutoRepairService implements AutoRepairServiceMBean
     }
 
     @Override
-    public AutoRepairConfig getAutoRepairConfig()
+    public UnifiedRepairConfig getUnifiedRepairConfig()
     {
         return config;
     }
 
     @Override
-    public void setAutoRepairEnabled(RepairType repairType, boolean enabled)
+    public void setUnifiedRepairEnabled(RepairType repairType, boolean enabled)
     {
         checkCanRun(repairType);
-        config.setAutoRepairEnabled(repairType, enabled);
+        config.setUnifiedRepairEnabled(repairType, enabled);
     }
 
     @Override
@@ -93,18 +93,18 @@ public class AutoRepairService implements AutoRepairServiceMBean
     @Override
     public void setRepairPriorityForHosts(RepairType repairType, Set<InetAddressAndPort> hosts)
     {
-        AutoRepairUtils.addPriorityHosts(repairType, hosts);
+        UnifiedRepairUtils.addPriorityHosts(repairType, hosts);
     }
 
     @Override
     public Set<InetAddressAndPort> getRepairHostPriority(RepairType repairType) {
-        return AutoRepairUtils.getPriorityHosts(repairType);
+        return UnifiedRepairUtils.getPriorityHosts(repairType);
     }
 
     @Override
     public void setForceRepairForHosts(RepairType repairType, Set<InetAddressAndPort> hosts)
     {
-        AutoRepairUtils.setForceRepair(repairType, hosts);
+        UnifiedRepairUtils.setForceRepair(repairType, hosts);
     }
 
     @Override
@@ -125,19 +125,19 @@ public class AutoRepairService implements AutoRepairServiceMBean
         config.startScheduler();
     }
 
-    public void setAutoRepairHistoryClearDeleteHostsBufferDuration(String duration)
+    public void setUnifiedRepairHistoryClearDeleteHostsBufferDuration(String duration)
     {
-        config.setAutoRepairHistoryClearDeleteHostsBufferInterval(duration);
+        config.setUnifiedRepairHistoryClearDeleteHostsBufferInterval(duration);
     }
 
     @Override
-    public void setAutoRepairMaxRetriesCount(int retries)
+    public void setUnifiedRepairMaxRetriesCount(int retries)
     {
         config.setRepairMaxRetries(retries);
     }
 
     @Override
-    public void setAutoRepairRetryBackoff(String interval)
+    public void setUnifiedRepairRetryBackoff(String interval)
     {
         config.setRepairRetryBackoff(interval);
     }
@@ -149,9 +149,9 @@ public class AutoRepairService implements AutoRepairServiceMBean
     }
 
     @Override
-    public void setAutoRepairTableMaxRepairTime(RepairType repairType, String autoRepairTableMaxRepairTime)
+    public void setUnifiedRepairTableMaxRepairTime(RepairType repairType, String unifiedRepairTableMaxRepairTime)
     {
-        config.setAutoRepairTableMaxRepairTime(repairType, autoRepairTableMaxRepairTime);
+        config.setUnifiedRepairTableMaxRepairTime(repairType, unifiedRepairTableMaxRepairTime);
     }
 
     @Override
@@ -192,12 +192,12 @@ public class AutoRepairService implements AutoRepairServiceMBean
     public Set<String> getOnGoingRepairHostIds(RepairType rType)
     {
         Set<String> hostIds = new HashSet<>();
-        List<AutoRepairUtils.AutoRepairHistory> histories = AutoRepairUtils.getAutoRepairHistory(rType);
+        List<UnifiedRepairUtils.UnifiedRepairHistory> histories = UnifiedRepairUtils.getUnifiedRepairHistory(rType);
         if (histories == null)
         {
             return hostIds;
         }
-        AutoRepairUtils.CurrentRepairStatus currentRepairStatus = new AutoRepairUtils.CurrentRepairStatus(histories, AutoRepairUtils.getPriorityHostIds(rType));
+        UnifiedRepairUtils.CurrentRepairStatus currentRepairStatus = new UnifiedRepairUtils.CurrentRepairStatus(histories, UnifiedRepairUtils.getPriorityHostIds(rType));
         for (UUID id : currentRepairStatus.hostIdsWithOnGoingRepair)
         {
             hostIds.add(id.toString());

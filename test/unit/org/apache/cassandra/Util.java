@@ -57,6 +57,14 @@ import com.google.common.base.Preconditions;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Iterators;
 
+import org.apache.cassandra.distributed.test.log.ClusterMetadataTestHelper;
+import org.apache.cassandra.gms.ApplicationState;
+import org.apache.cassandra.gms.Gossiper;
+import org.apache.cassandra.gms.VersionedValue;
+import org.apache.cassandra.io.util.File;
+
+import org.apache.cassandra.config.Config;
+import org.apache.cassandra.repair.unifiedrepair.UnifiedRepairConfig;
 import org.apache.commons.lang3.StringUtils;
 import org.junit.Assume;
 import org.slf4j.Logger;
@@ -132,7 +140,6 @@ import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.Replica;
 import org.apache.cassandra.locator.ReplicaCollection;
 import org.apache.cassandra.net.MessagingService;
-import org.apache.cassandra.repair.autorepair.AutoRepairConfig;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableId;
@@ -1362,11 +1369,11 @@ public class Util
         return tagSnapshotsMap;
     }
 
-    // Replaces the global auto-repair config with a new config where auto-repair schedulling is enabled/disabled
-    public static void setAutoRepairEnabled(boolean enabled) throws Exception
+    // Replaces the global unified-repair config with a new config where unified-repair schedulling is enabled/disabled
+    public static void setUnifiedRepairEnabled(boolean enabled) throws Exception
     {
         Config config = DatabaseDescriptor.getRawConfig();
-        config.auto_repair = new AutoRepairConfig(enabled);
+        config.unified_repair = new UnifiedRepairConfig(enabled);
         Field configField = DatabaseDescriptor.class.getDeclaredField("conf");
         configField.setAccessible(true);
         configField.set(null, config);

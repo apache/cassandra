@@ -35,14 +35,14 @@ import org.junit.Test;
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
 import org.apache.cassandra.distributed.test.TestBaseImpl;
-import org.apache.cassandra.repair.autorepair.AutoRepair;
-import org.apache.cassandra.repair.autorepair.AutoRepairConfig;
-import org.apache.cassandra.service.AutoRepairService;
+import org.apache.cassandra.repair.unifiedrepair.UnifiedRepair;
+import org.apache.cassandra.repair.unifiedrepair.UnifiedRepairConfig;
+import org.apache.cassandra.service.UnifiedRepairService;
 
 import static org.apache.cassandra.schema.SchemaConstants.DISTRIBUTED_KEYSPACE_NAME;
 import static org.junit.Assert.assertEquals;
 
-public class AutoRepairSchedulerTest extends TestBaseImpl
+public class UnifiedRepairSchedulerTest extends TestBaseImpl
 {
 
     private static Cluster cluster;
@@ -57,25 +57,25 @@ public class AutoRepairSchedulerTest extends TestBaseImpl
         sdf = new SimpleDateFormat(pattern);
         sdf.setLenient(false);
         cluster = Cluster.build(3).withConfig(config -> config
-                                                        .set("auto_repair",
+                                                        .set("unified_repair",
                                                              ImmutableMap.of(
                                                              "repair_type_overrides",
-                                                             ImmutableMap.of(AutoRepairConfig.RepairType.full.toString(),
-                                                                                 ImmutableMap.of(
+                                                             ImmutableMap.of(UnifiedRepairConfig.RepairType.full.toString(),
+                                                                             ImmutableMap.of(
                                                                                  "initial_scheduler_delay", "5s",
                                                                                  "enabled", "true",
                                                                                  "parallel_repair_count", "1",
                                                                                  "parallel_repair_percentage", "0",
                                                                                  "min_repair_interval", "1s"),
-                                                                             AutoRepairConfig.RepairType.incremental.toString(),
-                                                                                 ImmutableMap.of(
+                                                                             UnifiedRepairConfig.RepairType.incremental.toString(),
+                                                                             ImmutableMap.of(
                                                                                  "initial_scheduler_delay", "5s",
                                                                                  "enabled", "true",
                                                                                  "parallel_repair_count", "1",
                                                                                  "parallel_repair_percentage", "0",
                                                                                  "min_repair_interval", "1s"))))
-                                                        .set("auto_repair.enabled", "true")
-                                                        .set("auto_repair.repair_check_interval", "10s")).start();
+                                                        .set("unified_repair.enabled", "true")
+                                                        .set("unified_repair.repair_check_interval", "10s")).start();
 
         cluster.schemaChange("CREATE KEYSPACE IF NOT EXISTS " + KEYSPACE + " WITH replication = {'class': 'SimpleStrategy', 'replication_factor': 3};");
         cluster.schemaChange(withKeyspace("CREATE TABLE %s.tbl (pk int, ck text, v1 int, v2 int, PRIMARY KEY (pk, ck)) WITH read_repair='NONE'"));
@@ -85,7 +85,7 @@ public class AutoRepairSchedulerTest extends TestBaseImpl
     public void testScheduler() throws ParseException
     {
         // ensure there was no history of previous repair runs through the scheduler
-        Object[][] rows = cluster.coordinator(1).execute(String.format("SELECT repair_type, host_id, repair_start_ts, repair_finish_ts, repair_turn FROM %s.%s", DISTRIBUTED_KEYSPACE_NAME, SystemDistributedKeyspace.AUTO_REPAIR_HISTORY), ConsistencyLevel.QUORUM);
+        Object[][] rows = cluster.coordinator(1).execute(String.format("SELECT repair_type, host_id, repair_start_ts, repair_finish_ts, repair_turn FROM %s.%s", DISTRIBUTED_KEYSPACE_NAME, SystemDistributedKeyspace.UNIFIED_REPAIR_HISTORY), ConsistencyLevel.QUORUM);
         assertEquals(0, rows.length);
 
         cluster.forEach(i -> i.runOnInstance(() -> {
@@ -93,9 +93,9 @@ public class AutoRepairSchedulerTest extends TestBaseImpl
             {
                 DatabaseDescriptor.setCDCOnRepairEnabled(false);
                 DatabaseDescriptor.setMaterializedViewsOnRepairEnabled(false);
-                AutoRepairService.instance.setup();
+                UnifiedRepairService.instance.setup();
                 DatabaseDescriptor.setCDCOnRepairEnabled(false);
-                AutoRepair.instance.setup();
+                UnifiedRepair.instance.setup();
             }
             catch (Exception e)
             {
@@ -105,13 +105,13 @@ public class AutoRepairSchedulerTest extends TestBaseImpl
         // wait for a couple of minutes for repair to go through on all three nodes
         Uninterruptibles.sleepUninterruptibly(2, TimeUnit.MINUTES);
 
-        validate(AutoRepairConfig.RepairType.full.toString());
-        validate(AutoRepairConfig.RepairType.incremental.toString());
+        validate(UnifiedRepairConfig.RepairType.full.toString());
+        validate(UnifiedRepairConfig.RepairType.incremental.toString());
     }
 
     private void validate(String repairType) throws ParseException
     {
-        Object[][] rows = cluster.coordinator(1).execute(String.format("SELECT repair_type, host_id, repair_start_ts, repair_finish_ts, repair_turn FROM %s.%s where repair_type='%s'", DISTRIBUTED_KEYSPACE_NAME, SystemDistributedKeyspace.AUTO_REPAIR_HISTORY, repairType), ConsistencyLevel.QUORUM);
+        Object[][] rows = cluster.coordinator(1).execute(String.format("SELECT repair_type, host_id, repair_start_ts, repair_finish_ts, repair_turn FROM %s.%s where repair_type='%s'", DISTRIBUTED_KEYSPACE_NAME, SystemDistributedKeyspace.UNIFIED_REPAIR_HISTORY, repairType), ConsistencyLevel.QUORUM);
         assertEquals(3, rows.length);
         for (int node = 0; node < rows.length; node++)
         {
