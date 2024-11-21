@@ -29,6 +29,9 @@ import java.util.concurrent.TimeUnit;
 import com.google.common.base.Objects;
 import org.junit.Test;
 
+import net.bytebuddy.ByteBuddy;
+import net.bytebuddy.dynamic.loading.ClassLoadingStrategy;
+import net.bytebuddy.implementation.MethodDelegation;
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.IInvokableInstance;
 import org.apache.cassandra.distributed.test.TestBaseImpl;
@@ -41,6 +44,7 @@ import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.utils.FBUtilities;
 
+import static net.bytebuddy.matcher.ElementMatchers.named;
 import static org.apache.cassandra.distributed.api.Feature.GOSSIP;
 import static org.apache.cassandra.distributed.api.Feature.NETWORK;
 import static org.apache.cassandra.distributed.test.sai.SAIUtil.waitForIndexQueryable;
@@ -62,88 +66,117 @@ public class IndexAvailabilityTest extends TestBaseImpl
     public void verifyIndexStatusPropagation() throws Exception
     {
         try (Cluster cluster = init(Cluster.build(2)
-                                           .withConfig(config -> config.with(GOSSIP)
-                                                                       .with(NETWORK))
+                                           .withConfig(config -> config.with(GOSSIP).with(NETWORK))
                                            .start()))
         {
-            String ks1 = "ks1";
-            String ks2 = "ks2";
-            String ks3 = "ks3";
-            String cf1 = "cf1";
-            String index1 = "cf1_idx1";
-            String index2 = "cf1_idx2";
-
-            keyspaces = Arrays.asList(ks1, ks2, ks3);
-            indexesPerKs = Arrays.asList(index1, index2);
-
-            // create 1 tables per keyspace, 2 indexes per table. all indexes are queryable
-            for (String ks : keyspaces)
-            {
-                cluster.schemaChange(String.format(CREATE_KEYSPACE, ks, 2));
-                cluster.schemaChange(String.format(CREATE_TABLE, ks, cf1));
-                cluster.schemaChange(String.format(CREATE_INDEX, index1, ks, cf1, "v1"));
-                cluster.schemaChange(String.format(CREATE_INDEX, index2, ks, cf1, "v2"));
-                waitForIndexQueryable(cluster, ks);
-                cluster.forEach(node -> {
-                    expectedNodeIndexQueryability.put(NodeIndex.create(ks, index1, node), Index.Status.BUILD_SUCCEEDED);
-                    expectedNodeIndexQueryability.put(NodeIndex.create(ks, index2, node), Index.Status.BUILD_SUCCEEDED);
-                });
-            }
-
-            // mark ks1 index1 as non-queryable on node1
-            markIndexNonQueryable(cluster.get(1), ks1, cf1, index1);
-            // on node2, it observes that node1 ks1.index1 is not queryable
-            waitForIndexingStatus(cluster.get(2), ks1, index1, cluster.get(1), Index.Status.BUILD_FAILED);
-            // other indexes or keyspaces should not be affected
-            assertIndexingStatus(cluster);
-
-            // mark ks2 index2 as non-queryable on node2
-            markIndexNonQueryable(cluster.get(2), ks2, cf1, index2);
-            // on node1, it observes that node2 ks2.index2 is not queryable
-            waitForIndexingStatus(cluster.get(1), ks2, index2, cluster.get(2), Index.Status.BUILD_FAILED);
-            // other indexes or keyspaces should not be affected
-            assertIndexingStatus(cluster);
-
-            // mark ks1 index1 as queryable on node1
-            markIndexQueryable(cluster.get(1), ks1, cf1, index1);
-            // on node2, it observes that node1 ks1.index1 is queryable
-            waitForIndexingStatus(cluster.get(2), ks1, index1, cluster.get(1), Index.Status.BUILD_SUCCEEDED);
-            // other indexes or keyspaces should not be affected
-            assertIndexingStatus(cluster);
-
-            // mark ks2 index2 as indexing on node1
-            markIndexBuilding(cluster.get(1), ks2, cf1, index2);
-            // on node2, it observes that node1 ks2.index2 is not queryable
-            waitForIndexingStatus(cluster.get(2), ks2, index2, cluster.get(1), Index.Status.FULL_REBUILD_STARTED);
-            // other indexes or keyspaces should not be affected
-            assertIndexingStatus(cluster);
-
-            // drop ks1, ks1 index1/index2 should be non queryable on all nodes
-            cluster.schemaChange("DROP KEYSPACE " + ks1);
-            expectedNodeIndexQueryability.keySet().forEach(k -> {
-                if (k.keyspace.equals(ks1))
-                    expectedNodeIndexQueryability.put(k, Index.Status.UNKNOWN);
-            });
-            assertIndexingStatus(cluster);
-
-            // drop ks2 index2, there should be no ks2 index2 status on all node
-            cluster.schemaChange("DROP INDEX " + ks2 + "." + index2);
-            expectedNodeIndexQueryability.keySet().forEach(k -> {
-                if (k.keyspace.equals(ks2) && k.index.equals(index2))
-                    expectedNodeIndexQueryability.put(k, Index.Status.UNKNOWN);
-            });
-            assertIndexingStatus(cluster);
-
-            // drop ks3 cf1, there should be no ks3 index1/index2 status
-            cluster.schemaChange("DROP TABLE " + ks3 + "." + cf1);
-            expectedNodeIndexQueryability.keySet().forEach(k -> {
-                if (k.keyspace.equals(ks3))
-                    expectedNodeIndexQueryability.put(k, Index.Status.UNKNOWN);
-            });
-            assertIndexingStatus(cluster);
+            verifyIndexStatusPropagation(cluster);
         }
     }
 
+    @Test
+    public void verifyIndexStatusPropagationMixedPatchVersion() throws Exception
+    {
+        try (Cluster cluster = init(Cluster.build(2)
+                                           .withConfig(config -> config.with(GOSSIP).with(NETWORK))
+                                           .withInstanceInitializer(MixedPatchVersionHelper::setVersions)
+                                           .start()))
+        {
+            verifyIndexStatusPropagation(cluster);
+        }
+    }
+
+    @Test
+    public void verifyIndexStatusPropagationMixedMajorVersion() throws Exception
+    {
+        try (Cluster cluster = init(Cluster.build(2)
+                                           .withConfig(config -> config.with(GOSSIP).with(NETWORK))
+                                           .withInstanceInitializer(MixedMajorVersionHelper::setVersions)
+                                           .start()))
+        {
+            verifyIndexStatusPropagation(cluster);
+        }
+    }
+
+    private void verifyIndexStatusPropagation(Cluster cluster)
+    {
+        String ks1 = "ks1";
+        String ks2 = "ks2";
+        String ks3 = "ks3";
+        String cf1 = "cf1";
+        String index1 = "cf1_idx1";
+        String index2 = "cf1_idx2";
+
+        keyspaces = Arrays.asList(ks1, ks2, ks3);
+        indexesPerKs = Arrays.asList(index1, index2);
+
+        // create 1 tables per keyspace, 2 indexes per table. all indexes are queryable
+        for (String ks : keyspaces)
+        {
+            cluster.schemaChange(String.format(CREATE_KEYSPACE, ks, 2));
+            cluster.schemaChange(String.format(CREATE_TABLE, ks, cf1));
+            cluster.schemaChange(String.format(CREATE_INDEX, index1, ks, cf1, "v1"));
+            cluster.schemaChange(String.format(CREATE_INDEX, index2, ks, cf1, "v2"));
+            waitForIndexQueryable(cluster, ks);
+            cluster.forEach(node -> {
+                expectedNodeIndexQueryability.put(NodeIndex.create(ks, index1, node), Index.Status.BUILD_SUCCEEDED);
+                expectedNodeIndexQueryability.put(NodeIndex.create(ks, index2, node), Index.Status.BUILD_SUCCEEDED);
+            });
+        }
+
+        // mark ks1 index1 as non-queryable on node1
+        markIndexNonQueryable(cluster.get(1), ks1, cf1, index1);
+        // on node2, it observes that node1 ks1.index1 is not queryable
+        waitForIndexingStatus(cluster.get(2), ks1, index1, cluster.get(1), Index.Status.BUILD_FAILED);
+        // other indexes or keyspaces should not be affected
+        assertIndexingStatus(cluster);
+
+        // mark ks2 index2 as non-queryable on node2
+        markIndexNonQueryable(cluster.get(2), ks2, cf1, index2);
+        // on node1, it observes that node2 ks2.index2 is not queryable
+        waitForIndexingStatus(cluster.get(1), ks2, index2, cluster.get(2), Index.Status.BUILD_FAILED);
+        // other indexes or keyspaces should not be affected
+        assertIndexingStatus(cluster);
+
+        // mark ks1 index1 as queryable on node1
+        markIndexQueryable(cluster.get(1), ks1, cf1, index1);
+        // on node2, it observes that node1 ks1.index1 is queryable
+        waitForIndexingStatus(cluster.get(2), ks1, index1, cluster.get(1), Index.Status.BUILD_SUCCEEDED);
+        // other indexes or keyspaces should not be affected
+        assertIndexingStatus(cluster);
+
+        // mark ks2 index2 as indexing on node1
+        markIndexBuilding(cluster.get(1), ks2, cf1, index2);
+        // on node2, it observes that node1 ks2.index2 is not queryable
+        waitForIndexingStatus(cluster.get(2), ks2, index2, cluster.get(1), Index.Status.FULL_REBUILD_STARTED);
+        // other indexes or keyspaces should not be affected
+        assertIndexingStatus(cluster);
+
+        // drop ks1, ks1 index1/index2 should be non queryable on all nodes
+        cluster.schemaChange("DROP KEYSPACE " + ks1);
+        expectedNodeIndexQueryability.keySet().forEach(k -> {
+            if (k.keyspace.equals(ks1))
+                expectedNodeIndexQueryability.put(k, Index.Status.UNKNOWN);
+        });
+        assertIndexingStatus(cluster);
+
+        // drop ks2 index2, there should be no ks2 index2 status on all node
+        cluster.schemaChange("DROP INDEX " + ks2 + '.' + index2);
+        expectedNodeIndexQueryability.keySet().forEach(k -> {
+            if (k.keyspace.equals(ks2) && k.index.equals(index2))
+                expectedNodeIndexQueryability.put(k, Index.Status.UNKNOWN);
+        });
+        assertIndexingStatus(cluster);
+
+        // drop ks3 cf1, there should be no ks3 index1/index2 status
+        cluster.schemaChange("DROP TABLE " + ks3 + '.' + cf1);
+        expectedNodeIndexQueryability.keySet().forEach(k -> {
+            if (k.keyspace.equals(ks3))
+                expectedNodeIndexQueryability.put(k, Index.Status.UNKNOWN);
+        });
+        assertIndexingStatus(cluster);
+    }
+
+    @SuppressWarnings("DataFlowIssue")
     private void markIndexNonQueryable(IInvokableInstance node, String keyspace, String table, String indexName)
     {
         expectedNodeIndexQueryability.put(NodeIndex.create(keyspace, indexName, node), Index.Status.BUILD_FAILED);
@@ -155,6 +188,7 @@ public class IndexAvailabilityTest extends TestBaseImpl
         });
     }
 
+    @SuppressWarnings("DataFlowIssue")
     private void markIndexQueryable(IInvokableInstance node, String keyspace, String table, String indexName)
     {
         expectedNodeIndexQueryability.put(NodeIndex.create(keyspace, indexName, node), Index.Status.BUILD_SUCCEEDED);
@@ -166,6 +200,7 @@ public class IndexAvailabilityTest extends TestBaseImpl
         });
     }
 
+    @SuppressWarnings("DataFlowIssue")
     private void markIndexBuilding(IInvokableInstance node, String keyspace, String table, String indexName)
     {
         expectedNodeIndexQueryability.put(NodeIndex.create(keyspace, indexName, node), Index.Status.FULL_REBUILD_STARTED);
@@ -229,7 +264,7 @@ public class IndexAvailabilityTest extends TestBaseImpl
     {
         return Index.Status.values()[node.callsOnInstance(() -> getIndexStatus(keyspaceName, indexName, replica).ordinal()).call()];
     }
-    
+
     private static Index.Status getIndexStatus(String keyspaceName, String indexName, InetAddressAndPort replica)
     {
         KeyspaceMetadata keyspace = Schema.instance.getKeyspaceMetadata(keyspaceName);
@@ -249,7 +284,7 @@ public class IndexAvailabilityTest extends TestBaseImpl
         int port = node.callOnInstance(() -> FBUtilities.getBroadcastAddressAndPort().getPort());
         return InetAddressAndPort.getByAddressOverrideDefaults(address, port);
     }
-    
+
     private static class NodeIndex
     {
         private final String keyspace;
@@ -283,6 +318,46 @@ public class IndexAvailabilityTest extends TestBaseImpl
         public int hashCode()
         {
             return Objects.hashCode(keyspace, index, node);
+        }
+    }
+
+    public static class MixedMajorVersionHelper
+    {
+        @SuppressWarnings({ "unused", "resource" })
+        static void setVersions(ClassLoader loader, int node)
+        {
+            if (node == 1)
+                new ByteBuddy().rebase(FBUtilities.class)
+                               .method(named("getReleaseVersionString"))
+                               .intercept(MethodDelegation.to(MixedMajorVersionHelper.class))
+                               .make()
+                               .load(loader, ClassLoadingStrategy.Default.INJECTION);
+        }
+
+        @SuppressWarnings("unused")
+        public static String getReleaseVersionString()
+        {
+            return "4.1.0";
+        }
+    }
+
+    public static class MixedPatchVersionHelper
+    {
+        @SuppressWarnings({ "unused", "resource" })
+        static void setVersions(ClassLoader loader, int node)
+        {
+            if (node == 1)
+                new ByteBuddy().rebase(FBUtilities.class)
+                               .method(named("getReleaseVersionString"))
+                               .intercept(MethodDelegation.to(MixedPatchVersionHelper.class))
+                               .make()
+                               .load(loader, ClassLoadingStrategy.Default.INJECTION);
+        }
+
+        @SuppressWarnings("unused")
+        public static String getReleaseVersionString()
+        {
+            return "5.0.2";
         }
     }
 }
