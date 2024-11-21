@@ -4767,6 +4767,13 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         daemon.clearConnectionHistory();
         logger.info("Cleared connection history");
     }
+
+    public void disconnectInvalidRoles()
+    {
+        logger.info("Disconnecting invalid roles");
+        daemon.disconnectUser(user -> !user.canLogin());
+    }
+
     public void disableAuditLog()
     {
         AuditLogManager.instance.disableAuditLog();
@@ -5463,5 +5470,4 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     {
         DatabaseDescriptor.setEnforceNativeDeadlineForHints(value);
     }
-
 }

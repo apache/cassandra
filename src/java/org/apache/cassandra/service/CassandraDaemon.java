@@ -31,6 +31,7 @@ import java.util.List;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Predicate;
 import java.util.stream.Stream;
 import javax.management.StandardMBean;
 import javax.management.remote.JMXConnectorServer;
@@ -45,6 +46,7 @@ import com.codahale.metrics.MetricRegistryListener;
 import com.codahale.metrics.SharedMetricRegistries;
 import org.apache.cassandra.audit.AuditLogManager;
 import org.apache.cassandra.auth.AuthCacheService;
+import org.apache.cassandra.auth.AuthenticatedUser;
 import org.apache.cassandra.concurrent.ScheduledExecutors;
 import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.config.DatabaseDescriptor;
@@ -885,6 +887,11 @@ public class CassandraDaemon
     public void clearConnectionHistory()
     {
         nativeTransportService.clearConnectionHistory();
+    }
+
+    public void disconnectUser(Predicate<AuthenticatedUser> userPredicate)
+    {
+        nativeTransportService.disconnect(userPredicate);
     }
 
     private void exitOrFail(int code, String message)

@@ -19,6 +19,7 @@ package org.apache.cassandra.service;
 
 import java.net.InetAddress;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Predicate;
 
 import com.google.common.annotations.VisibleForTesting;
 
@@ -30,6 +31,7 @@ import io.netty.channel.epoll.Epoll;
 import io.netty.channel.epoll.EpollEventLoopGroup;
 import io.netty.channel.nio.NioEventLoopGroup;
 import io.netty.util.Version;
+import org.apache.cassandra.auth.AuthenticatedUser;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.EncryptionOptions;
 import org.apache.cassandra.metrics.ClientMetrics;
@@ -163,5 +165,10 @@ public class NativeTransportService
     public void clearConnectionHistory()
     {
         server.clearConnectionHistory();
+    }
+
+    public void disconnect(Predicate<AuthenticatedUser> userPredicate)
+    {
+        server.disconnect(userPredicate);
     }
 }

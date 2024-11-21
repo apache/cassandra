@@ -211,6 +211,11 @@ public class Server implements CassandraDaemon.Server
         logger.info("Stop listening for CQL clients");
     }
 
+    public void disconnect(Predicate<AuthenticatedUser> userPredicate)
+    {
+        connectionTracker.disconnectByUser(userPredicate);
+    }
+
     public static class Builder
     {
         private EventLoopGroup workerGroup;
@@ -383,6 +388,23 @@ public class Server implements CassandraDaemon.Server
             return result;
         }
 
+        void disconnectByUser(Predicate<AuthenticatedUser> userPredicate)
+        {
+            for (Channel c : allChannels)
+            {
+                Connection connection = c.attr(Connection.attributeKey).get();
+                if (connection instanceof ServerConnection)
+                {
+                    ServerConnection conn = (ServerConnection) connection;
+                    AuthenticatedUser user = conn.getClientState().getUser();
+                    if (user == null || userPredicate.test(user))
+                    {
+                        logger.info("Closing channel with remote address {} with user {}", conn.channel().remoteAddress(), user);
+                        connection.channel().close();
+                    }
+                }
+            }
+        }
     }
 
     private static class LatestEvent

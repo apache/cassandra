@@ -236,6 +236,13 @@ authorizer:
 #   increase system_auth keyspace replication factor if you use this role manager.
 role_manager:
   class_name: CassandraRoleManager
+  parameters:
+    # Controls how often invalid roles are disconnected, such as when a role is altered with LOGIN=false
+    # Task is scheduled with period + random(0, max_jitter) delay between executions
+    # It's recommended to set these longer than the roles cache refresh period, since the invalidation check depends on
+    # cache contents. Disable by setting period=0h.
+    invalid_role_disconnect_task_period: 4h
+    invalid_role_disconnect_task_max_jitter: 1h
 
 # Network authorization backend, implementing INetworkAuthorizer; used to restrict user
 # access to certain DCs

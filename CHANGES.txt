@@ -1,4 +1,5 @@
 5.1
+ * Periodically disconnect roles that are revoked or have LOGIN=FALSE set (CASSANDRA-19385)
  * AST library for CQL-based fuzz tests (CASSANDRA-20198)
  * Support audit logging for JMX operations (CASSANDRA-20128)
  * Enable sorting of nodetool status output (CASSANDRA-20104)

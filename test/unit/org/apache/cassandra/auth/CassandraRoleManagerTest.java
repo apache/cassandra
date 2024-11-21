@@ -18,18 +18,24 @@
 
 package org.apache.cassandra.auth;
 
+import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.service.StorageService;
+import org.assertj.core.api.Assertions;
 
 import static org.apache.cassandra.auth.AuthTestUtils.*;
 import static org.junit.Assert.assertEquals;
@@ -37,6 +43,8 @@ import static org.junit.Assert.assertTrue;
 
 public class CassandraRoleManagerTest
 {
+    private static final Logger logger = LoggerFactory.getLogger(CassandraRoleManagerTest.class);
+
     @BeforeClass
     public static void setupClass()
     {
@@ -159,5 +167,77 @@ public class CassandraRoleManagerTest
 
         for (RoleResource expectedRole : expected)
             assertTrue(actual.stream().anyMatch(role -> role.resource.equals(expectedRole)));
+    }
+
+    @Test
+    public void disconnectsAttemptedOnPeriodWithJitter() throws InterruptedException
+    {
+        AtomicInteger numDisconnectAttempts = new AtomicInteger();
+
+        // min: 800ms, max: 900ms
+        Map<String, String> params = Map.of(
+            CassandraRoleManager.PARAM_INVALID_ROLE_DISCONNECT_TASK_PERIOD, "800ms",
+            CassandraRoleManager.PARAM_INVALID_ROLE_DISCONNECT_TASK_MAX_JITTER, "100ms"
+        );
+
+        CassandraRoleManager crm = new CassandraRoleManager(params) {
+            @Override
+            protected void disconnectInvalidRoles()
+            {
+                logger.info("Disconnecting invalid roles...");
+                numDisconnectAttempts.incrementAndGet();
+            }
+        };
+
+        crm.scheduleDisconnectInvalidRoleTask();
+        Thread.sleep(3_000);
+        Assertions.assertThat(numDisconnectAttempts.get()).isGreaterThanOrEqualTo(3);
+        Assertions.assertThat(numDisconnectAttempts.get()).isLessThan(4);
+        numDisconnectAttempts.set(0);
+
+        crm.setInvalidClientDisconnectPeriodMillis(100); // min: 100ms, max: 200ms
+        Thread.sleep(3_000);
+        Assertions.assertThat(numDisconnectAttempts.get()).isGreaterThanOrEqualTo(10); // 15 - padding
+        Assertions.assertThat(numDisconnectAttempts.get()).isLessThan(30);
+
+        crm.setInvalidClientDisconnectPeriodMillis(0);
+        int totalDisconnectAttempts = numDisconnectAttempts.get();
+        Thread.sleep(3_000);
+        Assertions.assertThat(numDisconnectAttempts.get()).isEqualTo(totalDisconnectAttempts);
+    }
+
+    @Test
+    public void ctorInvalidRoleDisconnectOptions()
+    {
+        CassandraRoleManager crm = new CassandraRoleManager(Map.of());
+        Assertions.assertThat(crm.getInvalidClientDisconnectPeriodMillis()).isEqualTo(0);
+        Assertions.assertThat(crm.getInvalidClientDisconnectMaxJitterMillis()).isEqualTo(0);
+
+        crm = new CassandraRoleManager(Map.of(
+            CassandraRoleManager.PARAM_INVALID_ROLE_DISCONNECT_TASK_PERIOD, "1s",
+            CassandraRoleManager.PARAM_INVALID_ROLE_DISCONNECT_TASK_MAX_JITTER, "2s"
+        ));
+        Assertions.assertThat(crm.getInvalidClientDisconnectPeriodMillis()).isEqualTo(1000);
+        Assertions.assertThat(crm.getInvalidClientDisconnectMaxJitterMillis()).isEqualTo(2000);
+
+        // Non-duration input
+        Map<String, String> params = new HashMap<>();
+        params.put(CassandraRoleManager.PARAM_INVALID_ROLE_DISCONNECT_TASK_PERIOD, "notduration");
+        Assertions.assertThatThrownBy(() -> new CassandraRoleManager(params)).isOfAnyClassIn(IllegalArgumentException.class).hasMessageContaining("Invalid duration: ");
+
+        // Both fields optional
+        crm = new CassandraRoleManager(Map.of(
+            CassandraRoleManager.PARAM_INVALID_ROLE_DISCONNECT_TASK_PERIOD, "1s"
+            // No jitter
+        ));
+        Assertions.assertThat(crm.getInvalidClientDisconnectPeriodMillis()).isEqualTo(1000);
+        Assertions.assertThat(crm.getInvalidClientDisconnectMaxJitterMillis()).isEqualTo(0);
+
+        crm = new CassandraRoleManager(Map.of(
+            // No period
+            CassandraRoleManager.PARAM_INVALID_ROLE_DISCONNECT_TASK_MAX_JITTER, "1s"
+        ));
+        Assertions.assertThat(crm.getInvalidClientDisconnectPeriodMillis()).isEqualTo(0);
+        Assertions.assertThat(crm.getInvalidClientDisconnectMaxJitterMillis()).isEqualTo(1000);
     }
 }
