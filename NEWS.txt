@@ -109,6 +109,10 @@ New features
       Enabling both ways of configuring JMX will result in a node failing to start.
     - CEP-43 - it is possible to create a table by "copying" as `CREATE TABLE ks.tb_copy LIKE ks.tb;`.
       A newly created table will have no data.
+    - New functions `octet_length` and `length` were introduced. Previously, users would either have to read 
+      the data and check the length themselves or enable UDF and register UDFs to check the length of columns. 
+      CASSANDRA-20102 adds a subset of the SQL99 (binary) string functions: "octet_length" defined on all types 
+      and "length" defined on UTF8 strings. See CASSANDRA-20102 for more information.
 
 Upgrading
 ---------

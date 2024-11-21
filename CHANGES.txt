@@ -1,4 +1,5 @@
 5.1
+ * Support octet_length and length functions (CASSANDRA-20102)
  * Make JsonUtils serialize Instant always with the same format (CASSANDRA-20209)
  * Port Harry v2 to trunk (CASSANDRA-20200)
  * Enable filtering of snapshots on keyspace, table and snapshot name in nodetool listsnapshots (CASSANDRA-20151)
