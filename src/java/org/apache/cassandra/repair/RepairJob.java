@@ -29,11 +29,9 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.util.concurrent.*;
-import org.apache.cassandra.repair.consistent.SyncStatSummary;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.repair.state.JobState;
-import org.apache.cassandra.streaming.SessionSummary;
 import org.apache.cassandra.utils.concurrent.AsyncFuture;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -229,15 +227,7 @@ public class RepairJob extends AsyncFuture<RepairResult> implements Runnable
                     logger.warn("{} {}.{} sync failed", session.previewKind.logPrefix(session.getId()), desc.keyspace, desc.columnFamily);
                     SystemDistributedKeyspace.failedRepairJob(session.getId(), desc.keyspace, desc.columnFamily, t);
                 }
-            }
-            else
-            {
-                SyncStatSummary.Table summary = new SyncStatSummary.Table(cfs.keyspace.getName(), cfs.getTableName());
-                summary.consumeStats(stats);
-                cfs.metric.previewedDesynchronizedTokenRanges.update(summary.getRanges());
-                cfs.metric.previewedDesynchronizedBytes.update(summary.getRanges());
-            }
-            cfs.metric.repairsCompleted.inc();
+                cfs.metric.repairsCompleted.inc();
                 tryFailure(t instanceof NoSuchRepairSessionExceptionWrapper
                            ? ((NoSuchRepairSessionExceptionWrapper) t).wrapped
                            : t);

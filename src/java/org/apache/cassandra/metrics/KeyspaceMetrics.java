@@ -137,11 +137,6 @@ public class KeyspaceMetrics
     public final Counter outOfRangeTokenWrites;
     /** Lifetime count of paxos requests for keys outside the node's owned token ranges for this keyspace **/
     public final Counter outOfRangeTokenPaxosRequests;
-    /** histogram over the number of desynchronized token ranges detected during preview repair */
-    public final Histogram previewedDesynchronizedTokenRanges;
-    /** histogram over the number of desynchronized bytes detected during preview repair */
-    public final Histogram previewedDesynchronizedBytes;
-
 
     /*
      * Metrics for inconsistencies detected between repaired data sets across replicas. These
@@ -266,8 +261,6 @@ public class KeyspaceMetrics
         repairSyncTime = createKeyspaceTimer("RepairSyncTime");
         partitionsValidated = createKeyspaceHistogram("PartitionsValidated", false);
         bytesValidated = createKeyspaceHistogram("BytesValidated", false);
-        previewedDesynchronizedTokenRanges = createKeyspaceHistogram("PreviewedDesynchronizedTokenRanges", false);
-        previewedDesynchronizedBytes = createKeyspaceHistogram("PreviewedDesynchronizedBytes", false);
 
         confirmedRepairedInconsistencies = createKeyspaceMeter("RepairedDataInconsistenciesConfirmed");
         unconfirmedRepairedInconsistencies = createKeyspaceMeter("RepairedDataInconsistenciesUnconfirmed");

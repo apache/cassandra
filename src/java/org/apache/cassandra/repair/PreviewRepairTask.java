@@ -26,6 +26,7 @@ import com.google.common.base.Preconditions;
 
 import org.apache.cassandra.concurrent.ExecutorPlus;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
@@ -90,10 +91,26 @@ public class PreviewRepairTask extends AbstractRepairTask
                 if (previewKind == PreviewKind.REPAIRED)
                     maybeSnapshotReplicas(parentSession, keyspace, result.results.get()); // we know its present as summary used it
             }
+            emitMetrics(summary);
             successMessage += "; " + message;
             coordinator.notification(message);
 
             return result;
+        });
+    }
+
+    private void emitMetrics(SyncStatSummary summary)
+    {
+        if (!summary.isEmpty())
+            RepairMetrics.previewFailures.inc();
+
+        summary.getTotals().forEach((key, table) -> {
+            if (table.isCounter())
+                return;
+
+            ColumnFamilyStore cfs = Keyspace.open(key.left).getColumnFamilyStore(key.right);
+            cfs.metric.previewedDesynchronizedTokenRanges.inc(table.getRanges());
+            cfs.metric.previewedDesynchronizedBytes.inc(table.getBytes());
         });
     }
 

@@ -213,9 +213,9 @@ public class TableMetrics
     /** number of bytes where the whole sstable was contained in a repairing range so that we only mutated the repair status */
     public final Counter bytesMutatedAnticompaction;
     /** number of desynchronized token ranges that were detected during preview repair */
-    public final TableHistogram previewedDesynchronizedTokenRanges;
+    public final Counter previewedDesynchronizedTokenRanges;
     /** number of desynchronized bytes that were detected during preview repair */
-    public final TableHistogram previewedDesynchronizedBytes;
+    public final Counter previewedDesynchronizedBytes;
     /** ratio of how much we anticompact vs how much we could mutate the repair status*/
     public final Gauge<Double> mutatedAnticompactionGauge;
 
@@ -817,8 +817,8 @@ public class TableMetrics
         partitionsValidated = createTableHistogram("PartitionsValidated", cfs.keyspace.metric.partitionsValidated, false);
         bytesAnticompacted = createTableCounter("BytesAnticompacted");
         bytesMutatedAnticompaction = createTableCounter("BytesMutatedAnticompaction");
-        previewedDesynchronizedTokenRanges = createTableHistogram("PreviewedDesynchronizedTokenRanges", cfs.keyspace.metric.previewedDesynchronizedTokenRanges, false);
-        previewedDesynchronizedBytes = createTableHistogram("PreviewedDesynchronizedBytes", cfs.keyspace.metric.previewedDesynchronizedBytes, false);
+        previewedDesynchronizedTokenRanges = createTableCounter("PreviewedDesynchronizedTokenRanges");
+        previewedDesynchronizedBytes = createTableCounter("PreviewedDesynchronizedBytes");
         mutatedAnticompactionGauge = createTableGauge("MutatedAnticompactionGauge", () ->
         {
             double bytesMutated = bytesMutatedAnticompaction.getCount();
