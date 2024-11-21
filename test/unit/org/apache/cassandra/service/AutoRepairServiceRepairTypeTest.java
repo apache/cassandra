@@ -20,8 +20,8 @@ package org.apache.cassandra.service;
 
 import com.google.common.collect.ImmutableSet;
 import org.apache.cassandra.cql3.CQLTester;
-import org.apache.cassandra.repair.unifiedrepair.UnifiedRepairConfig;
-import org.apache.cassandra.repair.unifiedrepair.UnifiedRepairUtils;
+import org.apache.cassandra.repair.autorepair.AutoRepairConfig;
+import org.apache.cassandra.repair.autorepair.AutoRepairUtils;
 import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
@@ -33,44 +33,44 @@ import java.util.Collection;
 import java.util.Set;
 import java.util.UUID;
 
-import static org.apache.cassandra.Util.setUnifiedRepairEnabled;
+import static org.apache.cassandra.Util.setAutoRepairEnabled;
 import static org.apache.cassandra.config.CassandraRelevantProperties.SYSTEM_DISTRIBUTED_DEFAULT_RF;
 import static org.junit.Assert.assertEquals;
 
 @RunWith(Parameterized.class)
-public class UnifiedRepairServiceRepairTypeTest extends CQLTester {
+public class AutoRepairServiceRepairTypeTest extends CQLTester {
     @Parameterized.Parameter()
-    public UnifiedRepairConfig.RepairType repairType;
+    public AutoRepairConfig.RepairType repairType;
 
     private final UUID host1 = UUID.fromString("00000000-0000-0000-0000-000000000001");
     private final UUID host2 = UUID.fromString("00000000-0000-0000-0000-000000000002");
 
-    private UnifiedRepairService instance;
+    private AutoRepairService instance;
 
     @Parameterized.Parameters(name = "repairType={0}")
-    public static Collection<UnifiedRepairConfig.RepairType> repairTypes() {
-        return Arrays.asList(UnifiedRepairConfig.RepairType.values());
+    public static Collection<AutoRepairConfig.RepairType> repairTypes() {
+        return Arrays.asList(AutoRepairConfig.RepairType.values());
     }
 
 
     @BeforeClass
     public static void setupClass() throws Exception {
         SYSTEM_DISTRIBUTED_DEFAULT_RF.setInt(1);
-        setUnifiedRepairEnabled(true);
+        setAutoRepairEnabled(true);
         requireNetwork();
     }
 
     @Before
     public void setUpTest() {
-        UnifiedRepairUtils.setup();
-        instance = new UnifiedRepairService();
+        AutoRepairUtils.setup();
+        instance = new AutoRepairService();
     }
 
     @Test
     public void testGetOnGoingRepairHostIdsTest() {
         long now = System.currentTimeMillis();
-        UnifiedRepairUtils.insertNewRepairHistory(repairType, host1, now, now - 1000000);
-        UnifiedRepairUtils.insertNewRepairHistory(repairType, host2, now, now - 1000000);
+        AutoRepairUtils.insertNewRepairHistory(repairType, host1, now, now - 1000000);
+        AutoRepairUtils.insertNewRepairHistory(repairType, host2, now, now - 1000000);
 
         Set<String> hosts = instance.getOnGoingRepairHostIds(repairType);
 

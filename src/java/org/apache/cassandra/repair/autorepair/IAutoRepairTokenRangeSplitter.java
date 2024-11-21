@@ -15,7 +15,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.apache.cassandra.repair.unifiedrepair;
+package org.apache.cassandra.repair.autorepair;
 
 
 import java.util.List;
@@ -24,22 +24,22 @@ import java.util.Objects;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 
-public interface IUnifiedRepairTokenRangeSplitter
+public interface IAutoRepairTokenRangeSplitter
 {
 
     /**
      * Split the token range you wish to repair into multiple assignments.
-     * The unifiedrepair framework will repair the list of returned subrange in a sequence.
+     * The autorepair framework will repair the list of returned subrange in a sequence.
      * @param repairType The type of repair being executed
      * @param primaryRangeOnly Whether to repair only this node's primary ranges or all of its ranges.
      * @param keyspaceName The keyspace being repaired
      * @param tableNames The tables to repair
      * @return repair assignments broken up by range, keyspace and tables.
      */
-    List<RepairAssignment> getRepairAssignments(UnifiedRepairConfig.RepairType repairType, boolean primaryRangeOnly, String keyspaceName, List<String> tableNames);
+    List<RepairAssignment> getRepairAssignments(AutoRepairConfig.RepairType repairType, boolean primaryRangeOnly, String keyspaceName, List<String> tableNames);
 
     /**
-     * Defines a repair assignment to be issued by the unifiedrepair framework.
+     * Defines a repair assignment to be issued by the autorepair framework.
      */
     class RepairAssignment
     {

@@ -30,33 +30,33 @@ import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.repair.unifiedrepair.UnifiedRepairConfig;
+import org.apache.cassandra.repair.autorepair.AutoRepairConfig;
 import org.apache.cassandra.tools.NodeProbe;
 import org.apache.cassandra.tools.Output;
 import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
 
-import static org.apache.cassandra.Util.setUnifiedRepairEnabled;
+import static org.apache.cassandra.Util.setAutoRepairEnabled;
 import static org.junit.Assert.assertEquals;
 import static org.mockito.Mockito.when;
 
 @RunWith(Parameterized.class)
-public class UnifiedRepairStatusTest
+public class AutoRepairStatusTest
 {
     @Mock
     private static NodeProbe probe;
 
     private ByteArrayOutputStream cmdOutput;
 
-    private static UnifiedRepairStatus cmd;
+    private static AutoRepairStatus cmd;
 
     @Parameterized.Parameter()
-    public UnifiedRepairConfig.RepairType repairType;
+    public AutoRepairConfig.RepairType repairType;
 
     @Parameterized.Parameters(name = "repairType={0}")
-    public static Collection<UnifiedRepairConfig.RepairType> repairTypes()
+    public static Collection<AutoRepairConfig.RepairType> repairTypes()
     {
-        return Arrays.asList(UnifiedRepairConfig.RepairType.values());
+        return Arrays.asList(AutoRepairConfig.RepairType.values());
     }
 
     @Before
@@ -66,13 +66,13 @@ public class UnifiedRepairStatusTest
         cmdOutput = new ByteArrayOutputStream();
         PrintStream out = new PrintStream(cmdOutput);
         when(probe.output()).thenReturn(new Output(out, out));
-        cmd = new UnifiedRepairStatus();
+        cmd = new AutoRepairStatus();
         DatabaseDescriptor.daemonInitialization();
         DatabaseDescriptor.loadConfig();
-        setUnifiedRepairEnabled(true);
-        DatabaseDescriptor.getUnifiedRepairConfig().setUnifiedRepairEnabled(UnifiedRepairConfig.RepairType.full, true);
-        DatabaseDescriptor.getUnifiedRepairConfig().setUnifiedRepairEnabled(UnifiedRepairConfig.RepairType.incremental, true);
-        when(probe.getUnifiedRepairConfig()).thenReturn(DatabaseDescriptor.getUnifiedRepairConfig());
+        setAutoRepairEnabled(true);
+        DatabaseDescriptor.getAutoRepairConfig().setAutoRepairEnabled(AutoRepairConfig.RepairType.full, true);
+        DatabaseDescriptor.getAutoRepairConfig().setAutoRepairEnabled(AutoRepairConfig.RepairType.incremental, true);
+        when(probe.getAutoRepairConfig()).thenReturn(DatabaseDescriptor.getAutoRepairConfig());
     }
 
     @Test(expected = IllegalArgumentException.class)

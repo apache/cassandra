@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 
-package org.apache.cassandra.repair.unifiedrepair;
+package org.apache.cassandra.repair.autorepair;
 
 import java.util.Arrays;
 import java.util.Collection;
@@ -33,9 +33,9 @@ import org.junit.runners.Parameterized;
 
 import org.apache.cassandra.config.DurationSpec;
 import org.apache.cassandra.cql3.CQLTester;
-import org.apache.cassandra.repair.unifiedrepair.UnifiedRepairConfig.RepairType;
-import org.apache.cassandra.repair.unifiedrepair.UnifiedRepairUtils.UnifiedRepairHistory;
-import org.apache.cassandra.service.UnifiedRepairService;
+import org.apache.cassandra.repair.autorepair.AutoRepairConfig.RepairType;
+import org.apache.cassandra.repair.autorepair.AutoRepairUtils.AutoRepairHistory;
+import org.apache.cassandra.service.AutoRepairService;
 import org.apache.cassandra.utils.concurrent.Condition;
 import org.apache.cassandra.utils.progress.ProgressEvent;
 import org.apache.cassandra.utils.progress.ProgressEventType;
@@ -50,7 +50,7 @@ import static org.mockito.Mockito.when;
 import static org.mockito.MockitoAnnotations.initMocks;
 
 @RunWith(Parameterized.class)
-public class UnifiedRepairStateTest extends CQLTester
+public class AutoRepairStateTest extends CQLTester
 {
     private static final String testTable = "test";
 
@@ -68,15 +68,15 @@ public class UnifiedRepairStateTest extends CQLTester
 
     @Before
     public void setUp() {
-        UnifiedRepair.SLEEP_IF_REPAIR_FINISHES_QUICKLY = new DurationSpec.IntSecondsBound("0s");
+        AutoRepair.SLEEP_IF_REPAIR_FINISHES_QUICKLY = new DurationSpec.IntSecondsBound("0s");
         initMocks(this);
         createTable(String.format("CREATE TABLE IF NOT EXISTS %s.%s (pk int PRIMARY KEY, v int)", KEYSPACE, testTable));
     }
 
     @Test
     public void testGetRepairRunnable() {
-        UnifiedRepairState state = RepairType.getUnifiedRepairState(repairType);
-        UnifiedRepairService.setup();
+        AutoRepairState state = RepairType.getAutoRepairState(repairType);
+        AutoRepairService.setup();
 
         Runnable runnable = state.getRepairRunnable(KEYSPACE, ImmutableList.of(testTable), ImmutableSet.of(), false);
 
@@ -86,7 +86,7 @@ public class UnifiedRepairStateTest extends CQLTester
     @Test
     public void testProgressError() throws InterruptedException
     {
-        UnifiedRepairState state = RepairType.getUnifiedRepairState(repairType);
+        AutoRepairState state = RepairType.getAutoRepairState(repairType);
         when(progressEvent.getType()).thenReturn(ProgressEventType.ERROR);
 
         state.progress("test", progressEvent);
@@ -98,7 +98,7 @@ public class UnifiedRepairStateTest extends CQLTester
     @Test
     public void testProgress_progress() throws InterruptedException
     {
-        UnifiedRepairState state = RepairType.getUnifiedRepairState(repairType);
+        AutoRepairState state = RepairType.getAutoRepairState(repairType);
         when(progressEvent.getType()).thenReturn(ProgressEventType.PROGRESS);
 
         state.progress("test", progressEvent);
@@ -111,7 +111,7 @@ public class UnifiedRepairStateTest extends CQLTester
     @Test
     public void testProgress_complete() throws InterruptedException
     {
-        UnifiedRepairState state = RepairType.getUnifiedRepairState(repairType);
+        AutoRepairState state = RepairType.getAutoRepairState(repairType);
         when(progressEvent.getType()).thenReturn(ProgressEventType.COMPLETE);
 
         state.progress("test", progressEvent);
@@ -123,7 +123,7 @@ public class UnifiedRepairStateTest extends CQLTester
     @Test
     public void testWaitForRepairToComplete() throws Exception
     {
-        UnifiedRepairState state = RepairType.getUnifiedRepairState(repairType);
+        AutoRepairState state = RepairType.getAutoRepairState(repairType);
         state.condition.signalAll();
         Condition finishedCondition = Condition.newOneTimeCondition();
         Callable<Void> waitForRepairToComplete = () -> {
@@ -139,7 +139,7 @@ public class UnifiedRepairStateTest extends CQLTester
 
     @Test
     public void testGetLastRepairTime() {
-        UnifiedRepairState state = RepairType.getUnifiedRepairState(repairType);
+        AutoRepairState state = RepairType.getAutoRepairState(repairType);
         state.lastRepairTimeInMs = 1;
 
         assertEquals(1, state.getLastRepairTime());
@@ -147,7 +147,7 @@ public class UnifiedRepairStateTest extends CQLTester
 
     @Test
     public void testSetTotalTablesConsideredForRepair() {
-        UnifiedRepairState state = RepairType.getUnifiedRepairState(repairType);
+        AutoRepairState state = RepairType.getAutoRepairState(repairType);
 
         state.setTotalTablesConsideredForRepair(1);
 
@@ -156,7 +156,7 @@ public class UnifiedRepairStateTest extends CQLTester
 
     @Test
     public void testGetTotalTablesConsideredForRepair() {
-        UnifiedRepairState state = RepairType.getUnifiedRepairState(repairType);
+        AutoRepairState state = RepairType.getAutoRepairState(repairType);
         state.totalTablesConsideredForRepair = 1;
 
         assertEquals(1, state.getTotalTablesConsideredForRepair());
@@ -164,7 +164,7 @@ public class UnifiedRepairStateTest extends CQLTester
 
     @Test
     public void testSetLastRepairTimeInMs() {
-        UnifiedRepairState state = RepairType.getUnifiedRepairState(repairType);
+        AutoRepairState state = RepairType.getAutoRepairState(repairType);
 
         state.setLastRepairTime(1);
 
@@ -173,7 +173,7 @@ public class UnifiedRepairStateTest extends CQLTester
 
     @Test
     public void testGetClusterRepairTimeInSec() {
-        UnifiedRepairState state = RepairType.getUnifiedRepairState(repairType);
+        AutoRepairState state = RepairType.getAutoRepairState(repairType);
         state.clusterRepairTimeInSec = 1;
 
         assertEquals(1, state.getClusterRepairTimeInSec());
@@ -181,7 +181,7 @@ public class UnifiedRepairStateTest extends CQLTester
 
     @Test
     public void testGetNodeRepairTimeInSec() {
-        UnifiedRepairState state = RepairType.getUnifiedRepairState(repairType);
+        AutoRepairState state = RepairType.getAutoRepairState(repairType);
         state.nodeRepairTimeInSec = 1;
 
         assertEquals(1, state.getNodeRepairTimeInSec());
@@ -189,7 +189,7 @@ public class UnifiedRepairStateTest extends CQLTester
 
     @Test
     public void testSetRepairInProgress() {
-        UnifiedRepairState state = RepairType.getUnifiedRepairState(repairType);
+        AutoRepairState state = RepairType.getAutoRepairState(repairType);
 
         state.setRepairInProgress(true);
 
@@ -198,7 +198,7 @@ public class UnifiedRepairStateTest extends CQLTester
 
     @Test
     public void testIsRepairInProgress() {
-        UnifiedRepairState state = RepairType.getUnifiedRepairState(repairType);
+        AutoRepairState state = RepairType.getAutoRepairState(repairType);
         state.repairInProgress = true;
 
         assertTrue(state.isRepairInProgress());
@@ -206,7 +206,7 @@ public class UnifiedRepairStateTest extends CQLTester
 
     @Test
     public void testSetSkippedTokenRangesCount() {
-        UnifiedRepairState state = RepairType.getUnifiedRepairState(repairType);
+        AutoRepairState state = RepairType.getAutoRepairState(repairType);
 
         state.setSkippedTokenRangesCount(1);
 
@@ -215,7 +215,7 @@ public class UnifiedRepairStateTest extends CQLTester
 
     @Test
     public void testGetSkippedTokenRangesCount() {
-        UnifiedRepairState state = RepairType.getUnifiedRepairState(repairType);
+        AutoRepairState state = RepairType.getAutoRepairState(repairType);
         state.skippedTokenRangesCount = 1;
 
         assertEquals(1, state.getSkippedTokenRangesCount());
@@ -223,7 +223,7 @@ public class UnifiedRepairStateTest extends CQLTester
 
     @Test
     public void testGetLongestUnrepairedSecNull() {
-        UnifiedRepairState state = RepairType.getUnifiedRepairState(repairType);
+        AutoRepairState state = RepairType.getAutoRepairState(repairType);
         state.longestUnrepairedNode = null;
 
         try
@@ -236,10 +236,10 @@ public class UnifiedRepairStateTest extends CQLTester
 
     @Test
     public void testGetLongestUnrepairedSec() {
-        UnifiedRepairState state = RepairType.getUnifiedRepairState(repairType);
-        state.longestUnrepairedNode = new UnifiedRepairHistory(UUID.randomUUID(), "", 0, 1000,
-                                                               null, 0, false);
-        UnifiedRepairState.timeFunc = () -> 2000L;
+        AutoRepairState state = RepairType.getAutoRepairState(repairType);
+        state.longestUnrepairedNode = new AutoRepairHistory(UUID.randomUUID(), "", 0, 1000,
+                                                            null, 0, false);
+        AutoRepairState.timeFunc = () -> 2000L;
 
         try
         {
@@ -251,7 +251,7 @@ public class UnifiedRepairStateTest extends CQLTester
 
     @Test
     public void testSetTotalMVTablesConsideredForRepair() {
-        UnifiedRepairState state = RepairType.getUnifiedRepairState(repairType);
+        AutoRepairState state = RepairType.getAutoRepairState(repairType);
 
         state.setTotalMVTablesConsideredForRepair(1);
 
@@ -260,7 +260,7 @@ public class UnifiedRepairStateTest extends CQLTester
 
     @Test
     public void testGetTotalMVTablesConsideredForRepair() {
-        UnifiedRepairState state = RepairType.getUnifiedRepairState(repairType);
+        AutoRepairState state = RepairType.getAutoRepairState(repairType);
         state.totalMVTablesConsideredForRepair = 1;
 
         assertEquals(1, state.getTotalMVTablesConsideredForRepair());
@@ -268,7 +268,7 @@ public class UnifiedRepairStateTest extends CQLTester
 
     @Test
     public void testSetNodeRepairTimeInSec() {
-        UnifiedRepairState state = RepairType.getUnifiedRepairState(repairType);
+        AutoRepairState state = RepairType.getAutoRepairState(repairType);
 
         state.setNodeRepairTimeInSec(1);
 
@@ -277,7 +277,7 @@ public class UnifiedRepairStateTest extends CQLTester
 
     @Test
     public void testSetClusterRepairTimeInSec() {
-        UnifiedRepairState state = RepairType.getUnifiedRepairState(repairType);
+        AutoRepairState state = RepairType.getAutoRepairState(repairType);
 
         state.setClusterRepairTimeInSec(1);
 
@@ -286,7 +286,7 @@ public class UnifiedRepairStateTest extends CQLTester
 
     @Test
     public void testSetRepairKeyspaceCount() {
-        UnifiedRepairState state = RepairType.getUnifiedRepairState(repairType);
+        AutoRepairState state = RepairType.getAutoRepairState(repairType);
 
         state.setRepairKeyspaceCount(1);
 
@@ -294,7 +294,7 @@ public class UnifiedRepairStateTest extends CQLTester
     }
     @Test
     public void testGetRepairKeyspaceCount() {
-        UnifiedRepairState state = RepairType.getUnifiedRepairState(repairType);
+        AutoRepairState state = RepairType.getAutoRepairState(repairType);
         state.repairKeyspaceCount = 1;
 
         assertEquals(1, state.getRepairKeyspaceCount());
@@ -302,8 +302,8 @@ public class UnifiedRepairStateTest extends CQLTester
 
     @Test
     public void testSetLongestUnrepairedNode() {
-        UnifiedRepairState state = RepairType.getUnifiedRepairState(repairType);
-        UnifiedRepairHistory history = new UnifiedRepairHistory(UUID.randomUUID(), "", 0, 0, null, 0, false);
+        AutoRepairState state = RepairType.getAutoRepairState(repairType);
+        AutoRepairHistory history = new AutoRepairHistory(UUID.randomUUID(), "", 0, 0, null, 0, false);
 
         state.setLongestUnrepairedNode(history);
 
@@ -312,7 +312,7 @@ public class UnifiedRepairStateTest extends CQLTester
 
     @Test
     public void testSetSucceededTokenRangesCount() {
-        UnifiedRepairState state = RepairType.getUnifiedRepairState(repairType);
+        AutoRepairState state = RepairType.getAutoRepairState(repairType);
 
         state.setSucceededTokenRangesCount(1);
 
@@ -321,7 +321,7 @@ public class UnifiedRepairStateTest extends CQLTester
 
     @Test
     public void testGetSucceededTokenRangesCount() {
-        UnifiedRepairState state = RepairType.getUnifiedRepairState(repairType);
+        AutoRepairState state = RepairType.getAutoRepairState(repairType);
         state.succeededTokenRangesCount = 1;
 
         assertEquals(1, state.getSucceededTokenRangesCount());
@@ -329,7 +329,7 @@ public class UnifiedRepairStateTest extends CQLTester
 
     @Test
     public void testSetFailedTokenRangesCount() {
-        UnifiedRepairState state = RepairType.getUnifiedRepairState(repairType);
+        AutoRepairState state = RepairType.getAutoRepairState(repairType);
 
         state.setFailedTokenRangesCount(1);
 
@@ -338,7 +338,7 @@ public class UnifiedRepairStateTest extends CQLTester
 
     @Test
     public void testGetFailedTokenRangesCount() {
-        UnifiedRepairState state = RepairType.getUnifiedRepairState(repairType);
+        AutoRepairState state = RepairType.getAutoRepairState(repairType);
         state.failedTokenRangesCount = 1;
 
         assertEquals(1, state.getFailedTokenRangesCount());
@@ -346,7 +346,7 @@ public class UnifiedRepairStateTest extends CQLTester
 
     @Test
     public void isSuccess() {
-        UnifiedRepairState state = RepairType.getUnifiedRepairState(repairType);
+        AutoRepairState state = RepairType.getAutoRepairState(repairType);
         state.success = true;
 
         assertTrue(state.isSuccess());
@@ -359,7 +359,7 @@ public class UnifiedRepairStateTest extends CQLTester
     @Test
     public void testWaitForRepairToCompleteDoesNotSetSuccessWhenProgressReceivesError() throws InterruptedException
     {
-        UnifiedRepairState state = RepairType.getUnifiedRepairState(repairType);
+        AutoRepairState state = RepairType.getAutoRepairState(repairType);
         when(progressEvent.getType()).thenReturn(ProgressEventType.ERROR);
 
         state.progress("test", progressEvent);
@@ -372,7 +372,7 @@ public class UnifiedRepairStateTest extends CQLTester
     @Test
     public void testResetWaitCondition()
     {
-        UnifiedRepairState state = RepairType.getUnifiedRepairState(repairType);
+        AutoRepairState state = RepairType.getAutoRepairState(repairType);
         state.condition.signalAll();
         assertTrue(state.condition.isSignalled());
 

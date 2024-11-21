@@ -24,7 +24,7 @@ import io.airlift.airline.Arguments;
 import io.airlift.airline.Command;
 import io.airlift.airline.Option;
 import org.apache.cassandra.locator.InetAddressAndPort;
-import org.apache.cassandra.repair.unifiedrepair.UnifiedRepairConfig.RepairType;
+import org.apache.cassandra.repair.autorepair.AutoRepairConfig.RepairType;
 import org.apache.cassandra.tools.NodeProbe;
 import org.apache.cassandra.tools.NodeTool.NodeToolCmd;
 
@@ -37,12 +37,12 @@ import java.util.Set;
 
 import static com.google.common.base.Preconditions.checkArgument;
 
-@Command(name = "setunifiedrepairconfig", description = "sets the unifiedrepair configuration")
-public class SetUnifiedRepairConfig extends NodeToolCmd
+@Command(name = "setautorepairconfig", description = "sets the autorepair configuration")
+public class SetAutoRepairConfig extends NodeToolCmd
 {
     @VisibleForTesting
-    @Arguments(title = "<unifiedrepairparam> <value>", usage = "<unifiedrepairparam> <value>",
-    description = "unifiedrepair param and value.\nPossible unifiedrepair parameters are as following: " +
+    @Arguments(title = "<autorepairparam> <value>", usage = "<autorepairparam> <value>",
+    description = "autorepair param and value.\nPossible autorepair parameters are as following: " +
                   "[start_scheduler|number_of_repair_threads|number_of_subranges|min_repair_interval|sstable_upper_threshold" +
                   "|enabled|table_max_repair_time|priority_hosts|forcerepair_hosts|ignore_dcs" +
                   "|history_clear_delete_hosts_buffer_interval|repair_primary_token_range_only" +
@@ -60,13 +60,13 @@ public class SetUnifiedRepairConfig extends NodeToolCmd
     @Override
     public void execute(NodeProbe probe)
     {
-        checkArgument(args.size() == 2, "setunifiedrepairconfig requires param-type, and value args.");
+        checkArgument(args.size() == 2, "setautorepairconfig requires param-type, and value args.");
         String paramType = args.get(0);
         String paramVal = args.get(1);
 
-        if (!probe.getUnifiedRepairConfig().isUnifiedRepairSchedulingEnabled() && !paramType.equalsIgnoreCase("start_scheduler"))
+        if (!probe.getAutoRepairConfig().isAutoRepairSchedulingEnabled() && !paramType.equalsIgnoreCase("start_scheduler"))
         {
-            out.println("Unified-repair is not enabled");
+            out.println("Auto-repair is not enabled");
             return;
         }
 
@@ -80,13 +80,13 @@ public class SetUnifiedRepairConfig extends NodeToolCmd
                 }
                 return;
             case "history_clear_delete_hosts_buffer_interval":
-                probe.setUnifiedRepairHistoryClearDeleteHostsBufferDuration(paramVal);
+                probe.setAutoRepairHistoryClearDeleteHostsBufferDuration(paramVal);
                 return;
             case "repair_max_retries":
-                probe.setUnifiedRepairMaxRetriesCount(Integer.parseInt(paramVal));
+                probe.setAutoRepairMaxRetriesCount(Integer.parseInt(paramVal));
                 return;
             case "repair_retry_backoff":
-                probe.setUnifiedRepairRetryBackoff(paramVal);
+                probe.setAutoRepairRetryBackoff(paramVal);
                 return;
             default:
                 // proceed to options that require --repair-type option
@@ -99,7 +99,7 @@ public class SetUnifiedRepairConfig extends NodeToolCmd
         switch (paramType)
         {
             case "enabled":
-                probe.setUnifiedRepairEnabled(repairType, Boolean.parseBoolean(paramVal));
+                probe.setAutoRepairEnabled(repairType, Boolean.parseBoolean(paramVal));
                 break;
             case "number_of_repair_threads":
                 probe.setRepairThreads(repairType, Integer.parseInt(paramVal));
@@ -114,7 +114,7 @@ public class SetUnifiedRepairConfig extends NodeToolCmd
                 probe.setRepairSSTableCountHigherThreshold(repairType, Integer.parseInt(paramVal));
                 break;
             case "table_max_repair_time":
-                probe.setUnifiedRepairTableMaxRepairTime(repairType, paramVal);
+                probe.setAutoRepairTableMaxRepairTime(repairType, paramVal);
                 break;
             case "priority_hosts":
                 hosts = retrieveHosts(paramVal);
@@ -136,7 +136,7 @@ public class SetUnifiedRepairConfig extends NodeToolCmd
                 {
                     ignoreDCs.add(dc);
                 }
-                probe.setUnifiedRepairIgnoreDCs(repairType, ignoreDCs);
+                probe.setAutoRepairIgnoreDCs(repairType, ignoreDCs);
                 break;
             case "repair_primary_token_range_only":
                 probe.setPrimaryTokenRangeOnly(repairType, Boolean.parseBoolean(paramVal));

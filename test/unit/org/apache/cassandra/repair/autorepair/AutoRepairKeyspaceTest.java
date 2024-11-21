@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 
-package org.apache.cassandra.repair.unifiedrepair;
+package org.apache.cassandra.repair.autorepair;
 
 import java.util.HashSet;
 import java.util.Iterator;
@@ -29,7 +29,7 @@ import org.junit.Test;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 
-public class UnifiedRepairKeyspaceTest
+public class AutoRepairKeyspaceTest
 {
     @BeforeClass
     public static void setupDatabaseDescriptor()
@@ -38,7 +38,7 @@ public class UnifiedRepairKeyspaceTest
     }
 
     @Test
-    public void testEnsureUnifiedRepairTablesArePresent()
+    public void testEnsureAutoRepairTablesArePresent()
     {
         KeyspaceMetadata keyspaceMetadata = SystemDistributedKeyspace.metadata();
         Iterator<TableMetadata> iter = keyspaceMetadata.tables.iterator();
@@ -48,7 +48,7 @@ public class UnifiedRepairKeyspaceTest
             actualDistributedTablesIter.add(iter.next().name);
         }
 
-        Assert.assertTrue(actualDistributedTablesIter.contains(SystemDistributedKeyspace.UNIFIED_REPAIR_HISTORY));
-        Assert.assertTrue(actualDistributedTablesIter.contains(SystemDistributedKeyspace.UNIFIED_REPAIR_PRIORITY));
+        Assert.assertTrue(actualDistributedTablesIter.contains(SystemDistributedKeyspace.AUTO_REPAIR_HISTORY));
+        Assert.assertTrue(actualDistributedTablesIter.contains(SystemDistributedKeyspace.AUTO_REPAIR_PRIORITY));
     }
 }
