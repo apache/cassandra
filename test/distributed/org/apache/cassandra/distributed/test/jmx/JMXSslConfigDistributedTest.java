@@ -67,7 +67,6 @@ public class JMXSslConfigDistributedTest extends AbstractEncryptionOptionsImpl
             {
                 Map<String, Object> jmxEnv = new HashMap<>();
                 configureClientSocketFactory(jmxEnv, encryptionOptionsMap);
-                // Invoke the same code vs duplicating any code from the JMXGetterCheckTest
                 JMXTestsUtil.testAllValidGetters(cluster, jmxEnv);
             }
         }
@@ -91,7 +90,6 @@ public class JMXSslConfigDistributedTest extends AbstractEncryptionOptionsImpl
             {
                 Map<String, Object> jmxEnv = new HashMap<>();
                 configureClientSocketFactory(jmxEnv, encryptionOptionsMap);
-                // Invoke the same code vs duplicating any code from the JMXGetterCheckTest
                 JMXTestsUtil.testAllValidGetters(cluster, jmxEnv);
             }
         }
@@ -114,7 +112,6 @@ public class JMXSslConfigDistributedTest extends AbstractEncryptionOptionsImpl
                 SslRMIClientSocketFactory clientFactory = new SslRMIClientSocketFactory();
                 jmxEnv.put(RMIConnectorServer.RMI_CLIENT_SOCKET_FACTORY_ATTRIBUTE, clientFactory);
                 jmxEnv.put("com.sun.jndi.rmi.factory.socket", clientFactory);
-                // Invoke the same code vs duplicating any code from the JMXGetterCheckTest
                 JMXTestsUtil.testAllValidGetters(cluster, jmxEnv);
             }
         }
@@ -153,7 +150,6 @@ public class JMXSslConfigDistributedTest extends AbstractEncryptionOptionsImpl
                               .build());
         }).start())
         {
-            // Invoke the same code vs duplicating any code from the JMXGetterCheckTest
             JMXTestsUtil.testAllValidGetters(cluster, null);
         }
     }
