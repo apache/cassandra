@@ -114,7 +114,7 @@ public class SyncStatSummary
             }
         }
 
-        public void consumeStats(List<SyncStat> stats)
+        void consumeStats(List<SyncStat> stats)
         {
             filter(stats, s -> s.summaries != null).forEach(this::consumeStat);
         }
@@ -133,7 +133,7 @@ public class SyncStatSummary
             totalsCalculated = true;
         }
 
-        boolean isCounter()
+        public boolean isCounter()
         {
             TableMetadata tmd = Schema.instance.getTableMetadata(keyspace, table);
             return tmd != null && tmd.isCounter();
@@ -219,6 +219,11 @@ public class SyncStatSummary
             ranges += table.ranges;
         }
         totalsCalculated = true;
+    }
+
+    public Map<Pair<String, String>, Table> getTotals() {
+        calculateTotals();
+        return summaries;
     }
 
     public String toString()
