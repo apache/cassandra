@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 
-package org.apache.cassandra.repair.unifiedrepair;
+package org.apache.cassandra.repair.autorepair;
 
 import java.util.ArrayList;
 import java.util.EnumMap;
@@ -40,7 +40,7 @@ import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.config.DurationSpec;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.utils.Clock;
-import org.apache.cassandra.repair.unifiedrepair.IUnifiedRepairTokenRangeSplitter.RepairAssignment;
+import org.apache.cassandra.repair.autorepair.IAutoRepairTokenRangeSplitter.RepairAssignment;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -53,35 +53,35 @@ import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.schema.Tables;
-import org.apache.cassandra.service.UnifiedRepairService;
+import org.apache.cassandra.service.AutoRepairService;
 import org.apache.cassandra.utils.FBUtilities;
-import org.apache.cassandra.repair.unifiedrepair.UnifiedRepairUtils.RepairTurn;
+import org.apache.cassandra.repair.autorepair.AutoRepairUtils.RepairTurn;
 import org.apache.cassandra.utils.concurrent.Future;
 
 import static org.apache.cassandra.concurrent.ExecutorFactory.Global.executorFactory;
-import static org.apache.cassandra.repair.unifiedrepair.UnifiedRepairUtils.RepairTurn.MY_TURN;
-import static org.apache.cassandra.repair.unifiedrepair.UnifiedRepairUtils.RepairTurn.MY_TURN_DUE_TO_PRIORITY;
-import static org.apache.cassandra.repair.unifiedrepair.UnifiedRepairUtils.RepairTurn.MY_TURN_FORCE_REPAIR;
+import static org.apache.cassandra.repair.autorepair.AutoRepairUtils.RepairTurn.MY_TURN;
+import static org.apache.cassandra.repair.autorepair.AutoRepairUtils.RepairTurn.MY_TURN_DUE_TO_PRIORITY;
+import static org.apache.cassandra.repair.autorepair.AutoRepairUtils.RepairTurn.MY_TURN_FORCE_REPAIR;
 
-public class UnifiedRepair
+public class AutoRepair
 {
-    private static final Logger logger = LoggerFactory.getLogger(UnifiedRepair.class);
+    private static final Logger logger = LoggerFactory.getLogger(AutoRepair.class);
 
     @VisibleForTesting
     protected static Supplier<Long> timeFunc = Clock.Global::currentTimeMillis;
 
-    public static UnifiedRepair instance = new UnifiedRepair();
+    public static AutoRepair instance = new AutoRepair();
 
     // Sleep for 5 seconds if repair finishes quickly to flush JMX metrics; it happens only for Cassandra nodes with tiny amount of data.
     public static DurationSpec.IntSecondsBound SLEEP_IF_REPAIR_FINISHES_QUICKLY = new DurationSpec.IntSecondsBound("5s");
 
     @VisibleForTesting
-    protected final Map<UnifiedRepairConfig.RepairType, ScheduledExecutorPlus> repairExecutors;
+    protected final Map<AutoRepairConfig.RepairType, ScheduledExecutorPlus> repairExecutors;
 
-    protected final Map<UnifiedRepairConfig.RepairType, ScheduledExecutorPlus> repairRunnableExecutors;
+    protected final Map<AutoRepairConfig.RepairType, ScheduledExecutorPlus> repairRunnableExecutors;
 
     @VisibleForTesting
-    protected final Map<UnifiedRepairConfig.RepairType, UnifiedRepairState> repairStates;
+    protected final Map<AutoRepairConfig.RepairType, AutoRepairState> repairStates;
 
     @VisibleForTesting
     protected static Consumer<List<?>> shuffleFunc = java.util.Collections::shuffle;
@@ -89,23 +89,23 @@ public class UnifiedRepair
     @VisibleForTesting
     protected static BiConsumer<Long, TimeUnit> sleepFunc = Uninterruptibles::sleepUninterruptibly;
 
-    protected final Map<UnifiedRepairConfig.RepairType, IUnifiedRepairTokenRangeSplitter> tokenRangeSplitters = new EnumMap<>(UnifiedRepairConfig.RepairType.class);
+    protected final Map<AutoRepairConfig.RepairType, IAutoRepairTokenRangeSplitter> tokenRangeSplitters = new EnumMap<>(AutoRepairConfig.RepairType.class);
 
     private boolean isSetupDone = false;
 
     @VisibleForTesting
-    protected UnifiedRepair()
+    protected AutoRepair()
     {
-        UnifiedRepairConfig config = DatabaseDescriptor.getUnifiedRepairConfig();
-        repairExecutors = new EnumMap<>(UnifiedRepairConfig.RepairType.class);
-        repairRunnableExecutors = new EnumMap<>(UnifiedRepairConfig.RepairType.class);
-        repairStates = new EnumMap<>(UnifiedRepairConfig.RepairType.class);
-        for (UnifiedRepairConfig.RepairType repairType : UnifiedRepairConfig.RepairType.values())
+        AutoRepairConfig config = DatabaseDescriptor.getAutoRepairConfig();
+        repairExecutors = new EnumMap<>(AutoRepairConfig.RepairType.class);
+        repairRunnableExecutors = new EnumMap<>(AutoRepairConfig.RepairType.class);
+        repairStates = new EnumMap<>(AutoRepairConfig.RepairType.class);
+        for (AutoRepairConfig.RepairType repairType : AutoRepairConfig.RepairType.values())
         {
-            repairExecutors.put(repairType, executorFactory().scheduled(false, "UnifiedRepair-Repair-" + repairType, Thread.NORM_PRIORITY));
-            repairRunnableExecutors.put(repairType, executorFactory().scheduled(false, "UnifiedRepair-RepairRunnable-" + repairType, Thread.NORM_PRIORITY));
-            repairStates.put(repairType, UnifiedRepairConfig.RepairType.getUnifiedRepairState(repairType));
-            tokenRangeSplitters.put(repairType, FBUtilities.newUnifiedRepairTokenRangeSplitter(config.getTokenRangeSplitter(repairType)));
+            repairExecutors.put(repairType, executorFactory().scheduled(false, "AutoRepair-Repair-" + repairType, Thread.NORM_PRIORITY));
+            repairRunnableExecutors.put(repairType, executorFactory().scheduled(false, "AutoRepair-RepairRunnable-" + repairType, Thread.NORM_PRIORITY));
+            repairStates.put(repairType, AutoRepairConfig.RepairType.getAutoRepairState(repairType));
+            tokenRangeSplitters.put(repairType, FBUtilities.newAutoRepairTokenRangeSplitter(config.getTokenRangeSplitter(repairType)));
         }
     }
 
@@ -119,13 +119,13 @@ public class UnifiedRepair
             {
                 return;
             }
-            UnifiedRepairConfig config = DatabaseDescriptor.getUnifiedRepairConfig();
-            UnifiedRepairUtils.setup();
+            AutoRepairConfig config = DatabaseDescriptor.getAutoRepairConfig();
+            AutoRepairUtils.setup();
 
-            for (UnifiedRepairConfig.RepairType repairType : UnifiedRepairConfig.RepairType.values())
+            for (AutoRepairConfig.RepairType repairType : AutoRepairConfig.RepairType.values())
             {
-                if (config.isUnifiedRepairEnabled(repairType))
-                    UnifiedRepairService.instance.checkCanRun(repairType);
+                if (config.isAutoRepairEnabled(repairType))
+                    AutoRepairService.instance.checkCanRun(repairType);
 
                 repairExecutors.get(repairType).scheduleWithFixedDelay(
                 () -> repair(repairType),
@@ -138,26 +138,26 @@ public class UnifiedRepair
     }
 
     // repairAsync runs a repair session of the given type asynchronously.
-    public void repairAsync(UnifiedRepairConfig.RepairType repairType)
+    public void repairAsync(AutoRepairConfig.RepairType repairType)
     {
-        if (!UnifiedRepairService.instance.getUnifiedRepairConfig().isUnifiedRepairEnabled(repairType))
+        if (!AutoRepairService.instance.getAutoRepairConfig().isAutoRepairEnabled(repairType))
         {
-            throw new ConfigurationException("Unified-repair is disabled for repair type " + repairType);
+            throw new ConfigurationException("Auto-repair is disabled for repair type " + repairType);
         }
         repairExecutors.get(repairType).submit(() -> repair(repairType));
     }
 
     // repair runs a repair session of the given type synchronously.
-    public void repair(UnifiedRepairConfig.RepairType repairType)
+    public void repair(AutoRepairConfig.RepairType repairType)
     {
-        UnifiedRepairConfig config = UnifiedRepairService.instance.getUnifiedRepairConfig();
-        if (!config.isUnifiedRepairEnabled(repairType))
+        AutoRepairConfig config = AutoRepairService.instance.getAutoRepairConfig();
+        if (!config.isAutoRepairEnabled(repairType))
         {
-            logger.debug("Unified-repair is disabled for repair type {}", repairType);
+            logger.debug("Auto-repair is disabled for repair type {}", repairType);
             return;
         }
-        UnifiedRepairService.instance.checkCanRun(repairType);
-        UnifiedRepairState repairState = repairStates.get(repairType);
+        AutoRepairService.instance.checkCanRun(repairType);
+        AutoRepairState repairState = repairStates.get(repairType);
         try
         {
             String localDC = DatabaseDescriptor.getLocalDataCenter();
@@ -168,16 +168,16 @@ public class UnifiedRepair
             }
 
             // refresh the longest unrepaired node
-            repairState.setLongestUnrepairedNode(UnifiedRepairUtils.getHostWithLongestUnrepairTime(repairType));
+            repairState.setLongestUnrepairedNode(AutoRepairUtils.getHostWithLongestUnrepairTime(repairType));
 
             //consistency level to use for local query
             UUID myId = StorageService.instance.getHostIdForEndpoint(FBUtilities.getBroadcastAddressAndPort());
-            RepairTurn turn = UnifiedRepairUtils.myTurnToRunRepair(repairType, myId);
+            RepairTurn turn = AutoRepairUtils.myTurnToRunRepair(repairType, myId);
             if (turn == MY_TURN || turn == MY_TURN_DUE_TO_PRIORITY || turn == MY_TURN_FORCE_REPAIR)
             {
                 repairState.recordTurn(turn);
-                // For normal unified repair, we will use primary range only repairs (Repair with -pr option).
-                // For some cases, we may set the unified_repair_primary_token_range_only flag to false then we will do repair
+                // For normal auto repair, we will use primary range only repairs (Repair with -pr option).
+                // For some cases, we may set the auto_repair_primary_token_range_only flag to false then we will do repair
                 // without -pr. We may also do force repair for certain node that we want to repair all the data on one node
                 // When doing force repair, we want to repair without -pr.
                 boolean primaryRangeOnly = config.getRepairPrimaryTokenRangeOnly(repairType)
@@ -190,7 +190,7 @@ public class UnifiedRepair
                 long startTime = timeFunc.get();
                 logger.info("My host id: {}, my turn to run repair...repair primary-ranges only? {}", myId,
                             config.getRepairPrimaryTokenRangeOnly(repairType));
-                UnifiedRepairUtils.updateStartUnifiedRepairHistory(repairType, myId, timeFunc.get(), turn);
+                AutoRepairUtils.updateStartAutoRepairHistory(repairType, myId, timeFunc.get(), turn);
 
                 repairState.setRepairKeyspaceCount(0);
                 repairState.setRepairInProgress(true);
@@ -201,13 +201,13 @@ public class UnifiedRepair
 
                 List<Keyspace> keyspaces = new ArrayList<>();
                 Keyspace.all().forEach(keyspaces::add);
-                // Unified-repair is likely to be run on multiple nodes independently, we want to avoid running multiple repair
+                // Auto-repair is likely to be run on multiple nodes independently, we want to avoid running multiple repair
                 // sessions on overlapping datasets at the same time. Shuffling keyspaces reduces the likelihood of this happening.
                 shuffleFunc.accept(keyspaces);
 
                 for (Keyspace keyspace : keyspaces)
                 {
-                    if (!UnifiedRepairUtils.checkNodeContainsKeyspaceReplica(keyspace))
+                    if (!AutoRepairUtils.checkNodeContainsKeyspaceReplica(keyspace))
                     {
                         continue;
                     }
@@ -237,20 +237,20 @@ public class UnifiedRepair
                                 tableStartTime = timeFunc.get();
                             }
                             previousAssignment = curRepairAssignment;
-                            if (!config.isUnifiedRepairEnabled(repairType))
+                            if (!config.isAutoRepairEnabled(repairType))
                             {
-                                logger.error("Unified-repair for type {} is disabled hence not running repair", repairType);
+                                logger.error("Auto-repair for type {} is disabled hence not running repair", repairType);
                                 repairState.setRepairInProgress(false);
                                 return;
                             }
-                            if (UnifiedRepairUtils.keyspaceMaxRepairTimeExceeded(repairType, keyspaceStartTime, tablesToBeRepairedList.size()))
+                            if (AutoRepairUtils.keyspaceMaxRepairTimeExceeded(repairType, keyspaceStartTime, tablesToBeRepairedList.size()))
                             {
                                 collectectedRepairStats.skippedTokenRanges += totalRepairAssignments - totalProcessedAssignments;
                                 logger.info("Keyspace took too much time to repair hence skipping it {}",
                                             keyspaceName);
                                 break;
                             }
-                            if (repairOneTableAtATime && UnifiedRepairUtils.tableMaxRepairTimeExceeded(repairType, tableStartTime))
+                            if (repairOneTableAtATime && AutoRepairUtils.tableMaxRepairTimeExceeded(repairType, tableStartTime))
                             {
                                 collectectedRepairStats.skippedTokenRanges += 1;
                                 logger.info("Table took too much time to repair hence skipping it table name {}.{}, token range {}",
@@ -339,17 +339,17 @@ public class UnifiedRepair
         }
         catch (Exception e)
         {
-            logger.error("Exception in unifiedrepair:", e);
+            logger.error("Exception in autorepair:", e);
         }
     }
 
-    private boolean tooSoonToRunRepair(UnifiedRepairConfig.RepairType repairType, UnifiedRepairState repairState, UnifiedRepairConfig config, UUID myId)
+    private boolean tooSoonToRunRepair(AutoRepairConfig.RepairType repairType, AutoRepairState repairState, AutoRepairConfig config, UUID myId)
     {
         if (repairState.getLastRepairTime() == 0)
         {
             // the node has either just boooted or has not run repair before,
             // we should check for the node's repair history in the DB
-            repairState.setLastRepairTime(UnifiedRepairUtils.getLastRepairTimeForNode(repairType, myId));
+            repairState.setLastRepairTime(AutoRepairUtils.getLastRepairTimeForNode(repairType, myId));
         }
         /** check if it is too soon to run repair. one of the reason we
          * should not run frequent repair is that repair triggers
@@ -365,7 +365,7 @@ public class UnifiedRepair
         return false;
     }
 
-    private List<String> retrieveTablesToBeRepaired(Keyspace keyspace, UnifiedRepairConfig config, UnifiedRepairConfig.RepairType repairType, UnifiedRepairState repairState, CollectectedRepairStats collectectedRepairStats)
+    private List<String> retrieveTablesToBeRepaired(Keyspace keyspace, AutoRepairConfig config, AutoRepairConfig.RepairType repairType, AutoRepairState repairState, CollectectedRepairStats collectectedRepairStats)
     {
         Tables tables = keyspace.getMetadata().tables;
         List<String> tablesToBeRepaired = new ArrayList<>();
@@ -377,7 +377,7 @@ public class UnifiedRepair
             String tableName = tableMetadata.name;
 
             ColumnFamilyStore columnFamilyStore = keyspace.getColumnFamilyStore(tableName);
-            if (!columnFamilyStore.metadata().params.unifiedRepair.get(repairType).repairEnabled())
+            if (!columnFamilyStore.metadata().params.automatedRepair.get(repairType).repairEnabled())
             {
                 logger.info("Repair is disabled for keyspace {} for tables: {}", keyspace.getName(), tableName);
                 repairState.setTotalDisabledTablesRepairCount(repairState.getTotalDisabledTablesRepairCount() + 1);
@@ -385,7 +385,7 @@ public class UnifiedRepair
                 continue;
             }
 
-            // this is done to make unifiedrepair safe as running repair on table with more sstables
+            // this is done to make autorepair safe as running repair on table with more sstables
             // may have its own challenges
             int totalSSTables = columnFamilyStore.getLiveSSTables().size();
             if (totalSSTables > config.getRepairSSTableCountHigherThreshold(repairType))
@@ -399,7 +399,7 @@ public class UnifiedRepair
             tablesToBeRepaired.add(tableName);
 
             // See if we should repair MVs as well that are associated with this given table
-            List<String> mvs = UnifiedRepairUtils.getAllMVs(repairType, keyspace, tableMetadata);
+            List<String> mvs = AutoRepairUtils.getAllMVs(repairType, keyspace, tableMetadata);
             if (!mvs.isEmpty())
             {
                 tablesToBeRepaired.addAll(mvs);
@@ -409,14 +409,14 @@ public class UnifiedRepair
         return tablesToBeRepaired;
     }
 
-    private void cleanupAndUpdateStats(RepairTurn turn, UnifiedRepairConfig.RepairType repairType, UnifiedRepairState repairState, UUID myId,
+    private void cleanupAndUpdateStats(RepairTurn turn, AutoRepairConfig.RepairType repairType, AutoRepairState repairState, UUID myId,
                                        long startTime, CollectectedRepairStats collectectedRepairStats) throws InterruptedException
     {
         //if it was due to priority then remove it now
         if (turn == MY_TURN_DUE_TO_PRIORITY)
         {
             logger.info("Remove current host from priority list");
-            UnifiedRepairUtils.removePriorityStatus(repairType, myId);
+            AutoRepairUtils.removePriorityStatus(repairType, myId);
         }
 
         repairState.setFailedTokenRangesCount(collectectedRepairStats.failedTokenRanges);
@@ -446,10 +446,10 @@ public class UnifiedRepair
             Thread.sleep(SLEEP_IF_REPAIR_FINISHES_QUICKLY.toMilliseconds());
         }
         repairState.setRepairInProgress(false);
-        UnifiedRepairUtils.updateFinishUnifiedRepairHistory(repairType, myId, timeFunc.get());
+        AutoRepairUtils.updateFinishAutoRepairHistory(repairType, myId, timeFunc.get());
     }
 
-    public UnifiedRepairState getRepairState(UnifiedRepairConfig.RepairType repairType)
+    public AutoRepairState getRepairState(AutoRepairConfig.RepairType repairType)
     {
         return repairStates.get(repairType);
     }

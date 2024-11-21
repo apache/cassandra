@@ -20,9 +20,9 @@ package org.apache.cassandra.service;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.locator.InetAddressAndPort;
-import org.apache.cassandra.repair.unifiedrepair.UnifiedRepairConfig;
-import org.apache.cassandra.repair.unifiedrepair.UnifiedRepairConfig.RepairType;
-import org.apache.cassandra.repair.unifiedrepair.UnifiedRepairUtils;
+import org.apache.cassandra.repair.autorepair.AutoRepairConfig;
+import org.apache.cassandra.repair.autorepair.AutoRepairConfig.RepairType;
+import org.apache.cassandra.repair.autorepair.AutoRepairUtils;
 import org.apache.cassandra.utils.MBeanWrapper;
 
 import java.util.HashSet;
@@ -32,23 +32,23 @@ import java.util.UUID;
 
 import com.google.common.annotations.VisibleForTesting;
 
-public class UnifiedRepairService implements UnifiedRepairServiceMBean
+public class AutoRepairService implements AutoRepairServiceMBean
 {
-    public static final String MBEAN_NAME = "org.apache.cassandra.db:type=UnifiedRepairService";
+    public static final String MBEAN_NAME = "org.apache.cassandra.db:type=AutoRepairService";
 
     @VisibleForTesting
-    protected UnifiedRepairConfig config;
+    protected AutoRepairConfig config;
 
-    public static final UnifiedRepairService instance = new UnifiedRepairService();
+    public static final AutoRepairService instance = new AutoRepairService();
 
     @VisibleForTesting
-    protected UnifiedRepairService()
+    protected AutoRepairService()
     {
     }
 
     public static void setup()
     {
-        instance.config = DatabaseDescriptor.getUnifiedRepairConfig();
+        instance.config = DatabaseDescriptor.getAutoRepairConfig();
     }
 
     static
@@ -58,8 +58,8 @@ public class UnifiedRepairService implements UnifiedRepairServiceMBean
 
     public void checkCanRun(RepairType repairType)
     {
-        if (!config.isUnifiedRepairSchedulingEnabled())
-            throw new ConfigurationException("Unified-repair scheduller is disabled.");
+        if (!config.isAutoRepairSchedulingEnabled())
+            throw new ConfigurationException("Auto-repair scheduller is disabled.");
 
         if (repairType != RepairType.incremental)
             return;
@@ -72,16 +72,16 @@ public class UnifiedRepairService implements UnifiedRepairServiceMBean
     }
 
     @Override
-    public UnifiedRepairConfig getUnifiedRepairConfig()
+    public AutoRepairConfig getAutoRepairConfig()
     {
         return config;
     }
 
     @Override
-    public void setUnifiedRepairEnabled(RepairType repairType, boolean enabled)
+    public void setAutoRepairEnabled(RepairType repairType, boolean enabled)
     {
         checkCanRun(repairType);
-        config.setUnifiedRepairEnabled(repairType, enabled);
+        config.setAutoRepairEnabled(repairType, enabled);
     }
 
     @Override
@@ -93,18 +93,18 @@ public class UnifiedRepairService implements UnifiedRepairServiceMBean
     @Override
     public void setRepairPriorityForHosts(RepairType repairType, Set<InetAddressAndPort> hosts)
     {
-        UnifiedRepairUtils.addPriorityHosts(repairType, hosts);
+        AutoRepairUtils.addPriorityHosts(repairType, hosts);
     }
 
     @Override
     public Set<InetAddressAndPort> getRepairHostPriority(RepairType repairType) {
-        return UnifiedRepairUtils.getPriorityHosts(repairType);
+        return AutoRepairUtils.getPriorityHosts(repairType);
     }
 
     @Override
     public void setForceRepairForHosts(RepairType repairType, Set<InetAddressAndPort> hosts)
     {
-        UnifiedRepairUtils.setForceRepair(repairType, hosts);
+        AutoRepairUtils.setForceRepair(repairType, hosts);
     }
 
     @Override
@@ -125,19 +125,19 @@ public class UnifiedRepairService implements UnifiedRepairServiceMBean
         config.startScheduler();
     }
 
-    public void setUnifiedRepairHistoryClearDeleteHostsBufferDuration(String duration)
+    public void setAutoRepairHistoryClearDeleteHostsBufferDuration(String duration)
     {
-        config.setUnifiedRepairHistoryClearDeleteHostsBufferInterval(duration);
+        config.setAutoRepairHistoryClearDeleteHostsBufferInterval(duration);
     }
 
     @Override
-    public void setUnifiedRepairMaxRetriesCount(int retries)
+    public void setAutoRepairMaxRetriesCount(int retries)
     {
         config.setRepairMaxRetries(retries);
     }
 
     @Override
-    public void setUnifiedRepairRetryBackoff(String interval)
+    public void setAutoRepairRetryBackoff(String interval)
     {
         config.setRepairRetryBackoff(interval);
     }
@@ -149,9 +149,9 @@ public class UnifiedRepairService implements UnifiedRepairServiceMBean
     }
 
     @Override
-    public void setUnifiedRepairTableMaxRepairTime(RepairType repairType, String unifiedRepairTableMaxRepairTime)
+    public void setAutoRepairTableMaxRepairTime(RepairType repairType, String autoRepairTableMaxRepairTime)
     {
-        config.setUnifiedRepairTableMaxRepairTime(repairType, unifiedRepairTableMaxRepairTime);
+        config.setAutoRepairTableMaxRepairTime(repairType, autoRepairTableMaxRepairTime);
     }
 
     @Override
@@ -192,12 +192,12 @@ public class UnifiedRepairService implements UnifiedRepairServiceMBean
     public Set<String> getOnGoingRepairHostIds(RepairType rType)
     {
         Set<String> hostIds = new HashSet<>();
-        List<UnifiedRepairUtils.UnifiedRepairHistory> histories = UnifiedRepairUtils.getUnifiedRepairHistory(rType);
+        List<AutoRepairUtils.AutoRepairHistory> histories = AutoRepairUtils.getAutoRepairHistory(rType);
         if (histories == null)
         {
             return hostIds;
         }
-        UnifiedRepairUtils.CurrentRepairStatus currentRepairStatus = new UnifiedRepairUtils.CurrentRepairStatus(histories, UnifiedRepairUtils.getPriorityHostIds(rType));
+        AutoRepairUtils.CurrentRepairStatus currentRepairStatus = new AutoRepairUtils.CurrentRepairStatus(histories, AutoRepairUtils.getPriorityHostIds(rType));
         for (UUID id : currentRepairStatus.hostIdsWithOnGoingRepair)
         {
             hostIds.add(id.toString());

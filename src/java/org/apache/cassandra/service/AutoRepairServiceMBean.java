@@ -18,17 +18,17 @@
 package org.apache.cassandra.service;
 
 import org.apache.cassandra.locator.InetAddressAndPort;
-import org.apache.cassandra.repair.unifiedrepair.UnifiedRepairConfig;
-import org.apache.cassandra.repair.unifiedrepair.UnifiedRepairConfig.RepairType;
+import org.apache.cassandra.repair.autorepair.AutoRepairConfig;
+import org.apache.cassandra.repair.autorepair.AutoRepairConfig.RepairType;
 
 import java.util.Set;
 
-public interface UnifiedRepairServiceMBean
+public interface AutoRepairServiceMBean
 {
     /**
-     * Enable or disable unified-repair for a given repair type
+     * Enable or disable auto-repair for a given repair type
      */
-    public void setUnifiedRepairEnabled(RepairType repairType, boolean enabled);
+    public void setAutoRepairEnabled(RepairType repairType, boolean enabled);
 
     public void setRepairThreads(RepairType repairType, int repairThreads);
 
@@ -44,15 +44,15 @@ public interface UnifiedRepairServiceMBean
 
     void startScheduler();
 
-    public void setUnifiedRepairHistoryClearDeleteHostsBufferDuration(String duration);
+    public void setAutoRepairHistoryClearDeleteHostsBufferDuration(String duration);
 
-    public void setUnifiedRepairMaxRetriesCount(int retries);
+    public void setAutoRepairMaxRetriesCount(int retries);
 
-    public void setUnifiedRepairRetryBackoff(String interval);
+    public void setAutoRepairRetryBackoff(String interval);
 
     public void setRepairSSTableCountHigherThreshold(RepairType repairType, int ssTableHigherThreshold);
 
-    public void setUnifiedRepairTableMaxRepairTime(RepairType repairType, String unifiedRepairTableMaxRepairTime);
+    public void setAutoRepairTableMaxRepairTime(RepairType repairType, String autoRepairTableMaxRepairTime);
 
     public void setIgnoreDCs(RepairType repairType, Set<String> ignorDCs);
 
@@ -64,7 +64,7 @@ public interface UnifiedRepairServiceMBean
 
     public void setMVRepairEnabled(RepairType repairType, boolean enabled);
 
-    public UnifiedRepairConfig getUnifiedRepairConfig();
+    public AutoRepairConfig getAutoRepairConfig();
 
     public void setRepairSessionTimeout(RepairType repairType, String timeout);
 

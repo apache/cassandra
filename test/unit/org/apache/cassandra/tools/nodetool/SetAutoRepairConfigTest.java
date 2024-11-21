@@ -35,7 +35,7 @@ import org.junit.runners.Parameterized;
 import org.junit.runners.Suite;
 
 import org.apache.cassandra.locator.InetAddressAndPort;
-import org.apache.cassandra.repair.unifiedrepair.UnifiedRepairConfig;
+import org.apache.cassandra.repair.autorepair.AutoRepairConfig;
 import org.apache.cassandra.tools.NodeProbe;
 import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
@@ -46,19 +46,19 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
 @RunWith(Suite.class)
-@Suite.SuiteClasses({ SetUnifiedRepairConfigTest.NoParamTests.class, SetUnifiedRepairConfigTest.RepairTypeParamTests.class,
-                      SetUnifiedRepairConfigTest.RepairTypeAndArgsParamsTests.class })
-public class SetUnifiedRepairConfigTest
+@Suite.SuiteClasses({ SetAutoRepairConfigTest.NoParamTests.class, SetAutoRepairConfigTest.RepairTypeParamTests.class,
+                      SetAutoRepairConfigTest.RepairTypeAndArgsParamsTests.class })
+public class SetAutoRepairConfigTest
 {
-    protected static UnifiedRepairConfig config;
+    protected static AutoRepairConfig config;
 
-    protected static SetUnifiedRepairConfig cmd;
+    protected static SetAutoRepairConfig cmd;
 
     public static void before(NodeProbe probeMock, PrintStream outMock)
     {
-        config = new UnifiedRepairConfig(true);
-        when(probeMock.getUnifiedRepairConfig()).thenReturn(config);
-        cmd = new SetUnifiedRepairConfig();
+        config = new AutoRepairConfig(true);
+        when(probeMock.getAutoRepairConfig()).thenReturn(config);
+        cmd = new SetAutoRepairConfig();
         cmd.out = outMock;
     }
 
@@ -84,15 +84,15 @@ public class SetUnifiedRepairConfigTest
 
             cmd.execute(probe);
 
-            verify(probe, times(1)).setUnifiedRepairHistoryClearDeleteHostsBufferDuration("1s");
+            verify(probe, times(1)).setAutoRepairHistoryClearDeleteHostsBufferDuration("1s");
 
-            // test scenario when unified repair is disabled
-            when(probe.getUnifiedRepairConfig()).thenReturn(new UnifiedRepairConfig(false));
+            // test scenario when auto repair is disabled
+            when(probe.getAutoRepairConfig()).thenReturn(new AutoRepairConfig(false));
 
             cmd.execute(probe);
 
-            // test new calls are not made when unified repair is disabled
-            verify(probe, times(1)).setUnifiedRepairHistoryClearDeleteHostsBufferDuration("1s");
+            // test new calls are not made when auto repair is disabled
+            verify(probe, times(1)).setAutoRepairHistoryClearDeleteHostsBufferDuration("1s");
         }
 
         @Test
@@ -102,7 +102,7 @@ public class SetUnifiedRepairConfigTest
 
             cmd.execute(probe);
 
-            verify(probe, times(1)).setUnifiedRepairMaxRetriesCount(2);
+            verify(probe, times(1)).setAutoRepairMaxRetriesCount(2);
         }
 
 
@@ -113,7 +113,7 @@ public class SetUnifiedRepairConfigTest
 
             cmd.execute(probe);
 
-            verify(probe, times(1)).setUnifiedRepairRetryBackoff("3s");
+            verify(probe, times(1)).setAutoRepairRetryBackoff("3s");
         }
 
         @Test
@@ -143,12 +143,12 @@ public class SetUnifiedRepairConfigTest
         private static PrintStream out;
 
         @Parameterized.Parameter
-        public UnifiedRepairConfig.RepairType repairType;
+        public AutoRepairConfig.RepairType repairType;
 
         @Parameterized.Parameters(name = "repairType={0}")
         public static Object[] data()
         {
-            return UnifiedRepairConfig.RepairType.values();
+            return AutoRepairConfig.RepairType.values();
         }
 
         private static InetAddressAndPort localEndpoint;
@@ -173,20 +173,20 @@ public class SetUnifiedRepairConfigTest
         @Test
         public void testRepairSchedulingDisabled()
         {
-            when(probe.getUnifiedRepairConfig()).thenReturn(new UnifiedRepairConfig(false));
+            when(probe.getAutoRepairConfig()).thenReturn(new AutoRepairConfig(false));
             cmd.repairType = repairType;
             cmd.args = ImmutableList.of("threads", "1");
 
             cmd.execute(probe);
 
-            verify(out, times(1)).println("Unified-repair is not enabled");
+            verify(out, times(1)).println("Auto-repair is not enabled");
             verify(probe, times(0)).setRepairThreads(repairType, 1);
         }
 
         @Test
         public void testRepairTypeDisabled()
         {
-            config.setUnifiedRepairEnabled(repairType, false);
+            config.setAutoRepairEnabled(repairType, false);
             cmd.repairType = repairType;
             cmd.args = ImmutableList.of("number_of_repair_threads", "1");
 
@@ -253,7 +253,7 @@ public class SetUnifiedRepairConfigTest
     public static class RepairTypeAndArgsParamsTests
     {
         @Parameterized.Parameter
-        public UnifiedRepairConfig.RepairType repairType;
+        public AutoRepairConfig.RepairType repairType;
 
         @Parameterized.Parameter(1)
         public String paramType;
@@ -262,30 +262,30 @@ public class SetUnifiedRepairConfigTest
         public String paramVal;
 
         @Parameterized.Parameter(3)
-        public Consumer<UnifiedRepairConfig.RepairType> verifyFunc;
+        public Consumer<AutoRepairConfig.RepairType> verifyFunc;
 
         @Parameterized.Parameters(name = "repairType={0},paramType={1}")
         public static Collection<Object[]> testCases()
         {
             return Stream.of(
-            forEachRepairType("enabled", "true", (type) -> verify(probe, times(1)).setUnifiedRepairEnabled(type, true)),
+            forEachRepairType("enabled", "true", (type) -> verify(probe, times(1)).setAutoRepairEnabled(type, true)),
             forEachRepairType("number_of_repair_threads", "1", (type) -> verify(probe, times(1)).setRepairThreads(type, 1)),
             forEachRepairType("number_of_subranges", "2", (type) -> verify(probe, times(1)).setRepairSubRangeNum(type, 2)),
             forEachRepairType("min_repair_interval", "3h", (type) -> verify(probe, times(1)).setRepairMinInterval(type, "3h")),
             forEachRepairType("sstable_upper_threshold", "4", (type) -> verify(probe, times(1)).setRepairSSTableCountHigherThreshold(type, 4)),
-            forEachRepairType("table_max_repair_time", "5s", (type) -> verify(probe, times(1)).setUnifiedRepairTableMaxRepairTime(type, "5s")),
+            forEachRepairType("table_max_repair_time", "5s", (type) -> verify(probe, times(1)).setAutoRepairTableMaxRepairTime(type, "5s")),
             forEachRepairType("repair_primary_token_range_only", "true", (type) -> verify(probe, times(1)).setPrimaryTokenRangeOnly(type, true)),
             forEachRepairType("parallel_repair_count", "6", (type) -> verify(probe, times(1)).setParallelRepairCount(type, 6)),
             forEachRepairType("parallel_repair_percentage", "7", (type) -> verify(probe, times(1)).setParallelRepairPercentage(type, 7)),
             forEachRepairType("mv_repair_enabled", "true", (type) -> verify(probe, times(1)).setMVRepairEnabled(type, true)),
-            forEachRepairType("ignore_dcs", "dc1,dc2", (type) -> verify(probe, times(1)).setUnifiedRepairIgnoreDCs(type, ImmutableSet.of("dc1", "dc2")))
+            forEachRepairType("ignore_dcs", "dc1,dc2", (type) -> verify(probe, times(1)).setAutoRepairIgnoreDCs(type, ImmutableSet.of("dc1", "dc2")))
             ).flatMap(Function.identity()).collect(Collectors.toList());
         }
 
-        private static Stream<Object[]> forEachRepairType(String paramType, String paramVal, Consumer<UnifiedRepairConfig.RepairType> verifyFunc)
+        private static Stream<Object[]> forEachRepairType(String paramType, String paramVal, Consumer<AutoRepairConfig.RepairType> verifyFunc)
         {
-            Object[][] testCases = new Object[UnifiedRepairConfig.RepairType.values().length][4];
-            for (UnifiedRepairConfig.RepairType repairType : UnifiedRepairConfig.RepairType.values())
+            Object[][] testCases = new Object[AutoRepairConfig.RepairType.values().length][4];
+            for (AutoRepairConfig.RepairType repairType : AutoRepairConfig.RepairType.values())
             {
                 testCases[repairType.ordinal()] = new Object[]{ repairType, paramType, paramVal, verifyFunc };
             }
@@ -316,12 +316,12 @@ public class SetUnifiedRepairConfigTest
 
             verifyFunc.accept(repairType);
 
-            // test scenario when unified repair is disabled
-            when(probe.getUnifiedRepairConfig()).thenReturn(new UnifiedRepairConfig(false));
+            // test scenario when auto repair is disabled
+            when(probe.getAutoRepairConfig()).thenReturn(new AutoRepairConfig(false));
 
             cmd.execute(probe);
 
-            // test new calls are not made when unified repair is disabled
+            // test new calls are not made when auto repair is disabled
             verifyFunc.accept(repairType);
         }
     }

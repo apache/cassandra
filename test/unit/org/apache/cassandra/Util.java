@@ -64,7 +64,7 @@ import org.apache.cassandra.gms.VersionedValue;
 import org.apache.cassandra.io.util.File;
 
 import org.apache.cassandra.config.Config;
-import org.apache.cassandra.repair.unifiedrepair.UnifiedRepairConfig;
+import org.apache.cassandra.repair.autorepair.AutoRepairConfig;
 import org.apache.commons.lang3.StringUtils;
 import org.junit.Assume;
 import org.slf4j.Logger;
@@ -1285,11 +1285,11 @@ public class Util
         return tagSnapshotsMap;
     }
 
-    // Replaces the global unified-repair config with a new config where unified-repair schedulling is enabled/disabled
-    public static void setUnifiedRepairEnabled(boolean enabled) throws Exception
+    // Replaces the global auto-repair config with a new config where auto-repair schedulling is enabled/disabled
+    public static void setAutoRepairEnabled(boolean enabled) throws Exception
     {
         Config config = DatabaseDescriptor.getRawConfig();
-        config.unified_repair = new UnifiedRepairConfig(enabled);
+        config.auto_repair = new AutoRepairConfig(enabled);
         Field configField = DatabaseDescriptor.class.getDeclaredField("conf");
         configField.setAccessible(true);
         configField.set(null, config);
