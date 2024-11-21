@@ -36,8 +36,15 @@ public class GossipShutdownVerbHandler implements IVerbHandler<GossipShutdown>
             logger.debug("Ignoring shutdown message from {} because gossip is disabled", message.from());
             return;
         }
-        if (message.payload == null) Gossiper.instance.markAsShutdown(message.from());
-        else                         Gossiper.instance.markAsShutdown(message.from(), message.payload.state);
+        HeartBeatState previous = Gossiper.instance.getEndpointStateForEndpoint(message.from()).getHeartBeatState();
+
+        if (message.payload == null)
+            Gossiper.instance.markAsShutdown(message.from());
+        else if (previous.getGeneration() <= message.payload.state.getHeartBeatState().getGeneration())
+            Gossiper.instance.markAsShutdown(message.from(), message.payload.state);
+        else
+            logger.debug("Ignoring shutdown message from {} because generation {} older than local {}",
+                    message.from(), message.payload.state.getHeartBeatState().getGeneration(), previous.getGeneration());
     }
 
 }
