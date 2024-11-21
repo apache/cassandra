@@ -143,7 +143,7 @@ class CqlshCompletionCase(BaseTestCase):
 
     def trycompletions(self, inputstring, immediate='', choices=(),
                        other_choices_ok=False, split_completed_lines=True,
-                        ignore_system_keyspaces=False):
+                       ignore_system_keyspaces=False):
         try:
             self._trycompletions_inner(inputstring, immediate, choices,
                                        other_choices_ok=other_choices_ok,
@@ -199,7 +199,7 @@ class TestCqlshCompletion(CqlshCompletionCase):
                                      'TTL', 'WRITETIME',
                                      'COLLECTION_AVG', 'COLLECTION_COUNT', 'COLLECTION_MAX',
                                      'COLLECTION_MIN', 'COLLECTION_SUM',
-                                     'MASK_DEFAULT', 'MASK_INNER', 'MASK_NULL',
+                                     'MASK_DEFAULT', 'MASK_HASH', 'MASK_INNER', 'MASK_NULL',
                                      'MASK_OUTER', 'MASK_REPLACE',
                                      '[', 'false', 'true', '{'
                                      ),

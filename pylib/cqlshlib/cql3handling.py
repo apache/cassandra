@@ -602,7 +602,7 @@ def cf_prop_val_mapender_completer(ctxt, cass):
 
 @completer_for('tokenDefinition', 'token')
 def token_word_completer(ctxt, cass):
-    return ['token(']
+    return ['token']
 
 
 @completer_for('simpleStorageType', 'typename')
