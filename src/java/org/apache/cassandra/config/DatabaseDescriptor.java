@@ -113,7 +113,7 @@ import org.apache.cassandra.locator.ReconnectableSnitchHelper;
 import org.apache.cassandra.locator.SeedProvider;
 import org.apache.cassandra.locator.NodeProximity;
 import org.apache.cassandra.locator.SnitchAdapter;
-import org.apache.cassandra.repair.autorepair.AutoRepairConfig;
+import org.apache.cassandra.repair.unifiedrepair.UnifiedRepairConfig;
 import org.apache.cassandra.security.AbstractCryptoProvider;
 import org.apache.cassandra.security.EncryptionContext;
 import org.apache.cassandra.security.JREProvider;
@@ -5550,9 +5550,9 @@ public class DatabaseDescriptor
         conf.tombstone_read_purgeable_metric_granularity = granularity;
     }
 
-    public static AutoRepairConfig getAutoRepairConfig()
+    public static UnifiedRepairConfig getUnifiedRepairConfig()
     {
-        return conf.auto_repair;
+        return conf.unified_repair;
     }
 
     public static double getIncrementalRepairDiskHeadroomRejectRatio()

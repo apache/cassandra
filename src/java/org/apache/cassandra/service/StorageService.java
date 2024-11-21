@@ -73,7 +73,7 @@ import com.google.common.collect.Sets;
 import com.google.common.util.concurrent.Uninterruptibles;
 
 import org.apache.cassandra.io.sstable.format.SSTableReader;
-import org.apache.cassandra.repair.autorepair.AutoRepair;
+import org.apache.cassandra.repair.unifiedrepair.UnifiedRepair;
 import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -1116,15 +1116,15 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         }
     }
 
-    public void doAutoRepairSetup()
+    public void doUnifiedRepairSetup()
     {
-        AutoRepairService.setup();
-        if (DatabaseDescriptor.getAutoRepairConfig().isAutoRepairSchedulingEnabled())
+        UnifiedRepairService.setup();
+        if (DatabaseDescriptor.getUnifiedRepairConfig().isUnifiedRepairSchedulingEnabled())
         {
-            logger.info("Enable auto-repair scheduling");
-            AutoRepair.instance.setup();
+            logger.info("Enable unified-repair scheduling");
+            UnifiedRepair.instance.setup();
         }
-        logger.info("AutoRepair setup complete!");
+        logger.info("UnifiedRepair setup complete!");
     }
 
 

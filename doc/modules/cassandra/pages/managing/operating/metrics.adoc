@@ -1081,16 +1081,16 @@ partitions processed per logged batch
 partitions processed per unlogged batch
 |===
 
-== Automated Repair Metrics
+== Unified Repair Metrics
 
-Metrics specifc to automated repair.
+Metrics specifc to unified repair.
 
 Reported name format:
 
 *Metric Name*::
-`org.apache.cassandra.metrics.AutoRepair.<MetricName>`
+`org.apache.cassandra.metrics.UnifiedRepair.<MetricName>`
 *JMX MBean*::
-`org.apache.cassandra.metrics:type=AutoRepair name=<MetricName> repairType=<RepairType>`
+`org.apache.cassandra.metrics:type=UnifiedRepair name=<MetricName> repairType=<RepairType>`
 
 [cols=",,",options="header",]
 |===
@@ -1121,15 +1121,15 @@ on the node
 views considered on the node
 
 |TotalDisabledRepairTables |Gauge<Integer> |Number of tables on which
-the automated repair has been disabled on the node
+the unified repair has been disabled on the node
 
 |RepairTurnMyTurn |Counter |Represents the node's turn to repair
 
 |RepairTurnMyTurnDueToPriority |Counter |Represents the node's turn to repair
-due to priority set in the automated repair
+due to priority set in the unified repair
 
 |RepairTurnMyTurnForceRepair |Counter |Represents the node's turn to repair
-due to force repair set in the automated repair
+due to force repair set in the unified repair
 
 
 |===
