@@ -308,7 +308,7 @@ class PreviewRepairedState extends AutoRepairState
     }
 
     @Override
-    public RepairRunnable getRepairRunnable(String keyspace, List<String> tables, Set<Range<Token>> ranges, boolean primaryRangeOnly)
+    public RepairCoordinator getRepairRunnable(String keyspace, List<String> tables, Set<Range<Token>> ranges, boolean primaryRangeOnly)
     {
         RepairOption option = new RepairOption(RepairParallelism.PARALLEL, primaryRangeOnly, false, false,
                 AutoRepairService.instance.getAutoRepairConfig().getRepairThreads(repairType), ranges,
