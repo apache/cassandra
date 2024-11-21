@@ -21,6 +21,7 @@ import java.net.InetAddress;
 import java.nio.ByteBuffer;
 import java.util.*;
 
+import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 
 import org.apache.cassandra.config.CassandraRelevantProperties;
@@ -29,6 +30,8 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.Mutation;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
 import org.apache.cassandra.db.rows.Row;
+import org.apache.cassandra.repair.autorepair.AutoRepairConfig;
+import org.apache.cassandra.schema.AutoRepairParams;
 import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.schema.SchemaConstants;
@@ -101,6 +104,8 @@ public final class TraceKeyspace
                                    .id(TableId.forSystemTable(SchemaConstants.TRACE_KEYSPACE_NAME, table))
                                    .gcGraceSeconds(0)
                                    .comment(description)
+                                   .automatedRepairFull(AutoRepairParams.fromMap(AutoRepairConfig.RepairType.full, ImmutableMap.of(AutoRepairParams.Option.ENABLED.toString(), Boolean.toString(false))))
+                                   .automatedRepairIncremental(AutoRepairParams.fromMap(AutoRepairConfig.RepairType.incremental, ImmutableMap.of(AutoRepairParams.Option.ENABLED.toString(), Boolean.toString(false))))
                                    .build();
     }
 

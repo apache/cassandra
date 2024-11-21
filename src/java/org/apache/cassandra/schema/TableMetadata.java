@@ -978,6 +978,17 @@ public class TableMetadata implements SchemaElement
             return this;
         }
 
+        public Builder automatedRepairFull(AutoRepairParams val)
+        {
+            params.automatedRepairFull(val);
+            return this;
+        }
+
+        public Builder automatedRepairIncremental(AutoRepairParams val)
+        {
+            params.automatedRepairIncremental(val);
+            return this;
+        }
 
         public Builder isCounter(boolean val)
         {

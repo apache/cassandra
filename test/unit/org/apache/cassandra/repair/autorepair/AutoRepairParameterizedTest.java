@@ -420,8 +420,8 @@ public class AutoRepairParameterizedTest extends CQLTester
         // skipping both the tables - one table is due to its repair has been disabled, and another one due to high sstable count
         assertEquals(0, state.getSkippedTokenRangesCount());
         assertEquals(0, AutoRepairMetricsManager.getMetrics(repairType).skippedTokenRangesCount.getValue().intValue());
-        assertEquals(2, state.getSkippedTablesCount());
-        assertEquals(2, AutoRepairMetricsManager.getMetrics(repairType).skippedTablesCount.getValue().intValue());
+        assertEquals(4, state.getSkippedTablesCount());
+        assertEquals(4, AutoRepairMetricsManager.getMetrics(repairType).skippedTablesCount.getValue().intValue());
 
         // set it to higher value, and this time, the tables should not be skipped
         config.setRepairSSTableCountHigherThreshold(repairType, beforeCount);
@@ -433,8 +433,8 @@ public class AutoRepairParameterizedTest extends CQLTester
         assertEquals(1, AutoRepairMetricsManager.getMetrics(repairType).totalMVTablesConsideredForRepair.getValue().intValue());
         assertEquals(0, state.getSkippedTokenRangesCount());
         assertEquals(0, AutoRepairMetricsManager.getMetrics(repairType).skippedTokenRangesCount.getValue().intValue());
-        assertEquals(1, state.getSkippedTablesCount());
-        assertEquals(1, AutoRepairMetricsManager.getMetrics(repairType).skippedTablesCount.getValue().intValue());
+        assertEquals(3, state.getSkippedTablesCount());
+        assertEquals(3, AutoRepairMetricsManager.getMetrics(repairType).skippedTablesCount.getValue().intValue());
     }
 
     @Test
@@ -590,7 +590,7 @@ public class AutoRepairParameterizedTest extends CQLTester
         AutoRepair.instance.repair(repairType);
 
         assertEquals(1, shuffleKeyspacesCall.get());
-        assertEquals(5, shuffleTablesCall.get());
+        assertEquals(4, shuffleTablesCall.get());
     }
 
     @Test
@@ -629,10 +629,10 @@ public class AutoRepairParameterizedTest extends CQLTester
         AutoRepair.instance.repair(repairType);
 
         //system_auth.role_permissions,system_auth.network_permissions,system_auth.role_members,system_auth.roles,
-        // system_auth.resource_role_permissons_index,system_traces.sessions,system_traces.events,ks.tbl,
+        // system_auth.resource_role_permissons_index,ks.tbl,
         // system_distributed.auto_repair_priority,system_distributed.repair_history,system_distributed.auto_repair_history,
         // system_distributed.view_build_status,system_distributed.parent_repair_history,system_distributed.partition_denylist
-        int exptedTablesGoingThroughRepair = 18;
+        int exptedTablesGoingThroughRepair = 16;
         assertEquals(config.getRepairMaxRetries()*exptedTablesGoingThroughRepair, sleepCalls.get());
         verify(autoRepairState, Mockito.times(1)).setSucceededTokenRangesCount(0);
         verify(autoRepairState, Mockito.times(1)).setSkippedTokenRangesCount(0);
