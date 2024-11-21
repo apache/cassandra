@@ -20,19 +20,19 @@ package org.apache.cassandra.metrics;
 import com.codahale.metrics.Counter;
 import com.codahale.metrics.Gauge;
 import com.google.common.annotations.VisibleForTesting;
-import org.apache.cassandra.repair.unifiedrepair.UnifiedRepairConfig.RepairType;
-import org.apache.cassandra.repair.unifiedrepair.UnifiedRepairUtils;
-import org.apache.cassandra.repair.unifiedrepair.UnifiedRepair;
+import org.apache.cassandra.repair.autorepair.AutoRepairConfig.RepairType;
+import org.apache.cassandra.repair.autorepair.AutoRepairUtils;
+import org.apache.cassandra.repair.autorepair.AutoRepair;
 
 import static org.apache.cassandra.metrics.CassandraMetricsRegistry.Metrics;
 import static org.apache.cassandra.utils.LocalizeString.toLowerCaseLocalized;
 
 /**
- * Metrics related to UnifiedRepair.
+ * Metrics related to AutoRepair.
  */
-public class UnifiedRepairMetrics
+public class AutoRepairMetrics
 {
-    public static final String TYPE_NAME = "unifiedrepair";
+    public static final String TYPE_NAME = "autorepair";
     public Gauge<Integer> repairsInProgress;
     public Gauge<Integer> nodeRepairTimeInSec;
     public Gauge<Integer> clusterRepairTimeInSec;
@@ -47,15 +47,15 @@ public class UnifiedRepairMetrics
     public Gauge<Integer> totalMVTablesConsideredForRepair;
     public Gauge<Integer> totalDisabledRepairTables;
 
-    public UnifiedRepairMetrics(RepairType repairType)
+    public AutoRepairMetrics(RepairType repairType)
     {
-        UnifiedRepairMetricsFactory factory = new UnifiedRepairMetricsFactory(repairType);
+        AutoRepairMetricsFactory factory = new AutoRepairMetricsFactory(repairType);
 
         repairsInProgress = Metrics.register(factory.createMetricName("RepairsInProgress"), new Gauge<Integer>()
         {
             public Integer getValue()
             {
-                return UnifiedRepair.instance.getRepairState(repairType).isRepairInProgress() ? 1 : 0;
+                return AutoRepair.instance.getRepairState(repairType).isRepairInProgress() ? 1 : 0;
             }
         });
 
@@ -63,7 +63,7 @@ public class UnifiedRepairMetrics
         {
             public Integer getValue()
             {
-                return UnifiedRepair.instance.getRepairState(repairType).getNodeRepairTimeInSec();
+                return AutoRepair.instance.getRepairState(repairType).getNodeRepairTimeInSec();
             }
         });
 
@@ -71,7 +71,7 @@ public class UnifiedRepairMetrics
         {
             public Integer getValue()
             {
-                return UnifiedRepair.instance.getRepairState(repairType).getClusterRepairTimeInSec();
+                return AutoRepair.instance.getRepairState(repairType).getClusterRepairTimeInSec();
             }
         });
 
@@ -79,7 +79,7 @@ public class UnifiedRepairMetrics
         {
             public Integer getValue()
             {
-                return UnifiedRepair.instance.getRepairState(repairType).getSkippedTokenRangesCount();
+                return AutoRepair.instance.getRepairState(repairType).getSkippedTokenRangesCount();
             }
         });
 
@@ -87,7 +87,7 @@ public class UnifiedRepairMetrics
         {
             public Integer getValue()
             {
-                return UnifiedRepair.instance.getRepairState(repairType).getSkippedTablesCount();
+                return AutoRepair.instance.getRepairState(repairType).getSkippedTablesCount();
             }
         });
 
@@ -96,7 +96,7 @@ public class UnifiedRepairMetrics
         {
             public Integer getValue()
             {
-                return UnifiedRepair.instance.getRepairState(repairType).getLongestUnrepairedSec();
+                return AutoRepair.instance.getRepairState(repairType).getLongestUnrepairedSec();
             }
         });
 
@@ -104,7 +104,7 @@ public class UnifiedRepairMetrics
         {
             public Integer getValue()
             {
-                return UnifiedRepair.instance.getRepairState(repairType).getSucceededTokenRangesCount();
+                return AutoRepair.instance.getRepairState(repairType).getSucceededTokenRangesCount();
             }
         });
 
@@ -112,7 +112,7 @@ public class UnifiedRepairMetrics
         {
             public Integer getValue()
             {
-                return UnifiedRepair.instance.getRepairState(repairType).getFailedTokenRangesCount();
+                return AutoRepair.instance.getRepairState(repairType).getFailedTokenRangesCount();
             }
         });
 
@@ -124,7 +124,7 @@ public class UnifiedRepairMetrics
         {
             public Integer getValue()
             {
-                return UnifiedRepair.instance.getRepairState(repairType).getTotalMVTablesConsideredForRepair();
+                return AutoRepair.instance.getRepairState(repairType).getTotalMVTablesConsideredForRepair();
             }
         });
 
@@ -132,12 +132,12 @@ public class UnifiedRepairMetrics
         {
             public Integer getValue()
             {
-                return UnifiedRepair.instance.getRepairState(repairType).getTotalDisabledTablesRepairCount();
+                return AutoRepair.instance.getRepairState(repairType).getTotalDisabledTablesRepairCount();
             }
         });
     }
 
-    public void recordTurn(UnifiedRepairUtils.RepairTurn turn)
+    public void recordTurn(AutoRepairUtils.RepairTurn turn)
     {
         switch (turn)
         {
@@ -156,13 +156,13 @@ public class UnifiedRepairMetrics
     }
 
     @VisibleForTesting
-    protected static class UnifiedRepairMetricsFactory implements MetricNameFactory
+    protected static class AutoRepairMetricsFactory implements MetricNameFactory
     {
-        private static final String TYPE = "UnifiedRepair";
+        private static final String TYPE = "AutoRepair";
         @VisibleForTesting
         protected final String repairType;
 
-        protected UnifiedRepairMetricsFactory(RepairType repairType)
+        protected AutoRepairMetricsFactory(RepairType repairType)
         {
             this.repairType = toLowerCaseLocalized(repairType.toString());
         }

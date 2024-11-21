@@ -26,12 +26,12 @@ import com.google.common.collect.ImmutableMap;
 import org.apache.commons.lang3.StringUtils;
 
 import org.apache.cassandra.exceptions.ConfigurationException;
-import org.apache.cassandra.repair.unifiedrepair.UnifiedRepairConfig;
+import org.apache.cassandra.repair.autorepair.AutoRepairConfig;
 
 import static java.lang.String.format;
 import static org.apache.cassandra.utils.LocalizeString.toLowerCaseLocalized;
 
-public final class UnifiedRepairParams
+public final class AutoRepairParams
 {
     public enum Option
     {
@@ -44,23 +44,23 @@ public final class UnifiedRepairParams
         }
     }
 
-    public static final Map<UnifiedRepairConfig.RepairType, Map<String, String>> DEFAULT_OPTIONS =
-    ImmutableMap.of(UnifiedRepairConfig.RepairType.full, ImmutableMap.of(Option.ENABLED.toString(), Boolean.toString(true)),
-                    UnifiedRepairConfig.RepairType.incremental, ImmutableMap.of(Option.ENABLED.toString(), Boolean.toString(true)));
+    public static final Map<AutoRepairConfig.RepairType, Map<String, String>> DEFAULT_OPTIONS =
+    ImmutableMap.of(AutoRepairConfig.RepairType.full, ImmutableMap.of(Option.ENABLED.toString(), Boolean.toString(true)),
+                    AutoRepairConfig.RepairType.incremental, ImmutableMap.of(Option.ENABLED.toString(), Boolean.toString(true)));
 
-    public final UnifiedRepairConfig.RepairType type;
+    public final AutoRepairConfig.RepairType type;
 
-    private Map<UnifiedRepairConfig.RepairType, Map<String, String>> options = DEFAULT_OPTIONS;
+    private Map<AutoRepairConfig.RepairType, Map<String, String>> options = DEFAULT_OPTIONS;
 
-    UnifiedRepairParams(UnifiedRepairConfig.RepairType type)
+    AutoRepairParams(AutoRepairConfig.RepairType type)
     {
         this.type = type;
     }
 
-    public static UnifiedRepairParams create(UnifiedRepairConfig.RepairType repairType, Map<String, String> options)
+    public static AutoRepairParams create(AutoRepairConfig.RepairType repairType, Map<String, String> options)
     {
-        Map<UnifiedRepairConfig.RepairType, Map<String, String>> optionsMap = new HashMap<>();
-        for (Map.Entry<UnifiedRepairConfig.RepairType, Map<String, String>> entry : DEFAULT_OPTIONS.entrySet())
+        Map<AutoRepairConfig.RepairType, Map<String, String>> optionsMap = new HashMap<>();
+        for (Map.Entry<AutoRepairConfig.RepairType, Map<String, String>> entry : DEFAULT_OPTIONS.entrySet())
         {
             optionsMap.put(entry.getKey(), new HashMap<>(entry.getValue()));
         }
@@ -75,7 +75,7 @@ public final class UnifiedRepairParams
                 optionsMap.get(repairType).put(entry.getKey(), entry.getValue());
             }
         }
-        UnifiedRepairParams repairParams = new UnifiedRepairParams(repairType);
+        AutoRepairParams repairParams = new AutoRepairParams(repairType);
         repairParams.options = optionsMap;
         return repairParams;
     }
@@ -109,7 +109,7 @@ public final class UnifiedRepairParams
         return options.get(type);
     }
 
-    public static UnifiedRepairParams fromMap(UnifiedRepairConfig.RepairType repairType, Map<String, String> map)
+    public static AutoRepairParams fromMap(AutoRepairConfig.RepairType repairType, Map<String, String> map)
     {
         return create(repairType, map);
     }
@@ -133,10 +133,10 @@ public final class UnifiedRepairParams
         if (this == o)
             return true;
 
-        if (!(o instanceof UnifiedRepairParams))
+        if (!(o instanceof AutoRepairParams))
             return false;
 
-        UnifiedRepairParams cp = (UnifiedRepairParams) o;
+        AutoRepairParams cp = (AutoRepairParams) o;
 
         return options.equals(cp.options);
     }

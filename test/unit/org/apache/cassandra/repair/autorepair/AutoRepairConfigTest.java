@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 
-package org.apache.cassandra.repair.unifiedrepair;
+package org.apache.cassandra.repair.autorepair;
 
 import java.util.EnumMap;
 import java.util.Objects;
@@ -35,7 +35,7 @@ import org.apache.cassandra.config.DurationSpec;
 import org.apache.cassandra.config.ParameterizedClass;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.exceptions.ConfigurationException;
-import org.apache.cassandra.repair.unifiedrepair.UnifiedRepairConfig.Options;
+import org.apache.cassandra.repair.autorepair.AutoRepairConfig.Options;
 import org.apache.cassandra.utils.FBUtilities;
 
 import static org.junit.Assert.assertEquals;
@@ -44,79 +44,79 @@ import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 
 @RunWith(Parameterized.class)
-public class UnifiedRepairConfigTest extends CQLTester
+public class AutoRepairConfigTest extends CQLTester
 {
-    private UnifiedRepairConfig config;
+    private AutoRepairConfig config;
 
     private Set<String> testSet = ImmutableSet.of("dc1");
 
     @Parameterized.Parameter
-    public UnifiedRepairConfig.RepairType repairType;
+    public AutoRepairConfig.RepairType repairType;
 
     @Parameterized.Parameters
     public static Object[] repairTypes()
     {
-        return UnifiedRepairConfig.RepairType.values();
+        return AutoRepairConfig.RepairType.values();
     }
 
     @Before
     public void setUp()
     {
-        config = new UnifiedRepairConfig(true);
+        config = new AutoRepairConfig(true);
         config.repair_type_overrides = null;
-        UnifiedRepair.SLEEP_IF_REPAIR_FINISHES_QUICKLY = new DurationSpec.IntSecondsBound("0s");
+        AutoRepair.SLEEP_IF_REPAIR_FINISHES_QUICKLY = new DurationSpec.IntSecondsBound("0s");
     }
 
     @Test
-    public void unifiedRepairConfigDefaultsAreNotNull()
+    public void autoRepairConfigDefaultsAreNotNull()
     {
-        UnifiedRepairConfig config = new UnifiedRepairConfig();
+        AutoRepairConfig config = new AutoRepairConfig();
         assertNotNull(config.global_settings);
     }
 
     @Test
-    public void unifiedRepairConfigRepairTypesAreNotNull()
+    public void autoRepairConfigRepairTypesAreNotNull()
     {
-        UnifiedRepairConfig config = new UnifiedRepairConfig();
-        for (UnifiedRepairConfig.RepairType repairType : UnifiedRepairConfig.RepairType.values())
+        AutoRepairConfig config = new AutoRepairConfig();
+        for (AutoRepairConfig.RepairType repairType : AutoRepairConfig.RepairType.values())
         {
             assertNotNull(config.repair_type_overrides.get(repairType));
         }
     }
 
     @Test
-    public void testIsUnifiedRepairEnabledReturnsTrueWhenRepairIsEnabled()
+    public void testIsAutoRepairEnabledReturnsTrueWhenRepairIsEnabled()
     {
         config.global_settings.enabled = true;
 
-        assertTrue(config.isUnifiedRepairEnabled(repairType));
+        assertTrue(config.isAutoRepairEnabled(repairType));
     }
 
     @Test
-    public void testIsUnifiedRepairEnabledReturnsTrueWhenRepairIsDisabledGlobally()
+    public void testIsAutoRepairEnabledReturnsTrueWhenRepairIsDisabledGlobally()
     {
-        config = new UnifiedRepairConfig(false);
+        config = new AutoRepairConfig(false);
         config.global_settings.enabled = true;
-        assertFalse(config.isUnifiedRepairEnabled(repairType));
+        assertFalse(config.isAutoRepairEnabled(repairType));
     }
 
 
     @Test
-    public void testIsUnifiedRepairEnabledReturnsTrueWhenRepairIsDisabledForRepairType()
+    public void testIsAutoRepairEnabledReturnsTrueWhenRepairIsDisabledForRepairType()
     {
         config.global_settings.enabled = true;
-        config.repair_type_overrides = new EnumMap<>(UnifiedRepairConfig.RepairType.class);
+        config.repair_type_overrides = new EnumMap<>(AutoRepairConfig.RepairType.class);
         config.repair_type_overrides.put(repairType, new Options());
         config.repair_type_overrides.get(repairType).enabled = false;
-        assertFalse(config.isUnifiedRepairEnabled(repairType));
+        assertFalse(config.isAutoRepairEnabled(repairType));
     }
 
     @Test
-    public void testSetUnifiedRepairEnabledNoMVOrCDC()
+    public void testSetAutoRepairEnabledNoMVOrCDC()
     {
         DatabaseDescriptor.setCDCEnabled(false);
         DatabaseDescriptor.setMaterializedViewsEnabled(false);
-        config.setUnifiedRepairEnabled(repairType, true);
+        config.setAutoRepairEnabled(repairType, true);
 
         assertTrue(config.repair_type_overrides.get(repairType).enabled);
     }
@@ -194,19 +194,19 @@ public class UnifiedRepairConfigTest extends CQLTester
     }
 
     @Test
-    public void testGetUnifiedRepairHistoryClearDeleteHostsBufferInSec()
+    public void testGetAutoRepairHistoryClearDeleteHostsBufferInSec()
     {
         config.history_clear_delete_hosts_buffer_interval = new DurationSpec.IntSecondsBound("5s");
 
-        int result = config.getUnifiedRepairHistoryClearDeleteHostsBufferInterval().toSeconds();
+        int result = config.getAutoRepairHistoryClearDeleteHostsBufferInterval().toSeconds();
 
         assertEquals(5, result);
     }
 
     @Test
-    public void testSetUnifiedRepairHistoryClearDeleteHostsBufferInSec()
+    public void testSetAutoRepairHistoryClearDeleteHostsBufferInSec()
     {
-        config.setUnifiedRepairHistoryClearDeleteHostsBufferInterval("5s");
+        config.setAutoRepairHistoryClearDeleteHostsBufferInterval("5s");
 
         assert Objects.equals(config.history_clear_delete_hosts_buffer_interval, new DurationSpec.IntSecondsBound("5s"));
     }
@@ -230,19 +230,19 @@ public class UnifiedRepairConfigTest extends CQLTester
     }
 
     @Test
-    public void testGetUnifiedRepairTableMaxRepairTimeInSec()
+    public void testGetAutoRepairTableMaxRepairTimeInSec()
     {
         config.global_settings.table_max_repair_time = new DurationSpec.IntSecondsBound("5s");
 
-        DurationSpec.IntSecondsBound result = config.getUnifiedRepairTableMaxRepairTime(repairType);
+        DurationSpec.IntSecondsBound result = config.getAutoRepairTableMaxRepairTime(repairType);
 
         assertEquals(5, result.toSeconds());
     }
 
     @Test
-    public void testSetUnifiedRepairTableMaxRepairTimeInSec()
+    public void testSetAutoRepairTableMaxRepairTimeInSec()
     {
-        config.setUnifiedRepairTableMaxRepairTime(repairType, "5s");
+        config.setAutoRepairTableMaxRepairTime(repairType, "5s");
 
         assert config.repair_type_overrides.get(repairType).table_max_repair_time.toSeconds() == 5;
     }
@@ -356,19 +356,19 @@ public class UnifiedRepairConfigTest extends CQLTester
     }
 
     @Test
-    public void testIsUnifiedRepairSchedulingEnabledDefault()
+    public void testIsAutoRepairSchedulingEnabledDefault()
     {
-        config = new UnifiedRepairConfig();
+        config = new AutoRepairConfig();
 
-        boolean result = config.isUnifiedRepairSchedulingEnabled();
+        boolean result = config.isAutoRepairSchedulingEnabled();
 
         assertFalse(result);
     }
 
     @Test
-    public void testIsUnifiedRepairSchedulingEnabledTrue()
+    public void testIsAutoRepairSchedulingEnabledTrue()
     {
-        boolean result = config.isUnifiedRepairSchedulingEnabled();
+        boolean result = config.isAutoRepairSchedulingEnabled();
 
         assertTrue(result);
     }
@@ -386,16 +386,16 @@ public class UnifiedRepairConfigTest extends CQLTester
     {
         Options defaultOptions = Options.getDefaultOptions();
 
-        ParameterizedClass expectedDefault = new ParameterizedClass(DefaultUnifiedRepairTokenSplitter.class.getName(), Collections.emptyMap());
+        ParameterizedClass expectedDefault = new ParameterizedClass(DefaultAutoRepairTokenSplitter.class.getName(), Collections.emptyMap());
 
         assertEquals(expectedDefault, defaultOptions.token_range_splitter);
-        assertEquals(DefaultUnifiedRepairTokenSplitter.class.getName(), FBUtilities.newUnifiedRepairTokenRangeSplitter(defaultOptions.token_range_splitter).getClass().getName());
+        assertEquals(DefaultAutoRepairTokenSplitter.class.getName(), FBUtilities.newAutoRepairTokenRangeSplitter(defaultOptions.token_range_splitter).getClass().getName());
     }
 
     @Test(expected = ConfigurationException.class)
     public void testInvalidTokenRangeSplitter()
     {
-        FBUtilities.newUnifiedRepairTokenRangeSplitter(new ParameterizedClass("invalid-class", Collections.emptyMap()));
+        FBUtilities.newAutoRepairTokenRangeSplitter(new ParameterizedClass("invalid-class", Collections.emptyMap()));
     }
 
     @Test

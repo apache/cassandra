@@ -15,7 +15,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.apache.cassandra.repair.unifiedrepair;
+package org.apache.cassandra.repair.autorepair;
 
 
 import java.util.ArrayList;
@@ -23,20 +23,20 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 
-import org.apache.cassandra.service.UnifiedRepairService;
+import org.apache.cassandra.service.AutoRepairService;
 
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.service.StorageService;
 
-import static org.apache.cassandra.repair.unifiedrepair.UnifiedRepairUtils.splitEvenly;
+import static org.apache.cassandra.repair.autorepair.AutoRepairUtils.splitEvenly;
 
-public class DefaultUnifiedRepairTokenSplitter implements IUnifiedRepairTokenRangeSplitter
+public class DefaultAutoRepairTokenSplitter implements IAutoRepairTokenRangeSplitter
 {
     @Override
-    public List<RepairAssignment> getRepairAssignments(UnifiedRepairConfig.RepairType repairType, boolean primaryRangeOnly, String keyspaceName, List<String> tableNames)
+    public List<RepairAssignment> getRepairAssignments(AutoRepairConfig.RepairType repairType, boolean primaryRangeOnly, String keyspaceName, List<String> tableNames)
     {
-        UnifiedRepairConfig config = UnifiedRepairService.instance.getUnifiedRepairConfig();
+        AutoRepairConfig config = AutoRepairService.instance.getAutoRepairConfig();
         List<RepairAssignment> repairAssignments = new ArrayList<>();
 
         Collection<Range<Token>> tokens = StorageService.instance.getPrimaryRanges(keyspaceName);

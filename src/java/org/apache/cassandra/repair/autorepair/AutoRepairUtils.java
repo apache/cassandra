@@ -15,7 +15,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.apache.cassandra.repair.unifiedrepair;
+package org.apache.cassandra.repair.autorepair;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -60,7 +60,7 @@ import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.schema.ViewMetadata;
 import org.apache.cassandra.serializers.SetSerializer;
 import org.apache.cassandra.serializers.UUIDSerializer;
-import org.apache.cassandra.service.UnifiedRepairService;
+import org.apache.cassandra.service.AutoRepairService;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.QueryState;
 import org.apache.cassandra.service.StorageService;
@@ -72,21 +72,21 @@ import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.transport.messages.ResultMessage;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
-import org.apache.cassandra.repair.unifiedrepair.UnifiedRepairConfig.RepairType;
+import org.apache.cassandra.repair.autorepair.AutoRepairConfig.RepairType;
 
-import static org.apache.cassandra.repair.unifiedrepair.UnifiedRepairUtils.RepairTurn.MY_TURN;
-import static org.apache.cassandra.repair.unifiedrepair.UnifiedRepairUtils.RepairTurn.MY_TURN_DUE_TO_PRIORITY;
-import static org.apache.cassandra.repair.unifiedrepair.UnifiedRepairUtils.RepairTurn.NOT_MY_TURN;
-import static org.apache.cassandra.repair.unifiedrepair.UnifiedRepairUtils.RepairTurn.MY_TURN_FORCE_REPAIR;
+import static org.apache.cassandra.repair.autorepair.AutoRepairUtils.RepairTurn.MY_TURN;
+import static org.apache.cassandra.repair.autorepair.AutoRepairUtils.RepairTurn.MY_TURN_DUE_TO_PRIORITY;
+import static org.apache.cassandra.repair.autorepair.AutoRepairUtils.RepairTurn.NOT_MY_TURN;
+import static org.apache.cassandra.repair.autorepair.AutoRepairUtils.RepairTurn.MY_TURN_FORCE_REPAIR;
 import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
 
 /**
- * This class serves as a utility class for UnifiedRepair. It contains various helper APIs
+ * This class serves as a utility class for AutoRepair. It contains various helper APIs
  * to store/retrieve repair status, decide whose turn is next, etc.
  */
-public class UnifiedRepairUtils
+public class AutoRepairUtils
 {
-    private static final Logger logger = LoggerFactory.getLogger(UnifiedRepairUtils.class);
+    private static final Logger logger = LoggerFactory.getLogger(AutoRepairUtils.class);
     static final String COL_REPAIR_TYPE = "repair_type";
     static final String COL_HOST_ID = "host_id";
     static final String COL_REPAIR_START_TS = "repair_start_ts";
@@ -99,56 +99,56 @@ public class UnifiedRepairUtils
 
     final static String SELECT_REPAIR_HISTORY = String.format(
     "SELECT * FROM %s.%s WHERE %s = ?", SchemaConstants.DISTRIBUTED_KEYSPACE_NAME,
-    SystemDistributedKeyspace.UNIFIED_REPAIR_HISTORY, COL_REPAIR_TYPE);
+    SystemDistributedKeyspace.AUTO_REPAIR_HISTORY, COL_REPAIR_TYPE);
     final static String SELECT_REPAIR_PRIORITY = String.format(
     "SELECT * FROM %s.%s WHERE %s = ?", SchemaConstants.DISTRIBUTED_KEYSPACE_NAME,
-    SystemDistributedKeyspace.UNIFIED_REPAIR_PRIORITY, COL_REPAIR_TYPE);
+    SystemDistributedKeyspace.AUTO_REPAIR_PRIORITY, COL_REPAIR_TYPE);
     final static String DEL_REPAIR_PRIORITY = String.format(
     "DELETE %s[?] FROM %s.%s WHERE %s = ?", COL_REPAIR_PRIORITY, SchemaConstants.DISTRIBUTED_KEYSPACE_NAME,
-    SystemDistributedKeyspace.UNIFIED_REPAIR_PRIORITY, COL_REPAIR_TYPE);
+    SystemDistributedKeyspace.AUTO_REPAIR_PRIORITY, COL_REPAIR_TYPE);
     final static String ADD_PRIORITY_HOST = String.format(
     "UPDATE %s.%s SET %s = %s + ?  WHERE %s = ?", SchemaConstants.DISTRIBUTED_KEYSPACE_NAME,
-    SystemDistributedKeyspace.UNIFIED_REPAIR_PRIORITY, COL_REPAIR_PRIORITY, COL_REPAIR_PRIORITY, COL_REPAIR_TYPE);
+    SystemDistributedKeyspace.AUTO_REPAIR_PRIORITY, COL_REPAIR_PRIORITY, COL_REPAIR_PRIORITY, COL_REPAIR_TYPE);
 
     final static String INSERT_NEW_REPAIR_HISTORY = String.format(
     "INSERT INTO %s.%s (%s, %s, %s, %s, %s, %s) values (?, ? ,?, ?, {}, ?) IF NOT EXISTS",
-    SchemaConstants.DISTRIBUTED_KEYSPACE_NAME, SystemDistributedKeyspace.UNIFIED_REPAIR_HISTORY, COL_REPAIR_TYPE,
+    SchemaConstants.DISTRIBUTED_KEYSPACE_NAME, SystemDistributedKeyspace.AUTO_REPAIR_HISTORY, COL_REPAIR_TYPE,
     COL_HOST_ID, COL_REPAIR_START_TS, COL_REPAIR_FINISH_TS, COL_DELETE_HOSTS, COL_DELETE_HOSTS_UPDATE_TIME);
 
     final static String ADD_HOST_ID_TO_DELETE_HOSTS = String.format(
     "UPDATE %s.%s SET %s = %s + ?, %s = ? WHERE %s = ? AND %s = ? IF EXISTS"
-    , SchemaConstants.DISTRIBUTED_KEYSPACE_NAME, SystemDistributedKeyspace.UNIFIED_REPAIR_HISTORY, COL_DELETE_HOSTS,
+    , SchemaConstants.DISTRIBUTED_KEYSPACE_NAME, SystemDistributedKeyspace.AUTO_REPAIR_HISTORY, COL_DELETE_HOSTS,
     COL_DELETE_HOSTS, COL_DELETE_HOSTS_UPDATE_TIME, COL_REPAIR_TYPE, COL_HOST_ID);
 
-    final static String DEL_UNIFIED_REPAIR_HISTORY = String.format(
+    final static String DEL_AUTO_REPAIR_HISTORY = String.format(
     "DELETE FROM %s.%s WHERE %s = ? AND %s = ?"
-    , SchemaConstants.DISTRIBUTED_KEYSPACE_NAME, SystemDistributedKeyspace.UNIFIED_REPAIR_HISTORY, COL_REPAIR_TYPE,
+    , SchemaConstants.DISTRIBUTED_KEYSPACE_NAME, SystemDistributedKeyspace.AUTO_REPAIR_HISTORY, COL_REPAIR_TYPE,
     COL_HOST_ID);
 
     final static String RECORD_START_REPAIR_HISTORY = String.format(
     "UPDATE %s.%s SET %s= ?, repair_turn = ? WHERE %s = ? AND %s = ?"
-    , SchemaConstants.DISTRIBUTED_KEYSPACE_NAME, SystemDistributedKeyspace.UNIFIED_REPAIR_HISTORY, COL_REPAIR_START_TS,
+    , SchemaConstants.DISTRIBUTED_KEYSPACE_NAME, SystemDistributedKeyspace.AUTO_REPAIR_HISTORY, COL_REPAIR_START_TS,
     COL_REPAIR_TYPE, COL_HOST_ID);
 
     final static String RECORD_FINISH_REPAIR_HISTORY = String.format(
 
     "UPDATE %s.%s SET %s= ?, %s=false WHERE %s = ? AND %s = ?"
-    , SchemaConstants.DISTRIBUTED_KEYSPACE_NAME, SystemDistributedKeyspace.UNIFIED_REPAIR_HISTORY, COL_REPAIR_FINISH_TS,
+    , SchemaConstants.DISTRIBUTED_KEYSPACE_NAME, SystemDistributedKeyspace.AUTO_REPAIR_HISTORY, COL_REPAIR_FINISH_TS,
     COL_FORCE_REPAIR, COL_REPAIR_TYPE, COL_HOST_ID);
 
     final static String CLEAR_DELETE_HOSTS = String.format(
     "UPDATE %s.%s SET %s= {} WHERE %s = ? AND %s = ?"
-    , SchemaConstants.DISTRIBUTED_KEYSPACE_NAME, SystemDistributedKeyspace.UNIFIED_REPAIR_HISTORY, COL_DELETE_HOSTS,
+    , SchemaConstants.DISTRIBUTED_KEYSPACE_NAME, SystemDistributedKeyspace.AUTO_REPAIR_HISTORY, COL_DELETE_HOSTS,
     COL_REPAIR_TYPE, COL_HOST_ID);
 
     final static String SET_FORCE_REPAIR = String.format(
     "UPDATE %s.%s SET %s=true  WHERE %s = ? AND %s = ?"
-    , SchemaConstants.DISTRIBUTED_KEYSPACE_NAME, SystemDistributedKeyspace.UNIFIED_REPAIR_HISTORY, COL_FORCE_REPAIR,
+    , SchemaConstants.DISTRIBUTED_KEYSPACE_NAME, SystemDistributedKeyspace.AUTO_REPAIR_HISTORY, COL_FORCE_REPAIR,
     COL_REPAIR_TYPE, COL_HOST_ID);
 
     final static String SELECT_LAST_REPAIR_TIME_FOR_NODE = String.format(
     "SELECT %s FROM %s.%s WHERE %s = ? AND %s = ?", COL_REPAIR_FINISH_TS, SchemaConstants.DISTRIBUTED_KEYSPACE_NAME,
-    SystemDistributedKeyspace.UNIFIED_REPAIR_HISTORY, COL_REPAIR_TYPE, COL_HOST_ID);
+    SystemDistributedKeyspace.AUTO_REPAIR_HISTORY, COL_REPAIR_TYPE, COL_HOST_ID);
 
     static ModificationStatement delStatementRepairHistory;
     static SelectStatement selectStatementRepairHistory;
@@ -198,14 +198,14 @@ public class UnifiedRepairUtils
                                                                                                         .forInternalCalls());
         clearDeleteHostsStatement = (ModificationStatement) QueryProcessor.getStatement(CLEAR_DELETE_HOSTS, ClientState
                                                                                                             .forInternalCalls());
-        delStatementRepairHistory = (ModificationStatement) QueryProcessor.getStatement(DEL_UNIFIED_REPAIR_HISTORY, ClientState
+        delStatementRepairHistory = (ModificationStatement) QueryProcessor.getStatement(DEL_AUTO_REPAIR_HISTORY, ClientState
                                                                                                                  .forInternalCalls());
-        Keyspace unifiedRepairKS = Schema.instance.getKeyspaceInstance(SchemaConstants.DISTRIBUTED_KEYSPACE_NAME);
-        internalQueryCL = unifiedRepairKS.getReplicationStrategy().getClass() == NetworkTopologyStrategy.class ?
+        Keyspace autoRepairKS = Schema.instance.getKeyspaceInstance(SchemaConstants.DISTRIBUTED_KEYSPACE_NAME);
+        internalQueryCL = autoRepairKS.getReplicationStrategy().getClass() == NetworkTopologyStrategy.class ?
                           ConsistencyLevel.LOCAL_QUORUM : ConsistencyLevel.ONE;
     }
 
-    public static class UnifiedRepairHistory
+    public static class AutoRepairHistory
     {
         UUID hostId;
         String repairTurn;
@@ -215,8 +215,8 @@ public class UnifiedRepairUtils
         long deleteHostsUpdateTime;
         boolean forceRepair;
 
-        public UnifiedRepairHistory(UUID hostId, String repairTurn, long lastRepairStartTime, long lastRepairFinishTime,
-                                    Set<UUID> deleteHosts, long deleteHostsUpateTime, boolean forceRepair)
+        public AutoRepairHistory(UUID hostId, String repairTurn, long lastRepairStartTime, long lastRepairFinishTime,
+                                 Set<UUID> deleteHosts, long deleteHostsUpateTime, boolean forceRepair)
         {
             this.hostId = hostId;
             this.repairTurn = repairTurn;
@@ -259,15 +259,15 @@ public class UnifiedRepairUtils
         public Set<UUID> hostIdsWithOnGoingRepair;  // hosts that is running repair
         public Set<UUID> hostIdsWithOnGoingForceRepair; // hosts that is running repair because of force repair
         Set<UUID> priority;
-        List<UnifiedRepairHistory> historiesWithoutOnGoingRepair;  // hosts that is NOT running repair
+        List<AutoRepairHistory> historiesWithoutOnGoingRepair;  // hosts that is NOT running repair
 
-        public CurrentRepairStatus(List<UnifiedRepairHistory> repairHistories, Set<UUID> priority)
+        public CurrentRepairStatus(List<AutoRepairHistory> repairHistories, Set<UUID> priority)
         {
             hostIdsWithOnGoingRepair = new HashSet<>();
             hostIdsWithOnGoingForceRepair = new HashSet<>();
             historiesWithoutOnGoingRepair = new ArrayList<>();
 
-            for (UnifiedRepairHistory history : repairHistories)
+            for (AutoRepairHistory history : repairHistories)
             {
                 if (history.isRepairRunning())
                 {
@@ -300,7 +300,7 @@ public class UnifiedRepairUtils
     }
 
     @VisibleForTesting
-    public static List<UnifiedRepairHistory> getUnifiedRepairHistory(RepairType repairType)
+    public static List<AutoRepairHistory> getAutoRepairHistory(RepairType repairType)
     {
         UntypedResultSet repairHistoryResult;
 
@@ -308,7 +308,7 @@ public class UnifiedRepairUtils
                                                                                    QueryOptions.forInternalCalls(internalQueryCL, Lists.newArrayList(ByteBufferUtil.bytes(repairType.toString()))), Dispatcher.RequestTime.forImmediateExecution());
         repairHistoryResult = UntypedResultSet.create(repairStatusRows.result);
 
-        List<UnifiedRepairHistory> repairHistories = new ArrayList<>();
+        List<AutoRepairHistory> repairHistories = new ArrayList<>();
         if (repairHistoryResult.size() > 0)
         {
             for (UntypedResultSet.Row row : repairHistoryResult)
@@ -322,8 +322,8 @@ public class UnifiedRepairUtils
                 Set<UUID> deleteHosts = row.getSet(COL_DELETE_HOSTS, UUIDType.instance);
                 long deleteHostsUpdateTime = row.getLong(COL_DELETE_HOSTS_UPDATE_TIME, 0);
                 Boolean forceRepair = row.has(COL_FORCE_REPAIR) ? row.getBoolean(COL_FORCE_REPAIR) : false;
-                repairHistories.add(new UnifiedRepairHistory(hostId, repairTurn, lastRepairStartTime, lastRepairFinishTime,
-                                                             deleteHosts, deleteHostsUpdateTime, forceRepair));
+                repairHistories.add(new AutoRepairHistory(hostId, repairTurn, lastRepairStartTime, lastRepairFinishTime,
+                                                          deleteHosts, deleteHostsUpdateTime, forceRepair));
             }
             return repairHistories;
         }
@@ -373,8 +373,8 @@ public class UnifiedRepairUtils
 
     public static CurrentRepairStatus getCurrentRepairStatus(RepairType repairType)
     {
-        List<UnifiedRepairHistory> unifiedRepairHistories = getUnifiedRepairHistory(repairType);
-        return getCurrentRepairStatus(repairType, unifiedRepairHistories);
+        List<AutoRepairHistory> autoRepairHistories = getAutoRepairHistory(repairType);
+        return getCurrentRepairStatus(repairType, autoRepairHistories);
     }
 
     public static long getLastRepairTimeForNode(RepairType repairType, UUID hostId)
@@ -396,11 +396,11 @@ public class UnifiedRepairUtils
         return repairTime.one().getLong(COL_REPAIR_FINISH_TS);
     }
 
-    public static CurrentRepairStatus getCurrentRepairStatus(RepairType repairType, List<UnifiedRepairHistory> unifiedRepairHistories)
+    public static CurrentRepairStatus getCurrentRepairStatus(RepairType repairType, List<AutoRepairHistory> autoRepairHistories)
     {
-        if (unifiedRepairHistories != null)
+        if (autoRepairHistories != null)
         {
-            CurrentRepairStatus status = new CurrentRepairStatus(unifiedRepairHistories, getPriorityHostIds(repairType));
+            CurrentRepairStatus status = new CurrentRepairStatus(autoRepairHistories, getPriorityHostIds(repairType));
 
             return status;
         }
@@ -414,7 +414,7 @@ public class UnifiedRepairUtils
         for (NodeAddresses node : allNodesInRing)
         {
             String nodeDC = DatabaseDescriptor.getEndpointSnitch().getDatacenter(node.broadcastAddress);
-            if (UnifiedRepairService.instance.getUnifiedRepairConfig().getIgnoreDCs(repairType).contains(nodeDC))
+            if (AutoRepairService.instance.getAutoRepairConfig().getIgnoreDCs(repairType).contains(nodeDC))
             {
                 logger.info("Ignore node {} because its datacenter is {}", node, nodeDC);
                 continue;
@@ -442,39 +442,39 @@ public class UnifiedRepairUtils
     }
 
     // This function will return the host ID for the node which has not been repaired for longest time
-    public static UnifiedRepairHistory getHostWithLongestUnrepairTime(RepairType repairType)
+    public static AutoRepairHistory getHostWithLongestUnrepairTime(RepairType repairType)
     {
-        List<UnifiedRepairHistory> unifiedRepairHistories = getUnifiedRepairHistory(repairType);
-        return getHostWithLongestUnrepairTime(unifiedRepairHistories);
+        List<AutoRepairHistory> autoRepairHistories = getAutoRepairHistory(repairType);
+        return getHostWithLongestUnrepairTime(autoRepairHistories);
     }
 
-    private static UnifiedRepairHistory getHostWithLongestUnrepairTime(List<UnifiedRepairHistory> unifiedRepairHistories)
+    private static AutoRepairHistory getHostWithLongestUnrepairTime(List<AutoRepairHistory> autoRepairHistories)
     {
-        if (unifiedRepairHistories == null)
+        if (autoRepairHistories == null)
         {
             return null;
         }
-        UnifiedRepairHistory rst = null;
+        AutoRepairHistory rst = null;
         long oldestTimestamp = Long.MAX_VALUE;
-        for (UnifiedRepairHistory unifiedRepairHistory : unifiedRepairHistories)
+        for (AutoRepairHistory autoRepairHistory : autoRepairHistories)
         {
-            if (unifiedRepairHistory.lastRepairFinishTime < oldestTimestamp)
+            if (autoRepairHistory.lastRepairFinishTime < oldestTimestamp)
             {
-                rst = unifiedRepairHistory;
-                oldestTimestamp = unifiedRepairHistory.lastRepairFinishTime;
+                rst = autoRepairHistory;
+                oldestTimestamp = autoRepairHistory.lastRepairFinishTime;
             }
         }
         return rst;
     }
 
-    public static int getMaxNumberOfNodeRunUnifiedRepair(RepairType repairType, int groupSize)
+    public static int getMaxNumberOfNodeRunAutoRepair(RepairType repairType, int groupSize)
     {
-        UnifiedRepairConfig config = UnifiedRepairService.instance.getUnifiedRepairConfig();
+        AutoRepairConfig config = AutoRepairService.instance.getAutoRepairConfig();
         if (groupSize == 0)
         {
             return Math.max(config.getParallelRepairCount(repairType), 1);
         }
-        // we will use the max number from config between unified_repair_parallel_repair_count_in_group and unified_repair_parallel_repair_percentage_in_group
+        // we will use the max number from config between auto_repair_parallel_repair_count_in_group and auto_repair_parallel_repair_percentage_in_group
         int value = Math.max(groupSize * config.getParallelRepairPercentage(repairType) / 100,
                              config.getParallelRepairCount(repairType));
         // make sure at least one node getting repaired
@@ -491,33 +491,33 @@ public class UnifiedRepairUtils
             TreeSet<UUID> hostIdsInCurrentRing = getHostIdsInCurrentRing(repairType, allNodesInRing);
             logger.info("Total nodes qualified for repair {}", hostIdsInCurrentRing.size());
 
-            List<UnifiedRepairHistory> unifiedRepairHistories = getUnifiedRepairHistory(repairType);
-            Set<UUID> unifiedRepairHistoryIds = new HashSet<>();
+            List<AutoRepairHistory> autoRepairHistories = getAutoRepairHistory(repairType);
+            Set<UUID> autoRepairHistoryIds = new HashSet<>();
 
             // 1. Remove any node that is not part of group based on goissip info
-            if (unifiedRepairHistories != null)
+            if (autoRepairHistories != null)
             {
-                for (UnifiedRepairHistory nodeHistory : unifiedRepairHistories)
+                for (AutoRepairHistory nodeHistory : autoRepairHistories)
                 {
-                    unifiedRepairHistoryIds.add(nodeHistory.hostId);
+                    autoRepairHistoryIds.add(nodeHistory.hostId);
                     // clear delete_hosts if the node's delete hosts is not growing for more than two hours
-                    UnifiedRepairConfig config = UnifiedRepairService.instance.getUnifiedRepairConfig();
+                    AutoRepairConfig config = AutoRepairService.instance.getAutoRepairConfig();
                     if (nodeHistory.deleteHosts.size() > 0
-                        && config.getUnifiedRepairHistoryClearDeleteHostsBufferInterval().toSeconds() < TimeUnit.MILLISECONDS.toSeconds(
+                        && config.getAutoRepairHistoryClearDeleteHostsBufferInterval().toSeconds() < TimeUnit.MILLISECONDS.toSeconds(
                     currentTimeMillis() - nodeHistory.deleteHostsUpdateTime
                     ))
                     {
                         clearDeleteHosts(repairType, nodeHistory.hostId);
                         logger.info("Delete hosts for {} for repair type {} has not been updated for more than {} seconds. Delete hosts has been cleared. Delete hosts before clear {}"
-                        , nodeHistory.hostId, repairType, config.getUnifiedRepairHistoryClearDeleteHostsBufferInterval(), nodeHistory.deleteHosts);
+                        , nodeHistory.hostId, repairType, config.getAutoRepairHistoryClearDeleteHostsBufferInterval(), nodeHistory.deleteHosts);
                     }
                     else if (!hostIdsInCurrentRing.contains(nodeHistory.hostId))
                     {
                         if (nodeHistory.deleteHosts.size() > Math.max(2, hostIdsInCurrentRing.size() * 0.5))
                         {
                             // More than half of the groups thinks the record should be deleted
-                            logger.info("{} think {} is orphan node, will delete unified repair history for repair type {}.", nodeHistory.deleteHosts, nodeHistory.hostId, repairType);
-                            deleteUnifiedRepairHistory(repairType, nodeHistory.hostId);
+                            logger.info("{} think {} is orphan node, will delete auto repair history for repair type {}.", nodeHistory.deleteHosts, nodeHistory.hostId, repairType);
+                            deleteAutoRepairHistory(repairType, nodeHistory.hostId);
                         }
                         else
                         {
@@ -529,23 +529,23 @@ public class UnifiedRepairUtils
                 }
             }
 
-            // 2. Add node to unified repair history table if a node is in gossip info
+            // 2. Add node to auto repair history table if a node is in gossip info
             for (UUID hostId : hostIdsInCurrentRing)
             {
-                if (!unifiedRepairHistoryIds.contains(hostId))
+                if (!autoRepairHistoryIds.contains(hostId))
                 {
-                    logger.info("{} for repair type {} doesn't exist in the unified repair history table, insert a new record.", repairType, hostId);
+                    logger.info("{} for repair type {} doesn't exist in the auto repair history table, insert a new record.", repairType, hostId);
                     insertNewRepairHistory(repairType, hostId, currentTimeMillis(), currentTimeMillis());
                 }
             }
 
             //get current repair status
-            CurrentRepairStatus currentRepairStatus = getCurrentRepairStatus(repairType, unifiedRepairHistories);
+            CurrentRepairStatus currentRepairStatus = getCurrentRepairStatus(repairType, autoRepairHistories);
             if (currentRepairStatus != null)
             {
                 logger.info("Latest repair status {}", currentRepairStatus);
                 //check if I am forced to run repair
-                for (UnifiedRepairHistory history : currentRepairStatus.historiesWithoutOnGoingRepair)
+                for (AutoRepairHistory history : currentRepairStatus.historiesWithoutOnGoingRepair)
                 {
                     if (history.forceRepair && history.hostId.equals(myId))
                     {
@@ -554,24 +554,24 @@ public class UnifiedRepairUtils
                 }
             }
 
-            int parallelRepairNumber = getMaxNumberOfNodeRunUnifiedRepair(repairType,
-                                                                              unifiedRepairHistories == null ? 0 : unifiedRepairHistories.size());
+            int parallelRepairNumber = getMaxNumberOfNodeRunAutoRepair(repairType,
+                                                                              autoRepairHistories == null ? 0 : autoRepairHistories.size());
             logger.info("Will run repairs concurrently on {} node(s)", parallelRepairNumber);
 
             if (currentRepairStatus == null || parallelRepairNumber > currentRepairStatus.hostIdsWithOnGoingRepair.size())
             {
                 // more repairs can be run, I might be the new one
 
-                if (unifiedRepairHistories != null)
+                if (autoRepairHistories != null)
                 {
-                    logger.info("Unified repair history table has {} records", unifiedRepairHistories.size());
+                    logger.info("Auto repair history table has {} records", autoRepairHistories.size());
                 }
                 else
                 {
                     // try to fetch again
-                    unifiedRepairHistories = getUnifiedRepairHistory(repairType);
-                    currentRepairStatus = getCurrentRepairStatus(repairType, unifiedRepairHistories);
-                    if (unifiedRepairHistories == null || currentRepairStatus == null)
+                    autoRepairHistories = getAutoRepairHistory(repairType);
+                    currentRepairStatus = getCurrentRepairStatus(repairType, autoRepairHistories);
+                    if (autoRepairHistories == null || currentRepairStatus == null)
                     {
                         logger.error("No record found");
                         return NOT_MY_TURN;
@@ -611,7 +611,7 @@ public class UnifiedRepairUtils
                 }
 
                 // get the longest unrepaired node from the nodes which are not running repair
-                UnifiedRepairHistory defaultNodeToBeRepaired = getHostWithLongestUnrepairTime(currentRepairStatus.historiesWithoutOnGoingRepair);
+                AutoRepairHistory defaultNodeToBeRepaired = getHostWithLongestUnrepairTime(currentRepairStatus.historiesWithoutOnGoingRepair);
                 //check who is next, which is helpful for debugging
                 logger.info("Next node to be repaired for repair type {} by default: {}", repairType, defaultNodeToBeRepaired);
                 if (defaultNodeToBeRepaired != null && defaultNodeToBeRepaired.hostId.equals(myId))
@@ -633,7 +633,7 @@ public class UnifiedRepairUtils
         return NOT_MY_TURN;
     }
 
-    static void deleteUnifiedRepairHistory(RepairType repairType, UUID hostId)
+    static void deleteAutoRepairHistory(RepairType repairType, UUID hostId)
     {
         //delete the given hostId
         delStatementRepairHistory.execute(QueryState.forInternalCalls(),
@@ -642,7 +642,7 @@ public class UnifiedRepairUtils
                                                                                            ByteBufferUtil.bytes(hostId))), Dispatcher.RequestTime.forImmediateExecution());
     }
 
-    static void updateStartUnifiedRepairHistory(RepairType repairType, UUID myId, long timestamp, RepairTurn turn)
+    static void updateStartAutoRepairHistory(RepairType repairType, UUID myId, long timestamp, RepairTurn turn)
     {
         recordStartRepairHistoryStatement.execute(QueryState.forInternalCalls(),
                                                   QueryOptions.forInternalCalls(internalQueryCL,
@@ -653,7 +653,7 @@ public class UnifiedRepairUtils
                                                                                 )), Dispatcher.RequestTime.forImmediateExecution());
     }
 
-    static void updateFinishUnifiedRepairHistory(RepairType repairType, UUID myId, long timestamp)
+    static void updateFinishAutoRepairHistory(RepairType repairType, UUID myId, long timestamp)
     {
         recordFinishRepairHistoryStatement.execute(QueryState.forInternalCalls(),
                                                    QueryOptions.forInternalCalls(internalQueryCL,
@@ -662,15 +662,15 @@ public class UnifiedRepairUtils
                                                                                                     ByteBufferUtil.bytes(myId)
                                                                                  )), Dispatcher.RequestTime.forImmediateExecution());
         // Do not remove beblow log, the log is used by dtest
-        logger.info("Unified repair finished for {}", myId);
+        logger.info("Auto repair finished for {}", myId);
     }
 
     public static void insertNewRepairHistory(RepairType repairType, UUID hostId, long startTime, long finishTime)
     {
         try
         {
-            Keyspace unifiedRepairKS = Schema.instance.getKeyspaceInstance(SchemaConstants.DISTRIBUTED_KEYSPACE_NAME);
-            ConsistencyLevel cl = unifiedRepairKS.getReplicationStrategy().getClass() == NetworkTopologyStrategy.class ?
+            Keyspace autoRepairKS = Schema.instance.getKeyspaceInstance(SchemaConstants.DISTRIBUTED_KEYSPACE_NAME);
+            ConsistencyLevel cl = autoRepairKS.getReplicationStrategy().getClass() == NetworkTopologyStrategy.class ?
                                   ConsistencyLevel.LOCAL_SERIAL : null;
 
             UntypedResultSet resultSet;
@@ -687,7 +687,7 @@ public class UnifiedRepairUtils
             boolean applied = resultSet.one().getBoolean(ModificationStatement.CAS_RESULT_COLUMN.toString());
             if (applied)
             {
-                logger.info("Successfully inserted a new unified repair history record for host id: {}", hostId);
+                logger.info("Successfully inserted a new auto repair history record for host id: {}", hostId);
             }
             else
             {
@@ -810,21 +810,21 @@ public class UnifiedRepairUtils
     {
         long tableRepairTimeSoFar = TimeUnit.MILLISECONDS.toSeconds
                                                          (currentTimeMillis() - startTime);
-        return UnifiedRepairService.instance.getUnifiedRepairConfig().getUnifiedRepairTableMaxRepairTime(repairType).toSeconds() <
+        return AutoRepairService.instance.getAutoRepairConfig().getAutoRepairTableMaxRepairTime(repairType).toSeconds() <
                tableRepairTimeSoFar;
     }
 
     public static boolean keyspaceMaxRepairTimeExceeded(RepairType repairType, long startTime, int numOfTablesToBeRepaired)
     {
         long keyspaceRepairTimeSoFar = TimeUnit.MILLISECONDS.toSeconds((currentTimeMillis() - startTime));
-        return (long) UnifiedRepairService.instance.getUnifiedRepairConfig().getUnifiedRepairTableMaxRepairTime(repairType).toSeconds() *
+        return (long) AutoRepairService.instance.getAutoRepairConfig().getAutoRepairTableMaxRepairTime(repairType).toSeconds() *
                numOfTablesToBeRepaired < keyspaceRepairTimeSoFar;
     }
 
     public static List<String> getAllMVs(RepairType repairType, Keyspace keyspace, TableMetadata tableMetadata)
     {
         List<String> allMvs = new ArrayList<>();
-        if (UnifiedRepairService.instance.getUnifiedRepairConfig().getMVRepairEnabled(repairType) && keyspace.getMetadata().views != null)
+        if (AutoRepairService.instance.getAutoRepairConfig().getMVRepairEnabled(repairType) && keyspace.getMetadata().views != null)
         {
             Iterator<ViewMetadata> views = keyspace.getMetadata().views.forTable(tableMetadata.id).iterator();
             while (views.hasNext())
@@ -839,12 +839,12 @@ public class UnifiedRepairUtils
 
     public static void runRepairOnNewlyBootstrappedNodeIfEnabled()
     {
-        UnifiedRepairConfig repairConfig = DatabaseDescriptor.getUnifiedRepairConfig();
-        if (repairConfig.isUnifiedRepairSchedulingEnabled())
+        AutoRepairConfig repairConfig = DatabaseDescriptor.getAutoRepairConfig();
+        if (repairConfig.isAutoRepairSchedulingEnabled())
         {
-            for (UnifiedRepairConfig.RepairType rType : UnifiedRepairConfig.RepairType.values())
-                if (repairConfig.isUnifiedRepairEnabled(rType) && repairConfig.getForceRepairNewNode(rType))
-                    UnifiedRepairUtils.setForceRepairNewNode(rType);
+            for (AutoRepairConfig.RepairType rType : AutoRepairConfig.RepairType.values())
+                if (repairConfig.isAutoRepairEnabled(rType) && repairConfig.getForceRepairNewNode(rType))
+                    AutoRepairUtils.setForceRepairNewNode(rType);
         }
     }
 

@@ -16,24 +16,24 @@
  * limitations under the License.
  */
 
-package org.apache.cassandra.repair.unifiedrepair;
+package org.apache.cassandra.repair.autorepair;
 
 import org.junit.Test;
 
-import org.apache.cassandra.repair.unifiedrepair.UnifiedRepairConfig.RepairType;
+import org.apache.cassandra.repair.autorepair.AutoRepairConfig.RepairType;
 
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
 
-public class UnifiedRepairStateFactoryTest
+public class AutoRepairStateFactoryTest
 {
     @Test
     public void testGetRepairState() {
-        UnifiedRepairState state = RepairType.getUnifiedRepairState(RepairType.full);
+        AutoRepairState state = RepairType.getAutoRepairState(RepairType.full);
 
         assert state instanceof FullRepairState;
 
-        state = RepairType.getUnifiedRepairState(RepairType.incremental);
+        state = RepairType.getAutoRepairState(RepairType.incremental);
 
         assert state instanceof IncrementalRepairState;
     }
@@ -42,7 +42,7 @@ public class UnifiedRepairStateFactoryTest
     public void testGetRepairStateSupportsAllRepairTypes() {
         for (RepairType repairType : RepairType.values()) {
             try {
-                UnifiedRepairState state = RepairType.getUnifiedRepairState(repairType);
+                AutoRepairState state = RepairType.getAutoRepairState(repairType);
                 assertNotNull(state);
             } catch (IllegalArgumentException e) {
                 assertNull(e);

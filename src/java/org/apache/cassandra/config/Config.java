@@ -33,7 +33,7 @@ import com.google.common.base.Joiner;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Sets;
 
-import org.apache.cassandra.repair.unifiedrepair.UnifiedRepairConfig;
+import org.apache.cassandra.repair.autorepair.AutoRepairConfig;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -957,7 +957,7 @@ public class Config
 
     public volatile boolean password_validator_reconfiguration_enabled = true;
     public volatile CustomGuardrailConfig password_validator = new CustomGuardrailConfig();
-    public volatile UnifiedRepairConfig unified_repair = new UnifiedRepairConfig();
+    public volatile AutoRepairConfig auto_repair = new AutoRepairConfig();
 
     /**
      * The variants of paxos implementation and semantics supported by Cassandra.

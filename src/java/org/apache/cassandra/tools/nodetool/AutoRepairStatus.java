@@ -25,19 +25,19 @@ import com.google.common.annotations.VisibleForTesting;
 
 import io.airlift.airline.Command;
 import io.airlift.airline.Option;
-import org.apache.cassandra.repair.unifiedrepair.UnifiedRepairConfig;
+import org.apache.cassandra.repair.autorepair.AutoRepairConfig;
 import org.apache.cassandra.tools.NodeProbe;
 import org.apache.cassandra.tools.NodeTool;
 import org.apache.cassandra.tools.nodetool.formatter.TableBuilder;
 
 import static com.google.common.base.Preconditions.checkArgument;
 
-@Command(name = "unifiedrepairstatus", description = "Print unifiedrepair status")
-public class UnifiedRepairStatus extends NodeTool.NodeToolCmd
+@Command(name = "autorepairstatus", description = "Print autorepair status")
+public class AutoRepairStatus extends NodeTool.NodeToolCmd
 {
     @VisibleForTesting
     @Option(title = "repair type", name = { "-t", "--repair-type" }, description = "Repair type")
-    protected UnifiedRepairConfig.RepairType repairType;
+    protected AutoRepairConfig.RepairType repairType;
 
     @Override
     public void execute(NodeProbe probe)
@@ -45,10 +45,10 @@ public class UnifiedRepairStatus extends NodeTool.NodeToolCmd
         checkArgument(repairType != null, "--repair-type is required.");
         PrintStream out = probe.output().out;
 
-        UnifiedRepairConfig config = probe.getUnifiedRepairConfig();
-        if (config == null || !config.isUnifiedRepairSchedulingEnabled())
+        AutoRepairConfig config = probe.getAutoRepairConfig();
+        if (config == null || !config.isAutoRepairSchedulingEnabled())
         {
-            out.println("Unified-repair is not enabled");
+            out.println("Auto-repair is not enabled");
             return;
         }
 

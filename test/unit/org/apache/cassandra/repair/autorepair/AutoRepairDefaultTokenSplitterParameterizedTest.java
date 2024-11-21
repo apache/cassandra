@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 
-package org.apache.cassandra.repair.unifiedrepair;
+package org.apache.cassandra.repair.autorepair;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -37,8 +37,8 @@ import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.index.sai.disk.format.Version;
-import org.apache.cassandra.repair.unifiedrepair.IUnifiedRepairTokenRangeSplitter.RepairAssignment;
-import org.apache.cassandra.service.UnifiedRepairService;
+import org.apache.cassandra.repair.autorepair.IAutoRepairTokenRangeSplitter.RepairAssignment;
+import org.apache.cassandra.service.AutoRepairService;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.tcm.ClusterMetadata;
 
@@ -48,7 +48,7 @@ import static org.apache.cassandra.cql3.CQLTester.Fuzzed.updateConfigs;
 import static org.junit.Assert.assertEquals;
 
 @RunWith(Parameterized.class)
-public class UnifiedRepairDefaultTokenSplitterParameterizedTest
+public class AutoRepairDefaultTokenSplitterParameterizedTest
 {
     private static final String KEYSPACE = "ks";
     private static final String TABLE1 = "tbl1";
@@ -56,12 +56,12 @@ public class UnifiedRepairDefaultTokenSplitterParameterizedTest
     private static final String TABLE3 = "tbl3";
 
     @Parameterized.Parameter()
-    public UnifiedRepairConfig.RepairType repairType;
+    public AutoRepairConfig.RepairType repairType;
 
     @Parameterized.Parameters(name = "repairType={0}")
-    public static Collection<UnifiedRepairConfig.RepairType> repairTypes()
+    public static Collection<AutoRepairConfig.RepairType> repairTypes()
     {
-        return Arrays.asList(UnifiedRepairConfig.RepairType.values());
+        return Arrays.asList(AutoRepairConfig.RepairType.values());
     }
 
     @BeforeClass
@@ -83,7 +83,7 @@ public class UnifiedRepairDefaultTokenSplitterParameterizedTest
         ServerTestUtils.registerLocal(tokens);
         // Ensure that the on-disk format statics are loaded before the test run
         Version.LATEST.onDiskFormat();
-        StorageService.instance.doUnifiedRepairSetup();
+        StorageService.instance.doAutoRepairSetup();
 
         SYSTEM_DISTRIBUTED_DEFAULT_RF.setInt(1);
         QueryProcessor.executeInternal(String.format("CREATE KEYSPACE %s WITH replication = {'class': 'SimpleStrategy', 'replication_factor': '1'}", KEYSPACE));
@@ -111,7 +111,7 @@ public class UnifiedRepairDefaultTokenSplitterParameterizedTest
     @Test
     public void testTokenRangesSplitByTable()
     {
-        UnifiedRepairService.instance.getUnifiedRepairConfig().setRepairByKeyspace(repairType, false);
+        AutoRepairService.instance.getAutoRepairConfig().setRepairByKeyspace(repairType, false);
         int totalTokenRanges = 3;
         Collection<Range<Token>> tokens = StorageService.instance.getPrimaryRanges(KEYSPACE);
         assertEquals(totalTokenRanges, tokens.size());
@@ -125,9 +125,9 @@ public class UnifiedRepairDefaultTokenSplitterParameterizedTest
             appendExpectedTokens(256, 1024, numberOfSplits, expectedToken);
         }
 
-        UnifiedRepairConfig config = UnifiedRepairService.instance.getUnifiedRepairConfig();
+        AutoRepairConfig config = AutoRepairService.instance.getAutoRepairConfig();
         config.setRepairSubRangeNum(repairType, numberOfSplits);
-        List<RepairAssignment> assignments = new DefaultUnifiedRepairTokenSplitter().getRepairAssignments(repairType, true, KEYSPACE, tables);
+        List<RepairAssignment> assignments = new DefaultAutoRepairTokenSplitter().getRepairAssignments(repairType, true, KEYSPACE, tables);
         assertEquals(totalTokenRanges * numberOfSplits * tables.size(), assignments.size());
         assertEquals(expectedToken.size(), assignments.size());
 
@@ -146,7 +146,7 @@ public class UnifiedRepairDefaultTokenSplitterParameterizedTest
     @Test
     public void testTokenRangesSplitByKeyspace()
     {
-        UnifiedRepairService.instance.getUnifiedRepairConfig().setRepairByKeyspace(repairType, true);
+        AutoRepairService.instance.getAutoRepairConfig().setRepairByKeyspace(repairType, true);
         int totalTokenRanges = 3;
         Collection<Range<Token>> tokens = StorageService.instance.getPrimaryRanges(KEYSPACE);
         assertEquals(totalTokenRanges, tokens.size());
@@ -157,9 +157,9 @@ public class UnifiedRepairDefaultTokenSplitterParameterizedTest
         appendExpectedTokens(0, 256, numberOfSplits, expectedToken);
         appendExpectedTokens(256, 1024, numberOfSplits, expectedToken);
 
-        UnifiedRepairConfig config = UnifiedRepairService.instance.getUnifiedRepairConfig();
+        AutoRepairConfig config = AutoRepairService.instance.getAutoRepairConfig();
         config.setRepairSubRangeNum(repairType, numberOfSplits);
-        List<RepairAssignment> assignments = new DefaultUnifiedRepairTokenSplitter().getRepairAssignments(repairType, true, KEYSPACE, tables);
+        List<RepairAssignment> assignments = new DefaultAutoRepairTokenSplitter().getRepairAssignments(repairType, true, KEYSPACE, tables);
         assertEquals(totalTokenRanges * numberOfSplits, assignments.size());
         assertEquals(expectedToken.size(), assignments.size());
 
