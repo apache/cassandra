@@ -27,7 +27,6 @@ import javax.net.ssl.SSLException;
 import javax.rmi.ssl.SslRMIClientSocketFactory;
 
 import com.google.common.collect.ImmutableMap;
-import org.junit.After;
 import org.junit.Test;
 
 import org.apache.cassandra.distributed.Cluster;
@@ -36,32 +35,15 @@ import org.apache.cassandra.distributed.impl.JmxTestClientSslContextFactory;
 import org.apache.cassandra.distributed.impl.JmxTestClientSslSocketFactory;
 import org.apache.cassandra.distributed.shared.WithProperties;
 import org.apache.cassandra.distributed.test.AbstractEncryptionOptionsImpl;
+import org.apache.cassandra.utils.jmx.JMXSslPropertiesUtil;
 
-import static org.apache.cassandra.config.CassandraRelevantProperties.COM_SUN_MANAGEMENT_JMXREMOTE_SSL;
 import static org.apache.cassandra.config.CassandraRelevantProperties.COM_SUN_MANAGEMENT_JMXREMOTE_SSL_ENABLED_CIPHER_SUITES;
-import static org.apache.cassandra.config.CassandraRelevantProperties.COM_SUN_MANAGEMENT_JMXREMOTE_SSL_ENABLED_PROTOCOLS;
-import static org.apache.cassandra.config.CassandraRelevantProperties.COM_SUN_MANAGEMENT_JMXREMOTE_SSL_NEED_CLIENT_AUTH;
-import static org.apache.cassandra.config.CassandraRelevantProperties.JAVAX_RMI_SSL_CLIENT_ENABLED_CIPHER_SUITES;
-import static org.apache.cassandra.config.CassandraRelevantProperties.JAVAX_RMI_SSL_CLIENT_ENABLED_PROTOCOLS;
 
 /**
  * Distributed tests for JMX SSL configuration via the system properties OR the encryption options in the cassandra.yaml.
  */
 public class JMXSslConfigDistributedTest extends AbstractEncryptionOptionsImpl
 {
-    @After
-    public void resetJmxSslSystemProperties()
-    {
-        // The below properties are set as side effect of other properties when tests run. Hence, these are reset here
-        // vs using try-with-resouces block
-        COM_SUN_MANAGEMENT_JMXREMOTE_SSL.reset();
-        COM_SUN_MANAGEMENT_JMXREMOTE_SSL_NEED_CLIENT_AUTH.reset();
-        COM_SUN_MANAGEMENT_JMXREMOTE_SSL_ENABLED_PROTOCOLS.reset();
-        COM_SUN_MANAGEMENT_JMXREMOTE_SSL_ENABLED_CIPHER_SUITES.reset();
-        JAVAX_RMI_SSL_CLIENT_ENABLED_PROTOCOLS.reset();
-        JAVAX_RMI_SSL_CLIENT_ENABLED_CIPHER_SUITES.reset();
-    }
-
     @Test
     public void testDefaultEncryptionOptions() throws Throwable
     {
@@ -71,13 +53,10 @@ public class JMXSslConfigDistributedTest extends AbstractEncryptionOptionsImpl
         // for the Server SSL Socketfactory and at that time we will need the keystore to be available
         // All of the above is the issue because we run everything (JMX Server, Client) in the same JVM, multiple times
         // and the SSLContext.getDefault() relies on static initialization that is reused
-        try (WithProperties ignored = new WithProperties().with("javax.net.ssl.trustStore", (String) validKeystore.get("truststore"),
-                                                                "javax.net.ssl.trustStorePassword", (String) validKeystore.get("truststore_password"),
-                                                                "javax.net.ssl.keyStore", (String) validKeystore.get("keystore"),
-                                                                "javax.net.ssl.keyStorePassword", (String) validKeystore.get("keystore_password"))
-        )
+        try (WithProperties withProperties = JMXSslPropertiesUtil.preserveAllProperties())
         {
-            ImmutableMap<String, Object> encryptionOptionsMap = ImmutableMap.<String, Object>builder().putAll(validKeystore)
+            setKeystoreProperties(withProperties);
+            ImmutableMap<String, Object> encryptionOptionsMap = ImmutableMap.<String, Object>builder().putAll(validFileBasedKeystores)
                                                                             .put("enabled", true)
                                                                             .put("accepted_protocols", Arrays.asList("TLSv1.2", "TLSv1.3", "TLSv1.1"))
                                                                             .build();
@@ -97,13 +76,10 @@ public class JMXSslConfigDistributedTest extends AbstractEncryptionOptionsImpl
     @Test
     public void testClientAuth() throws Throwable
     {
-        try (WithProperties ignored = new WithProperties().with("javax.net.ssl.trustStore", (String) validKeystore.get("truststore"),
-                                                                "javax.net.ssl.trustStorePassword", (String) validKeystore.get("truststore_password"),
-                                                                "javax.net.ssl.keyStore", (String) validKeystore.get("keystore"),
-                                                                "javax.net.ssl.keyStorePassword", (String) validKeystore.get("keystore_password"))
-        )
+        try (WithProperties withProperties = JMXSslPropertiesUtil.preserveAllProperties())
         {
-            ImmutableMap<String, Object> encryptionOptionsMap = ImmutableMap.<String, Object>builder().putAll(validKeystore)
+            setKeystoreProperties(withProperties);
+            ImmutableMap<String, Object> encryptionOptionsMap = ImmutableMap.<String, Object>builder().putAll(validFileBasedKeystores)
                                                                             .put("enabled", true)
                                                                             .put("require_client_auth", true)
                                                                             .put("accepted_protocols", Arrays.asList("TLSv1.2", "TLSv1.3", "TLSv1.1"))
@@ -125,15 +101,11 @@ public class JMXSslConfigDistributedTest extends AbstractEncryptionOptionsImpl
     public void testSystemSettings() throws Throwable
     {
         COM_SUN_MANAGEMENT_JMXREMOTE_SSL_ENABLED_CIPHER_SUITES.reset();
-        try(WithProperties ignored = new WithProperties().with("javax.net.ssl.trustStore", (String)validKeystore.get("truststore"),
-                                                               "javax.net.ssl.trustStorePassword", (String)validKeystore.get("truststore_password"),
-                                                               "javax.net.ssl.keyStore", (String)validKeystore.get("keystore"),
-                                                               "javax.net.ssl.keyStorePassword", (String)validKeystore.get("keystore_password"))
-                                                         .set(COM_SUN_MANAGEMENT_JMXREMOTE_SSL, true)
-                                                         .set(COM_SUN_MANAGEMENT_JMXREMOTE_SSL_NEED_CLIENT_AUTH, false)
-                                                         .set(COM_SUN_MANAGEMENT_JMXREMOTE_SSL_ENABLED_PROTOCOLS, "TLSv1.2,TLSv1.3,TLSv1.1")
+        try(WithProperties withProperties = JMXSslPropertiesUtil.use(true, false,
+                                                                     "TLSv1.2,TLSv1.3,TLSv1.1")
         )
         {
+            setKeystoreProperties(withProperties);
             try (Cluster cluster = builder().withNodes(1).withConfig(c -> {
                 c.with(Feature.JMX);
             }).start())
@@ -184,6 +156,14 @@ public class JMXSslConfigDistributedTest extends AbstractEncryptionOptionsImpl
             // Invoke the same code vs duplicating any code from the JMXGetterCheckTest
             JMXTestsUtil.testAllValidGetters(cluster, null);
         }
+    }
+
+    private void setKeystoreProperties(WithProperties properties)
+    {
+        properties.with("javax.net.ssl.trustStore", (String) validFileBasedKeystores.get("truststore"),
+                                         "javax.net.ssl.trustStorePassword", (String) validFileBasedKeystores.get("truststore_password"),
+                                         "javax.net.ssl.keyStore", (String) validFileBasedKeystores.get("keystore"),
+                                         "javax.net.ssl.keyStorePassword", (String) validFileBasedKeystores.get("keystore_password"));
     }
 
     @SuppressWarnings("unchecked")

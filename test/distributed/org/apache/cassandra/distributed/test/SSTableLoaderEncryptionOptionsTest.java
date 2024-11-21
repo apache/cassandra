@@ -61,12 +61,12 @@ public class SSTableLoaderEncryptionOptionsTest extends AbstractEncryptionOption
         CLUSTER = Cluster.build().withNodes(1).withConfig(c -> {
             c.with(Feature.NATIVE_PROTOCOL, Feature.NETWORK, Feature.GOSSIP); // need gossip to get hostid for java driver
             c.set("server_encryption_options",
-                  ImmutableMap.builder().putAll(validKeystore)
+                  ImmutableMap.builder().putAll(validFileBasedKeystores)
                               .put("internode_encryption", "all")
                               .put("optional", false)
                               .build());
             c.set("client_encryption_options",
-                  ImmutableMap.builder().putAll(validKeystore)
+                  ImmutableMap.builder().putAll(validFileBasedKeystores)
                               .put("enabled", true)
                               .put("optional", false)
                               .put("accepted_protocols", Collections.singletonList("TLSv1.2"))

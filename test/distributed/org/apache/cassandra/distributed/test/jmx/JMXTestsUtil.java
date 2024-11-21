@@ -33,7 +33,6 @@ import javax.management.ObjectName;
 import javax.management.remote.JMXConnector;
 
 import com.google.common.collect.ImmutableSet;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -76,7 +75,7 @@ public class JMXTestsUtil
      */
     public static void testAllValidGetters(Cluster cluster, Map<String, ?> jmxEnv) throws Exception
     {
-        for (IInvokableInstance instance: cluster)
+        for (IInvokableInstance instance : cluster)
         {
             if (instance.isShutdown())
             {
@@ -127,7 +126,7 @@ public class JMXTestsUtil
             if (!errors.isEmpty())
             {
                 AssertionError root = new AssertionError();
-                for(Named error: errors)
+                for (Named error : errors)
                 {
                     // The Named object's message has the cause also so this only logs the message
                     logger.error("Error {}", error.getMessage());

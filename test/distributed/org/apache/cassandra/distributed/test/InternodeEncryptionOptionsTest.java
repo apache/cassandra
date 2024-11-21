@@ -53,7 +53,7 @@ public class InternodeEncryptionOptionsTest extends AbstractEncryptionOptionsImp
             c.with(Feature.NETWORK);
             c.set("ssl_storage_port", 7013);
             c.set("server_encryption_options",
-                  ImmutableMap.builder().putAll(validKeystore)
+                  ImmutableMap.builder().putAll(validFileBasedKeystores)
                   .put("internode_encryption", "none")
                   .put("optional", false)
                   .put("legacy_ssl_storage_port_enabled", "true")
@@ -87,7 +87,7 @@ public class InternodeEncryptionOptionsTest extends AbstractEncryptionOptionsImp
     {
         try (Cluster cluster = builder().withNodes(1).withConfig(c -> {
             c.with(Feature.NETWORK);
-            c.set("server_encryption_options", validKeystore);
+            c.set("server_encryption_options", validFileBasedKeystores);
         }).createWithoutStarting())
         {
             InetAddress address = cluster.get(1).config().broadcastAddress().getAddress();
@@ -111,7 +111,7 @@ public class InternodeEncryptionOptionsTest extends AbstractEncryptionOptionsImp
             c.set("storage_port", 7012);
             c.set("ssl_storage_port", 7013);
             c.set("server_encryption_options",
-                  ImmutableMap.builder().putAll(validKeystore)
+                  ImmutableMap.builder().putAll(validFileBasedKeystores)
                               .put("internode_encryption", "none")
                               .put("optional", true)
                               .put("legacy_ssl_storage_port_enabled", "true")
@@ -146,7 +146,7 @@ public class InternodeEncryptionOptionsTest extends AbstractEncryptionOptionsImp
             c.set("storage_port", 7012); // must match in-jvm dtest assigned ports
             c.set("ssl_storage_port", 7012);
             c.set("server_encryption_options",
-                  ImmutableMap.builder().putAll(validKeystore)
+                  ImmutableMap.builder().putAll(validFileBasedKeystores)
                               .put("internode_encryption", "none")
                               .put("optional", true)
                               .put("legacy_ssl_storage_port_enabled", "true")
@@ -174,7 +174,7 @@ public class InternodeEncryptionOptionsTest extends AbstractEncryptionOptionsImp
         try (Cluster  cluster = builder().withNodes(1).withConfig(c -> {
             c.with(Feature.NETWORK);
             c.set("server_encryption_options",
-                  ImmutableMap.builder().putAll(validKeystore)
+                  ImmutableMap.builder().putAll(validFileBasedKeystores)
                               .put("internode_encryption", "none")
                               .put("optional", false)
                               .build());
@@ -202,7 +202,7 @@ public class InternodeEncryptionOptionsTest extends AbstractEncryptionOptionsImp
              .with(Feature.GOSSIP) // To make sure AllMembersAliveMonitor checks gossip (which uses internode conns)
              .with(Feature.NATIVE_PROTOCOL); // For virtual tables
             c.set("server_encryption_options",
-                  ImmutableMap.builder().putAll(validKeystore)
+                  ImmutableMap.builder().putAll(validFileBasedKeystores)
                               .put("internode_encryption", "all")
                               .build());
         }).start())
@@ -234,7 +234,7 @@ public class InternodeEncryptionOptionsTest extends AbstractEncryptionOptionsImp
         try (Cluster cluster = builder().withNodes(1).withConfig(c -> {
             c.with(Feature.NETWORK);
             c.set("server_encryption_options",
-                  ImmutableMap.builder().putAll(validKeystore)
+                  ImmutableMap.builder().putAll(validFileBasedKeystores)
                               .put("internode_encryption", "all")
                               .put("accepted_protocols", ImmutableList.of("TLSv1.1", "TLSv1.2", "TLSv1.3"))
                               .build());
@@ -272,7 +272,7 @@ public class InternodeEncryptionOptionsTest extends AbstractEncryptionOptionsImp
         try (Cluster cluster = builder().withNodes(1).withConfig(c -> {
             c.with(Feature.NETWORK);
             c.set("server_encryption_options",
-                  ImmutableMap.builder().putAll(validKeystore)
+                  ImmutableMap.builder().putAll(validFileBasedKeystores)
                               .put("internode_encryption", "all")
                               .put("accepted_protocols", Collections.singletonList("TLSv1.2"))
                               .put("cipher_suites", Collections.singletonList("TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384"))
