@@ -23,10 +23,12 @@ import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.NavigableSet;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
 import com.google.common.base.Preconditions;
@@ -53,6 +55,7 @@ import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.exceptions.SyntaxException;
 import org.apache.cassandra.io.sstable.format.SSTableFormat;
+import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.schema.*;
 import org.apache.cassandra.service.ClientState;
@@ -379,6 +382,8 @@ public class CQLSSTableWriter implements Closeable
         private File directory;
         private boolean sorted = false;
         private long maxSSTableSizeInMiB = -1L;
+        private Consumer<Collection<SSTableReader>> sstableProducedListener;
+        private boolean openSSTableOnProduced = false;
 
         protected Builder()
         {
@@ -569,6 +574,33 @@ public class CQLSSTableWriter implements Closeable
             return this;
         }
 
+        /**
+         * Set the listener to receive notifications on sstable produced
+         * <p>
+         * Note that if listener is registered, the sstables are opened into {@link SSTableReader}.
+         * The consumer is responsible for releasing the {@link SSTableReader}
+         *
+         * @param sstableProducedListener receives the produced sstables
+         * @return this builder
+         */
+        public Builder withSSTableProducedListener(Consumer<Collection<SSTableReader>> sstableProducedListener)
+        {
+            this.sstableProducedListener = sstableProducedListener;
+            return this;
+        }
+
+        /**
+         * Whether the produced sstable should be open or not.
+         * By default, the writer does not open the produced sstables
+         *
+         * @return this builder
+         */
+        public Builder openSSTableOnProduced()
+        {
+            this.openSSTableOnProduced = true;
+            return this;
+        }
+
         @SuppressWarnings("resource")
         public CQLSSTableWriter build()
         {
@@ -621,6 +653,11 @@ public class CQLSSTableWriter implements Closeable
 
                 if (formatType != null)
                     writer.setSSTableFormatType(formatType);
+
+                if (sstableProducedListener != null)
+                    writer.setSSTableProducedListener(sstableProducedListener);
+
+                writer.setShouldOpenProducedSSTable(openSSTableOnProduced);
 
                 return new CQLSSTableWriter(writer, preparedModificationStatement, preparedModificationStatement.getBindVariables());
             }
