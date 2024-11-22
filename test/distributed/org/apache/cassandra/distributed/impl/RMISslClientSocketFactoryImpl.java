@@ -25,7 +25,7 @@ import java.net.Socket;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
-import java.util.StringTokenizer;
+import java.util.regex.Pattern;
 import javax.net.SocketFactory;
 import javax.net.ssl.SSLSocket;
 import javax.net.ssl.SSLSocketFactory;
@@ -41,16 +41,17 @@ import org.apache.cassandra.utils.RMICloseableClientSocketFactory;
 public class RMISslClientSocketFactoryImpl implements Serializable, RMICloseableClientSocketFactory
 {
     private static final long serialVersionUID = 9054380061905145241L;
+    private static final Pattern COMMA_SPLITTER = Pattern.compile(",");
     private static final List<Socket> sockets = new ArrayList<>();
     private final InetAddress localAddress;
-    private final String enabledCipherSuites;
-    private final String enabledProtocols;
+    private final String[] enabledCipherSuites;
+    private final String[] enabledProtocols;
 
     public RMISslClientSocketFactoryImpl(InetAddress localAddress, String enabledCipherSuites, String enabledProtocls)
     {
         this.localAddress = localAddress;
-        this.enabledCipherSuites = enabledCipherSuites;
-        this.enabledProtocols = enabledProtocls;
+        this.enabledCipherSuites = splitCommaSeparatedString(enabledCipherSuites);
+        this.enabledProtocols = splitCommaSeparatedString(enabledProtocls);
     }
 
     @Override
@@ -68,40 +69,24 @@ public class RMISslClientSocketFactoryImpl implements Serializable, RMICloseable
                                     sslSocketFactory.createSocket(localAddress, port);
         if (enabledCipherSuites != null)
         {
-            StringTokenizer st = new StringTokenizer(enabledCipherSuites, ",");
-            int tokens = st.countTokens();
-            String[] enabledCipherSuitesList = new String[tokens];
-            for (int i = 0; i < tokens; i++)
-            {
-                enabledCipherSuitesList[i] = st.nextToken();
-            }
             try
             {
-                sslSocket.setEnabledCipherSuites(enabledCipherSuitesList);
+                sslSocket.setEnabledCipherSuites(enabledCipherSuites);
             }
             catch (IllegalArgumentException e)
             {
-                throw (IOException)
-                      new IOException(e.getMessage(), e);
+                throw new IOException(e.getMessage(), e);
             }
         }
         if (enabledProtocols != null)
         {
-            StringTokenizer st = new StringTokenizer(enabledProtocols, ",");
-            int tokens = st.countTokens();
-            String[] enabledProtocolsList = new String[tokens];
-            for (int i = 0; i < tokens; i++)
-            {
-                enabledProtocolsList[i] = st.nextToken();
-            }
             try
             {
-                sslSocket.setEnabledProtocols(enabledProtocolsList);
+                sslSocket.setEnabledProtocols(enabledProtocols);
             }
             catch (IllegalArgumentException e)
             {
-                throw (IOException)
-                      new IOException(e.getMessage(), e);
+                throw new IOException(e.getMessage(), e);
             }
         }
         return sslSocket;
@@ -136,5 +121,12 @@ public class RMISslClientSocketFactoryImpl implements Serializable, RMICloseable
     public int hashCode()
     {
         return Objects.hash(localAddress);
+    }
+
+    private String[] splitCommaSeparatedString(String stringToSplit)
+    {
+        if (stringToSplit == null)
+            return null;
+        return COMMA_SPLITTER.split(stringToSplit);
     }
 }
