@@ -121,6 +121,7 @@ Merged from 5.0:
 Merged from 4.1:
  * Fix race condition in DecayingEstimatedHistogramReservoir during rescale (CASSANDRA-19365)
 Merged from 4.0:
+ * Enhance CQLSSTableWriter to notify clients on sstable production (CASSANDRA-19800)
  * Change the resolution of AbstractCommitLogService#lastSyncedAt to nanos to be aligned with later comparisons (CASSANDRA-20074)
  * Support UDTs and vectors as clustering keys in descending order (CASSANDRA-20050)
  * Fix CQL in snapshot's schema which did not contained UDTs used as reverse clustering columns (CASSANDRA-20036)
