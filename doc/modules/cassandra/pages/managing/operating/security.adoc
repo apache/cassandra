@@ -570,9 +570,10 @@ See also: xref:cassandra:developing/cql/security.adoc#permissions[`Permissions`]
 JMX SSL configuration should be specified in `cassandra.yaml` under
 `encryption_options`, similar to how `client/server_encryption_options`
 are configured. Using system properties to configure JMX SSL is
-considered legacy and only supported for backward compatibility. If
-both methods are used, a configuration error will occur at startup. Hot
-reloading of the `SSLContext` is not yet supported for the JMX SSL.
+considered legacy and only supported for backward compatibility. If SSL
+is enabled via both methods, a configuration error will occur at
+startup. Hot reloading of the `SSLContext` is not yet supported for the
+JMX SSL.
 
 ==== JMX SSL configuration in cassandra.yaml
 Below is an example of configuring JMX SSL in `cassandra.yaml`
