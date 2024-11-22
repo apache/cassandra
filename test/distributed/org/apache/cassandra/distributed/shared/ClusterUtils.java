@@ -44,6 +44,7 @@ import java.util.function.Predicate;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Strings;
@@ -54,6 +55,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import accord.primitives.TxnId;
+import org.apache.cassandra.db.ColumnFamilyStore;
+import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.virtual.AccordDebugKeyspace;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.distributed.Cluster;
@@ -73,6 +76,8 @@ import org.apache.cassandra.distributed.impl.TestChangeListener;
 import org.apache.cassandra.distributed.test.log.TestProcessor;
 import org.apache.cassandra.gms.ApplicationState;
 import org.apache.cassandra.gms.VersionedValue;
+import org.apache.cassandra.index.Index;
+import org.apache.cassandra.index.SecondaryIndexManager;
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.net.Message;
@@ -96,6 +101,7 @@ import org.apache.cassandra.utils.Isolated;
 import org.apache.cassandra.utils.concurrent.AsyncPromise;
 import org.apache.cassandra.utils.concurrent.CountDownLatch;
 import org.assertj.core.api.Assertions;
+import org.awaitility.Awaitility;
 
 import static com.google.common.util.concurrent.Uninterruptibles.sleepUninterruptibly;
 import static org.apache.cassandra.config.CassandraRelevantProperties.BOOTSTRAP_SCHEMA_DELAY_MS;
@@ -639,6 +645,22 @@ public class ClusterUtils
         return instance.callOnInstance(() -> ClusterMetadataService.instance().isMigrating());
     }
 
+    public static void awaitIndexReady(Cluster cluster, String ks, String table, String name)
+    {
+        cluster.forEach(i -> awaitIndexReady(i, ks, table, name));
+    }
+
+    public static void awaitIndexReady(IInvokableInstance instance, String ks, String table, String name)
+    {
+        instance.runOnInstance(() -> {
+            SecondaryIndexManager indexManager = Keyspace.open(ks).getColumnFamilyStore(table).indexManager;
+            Index index = indexManager.getIndexByName(name);
+            Awaitility.await("index " + name)
+                      .atMost(1, TimeUnit.MINUTES)
+                      .until(() -> indexManager.isIndexQueryable(index));
+        });
+    }
+
     public static interface SerializablePredicate<T> extends Predicate<T>, Serializable
     {}
 
@@ -668,6 +690,11 @@ public class ClusterUtils
     {
         // first step; find the largest epoch
         waitForCMSToQuiesce(cluster, maxEpoch(cluster, cmsNodes));
+    }
+
+    public static Epoch maxEpoch(ICluster<IInvokableInstance> cluster)
+    {
+        return maxEpoch(cluster, IntStream.range(1, cluster.size() + 1).toArray());
     }
 
     public static Epoch maxEpoch(ICluster<IInvokableInstance> cluster, int[] cmsNodes)

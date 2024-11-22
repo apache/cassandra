@@ -30,6 +30,7 @@ import org.slf4j.LoggerFactory;
 
 import java.util.*;
 import java.util.function.IntFunction;
+import java.util.stream.LongStream;
 
 public class PartitionState implements Iterable<PartitionState.RowState>
 {
@@ -138,12 +139,15 @@ public class PartitionState implements Iterable<PartitionState.RowState>
     {
         // TODO: inefficient; need to search for lower/higher bounds
         rows.entrySet().removeIf(e -> {
-            Map<Long, Object[]> cache = new HashMap<>();
+            Map<Long, Object> cache = new HashMap<>();
             for (Relations.Relation relation : select.ckRelations())
             {
-                Object[] query = cache.computeIfAbsent(relation.descriptor, valueGenerators.ckGen()::inflate);
-                Object[] match = cache.computeIfAbsent(e.getValue().cd, valueGenerators.ckGen()::inflate);
-                if (!relation.kind.match(valueGenerators.ckComparator(relation.column), match[relation.column], query[relation.column]))
+                Object query = cache.computeIfAbsent(relation.descriptor, valueGenerators.ckGen()::inflate);
+                Object match = cache.computeIfAbsent(e.getValue().cd, valueGenerators.ckGen()::inflate);
+                var accessor = valueGenerators.ckAccessor();
+                if (!relation.kind.match(valueGenerators.ckComparator(relation.column),
+                                         accessor.access(relation.column, match),
+                                         accessor.access(relation.column, query)))
                     return true; // true means "no match", so remove from resultset
             }
 
@@ -188,6 +192,11 @@ public class PartitionState implements Iterable<PartitionState.RowState>
         return rows.isEmpty();
     }
 
+    public boolean shouldDelete()
+    {
+        return isEmpty() && staticRow.isEmpty();
+    }
+
     /**
      * Method used to update row state of both static and regular rows.
      */
@@ -223,7 +232,7 @@ public class PartitionState implements Iterable<PartitionState.RowState>
 
                 assert lts >= currentState.lts[i] : String.format("Out-of-order LTS: %d. Max seen: %s", lts, currentState.lts[i]); // sanity check; we're iterating in lts order
 
-                if (currentState.lts[i] == lts)
+                if (lts != MagicConstants.NO_TIMESTAMP && currentState.lts[i] == lts)
                 {
                     // Timestamp collision case
                     Bijections.Bijection<?> column = columns.apply(i);
@@ -232,8 +241,8 @@ public class PartitionState implements Iterable<PartitionState.RowState>
                 }
                 else
                 {
+                    assert lts == MagicConstants.NO_TIMESTAMP || lts > currentState.lts[i];
                     currentState.vds[i] = vds[i];
-                    assert lts > currentState.lts[i];
                     currentState.lts[i] = lts;
                 }
             }
@@ -351,6 +360,11 @@ public class PartitionState implements Iterable<PartitionState.RowState>
             this.cd = cd;
             this.vds = vds;
             this.lts = lts;
+        }
+
+        public boolean isEmpty()
+        {
+            return LongStream.of(vds).allMatch(l -> l == MagicConstants.NIL_DESCR);
         }
 
         public RowState clone()

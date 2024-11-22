@@ -21,23 +21,29 @@ package org.apache.cassandra.harry.gen;
 import java.util.Comparator;
 import java.util.List;
 
-public class ValueGenerators
-{
-    protected final Bijections.Bijection<Object[]> pkGen;
-    protected final Bijections.Bijection<Object[]> ckGen;
+import org.apache.cassandra.harry.gen.Bijections.Bijection;
 
-    protected final List<Bijections.Bijection<Object>> regularColumnGens;
-    protected final List<Bijections.Bijection<Object>> staticColumnGens;
+public class ValueGenerators<PartitionKey, ClusteringKey>
+{
+    protected final Bijection<PartitionKey> pkGen;
+    protected final Bijection<ClusteringKey> ckGen;
+
+    protected final Accessor<ClusteringKey> ckAccessor;
+
+    protected final List<? extends Bijection<? extends Object>> regularColumnGens;
+    protected final List<? extends Bijection<? extends Object>> staticColumnGens;
 
     protected final List<Comparator<Object>> pkComparators;
     protected final List<Comparator<Object>> ckComparators;
     protected final List<Comparator<Object>> regularComparators;
     protected final List<Comparator<Object>> staticComparators;
 
-    public ValueGenerators(Bijections.Bijection<Object[]> pkGen,
-                           Bijections.Bijection<Object[]> ckGen,
-                           List<Bijections.Bijection<Object>> regularColumnGens,
-                           List<Bijections.Bijection<Object>> staticColumnGens,
+    public ValueGenerators(Bijection<PartitionKey> pkGen,
+                           Bijection<ClusteringKey> ckGen,
+                           Accessor<ClusteringKey> ckAccessor,
+
+                           List<? extends Bijection<? extends Object>> regularColumnGens,
+                           List<? extends Bijection<? extends Object>> staticColumnGens,
 
                            List<Comparator<Object>> pkComparators,
                            List<Comparator<Object>> ckComparators,
@@ -46,6 +52,7 @@ public class ValueGenerators
     {
         this.pkGen = pkGen;
         this.ckGen = ckGen;
+        this.ckAccessor = ckAccessor;
         this.regularColumnGens = regularColumnGens;
         this.staticColumnGens = staticColumnGens;
         this.pkComparators = pkComparators;
@@ -54,22 +61,22 @@ public class ValueGenerators
         this.staticComparators = staticComparators;
     }
 
-    public Bijections.Bijection<Object[]> pkGen()
+    public Bijection<PartitionKey> pkGen()
     {
         return pkGen;
     }
 
-    public Bijections.Bijection<Object[]> ckGen()
+    public Bijection<ClusteringKey> ckGen()
     {
         return ckGen;
     }
 
-    public Bijections.Bijection<Object> regularColumnGen(int idx)
+    public Bijection regularColumnGen(int idx)
     {
         return regularColumnGens.get(idx);
     }
 
-    public Bijections.Bijection<Object> staticColumnGen(int idx)
+    public Bijection staticColumnGen(int idx)
     {
         return staticColumnGens.get(idx);
     }
@@ -109,6 +116,11 @@ public class ValueGenerators
         return staticComparators.get(idx);
     }
 
+    public Accessor<ClusteringKey> ckAccessor()
+    {
+        return ckAccessor;
+    }
+
     public int pkPopulation()
     {
         return pkGen.population();
@@ -127,5 +139,21 @@ public class ValueGenerators
     public int staticPopulation(int i)
     {
         return staticColumnGens.get(i).population();
+    }
+
+    public interface Accessor<T>
+    {
+        Object access(int field, T value);
+    }
+
+    public enum ArrayAccessor implements Accessor<Object[]>
+    {
+        instance;
+
+        @Override
+        public Object access(int field, Object[] value)
+        {
+            return value[field];
+        }
     }
 }

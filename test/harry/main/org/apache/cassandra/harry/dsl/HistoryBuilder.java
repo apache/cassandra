@@ -372,7 +372,7 @@ public class HistoryBuilder implements SingleOperationBuilder, Model.Replay
                                           staticComparators);
     }
 
-    public static class IndexedValueGenerators extends ValueGenerators
+    public static class IndexedValueGenerators extends ValueGenerators<Object[], Object[]>
     {
         public IndexedValueGenerators(IndexedBijection<Object[]> pkGen,
                                       IndexedBijection<Object[]> ckGen,
@@ -383,7 +383,7 @@ public class HistoryBuilder implements SingleOperationBuilder, Model.Replay
                                       List<Comparator<Object>> regularComparators,
                                       List<Comparator<Object>> staticComparators)
         {
-            super(pkGen, ckGen,
+            super(pkGen, ckGen, ArrayAccessor.instance,
                   (List<Bijections.Bijection<Object>>) (List<?>) regularColumnGens,
                   (List<Bijections.Bijection<Object>>) (List<?>) staticColumnGens,
                   pkComparators, ckComparators, regularComparators, staticComparators);
