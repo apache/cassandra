@@ -26,7 +26,7 @@ import java.util.Set;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.Iterables;
 
-import org.apache.cassandra.config.CassandraRelevantProperties;
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.lifecycle.LifecycleNewTracker;
 import org.apache.cassandra.io.sstable.SSTable;
 
@@ -173,6 +173,12 @@ public class CassandraStreamReceiver implements StreamReceiver
         return cfs.metadata().params.cdc;
     }
 
+    // returns true iif it is a cdc table and cdc on repair is enabled.
+    private boolean cdcRequiresWriteCommitLog(ColumnFamilyStore cfs)
+    {
+        return DatabaseDescriptor.isCDCOnRepairEnabled() && hasCDC(cfs);
+    }
+
     /*
      * We have a special path for views and for CDC.
      *
@@ -184,13 +190,14 @@ public class CassandraStreamReceiver implements StreamReceiver
      */
     public boolean requiresWritePath(ColumnFamilyStore cfs)
     {
-        // TODO: Deprecate STREAMING_REQUIRES_CDC_REPLAY property in trunk (or 5.0) as a new config has been added to control this https://issues.apache.org/jira/browse/CASSANDRA-17666
-        return (hasCDC(cfs) && CassandraRelevantProperties.STREAMING_REQUIRES_CDC_REPLAY.getBoolean()) || cfs.streamToMemtable() || (session.streamOperation().requiresViewBuild() && hasViews(cfs));
+        return cdcRequiresWriteCommitLog(cfs)
+               || cfs.streamToMemtable()
+               || (session.streamOperation().requiresViewBuild() && hasViews(cfs) && DatabaseDescriptor.isMaterializedViewsOnRepairEnabled());
     }
 
     private void sendThroughWritePath(ColumnFamilyStore cfs, Collection<SSTableReader> readers)
     {
-        boolean hasCdc = hasCDC(cfs);
+        boolean writeCDCCommitLog = cdcRequiresWriteCommitLog(cfs);
         ColumnFilter filter = ColumnFilter.all(cfs.metadata());
         for (SSTableReader reader : readers)
         {
@@ -208,7 +215,7 @@ public class CassandraStreamReceiver implements StreamReceiver
                     // If the CFS has CDC, however, these updates need to be written to the CommitLog
                     // so they get archived into the cdc_raw folder
                     ks.apply(new Mutation(PartitionUpdate.fromIterator(throttledPartitions.next(), filter)),
-                             hasCdc,
+                             writeCDCCommitLog,
                              true,
                              false);
                 }

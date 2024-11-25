@@ -162,8 +162,8 @@ public class AutoRepairParameterizedTest extends CQLTester
     @Before
     public void setup()
     {
-        System.setProperty("cassandra.streaming.requires_cdc_replay", "false");
-        System.setProperty("cassandra.streaming.requires_view_build_during_repair", "false");
+        DatabaseDescriptor.setCDCOnRepairEnabled(false);
+        DatabaseDescriptor.setMaterializedViewsOnRepairEnabled(false);
         MockitoAnnotations.initMocks(this);
 
         Keyspace.open(KEYSPACE).getColumnFamilyStore(TABLE).truncateBlocking();
@@ -694,7 +694,7 @@ public class AutoRepairParameterizedTest extends CQLTester
     public void testRepairThrowsForIRWithMVReplay()
     {
         AutoRepair.instance.setup();
-        System.setProperty("cassandra.streaming.requires_view_build_during_repair", "true");
+        DatabaseDescriptor.setMaterializedViewsOnRepairEnabled(true);
 
         if (repairType == AutoRepairConfig.RepairType.INCREMENTAL)
         {
@@ -718,7 +718,7 @@ public class AutoRepairParameterizedTest extends CQLTester
     public void testRepairThrowsForIRWithCDCReplay()
     {
         AutoRepair.instance.setup();
-        System.setProperty("cassandra.streaming.requires_cdc_replay", "true");
+        DatabaseDescriptor.setCDCOnRepairEnabled(true);
 
         if (repairType == AutoRepairConfig.RepairType.INCREMENTAL)
         {

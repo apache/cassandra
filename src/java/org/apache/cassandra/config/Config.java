@@ -388,6 +388,9 @@ public class Config
     // When true, new CDC mutations are rejected/blocked when reaching max CDC storage.
     // When false, new CDC mutations can always be added. But it will remove the oldest CDC commit log segment on full.
     public volatile boolean cdc_block_writes = true;
+    // When true, CDC data in SSTable go through commit logs during internodes streaming, e.g. repair
+    // When false, it behaves the same as normal streaming.
+    public volatile boolean cdc_on_repair_enabled = true;
     public String cdc_raw_directory;
     @Replaces(oldName = "cdc_total_space_in_mb", converter = Converters.MEBIBYTES_DATA_STORAGE_INT, deprecated = true)
     public DataStorageSpec.IntMebibytesBound cdc_total_space = new DataStorageSpec.IntMebibytesBound("0MiB");
@@ -563,6 +566,10 @@ public class Config
 
     @Replaces(oldName = "enable_materialized_views", converter = Converters.IDENTITY, deprecated = true)
     public boolean materialized_views_enabled = false;
+
+    // When true, materialized views data in SSTable go through commit logs during internodes streaming, e.g. repair
+    // When false, it behaves the same as normal streaming.
+    public volatile boolean materialized_views_on_repair_enabled = true;
 
     @Replaces(oldName = "enable_transient_replication", converter = Converters.IDENTITY, deprecated = true)
     public boolean transient_replication_enabled = false;

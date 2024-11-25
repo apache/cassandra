@@ -17,8 +17,6 @@
  */
 package org.apache.cassandra.streaming;
 
-import org.apache.cassandra.config.CassandraRelevantProperties;
-
 public enum StreamOperation
 {
     OTHER("Other"), // Fallback to avoid null types when deserializing from string
@@ -28,7 +26,7 @@ public enum StreamOperation
     BOOTSTRAP("Bootstrap", false),
     REBUILD("Rebuild", false),
     BULK_LOAD("Bulk Load"),
-    REPAIR("Repair", CassandraRelevantProperties.STREAMING_REQUIRES_VIEW_BUILD_DURING_REPAIR.getBoolean());
+    REPAIR("Repair");
 
     private final String description;
     private final boolean requiresViewBuild;
