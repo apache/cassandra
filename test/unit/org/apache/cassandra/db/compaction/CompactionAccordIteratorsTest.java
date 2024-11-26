@@ -440,7 +440,7 @@ public class CompactionAccordIteratorsTest
         if (durableBefore != null)
             durableBefores.put(commandStore.id(), durableBefore);
         Int2ObjectHashMap<CommandStores.RangesForEpoch> rangesForEpochs = new Int2ObjectHashMap<>();
-        rangesForEpochs.put(commandStore.id(), commandStore.unsafeRangesForEpoch());
+        rangesForEpochs.put(commandStore.id(), commandStore.unsafeGetRangesForEpoch());
         when(mockAccordService.getCompactionInfo()).thenReturn(new IAccordService.CompactionInfo(redundantBefores, rangesForEpochs, durableBefores));
         return mockAccordService;
     }
@@ -491,8 +491,8 @@ public class CompactionAccordIteratorsTest
         {
             Txn txn = txnId.kind().isWrite() ? writeTxn : readTxn;
             PartialDeps partialDeps = Deps.NONE.intersecting(AccordTestUtils.fullRange(txn));
-            PartialTxn partialTxn = txn.slice(commandStore.unsafeRangesForEpoch().currentRanges(), true);
-            Route<?> partialRoute = route.slice(commandStore.unsafeRangesForEpoch().currentRanges());
+            PartialTxn partialTxn = txn.slice(commandStore.unsafeGetRangesForEpoch().currentRanges(), true);
+            Route<?> partialRoute = route.slice(commandStore.unsafeGetRangesForEpoch().currentRanges());
             getUninterruptibly(commandStore.execute(contextFor(txnId, route, SYNC), safe -> {
                 CheckedCommands.preaccept(safe, txnId, partialTxn, route, appendDiffToKeyspace(commandStore));
             }).beginAsResult());

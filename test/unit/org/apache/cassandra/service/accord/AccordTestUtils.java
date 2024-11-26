@@ -350,12 +350,13 @@ public class AccordTestUtils
             this.ranges = ranges;
         }
 
-        private void set(CommandStore store)
+        private void set()
         {
-            add(1, new CommandStores.RangesForEpoch(1, ranges, store), ranges);
+            add(1, new CommandStores.RangesForEpoch(1, ranges), ranges);
         }
     }
 
+    // TODO: why unused?
     public static InMemoryCommandStore.Synchronized createInMemoryCommandStore(LongSupplier now, String keyspace, String table)
     {
         TableMetadata metadata = Schema.instance.getTableMetadata(keyspace, table);
@@ -378,7 +379,7 @@ public class AccordTestUtils
         SingleEpochRanges holder = new SingleEpochRanges(Ranges.of(range));
         InMemoryCommandStore.Synchronized result = new InMemoryCommandStore.Synchronized(0, time, new AccordAgent(),
                                                      null, null, cs -> null, holder);
-        holder.set(result);
+        holder.set();
         return result;
     }
 
@@ -421,7 +422,7 @@ public class AccordTestUtils
                                                            cs -> new NoOpProgressLog(),
                                                            cs -> new DefaultLocalListeners(new NoOpRemoteListeners(), new NoOpNotifySink()),
                                                            holder, journal, executor);
-        holder.set(result);
+        holder.set();
         result.unsafeUpdateRangesForEpoch();
         return result;
     }
