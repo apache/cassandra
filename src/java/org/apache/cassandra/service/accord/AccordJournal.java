@@ -241,9 +241,9 @@ public class AccordJournal implements IJournal, Shutdownable
     }
 
     @Override
-    public CommandStores.RangesForEpoch.Snapshot loadRangesForEpoch(int store)
+    public CommandStores.RangesForEpoch loadRangesForEpoch(int store)
     {
-        IdentityAccumulator<RangesForEpoch.Snapshot> accumulator = readAll(new JournalKey(TxnId.NONE, JournalKey.Type.RANGES_FOR_EPOCH, store));
+        IdentityAccumulator<RangesForEpoch> accumulator = readAll(new JournalKey(TxnId.NONE, JournalKey.Type.RANGES_FOR_EPOCH, store));
         return accumulator.get();
     }
 

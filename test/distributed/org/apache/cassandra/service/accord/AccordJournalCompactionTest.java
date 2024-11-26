@@ -90,12 +90,12 @@ public class AccordJournalCompactionTest
         DurableBeforeAccumulator durableBeforeAccumulator = new DurableBeforeAccumulator();
         NavigableMap<Timestamp, Ranges> safeToReadAtAccumulator = ImmutableSortedMap.of(Timestamp.NONE, Ranges.EMPTY);
         NavigableMap<TxnId, Ranges> bootstrapBeganAtAccumulator = ImmutableSortedMap.of(TxnId.NONE, Ranges.EMPTY);
-        RangesForEpoch.Snapshot rangesForEpochAccumulator = null;
+        RangesForEpoch rangesForEpochAccumulator = null;
 
         Gen<RedundantBefore> redundantBeforeGen = AccordGenerators.redundantBefore(DatabaseDescriptor.getPartitioner());
         Gen<DurableBefore> durableBeforeGen = AccordGenerators.durableBeforeGen(DatabaseDescriptor.getPartitioner());
         Gen<NavigableMap<Timestamp, Ranges>> safeToReadGen = AccordGenerators.safeToReadGen(DatabaseDescriptor.getPartitioner());
-        Gen<RangesForEpoch.Snapshot> rangesForEpochGen = AccordGenerators.rangesForEpoch(DatabaseDescriptor.getPartitioner());
+        Gen<RangesForEpoch> rangesForEpochGen = AccordGenerators.rangesForEpoch(DatabaseDescriptor.getPartitioner());
         Gen<Range> rangeGen = AccordGenerators.range(DatabaseDescriptor.getPartitioner());
         Gen<Deps> historicalTransactionsGen = depsGen();
 

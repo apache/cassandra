@@ -259,7 +259,7 @@ public class SavedCommand
 
         // Special-cased for Journal BurnTest integration
         if ((before != null && before.result() != null && before.result() != ResultSerializers.APPLIED) ||
-            (after.result() != null && after.result() != ResultSerializers.APPLIED))
+            (after != null && after.result() != null && after.result() != ResultSerializers.APPLIED))
         {
             flags = collectFlags(before, after, Command::writes, false, RESULT, flags);
         }

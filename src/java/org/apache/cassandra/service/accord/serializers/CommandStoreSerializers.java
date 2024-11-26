@@ -38,7 +38,6 @@ import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
-import org.apache.cassandra.service.accord.TokenRange;
 import org.apache.cassandra.utils.CollectionSerializers;
 import org.apache.cassandra.utils.NullableSerializer;
 
@@ -138,7 +137,7 @@ public class CommandStoreSerializers
         @Override
         public void serialize(RedundantBefore.Entry t, DataOutputPlus out, int version) throws IOException
         {
-            TokenRange.serializer.serialize((TokenRange) t.range, out, version);
+            KeySerializers.range.serialize(t.range, out, version);
             Invariants.checkState(t.startOwnershipEpoch <= t.endOwnershipEpoch);
             out.writeUnsignedVInt(t.startOwnershipEpoch);
             if (t.endOwnershipEpoch == Long.MAX_VALUE) out.writeUnsignedVInt(0L);
@@ -156,7 +155,7 @@ public class CommandStoreSerializers
         @Override
         public RedundantBefore.Entry deserialize(DataInputPlus in, int version) throws IOException
         {
-            Range range = TokenRange.serializer.deserialize(in, version);
+            Range range = KeySerializers.range.deserialize(in, version);
             long startEpoch = in.readUnsignedVInt();
             long endEpoch = in.readUnsignedVInt();
             if (endEpoch == 0) endEpoch = Long.MAX_VALUE;
@@ -175,7 +174,7 @@ public class CommandStoreSerializers
         @Override
         public long serializedSize(RedundantBefore.Entry t, int version)
         {
-            long size = TokenRange.serializer.serializedSize((TokenRange) t.range, version);
+            long size = KeySerializers.range.serializedSize(t.range, version);
             size += TypeSizes.sizeofUnsignedVInt(t.startOwnershipEpoch);
             size += TypeSizes.sizeofUnsignedVInt(t.endOwnershipEpoch == Long.MAX_VALUE ? 0 : 1 + t.endOwnershipEpoch - t.startOwnershipEpoch);
             size += CommandSerializers.txnId.serializedSize(t.locallyWitnessedOrInvalidatedBefore, version);

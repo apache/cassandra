@@ -517,7 +517,7 @@ public class AccordGenerators
         };
     }
 
-    public static Gen<RangesForEpoch.Snapshot> rangesForEpoch(IPartitioner partitioner)
+    public static Gen<RangesForEpoch> rangesForEpoch(IPartitioner partitioner)
     {
         Gen<Ranges> rangesGen = ranges(partitioner);
 
@@ -529,7 +529,7 @@ public class AccordGenerators
             Ranges[] ranges = new Ranges[size];
             for (int i = 0; i < size; i++)
                 ranges[i] = rangesGen.next(rs);
-            return new RangesForEpoch.Snapshot(epochs, ranges);
+            return new RangesForEpoch(epochs, ranges);
         };
     }
 

@@ -611,9 +611,9 @@ public class AccordCommandStore extends CommandStore
             unsafeSetSafeToRead(safeToRead);
     }
 
-    void loadRangesForEpoch(CommandStores.RangesForEpoch.Snapshot rangesForEpoch)
+    void loadRangesForEpoch(CommandStores.RangesForEpoch rangesForEpoch)
     {
         if (rangesForEpoch != null)
-            unsafeSetRangesForEpoch(new CommandStores.RangesForEpoch(rangesForEpoch.epochs, rangesForEpoch.ranges, this));
+            unsafeSetRangesForEpoch(rangesForEpoch);
     }
 }

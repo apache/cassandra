@@ -20,7 +20,6 @@ package org.apache.cassandra.service.accord;
 
 import java.util.Collections;
 import java.util.Map;
-import java.util.NavigableMap;
 import java.util.Set;
 import java.util.function.BiFunction;
 import javax.annotation.Nullable;
@@ -34,12 +33,9 @@ import accord.api.RoutingKey;
 import accord.impl.AbstractSafeCommandStore;
 import accord.impl.CommandsSummary;
 import accord.local.CommandStores;
-import accord.local.CommandStores.RangesForEpoch;
 import accord.local.NodeCommandStoreService;
-import accord.local.RedundantBefore;
 import accord.local.cfk.CommandsForKey;
 import accord.primitives.AbstractKeys;
-import accord.primitives.Ranges;
 import accord.primitives.Routables;
 import accord.primitives.Timestamp;
 import accord.primitives.Txn;
@@ -48,7 +44,6 @@ import accord.primitives.Unseekables;
 import accord.utils.Invariants;
 import org.apache.cassandra.service.accord.AccordCommandStore.ExclusiveCaches;
 
-import static accord.api.Journal.*;
 import static accord.utils.Invariants.illegalState;
 
 public class AccordSafeCommandStore extends AbstractSafeCommandStore<AccordSafeCommand, AccordSafeTimestampsForKey, AccordSafeCommandsForKey, AccordCommandStore.ExclusiveCaches>
@@ -56,20 +51,26 @@ public class AccordSafeCommandStore extends AbstractSafeCommandStore<AccordSafeC
     final AccordTask<?> task;
     private final @Nullable CommandsForRanges commandsForRanges;
     private final AccordCommandStore commandStore;
-    private RangesForEpoch ranges;
-    private FieldUpdates fieldUpdates;
 
     private AccordSafeCommandStore(AccordTask<?> task,
                                    @Nullable CommandsForRanges commandsForRanges,
                                    AccordCommandStore commandStore)
     {
-        super(task.preLoadContext());
+        super(task.preLoadContext(), commandStore);
         this.task = task;
         this.commandsForRanges = commandsForRanges;
         this.commandStore = commandStore;
         commandStore.updateRangesForEpoch(this);
-        if (this.ranges == null)
-            this.ranges = Invariants.nonNull(commandStore.unsafeRangesForEpoch());
+    }
+
+    @Override
+    public CommandStores.RangesForEpoch ranges()
+    {
+        CommandStores.RangesForEpoch ranges = super.ranges();
+        if (ranges != null)
+            return ranges;
+
+        return commandStore.unsafeGetRangesForEpoch();
     }
 
     public static AccordSafeCommandStore create(AccordTask<?> operation,
@@ -196,12 +197,6 @@ public class AccordSafeCommandStore extends AbstractSafeCommandStore<AccordSafeC
         return commandStore.node();
     }
 
-    @Override
-    public RangesForEpoch ranges()
-    {
-        return ranges;
-    }
-
     private <O> O mapReduce(Routables<?> keysOrRanges, BiFunction<CommandsSummary, O, O> map, O accumulate)
     {
         Invariants.checkState(context.keys().containsAll(keysOrRanges), "Attempted to access keysOrRanges outside of what was asked for; asked for %s, accessed %s", context.keys(), keysOrRanges);
@@ -277,88 +272,5 @@ public class AccordSafeCommandStore extends AbstractSafeCommandStore<AccordSafeC
     public String toString()
     {
         return "AccordSafeCommandStore(id=" + commandStore().id() + ")";
-    }
-
-    @Override
-    public void upsertRedundantBefore(RedundantBefore addRedundantBefore)
-    {
-        // TODO (required): this is a temporary measure, see comment on AccordJournalValueSerializers; upsert instead
-        //  when modifying, only modify together with AccordJournalValueSerializers
-        ensureFieldUpdates().newRedundantBefore = RedundantBefore.merge(redundantBefore(), addRedundantBefore);
-    }
-
-    @Override
-    public void setBootstrapBeganAt(NavigableMap<TxnId, Ranges> newBootstrapBeganAt)
-    {
-        ensureFieldUpdates().newBootstrapBeganAt = newBootstrapBeganAt;
-    }
-
-    @Override
-    public void setSafeToRead(NavigableMap<Timestamp, Ranges> newSafeToRead)
-    {
-        ensureFieldUpdates().newSafeToRead = newSafeToRead;
-    }
-
-    @Override
-    public void setRangesForEpoch(CommandStores.RangesForEpoch rangesForEpoch)
-    {
-        ensureFieldUpdates().newRangesForEpoch = rangesForEpoch.snapshot();
-        ranges = rangesForEpoch;
-    }
-
-    @Override
-    public NavigableMap<TxnId, Ranges> bootstrapBeganAt()
-    {
-        if (fieldUpdates != null && fieldUpdates.newBootstrapBeganAt != null)
-            return fieldUpdates.newBootstrapBeganAt;
-
-        return super.bootstrapBeganAt();
-    }
-
-    @Override
-    public NavigableMap<Timestamp, Ranges> safeToReadAt()
-    {
-        if (fieldUpdates != null && fieldUpdates.newSafeToRead != null)
-            return fieldUpdates.newSafeToRead;
-
-        return super.safeToReadAt();
-    }
-
-    @Override
-    public RedundantBefore redundantBefore()
-    {
-        if (fieldUpdates != null && fieldUpdates.newRedundantBefore != null)
-            return fieldUpdates.newRedundantBefore;
-
-        return super.redundantBefore();
-    }
-
-    private FieldUpdates ensureFieldUpdates()
-    {
-        if (fieldUpdates == null) fieldUpdates = new FieldUpdates();
-        return fieldUpdates;
-    }
-
-    public FieldUpdates fieldUpdates()
-    {
-        return fieldUpdates;
-    }
-
-    public void postExecute()
-    {
-        if (fieldUpdates == null)
-            return;
-
-        if (fieldUpdates.newRedundantBefore != null)
-            super.unsafeSetRedundantBefore(fieldUpdates.newRedundantBefore);
-
-        if (fieldUpdates.newBootstrapBeganAt != null)
-            super.setBootstrapBeganAt(fieldUpdates.newBootstrapBeganAt);
-
-        if (fieldUpdates.newSafeToRead != null)
-            super.setSafeToRead(fieldUpdates.newSafeToRead);
-
-        if (fieldUpdates.newRangesForEpoch != null)
-            super.setRangesForEpoch(ranges);
     }
 }
