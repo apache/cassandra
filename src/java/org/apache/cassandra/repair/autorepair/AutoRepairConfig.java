@@ -68,7 +68,7 @@ public class AutoRepairConfig implements Serializable
                     return new FullRepairState();
                 case incremental:
                     return new IncrementalRepairState();
-                case preview_repaired::
+                case preview_repaired:
                      return new PreviewRepairedState();
             }
 
