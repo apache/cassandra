@@ -76,7 +76,7 @@ public class SyncStatSummary
         }
     }
 
-    private static class Table
+    public static class Table
     {
         final String keyspace;
 
@@ -114,7 +114,7 @@ public class SyncStatSummary
             }
         }
 
-        void consumeStats(List<SyncStat> stats)
+        public void consumeStats(List<SyncStat> stats)
         {
             filter(stats, s -> s.summaries != null).forEach(this::consumeStat);
         }
@@ -133,7 +133,7 @@ public class SyncStatSummary
             totalsCalculated = true;
         }
 
-        boolean isCounter()
+        public boolean isCounter()
         {
             TableMetadata tmd = Schema.instance.getTableMetadata(keyspace, table);
             return tmd != null && tmd.isCounter();
@@ -153,6 +153,14 @@ public class SyncStatSummary
                 output.append("    ").append(session.toString()).append('\n');
             }
             return output.toString();
+        }
+
+        public long getBytes() {
+            return this.bytes;
+        }
+
+        public long getRanges() {
+            return this.ranges;
         }
     }
 
@@ -211,6 +219,11 @@ public class SyncStatSummary
             ranges += table.ranges;
         }
         totalsCalculated = true;
+    }
+
+    public Map<Pair<String, String>, Table> getTotals() {
+        calculateTotals();
+        return summaries;
     }
 
     public String toString()

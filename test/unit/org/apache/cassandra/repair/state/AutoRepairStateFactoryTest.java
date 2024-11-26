@@ -36,6 +36,10 @@ public class AutoRepairStateFactoryTest
         state = AutoRepairStateFactory.getAutoRepairState(RepairType.incremental);
 
         assert state instanceof IncrementalRepairState;
+
+        state = AutoRepairStateFactory.getAutoRepairState(RepairType.preview_repaired);
+
+        assert state instanceof PreviewRepairedState;
     }
 
     @Test

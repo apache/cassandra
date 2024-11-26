@@ -30,6 +30,8 @@ public class AutoRepairStateFactory
                 return new FullRepairState();
             case incremental:
                 return new IncrementalRepairState();
+            case preview_repaired:
+                return new PreviewRepairedState();
         }
 
         throw new IllegalArgumentException("Invalid repair type: " + repairType);
