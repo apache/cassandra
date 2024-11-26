@@ -30,6 +30,7 @@ import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.function.ToLongFunction;
 
+import accord.api.Journal;
 import accord.api.LocalListeners;
 import accord.api.ProgressLog;
 import accord.api.RemoteListeners;
@@ -39,6 +40,7 @@ import accord.impl.DefaultLocalListeners;
 import accord.impl.DefaultTimeouts;
 import accord.impl.SizeOfIntersectionSorter;
 import accord.impl.TestAgent;
+import accord.impl.basic.InMemoryJournal;
 import accord.impl.basic.SimulatedFault;
 import accord.local.Command;
 import accord.local.CommandStore;
@@ -68,7 +70,6 @@ import accord.primitives.Unseekables;
 import accord.topology.Topologies;
 import accord.topology.Topology;
 import accord.utils.Gens;
-import accord.utils.PersistentField;
 import accord.utils.RandomSource;
 import accord.utils.async.AsyncChains;
 import accord.utils.async.AsyncResult;
@@ -105,7 +106,7 @@ public class SimulatedAccordCommandStore implements AutoCloseable
     public final Node.Id nodeId;
     public final Topology topology;
     public final Topologies topologies;
-    public final IJournal journal;
+    public final Journal journal;
     public final ScheduledExecutorPlus unorderedScheduled;
     public final List<String> evictions = new ArrayList<>();
     public Predicate<Throwable> ignoreExceptions = ignore -> false;
@@ -185,7 +186,6 @@ public class SimulatedAccordCommandStore implements AutoCloseable
             }
         };
 
-        this.journal = new InMemoryJournal(nodeId);
         TestAgent.RethrowAgent agent = new TestAgent.RethrowAgent()
         {
             @Override
@@ -201,6 +201,8 @@ public class SimulatedAccordCommandStore implements AutoCloseable
                 super.onUncaughtException(t);
             }
         };
+
+        this.journal = new InMemoryJournal(nodeId, agent);
         this.commandStore = new AccordCommandStore(0,
                                                    storeService,
                                                    agent,
@@ -244,19 +246,6 @@ public class SimulatedAccordCommandStore implements AutoCloseable
                 }
             });
         });
-    }
-
-    private final class InMemoryJournal extends accord.impl.basic.InMemoryJournal implements IJournal
-    {
-        public InMemoryJournal(Node.Id id)
-        {
-            super(id);
-        }
-
-        public PersistentField.Persister<DurableBefore, DurableBefore> durableBeforePersister()
-        {
-            throw new IllegalArgumentException("Not implemented");
-        }
     }
 
     private <K, V> void updateLoadFunction(AccordCache.Type<K, V, ?> i, FunctionWrapper wrapper)

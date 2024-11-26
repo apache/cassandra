@@ -186,9 +186,6 @@ public class AccordLoadTest extends AccordTestBase
                     System.out.println("compacting accord...");
                     cluster.forEach(i -> {
                         i.nodetool("compact", "system_accord.journal");
-                        i.runOnInstance(() -> {
-                            ((AccordService) AccordService.instance()).journal().checkAllCommands();
-                        });
                     });
                 }
 
@@ -198,7 +195,6 @@ public class AccordLoadTest extends AccordTestBase
                     System.out.println("flushing journal...");
                     cluster.forEach(i -> i.runOnInstance(() -> {
                         ((AccordService) AccordService.instance()).journal().closeCurrentSegmentForTestingIfNonEmpty();
-                        ((AccordService) AccordService.instance()).journal().checkAllCommands();
                     }));
                 }
 

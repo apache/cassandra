@@ -92,6 +92,7 @@ import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.schema.TableMetadata;
+import org.apache.cassandra.service.accord.AccordJournal;
 import org.apache.cassandra.service.accord.AccordJournalValueSerializers;
 import org.apache.cassandra.service.accord.AccordJournalValueSerializers.FlyweightSerializer;
 import org.apache.cassandra.service.accord.AccordKeyspace;
@@ -101,7 +102,6 @@ import org.apache.cassandra.service.accord.AccordKeyspace.CommandsForKeyAccessor
 import org.apache.cassandra.service.accord.AccordService;
 import org.apache.cassandra.service.accord.IAccordService;
 import org.apache.cassandra.service.accord.JournalKey;
-import org.apache.cassandra.service.accord.SavedCommand;
 import org.apache.cassandra.service.accord.api.AccordAgent;
 import org.apache.cassandra.service.accord.api.AccordRoutingKey.TokenKey;
 import org.apache.cassandra.service.paxos.PaxosRepairHistory;
@@ -1016,7 +1016,7 @@ public class CompactionIterator extends CompactionInfo.Holder implements Unfilte
                     return newVersion.build().unfilteredIterator();
                 }
 
-                SavedCommand.Builder commandBuilder = (SavedCommand.Builder) builder;
+                AccordJournal.Builder commandBuilder = (AccordJournal.Builder) builder;
                 if (commandBuilder.isEmpty())
                 {
                     Invariants.checkState(rows.isEmpty());

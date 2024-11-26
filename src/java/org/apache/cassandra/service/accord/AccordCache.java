@@ -1212,7 +1212,7 @@ public class AccordCache implements CacheSize
 
             try
             {
-                return SavedCommand.asSerializedDiff(null, value, current_version);
+                return AccordJournal.asSerializedChange(null, value, current_version);
             }
             catch (IOException e)
             {
@@ -1224,7 +1224,7 @@ public class AccordCache implements CacheSize
         @Override
         public @Nullable Command inflate(TxnId key, Object serialized)
         {
-            SavedCommand.Builder builder = new SavedCommand.Builder(key);
+            AccordJournal.Builder builder = new AccordJournal.Builder(key);
             ByteBuffer buffer = (ByteBuffer) serialized;
             buffer.mark();
             try (DataInputBuffer buf = new DataInputBuffer(buffer, false))
