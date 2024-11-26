@@ -104,7 +104,7 @@ public class AccordCache implements CacheSize
         @Nullable V quickShrink(V value);
         // a result of null means we cannot shrink, and should save/evict as appropriate
         @Nullable Object fullShrink(K key, V value);
-        @Nullable V inflate(K key, Object shrunk);
+        @Nullable V inflate(AccordCommandStore commandStore, K key, Object shrunk);
         long estimateHeapSize(V value);
         long estimateShrunkHeapSize(Object shrunk);
         boolean validate(AccordCommandStore commandStore, K key, V value);
@@ -359,7 +359,7 @@ public class AccordCache implements CacheSize
         ToLongFunction<V> heapEstimator,
         Function<AccordCacheEntry<K, V>, S> safeRefFactory)
     {
-        return newType(keyClass, loadFunction, saveFunction, quickShrink, (i, j) -> j, (i, j) -> (V)j, validateFunction, heapEstimator, i -> 0, safeRefFactory);
+        return newType(keyClass, loadFunction, saveFunction, quickShrink, (i, j) -> j, (c, i, j) -> (V)j, validateFunction, heapEstimator, i -> 0, safeRefFactory);
     }
 
     public <K, V, S extends AccordSafeState<K, V>> Type<K, V, S> newType(
@@ -368,7 +368,7 @@ public class AccordCache implements CacheSize
         QuadFunction<AccordCommandStore, K, V, Object, Runnable> saveFunction,
         Function<V, V> quickShrink,
         BiFunction<K, V, Object> fullShrink,
-        BiFunction<K, Object, V> inflate,
+        TriFunction<AccordCommandStore, K, Object, V> inflate,
         TriFunction<AccordCommandStore, K, V, Boolean> validateFunction,
         ToLongFunction<V> heapEstimator,
         ToLongFunction<Object> shrunkHeapEstimator,
@@ -583,7 +583,7 @@ public class AccordCache implements CacheSize
                     {
                         Object shrunk = state.tryGetShrunk();
                         if (shrunk != null)
-                            evicted = adapter.inflate(key, shrunk);
+                            evicted = adapter.inflate(commandStore, key, shrunk);
                     }
                     catch (RuntimeException rte)
                     {
@@ -971,7 +971,7 @@ public class AccordCache implements CacheSize
         final QuadFunction<AccordCommandStore, K, V, Object, Runnable> save;
         final Function<V, V> quickShrink;
         final BiFunction<K, V, Object> shrink;
-        final BiFunction<K, Object, V> inflate;
+        final TriFunction<AccordCommandStore, K, Object, V> inflate;
         final TriFunction<AccordCommandStore, K, V, Boolean> validate;
         final ToLongFunction<V> estimateHeapSize;
         final ToLongFunction<Object> estimateShrunkHeapSize;
@@ -981,7 +981,7 @@ public class AccordCache implements CacheSize
         FunctionalAdapter(BiFunction<AccordCommandStore, K, V> load,
                           QuadFunction<AccordCommandStore, K, V, Object, Runnable> save,
                           Function<V, V> quickShrink, BiFunction<K, V, Object> shrink,
-                          BiFunction<K, Object, V> inflate,
+                          TriFunction<AccordCommandStore, K, Object, V> inflate,
                           TriFunction<AccordCommandStore, K, V, Boolean> validate,
                           ToLongFunction<V> estimateHeapSize,
                           ToLongFunction<Object> estimateShrunkHeapSize,
@@ -1030,9 +1030,9 @@ public class AccordCache implements CacheSize
         }
 
         @Override
-        public V inflate(K key, Object shrunk)
+        public V inflate(AccordCommandStore commandStore, K key, Object shrunk)
         {
-            return inflate.apply(key, shrunk);
+            return inflate.apply(commandStore, key, shrunk);
         }
 
         @Override
@@ -1096,7 +1096,7 @@ public class AccordCache implements CacheSize
         @Override public Runnable save(AccordCommandStore commandStore, K key, @Nullable V value, @Nullable Object shrunk) { return null; }
         @Override public V quickShrink(V value) { return null; }
         @Override public Object fullShrink(K key, V value) { return null; }
-        @Override public V inflate(K key, Object shrunk) { return null; }
+        @Override public V inflate(AccordCommandStore commandStore, K key, Object shrunk) { return null; }
         @Override public long estimateHeapSize(V value) { return 0; }
         @Override public long estimateShrunkHeapSize(Object shrunk) { return 0; }
         @Override public boolean validate(AccordCommandStore commandStore, K key, V value) { return false; }
@@ -1136,7 +1136,7 @@ public class AccordCache implements CacheSize
         }
 
         @Override
-        public CommandsForKey inflate(RoutingKey key, Object shrunk)
+        public CommandsForKey inflate(AccordCommandStore commandStore, RoutingKey key, Object shrunk)
         {
             return Serialize.fromBytes(key, (ByteBuffer)shrunk);
         }
@@ -1186,7 +1186,7 @@ public class AccordCache implements CacheSize
 
             if (value == null)
             {
-                value = inflate(txnId, serialized);
+                value = inflate(commandStore, txnId, serialized);
                 if (value == null)
                     return null;
             }
@@ -1212,7 +1212,7 @@ public class AccordCache implements CacheSize
 
             try
             {
-                return SavedCommand.asSerializedDiff(null, value, current_version);
+                return AccordJournal.asSerializedChange(null, value, current_version);
             }
             catch (IOException e)
             {
@@ -1222,15 +1222,15 @@ public class AccordCache implements CacheSize
         }
 
         @Override
-        public @Nullable Command inflate(TxnId key, Object serialized)
+        public @Nullable Command inflate(AccordCommandStore commandStore, TxnId key, Object serialized)
         {
-            SavedCommand.Builder builder = new SavedCommand.Builder(key);
+            AccordJournal.Builder builder = new AccordJournal.Builder(key);
             ByteBuffer buffer = (ByteBuffer) serialized;
             buffer.mark();
             try (DataInputBuffer buf = new DataInputBuffer(buffer, false))
             {
                 builder.deserializeNext(buf, current_version);
-                return builder.construct();
+                return builder.construct(commandStore.unsafeGetRedundantBefore());
             }
             catch (UnknownTableException e)
             {

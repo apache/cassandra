@@ -136,7 +136,7 @@ public class AccordJournalBurnTest extends BurnTestBase
                  operations,
                  10 + random.nextInt(30),
                  new RandomDelayQueue.Factory(random).get(),
-                 (node) -> {
+                 (node, agent) -> {
                      try
                      {
                          File directory = new File(Files.createTempDirectory(Integer.toString(counter.incrementAndGet())));
@@ -175,6 +175,4 @@ public class AccordJournalBurnTest extends BurnTestBase
             throw SimulationException.wrap(seed, t);
         }
     }
-
-
 }

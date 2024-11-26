@@ -26,7 +26,9 @@ import org.junit.Assert;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
+import accord.impl.CommandChange;
 import accord.local.Command;
+import accord.local.RedundantBefore;
 import accord.primitives.SaveStatus;
 import accord.primitives.TxnId;
 import accord.utils.Gen;
@@ -39,17 +41,17 @@ import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.StorageService;
-import org.apache.cassandra.service.accord.SavedCommand.Fields;
-import org.apache.cassandra.service.accord.SavedCommand.Load;
 import org.apache.cassandra.service.consensus.TransactionalMode;
 import org.apache.cassandra.utils.AccordGenerators;
 import org.assertj.core.api.SoftAssertions;
 
+import static accord.api.Journal.*;
+import static accord.impl.CommandChange.*;
+import static accord.impl.CommandChange.getFlags;
 import static accord.utils.Property.qt;
 import static org.apache.cassandra.cql3.statements.schema.CreateTableStatement.parse;
-import static org.apache.cassandra.service.accord.SavedCommand.getFlags;
 
-public class SavedCommandTest
+public class CommandChangeTest
 {
     private static final EnumSet<Fields> ALL = EnumSet.allOf(Fields.class);
 
@@ -97,13 +99,14 @@ public class SavedCommandTest
                     if (saveStatus == SaveStatus.TruncatedApplyWithDeps) continue;
                     out.clear();
                     Command orig = cmdBuilder.build(saveStatus);
-                    SavedCommand.serialize(orig, getFlags(null, orig), out, userVersion);
-                    SavedCommand.Builder builder = new SavedCommand.Builder(orig.txnId(), Load.ALL);
+
+                    AccordJournal.Writer.make(null, orig).write(out, userVersion);
+                    AccordJournal.Builder builder = new AccordJournal.Builder(orig.txnId(), Load.ALL);
                     builder.deserializeNext(new DataInputBuffer(out.unsafeGetBufferAndFlip(), false), userVersion);
                     // We are not persisting the result, so force it for strict equality
                     builder.forceResult(orig.result());
 
-                    Command reconstructed = builder.construct();
+                    Command reconstructed = builder.construct(RedundantBefore.EMPTY);
 
                     checks.assertThat(reconstructed)
                           .describedAs("lhs=expected\nrhs=actual\n%s", new LazyToString(() -> ReflectionUtils.recursiveEquals(orig, reconstructed).toString()))
@@ -119,10 +122,10 @@ public class SavedCommandTest
         SoftAssertions checks = new SoftAssertions();
         for (Fields field : missing)
         {
-            checks.assertThat(SavedCommand.getFieldChanged(field, flags))
+            checks.assertThat(CommandChange.getFieldChanged(field, flags))
                   .describedAs("field %s changed", field).
                   isTrue();
-            checks.assertThat(SavedCommand.getFieldIsNull(field, flags))
+            checks.assertThat(CommandChange.getFieldIsNull(field, flags))
                   .describedAs("field %s not null", field)
                   .isFalse();
         }
@@ -135,11 +138,11 @@ public class SavedCommandTest
         for (Fields field : missing)
         {
             if (field == Fields.CLEANUP) continue;
-            checks.assertThat(SavedCommand.getFieldChanged(field, flags))
+            checks.assertThat(CommandChange.getFieldChanged(field, flags))
                   .describedAs("field %s changed", field)
                   .isFalse();
             // Is null flag can not be set on a field that has not changed
-            checks.assertThat(SavedCommand.getFieldIsNull(field, flags))
+            checks.assertThat(CommandChange.getFieldIsNull(field, flags))
                   .describedAs("field %s not null", field)
                   .isFalse();
         }

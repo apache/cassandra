@@ -35,6 +35,7 @@ import com.google.common.annotations.VisibleForTesting;
 
 import accord.api.Agent;
 import accord.api.DataStore;
+import accord.api.Journal;
 import accord.api.LocalListeners;
 import accord.api.ProgressLog;
 import accord.api.RoutingKey;
@@ -63,7 +64,6 @@ import accord.utils.Invariants;
 import accord.utils.async.AsyncChain;
 import accord.utils.async.AsyncChains;
 import org.apache.cassandra.db.Mutation;
-import org.apache.cassandra.service.accord.SavedCommand.MinimalCommand;
 import org.apache.cassandra.service.accord.api.AccordRoutingKey.TokenKey;
 import org.apache.cassandra.service.accord.txn.TxnRead;
 import org.apache.cassandra.utils.Clock;
@@ -71,12 +71,12 @@ import org.apache.cassandra.utils.concurrent.UncheckedInterruptedException;
 
 import static accord.api.Journal.CommandUpdate;
 import static accord.api.Journal.FieldUpdates;
+import static accord.api.Journal.Load.MINIMAL;
 import static accord.api.Journal.Loader;
 import static accord.api.Journal.OnDone;
 import static accord.local.KeyHistory.SYNC;
 import static accord.primitives.Status.Committed;
 import static accord.utils.Invariants.checkState;
-import static org.apache.cassandra.service.accord.SavedCommand.Load.MINIMAL;
 
 public class AccordCommandStore extends CommandStore
 {
@@ -141,7 +141,7 @@ public class AccordCommandStore extends CommandStore
     }
 
     public final String loggingId;
-    private final IJournal journal;
+    private final Journal journal;
     private final AccordExecutor executor;
     private final Executor taskExecutor;
     private final ExclusiveCaches caches;
@@ -160,7 +160,7 @@ public class AccordCommandStore extends CommandStore
                               ProgressLog.Factory progressLogFactory,
                               LocalListeners.Factory listenerFactory,
                               EpochUpdateHolder epochUpdateHolder,
-                              IJournal journal,
+                              Journal journal,
                               AccordExecutor executor)
     {
         super(id, node, agent, dataStore, progressLogFactory, listenerFactory, epochUpdateHolder);
@@ -300,9 +300,9 @@ public class AccordCommandStore extends CommandStore
     }
 
     @VisibleForTesting
-    public void sanityCheckCommand(Command command)
+    public void sanityCheckCommand(RedundantBefore redundantBefore, Command command)
     {
-        ((AccordJournal) journal).sanityCheck(id, command);
+        ((AccordJournal) journal).sanityCheck(id, redundantBefore, command);
     }
 
     CommandsForKey loadCommandsForKey(RoutableKey key)
@@ -487,7 +487,7 @@ public class AccordCommandStore extends CommandStore
         return command;
     }
 
-    public MinimalCommand loadMinimal(TxnId txnId)
+    public Command.Minimal loadMinimal(TxnId txnId)
     {
         return journal.loadMinimal(id, txnId, MINIMAL, unsafeGetRedundantBefore(), durableBefore());
     }

@@ -35,8 +35,8 @@ import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.service.accord.serializers.CommandStoreSerializers;
 import org.apache.cassandra.service.accord.serializers.KeySerializers;
 
+import static accord.api.Journal.Load.ALL;
 import static accord.local.CommandStores.RangesForEpoch;
-import static org.apache.cassandra.service.accord.SavedCommand.Load.ALL;
 
 // TODO (required): test with large collection values, and perhaps split out some fields if they have a tendency to grow larger
 // TODO (required): alert on metadata size
@@ -56,16 +56,16 @@ public class AccordJournalValueSerializers
     }
 
     public static class CommandDiffSerializer
-    implements FlyweightSerializer<SavedCommand.Writer, SavedCommand.Builder>
+    implements FlyweightSerializer<AccordJournal.Writer, AccordJournal.Builder>
     {
         @Override
-        public SavedCommand.Builder mergerFor(JournalKey journalKey)
+        public AccordJournal.Builder mergerFor(JournalKey journalKey)
         {
-            return new SavedCommand.Builder(journalKey.id, ALL);
+            return new AccordJournal.Builder(journalKey.id, ALL);
         }
 
         @Override
-        public void serialize(JournalKey key, SavedCommand.Writer writer, DataOutputPlus out, int userVersion)
+        public void serialize(JournalKey key, AccordJournal.Writer writer, DataOutputPlus out, int userVersion)
         {
             try
             {
@@ -78,13 +78,17 @@ public class AccordJournalValueSerializers
         }
 
         @Override
-        public void reserialize(JournalKey key, SavedCommand.Builder from, DataOutputPlus out, int userVersion) throws IOException
+        public void reserialize(JournalKey key, AccordJournal.Builder from, DataOutputPlus out, int userVersion) throws IOException
         {
-            from.serialize(out, userVersion);
+            from.serialize(out,
+                           // In CompactionIterator, we are dealing with relatively recent records, so we do not pass redundant before here.
+                           // However, we do on load and during Journal SSTable compaction.
+                           RedundantBefore.EMPTY,
+                           userVersion);
         }
 
         @Override
-        public void deserialize(JournalKey journalKey, SavedCommand.Builder into, DataInputPlus in, int userVersion) throws IOException
+        public void deserialize(JournalKey journalKey, AccordJournal.Builder into, DataInputPlus in, int userVersion) throws IOException
         {
             into.deserializeNext(in, userVersion);
         }
@@ -296,8 +300,8 @@ public class AccordJournalValueSerializers
             from.forEach((epoch, ranges) -> {
                 try
                 {
-                    KeySerializers.ranges.serialize(ranges, out, messagingVersion);
                     out.writeLong(epoch);
+                    KeySerializers.ranges.serialize(ranges, out, messagingVersion);
                 }
                 catch (Throwable t)
                 {
@@ -320,8 +324,8 @@ public class AccordJournalValueSerializers
             long[] epochs = new long[size];
             for (int i = 0; i < ranges.length; i++)
             {
-                ranges[i] = KeySerializers.ranges.deserialize(in, messagingVersion);
                 epochs[i] = in.readLong();
+                ranges[i] = KeySerializers.ranges.deserialize(in, messagingVersion);
             }
             Invariants.checkState(ranges.length == epochs.length);
             into.update(new RangesForEpoch(epochs, ranges));

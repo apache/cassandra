@@ -18,19 +18,20 @@
 package org.apache.cassandra.service.accord;
 
 import java.io.IOException;
-import java.util.ArrayList;
+import java.nio.ByteBuffer;
 import java.util.Collections;
-import java.util.List;
 import java.util.NavigableMap;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.function.BiConsumer;
+import javax.annotation.Nullable;
 
 import com.google.common.annotations.VisibleForTesting;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import accord.impl.CommandChange;
 import accord.impl.ErasedSafeCommand;
 import accord.local.Cleanup;
 import accord.local.Command;
@@ -54,6 +55,7 @@ import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.io.util.DataInputBuffer;
 import org.apache.cassandra.io.util.DataInputPlus;
+import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.journal.Compactor;
@@ -65,14 +67,30 @@ import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.service.accord.AccordJournalValueSerializers.IdentityAccumulator;
 import org.apache.cassandra.service.accord.JournalKey.JournalKeySupport;
 import org.apache.cassandra.service.accord.api.AccordAgent;
+import org.apache.cassandra.service.accord.serializers.CommandSerializers;
+import org.apache.cassandra.service.accord.serializers.DepsSerializers;
+import org.apache.cassandra.service.accord.serializers.ResultSerializers;
+import org.apache.cassandra.service.accord.serializers.WaitingOnSerializer;
 import org.apache.cassandra.utils.ExecutorUtils;
+import org.apache.cassandra.utils.Throwables;
 import org.apache.cassandra.utils.concurrent.AsyncPromise;
 
+import static accord.impl.CommandChange.anyFieldChanged;
+import static accord.impl.CommandChange.getFieldChanged;
+import static accord.impl.CommandChange.getFieldIsNull;
+import static accord.impl.CommandChange.getFlags;
+import static accord.impl.CommandChange.getWaitingOn;
+import static accord.impl.CommandChange.nextSetField;
+import static accord.impl.CommandChange.setFieldChanged;
+import static accord.impl.CommandChange.setFieldIsNull;
+import static accord.impl.CommandChange.toIterableSetFields;
+import static accord.impl.CommandChange.unsetIterableFields;
+import static accord.impl.CommandChange.validateFlags;
 import static accord.primitives.SaveStatus.ErasedOrVestigial;
 import static accord.primitives.Status.Truncated;
 import static org.apache.cassandra.service.accord.AccordJournalValueSerializers.DurableBeforeAccumulator;
 
-public class AccordJournal implements IJournal, Shutdownable
+public class AccordJournal implements accord.api.Journal, Shutdownable
 {
     static
     {
@@ -188,7 +206,7 @@ public class AccordJournal implements IJournal, Shutdownable
     @Override
     public Command loadCommand(int commandStoreId, TxnId txnId, RedundantBefore redundantBefore, DurableBefore durableBefore)
     {
-        SavedCommand.Builder builder = loadDiffs(commandStoreId, txnId);
+        Builder builder = load(commandStoreId, txnId);
         Cleanup cleanup = builder.shouldCleanup(agent, redundantBefore, durableBefore);
         switch (cleanup)
         {
@@ -197,14 +215,14 @@ public class AccordJournal implements IJournal, Shutdownable
             case ERASE:
                 return ErasedSafeCommand.erased(txnId, ErasedOrVestigial);
         }
-        return builder.construct();
+        return builder.construct(redundantBefore);
     }
 
     @Override
-    public SavedCommand.MinimalCommand loadMinimal(int commandStoreId, TxnId txnId, SavedCommand.Load load, RedundantBefore redundantBefore, DurableBefore durableBefore)
+    public Command.Minimal loadMinimal(int commandStoreId, TxnId txnId, Load load, RedundantBefore redundantBefore, DurableBefore durableBefore)
     {
-        SavedCommand.Builder builder = loadDiffs(commandStoreId, txnId, load);
-        if (!builder.nextCalled)
+        Builder builder = loadDiffs(commandStoreId, txnId, load);
+        if (builder.isEmpty())
             return null;
 
         Cleanup cleanup = builder.shouldCleanup(node.agent(), redundantBefore, durableBefore);
@@ -215,11 +233,11 @@ public class AccordJournal implements IJournal, Shutdownable
             case ERASE:
                 return null;
         }
-        Invariants.checkState(builder.saveStatus != null, "No saveSatus loaded, but next was called and cleanup was not: %s", builder);
+        Invariants.checkState(builder.saveStatus() != null, "No saveSatus loaded, but next was called and cleanup was not: %s", builder);
         return builder.asMinimal();
     }
 
-    @VisibleForTesting
+    @Override
     public RedundantBefore loadRedundantBefore(int store)
     {
         IdentityAccumulator<RedundantBefore> accumulator = readAll(new JournalKey(TxnId.NONE, JournalKey.Type.REDUNDANT_BEFORE, store));
@@ -250,8 +268,8 @@ public class AccordJournal implements IJournal, Shutdownable
     @Override
     public void saveCommand(int store, CommandUpdate update, Runnable onFlush)
     {
-        SavedCommand.Writer diff = SavedCommand.diff(update.before, update.after);
-        if (diff == null || status == Status.REPLAY)
+        Writer diff = Writer.make(update.before, update.after);
+        if (diff == null)
         {
             if (onFlush != null)
                 onFlush.run();
@@ -272,9 +290,6 @@ public class AccordJournal implements IJournal, Shutdownable
             @Override
             public AsyncResult<?> persist(DurableBefore addDurableBefore, DurableBefore newDurableBefore)
             {
-                if (status == Status.REPLAY)
-                    return AsyncResults.success(null);
-
                 AsyncResult.Settable<Void> result = AsyncResults.settable();
                 JournalKey key = new JournalKey(TxnId.NONE, JournalKey.Type.DURABLE_BEFORE, 0);
                 RecordPointer pointer = appendInternal(key, addDurableBefore);
@@ -315,18 +330,18 @@ public class AccordJournal implements IJournal, Shutdownable
             onFlush.run();
     }
 
-    @VisibleForTesting
-    public SavedCommand.Builder loadDiffs(int commandStoreId, TxnId txnId, SavedCommand.Load load)
+    private Builder loadDiffs(int commandStoreId, TxnId txnId, Load load)
     {
         JournalKey key = new JournalKey(txnId, JournalKey.Type.COMMAND_DIFF, commandStoreId);
-        SavedCommand.Builder builder = new SavedCommand.Builder(txnId, load);
+        Builder builder = new Builder(txnId, load);
         journalTable.readAll(key, builder::deserializeNext);
         return builder;
     }
 
-    public SavedCommand.Builder loadDiffs(int commandStoreId, TxnId txnId)
+    @VisibleForTesting
+    public Builder load(int commandStoreId, TxnId txnId)
     {
-        return loadDiffs(commandStoreId, txnId, SavedCommand.Load.ALL);
+        return loadDiffs(commandStoreId, txnId, Load.ALL);
     }
 
     private <BUILDER> BUILDER readAll(JournalKey key)
@@ -351,17 +366,17 @@ public class AccordJournal implements IJournal, Shutdownable
         journal.closeCurrentSegmentForTestingIfNonEmpty();
     }
 
-    public void sanityCheck(int commandStoreId, Command orig)
+    public void sanityCheck(int commandStoreId, RedundantBefore redundantBefore, Command orig)
     {
-        SavedCommand.Builder diffs = loadDiffs(commandStoreId, orig.txnId());
-        diffs.forceResult(orig.result());
+        Builder builder = load(commandStoreId, orig.txnId());
+        builder.forceResult(orig.result());
         // We can only use strict equality if we supply result.
-        Command reconstructed = diffs.construct();
+        Command reconstructed = builder.construct(redundantBefore);
         Invariants.checkState(orig.equals(reconstructed),
                               '\n' +
                               "Original:      %s\n" +
                               "Reconstructed: %s\n" +
-                              "Diffs:         %s", orig, reconstructed, diffs);
+                              "Diffs:         %s", orig, reconstructed, builder);
     }
 
     @VisibleForTesting
@@ -391,7 +406,7 @@ public class AccordJournal implements IJournal, Shutdownable
         try (AccordJournalTable.KeyOrderIterator<JournalKey> iter = journalTable.readAll())
         {
             JournalKey key;
-            SavedCommand.Builder builder = new SavedCommand.Builder();
+            Builder builder = new Builder();
 
             while ((key = iter.key()) != null)
             {
@@ -417,12 +432,12 @@ public class AccordJournal implements IJournal, Shutdownable
                     }
                 });
 
-                if (builder.nextCalled)
+                if (!builder.isEmpty())
                 {
-                    Command command = builder.construct();
+                    CommandStore commandStore = commandStores.forId(key.commandStoreId);
+                    Command command = builder.construct(commandStore.unsafeGetRedundantBefore());
                     Invariants.checkState(command.saveStatus() != SaveStatus.Uninitialised,
                                           "Found uninitialized command in the log: %s %s", command.toString(), builder.toString());
-                    CommandStore commandStore = commandStores.forId(key.commandStoreId);
                     Loader loader = commandStore.loader();
                     async(loader::load, command).get();
                     if (command.saveStatus().compareTo(SaveStatus.Stable) >= 0 && !command.hasBeen(Truncated))
@@ -454,65 +469,306 @@ public class AccordJournal implements IJournal, Shutdownable
         return future;
     }
 
-    // TODO: this is here temporarily; for debugging purposes
-    @VisibleForTesting
-    public void checkAllCommands()
+    public static @Nullable ByteBuffer asSerializedChange(Command before, Command after, int userVersion) throws IOException
     {
-        try (AccordJournalTable.KeyOrderIterator<JournalKey> iter = journalTable.readAll())
+        try (DataOutputBuffer out = new DataOutputBuffer())
         {
-            IAccordService.CompactionInfo compactionInfo = AccordService.instance().getCompactionInfo();
-            JournalKey key;
-            SavedCommand.Builder builder = new SavedCommand.Builder();
-            while ((key = iter.key()) != null)
+            Writer writer = Writer.make(before, after);
+            if (writer == null)
+                return null;
+
+            writer.write(out, userVersion);
+            return out.asNewBuffer();
+        }
+    }
+
+    @VisibleForTesting
+    public void unsafeSetStarted()
+    {
+        status = Status.STARTED;
+    }
+
+    public static class Writer implements Journal.Writer
+    {
+        private final Command after;
+        private final int flags;
+
+        private Writer(Command after, int flags)
+        {
+            this.after = after;
+            this.flags = flags;
+        }
+
+        public static Writer make(Command before, Command after)
+        {
+            if (before == after
+                || after == null
+                || after.saveStatus() == SaveStatus.Uninitialised)
+                return null;
+
+            int flags = validateFlags(getFlags(before, after));
+            if (!anyFieldChanged(flags))
+                return null;
+
+            return new Writer(after, flags);
+        }
+
+        @Override
+        public void write(DataOutputPlus out, int userVersion) throws IOException
+        {
+            serialize(after, flags, out, userVersion);
+        }
+
+        private static void serialize(Command command, int flags, DataOutputPlus out, int userVersion) throws IOException
+        {
+            Invariants.checkState(flags != 0);
+            out.writeInt(flags);
+
+            int iterable = toIterableSetFields(flags);
+            while (iterable != 0)
             {
-                builder.reset(key.id);
-                if (key.type != JournalKey.Type.COMMAND_DIFF)
+                CommandChange.Fields field = nextSetField(iterable);
+                if (getFieldIsNull(field, flags))
                 {
-                    // TODO (required): add "skip" for the key to avoid getting stuck
-                    iter.readAllForKey(key, (segment, position, key1, buffer, hosts, userVersion) -> {});
+                    iterable = unsetIterableFields(field, iterable);
                     continue;
                 }
 
-                JournalKey finalKey = key;
-                List<RecordPointer> pointers = new ArrayList<>();
-                try
+                switch (field)
                 {
-                    iter.readAllForKey(key, (segment, position, local, buffer, hosts, userVersion) -> {
-                        pointers.add(new RecordPointer(segment, position));
-                        Invariants.checkState(finalKey.equals(local));
-                        try (DataInputBuffer in = new DataInputBuffer(buffer, false))
-                        {
-                            builder.deserializeNext(in, userVersion);
-                        }
-                        catch (IOException e)
-                        {
-                            // can only throw if serializer is buggy
-                            throw new RuntimeException(e);
-                        }
-                    });
+                    case EXECUTE_AT:
+                        CommandSerializers.timestamp.serialize(command.executeAt(), out, userVersion);
+                        break;
+                    case EXECUTES_AT_LEAST:
+                        CommandSerializers.timestamp.serialize(command.executesAtLeast(), out, userVersion);
+                        break;
+                    case SAVE_STATUS:
+                        out.writeShort(command.saveStatus().ordinal());
+                        break;
+                    case DURABILITY:
+                        out.writeByte(command.durability().ordinal());
+                        break;
+                    case ACCEPTED:
+                        CommandSerializers.ballot.serialize(command.acceptedOrCommitted(), out, userVersion);
+                        break;
+                    case PROMISED:
+                        CommandSerializers.ballot.serialize(command.promised(), out, userVersion);
+                        break;
+                    case PARTICIPANTS:
+                        CommandSerializers.participants.serialize(command.participants(), out, userVersion);
+                        break;
+                    case PARTIAL_TXN:
+                        CommandSerializers.partialTxn.serialize(command.partialTxn(), out, userVersion);
+                        break;
+                    case PARTIAL_DEPS:
+                        DepsSerializers.partialDeps.serialize(command.partialDeps(), out, userVersion);
+                        break;
+                    case WAITING_ON:
+                        Command.WaitingOn waitingOn = getWaitingOn(command);
+                        long size = WaitingOnSerializer.serializedSize(command.txnId(), waitingOn);
+                        ByteBuffer serialized = WaitingOnSerializer.serialize(command.txnId(), waitingOn);
+                        Invariants.checkState(serialized.remaining() == size);
+                        out.writeInt((int) size);
+                        out.write(serialized);
+                        break;
+                    case WRITES:
+                        CommandSerializers.writes.serialize(command.writes(), out, userVersion);
+                        break;
+                    case RESULT:
+                        ResultSerializers.result.serialize(command.result(), out, userVersion);
+                        break;
+                    case CLEANUP:
+                        throw new IllegalStateException();
+                }
 
-                    Cleanup cleanup = builder.shouldCleanup(node.agent(), compactionInfo.redundantBefores.get(key.commandStoreId), compactionInfo.durableBefores.get(key.commandStoreId));
-                    switch (cleanup)
-                    {
-                        case ERASE:
-                        case EXPUNGE:
-                        case EXPUNGE_PARTIAL:
-                        case VESTIGIAL:
-                            continue;
-                    }
-                    builder.construct();
-                }
-                catch (Throwable t)
-                {
-                    throw new RuntimeException(String.format("Caught an exception after iterating over: %s", pointers),
-                                               t);
-                }
+                iterable = unsetIterableFields(field, iterable);
             }
         }
     }
 
-    public void unsafeSetStarted()
+    public static class Builder extends CommandChange.Builder
     {
-        status = Status.STARTED;
+        public Builder()
+        {
+            super(null, Load.ALL);
+        }
+
+        public Builder(TxnId txnId)
+        {
+            super(txnId, Load.ALL);
+        }
+
+        public Builder(TxnId txnId, Load load)
+        {
+            super(txnId, load);
+        }
+        public ByteBuffer asByteBuffer(RedundantBefore redundantBefore, int userVersion) throws IOException
+        {
+            try (DataOutputBuffer out = new DataOutputBuffer())
+            {
+                serialize(out, redundantBefore, userVersion);
+                return out.asNewBuffer();
+            }
+        }
+
+        public Builder maybeCleanup(Cleanup cleanup)
+        {
+            super.maybeCleanup(cleanup);
+            return this;
+        }
+
+        public void serialize(DataOutputPlus out, RedundantBefore redundantBefore, int userVersion) throws IOException
+        {
+            Invariants.checkState(mask == 0);
+            Invariants.checkState(flags != 0);
+
+            int flags = validateFlags(this.flags);
+            Writer.serialize(construct(redundantBefore), flags, out, userVersion);
+        }
+
+        public void deserializeNext(DataInputPlus in, int userVersion) throws IOException
+        {
+            Invariants.checkState(txnId != null);
+            int flags = in.readInt();
+            Invariants.checkState(flags != 0);
+            nextCalled = true;
+            count++;
+
+            int iterable = toIterableSetFields(flags);
+            while (iterable != 0)
+            {
+                CommandChange.Fields field = nextSetField(iterable);
+                if (getFieldChanged(field, this.flags) || getFieldIsNull(field, mask))
+                {
+                    if (!getFieldIsNull(field, flags))
+                        skip(field, in, userVersion);
+
+                    iterable = unsetIterableFields(field, iterable);
+                    continue;
+                }
+                this.flags = setFieldChanged(field, this.flags);
+
+                if (getFieldIsNull(field, flags))
+                {
+                    this.flags = setFieldIsNull(field, this.flags);
+                }
+                else
+                {
+                    deserialize(field, in, userVersion);
+                }
+
+                iterable = unsetIterableFields(field, iterable);
+            }
+        }
+
+        private void deserialize(CommandChange.Fields field, DataInputPlus in, int userVersion) throws IOException
+        {
+            switch (field)
+            {
+                case EXECUTE_AT:
+                    executeAt = CommandSerializers.timestamp.deserialize(in, userVersion);
+                    break;
+                case EXECUTES_AT_LEAST:
+                    executeAtLeast = CommandSerializers.timestamp.deserialize(in, userVersion);
+                    break;
+                case SAVE_STATUS:
+                    saveStatus = SaveStatus.values()[in.readShort()];
+                    break;
+                case DURABILITY:
+                    durability = accord.primitives.Status.Durability.values()[in.readByte()];
+                    break;
+                case ACCEPTED:
+                    acceptedOrCommitted = CommandSerializers.ballot.deserialize(in, userVersion);
+                    break;
+                case PROMISED:
+                    promised = CommandSerializers.ballot.deserialize(in, userVersion);
+                    break;
+                case PARTICIPANTS:
+                    participants = CommandSerializers.participants.deserialize(in, userVersion);
+                    break;
+                case PARTIAL_TXN:
+                    partialTxn = CommandSerializers.partialTxn.deserialize(in, userVersion);
+                    break;
+                case PARTIAL_DEPS:
+                    partialDeps = DepsSerializers.partialDeps.deserialize(in, userVersion);
+                    break;
+                case WAITING_ON:
+                    int size = in.readInt();
+
+                    byte[] waitingOnBytes = new byte[size];
+                    in.readFully(waitingOnBytes);
+                    ByteBuffer buffer = ByteBuffer.wrap(waitingOnBytes);
+                    waitingOn = (localTxnId, deps) -> {
+                        try
+                        {
+                            Invariants.nonNull(deps);
+                            return WaitingOnSerializer.deserialize(localTxnId, deps.keyDeps.keys(), deps.rangeDeps, deps.directKeyDeps, buffer);
+                        }
+                        catch (IOException e)
+                        {
+                            throw Throwables.unchecked(e);
+                        }
+                    };
+                    break;
+                case WRITES:
+                    writes = CommandSerializers.writes.deserialize(in, userVersion);
+                    break;
+                case CLEANUP:
+                    Cleanup newCleanup = Cleanup.forOrdinal(in.readByte());
+                    if (cleanup == null || newCleanup.compareTo(cleanup) > 0)
+                        cleanup = newCleanup;
+                    break;
+                case RESULT:
+                    result = ResultSerializers.result.deserialize(in, userVersion);
+                    break;
+            }
+        }
+
+        private void skip(CommandChange.Fields field, DataInputPlus in, int userVersion) throws IOException
+        {
+            switch (field)
+            {
+                case EXECUTE_AT:
+                case EXECUTES_AT_LEAST:
+                    CommandSerializers.timestamp.skip(in, userVersion);
+                    break;
+                case SAVE_STATUS:
+                    in.readShort();
+                    break;
+                case DURABILITY:
+                    in.readByte();
+                    break;
+                case ACCEPTED:
+                case PROMISED:
+                    CommandSerializers.ballot.skip(in, userVersion);
+                    break;
+                case PARTICIPANTS:
+                    // TODO (expected): skip
+                    CommandSerializers.participants.deserialize(in, userVersion);
+                    break;
+                case PARTIAL_TXN:
+                    CommandSerializers.partialTxn.deserialize(in, userVersion);
+                    break;
+                case PARTIAL_DEPS:
+                    // TODO (expected): skip
+                    DepsSerializers.partialDeps.deserialize(in, userVersion);
+                    break;
+                case WAITING_ON:
+                    int size = in.readInt();
+                    in.skipBytesFully(size);
+                    break;
+                case WRITES:
+                    // TODO (expected): skip
+                    CommandSerializers.writes.deserialize(in, userVersion);
+                    break;
+                case CLEANUP:
+                    in.readByte();
+                    break;
+                case RESULT:
+                    // TODO (expected): skip
+                    result = ResultSerializers.result.deserialize(in, userVersion);
+                    break;
+            }
+        }
     }
 }

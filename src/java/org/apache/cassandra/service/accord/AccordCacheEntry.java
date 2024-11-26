@@ -368,7 +368,7 @@ public class AccordCacheEntry<K, V> extends IntrusiveLinkedListNode
         if (isShrunk())
         {
             AccordCache.Type<K, V, ?> parent = owner.parent();
-            inflate(key, parent.adapter());
+            inflate(owner.commandStore, key, parent.adapter());
             updateSize(parent);
         }
 
@@ -538,17 +538,17 @@ public class AccordCacheEntry<K, V> extends IntrusiveLinkedListNode
         return true;
     }
 
-    private void inflate(K key, Adapter<K, V, ?> adapter)
+    private void inflate(AccordCommandStore commandStore, K key, Adapter<K, V, ?> adapter)
     {
         Invariants.checkState(isShrunk());
         if (isNested())
         {
             Nested nested = (Nested) state;
-            nested.state = adapter.inflate(key, nested.state);
+            nested.state = adapter.inflate(commandStore, key, nested.state);
         }
         else
         {
-            state = adapter.inflate(key, state);
+            state = adapter.inflate(commandStore, key, state);
         }
         status &= ~SHRUNK;
     }
