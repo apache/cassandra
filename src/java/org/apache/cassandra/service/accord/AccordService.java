@@ -1253,7 +1253,7 @@ public class AccordService implements IAccordService, Shutdownable
             synchronized (redundantBefores)
             {
                 redundantBefores.put(safeStore.commandStore().id(), safeStore.redundantBefore());
-                ranges.put(safeStore.commandStore().id(), safeStore.ranges());
+                ranges.put(safeStore.commandStore().id(), safeStore.rangesForEpoch());
                 durableBefores.put(safeStore.commandStore().id(), safeStore.durableBefore());
             }
         }));

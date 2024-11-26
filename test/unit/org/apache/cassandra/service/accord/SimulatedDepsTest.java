@@ -186,7 +186,7 @@ public class SimulatedDepsTest extends SimulatedAccordCommandStoreTestBase
                 FullRangeRoute rangeRoute = ranges.toRoute(pk.toUnseekable());
                 Txn rangeTxn = createTxn(Txn.Kind.ExclusiveSyncPoint, ranges);
 
-                DepsModel model = new DepsModel(instance.commandStore.unsafeRangesForEpoch().currentRanges());
+                DepsModel model = new DepsModel(instance.commandStore.unsafeGetRangesForEpoch().currentRanges());
                 for (int i = 0; i < numSamples; i++)
                 {
                     instance.maybeCacheEvict(keyRoute, ranges);
@@ -258,7 +258,7 @@ public class SimulatedDepsTest extends SimulatedAccordCommandStoreTestBase
                 Range left = tokenRange(tbl.id, token - 10, token + 5);
                 Range right = tokenRange(tbl.id, token - 5, token + 10);
 
-                DepsModel model = new DepsModel(instance.commandStore.unsafeRangesForEpoch().currentRanges());
+                DepsModel model = new DepsModel(instance.commandStore.unsafeGetRangesForEpoch().currentRanges());
                 for (int i = 0; i < numSamples; i++)
                 {
                     Ranges partialRange = Ranges.of(rs.nextBoolean() ? left : right);

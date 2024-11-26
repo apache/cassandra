@@ -28,6 +28,7 @@ import accord.local.RedundantBefore;
 import accord.primitives.Ranges;
 import accord.primitives.Timestamp;
 import accord.primitives.TxnId;
+import accord.utils.Invariants;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.net.MessagingService;
@@ -280,44 +281,50 @@ public class AccordJournalValueSerializers
     }
 
     public static class RangesForEpochSerializer
-    implements FlyweightSerializer<RangesForEpoch.Snapshot, IdentityAccumulator<RangesForEpoch.Snapshot>>
+    implements FlyweightSerializer<RangesForEpoch, IdentityAccumulator<RangesForEpoch>>
     {
 
-        public IdentityAccumulator<RangesForEpoch.Snapshot> mergerFor(JournalKey key)
+        public IdentityAccumulator<RangesForEpoch> mergerFor(JournalKey key)
         {
             return new IdentityAccumulator<>(null);
         }
 
         @Override
-        public void serialize(JournalKey key, RangesForEpoch.Snapshot from, DataOutputPlus out, int userVersion) throws IOException
+        public void serialize(JournalKey key, RangesForEpoch from, DataOutputPlus out, int userVersion) throws IOException
         {
-            out.writeUnsignedVInt32(from.ranges.length);
-            for (Ranges ranges : from.ranges)
-                KeySerializers.ranges.serialize(ranges, out, messagingVersion);
-
-            out.writeUnsignedVInt32(from.epochs.length);
-            for (long epoch : from.epochs)
-                out.writeLong(epoch);
+            out.writeUnsignedVInt32(from.size());
+            from.forEach((epoch, ranges) -> {
+                try
+                {
+                    out.writeLong(epoch);
+                    KeySerializers.ranges.serialize(ranges, out, messagingVersion);
+                }
+                catch (Throwable t)
+                {
+                    throw new IllegalStateException("Serialization error", t);
+                }
+            });
         }
 
         @Override
-        public void reserialize(JournalKey key, IdentityAccumulator<RangesForEpoch.Snapshot> from, DataOutputPlus out, int userVersion) throws IOException
+        public void reserialize(JournalKey key, IdentityAccumulator<RangesForEpoch> from, DataOutputPlus out, int userVersion) throws IOException
         {
             serialize(key, from.get(), out, messagingVersion);
         }
 
         @Override
-        public void deserialize(JournalKey key, IdentityAccumulator<RangesForEpoch.Snapshot> into, DataInputPlus in, int userVersion) throws IOException
+        public void deserialize(JournalKey key, IdentityAccumulator<RangesForEpoch> into, DataInputPlus in, int userVersion) throws IOException
         {
-            Ranges[] ranges = new Ranges[in.readUnsignedVInt32()];
+            int size = in.readUnsignedVInt32();
+            Ranges[] ranges = new Ranges[size];
+            long[] epochs = new long[size];
             for (int i = 0; i < ranges.length; i++)
+            {
                 ranges[i] = KeySerializers.ranges.deserialize(in, messagingVersion);
-
-            long[] epochs = new long[in.readUnsignedVInt32()];
-            for (int i = 0; i < epochs.length; i++)
-                epochs[i] = in.readLong(); // TODO: assert lengths equal?
-
-            into.update(new RangesForEpoch.Snapshot(epochs, ranges));
+                epochs[i] = in.readLong();
+            }
+            Invariants.checkState(ranges.length == epochs.length);
+            into.update(new RangesForEpoch(epochs, ranges));
         }
     }
 }
