@@ -180,7 +180,6 @@ class TestCqlshCompletion(CqlshCompletionCase):
     def test_complete_in_uuid(self):
         pass
 
-    # for pytest ordering, use zero in test name to precede create keyspace and functions
     def test_complete_in_select(self):
         self.trycompletions('SELECT ',
                             choices=('*', '-',
