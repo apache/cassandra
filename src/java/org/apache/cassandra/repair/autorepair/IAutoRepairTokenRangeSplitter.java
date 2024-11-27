@@ -54,7 +54,7 @@ public interface IAutoRepairTokenRangeSplitter
      *                   The priority is determined using the {@link RepairAssignment#getPriority(AutoRepairConfig.RepairType)} method.
      */
     @VisibleForTesting
-    default void reorderByPriority(List<RepairAssignment> repairAssignments, AutoRepairConfig.RepairType repairType)
+    default <T extends RepairAssignment> void reorderByPriority(List<T> repairAssignments, AutoRepairConfig.RepairType repairType)
     {
         repairAssignments.sort(Comparator.comparingInt(a -> ((RepairAssignment) a).getPriority(repairType)).reversed());
     }

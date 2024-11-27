@@ -39,6 +39,7 @@ import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.repair.autorepair.IAutoRepairTokenRangeSplitter.RepairAssignment;
+import org.apache.cassandra.repair.autorepair.RepairRangeSplitter.SizedRepairAssignment;
 import org.apache.cassandra.utils.concurrent.Refs;
 
 import static org.apache.cassandra.repair.autorepair.RepairRangeSplitter.TABLE_BATCH_LIMIT;
@@ -186,7 +187,7 @@ public class RepairRangeSplitterTest extends CQLTester
     @Test
     public void testGetRepairAssignmentsForTable_NoSSTables() {
         Collection<Range<Token>> ranges = Collections.singleton(new Range<>(Murmur3Partitioner.instance.getMinimumToken(), Murmur3Partitioner.instance.getMaximumToken()));
-        List<RepairAssignment> assignments = repairRangeSplitter.getRepairAssignmentsForTable(AutoRepairConfig.RepairType.FULL, CQLTester.KEYSPACE, tableName, ranges);
+        List<SizedRepairAssignment> assignments = repairRangeSplitter.getRepairAssignmentsForTable(AutoRepairConfig.RepairType.FULL, CQLTester.KEYSPACE, tableName, ranges);
         assertEquals(0, assignments.size());
     }
 
@@ -194,7 +195,7 @@ public class RepairRangeSplitterTest extends CQLTester
     public void testGetRepairAssignmentsForTable_Single() throws Throwable {
         Collection<Range<Token>> ranges = Collections.singleton(new Range<>(DatabaseDescriptor.getPartitioner().getMinimumToken(), DatabaseDescriptor.getPartitioner().getMaximumToken()));
         insertAndFlushSingleTable(tableName);
-        List<RepairAssignment> assignments = repairRangeSplitter.getRepairAssignmentsForTable(AutoRepairConfig.RepairType.FULL, CQLTester.KEYSPACE, tableName, ranges);
+        List<SizedRepairAssignment> assignments = repairRangeSplitter.getRepairAssignmentsForTable(AutoRepairConfig.RepairType.FULL, CQLTester.KEYSPACE, tableName, ranges);
         assertEquals(1, assignments.size());
     }
 
@@ -250,7 +251,7 @@ public class RepairRangeSplitterTest extends CQLTester
     @Test(expected = IllegalStateException.class)
     public void testMergeEmptyAssignments() {
         // Test when the list of assignments is empty
-        List<RepairAssignment> emptyAssignments = Collections.emptyList();
+        List<SizedRepairAssignment> emptyAssignments = Collections.emptyList();
         RepairRangeSplitter.merge(emptyAssignments);
     }
 
@@ -260,10 +261,10 @@ public class RepairRangeSplitterTest extends CQLTester
         String keyspaceName = "testKeyspace";
         List<String> tableNames = Arrays.asList("table1", "table2");
 
-        RepairAssignment assignment = new RepairAssignment(FULL_RANGE, keyspaceName, tableNames);
-        List<RepairAssignment> assignments = Collections.singletonList(assignment);
+        SizedRepairAssignment assignment = new SizedRepairAssignment(FULL_RANGE, keyspaceName, tableNames, 0L);
+        List<SizedRepairAssignment> assignments = Collections.singletonList(assignment);
 
-        RepairAssignment result = RepairRangeSplitter.merge(assignments);
+        SizedRepairAssignment result = RepairRangeSplitter.merge(assignments);
 
         assertEquals(FULL_RANGE, result.getTokenRange());
         assertEquals(keyspaceName, result.getKeyspaceName());
@@ -277,11 +278,11 @@ public class RepairRangeSplitterTest extends CQLTester
         List<String> tableNames1 = Arrays.asList("table1", "table2");
         List<String> tableNames2 = Arrays.asList("table2", "table3");
 
-        RepairAssignment assignment1 = new RepairAssignment(FULL_RANGE, keyspaceName, tableNames1);
-        RepairAssignment assignment2 = new RepairAssignment(FULL_RANGE, keyspaceName, tableNames2);
-        List<RepairAssignment> assignments = Arrays.asList(assignment1, assignment2);
+        SizedRepairAssignment assignment1 = new SizedRepairAssignment(FULL_RANGE, keyspaceName, tableNames1, 0L);
+        SizedRepairAssignment assignment2 = new SizedRepairAssignment(FULL_RANGE, keyspaceName, tableNames2, 0L);
+        List<SizedRepairAssignment> assignments = Arrays.asList(assignment1, assignment2);
 
-        RepairAssignment result = RepairRangeSplitter.merge(assignments);
+        SizedRepairAssignment result = RepairRangeSplitter.merge(assignments);
 
         assertEquals(FULL_RANGE, result.getTokenRange());
         assertEquals(keyspaceName, result.getKeyspaceName());
@@ -299,9 +300,9 @@ public class RepairRangeSplitterTest extends CQLTester
         String keyspaceName = "testKeyspace";
         List<String> tableNames = Arrays.asList("table1", "table2");
 
-        RepairAssignment assignment1 = new RepairAssignment(tokenRange1, keyspaceName, tableNames);
-        RepairAssignment assignment2 = new RepairAssignment(tokenRange2, keyspaceName, tableNames);
-        List<RepairAssignment> assignments = Arrays.asList(assignment1, assignment2);
+        SizedRepairAssignment assignment1 = new SizedRepairAssignment(tokenRange1, keyspaceName, tableNames, 0L);
+        SizedRepairAssignment assignment2 = new SizedRepairAssignment(tokenRange2, keyspaceName, tableNames, 0L);
+        List<SizedRepairAssignment> assignments = Arrays.asList(assignment1, assignment2);
 
         RepairRangeSplitter.merge(assignments); // Should throw IllegalStateException
     }
@@ -311,9 +312,9 @@ public class RepairRangeSplitterTest extends CQLTester
         // Test merging assignments with different keyspace names
         List<String> tableNames = Arrays.asList("table1", "table2");
 
-        RepairAssignment assignment1 = new RepairAssignment(FULL_RANGE, "keyspace1", tableNames);
-        RepairAssignment assignment2 = new RepairAssignment(FULL_RANGE, "keyspace2", tableNames);
-        List<RepairAssignment> assignments = Arrays.asList(assignment1, assignment2);
+        SizedRepairAssignment assignment1 = new SizedRepairAssignment(FULL_RANGE, "keyspace1", tableNames, 0L);
+        SizedRepairAssignment assignment2 = new SizedRepairAssignment(FULL_RANGE, "keyspace2", tableNames, 0L);
+        List<SizedRepairAssignment> assignments = Arrays.asList(assignment1, assignment2);
 
         RepairRangeSplitter.merge(assignments); // Should throw IllegalStateException
     }
@@ -325,9 +326,9 @@ public class RepairRangeSplitterTest extends CQLTester
         List<String> tableNames1 = Arrays.asList("table1", "table2");
         List<String> tableNames2 = Arrays.asList("table2", "table3");
 
-        RepairAssignment assignment1 = new RepairAssignment(FULL_RANGE, keyspaceName, tableNames1);
-        RepairAssignment assignment2 = new RepairAssignment(FULL_RANGE, keyspaceName, tableNames2);
-        List<RepairAssignment> assignments = Arrays.asList(assignment1, assignment2);
+        SizedRepairAssignment assignment1 = new SizedRepairAssignment(FULL_RANGE, keyspaceName, tableNames1, 0L);
+        SizedRepairAssignment assignment2 = new SizedRepairAssignment(FULL_RANGE, keyspaceName, tableNames2, 0L);
+        List<SizedRepairAssignment> assignments = Arrays.asList(assignment1, assignment2);
 
         RepairAssignment result = RepairRangeSplitter.merge(assignments);
 
