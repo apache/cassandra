@@ -40,11 +40,6 @@ import org.apache.cassandra.transport.messages.QueryMessage;
 
 public class AuthMessageSizeLimitTest extends CQLTester
 {
-    // set MAX_CQL_AUTH_MESSAGE_SIZE less than a frame size to be able to test both decoding options on a server side:
-    // - org.apache.cassandra.transport.CQLMessageHandler.processOneContainedMessage
-    // - org.apache.cassandra.transport.CQLMessageHandler.processFirstFrameOfLargeMessage
-    private static final int MAX_CQL_AUTH_MESSAGE_SIZE = FrameEncoder.Payload.MAX_SIZE - 1000;
-    private static final int TOO_BIG_SINGLE_FRAME_AUTH_MESSAGE_SIZE = FrameEncoder.Payload.MAX_SIZE - 500;
     private static final int TOO_BIG_MULTI_FRAME_AUTH_MESSAGE_SIZE = 2 * FrameEncoder.Payload.MAX_SIZE;
 
     // set MAX_CQL_MESSAGE_SIZE bigger than TOO_BIG_MULTI_FRAME_AUTH_MESSAGE_SIZE to ensure what the auth message size check is more restrictive
@@ -67,8 +62,6 @@ public class AuthMessageSizeLimitTest extends CQLTester
         DatabaseDescriptor.setNativeTransportMaxRequestDataInFlightPerIpInBytes(MAX_CQL_MESSAGE_SIZE);
         DatabaseDescriptor.setNativeTransportConcurrentRequestDataInFlightInBytes(MAX_CQL_MESSAGE_SIZE);
         DatabaseDescriptor.setNativeTransportMaxMessageSizeInBytes(MAX_CQL_MESSAGE_SIZE);
-        DatabaseDescriptor.setNativeTransportMaxAuthMessageSizeInBytes(MAX_CQL_AUTH_MESSAGE_SIZE);
-
         requireNetwork();
         requireAuthentication();
     }
@@ -125,25 +118,6 @@ public class AuthMessageSizeLimitTest extends CQLTester
                    int valueLessThanMessageMaxSize = MAX_CQL_MESSAGE_SIZE - 500;
                    QueryMessage queryMessage = createQueryMessage(valueLessThanMessageMaxSize);
                    client.execute(queryMessage);
-               }
-        );
-    }
-
-    @Test
-    public void sendTooBigAuthSingleFrameMessage()
-    {
-        doTest((client) ->
-               {
-                   AuthResponse authResponse = createAuthMessage("cassandra", createIncorrectLongPassword(TOO_BIG_SINGLE_FRAME_AUTH_MESSAGE_SIZE));
-                   try
-                   {
-                       client.execute(authResponse);
-                   } catch (RuntimeException e) {
-                       // ProtocolException: Auth CQL Message of size 130587 bytes exceeds allowed maximum of 130072 bytes
-                       Assert.assertTrue(e.getCause() instanceof ProtocolException);
-                   }
-                   Util.spinAssertEquals(false, () -> client.connection.channel().isOpen(), 10);
-
                }
         );
     }

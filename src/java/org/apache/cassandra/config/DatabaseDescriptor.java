@@ -153,6 +153,9 @@ public class DatabaseDescriptor
     private static long counterCacheSizeInMiB;
     private static long indexSummaryCapacityInMiB;
 
+    private static volatile long nativeTransportMaxMessageSizeInBytes;
+    private static volatile boolean nativeTransportMaxMessageSizeConfiguredExplicitly;
+
     private static String localDC;
     private static Comparator<Replica> localComparator;
     private static EncryptionContext encryptionContext;
@@ -824,14 +827,9 @@ public class DatabaseDescriptor
 
         if (conf.native_transport_max_message_size == null)
         {
-            conf.native_transport_max_message_size = new DataStorageSpec.LongBytesBound(
-            Math.min(conf.max_mutation_size.toBytes(),
-                     Math.min(
-                        conf.native_transport_max_request_data_in_flight.toBytes(),
-                        conf.native_transport_max_request_data_in_flight_per_ip.toBytes()
-                     )
-            ));
+            conf.native_transport_max_message_size = new DataStorageSpec.LongBytesBound(calculateDefaultNativeTransportMaxMessageSizeInBytes());
         } else {
+            nativeTransportMaxMessageSizeConfiguredExplicitly = true;
             long maxCqlMessageSize = conf.native_transport_max_message_size.toBytes();
             if (maxCqlMessageSize > conf.native_transport_max_request_data_in_flight.toBytes())
                 throw new ConfigurationException("native_transport_max_message_size must no exceed native_transport_max_request_data_in_flight", false);
@@ -840,6 +838,7 @@ public class DatabaseDescriptor
                 throw new ConfigurationException("native_transport_max_message_size must no exceed native_transport_max_request_data_in_flight_per_ip", false);
 
         }
+        nativeTransportMaxMessageSizeInBytes = conf.native_transport_max_message_size.toBytes();
 
         // native transport encryption options
         if (conf.client_encryption_options != null)
@@ -2769,24 +2768,26 @@ public class DatabaseDescriptor
 
     public static long getNativeTransportMaxMessageSizeInBytes()
     {
-        return conf.native_transport_max_message_size.toBytes();
+        // the value of native_transport_max_message_size in bytes is cached
+        // to avoid conversion overhead during a parsing of each incoming CQL message
+        return nativeTransportMaxMessageSizeInBytes;
     }
 
     @VisibleForTesting
     public static void setNativeTransportMaxMessageSizeInBytes(long maxMessageSizeInBytes)
     {
         conf.native_transport_max_message_size = new DataStorageSpec.LongBytesBound(maxMessageSizeInBytes);
+        nativeTransportMaxMessageSizeInBytes = conf.native_transport_max_message_size.toBytes();
     }
 
-    public static long getNativeTransportMaxAuthMessageSizeInBytes()
+    private static long calculateDefaultNativeTransportMaxMessageSizeInBytes()
     {
-        return conf.native_transport_max_auth_message_size.toBytes();
-    }
-
-    @VisibleForTesting
-    public static void setNativeTransportMaxAuthMessageSizeInBytes(long maxAuthMessageSizeInBytes)
-    {
-        conf.native_transport_max_auth_message_size = new DataStorageSpec.LongBytesBound(maxAuthMessageSizeInBytes);
+        return Math.min(conf.max_mutation_size.toBytes(),
+                   Math.min(
+                   conf.native_transport_max_request_data_in_flight.toBytes(),
+                   conf.native_transport_max_request_data_in_flight_per_ip.toBytes()
+                   )
+        );
     }
 
     public static Config.PaxosVariant getPaxosVariant()
@@ -2915,6 +2916,10 @@ public class DatabaseDescriptor
             maxRequestDataInFlightInBytes = Runtime.getRuntime().maxMemory() / 40;
 
         conf.native_transport_max_request_data_in_flight_per_ip = new DataStorageSpec.LongBytesBound(maxRequestDataInFlightInBytes);
+        long newNativeTransportMaxMessageSizeInBytes = nativeTransportMaxMessageSizeConfiguredExplicitly
+                                                       ? Math.min(maxRequestDataInFlightInBytes, getNativeTransportMaxMessageSizeInBytes())
+                                                       : calculateDefaultNativeTransportMaxMessageSizeInBytes();
+        setNativeTransportMaxMessageSizeInBytes(newNativeTransportMaxMessageSizeInBytes);
     }
 
     public static long getNativeTransportMaxRequestDataInFlightInBytes()
@@ -2928,6 +2933,10 @@ public class DatabaseDescriptor
             maxRequestDataInFlightInBytes = Runtime.getRuntime().maxMemory() / 10;
 
         conf.native_transport_max_request_data_in_flight = new DataStorageSpec.LongBytesBound(maxRequestDataInFlightInBytes);
+        long newNativeTransportMaxMessageSizeInBytes = nativeTransportMaxMessageSizeConfiguredExplicitly
+                                                       ? Math.min(maxRequestDataInFlightInBytes, getNativeTransportMaxMessageSizeInBytes())
+                                                       : calculateDefaultNativeTransportMaxMessageSizeInBytes();
+        setNativeTransportMaxMessageSizeInBytes(newNativeTransportMaxMessageSizeInBytes);
     }
 
     public static int getNativeTransportMaxRequestsPerSecond()

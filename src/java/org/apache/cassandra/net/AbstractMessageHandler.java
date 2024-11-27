@@ -562,7 +562,7 @@ public abstract class AbstractMessageHandler extends ChannelInboundHandlerAdapte
             return size == received;
         }
 
-        private void onIntactFrame(IntactFrame frame)
+        protected void onIntactFrame(IntactFrame frame)
         {
             boolean expires = approxTime.isAfter(expiresAtNanos);
             if (!isExpired && !isCorrupt)
@@ -578,7 +578,7 @@ public abstract class AbstractMessageHandler extends ChannelInboundHandlerAdapte
             isExpired |= expires;
         }
 
-        private void onCorruptFrame()
+        protected void onCorruptFrame()
         {
             if (!isExpired && !isCorrupt)
                 releaseBuffersAndCapacity(); // release resources once we transition from normal state to corrupt
