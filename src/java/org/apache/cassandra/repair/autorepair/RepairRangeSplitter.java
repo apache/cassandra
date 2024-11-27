@@ -46,6 +46,7 @@ import org.apache.cassandra.db.lifecycle.View;
 import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
+import org.apache.cassandra.io.sstable.ISSTableScanner;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.sstable.format.big.BigTableReader;
 import org.apache.cassandra.io.sstable.format.big.BigTableScanner;
@@ -317,13 +318,13 @@ public class RepairRangeSplitter implements IAutoRepairTokenRangeSplitter
                 long memtableSize = cfs.getTracker().getView().getCurrentMemtable().getLiveDataSize();
                 if (memtableSize > 0L)
                 {
-                    logger.debug("Included {}.{} range {}, had no unrepaired SSTables, but memtableSize={}, adding single repair assignment", estimate.keyspace, estimate.table, estimate.tokenRange, memtableSize);
+                    logger.info("Included {}.{} range {}, had no unrepaired SSTables, but memtableSize={}, adding single repair assignment", estimate.keyspace, estimate.table, estimate.tokenRange, memtableSize);
                     SizedRepairAssignment assignment = new SizedRepairAssignment(estimate.tokenRange, estimate.keyspace, Collections.singletonList(estimate.table), estimate.sizeInRange);
                     repairAssignments.add(assignment);
                 }
                 else
                 {
-                    logger.debug("Skipping {}.{} for range {} because it had no unrepaired SSTables and no memtable data", estimate.keyspace, estimate.table, estimate.tokenRange);
+                    logger.info("Skipping {}.{} for range {} because it had no unrepaired SSTables and no memtable data", estimate.keyspace, estimate.table, estimate.tokenRange);
                 }
             }
             else
@@ -466,22 +467,30 @@ public class RepairRangeSplitter implements IAutoRepairTokenRangeSplitter
                 // still better to use the cardinality estimator then the index since it wont count duplicates.
                 // get the bounds of the sstable for this range using the index file but do not actually read it.
                 List<AbstractBounds<PartitionPosition>> bounds = BigTableScanner.makeBounds(reader, Collections.singleton(tokenRange));
-                try (BigTableScanner scanner = (BigTableScanner) BigTableScanner.getScanner((BigTableReader) reader, Collections.singleton(tokenRange)))
+
+                ISSTableScanner rangeScanner = BigTableScanner.getScanner((BigTableReader) reader, Collections.singleton(tokenRange));
+                // Type check scanner returned as it may be an EmptySSTableScanner if the range is not covered in the
+                // SSTable, in this case we will avoid incrementing approxBytesInRange.
+                if (rangeScanner instanceof BigTableScanner)
                 {
-                    assert bounds.size() == 1;
-
-                    AbstractBounds<PartitionPosition> bound = bounds.get(0);
-                    long startPosition = scanner.getDataPosition(bound.left);
-                    long endPosition = scanner.getDataPosition(bound.right);
-                    // If end position is 0 we can assume the sstable ended before that token, bound at size of file
-                    if (endPosition == 0)
+                    try (BigTableScanner scanner = (BigTableScanner) rangeScanner)
                     {
-                        endPosition = sstableSize;
-                    }
+                        assert bounds.size() == 1;
 
-                    long approximateRangeBytesInSSTable = Math.max(0, endPosition - startPosition);
-                    approxBytesInRange += Math.min(approximateRangeBytesInSSTable, sstableSize);
+                        AbstractBounds<PartitionPosition> bound = bounds.get(0);
+                        long startPosition = scanner.getDataPosition(bound.left);
+                        long endPosition = scanner.getDataPosition(bound.right);
+                        // If end position is 0 we can assume the sstable ended before that token, bound at size of file
+                        if (endPosition == 0)
+                        {
+                            endPosition = sstableSize;
+                        }
+
+                        long approximateRangeBytesInSSTable = Math.max(0, endPosition - startPosition);
+                        approxBytesInRange += Math.min(approximateRangeBytesInSSTable, sstableSize);
+                    }
                 }
+
             }
             catch (IOException | CardinalityMergeException e)
             {
