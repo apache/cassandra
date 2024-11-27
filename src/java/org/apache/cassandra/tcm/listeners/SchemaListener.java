@@ -55,6 +55,7 @@ public class SchemaListener implements ChangeListener
         if (!fromSnapshot && next.schema.lastModified().equals(prev.schema.lastModified()))
             return;
 
+        next.schema.notifyPostCommit(prev.schema, loadSSTables);
         DistributedSchema.maybeRebuildViews(prev.schema, next.schema);
         SchemaDiagnostics.versionUpdated(Schema.instance);
         Gossiper.instance.addLocalApplicationState(ApplicationState.SCHEMA, StorageService.instance.valueFactory.schema(next.schema.getVersion()));
