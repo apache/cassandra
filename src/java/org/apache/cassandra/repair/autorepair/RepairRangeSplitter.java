@@ -96,23 +96,21 @@ public class RepairRangeSplitter implements IAutoRepairTokenRangeSplitter
     private final long bytesPerSubrange;
     private final long partitionsPerSubrange;
 
-    private static final DataStorageSpec.LongBytesBound DEFAULT_SUBRANGE_SIZE = new DataStorageSpec.LongBytesBound("100GiB");
+    private static final long DEFAULT_SUBRANGE_SIZE = new DataStorageSpec.LongBytesBound("100GiB").toBytes();
     private static final long DEFAULT_MAX_BYTES_PER_SCHEDULE = Long.MAX_VALUE;
     private static final long DEFAULT_PARTITION_LIMIT = (long) Math.pow(2, DatabaseDescriptor.getRepairSessionMaxTreeDepth());
     private static final int DEFAULT_TABLE_BATCH_LIMIT = 64;
 
     public RepairRangeSplitter(Map<String, String> parameters)
     {
-        DataStorageSpec.LongBytesBound subrangeSize;
         if (parameters.containsKey(SUBRANGE_SIZE))
         {
-            subrangeSize = new DataStorageSpec.LongBytesBound(parameters.get(SUBRANGE_SIZE));
+            bytesPerSubrange = new DataStorageSpec.LongBytesBound(parameters.get(SUBRANGE_SIZE)).toBytes();
         }
         else
         {
-            subrangeSize = DEFAULT_SUBRANGE_SIZE;
+            bytesPerSubrange = DEFAULT_SUBRANGE_SIZE;
         }
-        bytesPerSubrange = subrangeSize.toBytes();
 
         if (parameters.containsKey(MAX_BYTES_PER_SCHEDULE))
         {
@@ -151,7 +149,8 @@ public class RepairRangeSplitter implements IAutoRepairTokenRangeSplitter
         }
 
         logger.info("Configured {} with {}={}, {}={}, {}={}, {}={}", RepairRangeSplitter.class.getName(),
-                    SUBRANGE_SIZE, subrangeSize, MAX_BYTES_PER_SCHEDULE, maxBytesPerSchedule,
+                    SUBRANGE_SIZE, FileUtils.stringifyFileSize(bytesPerSubrange),
+                    MAX_BYTES_PER_SCHEDULE, FileUtils.stringifyFileSize(maxBytesPerSchedule),
                     PARTITION_COUNT, partitionsPerSubrange, TABLE_BATCH_LIMIT, tablesPerAssignmentLimit);
     }
 
@@ -373,7 +372,7 @@ public class RepairRangeSplitter implements IAutoRepairTokenRangeSplitter
         // Meter: RepairRangeSplitter.RepairType.SkippedAssignments
         // Meter: RepairRangeSplitter.RepairType.SkippedBytes
         logger.warn(warning,
-                    repairAssignment.getEstimatedBytes(),
+                    FileUtils.stringifyFileSize(repairAssignment.getEstimatedBytes()),
                     repairAssignment.keyspaceName,
                     repairAssignment.tableNames,
                     FileUtils.stringifyFileSize(maxBytesPerSchedule),
