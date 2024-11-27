@@ -70,6 +70,7 @@ import org.apache.cassandra.io.util.PathUtils;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.schema.TableMetadata;
+import org.apache.cassandra.utils.CassandraVersion;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.JavaUtils;
 import org.apache.cassandra.utils.NativeLibrary;
@@ -133,6 +134,7 @@ public class StartupChecks
     // always want the system keyspace check run last, as this actually loads the schema for that
     // keyspace. All other checks should not require any schema initialization.
     private final List<StartupCheck> DEFAULT_TESTS = ImmutableList.of(checkKernelBug1057843,
+                                                                      checkPreviousVersion,
                                                                       checkJemalloc,
                                                                       checkLz4Native,
                                                                       checkValidLaunchDate,
@@ -246,6 +248,18 @@ public class StartupChecks
                                                      "a false positive result, you can suppress it by setting '" + IGNORE_KERNEL_BUG_1057843_CHECK.getKey() + "' system property to 'true'. " +
                                                      "Please see https://bugs.debian.org/cgi-bin/bugreport.cgi?bug=1057843 for more information.",
                                                      kernelVersion, affectedFileSystemTypes, affectedPaths));
+        }
+    };
+
+    public static final StartupCheck checkPreviousVersion = new StartupCheck()
+    {
+        @Override
+        public void execute(StartupChecksOptions options) throws StartupException
+        {
+            String previousVersionString = FBUtilities.getPreviousReleaseVersionString();
+            if (null != previousVersionString && new CassandraVersion(previousVersionString).major <= 3)
+                throw new StartupException(StartupException.ERR_WRONG_DISK_STATE,
+                                           String.format("Only upgrades from >=4.0 are supported, found %s", previousVersionString));
         }
     };
 
