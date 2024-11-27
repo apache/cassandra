@@ -25,6 +25,7 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -139,6 +140,12 @@ public class RepairRangeSplitter implements IAutoRepairTokenRangeSplitter
             tablesPerAssignmentLimit = DEFAULT_TABLE_BATCH_LIMIT;
         }
 
+        if (bytesPerSubrange > maxBytesPerSchedule)
+        {
+            throw new RuntimeException(String.format("bytesPerSubrange '%s' cannot be greater than maxBytesPerSchedule '%s'",
+                                                     FileUtils.stringifyFileSize(bytesPerSubrange), FileUtils.stringifyFileSize(maxBytesPerSchedule)));
+        }
+
         logger.info("Configured {} with {}={}, {}={}, {}={}, {}={}", RepairRangeSplitter.class.getName(),
                     SUBRANGE_SIZE, subrangeSize, MAX_BYTES_PER_SCHEDULE, maxBytesPerSchedule,
                     PARTITION_COUNT, partitionsPerSubrange, TABLE_BATCH_LIMIT, tablesPerAssignmentLimit);
@@ -155,9 +162,9 @@ public class RepairRangeSplitter implements IAutoRepairTokenRangeSplitter
     @VisibleForTesting
     List<RepairAssignment> getRepairAssignments(AutoRepairConfig.RepairType repairType, String keyspaceName, List<String> tableNames, Collection<Range<Token>> tokenRanges)
     {
-        List<RepairAssignment> repairAssignments = new ArrayList<>();
+        List<SizedRepairAssignment> repairAssignments = new ArrayList<>();
         // this is used for batching minimal single assignment tables together
-        List<RepairAssignment> currentAssignments = new ArrayList<>();
+        List<SizedRepairAssignment> currentAssignments = new ArrayList<>();
 
         // sort the tables by size so can batch the smallest ones together
         tableNames.sort((t1, t2) -> {
@@ -167,18 +174,30 @@ public class RepairRangeSplitter implements IAutoRepairTokenRangeSplitter
                 throw new IllegalArgumentException(String.format("Could not resolve ColumnFamilyStore from %s.%s", keyspaceName, t1));
             return Long.compare(cfs1.metric.totalDiskSpaceUsed.getCount(), cfs2.metric.totalDiskSpaceUsed.getCount());
         });
+
         for (String tableName : tableNames)
         {
-            List<RepairAssignment> tableAssignments = getRepairAssignmentsForTable(repairType, keyspaceName, tableName, tokenRanges);
+            List<SizedRepairAssignment> tableAssignments = getRepairAssignmentsForTable(repairType, keyspaceName, tableName, tokenRanges);
 
             if (tableAssignments.isEmpty())
                 continue;
 
             // If the table assignments are for the same token range, and we have room to add more tables to the current assignment
-            if (tableAssignments.size() == 1 && currentAssignments.size() < tablesPerAssignmentLimit &&
+            if (tableAssignments.size() == 1 &&
+                currentAssignments.size() < tablesPerAssignmentLimit &&
                 (currentAssignments.isEmpty() || currentAssignments.get(0).getTokenRange().equals(tableAssignments.get(0).getTokenRange())))
             {
-                currentAssignments.addAll(tableAssignments);
+                long currentAssignmentsBytes = getBytesInAssignments(currentAssignments);
+                long tableAssignmentsBytes = getBytesInAssignments(tableAssignments);
+                // only add assignments together if they don't exceed max bytes per schedule.
+                if (currentAssignmentsBytes + tableAssignmentsBytes < maxBytesPerSchedule) {
+                    currentAssignments.addAll(tableAssignments);
+                }
+                else
+                {
+                    // add table assignments by themselves
+                    repairAssignments.addAll(tableAssignments);
+                }
             }
             else
             {
@@ -193,12 +212,55 @@ public class RepairRangeSplitter implements IAutoRepairTokenRangeSplitter
         if (!currentAssignments.isEmpty())
             repairAssignments.add(merge(currentAssignments));
 
+        return filterRepairAssignments(repairType, repairAssignments);
+    }
+
+    /**
+     * Given a repair type and list of sized-based repair assignments order them by priority of the
+     * assignments' underlying tables and confine them by <code>maxBytesPerSchedule</code>.
+     * @param repairType used to determine underyling table priorities
+     * @param repairAssignments the assignments to filter.
+     * @return A list of repair assignments ordered by priority and confined by <code>maxBytesPerSchedule</code>.
+     */
+    protected List<RepairAssignment> filterRepairAssignments(AutoRepairConfig.RepairType repairType, List<SizedRepairAssignment> repairAssignments)
+    {
+        // Reorder the repair assignments
         reorderByPriority(repairAssignments, repairType);
-        return repairAssignments;
+
+        // Confine repair assignemnts by maxBytesPer Schedule if greater than maxBytesPerSchedule.
+        long assignmentBytes = getBytesInAssignments(repairAssignments);
+        if (assignmentBytes < maxBytesPerSchedule)
+            return repairAssignments.stream().map((a) -> (RepairAssignment)a).collect(Collectors.toList());
+        else
+        {
+            long bytesSoFar = 0L;
+            List<RepairAssignment> assignmentsToReturn = new ArrayList<>(repairAssignments.size());
+            for (SizedRepairAssignment repairAssignment : repairAssignments) {
+                // skip any repair assignments that would accumulate us past the maxBytesPerSchedule
+                if (bytesSoFar + repairAssignment.getEstimatedSizeInBytes() > maxBytesPerSchedule)
+                {
+                    // log that repair assignment was skipped.
+                    warnMaxBytesPerSchedule(repairType, repairAssignment);
+                }
+                else
+                {
+                    assignmentsToReturn.add(repairAssignment);
+                    bytesSoFar += repairAssignment.getEstimatedSizeInBytes();
+                }
+            }
+            return assignmentsToReturn;
+        }
     }
 
     @VisibleForTesting
-    static RepairAssignment merge(List<RepairAssignment> assignments)
+    protected static long getBytesInAssignments(List<SizedRepairAssignment> repairAssignments) {
+        return repairAssignments
+               .stream()
+               .mapToLong(SizedRepairAssignment::getEstimatedSizeInBytes).sum();
+    }
+
+    @VisibleForTesting
+    static SizedRepairAssignment merge(List<SizedRepairAssignment> assignments)
     {
         if (assignments.isEmpty())
             throw new IllegalStateException("Cannot merge empty assignments");
@@ -207,7 +269,7 @@ public class RepairRangeSplitter implements IAutoRepairTokenRangeSplitter
         Range<Token> referenceTokenRange = assignments.get(0).getTokenRange();
         String referenceKeyspaceName = assignments.get(0).getKeyspaceName();
 
-        for (RepairAssignment assignment : assignments)
+        for (SizedRepairAssignment assignment : assignments)
         {
             // These checks _should_ be unnecessary but are here to ensure that the assignments are consistent
             if (!assignment.getTokenRange().equals(referenceTokenRange))
@@ -218,40 +280,43 @@ public class RepairRangeSplitter implements IAutoRepairTokenRangeSplitter
             mergedTableNames.addAll(assignment.getTableNames());
         }
 
-        return new RepairAssignment(referenceTokenRange, referenceKeyspaceName, new ArrayList<>(mergedTableNames));
+        long sizeForAssignment = getBytesInAssignments(assignments);
+        return new SizedRepairAssignment(referenceTokenRange, referenceKeyspaceName, new ArrayList<>(mergedTableNames), sizeForAssignment);
     }
 
-    public List<RepairAssignment> getRepairAssignmentsForTable(AutoRepairConfig.RepairType repairType, String keyspaceName, String tableName, Collection<Range<Token>> tokenRanges)
+    @VisibleForTesting
+    protected List<SizedRepairAssignment> getRepairAssignmentsForTable(AutoRepairConfig.RepairType repairType, String keyspaceName, String tableName, Collection<Range<Token>> tokenRanges)
     {
-        List<RepairAssignment> repairAssignments = new ArrayList<>();
-
-        long targetBytesSoFar = 0;
-
         List<SizeEstimate> sizeEstimates = getRangeSizeEstimate(repairType, keyspaceName, tableName, tokenRanges);
+        return getRepairAssignments(sizeEstimates);
+    }
+
+    @VisibleForTesting
+    protected List<SizedRepairAssignment> getRepairAssignments(List<SizeEstimate> sizeEstimates)
+    {
+        List<SizedRepairAssignment> repairAssignments = new ArrayList<>();
+
         // since its possible for us to hit maxBytesPerSchedule before seeing all ranges, shuffle so there is chance
         // at least of hitting all the ranges _eventually_ for the worst case scenarios
         Collections.shuffle(sizeEstimates);
         for (SizeEstimate estimate : sizeEstimates)
         {
-            // Calculate the smallest subrange if we were to split, this can be used to determine if we can do any
-            // work if we have a non-zero estimate.
-            long smallestSubrange = Math.min(estimate.sizeForRepair, bytesPerSubrange);
             if (estimate.sizeForRepair == 0)
             {
-                ColumnFamilyStore cfs = ColumnFamilyStore.getIfExists(keyspaceName, tableName);
+                ColumnFamilyStore cfs = ColumnFamilyStore.getIfExists(estimate.keyspace, estimate.table);
                 long memtableSize = cfs.getTracker().getView().getCurrentMemtable().getLiveDataSize();
                 if (memtableSize > 0L)
                 {
-                    logger.debug("Included {}.{} range {}, had no unrepaired SSTables, but memtableSize={}, adding single repair assignment", keyspaceName, tableName, estimate.tokenRange, memtableSize);
-                    RepairAssignment assignment = new RepairAssignment(estimate.tokenRange, keyspaceName, Collections.singletonList(tableName));
+                    logger.debug("Included {}.{} range {}, had no unrepaired SSTables, but memtableSize={}, adding single repair assignment", estimate.keyspace, estimate.table, estimate.tokenRange, memtableSize);
+                    SizedRepairAssignment assignment = new SizedRepairAssignment(estimate.tokenRange, estimate.keyspace, Collections.singletonList(estimate.table), estimate.sizeInRange);
                     repairAssignments.add(assignment);
                 }
                 else
                 {
-                    logger.debug("Skipping {}.{} for range {} because it had no unrepaired SSTables and no memtable data", keyspaceName, tableName, estimate.tokenRange);
+                    logger.debug("Skipping {}.{} for range {} because it had no unrepaired SSTables and no memtable data", estimate.keyspace, estimate.table, estimate.tokenRange);
                 }
             }
-            else if (targetBytesSoFar + smallestSubrange < maxBytesPerSchedule)
+            else
             {
                 // Check if the estimate needs splitting based on the criteria
                 boolean needsSplitting = estimate.sizeForRepair > bytesPerSubrange || estimate.partitions > partitionsPerSubrange;
@@ -263,48 +328,37 @@ public class RepairRangeSplitter implements IAutoRepairTokenRangeSplitter
                     Collection<Range<Token>> subranges = split(estimate.tokenRange, numberOfSplits);
                     for (Range<Token> subrange : subranges)
                     {
-                        if (targetBytesSoFar + approximateBytesPerSplit > maxBytesPerSchedule)
-                        {
-                            warnMaxBytesPerSchedule(repairType, keyspaceName, tableName);
-                            break;
-                        }
                         logger.info("Added repair assignment for {}.{} for subrange {} (#{}/{})",
-                                    keyspaceName, tableName, subrange, repairAssignments.size() + 1, numberOfSplits);
-                        RepairAssignment assignment = new RepairAssignment(subrange, keyspaceName, Collections.singletonList(tableName));
+                                    estimate.keyspace, estimate.table, subrange, repairAssignments.size() + 1, numberOfSplits);
+                        SizedRepairAssignment assignment = new SizedRepairAssignment(subrange, estimate.keyspace, Collections.singletonList(estimate.table), approximateBytesPerSplit);
                         repairAssignments.add(assignment);
-                        targetBytesSoFar += approximateBytesPerSplit;
                     }
                 }
                 else
                 {
                     logger.info("Using 1 repair assignment for {}.{} for range {} as rangeBytes={} is less than {}={} and partitionEstimate={} is less than {}={}",
-                                keyspaceName, tableName, estimate.tokenRange,
+                                estimate.keyspace, estimate.table, estimate.tokenRange,
                                 FileUtils.stringifyFileSize(estimate.sizeForRepair),
                                 SUBRANGE_SIZE, FileUtils.stringifyFileSize(bytesPerSubrange),
                                 estimate.partitions,
                                 PARTITION_COUNT, partitionsPerSubrange);
                     // No splitting needed, repair the entire range as-is
-                    RepairAssignment assignment = new RepairAssignment(estimate.tokenRange, keyspaceName, Collections.singletonList(tableName));
+                    SizedRepairAssignment assignment = new SizedRepairAssignment(estimate.tokenRange, estimate.keyspace, Collections.singletonList(estimate.table), estimate.sizeForRepair);
                     repairAssignments.add(assignment);
                 }
-            }
-            else
-            {
-                // Really this is "Ok" but it does mean we are relying on randomness to cover the other ranges
-                warnMaxBytesPerSchedule(repairType, keyspaceName, tableName);
             }
         }
         return repairAssignments;
     }
 
-    private void warnMaxBytesPerSchedule(AutoRepairConfig.RepairType repairType, String keyspaceName, String tableName)
+    private void warnMaxBytesPerSchedule(AutoRepairConfig.RepairType repairType, SizedRepairAssignment repairAssignment)
     {
-        String warning = "Refusing to add repair assignment for {}.{} because it would increase total repair bytes greater {}";
+        String warning = "Refusing to add repair assignment of size {} for {}.{} because it would increase total repair bytes to a value greater than {}";
         if (repairType == AutoRepairConfig.RepairType.FULL)
         {
             warning = warning + ", everything will not be repaired this schedule. Consider increasing maxBytesPerSchedule, reducing node density or monitoring to ensure all ranges do get repaired within gc_grace_seconds";
         }
-        logger.warn(warning, keyspaceName, tableName, FileUtils.stringifyFileSize(maxBytesPerSchedule));
+        logger.warn(warning, repairAssignment.getEstimatedSizeInBytes(), repairAssignment.keyspaceName, repairAssignment.tableNames, FileUtils.stringifyFileSize(maxBytesPerSchedule));
     }
 
     private int calculateNumberOfSplits(SizeEstimate estimate)
@@ -480,5 +534,49 @@ public class RepairRangeSplitter implements IAutoRepairTokenRangeSplitter
 
             this.sizeForRepair = repairType == AutoRepairConfig.RepairType.INCREMENTAL ? totalSize : sizeInRange;
         }
+    }
+
+    @VisibleForTesting
+    protected static class SizedRepairAssignment extends RepairAssignment {
+
+        final long estimatedSizedInBytes;
+
+        public SizedRepairAssignment(Range<Token> tokenRange, String keyspaceName, List<String> tableNames, long estimatedSizeInBytes)
+        {
+            super(tokenRange, keyspaceName, tableNames);
+            this.estimatedSizedInBytes = estimatedSizeInBytes;
+        }
+
+        public long getEstimatedSizeInBytes() {
+            return estimatedSizedInBytes;
+        }
+
+        @Override
+        public boolean equals(Object o)
+        {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            if (!super.equals(o)) return false;
+            SizedRepairAssignment that = (SizedRepairAssignment) o;
+            return estimatedSizedInBytes == that.estimatedSizedInBytes;
+        }
+
+        @Override
+        public int hashCode()
+        {
+            return Objects.hash(super.hashCode(), estimatedSizedInBytes);
+        }
+
+        @Override
+        public String toString()
+        {
+            return "SizedRepairAssignement{" +
+                   "estimatedSizedInBytes=" + FileUtils.stringifyFileSize(estimatedSizedInBytes) +
+                   ", keyspaceName='" + keyspaceName + '\'' +
+                   ", tokenRange=" + tokenRange +
+                   ", tableNames=" + tableNames +
+                   '}';
+        }
+
     }
 }
