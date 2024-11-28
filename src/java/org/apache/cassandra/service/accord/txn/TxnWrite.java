@@ -26,6 +26,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
+import java.util.concurrent.TimeUnit;
 import javax.annotation.Nonnull;
 
 import com.google.common.base.Function;
@@ -35,11 +36,10 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import accord.api.DataStore;
-import accord.api.Key;
+import accord.api.RoutingKey;
 import accord.api.Write;
-import accord.impl.TimestampsForKey;
-import accord.impl.TimestampsForKeys;
 import accord.local.SafeCommandStore;
+import accord.local.cfk.SafeCommandsForKey;
 import accord.primitives.PartialTxn;
 import accord.primitives.RoutableKey;
 import accord.primitives.Seekable;
@@ -64,7 +64,6 @@ import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.schema.ColumnMetadata;
-import org.apache.cassandra.service.accord.AccordSafeTimestampsForKey;
 import org.apache.cassandra.service.accord.api.PartitionKey;
 import org.apache.cassandra.utils.BooleanSerializer;
 import org.apache.cassandra.utils.ByteBufferUtil;
@@ -389,10 +388,11 @@ public class TxnWrite extends AbstractKeySorted<TxnWrite.Update> implements Writ
         // TODO (expected, efficiency): 99.9999% of the time we can just use executeAt.hlc(), so can avoid bringing
         //  cfk into memory by retaining at all times in memory key ranges that are dirty and must use this logic;
         //  any that aren't can just use executeAt.hlc
-        TimestampsForKey cfk = TimestampsForKeys.updateLastExecutionTimestamps(safeStore, ((Key) key).toUnseekable(), txnId, executeAt, true);
-        long timestamp = AccordSafeTimestampsForKey.timestampMicrosFor(cfk, executeAt, true);
+        SafeCommandsForKey safeCfk = safeStore.get((RoutingKey) key.toUnseekable());
+
+        long timestamp = safeCfk.current().uniqueHlc(safeStore, txnId, executeAt);
         // TODO (low priority - do we need to compute nowInSeconds, or can we just use executeAt?)
-        int nowInSeconds = AccordSafeTimestampsForKey.nowInSecondsFor(cfk, executeAt, true);
+        int nowInSeconds = (int) TimeUnit.MICROSECONDS.toSeconds(executeAt.hlc());
 
         List<AsyncChain<Void>> results = new ArrayList<>();
 

@@ -23,6 +23,7 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
 import accord.api.Result;
+import accord.api.RoutingKey;
 import accord.messages.BeginRecovery;
 import accord.messages.BeginRecovery.RecoverNack;
 import accord.messages.BeginRecovery.RecoverOk;
@@ -30,6 +31,7 @@ import accord.messages.BeginRecovery.RecoverReply;
 import accord.primitives.Ballot;
 import accord.primitives.Deps;
 import accord.primitives.FullRoute;
+import accord.primitives.Known.KnownDeps;
 import accord.primitives.LatestDeps;
 import accord.primitives.PartialTxn;
 import accord.primitives.Route;
@@ -44,7 +46,6 @@ import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.service.accord.serializers.TxnRequestSerializer.WithUnsyncedSerializer;
 
 import static accord.messages.BeginRecovery.RecoverReply.Kind.Ok;
-import static org.apache.cassandra.service.accord.serializers.LatestDepsSerializers.latestDeps;
 import static org.apache.cassandra.utils.NullableSerializer.deserializeNullable;
 import static org.apache.cassandra.utils.NullableSerializer.serializeNullable;
 import static org.apache.cassandra.utils.NullableSerializer.serializedNullableSize;
@@ -176,6 +177,82 @@ public class RecoverySerializers
         {
             return TypeSizes.BYTE_SIZE
                    + (reply.kind() == Ok ? serializedOkSize((RecoverOk) reply, version) : serializedNackSize((RecoverNack) reply, version));
+        }
+    };
+
+    public static final IVersionedSerializer<LatestDeps> latestDeps = new IVersionedSerializer<>()
+    {
+        @Override
+        public void serialize(LatestDeps t, DataOutputPlus out, int version) throws IOException
+        {
+            out.writeUnsignedVInt32(t.size());
+            for (int i = 0 ; i < t.size() ; ++i)
+            {
+                RoutingKey start = t.startAt(i);
+                KeySerializers.routingKey.serialize(start, out, version);
+                LatestDeps.LatestEntry e = t.valueAt(i);
+                if (e == null)
+                {
+                    CommandSerializers.nullableKnownDeps.serialize(null, out, version);
+                }
+                else
+                {
+                    CommandSerializers.nullableKnownDeps.serialize(e.known, out, version);
+                    CommandSerializers.ballot.serialize(e.ballot, out, version);
+                    DepsSerializers.nullableDeps.serialize(e.coordinatedDeps, out, version);
+                    DepsSerializers.nullableDeps.serialize(e.localDeps, out, version);
+                }
+            }
+            KeySerializers.routingKey.serialize(t.startAt(t.size()), out, version);
+        }
+
+        @Override
+        public LatestDeps deserialize(DataInputPlus in, int version) throws IOException
+        {
+            int size = in.readUnsignedVInt32();
+            RoutingKey[] starts = new RoutingKey[size + 1];
+            LatestDeps.LatestEntry[] values = new LatestDeps.LatestEntry[size];
+            for (int i = 0 ; i < size ; ++i)
+            {
+                starts[i] = KeySerializers.routingKey.deserialize(in, version);
+                KnownDeps knownDeps = CommandSerializers.nullableKnownDeps.deserialize(in, version);
+                if (knownDeps == null)
+                    continue;
+
+                Ballot ballot = CommandSerializers.ballot.deserialize(in, version);
+                Deps coordinatedDeps = DepsSerializers.nullableDeps.deserialize(in, version);
+                Deps localDeps = DepsSerializers.nullableDeps.deserialize(in, version);
+                values[i] = new LatestDeps.LatestEntry(knownDeps, ballot, coordinatedDeps, localDeps);
+            }
+            starts[size] = KeySerializers.routingKey.deserialize(in, version);
+
+            return LatestDeps.SerializerSupport.create(true, starts, values);
+        }
+
+        @Override
+        public long serializedSize(LatestDeps t, int version)
+        {
+            long size = 0;
+            size += TypeSizes.sizeofUnsignedVInt(t.size());
+            for (int i = 0 ; i < t.size() ; ++i)
+            {
+                RoutingKey start = t.startAt(i);
+                size += KeySerializers.routingKey.serializedSize(start, version);
+                LatestDeps.LatestEntry e = t.valueAt(i);
+                if (e == null)
+                {
+                    size += CommandSerializers.nullableKnownDeps.serializedSize(null, version);
+                }
+                else
+                {
+                    size += CommandSerializers.nullableKnownDeps.serializedSize(e.known, version);
+                    size += CommandSerializers.ballot.serializedSize(e.ballot, version);
+                    size += DepsSerializers.nullableDeps.serializedSize(e.coordinatedDeps, version);
+                    size += DepsSerializers.nullableDeps.serializedSize(e.localDeps, version);
+                }
+            }
+            size += KeySerializers.routingKey.serializedSize(t.startAt(t.size()), version);
+            return size;
         }
     };
 }

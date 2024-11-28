@@ -63,7 +63,6 @@ import org.apache.cassandra.service.accord.api.AccordRoutingKey;
 import org.apache.cassandra.utils.NoSpamLogger;
 import org.apache.cassandra.utils.concurrent.Condition;
 
-import static accord.local.KeyHistory.TIMESTAMPS;
 import static accord.primitives.Routable.Domain.Key;
 import static accord.primitives.Txn.Kind.EphemeralRead;
 import static accord.utils.Invariants.illegalState;
@@ -192,7 +191,6 @@ public abstract class AccordTask<R> extends Task implements Runnable, Function<S
 
     // TODO (expected): merge all of these maps into one
     @Nullable Object2ObjectHashMap<TxnId, AccordSafeCommand> commands;
-    @Nullable Object2ObjectHashMap<RoutingKey, AccordSafeTimestampsForKey> timestampsForKey;
     @Nullable Object2ObjectHashMap<RoutingKey, AccordSafeCommandsForKey> commandsForKey;
     @Nullable Object2ObjectHashMap<Object, AccordSafeState<?, ?>> loading;
     // TODO (expected): collection supporting faster deletes but still fast poll (e.g. some ordered collection)
@@ -246,7 +244,6 @@ public abstract class AccordTask<R> extends Task implements Runnable, Function<S
                + ", waitingToLoad: " + summarise(waitingToLoad)
                + ", loading:" + summarise(loading, AccordSafeState::global)
                + ", cfks:" + summarise(commandsForKey, AccordSafeState::global)
-               + ", tfks:" + summarise(timestampsForKey, AccordSafeState::global)
                + ", txns:" + summarise(commands, AccordSafeState::global);
 
     }
@@ -340,17 +337,12 @@ public abstract class AccordTask<R> extends Task implements Runnable, Function<S
                 presetupExclusive(txnId, AccordTask::ensureCommands, parent.commands, commandStore.cachesUnsafe().commands());
         }
 
-        if ((preLoadContext.keyHistory() == TIMESTAMPS ? parent.timestampsForKey : parent.commandsForKey) == null) return;
+        if (parent.commandsForKey == null) return;
         if (preLoadContext.keys().domain() != Key) return;
         switch (preLoadContext.keyHistory())
         {
             default: throw new AssertionError("Unhandled KeyHistory: " + preLoadContext.keyHistory());
             case NONE:
-                break;
-
-            case TIMESTAMPS:
-                for (RoutingKey key : (AbstractUnseekableKeys)preLoadContext.keys())
-                    presetupExclusive(key, AccordTask::ensureTimestampsForKey, parent.timestampsForKey, commandStore.cachesUnsafe().timestampsForKeys());
                 break;
 
             case ASYNC:
@@ -401,16 +393,6 @@ public abstract class AccordTask<R> extends Task implements Runnable, Function<S
             case NONE:
                 break;
 
-            case TIMESTAMPS:
-            {
-                boolean hasPreSetup = timestampsForKey != null;
-                for (RoutingKey key : keys)
-                {
-                    if (hasPreSetup && completePresetupExclusive(key, timestampsForKey, caches.timestampsForKeys())) continue;
-                    setupExclusive(key, AccordTask::ensureTimestampsForKey, caches.timestampsForKeys());
-                }
-                break;
-            }
             case RECOVER:
                 if (!isToCompleteRangeScan)
                 {
@@ -444,9 +426,6 @@ public abstract class AccordTask<R> extends Task implements Runnable, Function<S
 
             case INCR:
                 throw new AssertionError("Incremental mode should only be used with an explicit list of keys");
-
-            case TIMESTAMPS:
-                throw new AssertionError("TimestampsForKey unsupported for range transactions");
 
             case RECOVER:
             case SYNC:
@@ -521,18 +500,9 @@ public abstract class AccordTask<R> extends Task implements Runnable, Function<S
         AccordSafeState<?, ?> safeRef = loading == null ? null : loading.remove(state.key());
         Invariants.checkState(safeRef != null && safeRef.global() == state, "Expected to find %s loading; found %s", state, this, AccordTask::toDescription);
         if (safeRef.getClass() == AccordSafeCommand.class)
-        {
             ensureCommands().put((TxnId)state.key(), (AccordSafeCommand) safeRef);
-        }
-        else if (safeRef.getClass() == AccordSafeCommandsForKey.class)
-        {
-            ensureCommandsForKey().put((RoutingKey) state.key(), (AccordSafeCommandsForKey) safeRef);
-        }
         else
-        {
-            Invariants.checkState (safeRef.getClass() == AccordSafeTimestampsForKey.class);
-            ensureTimestampsForKey().put((RoutingKey) state.key(), (AccordSafeTimestampsForKey) safeRef);
-        }
+            ensureCommandsForKey().put((RoutingKey) state.key(), (AccordSafeCommandsForKey) safeRef);
 
         if (!loading.isEmpty())
             return false;
@@ -582,18 +552,6 @@ public abstract class AccordTask<R> extends Task implements Runnable, Function<S
         if (commands == null)
             commands = new Object2ObjectHashMap<>();
         return commands;
-    }
-
-    public Map<RoutingKey, AccordSafeTimestampsForKey> timestampsForKey()
-    {
-        return timestampsForKey;
-    }
-
-    public Map<RoutingKey, AccordSafeTimestampsForKey> ensureTimestampsForKey()
-    {
-        if (timestampsForKey == null)
-            timestampsForKey = new Object2ObjectHashMap<>();
-        return timestampsForKey;
     }
 
     public Map<RoutingKey, AccordSafeCommandsForKey> commandsForKey()
@@ -683,8 +641,6 @@ public abstract class AccordTask<R> extends Task implements Runnable, Function<S
             commands.forEach((k, v) -> v.preExecute());
         if (commandsForKey != null)
             commandsForKey.forEach((k, v) -> v.preExecute());
-        if (timestampsForKey != null)
-            timestampsForKey.forEach((k, v) -> v.preExecute());
     }
 
     @Override
@@ -852,12 +808,6 @@ public abstract class AccordTask<R> extends Task implements Runnable, Function<S
                 commands.clear();
                 commands = null;
             }
-            if (timestampsForKey != null)
-            {
-                timestampsForKey.forEach((k, v) -> caches.timestampsForKeys().release(v, this));
-                timestampsForKey.clear();
-                timestampsForKey = null;
-            }
             if (commandsForKey != null)
             {
                 commandsForKey.forEach((k, v) -> caches.commandsForKeys().release(v, this));
@@ -891,12 +841,6 @@ public abstract class AccordTask<R> extends Task implements Runnable, Function<S
             safeRelease(commands, caches.commands(), suppressedBy);
             commands.clear();
             commands = null;
-        }
-        if (timestampsForKey != null)
-        {
-            safeRelease(timestampsForKey, caches.timestampsForKeys(), suppressedBy);
-            timestampsForKey.clear();
-            timestampsForKey = null;
         }
         if (commandsForKey != null)
         {
@@ -945,8 +889,6 @@ public abstract class AccordTask<R> extends Task implements Runnable, Function<S
     {
         if (commands != null)
             commands.forEach((k, v) -> v.revert());
-        if (timestampsForKey != null)
-            timestampsForKey.forEach((k, v) -> v.revert());
         if (commandsForKey != null)
             commandsForKey.forEach((k, v) -> v.revert());
     }

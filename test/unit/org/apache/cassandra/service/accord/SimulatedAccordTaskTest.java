@@ -144,9 +144,6 @@ public class SimulatedAccordTaskTest extends SimulatedAccordCommandStoreTestBase
             instance.commandStore.cachesUnsafe().commandsForKeys().forEach(e -> {
                 Assertions.assertThat(e.references()).isEqualTo(0);
             });
-            instance.commandStore.cachesUnsafe().timestampsForKeys().forEach(e -> {
-                Assertions.assertThat(e.references()).isEqualTo(0);
-            });
         }
     }
 

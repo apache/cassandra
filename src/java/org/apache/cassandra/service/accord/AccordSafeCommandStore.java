@@ -43,7 +43,7 @@ import org.apache.cassandra.service.accord.AccordCommandStore.ExclusiveCaches;
 
 import static accord.utils.Invariants.illegalState;
 
-public class AccordSafeCommandStore extends AbstractSafeCommandStore<AccordSafeCommand, AccordSafeTimestampsForKey, AccordSafeCommandsForKey, AccordCommandStore.ExclusiveCaches>
+public class AccordSafeCommandStore extends AbstractSafeCommandStore<AccordSafeCommand, AccordSafeCommandsForKey, AccordCommandStore.ExclusiveCaches>
 {
     final AccordTask<?> task;
     private final @Nullable CommandsForRanges commandsForRanges;
@@ -130,21 +130,6 @@ public class AccordSafeCommandStore extends AbstractSafeCommandStore<AccordSafeC
         }
     }
 
-    protected AccordSafeTimestampsForKey add(AccordSafeTimestampsForKey safeTfk, ExclusiveCaches caches)
-    {
-        Object check = task.ensureTimestampsForKey().putIfAbsent(safeTfk.key(), safeTfk);
-        if (check == null)
-        {
-            safeTfk.preExecute();
-            return safeTfk;
-        }
-        else
-        {
-            caches.timestampsForKeys().release(safeTfk, task);
-            throw illegalState("Attempted to take a duplicate reference to CFK for %s", safeTfk.key());
-        }
-    }
-
     @Override
     protected AccordSafeCommandsForKey getInternal(RoutingKey key)
     {
@@ -152,15 +137,6 @@ public class AccordSafeCommandStore extends AbstractSafeCommandStore<AccordSafeC
         if (commandsForKey == null)
             return null;
         return commandsForKey.get(key);
-    }
-
-    protected AccordSafeTimestampsForKey timestampsForKeyInternal(RoutingKey key)
-    {
-        Map<RoutingKey, AccordSafeTimestampsForKey> timestampsForKey = task.timestampsForKey();
-        if (timestampsForKey == null)
-            return null;
-
-        return timestampsForKey.get(key);
     }
 
     @Override

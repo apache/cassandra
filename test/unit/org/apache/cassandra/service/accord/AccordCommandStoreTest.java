@@ -31,8 +31,6 @@ import org.slf4j.LoggerFactory;
 
 import accord.api.Key;
 import accord.api.Result;
-import accord.impl.TimestampsForKey;
-import accord.impl.TimestampsForKeys;
 import accord.local.Command;
 import accord.local.CommonAttributes;
 import accord.local.StoreParticipants;
@@ -155,46 +153,6 @@ public class AccordCommandStoreTest
     }
 
     @Test
-    public void timestampsForKeyLoadSave()
-    {
-        AtomicLong clock = new AtomicLong(0);
-        AccordCommandStore commandStore = createAccordCommandStore(clock::incrementAndGet, "ks", "tbl");
-
-        PartialTxn txn = createPartialTxn(1);
-        TokenKey key = ((PartitionKey) getOnlyElement(txn.keys())).toUnseekable();
-        TxnId txnId1 = txnId(1, clock.incrementAndGet(), 1);
-        TxnId txnId2 = txnId(1, clock.incrementAndGet(), 1);
-
-        Command command1 = preaccepted(txnId1, txn, timestamp(1, clock.incrementAndGet(), 1));
-        Command command2 = preaccepted(txnId2, txn, timestamp(1, clock.incrementAndGet(), 1));
-
-        AccordSafeTimestampsForKey tfk = new AccordSafeTimestampsForKey(loaded(key, null));
-        tfk.initialize();
-
-        TimestampsForKeys.updateLastExecutionTimestamps(null, tfk, txnId1, txnId1, true);
-        Assert.assertEquals(txnId1.hlc(), AccordSafeTimestampsForKey.timestampMicrosFor(tfk.current(), txnId1, true));
-
-        TimestampsForKeys.updateLastExecutionTimestamps(null, tfk, txnId2, txnId2, true);
-        Assert.assertEquals(txnId2.hlc(), AccordSafeTimestampsForKey.timestampMicrosFor(tfk.current(), txnId2, true));
-
-        Assert.assertEquals(txnId2, tfk.current().lastExecutedTimestamp());
-        Assert.assertEquals(txnId2.hlc(), tfk.lastExecutedMicros());
-
-        AccordSafeCommandsForKey cfk = new AccordSafeCommandsForKey(loaded(key, null));
-        cfk.initialize();
-
-        cfk.set(cfk.current().update(command1).cfk());
-        cfk.set(cfk.current().update(command2).cfk());
-
-        AccordKeyspace.getTimestampsForKeyUpdater(commandStore, tfk.current(), commandStore.nextSystemTimestampMicros()).run();
-        logger.info("E: {}", tfk);
-        TimestampsForKey actual = AccordKeyspace.loadTimestampsForKey(commandStore.id(), key);
-        logger.info("A: {}", actual);
-
-        Assert.assertEquals(tfk.current(), actual);
-    }
-
-    @Test
     public void commandsForKeyLoadSave()
     {
         AtomicLong clock = new AtomicLong(0);
@@ -207,9 +165,6 @@ public class AccordCommandStoreTest
 
         Command command1 = preaccepted(txnId1, txn, timestamp(1, clock.incrementAndGet(), 1));
         Command command2 = preaccepted(txnId2, txn, timestamp(1, clock.incrementAndGet(), 1));
-
-        AccordSafeTimestampsForKey tfk = new AccordSafeTimestampsForKey(loaded(key, null));
-        tfk.initialize();
 
         AccordSafeCommandsForKey cfk = new AccordSafeCommandsForKey(loaded(key, null));
         cfk.initialize();

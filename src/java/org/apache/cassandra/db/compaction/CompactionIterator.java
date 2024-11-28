@@ -45,7 +45,6 @@ import accord.local.StoreParticipants;
 import accord.primitives.SaveStatus;
 import accord.primitives.Status;
 import accord.primitives.Status.Durability;
-import accord.primitives.Timestamp;
 import accord.primitives.TxnId;
 import accord.utils.Invariants;
 import org.agrona.collections.Int2ObjectHashMap;
@@ -99,7 +98,6 @@ import org.apache.cassandra.service.accord.AccordKeyspace;
 import org.apache.cassandra.service.accord.AccordKeyspace.CommandRows;
 import org.apache.cassandra.service.accord.AccordKeyspace.CommandsColumns;
 import org.apache.cassandra.service.accord.AccordKeyspace.CommandsForKeyAccessor;
-import org.apache.cassandra.service.accord.AccordKeyspace.TimestampsForKeyRows;
 import org.apache.cassandra.service.accord.AccordService;
 import org.apache.cassandra.service.accord.IAccordService;
 import org.apache.cassandra.service.accord.JournalKey;
@@ -121,14 +119,9 @@ import static org.apache.cassandra.service.accord.AccordKeyspace.CommandRows.exp
 import static org.apache.cassandra.service.accord.AccordKeyspace.CommandRows.saveStatusOnly;
 import static org.apache.cassandra.service.accord.AccordKeyspace.CommandRows.truncatedApply;
 import static org.apache.cassandra.service.accord.AccordKeyspace.CommandsForKeysAccessor;
-import static org.apache.cassandra.service.accord.AccordKeyspace.TimestampsForKeyColumns.last_executed_micros;
-import static org.apache.cassandra.service.accord.AccordKeyspace.TimestampsForKeyColumns.last_executed_timestamp;
-import static org.apache.cassandra.service.accord.AccordKeyspace.TimestampsForKeyColumns.last_write_timestamp;
-import static org.apache.cassandra.service.accord.AccordKeyspace.TimestampsForKeyRows.truncateTimestampsForKeyRow;
 import static org.apache.cassandra.service.accord.AccordKeyspace.deserializeDurabilityOrNull;
 import static org.apache.cassandra.service.accord.AccordKeyspace.deserializeParticipantsOrNull;
 import static org.apache.cassandra.service.accord.AccordKeyspace.deserializeSaveStatusOrNull;
-import static org.apache.cassandra.service.accord.AccordKeyspace.deserializeTimestampOrNull;
 
 /**
  * Merge multiple iterators over the content of sstable into a "compacted" iterator.
@@ -241,8 +234,6 @@ public class CompactionIterator extends CompactionInfo.Holder implements Unfilte
 
         if (isAccordCommands(cfs))
             return new AccordCommandsPurger(accordService);
-        if (isAccordTimestampsForKey(cfs))
-            return new AccordTimestampsForKeyPurger(accordService);
         if (isAccordJournal(cfs))
             return new AccordJournalPurger(accordService, cfs);
         if (isAccordCommandsForKey(cfs))
@@ -897,80 +888,6 @@ public class CompactionIterator extends CompactionInfo.Holder implements Unfilte
         }
     }
 
-    class AccordTimestampsForKeyPurger extends AbstractPurger
-    {
-        final Int2ObjectHashMap<RedundantBefore> redundantBefores;
-        int storeId;
-        TokenKey partitionKey;
-
-        AccordTimestampsForKeyPurger(Supplier<IAccordService> accordService)
-        {
-            this.redundantBefores = accordService.get().getCompactionInfo().redundantBefores;
-        }
-
-        protected void beginPartition(UnfilteredRowIterator partition)
-        {
-            ByteBuffer[] partitionKeyComponents = TimestampsForKeyRows.splitPartitionKey(partition.partitionKey());
-            storeId = TimestampsForKeyRows.getStoreId(partitionKeyComponents);
-            partitionKey = TimestampsForKeyRows.getKey(partitionKeyComponents);
-        }
-        @Override
-        protected Row applyToRow(Row row)
-        {
-            updateProgress();
-
-            RedundantBefore redundantBefore = redundantBefores.get(storeId);
-            // TODO (expected): if the store has been retired, this should return null
-            if (redundantBefore == null)
-                return row;
-
-            RedundantBefore.Entry redundantBeforeEntry = redundantBefore.get(partitionKey.toUnseekable());
-            if (redundantBeforeEntry == null)
-                return row;
-
-            TxnId redundantBeforeTxnId = redundantBeforeEntry.shardRedundantBefore();
-
-            Cell lastExecuteMicrosCell = row.getCell(last_executed_micros);
-            Long last_execute_micros = null;
-            if (lastExecuteMicrosCell != null && !lastExecuteMicrosCell.accessor().isEmpty(lastExecuteMicrosCell.value()))
-                last_execute_micros = lastExecuteMicrosCell.accessor().getLong(lastExecuteMicrosCell.value(), 0);
-            if (last_execute_micros != null && last_execute_micros < redundantBeforeTxnId.hlc())
-            {
-                lastExecuteMicrosCell = null;
-            }
-
-            Cell lastExecuteCell = row.getCell(last_executed_timestamp);
-            Timestamp last_execute = deserializeTimestampOrNull(lastExecuteCell);
-            if (last_execute != null && last_execute.compareTo(redundantBeforeTxnId) < 0)
-            {
-                lastExecuteCell = null;
-            }
-
-            Cell lastWriteCell = row.getCell(last_write_timestamp);
-            Timestamp last_write = deserializeTimestampOrNull(lastWriteCell);
-            if (last_write != null && last_write.compareTo(redundantBeforeTxnId) < 0)
-            {
-                lastWriteCell = null;
-            }
-
-            // No need to emit a tombstone as earlier versions of the row will also be nulled out
-            // when compacted later or loaded into a commands for key
-            if (lastExecuteMicrosCell == null &&
-                lastExecuteCell == null &&
-                lastWriteCell == null)
-                return null;
-
-            return truncateTimestampsForKeyRow(nowInSec, row, lastExecuteMicrosCell, lastExecuteCell, lastWriteCell);
-        }
-
-        @Override
-        protected Row applyToStatic(Row row)
-        {
-            checkState(row.isStatic() && row.isEmpty());
-            return row;
-        }
-    }
-
     class AccordCommandsForKeyPurger extends AbstractPurger
     {
         final CommandsForKeyAccessor accessor;
@@ -1226,7 +1143,6 @@ public class CompactionIterator extends CompactionInfo.Holder implements Unfilte
     {
         return cfs.getKeyspaceName().equals(SchemaConstants.ACCORD_KEYSPACE_NAME) &&
                ImmutableSet.of(AccordKeyspace.COMMANDS,
-                               AccordKeyspace.TIMESTAMPS_FOR_KEY,
                                AccordKeyspace.JOURNAL,
                                AccordKeyspace.COMMANDS_FOR_KEY)
                            .contains(cfs.getTableName());
@@ -1245,11 +1161,6 @@ public class CompactionIterator extends CompactionInfo.Holder implements Unfilte
     private static boolean isAccordCommands(ColumnFamilyStore cfs)
     {
         return isAccordTable(cfs, AccordKeyspace.COMMANDS);
-    }
-
-    private static boolean isAccordTimestampsForKey(ColumnFamilyStore cfs)
-    {
-        return isAccordTable(cfs, AccordKeyspace.TIMESTAMPS_FOR_KEY);
     }
 
     private static boolean isAccordCommandsForKey(ColumnFamilyStore cfs)

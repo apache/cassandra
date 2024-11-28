@@ -31,6 +31,7 @@ import accord.messages.CheckStatus.CheckStatusReply;
 import accord.primitives.Ballot;
 import accord.primitives.Known;
 import accord.primitives.KnownMap;
+import accord.primitives.KnownMap.MinMax;
 import accord.primitives.PartialDeps;
 import accord.primitives.PartialTxn;
 import accord.primitives.Participants;
@@ -82,7 +83,7 @@ public class CheckStatusSerializers
             RoutingKey[] starts = new RoutingKey[size + 1];
             for (int i = 0 ; i <= size ; ++i)
                 starts[i] = KeySerializers.routingKey.deserialize(in, version);
-            KnownMap.MinMax[] values = new KnownMap.MinMax[size];
+            MinMax[] values = new MinMax[size];
             for (int i = 0 ; i < size ; ++i)
             {
                 int kind = in.readByte();

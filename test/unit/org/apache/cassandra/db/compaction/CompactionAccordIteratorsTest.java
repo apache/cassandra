@@ -70,7 +70,6 @@ import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.cql3.UntypedResultSet;
-import org.apache.cassandra.db.Clustering;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.ColumnFamilyStore.FlushReason;
 import org.apache.cassandra.db.Keyspace;
@@ -98,7 +97,6 @@ import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Pair;
 import org.assertj.core.api.Assertions;
 
-import static accord.impl.TimestampsForKey.NO_LAST_EXECUTED_HLC;
 import static accord.local.KeyHistory.SYNC;
 import static accord.local.PreLoadContext.contextFor;
 import static accord.primitives.Routable.Domain.Range;
@@ -113,8 +111,6 @@ import static org.apache.cassandra.service.accord.AccordKeyspace.COMMANDS_FOR_KE
 import static org.apache.cassandra.service.accord.AccordKeyspace.CommandRows;
 import static org.apache.cassandra.service.accord.AccordKeyspace.CommandsColumns;
 import static org.apache.cassandra.service.accord.AccordKeyspace.CommandsForKeysAccessor;
-import static org.apache.cassandra.service.accord.AccordKeyspace.TIMESTAMPS_FOR_KEY;
-import static org.apache.cassandra.service.accord.AccordKeyspace.TimestampsForKeyRows;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
@@ -141,7 +137,6 @@ public class CompactionAccordIteratorsTest
     private static final TxnId GT_SECOND_TXN_ID = AccordTestUtils.txnId(EPOCH, SECOND_TXN_ID.hlc() + 1, NODE);
 
     static ColumnFamilyStore commands;
-    static ColumnFamilyStore timestampsForKey;
     static ColumnFamilyStore commandsForKey;
     static TableMetadata table;
     static FullRoute<?> route;
@@ -164,9 +159,6 @@ public class CompactionAccordIteratorsTest
 
         commands = ColumnFamilyStore.getIfExists(SchemaConstants.ACCORD_KEYSPACE_NAME, AccordKeyspace.COMMANDS);
         commands.disableAutoCompaction();
-
-        timestampsForKey = ColumnFamilyStore.getIfExists(SchemaConstants.ACCORD_KEYSPACE_NAME, TIMESTAMPS_FOR_KEY);
-        timestampsForKey.disableAutoCompaction();
 
         commandsForKey = ColumnFamilyStore.getIfExists(SchemaConstants.ACCORD_KEYSPACE_NAME, COMMANDS_FOR_KEY);
         commandsForKey.disableAutoCompaction();
@@ -245,33 +237,12 @@ public class CompactionAccordIteratorsTest
     private void testAccordCommandsForKeyPurger(boolean singleCompaction) throws Throwable
     {
         this.singleCompaction = singleCompaction;
-        testAccordTimestampsForKeyPurger(null, expectedAccordTimestampsForKeyNoChange());
         testAccordCommandsForKeyPurger(null, expectedAccordCommandsForKeyNoChange());
-        testAccordTimestampsForKeyPurger(redundantBefore(LT_TXN_ID), expectedAccordTimestampsForKeyNoChange());
         testAccordCommandsForKeyPurger(redundantBefore(LT_TXN_ID), expectedAccordCommandsForKeyNoChange());
         // will erase one more than expected as converted to ExclusiveSyncPoint id which is > base id
-        testAccordTimestampsForKeyPurger(redundantBefore(TXN_ID), expectedAccordTimestampsForKeyEraseOne());
         testAccordCommandsForKeyPurger(redundantBefore(TXN_ID), expectedAccordCommandsForKeyEraseOne());
-        testAccordTimestampsForKeyPurger(redundantBefore(GT_TXN_ID), expectedAccordTimestampsForKeyEraseAll());
         testAccordCommandsForKeyPurger(redundantBefore(GT_TXN_ID), expectedAccordCommandsForKeyEraseAll());
-        testAccordTimestampsForKeyPurger(redundantBefore(GT_SECOND_TXN_ID), expectedAccordTimestampsForKeyEraseAll());
         testAccordCommandsForKeyPurger(redundantBefore(GT_SECOND_TXN_ID), expectedAccordCommandsForKeyEraseAll());
-    }
-
-    private static Consumer<List<Partition>> expectedAccordTimestampsForKeyNoChange()
-    {
-        return partitions -> {
-            assertEquals(1, partitions.size());
-            Partition partition = partitions.get(0);
-            Row row = partition.getRow(Clustering.EMPTY);
-
-            assertEquals(TXN_ID, TimestampsForKeyRows.getLastExecutedTimestamp(row));
-            assertEquals(TXN_ID, TimestampsForKeyRows.getLastWriteTimestamp(row));
-
-            // last_executed_micros is only persisted if it doesn't match txnId.hlc, which only happens in the
-            // case of an hlc collision. Each txnId in this test has a unique hlc
-            assertEquals(NO_LAST_EXECUTED_HLC, TimestampsForKeyRows.getLastExecutedMicros(row));
-        };
     }
 
     private static Consumer<List<Partition>> expectedAccordCommandsForKeyNoChange()
@@ -303,24 +274,9 @@ public class CompactionAccordIteratorsTest
         };
     }
 
-    private static Consumer<List<Partition>> expectedAccordTimestampsForKeyEraseAll()
-    {
-        return partitions -> assertEquals(0, partitions.size());
-    }
-
     private static Consumer<List<Partition>> expectedAccordCommandsForKeyEraseAll()
     {
         return partitions -> assertEquals(0, partitions.size());
-    }
-
-    private void testAccordTimestampsForKeyPurger(RedundantBefore redundantBefore, Consumer<List<Partition>> expectedResult) throws Throwable
-    {
-        testWithCommandStore((commandStore) -> {
-            IAccordService mockAccordService = mockAccordService(commandStore, redundantBefore, DurableBefore.EMPTY);
-            ColumnFamilyStore cfs = ColumnFamilyStore.getIfExists(ACCORD_KEYSPACE_NAME, TIMESTAMPS_FOR_KEY);
-            List<Partition> result = compactCFS(mockAccordService, cfs);
-            expectedResult.accept(result);
-        }, true);
     }
 
     private void testAccordCommandsForKeyPurger(RedundantBefore redundantBefore, Consumer<List<Partition>> expectedResult) throws Throwable
@@ -463,7 +419,6 @@ public class CompactionAccordIteratorsTest
             }
         });
         commands.forceBlockingFlush(FlushReason.UNIT_TESTS);
-        timestampsForKey.forceBlockingFlush(FlushReason.UNIT_TESTS);
         commandsForKey.forceBlockingFlush(FlushReason.UNIT_TESTS);
         while (commandStore.executor().hasTasks())
             LockSupport.parkNanos(TimeUnit.MILLISECONDS.toNanos(100));

@@ -310,14 +310,14 @@ public class CommandsForKeySerializerTest
             for (int j = 0 ; j < i ; ++j)
             {
                 InternalStatus status = InternalStatus.from(cmds[j].saveStatus);
-                if (status == null || !status.hasExecuteAtAndDeps) continue;
+                if (status == null || !status.hasExecuteAtOrDeps()) continue;
                 if (cmds[j].txnId.kind().witnesses(cmds[i].txnId) && status.depsKnownBefore(cmds[j].txnId, cmds[j].executeAt).compareTo(cmds[i].txnId) > 0 && Collections.binarySearch(cmds[j].missing, cmds[i].txnId) < 0)
                     continue outer;
             }
             for (int j = i + 1 ; j < cmds.length ; ++j)
             {
                 InternalStatus status = InternalStatus.from(cmds[j].saveStatus);
-                if (status == null || !status.hasExecuteAtAndDeps) continue;
+                if (status == null || !status.hasExecuteAtOrDeps()) continue;
                 if (cmds[j].txnId.kind().witnesses(cmds[i].txnId) && Collections.binarySearch(cmds[j].missing, cmds[i].txnId) < 0)
                     continue outer;
             }
@@ -485,8 +485,10 @@ public class CommandsForKeySerializerTest
                 }
                 TxnInfo info = cfk.get(i);
                 InternalStatus expectStatus = InternalStatus.from(cmd.saveStatus);
-                if (expectStatus == null) expectStatus = InternalStatus.TRANSITIVE;
-                if (expectStatus.hasExecuteAtAndDeps)
+                if (expectStatus == InternalStatus.APPLIED_NOT_DURABLE && cmd.isDurable)
+                    expectStatus = InternalStatus.APPLIED_DURABLE;
+                if (expectStatus == null) expectStatus = InternalStatus.TRANSITIVE_VISIBLE;
+                if (expectStatus.hasExecuteAt())
                     Assert.assertEquals(cmd.executeAt, info.executeAt);
                 Assert.assertEquals(expectStatus, info.status());
                 Assert.assertArrayEquals(cmd.missing.toArray(TxnId[]::new), info.missing());
@@ -526,7 +528,7 @@ public class CommandsForKeySerializerTest
             for (int i = 0; i < info.length; i++)
             {
                 InternalStatus status = rs.pick(statuses);
-                info[i] = TxnInfo.create(ids[i], status, false, true, ids[i], TxnId.NO_TXNIDS, Ballot.ZERO);
+                info[i] = TxnInfo.create(ids[i], status, true, ids[i], TxnId.NO_TXNIDS, Ballot.ZERO);
             }
 
             Gen<Unmanaged.Pending> pendingGen = Gens.enums().allMixedDistribution(Unmanaged.Pending.class).next(rs);
@@ -545,7 +547,7 @@ public class CommandsForKeySerializerTest
                 {
                     int idx = Arrays.binarySearch(ids, u.txnId);
                     if (idx < 0)
-                        missing.add(TxnInfo.create(u.txnId, InternalStatus.TRANSITIVE, false, true, u.txnId, Ballot.ZERO));
+                        missing.add(TxnInfo.create(u.txnId, InternalStatus.TRANSITIVE, true, u.txnId, Ballot.ZERO));
                 }
                 if (!missing.isEmpty())
                 {
@@ -555,7 +557,7 @@ public class CommandsForKeySerializerTest
             }
             else unmanaged = CommandsForKey.NO_PENDING_UNMANAGED;
 
-            CommandsForKey expected = CommandsForKey.SerializerSupport.create(pk, info, unmanaged, TxnId.NONE, NO_BOUNDS_INFO);
+            CommandsForKey expected = CommandsForKey.SerializerSupport.create(pk, info, 0, unmanaged, TxnId.NONE, NO_BOUNDS_INFO);
 
             ByteBuffer buffer = Serialize.toBytesWithoutKey(expected);
             CommandsForKey roundTrip = Serialize.fromBytes(pk, buffer);
@@ -571,8 +573,8 @@ public class CommandsForKeySerializerTest
         TokenKey pk = new TokenKey(TableId.fromString("1b255f4d-ef25-40a6-0000-000000000009"), token);
         TxnId txnId = TxnId.fromValues(11,34052499,2,1);
         CommandsForKey expected = CommandsForKey.SerializerSupport.create(pk,
-                                                     new TxnInfo[] { TxnInfo.create(txnId, InternalStatus.PREACCEPTED_OR_ACCEPTED_INVALIDATE, false, true, txnId, TxnId.NO_TXNIDS, Ballot.ZERO) },
-                                                                          CommandsForKey.NO_PENDING_UNMANAGED, TxnId.NONE, NO_BOUNDS_INFO);
+                                                     new TxnInfo[] { TxnInfo.create(txnId, InternalStatus.PREACCEPTED_OR_ACCEPTED_INVALIDATE, true, txnId, TxnId.NO_TXNIDS, Ballot.ZERO) },
+                                                                          0, CommandsForKey.NO_PENDING_UNMANAGED, TxnId.NONE, NO_BOUNDS_INFO);
 
         ByteBuffer buffer = Serialize.toBytesWithoutKey(expected);
         CommandsForKey roundTrip = Serialize.fromBytes(pk, buffer);

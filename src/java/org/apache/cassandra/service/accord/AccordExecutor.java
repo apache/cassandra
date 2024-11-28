@@ -28,7 +28,6 @@ import java.util.function.IntFunction;
 
 import accord.api.Agent;
 import accord.api.RoutingKey;
-import accord.impl.TimestampsForKey;
 import accord.local.Command;
 import accord.local.cfk.CommandsForKey;
 import accord.primitives.TxnId;
@@ -77,9 +76,9 @@ public abstract class AccordExecutor implements CacheSize, AccordCacheEntry.OnLo
     {
         final Lock lock;
 
-        public ExclusiveGlobalCaches(Lock lock, AccordCache global, AccordCache.Type<TxnId, Command, AccordSafeCommand> commands, AccordCache.Type<RoutingKey, TimestampsForKey, AccordSafeTimestampsForKey> timestampsForKey, AccordCache.Type<RoutingKey, CommandsForKey, AccordSafeCommandsForKey> commandsForKey)
+        public ExclusiveGlobalCaches(Lock lock, AccordCache global, AccordCache.Type<TxnId, Command, AccordSafeCommand> commands, AccordCache.Type<RoutingKey, CommandsForKey, AccordSafeCommandsForKey> commandsForKey)
         {
-            super(global, commands, timestampsForKey, commandsForKey);
+            super(global, commands, commandsForKey);
             this.lock = lock;
         }
 
@@ -94,14 +93,12 @@ public abstract class AccordExecutor implements CacheSize, AccordCacheEntry.OnLo
     {
         public final AccordCache global;
         public final AccordCache.Type<TxnId, Command, AccordSafeCommand> commands;
-        public final AccordCache.Type<RoutingKey, TimestampsForKey, AccordSafeTimestampsForKey> timestampsForKey;
         public final AccordCache.Type<RoutingKey, CommandsForKey, AccordSafeCommandsForKey> commandsForKey;
 
-        public GlobalCaches(AccordCache global, AccordCache.Type<TxnId, Command, AccordSafeCommand> commands, AccordCache.Type<RoutingKey, TimestampsForKey, AccordSafeTimestampsForKey> timestampsForKey, AccordCache.Type<RoutingKey, CommandsForKey, AccordSafeCommandsForKey> commandsForKey)
+        public GlobalCaches(AccordCache global, AccordCache.Type<TxnId, Command, AccordSafeCommand> commands, AccordCache.Type<RoutingKey, CommandsForKey, AccordSafeCommandsForKey> commandsForKey)
         {
             this.global = global;
             this.commands = commands;
-            this.timestampsForKey = timestampsForKey;
             this.commandsForKey = commandsForKey;
         }
     }
@@ -153,22 +150,14 @@ public abstract class AccordExecutor implements CacheSize, AccordCacheEntry.OnLo
         this.agent = agent;
 
         final AccordCache.Type<TxnId, Command, AccordSafeCommand> commands;
-        final AccordCache.Type<RoutingKey, TimestampsForKey, AccordSafeTimestampsForKey> timestampsForKey;
         final AccordCache.Type<RoutingKey, CommandsForKey, AccordSafeCommandsForKey> commandsForKey;
         commands = cache.newType(TxnId.class, COMMAND_ADAPTER);
         registerJfrListener(executorId, commands, "Command");
-        timestampsForKey = cache.newType(RoutingKey.class,
-                                         AccordCommandStore::loadTimestampsForKey,
-                                         AccordCommandStore::saveTimestampsForKey,
-                                         Function.identity(),
-                                         AccordCommandStore::validateTimestampsForKey,
-                                         AccordObjectSizes::timestampsForKey,
-                                         AccordSafeTimestampsForKey::new);
-        registerJfrListener(executorId, timestampsForKey, "TimestampsForKey");
+
         commandsForKey = cache.newType(RoutingKey.class, CFK_ADAPTER);
         registerJfrListener(executorId, commandsForKey, "CommandsForKey");
 
-        this.caches = new ExclusiveGlobalCaches(lock, cache, commands, timestampsForKey, commandsForKey);
+        this.caches = new ExclusiveGlobalCaches(lock, cache, commands, commandsForKey);
         ScheduledExecutors.scheduledFastTasks.scheduleAtFixedRate(() -> {
             executeDirectlyWithLock(cache::processNoEvictQueue);
         }, 1L, 1L, TimeUnit.SECONDS);
