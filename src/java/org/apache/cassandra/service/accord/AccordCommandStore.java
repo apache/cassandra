@@ -40,7 +40,6 @@ import accord.api.ProgressLog;
 import accord.api.RoutingKey;
 import accord.impl.AbstractLoader;
 import accord.impl.AbstractSafeCommandStore.CommandStoreCaches;
-import accord.impl.TimestampsForKey;
 import accord.local.Command;
 import accord.local.CommandStore;
 import accord.local.CommandStores;
@@ -86,14 +85,12 @@ public class AccordCommandStore extends CommandStore
     {
         private final AccordCache global;
         private final AccordCache.Type<TxnId, Command, AccordSafeCommand>.Instance commands;
-        private final AccordCache.Type<RoutingKey, TimestampsForKey, AccordSafeTimestampsForKey>.Instance timestampsForKeys;
         private final AccordCache.Type<RoutingKey, CommandsForKey, AccordSafeCommandsForKey>.Instance commandsForKeys;
 
-        Caches(AccordCache global, AccordCache.Type<TxnId, Command, AccordSafeCommand>.Instance commandCache, AccordCache.Type<RoutingKey, TimestampsForKey, AccordSafeTimestampsForKey>.Instance timestampsForKeyCache, AccordCache.Type<RoutingKey, CommandsForKey, AccordSafeCommandsForKey>.Instance commandsForKeyCache)
+        Caches(AccordCache global, AccordCache.Type<TxnId, Command, AccordSafeCommand>.Instance commandCache, AccordCache.Type<RoutingKey, CommandsForKey, AccordSafeCommandsForKey>.Instance commandsForKeyCache)
         {
             this.global = global;
             this.commands = commandCache;
-            this.timestampsForKeys = timestampsForKeyCache;
             this.commandsForKeys = commandsForKeyCache;
         }
 
@@ -107,24 +104,19 @@ public class AccordCommandStore extends CommandStore
             return commands;
         }
 
-        public final AccordCache.Type<RoutingKey, TimestampsForKey, AccordSafeTimestampsForKey>.Instance timestampsForKeys()
-        {
-            return timestampsForKeys;
-        }
-
         public final AccordCache.Type<RoutingKey, CommandsForKey, AccordSafeCommandsForKey>.Instance commandsForKeys()
         {
             return commandsForKeys;
         }
     }
 
-    public static final class ExclusiveCaches extends Caches implements CommandStoreCaches<AccordSafeCommand, AccordSafeTimestampsForKey, AccordSafeCommandsForKey>
+    public static final class ExclusiveCaches extends Caches implements CommandStoreCaches<AccordSafeCommand, AccordSafeCommandsForKey>
     {
         private final Lock lock;
 
-        public ExclusiveCaches(Lock lock, AccordCache global, AccordCache.Type<TxnId, Command, AccordSafeCommand>.Instance commands, AccordCache.Type<RoutingKey, TimestampsForKey, AccordSafeTimestampsForKey>.Instance timestampsForKeys, AccordCache.Type<RoutingKey, CommandsForKey, AccordSafeCommandsForKey>.Instance commandsForKeys)
+        public ExclusiveCaches(Lock lock, AccordCache global, AccordCache.Type<TxnId, Command, AccordSafeCommand>.Instance commands, AccordCache.Type<RoutingKey, CommandsForKey, AccordSafeCommandsForKey>.Instance commandsForKeys)
         {
-            super(global, commands, timestampsForKeys, commandsForKeys);
+            super(global, commands, commandsForKeys);
             this.lock = lock;
         }
 
@@ -139,12 +131,6 @@ public class AccordCommandStore extends CommandStore
         public AccordSafeCommandsForKey acquireIfLoaded(RoutingKey key)
         {
             return commandsForKeys().acquireIfLoaded(key);
-        }
-
-        @Override
-        public AccordSafeTimestampsForKey acquireTfkIfLoaded(RoutingKey key)
-        {
-            return timestampsForKeys().acquireIfLoaded(key);
         }
 
         @Override
@@ -183,14 +169,12 @@ public class AccordCommandStore extends CommandStore
         this.executor = executor;
 
         final AccordCache.Type<TxnId, Command, AccordSafeCommand>.Instance commands;
-        final AccordCache.Type<RoutingKey, TimestampsForKey, AccordSafeTimestampsForKey>.Instance timestampsForKey;
         final AccordCache.Type<RoutingKey, CommandsForKey, AccordSafeCommandsForKey>.Instance commandsForKey;
         try (AccordExecutor.ExclusiveGlobalCaches exclusive = executor.lockCaches())
         {
             commands = exclusive.commands.newInstance(this);
-            timestampsForKey = exclusive.timestampsForKey.newInstance(this);
             commandsForKey = exclusive.commandsForKey.newInstance(this);
-            this.caches = new ExclusiveCaches(executor.lock, exclusive.global, commands, timestampsForKey, commandsForKey);
+            this.caches = new ExclusiveCaches(executor.lock, exclusive.global, commands, commandsForKey);
         }
 
         this.taskExecutor = executor.executor(this);
@@ -321,20 +305,6 @@ public class AccordCommandStore extends CommandStore
         ((AccordJournal) journal).sanityCheck(id, command);
     }
 
-    boolean validateTimestampsForKey(RoutableKey key, TimestampsForKey evicting)
-    {
-        if (!Invariants.isParanoid())
-            return true;
-
-        TimestampsForKey reloaded = AccordKeyspace.unsafeLoadTimestampsForKey(id, (TokenKey) key);
-        return Objects.equals(evicting, reloaded);
-    }
-
-    TimestampsForKey loadTimestampsForKey(RoutableKey key)
-    {
-        return AccordKeyspace.loadTimestampsForKey(id, (TokenKey) key);
-    }
-
     CommandsForKey loadCommandsForKey(RoutableKey key)
     {
         return AccordKeyspace.loadCommandsForKey(id, (TokenKey) key);
@@ -347,12 +317,6 @@ public class AccordCommandStore extends CommandStore
 
         CommandsForKey reloaded = AccordKeyspace.loadCommandsForKey(id, (TokenKey) key);
         return Objects.equals(evicting, reloaded);
-    }
-
-    @Nullable
-    Runnable saveTimestampsForKey(RoutingKey key, TimestampsForKey after, Object serialized)
-    {
-        return AccordKeyspace.getTimestampsForKeyUpdater(this, after, nextSystemTimestampMicros());
     }
 
     @Nullable
@@ -573,13 +537,12 @@ public class AccordCommandStore extends CommandStore
         @Override
         public void apply(Command command, OnDone onDone)
         {
-            PreLoadContext context = context(command, KeyHistory.TIMESTAMPS);
-            store.execute(context,
-                          safeStore -> {
-                              applyWrites(command.txnId(), safeStore, (safeCommand, cmd) -> {
-                                  Commands.applyWrites(safeStore, context, cmd).begin(store.agent);
-                              });
-                          })
+            PreLoadContext context = context(command, SYNC);
+            store.execute(context, safeStore -> {
+                     applyWrites(command.txnId(), safeStore, (safeCommand, cmd) -> {
+                         Commands.applyWrites(safeStore, context, cmd).begin(store.agent);
+                     });
+                 })
                  .begin((unused, throwable) -> {
                      if (throwable != null)
                          onDone.failure(throwable);

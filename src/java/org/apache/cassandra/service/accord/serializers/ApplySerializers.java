@@ -90,7 +90,7 @@ public class ApplySerializers
         @Override
         public long serializedBodySize(A apply, int version)
         {
-            return TypeSizes.sizeofVInt(apply.minEpoch - apply.waitForEpoch)
+            return   TypeSizes.sizeofVInt(apply.minEpoch - apply.waitForEpoch)
                    + kind.serializedSize(apply.kind, version)
                    + CommandSerializers.timestamp.serializedSize(apply.executeAt, version)
                    + DepsSerializers.partialDeps.serializedSize(apply.deps, version)

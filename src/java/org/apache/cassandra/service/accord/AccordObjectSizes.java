@@ -24,7 +24,6 @@ import java.util.function.ToLongFunction;
 import accord.api.Key;
 import accord.api.Result;
 import accord.api.RoutingKey;
-import accord.impl.TimestampsForKey;
 import accord.local.Command;
 import accord.local.Command.WaitingOn;
 import accord.local.CommonAttributes;
@@ -358,19 +357,9 @@ public class AccordObjectSizes
         return size;
     }
 
-    private static long EMPTY_TFK_SIZE = measure(TimestampsForKey.SerializerSupport.create(null, null, 0, null, null));
-
-    public static long timestampsForKey(TimestampsForKey timestamps)
-    {
-        long size = EMPTY_TFK_SIZE;
-        size += timestamp(timestamps.lastExecutedTimestamp());
-        size += timestamp(timestamps.lastWriteTimestamp());
-        return size;
-    }
-
     private static long EMPTY_CFK_SIZE = measure(new CommandsForKey(null));
     private static long EMPTY_INFO_SIZE = measure(CommandsForKey.NO_INFO);
-    private static long EMPTY_INFO_EXTRA_ADDITIONAL_SIZE = measure(TxnInfo.create(TxnId.NONE, ACCEPTED, false, false, TxnId.NONE, NO_TXNIDS, Ballot.MAX)) - EMPTY_INFO_SIZE;
+    private static long EMPTY_INFO_EXTRA_ADDITIONAL_SIZE = measure(TxnInfo.create(TxnId.NONE, ACCEPTED, false, TxnId.NONE, NO_TXNIDS, Ballot.MAX)) - EMPTY_INFO_SIZE;
     public static long commandsForKey(CommandsForKey cfk)
     {
         long size = EMPTY_CFK_SIZE;

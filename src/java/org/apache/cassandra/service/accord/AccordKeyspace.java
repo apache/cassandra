@@ -41,8 +41,6 @@ import com.google.common.collect.Lists;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import accord.api.RoutingKey;
-import accord.impl.TimestampsForKey;
 import accord.local.Command;
 import accord.local.CommandStore;
 import accord.local.Node;
@@ -168,12 +166,11 @@ public class AccordKeyspace
 
     public static final String JOURNAL = "journal";
     public static final String COMMANDS = "commands";
-    public static final String TIMESTAMPS_FOR_KEY = "timestamps_for_key";
     public static final String COMMANDS_FOR_KEY = "commands_for_key";
     public static final String TOPOLOGIES = "topologies";
     public static final String EPOCH_METADATA = "epoch_metadata";
 
-    public static final Set<String> TABLE_NAMES = ImmutableSet.of(COMMANDS, TIMESTAMPS_FOR_KEY, COMMANDS_FOR_KEY,
+    public static final Set<String> TABLE_NAMES = ImmutableSet.of(COMMANDS, COMMANDS_FOR_KEY,
                                                                   TOPOLOGIES, EPOCH_METADATA,
                                                                   JOURNAL);
 
@@ -473,131 +470,6 @@ public class AccordKeyspace
         }
     }
 
-    public static final TableMetadata TimestampsForKeys =
-        parse(TIMESTAMPS_FOR_KEY,
-              "accord timestamps per key",
-              "CREATE TABLE %s ("
-              + "store_id int, "
-              + "routing_key blob, " // can't use "token" as this is restricted word in CQL
-              + format("last_executed_timestamp %s, ", TIMESTAMP_TUPLE)
-              + "last_executed_micros bigint, "
-              + format("last_write_id %s, ", TIMESTAMP_TUPLE)
-              + format("last_write_timestamp %s, ", TIMESTAMP_TUPLE)
-              + "PRIMARY KEY((store_id, routing_key))"
-              + ')')
-        .partitioner(new LocalCompositePrefixPartitioner(Int32Type.instance, BytesType.instance))
-        .build();
-
-    public static class TimestampsForKeyColumns
-    {
-        static final ClusteringComparator keyComparator = TimestampsForKeys.partitionKeyAsClusteringComparator();
-        static final CompositeType partitionKeyType = (CompositeType) TimestampsForKeys.partitionKeyType;
-        static final ColumnMetadata store_id = getColumn(TimestampsForKeys, "store_id");
-        static final ColumnMetadata routing_key = getColumn(TimestampsForKeys, "routing_key");
-        public static final ColumnMetadata last_executed_timestamp = getColumn(TimestampsForKeys, "last_executed_timestamp");
-        public static final ColumnMetadata last_executed_micros = getColumn(TimestampsForKeys, "last_executed_micros");
-        public static final ColumnMetadata last_write_timestamp = getColumn(TimestampsForKeys, "last_write_timestamp");
-        public static final ColumnMetadata last_write_id = getColumn(TimestampsForKeys, "last_write_id");
-        static final Columns columns = Columns.from(Lists.newArrayList(last_executed_timestamp, last_executed_micros, last_write_timestamp));
-        static final ColumnFilter allColumns = ColumnFilter.all(TimestampsForKeys);
-
-        static DecoratedKey decorateKey(int storeId, RoutingKey key)
-        {
-            return TimestampsForKeys.partitioner.decorateKey(makeKey(storeId, key));
-        }
-
-        static ByteBuffer makeKey(int storeId, RoutingKey key)
-        {
-            TokenKey pk = (TokenKey) key;
-            return keyComparator.make(storeId, serializeRoutingKey(pk)).serializeAsPartitionKey();
-        }
-
-        static ByteBuffer makeKey(int storeId, TimestampsForKey timestamps)
-        {
-            return makeKey(storeId, timestamps.key());
-        }
-    }
-
-    public static class TimestampsForKeyRows extends TimestampsForKeyColumns
-    {
-        public static ByteBuffer[] splitPartitionKey(DecoratedKey key)
-        {
-            return partitionKeyType.split(key.getKey());
-        }
-
-        public static int getStoreId(ByteBuffer[] partitionKeyComponents)
-        {
-            return Int32Type.instance.compose(partitionKeyComponents[store_id.position()]);
-        }
-
-        public static TokenKey getKey(DecoratedKey key)
-        {
-            return getKey(splitPartitionKey(key));
-        }
-
-        public static TokenKey getKey(ByteBuffer[] partitionKeyComponents)
-        {
-            return (TokenKey) deserializeRoutingKey(partitionKeyComponents[routing_key.position()]);
-        }
-
-        @Nullable
-        public static Timestamp getLastExecutedTimestamp(Row row)
-        {
-            Cell cell = row.getCell(last_executed_timestamp);
-            if (cell == null)
-                return null;
-            return deserializeTimestampOrNull(cell.value(), cell.accessor(), Timestamp::fromBits);
-        }
-
-        public static long getLastExecutedMicros(Row row)
-        {
-            Cell cell = row.getCell(last_executed_micros);
-            if (cell == null || cell.accessor().isEmpty(cell.value()))
-                return Long.MIN_VALUE;
-            return cell.accessor().getLong(cell.value(), 0);
-        }
-
-        @Nullable
-        public static Timestamp getLastWriteTimestamp(Row row)
-        {
-            Cell cell = row.getCell(last_write_timestamp);
-            if (cell == null)
-                return null;
-            return deserializeTimestampOrNull(cell.value(), cell.accessor(), Timestamp::fromBits);
-        }
-
-        public static Row truncateTimestampsForKeyRow(long nowInSec, Row row, Cell lastExecuteMicrosCell, Cell lastExecuteCell, Cell lastWriteCell)
-        {
-            checkArgument(lastExecuteMicrosCell == null || lastExecuteMicrosCell.column() == last_executed_micros);
-            checkArgument(lastExecuteCell == null || lastExecuteCell.column() == last_executed_timestamp);
-            checkArgument(lastWriteCell == null || lastWriteCell.column() == last_write_timestamp);
-
-            long timestamp = row.primaryKeyLivenessInfo().timestamp();
-
-            int colCount = 0;
-            if (lastExecuteMicrosCell != null)
-                colCount++;
-            if (lastExecuteCell != null)
-                colCount++;
-            if (lastWriteCell != null)
-                colCount++;
-
-            checkState(columns.size() >= colCount, "CommandsForKeyColumns.static_columns_metadata should include all the columns");
-            Object[] newLeaf = BTree.unsafeAllocateNonEmptyLeaf(colCount);
-            int colIndex = 0;
-
-            if (lastExecuteMicrosCell != null)
-                newLeaf[colIndex++] = lastExecuteMicrosCell;
-            if (lastExecuteCell != null)
-                newLeaf[colIndex++] = lastExecuteCell;
-            if (lastWriteCell != null)
-                newLeaf[colIndex] = lastWriteCell;
-
-            return BTreeRow.create(row.clustering(), LivenessInfo.create(timestamp, nowInSec),
-                                   Deletion.LIVE, newLeaf);
-        }
-    }
-
     private static final LocalCompositePrefixPartitioner CFKPartitioner = new LocalCompositePrefixPartitioner(Int32Type.instance, UUIDType.instance, BytesType.instance);
     public static final TableMetadata CommandsForKeys = commandsForKeysTable(COMMANDS_FOR_KEY);
 
@@ -765,16 +637,16 @@ public class AccordKeyspace
         return KeyspaceMetadata.create(ACCORD_KEYSPACE_NAME, KeyspaceParams.local(), tables(), Views.none(), Types.none(), UserFunctions.none());
     }
 
-    public static Tables tables = Tables.of(Commands, TimestampsForKeys, CommandsForKeys, Topologies, EpochMetadata, Journal);
+    public static Tables TABLES = Tables.of(Commands, CommandsForKeys, Topologies, EpochMetadata, Journal);
     public static Tables tables()
     {
-        return tables;
+        return TABLES;
     }
 
     public static void truncateAllCaches()
     {
         Keyspace ks = Keyspace.open(ACCORD_KEYSPACE_NAME);
-        for (String table : new String[]{ TimestampsForKeys.name, CommandsForKeys.name })
+        for (String table : new String[]{ CommandsForKeys.name })
             ks.getColumnFamilyStore(table).truncateBlocking();
     }
 
@@ -1098,105 +970,6 @@ public class AccordKeyspace
     public static TokenKey deserializeTokenKeySeparateTable(TableId tableId, ByteBuffer tokenBytes)
     {
         return (TokenKey) AccordRoutingKeyByteSource.Serializer.fromComparableBytes(ByteBufferAccessor.instance, tokenBytes, tableId, currentVersion, null);
-    }
-
-    public static PartitionUpdate getTimestampsForKeyUpdate(int storeId, TimestampsForKey current, long timestampMicros)
-    {
-        try
-        {
-            // TODO: convert to byte arrays
-            ValueAccessor<ByteBuffer> accessor = ByteBufferAccessor.instance;
-
-            Row.Builder builder = BTreeRow.unsortedBuilder();
-            builder.newRow(Clustering.EMPTY);
-            int nowInSeconds = (int) TimeUnit.MICROSECONDS.toSeconds(timestampMicros);
-            LivenessInfo livenessInfo = LivenessInfo.create(timestampMicros, nowInSeconds);
-            builder.addPrimaryKeyLivenessInfo(livenessInfo);
-            addCell(TimestampsForKeyColumns.last_executed_timestamp, TimestampsForKey::lastExecutedTimestamp, AccordKeyspace::serializeTimestamp, builder, timestampMicros, nowInSeconds, current);
-            addCell(TimestampsForKeyColumns.last_executed_micros, TimestampsForKey::rawLastExecutedHlc, accessor::valueOf, builder, timestampMicros, nowInSeconds, current);
-            addCell(TimestampsForKeyColumns.last_write_timestamp, TimestampsForKey::lastWriteTimestamp, AccordKeyspace::serializeTimestamp, builder, timestampMicros, nowInSeconds, current);
-
-            Row row = builder.build();
-            if (row.columnCount() == 0)
-                return null;
-
-            ByteBuffer key = TimestampsForKeyColumns.makeKey(storeId, current.key());
-            return singleRowUpdate(TimestampsForKeys, key, row);
-        }
-        catch (IOException e)
-        {
-            throw new RuntimeException(e);
-        }
-    }
-
-    public static Runnable getTimestampsForKeyUpdater(AccordCommandStore commandStore, TimestampsForKey liveTimestamps, long timestampMicros)
-    {
-        PartitionUpdate upd = getTimestampsForKeyUpdate(commandStore.id(), liveTimestamps, timestampMicros);
-        return () -> {
-            ColumnFamilyStore cfs = AccordColumnFamilyStores.timestampsForKey;
-            try (OpOrder.Group group = Keyspace.writeOrder.start())
-            {
-                cfs.getCurrentMemtable().put(upd, UpdateTransaction.NO_OP, group, true);
-            }
-        };
-    }
-
-    public static UntypedResultSet loadTimestampsForKeyRow(int commandStoreId, TokenKey key)
-    {
-        String cql = "SELECT * FROM " + ACCORD_KEYSPACE_NAME + '.' + TIMESTAMPS_FOR_KEY + ' ' +
-                     "WHERE store_id = ? " +
-                     "AND routing_key = ?";
-
-        return executeInternal(cql, commandStoreId, serializeRoutingKey(key));
-    }
-
-    private static SinglePartitionReadCommand getTimestampsForKeyRead(int storeId, TokenKey key, long nowInSeconds)
-    {
-        return SinglePartitionReadCommand.create(TimestampsForKeys, nowInSeconds,
-                                                 TimestampsForKeyColumns.allColumns,
-                                                 RowFilter.none(),
-                                                 DataLimits.NONE,
-                                                 TimestampsForKeyColumns.decorateKey(storeId, key),
-                                                 FULL_PARTITION);
-    }
-
-    public static TimestampsForKey loadTimestampsForKey(int commandStoreId, TokenKey key)
-    {
-        return unsafeLoadTimestampsForKey(commandStoreId, key);
-    }
-
-    public static TimestampsForKey unsafeLoadTimestampsForKey(int commandStoreId, TokenKey key)
-    {
-        long timestampMicros = TimeUnit.MILLISECONDS.toMicros(Global.currentTimeMillis());
-        int nowInSeconds = (int) TimeUnit.MICROSECONDS.toSeconds(timestampMicros);
-
-        SinglePartitionReadCommand command = getTimestampsForKeyRead(commandStoreId, key, nowInSeconds);
-        try (ReadExecutionController controller = command.executionController();
-             FilteredPartitions partitions = FilteredPartitions.filter(command.executeLocally(controller), nowInSeconds))
-        {
-            if (!partitions.hasNext())
-                return null;
-
-            try (RowIterator partition = partitions.next())
-            {
-                Invariants.checkState(partition.hasNext());
-                Row row = partition.next();
-                TokenKey checkKey = TimestampsForKeyRows.getKey(partition.partitionKey());
-                checkState(checkKey.equals(key));
-
-                Timestamp lastExecutedTimestamp = deserializeTimestampOrDefault(cellValue(row, TimestampsForKeyColumns.last_executed_timestamp), ByteBufferAccessor.instance, Timestamp::fromBits, Timestamp.NONE);
-                ByteBuffer lastExecutedMicrosBB = cellValue(row, TimestampsForKeyColumns.last_executed_micros);
-                long lastExecutedMicros = lastExecutedMicrosBB == null || !lastExecutedMicrosBB.hasRemaining() ? 0 : lastExecutedMicrosBB.getLong(lastExecutedMicrosBB.position());
-                TxnId lastWriteId = deserializeTimestampOrDefault(cellValue(row, TimestampsForKeyColumns.last_write_id), ByteBufferAccessor.instance, TxnId::fromBits, TxnId.NONE);
-                Timestamp lastWriteTimestamp = deserializeTimestampOrDefault(cellValue(row, TimestampsForKeyColumns.last_write_timestamp), ByteBufferAccessor.instance, Timestamp::fromBits, Timestamp.NONE);
-                return TimestampsForKey.SerializerSupport.create(key, lastExecutedTimestamp, lastExecutedMicros, lastWriteId, lastWriteTimestamp);
-            }
-        }
-        catch (Throwable t)
-        {
-            logger.error("Exception loading AccordTimestampsForKey " + key, t);
-            throw t;
-        }
     }
 
     private static DecoratedKey makeKeySeparateTable(CommandsForKeyAccessor accessor, int commandStoreId, TokenKey key)
@@ -1670,6 +1443,5 @@ public class AccordKeyspace
     {
         public static final ColumnFamilyStore journal = Schema.instance.getColumnFamilyStoreInstance(Journal.id);
         public static final ColumnFamilyStore commandsForKey = Schema.instance.getColumnFamilyStoreInstance(CommandsForKeys.id);
-        public static final ColumnFamilyStore timestampsForKey = Schema.instance.getColumnFamilyStoreInstance(TimestampsForKeys.id);
     }
 }
