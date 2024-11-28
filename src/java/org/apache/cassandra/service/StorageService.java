@@ -1003,6 +1003,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             }
         }, "StorageServiceShutdownHook");
         Runtime.getRuntime().addShutdownHook(drainOnShutdown);
+        registerMBeans();
 
         replacing = isReplacing();
 
@@ -1053,8 +1054,6 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     @VisibleForTesting
     public void completeInitialization()
     {
-        if (!initialized)
-            registerMBeans();
         initialized = true;
     }
 

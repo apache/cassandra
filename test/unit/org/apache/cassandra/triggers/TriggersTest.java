@@ -52,13 +52,12 @@ public class TriggersTest
     public static void beforeTest() throws ConfigurationException
     {
         SchemaLoader.loadSchema();
+        StorageService.instance.initServer(0);
     }
 
     @Before
     public void setup() throws Exception
     {
-        StorageService.instance.initServer(0);
-
         String cql = String.format("CREATE KEYSPACE IF NOT EXISTS %s " +
                                    "WITH REPLICATION = {'class': 'SimpleStrategy', 'replication_factor': 1}",
                                    ksName);
