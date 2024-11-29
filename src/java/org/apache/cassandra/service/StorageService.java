@@ -4051,7 +4051,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             CommitLog.instance.shutdownBlocking();
 
             // wait for miscellaneous tasks like sstable and commitlog segment deletion
-            ColumnFamilyStore.shutdownPostFlushExecutor();
+            ColumnFamilyStore.awaitPendingFlushes();
 
             try
             {
