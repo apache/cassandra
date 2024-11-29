@@ -64,30 +64,39 @@ public class CollectionFcts
             }
         });
 
-        functions.add(new FunctionFactory("collection_count", FunctionParameter.anyCollection())
+        functions.add(new FunctionFactory("collection_count", FunctionParameter.anyType(false))
         {
             @Override
             protected NativeFunction doGetOrCreateFunction(List<AbstractType<?>> argTypes, AbstractType<?> receiverType)
             {
-                return makeCollectionCountFunction(name.name, (CollectionType<?>) argTypes.get(0));
+                AbstractType<?> argType = argTypes.get(0);
+                return argType.isCollection()
+                       ? makeCollectionCountFunction(name.name, (CollectionType<?>) argType)
+                       : makeCollectionCountFunction(name.name, argType);
             }
         });
 
-        functions.add(new FunctionFactory("collection_min", FunctionParameter.setOrList())
+        functions.add(new FunctionFactory("collection_min", FunctionParameter.anyType(false))
         {
             @Override
             protected NativeFunction doGetOrCreateFunction(List<AbstractType<?>> argTypes, AbstractType<?> receiverType)
             {
-                return makeCollectionMinFunction(name.name, (CollectionType<?>) argTypes.get(0));
+                AbstractType<?> argType = argTypes.get(0);
+                return argType.isCollection()
+                       ? makeCollectionMinFunction(name.name, (CollectionType<?>) argType)
+                       : makeIdentityFunction(name.name, argType);
             }
         });
 
-        functions.add(new FunctionFactory("collection_max", FunctionParameter.setOrList())
+        functions.add(new FunctionFactory("collection_max", FunctionParameter.anyType(false))
         {
             @Override
             protected NativeFunction doGetOrCreateFunction(List<AbstractType<?>> argTypes, AbstractType<?> receiverType)
             {
-                return makeCollectionMaxFunction(name.name, (CollectionType<?>) argTypes.get(0));
+                AbstractType<?> argType = argTypes.get(0);
+                return argType.isCollection()
+                       ? makeCollectionMaxFunction(name.name, (CollectionType<?>) argType)
+                       : makeIdentityFunction(name.name, argType);
             }
         });
 
@@ -96,7 +105,10 @@ public class CollectionFcts
             @Override
             protected NativeFunction doGetOrCreateFunction(List<AbstractType<?>> argTypes, AbstractType<?> receiverType)
             {
-                return makeCollectionSumFunction(name.name, (CollectionType<?>) argTypes.get(0));
+                AbstractType<?> argType = argTypes.get(0);
+                return argType.isCollection()
+                       ? makeCollectionSumFunction(name.name, (CollectionType<?>) argType)
+                       : makeIdentityFunction(name.name, argType);
             }
         });
 
@@ -105,9 +117,36 @@ public class CollectionFcts
             @Override
             protected NativeFunction doGetOrCreateFunction(List<AbstractType<?>> argTypes, AbstractType<?> receiverType)
             {
-                return makeCollectionAvgFunction(name.name, (CollectionType<?>) argTypes.get(0));
+                AbstractType<?> argType = argTypes.get(0);
+                return argType.isCollection()
+                       ? makeCollectionAvgFunction(name.name, (CollectionType<?>) argType)
+                       : makeIdentityFunction(name.name, argType);
             }
         });
+    }
+
+    /**
+     * Returns a native scalar function that just returns its only argument without any changes.
+     * <p>
+     * This function is used as the underlying implementation of {@code collection_min}, {@code collection_max},
+     * {@code collection_sum} and {@code collection_avg} functions applied to not-collection data types. Those functions
+     * consider not-collection data types as a singleton collection. The min, max, sum and avg of a single-element
+     * collection is always that same single element. For example, collection_min(2) = collection_min([2]) = 2.
+     *
+     * @param name      the name of the function
+     * @param inputType the type of the argument
+     * @return a native scalar function that just returns its only argument without any changes.
+     */
+    private static NativeScalarFunction makeIdentityFunction(String name, AbstractType<?> inputType)
+    {
+        return new NativeScalarFunction(name, inputType, inputType)
+        {
+            @Override
+            public ByteBuffer execute(Arguments arguments)
+            {
+                return arguments.get(0);
+            }
+        };
     }
 
     /**
@@ -162,6 +201,21 @@ public class CollectionFcts
                 Map<K, V> map = arguments.get(0);
                 List<V> values = ImmutableList.copyOf(map.values());
                 return outputType.decompose(values);
+            }
+        };
+    }
+
+    private static NativeScalarFunction makeCollectionCountFunction(String name, AbstractType<?> inputType)
+    {
+        return new NativeScalarFunction(name, Int32Type.instance, inputType)
+        {
+            @Override
+            public ByteBuffer execute(Arguments arguments)
+            {
+                if (arguments.containsNulls())
+                    return null;
+
+                return Int32Type.instance.decompose(1);
             }
         };
     }

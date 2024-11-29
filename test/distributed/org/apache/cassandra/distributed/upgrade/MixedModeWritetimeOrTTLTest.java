@@ -25,17 +25,18 @@ import org.junit.Test;
 
 import org.apache.cassandra.distributed.api.ICoordinator;
 import org.assertj.core.api.Assertions;
+import org.assertj.core.api.InstanceOfAssertFactories;
 
 import static org.apache.cassandra.distributed.api.ConsistencyLevel.ALL;
 import static org.apache.cassandra.distributed.shared.AssertUtils.assertRows;
 import static org.apache.cassandra.distributed.shared.AssertUtils.row;
 
 /**
- * Tests the CQL functions {@code writetime}, {@code maxwritetime} and {@code ttl} on rolling upgrade.
- *
+ * Tests the CQL functions {@code writetime} and {@code ttl} on rolling upgrade.
+ * <p>
  * {@code writetime} and {@code ttl} on single-cell columns is always supported, even in mixed clusters.
  * {@code writetime} and {@code ttl} on multi-cell columns is not supported in coordinator nodes < 4.2.
- * {@code maxwritetime} is not supported in coordinator nodes < 4.2.
+ * {@code collection_max} is not supported in coordinator nodes < 4.2.
  */
 public class MixedModeWritetimeOrTTLTest extends UpgradeTestBase
 {
@@ -73,25 +74,29 @@ public class MixedModeWritetimeOrTTLTest extends UpgradeTestBase
 
     private void assertPre42Behaviour(ICoordinator coordinator)
     {
-        // regular column, supported except for maxwritetime
+        // regular column, supported except for collection functions
         assertRows(coordinator.execute(withKeyspace("SELECT writetime(v) FROM %s.t"), ALL), row(2L));
-        Assertions.assertThatThrownBy(() -> coordinator.execute(withKeyspace("SELECT maxwritetime(v) FROM %s.t"), ALL))
-                  .hasMessageContaining("Unknown function 'maxwritetime'");
+        Assertions.assertThatThrownBy(() -> coordinator.execute(withKeyspace("SELECT collection_max(writetime(v)) FROM %s.t"), ALL))
+                  .hasMessageContaining("Unknown function 'collection_max'");
         Assertions.assertThat((Integer) coordinator.execute(withKeyspace("SELECT ttl(v) FROM %s.t"), ALL)[0][0])
                   .isLessThanOrEqualTo(2000).isGreaterThan(2000 - 300); // margin of error of 5 minutes since TTLs decrease
 
-        // frozen collection, supported except for maxwritetime
+        // frozen collection, supported except for collection functions
         assertRows(coordinator.execute(withKeyspace("SELECT writetime(fs) FROM %s.t"), ALL), row(1L));
-        Assertions.assertThatThrownBy(() -> coordinator.execute(withKeyspace("SELECT maxwritetime(fs) FROM %s.t"), ALL))
-                  .hasMessageContaining("Unknown function 'maxwritetime'");
+        Assertions.assertThatThrownBy(() -> coordinator.execute(withKeyspace("SELECT collection_max(writetime(fs)) FROM %s.t"), ALL))
+                  .extracting(Throwable::getMessage, Assertions.as(InstanceOfAssertFactories.STRING))
+                  .matches(m -> m.contains("Cannot use selection function writeTime on non-frozen collection fs") ||
+                                m.contains("Unknown function 'collection_max'"));
         Assertions.assertThat((Integer) coordinator.execute(withKeyspace("SELECT ttl(fs) FROM %s.t"), ALL)[0][0])
                   .isLessThanOrEqualTo(1000).isGreaterThan(1000 - 300); // margin of error of 5 minutes since TTLs decrease
 
         // not-frozen collection, not supported
         Assertions.assertThatThrownBy(() -> coordinator.execute(withKeyspace("SELECT writetime(s) FROM %s.t"), ALL))
                   .hasMessageContaining("Cannot use selection function writeTime on non-frozen collection s");
-        Assertions.assertThatThrownBy(() -> coordinator.execute(withKeyspace("SELECT maxwritetime(s) FROM %s.t"), ALL))
-                  .hasMessageContaining("Unknown function 'maxwritetime'");
+        Assertions.assertThatThrownBy(() -> coordinator.execute(withKeyspace("SELECT collection_max(writetime(s)) FROM %s.t"), ALL))
+                  .extracting(Throwable::getMessage, Assertions.as(InstanceOfAssertFactories.STRING))
+                  .matches(m -> m.contains("Cannot use selection function writeTime on non-frozen collection s") ||
+                                m.contains("Unknown function 'collection_max'"));
         Assertions.assertThatThrownBy(() -> coordinator.execute(withKeyspace("SELECT ttl(s) FROM %s.t"), ALL))
                   .hasMessageContaining("Cannot use selection function ttl on non-frozen collection s");
     }
@@ -100,19 +105,19 @@ public class MixedModeWritetimeOrTTLTest extends UpgradeTestBase
     {
         // regular column, fully supported
         assertRows(coordinator.execute(withKeyspace("SELECT writetime(v) FROM %s.t"), ALL), row(2L));
-        assertRows(coordinator.execute(withKeyspace("SELECT maxwritetime(v) FROM %s.t"), ALL), row(2L));
+        assertRows(coordinator.execute(withKeyspace("SELECT collection_max(writetime(v)) FROM %s.t"), ALL), row(2L));
         Assertions.assertThat((Integer) coordinator.execute(withKeyspace("SELECT ttl(v) FROM %s.t"), ALL)[0][0])
                   .isLessThanOrEqualTo(2000).isGreaterThan(2000 - 300); // margin of error of 5 minutes since TTLs decrease
 
         // frozen collection, fully supported
         assertRows(coordinator.execute(withKeyspace("SELECT writetime(fs) FROM %s.t"), ALL), row(1L));
-        assertRows(coordinator.execute(withKeyspace("SELECT maxwritetime(fs) FROM %s.t"), ALL), row(1L));
+        assertRows(coordinator.execute(withKeyspace("SELECT collection_max(writetime(fs)) FROM %s.t"), ALL), row(1L));
         Assertions.assertThat((Integer) coordinator.execute(withKeyspace("SELECT ttl(fs) FROM %s.t"), ALL)[0][0])
                   .isLessThanOrEqualTo(1000).isGreaterThan(1000 - 300); // margin of error of 5 minutes since TTLs decrease
 
         // not-frozen collection, fully supported
         assertRows(coordinator.execute(withKeyspace("SELECT writetime(s) FROM %s.t"), ALL), row(Arrays.asList(1L, 1L, 2L, 2L)));
-        assertRows(coordinator.execute(withKeyspace("SELECT maxwritetime(s) FROM %s.t"), ALL), row(2L));
+        assertRows(coordinator.execute(withKeyspace("SELECT collection_max(writetime(s)) FROM %s.t"), ALL), row(2L));
         Assertions.assertThat(coordinator.execute(withKeyspace("SELECT ttl(s) FROM %s.t"), ALL)[0][0])
                   .matches(l -> l instanceof List && ((List<?>) l).size() == 4);
     }

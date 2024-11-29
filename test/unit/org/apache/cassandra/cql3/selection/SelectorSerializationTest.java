@@ -64,7 +64,6 @@ public class SelectorSerializationTest extends CQLTester
         ColumnMetadata column = table.getColumn(new ColumnIdentifier("v", false));
         checkSerialization(new Selectable.WritetimeOrTTL(column, column, Selectable.WritetimeOrTTL.Kind.WRITE_TIME), table);
         checkSerialization(new Selectable.WritetimeOrTTL(column, column, Selectable.WritetimeOrTTL.Kind.TTL), table);
-        checkSerialization(new Selectable.WritetimeOrTTL(column, column, Selectable.WritetimeOrTTL.Kind.MAX_WRITE_TIME), table);
 
         // Test ListSelector serialization
         checkSerialization(new Selectable.WithList(asList(table.getColumn(new ColumnIdentifier("v", false)),

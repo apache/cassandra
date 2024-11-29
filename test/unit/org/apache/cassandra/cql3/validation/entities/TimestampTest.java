@@ -118,14 +118,16 @@ public class TimestampTest extends CQLTester
         setupSchemaForMaxTimestamp();
 
         execute("INSERT INTO %s (k) VALUES (1)");
-        Object[][] res = getRows(execute("SELECT maxwritetime(a), maxwritetime(l), maxwritetime(fl)," +
-                                         "maxwritetime(s), maxwritetime(fs), maxwritetime(m), maxwritetime(fm)," +
-                                         "maxwritetime(t), maxwritetime(ft) FROM %s WHERE k=1"));
+        Object[][] res = getRows(execute("SELECT writetime(a), " +
+                                         "collection_max(writetime(l)), writetime(fl)," +
+                                         "collection_max(writetime(s)), writetime(fs), " +
+                                         "collection_max(writetime(m)), writetime(fm)," +
+                                         "collection_max(writetime(t)), writetime(ft) FROM %s WHERE k=1"));
 
         assertEquals(1, res.length);
         for (Object v : res[0])
         {
-            assertNull("All the multi-cell data are empty (we did not insert), calling maxwritetime should return null",
+            assertNull("All the multi-cell data are empty (we did not insert), calling max writetime should return null",
                        v);
         }
     }
@@ -138,7 +140,7 @@ public class TimestampTest extends CQLTester
         execute("INSERT INTO %s (k, a, l, fl, s, fs, m, fm, t, ft) VALUES " +
                 "(1, 'test', [1], [2], {1}, {2}, {1 : 'a'}, {2 : 'b'}, {a : 1, b : 1 }, {a : 2, b : 2}) USING TIMESTAMP 1");
 
-        // enumerate through all multi-cell types and make sure maxwritetime reflects the expected result
+        // enumerate through all multi-cell types and make sure max writetime reflects the expected result
         testMaxTimestampWithColumnUpdate(Arrays.asList(
            Pair.create(1, "UPDATE %s USING TIMESTAMP 10 SET l = l + [10] WHERE k = 1"),
            Pair.create(3, "UPDATE %s USING TIMESTAMP 11 SET s = s + {10} WHERE k = 1"),
@@ -157,24 +159,26 @@ public class TimestampTest extends CQLTester
             // run the update statement and update the timestamp of the column
             execute(statement);
 
-            Object[][] res = getRows(execute("SELECT maxwritetime(a), maxwritetime(l), maxwritetime(fl)," +
-                                             "maxwritetime(s), maxwritetime(fs), maxwritetime(m), maxwritetime(fm)," +
-                                             "maxwritetime(t), maxwritetime(ft) FROM %s WHERE k=1"));
+            Object[][] res = getRows(execute("SELECT writetime(a), " +
+                                             "collection_max(writetime(l)), writetime(fl)," +
+                                             "collection_max(writetime(s)), writetime(fs), " +
+                                             "collection_max(writetime(m)), writetime(fm)," +
+                                             "collection_max(writetime(t)), writetime(ft) FROM %s WHERE k=1"));
             Assert.assertEquals(1, res.length);
-            Assert.assertEquals("maxwritetime should work on both single cell and complex columns",
+            Assert.assertEquals("max writetime should work on both single cell and complex columns",
                                 9, res[0].length);
             for (Object ts : res[0])
             {
                 assertTrue(ts instanceof Long); // all the result fields are timestamps
             }
 
-            long updatedTs = (long) res[0][fieldPos]; // maxwritetime the updated column
+            long updatedTs = (long) res[0][fieldPos]; // max writetime the updated column
 
             for (int i = 0; i < res[0].length; i++)
             {
                 long ts = (long) res[0][i];
                 if (i != fieldPos)
-                    assertTrue("The updated column should have a large maxwritetime since it is updated later",
+                    assertTrue("The updated column should have a large max writetime since it is updated later",
                                ts < updatedTs);
             }
         }

@@ -310,10 +310,14 @@ public interface FunctionParameter
                         elementType = ((ListType<?>) argType).getElementsType();
                     }
                 }
+                else
+                {
+                    elementType = argType;
+                }
 
                 if (!(elementType instanceof NumberType))
-                    throw new InvalidRequestException(format("Function %s requires a numeric set/list argument, " +
-                                                             "but found argument %s of type %s",
+                    throw new InvalidRequestException(format("The argument for %s should be a number or a set/list " +
+                                                             "of numbers, but found argument %s of type %s",
                                                              name, arg, argType.asCQL3Type()));
             }
 
