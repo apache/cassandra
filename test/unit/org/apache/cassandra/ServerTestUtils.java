@@ -24,6 +24,7 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -165,15 +166,7 @@ public final class ServerTestUtils
             throw new RuntimeException(e);
         }
 
-        try
-        {
-            remoteAddrs.add(InetAddressAndPort.getByName("127.0.0.4"));
-        }
-        catch (UnknownHostException e)
-        {
-            logger.error("Failed to lookup host");
-            throw new RuntimeException(e);
-        }
+        addAddr("127.0.0.4", remoteAddrs::add);
 
         Thread.setDefaultUncaughtExceptionHandler(new Thread.UncaughtExceptionHandler()
         {
@@ -193,6 +186,18 @@ public final class ServerTestUtils
         isServerPrepared = true;
     }
 
+    public static void addAddr(String addr, Consumer<InetAddressAndPort> consumer)
+    {
+        try
+        {
+            consumer.accept(InetAddressAndPort.getByName(addr));
+        }
+        catch (UnknownHostException e)
+        {
+            logger.error("Failed to lookup host");
+            throw new RuntimeException(e);
+        }
+    }
 
     /**
      * Cleanup the directories used by the server, creating them if they do not exist.

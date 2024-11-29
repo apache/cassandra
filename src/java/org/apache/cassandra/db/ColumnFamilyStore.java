@@ -2937,14 +2937,14 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
         return accumulate;
     }
 
-    public <T> T withAllSSTables(final OperationType operationType, Function<LifecycleTransaction, T> op)
+    public <T> T withAllSSTables(final OperationType operationType, java.util.function.Function<LifecycleTransaction, T> op)
     {
         Callable<LifecycleTransaction> callable = () -> {
             assert data.getCompacting().isEmpty() : data.getCompacting();
             Iterable<SSTableReader> sstables = getLiveSSTables();
             sstables = AbstractCompactionStrategy.filterSuspectSSTables(sstables);
             LifecycleTransaction modifier = data.tryModify(sstables, operationType);
-            assert modifier != null: "something marked things compacting while compactions are disabled";
+            assert modifier != null : "something marked things compacting while compactions are disabled";
             return modifier;
         };
 
