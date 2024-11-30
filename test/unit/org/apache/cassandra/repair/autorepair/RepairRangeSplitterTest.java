@@ -209,7 +209,7 @@ public class RepairRangeSplitterTest extends CQLTester
         Collection<Range<Token>> ranges = Collections.singleton(FULL_RANGE);
 
         List<String> tableNames = createAndInsertTables(3);
-        List<SizedRepairAssignment> assignments = repairRangeSplitter.getRepairAssignments(AutoRepairConfig.RepairType.FULL, KEYSPACE, tableNames, ranges);
+        List<SizedRepairAssignment> assignments = repairRangeSplitter.getRepairAssignmentsForKeyspace(AutoRepairConfig.RepairType.FULL, KEYSPACE, tableNames, ranges);
 
         // We expect two assignments, one with table1 and table2 batched, and one with table3
         assertEquals(2, assignments.size());
@@ -223,7 +223,7 @@ public class RepairRangeSplitterTest extends CQLTester
         Collection<Range<Token>> ranges = Collections.singleton(FULL_RANGE);
 
         List<String> tableNames = createAndInsertTables(2);
-        List<SizedRepairAssignment> assignments = repairRangeSplitter.getRepairAssignments(AutoRepairConfig.RepairType.FULL, KEYSPACE, tableNames, ranges);
+        List<SizedRepairAssignment> assignments = repairRangeSplitter.getRepairAssignmentsForKeyspace(AutoRepairConfig.RepairType.FULL, KEYSPACE, tableNames, ranges);
 
         // We expect one assignment, with two tables batched
         assertEquals(1, assignments.size());
@@ -236,7 +236,7 @@ public class RepairRangeSplitterTest extends CQLTester
         Collection<Range<Token>> ranges = Collections.singleton(FULL_RANGE);
 
         List<String> tableNames = createAndInsertTables(3);
-        List<SizedRepairAssignment> assignments = repairRangeSplitter.getRepairAssignments(AutoRepairConfig.RepairType.FULL, KEYSPACE, tableNames, ranges);
+        List<SizedRepairAssignment> assignments = repairRangeSplitter.getRepairAssignmentsForKeyspace(AutoRepairConfig.RepairType.FULL, KEYSPACE, tableNames, ranges);
 
         assertEquals(3, assignments.size());
     }
@@ -247,7 +247,7 @@ public class RepairRangeSplitterTest extends CQLTester
         Collection<Range<Token>> ranges = Collections.singleton(FULL_RANGE);
 
         List<String> tableNames = createAndInsertTables(5);
-        List<SizedRepairAssignment> assignments = repairRangeSplitter.getRepairAssignments(AutoRepairConfig.RepairType.FULL, KEYSPACE, tableNames, ranges);
+        List<SizedRepairAssignment> assignments = repairRangeSplitter.getRepairAssignmentsForKeyspace(AutoRepairConfig.RepairType.FULL, KEYSPACE, tableNames, ranges);
 
         assertEquals(1, assignments.size());
     }

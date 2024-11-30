@@ -164,14 +164,14 @@ public class RepairRangeSplitter implements IAutoRepairTokenRangeSplitter
         {
             logger.debug("Calculating token range splits for repairType={} primaryRangeOnly={} keyspaceName={} tableNames={}", repairType, primaryRangeOnly, keyspace.getKey(), keyspace.getValue());
             Collection<Range<Token>> tokenRanges = getTokenRanges(primaryRangeOnly, keyspace.getKey());
-            repairAssignmentsByKeyspace.put(keyspace.getKey(), getRepairAssignments(repairType, keyspace.getKey(), keyspace.getValue(), tokenRanges));
+            repairAssignmentsByKeyspace.put(keyspace.getKey(), getRepairAssignmentsForKeyspace(repairType, keyspace.getKey(), keyspace.getValue(), tokenRanges));
         }
 
         return filterAndOrderRepairAssignments(repairType, repairAssignmentsByKeyspace);
     }
 
     @VisibleForTesting
-    List<SizedRepairAssignment> getRepairAssignments(AutoRepairConfig.RepairType repairType, String keyspaceName, List<String> tableNames, Collection<Range<Token>> tokenRanges)
+    List<SizedRepairAssignment> getRepairAssignmentsForKeyspace(AutoRepairConfig.RepairType repairType, String keyspaceName, List<String> tableNames, Collection<Range<Token>> tokenRanges)
     {
         List<SizedRepairAssignment> repairAssignments = new ArrayList<>();
         // this is used for batching minimal single assignment tables together
