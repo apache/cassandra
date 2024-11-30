@@ -28,7 +28,6 @@ import com.google.common.annotations.VisibleForTesting;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
-import org.apache.cassandra.schema.AutoRepairParams;
 
 public interface IAutoRepairTokenRangeSplitter
 {
@@ -38,11 +37,10 @@ public interface IAutoRepairTokenRangeSplitter
      * The autorepair framework will repair the list of returned subrange in a sequence.
      * @param repairType The type of repair being executed
      * @param primaryRangeOnly Whether to repair only this node's primary ranges or all of its ranges.
-     * @param keyspaceName The keyspace being repaired
-     * @param tableNames The tables to repair
+     * @param keyspacesAndTablesToRepair A map keyed by keyspace name and valued by tables to generate assignments for.
      * @return repair assignments broken up by range, keyspace and tables.
      */
-    List<RepairAssignment> getRepairAssignments(AutoRepairConfig.RepairType repairType, boolean primaryRangeOnly, String keyspaceName, List<String> tableNames);
+    Map<String, List<RepairAssignment>> getRepairAssignments(AutoRepairConfig.RepairType repairType, boolean primaryRangeOnly, Map<String, List<String>> keyspacesAndTablesToRepair);
 
     /**
      * Reorders the list of {@link RepairAssignment} objects based on their priority for a given repair type.

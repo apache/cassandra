@@ -22,7 +22,9 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
 import org.junit.BeforeClass;
 import org.junit.Test;
@@ -43,6 +45,7 @@ import org.apache.cassandra.service.StorageService;
 import static org.apache.cassandra.Util.setAutoRepairEnabled;
 import static org.apache.cassandra.config.CassandraRelevantProperties.SYSTEM_DISTRIBUTED_DEFAULT_RF;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotNull;
 
 @RunWith(Parameterized.class)
 public class AutoRepairDefaultTokenSplitterParameterizedTest extends CQLTester
@@ -67,30 +70,11 @@ public class AutoRepairDefaultTokenSplitterParameterizedTest extends CQLTester
         AutoRepair.SLEEP_IF_REPAIR_FINISHES_QUICKLY = new DurationSpec.IntSecondsBound("0s");
         SYSTEM_DISTRIBUTED_DEFAULT_RF.setInt(1);
         setAutoRepairEnabled(true);
-        DatabaseDescriptor.setInitialTokens("0,256,1024");
+        DatabaseDescriptor.setInitialTokens("-9223372036854775808,-3074457345618258603,3074457345618258602");
         requireNetwork();
         AutoRepairUtils.setup();
         SchemaLoader.prepareServer();
         SchemaLoader.createKeyspace(KEYSPACE, KeyspaceParams.simple(1));
-    }
-
-    private static void appendExpectedTokens(long left, long right, int numberOfSplits, List<Range<Token>> expectedToken)
-    {
-        long repairTokenWidth = (right - left) / numberOfSplits;
-        for (int i = 0; i < numberOfSplits; i++)
-        {
-            long curLeft = left + (i * repairTokenWidth);
-            long curRight = curLeft + repairTokenWidth;
-            if ((i + 1) == numberOfSplits)
-            {
-                curRight = right;
-            }
-            Token childStartToken = StorageService.instance.getTokenMetadata()
-                                    .partitioner.getTokenFactory().fromString("" + curLeft);
-            Token childEndToken = StorageService.instance.getTokenMetadata()
-                                  .partitioner.getTokenFactory().fromString("" + curRight);
-            expectedToken.add(new Range<>(childStartToken, childEndToken));
-        }
     }
 
     @Test
@@ -105,18 +89,36 @@ public class AutoRepairDefaultTokenSplitterParameterizedTest extends CQLTester
         List<Range<Token>> expectedToken = new ArrayList<>();
         for (int i = 0; i<tables.size(); i++)
         {
-            appendExpectedTokens(1024, 0, numberOfSplits, expectedToken);
-            appendExpectedTokens(0, 256, numberOfSplits, expectedToken);
-            appendExpectedTokens(256, 1024, numberOfSplits, expectedToken);
+            for (Range<Token> range : tokens)
+            {
+                expectedToken.addAll(AutoRepairUtils.split(range, numberOfSplits));
+            }
         }
 
         AutoRepairConfig config = AutoRepairService.instance.getAutoRepairConfig();
         config.setRepairSubRangeNum(repairType, numberOfSplits);
-        List<RepairAssignment> assignments = new DefaultAutoRepairTokenSplitter().getRepairAssignments(repairType, true, KEYSPACE, tables);
+        Map<String, List<String>> keyspaceToTables = new LinkedHashMap<>();
+        keyspaceToTables.put(KEYSPACE, tables);
+        Map<String, List<RepairAssignment>> assignmentsByKeyspace = new DefaultAutoRepairTokenSplitter().getRepairAssignments(repairType, true, keyspaceToTables);
+
+        // should be 1 entry for the keyspace.
+        assertEquals(1, assignmentsByKeyspace.size());
+        List<RepairAssignment> assignments = assignmentsByKeyspace.get(KEYSPACE);
+        assertNotNull(assignments);
+
         assertEquals(totalTokenRanges*numberOfSplits*tables.size(), assignments.size());
         assertEquals(expectedToken.size(), assignments.size());
 
         int expectedTableIndex = -1;
+        for (int i = 0; i<totalTokenRanges*numberOfSplits*tables.size(); i++)
+        {
+            if (i % (totalTokenRanges * numberOfSplits) == 0)
+            {
+                expectedTableIndex++;
+            }
+        }
+
+        expectedTableIndex = -1;
         for (int i = 0; i<totalTokenRanges*numberOfSplits*tables.size(); i++)
         {
             if (i % (totalTokenRanges*numberOfSplits) == 0)
@@ -138,13 +140,22 @@ public class AutoRepairDefaultTokenSplitterParameterizedTest extends CQLTester
         int numberOfSplits = 4;
         List<String> tables = Arrays.asList(TABLE1, TABLE2, TABLE3);
         List<Range<Token>> expectedToken = new ArrayList<>();
-        appendExpectedTokens(1024, 0, numberOfSplits, expectedToken);
-        appendExpectedTokens(0, 256, numberOfSplits, expectedToken);
-        appendExpectedTokens(256, 1024, numberOfSplits, expectedToken);
+        for (Range<Token> range : tokens)
+        {
+            expectedToken.addAll(AutoRepairUtils.split(range, numberOfSplits));
+        }
 
         AutoRepairConfig config = AutoRepairService.instance.getAutoRepairConfig();
         config.setRepairSubRangeNum(repairType, numberOfSplits);
-        List<RepairAssignment> assignments = new DefaultAutoRepairTokenSplitter().getRepairAssignments(repairType, true, KEYSPACE, tables);
+        Map<String, List<String>> keyspaceToTables = new LinkedHashMap<>();
+        keyspaceToTables.put(KEYSPACE, tables);
+        Map<String, List<RepairAssignment>> assignmentsByKeyspace = new DefaultAutoRepairTokenSplitter().getRepairAssignments(repairType, true, keyspaceToTables);
+
+        // should be 1 entry for the keyspace.
+        assertEquals(1, assignmentsByKeyspace.size());
+        List<RepairAssignment> assignments = assignmentsByKeyspace.get(KEYSPACE);
+        assertNotNull(assignments);
+
         assertEquals(totalTokenRanges*numberOfSplits, assignments.size());
         assertEquals(expectedToken.size(), assignments.size());
 

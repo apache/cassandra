@@ -22,6 +22,7 @@ import java.util.ArrayList;
 import java.util.EnumMap;
 import java.util.HashSet;
 import java.util.Iterator;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -147,6 +148,37 @@ public class AutoRepair
         repairExecutors.get(repairType).submit(() -> repair(repairType));
     }
 
+    /**
+     * @return The priority of the given table if defined, otherwise 0.
+     */
+    private int getPriority(AutoRepairConfig.RepairType repairType, String keyspaceName, String tableName)
+    {
+        ColumnFamilyStore cfs = ColumnFamilyStore.getIfExists(keyspaceName, tableName);
+        return cfs != null ? cfs.metadata().params.automatedRepair.get(repairType).priority() : 0;
+    }
+
+    /**
+     * @return A new map of keyspaces to tables sorted by the keyspace's underlying highest table priority.
+     */
+    private Map<String, List<String>> sortKeyspaceMapByTablePriority(AutoRepairConfig.RepairType repairType, Map<String, List<String>> keyspacesAndTablesToRepair)
+    {
+        // Sort assignments by keyspace with tables with the highest priority.
+        List<Map.Entry<String, List<String>>> entriesOrderedByTablePriority = new ArrayList<>(keyspacesAndTablesToRepair.entrySet());
+        entriesOrderedByTablePriority.sort((a, b) -> {
+            int aMaxPriority = a.getValue().stream().mapToInt((tableName) -> getPriority(repairType, a.getKey(), tableName)).max().orElse(0);
+            int bMaxPriority = b.getValue().stream().mapToInt((tableName) -> getPriority(repairType, b.getKey(), tableName)).max().orElse(0);
+            return bMaxPriority - aMaxPriority;
+        });
+
+        Map<String, List<String>> sortedKeyspacesToRepair = new LinkedHashMap<>();
+        for (Map.Entry<String, List<String>> sortedEntries : entriesOrderedByTablePriority)
+        {
+            sortedKeyspacesToRepair.put(sortedEntries.getKey(), sortedEntries.getValue());
+        }
+
+        return sortedKeyspacesToRepair;
+    }
+
     // repair runs a repair session of the given type synchronously.
     public void repair(AutoRepairConfig.RepairType repairType)
     {
@@ -205,18 +237,30 @@ public class AutoRepair
                 // sessions on overlapping datasets at the same time. Shuffling keyspaces reduces the likelihood of this happening.
                 shuffleFunc.accept(keyspaces);
 
+                // Filter out keyspaces and tables to repair and group into a map by keyspace.
+                Map<String, List<String>> keyspacesAndTablesToRepair = new LinkedHashMap<>();
                 for (Keyspace keyspace : keyspaces)
                 {
                     if (!AutoRepairUtils.checkNodeContainsKeyspaceReplica(keyspace))
                     {
                         continue;
                     }
-
-                    repairState.setRepairKeyspaceCount(repairState.getRepairKeyspaceCount() + 1);
                     List<String> tablesToBeRepairedList = retrieveTablesToBeRepaired(keyspace, config, repairType, repairState, collectectedRepairStats);
                     shuffleFunc.accept(tablesToBeRepairedList);
-                    String keyspaceName = keyspace.getName();
-                    List<RepairAssignment> repairAssignments = tokenRangeSplitters.get(repairType).getRepairAssignments(repairType, primaryRangeOnly, keyspaceName, tablesToBeRepairedList);
+                    keyspacesAndTablesToRepair.put(keyspace.getName(), tablesToBeRepairedList);
+                }
+                // sort keyspaces to repair by table priority
+                Map<String, List<String>> sortedKeyspacesToRepair = sortKeyspaceMapByTablePriority(repairType, keyspacesAndTablesToRepair);
+
+                // calculate the repair assignments for each kesypace.
+                Map<String, List<RepairAssignment>> repairAssignmentsByKeyspace = tokenRangeSplitters.get(repairType).getRepairAssignments(repairType, primaryRangeOnly, sortedKeyspacesToRepair);
+
+                // evaluate over each keyspace's repair assignments.
+                for (Map.Entry<String, List<RepairAssignment>> keyspaceAssignments : repairAssignmentsByKeyspace.entrySet())
+                {
+                    String keyspaceName = keyspaceAssignments.getKey();
+                    List<RepairAssignment> repairAssignments = keyspaceAssignments.getValue();
+                    repairState.setRepairKeyspaceCount(repairState.getRepairKeyspaceCount() + 1);
 
                     int totalRepairAssignments = repairAssignments.size();
                     long keyspaceStartTime = timeFunc.get();
@@ -243,7 +287,7 @@ public class AutoRepair
                                 repairState.setRepairInProgress(false);
                                 return;
                             }
-                            if (AutoRepairUtils.keyspaceMaxRepairTimeExceeded(repairType, keyspaceStartTime, tablesToBeRepairedList.size()))
+                            if (AutoRepairUtils.keyspaceMaxRepairTimeExceeded(repairType, keyspaceStartTime, sortedKeyspacesToRepair.get(keyspaceName).size()))
                             {
                                 collectectedRepairStats.skippedTokenRanges += totalRepairAssignments - totalProcessedAssignments;
                                 logger.info("Keyspace took too much time to repair hence skipping it {}",
