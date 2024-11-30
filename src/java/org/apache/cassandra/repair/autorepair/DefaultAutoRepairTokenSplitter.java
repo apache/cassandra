@@ -41,13 +41,13 @@ public class DefaultAutoRepairTokenSplitter implements IAutoRepairTokenRangeSpli
         Map<String, List<RepairAssignment>> repairAssignmentsByKeyspace = new LinkedHashMap<>();
         for (Map.Entry<String, List<String>> keyspace : keyspacesAndTablesToRepair.entrySet())
         {
-            repairAssignmentsByKeyspace.put(keyspace.getKey(), getRepairAssignmentsByKeyspace(repairType, primaryRangeOnly, keyspace.getKey(), keyspace.getValue()));
+            repairAssignmentsByKeyspace.put(keyspace.getKey(), getRepairAssignmentsForKeyspace(repairType, primaryRangeOnly, keyspace.getKey(), keyspace.getValue()));
         }
 
         return repairAssignmentsByKeyspace;
     }
 
-    private List<RepairAssignment> getRepairAssignmentsByKeyspace(AutoRepairConfig.RepairType repairType, boolean primaryRangeOnly, String keyspaceName, List<String> tableNames)
+    private List<RepairAssignment> getRepairAssignmentsForKeyspace(AutoRepairConfig.RepairType repairType, boolean primaryRangeOnly, String keyspaceName, List<String> tableNames)
     {
         AutoRepairConfig config = AutoRepairService.instance.getAutoRepairConfig();
         List<RepairAssignment> repairAssignments = new ArrayList<>();
