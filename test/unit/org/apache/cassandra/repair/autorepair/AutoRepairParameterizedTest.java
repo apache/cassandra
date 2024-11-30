@@ -23,7 +23,9 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
@@ -72,6 +74,7 @@ import static org.apache.cassandra.metrics.CassandraMetricsRegistry.Metrics;
 import static org.apache.cassandra.repair.autorepair.AutoRepairUtils.RepairTurn.NOT_MY_TURN;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 import static org.mockito.ArgumentMatchers.any;
@@ -454,6 +457,7 @@ public class AutoRepairParameterizedTest extends CQLTester
         AutoRepairConfig config = AutoRepairService.instance.getAutoRepairConfig();
         config.setMVRepairEnabled(repairType, true);
         config.setRepairMinInterval(repairType, "0s");
+        config.setRepairRetryBackoff("0s");
         config.setAutoRepairTableMaxRepairTime(repairType, "0s");
         AutoRepair.timeFunc = () -> {
             timeFuncCalls++;
@@ -542,7 +546,16 @@ public class AutoRepairParameterizedTest extends CQLTester
         assertEquals(1, tokens.size());
         List<Range<Token>> expectedToken = new ArrayList<>(tokens);
 
-        List<RepairAssignment> assignments = new DefaultAutoRepairTokenSplitter().getRepairAssignments(repairType, true, KEYSPACE, Collections.singletonList(TABLE));
+        Map<String, List<String>> keyspaceToTables = new LinkedHashMap<>();
+        keyspaceToTables.put(KEYSPACE, Collections.singletonList(TABLE));
+        Map<String, List<RepairAssignment>> assignmentsByKeyspace = new DefaultAutoRepairTokenSplitter().getRepairAssignments(repairType, true, keyspaceToTables);
+
+        // should be 1 entry for the keyspace.
+        assertEquals(1, assignmentsByKeyspace.size());
+        List<RepairAssignment> assignments = assignmentsByKeyspace.get(KEYSPACE);
+        assertNotNull(assignments);
+
+        // should be 1 entry for the table which covers the full range.
         assertEquals(1, assignments.size());
         assertEquals(expectedToken.get(0).left, assignments.get(0).getTokenRange().left);
         assertEquals(expectedToken.get(0).right, assignments.get(0).getTokenRange().right);
