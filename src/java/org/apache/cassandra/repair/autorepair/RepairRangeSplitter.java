@@ -394,7 +394,7 @@ public class RepairRangeSplitter implements IAutoRepairTokenRangeSplitter
                 if (memtableSize > 0L)
                 {
                     logger.debug("Included {}.{} range {}, had no unrepaired SSTables, but memtableSize={}, adding single repair assignment", estimate.keyspace, estimate.table, estimate.tokenRange, memtableSize);
-                    SizedRepairAssignment assignment = new SizedRepairAssignment(estimate.tokenRange, estimate.keyspace, Collections.singletonList(estimate.table), "memtable only", estimate.sizeInRange);
+                    SizedRepairAssignment assignment = new SizedRepairAssignment(estimate.tokenRange, estimate.keyspace, Collections.singletonList(estimate.table), "memtable only", memtableSize);
                     repairAssignments.add(assignment);
                 }
                 else
