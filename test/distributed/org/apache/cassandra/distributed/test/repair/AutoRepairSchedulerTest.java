@@ -60,14 +60,14 @@ public class AutoRepairSchedulerTest extends TestBaseImpl
                                                         .set("auto_repair",
                                                              ImmutableMap.of(
                                                              "repair_type_overrides",
-                                                             ImmutableMap.of(AutoRepairConfig.RepairType.FULL.toString(),
+                                                             ImmutableMap.of(AutoRepairConfig.RepairType.FULL.getConfigName(),
                                                                                  ImmutableMap.of(
                                                                                  "initial_scheduler_delay", "5s",
                                                                                  "enabled", "true",
                                                                                  "parallel_repair_count", "1",
                                                                                  "parallel_repair_percentage", "0",
                                                                                  "min_repair_interval", "1s"),
-                                                                             AutoRepairConfig.RepairType.INCREMENTAL.toString(),
+                                                                             AutoRepairConfig.RepairType.INCREMENTAL.getConfigName(),
                                                                                  ImmutableMap.of(
                                                                                  "initial_scheduler_delay", "5s",
                                                                                  "enabled", "true",
