@@ -54,6 +54,7 @@ import org.apache.cassandra.io.sstable.format.Version;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.TrackedDataInputPlus;
 import org.apache.cassandra.metrics.StorageMetrics;
+import org.apache.cassandra.io.util.RateLimitedTrackedDataInputPlus;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.StorageService;
@@ -138,7 +139,7 @@ public class CassandraStreamReader implements IStreamReader
         SSTableMultiWriter writer = null;
         try (StreamCompressionInputStream streamCompressionInputStream = new StreamCompressionInputStream(inputPlus, current_version))
         {
-            TrackedDataInputPlus in = new TrackedDataInputPlus(streamCompressionInputStream, -1, limiter);
+            RateLimitedTrackedDataInputPlus in = new RateLimitedTrackedDataInputPlus(streamCompressionInputStream, -1, limiter, totalSize, 1 << 16);
             writer = createWriter(cfs, totalSize, repairedAt, pendingRepair, format);
             deserializer = getDeserializer(cfs.metadata(), in, inputVersion, session, writer);
             String sequenceName = writer.getFilename() + '-' + fileSeqNum;
