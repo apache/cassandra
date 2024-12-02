@@ -18,8 +18,11 @@
 
 package org.apache.cassandra.repair.autorepair;
 
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
+import com.google.common.collect.Lists;
 import org.junit.Test;
 
 import org.apache.cassandra.cql3.CQLTester;
@@ -78,25 +81,60 @@ public class PrioritizedRepairPlanTest extends CQLTester
     @Test
     public void testBuildWithMixedPriorities()
     {
-        String table1 = createTable("CREATE TABLE %s (k INT PRIMARY KEY, v INT) WITH repair_full = {'enabled': 'true', 'priority': '2'}");
-        String table2 = createTable("CREATE TABLE %s (k INT PRIMARY KEY, v INT) WITH repair_full = {'enabled': 'true', 'priority': '3'}");
-        String table3 = createTable("CREATE TABLE %s (k INT PRIMARY KEY, v INT) WITH repair_full = {'enabled': 'true', 'priority': '2'}");
-        String table4 = createTable("CREATE TABLE %s (k INT PRIMARY KEY, v INT) WITH repair_full = {'enabled': 'true', 'priority': '1'}");
+        String ks1 = createKeyspace("CREATE KEYSPACE %s WITH replication={ 'class' : 'SimpleStrategy', 'replication_factor' : 1 }");
+        String table1 = createTable(ks1, "CREATE TABLE %s (k INT PRIMARY KEY, v INT) WITH repair_full = {'enabled': 'true', 'priority': '2'}");
+        String table2 = createTable(ks1, "CREATE TABLE %s (k INT PRIMARY KEY, v INT) WITH repair_full = {'enabled': 'true', 'priority': '3'}");
+        String table3 = createTable(ks1, "CREATE TABLE %s (k INT PRIMARY KEY, v INT) WITH repair_full = {'enabled': 'true', 'priority': '2'}");
+        String table4 = createTable(ks1, "CREATE TABLE %s (k INT PRIMARY KEY, v INT) WITH repair_full = {'enabled': 'true', 'priority': '1'}");
+        // No priority table should be bucketed at priority 0
+        String table5 = createTable(ks1,"CREATE TABLE %s (k INT PRIMARY KEY, v INT)");
 
-        // Expect only 3 plans
-        List<PrioritizedRepairPlan> prioritizedRepairPlans = PrioritizedRepairPlan.buildSingleKeyspacePlan(AutoRepairConfig.RepairType.FULL, KEYSPACE, table1, table2, table3, table4);
-        assertEquals(3, prioritizedRepairPlans.size());
+        // Create a new keyspace to ensure its tables get grouped with appropriate priority bucket
+        String ks2 = createKeyspace("CREATE KEYSPACE %s WITH replication={ 'class' : 'SimpleStrategy', 'replication_factor' : 1 }");
+        String table6 = createTable(ks2,"CREATE TABLE %s (k INT PRIMARY KEY, v INT)");
+        String table7 = createTable(ks2,"CREATE TABLE %s (k INT PRIMARY KEY, v INT) WITH repair_full = {'enabled': 'true', 'priority': '1'}");
+
+        Map<String, List<String>> keyspaceToTableMap = new HashMap<>();
+        keyspaceToTableMap.put(ks1, Lists.newArrayList(table1, table2, table3, table4, table5));
+        keyspaceToTableMap.put(ks2, Lists.newArrayList(table6, table7));
+
+        // Expect 4 plans
+        List<PrioritizedRepairPlan> prioritizedRepairPlans = PrioritizedRepairPlan.build(keyspaceToTableMap, AutoRepairConfig.RepairType.FULL, java.util.Collections::sort);
+        assertEquals(4, prioritizedRepairPlans.size());
 
         // Verify the order is by descending priority and matches the expected tables
         assertEquals(3, prioritizedRepairPlans.get(0).getPriority());
+        assertEquals(1, prioritizedRepairPlans.get(0).getKeyspaceRepairPlans().size());
+        assertEquals(ks1, prioritizedRepairPlans.get(0).getKeyspaceRepairPlans().get(0).getKeyspaceName());
         assertEquals(table2, prioritizedRepairPlans.get(0).getKeyspaceRepairPlans().get(0).getTableNames().get(0));
 
         assertEquals(2, prioritizedRepairPlans.get(1).getPriority());
+        assertEquals(1, prioritizedRepairPlans.get(1).getKeyspaceRepairPlans().size());
+
+        assertEquals(ks1, prioritizedRepairPlans.get(1).getKeyspaceRepairPlans().get(0).getKeyspaceName());
         assertEquals(table1, prioritizedRepairPlans.get(1).getKeyspaceRepairPlans().get(0).getTableNames().get(0));
         assertEquals(table3, prioritizedRepairPlans.get(1).getKeyspaceRepairPlans().get(0).getTableNames().get(1));
 
         assertEquals(1, prioritizedRepairPlans.get(2).getPriority());
+        // 2 keyspaces should be present at priority 1
+        assertEquals(2, prioritizedRepairPlans.get(2).getKeyspaceRepairPlans().size());
+        // ks1.table4 expected in first plan
+        assertEquals(ks1, prioritizedRepairPlans.get(2).getKeyspaceRepairPlans().get(0).getKeyspaceName());
         assertEquals(table4, prioritizedRepairPlans.get(2).getKeyspaceRepairPlans().get(0).getTableNames().get(0));
+        // ks2.table7 expected in second plan
+        assertEquals(ks2, prioritizedRepairPlans.get(2).getKeyspaceRepairPlans().get(1).getKeyspaceName());
+        assertEquals(table7, prioritizedRepairPlans.get(2).getKeyspaceRepairPlans().get(1).getTableNames().get(0));
+
+        // Tables without priority should get bucketed at priority 0
+        assertEquals(0, prioritizedRepairPlans.get(3).getPriority());
+        // 2 keyspaces expected
+        assertEquals(2, prioritizedRepairPlans.get(3).getKeyspaceRepairPlans().size());
+        // ks1.table5 expected in first plan
+        assertEquals(ks1, prioritizedRepairPlans.get(3).getKeyspaceRepairPlans().get(0).getKeyspaceName());
+        assertEquals(table5, prioritizedRepairPlans.get(3).getKeyspaceRepairPlans().get(0).getTableNames().get(0));
+        // ks2.table6 expected in second plan
+        assertEquals(ks2, prioritizedRepairPlans.get(3).getKeyspaceRepairPlans().get(1).getKeyspaceName());
+        assertEquals(table6, prioritizedRepairPlans.get(3).getKeyspaceRepairPlans().get(1).getTableNames().get(0));
     }
 
     @Test

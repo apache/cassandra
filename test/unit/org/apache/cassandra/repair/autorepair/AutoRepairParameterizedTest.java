@@ -71,6 +71,7 @@ import static org.apache.cassandra.metrics.CassandraMetricsRegistry.Metrics;
 import static org.apache.cassandra.repair.autorepair.AutoRepairUtils.RepairTurn.NOT_MY_TURN;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
@@ -590,28 +591,28 @@ public class AutoRepairParameterizedTest extends CQLTester
     {
         AtomicInteger shuffleKeyspacesCall = new AtomicInteger();
         AtomicInteger shuffleTablesCall = new AtomicInteger();
-        AutoRepair.shuffleFunc = (List<?> list) -> {
-            if (!list.isEmpty())
+        AtomicInteger keyspaceCount = new AtomicInteger();
+        AutoRepair.shuffleFunc = (List<String> list) -> {
+            // check whether was invoked for keyspaces or tables
+            if (list.contains(KEYSPACE))
             {
-                assertTrue(list.get(0) instanceof Keyspace || list.get(0) instanceof String);
-                if (list.get(0) instanceof Keyspace)
-                {
-                    shuffleKeyspacesCall.getAndIncrement();
-                    assertFalse(list.isEmpty());
-                }
-                else if (list.get(0) instanceof String)
-                {
-                    shuffleTablesCall.getAndIncrement();
-                }
+                shuffleKeyspacesCall.getAndIncrement();
+                keyspaceCount.set(list.size());
             }
+            else
+                // presume list not containing a keyspace is for tables.
+                shuffleTablesCall.getAndIncrement();
         };
 
         AutoRepairConfig config = AutoRepairService.instance.getAutoRepairConfig();
         config.setRepairMinInterval(repairType, "0s");
         AutoRepair.instance.repair(repairType);
 
+        // Expect a single invocation for keyspaces
         assertEquals(1, shuffleKeyspacesCall.get());
-        assertEquals(5, shuffleTablesCall.get());
+        // Expect an invocation for tables for each keyspace
+        assertNotEquals(0, keyspaceCount.get());
+        assertEquals(keyspaceCount.get(), shuffleTablesCall.get());
     }
 
     @Test
