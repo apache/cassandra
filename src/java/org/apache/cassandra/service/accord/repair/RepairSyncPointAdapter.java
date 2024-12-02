@@ -61,15 +61,9 @@ public class RepairSyncPointAdapter<U extends Unseekable> extends CoordinationAd
     public void execute(Node node, Topologies all, FullRoute<?> route, ExecutePath path, TxnId txnId, Txn txn, Timestamp executeAt, Deps deps, BiConsumer<? super SyncPoint<U>, Throwable> callback)
     {
         RequiredResponseTracker tracker = new RequiredResponseTracker(requiredResponses, all);
-        ExecuteSyncPoint.ExecuteBlocking<U> execute = new ExecuteSyncPoint.ExecuteBlocking<>(node, new SyncPoint<>(txnId, deps, (FullRoute<U>) route), tracker, executeAt);
+        ExecuteSyncPoint.ExecuteInclusive<U> execute = new ExecuteSyncPoint.ExecuteInclusive<>(node, new SyncPoint<>(txnId, deps, (FullRoute<U>) route), tracker, executeAt);
         execute.addCallback(callback);
         execute.start();
-    }
-
-    @Override
-    protected void addOrExecuteCallback(ExecuteSyncPoint.ExecuteBlocking<U> execute, BiConsumer<? super SyncPoint<U>, Throwable> callback)
-    {
-        execute.addCallback(callback);
     }
 
     @Override
