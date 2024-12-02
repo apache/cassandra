@@ -175,6 +175,7 @@ Merged from 3.0:
  * Fix CQLSH online help topic link (CASSANDRA-17534)
  * Remove unused suppressions (CASSANDRA-18724)
 Unreleased
+4.1.3.16
  * [SO-37864] Add batch acquire permits for inbound stream support
  * [SO-36506] Implement preview repaired auto-repair type
  * [SO-36560] Fix secondary index build causing deadlock on memtable flush (CASSANDRA-19564)
