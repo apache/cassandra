@@ -21,11 +21,9 @@ package org.apache.cassandra.repair.autorepair;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.HashSet;
-import java.util.LinkedHashMap;
+import java.util.Iterator;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
@@ -39,7 +37,6 @@ import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.repair.RepairCoordinator;
 import org.apache.cassandra.exceptions.ConfigurationException;
-import org.apache.cassandra.repair.autorepair.IAutoRepairTokenRangeSplitter.RepairAssignment;
 import org.apache.cassandra.schema.SystemDistributedKeyspace;
 import org.apache.cassandra.service.StorageService;
 
@@ -546,13 +543,16 @@ public class AutoRepairParameterizedTest extends CQLTester
         assertEquals(1, tokens.size());
         List<Range<Token>> expectedToken = new ArrayList<>(tokens);
 
-        Map<String, List<String>> keyspaceToTables = new LinkedHashMap<>();
-        keyspaceToTables.put(KEYSPACE, Collections.singletonList(TABLE));
-        Map<String, List<RepairAssignment>> assignmentsByKeyspace = new DefaultAutoRepairTokenSplitter().getRepairAssignments(repairType, true, keyspaceToTables);
+        List<PrioritizedRepairPlan> plan = PrioritizedRepairPlan.buildSingleKeyspacePlan(repairType, KEYSPACE, TABLE);
 
-        // should be 1 entry for the keyspace.
-        assertEquals(1, assignmentsByKeyspace.size());
-        List<RepairAssignment> assignments = assignmentsByKeyspace.get(KEYSPACE);
+        Iterator<KeyspaceRepairAssignments> keyspaceAssignments = new DefaultAutoRepairTokenSplitter().getRepairAssignments(repairType, true, plan);
+
+        // should be only 1 entry for the keyspace.
+        assertTrue(keyspaceAssignments.hasNext());
+        KeyspaceRepairAssignments keyspace = keyspaceAssignments.next();
+        assertFalse(keyspaceAssignments.hasNext());
+
+        List<RepairAssignment> assignments = keyspace.getRepairAssignments();
         assertNotNull(assignments);
 
         // should be 1 entry for the table which covers the full range.

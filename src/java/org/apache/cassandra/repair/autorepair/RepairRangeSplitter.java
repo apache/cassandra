@@ -23,9 +23,10 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
-import java.util.LinkedHashMap;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.NoSuchElementException;
 import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -157,17 +158,68 @@ public class RepairRangeSplitter implements IAutoRepairTokenRangeSplitter
     }
 
     @Override
-    public Map<String, List<RepairAssignment>> getRepairAssignments(AutoRepairConfig.RepairType repairType, boolean primaryRangeOnly, Map<String, List<String>> keyspacesAndTablesToRepair)
+    public Iterator<KeyspaceRepairAssignments> getRepairAssignments(AutoRepairConfig.RepairType repairType, boolean primaryRangeOnly, List<PrioritizedRepairPlan> repairPlans)
     {
-        Map<String, List<SizedRepairAssignment>> repairAssignmentsByKeyspace = new LinkedHashMap<>();
-        for (Map.Entry<String, List<String>> keyspace : keyspacesAndTablesToRepair.entrySet())
+        return new RepairAssignmentIterator(repairType, primaryRangeOnly, repairPlans);
+    }
+
+    private class RepairAssignmentIterator implements Iterator<KeyspaceRepairAssignments>
+    {
+
+        private final AutoRepairConfig.RepairType repairType;
+        private final boolean primaryRangeOnly;
+
+        private final Iterator<PrioritizedRepairPlan> repairPlanIterator;
+
+        private Iterator<KeyspaceRepairPlan> currentIterator = null;
+        private PrioritizedRepairPlan currentPlan = null;
+        private long bytesSoFar = 0;
+
+        RepairAssignmentIterator(AutoRepairConfig.RepairType repairType, boolean primaryRangeOnly, List<PrioritizedRepairPlan> repairPlans)
         {
-            logger.debug("Calculating token range splits for repairType={} primaryRangeOnly={} keyspaceName={} tableNames={}", repairType, primaryRangeOnly, keyspace.getKey(), keyspace.getValue());
-            Collection<Range<Token>> tokenRanges = getTokenRanges(primaryRangeOnly, keyspace.getKey());
-            repairAssignmentsByKeyspace.put(keyspace.getKey(), getRepairAssignmentsForKeyspace(repairType, keyspace.getKey(), keyspace.getValue(), tokenRanges));
+            this.repairType = repairType;
+            this.primaryRangeOnly = primaryRangeOnly;
+            this.repairPlanIterator = repairPlans.iterator();
         }
 
-        return filterAndOrderRepairAssignments(repairType, repairAssignmentsByKeyspace);
+        private synchronized Iterator<KeyspaceRepairPlan> currentIterator()
+        {
+            if (currentIterator == null || !currentIterator.hasNext())
+            {
+                // Advance the repair plan iterator if the current repair plan is exhausted, but only
+                // if there are more repair plans.
+                if (repairPlanIterator.hasNext())
+                {
+                    currentPlan = repairPlanIterator.next();
+                    currentIterator = currentPlan.getKeyspaceRepairPlans().iterator();
+                }
+            }
+
+            return currentIterator;
+        }
+
+        @Override
+        public boolean hasNext()
+        {
+            return currentIterator().hasNext();
+        }
+
+        @Override
+        public KeyspaceRepairAssignments next()
+        {
+            // Should not happen unless violating the contract of iterator of checking hasNext first.
+            if (!currentIterator.hasNext())
+            {
+                throw new NoSuchElementException("No remaining repair plans");
+            }
+
+            final KeyspaceRepairPlan repairPlan = currentIterator().next();
+            Collection<Range<Token>> tokenRanges = getTokenRanges(primaryRangeOnly, repairPlan.getKeyspaceName());
+            List<SizedRepairAssignment> repairAssignments = getRepairAssignmentsForKeyspace(repairType, repairPlan.getKeyspaceName(), repairPlan.getTableNames(), tokenRanges);
+            FilteredRepairAssignments filteredRepairAssignments = filterRepairAssignments(repairType, currentPlan.getPriority(), repairPlan.getKeyspaceName(), repairAssignments, bytesSoFar);
+            bytesSoFar = filteredRepairAssignments.newBytesSoFar;
+            return new KeyspaceRepairAssignments(currentPlan.getPriority(), repairPlan.getKeyspaceName(), filteredRepairAssignments.repairAssignments);
+        }
     }
 
     @VisibleForTesting
@@ -239,63 +291,49 @@ public class RepairRangeSplitter implements IAutoRepairTokenRangeSplitter
     }
 
     /**
-     * Given a repair type and map of sized-based repair assignments by keyspace order them by priority of the
-     * assignments' underlying tables and confine them by <code>maxBytesPerSchedule</code>.
+     * Given a repair type and map of sized-based repair assignments, confine them by <code>maxBytesPerSchedule</code>.
      * @param repairType used to determine underyling table priorities
-     * @param repairAssignmentsByKeyspace the assignments to filter.
-     * @return A list of repair assignments ordered by priority and confined by <code>maxBytesPerSchedule</code>.
+     * @param repairAssignments the assignments to filter.
+     * @param bytesSoFar repair assignment bytes accumulated so far.
+     * @return A list of repair assignments confined by <code>maxBytesPerSchedule</code>.
      */
     @VisibleForTesting
-    Map<String, List<RepairAssignment>> filterAndOrderRepairAssignments(AutoRepairConfig.RepairType repairType, Map<String, List<SizedRepairAssignment>> repairAssignmentsByKeyspace)
+    FilteredRepairAssignments filterRepairAssignments(AutoRepairConfig.RepairType repairType, int priority, String keyspaceName, List<SizedRepairAssignment> repairAssignments, long bytesSoFar)
     {
         // Confine repair assignments by maxBytesPerSchedule.
-        long bytesSoFar = 0L;
+        long bytesSoFarThisIteration = 0L;
         long bytesNotRepaired = 0L;
         int assignmentsNotRepaired = 0;
         int assignmentsToRepair = 0;
         int totalAssignments = 0;
 
-        Map<String, List<RepairAssignment>> filteredRepairAssignmentsByKeyspace = new LinkedHashMap<>();
-        for (Map.Entry<String, List<SizedRepairAssignment>> keyspaceAssignments : repairAssignmentsByKeyspace.entrySet())
+        List<RepairAssignment> assignmentsToReturn = new ArrayList<>(repairAssignments.size());
+        for (SizedRepairAssignment repairAssignment : repairAssignments)
         {
-            String keyspace = keyspaceAssignments.getKey();
-            List<SizedRepairAssignment> repairAssignments = keyspaceAssignments.getValue();
-
-            // Reorder the repair assignments
-            reorderByPriority(repairAssignments, repairType);
-
-            List<RepairAssignment> assignmentsToReturn = new ArrayList<>(repairAssignments.size());
-            for (SizedRepairAssignment repairAssignment : repairAssignments)
+            totalAssignments++;
+            // skip any repair assignments that would accumulate us past the maxBytesPerSchedule
+            if (bytesSoFar + repairAssignment.getEstimatedBytes() > maxBytesPerSchedule)
             {
-                totalAssignments++;
-                // skip any repair assignments that would accumulate us past the maxBytesPerSchedule
-                if (bytesSoFar + repairAssignment.getEstimatedBytes() > maxBytesPerSchedule)
-                {
-                    // log that repair assignment was skipped.
-                    bytesNotRepaired += repairAssignment.getEstimatedBytes();
-                    assignmentsNotRepaired++;
-                    logger.warn("Skipping {} because it would increase total repair bytes to {}",
-                                repairAssignment,
-                                getBytesOfMaxBytesPerSchedule(bytesSoFar + repairAssignment.getEstimatedBytes()));
-                }
-                else
-                {
-                    bytesSoFar += repairAssignment.getEstimatedBytes();
-                    assignmentsToRepair++;
-                    logger.info("Adding {}, increasing repair bytes to {}",
-                                repairAssignment,
-                                getBytesOfMaxBytesPerSchedule(bytesSoFar));
-                    assignmentsToReturn.add(repairAssignment);
-                }
+                // log that repair assignment was skipped.
+                bytesNotRepaired += repairAssignment.getEstimatedBytes();
+                assignmentsNotRepaired++;
+                logger.warn("Skipping {} because it would increase total repair bytes to {}",
+                            repairAssignment,
+                            getBytesOfMaxBytesPerSchedule(bytesSoFar + repairAssignment.getEstimatedBytes()));
             }
-
-            if (!assignmentsToReturn.isEmpty())
+            else
             {
-                filteredRepairAssignmentsByKeyspace.put(keyspace, assignmentsToReturn);
+                bytesSoFar += repairAssignment.getEstimatedBytes();
+                bytesSoFarThisIteration += repairAssignment.getEstimatedBytes();
+                assignmentsToRepair++;
+                logger.info("Adding {}, increasing repair bytes to {}",
+                            repairAssignment,
+                            getBytesOfMaxBytesPerSchedule(bytesSoFar));
+                assignmentsToReturn.add(repairAssignment);
             }
         }
 
-        String message = "Returning {} assignment(s), totaling {}";
+        String message = "Returning {} assignment(s) for priorityBucket {} and keyspace {}, totaling {} ({} overall)";
         if (assignmentsNotRepaired != 0)
         {
             message += ". Skipping {} of {} assignment(s), totaling {}";
@@ -304,23 +342,41 @@ public class RepairRangeSplitter implements IAutoRepairTokenRangeSplitter
                 message += ". The entire primary range will not be repaired this schedule. " +
                            "Consider increasing maxBytesPerSchedule, reducing node density or monitoring to ensure " +
                            "all ranges do get repaired within gc_grace_seconds";
-                logger.warn(message, assignmentsToRepair, getBytesOfMaxBytesPerSchedule(bytesSoFar),
+                logger.warn(message, assignmentsToRepair, priority, keyspaceName,
+                            FileUtils.stringifyFileSize(bytesSoFarThisIteration),
+                            getBytesOfMaxBytesPerSchedule(bytesSoFar),
                             assignmentsNotRepaired, totalAssignments,
                             FileUtils.stringifyFileSize(bytesNotRepaired));
             }
             else
             {
-                logger.info(message, assignmentsToRepair, getBytesOfMaxBytesPerSchedule(bytesSoFar),
+                logger.info(message, assignmentsToRepair, priority, keyspaceName,
+                            FileUtils.stringifyFileSize(bytesSoFarThisIteration),
+                            getBytesOfMaxBytesPerSchedule(bytesSoFar),
                             assignmentsNotRepaired, totalAssignments,
                             FileUtils.stringifyFileSize(bytesNotRepaired));
             }
         }
         else
         {
-            logger.info(message, assignmentsToRepair, getBytesOfMaxBytesPerSchedule(bytesSoFar));
+            logger.info(message, assignmentsToRepair, priority, keyspaceName,
+                        FileUtils.stringifyFileSize(bytesSoFarThisIteration),
+                        getBytesOfMaxBytesPerSchedule(bytesSoFar));
         }
 
-        return filteredRepairAssignmentsByKeyspace;
+        return new FilteredRepairAssignments(assignmentsToReturn, bytesSoFar);
+    }
+
+    private static class FilteredRepairAssignments
+    {
+        private final List<RepairAssignment> repairAssignments;
+        private final long newBytesSoFar;
+
+        private FilteredRepairAssignments(List<RepairAssignment> repairAssignments, long newBytesSoFar)
+        {
+            this.repairAssignments = repairAssignments;
+            this.newBytesSoFar = newBytesSoFar;
+        }
     }
 
     private String getBytesOfMaxBytesPerSchedule(long bytes) {

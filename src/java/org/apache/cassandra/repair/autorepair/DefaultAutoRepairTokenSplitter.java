@@ -21,9 +21,9 @@ package org.apache.cassandra.repair.autorepair;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.LinkedHashMap;
+import java.util.Iterator;
 import java.util.List;
-import java.util.Map;
+import java.util.NoSuchElementException;
 
 import org.apache.cassandra.service.AutoRepairService;
 
@@ -36,21 +36,70 @@ import static org.apache.cassandra.repair.autorepair.AutoRepairUtils.split;
 public class DefaultAutoRepairTokenSplitter implements IAutoRepairTokenRangeSplitter
 {
     @Override
-    public Map<String, List<RepairAssignment>> getRepairAssignments(AutoRepairConfig.RepairType repairType, boolean primaryRangeOnly, Map<String, List<String>> keyspacesAndTablesToRepair)
+    public Iterator<KeyspaceRepairAssignments> getRepairAssignments(AutoRepairConfig.RepairType repairType, boolean primaryRangeOnly, List<PrioritizedRepairPlan> repairPlans)
     {
-        Map<String, List<RepairAssignment>> repairAssignmentsByKeyspace = new LinkedHashMap<>();
-        for (Map.Entry<String, List<String>> keyspace : keyspacesAndTablesToRepair.entrySet())
-        {
-            repairAssignmentsByKeyspace.put(keyspace.getKey(), getRepairAssignmentsForKeyspace(repairType, primaryRangeOnly, keyspace.getKey(), keyspace.getValue()));
-        }
-
-        return repairAssignmentsByKeyspace;
+        return new RepairAssignmentIterator(repairType, primaryRangeOnly, repairPlans);
     }
 
-    private List<RepairAssignment> getRepairAssignmentsForKeyspace(AutoRepairConfig.RepairType repairType, boolean primaryRangeOnly, String keyspaceName, List<String> tableNames)
+    private class RepairAssignmentIterator implements Iterator<KeyspaceRepairAssignments>
+    {
+
+        private final AutoRepairConfig.RepairType repairType;
+        private final boolean primaryRangeOnly;
+
+        private final Iterator<PrioritizedRepairPlan> repairPlanIterator;
+
+        private Iterator<KeyspaceRepairPlan> currentIterator = null;
+        private PrioritizedRepairPlan currentPlan = null;
+
+        RepairAssignmentIterator(AutoRepairConfig.RepairType repairType, boolean primaryRangeOnly, List<PrioritizedRepairPlan> repairPlans)
+        {
+            this.repairType = repairType;
+            this.primaryRangeOnly = primaryRangeOnly;
+            this.repairPlanIterator = repairPlans.iterator();
+        }
+
+        private synchronized Iterator<KeyspaceRepairPlan> currentIterator()
+        {
+            if (currentIterator == null || !currentIterator.hasNext())
+            {
+                // Advance the repair plan iterator if the current repair plan is exhausted, but only
+                // if there are more repair plans.
+                if (repairPlanIterator.hasNext())
+                {
+                    currentPlan = repairPlanIterator.next();
+                    currentIterator = currentPlan.getKeyspaceRepairPlans().iterator();
+                }
+            }
+
+            return currentIterator;
+        }
+
+        @Override
+        public boolean hasNext()
+        {
+            return currentIterator().hasNext();
+        }
+
+        @Override
+        public KeyspaceRepairAssignments next()
+        {
+            if (!currentIterator.hasNext())
+            {
+                throw new NoSuchElementException("No remaining repair plans");
+            }
+
+            final KeyspaceRepairPlan repairPlan = currentIterator().next();
+            return getRepairAssignmentsForKeyspace(repairType, primaryRangeOnly, currentPlan.getPriority(), repairPlan);
+        }
+    }
+
+    private KeyspaceRepairAssignments getRepairAssignmentsForKeyspace(AutoRepairConfig.RepairType repairType, boolean primaryRangeOnly, int priority, KeyspaceRepairPlan repairPlan)
     {
         AutoRepairConfig config = AutoRepairService.instance.getAutoRepairConfig();
         List<RepairAssignment> repairAssignments = new ArrayList<>();
+        String keyspaceName = repairPlan.getKeyspaceName();
+        List<String> tableNames = repairPlan.getTableNames();
 
         Collection<Range<Token>> tokens = StorageService.instance.getPrimaryRanges(keyspaceName);
         if (!primaryRangeOnly)
@@ -87,7 +136,7 @@ public class DefaultAutoRepairTokenSplitter implements IAutoRepairTokenRangeSpli
                 }
             }
         }
-        reorderByPriority(repairAssignments, repairType);
-        return repairAssignments;
+
+        return new KeyspaceRepairAssignments(priority, keyspaceName, repairAssignments);
     }
 }
