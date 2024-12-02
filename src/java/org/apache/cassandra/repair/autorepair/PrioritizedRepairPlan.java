@@ -93,7 +93,7 @@ public class PrioritizedRepairPlan
      * @param orderFunc A function to order keyspace and tables in the returned plan.
      * @return Ordered list of plan's by table priorities.
      */
-    public static List<PrioritizedRepairPlan> build(Map<String, List<String>> keyspacesToTableNames, AutoRepairConfig.RepairType repairType, Consumer<List<?>> orderFunc)
+    public static List<PrioritizedRepairPlan> build(Map<String, List<String>> keyspacesToTableNames, AutoRepairConfig.RepairType repairType, Consumer<List<String>> orderFunc)
     {
         // Build a map of priority -> (keyspace -> tables)
         Map<Integer, Map<String, List<String>>> plans = new HashMap<>();

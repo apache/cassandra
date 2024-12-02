@@ -367,10 +367,11 @@ public class RepairRangeSplitter implements IAutoRepairTokenRangeSplitter
         return new FilteredRepairAssignments(assignmentsToReturn, bytesSoFar);
     }
 
-    private static class FilteredRepairAssignments
+    @VisibleForTesting
+    static class FilteredRepairAssignments
     {
-        private final List<RepairAssignment> repairAssignments;
-        private final long newBytesSoFar;
+        final List<RepairAssignment> repairAssignments;
+        final long newBytesSoFar;
 
         private FilteredRepairAssignments(List<RepairAssignment> repairAssignments, long newBytesSoFar)
         {
