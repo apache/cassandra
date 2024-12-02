@@ -398,7 +398,6 @@ public class SavedCommand
         PartialTxn partialTxn;
         PartialDeps partialDeps;
 
-        byte[] waitingOnBytes;
         SavedCommand.WaitingOnProvider waitingOn;
         Writes writes;
         Result result;
@@ -510,7 +509,6 @@ public class SavedCommand
             partialTxn = null;
             partialDeps = null;
 
-            waitingOnBytes = null;
             waitingOn = null;
             writes = null;
             result = null;
@@ -703,8 +701,12 @@ public class SavedCommand
                         DepsSerializers.partialDeps.serialize(partialDeps(), out, userVersion);
                         break;
                     case WAITING_ON:
-                        out.writeInt(waitingOnBytes.length);
-                        out.write(waitingOnBytes);
+                        Command.WaitingOn waitingOn = waitingOn().provide(txnId, partialDeps);
+                        long size = WaitingOnSerializer.serializedSize(txnId, waitingOn);
+                        ByteBuffer serialized = WaitingOnSerializer.serialize(txnId, waitingOn);
+                        Invariants.checkState(serialized.remaining() == size);
+                        out.writeInt((int) size);
+                        out.write(serialized);
                         break;
                     case WRITES:
                         CommandSerializers.writes.serialize(writes(), out, userVersion);
@@ -789,7 +791,8 @@ public class SavedCommand
                     break;
                 case WAITING_ON:
                     int size = in.readInt();
-                    waitingOnBytes = new byte[size];
+
+                    byte[] waitingOnBytes = new byte[size];
                     in.readFully(waitingOnBytes);
                     ByteBuffer buffer = ByteBuffer.wrap(waitingOnBytes);
                     waitingOn = (localTxnId, deps) -> {
