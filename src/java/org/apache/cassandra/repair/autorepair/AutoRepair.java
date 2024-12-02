@@ -84,7 +84,9 @@ public class AutoRepair
     protected final Map<AutoRepairConfig.RepairType, AutoRepairState> repairStates;
 
     @VisibleForTesting
-    protected static Consumer<List<?>> shuffleFunc = java.util.Collections::shuffle;
+    // Auto-repair is likely to be run on multiple nodes independently, we want to avoid running multiple repair
+    // sessions on overlapping datasets at the same time. Shuffling keyspaces reduces the likelihood of this happening.
+    protected static Consumer<List<String>> shuffleFunc = java.util.Collections::shuffle;
 
     @VisibleForTesting
     protected static BiConsumer<Long, TimeUnit> sleepFunc = Uninterruptibles::sleepUninterruptibly;
@@ -210,10 +212,6 @@ public class AutoRepair
 
                 List<Keyspace> keyspaces = new ArrayList<>();
                 Keyspace.all().forEach(keyspaces::add);
-                // Auto-repair is likely to be run on multiple nodes independently, we want to avoid running multiple repair
-                // sessions on overlapping datasets at the same time. Shuffling keyspaces reduces the likelihood of this happening.
-                shuffleFunc.accept(keyspaces);
-
                 // Filter out keyspaces and tables to repair and group into a map by keyspace.
                 Map<String, List<String>> keyspacesAndTablesToRepair = new LinkedHashMap<>();
                 for (Keyspace keyspace : keyspaces)
@@ -223,7 +221,6 @@ public class AutoRepair
                         continue;
                     }
                     List<String> tablesToBeRepairedList = retrieveTablesToBeRepaired(keyspace, config, repairType, repairState, collectedRepairStats);
-                    shuffleFunc.accept(tablesToBeRepairedList);
                     keyspacesAndTablesToRepair.put(keyspace.getName(), tablesToBeRepairedList);
                 }
 
