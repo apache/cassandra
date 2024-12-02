@@ -22,9 +22,8 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.LinkedHashMap;
+import java.util.Iterator;
 import java.util.List;
-import java.util.Map;
 
 import org.junit.BeforeClass;
 import org.junit.Test;
@@ -37,7 +36,6 @@ import org.apache.cassandra.config.DurationSpec;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
-import org.apache.cassandra.repair.autorepair.IAutoRepairTokenRangeSplitter.RepairAssignment;
 import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.service.AutoRepairService;
 import org.apache.cassandra.service.StorageService;
@@ -45,7 +43,9 @@ import org.apache.cassandra.service.StorageService;
 import static org.apache.cassandra.Util.setAutoRepairEnabled;
 import static org.apache.cassandra.config.CassandraRelevantProperties.SYSTEM_DISTRIBUTED_DEFAULT_RF;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertTrue;
 
 @RunWith(Parameterized.class)
 public class AutoRepairDefaultTokenSplitterParameterizedTest extends CQLTester
@@ -97,15 +97,17 @@ public class AutoRepairDefaultTokenSplitterParameterizedTest extends CQLTester
 
         AutoRepairConfig config = AutoRepairService.instance.getAutoRepairConfig();
         config.setRepairSubRangeNum(repairType, numberOfSplits);
-        Map<String, List<String>> keyspaceToTables = new LinkedHashMap<>();
-        keyspaceToTables.put(KEYSPACE, tables);
-        Map<String, List<RepairAssignment>> assignmentsByKeyspace = new DefaultAutoRepairTokenSplitter().getRepairAssignments(repairType, true, keyspaceToTables);
 
-        // should be 1 entry for the keyspace.
-        assertEquals(1, assignmentsByKeyspace.size());
-        List<RepairAssignment> assignments = assignmentsByKeyspace.get(KEYSPACE);
-        assertNotNull(assignments);
+        List<PrioritizedRepairPlan> plan = PrioritizedRepairPlan.buildSingleKeyspacePlan(repairType, KEYSPACE, TABLE1, TABLE2, TABLE3);
 
+        Iterator<KeyspaceRepairAssignments> keyspaceAssignments = new DefaultAutoRepairTokenSplitter().getRepairAssignments(repairType, true, plan);
+
+        // should be only 1 entry for the keyspace.
+        assertTrue(keyspaceAssignments.hasNext());
+        KeyspaceRepairAssignments keyspace = keyspaceAssignments.next();
+        assertFalse(keyspaceAssignments.hasNext());
+
+        List<RepairAssignment> assignments = keyspace.getRepairAssignments();
         assertEquals(totalTokenRanges*numberOfSplits*tables.size(), assignments.size());
         assertEquals(expectedToken.size(), assignments.size());
 
@@ -119,6 +121,7 @@ public class AutoRepairDefaultTokenSplitterParameterizedTest extends CQLTester
         }
 
         expectedTableIndex = -1;
+        // should be a set of ranges for each table.
         for (int i = 0; i<totalTokenRanges*numberOfSplits*tables.size(); i++)
         {
             if (i % (totalTokenRanges*numberOfSplits) == 0)
@@ -147,18 +150,23 @@ public class AutoRepairDefaultTokenSplitterParameterizedTest extends CQLTester
 
         AutoRepairConfig config = AutoRepairService.instance.getAutoRepairConfig();
         config.setRepairSubRangeNum(repairType, numberOfSplits);
-        Map<String, List<String>> keyspaceToTables = new LinkedHashMap<>();
-        keyspaceToTables.put(KEYSPACE, tables);
-        Map<String, List<RepairAssignment>> assignmentsByKeyspace = new DefaultAutoRepairTokenSplitter().getRepairAssignments(repairType, true, keyspaceToTables);
 
-        // should be 1 entry for the keyspace.
-        assertEquals(1, assignmentsByKeyspace.size());
-        List<RepairAssignment> assignments = assignmentsByKeyspace.get(KEYSPACE);
+        List<PrioritizedRepairPlan> plan = PrioritizedRepairPlan.buildSingleKeyspacePlan(repairType, KEYSPACE, TABLE1, TABLE2, TABLE3);
+
+        Iterator<KeyspaceRepairAssignments> keyspaceAssignments = new DefaultAutoRepairTokenSplitter().getRepairAssignments(repairType, true, plan);
+
+        // should be only 1 entry for the keyspace.
+        assertTrue(keyspaceAssignments.hasNext());
+        KeyspaceRepairAssignments keyspace = keyspaceAssignments.next();
+        assertFalse(keyspaceAssignments.hasNext());
+
+        List<RepairAssignment> assignments = keyspace.getRepairAssignments();
         assertNotNull(assignments);
 
         assertEquals(totalTokenRanges*numberOfSplits, assignments.size());
         assertEquals(expectedToken.size(), assignments.size());
 
+        // should only be one set of ranges for the entire keyspace.
         for (int i = 0; i<totalTokenRanges*numberOfSplits; i++)
         {
             assertEquals(expectedToken.get(i), assignments.get(i).getTokenRange());

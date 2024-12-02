@@ -38,7 +38,6 @@ import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
-import org.apache.cassandra.repair.autorepair.IAutoRepairTokenRangeSplitter.RepairAssignment;
 import org.apache.cassandra.repair.autorepair.RepairRangeSplitter.SizedRepairAssignment;
 import org.apache.cassandra.service.AutoRepairService;
 import org.apache.cassandra.utils.concurrent.Refs;
@@ -64,7 +63,8 @@ public class RepairRangeSplitterTest extends CQLTester
     }
 
     @Before
-    public void setUp() {
+    public void setUp()
+    {
         repairRangeSplitter = new RepairRangeSplitter(Collections.emptyMap());
         tableName = createTable("CREATE TABLE %s (k INT PRIMARY KEY, v INT)");
     }
@@ -100,103 +100,16 @@ public class RepairRangeSplitterTest extends CQLTester
     }
 
     @Test
-    public void testReorderByPriorityWithDifferentPriorities() {
-        String table1 = createTable("CREATE TABLE %s (k INT PRIMARY KEY, v INT) WITH repair_full = {'enabled': 'true', 'priority': '2'}");
-        String table2 = createTable("CREATE TABLE %s (k INT PRIMARY KEY, v INT) WITH repair_full = {'enabled': 'true', 'priority': '3'}");
-        String table3 = createTable("CREATE TABLE %s (k INT PRIMARY KEY, v INT) WITH repair_full = {'enabled': 'true', 'priority': '1'}");
-
-        // Test reordering assignments with different priorities
-        RepairAssignment assignment1 = new RepairAssignment(FULL_RANGE, KEYSPACE, Collections.singletonList(table1));
-        RepairAssignment assignment2 = new RepairAssignment(FULL_RANGE, KEYSPACE, Collections.singletonList(table2));
-        RepairAssignment assignment3 = new RepairAssignment(FULL_RANGE, KEYSPACE, Collections.singletonList(table3));
-
-        // Assume these priorities based on the repair type
-        List<RepairAssignment> assignments = new ArrayList<>(Arrays.asList(assignment1, assignment2, assignment3));
-
-        repairRangeSplitter.reorderByPriority(assignments, AutoRepairConfig.RepairType.FULL);
-
-        // Verify the order is by descending priority
-        assertEquals(assignment2, assignments.get(0));
-        assertEquals(assignment1, assignments.get(1));
-        assertEquals(assignment3, assignments.get(2));
-    }
-
-    @Test
-    public void testReorderByPriorityWithSamePriority() {
-        String table1 = createTable("CREATE TABLE %s (k INT PRIMARY KEY, v INT) WITH repair_full = {'enabled': 'true', 'priority': '2'}");
-        String table2 = createTable("CREATE TABLE %s (k INT PRIMARY KEY, v INT) WITH repair_full = {'enabled': 'true', 'priority': '2'}");
-        String table3 = createTable("CREATE TABLE %s (k INT PRIMARY KEY, v INT) WITH repair_full = {'enabled': 'true', 'priority': '2'}");
-
-        // Test reordering assignments with the same priority
-        RepairAssignment assignment1 = new RepairAssignment(FULL_RANGE, KEYSPACE, Collections.singletonList(table1));
-        RepairAssignment assignment2 = new RepairAssignment(FULL_RANGE, KEYSPACE, Collections.singletonList(table2));
-        RepairAssignment assignment3 = new RepairAssignment(FULL_RANGE, KEYSPACE, Collections.singletonList(table3));
-
-        List<RepairAssignment> assignments = new ArrayList<>(Arrays.asList(assignment1, assignment2, assignment3));
-
-        repairRangeSplitter.reorderByPriority(assignments, AutoRepairConfig.RepairType.FULL);
-
-        // Verify the original order is preserved as all priorities are the same
-        assertEquals(assignment1, assignments.get(0));
-        assertEquals(assignment2, assignments.get(1));
-        assertEquals(assignment3, assignments.get(2));
-    }
-
-    @Test
-    public void testReorderByPriorityWithMixedPriorities() {
-        String table1 = createTable("CREATE TABLE %s (k INT PRIMARY KEY, v INT) WITH repair_full = {'enabled': 'true', 'priority': '2'}");
-        String table2 = createTable("CREATE TABLE %s (k INT PRIMARY KEY, v INT) WITH repair_full = {'enabled': 'true', 'priority': '3'}");
-        String table3 = createTable("CREATE TABLE %s (k INT PRIMARY KEY, v INT) WITH repair_full = {'enabled': 'true', 'priority': '2'}");
-        String table4 = createTable("CREATE TABLE %s (k INT PRIMARY KEY, v INT) WITH repair_full = {'enabled': 'true', 'priority': '1'}");
-
-        // Test reordering assignments with mixed priorities
-        RepairAssignment assignment1 = new RepairAssignment(FULL_RANGE, KEYSPACE, Collections.singletonList(table1));
-        RepairAssignment assignment2 = new RepairAssignment(FULL_RANGE, KEYSPACE, Collections.singletonList(table2));
-        RepairAssignment assignment3 = new RepairAssignment(FULL_RANGE, KEYSPACE, Collections.singletonList(table3));
-        RepairAssignment assignment4 = new RepairAssignment(FULL_RANGE, KEYSPACE, Collections.singletonList(table4));
-
-        List<RepairAssignment> assignments = new ArrayList<>(Arrays.asList(assignment1, assignment2, assignment3, assignment4));
-
-        repairRangeSplitter.reorderByPriority(assignments, AutoRepairConfig.RepairType.FULL);
-
-        // Verify the order: highest priority first, then preserved order for same priority
-        assertEquals(assignment2, assignments.get(0)); // Priority 3
-        assertEquals(assignment1, assignments.get(1)); // Priority 2
-        assertEquals(assignment3, assignments.get(2)); // Priority 2
-        assertEquals(assignment4, assignments.get(3)); // Priority 1
-    }
-
-    @Test
-    public void testReorderByPriorityWithEmptyList() {
-        // Test with an empty list (should remain empty)
-        List<RepairAssignment> assignments = new ArrayList<>();
-        repairRangeSplitter.reorderByPriority(assignments, AutoRepairConfig.RepairType.FULL);
-        assertTrue(assignments.isEmpty());
-    }
-
-    @Test
-    public void testReorderByPriorityWithOneElement() {
-        // Test with a single element (should remain unchanged)
-        String table1 = createTable("CREATE TABLE %s (k INT PRIMARY KEY, v INT) WITH repair_full = {'enabled': 'true', 'priority': '5'}");
-
-        RepairAssignment assignment1 = new RepairAssignment(FULL_RANGE, KEYSPACE, Collections.singletonList(table1));
-
-        List<RepairAssignment> assignments = new ArrayList<>(Collections.singletonList(assignment1));
-
-        repairRangeSplitter.reorderByPriority(assignments, AutoRepairConfig.RepairType.FULL);
-
-        assertEquals(assignment1, assignments.get(0)); // Single element should remain in place
-    }
-
-    @Test
-    public void testGetRepairAssignmentsForTable_NoSSTables() {
+    public void testGetRepairAssignmentsForTable_NoSSTables()
+    {
         Collection<Range<Token>> ranges = Collections.singleton(new Range<>(Murmur3Partitioner.instance.getMinimumToken(), Murmur3Partitioner.instance.getMaximumToken()));
         List<SizedRepairAssignment> assignments = repairRangeSplitter.getRepairAssignmentsForTable(AutoRepairConfig.RepairType.FULL, CQLTester.KEYSPACE, tableName, ranges);
         assertEquals(0, assignments.size());
     }
 
     @Test
-    public void testGetRepairAssignmentsForTable_Single() throws Throwable {
+    public void testGetRepairAssignmentsForTable_Single() throws Throwable
+    {
         Collection<Range<Token>> ranges = Collections.singleton(new Range<>(DatabaseDescriptor.getPartitioner().getMinimumToken(), DatabaseDescriptor.getPartitioner().getMaximumToken()));
         insertAndFlushSingleTable(tableName);
         List<SizedRepairAssignment> assignments = repairRangeSplitter.getRepairAssignmentsForTable(AutoRepairConfig.RepairType.FULL, CQLTester.KEYSPACE, tableName, ranges);
@@ -204,7 +117,8 @@ public class RepairRangeSplitterTest extends CQLTester
     }
 
     @Test
-    public void testGetRepairAssignmentsForTable_BatchingTables() throws Throwable {
+    public void testGetRepairAssignmentsForTable_BatchingTables() throws Throwable
+    {
         repairRangeSplitter = new RepairRangeSplitter(Collections.singletonMap(TABLE_BATCH_LIMIT, "2"));
         Collection<Range<Token>> ranges = Collections.singleton(FULL_RANGE);
 
@@ -218,7 +132,8 @@ public class RepairRangeSplitterTest extends CQLTester
     }
 
     @Test
-    public void testGetRepairAssignmentsForTable_BatchSize() throws Throwable {
+    public void testGetRepairAssignmentsForTable_BatchSize() throws Throwable
+    {
         repairRangeSplitter = new RepairRangeSplitter(Collections.singletonMap(TABLE_BATCH_LIMIT, "2"));
         Collection<Range<Token>> ranges = Collections.singleton(FULL_RANGE);
 
@@ -231,7 +146,8 @@ public class RepairRangeSplitterTest extends CQLTester
     }
 
     @Test
-    public void testGetRepairAssignmentsForTable_NoBatching() throws Throwable {
+    public void testGetRepairAssignmentsForTable_NoBatching() throws Throwable
+    {
         repairRangeSplitter = new RepairRangeSplitter(Collections.singletonMap(TABLE_BATCH_LIMIT, "1"));
         Collection<Range<Token>> ranges = Collections.singleton(FULL_RANGE);
 
@@ -242,7 +158,8 @@ public class RepairRangeSplitterTest extends CQLTester
     }
 
     @Test
-    public void testGetRepairAssignmentsForTable_AllBatched() throws Throwable {
+    public void testGetRepairAssignmentsForTable_AllBatched() throws Throwable
+    {
         repairRangeSplitter = new RepairRangeSplitter(Collections.singletonMap(TABLE_BATCH_LIMIT, "100"));
         Collection<Range<Token>> ranges = Collections.singleton(FULL_RANGE);
 
@@ -253,14 +170,16 @@ public class RepairRangeSplitterTest extends CQLTester
     }
 
     @Test(expected = IllegalStateException.class)
-    public void testMergeEmptyAssignments() {
+    public void testMergeEmptyAssignments()
+    {
         // Test when the list of assignments is empty
         List<SizedRepairAssignment> emptyAssignments = Collections.emptyList();
         RepairRangeSplitter.merge(emptyAssignments);
     }
 
     @Test
-    public void testMergeSingleAssignment() {
+    public void testMergeSingleAssignment()
+    {
         // Test when there is only one assignment in the list
         String keyspaceName = "testKeyspace";
         List<String> tableNames = Arrays.asList("table1", "table2");
@@ -276,7 +195,8 @@ public class RepairRangeSplitterTest extends CQLTester
     }
 
     @Test
-    public void testMergeMultipleAssignmentsWithSameTokenRangeAndKeyspace() {
+    public void testMergeMultipleAssignmentsWithSameTokenRangeAndKeyspace()
+    {
         // Test merging multiple assignments with the same token range and keyspace
         String keyspaceName = "testKeyspace";
         List<String> tableNames1 = Arrays.asList("table1", "table2");
@@ -294,7 +214,8 @@ public class RepairRangeSplitterTest extends CQLTester
     }
 
     @Test(expected = IllegalStateException.class)
-    public void testMergeDifferentTokenRange() {
+    public void testMergeDifferentTokenRange()
+    {
         // Test merging assignments with different token ranges
         Iterator<Range<Token>> range = AutoRepairUtils.split(FULL_RANGE, 2).iterator(); // Split the full range into two ranges ie (0-100, 100-200
         Range<Token> tokenRange1 = range.next();
@@ -312,7 +233,8 @@ public class RepairRangeSplitterTest extends CQLTester
     }
 
     @Test(expected = IllegalStateException.class)
-    public void testMergeDifferentKeyspaceName() {
+    public void testMergeDifferentKeyspaceName()
+    {
         // Test merging assignments with different keyspace names
         List<String> tableNames = Arrays.asList("table1", "table2");
 
@@ -324,7 +246,8 @@ public class RepairRangeSplitterTest extends CQLTester
     }
 
     @Test
-    public void testMergeWithDuplicateTables() {
+    public void testMergeWithDuplicateTables()
+    {
         // Test merging assignments with duplicate table names
         String keyspaceName = "testKeyspace";
         List<String> tableNames1 = Arrays.asList("table1", "table2");
@@ -341,12 +264,14 @@ public class RepairRangeSplitterTest extends CQLTester
     }
 
 
-    private void insertAndFlushSingleTable(String tableName) throws Throwable {
+    private void insertAndFlushSingleTable(String tableName) throws Throwable
+    {
         execute("INSERT INTO %s (k, v) values (?, ?)", 1, 1);
         flush();
     }
 
-    private List<String> createAndInsertTables(int count) throws Throwable {
+    private List<String> createAndInsertTables(int count) throws Throwable
+    {
         List<String> tableNames = new ArrayList<>();
         for (int i = 0; i < count; i++) {
             String tableName = createTable("CREATE TABLE %s (k INT PRIMARY KEY, v INT)");
@@ -356,11 +281,14 @@ public class RepairRangeSplitterTest extends CQLTester
         return tableNames;
     }
 
-    private void insertAndFlushTable(String tableName) throws Throwable {
+    private void insertAndFlushTable(String tableName) throws Throwable
+    {
         insertAndFlushTable(tableName, 1);
         ColumnFamilyStore cfs = ColumnFamilyStore.getIfExists(KEYSPACE, tableName);
     }
-    private void insertAndFlushTable(String tableName, int... vals) throws Throwable {
+
+    private void insertAndFlushTable(String tableName, int... vals) throws Throwable
+    {
         for (int i : vals)
         {
             executeFormattedQuery("INSERT INTO " + KEYSPACE + '.' + tableName + " (k, v) values (?, ?)", i, i);
