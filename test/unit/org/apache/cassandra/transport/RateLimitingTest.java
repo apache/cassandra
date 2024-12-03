@@ -28,7 +28,11 @@ import java.util.stream.Collectors;
 
 import com.codahale.metrics.Meter;
 import com.google.common.base.Ticker;
+
+import org.apache.cassandra.utils.FBUtilities;
 import org.awaitility.Awaitility;
+
+import org.junit.After;
 import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
@@ -65,6 +69,8 @@ public class RateLimitingTest extends CQLTester
 
     @Parameterized.Parameter
     public ProtocolVersion version;
+
+    private long emulatedUsedCapacity;
 
     @Parameterized.Parameters(name="{0}")
     public static Collection<Object[]> versions()
@@ -103,6 +109,15 @@ public class RateLimitingTest extends CQLTester
         };
 
         ClientResourceLimits.setGlobalLimit(MAX_LONG_CONFIG_VALUE);
+    }
+
+    @After
+    public void releaseEmulatedCapacity()
+    {
+        if (emulatedUsedCapacity > 0)
+        {
+            releaseEmulatedCapacity(emulatedUsedCapacity);
+        }
     }
 
     @Test
@@ -147,6 +162,7 @@ public class RateLimitingTest extends CQLTester
 
     private void testBytesInFlightOverload(int payloadSize) throws Exception
     {
+        int emulatedConcurrentMessageSize = payloadSize * 3 / 2;
         try (SimpleClient client = client().connect(false, true))
         {
             StorageService.instance.setNativeTransportRateLimitingEnabled(false);
@@ -155,7 +171,11 @@ public class RateLimitingTest extends CQLTester
 
             StorageService.instance.setNativeTransportRateLimitingEnabled(true);
             ClientResourceLimits.GLOBAL_REQUEST_LIMITER.setRate(OVERLOAD_PERMITS_PER_SECOND, ticker);
-            ClientResourceLimits.setGlobalLimit(1);
+            // test massage = 1x
+            // emulated concurrent message = 1.5x
+            // test massage + emulated concurrent message = 2.5x > 2x set as a global limit
+            ClientResourceLimits.setGlobalLimit(payloadSize * 2);
+            emulateInFlightConcurrentMessage(emulatedConcurrentMessageSize);
 
             try
             {
@@ -170,7 +190,7 @@ public class RateLimitingTest extends CQLTester
         finally
         {
             // Sanity check bytes in flight limiter.
-            Awaitility.await().untilAsserted(() -> assertEquals(0, ClientResourceLimits.getCurrentGlobalUsage()));
+            Awaitility.await().untilAsserted(() -> assertEquals(emulatedConcurrentMessageSize, ClientResourceLimits.getCurrentGlobalUsage()));
             StorageService.instance.setNativeTransportRateLimitingEnabled(false);
         }
     }
@@ -327,5 +347,22 @@ public class RateLimitingTest extends CQLTester
         if (metrics.size() != 1)
             fail(String.format("Expected a single registered metric for request dispatched, found %s",metrics.size()));
         return metrics.get(metricName);
+    }
+
+    private void emulateInFlightConcurrentMessage(long length)
+    {
+        ClientResourceLimits.Allocator allocator = ClientResourceLimits.getAllocatorForEndpoint(FBUtilities.getJustLocalAddress());
+        ClientResourceLimits.ResourceProvider resourceProvider = new ClientResourceLimits.ResourceProvider.Default(allocator);
+        resourceProvider.globalLimit().allocate(length);
+        resourceProvider.endpointLimit().allocate(length);
+        emulatedUsedCapacity += length;
+    }
+
+    private void releaseEmulatedCapacity(long length)
+    {
+        ClientResourceLimits.Allocator allocator = ClientResourceLimits.getAllocatorForEndpoint(FBUtilities.getJustLocalAddress());
+        ClientResourceLimits.ResourceProvider resourceProvider = new ClientResourceLimits.ResourceProvider.Default(allocator);
+        resourceProvider.globalLimit().release(length);
+        resourceProvider.endpointLimit().release(length);
     }
 }

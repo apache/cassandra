@@ -65,6 +65,8 @@ public class ClientResourceLimitsTest extends CQLTester
                             ProtocolVersion.V5,
                             KEYSPACE);
 
+    private long emulatedUsedCapacity;
+
     @BeforeClass
     public static void setUp()
     {
@@ -92,6 +94,10 @@ public class ClientResourceLimitsTest extends CQLTester
     @After
     public void dropCreatedTable()
     {
+        if (emulatedUsedCapacity > 0)
+        {
+            releaseEmulatedCapacity(emulatedUsedCapacity);
+        }
         try
         {
             QueryProcessor.executeOnceInternal("DROP TABLE " + KEYSPACE + ".atable");
@@ -135,6 +141,23 @@ public class ClientResourceLimitsTest extends CQLTester
         {
            throw new RuntimeException("Error initializing client", e);
         }
+    }
+
+    private void emulateInFlightConcurrentMessage(long length)
+    {
+        ClientResourceLimits.Allocator allocator = ClientResourceLimits.getAllocatorForEndpoint(FBUtilities.getJustLocalAddress());
+        ClientResourceLimits.ResourceProvider resourceProvider = new ClientResourceLimits.ResourceProvider.Default(allocator);
+        resourceProvider.globalLimit().allocate(length);
+        resourceProvider.endpointLimit().allocate(length);
+        emulatedUsedCapacity += length;
+    }
+
+    private void releaseEmulatedCapacity(long length)
+    {
+        ClientResourceLimits.Allocator allocator = ClientResourceLimits.getAllocatorForEndpoint(FBUtilities.getJustLocalAddress());
+        ClientResourceLimits.ResourceProvider resourceProvider = new ClientResourceLimits.ResourceProvider.Default(allocator);
+        resourceProvider.globalLimit().release(length);
+        resourceProvider.endpointLimit().release(length);
     }
 
     @Test
@@ -261,7 +284,11 @@ public class ClientResourceLimitsTest extends CQLTester
     {
         // Bump the per-endpoint limit to make sure we exhaust the global
         ClientResourceLimits.setEndpointLimit(HIGH_LIMIT);
-        testOverloadedException(() -> client(true, Ints.checkedCast(LOW_LIMIT / 2)));
+        // test massage = 2/3 x
+        // emulated concurrent message = 2/3 x
+        // test massage + emulated concurrent message = 4/3 x > x set as a global limit
+        emulateInFlightConcurrentMessage(LOW_LIMIT * 2 / 3);
+        testOverloadedException(() -> client(true, Ints.checkedCast(LOW_LIMIT / 2)), LOW_LIMIT * 2 / 3);
     }
 
     @Test
@@ -269,10 +296,19 @@ public class ClientResourceLimitsTest extends CQLTester
     {
         // Make sure we can only exceed the per-endpoint limit
         ClientResourceLimits.setGlobalLimit(HIGH_LIMIT);
-        testOverloadedException(() -> client(true, Ints.checkedCast(LOW_LIMIT / 2)));
+        // test massage = 2/3 x
+        // emulated concurrent message = 2/3 x
+        // test massage + emulated concurrent message = 4/3 x > x set as an endpoint limit
+        emulateInFlightConcurrentMessage(LOW_LIMIT * 2 / 3);
+        testOverloadedException(() -> client(true, Ints.checkedCast(LOW_LIMIT / 2)), LOW_LIMIT * 2 / 3);
     }
 
     private void testOverloadedException(Supplier<SimpleClient> clientSupplier)
+    {
+        testOverloadedException(clientSupplier, LOW_LIMIT * 2);
+    }
+
+    private void testOverloadedException(Supplier<SimpleClient> clientSupplier, long limit)
     {
         try (SimpleClient client = clientSupplier.get())
         {
@@ -280,7 +316,7 @@ public class ClientResourceLimitsTest extends CQLTester
                                                          V5_DEFAULT_OPTIONS);
             client.execute(queryMessage);
 
-            queryMessage = queryMessage();
+            queryMessage = queryMessage(limit);
             try
             {
                 client.execute(queryMessage);
@@ -295,8 +331,13 @@ public class ClientResourceLimitsTest extends CQLTester
 
     private QueryMessage queryMessage()
     {
+        return queryMessage(LOW_LIMIT * 2);
+    }
+
+    private QueryMessage queryMessage(long parameterLength)
+    {
         StringBuilder query = new StringBuilder("INSERT INTO atable (pk, v) VALUES (1, '");
-        for (int i=0; i < LOW_LIMIT * 2; i++)
+        for (int i=0; i < parameterLength; i++)
             query.append('a');
         query.append("')");
         return new QueryMessage(query.toString(), V5_DEFAULT_OPTIONS);
