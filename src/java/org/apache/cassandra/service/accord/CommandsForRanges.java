@@ -334,7 +334,7 @@ public class CommandsForRanges extends TreeMap<Timestamp, CommandsForRanges.Summ
         {
             if (findAsDep == null)
             {
-                SavedCommand.MinimalCommand cmd = manager.commandStore.loadMinimal(txnId);
+                Command.Minimal cmd = manager.commandStore.loadMinimal(txnId);
                 if (cmd != null)
                     return from(cmd);
             }
@@ -390,7 +390,7 @@ public class CommandsForRanges extends TreeMap<Timestamp, CommandsForRanges.Summ
             return from(cmd.txnId(), cmd.executeAt(), cmd.saveStatus(), cmd.participants(), cmd.partialDeps());
         }
 
-        public Summary from(SavedCommand.MinimalCommand cmd)
+        public Summary from(Command.Minimal cmd)
         {
             Invariants.checkState(findAsDep == null);
             return from(cmd.txnId, cmd.executeAt, cmd.saveStatus, cmd.participants, null);
