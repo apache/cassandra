@@ -85,7 +85,7 @@ public class RingAwareInJvmDTestVisitExecutor extends InJvmDTestVisitExecutor
 
     protected long token(long pd)
     {
-        return TokenUtil.token(ByteUtils.compose(ByteUtils.objectsToBytes(schema.valueGenerators.pkGen.inflate(pd))));
+        return TokenUtil.token(ByteUtils.compose(ByteUtils.objectsToBytes(schema.valueGenerators.pkGen().inflate(pd))));
     }
 
     @Override

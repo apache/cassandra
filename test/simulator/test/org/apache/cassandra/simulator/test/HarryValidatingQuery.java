@@ -101,7 +101,7 @@ public class HarryValidatingQuery extends SimulatedAction
 
     protected long token(long pd)
     {
-        return TokenUtil.token(ByteUtils.compose(ByteUtils.objectsToBytes(simulation.schema.valueGenerators.pkGen.inflate(pd))));
+        return TokenUtil.token(ByteUtils.compose(ByteUtils.objectsToBytes(simulation.schema.valueGenerators.pkGen().inflate(pd))));
     }
 
     protected Object[][] executeNodeLocal(String statement, TokenPlacementModel.Node node, Object... bindings)

@@ -20,7 +20,7 @@ package org.apache.cassandra.harry;
 
 import java.util.Arrays;
 import java.util.Comparator;
-import java.util.List;
+import java.util.function.IntFunction;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -32,8 +32,9 @@ public class Relations
     private static final Logger logger = LoggerFactory.getLogger(Relations.class);
 
     @SuppressWarnings({ "rawtypes", "unchecked" })
-    public static boolean matchRange(Bijections.IndexedBijection<Object[]> ckGen,
-                                     List<Comparator<Object>> comparators,
+    public static boolean matchRange(Bijections.Bijection<Object[]> ckGen,
+                                     IntFunction<Comparator<Object>> comparators,
+                                     int ckCoulmnCount,
                                      long lowBoundDescr, long highBoundDescr,
                                      Relations.RelationKind[] lowBoundRelations, Relations.RelationKind[] highBoundRelations,
                                      long matchDescr)
@@ -42,7 +43,7 @@ public class Relations
         Object[] highBoundValue = highBoundDescr == MagicConstants.UNSET_DESCR ? null : ckGen.inflate(highBoundDescr);
         Object[] matchValue = ckGen.inflate(matchDescr);
         // TODO: assert that all equals + null checks
-        for (int i = 0; i < comparators.size(); i++)
+        for (int i = 0; i < ckCoulmnCount; i++)
         {
             Object matched = matchValue[i];
 
@@ -51,7 +52,7 @@ public class Relations
                 Object l = lowBoundValue[i];
                 Relations.RelationKind lr = lowBoundRelations[i];
 
-                if (lr != null && !lr.match(comparators.get(i), matched, l))
+                if (lr != null && !lr.match(comparators.apply(i), matched, l))
                 {
                     if (logger.isTraceEnabled())
                         logger.trace("Low Bound {} {} {} did match {}", lowBoundValue[i], lr, matchValue[i], i);
@@ -64,7 +65,7 @@ public class Relations
                 Object h = highBoundValue[i];
                 Relations.RelationKind hr = highBoundRelations[i];
 
-                if (hr != null && !hr.match(comparators.get(i), matched, h))
+                if (hr != null && !hr.match(comparators.apply(i), matched, h))
                 {
                     if (logger.isTraceEnabled())
                         logger.trace("High Bound {} {} {} did match {}", highBoundValue[i], hr, matchValue[i], i);

@@ -33,11 +33,11 @@ import org.apache.cassandra.harry.gen.rng.PureRng;
 import org.apache.cassandra.harry.gen.rng.SeedableEntropySource;
 import org.apache.cassandra.harry.MagicConstants;
 import org.apache.cassandra.harry.Relations;
-import org.apache.cassandra.harry.gen.ValueGenerators;
 import org.apache.cassandra.harry.op.Operations;
 import org.apache.cassandra.harry.op.Visit;
 import org.apache.cassandra.harry.util.BitSet;
 
+import static org.apache.cassandra.harry.dsl.HistoryBuilder.*;
 import static org.apache.cassandra.harry.op.Operations.Kind;
 import static org.apache.cassandra.harry.op.Operations.Operation;
 import static org.apache.cassandra.harry.op.Operations.WriteOp;
@@ -57,11 +57,11 @@ class SingleOperationVisitBuilder implements SingleOperationBuilder
 
     protected int opIdCounter;
 
-    protected final ValueGenerators valueGenerators;
+    protected final IndexedValueGenerators valueGenerators;
     protected final IndexGenerators indexGenerators;
 
     SingleOperationVisitBuilder(long lts,
-                                ValueGenerators valueGenerators,
+                                IndexedValueGenerators valueGenerators,
                                 IndexGenerators indexGenerators,
                                 Consumer<Visit> appendToLog)
     {
@@ -220,21 +220,21 @@ class SingleOperationVisitBuilder implements SingleOperationBuilder
 
     private SingleOperationBuilder write(int pdIdx, int cdIdx, int[] valueIdxs, int[] sValueIdxs, Kind kind)
     {
-        assert valueIdxs.length == valueGenerators.regularColumnGens.size();
-        assert sValueIdxs.length == valueGenerators.staticColumnGens.size();
+        assert valueIdxs.length == valueGenerators.regularColumnCount();
+        assert sValueIdxs.length == valueGenerators.staticColumnCount();
 
-        long pd = valueGenerators.pkGen.descriptorAt(pdIdx);
-        long cd = valueGenerators.ckGen.descriptorAt(cdIdx);
+        long pd = valueGenerators.pkGen().descriptorAt(pdIdx);
+        long cd = valueGenerators.ckGen().descriptorAt(cdIdx);
 
         opIdCounter++;
         long[] vds = new long[valueIdxs.length];
-        for (int i = 0; i < valueGenerators.regularColumnGens.size(); i++)
+        for (int i = 0; i < valueGenerators.regularColumnCount(); i++)
         {
             int valueIdx = valueIdxs[i];
             if (valueIdx == MagicConstants.UNSET_IDX)
                 vds[i] = MagicConstants.UNSET_DESCR;
             else
-                vds[i] = valueGenerators.regularColumnGens.get(i).descriptorAt(valueIdx);
+                vds[i] = valueGenerators.regularColumnGen(i).descriptorAt(valueIdx);
         }
 
         long[] sds = new long[sValueIdxs.length];
@@ -244,7 +244,7 @@ class SingleOperationVisitBuilder implements SingleOperationBuilder
             if (valueIdx == MagicConstants.UNSET_IDX)
                 sds[i] = MagicConstants.UNSET_DESCR;
             else
-                sds[i] = valueGenerators.staticColumnGens.get(i).descriptorAt(valueIdx);
+                sds[i] = valueGenerators.staticColumnGen(i).descriptorAt(valueIdx);
         }
 
         operations.add(new WriteOp(lts, pd, cd, vds, sds, kind) {
@@ -263,17 +263,17 @@ class SingleOperationVisitBuilder implements SingleOperationBuilder
     public SingleOperationVisitBuilder deleteRowRange(int pdIdx, int lowerBoundRowIdx, int upperBoundRowIdx,
                                                       int nonEqFrom, boolean includeLowerBound, boolean includeUpperBound)
     {
-        long pd = valueGenerators.pkGen.descriptorAt(pdIdx);
+        long pd = valueGenerators.pkGen().descriptorAt(pdIdx);
 
-        long lowerBoundCd = valueGenerators.ckGen.descriptorAt(lowerBoundRowIdx);
-        long upperBoundCd = valueGenerators.ckGen.descriptorAt(upperBoundRowIdx);
+        long lowerBoundCd = valueGenerators.ckGen().descriptorAt(lowerBoundRowIdx);
+        long upperBoundCd = valueGenerators.ckGen().descriptorAt(upperBoundRowIdx);
 
-        Relations.RelationKind[] lowerBoundRelations = new Relations.RelationKind[valueGenerators.ckComparators.size()];
-        Relations.RelationKind[] upperBoundRelations = new Relations.RelationKind[valueGenerators.ckComparators.size()];
+        Relations.RelationKind[] lowerBoundRelations = new Relations.RelationKind[valueGenerators.ckColumnCount()];
+        Relations.RelationKind[] upperBoundRelations = new Relations.RelationKind[valueGenerators.ckColumnCount()];
 
         int opId = opIdCounter++;
         rngSupplier.doWithSeed(opId, rng -> {
-            for (int i = 0; i < Math.min(nonEqFrom + 1, valueGenerators.ckComparators.size()); i++)
+            for (int i = 0; i < Math.min(nonEqFrom + 1, valueGenerators.ckColumnCount()); i++)
             {
                 if (i < nonEqFrom)
                     lowerBoundRelations[i] = Relations.RelationKind.EQ;
@@ -305,7 +305,7 @@ class SingleOperationVisitBuilder implements SingleOperationBuilder
     @Override
     public SingleOperationBuilder deletePartition(int pdIdx)
     {
-        long pd = valueGenerators.pkGen.descriptorAt(pdIdx);
+        long pd = valueGenerators.pkGen().descriptorAt(pdIdx);
         opIdCounter++;
 
         operations.add(new Operations.DeletePartition(lts, pd) {
@@ -322,9 +322,9 @@ class SingleOperationVisitBuilder implements SingleOperationBuilder
     @Override
     public SingleOperationBuilder deleteRow(int pdIdx, int rowIdx)
     {
-        long pd = valueGenerators.pkGen.descriptorAt(pdIdx);
+        long pd = valueGenerators.pkGen().descriptorAt(pdIdx);
         opIdCounter++;
-        long cd = valueGenerators.ckGen.descriptorAt(rowIdx);
+        long cd = valueGenerators.ckGen().descriptorAt(rowIdx);
         operations.add(new Operations.DeleteRow(lts, pd, cd) {
             @Override
             public String toString()
@@ -339,9 +339,9 @@ class SingleOperationVisitBuilder implements SingleOperationBuilder
     @Override
     public SingleOperationBuilder deleteColumns(int pdIdx, int rowIdx, BitSet regularSelection, BitSet staticSelection)
     {
-        long pd = valueGenerators.pkGen.descriptorAt(pdIdx);
+        long pd = valueGenerators.pkGen().descriptorAt(pdIdx);
         opIdCounter++;
-        long cd = valueGenerators.ckGen.descriptorAt(rowIdx);
+        long cd = valueGenerators.ckGen().descriptorAt(rowIdx);
         operations.add(new Operations.DeleteColumns(lts, pd, cd, regularSelection, staticSelection)  {
             @Override
             public String toString()
@@ -356,14 +356,14 @@ class SingleOperationVisitBuilder implements SingleOperationBuilder
     @Override
     public SingleOperationBuilder deleteRowSliceByLowerBound(int pdIdx, int lowerBoundRowIdx, int nonEqFrom, boolean includeBound)
     {
-        long pd = valueGenerators.pkGen.descriptorAt(pdIdx);
-        long lowerBoundCd = valueGenerators.ckGen.descriptorAt(lowerBoundRowIdx);
+        long pd = valueGenerators.pkGen().descriptorAt(pdIdx);
+        long lowerBoundCd = valueGenerators.ckGen().descriptorAt(lowerBoundRowIdx);
 
-        Relations.RelationKind[] lowerBoundRelations = new Relations.RelationKind[valueGenerators.ckComparators.size()];
+        Relations.RelationKind[] lowerBoundRelations = new Relations.RelationKind[valueGenerators.ckColumnCount()];
 
         int opId = opIdCounter++;
         rngSupplier.doWithSeed(opId, rng -> {
-            for (int i = 0; i < Math.min(nonEqFrom + 1, valueGenerators.ckComparators.size()); i++)
+            for (int i = 0; i < Math.min(nonEqFrom + 1, valueGenerators.ckColumnCount()); i++)
             {
                 if (i < nonEqFrom)
                     lowerBoundRelations[i] = Relations.RelationKind.EQ;
@@ -389,14 +389,14 @@ class SingleOperationVisitBuilder implements SingleOperationBuilder
     @Override
     public SingleOperationBuilder deleteRowSliceByUpperBound(int pdIdx, int upperBoundRowIdx, int nonEqFrom, boolean includeBound)
     {
-        long pd = valueGenerators.pkGen.descriptorAt(pdIdx);
-        long upperBoundCd = valueGenerators.ckGen.descriptorAt(upperBoundRowIdx);
+        long pd = valueGenerators.pkGen().descriptorAt(pdIdx);
+        long upperBoundCd = valueGenerators.ckGen().descriptorAt(upperBoundRowIdx);
 
-        Relations.RelationKind[] upperBoundRelations = new Relations.RelationKind[valueGenerators.ckComparators.size()];
+        Relations.RelationKind[] upperBoundRelations = new Relations.RelationKind[valueGenerators.ckColumnCount()];
 
         int opId = opIdCounter++;
         rngSupplier.doWithSeed(opId, rng -> {
-            for (int i = 0; i < Math.min(nonEqFrom + 1, valueGenerators.ckComparators.size()); i++)
+            for (int i = 0; i < Math.min(nonEqFrom + 1, valueGenerators.ckColumnCount()); i++)
             {
                 if (i < nonEqFrom)
                     upperBoundRelations[i] = Relations.RelationKind.EQ;
@@ -424,16 +424,16 @@ class SingleOperationVisitBuilder implements SingleOperationBuilder
     public SingleOperationVisitBuilder selectRowRange(int pdIdx, int lowerBoundRowIdx, int upperBoundRowIdx,
                                                       int nonEqFrom, boolean includeLowerBound, boolean includeUpperBound)
     {
-        long pd = valueGenerators.pkGen.descriptorAt(pdIdx);
-        long lowerBoundCd = valueGenerators.ckGen.descriptorAt(lowerBoundRowIdx);
-        long upperBoundCd = valueGenerators.ckGen.descriptorAt(upperBoundRowIdx);
+        long pd = valueGenerators.pkGen().descriptorAt(pdIdx);
+        long lowerBoundCd = valueGenerators.ckGen().descriptorAt(lowerBoundRowIdx);
+        long upperBoundCd = valueGenerators.ckGen().descriptorAt(upperBoundRowIdx);
 
-        Relations.RelationKind[] lowerBoundRelations = new Relations.RelationKind[valueGenerators.ckComparators.size()];
-        Relations.RelationKind[] upperBoundRelations = new Relations.RelationKind[valueGenerators.ckComparators.size()];
+        Relations.RelationKind[] lowerBoundRelations = new Relations.RelationKind[valueGenerators.ckColumnCount()];
+        Relations.RelationKind[] upperBoundRelations = new Relations.RelationKind[valueGenerators.ckColumnCount()];
 
         int opId = opIdCounter++;
         rngSupplier.doWithSeed(opId, rng -> {
-            for (int i = 0; i < Math.min(nonEqFrom + 1, valueGenerators.ckComparators.size()); i++)
+            for (int i = 0; i < Math.min(nonEqFrom + 1, valueGenerators.ckColumnCount()); i++)
             {
                 if (i < nonEqFrom)
                     lowerBoundRelations[i] = Relations.RelationKind.EQ;
@@ -455,33 +455,33 @@ class SingleOperationVisitBuilder implements SingleOperationBuilder
     @Override
     public SingleOperationBuilder select(int pdIdx, IdxRelation[] ckIdxRelations, IdxRelation[] regularIdxRelations, IdxRelation[] staticIdxRelations)
     {
-        long pd = valueGenerators.pkGen.descriptorAt(pdIdx);
+        long pd = valueGenerators.pkGen().descriptorAt(pdIdx);
         opIdCounter++;
 
         Relations.Relation[] ckRelations = new Relations.Relation[ckIdxRelations.length];
         for (int i = 0; i < ckRelations.length; i++)
         {
-            Invariants.checkState(ckIdxRelations[i].column < valueGenerators.ckComparators.size());
+            Invariants.checkState(ckIdxRelations[i].column < valueGenerators.ckColumnCount());
             ckRelations[i] = new Relations.Relation(ckIdxRelations[i].kind,
-                                                    valueGenerators.ckGen.descriptorAt(ckIdxRelations[i].idx),
+                                                    valueGenerators.ckGen().descriptorAt(ckIdxRelations[i].idx),
                                                     ckIdxRelations[i].column);
         }
 
         Relations.Relation[] regularRelations = new Relations.Relation[regularIdxRelations.length];
         for (int i = 0; i < regularRelations.length; i++)
         {
-            Invariants.checkState(regularIdxRelations[i].column < valueGenerators.regularComparators.size());
+            Invariants.checkState(regularIdxRelations[i].column < valueGenerators.regularColumnCount());
             regularRelations[i] = new Relations.Relation(regularIdxRelations[i].kind,
-                                                         valueGenerators.regularColumnGens.get(regularIdxRelations[i].column).descriptorAt(regularIdxRelations[i].idx),
+                                                         valueGenerators.regularColumnGen(regularIdxRelations[i].column).descriptorAt(regularIdxRelations[i].idx),
                                                          regularIdxRelations[i].column);
         }
 
         Relations.Relation[] staticRelations = new Relations.Relation[staticIdxRelations.length];
         for (int i = 0; i < staticRelations.length; i++)
         {
-            Invariants.checkState(staticIdxRelations[i].column < valueGenerators.staticComparators.size());
+            Invariants.checkState(staticIdxRelations[i].column < valueGenerators.staticColumnCount());
             staticRelations[i] = new Relations.Relation(staticIdxRelations[i].kind,
-                                                        valueGenerators.staticColumnGens.get(staticIdxRelations[i].column).descriptorAt(staticIdxRelations[i].idx),
+                                                        valueGenerators.staticColumnGen(staticIdxRelations[i].column).descriptorAt(staticIdxRelations[i].idx),
                                                         staticIdxRelations[i].column);
         }
 
@@ -493,7 +493,7 @@ class SingleOperationVisitBuilder implements SingleOperationBuilder
     @Override
     public SingleOperationBuilder selectPartition(int pdIdx)
     {
-        long pd = valueGenerators.pkGen.descriptorAt(pdIdx);
+        long pd = valueGenerators.pkGen().descriptorAt(pdIdx);
         opIdCounter++;
 
         operations.add(new Operations.SelectPartition(lts, pd));
@@ -504,7 +504,7 @@ class SingleOperationVisitBuilder implements SingleOperationBuilder
     @Override
     public SingleOperationBuilder selectPartition(int pdIdx, Operations.ClusteringOrderBy orderBy)
     {
-        long pd = valueGenerators.pkGen.descriptorAt(pdIdx);
+        long pd = valueGenerators.pkGen().descriptorAt(pdIdx);
         opIdCounter++;
 
         operations.add(new Operations.SelectPartition(lts, pd, orderBy));
@@ -515,9 +515,9 @@ class SingleOperationVisitBuilder implements SingleOperationBuilder
     @Override
     public SingleOperationBuilder selectRow(int pdIdx, int rowIdx)
     {
-        long pd = valueGenerators.pkGen.descriptorAt(pdIdx);
+        long pd = valueGenerators.pkGen().descriptorAt(pdIdx);
         opIdCounter++;
-        long cd = valueGenerators.ckGen.descriptorAt(rowIdx);
+        long cd = valueGenerators.ckGen().descriptorAt(rowIdx);
         operations.add(new Operations.SelectRow(lts, pd, cd));
         build();
         return this;
@@ -526,14 +526,14 @@ class SingleOperationVisitBuilder implements SingleOperationBuilder
     @Override
     public SingleOperationBuilder selectRowSliceByLowerBound(int pdIdx, int lowerBoundRowIdx, int nonEqFrom, boolean includeBound)
     {
-        long pd = valueGenerators.pkGen.descriptorAt(pdIdx);
-        long lowerBoundCd = valueGenerators.ckGen.descriptorAt(lowerBoundRowIdx);
+        long pd = valueGenerators.pkGen().descriptorAt(pdIdx);
+        long lowerBoundCd = valueGenerators.ckGen().descriptorAt(lowerBoundRowIdx);
 
-        Relations.RelationKind[] lowerBoundRelations = new Relations.RelationKind[valueGenerators.ckComparators.size()];
+        Relations.RelationKind[] lowerBoundRelations = new Relations.RelationKind[valueGenerators.ckColumnCount()];
 
         int opId = opIdCounter++;
         rngSupplier.doWithSeed(opId, rng -> {
-            for (int i = 0; i < Math.min(nonEqFrom + 1, valueGenerators.ckComparators.size()); i++)
+            for (int i = 0; i < Math.min(nonEqFrom + 1, valueGenerators.ckColumnCount()); i++)
             {
                 if (i < nonEqFrom)
                     lowerBoundRelations[i] = Relations.RelationKind.EQ;
@@ -552,14 +552,14 @@ class SingleOperationVisitBuilder implements SingleOperationBuilder
     @Override
     public SingleOperationBuilder selectRowSliceByUpperBound(int pdIdx, int upperBoundRowIdx, int nonEqFrom, boolean includeBound)
     {
-        long pd = valueGenerators.pkGen.descriptorAt(pdIdx);
-        long upperBoundCd = valueGenerators.ckGen.descriptorAt(upperBoundRowIdx);
+        long pd = valueGenerators.pkGen().descriptorAt(pdIdx);
+        long upperBoundCd = valueGenerators.ckGen().descriptorAt(upperBoundRowIdx);
 
-        Relations.RelationKind[] upperBoundRelations = new Relations.RelationKind[valueGenerators.ckComparators.size()];
+        Relations.RelationKind[] upperBoundRelations = new Relations.RelationKind[valueGenerators.ckColumnCount()];
 
         int opId = opIdCounter++;
         rngSupplier.doWithSeed(opId, rng -> {
-            for (int i = 0; i < Math.min(nonEqFrom + 1, valueGenerators.ckComparators.size()); i++)
+            for (int i = 0; i < Math.min(nonEqFrom + 1, valueGenerators.ckColumnCount()); i++)
             {
                 if (i < nonEqFrom)
                     upperBoundRelations[i] = Relations.RelationKind.EQ;

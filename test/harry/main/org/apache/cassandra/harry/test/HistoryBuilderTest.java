@@ -32,7 +32,6 @@ import org.apache.cassandra.harry.SchemaSpec;
 import org.apache.cassandra.harry.checker.ModelChecker;
 import org.apache.cassandra.harry.dsl.HistoryBuilder;
 import org.apache.cassandra.harry.dsl.HistoryBuilderHelper;
-import org.apache.cassandra.harry.dsl.SingleOperationBuilder;
 import org.apache.cassandra.harry.execution.CQLTesterVisitExecutor;
 import org.apache.cassandra.harry.execution.CQLVisitExecutor;
 import org.apache.cassandra.harry.execution.DataTracker;
@@ -104,7 +103,7 @@ public class HistoryBuilderTest extends CQLTester
                     history.insert(1);
 
                 history.custom((lts, opId) -> new Operations.SelectPartition(lts,
-                                                                             schema.valueGenerators.pkGen.descriptorAt(1),
+                                                                             history.valueGenerators().pkGen().descriptorAt(1),
                                                                              Operations.ClusteringOrderBy.DESC));
 
                 replay(schema, history);
@@ -202,7 +201,7 @@ public class HistoryBuilderTest extends CQLTester
 
             Generator<Integer> partitionPicker = Generators.pick(0, maxPartitions);
             Generator<Integer> rowPicker = Generators.int32(0, maxPartitionSize);
-            ModelChecker<SingleOperationBuilder, Void> modelChecker = new ModelChecker<>();
+            ModelChecker<HistoryBuilder, Void> modelChecker = new ModelChecker<>();
             HistoryBuilder historyBuilder = new HistoryBuilder(schema.valueGenerators);
             modelChecker.init(historyBuilder)
                         .step((history, rng_) -> {
@@ -271,7 +270,7 @@ public class HistoryBuilderTest extends CQLTester
             Generator<Integer> pkGen = Generators.int32(0, Math.min(schema.valueGenerators.pkPopulation(), maxPartitionSize));
             Generator<Integer> ckGen = Generators.int32(0, Math.min(schema.valueGenerators.ckPopulation(), maxPartitionSize));
 
-            ModelChecker<SingleOperationBuilder, Void> modelChecker = new ModelChecker<>();
+            ModelChecker<HistoryBuilder, Void> modelChecker = new ModelChecker<>();
             HistoryBuilder historyBuilder = new HistoryBuilder(schema.valueGenerators);
 
             modelChecker.init(historyBuilder)

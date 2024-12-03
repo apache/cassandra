@@ -28,9 +28,9 @@ public class ReplayingHistoryBuilder extends HistoryBuilder
 {
     private final CQLVisitExecutor executor;
 
-    public ReplayingHistoryBuilder(ValueGenerators valueGenerators, Function<HistoryBuilder, CQLVisitExecutor> executorFactory)
+    public ReplayingHistoryBuilder(ValueGenerators generators, Function<HistoryBuilder, CQLVisitExecutor> executorFactory)
     {
-        super(valueGenerators);
+        super((IndexedValueGenerators) generators);
         this.executor = executorFactory.apply(this);
      }
 

@@ -118,7 +118,7 @@ class PartitionStateBuilder extends VisitExecutor
 
             if (hadTrackingRowWrite)
             {
-                long[] statics = new long[valueGenerators.staticColumnGens.size()];
+                long[] statics = new long[valueGenerators.staticColumnCount()];
                 Arrays.fill(statics, MagicConstants.UNSET_DESCR);
                 partitionState.writeStatic(statics, lts);
             }

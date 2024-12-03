@@ -55,7 +55,7 @@ public class SelectHelper
     {
         Select.Builder builder = commmonPart(select, schema);
 
-        Object[] ck = schema.valueGenerators.ckGen.inflate(select.cd());
+        Object[] ck = schema.valueGenerators.ckGen().inflate(select.cd());
 
         for (int i = 0; i < schema.clusteringKeys.size(); i++)
         {
@@ -72,8 +72,8 @@ public class SelectHelper
     {
         Select.Builder builder = commmonPart(select, schema);
 
-        Object[] lowBound = schema.valueGenerators.ckGen.inflate(select.lowerBound());
-        Object[] highBound = schema.valueGenerators.ckGen.inflate(select.upperBound());
+        Object[] lowBound = schema.valueGenerators.ckGen().inflate(select.lowerBound());
+        Object[] highBound = schema.valueGenerators.ckGen().inflate(select.upperBound());
 
         for (int i = 0; i < schema.clusteringKeys.size(); i++)
         {
@@ -112,7 +112,7 @@ public class SelectHelper
         Map<Long, Object[]> cache = new HashMap<>();
         for (Relations.Relation relation : select.ckRelations())
         {
-            Object[] query = cache.computeIfAbsent(relation.descriptor, schema.valueGenerators.ckGen::inflate);
+            Object[] query = cache.computeIfAbsent(relation.descriptor, schema.valueGenerators.ckGen()::inflate);
             ColumnSpec<?> column = schema.clusteringKeys.get(relation.column);
             builder.withWhere(Reference.of(new Symbol(column.name, column.type.asServerType())),
                               toInequalities(relation.kind),
@@ -122,7 +122,7 @@ public class SelectHelper
         for (Relations.Relation relation : select.regularRelations())
         {
             ColumnSpec<?> column = schema.regularColumns.get(relation.column);
-            Object query = schema.valueGenerators.regularColumnGens.get(relation.column).inflate(relation.descriptor);
+            Object query = schema.valueGenerators.regularColumnGen(relation.column).inflate(relation.descriptor);
             builder.withWhere(Reference.of(new Symbol(column.name, column.type.asServerType())),
                               toInequalities(relation.kind),
                               new Bind(query, column.type.asServerType()));
@@ -130,7 +130,7 @@ public class SelectHelper
 
         for (Relations.Relation relation : select.staticRelations())
         {
-            Object query = schema.valueGenerators.staticColumnGens.get(relation.column).inflate(relation.descriptor);
+            Object query = schema.valueGenerators.staticColumnGen(relation.column).inflate(relation.descriptor);
             ColumnSpec<?> column = schema.staticColumns.get(relation.column);
             builder.withWhere(Reference.of(new Symbol(column.name, column.type.asServerType())),
                               toInequalities(relation.kind),
@@ -191,7 +191,7 @@ public class SelectHelper
 
         builder.withTable(schema.keyspace, schema.table);
 
-        Object[] pk = schema.valueGenerators.pkGen.inflate(select.pd());
+        Object[] pk = schema.valueGenerators.pkGen().inflate(select.pd());
         for (int i = 0; i < schema.partitionKeys.size(); i++)
         {
             ColumnSpec<?> column = schema.partitionKeys.get(i);

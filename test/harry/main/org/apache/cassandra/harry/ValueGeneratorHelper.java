@@ -18,22 +18,22 @@
 
 package org.apache.cassandra.harry;
 
-import java.util.List;
+import java.util.function.IntFunction;
 
-import org.apache.cassandra.harry.gen.Bijections;
+import org.apache.cassandra.harry.dsl.HistoryBuilder;
 import org.apache.cassandra.harry.gen.EntropySource;
 
 public class ValueGeneratorHelper
 {
-    public static long[] randomDescriptors(EntropySource rng, List<Bijections.IndexedBijection<Object>> valueGens)
+    public static long[] randomDescriptors(EntropySource rng, IntFunction<HistoryBuilder.IndexedBijection<Object>> valueGens, int count)
     {
-        long[] vds = new long[valueGens.size()];
-        for (int i = 0; i < valueGens.size(); i++)
+        long[] vds = new long[count];
+        for (int i = 0; i < count; i++)
         {
             if (rng.nextBoolean())
                 vds[i] = MagicConstants.UNSET_DESCR;
             else
-                vds[i] = valueGens.get(i).descriptorAt(rng.nextInt(valueGens.size()));
+                vds[i] = valueGens.apply(i).descriptorAt(rng.nextInt(count));
         }
 
         return vds;

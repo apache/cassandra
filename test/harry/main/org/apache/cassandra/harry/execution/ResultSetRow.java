@@ -19,11 +19,10 @@
 package org.apache.cassandra.harry.execution;
 
 import java.util.Arrays;
-import java.util.List;
 import java.util.Objects;
+import java.util.function.IntFunction;
 
 import org.apache.cassandra.harry.gen.Bijections;
-import org.apache.cassandra.harry.MagicConstants;
 import org.apache.cassandra.harry.gen.ValueGenerators;
 import org.apache.cassandra.harry.util.StringUtils;
 
@@ -102,33 +101,27 @@ public class ResultSetRow
                ")";
     }
 
-    private static String toString(long[] descriptors, List<Bijections.IndexedBijection<Object>> gens)
+    private static String toString(long[] descriptors, IntFunction<Bijections.Bijection<Object>> gens)
     {
-        int[] idxs = new int[gens.size()];
+        String[] idxs = new String[descriptors.length];
         for (int i = 0; i < descriptors.length; i++)
-            idxs[i] = descrToIdx(gens.get(i), descriptors[i]);
-        return StringUtils.toString(idxs);
+            idxs[i] = descrToIdx(gens.apply(i), descriptors[i]);
+        return StringUtils.concat(idxs);
     }
 
-    private static int descrToIdx(Bijections.IndexedBijection<?> gen, long descr)
+    private static String descrToIdx(Bijections.Bijection<?> gen, long descr)
     {
-        if (descr == MagicConstants.UNSET_DESCR)
-            return MagicConstants.UNSET_IDX;
-
-        if (descr == MagicConstants.NIL_DESCR)
-            return MagicConstants.NIL_IDX;
-
-        return gen.idxFor(descr);
+        return gen.toString(descr);
     }
 
     public String toString(ValueGenerators valueGenerators)
     {
         return "resultSetRow("
-               + valueGenerators.pkGen.idxFor(pd)
-               + ", " + StringUtils.toString(descrToIdx(valueGenerators.ckGen, cd)) +
-               (sds == null ? "" : ", statics(" + toString(sds, valueGenerators.staticColumnGens) + ")") +
+               + valueGenerators.pkGen().toString(pd)
+               + ", " + descrToIdx(valueGenerators.ckGen(), cd) +
+               (sds == null ? "" : ", statics(" + toString(sds, valueGenerators::staticColumnGen) + ")") +
                (slts == null ? "" : ", slts(" + StringUtils.toString(slts) + ")") +
-               ", values(" + toString(vds, valueGenerators.regularColumnGens) + ")" +
+               ", values(" + toString(vds, valueGenerators::regularColumnGen) + ")" +
                ", lts(" + StringUtils.toString(lts) + ")" +
                ")";
     }

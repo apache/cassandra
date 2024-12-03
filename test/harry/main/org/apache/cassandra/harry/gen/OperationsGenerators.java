@@ -19,6 +19,7 @@
 package org.apache.cassandra.harry.gen;
 
 import org.apache.cassandra.harry.SchemaSpec;
+import org.apache.cassandra.harry.dsl.HistoryBuilder;
 import org.apache.cassandra.harry.op.Operations;
 
 public class OperationsGenerators
@@ -40,7 +41,9 @@ public class OperationsGenerators
     // TODO: distributions
     public static Generator<Long> sequentialPd(SchemaSpec schema)
     {
-        int population = schema.valueGenerators.pkPopulation();
+        // TODO: switch away from Indexed generators here
+        HistoryBuilder.IndexedValueGenerators valueGenerators = (HistoryBuilder.IndexedValueGenerators) schema.valueGenerators;
+        int population = valueGenerators.pkPopulation();
 
         return new Generator<>()
         {
@@ -49,14 +52,16 @@ public class OperationsGenerators
             @Override
             public Long generate(EntropySource rng)
             {
-                return schema.valueGenerators.pkGen.descriptorAt(counter++ % population);
+                return valueGenerators.pkGen().descriptorAt(counter++ % population);
             }
         };
     }
 
     public static Generator<Long> sequentialCd(SchemaSpec schema)
     {
-        int population = schema.valueGenerators.ckPopulation();
+        // TODO: switch away from Indexed generators here
+        HistoryBuilder.IndexedValueGenerators valueGenerators = (HistoryBuilder.IndexedValueGenerators) schema.valueGenerators;
+        int population = valueGenerators.ckPopulation();
 
         return new Generator<>()
         {
@@ -65,7 +70,7 @@ public class OperationsGenerators
             @Override
             public Long generate(EntropySource rng)
             {
-                return schema.valueGenerators.ckGen.descriptorAt(counter++ % population);
+                return valueGenerators.ckGen().descriptorAt(counter++ % population);
             }
         };
     }
@@ -80,20 +85,23 @@ public class OperationsGenerators
                                           Generator<Long> pdGen,
                                           Generator<Long> cdGen)
     {
+        // TODO: switch away from Indexed generators here
+        HistoryBuilder.IndexedValueGenerators valueGenerators = (HistoryBuilder.IndexedValueGenerators) schema.valueGenerators;
+
         return (rng) -> {
             long pd = pdGen.generate(rng);
             long cd = cdGen.generate(rng);
             long[] vds = new long[schema.regularColumns.size()];
             for (int i = 0; i < schema.regularColumns.size(); i++)
             {
-                int idx = rng.nextInt(schema.valueGenerators.regularPopulation(i));
-                vds[i] = schema.valueGenerators.regularColumnGens.get(i).descriptorAt(idx);
+                int idx = rng.nextInt(valueGenerators.regularPopulation(i));
+                vds[i] = valueGenerators.regularColumnGen(i).descriptorAt(idx);
             }
             long[] sds = new long[schema.staticColumns.size()];
             for (int i = 0; i < schema.staticColumns.size(); i++)
             {
-                int idx = rng.nextInt(schema.valueGenerators.staticPopulation(i));
-                sds[i] = schema.valueGenerators.staticColumnGens.get(i).descriptorAt(idx);
+                int idx = rng.nextInt(valueGenerators.staticPopulation(i));
+                sds[i] = valueGenerators.staticColumnGen(i).descriptorAt(idx);
             }
             return lts -> new Operations.WriteOp(lts, pd, cd, vds, sds, Operations.Kind.INSERT);
         };

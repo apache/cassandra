@@ -22,6 +22,8 @@ import java.util.Comparator;
 import java.util.Date;
 import java.util.UUID;
 
+import org.apache.cassandra.harry.MagicConstants;
+
 public class Bijections
 {
     public static final Bijection<Byte> INT8_GENERATOR = new ByteGenerator();
@@ -86,20 +88,11 @@ public class Bijections
         {
             return Long::compare;
         }
-    }
 
-    /**
-     * Indexed bijection allows to decouple descriptor order from value order, which makes data generation simpler.
-     *
-     * For regular Harry bijections, this is done at no cost, since values are inflated in a way that preserves
-     * descriptor order, which means that idx order is consistent with descriptor order and consistent with value order.
-     *
-     * An indexed bijection allows order to be established via index, and use descriptor simply as a seed for random values.
-     */
-    public interface IndexedBijection<T> extends Bijection<T>
-    {
-        int idxFor(long descriptor);
-        long descriptorAt(int idx);
+        default String toString(long pd)
+        {
+            return Long.toString(pd);
+        }
     }
 
     public static long minForSize(int size)

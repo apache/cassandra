@@ -18,40 +18,28 @@
 
 package org.apache.cassandra.harry.gen;
 
-import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Comparator;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
-import java.util.stream.Collectors;
 
-import org.apache.cassandra.harry.ColumnSpec;
-import org.apache.cassandra.harry.SchemaSpec;
-import org.apache.cassandra.harry.gen.rng.JdkRandomEntropySource;
-import org.apache.cassandra.harry.util.IteratorsUtil;
-
-import static org.apache.cassandra.harry.gen.InvertibleGenerator.fromType;
-import static org.apache.cassandra.harry.SchemaSpec.cumulativeEntropy;
-import static org.apache.cassandra.harry.SchemaSpec.forKeys;
+import org.apache.cassandra.harry.dsl.HistoryBuilder;
 
 public class ValueGenerators
 {
-    public final Bijections.IndexedBijection<Object[]> pkGen;
-    public final Bijections.IndexedBijection<Object[]> ckGen;
+    protected final Bijections.Bijection<Object[]> pkGen;
+    protected final Bijections.Bijection<Object[]> ckGen;
 
-    public final List<Bijections.IndexedBijection<Object>> regularColumnGens;
-    public final List<Bijections.IndexedBijection<Object>> staticColumnGens;
+    protected final List<Bijections.Bijection<Object>> regularColumnGens;
+    protected final List<Bijections.Bijection<Object>> staticColumnGens;
 
-    public final List<Comparator<Object>> pkComparators;
-    public final List<Comparator<Object>> ckComparators;
-    public final List<Comparator<Object>> regularComparators;
-    public final List<Comparator<Object>> staticComparators;
+    protected final List<Comparator<Object>> pkComparators;
+    protected final List<Comparator<Object>> ckComparators;
+    protected final List<Comparator<Object>> regularComparators;
+    protected final List<Comparator<Object>> staticComparators;
 
-    public ValueGenerators(Bijections.IndexedBijection<Object[]> pkGen,
-                           Bijections.IndexedBijection<Object[]> ckGen,
-                           List<Bijections.IndexedBijection<Object>> regularColumnGens,
-                           List<Bijections.IndexedBijection<Object>> staticColumnGens,
+    public ValueGenerators(Bijections.Bijection<Object[]> pkGen,
+                           Bijections.Bijection<Object[]> ckGen,
+                           List<Bijections.Bijection<Object>> regularColumnGens,
+                           List<Bijections.Bijection<Object>> staticColumnGens,
 
                            List<Comparator<Object>> pkComparators,
                            List<Comparator<Object>> ckComparators,
@@ -68,41 +56,59 @@ public class ValueGenerators
         this.staticComparators = staticComparators;
     }
 
-    @SuppressWarnings({ "unchecked" })
-    public static ValueGenerators fromSchema(SchemaSpec schema, long seed, int populationPerColumn)
+    public Bijections.Bijection<Object[]> pkGen()
     {
-        List<Comparator<Object>> pkComparators = new ArrayList<>();
-        List<Comparator<Object>> ckComparators = new ArrayList<>();
-        List<Comparator<Object>> regularComparators = new ArrayList<>();
-        List<Comparator<Object>> staticComparators = new ArrayList<>();
+        return pkGen;
+    }
 
-        EntropySource rng = new JdkRandomEntropySource(seed);
-        for (int i = 0; i < schema.partitionKeys.size(); i++)
-            pkComparators.add((Comparator<Object>) schema.partitionKeys.get(i).type.comparator());
-        for (int i = 0; i < schema.clusteringKeys.size(); i++)
-            ckComparators.add((Comparator<Object>) schema.clusteringKeys.get(i).type.comparator());
-        for (int i = 0; i < schema.regularColumns.size(); i++)
-            regularComparators.add((Comparator<Object>) schema.regularColumns.get(i).type.comparator());
-        for (int i = 0; i < schema.staticColumns.size(); i++)
-            staticComparators.add((Comparator<Object>) schema.staticColumns.get(i).type.comparator());
+    public Bijections.Bijection<Object[]> ckGen()
+    {
+        return ckGen;
+    }
 
-        Map<ColumnSpec<?>, InvertibleGenerator<Object>> map = new HashMap<>();
-        for (ColumnSpec<?> column : IteratorsUtil.concat(schema.regularColumns, schema.staticColumns))
-            map.computeIfAbsent(column, (a) -> (InvertibleGenerator<Object>) fromType(rng, populationPerColumn, column));
+    public Bijections.Bijection<Object> regularColumnGen(int idx)
+    {
+        return regularColumnGens.get(idx);
+    }
 
-        // TODO: empty gen
-        return new ValueGenerators(new InvertibleGenerator<>(rng, cumulativeEntropy(schema.partitionKeys), populationPerColumn, forKeys(schema.partitionKeys), keyComparator(schema.partitionKeys)),
-                                   new InvertibleGenerator<>(rng, cumulativeEntropy(schema.clusteringKeys), populationPerColumn, forKeys(schema.clusteringKeys), keyComparator(schema.clusteringKeys)),
-                                   schema.regularColumns.stream()
-                                                        .map(map::get)
-                                                        .collect(Collectors.toList()),
-                                   schema.staticColumns.stream()
-                                                       .map(map::get)
-                                                       .collect(Collectors.toList()),
-                                   pkComparators,
-                                   ckComparators,
-                                   regularComparators,
-                                   staticComparators);
+    public Bijections.Bijection<Object> staticColumnGen(int idx)
+    {
+        return staticColumnGens.get(idx);
+    }
+
+    public int ckColumnCount()
+    {
+        return ckComparators.size();
+    }
+
+    public int regularColumnCount()
+    {
+        return regularColumnGens.size();
+    }
+
+    public int staticColumnCount()
+    {
+        return staticColumnGens.size();
+    }
+
+    public Comparator<Object> pkComparator(int idx)
+    {
+        return pkComparators.get(idx);
+    }
+
+    public Comparator<Object> ckComparator(int idx)
+    {
+        return ckComparators.get(idx);
+    }
+
+    public Comparator<Object> regularComparator(int idx)
+    {
+        return regularComparators.get(idx);
+    }
+
+    public Comparator<Object> staticComparator(int idx)
+    {
+        return staticComparators.get(idx);
     }
 
     public int pkPopulation()
@@ -123,29 +129,5 @@ public class ValueGenerators
     public int staticPopulation(int i)
     {
         return staticColumnGens.get(i).population();
-    }
-
-    private static Comparator<Object[]> keyComparator(List<ColumnSpec<?>> columns)
-    {
-        return (o1, o2) -> compareKeys(columns, o1, o2);
-    }
-
-    public static int compareKeys(List<ColumnSpec<?>> columns, Object[] v1, Object[] v2)
-    {
-        assert v1.length == v2.length : String.format("Values should be of same length: %d != %d\n%s\n%s",
-                                                      v1.length, v2.length, Arrays.toString(v1), Arrays.toString(v2));
-
-        for (int i = 0; i < v1.length; i++)
-        {
-            int res;
-            ColumnSpec column = columns.get(i);
-            if (column.type.isReversed())
-                res = column.type.comparator().reversed().compare(v1[i], v2[i]);
-            else
-                res = column.type.comparator().compare(v1[i], v2[i]);
-            if (res != 0)
-                return res;
-        }
-        return 0;
     }
 }

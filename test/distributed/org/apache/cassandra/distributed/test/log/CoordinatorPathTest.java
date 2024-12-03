@@ -37,6 +37,7 @@ import org.apache.cassandra.distributed.api.ConsistencyLevel;
 import org.apache.cassandra.harry.SchemaSpec;
 import org.apache.cassandra.harry.ValueGeneratorHelper;
 import org.apache.cassandra.harry.cql.WriteHelper;
+import org.apache.cassandra.harry.dsl.HistoryBuilder;
 import org.apache.cassandra.harry.execution.CompiledStatement;
 import org.apache.cassandra.harry.gen.Generator;
 import org.apache.cassandra.harry.gen.SchemaGenerators;
@@ -80,11 +81,12 @@ public class CoordinatorPathTest extends CoordinatorPathTestBase
                                      " WITH replication = {'class': 'SimpleStrategy', 'replication_factor' : 3};");
                 cluster.schemaChange(schema.compile());
 
-                for (int i = 0; i < schema.valueGenerators.pkPopulation(); i++)
+                HistoryBuilder.IndexedValueGenerators valueGenerators = (HistoryBuilder.IndexedValueGenerators) schema.valueGenerators;
+                for (int i = 0; i < valueGenerators.pkPopulation(); i++)
                 {
-                    long pd = schema.valueGenerators.pkGen.descriptorAt(i);
+                    long pd = valueGenerators.pkGen().descriptorAt(i);
 
-                    ByteBuffer[] pk = ByteUtils.objectsToBytes(schema.valueGenerators.pkGen.inflate(pd));
+                    ByteBuffer[] pk = ByteUtils.objectsToBytes(valueGenerators.pkGen().inflate(pd));
                     long token = TokenUtil.token(ByteUtils.compose(pk));
                     if (!prediction.state.get().isWriteTargetFor(token, prediction.node(6).matcher))
                         continue;
@@ -102,8 +104,8 @@ public class CoordinatorPathTest extends CoordinatorPathTestBase
                     Future<?> writeQuery = async(() -> {
 
                         CompiledStatement s = WriteHelper.inflateInsert(new Operations.WriteOp(lts, pd, 0,
-                                                                                               ValueGeneratorHelper.randomDescriptors(rng, schema.valueGenerators.regularColumnGens),
-                                                                                               ValueGeneratorHelper.randomDescriptors(rng, schema.valueGenerators.staticColumnGens),
+                                                                                               ValueGeneratorHelper.randomDescriptors(rng, valueGenerators::regularColumnGen, valueGenerators.regularColumnCount()),
+                                                                                               ValueGeneratorHelper.randomDescriptors(rng, valueGenerators::staticColumnGen, valueGenerators.staticColumnCount()),
                                                                                                Operations.Kind.INSERT),
                                                                         schema,
                                                                         lts);

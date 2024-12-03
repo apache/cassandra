@@ -35,12 +35,12 @@ public class WriteHelper
     {
         assert op.vds().length == schema.regularColumns.size();
         assert op.sds().length == schema.staticColumns.size();
-        assert op.vds().length == schema.valueGenerators.regularColumnGens.size();
-        assert op.sds().length == schema.valueGenerators.staticColumnGens.size();
+        assert op.vds().length == schema.valueGenerators.regularColumnCount();
+        assert op.sds().length == schema.valueGenerators.staticColumnCount();
 
-        Object[] partitionKey = schema.valueGenerators.pkGen.inflate(op.pd());
+        Object[] partitionKey = schema.valueGenerators.pkGen().inflate(op.pd());
         assert partitionKey.length == schema.partitionKeys.size();
-        Object[] clusteringKey = schema.valueGenerators.ckGen.inflate(op.cd());
+        Object[] clusteringKey = schema.valueGenerators.ckGen().inflate(op.cd());
         assert clusteringKey.length == schema.clusteringKeys.size();
         Object[] regularColumns = new Object[op.vds().length];
         Object[] staticColumns = new Object[op.sds().length];
@@ -51,7 +51,7 @@ public class WriteHelper
             if (descriptor == MagicConstants.UNSET_DESCR)
                 regularColumns[i] = MagicConstants.UNSET_VALUE;
             else
-                regularColumns[i] = schema.valueGenerators.regularColumnGens.get(i).inflate(descriptor);
+                regularColumns[i] = schema.valueGenerators.regularColumnGen(i).inflate(descriptor);
         }
 
         for (int i = 0; i < op.sds().length; i++)
@@ -60,7 +60,7 @@ public class WriteHelper
             if (descriptor == MagicConstants.UNSET_DESCR)
                 staticColumns[i] = MagicConstants.UNSET_VALUE;
             else
-                staticColumns[i] = schema.valueGenerators.staticColumnGens.get(i).inflate(descriptor);
+                staticColumns[i] = schema.valueGenerators.staticColumnGen(i).inflate(descriptor);
         }
 
         Object[] bindings = new Object[schema.allColumnInSelectOrder.size()];
@@ -115,21 +115,21 @@ public class WriteHelper
     {
         assert op.vds().length == schema.regularColumns.size();
         assert op.sds().length == schema.staticColumns.size();
-        assert op.vds().length == schema.valueGenerators.regularColumnGens.size();
-        assert op.sds().length == schema.valueGenerators.staticColumnGens.size();
+        assert op.vds().length == schema.valueGenerators.regularColumnCount();
+        assert op.sds().length == schema.valueGenerators.staticColumnCount();
 
-        Object[] partitionKey = schema.valueGenerators.pkGen.inflate(op.pd);
+        Object[] partitionKey = schema.valueGenerators.pkGen().inflate(op.pd);
         assert partitionKey.length == schema.partitionKeys.size();
-        Object[] clusteringKey = schema.valueGenerators.ckGen.inflate(op.cd());
+        Object[] clusteringKey = schema.valueGenerators.ckGen().inflate(op.cd());
         assert clusteringKey.length == schema.clusteringKeys.size();
         Object[] regularColumns = new Object[op.vds().length];
         Object[] staticColumns = new Object[op.sds().length];
 
         for (int i = 0; i < op.vds().length; i++)
-            regularColumns[i] = schema.valueGenerators.regularColumnGens.get(i).inflate(op.vds()[i]);
+            regularColumns[i] = schema.valueGenerators.regularColumnGen(i).inflate(op.vds()[i]);
 
         for (int i = 0; i < op.sds().length; i++)
-            staticColumns[i] = schema.valueGenerators.staticColumnGens.get(i).inflate(op.sds()[i]);
+            staticColumns[i] = schema.valueGenerators.staticColumnGen(i).inflate(op.sds()[i]);
 
         Object[] bindings = new Object[schema.allColumnInSelectOrder.size()];
 

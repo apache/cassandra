@@ -80,7 +80,7 @@ public class CQLTesterVisitExecutor extends CQLVisitExecutor
                 partitionKey[i] = column.type.asServerType().compose(row.getBytes(column.name));
             }
 
-            pd = schema.valueGenerators.pkGen.deflate(partitionKey);
+            pd = schema.valueGenerators.pkGen().deflate(partitionKey);
         }
 
 
@@ -111,7 +111,7 @@ public class CQLTesterVisitExecutor extends CQLVisitExecutor
             if (clusteringKey == NIL_KEY)
                 cd = UNSET_DESCR;
             else
-                cd = schema.valueGenerators.ckGen.deflate(clusteringKey);
+                cd = schema.valueGenerators.ckGen().deflate(clusteringKey);
         }
 
         long[] regularColumns = new long[schema.regularColumns.size()];
@@ -123,7 +123,7 @@ public class CQLTesterVisitExecutor extends CQLVisitExecutor
                 if (row.has(column.name))
                 {
                     Object value = column.type.asServerType().compose(row.getBytes(column.name));
-                    regularColumns[i] = schema.valueGenerators.regularColumnGens.get(i).deflate(value);
+                    regularColumns[i] = schema.valueGenerators.regularColumnGen(i).deflate(value);
                 }
                 else
                 {
@@ -145,7 +145,7 @@ public class CQLTesterVisitExecutor extends CQLVisitExecutor
                 if (row.has(column.name))
                 {
                     Object value = column.type.asServerType().compose(row.getBytes(column.name));
-                    staticColumns[i] = schema.valueGenerators.staticColumnGens.get(i).deflate(value);
+                    staticColumns[i] = schema.valueGenerators.staticColumnGen(i).deflate(value);
                 }
                 else
                 {

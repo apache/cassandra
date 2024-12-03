@@ -231,7 +231,7 @@ public class HarryTopologyMixupTest extends TopologyMixupTestBase<HarryTopologyM
 
         for (Integer pkIdx : spec.pkGen.generated())
         {
-            long pd = spec.schema.valueGenerators.pkGen.descriptorAt(pkIdx);
+            long pd = spec.harry.valueGenerators().pkGen().descriptorAt(pkIdx);
             reads.add(new HarryCommand(s -> String.format("Harry Validate pd=%d%s", pd, state.commandNamePostfix()), s -> spec.harry.selectPartition(pkIdx)));
 
             TransactionalMode transationalMode = spec.schema.options.transactionalMode();

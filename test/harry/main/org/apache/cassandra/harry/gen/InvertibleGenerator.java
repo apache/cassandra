@@ -31,6 +31,7 @@ import accord.utils.Invariants;
 import org.agrona.collections.IntHashSet;
 import org.apache.cassandra.harry.ColumnSpec;
 import org.apache.cassandra.harry.MagicConstants;
+import org.apache.cassandra.harry.dsl.HistoryBuilder;
 import org.apache.cassandra.harry.gen.rng.SeedableEntropySource;
 import org.apache.cassandra.utils.ArrayUtils;
 
@@ -49,7 +50,7 @@ import org.apache.cassandra.utils.ArrayUtils;
  * TODO (expected): custom invertible generator for bool, u8, u16, u32, etc, for efficiency.
  * TODO (expected): implement support for tuple/vector/udt, and other multi-cell types.
  */
-public class InvertibleGenerator<T> implements Bijections.IndexedBijection<T>
+public class InvertibleGenerator<T> implements HistoryBuilder.IndexedBijection<T>
 {
     public static long MAX_ENTROPY = 1L << 63;
 

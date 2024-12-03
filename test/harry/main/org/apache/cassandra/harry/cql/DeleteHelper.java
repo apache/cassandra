@@ -50,7 +50,7 @@ public class DeleteHelper
 
         List<Object> bindings = new ArrayList<>();
 
-        Object[] pk = schema.valueGenerators.pkGen.inflate(delete.pd());
+        Object[] pk = schema.valueGenerators.pkGen().inflate(delete.pd());
 
         RelationWriter writer = new RelationWriter(b, bindings::add) ;
 
@@ -81,8 +81,8 @@ public class DeleteHelper
 
         List<Object> bindings = new ArrayList<>();
 
-        Object[] pk = schema.valueGenerators.pkGen.inflate(delete.pd());
-        Object[] ck = schema.valueGenerators.ckGen.inflate(delete.cd());
+        Object[] pk = schema.valueGenerators.pkGen().inflate(delete.pd());
+        Object[] ck = schema.valueGenerators.ckGen().inflate(delete.cd());
 
         RelationWriter writer = new RelationWriter(b, bindings::add);
 
@@ -139,8 +139,8 @@ public class DeleteHelper
 
         List<Object> bindings = new ArrayList<>();
 
-        Object[] pk = schema.valueGenerators.pkGen.inflate(delete.pd());
-        Object[] ck = schema.valueGenerators.ckGen.inflate(delete.cd());
+        Object[] pk = schema.valueGenerators.pkGen().inflate(delete.pd());
+        Object[] ck = schema.valueGenerators.ckGen().inflate(delete.cd());
 
         RelationWriter writer = new RelationWriter(b, bindings::add);
 
@@ -173,9 +173,9 @@ public class DeleteHelper
 
         List<Object> bindings = new ArrayList<>();
 
-        Object[] pk = schema.valueGenerators.pkGen.inflate(delete.pd());
-        Object[] lowBound = schema.valueGenerators.ckGen.inflate(delete.lowerBound());
-        Object[] highBound = schema.valueGenerators.ckGen.inflate(delete.upperBound());
+        Object[] pk = schema.valueGenerators.pkGen().inflate(delete.pd());
+        Object[] lowBound = schema.valueGenerators.ckGen().inflate(delete.lowerBound());
+        Object[] highBound = schema.valueGenerators.ckGen().inflate(delete.upperBound());
 
         RelationWriter writer = new RelationWriter(b, bindings::add);
 

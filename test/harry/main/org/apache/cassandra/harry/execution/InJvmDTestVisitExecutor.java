@@ -184,7 +184,7 @@ public class InJvmDTestVisitExecutor extends CQLVisitExecutor
             for (int i = 0; i < schema.partitionKeys.size(); i++)
                 partitionKey[i] = result[selection.indexOf(schema.partitionKeys.get(i))];
 
-            pd = schema.valueGenerators.pkGen.deflate(partitionKey);
+            pd = schema.valueGenerators.pkGen().deflate(partitionKey);
         }
 
         // Deflate logic for clustering key is a bit more involved, since CK can be nil in case of a single static row.
@@ -212,7 +212,7 @@ public class InJvmDTestVisitExecutor extends CQLVisitExecutor
             if (clusteringKey == NIL_KEY)
                 cd = UNSET_DESCR;
             else
-                cd = schema.valueGenerators.ckGen.deflate(clusteringKey);
+                cd = schema.valueGenerators.ckGen().deflate(clusteringKey);
         }
 
         for (int i = 0; i < schema.regularColumns.size(); i++)
@@ -224,7 +224,7 @@ public class InJvmDTestVisitExecutor extends CQLVisitExecutor
                 if (v == null)
                     regularColumns[i] = NIL_DESCR;
                 else
-                    regularColumns[i] = schema.valueGenerators.regularColumnGens.get(i).deflate(v);
+                    regularColumns[i] = schema.valueGenerators.regularColumnGen(i).deflate(v);
             }
             else
             {
@@ -241,7 +241,7 @@ public class InJvmDTestVisitExecutor extends CQLVisitExecutor
                 if (v == null)
                     staticColumns[i] = NIL_DESCR;
                 else
-                    staticColumns[i] = schema.valueGenerators.staticColumnGens.get(i).deflate(v);
+                    staticColumns[i] = schema.valueGenerators.staticColumnGen(i).deflate(v);
             }
             else
             {

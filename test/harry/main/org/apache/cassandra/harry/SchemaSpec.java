@@ -25,6 +25,7 @@ import java.util.Objects;
 import java.util.function.Consumer;
 
 import org.apache.cassandra.cql3.ast.Symbol;
+import org.apache.cassandra.harry.dsl.HistoryBuilder;
 import org.apache.cassandra.harry.gen.Generator;
 import org.apache.cassandra.harry.gen.Generators;
 import org.apache.cassandra.harry.gen.ValueGenerators;
@@ -94,7 +95,7 @@ public class SchemaSpec
         this.allColumnInSelectOrder = Collections.unmodifiableList(selectOrder);
 
         // TODO: empty gen
-        this.valueGenerators = ValueGenerators.fromSchema(this, seed, populationPerColumn);
+        this.valueGenerators = HistoryBuilder.valueGenerators(this, seed, populationPerColumn);
     }
 
     public static /* unsigned */ long cumulativeEntropy(List<ColumnSpec<?>> columns)

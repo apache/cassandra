@@ -212,9 +212,9 @@ public class ConsistentBootstrapTest extends FuzzTestBase
                 }, "Start grep");
 
                 outer:
-                for (int i = 0; i < schema.valueGenerators.pkPopulation(); i++)
+                for (int i = 0; i < history.valueGenerators().pkPopulation(); i++)
                 {
-                    long pd = schema.valueGenerators.pkGen.descriptorAt(i);
+                    long pd = history.valueGenerators().pkGen().descriptorAt(i);
                     for (TokenPlacementModel.Replica replica : executor.getReplicasFor(pd))
                     {
                         if (cluster.get(1).config().broadcastAddress().toString().contains(replica.node().id()))
