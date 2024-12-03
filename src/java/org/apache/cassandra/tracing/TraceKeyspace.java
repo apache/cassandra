@@ -28,6 +28,7 @@ import org.apache.cassandra.db.Mutation;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
 import org.apache.cassandra.db.rows.Row;
 import org.apache.cassandra.gms.Gossiper;
+import org.apache.cassandra.schema.AutoRepairParams;
 import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.schema.SchemaConstants;
@@ -57,12 +58,13 @@ public final class TraceKeyspace
      *                       removed default ttl, reduced bloom filter fp chance from 0.1 to 0.01.
      * gen 1577836800000001: (pre-)adds coordinator_port column to sessions and source_port column to events in 3.0, 3.11, 4.0
      * gen 1577836800000002: compression chunk length reduced to 16KiB, memtable_flush_period_in_ms now unset on all tables in 4.0
+     * gen 1577836800000003: disable auto-repair CQL table properties
      *
      * * Until CASSANDRA-6016 (Oct 13, 2.0.2) and in all of 1.2, we used to create system_traces keyspace and
      *   tables in the same way that we created the purely local 'system' keyspace - using current time on node bounce
      *   (+1). For new definitions to take, we need to bump the generation further than that.
      */
-    public static final long GENERATION = 1577836800000002L;
+    public static final long GENERATION = 1577836800000003L;
 
     public static final String SESSIONS = "sessions";
     public static final String EVENTS = "events";
@@ -101,6 +103,7 @@ public final class TraceKeyspace
                                    .id(TableId.forSystemTable(SchemaConstants.TRACE_KEYSPACE_NAME, table))
                                    .gcGraceSeconds(0)
                                    .comment(description)
+                                   .autoRepair(AutoRepairParams.fromMap(AutoRepairParams.DISABLED_OPTIONS))
                                    .build();
     }
 

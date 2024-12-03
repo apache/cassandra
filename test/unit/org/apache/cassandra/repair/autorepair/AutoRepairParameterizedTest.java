@@ -113,6 +113,9 @@ public class AutoRepairParameterizedTest extends CQLTester
     // Expected number of tables that should be repaired.
     private static int expectedTablesGoingThroughRepair;
 
+    // Expected number of tables that should be skipped.
+    private static int expectedTablesSkipped;
+
 
     @Parameterized.Parameter()
     public AutoRepairConfig.RepairType repairType;
@@ -139,10 +142,10 @@ public class AutoRepairParameterizedTest extends CQLTester
                            .addClusteringColumn("i", IntegerType.instance)
                            .addRegularColumn("v", UTF8Type.instance)
                            .params(TableParams.builder()
-                                              .automatedRepair(AutoRepairParams.create(ImmutableMap.of(AutoRepairParams.Option.FULL_ENABLED.name().toLowerCase(), Boolean.toString(true),
-                                                                                                       AutoRepairParams.Option.INCREMENTAL_ENABLED.name().toLowerCase(), Boolean.toString(true),
-                                                                                                       AutoRepairParams.Option.PREVIEW_REPAIRED_ENABLED.name().toLowerCase(), Boolean.toString(true),
-                                                                                                       AutoRepairParams.Option.PRIORITY.name().toString(), Integer.toString(0))))
+                                              .autoRepair(AutoRepairParams.create(ImmutableMap.of(AutoRepairParams.Option.FULL_ENABLED.name().toLowerCase(), Boolean.toString(true),
+                                                                                                  AutoRepairParams.Option.INCREMENTAL_ENABLED.name().toLowerCase(), Boolean.toString(true),
+                                                                                                  AutoRepairParams.Option.PREVIEW_REPAIRED_ENABLED.name().toLowerCase(), Boolean.toString(true),
+                                                                                                  AutoRepairParams.Option.PRIORITY.name().toString(), Integer.toString(0))))
                                               .build())
                            .build();
 
@@ -152,10 +155,10 @@ public class AutoRepairParameterizedTest extends CQLTester
                                              .addClusteringColumn("i", IntegerType.instance)
                                              .addRegularColumn("v", UTF8Type.instance)
                                              .params(TableParams.builder()
-                                                                .automatedRepair(AutoRepairParams.create(ImmutableMap.of(AutoRepairParams.Option.FULL_ENABLED.name().toLowerCase(), Boolean.toString(false),
-                                                                                                                         AutoRepairParams.Option.INCREMENTAL_ENABLED.name().toLowerCase(), Boolean.toString(false),
-                                                                                                                         AutoRepairParams.Option.PREVIEW_REPAIRED_ENABLED.name().toLowerCase(), Boolean.toString(false),
-                                                                                                                         AutoRepairParams.Option.PRIORITY.name().toString(), Integer.toString(0))))
+                                                                .autoRepair(AutoRepairParams.create(ImmutableMap.of(AutoRepairParams.Option.FULL_ENABLED.name().toLowerCase(), Boolean.toString(false),
+                                                                                                                    AutoRepairParams.Option.INCREMENTAL_ENABLED.name().toLowerCase(), Boolean.toString(false),
+                                                                                                                    AutoRepairParams.Option.PREVIEW_REPAIRED_ENABLED.name().toLowerCase(), Boolean.toString(false),
+                                                                                                                    AutoRepairParams.Option.PRIORITY.name().toString(), Integer.toString(0))))
                                                                 .build())
                                              .build();
 
@@ -175,11 +178,18 @@ public class AutoRepairParameterizedTest extends CQLTester
         // distributed, plus 1 for the table we created (ks.tbl), excluding the 'mv' materialized view and
         // 'tbl_disabled_auto_repair' we created.
         expectedTablesGoingThroughRepair = 0;
+        expectedTablesSkipped = 0;
         for (Keyspace keyspace : Keyspace.all())
         {
             // skip LocalStrategy keyspaces as these aren't repaired.
             if (keyspace.getReplicationStrategy() instanceof LocalStrategy)
             {
+                continue;
+            }
+            // skip system_traces keyspaces
+            if (keyspace.getName().equals(SchemaConstants.TRACE_KEYSPACE_NAME))
+            {
+                expectedTablesSkipped += keyspace.getColumnFamilyStores().size();
                 continue;
             }
 
@@ -475,8 +485,11 @@ public class AutoRepairParameterizedTest extends CQLTester
         // skipping both the tables - one table is due to its repair has been disabled, and another one due to high sstable count
         assertEquals(0, state.getSkippedTokenRangesCount());
         assertEquals(0, AutoRepairMetricsManager.getMetrics(repairType).skippedTokenRangesCount.getValue().intValue());
-        assertEquals(2, state.getSkippedTablesCount());
-        assertEquals(2, AutoRepairMetricsManager.getMetrics(repairType).skippedTablesCount.getValue().intValue());
+        int skippedDutoToDisabled = 1;
+        int skippedDueToHighSSTables = 1;
+        int totalExpectedSkippedCount = expectedTablesSkipped + skippedDutoToDisabled + skippedDueToHighSSTables;
+        assertEquals(totalExpectedSkippedCount, state.getSkippedTablesCount());
+        assertEquals(totalExpectedSkippedCount, AutoRepairMetricsManager.getMetrics(repairType).skippedTablesCount.getValue().intValue());
 
         // set it to higher value, and this time, the tables should not be skipped
         config.setRepairSSTableCountHigherThreshold(repairType, beforeCount);
@@ -488,8 +501,9 @@ public class AutoRepairParameterizedTest extends CQLTester
         assertEquals(1, AutoRepairMetricsManager.getMetrics(repairType).totalMVTablesConsideredForRepair.getValue().intValue());
         assertEquals(0, state.getSkippedTokenRangesCount());
         assertEquals(0, AutoRepairMetricsManager.getMetrics(repairType).skippedTokenRangesCount.getValue().intValue());
-        assertEquals(1, state.getSkippedTablesCount());
-        assertEquals(1, AutoRepairMetricsManager.getMetrics(repairType).skippedTablesCount.getValue().intValue());
+        totalExpectedSkippedCount = expectedTablesSkipped + skippedDutoToDisabled;
+        assertEquals(totalExpectedSkippedCount, state.getSkippedTablesCount());
+        assertEquals(totalExpectedSkippedCount, AutoRepairMetricsManager.getMetrics(repairType).skippedTablesCount.getValue().intValue());
     }
 
     @Test

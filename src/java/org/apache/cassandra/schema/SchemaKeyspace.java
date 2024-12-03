@@ -980,7 +980,7 @@ public final class SchemaKeyspace
                                                      SpeculativeRetryPolicy.fromString("99PERCENTILE"))
                           .cdc(row.has("cdc") && row.getBoolean("cdc"))
                           .readRepair(getReadRepairStrategy(row))
-                          .automatedRepair(AutoRepairParams.fromMap(row.getFrozenTextMap("auto_repair")))
+                          .autoRepair(AutoRepairParams.fromMap(row.getFrozenTextMap("auto_repair")))
                           .build();
     }
 

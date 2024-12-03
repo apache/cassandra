@@ -56,6 +56,13 @@ public final class AutoRepairParams
     Option.PRIORITY.toString(), "0"
     );
 
+    public static final Map<String, String> DISABLED_OPTIONS = ImmutableMap.of(
+    Option.FULL_ENABLED.name().toLowerCase(), Boolean.toString(false),
+    Option.INCREMENTAL_ENABLED.name().toLowerCase(), Boolean.toString(false),
+    Option.PREVIEW_REPAIRED_ENABLED.name().toLowerCase(), Boolean.toString(false),
+    Option.PRIORITY.toString(), "0"
+    );
+
     AutoRepairParams(Map<String, String> options)
     {
         this.options = ImmutableMap.copyOf(options);

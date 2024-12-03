@@ -873,6 +873,11 @@ public class TableMetadata implements SchemaElement
             return this;
         }
 
+        public Builder autoRepair(AutoRepairParams val)
+        {
+            params.autoRepair(val);
+            return this;
+        }
 
         public Builder isCounter(boolean val)
         {
