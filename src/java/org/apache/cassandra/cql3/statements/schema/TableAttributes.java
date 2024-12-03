@@ -175,9 +175,9 @@ public final class TableAttributes extends PropertyDefinitions
         return value;
     }
 
-    public boolean propertyIsEmpty()
+    public boolean hasProperties()
     {
-        return this.properties.isEmpty();
+        return !properties.isEmpty();
     }
 
     private boolean getBoolean(Option option)

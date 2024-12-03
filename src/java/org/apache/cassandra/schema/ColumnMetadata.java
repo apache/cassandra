@@ -208,11 +208,6 @@ public final class ColumnMetadata extends ColumnSpecification implements Selecta
         this.mask = mask;
     }
 
-    protected ColumnMetadata cloneWithoutTableName(String keyspace, String table)
-    {
-        return new ColumnMetadata(keyspace, table, name, type, position, kind, mask);
-    }
-
     private static Comparator<CellPath> makeCellPathComparator(Kind kind, AbstractType<?> type)
     {
         if (kind.isPrimaryKeyKind() || !type.isMultiCell())

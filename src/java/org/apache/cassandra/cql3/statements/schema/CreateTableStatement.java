@@ -114,50 +114,64 @@ public final class CreateTableStatement extends AlterSchemaStatement
         Keyspaces schema = metadata.schema.getKeyspaces();
         KeyspaceMetadata keyspace = schema.getNullable(keyspaceName);
 
-        KeyspaceMetadata targetKeyspace = keyspace;
         if (null == keyspace)
             throw ire("Keyspace '%s' doesn't exist", keyspaceName);
+
+        KeyspaceMetadata targetKeyspace = keyspace;
 
         TableMetadata table;
         if (isCreateLike)
         {
             // when using create table like ,that means the source table has already been created
             // so there is no need to do some validation for the first time creating a new table
-            if (!keyspace.hasTable(tableName))
-            {
+
+            TableMetadata sourceTable = keyspace.getTableNullable(tableName);
+
+            if (sourceTable == null)
                 throw ire("Souce Table '%s'.'%s' doesn't exist", keyspaceName, tableName);
-            }
 
-            TableMetadata sourceTableMeta = keyspace.getTableNullable(tableName);
+            if (sourceTable.isIndex())
+                throw ire("Cannot use CREATE TABLE LIKE on a index table '%s'.'%s'.", keyspaceName, tableName);
 
-            if (sourceTableMeta.isIndex())
-                throw ire("Cannot use CTREAT TABLE LIKE on a index table '%s'.'%s'.", keyspaceName, tableName);
+            if (sourceTable.isView())
+                throw ire("Cannot use CREATE TABLE LIKE on a materialized view '%s'.'%s'.", keyspaceName, tableName);
 
-            if (sourceTableMeta.isView())
-                throw ire("Cannot use CTREAT TABLE LIKE on a materialized view '%s'.'%s'.", keyspaceName, tableName);
+            KeyspaceMetadata likeKeyspace = schema.getNullable(likeKeyspaceName);
+            if (null == likeKeyspace)
+                throw ire("Target keyspace '%s' doesn't exist", likeKeyspaceName);
 
-            KeyspaceMetadata likeKeyspaceMeta = schema.getNullable(likeKeyspaceName);
-            if (null == likeKeyspaceMeta)
-                throw ire("Target Keyspace '%s' doesn't exist", likeKeyspaceName);
-
-            targetKeyspace = likeKeyspaceMeta;
-            if (likeKeyspaceMeta.hasTable(likeTableName))
-            {
+            targetKeyspace = likeKeyspace;
+            if (likeKeyspace.hasTable(likeTableName))
                 throw new AlreadyExistsException(likeKeyspaceName, likeTableName);
-            }
 
-            // todo support udt for differenet ks latter
-            if (!keyspaceName.equalsIgnoreCase(likeKeyspaceName) &&
-                !keyspace.types.isEmpty())
-            {
-                throw ire("Cannot use CTREAT TABLE LIKE across different keyspace when source table have UDT.");
-            }
+            // todo support udt for different ks latter
+            if (!keyspaceName.equalsIgnoreCase(likeKeyspaceName) && !keyspace.types.isEmpty())
+                throw ire("Cannot use CREATE TABLE LIKE across different keyspace when source table have UDT.");
 
-            table = buildTargetTableMeta(metadata, sourceTableMeta);
+            String sourceCQLString = sourceTable.toCqlString(false, true, false);
+
+            // add all user functions to be able to give a good error message to the user if the alter references
+            // a function from another keyspace
+            UserFunctions.Builder ufBuilder = UserFunctions.builder().add();
+            for (KeyspaceMetadata ksm : schema)
+                ufBuilder.add(ksm.userFunctions);
+
+            TableMetadata.Builder targetBuilder = CreateTableStatement.parse(sourceCQLString,
+                                                                             likeKeyspaceName,
+                                                                             likeTableName,
+                                                                             keyspace.types,
+                                                                             ufBuilder.build())
+                                                                      .indexes(Indexes.none())
+                                                                      .triggers(Triggers.none());
+
+            // same as for else branch
+            this.expandedCql = targetBuilder.build().toCqlString(false, false, false);
+
+            table = targetBuilder.id(TableId.get(metadata)).build();
         }
         else
         {
-            assert likeKeyspaceName == null && likeTableName == null ;
+            assert likeKeyspaceName == null && likeTableName == null;
             if (keyspace.hasTable(tableName))
             {
                 if (ifNotExists)
@@ -203,22 +217,20 @@ public final class CreateTableStatement extends AlterSchemaStatement
         if (isCreateLike)
         {
             if (ifNotExists)
-                throw ire("CREATE TABLE LIKE do not support using 'IF NOT EXISTS'.");
+                throw ire("CREATE TABLE LIKE does not support using 'IF NOT EXISTS'.");
 
             if (!rawColumns.isEmpty() ||
-                (partitionKeyColumns != null &&!partitionKeyColumns.isEmpty()) ||
+                (partitionKeyColumns != null && !partitionKeyColumns.isEmpty()) ||
                 !clusteringColumns.isEmpty() ||
                 !staticColumns.isEmpty() ||
                 !clusteringOrder.isEmpty())
             {
-                throw ire("CREATE TABLE LIKE do not support creating table columns.");
+                throw ire("CREATE TABLE LIKE does not support creating table columns.");
             }
 
             //todo support latter
-            if (!attrs.propertyIsEmpty())
-            {
-                throw ire("CREATE TABLE LIKE do not support create table with table properties.");
-            }
+            if (attrs.hasProperties())
+                throw ire("CREATE TABLE LIKE does not support the specification of any properties.");
 
             //todo support table params definition
             return;
@@ -251,10 +263,10 @@ public final class CreateTableStatement extends AlterSchemaStatement
         validateDefaultTimeToLive(attrs.asNewTableParams());
 
         if (rawColumns.isEmpty())
-            throw ire("There must be at least one table column when create table.");
+            throw ire("There must be at least one table column when creating table.");
 
         if (partitionKeyColumns.isEmpty())
-            throw ire("There must be at least one partition key column when create table.");
+            throw ire("There must be at least one partition key column when creating table.");
 
         rawColumns.forEach((name, raw) -> raw.validate(state, name));
     }
@@ -295,8 +307,8 @@ public final class CreateTableStatement extends AlterSchemaStatement
 
     public String toString()
     {
-        return  isCreateLike ? String.format("CREATE TABLE (%s, %s) LIKE (%s, %s)", likeKeyspaceName, likeTableName, keyspaceName, tableName) :
-                               String.format("%s (%s, %s)", getClass().getSimpleName(), keyspaceName, tableName);
+        return  isCreateLike ? String.format("CREATE TABLE %s.%s LIKE %s.%s", likeKeyspaceName, likeTableName, keyspaceName, tableName) :
+                               String.format("CREATE TABLE %s.%s", keyspaceName, tableName);
     }
 
     public TableMetadata.Builder builder(Types types, UserFunctions functions)
@@ -537,15 +549,6 @@ public final class CreateTableStatement extends AlterSchemaStatement
         }
     }
 
-    private TableMetadata buildTargetTableMeta(ClusterMetadata metadata, TableMetadata sourceTableMetadata)
-    {
-        TableMetadata.Builder builder = sourceTableMetadata.cloneBuilder(likeKeyspaceName, likeTableName);
-        // todo support indexes and triggers's copy latter
-        builder.id(TableId.get(metadata))
-               .epoch(metadata.nextEpoch()); // new table with next expoch
-        return builder.build();
-    }
-
     private static class DefaultNames
     {
         private static final String DEFAULT_CLUSTERING_NAME = "column";
@@ -583,12 +586,21 @@ public final class CreateTableStatement extends AlterSchemaStatement
         }
     }
 
+    public static TableMetadata.Builder parse(String cql, String keyspace, String table, Types types, UserFunctions userFunctions)
+    {
+        Raw createTable = CQLFragmentParser.parseAny(CqlParser::createTableStatement, cql, "CREATE TABLE")
+                                           .keyspace(keyspace);
+
+        if (table != null)
+            createTable.table(table);
+
+        return createTable.prepare(null) // works around a messy ClientState/QueryProcessor class init deadlock
+                          .builder(types, userFunctions);
+    }
+
     public static TableMetadata.Builder parse(String cql, String keyspace)
     {
-        return CQLFragmentParser.parseAny(CqlParser::createTableStatement, cql, "CREATE TABLE")
-                                .keyspace(keyspace)
-                                .prepare(null) // works around a messy ClientState/QueryProcessor class init deadlock
-                                .builder(Types.none(), UserFunctions.none());
+        return parse(cql, keyspace, null, Types.none(), UserFunctions.none());
     }
 
     public final static class Raw extends CQLStatement.Raw
@@ -619,7 +631,7 @@ public final class CreateTableStatement extends AlterSchemaStatement
         public CreateTableStatement prepare(ClientState state)
         {
             String keyspaceName = name.hasKeyspace() ? name.getKeyspace() : state.getKeyspace();
-            String likeKeyspaceName = likeName == null ? null : likeName.hasKeyspace() ? likeName.getKeyspace() : state.getKeyspace();
+            String likeKeyspaceName = likeName == null ? null : likeName.hasKeyspace() ? likeName.getKeyspace() : keyspaceName;
             String likeTableName = likeName == null ? null : likeName.getName();
 
             if (!isCreateLike && null == partitionKeyColumns)
@@ -648,6 +660,12 @@ public final class CreateTableStatement extends AlterSchemaStatement
         public Raw keyspace(String keyspace)
         {
             name.setKeyspace(keyspace, true);
+            return this;
+        }
+
+        public Raw table(String table)
+        {
+            name.setName(table, true);
             return this;
         }
 
