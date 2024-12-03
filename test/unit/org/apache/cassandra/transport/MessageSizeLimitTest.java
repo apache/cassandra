@@ -41,20 +41,15 @@ public class MessageSizeLimitTest extends CQLTester
 {
     private static final int MAX_CQL_MESSAGE_SIZE = FrameEncoder.Payload.MAX_SIZE * 3;
     private static final int TOO_BIG_MESSAGE_SIZE = MAX_CQL_MESSAGE_SIZE * 2;
-
     private static final int NORMAL_MESSAGE_SIZE = MAX_CQL_MESSAGE_SIZE - 500;
-
-
-
-    private static final QueryOptions V5_DEFAULT_OPTIONS =
-    QueryOptions.create(QueryOptions.DEFAULT.getConsistency(),
-                        QueryOptions.DEFAULT.getValues(),
-                        QueryOptions.DEFAULT.skipMetadata(),
-                        QueryOptions.DEFAULT.getPageSize(),
-                        QueryOptions.DEFAULT.getPagingState(),
-                        QueryOptions.DEFAULT.getSerialConsistency(),
-                        ProtocolVersion.V5,
-                        KEYSPACE);
+    private static final QueryOptions V5_DEFAULT_OPTIONS = QueryOptions.create(QueryOptions.DEFAULT.getConsistency(),
+                                                                               QueryOptions.DEFAULT.getValues(),
+                                                                               QueryOptions.DEFAULT.skipMetadata(),
+                                                                               QueryOptions.DEFAULT.getPageSize(),
+                                                                               QueryOptions.DEFAULT.getPagingState(),
+                                                                               QueryOptions.DEFAULT.getSerialConsistency(),
+                                                                               ProtocolVersion.V5,
+                                                                               KEYSPACE);
 
     @BeforeClass
     public static void setUp()
@@ -63,8 +58,6 @@ public class MessageSizeLimitTest extends CQLTester
         DatabaseDescriptor.setNativeTransportMaxRequestDataInFlightPerIpInBytes(MAX_CQL_MESSAGE_SIZE);
         DatabaseDescriptor.setNativeTransportConcurrentRequestDataInFlightInBytes(MAX_CQL_MESSAGE_SIZE);
         DatabaseDescriptor.setNativeTransportMaxMessageSizeInBytes(MAX_CQL_MESSAGE_SIZE);
-
-
         requireNetwork();
     }
 
@@ -122,7 +115,6 @@ public class MessageSizeLimitTest extends CQLTester
                    // we send one more message to check that the server continues to process new messages in the opened connection
                    QueryMessage queryMessage = createQueryMessage(NORMAL_MESSAGE_SIZE);
                    client.execute(queryMessage);
-
                }
         );
     }

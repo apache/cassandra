@@ -524,10 +524,16 @@ public class CQLMessageHandler<M extends Message> extends AbstractMessageHandler
             int messageSize = Ints.checkedCast(header.bodySizeInBytes);
             receivedBytes += buf.remaining();
 
-            if (isItLargeMessageSentDuringAuth(header))
+            if (serverConnection != null && serverConnection.stage() != ConnectionStage.READY)
             {
-                // we raise a fatal error and close the connection,
-                // so it does not make sense to continue frames processing
+                // Disallow any multiframe messages before the connection reaches the READY state.
+                // This guards against being swamped with oversize messages from unauthenticated
+                // clients. In this case, we raise a fatal error and close the connection so it does
+                // not make sense to continue processing subsequent frames
+                handleError(ProtocolException.toFatalException(new OversizedAuthMessageException(
+                            "The connection is not yet in a valid state to process multi frame CQL Messages, usually this" +
+                            "means that authentication is still pending. " +
+                            "type = " + header.type + ", size = " + header.bodySizeInBytes)));
                 ClientMetrics.instance.markRequestDiscarded();
                 return false;
             }
@@ -839,19 +845,5 @@ public class CQLMessageHandler<M extends Message> extends AbstractMessageHandler
         {
             super(message);
         }
-    }
-
-    private boolean isItLargeMessageSentDuringAuth(Envelope.Header header)
-    {
-        boolean authInProgress = serverConnection != null && serverConnection.stage() != ConnectionStage.READY;
-        if (authInProgress)
-        {
-            handleError(ProtocolException.toFatalException(new OversizedAuthMessageException(
-                        "A large multi-frame CQL Message is sent during authentication stage, " +
-                        "type = " + header.type + ", size = " + header.bodySizeInBytes))
-            );
-            return true;
-        }
-        return false;
     }
 }
