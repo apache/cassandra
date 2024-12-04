@@ -22,7 +22,6 @@ import java.io.IOException;
 
 import org.apache.cassandra.simulator.ClusterSimulation;
 import org.apache.cassandra.simulator.RandomSource;
-import org.apache.cassandra.simulator.utils.IntRange;
 import org.apache.cassandra.simulator.utils.KindOfSequence;
 
 import static java.util.concurrent.TimeUnit.SECONDS;
@@ -38,28 +37,6 @@ class AccordClusterSimulation extends ClusterSimulation<PaxosSimulation> impleme
             RandomSource random = randomSupplier.get();
             random.reset(seed);
             return new AccordClusterSimulation(random, seed, uniqueNum, this);
-        }
-
-        public void applyHandicaps()
-        {
-            /**
-             * TODO (required): remove
-             * We currently require coordinators to have a CommandStore to coordinate a query, but not every node
-             * is a replica under standard simulation
-             *
-             * The current homekey implementation isn't compatible with the C* commands per key implementation when
-             * a non-replica coordinates a query.
-             *
-             * This creates a few problems.
-             *
-             * First when a non-replica coordinator chooses a home key, it chooses the end of one of it's ranges and
-             * adds it to the txn. This doesn't work with the C* CFK implementation, because it expects a partition
-             * key. This will change with the partial replication patch, so we can re-evaluate then.
-             *
-             * Second, nodes that haven't joined the ring have no ranges to pull home keys from, so they npe
-             */
-            dcCount = new IntRange(1, 1);
-            nodeCount = new IntRange(3, 3);
         }
     }
 
