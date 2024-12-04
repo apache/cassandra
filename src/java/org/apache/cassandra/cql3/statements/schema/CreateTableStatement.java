@@ -164,6 +164,23 @@ public final class CreateTableStatement extends AlterSchemaStatement
                                                                       .indexes(Indexes.none())
                                                                       .triggers(Triggers.none());
 
+            // If we ever wanted to expand the current solution with parameters specified in CQL, like this:
+            // CREATE TABLE ks.tb_copy LIKE ks.tb WITH compression = { ... };
+            // we might do the following:
+
+            // here we get the parameters of the original table we go to copy
+            TableParams originalParams = targetBuilder.build().params;
+
+            // attrs are attributes of "CREATE TABLE ks.tb_copy LIKE ks.tb WITH compression = { ... };"
+            // so basically attributes will contain "compression", in this example
+
+            // here we take attrs from CQL (compression = {...}) and we alter them
+            // we effectively override "originalParams" with attributes from CQL
+            TableParams newTableParams = attrs.asAlteredTableParams(originalParams);
+
+            // here we set modified parameters to builder
+            targetBuilder.params(newTableParams);
+
             // same as for else branch
             this.expandedCql = targetBuilder.build().toCqlString(false, false, false);
 
