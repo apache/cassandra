@@ -30,9 +30,9 @@ import accord.primitives.Timestamp;
 import accord.primitives.TxnId;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
-import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.service.accord.journal.AccordTopologyUpdate;
 import org.apache.cassandra.service.accord.serializers.CommandStoreSerializers;
+import org.apache.cassandra.service.accord.serializers.Version;
 
 import static accord.api.Journal.Load.ALL;
 import static accord.local.CommandStores.RangesForEpoch;
@@ -42,16 +42,15 @@ import static accord.local.CommandStores.RangesForEpoch;
 // TODO (required): versioning
 public class AccordJournalValueSerializers
 {
-    private static final int messagingVersion = MessagingService.VERSION_40;
     public interface FlyweightSerializer<ENTRY, IMAGE>
     {
         IMAGE mergerFor(JournalKey key);
 
-        void serialize(JournalKey key, ENTRY from, DataOutputPlus out, int userVersion) throws IOException;
+        void serialize(JournalKey key, ENTRY from, DataOutputPlus out, Version userVersion) throws IOException;
 
-        void reserialize(JournalKey key, IMAGE from, DataOutputPlus out, int userVersion) throws IOException;
+        void reserialize(JournalKey key, IMAGE from, DataOutputPlus out, Version userVersion) throws IOException;
 
-        void deserialize(JournalKey key, IMAGE into, DataInputPlus in, int userVersion) throws IOException;
+        void deserialize(JournalKey key, IMAGE into, DataInputPlus in, Version userVersion) throws IOException;
     }
 
     public static class CommandDiffSerializer
@@ -64,7 +63,7 @@ public class AccordJournalValueSerializers
         }
 
         @Override
-        public void serialize(JournalKey key, AccordJournal.Writer writer, DataOutputPlus out, int userVersion)
+        public void serialize(JournalKey key, AccordJournal.Writer writer, DataOutputPlus out, Version userVersion)
         {
             try
             {
@@ -77,7 +76,7 @@ public class AccordJournalValueSerializers
         }
 
         @Override
-        public void reserialize(JournalKey key, AccordJournal.Builder from, DataOutputPlus out, int userVersion) throws IOException
+        public void reserialize(JournalKey key, AccordJournal.Builder from, DataOutputPlus out, Version userVersion) throws IOException
         {
             from.serialize(out,
                            // In CompactionIterator, we are dealing with relatively recent records, so we do not pass redundant before here.
@@ -86,7 +85,7 @@ public class AccordJournalValueSerializers
         }
 
         @Override
-        public void deserialize(JournalKey journalKey, AccordJournal.Builder into, DataInputPlus in, int userVersion) throws IOException
+        public void deserialize(JournalKey journalKey, AccordJournal.Builder into, DataInputPlus in, Version userVersion) throws IOException
         {
             into.deserializeNext(in, userVersion);
         }
@@ -142,7 +141,7 @@ public class AccordJournalValueSerializers
         }
 
         @Override
-        public void serialize(JournalKey key, RedundantBefore entry, DataOutputPlus out, int userVersion)
+        public void serialize(JournalKey key, RedundantBefore entry, DataOutputPlus out, Version userVersion)
         {
             try
             {
@@ -152,7 +151,7 @@ public class AccordJournalValueSerializers
                     return;
                 }
                 out.writeInt(1);
-                CommandStoreSerializers.redundantBefore.serialize(entry, out, messagingVersion);
+                CommandStoreSerializers.redundantBefore.serialize(entry, out);
             }
             catch (IOException e)
             {
@@ -161,20 +160,20 @@ public class AccordJournalValueSerializers
         }
 
         @Override
-        public void reserialize(JournalKey key, IdentityAccumulator<RedundantBefore> from, DataOutputPlus out, int userVersion) throws IOException
+        public void reserialize(JournalKey key, IdentityAccumulator<RedundantBefore> from, DataOutputPlus out, Version userVersion) throws IOException
         {
             serialize(key, from.get(), out, userVersion);
         }
 
         @Override
-        public void deserialize(JournalKey journalKey, IdentityAccumulator<RedundantBefore> into, DataInputPlus in, int userVersion) throws IOException
+        public void deserialize(JournalKey journalKey, IdentityAccumulator<RedundantBefore> into, DataInputPlus in, Version userVersion) throws IOException
         {
             if (in.readInt() == 0)
             {
                 into.update(RedundantBefore.EMPTY);
                 return;
             }
-            into.update(CommandStoreSerializers.redundantBefore.deserialize(in, messagingVersion));
+            into.update(CommandStoreSerializers.redundantBefore.deserialize(in));
         }
     }
 
@@ -201,11 +200,11 @@ public class AccordJournalValueSerializers
         }
 
         @Override
-        public void serialize(JournalKey key, DurableBefore entry, DataOutputPlus out, int userVersion)
+        public void serialize(JournalKey key, DurableBefore entry, DataOutputPlus out, Version userVersion)
         {
             try
             {
-                CommandStoreSerializers.durableBefore.serialize(entry, out, messagingVersion);
+                CommandStoreSerializers.durableBefore.serialize(entry, out);
             }
             catch (IOException e)
             {
@@ -214,17 +213,17 @@ public class AccordJournalValueSerializers
         }
 
         @Override
-        public void reserialize(JournalKey key, DurableBeforeAccumulator from, DataOutputPlus out, int userVersion) throws IOException
+        public void reserialize(JournalKey key, DurableBeforeAccumulator from, DataOutputPlus out, Version userVersion) throws IOException
         {
             serialize(key, from.get(), out, userVersion);
         }
 
         @Override
-        public void deserialize(JournalKey journalKey, DurableBeforeAccumulator into, DataInputPlus in, int userVersion) throws IOException
+        public void deserialize(JournalKey journalKey, DurableBeforeAccumulator into, DataInputPlus in, Version userVersion) throws IOException
         {
             // TODO: maybe using local serializer is not the best call here, but how do we distinguish
             // between messaging and disk versioning?
-            into.update(CommandStoreSerializers.durableBefore.deserialize(in, messagingVersion));
+            into.update(CommandStoreSerializers.durableBefore.deserialize(in));
         }
     }
 
@@ -238,21 +237,21 @@ public class AccordJournalValueSerializers
         }
 
         @Override
-        public void serialize(JournalKey key, NavigableMap<TxnId, Ranges> entry, DataOutputPlus out, int userVersion) throws IOException
+        public void serialize(JournalKey key, NavigableMap<TxnId, Ranges> entry, DataOutputPlus out, Version userVersion) throws IOException
         {
-            CommandStoreSerializers.bootstrapBeganAt.serialize(entry, out, messagingVersion);
+            CommandStoreSerializers.bootstrapBeganAt.serialize(entry, out);
         }
 
         @Override
-        public void reserialize(JournalKey key, IdentityAccumulator<NavigableMap<TxnId, Ranges>> image, DataOutputPlus out, int userVersion) throws IOException
+        public void reserialize(JournalKey key, IdentityAccumulator<NavigableMap<TxnId, Ranges>> image, DataOutputPlus out, Version userVersion) throws IOException
         {
             serialize(key, image.get(), out, userVersion);
         }
 
         @Override
-        public void deserialize(JournalKey key, IdentityAccumulator<NavigableMap<TxnId, Ranges>> into, DataInputPlus in, int userVersion) throws IOException
+        public void deserialize(JournalKey key, IdentityAccumulator<NavigableMap<TxnId, Ranges>> into, DataInputPlus in, Version userVersion) throws IOException
         {
-            into.update(CommandStoreSerializers.bootstrapBeganAt.deserialize(in, messagingVersion));
+            into.update(CommandStoreSerializers.bootstrapBeganAt.deserialize(in));
         }
     }
 
@@ -266,21 +265,21 @@ public class AccordJournalValueSerializers
         }
 
         @Override
-        public void serialize(JournalKey key, NavigableMap<Timestamp, Ranges> from, DataOutputPlus out, int userVersion) throws IOException
+        public void serialize(JournalKey key, NavigableMap<Timestamp, Ranges> from, DataOutputPlus out, Version userVersion) throws IOException
         {
-            CommandStoreSerializers.safeToRead.serialize(from, out, messagingVersion);
+            CommandStoreSerializers.safeToRead.serialize(from, out);
         }
 
         @Override
-        public void reserialize(JournalKey key, IdentityAccumulator<NavigableMap<Timestamp, Ranges>> from, DataOutputPlus out, int userVersion) throws IOException
+        public void reserialize(JournalKey key, IdentityAccumulator<NavigableMap<Timestamp, Ranges>> from, DataOutputPlus out, Version userVersion) throws IOException
         {
             serialize(key, from.get(), out, userVersion);
         }
 
         @Override
-        public void deserialize(JournalKey key, IdentityAccumulator<NavigableMap<Timestamp, Ranges>> into, DataInputPlus in, int userVersion) throws IOException
+        public void deserialize(JournalKey key, IdentityAccumulator<NavigableMap<Timestamp, Ranges>> into, DataInputPlus in, Version userVersion) throws IOException
         {
-            into.update(CommandStoreSerializers.safeToRead.deserialize(in, messagingVersion));
+            into.update(CommandStoreSerializers.safeToRead.deserialize(in));
         }
     }
 
@@ -294,21 +293,21 @@ public class AccordJournalValueSerializers
         }
 
         @Override
-        public void serialize(JournalKey key, RangesForEpoch from, DataOutputPlus out, int userVersion) throws IOException
+        public void serialize(JournalKey key, RangesForEpoch from, DataOutputPlus out, Version userVersion) throws IOException
         {
-            AccordTopologyUpdate.RangesForEpochSerializer.instance.serialize(from, out, userVersion);
+            AccordTopologyUpdate.RangesForEpochSerializer.instance.serialize(from, out);
         }
 
         @Override
-        public void reserialize(JournalKey key, Accumulator<RangesForEpoch, RangesForEpoch> from, DataOutputPlus out, int userVersion) throws IOException
+        public void reserialize(JournalKey key, Accumulator<RangesForEpoch, RangesForEpoch> from, DataOutputPlus out, Version userVersion) throws IOException
         {
-            serialize(key, from.get(), out, messagingVersion);
+            serialize(key, from.get(), out, userVersion);
         }
 
         @Override
-        public void deserialize(JournalKey key, Accumulator<RangesForEpoch, RangesForEpoch> into, DataInputPlus in, int userVersion) throws IOException
+        public void deserialize(JournalKey key, Accumulator<RangesForEpoch, RangesForEpoch> into, DataInputPlus in, Version userVersion) throws IOException
         {
-            into.update(AccordTopologyUpdate.RangesForEpochSerializer.instance.deserialize(in, userVersion));
+            into.update(AccordTopologyUpdate.RangesForEpochSerializer.instance.deserialize(in));
         }
     }
 }

@@ -26,12 +26,12 @@ import javax.annotation.Nullable;
 
 import com.google.common.primitives.Ints;
 
-import org.apache.cassandra.io.IVersionedSerializer;
+import org.apache.cassandra.io.Serializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.utils.vint.VIntCoding;
 
-public abstract class EncodeAsVInt32<T> implements IVersionedSerializer<T>
+public abstract class EncodeAsVInt32<T> implements Serializer<T>
 {
     public static <T> EncodeAsVInt32<T> withNulls(ToIntFunction<? super T> encode, IntFunction<? extends T> decode)
     {
@@ -102,20 +102,20 @@ public abstract class EncodeAsVInt32<T> implements IVersionedSerializer<T>
     }
 
     @Override
-    public void serialize(T t, DataOutputPlus out, int version) throws IOException
+    public void serialize(T t, DataOutputPlus out) throws IOException
     {
         out.writeUnsignedVInt32(encode(t));
     }
 
     @Override
-    public T deserialize(DataInputPlus in, int version) throws IOException
+    public T deserialize(DataInputPlus in) throws IOException
     {
         // we read a long to ensure we are correct even if the underlying conversion may return -1
         return decode(in.readUnsignedVInt());
     }
 
     @Override
-    public long serializedSize(T t, int version)
+    public long serializedSize(T t)
     {
         return VIntCoding.computeUnsignedVIntSize(encode(t));
     }

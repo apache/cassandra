@@ -59,10 +59,8 @@ import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.io.sstable.ISSTableScanner;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.util.File;
-import org.apache.cassandra.journal.Params;
 import org.apache.cassandra.journal.SegmentCompactor;
 import org.apache.cassandra.journal.StaticSegment;
-import org.apache.cassandra.journal.TestParams;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.schema.Tables;
@@ -73,6 +71,7 @@ import org.apache.cassandra.service.accord.serializers.DepsSerializers;
 import org.apache.cassandra.service.accord.serializers.KeySerializers;
 import org.apache.cassandra.service.accord.serializers.ResultSerializers;
 import org.apache.cassandra.service.accord.serializers.TopologySerializers;
+import org.apache.cassandra.service.accord.serializers.Version;
 import org.apache.cassandra.tools.FieldUtil;
 
 import static accord.impl.PrefixedIntHashKey.ranges;
@@ -171,7 +170,7 @@ public class AccordJournalBurnTest extends BurnTestBase
                          directory.deleteRecursiveOnExit();
                          ColumnFamilyStore cfs = ks.getColumnFamilyStore("journal_" + node);
                          cfs.disableAutoCompaction();
-                         AccordJournal journal = new AccordJournal(new TestParams()
+                         AccordJournal journal = new AccordJournal(new AccordJournalTestParams()
                          {
                              @Override
                              public int segmentSize()
@@ -206,9 +205,9 @@ public class AccordJournalBurnTest extends BurnTestBase
                              }
 
                              @Override
-                             protected SegmentCompactor<JournalKey, Object> compactor(ColumnFamilyStore cfs, Params params)
+                             protected SegmentCompactor<JournalKey, Object> compactor(ColumnFamilyStore cfs, Version userVersion)
                              {
-                                 return new NemesisAccordSegmentCompactor<>(params.userVersion(), cfs, randomSource.fork())
+                                 return new NemesisAccordSegmentCompactor<>(userVersion, cfs, randomSource.fork())
                                  {
                                      @Nullable
                                      @Override

@@ -24,51 +24,50 @@ import accord.messages.TxnRequest;
 import accord.primitives.Route;
 import accord.primitives.TxnId;
 import org.apache.cassandra.db.TypeSizes;
-import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 
 public abstract class TxnRequestSerializer<T extends TxnRequest<?>> implements IVersionedSerializer<T>
 {
-    void serializeHeader(T msg, DataOutputPlus out, int version) throws IOException
+    void serializeHeader(T msg, DataOutputPlus out, Version version) throws IOException
     {
-        CommandSerializers.txnId.serialize(msg.txnId, out, version);
-        KeySerializers.route.serialize(msg.scope, out, version);
+        CommandSerializers.txnId.serialize(msg.txnId, out);
+        KeySerializers.route.serialize(msg.scope, out);
         out.writeUnsignedVInt(msg.waitForEpoch);
     }
 
-    public abstract void serializeBody(T msg, DataOutputPlus out, int version) throws IOException;
+    public abstract void serializeBody(T msg, DataOutputPlus out, Version version) throws IOException;
 
     @Override
-    public final void serialize(T msg, DataOutputPlus out, int version) throws IOException
+    public final void serialize(T msg, DataOutputPlus out, Version version) throws IOException
     {
         serializeHeader(msg, out, version);
         serializeBody(msg, out, version);
     }
 
-    public abstract T deserializeBody(DataInputPlus in, int version, TxnId txnId, Route<?> scope, long waitForEpoch) throws IOException;
+    public abstract T deserializeBody(DataInputPlus in, Version version, TxnId txnId, Route<?> scope, long waitForEpoch) throws IOException;
 
     @Override
-    public final T deserialize(DataInputPlus in, int version) throws IOException
+    public final T deserialize(DataInputPlus in, Version version) throws IOException
     {
-        TxnId txnId = CommandSerializers.txnId.deserialize(in, version);
-        Route<?> scope = KeySerializers.route.deserialize(in, version);
+        TxnId txnId = CommandSerializers.txnId.deserialize(in);
+        Route<?> scope = KeySerializers.route.deserialize(in);
         // TODO: there should be a base epoch
         long waitForEpoch = in.readUnsignedVInt();
         return deserializeBody(in, version, txnId, scope, waitForEpoch);
     }
 
-    long serializedHeaderSize(T msg, int version)
+    long serializedHeaderSize(T msg, Version version)
     {
-        return CommandSerializers.txnId.serializedSize(msg.txnId, version)
-               + KeySerializers.route.serializedSize(msg.scope(), version) +
+        return CommandSerializers.txnId.serializedSize(msg.txnId)
+               + KeySerializers.route.serializedSize(msg.scope()) +
                TypeSizes.sizeofUnsignedVInt(msg.waitForEpoch);
     }
 
-    public abstract long serializedBodySize(T msg, int version);
+    public abstract long serializedBodySize(T msg, Version version);
 
     @Override
-    public final long serializedSize(T msg, int version)
+    public final long serializedSize(T msg, Version version)
     {
         return serializedHeaderSize(msg, version) + serializedBodySize(msg, version);
     }
@@ -76,23 +75,23 @@ public abstract class TxnRequestSerializer<T extends TxnRequest<?>> implements I
     public static abstract class WithUnsyncedSerializer<T extends TxnRequest.WithUnsynced<?>> extends TxnRequestSerializer<T>
     {
         @Override
-        void serializeHeader(T msg, DataOutputPlus out, int version) throws IOException
+        void serializeHeader(T msg, DataOutputPlus out, Version version) throws IOException
         {
             super.serializeHeader(msg, out, version);
             out.writeUnsignedVInt(msg.minEpoch);
         }
 
-        public abstract T deserializeBody(DataInputPlus in, int version, TxnId txnId, Route<?> scope, long waitForEpoch, long minEpoch) throws IOException;
+        public abstract T deserializeBody(DataInputPlus in, Version version, TxnId txnId, Route<?> scope, long waitForEpoch, long minEpoch) throws IOException;
 
         @Override
-        public final T deserializeBody(DataInputPlus in, int version, TxnId txnId, Route<?> scope, long waitForEpoch) throws IOException
+        public final T deserializeBody(DataInputPlus in, Version version, TxnId txnId, Route<?> scope, long waitForEpoch) throws IOException
         {
             long minEpoch = in.readUnsignedVInt();
             return deserializeBody(in, version, txnId, scope, waitForEpoch, minEpoch);
         }
 
         @Override
-        long serializedHeaderSize(T msg, int version)
+        long serializedHeaderSize(T msg, Version version)
         {
             long size = super.serializedHeaderSize(msg, version);
             size += TypeSizes.sizeofUnsignedVInt(msg.minEpoch);

@@ -32,6 +32,7 @@ import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.schema.TableMetadata;
+import org.apache.cassandra.service.accord.serializers.Version;
 
 import static org.apache.cassandra.db.SerializationHeader.StableHeaderSerializer.STABLE;
 import static org.apache.cassandra.db.rows.DeserializationHelper.Flag.FROM_REMOTE;
@@ -72,34 +73,34 @@ public class TxnDataKeyValue extends FilteredPartition implements TxnDataValue
     public static final TxnDataValueSerializer<TxnDataKeyValue> serializer = new TxnDataValueSerializer<>()
     {
         @Override
-        public void serialize(TxnDataKeyValue value, DataOutputPlus out, int version) throws IOException
+        public void serialize(TxnDataKeyValue value, DataOutputPlus out, Version version) throws IOException
         {
             value.metadata().id.serializeCompact(out);
             try (UnfilteredRowIterator iterator = value.unfilteredIterator())
             {
-                UnfilteredRowIteratorSerializer.serializer.serialize(iterator, out, version, value.rowCount(), STABLE, null);
+                UnfilteredRowIteratorSerializer.serializer.serialize(iterator, out, version.messageVersion(), value.rowCount(), STABLE, null);
             }
         }
 
         @Override
-        public TxnDataKeyValue deserialize(DataInputPlus in, int version) throws IOException
+        public TxnDataKeyValue deserialize(DataInputPlus in, Version version) throws IOException
         {
             TableMetadata metadata = Schema.instance.getExistingTableMetadata(TableId.deserializeCompact(in));
-            UnfilteredRowIteratorSerializer.Header header = UnfilteredRowIteratorSerializer.serializer.deserializeHeader(metadata, in, version, FROM_REMOTE, STABLE, null);
-            try (UnfilteredRowIterator partition = UnfilteredRowIteratorSerializer.serializer.deserialize(in, version, metadata, FROM_REMOTE, header))
+            UnfilteredRowIteratorSerializer.Header header = UnfilteredRowIteratorSerializer.serializer.deserializeHeader(metadata, in, version.messageVersion(), FROM_REMOTE, STABLE, null);
+            try (UnfilteredRowIterator partition = UnfilteredRowIteratorSerializer.serializer.deserialize(in, version.messageVersion(), metadata, FROM_REMOTE, header))
             {
                 return new TxnDataKeyValue(UnfilteredRowIterators.filter(partition, 0));
             }
         }
 
         @Override
-        public long serializedSize(TxnDataKeyValue value, int version)
+        public long serializedSize(TxnDataKeyValue value, Version version)
         {
             TableId tableId = value.metadata().id;
             long size = tableId.serializedCompactSize();
             try (UnfilteredRowIterator iterator = value.unfilteredIterator())
             {
-                return size + UnfilteredRowIteratorSerializer.serializer.serializedSize(iterator, version, value.rowCount(), STABLE, null);
+                return size + UnfilteredRowIteratorSerializer.serializer.serializedSize(iterator, version.messageVersion(), value.rowCount(), STABLE, null);
             }
         }
     };

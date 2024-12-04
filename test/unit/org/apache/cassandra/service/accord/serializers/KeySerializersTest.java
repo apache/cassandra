@@ -20,16 +20,15 @@ package org.apache.cassandra.service.accord.serializers;
 
 import org.junit.Test;
 
-import accord.primitives.Range;
 import accord.primitives.Ranges;
 import accord.utils.Gen;
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.io.IVersionedSerializers;
+import org.apache.cassandra.io.Serializers;
 import org.apache.cassandra.io.util.DataOutputBuffer;
-import org.apache.cassandra.service.accord.TokenRange;
 import org.apache.cassandra.utils.AccordGenerators;
 
 import static accord.utils.Property.qt;
+import static org.apache.cassandra.utils.AccordGenerators.maybeUpdatePartitioner;
 
 public class KeySerializersTest
 {
@@ -44,25 +43,13 @@ public class KeySerializersTest
         @SuppressWarnings({ "resource", "IOResourceOpenedButNotSafelyClosed" }) DataOutputBuffer output = new DataOutputBuffer();
         qt().forAll(rangesGen()).check(expected -> {
             maybeUpdatePartitioner(expected);
-            IVersionedSerializers.testSerde(output, KeySerializers.ranges, expected, 0);
+            Serializers.testSerde(output, KeySerializers.ranges, expected);
         });
     }
 
     private static Gen<Ranges> rangesGen()
     {
         return AccordGenerators.partitioner()
-                               .flatMap(r -> AccordGenerators.ranges(r));
-    }
-
-    public static boolean maybeUpdatePartitioner(Ranges ranges)
-    {
-        if (ranges.isEmpty()) return false;
-        for (Range range : ranges)
-        {
-            TokenRange tr = (TokenRange) range;
-            DatabaseDescriptor.setPartitionerUnsafe(tr.start().token().getPartitioner());
-            return true;
-        }
-        return false;
+                               .flatMap(AccordGenerators::rangesSplitOrArbitrary);
     }
 }

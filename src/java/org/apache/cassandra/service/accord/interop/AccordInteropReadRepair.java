@@ -38,7 +38,6 @@ import accord.utils.async.AsyncChains;
 import org.apache.cassandra.db.Mutation;
 import org.apache.cassandra.db.ReadRepairVerbHandler;
 import org.apache.cassandra.db.TypeSizes;
-import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.locator.InetAddressAndPort;
@@ -48,9 +47,11 @@ import org.apache.cassandra.net.RequestCallback;
 import org.apache.cassandra.net.Verb;
 import org.apache.cassandra.service.accord.AccordMessageSink.AccordMessageType;
 import org.apache.cassandra.service.accord.serializers.CommandSerializers;
+import org.apache.cassandra.service.accord.serializers.IVersionedSerializer;
 import org.apache.cassandra.service.accord.serializers.KeySerializers;
 import org.apache.cassandra.service.accord.serializers.ReadDataSerializers;
 import org.apache.cassandra.service.accord.serializers.ReadDataSerializers.ReadDataSerializer;
+import org.apache.cassandra.service.accord.serializers.Version;
 
 /**
  * Applies a read repair mutation from inside the context of a CommandStore via AbstractExecute
@@ -62,31 +63,31 @@ public class AccordInteropReadRepair extends ReadData
     public static final IVersionedSerializer<AccordInteropReadRepair> requestSerializer = new ReadDataSerializer<AccordInteropReadRepair>()
     {
         @Override
-        public void serialize(AccordInteropReadRepair repair, DataOutputPlus out, int version) throws IOException
+        public void serialize(AccordInteropReadRepair repair, DataOutputPlus out, Version version) throws IOException
         {
-            CommandSerializers.txnId.serialize(repair.txnId, out, version);
-            KeySerializers.participants.serialize(repair.scope, out, version);
+            CommandSerializers.txnId.serialize(repair.txnId, out);
+            KeySerializers.participants.serialize(repair.scope, out);
             out.writeUnsignedVInt(repair.executeAtEpoch);
-            Mutation.serializer.serialize(repair.mutation, out, version);
+            Mutation.serializer.serialize(repair.mutation, out, version.messageVersion());
         }
 
         @Override
-        public AccordInteropReadRepair deserialize(DataInputPlus in, int version) throws IOException
+        public AccordInteropReadRepair deserialize(DataInputPlus in, Version version) throws IOException
         {
-            TxnId txnId = CommandSerializers.txnId.deserialize(in, version);
-            Participants<?> scope = KeySerializers.participants.deserialize(in, version);
+            TxnId txnId = CommandSerializers.txnId.deserialize(in);
+            Participants<?> scope = KeySerializers.participants.deserialize(in);
             long executeAtEpoch = in.readUnsignedVInt();
-            Mutation mutation = Mutation.serializer.deserialize(in, version);
+            Mutation mutation = Mutation.serializer.deserialize(in, version.messageVersion());
             return new AccordInteropReadRepair(txnId, scope, executeAtEpoch, mutation);
         }
 
         @Override
-        public long serializedSize(AccordInteropReadRepair repair, int version)
+        public long serializedSize(AccordInteropReadRepair repair, Version version)
         {
-            return CommandSerializers.txnId.serializedSize(repair.txnId, version)
-                   + KeySerializers.participants.serializedSize(repair.scope, version)
+            return CommandSerializers.txnId.serializedSize(repair.txnId)
+                   + KeySerializers.participants.serializedSize(repair.scope)
                    + TypeSizes.sizeofUnsignedVInt(repair.executeAtEpoch)
-                   + Mutation.serializer.serializedSize(repair.mutation, version);
+                   + Mutation.serializer.serializedSize(repair.mutation, version.messageVersion());
         }
     };
 
@@ -111,11 +112,11 @@ public class AccordInteropReadRepair extends ReadData
     private static final IVersionedSerializer<Data> noop_data_serializer = new IVersionedSerializer<>()
     {
         @Override
-        public void serialize(Data t, DataOutputPlus out, int version) throws IOException {}
+        public void serialize(Data t, DataOutputPlus out, Version version) throws IOException {}
         @Override
-        public Data deserialize(DataInputPlus in, int version) throws IOException { return Data.NOOP_DATA; }
+        public Data deserialize(DataInputPlus in, Version version) throws IOException { return Data.NOOP_DATA; }
 
-        public long serializedSize(Data t, int version) { return 0; }
+        public long serializedSize(Data t, Version version) { return 0; }
     };
 
     public static final IVersionedSerializer<ReadReply> replySerializer = new ReadDataSerializers.ReplySerializer<>(noop_data_serializer);

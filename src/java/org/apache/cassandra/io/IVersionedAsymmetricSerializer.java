@@ -18,8 +18,12 @@
 package org.apache.cassandra.io;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
+import java.nio.ByteBuffer;
 
+import org.apache.cassandra.io.util.DataInputBuffer;
 import org.apache.cassandra.io.util.DataInputPlus;
+import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.io.util.DataOutputPlus;
 
 public interface IVersionedAsymmetricSerializer<In, Out>
@@ -34,6 +38,30 @@ public interface IVersionedAsymmetricSerializer<In, Out>
      */
     void serialize(In t, DataOutputPlus out, int version) throws IOException;
 
+    default ByteBuffer serialize(In t, int version) throws IOException
+    {
+        int size = Math.toIntExact(serializedSize(t, version));
+        try (DataOutputBuffer buffer = new DataOutputBuffer(size))
+        {
+            serialize(t, buffer, version);
+            ByteBuffer bb = buffer.buffer();
+            assert size == bb.remaining() : String.format("Expected to write %d but wrote %d", size, bb.remaining());
+            return bb;
+        }
+    }
+
+    default ByteBuffer serializeUnchecked(In t, int version)
+    {
+        try
+        {
+            return serialize(t, version);
+        }
+        catch (IOException e)
+        {
+            throw new UncheckedIOException(e);
+        }
+    }
+
     /**
      * Deserialize into the specified DataInputStream instance.
      * @param in DataInput from which deserialization needs to happen.
@@ -42,6 +70,26 @@ public interface IVersionedAsymmetricSerializer<In, Out>
      * @throws IOException if deserialization fails
      */
     Out deserialize(DataInputPlus in, int version) throws IOException;
+
+    default Out deserialize(ByteBuffer buffer, int version) throws IOException
+    {
+        try (DataInputBuffer in = new DataInputBuffer(buffer, true))
+        {
+            return deserialize(in, version);
+        }
+    }
+
+    default Out deserializeUnchecked(ByteBuffer buffer, int version)
+    {
+        try
+        {
+            return deserialize(buffer, version);
+        }
+        catch (IOException e)
+        {
+            throw new UncheckedIOException(e);
+        }
+    }
 
     /**
      * Calculate serialized size of object without actually serializing.

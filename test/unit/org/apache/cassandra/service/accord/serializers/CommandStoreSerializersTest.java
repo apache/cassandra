@@ -18,21 +18,17 @@
 
 package org.apache.cassandra.service.accord.serializers;
 
-import java.util.List;
-
 import org.junit.Test;
 
 import accord.local.RedundantBefore;
 import accord.utils.Gens;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.dht.Murmur3Partitioner;
-import org.apache.cassandra.io.IVersionedSerializers;
+import org.apache.cassandra.io.Serializers;
 import org.apache.cassandra.io.util.DataOutputBuffer;
-import org.apache.cassandra.net.MessagingService.Version;
 import org.apache.cassandra.utils.AccordGenerators;
 
 import static accord.utils.Property.qt;
-import static org.apache.cassandra.net.MessagingService.Version.VERSION_51;
 
 public class CommandStoreSerializersTest
 {
@@ -42,8 +38,6 @@ public class CommandStoreSerializersTest
         DatabaseDescriptor.setPartitionerUnsafe(Murmur3Partitioner.instance);
     }
 
-    private static final List<Version> SUPPORTED_VERSIONS = VERSION_51.greaterThanOrEqual();
-
     @Test
     public void redundantBeforeEntry()
     {
@@ -51,8 +45,7 @@ public class CommandStoreSerializersTest
         qt().forAll(Gens.random(), AccordGenerators.partitioner()).check((rs, partitioner) -> {
             DatabaseDescriptor.setPartitionerUnsafe(partitioner);
             RedundantBefore.Bounds entry = AccordGenerators.redundantBeforeEntry(partitioner).next(rs);
-            for (Version version : SUPPORTED_VERSIONS)
-                IVersionedSerializers.testSerde(buffer, CommandStoreSerializers.redundantBeforeEntry, entry, version.value);
+            Serializers.testSerde(buffer, CommandStoreSerializers.redundantBeforeEntry, entry);
         });
     }
 
@@ -64,8 +57,7 @@ public class CommandStoreSerializersTest
             DatabaseDescriptor.setPartitionerUnsafe(partitioner);
             // serializer doesn't support the empty set, so filter out
             RedundantBefore redundantBefore = AccordGenerators.redundantBefore(partitioner).filter(r -> r.size() != 0).next(rs);
-            for (Version version : SUPPORTED_VERSIONS)
-                IVersionedSerializers.testSerde(buffer, CommandStoreSerializers.redundantBefore, redundantBefore, version.value);
+            Serializers.testSerde(buffer, CommandStoreSerializers.redundantBefore, redundantBefore);
         });
     }
 

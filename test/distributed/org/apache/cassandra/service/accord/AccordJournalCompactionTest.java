@@ -46,7 +46,6 @@ import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.io.util.File;
-import org.apache.cassandra.journal.TestParams;
 import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.service.accord.api.AccordAgent;
@@ -99,7 +98,7 @@ public class AccordJournalCompactionTest
         Gen<Range> rangeGen = AccordGenerators.range(DatabaseDescriptor.getPartitioner());
         Gen<Deps> historicalTransactionsGen = depsGen();
 
-        AccordJournal journal = new AccordJournal(new TestParams()
+        AccordJournal journal = new AccordJournal(new AccordJournalTestParams()
         {
             @Override
             public int segmentSize()

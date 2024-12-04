@@ -82,7 +82,7 @@ public class ReconfigureAccordFastPath implements Transformation
         public void serialize(Transformation t, DataOutputPlus out, Version version) throws IOException
         {
             ReconfigureAccordFastPath update = (ReconfigureAccordFastPath) t;
-            TopologySerializers.nodeId.serialize(update.node, out, version);
+            TopologySerializers.nodeId.serialize(update.node, out);
             AccordFastPath.Status.serializer.serialize(update.status, out, version);
             out.writeUnsignedVInt(update.updateTimeMillis);
             out.writeUnsignedVInt(update.updateDelayMillis);
@@ -91,7 +91,7 @@ public class ReconfigureAccordFastPath implements Transformation
 
         public ReconfigureAccordFastPath deserialize(DataInputPlus in, Version version) throws IOException
         {
-            return new ReconfigureAccordFastPath(TopologySerializers.nodeId.deserialize(in, version),
+            return new ReconfigureAccordFastPath(TopologySerializers.nodeId.deserialize(in),
                                           AccordFastPath.Status.serializer.deserialize(in, version),
                                           in.readUnsignedVInt(), in.readUnsignedVInt());
         }
@@ -99,7 +99,7 @@ public class ReconfigureAccordFastPath implements Transformation
         public long serializedSize(Transformation t, Version version)
         {
             ReconfigureAccordFastPath update = (ReconfigureAccordFastPath) t;
-            return TopologySerializers.nodeId.serializedSize(update.node, version) +
+            return TopologySerializers.nodeId.serializedSize(update.node) +
                    AccordFastPath.Status.serializer.serializedSize(update.status, version) +
                    TypeSizes.sizeofUnsignedVInt(update.updateTimeMillis) +
                    TypeSizes.sizeofUnsignedVInt(update.updateDelayMillis);

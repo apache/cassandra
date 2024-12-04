@@ -19,7 +19,7 @@ package org.apache.cassandra.journal;
 
 import java.util.concurrent.TimeUnit;
 
-import org.apache.cassandra.net.MessagingService;
+import org.apache.cassandra.service.accord.serializers.Version;
 
 public class TestParams implements Params
 {
@@ -70,6 +70,6 @@ public class TestParams implements Params
     @Override
     public int userVersion()
     {
-        return MessagingService.current_version;
+        return Version.LATEST.version;
     }
 }

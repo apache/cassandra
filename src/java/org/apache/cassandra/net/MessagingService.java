@@ -224,23 +224,6 @@ public class MessagingService extends MessagingServiceMBeanImpl implements Messa
         VERSION_50(13),
         VERSION_51(14);
 
-        public static final Version CURRENT;
-
-        private static final Logger logger = LoggerFactory.getLogger(Version.class);
-
-        static
-        {
-             if (DatabaseDescriptor.getStorageCompatibilityMode().isBefore(5))
-             {
-                 logger.warn("Starting in storage compatibility mode " + DatabaseDescriptor.getStorageCompatibilityMode());
-                 CURRENT = VERSION_40;
-             }
-             else
-             {
-                 CURRENT = VERSION_51;
-             }
-        }
-
         public static final Version MIN_ACCORD_VERSION = Version.VERSION_51;
 
         public final int value;
@@ -248,6 +231,13 @@ public class MessagingService extends MessagingServiceMBeanImpl implements Messa
         Version(int value)
         {
             this.value = value;
+        }
+
+        public static Version current()
+        {
+            // this enum is leveraged in yaml config so can not touch DatabaseDescriptor to figure out
+            // what the "current" is, so need to leverage MessagingService's field as it uses DatabaseDescriptor
+            return current;
         }
 
         public static List<Version> supportedVersions()
@@ -288,7 +278,8 @@ public class MessagingService extends MessagingServiceMBeanImpl implements Messa
     // we want to use a modified behavior for the tools and clients - that is, since they are not running a server, they
     // should not need to run in a compatibility mode. They should be able to connect to the server regardless whether
     // it uses messaving version 4 or 5
-    public static final int current_version = DatabaseDescriptor.getStorageCompatibilityMode().isBefore(5) ? VERSION_40 : VERSION_51;
+    public static final Version current = DatabaseDescriptor.getStorageCompatibilityMode().isBefore(5) ? Version.VERSION_40 : Version.VERSION_51;
+    public static final int current_version = current.value;
     static AcceptVersions accept_messaging;
     static AcceptVersions accept_streaming;
     static

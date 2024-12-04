@@ -21,7 +21,7 @@ package org.apache.cassandra.dht;
 import org.junit.Test;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.io.IVersionedSerializers;
+import org.apache.cassandra.io.Serializers;
 import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.utils.AccordGenerators;
@@ -45,7 +45,7 @@ public class TokenTest
             DatabaseDescriptor.setPartitionerUnsafe(partitioner);
             Token token = AccordGenerators.fromQT(CassandraGenerators.token(partitioner)).next(rs);
             for (MessagingService.Version version : MessagingService.Version.values())
-                IVersionedSerializers.testSerde(output, Token.compactSerializer, token, version.value);
+                Serializers.testSerde(output, Token.compactSerializer, token, version.value);
         });
     }
 }

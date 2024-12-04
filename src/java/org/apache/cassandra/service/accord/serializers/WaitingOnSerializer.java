@@ -86,7 +86,7 @@ public class WaitingOnSerializer
             return result;
         }
 
-        public void reserialize(DataOutputPlus out, int version) throws IOException
+        public void reserialize(DataOutputPlus out) throws IOException
         {
             out.writeUnsignedVInt32(waitingOnLength);
             serialize(waitingOnLength, waitingOn, out);

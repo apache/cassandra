@@ -49,10 +49,11 @@ import org.apache.cassandra.db.PartitionPosition;
 import org.apache.cassandra.db.PartitionRangeReadCommand;
 import org.apache.cassandra.db.SinglePartitionReadCommand;
 import org.apache.cassandra.dht.AbstractBounds;
-import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.service.accord.api.PartitionKey;
+import org.apache.cassandra.service.accord.serializers.IVersionedSerializer;
+import org.apache.cassandra.service.accord.serializers.Version;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.utils.ObjectSizes;
 
@@ -165,7 +166,7 @@ public class TxnRead extends AbstractKeySorted<TxnNamedRead> implements Read
     {
         List<TxnNamedRead> reads = new ArrayList<>(keys.size());
         for (int i = 0; i < keys.size(); i++)
-            reads.add(new TxnNamedRead(txnDataName(USER, i), keys.get(i), null));
+            reads.add(new TxnNamedRead(txnDataName(USER, i), keys.get(i), null, Version.LATEST));
         return new TxnRead(reads, null);
     }
 
@@ -393,13 +394,13 @@ public class TxnRead extends AbstractKeySorted<TxnNamedRead> implements Read
     public static final IVersionedSerializer<TxnRead> serializer = new IVersionedSerializer<TxnRead>()
     {
         @Override
-        public void serialize(TxnRead read, DataOutputPlus out, int version) throws IOException
+        public void serialize(TxnRead read, DataOutputPlus out, Version version) throws IOException
         {
             if (read.items.length > 0)
             {
                 out.write(TYPE_NOT_EMPTY);
                 serializeArray(read.items, out, version, TxnNamedRead.serializer);
-                serializeNullable(read.cassandraConsistencyLevel, out, version, consistencyLevelSerializer);
+                serializeNullable(read.cassandraConsistencyLevel, out, consistencyLevelSerializer);
             }
             else
             {
@@ -408,7 +409,7 @@ public class TxnRead extends AbstractKeySorted<TxnNamedRead> implements Read
         }
 
         @Override
-        public TxnRead deserialize(DataInputPlus in, int version) throws IOException
+        public TxnRead deserialize(DataInputPlus in, Version version) throws IOException
         {
             byte type = in.readByte();
             switch (type)
@@ -421,19 +422,19 @@ public class TxnRead extends AbstractKeySorted<TxnNamedRead> implements Read
                     return EMPTY_RANGE;
                 case TYPE_NOT_EMPTY:
                     TxnNamedRead[] items = deserializeArray(in, version, TxnNamedRead.serializer, TxnNamedRead[]::new);
-                    ConsistencyLevel consistencyLevel = deserializeNullable(in, version, consistencyLevelSerializer);
+                    ConsistencyLevel consistencyLevel = deserializeNullable(in, consistencyLevelSerializer);
                     return new TxnRead(items, consistencyLevel);
             }
         }
 
         @Override
-        public long serializedSize(TxnRead read, int version)
+        public long serializedSize(TxnRead read, Version version)
         {
             long size = 1; // type
             if (read.items.length > 0)
             {
                 size += serializedArraySize(read.items, version, TxnNamedRead.serializer);
-                size += serializedNullableSize(read.cassandraConsistencyLevel, version, consistencyLevelSerializer);
+                size += serializedNullableSize(read.cassandraConsistencyLevel, consistencyLevelSerializer);
             }
             return size;
         }

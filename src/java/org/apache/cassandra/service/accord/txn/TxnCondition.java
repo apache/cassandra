@@ -43,10 +43,11 @@ import org.apache.cassandra.db.rows.Cell;
 import org.apache.cassandra.db.rows.ColumnData;
 import org.apache.cassandra.db.rows.ComplexColumnData;
 import org.apache.cassandra.db.rows.Row;
-import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.schema.ColumnMetadata;
+import org.apache.cassandra.service.accord.serializers.IVersionedSerializer;
+import org.apache.cassandra.service.accord.serializers.Version;
 import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
@@ -64,9 +65,9 @@ public abstract class TxnCondition
 {
     private interface ConditionSerializer<T extends TxnCondition>
     {
-        void serialize(T condition, DataOutputPlus out, int version) throws IOException;
-        T deserialize(DataInputPlus in, int version, Kind kind) throws IOException;
-        long serializedSize(T condition, int version);
+        void serialize(T condition, DataOutputPlus out, Version version) throws IOException;
+        T deserialize(DataInputPlus in, Version version, Kind kind) throws IOException;
+        long serializedSize(T condition, Version version);
     }
 
     public enum Kind
@@ -176,11 +177,11 @@ public abstract class TxnCondition
         private static final ConditionSerializer<None> serializer = new ConditionSerializer<None>()
         {
             @Override
-            public void serialize(None condition, DataOutputPlus out, int version) {}
+            public void serialize(None condition, DataOutputPlus out, Version version) {}
             @Override
-            public None deserialize(DataInputPlus in, int version, Kind kind) { return instance; }
+            public None deserialize(DataInputPlus in, Version version, Kind kind) { return instance; }
             @Override
-            public long serializedSize(None condition, int version) { return 0; }
+            public long serializedSize(None condition, Version version) { return 0; }
         };
     }
 
@@ -294,26 +295,27 @@ public abstract class TxnCondition
         private static final ConditionSerializer<Exists> serializer = new ConditionSerializer<Exists>()
         {
             @Override
-            public void serialize(Exists condition, DataOutputPlus out, int version) throws IOException
+            public void serialize(Exists condition, DataOutputPlus out, Version version) throws IOException
             {
                 TxnReference.serializer.serialize(condition.reference, out, version);
             }
 
             @Override
-            public Exists deserialize(DataInputPlus in, int version, Kind kind) throws IOException
+            public Exists deserialize(DataInputPlus in, Version version, Kind kind) throws IOException
             {
                 return new Exists(TxnReference.serializer.deserialize(in, version), kind);
             }
 
             @Override
-            public long serializedSize(Exists condition, int version)
+            public long serializedSize(Exists condition, Version version)
             {
                 return TxnReference.serializer.serializedSize(condition.reference, version);
             }
         };
     }
 
-    public static class ColumnConditionsAdapter extends TxnCondition {
+    public static class ColumnConditionsAdapter extends TxnCondition
+    {
         @Nonnull
         public final Collection<Bound> bounds;
 
@@ -346,25 +348,25 @@ public abstract class TxnCondition
         private static final ConditionSerializer<ColumnConditionsAdapter> serializer = new ConditionSerializer<ColumnConditionsAdapter>()
         {
             @Override
-            public void serialize(ColumnConditionsAdapter condition, DataOutputPlus out, int version) throws IOException
+            public void serialize(ColumnConditionsAdapter condition, DataOutputPlus out, Version version) throws IOException
             {
-                clusteringSerializer.serialize(condition.clustering, out, version);
-                serializeCollection(condition.bounds, out, version, Bound.serializer);
+                clusteringSerializer.serialize(condition.clustering, out);
+                serializeCollection(condition.bounds, out, Bound.serializer);
             }
 
             @Override
-            public ColumnConditionsAdapter deserialize(DataInputPlus in, int version, Kind ignored) throws IOException
+            public ColumnConditionsAdapter deserialize(DataInputPlus in, Version version, Kind ignored) throws IOException
             {
-                Clustering<?> clustering = clusteringSerializer.deserialize(in, version);
-                List<Bound> bounds = deserializeList(in, version, Bound.serializer);
+                Clustering<?> clustering = clusteringSerializer.deserialize(in);
+                List<Bound> bounds = deserializeList(in, Bound.serializer);
                 return new ColumnConditionsAdapter(clustering, bounds);
             }
 
             @Override
-            public long serializedSize(ColumnConditionsAdapter condition, int version)
+            public long serializedSize(ColumnConditionsAdapter condition, Version version)
             {
-                return clusteringSerializer.serializedSize(condition.clustering, version)
-                    + serializedCollectionSize(condition.bounds, version, Bound.serializer);
+                return clusteringSerializer.serializedSize(condition.clustering)
+                    + serializedCollectionSize(condition.bounds, Bound.serializer);
             }
         };
     }
@@ -458,7 +460,7 @@ public abstract class TxnCondition
         private static final ConditionSerializer<Value> serializer = new ConditionSerializer<>()
         {
             @Override
-            public void serialize(Value condition, DataOutputPlus out, int version) throws IOException
+            public void serialize(Value condition, DataOutputPlus out, Version version) throws IOException
             {
                 TxnReference.serializer.serialize(condition.reference, out, version);
                 ByteBufferUtil.writeWithVIntLength(condition.value, out);
@@ -466,7 +468,7 @@ public abstract class TxnCondition
             }
 
             @Override
-            public Value deserialize(DataInputPlus in, int version, Kind kind) throws IOException
+            public Value deserialize(DataInputPlus in, Version version, Kind kind) throws IOException
             {
                 TxnReference reference = TxnReference.serializer.deserialize(in, version);
                 ByteBuffer value = ByteBufferUtil.readWithVIntLength(in);
@@ -475,7 +477,7 @@ public abstract class TxnCondition
             }
 
             @Override
-            public long serializedSize(Value condition, int version)
+            public long serializedSize(Value condition, Version version)
             {
                 long size = 0;
                 size += TxnReference.serializer.serializedSize(condition.reference, version);
@@ -538,19 +540,19 @@ public abstract class TxnCondition
         private static final ConditionSerializer<BooleanGroup> serializer = new ConditionSerializer<BooleanGroup>()
         {
             @Override
-            public void serialize(BooleanGroup condition, DataOutputPlus out, int version) throws IOException
+            public void serialize(BooleanGroup condition, DataOutputPlus out, Version version) throws IOException
             {
                 serializeList(condition.conditions, out, version, TxnCondition.serializer);
             }
 
             @Override
-            public BooleanGroup deserialize(DataInputPlus in, int version, Kind kind) throws IOException
+            public BooleanGroup deserialize(DataInputPlus in, Version version, Kind kind) throws IOException
             {
                 return new BooleanGroup(kind, deserializeList(in, version, TxnCondition.serializer));
             }
 
             @Override
-            public long serializedSize(BooleanGroup condition, int version)
+            public long serializedSize(BooleanGroup condition, Version version)
             {
                 return serializedListSize(condition.conditions, version, TxnCondition.serializer);
             }
@@ -561,14 +563,14 @@ public abstract class TxnCondition
     {
         @SuppressWarnings("unchecked")
         @Override
-        public void serialize(TxnCondition condition, DataOutputPlus out, int version) throws IOException
+        public void serialize(TxnCondition condition, DataOutputPlus out, Version version) throws IOException
         {
             out.writeUnsignedVInt32(condition.kind.ordinal());
             condition.kind.serializer().serialize(condition, out, version);
         }
 
         @Override
-        public TxnCondition deserialize(DataInputPlus in, int version) throws IOException
+        public TxnCondition deserialize(DataInputPlus in, Version version) throws IOException
         {
             Kind kind = Kind.values()[in.readUnsignedVInt32()];
             return kind.serializer().deserialize(in, version, kind);
@@ -576,9 +578,10 @@ public abstract class TxnCondition
 
         @SuppressWarnings("unchecked")
         @Override
-        public long serializedSize(TxnCondition condition, int version)
+        public long serializedSize(TxnCondition condition, Version version)
         {
-            return TypeSizes.sizeofUnsignedVInt(condition.kind.ordinal()) + condition.kind.serializer().serializedSize(condition, version);
+            return TypeSizes.sizeofUnsignedVInt(condition.kind.ordinal())
+                   + condition.kind.serializer().serializedSize(condition, version);
         }
     };
 }

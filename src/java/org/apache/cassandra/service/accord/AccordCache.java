@@ -62,13 +62,13 @@ import org.apache.cassandra.metrics.AccordCacheMetrics;
 import org.apache.cassandra.metrics.CacheAccessMetrics;
 import org.apache.cassandra.service.accord.AccordCacheEntry.Status;
 import org.apache.cassandra.service.accord.events.CacheEvents;
+import org.apache.cassandra.service.accord.serializers.Version;
 import org.apache.cassandra.utils.NoSpamLogger;
 import org.apache.cassandra.utils.NoSpamLogger.NoSpamLogStatement;
 import org.apache.cassandra.utils.ObjectSizes;
 
 import static accord.utils.Invariants.illegalState;
 import static accord.utils.Invariants.require;
-import static org.apache.cassandra.net.MessagingService.current_version;
 import static org.apache.cassandra.service.accord.AccordCacheEntry.Status.EVICTED;
 import static org.apache.cassandra.service.accord.AccordCacheEntry.Status.LOADED;
 import static org.apache.cassandra.service.accord.AccordCacheEntry.Status.MODIFIED;
@@ -1212,7 +1212,7 @@ public class AccordCache implements CacheSize
 
             try
             {
-                return AccordJournal.asSerializedChange(null, value, current_version);
+                return AccordJournal.asSerializedChange(null, value, Version.LATEST);
             }
             catch (IOException e)
             {
@@ -1229,7 +1229,7 @@ public class AccordCache implements CacheSize
             buffer.mark();
             try (DataInputBuffer buf = new DataInputBuffer(buffer, false))
             {
-                builder.deserializeNext(buf, current_version);
+                builder.deserializeNext(buf, Version.LATEST);
                 return builder.construct(commandStore.unsafeGetRedundantBefore());
             }
             catch (UnknownTableException e)

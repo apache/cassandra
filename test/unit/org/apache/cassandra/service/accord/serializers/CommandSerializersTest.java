@@ -18,19 +18,24 @@
 
 package org.apache.cassandra.service.accord.serializers;
 
+import java.io.IOException;
+
 import org.junit.BeforeClass;
 import org.junit.Test;
 
 import accord.primitives.PartialTxn;
 import accord.primitives.Ranges;
 import accord.primitives.Txn;
+import accord.utils.AccordGens;
 import org.apache.cassandra.SchemaLoader;
+import org.apache.cassandra.io.Serializers;
+import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.service.accord.AccordTestUtils;
 import org.apache.cassandra.service.accord.TokenRange;
 import org.apache.cassandra.service.accord.api.PartitionKey;
-import org.apache.cassandra.utils.SerializerTestUtils;
 
+import static accord.utils.Property.qt;
 import static org.apache.cassandra.config.DatabaseDescriptor.getPartitioner;
 import static org.apache.cassandra.cql3.statements.schema.CreateTableStatement.parse;
 
@@ -46,7 +51,7 @@ public class CommandSerializersTest
     }
 
     @Test
-    public void txnSerializer()
+    public void txnSerializer() throws IOException
     {
         Txn txn = AccordTestUtils.createTxn("BEGIN TRANSACTION\n" +
                                                  "  LET row1 = (SELECT * FROM ks.tbl WHERE k=0 AND c=0);\n" +
@@ -57,6 +62,13 @@ public class CommandSerializersTest
                                                  "COMMIT TRANSACTION");
         PartitionKey key = (PartitionKey) txn.keys().get(0);
         PartialTxn expected = txn.slice(Ranges.of(TokenRange.fullRange(key.table(), getPartitioner())), true);
-        SerializerTestUtils.assertSerializerIOEquality(expected, CommandSerializers.partialTxn);
+        Serializers.testSerde(CommandSerializers.partialTxn, expected, Version.LATEST);
+    }
+
+    @Test
+    public void txnIdSerde()
+    {
+        DataOutputBuffer output = new DataOutputBuffer();
+        qt().forAll(AccordGens.txnIds()).check(txnId -> Serializers.testSerde(output, CommandSerializers.txnId, txnId));
     }
 }

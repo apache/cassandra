@@ -44,9 +44,9 @@ import accord.topology.Topologies;
 import accord.utils.UnhandledEnum;
 import org.agrona.collections.Int2ObjectHashMap;
 import org.apache.cassandra.db.ConsistencyLevel;
-import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.service.accord.AccordMessageSink.AccordMessageType;
 import org.apache.cassandra.service.accord.serializers.ApplySerializers.ApplySerializer;
+import org.apache.cassandra.service.accord.serializers.IVersionedSerializer;
 import org.apache.cassandra.service.accord.txn.AccordUpdate;
 import org.apache.cassandra.tcm.ClusterMetadata;
 

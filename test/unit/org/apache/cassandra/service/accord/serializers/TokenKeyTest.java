@@ -18,17 +18,21 @@
 
 package org.apache.cassandra.service.accord.serializers;
 
+import java.io.IOException;
 import java.math.BigInteger;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
+import org.junit.Before;
 import org.junit.Test;
 
 import accord.utils.Gen;
 import accord.utils.Gens;
 import accord.utils.Invariants;
+import accord.utils.LazyToString;
+import accord.utils.ReflectionUtils;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.marshal.ByteBufferAccessor;
 import org.apache.cassandra.dht.ByteOrderedPartitioner;
@@ -38,6 +42,7 @@ import org.apache.cassandra.dht.Murmur3Partitioner.LongToken;
 import org.apache.cassandra.dht.RandomPartitioner;
 import org.apache.cassandra.dht.RandomPartitioner.BigIntegerToken;
 import org.apache.cassandra.dht.Token;
+import org.apache.cassandra.io.Serializers;
 import org.apache.cassandra.io.util.DataInputBuffer;
 import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.schema.TableId;
@@ -58,23 +63,75 @@ public class TokenKeyTest
     static
     {
         DatabaseDescriptor.clientInitialization();
+    }
+
+    @Before
+    public void before()
+    {
         // AccordRoutingKey$TokenKey reaches into DD to get partitioner, so need to set that up...
         DatabaseDescriptor.setPartitionerUnsafe(Murmur3Partitioner.instance);
     }
 
     @Test
+    public void beforeIsTokenSentinel()
+    {
+        qt().forAll(simpleTokenKey()).check(tokenKey -> {
+            var t = tokenKey.before();
+            Assertions.assertThat(t.isTokenSentinel()).isTrue();
+            Assertions.assertThat(t.isTableSentinel()).isEqualTo(tokenKey.isTableSentinel());
+            Assertions.assertThat(t.isMin()).isEqualTo(tokenKey.isMin());
+            Assertions.assertThat(t.isMax()).isEqualTo(tokenKey.isMax());
+            Assertions.assertThat(t.isBefore()).isTrue();
+            Assertions.assertThat(t.isAfter()).isFalse();
+
+            Assertions.assertThatThrownBy(() -> t.before());
+            Assertions.assertThatThrownBy(() -> t.after());
+
+            Assertions.assertThat(tokenKey.compareTo(t)).isGreaterThan(0);
+            Assertions.assertThat(t.compareTo(tokenKey)).isLessThan(0);
+        });
+    }
+
+    @Test
+    public void afterIsTokenSentinel()
+    {
+        qt().forAll(simpleTokenKey()).check(tokenKey -> {
+            var t = tokenKey.after();
+            Assertions.assertThat(t.isTokenSentinel()).isTrue();
+            Assertions.assertThat(t.isTableSentinel()).isEqualTo(tokenKey.isTableSentinel());
+            Assertions.assertThat(t.isMin()).isEqualTo(tokenKey.isMin());
+            Assertions.assertThat(t.isMax()).isEqualTo(tokenKey.isMax());
+            Assertions.assertThat(t.isBefore()).isFalse();
+            Assertions.assertThat(t.isAfter()).isTrue();
+
+            Assertions.assertThat(tokenKey.compareTo(t)).isLessThan(0);
+            Assertions.assertThat(t.compareTo(tokenKey)).isGreaterThan(0);
+        });
+    }
+
+    @Test
+    public void serdeSimple()
+    {
+        Gen<TokenKey> tokenKeyGen = AccordGenerators.allowBeforeAndAfter(simpleTokenKey());
+        @SuppressWarnings({ "resource", "IOResourceOpenedButNotSafelyClosed" }) DataOutputBuffer output = new DataOutputBuffer();
+        qt().forAll(tokenKeyGen).check(expected -> {
+            DatabaseDescriptor.setPartitionerUnsafe(expected.token().getPartitioner());
+            Serializers.testSerde(output, serializer, expected);
+            testSerdePrefix(output, serializer, expected);
+        });
+    }
+
+    @Test
     public void serde()
     {
-        qt().forAll(fromQT(partitioners().assuming(IPartitioner::accordSupported)).flatMap(partitioner -> routingKeyGen(fromQT(CassandraGenerators.TABLE_ID_GEN), fromQT(token(partitioner)), partitioner)))
+        @SuppressWarnings({ "resource", "IOResourceOpenedButNotSafelyClosed" }) DataOutputBuffer output = new DataOutputBuffer();
+        qt().forAll(tokenKeyWithBeforeAndAfterGen())
             .check(key -> {
                 IPartitioner partitioner = key.token().getPartitioner();
-                {
-                    ByteBuffer buffer = serializer.serialize(key);
-                    TokenKey roundTrip = serializer.deserialize(buffer, partitioner);
-                    TokenKey roundTrip2 = serializer.deserializeAndConsume(buffer, partitioner);
-                    Assertions.assertThat(roundTrip).isEqualTo(key);
-                    Assertions.assertThat(roundTrip2).isEqualTo(key);
-                }
+                DatabaseDescriptor.setPartitionerUnsafe(partitioner);
+
+                Serializers.testSerde(output, serializer, key);
+                Assertions.assertThat(serializer.deserializeAndConsume(serializer.serialize(key), partitioner)).isEqualTo(key);
                 {
                     TokenKey roundTrip = serializer.deserializeWithPrefixAndImpliedLength(key.prefix(), serializer.serializeWithoutPrefixOrLength(key), partitioner);
                     Assertions.assertThat(roundTrip).isEqualTo(key);
@@ -91,22 +148,12 @@ public class TokenKeyTest
                     TokenKey roundTrip = serializer.deserializeWithPrefix(key.prefix(), serializer.serializedSizeWithoutPrefix(key), serializer.serializeWithoutPrefixOrLength(key), ByteBufferAccessor.instance, 0, partitioner);
                     Assertions.assertThat(roundTrip).isEqualTo(key);
                 }
-                try (DataOutputBuffer buf = new DataOutputBuffer())
+                output.clear();
+                serializer.serialize(key, output);
+                try (DataInputBuffer in = new DataInputBuffer(output.toByteArray()))
                 {
-                    serializer.serialize(key, buf, 0);
-                    byte[] bytes = buf.toByteArray();
-                    Assertions.assertThat(bytes.length).isEqualTo(serializer.serializedSize(key, 0));
-                    try (DataInputBuffer in = new DataInputBuffer(bytes))
-                    {
-                        TokenKey roundTrip = serializer.deserialize(in, 0, partitioner);
-                        Assertions.assertThat(roundTrip).isEqualTo(key);
-                        Invariants.require(0 == in.available());
-                    }
-                    try (DataInputBuffer in = new DataInputBuffer(bytes))
-                    {
-                        serializer.skip(in, 0, partitioner);
-                        Invariants.require(0 == in.available());
-                    }
+                    serializer.skip(in, partitioner);
+                    Invariants.require(0 == in.available());
                 }
             });
     }
@@ -114,7 +161,7 @@ public class TokenKeyTest
     @Test
     public void compare()
     {
-        qt().forAll(fromQT(partitioners().assuming(IPartitioner::accordSupported)).flatMap(partitioner -> routingKeyGen(fromQT(CassandraGenerators.TABLE_ID_GEN), fromQT(token(partitioner)), partitioner)))
+        qt().forAll(tokenKeyGen())
             .check(key -> {
                 ByteBuffer keyBytes = serializer.serialize(key);
                 for (TokenKey test : mutateAfter(key))
@@ -130,6 +177,36 @@ public class TokenKeyTest
                     Invariants.require(ByteBufferUtil.compareUnsigned(testBytes, keyBytes) < 0);
                 }
             });
+    }
+
+    private static Gen<TokenKey> simpleTokenKey()
+    {
+        return AccordGenerators.partitioner().flatMap(p -> AccordGenerators.routingKeysGen(p));
+    }
+
+    private static void testSerdePrefix(DataOutputBuffer output, TokenKey.Serializer serializer, TokenKey input) throws IOException
+    {
+        output.clear();
+        Object expected = input.prefix();
+        long expectedSize = serializer.serializedSizeOfPrefix(expected);
+        serializer.serializePrefix(expected, output);
+        Assertions.assertThat(output.getLength()).describedAs("The serialized size and bytes written do not match").isEqualTo(expectedSize);
+        DataInputBuffer in = new DataInputBuffer(output.unsafeGetBufferAndFlip(), false);
+        Object read = serializer.deserializePrefix(in);
+        Assertions.assertThat(read)
+                  .describedAs("The deserialized output does not match the serialized input; difference %s", new LazyToString(() -> ReflectionUtils.recursiveEquals(read, expected).toString()))
+                  .isEqualTo(expected);
+    }
+
+    private static Gen<TokenKey> tokenKeyGen()
+    {
+        return fromQT(partitioners()).filter(IPartitioner::accordSupported)
+               .flatMap(partitioner -> routingKeyGen(fromQT(CassandraGenerators.TABLE_ID_GEN), fromQT(token(partitioner)), partitioner));
+    }
+
+    private static Gen<TokenKey> tokenKeyWithBeforeAndAfterGen()
+    {
+        return AccordGenerators.allowBeforeAndAfter(tokenKeyGen());
     }
 
     private List<TokenKey> mutateAfter(TokenKey mutate)
@@ -273,13 +350,16 @@ public class TokenKeyTest
     private static void add(List<TokenKey> to, TokenKey vary)
     {
         to.add(vary);
-        to.add(vary.before());
-        to.add(vary.after());
+        if (!vary.isTokenSentinel())
+        {
+            to.add(vary.before());
+            to.add(vary.after());
+        }
     }
 
     private static Gen<TokenKey> routingKeyGen(Gen<TableId> tableIdGen, Gen<Token> tokenGen, IPartitioner partitioner)
     {
-        Gen<TokenKey> result = AccordGenerators.routingKeyGen(tableIdGen, Gens.enums().all(TokenKey.RoutingKeyKind.class), tokenGen, partitioner);
+        Gen<TokenKey> result = AccordGenerators.routingKeyGen(tableIdGen, Gens.enums().all(AccordGenerators.RoutingKeyKind.class), tokenGen, partitioner);
         if (!(partitioner instanceof ByteOrderedPartitioner))
             return result;
         return result.map((rs, k) -> {

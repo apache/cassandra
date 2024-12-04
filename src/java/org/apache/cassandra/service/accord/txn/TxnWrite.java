@@ -54,12 +54,13 @@ import org.apache.cassandra.db.RegularAndStaticColumns;
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
 import org.apache.cassandra.db.rows.Row;
-import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.service.accord.AccordObjectSizes;
 import org.apache.cassandra.service.accord.api.PartitionKey;
+import org.apache.cassandra.service.accord.serializers.IVersionedSerializer;
+import org.apache.cassandra.service.accord.serializers.Version;
 import org.apache.cassandra.utils.BooleanSerializer;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.ObjectSizes;
@@ -81,7 +82,7 @@ public class TxnWrite extends AbstractKeySorted<TxnWrite.Update> implements Writ
 
     public static class Update extends AbstractSerialized<PartitionUpdate>
     {
-        private static final long EMPTY_SIZE = ObjectSizes.measure(new Update(null, 0, (ByteBuffer) null));
+        private static final long EMPTY_SIZE = ObjectSizes.measure(new Update(null, 0, ByteBufferUtil.EMPTY_BYTE_BUFFER, Version.LATEST));
         public final PartitionKey key;
         public final int index;
 
@@ -92,18 +93,19 @@ public class TxnWrite extends AbstractKeySorted<TxnWrite.Update> implements Writ
             this.index = index;
         }
 
-        private Update(PartitionKey key, int index, ByteBuffer bytes)
+        private Update(PartitionKey key, int index, ByteBuffer bytes, Version version)
         {
-            super(bytes);
+            super(bytes, version);
             this.key = key;
             this.index = index;
         }
 
-        long estimatedSizeOnHeap()
+        @Override
+        public long estimatedSizeOnHeap()
         {
             return EMPTY_SIZE
                    + AccordObjectSizes.key(key)
-                   + ByteBufferUtil.estimatedSizeOnHeap(bytes());
+                   + ByteBufferUtil.estimatedSizeOnHeap(unsafeBytes());
         }
 
         @Override
@@ -150,29 +152,29 @@ public class TxnWrite extends AbstractKeySorted<TxnWrite.Update> implements Writ
         public static final IVersionedSerializer<Update> serializer = new IVersionedSerializer<Update>()
         {
             @Override
-            public void serialize(Update write, DataOutputPlus out, int version) throws IOException
+            public void serialize(Update write, DataOutputPlus out, Version version) throws IOException
             {
-                PartitionKey.serializer.serialize(write.key, out, version);
+                PartitionKey.serializer.serialize(write.key, out);
                 out.writeInt(write.index);
-                ByteBufferUtil.writeWithVIntLength(write.bytes(), out);
+                ByteBufferUtil.writeWithVIntLength(write.bytes(version), out);
             }
 
             @Override
-            public Update deserialize(DataInputPlus in, int version) throws IOException
+            public Update deserialize(DataInputPlus in, Version version) throws IOException
             {
-                PartitionKey key = PartitionKey.serializer.deserialize(in, version);
+                PartitionKey key = PartitionKey.serializer.deserialize(in);
                 int index = in.readInt();
                 ByteBuffer bytes = ByteBufferUtil.readWithVIntLength(in);
-                return new Update(key, index, bytes);
+                return new Update(key, index, bytes, version);
             }
 
             @Override
-            public long serializedSize(Update write, int version)
+            public long serializedSize(Update write, Version version)
             {
                 long size = 0;
-                size += PartitionKey.serializer.serializedSize(write.key, version);
+                size += PartitionKey.serializer.serializedSize(write.key);
                 size += TypeSizes.INT_SIZE;
-                size += ByteBufferUtil.serializedSizeWithVIntLength(write.bytes());
+                size += ByteBufferUtil.serializedSizeWithVIntLength(write.bytes(version));
                 return size;
             }
         };
@@ -302,18 +304,18 @@ public class TxnWrite extends AbstractKeySorted<TxnWrite.Update> implements Writ
         static final IVersionedSerializer<Fragment> serializer = new IVersionedSerializer<>()
         {
             @Override
-            public void serialize(Fragment fragment, DataOutputPlus out, int version) throws IOException
+            public void serialize(Fragment fragment, DataOutputPlus out, Version version) throws IOException
             {
-                PartitionKey.serializer.serialize(fragment.key, out, version);
+                PartitionKey.serializer.serialize(fragment.key, out);
                 out.writeUnsignedVInt32(fragment.index);
                 partitionUpdateSerializer.serialize(fragment.baseUpdate, out, version);
                 TxnReferenceOperations.serializer.serialize(fragment.referenceOps, out, version);
             }
 
             @Override
-            public Fragment deserialize(DataInputPlus in, int version) throws IOException
+            public Fragment deserialize(DataInputPlus in, Version version) throws IOException
             {
-                PartitionKey key = PartitionKey.serializer.deserialize(in, version);
+                PartitionKey key = PartitionKey.serializer.deserialize(in);
                 int idx = in.readUnsignedVInt32();
                 PartitionUpdate baseUpdate = partitionUpdateSerializer.deserialize(in, version);
                 TxnReferenceOperations referenceOps = TxnReferenceOperations.serializer.deserialize(in, version);
@@ -321,10 +323,10 @@ public class TxnWrite extends AbstractKeySorted<TxnWrite.Update> implements Writ
             }
 
             @Override
-            public long serializedSize(Fragment fragment, int version)
+            public long serializedSize(Fragment fragment, Version version)
             {
                 long size = 0;
-                size += PartitionKey.serializer.serializedSize(fragment.key, version);
+                size += PartitionKey.serializer.serializedSize(fragment.key);
                 size += TypeSizes.sizeofUnsignedVInt(fragment.index);
                 size += partitionUpdateSerializer.serializedSize(fragment.baseUpdate, version);
                 size += TxnReferenceOperations.serializer.serializedSize(fragment.referenceOps, version);
@@ -423,23 +425,23 @@ public class TxnWrite extends AbstractKeySorted<TxnWrite.Update> implements Writ
     public static final IVersionedSerializer<TxnWrite> serializer = new IVersionedSerializer<TxnWrite>()
     {
         @Override
-        public void serialize(TxnWrite write, DataOutputPlus out, int version) throws IOException
+        public void serialize(TxnWrite write, DataOutputPlus out, Version version) throws IOException
         {
-            BooleanSerializer.serializer.serialize(write.isConditionMet, out, version);
+            BooleanSerializer.serializer.serialize(write.isConditionMet, out);
             serializeArray(write.items, out, version, Update.serializer);
         }
 
         @Override
-        public TxnWrite deserialize(DataInputPlus in, int version) throws IOException
+        public TxnWrite deserialize(DataInputPlus in, Version version) throws IOException
         {
-            boolean isConditionMet = BooleanSerializer.serializer.deserialize(in, version);
+            boolean isConditionMet = BooleanSerializer.serializer.deserialize(in);
             return new TxnWrite(deserializeArray(in, version, Update.serializer, Update[]::new), isConditionMet);
         }
 
         @Override
-        public long serializedSize(TxnWrite write, int version)
+        public long serializedSize(TxnWrite write, Version version)
         {
-            return BooleanSerializer.serializer.serializedSize(write.isConditionMet, version) + serializedArraySize(write.items, version, Update.serializer);
+            return BooleanSerializer.serializer.serializedSize(write.isConditionMet) + serializedArraySize(write.items, version, Update.serializer);
         }
     };
 }

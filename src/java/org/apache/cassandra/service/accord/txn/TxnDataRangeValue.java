@@ -40,6 +40,7 @@ import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.schema.TableMetadata;
+import org.apache.cassandra.service.accord.serializers.Version;
 import org.apache.cassandra.utils.ObjectSizes;
 
 import static com.google.common.base.Preconditions.checkState;
@@ -121,25 +122,25 @@ public class TxnDataRangeValue extends ArrayList<FilteredPartition> implements T
     public static final TxnDataValueSerializer<TxnDataRangeValue> serializer = new TxnDataValueSerializer<>()
     {
         @Override
-        public void serialize(TxnDataRangeValue value, DataOutputPlus out, int version) throws IOException
+        public void serialize(TxnDataRangeValue value, DataOutputPlus out, Version version) throws IOException
         {
             out.writeUnsignedVInt32(value.size());
 
             if (value.isEmpty())
                 return;
 
-            TableId.serializer.serialize(value.tableId(), out, version);
+            TableId.serializer.serialize(value.tableId(), out, version.messageVersion());
             for (FilteredPartition partition : value)
             {
                 try (UnfilteredRowIterator iterator = partition.unfilteredIterator())
                 {
-                    UnfilteredRowIteratorSerializer.serializer.serialize(iterator, out, version, partition.rowCount(), STABLE, null);
+                    UnfilteredRowIteratorSerializer.serializer.serialize(iterator, out, version.messageVersion(), partition.rowCount(), STABLE, null);
                 }
             }
         }
 
         @Override
-        public TxnDataRangeValue deserialize(DataInputPlus in, int version) throws IOException
+        public TxnDataRangeValue deserialize(DataInputPlus in, Version version) throws IOException
         {
             int numPartitions = in.readUnsignedVInt32();
             TxnDataRangeValue value = new TxnDataRangeValue(numPartitions);
@@ -148,8 +149,8 @@ public class TxnDataRangeValue extends ArrayList<FilteredPartition> implements T
             TableMetadata metadata = Schema.instance.getExistingTableMetadata(TableId.deserialize(in));
             for (int i = 0; i < numPartitions; i++)
             {
-                UnfilteredRowIteratorSerializer.Header header = UnfilteredRowIteratorSerializer.serializer.deserializeHeader(metadata, in, version, FROM_REMOTE, STABLE, null);
-                try (UnfilteredRowIterator partition = UnfilteredRowIteratorSerializer.serializer.deserialize(in, version, metadata, FROM_REMOTE, header))
+                UnfilteredRowIteratorSerializer.Header header = UnfilteredRowIteratorSerializer.serializer.deserializeHeader(metadata, in, version.messageVersion(), FROM_REMOTE, STABLE, null);
+                try (UnfilteredRowIterator partition = UnfilteredRowIteratorSerializer.serializer.deserialize(in, version.messageVersion(), metadata, FROM_REMOTE, header))
                 {
                     value.add(new FilteredPartition(UnfilteredRowIterators.filter(partition, 0)));
                 }
@@ -158,17 +159,17 @@ public class TxnDataRangeValue extends ArrayList<FilteredPartition> implements T
         }
 
         @Override
-        public long serializedSize(TxnDataRangeValue value, int version)
+        public long serializedSize(TxnDataRangeValue value, Version version)
         {
             long size = TypeSizes.sizeofUnsignedVInt(value.size());
             if (value.size() == 0)
                 return size;
-            size += TableId.serializer.serializedSize(value.tableId(), version);
+            size += TableId.serializer.serializedSize(value.tableId(), version.messageVersion());
             for (FilteredPartition partition : value)
             {
                 try (UnfilteredRowIterator iterator = partition.unfilteredIterator())
                 {
-                    size += UnfilteredRowIteratorSerializer.serializer.serializedSize(iterator, version, partition.rowCount(), STABLE, null);
+                    size += UnfilteredRowIteratorSerializer.serializer.serializedSize(iterator, version.messageVersion(), partition.rowCount(), STABLE, null);
                 }
             }
             return size;

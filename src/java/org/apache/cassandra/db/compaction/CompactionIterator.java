@@ -95,6 +95,7 @@ import org.apache.cassandra.service.accord.JournalKey;
 import org.apache.cassandra.service.accord.api.AccordAgent;
 import org.apache.cassandra.service.accord.api.TokenKey;
 import org.apache.cassandra.service.accord.journal.AccordTopologyUpdate;
+import org.apache.cassandra.service.accord.serializers.Version;
 import org.apache.cassandra.service.paxos.PaxosRepairHistory;
 import org.apache.cassandra.service.paxos.uncommitted.PaxosRows;
 import org.apache.cassandra.utils.NoSpamLogger;
@@ -845,7 +846,7 @@ public class CompactionIterator extends CompactionInfo.Holder implements Unfilte
         // Initialize topology serializer during compaction to avoid deserializing redundant epochs
         FlyweightSerializer<AccordTopologyUpdate, Object> topologySerializer;
         Object[] highestClustering = null;
-        final int userVersion;
+        final Version userVersion;
         long lastDescriptor = -1;
         int lastOffset = -1;
 
@@ -853,7 +854,7 @@ public class CompactionIterator extends CompactionInfo.Holder implements Unfilte
         {
             service = (AccordService) serviceSupplier.get();
             // TODO: test serialization version logic
-            userVersion = service.journalConfiguration().userVersion();
+            userVersion = Version.fromVersion(service.journalConfiguration().userVersion());
 
             this.agent = service.agent();
             this.infos = service.getCompactionInfo();
@@ -900,7 +901,7 @@ public class CompactionIterator extends CompactionInfo.Holder implements Unfilte
                         serializer.reserialize(key, builder, out, userVersion);
                         newVersion.row(highestClustering)
                                   .add("record", out.asNewBuffer())
-                                  .add("user_version", userVersion);
+                                  .add("user_version", userVersion.version);
                     }
                     catch (IOException e)
                     {
@@ -941,7 +942,7 @@ public class CompactionIterator extends CompactionInfo.Holder implements Unfilte
 
                             Row.SimpleBuilder rowBuilder = newVersion.row(rows.get(rows.size() - 1).clustering().getBufferArray());
                             rowBuilder.add("record", commandBuilder.asByteBuffer(userVersion))
-                                      .add("user_version", userVersion);
+                                      .add("user_version", userVersion.version);
 
                             return newVersion.build().unfilteredIterator();
                     }
@@ -987,7 +988,7 @@ public class CompactionIterator extends CompactionInfo.Holder implements Unfilte
 
             try (DataInputBuffer in = new DataInputBuffer(record, false))
             {
-                int userVersion = Int32Type.instance.compose(row.getCell(versionColumn).buffer());
+                Version userVersion = Version.fromVersion(Int32Type.instance.compose(row.getCell(versionColumn).buffer()));
                 if (key.type == JournalKey.Type.TOPOLOGY_UPDATE)
                     topologySerializer.deserialize(key, builder, in, userVersion);
                 else

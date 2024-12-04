@@ -52,7 +52,7 @@ public class AccordSplitterTest
         qt().forAll(AccordGenerators.range(), Gens.random()).check((range, rs) -> {
             TokenKey startKey = (TokenKey) range.start();
             TokenKey endKey = (TokenKey) range.end();
-            IPartitioner partitioner = getPartitioner(range, rs);
+            IPartitioner partitioner = startKey.token().getPartitioner();
             // this section is filtering out known bugs
             // TODO (now): fix the fact accordSplitter returns AccordBytesSplitter which will fail for java.lang.ClassCastException: org.apache.cassandra.dht.LocalPartitioner$LocalToken cannot be cast to org.apache.cassandra.dht.ByteOrderedPartitioner$BytesToken
             // spoke with Benedict and he agrees that it doesn't make sense to split a local partitioner range, but this requires pushing this back into the API (similar to how C* returns Optional)
@@ -117,16 +117,5 @@ public class AccordSplitterTest
         Ranges split = ranges.stream().reduce(Ranges.EMPTY, Ranges::with).mergeTouching();
         Ranges missing = topLevel.without(split);
         Assertions.assertThat(missing).isEmpty();
-    }
-
-    private static IPartitioner getPartitioner(Range range, RandomSource rs)
-    {
-        TokenKey key = (TokenKey) range.start();
-        if (key.isTableSentinel())
-            key = (TokenKey) range.end();
-        if (key.isTableSentinel())
-            return AccordGenerators.partitioner().next(rs);
-
-        return key.token().getPartitioner();
     }
 }

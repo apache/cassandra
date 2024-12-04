@@ -41,6 +41,7 @@ import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.service.accord.serializers.Version;
 import org.apache.cassandra.service.consensus.TransactionalMode;
 import org.apache.cassandra.utils.AccordGenerators;
 import org.assertj.core.api.SoftAssertions;
@@ -91,26 +92,28 @@ public class CommandChangeTest
         {
             qt().forAll(gen)
                 .check(cmdBuilder -> {
-                int userVersion = 1; //TODO (maintenance): where can we fetch all supported versions?
-                SoftAssertions checks = new SoftAssertions();
-                for (SaveStatus saveStatus : SaveStatus.values())
-                {
-                    out.clear();
-                    Command orig = cmdBuilder.build(saveStatus);
+                    for (Version version : Version.V1.greaterThanOrEqual())
+                    {
+                        SoftAssertions checks = new SoftAssertions();
+                        for (SaveStatus saveStatus : SaveStatus.values())
+                        {
+                            out.clear();
+                            Command orig = cmdBuilder.build(saveStatus);
 
-                    AccordJournal.Writer.make(null, orig).write(out, userVersion);
-                    AccordJournal.Builder builder = new AccordJournal.Builder(orig.txnId(), Load.ALL);
-                    builder.deserializeNext(new DataInputBuffer(out.unsafeGetBufferAndFlip(), false), userVersion);
-                    // We are not persisting the result, so force it for strict equality
-                    builder.forceResult(orig.result());
+                            AccordJournal.Writer.make(null, orig).write(out, version);
+                            AccordJournal.Builder builder = new AccordJournal.Builder(orig.txnId(), Load.ALL);
+                            builder.deserializeNext(new DataInputBuffer(out.unsafeGetBufferAndFlip(), false), version);
+                            // We are not persisting the result, so force it for strict equality
+                            builder.forceResult(orig.result());
 
-                    Command reconstructed = builder.construct(RedundantBefore.EMPTY);
+                            Command reconstructed = builder.construct(RedundantBefore.EMPTY);
 
-                    checks.assertThat(reconstructed)
-                          .describedAs("lhs=expected\nrhs=actual\n%s", new LazyToString(() -> ReflectionUtils.recursiveEquals(orig, reconstructed).toString()))
-                          .isEqualTo(orig);
-                }
-                checks.assertAll();
+                            checks.assertThat(reconstructed)
+                                  .describedAs("lhs=expected\nrhs=actual\n%s", new LazyToString(() -> ReflectionUtils.recursiveEquals(orig, reconstructed).toString()))
+                                  .isEqualTo(orig);
+                        }
+                        checks.assertAll();
+                    }
             });
         }
     }

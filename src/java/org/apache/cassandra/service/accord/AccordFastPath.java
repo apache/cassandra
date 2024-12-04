@@ -252,7 +252,7 @@ public class AccordFastPath implements MetadataValue<AccordFastPath>
             out.writeInt(map.size());
             for (Map.Entry<Node.Id, NodeInfo> entry : map.entrySet())
             {
-                TopologySerializers.nodeId.serialize(entry.getKey(), out, version);
+                TopologySerializers.nodeId.serialize(entry.getKey(), out);
                 NodeInfo.serializer.serialize(entry.getValue(), out, version);
             }
         }
@@ -271,7 +271,7 @@ public class AccordFastPath implements MetadataValue<AccordFastPath>
 
             ImmutableMap.Builder<Node.Id, NodeInfo> builder = ImmutableMap.builder();
             for (int i=0; i<size; i++)
-                builder.put(TopologySerializers.nodeId.deserialize(in, version),
+                builder.put(TopologySerializers.nodeId.deserialize(in),
                         NodeInfo.serializer.deserialize(in, version));
             return builder.build();
         }
@@ -287,7 +287,7 @@ public class AccordFastPath implements MetadataValue<AccordFastPath>
             long size = TypeSizes.INT_SIZE;
             for (Map.Entry<Node.Id, NodeInfo> entry : map.entrySet())
             {
-                size += TopologySerializers.nodeId.serializedSize(entry.getKey(), version);
+                size += TopologySerializers.nodeId.serializedSize(entry.getKey());
                 size += NodeInfo.serializer.serializedSize(entry.getValue(), version);
             }
             return size;

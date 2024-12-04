@@ -58,6 +58,7 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.cql3.Duration;
 import org.apache.cassandra.cql3.FieldIdentifier;
+import org.apache.cassandra.db.Clustering;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.ReadCommand;
 import org.apache.cassandra.db.SchemaCQLHelper;
@@ -141,6 +142,7 @@ import static org.apache.cassandra.utils.Generators.IDENTIFIER_GEN;
 import static org.apache.cassandra.utils.Generators.SMALL_TIME_SPAN_NANOS;
 import static org.apache.cassandra.utils.Generators.TIMESTAMP_NANOS;
 import static org.apache.cassandra.utils.Generators.TINY_TIME_SPAN_NANOS;
+import static org.apache.cassandra.utils.Generators.directAndHeapBytes;
 
 public final class CassandraGenerators
 {
@@ -208,6 +210,17 @@ public final class CassandraGenerators
                                                                      cast(MUTATION_RSP_GEN),
                                                                      cast(READ_REPAIR_RSP_GEN))
                                                               .describedAs(CassandraGenerators::toStringRecursive);
+
+    private static final Constraint CLUSTERING_OPTIONS = Constraint.between(0, 2);
+    public static final Gen<Clustering<?>> CLUSTERING_GEN = rnd -> {
+        switch ((int) rnd.next(CLUSTERING_OPTIONS))
+        {
+            case 0: return Clustering.EMPTY;
+            case 1: return Clustering.STATIC_CLUSTERING;
+            case 2: return Clustering.make(Generators.array(ByteBuffer.class, directAndHeapBytes(0, 10), SourceDSL.integers().between(1, 3)).generate(rnd));
+            default: throw new AssertionError();
+        }
+    };
 
     private CassandraGenerators()
     {
@@ -831,6 +844,11 @@ public final class CassandraGenerators
                 AbstractTypeGenerators.clearUDTKeyspace();
             }
         }
+    }
+
+    public static Gen<ColumnMetadata> columnMetadataGen()
+    {
+        return columnMetadataGen(SourceDSL.arbitrary().enumValues(ColumnMetadata.Kind.class), AbstractTypeGenerators.typeGen());
     }
 
     public static Gen<ColumnMetadata> columnMetadataGen(Gen<ColumnMetadata.Kind> kindGen, Gen<AbstractType<?>> typeGen)

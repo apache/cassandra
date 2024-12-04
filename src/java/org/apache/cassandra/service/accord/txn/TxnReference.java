@@ -35,10 +35,11 @@ import org.apache.cassandra.db.rows.CellPath;
 import org.apache.cassandra.db.rows.ColumnData;
 import org.apache.cassandra.db.rows.ComplexColumnData;
 import org.apache.cassandra.db.rows.Row;
-import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.schema.ColumnMetadata;
+import org.apache.cassandra.service.accord.serializers.IVersionedSerializer;
+import org.apache.cassandra.service.accord.serializers.Version;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
 import static org.apache.cassandra.db.marshal.CollectionType.Kind.SET;
@@ -46,18 +47,18 @@ import static org.apache.cassandra.service.accord.AccordSerializers.columnMetada
 
 public class TxnReference
 {
-    private final Integer tuple;
+    private final int tuple;
     private final ColumnMetadata column;
     private final CellPath path;
 
-    public TxnReference(Integer tuple, ColumnMetadata column, CellPath path)
+    public TxnReference(int tuple, ColumnMetadata column, CellPath path)
     {
         this.tuple = tuple;
         this.column = column;
         this.path = path;
     }
 
-    public TxnReference(Integer tuple, ColumnMetadata column)
+    public TxnReference(int tuple, ColumnMetadata column)
     {
         this(tuple, column, null);
     }
@@ -68,7 +69,7 @@ public class TxnReference
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         TxnReference reference = (TxnReference) o;
-        return tuple.equals(reference.tuple) && Objects.equals(column, reference.column) && Objects.equals(path, reference.path);
+        return tuple == reference.tuple && Objects.equals(column, reference.column) && Objects.equals(path, reference.path);
     }
 
     @Override
@@ -290,34 +291,35 @@ public class TxnReference
     static final IVersionedSerializer<TxnReference> serializer = new IVersionedSerializer<TxnReference>()
     {
         @Override
-        public void serialize(TxnReference reference, DataOutputPlus out, int version) throws IOException
+        public void serialize(TxnReference reference, DataOutputPlus out, Version version) throws IOException
         {
             out.writeInt(reference.tuple);
             out.writeBoolean(reference.column != null);
             if (reference.column != null)
-                columnMetadataSerializer.serialize(reference.column, out, version);
+                columnMetadataSerializer.serialize(reference.column, out);
             out.writeBoolean(reference.path != null);
             if (reference.path != null)
                 CollectionType.cellPathSerializer.serialize(reference.path, out);
         }
 
         @Override
-        public TxnReference deserialize(DataInputPlus in, int version) throws IOException
+        public TxnReference deserialize(DataInputPlus in, Version version) throws IOException
         {
             int name = in.readInt();
-            ColumnMetadata column = in.readBoolean() ? columnMetadataSerializer.deserialize(in, version) : null;
+            ColumnMetadata column = in.readBoolean() ? columnMetadataSerializer.deserialize(in) : null;
             CellPath path = in.readBoolean() ? CollectionType.cellPathSerializer.deserialize(in) : null;
             return new TxnReference(name, column, path);
         }
 
         @Override
-        public long serializedSize(TxnReference reference, int version)
+        public long serializedSize(TxnReference reference, Version version)
         {
             long size = 0;
             size += TypeSizes.INT_SIZE;
             size += TypeSizes.BOOL_SIZE;
             if (reference.column != null)
-                size += columnMetadataSerializer.serializedSize(reference.column, version);
+                size += columnMetadataSerializer.serializedSize(reference.column);
+            size += TypeSizes.BOOL_SIZE;
             if (reference.path != null)
                 size += CollectionType.cellPathSerializer.serializedSize(reference.path);
             return size;

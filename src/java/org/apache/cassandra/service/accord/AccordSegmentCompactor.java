@@ -22,6 +22,7 @@ import org.apache.cassandra.db.SerializationHeader;
 import org.apache.cassandra.db.rows.EncodingStats;
 import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.SSTableTxnWriter;
+import org.apache.cassandra.service.accord.serializers.Version;
 
 /**
  * Segment compactor: takes static segments and compacts them into a single SSTable.
@@ -30,7 +31,7 @@ public class AccordSegmentCompactor<V> extends AbstractAccordSegmentCompactor<V>
 {
     private SSTableTxnWriter writer;
 
-    public AccordSegmentCompactor(int userVersion, ColumnFamilyStore cfs)
+    public AccordSegmentCompactor(Version userVersion, ColumnFamilyStore cfs)
     {
         super(userVersion, cfs);
     }

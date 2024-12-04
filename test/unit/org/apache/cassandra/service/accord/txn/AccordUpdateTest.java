@@ -18,16 +18,19 @@
 
 package org.apache.cassandra.service.accord.txn;
 
+import java.io.IOException;
+
 import org.junit.BeforeClass;
 import org.junit.Test;
 
 import accord.primitives.Txn;
 import org.apache.cassandra.SchemaLoader;
+import org.apache.cassandra.io.Serializers;
 import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.service.accord.AccordTestUtils;
+import org.apache.cassandra.service.accord.serializers.Version;
 
 import static org.apache.cassandra.cql3.statements.schema.CreateTableStatement.parse;
-import static org.apache.cassandra.utils.SerializerTestUtils.assertSerializerIOEquality;
 
 public class AccordUpdateTest
 {
@@ -41,10 +44,11 @@ public class AccordUpdateTest
     }
 
     @Test
-    public void predicateSerializer()
+    public void predicateSerializer() throws IOException
     {
         Txn txn = AccordTestUtils.createTxn(0, 0);
         AccordUpdate update = (AccordUpdate) txn.update();
-        assertSerializerIOEquality(update, AccordUpdate.serializer);
+        for (Version version : Version.V1.greaterThanOrEqual())
+            Serializers.testSerde(AccordUpdate.serializer, update, version);
     }
 }

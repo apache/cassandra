@@ -395,12 +395,14 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
         MessagingService.instance().outboundSink.add((message, to) -> {
             if (isShutdown())
                 return false; // TODO: Simulator needs this to trigger a failure
-            IMessage serialzied = serializeMessage(message.from(), to, message);
             int fromNum = config.num(); // since this instance is sending the message, from will always be this instance
             IInstance toInstance = cluster.get(fromCassandraInetAddressAndPort(to));
             if (toInstance == null)
                 return true; // TODO: Simulator needs this to trigger a failure
+            if (!cluster.filters().hasInbound() && !cluster.filters().hasOutbound())
+                return true; // no filters... nothing to see here
             int toNum = toInstance.config().num();
+            IMessage serialzied = serializeMessage(message.from(), to, message);
             return cluster.filters().permitOutbound(fromNum, toNum, serialzied);
         });
     }

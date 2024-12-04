@@ -28,6 +28,7 @@ import org.apache.cassandra.db.SerializationHeader;
 import org.apache.cassandra.db.rows.EncodingStats;
 import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.SSTableTxnWriter;
+import org.apache.cassandra.service.accord.serializers.Version;
 
 /**
  * Nemesis compactor: a compactor that will distribute your keys over a large(r) number of SSTables.
@@ -40,7 +41,7 @@ public class NemesisAccordSegmentCompactor<V> extends AbstractAccordSegmentCompa
     private final SSTableTxnWriter[] writers;
     private final Set<SSTableTxnWriter> written = new HashSet<>();
 
-    public NemesisAccordSegmentCompactor(int userVersion, ColumnFamilyStore cfs, RandomSource randomSource)
+    public NemesisAccordSegmentCompactor(Version userVersion, ColumnFamilyStore cfs, RandomSource randomSource)
     {
         super(userVersion, cfs);
         this.randomSource = randomSource;

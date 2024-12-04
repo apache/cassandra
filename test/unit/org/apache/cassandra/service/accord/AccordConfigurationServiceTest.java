@@ -218,7 +218,8 @@ public class AccordConfigurationServiceTest
         }
         finally
         {
-            journal.shutdown();
+            if (journal != null)
+                journal.shutdown();
         }
     }
 

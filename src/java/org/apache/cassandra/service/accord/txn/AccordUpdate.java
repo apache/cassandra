@@ -24,9 +24,10 @@ import javax.annotation.Nullable;
 import accord.api.Data;
 import accord.api.Update;
 import org.apache.cassandra.db.ConsistencyLevel;
-import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
+import org.apache.cassandra.service.accord.serializers.IVersionedSerializer;
+import org.apache.cassandra.service.accord.serializers.Version;
 
 public abstract class AccordUpdate implements Update
 {
@@ -78,9 +79,12 @@ public abstract class AccordUpdate implements Update
 
     public interface AccordUpdateSerializer<T extends AccordUpdate> extends IVersionedSerializer<T>
     {
-        void serialize(T update, DataOutputPlus out, int version) throws IOException;
-        T deserialize(DataInputPlus in, int version) throws IOException;
-        long serializedSize(T update, int version);
+        @Override
+        void serialize(T update, DataOutputPlus out, Version version) throws IOException;
+        @Override
+        T deserialize(DataInputPlus in, Version version) throws IOException;
+        @Override
+        long serializedSize(T update, Version version);
     }
 
     private static AccordUpdateSerializer serializerFor(AccordUpdate toSerialize)
@@ -104,21 +108,21 @@ public abstract class AccordUpdate implements Update
     public static final AccordUpdateSerializer<AccordUpdate> serializer = new AccordUpdateSerializer<AccordUpdate>()
     {
         @Override
-        public void serialize(AccordUpdate update, DataOutputPlus out, int version) throws IOException
+        public void serialize(AccordUpdate update, DataOutputPlus out, Version version) throws IOException
         {
             out.writeByte(update.kind().val);
             serializerFor(update).serialize(update, out, version);
         }
 
         @Override
-        public AccordUpdate deserialize(DataInputPlus in, int version) throws IOException
+        public AccordUpdate deserialize(DataInputPlus in, Version version) throws IOException
         {
             Kind kind = Kind.valueOf(in.readByte());
             return serializerFor(kind).deserialize(in, version);
         }
 
         @Override
-        public long serializedSize(AccordUpdate update, int version)
+        public long serializedSize(AccordUpdate update, Version version)
         {
             return 1 + serializerFor(update).serializedSize(update, version);
         }

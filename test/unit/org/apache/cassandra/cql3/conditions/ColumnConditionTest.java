@@ -18,16 +18,33 @@
 package org.apache.cassandra.cql3.conditions;
 
 import java.nio.ByteBuffer;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
+import java.util.Map;
+import java.util.SortedMap;
+import java.util.SortedSet;
+import java.util.TreeMap;
+import java.util.TreeSet;
+
+import org.junit.Assert;
+import org.junit.Test;
 
 import accord.utils.Gen;
 import accord.utils.Gens;
 import accord.utils.RandomSource;
-import org.apache.cassandra.cql3.terms.*;
-import org.junit.Assert;
-import org.junit.Test;
-
-import org.apache.cassandra.cql3.*;
+import org.apache.cassandra.cql3.ColumnIdentifier;
+import org.apache.cassandra.cql3.ColumnsExpression;
+import org.apache.cassandra.cql3.FieldIdentifier;
+import org.apache.cassandra.cql3.Operator;
+import org.apache.cassandra.cql3.QueryOptions;
+import org.apache.cassandra.cql3.terms.Constants;
+import org.apache.cassandra.cql3.terms.InMarker;
+import org.apache.cassandra.cql3.terms.Marker;
+import org.apache.cassandra.cql3.terms.MultiElements;
+import org.apache.cassandra.cql3.terms.Sets;
+import org.apache.cassandra.cql3.terms.Term;
+import org.apache.cassandra.cql3.terms.Terms;
 import org.apache.cassandra.db.Clustering;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.Int32Type;
@@ -35,11 +52,14 @@ import org.apache.cassandra.db.marshal.ListType;
 import org.apache.cassandra.db.marshal.MapType;
 import org.apache.cassandra.db.marshal.SetType;
 import org.apache.cassandra.db.marshal.UserType;
-import org.apache.cassandra.db.rows.*;
+import org.apache.cassandra.db.rows.BTreeRow;
+import org.apache.cassandra.db.rows.BufferCell;
+import org.apache.cassandra.db.rows.Cell;
+import org.apache.cassandra.db.rows.CellPath;
+import org.apache.cassandra.db.rows.Row;
 import org.apache.cassandra.exceptions.InvalidRequestException;
-import org.apache.cassandra.io.IVersionedSerializers;
+import org.apache.cassandra.io.Serializers;
 import org.apache.cassandra.io.util.DataOutputBuffer;
-import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.SchemaProvider;
@@ -54,25 +74,24 @@ import org.mockito.Mockito;
 import org.quicktheories.generators.SourceDSL;
 
 import static accord.utils.Property.qt;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertTrue;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.fail;
 import static java.util.Arrays.asList;
-
-import static org.apache.cassandra.cql3.Operator.EQ;
-import static org.apache.cassandra.cql3.Operator.NEQ;
-import static org.apache.cassandra.cql3.Operator.LT;
-import static org.apache.cassandra.cql3.Operator.LTE;
-import static org.apache.cassandra.cql3.Operator.GT;
-import static org.apache.cassandra.cql3.Operator.GTE;
 import static org.apache.cassandra.cql3.Operator.CONTAINS;
 import static org.apache.cassandra.cql3.Operator.CONTAINS_KEY;
-import static org.apache.cassandra.cql3.conditions.ColumnCondition.Raw.simpleCondition;
+import static org.apache.cassandra.cql3.Operator.EQ;
+import static org.apache.cassandra.cql3.Operator.GT;
+import static org.apache.cassandra.cql3.Operator.GTE;
+import static org.apache.cassandra.cql3.Operator.LT;
+import static org.apache.cassandra.cql3.Operator.LTE;
+import static org.apache.cassandra.cql3.Operator.NEQ;
 import static org.apache.cassandra.cql3.conditions.ColumnCondition.Raw.collectionElementCondition;
+import static org.apache.cassandra.cql3.conditions.ColumnCondition.Raw.simpleCondition;
 import static org.apache.cassandra.cql3.conditions.ColumnCondition.Raw.udtFieldCondition;
 import static org.apache.cassandra.utils.ByteBufferUtil.EMPTY_BYTE_BUFFER;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 
 
 public class ColumnConditionTest
@@ -888,8 +907,7 @@ public class ColumnConditionTest
         qt().forAll(boundGen()).check(bounds -> {
             Schema.instance = Mockito.mock(SchemaProvider.class);
             Mockito.when(Schema.instance.getColumnMetadata(Mockito.eq(bounds.column.ksName), Mockito.eq(bounds.column.cfName), Mockito.eq(bounds.column.name.bytes))).thenReturn(bounds.column);
-            for (MessagingService.Version version : MessagingService.Version.MIN_ACCORD_VERSION.greaterThanOrEqual())
-                IVersionedSerializers.testSerde(out, ColumnCondition.Bound.serializer, bounds, version.value);
+            Serializers.testSerde(out, ColumnCondition.Bound.serializer, bounds);
         });
     }
 
@@ -930,11 +948,11 @@ public class ColumnConditionTest
         }
     }
 
-    private static Gen<ColumnCondition.Bound> boundGen()
+    public static Gen<ColumnCondition.Bound> boundGen()
     {
         Gen<ColumnCondition.BoundKind> kindGen = Gens.enums().all(ColumnCondition.BoundKind.class);
         Gen<Operator> operatorGen = Gens.enums().all(Operator.class);
-        Gen<ByteBuffer> nonNullValuesGen = Generators.toGen(Generators.bytes(1, 100));
+        Gen<ByteBuffer> nonNullValuesGen = Generators.toGen(Generators.directAndHeapBytes(1, 100));
         Gen<ByteBuffer> valueGen = rs -> {
             if (rs.decide(.2)) return null;
             return nonNullValuesGen.next(rs);

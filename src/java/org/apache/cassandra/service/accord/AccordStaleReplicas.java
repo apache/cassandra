@@ -116,21 +116,21 @@ public class AccordStaleReplicas implements MetadataValue<AccordStaleReplicas>
         @Override
         public void serialize(AccordStaleReplicas replicas, DataOutputPlus out, Version version) throws IOException
         {
-            CollectionSerializers.serializeCollection(replicas.staleIds, out, version, TopologySerializers.nodeId);
+            CollectionSerializers.serializeCollection(replicas.staleIds, out, TopologySerializers.nodeId);
             Epoch.serializer.serialize(replicas.lastModified, out, version);
         }
 
         @Override
         public AccordStaleReplicas deserialize(DataInputPlus in, Version version) throws IOException
         {
-            return new AccordStaleReplicas(CollectionSerializers.deserializeSet(in, version, TopologySerializers.nodeId),
+            return new AccordStaleReplicas(CollectionSerializers.deserializeSet(in, TopologySerializers.nodeId),
                                            Epoch.serializer.deserialize(in, version));
         }
 
         @Override
         public long serializedSize(AccordStaleReplicas replicas, Version version)
         {
-            return CollectionSerializers.serializedCollectionSize(replicas.staleIds, version, TopologySerializers.nodeId)
+            return CollectionSerializers.serializedCollectionSize(replicas.staleIds, TopologySerializers.nodeId)
                    + Epoch.serializer.serializedSize(replicas.lastModified, version);
         }
     };
