@@ -269,7 +269,7 @@ public class AccordJournal implements accord.api.Journal, Shutdownable
     public void saveCommand(int store, CommandUpdate update, Runnable onFlush)
     {
         Writer diff = Writer.make(update.before, update.after);
-        if (diff == null || status == Status.REPLAY)
+        if (diff == null)
         {
             if (onFlush != null)
                 onFlush.run();
