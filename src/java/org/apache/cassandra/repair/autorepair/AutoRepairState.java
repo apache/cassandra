@@ -318,16 +318,6 @@ class PreviewRepairedState extends AutoRepairState
 
         return getRepairRunnable(keyspace, option);
     }
-
-    @Override
-    public void progress(String tag, ProgressEvent event) {
-        if (event.getType() == ProgressEventType.COMPLETE)
-        {
-
-        }
-
-        super.progress(tag, event);
-    }
 }
 
 class IncrementalRepairState extends AutoRepairState

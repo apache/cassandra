@@ -127,7 +127,7 @@ public class AutoRepairParameterizedTest extends CQLTester
         SYSTEM_DISTRIBUTED_DEFAULT_RF.setInt(1);
         QueryProcessor.executeInternal(String.format("CREATE KEYSPACE %s WITH replication = {'class': 'SimpleStrategy', 'replication_factor': '1'}", KEYSPACE));
         QueryProcessor.executeInternal(String.format("CREATE TABLE %s.%s (k text, s text static, i int, v text, primary key(k,i))", KEYSPACE, TABLE));
-        QueryProcessor.executeInternal(String.format("CREATE TABLE %s.%s (k text, s text static, i int, v text, primary key(k,i)) WITH repair_full = {'enabled': 'false'} AND repair_incremental = {'enabled': 'false'}", KEYSPACE, TABLE_DISABLED_AUTO_REPAIR));
+        QueryProcessor.executeInternal(String.format("CREATE TABLE %s.%s (k text, s text static, i int, v text, primary key(k,i)) WITH repair_full = {'enabled': 'false'} AND repair_incremental = {'enabled': 'false'} AND repair_preview_repaired = {'enabled': 'false'}", KEYSPACE, TABLE_DISABLED_AUTO_REPAIR));
 
         QueryProcessor.executeInternal(String.format("CREATE MATERIALIZED VIEW %s.%s AS SELECT i, k from %s.%s " +
                 "WHERE k IS NOT null AND i IS NOT null PRIMARY KEY (i, k)", KEYSPACE, MV, KEYSPACE, TABLE));
@@ -553,15 +553,19 @@ public class AutoRepairParameterizedTest extends CQLTester
     {
         assertTrue(TableAttributes.validKeywords().contains("repair_full"));
         assertTrue(TableAttributes.validKeywords().contains("repair_incremental"));
+        assertTrue(TableAttributes.validKeywords().contains("repair_preview_repaired"));
     }
 
     @Test
     public void testDefaultAutomatedRepair()
     {
-        Assert.assertTrue(cfm.params.automatedRepair.get(AutoRepairConfig.RepairType.full).repairEnabled());
-        Assert.assertTrue(cfm.params.automatedRepair.get(AutoRepairConfig.RepairType.incremental).repairEnabled());
-        Assert.assertFalse(cfmDisabledAutoRepair.params.automatedRepair.get(AutoRepairConfig.RepairType.full).repairEnabled());
-        Assert.assertFalse(cfmDisabledAutoRepair.params.automatedRepair.get(AutoRepairConfig.RepairType.incremental).repairEnabled());
+        for (AutoRepairConfig.RepairType repairType : AutoRepairConfig.RepairType.values()  )
+        {
+            Assert.assertTrue(String.format("expected repair type %s to be enabled on table %s", repairType, cfm.name),
+                              cfm.params.automatedRepair.get(AutoRepairConfig.RepairType.full).repairEnabled());
+            Assert.assertFalse(String.format("expected repair type %s to be disabled on table %s", repairType, cfmDisabledAutoRepair.name),
+                               cfmDisabledAutoRepair.params.automatedRepair.get(AutoRepairConfig.RepairType.full).repairEnabled());
+        }
     }
 
     @Test

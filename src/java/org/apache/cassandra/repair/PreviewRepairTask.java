@@ -87,7 +87,6 @@ public class PreviewRepairTask extends AbstractRepairTask
             else
             {
                 message = (previewKind == PreviewKind.REPAIRED ? "Repaired data is inconsistent\n" : "Preview complete\n") + summary;
-                RepairMetrics.previewFailures.inc();
                 if (previewKind == PreviewKind.REPAIRED)
                     maybeSnapshotReplicas(parentSession, keyspace, result.results.get()); // we know its present as summary used it
             }
