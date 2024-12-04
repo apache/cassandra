@@ -46,7 +46,8 @@ public final class AutoRepairParams
 
     public static final Map<AutoRepairConfig.RepairType, Map<String, String>> DEFAULT_OPTIONS =
     ImmutableMap.of(AutoRepairConfig.RepairType.full, ImmutableMap.of(Option.ENABLED.toString(), Boolean.toString(true)),
-                    AutoRepairConfig.RepairType.incremental, ImmutableMap.of(Option.ENABLED.toString(), Boolean.toString(true)));
+                    AutoRepairConfig.RepairType.incremental, ImmutableMap.of(Option.ENABLED.toString(), Boolean.toString(true)),
+                    AutoRepairConfig.RepairType.preview_repaired, ImmutableMap.of(Option.ENABLED.toString(), Boolean.toString(true)));
 
     public final AutoRepairConfig.RepairType type;
 
