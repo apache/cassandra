@@ -31,6 +31,8 @@ public interface IJournal extends Journal
     default SavedCommand.MinimalCommand loadMinimal(int commandStoreId, TxnId txnId, SavedCommand.Load load, RedundantBefore redundantBefore, DurableBefore durableBefore)
     {
         Command command = loadCommand(commandStoreId, txnId, redundantBefore, durableBefore);
+        if (command == null)
+            return null;
         return new SavedCommand.MinimalCommand(command.txnId(), command.saveStatus(), command.participants(), command.durability(), command.executeAt(), command.writes());
     }
 
