@@ -72,7 +72,7 @@ public abstract class PaxosSimulation implements Simulation, ClusterActionListen
 
     private static String createDescription(int[] primaryKeys, int id, String idString)
     {
-        return primaryKeys.length == 1 ? Integer.toString(primaryKeys[0]) : Arrays.toString(primaryKeys) + "/" + id + ": " + idString;
+        return (primaryKeys.length == 1 ? Integer.toString(primaryKeys[0]) : Arrays.toString(primaryKeys)) + "/" + id + ": " + idString;
     }
 
     protected Class<? extends Throwable>[] expectedExceptions()

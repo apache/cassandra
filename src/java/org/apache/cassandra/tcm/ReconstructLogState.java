@@ -97,8 +97,8 @@ public class ReconstructLogState
                 throw new NotCMSException("This node is not in the CMS, can't generate a consistent log fetch response to " + message.from());
 
             LogState result = processor.get().getLogState(request.lowerBound, request.higherBound, request.includeSnapshot,
-                                                          Retry.Deadline.retryIndefinitely(DatabaseDescriptor.getCmsAwaitTimeout().to(TimeUnit.NANOSECONDS),
-                                                                                           TCMMetrics.instance.fetchLogRetries));
+                                                          Retry.Deadline.after(DatabaseDescriptor.getCmsAwaitTimeout().to(TimeUnit.NANOSECONDS),
+                                                                               new Retry.Jitter(TCMMetrics.instance.fetchLogRetries)));
 
             MessagingService.instance().send(message.responseWith(result), message.from());
         }

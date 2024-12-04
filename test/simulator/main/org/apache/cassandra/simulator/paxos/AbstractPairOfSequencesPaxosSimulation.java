@@ -29,6 +29,7 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
+import com.google.common.annotations.VisibleForTesting;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -130,51 +131,58 @@ abstract class AbstractPairOfSequencesPaxosSimulation extends PaxosSimulation
             {
                 LogAction logs = inst.logs();
 
-                LogResult<List<String>> errors = logs.grepForErrors();
-                if (!errors.getResult().isEmpty())
-                {
-                    List<Pair<String, String>> errorsSeen = new ArrayList<>();
-                    for (String error : errors.getResult())
-                    {
-                        for (String line : error.split("\\n"))
-                        {
-                            line = line.trim();
-                            if (line.startsWith("ERROR")) continue;
-                            if (line.startsWith("at ")) continue;
-                            errorsSeen.add(Pair.create(line.split(":")[0], error));
-                            break;
-                        }
-                    }
-                    Class<? extends Throwable>[] expected = expectedExceptions();
-                    StringBuilder sb = new StringBuilder();
-                    for (Pair<String, String> pair : errorsSeen)
-                    {
-                        String name = pair.left;
-                        String exception = pair.right;
-                        Class<?> klass;
-                        try
-                        {
-                            klass = Class.forName(name);
-                        }
-                        catch (ClassNotFoundException e)
-                        {
-                            throw new RuntimeException(e);
-                        }
-
-                        if (!Stream.of(expected).anyMatch(e -> e.isAssignableFrom(klass)))
-                            sb.append("Unexpected exception:\n").append(exception).append('\n');
-                    }
-                    if (sb.length() > 0)
-                    {
-                        AssertionError error = new AssertionError("Saw errors in node" + inst.config().num() + ": " + sb);
-                        // this stacktrace isn't helpful, can be more confusing
-                        error.setStackTrace(new StackTraceElement[0]);
-                        throw error;
-                    }
-                }
+                checkErrorLogs(inst.config().num(), logs.grepForErrors());
                 return ActionList.empty();
             }
         };
+    }
+
+    @VisibleForTesting
+    protected void checkErrorLogs(int node, LogResult<List<String>> errors)
+    {
+        if (!errors.getResult().isEmpty())
+        {
+            List<Pair<String, String>> errorsSeen = new ArrayList<>();
+            for (String error : errors.getResult())
+            {
+                for (String line : error.split("\\n"))
+                {
+                    line = line.trim();
+                    if (line.startsWith("ERROR")) continue;
+                    if (line.startsWith("WARN")) continue;
+                    if (line.startsWith("at ")) continue;
+                    errorsSeen.add(Pair.create(line.split(":")[0], error));
+                    break;
+                }
+            }
+            Class<? extends Throwable>[] expected = expectedExceptions();
+            StringBuilder sb = new StringBuilder();
+            for (Pair<String, String> pair : errorsSeen)
+            {
+                String name = pair.left;
+                String exception = pair.right;
+                Class<?> klass;
+                try
+                {
+                    klass = Class.forName(name);
+                }
+                catch (ClassNotFoundException e)
+                {
+                    sb.append("Unexpected exception (could not parse line):\n").append(exception).append('\n');
+                    continue;
+                }
+
+                if (!Stream.of(expected).anyMatch(e -> e.isAssignableFrom(klass)))
+                    sb.append("Unexpected exception:\n").append(exception).append('\n');
+            }
+            if (sb.length() > 0)
+            {
+                AssertionError error = new AssertionError("Saw errors in node" + node + ": " + sb);
+                // this stacktrace isn't helpful, can be more confusing
+                error.setStackTrace(new StackTraceElement[0]);
+                throw error;
+            }
+        }
     }
 
     protected Metrics getMetrics(int coordinatorIndex)

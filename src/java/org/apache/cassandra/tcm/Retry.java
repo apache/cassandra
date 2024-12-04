@@ -208,35 +208,6 @@ public abstract class Retry
             return new Deadline(Clock.Global.nanoTime() + timeoutNanos, delegate);
         }
 
-        /**
-         * Since we are using message expiration for communicating timeouts to CMS nodes, we have to be careful not
-         * to overflow the long, since messaging is using only 32 bits for deadlines. To achieve that, we are
-         * giving `timeoutNanos` every time we retry, but will retry indefinitely.
-         */
-        public static Deadline retryIndefinitely(long timeoutNanos, Meter retryMeter)
-        {
-            return new Deadline(Clock.Global.nanoTime() + timeoutNanos,
-                                new Retry.Jitter(Integer.MAX_VALUE, DEFAULT_BACKOFF_MS, new Random(), retryMeter))
-            {
-                @Override
-                public boolean reachedMax()
-                {
-                    return false;
-                }
-
-                @Override
-                public long remainingNanos()
-                {
-                    return timeoutNanos;
-                }
-
-                public String toString()
-                {
-                    return String.format("RetryIndefinitely{tries=%d}", currentTries());
-                }
-            };
-        }
-
         public static Deadline wrap(Retry delegate)
         {
             long deadlineMillis = delegate.maxTries * delegate.maxWait();

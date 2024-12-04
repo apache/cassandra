@@ -33,6 +33,7 @@ import javax.annotation.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import accord.coordinate.CoordinationFailed;
 import com.carrotsearch.hppc.IntArrayList;
 import com.carrotsearch.hppc.IntHashSet;
 import com.carrotsearch.hppc.cursors.IntCursor;
@@ -48,6 +49,7 @@ import org.apache.cassandra.distributed.api.IInvokableInstance;
 import org.apache.cassandra.distributed.api.QueryResults;
 import org.apache.cassandra.distributed.api.SimpleQueryResult;
 import org.apache.cassandra.distributed.impl.Query;
+import org.apache.cassandra.exceptions.RequestExecutionException;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.consensus.TransactionalMode;
@@ -151,6 +153,13 @@ public class PairOfSequencesAccordSimulation extends AbstractPairOfSequencesPaxo
     }
 
     @Override
+    protected Class<? extends Throwable>[] expectedExceptions()
+    {
+        return (Class<? extends Throwable>[]) new Class<?>[] { RequestExecutionException.class,
+                                                               CoordinationFailed.class };
+    }
+
+    @Override
     protected String createTableStmt()
     {
         return String.format("CREATE TABLE " + KEYSPACE + ".tbl (pk int, count int, seq text, PRIMARY KEY (pk)) WITH transactional_mode = '%s'", transactionalMode);
@@ -182,7 +191,7 @@ public class PairOfSequencesAccordSimulation extends AbstractPairOfSequencesPaxo
 
         public ReadWriteOperation(int id, int[] primaryKeys, IntHashSet reads, IntHashSet writes, IInvokableInstance instance)
         {
-            super(primaryKeys, id, instance, "Accord", createQuery(id, reads, writes));
+            super(primaryKeys, id, instance, "Accord ReadWrite Txn", createQuery(id, reads, writes));
             this.reads = reads;
             this.writes = writes;
         }

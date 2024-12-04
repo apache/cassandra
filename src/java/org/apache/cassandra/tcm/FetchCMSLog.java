@@ -115,8 +115,8 @@ public class FetchCMSLog
             // If both we and the other node believe it should be caught up with a linearizable read
             boolean consistentFetch = request.consistentFetch && !ClusterMetadataService.instance().isCurrentMember(message.from());
 
-            Retry.Deadline retry = Retry.Deadline.retryIndefinitely(DatabaseDescriptor.getCmsAwaitTimeout().to(TimeUnit.NANOSECONDS),
-                                                                    TCMMetrics.instance.fetchLogRetries);
+            Retry.Deadline retry = Retry.Deadline.after(DatabaseDescriptor.getCmsAwaitTimeout().to(TimeUnit.NANOSECONDS),
+                                                        new Retry.Jitter(TCMMetrics.instance.fetchLogRetries));
             LogState delta;
             if (consistentFetch)
                 delta = processor.get().getLogState(message.payload.lowerBound, Epoch.MAX, false, retry);
