@@ -119,4 +119,50 @@ public class WaitQueueTest
         assertFalse(fail.get());
     }
 
+    @Test
+    public void testInterruptOfSignalAwaitingThread() throws InterruptedException
+    {
+        final WaitQueue waitQueue = newWaitQueue();
+        Thread writerAwaitThread = createThread(() -> {
+            Thread.currentThread().interrupt();
+            WaitQueue.Signal signal = waitQueue.register();
+            signal.awaitUninterruptibly();
+
+        }, "writer.await");
+
+        writerAwaitThread.start();
+
+        Thread.sleep(1000); // wait to enter signal.awaitUninterruptibly()
+        waitQueue.signalAll();
+
+        writerAwaitThread.join(4000);
+        if (writerAwaitThread.isAlive())
+        {
+            printThreadStackTrace(writerAwaitThread);
+            fail("signal.awaitUninterruptibly() is stuck");
+        }
+    }
+
+    public static Thread createThread(Runnable job, String name)
+    {
+        Thread thread = new Thread(job::run, name);
+        thread.setDaemon(true);
+        return thread;
+    }
+
+    public static void printThreadStackTrace(Thread thread)
+    {
+        System.out.println("Stack trace for thread: " + thread.getName());
+        StackTraceElement[] stackTrace = thread.getStackTrace();
+        if (stackTrace.length == 0)
+        {
+            System.out.println("The thread is not currently running or has no stack trace.");
+        } else
+        {
+            for (StackTraceElement element : stackTrace)
+            {
+                System.out.println("\tat " + element);
+            }
+        }
+    }
 }
