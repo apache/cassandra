@@ -191,7 +191,7 @@ public class PairOfSequencesAccordSimulation extends AbstractPairOfSequencesPaxo
 
         public ReadWriteOperation(int id, int[] primaryKeys, IntHashSet reads, IntHashSet writes, IInvokableInstance instance)
         {
-            super(primaryKeys, id, instance, "Accord", createQuery(id, reads, writes));
+            super(primaryKeys, id, instance, "Accord ReadWrite Txn", createQuery(id, reads, writes));
             this.reads = reads;
             this.writes = writes;
         }
