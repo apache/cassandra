@@ -1084,7 +1084,7 @@ public final class SchemaKeyspace
                                                  .readRepair(getReadRepairStrategy(row))
                                                  .automatedRepairFull(AutoRepairParams.fromMap(AutoRepairConfig.RepairType.full, row.getFrozenTextMap("repair_full")))
                                                  .automatedRepairIncremental(AutoRepairParams.fromMap(AutoRepairConfig.RepairType.incremental, row.getFrozenTextMap("repair_incremental")))
-                                                 .automatedRepairIncremental(AutoRepairParams.fromMap(AutoRepairConfig.RepairType.preview_repaired, row.getFrozenTextMap("repair_preview_repaired")));
+                                                 .automatedRepairPreviewRepaired(AutoRepairParams.fromMap(AutoRepairConfig.RepairType.preview_repaired, row.getFrozenTextMap("repair_preview_repaired")));
 
         // allow_auto_snapshot column was introduced in 4.2
         if (row.has("allow_auto_snapshot"))
