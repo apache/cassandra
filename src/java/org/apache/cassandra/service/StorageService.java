@@ -5353,7 +5353,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
     public boolean getSkipPaxosRepairOnTopologyChange()
     {
-        return true;//TODO //DatabaseDescriptor.skipPaxosRepairOnTopologyChange();
+        return DatabaseDescriptor.skipPaxosRepairOnTopologyChange();
     }
 
     public void setSkipPaxosRepairOnTopologyChange(boolean v)
