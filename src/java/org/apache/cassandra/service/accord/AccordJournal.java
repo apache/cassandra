@@ -290,9 +290,6 @@ public class AccordJournal implements accord.api.Journal, Shutdownable
             @Override
             public AsyncResult<?> persist(DurableBefore addDurableBefore, DurableBefore newDurableBefore)
             {
-                if (status == Status.REPLAY)
-                    return AsyncResults.success(null);
-
                 AsyncResult.Settable<Void> result = AsyncResults.settable();
                 JournalKey key = new JournalKey(TxnId.NONE, JournalKey.Type.DURABLE_BEFORE, 0);
                 RecordPointer pointer = appendInternal(key, addDurableBefore);
