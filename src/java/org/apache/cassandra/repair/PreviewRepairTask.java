@@ -108,8 +108,8 @@ public class PreviewRepairTask extends AbstractRepairTask
                 return;
 
             ColumnFamilyStore cfs = Keyspace.open(key.left).getColumnFamilyStore(key.right);
-            cfs.metric.previewedDesynchronizedTokenRanges.inc(table.getRanges());
-            cfs.metric.previewedDesynchronizedBytes.inc(table.getBytes());
+            cfs.metric.previewedDesynchronizedTokenRanges.mark(table.getRanges());
+            cfs.metric.previewedDesynchronizedBytes.mark(table.getBytes());
         });
     }
 

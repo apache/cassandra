@@ -209,13 +209,17 @@ public class TableMetrics
     /** number of partitions read creating merkle trees */
     public final TableHistogram partitionsValidated;
     /** number of bytes read while doing anticompaction */
-    public final Counter bytesAnticompacted;
+    public final Meter bytesAnticompacted;
     /** number of bytes where the whole sstable was contained in a repairing range so that we only mutated the repair status */
-    public final Counter bytesMutatedAnticompaction;
+    public final Meter bytesMutatedAnticompaction;
+    /** number of bytes that were scanned during preview repair */
+    public final Meter bytesPreviewed;
+    /** number of token ranges that were scanned during preview repair */
+    public final Meter tokenRangesPreviewed;
     /** number of desynchronized token ranges that were detected during preview repair */
-    public final Counter previewedDesynchronizedTokenRanges;
+    public final Meter previewedDesynchronizedTokenRanges;
     /** number of desynchronized bytes that were detected during preview repair */
-    public final Counter previewedDesynchronizedBytes;
+    public final Meter previewedDesynchronizedBytes;
     /** ratio of how much we anticompact vs how much we could mutate the repair status*/
     public final Gauge<Double> mutatedAnticompactionGauge;
 
@@ -815,10 +819,12 @@ public class TableMetrics
 
         bytesValidated = createTableHistogram("BytesValidated", cfs.keyspace.metric.bytesValidated, false);
         partitionsValidated = createTableHistogram("PartitionsValidated", cfs.keyspace.metric.partitionsValidated, false);
-        bytesAnticompacted = createTableCounter("BytesAnticompacted");
-        bytesMutatedAnticompaction = createTableCounter("BytesMutatedAnticompaction");
-        previewedDesynchronizedTokenRanges = createTableCounter("PreviewedDesynchronizedTokenRanges");
-        previewedDesynchronizedBytes = createTableCounter("PreviewedDesynchronizedBytes");
+        bytesAnticompacted = createTableMeter("BytesAnticompacted");
+        bytesMutatedAnticompaction = createTableMeter("BytesMutatedAnticompaction");
+        bytesPreviewed = createTableMeter("BytesPreviewed");
+        tokenRangesPreviewed = createTableMeter("TokenRangesPreviewed");
+        previewedDesynchronizedTokenRanges = createTableMeter("PreviewedDesynchronizedTokenRanges");
+        previewedDesynchronizedBytes = createTableMeter("PreviewedDesynchronizedBytes");
         mutatedAnticompactionGauge = createTableGauge("MutatedAnticompactionGauge", () ->
         {
             double bytesMutated = bytesMutatedAnticompaction.getCount();
