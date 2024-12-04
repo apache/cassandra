@@ -320,8 +320,8 @@ public class AccordJournalValueSerializers
             long[] epochs = new long[size];
             for (int i = 0; i < ranges.length; i++)
             {
-                ranges[i] = KeySerializers.ranges.deserialize(in, messagingVersion);
                 epochs[i] = in.readLong();
+                ranges[i] = KeySerializers.ranges.deserialize(in, messagingVersion);
             }
             Invariants.checkState(ranges.length == epochs.length);
             into.update(new RangesForEpoch(epochs, ranges));
