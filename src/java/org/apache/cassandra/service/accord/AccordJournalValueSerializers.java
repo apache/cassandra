@@ -296,8 +296,8 @@ public class AccordJournalValueSerializers
             from.forEach((epoch, ranges) -> {
                 try
                 {
-                    out.writeLong(epoch);
                     KeySerializers.ranges.serialize(ranges, out, messagingVersion);
+                    out.writeLong(epoch);
                 }
                 catch (Throwable t)
                 {
