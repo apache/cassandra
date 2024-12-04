@@ -1,4 +1,5 @@
 4.1.8
+ * Fix WaitQueue.Signal.awaitUninterruptibly may block forever if invoking thread is interrupted (CASSANDRA-20084)
  * Run audit_logging_options through santiation and validation on startup (CASSANDRA-20208)
  * Enforce CQL message size limit on multiframe messages (CASSANDRA-20052)
  * Add nodetool checktokenmetadata command that checks TokenMetadata is insync with Gossip endpointState (CASSANDRA-18758)
