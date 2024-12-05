@@ -41,6 +41,7 @@ import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
 import com.google.common.util.concurrent.FutureCallback;
+import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -306,17 +307,29 @@ public class SecondaryIndexManager implements IndexRegistry, INotificationConsum
 
     /**
      * Throws an {@link IndexNotAvailableException} if any of the indexes in the specified {@link Index.QueryPlan} is
-     * not queryable, as it's defined by {@link #isIndexQueryable(Index)}.
+     * not queryable, as it's defined by {@link #isIndexQueryable(Index)}. If the reason for the index to be not available
+     * is that it's building, it will throw an {@link IndexBuildInProgressException}.
      *
      * @param queryPlan a query plan
      * @throws IndexNotAvailableException if the query plan has any index that is not queryable
      */
     public void checkQueryability(Index.QueryPlan queryPlan)
     {
+        InetAddressAndPort endpoint = FBUtilities.getBroadcastAddressAndPort();
+
         for (Index index : queryPlan.getIndexes())
         {
+            String indexName = index.getIndexMetadata().name;
+            Index.Status indexStatus = IndexStatusManager.instance.getIndexStatus(endpoint, keyspace.getName(), indexName);
+
             if (!isIndexQueryable(index))
+            {
+                // isQueryable is always true for non-SAI index implementations,  thus we need to check both not queryable and building
+                if (indexStatus == Index.Status.FULL_REBUILD_STARTED)
+                    throw new IndexBuildInProgressException(index);
+
                 throw new IndexNotAvailableException(index);
+            }
         }
     }
 

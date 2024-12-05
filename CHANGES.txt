@@ -1,4 +1,5 @@
 5.1
+ * Throw new IndexBuildInProgressException when queries fail during index build, instead of IndexNotAvailableException (CASSANDRA-20402)
  * Fix Paxos repair interrupts running transactions (CASSANDRA-20469)
  * Various fixes in constraint framework (CASSANDRA-20481)
  * Add support in CAS for -= on numeric types, and fixed improper handling of empty bytes which lead to NPE (CASSANDRA-20477)

@@ -20,7 +20,9 @@ package org.apache.cassandra.exceptions;
 
 import org.junit.Test;
 
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.junit.Assert.assertEquals;
+
 
 public class RequestFailureReasonTest
 {
@@ -37,7 +39,8 @@ public class RequestFailureReasonTest
     { 7, "READ_TOO_MANY_INDEXES" },
     { 8, "NOT_CMS" },
     { 9, "INVALID_ROUTING" },
-    { 10, "COORDINATOR_BEHIND" }
+    { 10, "COORDINATOR_BEHIND" },
+    { 503, "INDEX_BUILD_IN_PROGRESS" }
     };
 
     @Test
@@ -53,5 +56,43 @@ public class RequestFailureReasonTest
 
         assertEquals("Number of RequestFailureReason enum constants has changed. Update the test.",
                      EXPECTED_VALUES.length, REASONS.length);
+    }
+
+    @Test
+    public void testFromCode()
+    {
+        // Test valid codes
+        for (Object[] expected : EXPECTED_VALUES)
+        {
+            int code = (Integer) expected[0];
+            String name = (String) expected[1];
+            assertEquals(RequestFailureReason.valueOf(name), RequestFailureReason.fromCode(code));
+        }
+
+        // Test invalid codes
+        assertEquals(RequestFailureReason.UNKNOWN, RequestFailureReason.fromCode(200));
+        assertEquals(RequestFailureReason.UNKNOWN, RequestFailureReason.fromCode(999));
+        assertThatThrownBy(() -> RequestFailureReason.fromCode(-1)).isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
+    public void testExceptionSubclassMapping()
+    {
+        // Create a subclass of UnknownTableException
+        class CustomUnknownTableException extends IncompatibleSchemaException
+        {
+            public CustomUnknownTableException(String ks)
+            {
+                super(ks);
+            }
+        }
+        
+        // Verify the parent class still maps correctly
+        assertEquals(RequestFailureReason.INCOMPATIBLE_SCHEMA,
+                    RequestFailureReason.forException(new CustomUnknownTableException("ks")));
+        
+        // Test unmapped exception returns UNKNOWN
+        assertEquals(RequestFailureReason.UNKNOWN, 
+                    RequestFailureReason.forException(new RuntimeException("test")));
     }
 }

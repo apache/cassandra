@@ -33,6 +33,7 @@ import net.bytebuddy.ByteBuddy;
 import net.bytebuddy.dynamic.loading.ClassLoadingStrategy;
 import net.bytebuddy.implementation.MethodDelegation;
 import org.apache.cassandra.distributed.Cluster;
+import org.apache.cassandra.distributed.api.ConsistencyLevel;
 import org.apache.cassandra.distributed.api.IInvokableInstance;
 import org.apache.cassandra.distributed.test.TestBaseImpl;
 import org.apache.cassandra.index.Index;
@@ -48,6 +49,7 @@ import static net.bytebuddy.matcher.ElementMatchers.named;
 import static org.apache.cassandra.distributed.api.Feature.GOSSIP;
 import static org.apache.cassandra.distributed.api.Feature.NETWORK;
 import static org.apache.cassandra.distributed.test.sai.SAIUtil.waitForIndexQueryable;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.awaitility.Awaitility.await;
 import static org.junit.Assert.assertEquals;
 
@@ -57,7 +59,7 @@ public class IndexAvailabilityTest extends TestBaseImpl
     private static final String CREATE_TABLE = "CREATE TABLE %s.%s (pk text primary key, v1 int, v2 text) " +
                                                "WITH compaction = {'class' : 'SizeTieredCompactionStrategy', 'enabled' : false }";
     private static final String CREATE_INDEX = "CREATE CUSTOM INDEX %s ON %s.%s(%s) USING 'StorageAttachedIndex'";
-    
+
     private static final Map<NodeIndex, Index.Status> expectedNodeIndexQueryability = new ConcurrentHashMap<>();
     private List<String> keyspaces;
     private List<String> indexesPerKs;
@@ -186,6 +188,82 @@ public class IndexAvailabilityTest extends TestBaseImpl
             Index index = sim.getIndexByName(indexName);
             sim.makeIndexNonQueryable(index, Index.Status.BUILD_FAILED);
         });
+    }
+
+    @Test
+    public void testIndexExceptionsTwoIndexesOn3NodeCluster() throws Exception
+    {
+        try (Cluster cluster = init(Cluster.build(3)
+                .withConfig(config -> config.with(GOSSIP)
+                                                          .with(NETWORK))
+                .start()))
+        {
+            String ks2 = "ks2";
+            String cf1 = "cf1";
+            String index1 = "cf1_idx1";
+            String index2 = "cf1_idx2";
+
+            // Create keyspace, table with correct column types
+            cluster.schemaChange(String.format(CREATE_KEYSPACE, ks2, 2));
+            cluster.schemaChange("CREATE TABLE " + ks2 + '.' + cf1 + " (pk int PRIMARY KEY, v1 int, v2 int)");
+            executeOnAllCoordinators(cluster,
+                              "SELECT pk FROM " + ks2 + '.' + cf1 + " WHERE v1=0 AND v2=0 ALLOW FILTERING");
+            executeOnAllCoordinators(cluster,
+                               "SELECT pk FROM " + ks2 + '.' + cf1 + " WHERE v2=0 ALLOW FILTERING");
+            executeOnAllCoordinators(cluster,
+                               "SELECT pk FROM " + ks2 + '.' + cf1 + " WHERE v1=0 ALLOW FILTERING");
+
+            cluster.schemaChange(String.format(CREATE_INDEX, index1, ks2, cf1, "v1"));
+            cluster.schemaChange(String.format(CREATE_INDEX, index2, ks2, cf1, "v2"));
+            cluster.forEach(node -> expectedNodeIndexQueryability.put(NodeIndex.create(ks2, index1, node), Index.Status.BUILD_SUCCEEDED));
+            for (IInvokableInstance node : cluster.get(2, 1, 3))
+                for (IInvokableInstance replica : cluster.get(1, 2, 3))
+                    waitForIndexingStatus(node, ks2, index1, replica, Index.Status.BUILD_SUCCEEDED);
+
+            // Mark only index2 as building on node3, leave index1 in BUILD_SUCCEEDED state
+            markIndexBuilding(cluster.get(3), ks2, cf1, index2);
+            cluster.forEach(node -> expectedNodeIndexQueryability.put(NodeIndex.create(ks2, index2, node), Index.Status.FULL_REBUILD_STARTED));
+            for (IInvokableInstance node : cluster.get(1, 2, 3))
+                waitForIndexingStatus(node, ks2, index2, cluster.get(3), Index.Status.FULL_REBUILD_STARTED);
+
+            assertThatThrownBy(() ->
+                    executeOnAllCoordinators(cluster,
+                                       "SELECT pk FROM " + ks2 + '.' + cf1 + " WHERE v1=0 AND v2=0"))
+                    .hasMessageContaining("Operation failed - received 1 responses and 1 failures: INDEX_BUILD_IN_PROGRESS");
+
+            // Mark only index2 as failing on node2, leave index1 in BUILD_SUCCEEDED state
+            markIndexBuilding(cluster.get(2), ks2, cf1, index2);
+            cluster.forEach(node -> expectedNodeIndexQueryability.put(NodeIndex.create(ks2, index2, node), Index.Status.FULL_REBUILD_STARTED));
+            for (IInvokableInstance node : cluster.get(1, 2, 3))
+                waitForIndexingStatus(node, ks2, index2, cluster.get(2), Index.Status.FULL_REBUILD_STARTED);
+
+
+            assertThatThrownBy(() ->
+                    executeOnAllCoordinators(cluster,
+                                      "SELECT pk FROM " + ks2 + '.' + cf1 + " WHERE v1=0 AND v2=0"))
+                    .hasMessageContaining("Operation failed - received 1 responses and 1 failures: INDEX_BUILD_IN_PROGRESS");
+
+            // Mark only index2 as failing on node1, leave index1 in BUILD_SUCCEEDED state
+            markIndexNonQueryable(cluster.get(1), ks2, cf1, index2);
+            cluster.forEach(node -> expectedNodeIndexQueryability.put(NodeIndex.create(ks2, index2, node), Index.Status.BUILD_FAILED));
+            for (IInvokableInstance node : cluster.get(1, 2, 3)) {
+                waitForIndexingStatus(node, ks2, index2, cluster.get(1), Index.Status.BUILD_FAILED);
+            }
+
+            assertThatThrownBy(() ->
+                    executeOnAllCoordinators(cluster,
+                                       "SELECT pk FROM " + ks2 + '.' + cf1 + " WHERE v1=0 AND v2=0"))
+                    .hasMessageMatching("^Operation failed - received 0 responses and 2 failures: INDEX_NOT_AVAILABLE from .+, INDEX_BUILD_IN_PROGRESS from .+$");
+        }
+    }
+
+    private void executeOnAllCoordinators(Cluster cluster, String query)
+    {
+        // test different coordinator
+        for (int nodeId = 1; nodeId <= cluster.size(); nodeId++)
+        {
+            assertEquals(0, cluster.coordinator(nodeId).execute(query, ConsistencyLevel.LOCAL_QUORUM).length);
+        }
     }
 
     @SuppressWarnings("DataFlowIssue")

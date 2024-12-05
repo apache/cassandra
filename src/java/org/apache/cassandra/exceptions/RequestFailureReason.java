@@ -18,15 +18,18 @@
 package org.apache.cassandra.exceptions;
 
 import java.io.IOException;
+import java.util.HashMap;
+import java.util.Map;
 
 import org.apache.cassandra.db.filter.TombstoneOverwhelmingException;
+import org.apache.cassandra.index.IndexBuildInProgressException;
+import org.apache.cassandra.index.IndexNotAvailableException;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.tcm.NotCMSException;
 import org.apache.cassandra.utils.vint.VIntCoding;
 
-import static java.lang.Math.max;
 import static org.apache.cassandra.net.MessagingService.VERSION_40;
 
 public enum RequestFailureReason
@@ -36,14 +39,16 @@ public enum RequestFailureReason
     TIMEOUT                  (2),
     INCOMPATIBLE_SCHEMA      (3),
     READ_SIZE                (4),
+    // below reason is only logged, but it does not have associated exception
     NODE_DOWN                (5),
     INDEX_NOT_AVAILABLE      (6),
+    // below reason does not have an associated exception
     READ_TOO_MANY_INDEXES    (7),
     NOT_CMS                  (8),
     INVALID_ROUTING          (9),
     COORDINATOR_BEHIND       (10),
-    ;
-
+    // The following codes have been ported from an external fork, where they were offset explicitly to avoid conflicts.
+    INDEX_BUILD_IN_PROGRESS  (503);
     public static final Serializer serializer = new Serializer();
 
     public final int code;
@@ -53,26 +58,32 @@ public enum RequestFailureReason
         this.code = code;
     }
 
-    private static final RequestFailureReason[] codeToReasonMap;
+    private static final Map<Integer, RequestFailureReason> codeToReasonMap = new HashMap<>();
+    private static final Map<Class<? extends Throwable>, RequestFailureReason> exceptionToReasonMap = new HashMap<>();
+    private static final int REASONS_WITHOUT_EXCEPTIONS = 3; // UNKNOWN, NODE_DOWN, and READ_TOO_MANY_INDEXES
 
     static
     {
         RequestFailureReason[] reasons = values();
 
-        int max = -1;
-        for (RequestFailureReason r : reasons)
-            max = max(r.code, max);
-
-        RequestFailureReason[] codeMap = new RequestFailureReason[max + 1];
-
         for (RequestFailureReason reason : reasons)
         {
-            if (codeMap[reason.code] != null)
+            if (codeToReasonMap.put(reason.code, reason) != null)
                 throw new RuntimeException("Two RequestFailureReason-s that map to the same code: " + reason.code);
-            codeMap[reason.code] = reason;
         }
 
-        codeToReasonMap = codeMap;
+        exceptionToReasonMap.put(TombstoneOverwhelmingException.class, READ_TOO_MANY_TOMBSTONES);
+        exceptionToReasonMap.put(WriteTimeoutException.class, TIMEOUT);
+        exceptionToReasonMap.put(IncompatibleSchemaException.class, INCOMPATIBLE_SCHEMA);
+        exceptionToReasonMap.put(ReadSizeAbortException.class, READ_SIZE);
+        exceptionToReasonMap.put(IndexNotAvailableException.class, INDEX_NOT_AVAILABLE);
+        exceptionToReasonMap.put(NotCMSException.class, NOT_CMS);
+        exceptionToReasonMap.put(InvalidRoutingException.class, INVALID_ROUTING);
+        exceptionToReasonMap.put(CoordinatorBehindException.class, COORDINATOR_BEHIND);
+        exceptionToReasonMap.put(IndexBuildInProgressException.class, INDEX_BUILD_IN_PROGRESS);
+
+        if (exceptionToReasonMap.size() != reasons.length - REASONS_WITHOUT_EXCEPTIONS)
+            throw new RuntimeException("A new RequestFailureReasons was probably added and you may need to update the exceptionToReasonMap");
     }
 
     public static RequestFailureReason fromCode(int code)
@@ -81,25 +92,18 @@ public enum RequestFailureReason
             throw new IllegalArgumentException("RequestFailureReason code must be non-negative (got " + code + ')');
 
         // be forgiving and return UNKNOWN if we aren't aware of the code - for forward compatibility
-        return code < codeToReasonMap.length ? codeToReasonMap[code] : UNKNOWN;
+        return codeToReasonMap.getOrDefault(code, UNKNOWN);
     }
 
     public static RequestFailureReason forException(Throwable t)
     {
-        if (t instanceof TombstoneOverwhelmingException)
-            return READ_TOO_MANY_TOMBSTONES;
+        RequestFailureReason r = exceptionToReasonMap.get(t.getClass());
+        if (r != null)
+            return r;
 
-        if (t instanceof IncompatibleSchemaException)
-            return INCOMPATIBLE_SCHEMA;
-
-        if (t instanceof NotCMSException)
-            return NOT_CMS;
-
-        if (t instanceof InvalidRoutingException)
-            return INVALID_ROUTING;
-
-        if (t instanceof CoordinatorBehindException)
-            return COORDINATOR_BEHIND;
+        for (Map.Entry<Class<? extends Throwable>, RequestFailureReason> entry : exceptionToReasonMap.entrySet())
+            if (entry.getKey().isInstance(t))
+                return entry.getValue();
 
         return UNKNOWN;
     }

@@ -25,12 +25,11 @@ import java.util.concurrent.Callable;
 import java.util.concurrent.CountDownLatch;
 
 import com.google.common.collect.ImmutableSet;
+
 import org.apache.commons.lang3.StringUtils;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
-import org.apache.cassandra.index.internal.CassandraIndex;
-import org.apache.cassandra.index.sai.StorageAttachedIndex;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.config.DatabaseDescriptor;
@@ -46,10 +45,12 @@ import org.apache.cassandra.db.rows.Cell;
 import org.apache.cassandra.db.rows.Row;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.exceptions.SyntaxException;
-import org.apache.cassandra.index.IndexNotAvailableException;
+import org.apache.cassandra.index.IndexBuildInProgressException;
 import org.apache.cassandra.index.SecondaryIndexManager;
 import org.apache.cassandra.index.StubIndex;
+import org.apache.cassandra.index.internal.CassandraIndex;
 import org.apache.cassandra.index.internal.CustomCassandraIndex;
+import org.apache.cassandra.index.sai.StorageAttachedIndex;
 import org.apache.cassandra.index.sasi.SASIIndex;
 import org.apache.cassandra.schema.IndexMetadata;
 import org.apache.cassandra.service.ClientState;
@@ -1090,7 +1091,7 @@ public class SecondaryIndexTest extends CQLTester
             execute("SELECT value FROM %s WHERE value = 2");
             fail();
         }
-        catch (IndexNotAvailableException e)
+        catch (IndexBuildInProgressException e)
         {
             assertTrue(true);
         }
@@ -1124,7 +1125,7 @@ public class SecondaryIndexTest extends CQLTester
         indexName = createIndexAsync("CREATE CUSTOM INDEX ON %s (value) USING '" + ReadOnlyOnFailureIndex.class.getName() + "'");
         index = (ReadOnlyOnFailureIndex) getCurrentColumnFamilyStore().indexManager.getIndexByName(indexName);
         waitForIndexBuilds(indexName);
-        assertInvalidThrow(IndexNotAvailableException.class, "SELECT value FROM %s WHERE value = 1");
+        assertInvalidThrow(IndexBuildInProgressException.class, "SELECT value FROM %s WHERE value = 1");
         execute("INSERT INTO %s (pk, ck, value) VALUES (?, ?, ?)", 1, 1, 1);
         assertEquals(0, index.rowsInserted.size());
 
@@ -1164,7 +1165,7 @@ public class SecondaryIndexTest extends CQLTester
         waitForIndexBuilds(indexName);
         execute("INSERT INTO %s (pk, ck, value) VALUES (?, ?, ?)", 1, 1, 1);
         assertEquals(1, index.rowsInserted.size());
-        assertInvalidThrow(IndexNotAvailableException.class, "SELECT value FROM %s WHERE value = 1");
+        assertInvalidThrow(IndexBuildInProgressException.class, "SELECT value FROM %s WHERE value = 1");
 
         // Upon recovery, we can query data again
         index.reset();
