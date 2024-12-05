@@ -37,10 +37,12 @@ public enum RequestFailureReason
     READ_TOO_MANY_TOMBSTONES (1),
     TIMEOUT                  (2),
     INCOMPATIBLE_SCHEMA      (3),
-    INDEX_NOT_AVAILABLE      (4),
-    UNKNOWN_COLUMN           (5),
-    UNKNOWN_TABLE            (6),
-    REMOTE_STORAGE_FAILURE   (7);
+    INDEX_NOT_AVAILABLE      (6), // We match it to Apache Cassandra's INDEX_NOT_AVAILABLE code introcued in 5.0
+    // The following codes are not present in Apache Cassandra's RequestFailureReason
+    // We should add new codes in CC (which do not exist in Apache Cassandra) only with big numbers, to avoid conflicts
+    UNKNOWN_COLUMN           (500),
+    UNKNOWN_TABLE            (501),
+    REMOTE_STORAGE_FAILURE   (502);
 
     public static final Serializer serializer = new Serializer();
 
