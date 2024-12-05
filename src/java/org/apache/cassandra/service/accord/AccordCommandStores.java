@@ -26,6 +26,7 @@ import java.util.concurrent.TimeUnit;
 
 import accord.api.Agent;
 import accord.api.DataStore;
+import accord.api.Journal;
 import accord.api.LocalListeners;
 import accord.api.ProgressLog;
 import accord.local.CommandStores;
@@ -47,8 +48,8 @@ import org.apache.cassandra.service.accord.api.AccordRoutingKey;
 import org.apache.cassandra.utils.concurrent.UncheckedInterruptedException;
 
 import static org.apache.cassandra.config.AccordSpec.QueueShardModel.THREAD_PER_SHARD;
-import static org.apache.cassandra.config.DatabaseDescriptor.getAccordQueueSubmissionModel;
 import static org.apache.cassandra.config.DatabaseDescriptor.getAccordQueueShardCount;
+import static org.apache.cassandra.config.DatabaseDescriptor.getAccordQueueSubmissionModel;
 import static org.apache.cassandra.service.accord.AccordExecutor.Mode.RUN_WITHOUT_LOCK;
 import static org.apache.cassandra.service.accord.AccordExecutor.Mode.RUN_WITH_LOCK;
 import static org.apache.cassandra.service.accord.AccordExecutor.constant;
@@ -60,15 +61,16 @@ public class AccordCommandStores extends CommandStores implements CacheSize
 
     private final CacheSizeMetrics cacheSizeMetrics;
     private final AccordExecutor[] executors;
+
     private long cacheSize, workingSetSize;
     private int maxQueuedLoads, maxQueuedRangeLoads;
     private boolean shrinkingOn;
 
     AccordCommandStores(NodeCommandStoreService node, Agent agent, DataStore store, RandomSource random,
                         ShardDistributor shardDistributor, ProgressLog.Factory progressLogFactory, LocalListeners.Factory listenerFactory,
-                        AccordJournal journal, AccordExecutor[] executors)
+                        Journal journal, AccordExecutor[] executors)
     {
-        super(node, agent, store, random, shardDistributor, progressLogFactory, listenerFactory,
+        super(node, agent, store, random, journal, shardDistributor, progressLogFactory, listenerFactory,
               AccordCommandStore.factory(journal, id -> executors[id % executors.length]));
         this.executors = executors;
         this.cacheSizeMetrics = new CacheSizeMetrics(ACCORD_STATE_CACHE, this);
@@ -80,9 +82,9 @@ public class AccordCommandStores extends CommandStores implements CacheSize
         refreshCapacities();
     }
 
-    static Factory factory(AccordJournal journal)
+    static Factory factory()
     {
-        return (time, agent, store, random, shardDistributor, progressLogFactory, listenerFactory) -> {
+        return (NodeCommandStoreService time, Agent agent, DataStore store, RandomSource random, Journal journal, ShardDistributor shardDistributor, ProgressLog.Factory progressLogFactory, LocalListeners.Factory listenersFactory) -> {
             AccordExecutor[] executors = new AccordExecutor[getAccordQueueShardCount()];
             AccordExecutorFactory factory;
             int maxThreads = Integer.MAX_VALUE;
@@ -119,7 +121,7 @@ public class AccordCommandStores extends CommandStores implements CacheSize
                 }
             }
 
-            return new AccordCommandStores(time, agent, store, random, shardDistributor, progressLogFactory, listenerFactory, journal, executors);
+            return new AccordCommandStores(time, agent, store, random, shardDistributor, progressLogFactory, listenersFactory, journal, executors);
         };
     }
 

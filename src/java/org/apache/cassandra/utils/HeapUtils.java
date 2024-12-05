@@ -130,7 +130,7 @@ public final class HeapUtils
                 }
                 else
                 {
-                    logger.debug("Heap dump creation on uncaught exceptions is disabled.");
+//                    logger.debug("Heap dump creation on uncaught exceptions is disabled.");
                 }
             }
             catch (Throwable e)

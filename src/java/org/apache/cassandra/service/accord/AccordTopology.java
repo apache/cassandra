@@ -235,7 +235,7 @@ public class AccordTopology
                                                 Directory directory, AccordFastPath accordFastPath, ShardLookup lookup,
                                                 AccordStaleReplicas staleReplicas)
     {
-        List<Shard> shards = new ArrayList<>();
+        List<Shard> res = new ArrayList<>();
         Set<Id> unavailable = accordFastPath.unavailableIds();
         Map<Id, String> dcMap = createDCMap(directory);
 
@@ -245,12 +245,15 @@ public class AccordTopology
             if (tables.isEmpty())
                 continue;
             List<KeyspaceShard> ksShards = KeyspaceShard.forKeyspace(keyspace, placements, directory);
-            tables.forEach(table -> ksShards.forEach(shard -> shards.add(shard.createForTable(table, unavailable, dcMap, lookup))));
+            for (TableMetadata table : tables)
+            {
+                for (KeyspaceShard shard : ksShards)
+                    res.add(shard.createForTable(table, unavailable, dcMap, lookup));
+            }
         }
 
-        shards.sort((a, b) -> a.range.compare(b.range));
-
-        return new Topology(epoch.getEpoch(), SortedArrayList.copyUnsorted(staleReplicas.ids(), Id[]::new), shards.toArray(new Shard[0]));
+        res.sort((a, b) -> a.range.compare(b.range));
+        return new Topology(epoch.getEpoch(), SortedArrayList.copyUnsorted(staleReplicas.ids(), Id[]::new), res.toArray(new Shard[0]));
     }
 
     public static Topology createAccordTopology(ClusterMetadata metadata, ShardLookup lookup)
@@ -268,16 +271,16 @@ public class AccordTopology
         return createAccordTopology(metadata, (Topology) null);
     }
 
-    public static EndpointMapping directoryToMapping(EndpointMapping mapping, long epoch, Directory directory)
+    public static EndpointMapping directoryToMapping(long epoch, Directory directory)
     {
         EndpointMapping.Builder builder = EndpointMapping.builder(epoch);
         for (NodeId id : directory.peerIds())
             builder.add(directory.endpoint(id), tcmIdToAccord(id));
 
-        // There are cases where nodes are removed from the cluster (host replacement, decom, etc.), but inflight events may still be happening;
-        // keep the ids around so pending events do not fail with a mapping error
-        for (Id id : mapping.differenceIds(builder))
-            builder.add(mapping.mappedEndpoint(id), id);
+        // There are cases where nodes are removed from the cluster (host replacement, decom, etc.), but inflight events
+        // may still be happening; keep the ids around so pending events do not fail with a mapping error
+        for (Directory.RemovedNode removedNode : directory.removedNodes())
+            builder.add(removedNode.endpoint, tcmIdToAccord(removedNode.id));
         return builder.build();
     }
 

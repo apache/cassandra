@@ -22,7 +22,6 @@ import java.util.Collection;
 import java.util.Iterator;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
-
 import javax.annotation.Nullable;
 
 import org.slf4j.Logger;
@@ -32,6 +31,7 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.exceptions.RequestFailure;
 import org.apache.cassandra.exceptions.RequestFailureReason;
 import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.repair.SharedContext;
 import org.apache.cassandra.utils.Backoff;
 import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.concurrent.Accumulator;
@@ -100,6 +100,43 @@ public interface MessageDelivery
         return promise;
     }
 
+    public default <REQ, RSP> Future<Message<RSP>> sendWithRetries(SharedContext sharedContext, Verb verb, REQ request, Collection<InetAddressAndPort> peers)
+    {
+        // TODO: move somewhere else
+        Iterator<InetAddressAndPort> candidates = new Iterator<>()
+        {
+            boolean firstRun = true;
+            Iterator<InetAddressAndPort> iter = peers.iterator();
+
+            public boolean hasNext()
+            {
+                return !peers.isEmpty();
+            }
+
+            public InetAddressAndPort next()
+            {
+                // At first, try all alive nodes
+                if (firstRun)
+                {
+                    while (iter.hasNext())
+                    {
+                        InetAddressAndPort candidate = iter.next();
+                        if (sharedContext.failureDetector().isAlive(candidate))
+                            return candidate;
+                    }
+                    firstRun = false;
+                }
+
+                // After that, cycle through all nodes
+                if (!iter.hasNext())
+                    iter = peers.iterator();
+
+                return iter.next();
+            }
+        };
+        return sendWithRetries(Backoff.None.INSTANCE, ImmediateRetryScheduler.instance, verb, request, candidates, RetryPredicate.ALWAYS_RETRY, RetryErrorMessage.EMPTY);
+    }
+
     public default <REQ, RSP> void sendWithRetries(Backoff backoff, RetryScheduler retryThreads,
                                                    Verb verb, REQ request,
                                                    Iterator<InetAddressAndPort> candidates,
@@ -127,11 +164,15 @@ public interface MessageDelivery
 
     interface RetryPredicate
     {
+        public static RetryPredicate times(int n) { return (attempt, from, failure) -> attempt < n; }
+        RetryPredicate ALWAYS_RETRY = (i1, i2, i3) -> true;
+        RetryPredicate ALWAYS_REJECT = (i1, i2, i3) -> false;
         boolean test(int attempt, InetAddressAndPort from, RequestFailure failure);
     }
 
     interface RetryErrorMessage
     {
+        RetryErrorMessage EMPTY = (i1, i2, i3, i4) -> null;
         String apply(int attempt, ResponseFailureReason retryFailure, @Nullable InetAddressAndPort from, @Nullable RequestFailure reason);
     }
 

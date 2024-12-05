@@ -18,12 +18,12 @@
 
 package org.apache.cassandra.service.accord;
 
-import java.util.Set;
+import java.util.Map;
 
 import com.google.common.collect.BiMap;
 import com.google.common.collect.HashBiMap;
 import com.google.common.collect.ImmutableBiMap;
-import com.google.common.collect.Sets;
+import com.google.common.collect.ImmutableMap;
 
 import accord.local.Node;
 import accord.utils.Invariants;
@@ -31,15 +31,18 @@ import org.apache.cassandra.locator.InetAddressAndPort;
 
 class EndpointMapping implements AccordEndpointMapper
 {
-    public static final EndpointMapping EMPTY = new EndpointMapping(0, ImmutableBiMap.of());
+    public static final EndpointMapping EMPTY = new EndpointMapping(0, ImmutableBiMap.of(), ImmutableMap.of());
     private final long epoch;
     private final ImmutableBiMap<Node.Id, InetAddressAndPort> mapping;
+    private final ImmutableMap<Node.Id, Long> removedNodes;
 
     private EndpointMapping(long epoch,
-                            ImmutableBiMap<Node.Id, InetAddressAndPort> mapping)
+                            ImmutableBiMap<Node.Id, InetAddressAndPort> mapping,
+                            ImmutableMap<Node.Id, Long> removedNodes)
     {
         this.epoch = epoch;
         this.mapping = mapping;
+        this.removedNodes = removedNodes;
     }
 
     long epoch()
@@ -52,9 +55,9 @@ class EndpointMapping implements AccordEndpointMapper
         return mapping.containsKey(id);
     }
 
-    public Set<Node.Id> differenceIds(Builder builder)
+    public Map<Node.Id, Long> removedNodes()
     {
-        return Sets.difference(mapping.keySet(), builder.mapping.keySet());
+        return removedNodes;
     }
 
     @Override
@@ -73,6 +76,7 @@ class EndpointMapping implements AccordEndpointMapper
     {
         private final long epoch;
         private final BiMap<Node.Id, InetAddressAndPort> mapping = HashBiMap.create();
+        private final ImmutableMap.Builder<Node.Id, Long> removed = new ImmutableMap.Builder<>();
 
         public Builder(long epoch)
         {
@@ -87,9 +91,18 @@ class EndpointMapping implements AccordEndpointMapper
             return this;
         }
 
+        public Builder removed(InetAddressAndPort endpoint, Node.Id id, long epoch)
+        {
+            Invariants.checkArgument(!mapping.containsKey(id), "Mapping already exists for Node.Id %s", id);
+            Invariants.checkArgument(!mapping.containsValue(endpoint), "Mapping already exists for %s", endpoint);
+            mapping.put(id, endpoint);
+            removed.put(id, epoch);
+            return this;
+        }
+
         public EndpointMapping build()
         {
-            return new EndpointMapping(epoch, ImmutableBiMap.copyOf(mapping));
+            return new EndpointMapping(epoch, ImmutableBiMap.copyOf(mapping), removed.build());
         }
     }
 

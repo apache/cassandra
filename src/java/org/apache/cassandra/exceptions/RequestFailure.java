@@ -54,6 +54,7 @@ public class RequestFailure
     public static final RequestFailure COORDINATOR_BEHIND = new RequestFailure(RequestFailureReason.COORDINATOR_BEHIND);
     public static final RequestFailure READ_TOO_MANY_INDEXES = new RequestFailure(RequestFailureReason.READ_TOO_MANY_INDEXES);
     public static final RequestFailure RETRY_ON_DIFFERENT_TRANSACTION_SYSTEM = new RequestFailure(RequestFailureReason.RETRY_ON_DIFFERENT_TRANSACTION_SYSTEM);
+    public static final RequestFailure BOOTING = new RequestFailure(RequestFailureReason.RETRY_ON_DIFFERENT_TRANSACTION_SYSTEM);
 
     static
     {
@@ -131,6 +132,7 @@ public class RequestFailure
     {
         switch (reason)
         {
+            // TODO: this really screws things up
             default: throw new IllegalStateException("Unhandled request failure reason " + reason);
             case UNKNOWN: return UNKNOWN;
             case READ_TOO_MANY_TOMBSTONES: return READ_TOO_MANY_TOMBSTONES;
@@ -144,6 +146,7 @@ public class RequestFailure
             case COORDINATOR_BEHIND: return COORDINATOR_BEHIND;
             case READ_TOO_MANY_INDEXES: return READ_TOO_MANY_INDEXES;
             case RETRY_ON_DIFFERENT_TRANSACTION_SYSTEM: return RETRY_ON_DIFFERENT_TRANSACTION_SYSTEM;
+            case BOOTING: return BOOTING;
         }
     }
 

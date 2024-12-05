@@ -376,6 +376,11 @@ public class SchemaSpec
         {
         }
 
+        public Options build()
+        {
+            return this;
+        }
+
         public OptionsBuilder withTransactionalMode(TransactionalMode mode)
         {
             this.transactionalMode = mode;

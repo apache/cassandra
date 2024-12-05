@@ -20,7 +20,6 @@ package org.apache.cassandra.service.accord;
 
 import java.net.UnknownHostException;
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.EnumMap;
@@ -50,6 +49,7 @@ import org.slf4j.LoggerFactory;
 
 import accord.api.ConfigurationService;
 import accord.api.ConfigurationService.EpochReady;
+import accord.api.Journal;
 import accord.api.LocalConfig;
 import accord.api.Scheduler;
 import accord.impl.SizeOfIntersectionSorter;
@@ -671,7 +671,8 @@ public class EpochSyncTest
                 // TODO (review): Should there be a real scheduler here? Is it possible to adapt the Scheduler interface to scheduler used in this test?
                 this.topology = new TopologyManager(SizeOfIntersectionSorter.SUPPLIER, new TestAgent.RethrowAgent(), id, Scheduler.NEVER_RUN_SCHEDULED, TimeService.ofNonMonotonic(globalExecutor::currentTimeMillis, TimeUnit.MILLISECONDS), LocalConfig.DEFAULT);
                 AccordConfigurationService.DiskStateManager instance = MockDiskStateManager.instance;
-                config = new AccordConfigurationService(node, messagingService, failureDetector, instance, scheduler);
+                Journal journal = null; // TODO
+                config = new AccordConfigurationService(node, messagingService, failureDetector, instance, scheduler, journal);
                 config.registerListener(new ConfigurationService.Listener()
                 {
                     @Override
@@ -699,9 +700,9 @@ public class EpochSyncTest
                     }
 
                     @Override
-                    public void onRemoveNodes(long epoch, Collection<Node.Id> removed)
+                    public void onRemoveNode(long epoch, Node.Id removed)
                     {
-                        topology.onRemoveNodes(epoch, removed);
+                        topology.onRemoveNode(epoch, removed);
                     }
 
                     @Override

@@ -81,6 +81,7 @@ import org.apache.cassandra.service.SnapshotVerbHandler;
 import org.apache.cassandra.service.accord.AccordService;
 import org.apache.cassandra.service.accord.AccordSyncPropagator;
 import org.apache.cassandra.service.accord.AccordSyncPropagator.Notification;
+import org.apache.cassandra.service.accord.FetchTopology;
 import org.apache.cassandra.service.accord.FetchMinEpoch;
 import org.apache.cassandra.service.accord.interop.AccordInteropApply;
 import org.apache.cassandra.service.accord.interop.AccordInteropCommit;
@@ -356,8 +357,11 @@ public enum Verb
     ACCORD_INTEROP_READ_REPAIR_RSP  (158, P2, writeTimeout, IMMEDIATE,          () -> AccordInteropReadRepair.replySerializer,   AccordService::responseHandlerOrNoop),
     ACCORD_INTEROP_READ_REPAIR_REQ  (159, P2, writeTimeout, IMMEDIATE,          () -> AccordInteropReadRepair.requestSerializer, AccordService::requestHandlerOrNoop, ACCORD_INTEROP_READ_REPAIR_RSP),
     ACCORD_INTEROP_APPLY_REQ        (160, P2, writeTimeout, IMMEDIATE,          () -> AccordInteropApply.serializer,             AccordService::requestHandlerOrNoop,             ACCORD_APPLY_RSP),
+    // TODO: swap IDS?
     ACCORD_FETCH_MIN_EPOCH_RSP      (166, P2, writeTimeout, IMMEDIATE,          () -> FetchMinEpoch.Response.serializer,         RESPONSE_HANDLER),
     ACCORD_FETCH_MIN_EPOCH_REQ      (165, P2, writeTimeout, IMMEDIATE,          () -> FetchMinEpoch.serializer,                  () -> FetchMinEpoch.handler, ACCORD_FETCH_MIN_EPOCH_RSP),
+    ACCORD_FETCH_TOPOLOGY_RSP       (167, P2, writeTimeout, IMMEDIATE,          () -> FetchTopology.Response.serializer,         RESPONSE_HANDLER),
+    ACCORD_FETCH_TOPOLOGY_REQ       (168, P2, writeTimeout, IMMEDIATE,          () -> FetchTopology.serializer,                  () -> FetchTopology.handler, ACCORD_FETCH_TOPOLOGY_RSP),
 
     // generic failure response
     FAILURE_RSP            (99,  P0, noTimeout,       REQUEST_RESPONSE,  () -> RequestFailure.serializer,            RESPONSE_HANDLER                             ),

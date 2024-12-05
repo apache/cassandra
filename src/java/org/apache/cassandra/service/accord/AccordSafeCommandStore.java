@@ -199,7 +199,9 @@ public class AccordSafeCommandStore extends AbstractSafeCommandStore<AccordSafeC
 
     private <O> O mapReduce(Routables<?> keysOrRanges, BiFunction<CommandsSummary, O, O> map, O accumulate)
     {
-        Invariants.checkState(context.keys().containsAll(keysOrRanges), "Attempted to access keysOrRanges outside of what was asked for; asked for %s, accessed %s", context.keys(), keysOrRanges);
+        Invariants.checkState(context.keys().containsAll(keysOrRanges),
+                              "Attempted to access keysOrRanges outside of what was asked for; asked for %s, accessed %s. Context: %s", context.keys(),
+                              keysOrRanges, context);
         accumulate = mapReduceForRange(keysOrRanges, map, accumulate);
         return mapReduceForKey(keysOrRanges, map, accumulate);
     }

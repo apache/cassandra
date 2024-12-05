@@ -51,6 +51,7 @@ import org.apache.cassandra.utils.TimeUUID;
  *
  * See {@link Global#instance} for the main production path
  */
+// TODO: move to util or something?
 public interface SharedContext
 {
     InetAddressAndPort broadcastAddressAndPort();

@@ -20,6 +20,7 @@ package org.apache.cassandra.service.accord;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.Collections;
+import java.util.Iterator;
 import java.util.NavigableMap;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
@@ -278,6 +279,21 @@ public class AccordJournal implements accord.api.Journal, Shutdownable
 
         JournalKey key = new JournalKey(update.txnId, JournalKey.Type.COMMAND_DIFF, store);
         RecordPointer pointer = journal.asyncWrite(key, diff, SENTINEL_HOSTS);
+        if (onFlush != null)
+            journal.onDurable(pointer, onFlush);
+    }
+
+    @Override
+    public Iterator<TopologyUpdate> replayTopologies()
+    {
+        AccordJournalValueSerializers.ListAccumulator<TopologyUpdate> accumulator = readAll(new JournalKey(TxnId.NONE, JournalKey.Type.TOPOLOGY_UPDATE, -1));
+        return accumulator.get().iterator();
+    }
+
+    @Override
+    public void saveTopology(TopologyUpdate topologyUpdate, Runnable onFlush)
+    {
+        RecordPointer pointer = appendInternal(new JournalKey(TxnId.NONE, JournalKey.Type.TOPOLOGY_UPDATE, -1), topologyUpdate);
         if (onFlush != null)
             journal.onDurable(pointer, onFlush);
     }

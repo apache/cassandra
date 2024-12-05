@@ -47,14 +47,12 @@ import org.apache.cassandra.utils.Backoff;
 import org.mockito.Mockito;
 
 import static accord.utils.Property.qt;
+import static org.apache.cassandra.net.MessageDelivery.*;
 import static org.assertj.core.api.Assertions.assertThat;
 
 public class MessageDeliveryTest
 {
     private static final InetAddressAndPort ID1 = InetAddressAndPort.getByNameUnchecked("127.0.0.1");
-    private static final MessageDelivery.RetryErrorMessage RETRY_ERROR_MESSAGE = (i1, i2, i3, i4) -> null;
-    private static final MessageDelivery.RetryPredicate ALWAYS_RETRY = (i1, i2, i3) -> true;
-    private static final MessageDelivery.RetryPredicate ALWAYS_REJECT = (i1, i2, i3) -> false;
 
     static
     {
@@ -79,8 +77,8 @@ public class MessageDeliveryTest
                                                                      scheduler::schedule,
                                                                      Verb.ECHO_REQ, NoPayload.noPayload,
                                                                      Iterators.cycle(ID1),
-                                                                     ALWAYS_RETRY,
-                                                                     RETRY_ERROR_MESSAGE);
+                                                                     RetryPredicate.ALWAYS_RETRY,
+                                                                     RetryErrorMessage.EMPTY);
             assertThat(result).isNotDone();
             factory.processAll();
             assertThat(result).isDone();
@@ -104,8 +102,8 @@ public class MessageDeliveryTest
                                                                      scheduler::schedule,
                                                                      Verb.ECHO_REQ, NoPayload.noPayload,
                                                                      Iterators.cycle(ID1),
-                                                                     ALWAYS_RETRY,
-                                                                     RETRY_ERROR_MESSAGE);
+                                                                     RetryPredicate.ALWAYS_RETRY,
+                                                                     RetryErrorMessage.EMPTY);
             assertThat(result).isNotDone();
             factory.processAll();
             assertThat(result).isDone();
@@ -135,8 +133,8 @@ public class MessageDeliveryTest
                                                                      scheduler::schedule,
                                                                      Verb.ECHO_REQ, NoPayload.noPayload,
                                                                      Iterators.cycle(ID1),
-                                                                     ALWAYS_RETRY,
-                                                                     RETRY_ERROR_MESSAGE);
+                                                                     RetryPredicate.ALWAYS_RETRY,
+                                                                     RetryErrorMessage.EMPTY);
             assertThat(result).isNotDone();
             factory.processAll();
             assertThat(result).isDone();
@@ -163,8 +161,8 @@ public class MessageDeliveryTest
                                                                      scheduler::schedule,
                                                                      Verb.ECHO_REQ, NoPayload.noPayload,
                                                                      Iterators.cycle(ID1),
-                                                                     ALWAYS_REJECT,
-                                                                     RETRY_ERROR_MESSAGE);
+                                                                     RetryPredicate.ALWAYS_REJECT,
+                                                                     RetryErrorMessage.EMPTY);
             assertThat(result).isNotDone();
             factory.processAll();
             assertThat(result).isDone();

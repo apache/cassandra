@@ -194,6 +194,7 @@ public class AccordSpec
     public boolean ephemeralReadEnabled = true;
     public boolean state_cache_listener_jfr_enabled = true;
     public final JournalSpec journal = new JournalSpec();
+    // TODO: do we need more retries; rename
     public final MinEpochRetrySpec minEpochSyncRetry = new MinEpochRetrySpec();
 
     public static class MinEpochRetrySpec extends RetrySpec

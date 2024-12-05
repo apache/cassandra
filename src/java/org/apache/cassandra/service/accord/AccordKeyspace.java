@@ -139,7 +139,6 @@ import org.apache.cassandra.service.accord.serializers.AccordRoutingKeyByteSourc
 import org.apache.cassandra.service.accord.serializers.CommandSerializers;
 import org.apache.cassandra.service.accord.serializers.CommandsForKeySerializer;
 import org.apache.cassandra.service.accord.serializers.KeySerializers;
-import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.utils.Clock.Global;
 import org.apache.cassandra.utils.CloseableIterator;
 import org.apache.cassandra.utils.btree.BTree;
@@ -1498,6 +1497,7 @@ public class AccordKeyspace
      * fails, we can detect and cleanup. If we updated disk state after an update and it failed, we could "forget"
      * about (now acked) topology updates after a restart.
      */
+    // Should this one be synchronized?
     private static EpochDiskState maybeUpdateMaxEpoch(EpochDiskState diskState, long epoch)
     {
         if (diskState.isEmpty())
@@ -1596,22 +1596,18 @@ public class AccordKeyspace
 
     public interface TopologyLoadConsumer
     {
-        void load(long epoch, ClusterMetadata metadata, Topology topology, SyncStatus syncStatus, Set<Node.Id> pendingSyncNotify, Set<Node.Id> remoteSyncComplete, Ranges closed, Ranges redundant);
+        void load(long epoch, SyncStatus syncStatus, Set<Node.Id> pendingSyncNotify, Set<Node.Id> remoteSyncComplete, Ranges closed, Ranges redundant);
     }
 
     @VisibleForTesting
-    public static void loadEpoch(long epoch, ClusterMetadata metadata, TopologyLoadConsumer consumer) throws IOException
+    public static void loadEpoch(long epoch, TopologyLoadConsumer consumer) throws IOException
     {
-        Topology topology = AccordTopology.createAccordTopology(metadata);
-
-        String cql = "SELECT * FROM " + ACCORD_KEYSPACE_NAME + '.' + TOPOLOGIES + ' ' +
-                     "WHERE epoch=?";
-
-        UntypedResultSet result = executeInternal(cql, epoch);
+        UntypedResultSet result = executeInternal(String.format("SELECT * FROM %s.%s WHERE epoch=?", ACCORD_KEYSPACE_NAME, TOPOLOGIES), epoch);
         if (result.isEmpty())
         {
+            // TODO: check if we still need this
             // topology updates disk state for epoch but doesn't save the topology to the table, so there maybe an epoch we know about, but no fields are present
-            consumer.load(epoch, metadata, topology, SyncStatus.NOT_STARTED, Collections.emptySet(), Collections.emptySet(), Ranges.EMPTY, Ranges.EMPTY);
+            consumer.load(epoch, SyncStatus.NOT_STARTED, Collections.emptySet(), Collections.emptySet(), Ranges.EMPTY, Ranges.EMPTY);
             return;
         }
         checkState(!result.isEmpty(), "Nothing found for epoch %d", epoch);
@@ -1629,7 +1625,7 @@ public class AccordKeyspace
         Ranges closed = row.has("closed") ? blobMapToRanges(row.getMap("closed", BytesType.instance, BytesType.instance)) : Ranges.EMPTY;
         Ranges redundant = row.has("redundant") ? blobMapToRanges(row.getMap("redundant", BytesType.instance, BytesType.instance)) : Ranges.EMPTY;
 
-        consumer.load(epoch, metadata, topology, syncStatus, pendingSyncNotify, remoteSyncComplete, closed, redundant);
+        consumer.load(epoch, syncStatus, pendingSyncNotify, remoteSyncComplete, closed, redundant);
     }
 
     public static EpochDiskState loadTopologies(TopologyLoadConsumer consumer)
@@ -1640,8 +1636,8 @@ public class AccordKeyspace
             if (diskState == null)
                 return EpochDiskState.EMPTY;
 
-            for (ClusterMetadata metadata : AccordService.tcmLoadRange(diskState.minEpoch, diskState.maxEpoch))
-                loadEpoch(metadata.epoch.getEpoch(), metadata, consumer);
+            for (long epoch = diskState.minEpoch; epoch < diskState.maxEpoch; epoch++)
+                loadEpoch(epoch, consumer);
 
             return diskState;
         }
