@@ -43,7 +43,6 @@ import accord.api.RoutingKey;
 import accord.api.Timeouts;
 import accord.impl.DefaultLocalListeners;
 import accord.impl.DefaultLocalListeners.NotifySink.NoOpNotifySink;
-import accord.impl.InMemoryCommandStore;
 import accord.local.Command;
 import accord.local.CommandStore;
 import accord.local.CommandStores;
@@ -354,32 +353,6 @@ public class AccordTestUtils
         {
             add(1, new CommandStores.RangesForEpoch(1, ranges), ranges);
         }
-    }
-
-    public static InMemoryCommandStore.Synchronized createInMemoryCommandStore(LongSupplier now, String keyspace, String table)
-    {
-        TableMetadata metadata = Schema.instance.getTableMetadata(keyspace, table);
-        TokenRange range = TokenRange.fullRange(metadata.id);
-        Node.Id node = new Id(1);
-        NodeCommandStoreService time = new NodeCommandStoreService()
-        {
-            private ToLongFunction<TimeUnit> elapsed = TimeService.elapsedWrapperFromNonMonotonicSource(TimeUnit.MICROSECONDS, this::now);
-
-            @Override public Id id() { return node;}
-            @Override public Timeouts timeouts() { return null; }
-            @Override public DurableBefore durableBefore() { return DurableBefore.EMPTY; }
-            @Override public long epoch() {return 1; }
-            @Override public long now() {return now.getAsLong(); }
-            @Override public Timestamp uniqueNow() { return uniqueNow(Timestamp.NONE); }
-            @Override public Timestamp uniqueNow(Timestamp atLeast) { return Timestamp.fromValues(1, now.getAsLong(), node); }
-            @Override public long elapsed(TimeUnit timeUnit) { return elapsed.applyAsLong(timeUnit); }
-        };
-
-        SingleEpochRanges holder = new SingleEpochRanges(Ranges.of(range));
-        InMemoryCommandStore.Synchronized result = new InMemoryCommandStore.Synchronized(0, time, new AccordAgent(),
-                                                     null, null, cs -> null, holder);
-        holder.set();
-        return result;
     }
 
     public static AccordCommandStore createAccordCommandStore(

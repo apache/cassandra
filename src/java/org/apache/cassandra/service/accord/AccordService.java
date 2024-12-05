@@ -132,7 +132,6 @@ import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.metrics.AccordClientRequestMetrics;
 import org.apache.cassandra.metrics.ClientRequestMetrics;
 import org.apache.cassandra.metrics.ClientRequestsMetricsHolder;
-import org.apache.cassandra.metrics.TCMMetrics;
 import org.apache.cassandra.net.IVerbHandler;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessageDelivery;
@@ -142,7 +141,6 @@ import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.schema.TableMetadata;
-import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.service.accord.AccordSyncPropagator.Notification;
 import org.apache.cassandra.service.accord.api.AccordAgent;
 import org.apache.cassandra.service.accord.api.AccordRoutingKey.KeyspaceSplitter;
@@ -163,7 +161,6 @@ import org.apache.cassandra.service.consensus.migration.TableMigrationState;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.ClusterMetadataService;
 import org.apache.cassandra.tcm.Epoch;
-import org.apache.cassandra.tcm.Retry;
 import org.apache.cassandra.tcm.membership.NodeId;
 import org.apache.cassandra.tcm.ownership.DataPlacement;
 import org.apache.cassandra.tracing.Tracing;
@@ -271,17 +268,23 @@ public class AccordService implements IAccordService, Shutdownable
     {
         logger.info("Starting journal replay.");
         CommandsForKey.disableLinearizabilityViolationsReporting();
-        AccordKeyspace.truncateAllCaches();
+        try
+        {
+            AccordKeyspace.truncateAllCaches();
+            as.journal().replay(as.node().commandStores());
 
-        as.journal().replay(as.node().commandStores());
-
-        logger.info("Waiting for command stores to quiesce.");
-        ((AccordCommandStores)as.node.commandStores()).waitForQuiescense();
-        CommandsForKey.enableLinearizabilityViolationsReporting();
-        as.journal.unsafeSetStarted();
+            logger.info("Waiting for command stores to quiesce.");
+            ((AccordCommandStores)as.node.commandStores()).waitForQuiescense();
+            as.journal.unsafeSetStarted();
+        }
+        finally
+        {
+            CommandsForKey.enableLinearizabilityViolationsReporting();
+        }
 
         logger.info("Finished journal replay.");
     }
+
     public static void shutdownServiceAndWait(long timeout, TimeUnit unit) throws InterruptedException, TimeoutException
     {
         IAccordService i = instance;
@@ -305,6 +308,13 @@ public class AccordService implements IAccordService, Shutdownable
         return i;
     }
 
+    public static boolean started()
+    {
+        if (!DatabaseDescriptor.getAccordTransactionsEnabled())
+            return false;
+        return instance != null;
+    }
+
     private AccordService(Id localId)
     {
         Invariants.checkState(localId != null, "static localId must be set before instantiating AccordService");
@@ -313,13 +323,13 @@ public class AccordService implements IAccordService, Shutdownable
         agent.setNodeId(localId);
         AccordTimeService time = new AccordTimeService();
         final RequestCallbacks callbacks = new RequestCallbacks(time);
-        this.configService = new AccordConfigurationService(localId);
-        this.fastPathCoordinator = AccordFastPathCoordinator.create(localId, configService);
-        this.messageSink = new AccordMessageSink(agent, configService, callbacks);
         this.scheduler = new AccordScheduler();
         this.dataStore = new AccordDataStore();
         this.configuration = new AccordConfiguration(DatabaseDescriptor.getRawConfig());
         this.journal = new AccordJournal(DatabaseDescriptor.getAccord().journal, agent);
+        this.configService = new AccordConfigurationService(localId, journal);
+        this.fastPathCoordinator = AccordFastPathCoordinator.create(localId, configService);
+        this.messageSink = new AccordMessageSink(agent, configService, callbacks);
         this.node = new Node(localId,
                              messageSink,
                              configService,
@@ -335,10 +345,11 @@ public class AccordService implements IAccordService, Shutdownable
                              ignore -> callbacks,
                              DefaultProgressLogs::new,
                              DefaultLocalListeners.Factory::new,
-                             AccordCommandStores.factory(journal),
+                             AccordCommandStores.factory(),
                              new AccordInteropFactory(agent, configService),
                              journal.durableBeforePersister(),
-                             configuration);
+                             configuration,
+                             journal);
         this.nodeShutdown = toShutdownable(node);
         this.requestHandler = new AccordVerbHandler<>(node, configService);
         this.responseHandler = new AccordResponseVerbHandler<>(callbacks, configService);
@@ -351,50 +362,39 @@ public class AccordService implements IAccordService, Shutdownable
             return;
         journal.start(node);
         node.load();
-        ClusterMetadataService cms = ClusterMetadataService.instance();
-        class Ref { List<ClusterMetadata> historic = Collections.emptyList();}
-        Ref ref = new Ref();
-        configService.start((optMaxEpoch -> {
-            List<ClusterMetadata> historic = ref.historic = !optMaxEpoch.isEmpty()
-                    ? tcmLoadRange(optMaxEpoch.getAsLong(), Long.MAX_VALUE)
-                    : discoverHistoric(node, cms);
-            for (ClusterMetadata m : historic)
-                configService.reportMetadataInternal(m, true);
-        }));
-        ClusterMetadata current = cms.metadata();
-        if (!ref.historic.isEmpty())
-        {
-            List<ClusterMetadata> historic = ref.historic;
-            long lastHistoric = ref.historic.get(historic.size() - 1).epoch.getEpoch();
-            if (lastHistoric + 1 < current.epoch.getEpoch())
-            {
-                // new epochs added while loading... load the deltas
-                for (ClusterMetadata metadata : tcmLoadRange(lastHistoric + 1, current.epoch.getEpoch()))
-                {
-                    historic.add(metadata);
-                    configService.reportMetadataInternal(metadata);
-                }
-            }
 
-            // sync doesn't happen when this node isn't in the epoch
-            //TODO (now, correctness): sync points use "closed" and not "syncComplete", so need to call TM.epochRedundant or TM.onEpochClosed
-            // epochRedundant implies all txn that have been proposed for this epoch have been executed "globally" - we don't have this knowlege
-            // epochClosed implies no "new" txn can be proposed
-            for (ClusterMetadata m : historic)
+        ClusterMetadata metadata = ClusterMetadata.current();
+        // TODO (review/discussion): Even though previous version was updating metadatas and topologies in the loop, in
+        //      reality mappings were just "waved" through, while historical topologies would be saved by configuration
+        //      service. In other words, it was _always_ possible for historical topologies to contain peers that are
+        //      _not_ present in metadata anymore.
+        configService.updateMapping(metadata);
+
+        node.commandStores().restoreShardStateUnsafe();
+        configService.start();
+
+        long minEpoch = fetchMinEpoch();
+        if (minEpoch >= 0)
+        {
+            for (long epoch = minEpoch; epoch <= metadata.epoch.getEpoch(); epoch++)
+                node.configService().fetchTopologyForEpoch(epoch);
+
+            try
             {
-                Topology t = AccordTopology.createAccordTopology(m);
-                long epoch = t.epoch();
-                for (Id id : t.nodes())
-                    node.onRemoteSyncComplete(id, epoch);
-                //TODO (correctness): is this true?
-                node.onEpochClosed(t.ranges(), t.epoch());
-                node.onEpochRedundant(t.ranges(), t.epoch());
+                epochReady(metadata.epoch).get(DatabaseDescriptor.getTransactionTimeout(MILLISECONDS), MILLISECONDS);
+            }
+            catch (InterruptedException e)
+            {
+                throw new UncheckedInterruptedException(e);
+            }
+            catch (ExecutionException | TimeoutException e)
+            {
+                throw new RuntimeException(e);
             }
         }
-        configService.reportMetadataInternal(current);
 
         fastPathCoordinator.start();
-        cms.log().addListener(fastPathCoordinator);
+        ClusterMetadataService.instance().log().addListener(fastPathCoordinator);
         node.durabilityScheduling().setDefaultRetryDelay(Ints.checkedCast(DatabaseDescriptor.getAccordDefaultDurabilityRetryDelay(SECONDS)), SECONDS);
         node.durabilityScheduling().setMaxRetryDelay(Ints.checkedCast(DatabaseDescriptor.getAccordMaxDurabilityRetryDelay(SECONDS)), SECONDS);
         node.durabilityScheduling().setTargetShardSplits(Ints.checkedCast(DatabaseDescriptor.getAccordShardDurabilityTargetSplits()));
@@ -405,25 +405,23 @@ public class AccordService implements IAccordService, Shutdownable
         state = State.STARTED;
     }
 
-    private List<ClusterMetadata> discoverHistoric(Node node, ClusterMetadataService cms)
+    /**
+     * Queries peers to discover min epoch
+     */
+    private long fetchMinEpoch()
     {
-        ClusterMetadata current = cms.metadata();
-        Topology topology = AccordTopology.createAccordTopology(current);
-        Ranges localRanges = topology.rangesForNode(node.id());
-        if (!localRanges.isEmpty()) // already joined, nothing to see here
-            return Collections.emptyList();
-
+        ClusterMetadata metadata = ClusterMetadata.current();
         Map<InetAddressAndPort, Set<TokenRange>> peers = new HashMap<>();
-        for (KeyspaceMetadata keyspace : current.schema.getKeyspaces())
+        for (KeyspaceMetadata keyspace : metadata.schema.getKeyspaces())
         {
             List<TableMetadata> tables = keyspace.tables.stream().filter(TableMetadata::requiresAccordSupport).collect(Collectors.toList());
             if (tables.isEmpty())
                 continue;
-            DataPlacement placement = current.placements.get(keyspace.params.replication);
-            DataPlacement whenSettled = current.writePlacementAllSettled(keyspace);
-            Sets.SetView<InetAddressAndPort> alive = Sets.intersection(whenSettled.writes.byEndpoint().keySet(), placement.writes.byEndpoint().keySet());
+            DataPlacement current = metadata.placements.get(keyspace.params.replication);
+            DataPlacement settled = metadata.writePlacementAllSettled(keyspace);
+            Sets.SetView<InetAddressAndPort> alive = Sets.intersection(settled.writes.byEndpoint().keySet(), current.writes.byEndpoint().keySet());
             InetAddressAndPort self = FBUtilities.getBroadcastAddressAndPort();
-            whenSettled.writes.forEach((range, group) -> {
+            settled.writes.forEach((range, group) -> {
                 if (group.endpoints().contains(self))
                 {
                     for (InetAddressAndPort peer : group.endpoints())
@@ -436,35 +434,12 @@ public class AccordService implements IAccordService, Shutdownable
             });
         }
         if (peers.isEmpty())
-            return Collections.emptyList();
+            return -1;
 
         Long minEpoch = findMinEpoch(SharedContext.Global.instance, peers);
         if (minEpoch == null)
-            return Collections.emptyList();
-        return tcmLoadRange(minEpoch, current.epoch.getEpoch());
-    }
-
-    public static List<ClusterMetadata> tcmLoadRange(long min, long max)
-    {
-        List<ClusterMetadata> afterLoad = reconstruct(min, max);
-
-        if (Invariants.isParanoid())
-            Invariants.checkState(afterLoad.get(0).epoch.getEpoch() == min, "Unexpected epoch: expected %d but given %d", min, afterLoad.get(0).epoch.getEpoch());
-        while (!afterLoad.isEmpty() && afterLoad.get(0).epoch.getEpoch() < min)
-            afterLoad.remove(0);
-        Invariants.checkState(!afterLoad.isEmpty(), "TCM was unable to return the needed epochs: %d -> %d", min, max);
-        Invariants.checkState(afterLoad.get(0).epoch.getEpoch() == min, "Unexpected epoch: expected %d but given %d", min, afterLoad.get(0).epoch.getEpoch());
-        Invariants.checkState(max == Long.MAX_VALUE || afterLoad.get(afterLoad.size() - 1).epoch.getEpoch() == max, "Unexpected epoch: expected %d but given %d", max, afterLoad.get(afterLoad.size() - 1).epoch.getEpoch());
-        return afterLoad;
-    }
-
-    private static List<ClusterMetadata> reconstruct(long min, long max)
-    {
-        Epoch start = Epoch.create(min);
-        Epoch end = Epoch.create(max);
-        Retry.Deadline deadline = Retry.Deadline.wrap(new Retry.ExponentialBackoff(TCMMetrics.instance.fetchLogRetries));
-        return ClusterMetadataService.instance().processor()
-                                             .reconstruct(start, end, deadline);
+            return -1;
+        return minEpoch;
     }
 
     @VisibleForTesting

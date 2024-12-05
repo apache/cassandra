@@ -292,9 +292,10 @@ public class InJvmDTestVisitExecutor extends CQLVisitExecutor
     public interface RetryPolicy
     {
         RetryPolicy RETRY_ON_TIMEOUT = (t) -> {
-            return t.getMessage().contains("timed out") ||
-                   AssertionUtils.isInstanceof(RequestTimeoutException.class)
-                                 .matches(Throwables.getRootCause(t));
+            return t.getMessage() != null &&
+                   (t.getMessage().contains("timed out") ||
+                    AssertionUtils.isInstanceof(RequestTimeoutException.class)
+                                  .matches(Throwables.getRootCause(t)));
         };
         boolean retry(Throwable t);
     }

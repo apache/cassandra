@@ -446,7 +446,7 @@ public class ClusterMetadata
 
         public Transformer unregister(NodeId nodeId)
         {
-            directory = directory.without(nodeId);
+            directory = directory.without(epoch, nodeId);
 
             Node.Id accordId = AccordTopology.tcmIdToAccord(nodeId);
             if (accordStaleReplicas.contains(accordId))
@@ -516,7 +516,7 @@ public class ClusterMetadata
             Collection<Token> transferringTokens = tokenMap.tokens(replaced);
             tokenMap = tokenMap.unassignTokens(replaced)
                                .assignTokens(replacement, transferringTokens);
-            directory = directory.without(replaced)
+            directory = directory.without(epoch, replaced)
                                  .withRackAndDC(replacement)
                                  .withNodeState(replacement, NodeState.JOINED);
 

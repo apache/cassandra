@@ -373,14 +373,9 @@ import static org.apache.cassandra.utils.FBUtilities.getBroadcastAddressAndPort;
         metadata = ClusterMetadata.current();
 
         NodeState startingstate = metadata.directory.peerState(self);
-        switch (startingstate)
-        {
-            case REGISTERED:
-            case LEFT:
-                break;
-            default:
-                AccordService.startup(self);
-        }
+        if (startingstate != REGISTERED && startingstate != LEFT)
+            AccordService.startup(self);
+
         switch (startingstate)
         {
             case REGISTERED:

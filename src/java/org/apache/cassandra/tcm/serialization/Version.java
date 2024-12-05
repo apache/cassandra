@@ -50,6 +50,15 @@ public enum Version
      */
     V3(3),
 
+    // Padding
+    V4(4),
+    V5(5),
+    V6(6),
+    /**
+     *  - Accord
+     */
+    V7(7),
+
     UNKNOWN(Integer.MAX_VALUE);
 
     /**

@@ -56,19 +56,19 @@ import org.apache.cassandra.distributed.api.SimpleQueryResult;
 import org.apache.cassandra.distributed.impl.Query;
 import org.apache.cassandra.distributed.shared.WithProperties;
 import org.apache.cassandra.harry.SchemaSpec;
-import org.apache.cassandra.harry.op.Visit;
-import org.apache.cassandra.harry.op.Operations;
-import org.apache.cassandra.harry.gen.OperationsGenerators;
 import org.apache.cassandra.harry.execution.CompiledStatement;
 import org.apache.cassandra.harry.execution.DataTracker;
 import org.apache.cassandra.harry.execution.QueryBuildingVisitExecutor;
 import org.apache.cassandra.harry.gen.EntropySource;
 import org.apache.cassandra.harry.gen.Generator;
+import org.apache.cassandra.harry.gen.OperationsGenerators;
 import org.apache.cassandra.harry.gen.SchemaGenerators;
 import org.apache.cassandra.harry.gen.rng.JdkRandomEntropySource;
 import org.apache.cassandra.harry.model.Model;
 import org.apache.cassandra.harry.model.QuiescentChecker;
 import org.apache.cassandra.harry.model.TokenPlacementModel;
+import org.apache.cassandra.harry.op.Operations;
+import org.apache.cassandra.harry.op.Visit;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.net.Verb;
 import org.apache.cassandra.schema.ReplicationParams;
@@ -122,9 +122,9 @@ import static org.apache.cassandra.simulator.cluster.ClusterActions.Options.noAc
  *
  * And then run your test using the following settings (omit add-* if you are running on jdk8):
  *
-        -Dstorage-config=/Users/ifesdjeen/p/java/cassandra-accord/test/conf
+        -Dstorage-config=$MODULE_DIR$/test/conf
         -Djava.awt.headless=true
-        -javaagent:/Users/ifesdjeen/p/java/cassandra-accord/lib/jamm-0.4.0.jar
+        -javaagent:$MODULE_DIR$/lib/jamm-0.4.0.jar
         -ea
         -Dcassandra.debugrefcount=true
         -Xss384k
@@ -146,15 +146,15 @@ import static org.apache.cassandra.simulator.cluster.ClusterActions.Options.noAc
         -Dcassandra.test.messagingService.nonGracefulShutdown=true
         -Dcassandra.use_nix_recursive_delete=true
         -Dcie-cassandra.disable_schema_drop_log=true
-        -Dlogback.configurationFile=file:///Users/ifesdjeen/p/java/cassandra-accord/test/conf/logback-simulator.xml
+        -Dlogback.configurationFile=file://$MODULE_DIR$/test/conf/logback-simulator.xml
         -Dcassandra.ring_delay_ms=10000
         -Dcassandra.tolerate_sstable_size=true
         -Dcassandra.skip_sync=true
         -Dcassandra.debugrefcount=false
         -Dcassandra.test.simulator.determinismcheck=strict
         -Dcassandra.test.simulator.print_asm=none
-        -javaagent:/Users/ifesdjeen/p/java/cassandra-accord/build/test/lib/jars/simulator-asm.jar
-        -Xbootclasspath/a:/Users/ifesdjeen/p/java/cassandra-accord/build/test/lib/jars/simulator-bootstrap.jar
+        -javaagent:$MODULE_DIR$/build/test/lib/jars/simulator-asm.jar
+        -Xbootclasspath/a:$MODULE_DIR$/build/test/lib/jars/simulator-bootstrap.jar
         -XX:ActiveProcessorCount=4
         -XX:-TieredCompilation
         -XX:-BackgroundCompilation
@@ -202,7 +202,7 @@ public class HarrySimulatorTest
         HarrySimulatorTest test = SingleCommand.singleCommand(HarrySimulatorTest.class).parse(args);
         if (test.helpOption.showHelpIfRequested())
             return;
-        test.harryTest();
+        test.testInternal();
         System.exit(1);
     }
 
@@ -211,11 +211,10 @@ public class HarrySimulatorTest
     {
         // To rerun a failing test for a given seed, uncomment the below and set the seed
 //        this.seed = "<your seed here>";
-        this.seed = "0xdd3bb3793a6b925a";
-        harryTest();
+        testInternal();
     }
 
-    private void harryTest() throws Exception
+    protected void testInternal() throws Exception
     {
         int bootstrapNode1 = 4;
         int bootstrapNode2 = 8;
@@ -514,7 +513,7 @@ public class HarrySimulatorTest
         }
     }
 
-    static class HarrySimulationBuilder extends ClusterSimulation.Builder<HarrySimulation>
+    class HarrySimulationBuilder extends ClusterSimulation.Builder<HarrySimulation>
     {
         protected final Consumer<IInstanceConfig> configUpdater;
 
@@ -526,7 +525,7 @@ public class HarrySimulatorTest
         @Override
         public Map<Verb, FutureActionScheduler> perVerbFutureActionSchedulers(int nodeCount, SimulatedTime time, RandomSource random)
         {
-            return HarrySimulatorTest.networkSchedulers(nodeCount, time, random);
+            return networkSchedulers(nodeCount, time, random);
         }
 
         @Override
@@ -600,7 +599,7 @@ public class HarrySimulatorTest
     /**
      * Custom network scheduler for testing TCM.
      */
-    public static Map<Verb, FutureActionScheduler> networkSchedulers(int nodes, SimulatedTime time, RandomSource random)
+    public Map<Verb, FutureActionScheduler> networkSchedulers(int nodes, SimulatedTime time, RandomSource random)
     {
         Set<Verb> extremelyLossy = new HashSet<>(Arrays.asList(Verb.TCM_ABORT_MIG, Verb.TCM_REPLICATION,
                                                                Verb.TCM_COMMIT_REQ, Verb.TCM_NOTIFY_REQ,
@@ -633,7 +632,7 @@ public class HarrySimulatorTest
         return schedulers;
     }
 
-    public Action reconfigureCMS(SimulatedSystems simulated, Cluster cluster, int rf, boolean inEachDc)
+    public static Action reconfigureCMS(SimulatedSystems simulated, Cluster cluster, int rf, boolean inEachDc)
     {
         return new SimulatedActionTask("", Action.Modifiers.RELIABLE_NO_TIMEOUTS, Action.Modifiers.RELIABLE_NO_TIMEOUTS, null, simulated,
                                        new InterceptedExecution.InterceptedRunnableExecution((InterceptingExecutor) cluster.get(1).executor(),
@@ -690,7 +689,7 @@ public class HarrySimulatorTest
                                                                                              cluster.get(node).transfer(runnable)));
     }
 
-    public Action decommission(SimulatedSystems simulated, Cluster cluster, int node)
+    public static Action decommission(SimulatedSystems simulated, Cluster cluster, int node)
     {
         IIsolatedExecutor.SerializableRunnable runnable = () -> {
             try
@@ -764,12 +763,14 @@ public class HarrySimulatorTest
                 CompiledStatement compiledStatement = simulation.queryBuilder.compile(visit);
                 DataTracker tracker = simulation.tracker;
 
+                int[] joined = simulation.nodeState.joined();
+                int coordinator = joined[simulation.rng.nextInt(joined.length)];
                 RetryingQuery query = new RetryingQuery(compiledStatement.cql(), cl, compiledStatement.bindings());
                 Action wrapper = new SimulatedActionCallable<>("Query",
                                                                Action.Modifiers.RELIABLE_NO_TIMEOUTS,
                                                                Action.Modifiers.RELIABLE_NO_TIMEOUTS,
                                                                simulation.simulated,
-                                                               simulation.cluster.get((int) ((lts % simulation.cluster.size()) + 1)),
+                                                               simulation.cluster.get(coordinator),
                                                                query)
                 {
                     @Override
@@ -780,7 +781,6 @@ public class HarrySimulatorTest
                             public void run()
                             {
                                 tracker.begin(visit);
-                                System.out.println("Started visit = " + visit);
                                 // we'll be invoked on the node's executor, but we need to ensure the task is loaded on its classloader
                                 try
                                 {
@@ -804,10 +804,7 @@ public class HarrySimulatorTest
                         if (failure != null)
                             simulated.failures.accept(failure);
                         else
-                        {
-                            System.out.println("Finished visit = " + visit);
                             tracker.end(visit);
-                        }
                     }
                 };
 
@@ -1038,7 +1035,7 @@ public class HarrySimulatorTest
         return arr;
     }
 
-    public static Generator<SchemaSpec> schemaSpecGen(String keyspace, String prefix)
+    public Generator<SchemaSpec> schemaSpecGen(String keyspace, String prefix)
     {
         return SchemaGenerators.schemaSpecGen(keyspace, prefix, 1000);
     }

@@ -117,7 +117,7 @@ public interface CMSPlacementStrategy
             {
                 if (!filter.apply(metadata, peerId))
                 {
-                    tmpDirectory = tmpDirectory.without(peerId);
+                    tmpDirectory = tmpDirectory.without(metadata.nextEpoch(), peerId);
                     tokenMap = tokenMap.unassignTokens(peerId);
                 }
             }

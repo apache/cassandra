@@ -40,6 +40,7 @@ import org.apache.cassandra.utils.ByteArrayUtil;
 import static org.apache.cassandra.db.TypeSizes.BYTE_SIZE;
 import static org.apache.cassandra.db.TypeSizes.INT_SIZE;
 import static org.apache.cassandra.db.TypeSizes.LONG_SIZE;
+import static org.apache.cassandra.service.accord.AccordJournalValueSerializers.*;
 import static org.apache.cassandra.service.accord.AccordJournalValueSerializers.RangesForEpochSerializer;
 import static org.apache.cassandra.service.accord.AccordJournalValueSerializers.SafeToReadSerializer;
 
@@ -266,6 +267,7 @@ public final class JournalKey
         SAFE_TO_READ                 (3, new SafeToReadSerializer()),
         BOOTSTRAP_BEGAN_AT           (4, new BootstrapBeganAtSerializer()),
         RANGES_FOR_EPOCH             (5, new RangesForEpochSerializer()),
+        TOPOLOGY_UPDATE              (6, new TopologyUpdateSerializer()),
         ;
 
         public final int id;

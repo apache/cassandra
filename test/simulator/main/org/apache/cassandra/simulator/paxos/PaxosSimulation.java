@@ -36,6 +36,7 @@ import com.google.common.base.Throwables;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import accord.coordinate.Invalidated;
 import org.apache.cassandra.concurrent.ExecutorFactory;
 import org.apache.cassandra.concurrent.ScheduledExecutorPlus;
 import org.apache.cassandra.distributed.Cluster;
@@ -77,7 +78,7 @@ public abstract class PaxosSimulation implements Simulation, ClusterActionListen
 
     protected Class<? extends Throwable>[] expectedExceptions()
     {
-        return (Class<? extends Throwable>[]) new Class<?>[] { RequestExecutionException.class };
+        return (Class<? extends Throwable>[]) new Class<?>[] { RequestExecutionException.class, Invalidated.class };
     }
 
     abstract class Operation extends SimulatedActionCallable<SimpleQueryResult> implements BiConsumer<SimpleQueryResult, Throwable>

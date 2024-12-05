@@ -26,21 +26,6 @@ import java.util.Optional;
 import java.util.UUID;
 
 import com.google.common.collect.Sets;
-import org.apache.cassandra.db.marshal.Int32Type;
-import org.apache.cassandra.dht.Range;
-import org.apache.cassandra.dht.Token;
-import org.apache.cassandra.locator.Replica;
-import org.apache.cassandra.schema.DistributedSchema;
-import org.apache.cassandra.schema.KeyspaceMetadata;
-import org.apache.cassandra.schema.TableMetadata;
-import org.apache.cassandra.schema.Tables;
-import org.apache.cassandra.tcm.ValidatingClusterMetadataService;
-import org.apache.cassandra.tcm.membership.Location;
-import org.apache.cassandra.tcm.membership.NodeAddresses;
-import org.apache.cassandra.tcm.membership.NodeId;
-import org.apache.cassandra.tcm.membership.NodeVersion;
-import org.apache.cassandra.tcm.ownership.DataPlacement;
-import org.apache.cassandra.tcm.serialization.Version;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.BeforeClass;
@@ -56,16 +41,31 @@ import org.apache.cassandra.ServerTestUtils;
 import org.apache.cassandra.concurrent.ScheduledExecutors;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.Keyspace;
+import org.apache.cassandra.db.marshal.Int32Type;
 import org.apache.cassandra.dht.Murmur3Partitioner;
+import org.apache.cassandra.dht.Range;
+import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.locator.Replica;
 import org.apache.cassandra.net.ConnectionType;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessageDelivery;
 import org.apache.cassandra.net.RequestCallback;
+import org.apache.cassandra.schema.DistributedSchema;
+import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.schema.TableId;
+import org.apache.cassandra.schema.TableMetadata;
+import org.apache.cassandra.schema.Tables;
 import org.apache.cassandra.service.accord.AccordKeyspace.EpochDiskState;
 import org.apache.cassandra.tcm.ClusterMetadata;
+import org.apache.cassandra.tcm.ValidatingClusterMetadataService;
+import org.apache.cassandra.tcm.membership.Location;
+import org.apache.cassandra.tcm.membership.NodeAddresses;
+import org.apache.cassandra.tcm.membership.NodeId;
+import org.apache.cassandra.tcm.membership.NodeVersion;
+import org.apache.cassandra.tcm.ownership.DataPlacement;
+import org.apache.cassandra.tcm.serialization.Version;
 import org.apache.cassandra.utils.MockFailureDetector;
 import org.apache.cassandra.utils.concurrent.Future;
 
@@ -175,7 +175,8 @@ public class AccordConfigurationServiceTest
     {
         ValidatingClusterMetadataService cms = ValidatingClusterMetadataService.createAndRegister(Version.MIN_ACCORD_VERSION);
 
-        AccordConfigurationService service = new AccordConfigurationService(ID1, new Messaging(), new MockFailureDetector(), AccordConfigurationService.SystemTableDiskStateManager.instance, ScheduledExecutors.scheduledTasks);
+
+        AccordConfigurationService service = new AccordConfigurationService(ID1, new Messaging(), new MockFailureDetector(), AccordConfigurationService.SystemTableDiskStateManager.instance, ScheduledExecutors.scheduledTasks, null);
         Assert.assertEquals(null, AccordKeyspace.loadEpochDiskState());
         service.start();
         Assert.assertEquals(null, AccordKeyspace.loadEpochDiskState());
@@ -183,16 +184,14 @@ public class AccordConfigurationServiceTest
 
         Topology topology1 = createTopology(cms);
         service.reportTopology(topology1);
-        loadEpoch(1, cms.metadata(), (epoch, cm, topology, syncStatus, pendingSync, remoteSync, closed, redundant) -> {
-            Assert.assertEquals(topology1, topology);
+        loadEpoch(1, (epoch, syncStatus, pendingSync, remoteSync, closed, redundant) -> {
             Assert.assertTrue(remoteSync.isEmpty());
         });
         Assert.assertEquals(EpochDiskState.create(1), service.diskState());
 
         service.receiveRemoteSyncComplete(ID1, 1);
         service.receiveRemoteSyncComplete(ID2, 1);
-        loadEpoch(1, cms.metadata(), (epoch, cm, topology, syncStatus, pendingSync, remoteSync, closed, redundant) -> {
-            Assert.assertEquals(topology1, topology);
+        loadEpoch(1, (epoch, syncStatus, pendingSync, remoteSync, closed, redundant) -> {
             Assert.assertEquals(Sets.newHashSet(ID1, ID2), remoteSync);
         });
     }
@@ -202,7 +201,8 @@ public class AccordConfigurationServiceTest
     {
         ValidatingClusterMetadataService cms = ValidatingClusterMetadataService.createAndRegister(Version.MIN_ACCORD_VERSION);
 
-        AccordConfigurationService service = new AccordConfigurationService(ID1, new Messaging(), new MockFailureDetector(), AccordConfigurationService.SystemTableDiskStateManager.instance, ScheduledExecutors.scheduledTasks);
+        // TODO
+        AccordConfigurationService service = new AccordConfigurationService(ID1, new Messaging(), new MockFailureDetector(), AccordConfigurationService.SystemTableDiskStateManager.instance, ScheduledExecutors.scheduledTasks, null);
         service.start();
 
         Topology topology1 = createTopology(cms);
@@ -222,7 +222,7 @@ public class AccordConfigurationServiceTest
         service.reportTopology(topology3);
         service.acknowledgeEpoch(EpochReady.done(3), true);
 
-        AccordConfigurationService loaded = new AccordConfigurationService(ID1, new Messaging(), new MockFailureDetector(), AccordConfigurationService.SystemTableDiskStateManager.instance, ScheduledExecutors.scheduledTasks);
+        AccordConfigurationService loaded = new AccordConfigurationService(ID1, new Messaging(), new MockFailureDetector(), AccordConfigurationService.SystemTableDiskStateManager.instance, ScheduledExecutors.scheduledTasks, null); // TODO
         loaded.updateMapping(mappingForEpoch(cms.metadata().epoch.getEpoch() + 1));
         AbstractConfigurationServiceTest.TestListener listener = new AbstractConfigurationServiceTest.TestListener(loaded, true);
         loaded.registerListener(listener);
@@ -243,7 +243,7 @@ public class AccordConfigurationServiceTest
     {
         ValidatingClusterMetadataService cms = ValidatingClusterMetadataService.createAndRegister(Version.MIN_ACCORD_VERSION);
 
-        AccordConfigurationService service = new AccordConfigurationService(ID1, new Messaging(), new MockFailureDetector(), AccordConfigurationService.SystemTableDiskStateManager.instance, ScheduledExecutors.scheduledTasks);
+        AccordConfigurationService service = new AccordConfigurationService(ID1, new Messaging(), new MockFailureDetector(), AccordConfigurationService.SystemTableDiskStateManager.instance, ScheduledExecutors.scheduledTasks, null); // TODO
         TestListener serviceListener = new TestListener(service, true);
         service.registerListener(serviceListener);
         service.start();
@@ -261,7 +261,7 @@ public class AccordConfigurationServiceTest
         Assert.assertEquals(EpochDiskState.create(3), service.diskState());
         serviceListener.assertTruncates(3L);
 
-        AccordConfigurationService loaded = new AccordConfigurationService(ID1, new Messaging(), new MockFailureDetector(), AccordConfigurationService.SystemTableDiskStateManager.instance, ScheduledExecutors.scheduledTasks);
+        AccordConfigurationService loaded = new AccordConfigurationService(ID1, new Messaging(), new MockFailureDetector(), AccordConfigurationService.SystemTableDiskStateManager.instance, ScheduledExecutors.scheduledTasks, null); // TODO
         loaded.updateMapping(mappingForEpoch(cms.metadata().epoch.getEpoch() + 1));
         TestListener loadListener = new TestListener(loaded, true);
         loaded.registerListener(loadListener);

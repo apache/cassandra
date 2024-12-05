@@ -22,7 +22,6 @@ import java.util.Collection;
 import java.util.Iterator;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
-
 import javax.annotation.Nullable;
 
 import org.slf4j.Logger;
@@ -100,6 +99,14 @@ public interface MessageDelivery
         return promise;
     }
 
+    public default <REQ, RSP> Future<Message<RSP>> sendWithRetries(Verb verb, REQ request,
+                                                                   Iterator<InetAddressAndPort> candidates,
+                                                                   RetryPredicate shouldRetry,
+                                                                   RetryErrorMessage errorMessage)
+    {
+        return sendWithRetries(Backoff.None.INSTANCE, ImmediateRetryScheduler.instance, verb, request, candidates, shouldRetry, errorMessage);
+    }
+
     public default <REQ, RSP> void sendWithRetries(Backoff backoff, RetryScheduler retryThreads,
                                                    Verb verb, REQ request,
                                                    Iterator<InetAddressAndPort> candidates,
@@ -127,11 +134,15 @@ public interface MessageDelivery
 
     interface RetryPredicate
     {
+        public static RetryPredicate times(int n) { return (attempt, from, failure) -> attempt < n; }
+        RetryPredicate ALWAYS_RETRY = (i1, i2, i3) -> true;
+        RetryPredicate ALWAYS_REJECT = (i1, i2, i3) -> false;
         boolean test(int attempt, InetAddressAndPort from, RequestFailure failure);
     }
 
     interface RetryErrorMessage
     {
+        RetryErrorMessage EMPTY = (i1, i2, i3, i4) -> null;
         String apply(int attempt, ResponseFailureReason retryFailure, @Nullable InetAddressAndPort from, @Nullable RequestFailure reason);
     }
 
