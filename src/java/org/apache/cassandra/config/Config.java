@@ -342,7 +342,15 @@ public class Config
     // (Uber-specific) specifies whether or not Cassandra will check if enough disk space is available before starting compaction
     public volatile Boolean compaction_ignore_disk_check = false;
 
+    /**
+     * (Uber-specific) LCS enforcement is achieved by
+     * 1. Rejecting CREATE statements on non-LCS compaction params (lcs_enforcement_level)
+     * 2. Rejecting ALTER statements if it's changing the compaction strategy (alter_table_compaction_strategy_enabled)
+     *
+     * TODO: merge lcs_enforcement_level to guardrails framework. This is similar but slightly different from table_properties_disallowed/warned/ignored, but will look prettier than what we have now
+     */
     public volatile LCSEnforcementLevel lcs_enforcement_level = LCSEnforcementLevel.none;
+    public int lcs_sstable_size_in_mb = 960;
 
     public CompactionStrategyMigrationOptions compaction_strategy_migration_options = new CompactionStrategyMigrationOptions();
 
@@ -1251,8 +1259,8 @@ public class Config
 
     /**
      * Different level of LCSEnforcement:
-     * 1. hard: rejects non-LCS CREATE, rejects ALTER on any compaction strategy option
-     * 2. soft: silently transfer non-LCS CREATE to LCS, rejects ALTER on any compaction strategy option
+     * 1. hard: rejects non-LCS CREATE statements
+     * 2. soft: silently transfer non-LCS CREATE statements to LCS
      * 3. none: will not check the DDLs and will do nothing
      */
     public enum LCSEnforcementLevel

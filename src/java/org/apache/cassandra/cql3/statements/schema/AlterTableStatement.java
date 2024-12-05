@@ -476,16 +476,6 @@ public abstract class AlterTableStatement extends AlterSchemaStatement
             if (attrs.hasOption(TableParams.Option.COMPACTION)) {
                 QueryProcessor.metrics.alterStatementWithCompactionSpecifiedCount.inc();
             }
-
-            // LCS enforcement
-            // should not affect any system schema behavior
-            if (SchemaConstants.isSystemKeyspace(keyspaceName) ||
-                DatabaseDescriptor.getLCSEnforcementLevel() == Config.LCSEnforcementLevel.none) {
-                logger.info(String.format("LCS enforcement level=%s. Altering compaction strategy for %s.%s.",
-                                          DatabaseDescriptor.getLCSEnforcementLevel().name(), keyspaceName, tableName));
-                return super.execute(state, locally);
-            }
-            attrs.validate();
             return super.execute(state, locally);
         }
 

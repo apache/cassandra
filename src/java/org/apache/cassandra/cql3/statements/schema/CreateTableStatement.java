@@ -20,8 +20,6 @@ package org.apache.cassandra.cql3.statements.schema;
 import java.util.*;
 import java.util.stream.Collectors;
 
-import javax.xml.crypto.Data;
-
 import com.google.common.collect.ImmutableSet;
 
 import org.apache.commons.lang3.StringUtils;
@@ -140,15 +138,11 @@ public final class CreateTableStatement extends AlterSchemaStatement
             attrs.setLCS();
             logger.info(String.format("LCS enforcement is enabled (level=%s). Setting LCS for %s.%s as no compaction strategy is specified.",
                                       DatabaseDescriptor.getLCSEnforcementLevel().toString(), keyspaceName, tableName));
-        } else if (!Objects.equals(attrs.getCompactionStrategy(), LeveledCompactionStrategy.class.getSimpleName()) &&
-                   !Objects.equals(attrs.getCompactionStrategy(), LeveledCompactionStrategy.class.getName()))
+        }
+        else if (!Objects.equals(attrs.getCompactionStrategy(), LeveledCompactionStrategy.class.getSimpleName()) &&
+                 !Objects.equals(attrs.getCompactionStrategy(), LeveledCompactionStrategy.class.getName()))
         {
             if (DatabaseDescriptor.getLCSEnforcementLevel() == Config.LCSEnforcementLevel.hard) {
-                logger.error(String.format("LCS enforcement is enabled (level=%s). Trying to create %s.%s using %s",
-                                           DatabaseDescriptor.getLCSEnforcementLevel().toString(),
-                                           keyspaceName,
-                                           tableName,
-                                           attrs.getCompactionStrategy()));
                 // throw exception hard flag is used for LCS enforcement
                 throw ire("LCS enforcement is enabled. You're trying to create schema with %s for %s.%s. Please use " +
                           "LeveledCompactionStrategy for your schema, or contact Cassandra " +
@@ -159,6 +153,13 @@ public final class CreateTableStatement extends AlterSchemaStatement
                 logger.info(String.format("LCS enforcement is enabled (level=%s). Transforming to LCS for %s.%s.",
                                           DatabaseDescriptor.getLCSEnforcementLevel().name(), keyspaceName, tableName));
             }
+        }
+        else
+        {
+            // CREATE with LCS
+            if (attrs.overrideLCSSSTableSizeInMb(DatabaseDescriptor.getLCSSSTableSizeInMB()))
+                logger.warn(String.format("sstable_size_in_mb is overriden with %s for performance concern, details in CASSANDRA-19596",
+                                          DatabaseDescriptor.getLCSSSTableSizeInMB()));
         }
         return super.execute(state, locally);
     }

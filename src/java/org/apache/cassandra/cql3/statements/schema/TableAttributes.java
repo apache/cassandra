@@ -25,6 +25,7 @@ import java.util.Set;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Sets;
 
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.statements.PropertyDefinitions;
 import org.apache.cassandra.db.compaction.LeveledCompactionStrategy;
 import org.apache.cassandra.exceptions.ConfigurationException;
@@ -224,13 +225,25 @@ public final class TableAttributes extends PropertyDefinitions
     }
 
     /**
-     * Overwrite the TableAttribtues properties. Use LCS with default settings.
+     * Overwrite the TableAttribtues properties. Use LCS with default sstable size from {@link org.apache.cassandra.config.Config#lcs_sstable_size_in_mb}
      */
     public void setLCS()
     {
         Map<String, String> defaultLCSOptions = new HashMap<>(Collections.emptyMap());
         defaultLCSOptions.put(CompactionParams.Option.CLASS.toString(), LeveledCompactionStrategy.class.getSimpleName());
         properties.put(Option.COMPACTION.toString(), defaultLCSOptions);
+        overrideLCSSSTableSizeInMb(DatabaseDescriptor.getLCSSSTableSizeInMB());
+    }
+
+    public boolean overrideLCSSSTableSizeInMb(int size)
+    {
+        boolean overriden = false;
+        Map<String, String> csOptions = getMap(Option.COMPACTION);
+        if (csOptions.containsKey(LeveledCompactionStrategy.SSTABLE_SIZE_OPTION))
+            overriden = true;
+        csOptions.put(LeveledCompactionStrategy.SSTABLE_SIZE_OPTION, String.valueOf(size));
+        properties.put(Option.COMPACTION.toString(), csOptions);
+        return overriden;
     }
 
     public String getCompactionStrategy()

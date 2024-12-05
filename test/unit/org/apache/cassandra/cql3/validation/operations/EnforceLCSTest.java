@@ -18,10 +18,13 @@
 
 package org.apache.cassandra.cql3.validation.operations;
 
+import java.util.Collections;
 import java.util.HashMap;
+import java.util.Map;
 import java.util.Optional;
 
 import org.junit.Assert;
+import org.junit.Before;
 import org.junit.Test;
 
 import com.datastax.driver.core.exceptions.InvalidQueryException;
@@ -50,20 +53,31 @@ public class EnforceLCSTest extends CQLTester
     public static HashMap<String, Class<? extends AbstractCompactionStrategy>>
     originalSystemSchemaCompactionStrategies = getSystemSchemaCompactionStrategies();
 
+    public static final Config.LCSEnforcementLevel originalLevel = DatabaseDescriptor.getLCSEnforcementLevel();
+    public static final int originalSSTableSize = DatabaseDescriptor.getLCSSSTableSizeInMB();
+
+    @Before
+    public void init()
+    {
+        DatabaseDescriptor.setLCSEnforcementLevel(originalLevel);
+        DatabaseDescriptor.setLCSSSTableSizeInMB(originalSSTableSize);
+    }
+
     @Test
     public void testNonSpecifiedCompactionForCreate() throws Throwable
     {
+        CompactionParams expectedLCSefault = CompactionParams.lcs(Collections.singletonMap(LeveledCompactionStrategy.SSTABLE_SIZE_OPTION, String.valueOf(DatabaseDescriptor.getLCSSSTableSizeInMB())));
         DatabaseDescriptor.setLCSEnforcementLevel(Config.LCSEnforcementLevel.soft);
         String table1 = createTable("CREATE TABLE %s (id text PRIMARY KEY, content text);");
-        assertCompactionStrategy(LeveledCompactionStrategy.class.getSimpleName(), KEYSPACE, table1);
+        assertCompactionParams(expectedLCSefault, KEYSPACE, table1);
 
         DatabaseDescriptor.setLCSEnforcementLevel(Config.LCSEnforcementLevel.hard);
         String table2 = createTable("CREATE TABLE %s (id text PRIMARY KEY, content text);");
-        assertCompactionStrategy(LeveledCompactionStrategy.class.getSimpleName(), KEYSPACE, table2);
+        assertCompactionParams(expectedLCSefault, KEYSPACE, table2);
 
         DatabaseDescriptor.setLCSEnforcementLevel(Config.LCSEnforcementLevel.none);
         String table3 = createTable("CREATE TABLE %s (id text PRIMARY KEY, content text);");
-        assertCompactionStrategy(CompactionParams.DEFAULT.klass().getName(), KEYSPACE, table3);
+        assertCompactionParams(CompactionParams.DEFAULT, KEYSPACE, table3);
     }
 
     @Test
@@ -77,14 +91,15 @@ public class EnforceLCSTest extends CQLTester
                                   " (id text PRIMARY KEY, content text) WITH compaction={'class': 'SizeTieredCompactionStrategy'};");
 
         DatabaseDescriptor.setLCSEnforcementLevel(Config.LCSEnforcementLevel.soft);
+        CompactionParams expectedLCSefault = CompactionParams.lcs(Collections.singletonMap(LeveledCompactionStrategy.SSTABLE_SIZE_OPTION, String.valueOf(DatabaseDescriptor.getLCSSSTableSizeInMB())));
         String table1 = createTable("CREATE TABLE %s (id text PRIMARY KEY, content text) WITH " +
                                     "compaction={'class': 'SizeTieredCompactionStrategy'};");
-        assertCompactionStrategy(LeveledCompactionStrategy.class.getSimpleName(), KEYSPACE, table1);
+        assertCompactionParams(expectedLCSefault, KEYSPACE, table1);
 
         DatabaseDescriptor.setLCSEnforcementLevel(Config.LCSEnforcementLevel.none);
         String table2 = createTable("CREATE TABLE %s (id text PRIMARY KEY, content text) WITH " +
                                     "compaction={'class': 'SizeTieredCompactionStrategy'};");
-        assertCompactionStrategy(SizeTieredCompactionStrategy.class.getSimpleName(), KEYSPACE, table2);
+        assertCompactionParams(CompactionParams.stcs(Collections.emptyMap()), KEYSPACE, table2);
     }
 
     @Test
@@ -117,7 +132,7 @@ public class EnforceLCSTest extends CQLTester
         // should skip enforcement check if already exist, and existed schema unchanged
         schemaChange(String.format("CREATE TABLE IF NOT EXISTS %s.%s (id text PRIMARY KEY, content text) WITH " +
                                    "compaction={'class': 'SizeTieredCompactionStrategy'};", keyspace(), table1));
-        assertCompactionStrategy(SizeTieredCompactionStrategy.class.getSimpleName(), keyspace(), table1);
+        assertCompactionParams(CompactionParams.stcs(Collections.emptyMap()), keyspace(), table1);
 
         DatabaseDescriptor.setLCSEnforcementLevel(Config.LCSEnforcementLevel.hard);
         try {
@@ -128,30 +143,45 @@ public class EnforceLCSTest extends CQLTester
             // should not see exception
             Assert.fail("unexpected Exception");
         }
-        assertCompactionStrategy(SizeTieredCompactionStrategy.class.getSimpleName(), keyspace(), table1);
+        assertCompactionParams(CompactionParams.stcs(Collections.emptyMap()), keyspace(), table1);
 
         DatabaseDescriptor.setLCSEnforcementLevel(Config.LCSEnforcementLevel.soft);
         schemaChange(String.format("CREATE TABLE IF NOT EXISTS %s.%s (id text PRIMARY KEY, content text) WITH " +
                                    "compaction={'class': 'SizeTieredCompactionStrategy'};", keyspace(), table1));
-        assertCompactionStrategy(SizeTieredCompactionStrategy.class.getSimpleName(), keyspace(), table1);
+        assertCompactionParams(CompactionParams.stcs(Collections.emptyMap()), keyspace(), table1);
     }
 
-    private void assertCompactionStrategy(String expected) throws Throwable
+    @Test
+    public void testOverrideLCSDefaultSSTableSizeInMB()
     {
-        assertCompactionStrategy(expected, KEYSPACE, currentTable());
+        DatabaseDescriptor.setLCSEnforcementLevel(Config.LCSEnforcementLevel.hard);
+        String table1 = createTable("CREATE TABLE %s (id text PRIMARY KEY, content text) WITH " +
+                                    "compaction={'class': 'LeveledCompactionStrategy'};");
+        assertCompactionParams(CompactionParams.lcs(Collections.singletonMap(LeveledCompactionStrategy.SSTABLE_SIZE_OPTION, String.valueOf(DatabaseDescriptor.getLCSSSTableSizeInMB()))),
+                               KEYSPACE, table1);
+        // override if set
+        String table2 = createTable("CREATE TABLE %s (id text PRIMARY KEY, content text) WITH " +
+                                    "compaction={'class': 'LeveledCompactionStrategy', 'sstable_size_in_mb': '160', 'enabled': 'false'};");
+        assertCompactionParams(CompactionParams.lcs(Map.of(LeveledCompactionStrategy.SSTABLE_SIZE_OPTION, String.valueOf(DatabaseDescriptor.getLCSSSTableSizeInMB()),
+                                                           "enabled", "false")),
+                               KEYSPACE, table2);
+
+        // other default
+        DatabaseDescriptor.setLCSSSTableSizeInMB(320);
+        Assert.assertEquals(320, DatabaseDescriptor.getLCSSSTableSizeInMB());
+        String table3 = createTable("CREATE TABLE %s (id text PRIMARY KEY, content text) WITH " +
+                                    "compaction={'class': 'LeveledCompactionStrategy'};");
+        assertCompactionParams(CompactionParams.lcs(Collections.singletonMap(LeveledCompactionStrategy.SSTABLE_SIZE_OPTION, "320")),
+                               KEYSPACE, table3);
     }
 
-    private void assertCompactionStrategy(String expected, String keyspace, String table) throws Throwable
+    private void assertCompactionParams(CompactionParams expected, String keyspace, String table)
     {
-        expected = expected.contains(".")
-                 ? expected
-                 : "org.apache.cassandra.db.compaction." + expected;
-
         TableMetadata tableMetadata = Schema.instance.getTableMetadata(keyspace, table);
         if (tableMetadata == null) {
             Assert.fail(String.format("TableMetadata not found for %s.%s", keyspace, table));
         }
-        Assert.assertEquals(expected, tableMetadata.params.compaction.klass().getName());
+        Assert.assertEquals(expected, tableMetadata.params.compaction);
     }
 
     private boolean isCurrentSystemSchemaCompactionStrategiesUnchanged() {

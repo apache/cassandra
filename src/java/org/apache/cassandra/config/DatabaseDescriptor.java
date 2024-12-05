@@ -2256,6 +2256,15 @@ public class DatabaseDescriptor
     public static Config.LCSEnforcementLevel getLCSEnforcementLevel() { return conf.lcs_enforcement_level; }
     public static void setLCSEnforcementLevel(Config.LCSEnforcementLevel level) { conf.lcs_enforcement_level = level; }
 
+    public static int getLCSSSTableSizeInMB()
+    {
+        return conf.lcs_sstable_size_in_mb;
+    }
+    public static void setLCSSSTableSizeInMB(int size)
+    {
+        conf.lcs_sstable_size_in_mb = size;
+    }
+
     public static ConsistencyLevel getWriteCLDefault() { return conf.write_cl_default; }
 
     public static CompactionStrategyMigrationOptions getCompactionStrategyMigrationOptions()
