@@ -89,6 +89,7 @@ public class IndexStatusManager
     {
         // UNKNOWN states are transient/rare; only a few replicas should have this state at any time. See CASSANDRA-19400
         Set<Replica> queryableNonSucceeded = new HashSet<>(4);
+        Map<InetAddressAndPort, Index.Status> indexStatusMap = new HashMap<>();
 
         E queryableEndpoints = liveEndpoints.filter(replica -> {
 
@@ -97,7 +98,10 @@ public class IndexStatusManager
             {
                 Index.Status status = getIndexStatus(replica.endpoint(), keyspace.getName(), index.getIndexMetadata().name);
                 if (!index.isQueryable(status))
+                {
+                    indexStatusMap.put(replica.endpoint(), status);
                     return false;
+                }
 
                 if (status != Index.Status.BUILD_SUCCEEDED)
                     allBuilt = false;
@@ -125,7 +129,13 @@ public class IndexStatusManager
             {
                 Map<InetAddressAndPort, RequestFailureReason> failureReasons = new HashMap<>();
                 liveEndpoints.without(queryableEndpoints.endpoints())
-                             .forEach(replica -> failureReasons.put(replica.endpoint(), RequestFailureReason.INDEX_NOT_AVAILABLE));
+                             .forEach(replica -> {
+                                 Index.Status status = indexStatusMap.get(replica.endpoint());
+                                 if (status == Index.Status.FULL_REBUILD_STARTED)
+                                     failureReasons.put(replica.endpoint(), RequestFailureReason.INDEX_BUILD_IN_PROGRESS);
+                                 else
+                                     failureReasons.put(replica.endpoint(), RequestFailureReason.INDEX_NOT_AVAILABLE);
+                             });
 
                 throw new ReadFailureException(level, filtered, required, false, failureReasons);
             }

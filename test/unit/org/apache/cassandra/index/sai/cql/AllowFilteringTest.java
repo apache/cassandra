@@ -18,6 +18,9 @@
 
 package org.apache.cassandra.index.sai.cql;
 
+import org.apache.cassandra.index.IndexBuildInProgressException;
+import org.apache.cassandra.inject.Injections;
+import org.apache.cassandra.inject.InvokePointBuilder;
 import org.junit.Test;
 
 import org.apache.cassandra.cql3.restrictions.StatementRestrictions;
@@ -25,6 +28,7 @@ import org.apache.cassandra.index.sai.SAITester;
 import org.apache.cassandra.index.sai.StorageAttachedIndex;
 
 import static java.lang.String.format;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.junit.Assert.assertNotNull;
 
 /**
@@ -391,4 +395,30 @@ public class AllowFilteringTest extends SAITester
         assertNotNull(execute(query + " ALLOW FILTERING"));
     }
 
+    private final Injections.Barrier blockIndexBuild = Injections.newBarrier("block_index_build", 2, false)
+                                                                 .add(InvokePointBuilder.newInvokePoint().onClass(StorageAttachedIndex.class)
+                    .onMethod("startInitialBuild"))
+                                                                 .build();
+
+    @Test
+    public void testAllowFilteringDuringIndexBuild() throws Throwable
+    {
+        createTable("CREATE TABLE %s (k int PRIMARY KEY, v int)");
+        Injections.inject(blockIndexBuild);
+        String idx = createIndexAsync(String.format("CREATE CUSTOM INDEX ON %%s(v) USING '%s'", StorageAttachedIndex.class.getName()));
+
+        assertThatThrownBy(() -> execute("SELECT * FROM %s WHERE v=0"))
+                .hasMessage("The secondary index '" + idx + "' is not yet available as it is building")
+                .isInstanceOf(IndexBuildInProgressException.class);
+
+        assertThatThrownBy(() -> execute("SELECT * FROM %s WHERE v=0 ALLOW FILTERING"))
+                .hasMessage("The secondary index '" + idx + "' is not yet available as it is building")
+                .isInstanceOf(IndexBuildInProgressException.class);
+
+        blockIndexBuild.countDown();
+        blockIndexBuild.disable();
+        waitForIndexQueryable(idx);
+        execute("SELECT * FROM %s WHERE v=0");
+        execute("SELECT * FROM %s WHERE v=0 ALLOW FILTERING");
+    }
 }
