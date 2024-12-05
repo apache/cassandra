@@ -33,6 +33,8 @@ import com.google.common.collect.Sets;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import accord.utils.Invariants;
+import accord.utils.btree.BTreeSet;
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
@@ -61,6 +63,7 @@ public class Directory implements MetadataValue<Directory>
     private final int nextId;
     private final Epoch lastModified;
     private final BTreeBiMap<NodeId, InetAddressAndPort> peers;
+    private final BTreeSet<RemovedNode> removedNodes;
     private final BTreeMap<NodeId, Location> locations;
     public final BTreeMap<NodeId, NodeState> states;
     public final BTreeMap<NodeId, NodeVersion> versions;
@@ -76,6 +79,7 @@ public class Directory implements MetadataValue<Directory>
         this(1,
              Epoch.EMPTY,
              BTreeBiMap.empty(),
+             BTreeSet.empty(RemovedNode::compareTo),
              BTreeMap.empty(),
              BTreeMap.empty(),
              BTreeMap.empty(),
@@ -88,6 +92,7 @@ public class Directory implements MetadataValue<Directory>
     private Directory(int nextId,
                       Epoch lastModified,
                       BTreeBiMap<NodeId, InetAddressAndPort> peers,
+                      BTreeSet<RemovedNode> removedNodes,
                       BTreeMap<NodeId, Location> locations,
                       BTreeMap<NodeId, NodeState> states,
                       BTreeMap<NodeId, NodeVersion> versions,
@@ -99,6 +104,7 @@ public class Directory implements MetadataValue<Directory>
         this.nextId = nextId;
         this.lastModified = lastModified;
         this.peers = peers;
+        this.removedNodes = removedNodes;
         this.locations = locations;
         this.states = states;
         this.versions = versions;
@@ -145,7 +151,7 @@ public class Directory implements MetadataValue<Directory>
     @Override
     public Directory withLastModified(Epoch epoch)
     {
-        return new Directory(nextId, epoch, peers, locations, states, versions, hostIds, addresses, endpointsByDC, racksByDC);
+        return new Directory(nextId, epoch, peers, removedNodes, locations, states, versions, hostIds, addresses, endpointsByDC, racksByDC);
     }
 
     public Directory withNonUpgradedNode(NodeAddresses addresses,
@@ -192,6 +198,7 @@ public class Directory implements MetadataValue<Directory>
         return new Directory(nextId + 1,
                              lastModified,
                              peers.without(id).with(id, nodeAddresses.broadcastAddress),
+                             removedNodes,
                              locations.withForce(id, location),
                              states.withForce(id, NodeState.REGISTERED),
                              versions.withForce(id, nodeVersion),
@@ -203,14 +210,14 @@ public class Directory implements MetadataValue<Directory>
 
     public Directory withNodeState(NodeId id, NodeState state)
     {
-        return new Directory(nextId, lastModified, peers, locations, states.withForce(id, state), versions, hostIds, addresses, endpointsByDC, racksByDC);
+        return new Directory(nextId, lastModified, peers, removedNodes, locations, states.withForce(id, state), versions, hostIds, addresses, endpointsByDC, racksByDC);
     }
 
     public Directory withNodeVersion(NodeId id, NodeVersion version)
     {
         if (Objects.equals(versions.get(id), version))
             return this;
-        return new Directory(nextId, lastModified, peers, locations, states, versions.withForce(id, version), hostIds, addresses, endpointsByDC, racksByDC);
+        return new Directory(nextId, lastModified, peers, removedNodes, locations, states, versions.withForce(id, version), hostIds, addresses, endpointsByDC, racksByDC);
     }
 
     public Directory withNodeAddresses(NodeId id, NodeAddresses nodeAddresses)
@@ -232,7 +239,7 @@ public class Directory implements MetadataValue<Directory>
         BTreeMap<String, Multimap<String, InetAddressAndPort>> updatedEndpointsByRack = racksByDC.withForce(location(id).datacenter, rackEP);
 
         return new Directory(nextId, lastModified,
-                             peers.withForce(id,nodeAddresses.broadcastAddress), locations, states, versions, hostIds, addresses.withForce(id, nodeAddresses),
+                             peers.withForce(id,nodeAddresses.broadcastAddress), removedNodes, locations, states, versions, hostIds, addresses.withForce(id, nodeAddresses),
                              updatedEndpointsByDC,
                              updatedEndpointsByRack);
     }
@@ -246,7 +253,7 @@ public class Directory implements MetadataValue<Directory>
             rackEP = BTreeMultimap.empty();
         rackEP = rackEP.with(location.rack, endpoint);
 
-        return new Directory(nextId, lastModified, peers, locations, states, versions, hostIds, addresses,
+        return new Directory(nextId, lastModified, peers, removedNodes, locations, states, versions, hostIds, addresses,
                              endpointsByDC.with(location.datacenter, endpoint),
                              racksByDC.withForce(location.datacenter, rackEP));
     }
@@ -266,7 +273,7 @@ public class Directory implements MetadataValue<Directory>
             newRacksByDC = racksByDC.without(location.datacenter);
         else
             newRacksByDC = racksByDC.withForce(location.datacenter, rackEP);
-        return new Directory(nextId, lastModified, peers, locations, states, versions, hostIds, addresses,
+        return new Directory(nextId, lastModified, peers, removedNodes, locations, states, versions, hostIds, addresses,
                              endpointsByDC.without(location.datacenter, endpoint),
                              newRacksByDC);
     }
@@ -287,11 +294,27 @@ public class Directory implements MetadataValue<Directory>
         if (locations.get(id).equals(location))
             return this;
 
-        return new Directory(nextId, lastModified, peers, locations.withForce(id, location), states, versions, hostIds,
+        return new Directory(nextId, lastModified, peers, removedNodes, locations.withForce(id, location), states, versions, hostIds,
                              addresses, endpointsByDC, racksByDC);
     }
 
-    public Directory without(NodeId id)
+    public Directory removed(Epoch removedIn, NodeId id, InetAddressAndPort addr)
+    {
+        Invariants.checkState(!peers.containsKey(id));
+        return new Directory(nextId,
+                             lastModified,
+                             peers,
+                             removedNodes.with(new RemovedNode(removedIn, id, addr)),
+                             locations,
+                             states,
+                             versions,
+                             hostIds,
+                             addresses,
+                             endpointsByDC,
+                             racksByDC);
+    }
+
+    public Directory without(Epoch removedIn, NodeId id)
     {
         InetAddressAndPort endpoint = peers.get(id);
         Location location = locations.get(id);
@@ -303,6 +326,7 @@ public class Directory implements MetadataValue<Directory>
             return new Directory(nextId,
                                  lastModified,
                                  peers.without(id),
+                                 removedNodes.with(new RemovedNode(removedIn, id, peers.get(id))),
                                  locations.without(id),
                                  states.without(id),
                                  versions.without(id),
@@ -319,6 +343,7 @@ public class Directory implements MetadataValue<Directory>
         return new Directory(nextId,
                              lastModified,
                              peers.without(id),
+                             removedNodes.with(new RemovedNode(removedIn, id, peers.get(id))),
                              locations.without(id),
                              states.without(id),
                              versions.without(id),
@@ -362,6 +387,11 @@ public class Directory implements MetadataValue<Directory>
     public NavigableSet<NodeId> peerIds()
     {
         return peers.keySet();
+    }
+
+    public BTreeSet<RemovedNode> removedNodes()
+    {
+        return removedNodes;
     }
 
     public NodeAddresses getNodeAddresses(NodeId id)
@@ -581,6 +611,17 @@ public class Directory implements MetadataValue<Directory>
                 }
             }
             Epoch.serializer.serialize(t.lastModified, out, version);
+
+            if (version.isAtLeast(Version.V7))
+            {
+                out.writeInt(t.removedNodes.size());
+                for (RemovedNode removedNode : t.removedNodes)
+                {
+                    out.writeLong(removedNode.removedIn.getEpoch());
+                    NodeId.serializer.serialize(removedNode.id, out, version);
+                    InetAddressAndPort.MetadataSerializer.serializer.serialize(removedNode.endpoint, out, version);
+                }
+            }
         }
 
         public Directory deserialize(DataInputPlus in, Version version) throws IOException
@@ -636,9 +677,23 @@ public class Directory implements MetadataValue<Directory>
                 else
                     nextId = maxId.id() + 1;
             }
+
+            if (version.isAtLeast(Version.V7))
+            {
+                int removedNodes = in.readInt();
+                for (int i = 0; i < removedNodes; i++)
+                {
+                    long epoch = in.readLong();
+                    NodeId nodeId = NodeId.serializer.deserialize(in, version);
+                    InetAddressAndPort addr = InetAddressAndPort.MetadataSerializer.serializer.deserialize(in, version);
+                    newDir.removed(Epoch.create(epoch), nodeId, addr);
+                }
+            }
+
             return new Directory(nextId,
                                  lastModified,
                                  newDir.peers,
+                                 newDir.removedNodes,
                                  newDir.locations,
                                  newDir.states,
                                  newDir.versions,
@@ -676,6 +731,18 @@ public class Directory implements MetadataValue<Directory>
                 }
             }
             size += Epoch.serializer.serializedSize(t.lastModified, version);
+
+            if (version.isAtLeast(Version.V7))
+            {
+                size += TypeSizes.INT_SIZE;
+                for (RemovedNode removedNode : t.removedNodes)
+                {
+                    size += TypeSizes.LONG_SIZE;
+                    size += NodeId.serializer.serializedSize(removedNode.id, version);
+                    size += InetAddressAndPort.MetadataSerializer.serializer.serializedSize(removedNode.endpoint, version);
+                }
+            }
+
             return size;
         }
     }
@@ -796,5 +863,38 @@ public class Directory implements MetadataValue<Directory>
         for (K k : Sets.difference(r.keySet(), l.keySet()))
             logger.warn("Value for key {} is only present in the right set: {}", k, r.get(k));
 
+    }
+
+
+    public static class RemovedNode implements Comparable<RemovedNode>
+    {
+        public final Epoch removedIn;
+        public final NodeId id;
+        public final InetAddressAndPort endpoint;
+
+        public RemovedNode(Epoch removedIn, NodeId id, InetAddressAndPort endpoint)
+        {
+            this.removedIn = removedIn;
+            this.id = id;
+            this.endpoint = endpoint;
+        }
+
+        public boolean equals(Object object)
+        {
+            if (this == object) return true;
+            if (object == null || getClass() != object.getClass()) return false;
+            RemovedNode that = (RemovedNode) object;
+            return Objects.equals(removedIn, that.removedIn) && Objects.equals(id, that.id) && Objects.equals(endpoint, that.endpoint);
+        }
+
+        public int hashCode()
+        {
+            return Objects.hash(removedIn, id, endpoint);
+        }
+
+        public int compareTo(RemovedNode o)
+        {
+            return id.compareTo(o.id);
+        }
     }
 }

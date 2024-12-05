@@ -187,7 +187,7 @@ public class AccordCommandStore extends CommandStore
         loadRangesForEpoch(journal.loadRangesForEpoch(id()));
     }
 
-    static Factory factory(AccordJournal journal, IntFunction<AccordExecutor> executorFactory)
+    static Factory factory(Journal journal, IntFunction<AccordExecutor> executorFactory)
     {
         return (id, node, agent, dataStore, progressLogFactory, listenerFactory, rangesForEpoch) ->
                new AccordCommandStore(id, node, agent, dataStore, progressLogFactory, listenerFactory, rangesForEpoch, journal, executorFactory.apply(id));

@@ -50,6 +50,7 @@ import org.apache.cassandra.service.accord.serializers.CommandSerializers;
 import org.apache.cassandra.service.accord.serializers.DepsSerializers;
 import org.apache.cassandra.service.accord.serializers.KeySerializers;
 import org.apache.cassandra.service.accord.serializers.ResultSerializers;
+import org.apache.cassandra.service.accord.serializers.TopologySerializers;
 import org.apache.cassandra.tools.FieldUtil;
 
 import static accord.impl.PrefixedIntHashKey.ranges;
@@ -76,14 +77,21 @@ public class AccordJournalBurnTest extends BurnTestBase
                                                                          BurnTestKeySerializers.update,
                                                                          BurnTestKeySerializers.write),
                                  CommandSerializers.class);
+
         FieldUtil.transferFields(new DepsSerializers.Impl(BurnTestKeySerializers.range),
                                  DepsSerializers.class);
+
         FieldUtil.setInstanceUnsafe(ResultSerializers.class,
                                     BurnTestKeySerializers.result,
                                     "result");
+
+        FieldUtil.setInstanceUnsafe(TopologySerializers.class,
+                                    new TopologySerializers.ShardSerializer(BurnTestKeySerializers.range),
+                                    "shard");
     }
 
-    private AtomicInteger counter = new AtomicInteger();
+    private static final AtomicInteger counter = new AtomicInteger();
+
     @Before
     public void beforeTest() throws Throwable
     {

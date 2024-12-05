@@ -27,6 +27,7 @@ import org.apache.cassandra.tcm.Retry;
 
 public interface Backoff
 {
+    // TODO (required): backoff should not have retries
     boolean mayRetry(int attempt);
     long computeWaitTime(int attempt);
     TimeUnit unit();
@@ -82,6 +83,29 @@ public interface Backoff
         public TimeUnit unit()
         {
             throw new UnsupportedOperationException();
+        }
+    }
+
+    enum NO_OP implements Backoff
+    {
+        INSTANCE;
+
+        @Override
+        public boolean mayRetry(int attempt)
+        {
+            return true;
+        }
+
+        @Override
+        public long computeWaitTime(int retryCount)
+        {
+            return 0;
+        }
+
+        @Override
+        public TimeUnit unit()
+        {
+            return TimeUnit.NANOSECONDS;
         }
     }
 

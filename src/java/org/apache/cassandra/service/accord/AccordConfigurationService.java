@@ -18,12 +18,11 @@
 
 package org.apache.cassandra.service.accord;
 
+import java.util.HashSet;
+import java.util.Map;
 import java.util.Objects;
-import java.util.OptionalLong;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.Consumer;
 import java.util.stream.Collectors;
 import javax.annotation.Nullable;
 import javax.annotation.concurrent.GuardedBy;
@@ -31,6 +30,7 @@ import javax.annotation.concurrent.GuardedBy;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.Sets;
 
+import accord.api.Journal;
 import accord.impl.AbstractConfigurationService;
 import accord.local.Node;
 import accord.primitives.Ranges;
@@ -49,25 +49,26 @@ import org.apache.cassandra.gms.IFailureDetector;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.net.MessageDelivery;
 import org.apache.cassandra.net.MessagingService;
+import org.apache.cassandra.repair.SharedContext;
 import org.apache.cassandra.service.accord.AccordKeyspace.EpochDiskState;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.ClusterMetadataService;
-import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.tcm.listeners.ChangeListener;
-import org.apache.cassandra.tcm.membership.NodeId;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Simulate;
 import org.apache.cassandra.utils.concurrent.AsyncPromise;
 import org.apache.cassandra.utils.concurrent.Future;
+import org.apache.cassandra.utils.concurrent.UncheckedInterruptedException;
 
 import static org.apache.cassandra.utils.Simulate.With.MONITORS;
 
 // TODO: listen to FailureDetector and rearrange fast path accordingly
 @Simulate(with=MONITORS)
-public class AccordConfigurationService extends AbstractConfigurationService<AccordConfigurationService.EpochState, AccordConfigurationService.EpochHistory> implements ChangeListener, AccordEndpointMapper, AccordSyncPropagator.Listener, Shutdownable
+public class AccordConfigurationService extends AbstractConfigurationService<AccordConfigurationService.EpochState, AccordConfigurationService.EpochHistory> implements AccordEndpointMapper, AccordSyncPropagator.Listener, Shutdownable
 {
     private final AccordSyncPropagator syncPropagator;
     private final DiskStateManager diskStateManager;
+    private final Journal journal;
 
     @GuardedBy("this")
     private EpochDiskState diskState = EpochDiskState.EMPTY;
@@ -130,7 +131,11 @@ public class AccordConfigurationService extends AbstractConfigurationService<Acc
     @VisibleForTesting
     interface DiskStateManager
     {
-        EpochDiskState loadTopologies(AccordKeyspace.TopologyLoadConsumer consumer);
+        /**
+         * Loads local states known to the _current_ node.
+         */
+        EpochDiskState loadLocalTopologyState(AccordKeyspace.TopologyLoadConsumer consumer);
+
         EpochDiskState setNotifyingLocalSync(long epoch, Set<Node.Id> pending, EpochDiskState diskState);
 
         EpochDiskState setCompletedLocalSync(long epoch, EpochDiskState diskState);
@@ -151,7 +156,7 @@ public class AccordConfigurationService extends AbstractConfigurationService<Acc
         instance;
 
         @Override
-        public EpochDiskState loadTopologies(AccordKeyspace.TopologyLoadConsumer consumer)
+        public EpochDiskState loadLocalTopologyState(AccordKeyspace.TopologyLoadConsumer consumer)
         {
             return AccordKeyspace.loadTopologies(consumer);
         }
@@ -199,16 +204,27 @@ public class AccordConfigurationService extends AbstractConfigurationService<Acc
         }
     }
 
-    public AccordConfigurationService(Node.Id node, MessageDelivery messagingService, IFailureDetector failureDetector, DiskStateManager diskStateManager, ScheduledExecutorPlus scheduledTasks)
+    final ChangeListener listener = new MetadataChangeListener();
+    private class MetadataChangeListener implements ChangeListener
+    {
+        @Override
+        public void notifyPostCommit(ClusterMetadata prev, ClusterMetadata next, boolean fromSnapshot)
+        {
+            maybeReportMetadata(next);
+        }
+    }
+
+    public AccordConfigurationService(Node.Id node, MessageDelivery messagingService, IFailureDetector failureDetector, DiskStateManager diskStateManager, ScheduledExecutorPlus scheduledTasks, Journal journal)
     {
         super(node);
         this.syncPropagator = new AccordSyncPropagator(localId, this, messagingService, failureDetector, scheduledTasks, this);
         this.diskStateManager = diskStateManager;
+        this.journal = journal;
     }
 
-    public AccordConfigurationService(Node.Id node)
+    public AccordConfigurationService(Node.Id node, Journal journal)
     {
-        this(node, MessagingService.instance(), FailureDetector.instance, SystemTableDiskStateManager.instance, ScheduledExecutors.scheduledTasks);
+        this(node, MessagingService.instance(), FailureDetector.instance, SystemTableDiskStateManager.instance, ScheduledExecutors.scheduledTasks, journal);
     }
 
     @Override
@@ -217,48 +233,34 @@ public class AccordConfigurationService extends AbstractConfigurationService<Acc
         return new EpochHistory();
     }
 
-    @VisibleForTesting
+    /**
+     * On restart, loads topologies. On bootstrap, discovers existing topologies and initializes the node.
+     */
     public synchronized void start()
-    {
-        start(ignore -> {});
-    }
-
-    public synchronized void start(Consumer<OptionalLong> callback)
     {
         Invariants.checkState(state == State.INITIALIZED, "Expected state to be INITIALIZED but was %s", state);
         state = State.LOADING;
+
         EndpointMapping snapshot = mapping;
-        //TODO (restart): if there are topologies loaded then there is likely failures if reporting is needed, as mapping is not setup yet
-        AtomicReference<Topology> previousRef = new AtomicReference<>(null);
-        diskState = diskStateManager.loadTopologies(((epoch, metadata, topology, syncStatus, pendingSyncNotify, remoteSyncComplete, closed, redundant) -> {
-            updateMapping(metadata);
-            reportTopology(topology, syncStatus == SyncStatus.NOT_STARTED, true);
-
-            Topology previous = previousRef.get();
-            if (previous != null)
-            {
-                // for all nodes removed, or pending removal, mark them as removed so we don't wait on their replies
-                Sets.SetView<Node.Id> removedNodes = Sets.difference(previous.nodes(), topology.nodes());
-                if (!removedNodes.isEmpty())
-                    onNodesRemoved(topology.epoch(), currentTopology(), removedNodes);
-            }
-            previousRef.set(topology);
-
+        diskStateManager.loadLocalTopologyState((epoch, syncStatus, pendingSyncNotify, remoteSyncComplete, closed, redundant) -> {
             getOrCreateEpochState(epoch).setSyncStatus(syncStatus);
-            if (syncStatus == SyncStatus.NOTIFYING)
-            {
-                // TODO (expected, correctness): since this is loading old topologies, might see nodes no longer present (host replacement, decom, shrink, etc.); attempt to remove unknown nodes
+            // TODO (expected, correctness): since this is loading old topologies, might see nodes no longer present (host replacement, decom, shrink, etc.); attempt to remove unknown nodes
+            if (Objects.requireNonNull(syncStatus) == SyncStatus.NOTIFYING)
                 syncPropagator.reportSyncComplete(epoch, Sets.filter(pendingSyncNotify, snapshot::containsId), localId);
-            }
 
             remoteSyncComplete.forEach(id -> receiveRemoteSyncComplete(id, epoch));
             // TODO (required): disk doesn't get updated until we see our own notification, so there is an edge case where this instance notified others and fails in the middle, but Apply was already sent!  This could leave partial closed/redudant accross the cluster
             receiveClosed(closed, epoch);
             receiveRedundant(redundant, epoch);
-        }));
+        });
         state = State.STARTED;
-        callback.accept(diskState.isEmpty() ? OptionalLong.empty() : OptionalLong.of(diskState.maxEpoch));
-        ClusterMetadataService.instance().log().addListener(this);
+
+        // for all nodes removed, or pending removal, mark them as removed, so we don't wait on their replies
+        Map<Node.Id, Long> removedNodes = mapping.removedNodes();
+        for (Map.Entry<Node.Id, Long> e : removedNodes.entrySet())
+            onNodeRemoved(e.getValue(), currentTopology(), e.getKey());
+
+        ClusterMetadataService.instance().log().addListener(listener);
     }
 
     @Override
@@ -272,7 +274,7 @@ public class AccordConfigurationService extends AbstractConfigurationService<Acc
     {
         if (isTerminated())
             return;
-        ClusterMetadataService.instance().log().removeListener(this);
+        ClusterMetadataService.instance().log().removeListener(listener);
         state = State.SHUTDOWN;
     }
 
@@ -314,9 +316,9 @@ public class AccordConfigurationService extends AbstractConfigurationService<Acc
             this.mapping = mapping;
     }
 
-    synchronized void updateMapping(ClusterMetadata metadata)
+    public synchronized void updateMapping(ClusterMetadata metadata)
     {
-        updateMapping(AccordTopology.directoryToMapping(mapping, metadata.epoch.getEpoch(), metadata.directory));
+        updateMapping(AccordTopology.directoryToMapping(metadata.epoch.getEpoch(), metadata.directory));
     }
 
     private void reportMetadata(ClusterMetadata metadata)
@@ -326,11 +328,6 @@ public class AccordConfigurationService extends AbstractConfigurationService<Acc
 
     void reportMetadataInternal(ClusterMetadata metadata)
     {
-        reportMetadataInternal(metadata, false);
-    }
-
-    void reportMetadataInternal(ClusterMetadata metadata, boolean isLoad)
-    {
         updateMapping(metadata);
         Topology topology = AccordTopology.createAccordTopology(metadata);
         if (Invariants.isParanoid())
@@ -338,7 +335,7 @@ public class AccordConfigurationService extends AbstractConfigurationService<Acc
             for (Node.Id node : topology.nodes())
             {
                 if (mapping.mappedEndpointOrNull(node) == null)
-                    throw new IllegalStateException("Epoch " + topology.epoch() + " has node " + node + " but mapping does not!");
+                    throw new IllegalStateException(String.format("Epoch %d has node %s but mapping does not!", topology.epoch(), node));
             }
         }
         reportTopology(topology);
@@ -352,8 +349,12 @@ public class AccordConfigurationService extends AbstractConfigurationService<Acc
         Topology previous = getTopologyForEpoch(topology.epoch() - 1);
         // for all nodes removed, or pending removal, mark them as removed so we don't wait on their replies
         Sets.SetView<Node.Id> removedNodes = Sets.difference(previous.nodes(), topology.nodes());
-        if (!removedNodes.isEmpty())
-            onNodesRemoved(topology.epoch(), previous, removedNodes);
+        // TODO (desired, efficiency): there should be no need to notify every epoch for every removed node
+        for (Node.Id removedNode : removedNodes)
+        {
+            if (topology.epoch() >= epochs.minEpoch())
+                onNodeRemoved(topology.epoch(), previous, removedNode);
+        }
     }
 
     private static boolean shareShard(Topology current, Node.Id target, Node.Id self)
@@ -366,22 +367,17 @@ public class AccordConfigurationService extends AbstractConfigurationService<Acc
         return false;
     }
 
-    public void onNodesRemoved(long epoch, Topology current, Set<Node.Id> removed)
+    public void onNodeRemoved(long epoch, Topology current, Node.Id removed)
     {
-        if (removed.isEmpty()) return;
         syncPropagator.onNodesRemoved(removed);
+        // TODO (now): it seems to be incorrect to mark remote syncs complete if/when node got removed.
         for (long oldEpoch : nonCompletedEpochsBefore(epoch))
-        {
-            for (Node.Id node : removed)
-                receiveRemoteSyncCompletePreListenerNotify(node, oldEpoch);
-        }
-        listeners.forEach(l -> l.onRemoveNodes(epoch, removed));
+            receiveRemoteSyncCompletePreListenerNotify(removed, oldEpoch);
 
-        for (Node.Id node : removed)
-        {
-            if (shareShard(current, node, localId))
-                AccordService.instance().tryMarkRemoved(current, node);
-        }
+        listeners.forEach(l -> l.onRemoveNode(epoch, removed));
+
+        if (shareShard(current, removed, localId))
+            AccordService.instance().tryMarkRemoved(current, removed);
     }
 
     private long[] nonCompletedEpochsBefore(long max)
@@ -417,34 +413,31 @@ public class AccordConfigurationService extends AbstractConfigurationService<Acc
     }
 
     @Override
-    public void notifyPostCommit(ClusterMetadata prev, ClusterMetadata next, boolean fromSnapshot)
-    {
-        maybeReportMetadata(next);
-    }
-
-    @Override
     protected void fetchTopologyInternal(long epoch)
     {
-        ClusterMetadata metadata = ClusterMetadata.current();
-        if (metadata.directory.peerIds().isEmpty())
-            return; // just let CMS handle it when it's ready
-
-        // TODO (desired): randomise
-        NodeId first = metadata.directory.peerIds().first();
-        InetAddressAndPort peer = metadata.directory.getNodeAddresses(first).broadcastAddress;
-        if (FBUtilities.getBroadcastAddressAndPort().equals(peer))
+        try
         {
-            NodeId second = metadata.directory.peerIds().higher(first);
-            if (second == null)
+            Set<InetAddressAndPort> peers = new HashSet<>(ClusterMetadata.current().directory.allJoinedEndpoints());
+            peers.remove(FBUtilities.getBroadcastAddressAndPort());
+            if (peers.isEmpty())
                 return;
-
-            peer = metadata.directory.getNodeAddresses(second).broadcastAddress;
+            Topology topology;
+            while ((topology =FetchTopology.fetch(SharedContext.Global.instance, peers, epoch).get()) == null) {}
+            reportTopology(topology);
         }
-        ClusterMetadataService.instance().fetchLogFromPeerOrCMSAsync(metadata, peer, Epoch.create(epoch))
-                              .addCallback((success, fail) -> {
-                                  if (fail != null)
-                                      fetchTopologyInternal(epoch);
-                              });
+        catch (InterruptedException e)
+        {
+            if (currentEpoch() >= epoch)
+                return;
+            Thread.currentThread().interrupt();
+            throw new UncheckedInterruptedException(e);
+        }
+        catch (Throwable e)
+        {
+            if (currentEpoch() >= epoch)
+                return;
+            throw new RuntimeException(e.getCause());
+        }
     }
 
     @Override
@@ -569,7 +562,7 @@ public class AccordConfigurationService extends AbstractConfigurationService<Acc
         {
             PENDING, SUCCESS, FAILURE;
 
-            static ResultStatus of (AsyncResult<?> result)
+            static ResultStatus of(AsyncResult<?> result)
             {
                 if (result == null || !result.isDone())
                     return PENDING;

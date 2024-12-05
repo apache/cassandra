@@ -56,6 +56,7 @@ public enum Version
     V6(6),
     /**
      *  - Accord
+     *  - Track nodes removed
      */
     V7(7),
 

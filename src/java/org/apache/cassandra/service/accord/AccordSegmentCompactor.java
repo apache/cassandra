@@ -67,6 +67,8 @@ public class AccordSegmentCompactor<V> implements SegmentCompactor<JournalKey, V
             KeyOrderReader<JournalKey> reader = segment.keyOrderReader();
             if (reader.advance())
                 readers.add(reader);
+            else
+                reader.close();
         }
 
         // nothing to compact (all segments empty, should never happen, but it is theoretically possible?) - exit early
@@ -126,6 +128,7 @@ public class AccordSegmentCompactor<V> implements SegmentCompactor<JournalKey, V
                     while ((advanced = reader.advance()) && reader.key().equals(key));
 
                     if (advanced) readers.offer(reader); // there is more to this reader, but not with this key
+                    else reader.close();
                 }
 
                 maybeWritePartition(writer, key, builder, serializer, firstDescriptor, firstOffset);

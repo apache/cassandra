@@ -29,7 +29,7 @@ public enum MockDiskStateManager implements AccordConfigurationService.DiskState
     instance;
 
     @Override
-    public AccordKeyspace.EpochDiskState loadTopologies(AccordKeyspace.TopologyLoadConsumer consumer) {
+    public AccordKeyspace.EpochDiskState loadLocalTopologyState(AccordKeyspace.TopologyLoadConsumer consumer) {
         return AccordKeyspace.EpochDiskState.EMPTY;
     }
 

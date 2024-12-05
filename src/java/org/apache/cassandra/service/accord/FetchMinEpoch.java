@@ -25,7 +25,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
-
 import javax.annotation.Nullable;
 
 import com.google.common.annotations.VisibleForTesting;
@@ -33,12 +32,13 @@ import com.google.common.collect.Iterators;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.TypeSizes;
+import org.apache.cassandra.exceptions.RequestFailure;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.net.IVerbHandler;
-import org.apache.cassandra.net.Message;
+import org.apache.cassandra.net.MessageDelivery;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.net.Verb;
 import org.apache.cassandra.repair.SharedContext;
@@ -46,11 +46,15 @@ import org.apache.cassandra.utils.Backoff;
 import org.apache.cassandra.utils.concurrent.Future;
 import org.apache.cassandra.utils.concurrent.FutureCombiner;
 
+import static org.apache.cassandra.net.MessageDelivery.RetryErrorMessage;
+import static org.apache.cassandra.net.MessageDelivery.RetryPredicate;
+import static org.apache.cassandra.net.MessageDelivery.logger;
+
+// TODO (required, efficiency): this can be simplified: we seem to always use "entire range"
 public class FetchMinEpoch
 {
     public static final IVersionedSerializer<FetchMinEpoch> serializer = new IVersionedSerializer<>()
     {
-
         @Override
         public void serialize(FetchMinEpoch t, DataOutputPlus out, int version) throws IOException
         {
@@ -78,15 +82,20 @@ public class FetchMinEpoch
             return size;
         }
     };
-    public static final IVerbHandler<FetchMinEpoch> handler = new IVerbHandler<FetchMinEpoch>()
-    {
-        @Override
-        public void doVerb(Message<FetchMinEpoch> message) throws IOException
+
+    public static final IVerbHandler<FetchMinEpoch> handler = message -> {
+        if (AccordService.started())
         {
             Long epoch = AccordService.instance().minEpoch(message.payload.ranges);
             MessagingService.instance().respond(new Response(epoch), message);
         }
+        else
+        {
+            logger.error("Accord service is not started, resopnding with error to {}", message);
+            MessagingService.instance().respondWithFailure(RequestFailure.BOOTING, message);
+        }
     };
+
     public final Collection<TokenRange> ranges;
 
     public FetchMinEpoch(Collection<TokenRange> ranges)
@@ -122,13 +131,14 @@ public class FetchMinEpoch
         List<Future<Long>> accum = new ArrayList<>(peers.size());
         for (Map.Entry<InetAddressAndPort, Set<TokenRange>> e : peers.entrySet())
             accum.add(fetch(context, e.getKey(), e.getValue()));
-        return FutureCombiner.successfulOf(accum).map(ls -> {
+        // TODO (required): we are collecting only successes, but we need some threshold
+        return FutureCombiner.successfulOf(accum).map(epochs -> {
             Long min = null;
-            for (Long l : ls)
+            for (Long epoch : epochs)
             {
-                if (l == null) continue;
-                if (min == null) min = l;
-                else min = Math.min(min, l);
+                if (epoch == null) continue;
+                if (min == null) min = epoch;
+                else min = Math.min(min, epoch);
             }
             return min;
         });
@@ -138,12 +148,12 @@ public class FetchMinEpoch
     static Future<Long> fetch(SharedContext context, InetAddressAndPort to, Set<TokenRange> value)
     {
         FetchMinEpoch req = new FetchMinEpoch(value);
-        Backoff backoff = Backoff.fromConfig(context, DatabaseDescriptor.getAccord().minEpochSyncRetry);
-        return context.messaging().<FetchMinEpoch, FetchMinEpoch.Response>sendWithRetries(backoff, context.optionalTasks()::schedule,
+        return context.messaging().<FetchMinEpoch, FetchMinEpoch.Response>sendWithRetries(Backoff.NO_OP.INSTANCE,
+                                                                                          MessageDelivery.ImmediateRetryScheduler.instance,
                                                                                           Verb.ACCORD_FETCH_MIN_EPOCH_REQ, req,
                                                                                           Iterators.cycle(to),
-                                                                                          (i1, i2, i3) -> true,
-                                                                                          (i1, i2, i3, i4) -> null)
+                                                                                          RetryPredicate.times(DatabaseDescriptor.getAccord().minEpochSyncRetry.maxAttempts.value),
+                                                                                          RetryErrorMessage.EMPTY)
                       .map(m -> m.payload.minEpoch);
     }
 

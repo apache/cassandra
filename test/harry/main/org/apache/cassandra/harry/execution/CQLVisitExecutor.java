@@ -90,9 +90,12 @@ public abstract class CQLVisitExecutor
     public static void replayAfterFailure(Visit visit, CQLVisitExecutor executor, Model.Replay replay)
     {
         QueryBuildingVisitExecutor queryBuilder = executor.queryBuilder;
-        logger.error("Caught an exception at {} while replaying {}\ncluster.schemaChange(\"{}\");\nOperations _for this partition_ up to this visit:",
-                     visit, queryBuilder.compile(visit),
-                     queryBuilder.schema.compile());
+        if (!visit.hasCustom)
+        {
+            logger.error("Caught an exception at {} while replaying {}\ncluster.schemaChange(\"{}\");\nOperations _for this partition_ up to this visit:",
+                         visit, queryBuilder.compile(visit),
+                         queryBuilder.schema.compile());
+        }
 
         // Configurable yet hardcoded for a person who is trying to generate repro
         ResultDumpMode mode = ResultDumpMode.PARTITION;

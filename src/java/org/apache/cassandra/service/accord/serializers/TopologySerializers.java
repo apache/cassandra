@@ -119,12 +119,23 @@ public class TopologySerializers
         }
     };
 
-    public static final IVersionedSerializer<Shard> shard = new IVersionedSerializer<Shard>()
+    public static final IVersionedSerializer<Shard> shard = new ShardSerializer((IVersionedSerializer<Range>)
+                                                                                (IVersionedSerializer<?>)
+                                                                                TokenRange.serializer);
+
+    public static class ShardSerializer implements IVersionedSerializer<Shard>
     {
+        protected IVersionedSerializer<Range> range;
+
+        public ShardSerializer(IVersionedSerializer<Range> range)
+        {
+            this.range = range;
+        }
+
         @Override
         public void serialize(Shard shard, DataOutputPlus out, int version) throws IOException
         {
-            TokenRange.serializer.serialize((TokenRange) shard.range, out, version);
+            range.serialize(shard.range, out, version);
             CollectionSerializers.serializeList(shard.nodes, out, version, nodeId);
             CollectionSerializers.serializeCollection(shard.fastPathElectorate, out, version, nodeId);
             CollectionSerializers.serializeCollection(shard.joining, out, version, nodeId);
@@ -134,7 +145,7 @@ public class TopologySerializers
         @Override
         public Shard deserialize(DataInputPlus in, int version) throws IOException
         {
-            Range range = TokenRange.serializer.deserialize(in, version);
+            Range range = ShardSerializer.this.range.deserialize(in, version);
             SortedArrayList<Node.Id> nodes = CollectionSerializers.deserializeSortedArrayList(in, version, nodeId, Node.Id[]::new);
             Set<Node.Id> fastPathElectorate = CollectionSerializers.deserializeSet(in, version, nodeId);
             Set<Node.Id> joining = CollectionSerializers.deserializeSet(in, version, nodeId);
@@ -144,7 +155,7 @@ public class TopologySerializers
         @Override
         public long serializedSize(Shard shard, int version)
         {
-            long size = TokenRange.serializer.serializedSize((TokenRange) shard.range, version);
+            long size = range.serializedSize(shard.range, version);
             size += CollectionSerializers.serializedListSize(shard.nodes, version, nodeId);
             size += CollectionSerializers.serializedCollectionSize(shard.fastPathElectorate, version, nodeId);
             size += CollectionSerializers.serializedCollectionSize(shard.joining, version, nodeId);

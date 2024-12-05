@@ -38,6 +38,7 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.RetrySpec;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Murmur3Partitioner;
+import org.apache.cassandra.exceptions.RequestFailure;
 import org.apache.cassandra.io.IVersionedSerializers;
 import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.locator.InetAddressAndPort;
@@ -118,8 +119,8 @@ public class FetchMinEpochTest
             assertThat(f).isNotDone();
             cluster.processAll();
             assertThat(f).isDone();
-            MessageDelivery.MaxRetriesException maxRetries = getMaxRetriesException(f);
-            Assertions.assertThat(maxRetries.attempts).isEqualTo(expectedMaxAttempts);
+            MessageDelivery.FailedResponseException maxRetries = getFailedResponseException(f);
+            Assertions.assertThat(maxRetries.failure).isEqualTo(RequestFailure.TIMEOUT);
         });
     }
 
@@ -257,6 +258,29 @@ public class FetchMinEpochTest
         }
         if (partitioner != null)
             DatabaseDescriptor.setPartitionerUnsafe(partitioner);
+    }
+
+    private static MessageDelivery.FailedResponseException getFailedResponseException(Future<Long> f) throws InterruptedException, ExecutionException
+    {
+        MessageDelivery.FailedResponseException exception;
+        try
+        {
+            f.get();
+            Assert.fail("Future should have failed");
+            throw new AssertionError("Unreachable");
+        }
+        catch (ExecutionException e)
+        {
+            if (e.getCause() instanceof MessageDelivery.FailedResponseException)
+            {
+                exception = (MessageDelivery.FailedResponseException) e.getCause();
+            }
+            else
+            {
+                throw e;
+            }
+        }
+        return exception;
     }
 
     private static MessageDelivery.MaxRetriesException getMaxRetriesException(Future<Long> f) throws InterruptedException, ExecutionException

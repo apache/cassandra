@@ -32,6 +32,8 @@ public class Visit
     public final Set<Long> visitedPartitions;
 
     public final boolean selectOnly;
+    public final boolean hasCustom;
+
     public Visit(long lts, Operation[] operations)
     {
         Assert.assertTrue(operations.length > 0);
@@ -39,8 +41,11 @@ public class Visit
         this.operations = operations;
         this.visitedPartitions = new HashSet<>();
         boolean selectOnly = true;
+        boolean hasCustom = false;
         for (Operation operation : operations)
         {
+            if (operation.kind() == Operations.Kind.CUSTOM)
+                hasCustom = true;
             if (selectOnly && !(operation instanceof Operations.SelectStatement))
                 selectOnly = false;
 
@@ -49,6 +54,7 @@ public class Visit
 
         }
         this.selectOnly = selectOnly;
+        this.hasCustom = hasCustom;
     }
 
     public String toString()

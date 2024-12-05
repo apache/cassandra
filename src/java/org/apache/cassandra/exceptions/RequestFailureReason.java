@@ -50,6 +50,7 @@ public enum RequestFailureReason
     // The following codes have been ported from an external fork, where they were offset explicitly to avoid conflicts.
     INDEX_BUILD_IN_PROGRESS                 (503),
     RETRY_ON_DIFFERENT_TRANSACTION_SYSTEM   (504),
+    BOOTING                                 (505),
     ;
 
     static

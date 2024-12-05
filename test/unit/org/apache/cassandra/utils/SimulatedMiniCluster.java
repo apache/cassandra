@@ -337,7 +337,7 @@ public class SimulatedMiniCluster
                 case MIGRATION:
                 case MISC:
                 case TRACING:
-                case FETCH_LOG:
+                case FETCH_METADATA:
                     stage.unsafeSetExecutor(orderedExecutor);
                     break;
                 default:

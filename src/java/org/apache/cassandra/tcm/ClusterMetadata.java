@@ -456,7 +456,7 @@ public class ClusterMetadata
 
         public Transformer unregister(NodeId nodeId)
         {
-            directory = directory.withoutRackAndDC(nodeId).without(nodeId);
+            directory = directory.withoutRackAndDC(nodeId).without(epoch, nodeId);
             if (!tokenMap.tokens(nodeId).isEmpty())
                 tokenMap = tokenMap.unassignTokens(nodeId);
 
@@ -528,7 +528,7 @@ public class ClusterMetadata
             Collection<Token> transferringTokens = tokenMap.tokens(replaced);
             tokenMap = tokenMap.unassignTokens(replaced)
                                .assignTokens(replacement, transferringTokens);
-            directory = directory.without(replaced)
+            directory = directory.without(epoch, replaced)
                                  .withRackAndDC(replacement)
                                  .withNodeState(replacement, NodeState.JOINED);
 

@@ -19,21 +19,28 @@
 package org.apache.cassandra.service.accord;
 
 import java.io.IOException;
+import java.util.Map;
 import java.util.NavigableMap;
+import java.util.TreeMap;
+import java.util.function.Function;
 
 import com.google.common.collect.ImmutableSortedMap;
 
+import accord.api.Journal;
 import accord.local.DurableBefore;
 import accord.local.RedundantBefore;
 import accord.primitives.Ranges;
 import accord.primitives.Timestamp;
 import accord.primitives.TxnId;
+import accord.topology.Topology;
 import accord.utils.Invariants;
+import org.agrona.collections.Int2ObjectHashMap;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.service.accord.serializers.CommandStoreSerializers;
 import org.apache.cassandra.service.accord.serializers.KeySerializers;
+import org.apache.cassandra.service.accord.serializers.TopologySerializers;
 
 import static accord.api.Journal.Load.ALL;
 import static accord.local.CommandStores.RangesForEpoch;
@@ -194,7 +201,8 @@ public class AccordJournalValueSerializers
         }
     }
 
-    public static class DurableBeforeSerializer implements FlyweightSerializer<DurableBefore, DurableBeforeAccumulator>
+    public static class DurableBeforeSerializer
+    implements FlyweightSerializer<DurableBefore, DurableBeforeAccumulator>
     {
         public DurableBeforeAccumulator mergerFor(JournalKey journalKey)
         {
@@ -257,7 +265,8 @@ public class AccordJournalValueSerializers
         }
     }
 
-    public static class SafeToReadSerializer implements FlyweightSerializer<NavigableMap<Timestamp, Ranges>, IdentityAccumulator<NavigableMap<Timestamp, Ranges>>>
+    public static class SafeToReadSerializer
+    implements FlyweightSerializer<NavigableMap<Timestamp, Ranges>, IdentityAccumulator<NavigableMap<Timestamp, Ranges>>>
     {
         @Override
         public IdentityAccumulator<NavigableMap<Timestamp, Ranges>> mergerFor(JournalKey key)
@@ -285,9 +294,8 @@ public class AccordJournalValueSerializers
     }
 
     public static class RangesForEpochSerializer
-    implements FlyweightSerializer<RangesForEpoch, IdentityAccumulator<RangesForEpoch>>
+    implements FlyweightSerializer<RangesForEpoch, Accumulator<RangesForEpoch, RangesForEpoch>>
     {
-
         public IdentityAccumulator<RangesForEpoch> mergerFor(JournalKey key)
         {
             return new IdentityAccumulator<>(null);
@@ -311,13 +319,13 @@ public class AccordJournalValueSerializers
         }
 
         @Override
-        public void reserialize(JournalKey key, IdentityAccumulator<RangesForEpoch> from, DataOutputPlus out, int userVersion) throws IOException
+        public void reserialize(JournalKey key, Accumulator<RangesForEpoch, RangesForEpoch> from, DataOutputPlus out, int userVersion) throws IOException
         {
             serialize(key, from.get(), out, messagingVersion);
         }
 
         @Override
-        public void deserialize(JournalKey key, IdentityAccumulator<RangesForEpoch> into, DataInputPlus in, int userVersion) throws IOException
+        public void deserialize(JournalKey key, Accumulator<RangesForEpoch, RangesForEpoch> into, DataInputPlus in, int userVersion) throws IOException
         {
             int size = in.readUnsignedVInt32();
             Ranges[] ranges = new Ranges[size];
@@ -329,6 +337,93 @@ public class AccordJournalValueSerializers
             }
             Invariants.checkState(ranges.length == epochs.length);
             into.update(new RangesForEpoch(epochs, ranges));
+        }
+    }
+
+    public static class MapAccumulator<K extends Comparable<K>, V> extends Accumulator<NavigableMap<K, V>, V>
+    {
+        private final Function<V, K> getKey;
+
+        public MapAccumulator(Function<V, K> getKey)
+        {
+            super(new TreeMap<>());
+            this.getKey = getKey;
+        }
+
+        @Override
+        protected NavigableMap<K, V> accumulate(NavigableMap<K, V> accumulator, V newValue)
+        {
+            V prev = accumulator.put(getKey.apply(newValue), newValue);
+            Invariants.checkState(prev == null || prev.equals(newValue));
+            return accumulator;
+        }
+    }
+
+    public static class TopologyUpdateSerializer
+    implements FlyweightSerializer<Journal.TopologyUpdate, MapAccumulator<Long, Journal.TopologyUpdate>>
+    {
+        private final RangesForEpochSerializer rangesForEpochSerializer = new RangesForEpochSerializer();
+
+        @Override
+        public MapAccumulator<Long, Journal.TopologyUpdate> mergerFor(JournalKey key)
+        {
+            return new MapAccumulator<>(topologyUpdate -> topologyUpdate.global.epoch());
+        }
+
+        @Override
+        public void serialize(JournalKey key, Journal.TopologyUpdate from, DataOutputPlus out, int userVersion) throws IOException
+        {
+            out.writeInt(1);
+            serializeOne(key, from, out, userVersion);
+        }
+
+        private void serializeOne(JournalKey key, Journal.TopologyUpdate from, DataOutputPlus out, int userVersion) throws IOException
+        {
+            out.writeInt(from.commandStores.size());
+            for (Map.Entry<Integer, RangesForEpoch> e : from.commandStores.entrySet())
+            {
+                out.writeInt(e.getKey());
+                rangesForEpochSerializer.serialize(key, e.getValue(), out, userVersion);
+            }
+            TopologySerializers.topology.serialize(from.local, out, userVersion);
+            TopologySerializers.topology.serialize(from.global, out, userVersion);
+        }
+
+        @Override
+        public void reserialize(JournalKey key, MapAccumulator<Long, Journal.TopologyUpdate> from, DataOutputPlus out, int userVersion) throws IOException
+        {
+            out.writeInt(from.accumulated.size());
+            for (Journal.TopologyUpdate update : from.accumulated.values())
+                serializeOne(key, update, out, userVersion);
+        }
+
+        @Override
+        public void deserialize(JournalKey key, MapAccumulator<Long, Journal.TopologyUpdate> into, DataInputPlus in, int userVersion) throws IOException
+        {
+            int size = in.readInt();
+            Accumulator<RangesForEpoch, RangesForEpoch> acc = new Accumulator<>(null)
+            {
+                @Override
+                protected RangesForEpoch accumulate(RangesForEpoch oldValue, RangesForEpoch newValue)
+                {
+                    return this.accumulated = newValue;
+                }
+            };
+            for (int i = 0; i < size; i++)
+            {
+                int commandStoresSize = in.readInt();
+                Int2ObjectHashMap<RangesForEpoch> commandStores = new Int2ObjectHashMap<>();
+                for (int j = 0; j < commandStoresSize; j++)
+                {
+                    acc.update(null);
+                    int commandStoreId = in.readInt();
+                    rangesForEpochSerializer.deserialize(key, acc, in, userVersion);
+                    commandStores.put(commandStoreId, acc.accumulated);
+                }
+                Topology local = TopologySerializers.topology.deserialize(in, userVersion);
+                Topology global = TopologySerializers.topology.deserialize(in, userVersion);
+                into.update(new Journal.TopologyUpdate(commandStores, local, global));
+            }
         }
     }
 }

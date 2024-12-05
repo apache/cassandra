@@ -24,6 +24,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import com.google.common.collect.Iterators;
@@ -47,14 +49,13 @@ import org.apache.cassandra.utils.Backoff;
 import org.mockito.Mockito;
 
 import static accord.utils.Property.qt;
+import static org.apache.cassandra.net.MessageDelivery.RetryErrorMessage;
+import static org.apache.cassandra.net.MessageDelivery.RetryPredicate;
 import static org.assertj.core.api.Assertions.assertThat;
 
 public class MessageDeliveryTest
 {
     private static final InetAddressAndPort ID1 = InetAddressAndPort.getByNameUnchecked("127.0.0.1");
-    private static final MessageDelivery.RetryErrorMessage RETRY_ERROR_MESSAGE = (i1, i2, i3, i4) -> null;
-    private static final MessageDelivery.RetryPredicate ALWAYS_RETRY = (i1, i2, i3) -> true;
-    private static final MessageDelivery.RetryPredicate ALWAYS_REJECT = (i1, i2, i3) -> false;
 
     static
     {
@@ -79,8 +80,8 @@ public class MessageDeliveryTest
                                                                      scheduler::schedule,
                                                                      Verb.ECHO_REQ, NoPayload.noPayload,
                                                                      Iterators.cycle(ID1),
-                                                                     ALWAYS_RETRY,
-                                                                     RETRY_ERROR_MESSAGE);
+                                                                     RetryPredicate.ALWAYS_RETRY,
+                                                                     RetryErrorMessage.EMPTY);
             assertThat(result).isNotDone();
             factory.processAll();
             assertThat(result).isDone();
@@ -104,8 +105,8 @@ public class MessageDeliveryTest
                                                                      scheduler::schedule,
                                                                      Verb.ECHO_REQ, NoPayload.noPayload,
                                                                      Iterators.cycle(ID1),
-                                                                     ALWAYS_RETRY,
-                                                                     RETRY_ERROR_MESSAGE);
+                                                                     RetryPredicate.ALWAYS_RETRY,
+                                                                     RetryErrorMessage.EMPTY);
             assertThat(result).isNotDone();
             factory.processAll();
             assertThat(result).isDone();
@@ -135,8 +136,8 @@ public class MessageDeliveryTest
                                                                      scheduler::schedule,
                                                                      Verb.ECHO_REQ, NoPayload.noPayload,
                                                                      Iterators.cycle(ID1),
-                                                                     ALWAYS_RETRY,
-                                                                     RETRY_ERROR_MESSAGE);
+                                                                     RetryPredicate.ALWAYS_RETRY,
+                                                                     RetryErrorMessage.EMPTY);
             assertThat(result).isNotDone();
             factory.processAll();
             assertThat(result).isDone();
@@ -163,8 +164,8 @@ public class MessageDeliveryTest
                                                                      scheduler::schedule,
                                                                      Verb.ECHO_REQ, NoPayload.noPayload,
                                                                      Iterators.cycle(ID1),
-                                                                     ALWAYS_REJECT,
-                                                                     RETRY_ERROR_MESSAGE);
+                                                                     RetryPredicate.NEVER_RETRY,
+                                                                     RetryErrorMessage.EMPTY);
             assertThat(result).isNotDone();
             factory.processAll();
             assertThat(result).isDone();
@@ -175,6 +176,26 @@ public class MessageDeliveryTest
             Mockito.verify(backoff, Mockito.never()).computeWaitTime(Mockito.anyInt());
             Mockito.verify(backoff, Mockito.never()).unit();
         });
+    }
+
+    public static FailedResponseException getFailedResponseException(Future<Message<Void>> result) throws InterruptedException
+    {
+        FailedResponseException ex;
+        try
+        {
+            result.get(1, TimeUnit.MINUTES);
+            Assert.fail("Should have failed");
+            throw new AssertionError("Not Reachable");
+        }
+        catch (ExecutionException e)
+        {
+            ex = (FailedResponseException) e.getCause();
+        }
+        catch (TimeoutException e)
+        {
+            throw new RuntimeException(e);
+        }
+        return ex;
     }
 
     private static MessageDelivery simulatedMessages(RandomSource rs, ScheduledExecutorPlus scheduler, List<Throwable> failures, SimulatedMessageDelivery.ActionSupplier actionSupplier)
@@ -189,22 +210,6 @@ public class MessageDeliveryTest
                                                                           failures::add);
         receivers.put(ID1, messaging.receiver(m -> messaging.respond(NoPayload.noPayload, m)));
         return messaging;
-    }
-
-    private static FailedResponseException getFailedResponseException(Future<Message<Void>> result) throws InterruptedException
-    {
-        FailedResponseException ex;
-        try
-        {
-            result.get();
-            Assert.fail("Should have failed");
-            throw new AssertionError("Not Reachable");
-        }
-        catch (ExecutionException e)
-        {
-            ex = (FailedResponseException) e.getCause();
-        }
-        return ex;
     }
 
     private static MaxRetriesException getMaxRetriesException(Future<Message<Void>> result) throws InterruptedException

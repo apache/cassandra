@@ -20,6 +20,7 @@ package org.apache.cassandra.service.accord;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.Collections;
+import java.util.Iterator;
 import java.util.NavigableMap;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
@@ -240,28 +241,28 @@ public class AccordJournal implements accord.api.Journal, Shutdownable
     @Override
     public RedundantBefore loadRedundantBefore(int store)
     {
-        IdentityAccumulator<RedundantBefore> accumulator = readAll(new JournalKey(TxnId.NONE, JournalKey.Type.REDUNDANT_BEFORE, store));
+        IdentityAccumulator<RedundantBefore> accumulator = readAll(new JournalKey(TxnId.NONE, JournalKey.Type.REDUNDANT_BEFORE, store), false);
         return accumulator.get();
     }
 
     @Override
     public NavigableMap<TxnId, Ranges> loadBootstrapBeganAt(int store)
     {
-        IdentityAccumulator<NavigableMap<TxnId, Ranges>> accumulator = readAll(new JournalKey(TxnId.NONE, JournalKey.Type.BOOTSTRAP_BEGAN_AT, store));
+        IdentityAccumulator<NavigableMap<TxnId, Ranges>> accumulator = readAll(new JournalKey(TxnId.NONE, JournalKey.Type.BOOTSTRAP_BEGAN_AT, store), false);
         return accumulator.get();
     }
 
     @Override
     public NavigableMap<Timestamp, Ranges> loadSafeToRead(int store)
     {
-        IdentityAccumulator<NavigableMap<Timestamp, Ranges>> accumulator = readAll(new JournalKey(TxnId.NONE, JournalKey.Type.SAFE_TO_READ, store));
+        IdentityAccumulator<NavigableMap<Timestamp, Ranges>> accumulator = readAll(new JournalKey(TxnId.NONE, JournalKey.Type.SAFE_TO_READ, store), false);
         return accumulator.get();
     }
 
     @Override
     public CommandStores.RangesForEpoch loadRangesForEpoch(int store)
     {
-        IdentityAccumulator<RangesForEpoch> accumulator = readAll(new JournalKey(TxnId.NONE, JournalKey.Type.RANGES_FOR_EPOCH, store));
+        IdentityAccumulator<RangesForEpoch> accumulator = readAll(new JournalKey(TxnId.NONE, JournalKey.Type.RANGES_FOR_EPOCH, store), false);
         return accumulator.get();
     }
 
@@ -278,6 +279,21 @@ public class AccordJournal implements accord.api.Journal, Shutdownable
 
         JournalKey key = new JournalKey(update.txnId, JournalKey.Type.COMMAND_DIFF, store);
         RecordPointer pointer = journal.asyncWrite(key, diff, SENTINEL_HOSTS);
+        if (onFlush != null)
+            journal.onDurable(pointer, onFlush);
+    }
+
+    @Override
+    public Iterator<TopologyUpdate> replayTopologies()
+    {
+        AccordJournalValueSerializers.MapAccumulator<Long, TopologyUpdate> accumulator = readAll(new JournalKey(TxnId.NONE, JournalKey.Type.TOPOLOGY_UPDATE, -1), false);
+        return accumulator.get().values().iterator();
+    }
+
+    @Override
+    public void saveTopology(TopologyUpdate topologyUpdate, Runnable onFlush)
+    {
+        RecordPointer pointer = appendInternal(new JournalKey(TxnId.NONE, JournalKey.Type.TOPOLOGY_UPDATE, -1), topologyUpdate);
         if (onFlush != null)
             journal.onDurable(pointer, onFlush);
     }
@@ -301,7 +317,7 @@ public class AccordJournal implements accord.api.Journal, Shutdownable
             @Override
             public DurableBefore load()
             {
-                DurableBeforeAccumulator accumulator = readAll(new JournalKey(TxnId.NONE, JournalKey.Type.DURABLE_BEFORE, 0));
+                DurableBeforeAccumulator accumulator = readAll(new JournalKey(TxnId.NONE, JournalKey.Type.DURABLE_BEFORE, 0), false);
                 return accumulator.get();
             }
         };
@@ -334,7 +350,7 @@ public class AccordJournal implements accord.api.Journal, Shutdownable
     {
         JournalKey key = new JournalKey(txnId, JournalKey.Type.COMMAND_DIFF, commandStoreId);
         Builder builder = new Builder(txnId, load);
-        journalTable.readAll(key, builder::deserializeNext);
+        journalTable.readAll(key, builder::deserializeNext, true);
         return builder;
     }
 
@@ -344,13 +360,13 @@ public class AccordJournal implements accord.api.Journal, Shutdownable
         return loadDiffs(commandStoreId, txnId, Load.ALL);
     }
 
-    private <BUILDER> BUILDER readAll(JournalKey key)
+    private <BUILDER> BUILDER readAll(JournalKey key, boolean asc)
     {
         BUILDER builder = (BUILDER) key.type.serializer.mergerFor(key);
         // TODO: this can be further improved to avoid allocating lambdas
         AccordJournalValueSerializers.FlyweightSerializer<?, BUILDER> serializer = (AccordJournalValueSerializers.FlyweightSerializer<?, BUILDER>) key.type.serializer;
         // TODO (expected): for those where we store an image, read only the first entry we find in DESC order
-        journalTable.readAll(key, (in, userVersion) -> serializer.deserialize(key, builder, in, userVersion));
+        journalTable.readAll(key, (in, userVersion) -> serializer.deserialize(key, builder, in, userVersion), asc);
         return builder;
     }
 

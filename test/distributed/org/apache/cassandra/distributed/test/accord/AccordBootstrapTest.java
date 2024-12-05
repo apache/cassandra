@@ -183,12 +183,17 @@ public class AccordBootstrapTest extends TestBaseImpl
                                                                   .with(NETWORK, GOSSIP))
                                       .start())
         {
+            cluster.schemaChange("CREATE KEYSPACE ks WITH REPLICATION={'class':'SimpleStrategy', 'replication_factor':2}");
+            cluster.schemaChange("CREATE TABLE ks.tbl (k int, c int, v int, primary key(k, c)) WITH transactional_mode='full'");
+
             long initialMax = maxEpoch(cluster);
+
             for (IInvokableInstance node : cluster)
             {
 
                 node.runOnInstance(() -> {
                     Assert.assertEquals(initialMax, ClusterMetadata.current().epoch.getEpoch());
+                    System.out.println("Awaiting " + initialMax);
                     awaitEpoch(initialMax);
                     AccordConfigurationService configService = service().configurationService();
                     long minEpoch = configService.minEpoch();
@@ -210,9 +215,6 @@ public class AccordBootstrapTest extends TestBaseImpl
             {
                 node.runOnInstance(StreamListener::register);
             }
-
-            cluster.schemaChange("CREATE KEYSPACE ks WITH REPLICATION={'class':'SimpleStrategy', 'replication_factor':2}");
-            cluster.schemaChange("CREATE TABLE ks.tbl (k int, c int, v int, primary key(k, c)) WITH transactional_mode='full'");
 
             long schemaChangeMax = maxEpoch(cluster);
             for (IInvokableInstance node : cluster)
@@ -363,6 +365,9 @@ public class AccordBootstrapTest extends TestBaseImpl
                                                             .with(NETWORK, GOSSIP))
                                       .start())
         {
+            cluster.schemaChange("CREATE KEYSPACE ks WITH REPLICATION={'class':'SimpleStrategy', 'replication_factor':2}");
+            cluster.schemaChange("CREATE TABLE ks.tbl (k int, c int, v int, primary key(k, c)) WITH transactional_mode='full'");
+
             long initialMax = maxEpoch(cluster);
             long[] tokens = new long[3];
             for (int i=0; i<3; i++)
@@ -391,9 +396,6 @@ public class AccordBootstrapTest extends TestBaseImpl
                     Assert.assertEquals(EpochSnapshot.completed(initialMax), configService.getEpochSnapshot(initialMax));
                 });
             }
-
-            cluster.schemaChange("CREATE KEYSPACE ks WITH REPLICATION={'class':'SimpleStrategy', 'replication_factor':2}");
-            cluster.schemaChange("CREATE TABLE ks.tbl (k int, c int, v int, primary key(k, c)) WITH transactional_mode='full'");
 
             long schemaChangeMax = maxEpoch(cluster);
             for (IInvokableInstance node : cluster)

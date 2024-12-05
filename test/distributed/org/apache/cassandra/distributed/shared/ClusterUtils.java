@@ -653,7 +653,7 @@ public class ClusterUtils
         }
     }
 
-    public static void waitForCMSToQuiesce(ICluster<IInvokableInstance> cluster, int[] cmsNodes)
+    public static void waitForCMSToQuiesce(ICluster<IInvokableInstance> cluster, int... cmsNodes)
     {
         // first step; find the largest epoch
         waitForCMSToQuiesce(cluster, maxEpoch(cluster, cmsNodes));
