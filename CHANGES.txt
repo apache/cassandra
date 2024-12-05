@@ -1,4 +1,5 @@
 5.1
+ * Make hint expiry use request start time rather than timeout time for TTL (CASSANDRA-20014)
  * Make JsonUtils serialize Instant always with the same format (CASSANDRA-20209)
  * Port Harry v2 to trunk (CASSANDRA-20200)
  * Enable filtering of snapshots on keyspace, table and snapshot name in nodetool listsnapshots (CASSANDRA-20151)
