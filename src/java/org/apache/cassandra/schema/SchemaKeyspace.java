@@ -96,6 +96,7 @@ public final class SchemaKeyspace
               "CREATE TABLE %s ("
               + "keyspace_name text,"
               + "durable_writes boolean,"
+              + "replication_type text,"
               + "replication frozen<map<text, text>>,"
               + "PRIMARY KEY ((keyspace_name)))");
 
@@ -462,6 +463,7 @@ public final class SchemaKeyspace
         builder.update(Keyspaces)
                .row()
                .add(KeyspaceParams.Option.DURABLE_WRITES.toString(), params.durableWrites)
+               .add(KeyspaceParams.Option.REPLICATION_TYPE.toString(), params.replicationType.toString())
                .add(KeyspaceParams.Option.REPLICATION.toString(),
                     (params.replication.isMeta() ? params.replication.asNonMeta() : params.replication).asMap());
 
@@ -937,10 +939,16 @@ public final class SchemaKeyspace
 
         UntypedResultSet.Row row = query(query, keyspaceName).one();
         boolean durableWrites = row.getBoolean(KeyspaceParams.Option.DURABLE_WRITES.toString());
+
+        String replicationTypeName = row.getString(KeyspaceParams.Option.REPLICATION_TYPE.toString());
+        ReplicationType replicationType = replicationTypeName != null ? ReplicationType.valueOf(replicationTypeName) : ReplicationType.legacy;
+
+
+
         Map<String, String> replication = row.getFrozenTextMap(KeyspaceParams.Option.REPLICATION.toString());
-        KeyspaceParams params = KeyspaceParams.create(durableWrites, replication);
+        KeyspaceParams params = KeyspaceParams.create(durableWrites, replication, replicationType);
         if (keyspaceName.equals(SchemaConstants.METADATA_KEYSPACE_NAME))
-            params = new KeyspaceParams(params.durableWrites, params.replication.asMeta());
+            params = new KeyspaceParams(params.durableWrites, params.replication.asMeta(), ReplicationType.legacy);
 
         return params;
     }
