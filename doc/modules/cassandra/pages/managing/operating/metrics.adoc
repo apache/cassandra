@@ -255,13 +255,12 @@ read during validation.
 anticompacting because the sstable was fully contained in the repaired
 range.
 
-|BytesPreviewed |Meter |How many bytes we scanned during preview repair.
+|BytesPreviewed |Meter |Estimated number of bytes that were scanned for local replica during preview repair
 
-|TokenRangesPreviewed |Meter |How many token ranges we scanned during preview repair.
+|BytesPreviewedDesynchronized |Meter |Number of desynchronized bytes that were detected among all replicas during preview repair
 
-|BytesPreviewedDesynchronized |Meter |How many desynchronized bytes we found during preview repair.
-
-|TokenRangesPreviewedDesynchronized |Meter |How many desynchronized token ranges we found during preview repair.
+|TokenRangesPreviewedDesynchronized |Meter |Number of token ranges among all replicas where desynchronization was found
+during preview repair. These ranges would need to be streamed during subsequent repair.
 
 |MutatedAnticompactionGauge |Gauge<Double> |Ratio of bytes mutated vs
 total bytes repaired.
