@@ -155,11 +155,13 @@ public class SyncStatSummary
             return output.toString();
         }
 
-        public long getBytes() {
+        public long getBytes()
+        {
             return this.bytes;
         }
 
-        public long getRanges() {
+        public long getRanges()
+        {
             return this.ranges;
         }
     }
@@ -221,7 +223,8 @@ public class SyncStatSummary
         totalsCalculated = true;
     }
 
-    public Map<Pair<String, String>, Table> getTotals() {
+    public Map<Pair<String, String>, Table> getTotals()
+    {
         calculateTotals();
         return summaries;
     }

@@ -209,9 +209,9 @@ public class TableMetrics
     /** number of token ranges that were scanned during preview repair */
     public final Meter tokenRangesPreviewed;
     /** number of desynchronized token ranges that were detected during preview repair */
-    public final Meter previewedDesynchronizedTokenRanges;
+    public final Meter tokenRangesPreviewedDesynchronized;
     /** number of desynchronized bytes that were detected during preview repair */
-    public final Meter previewedDesynchronizedBytes;
+    public final Meter bytesPreviewedDesynchronized;
     /** ratio of how much we anticompact vs how much we could mutate the repair status*/
     public final Gauge<Double> mutatedAnticompactionGauge;
 
@@ -910,8 +910,8 @@ public class TableMetrics
         bytesMutatedAnticompaction = createTableMeter("BytesMutatedAnticompaction");
         bytesPreviewed = createTableMeter("BytesPreviewed");
         tokenRangesPreviewed = createTableMeter("TokenRangesPreviewed");
-        previewedDesynchronizedTokenRanges = createTableMeter("PreviewedDesynchronizedTokenRanges");
-        previewedDesynchronizedBytes = createTableMeter("PreviewedDesynchronizedBytes");
+        tokenRangesPreviewedDesynchronized = createTableMeter("TokenRangesPreviewedDesynchronized");
+        bytesPreviewedDesynchronized = createTableMeter("BytesPreviewedDesynchronized");
         mutatedAnticompactionGauge = createTableGauge("MutatedAnticompactionGauge", () ->
         {
             double bytesMutated = bytesMutatedAnticompaction.getCount();
