@@ -146,7 +146,6 @@ public class ValidationManager implements IValidationManager
             cfs.metric.partitionsValidated.update(state.partitionsProcessed);
             if (validator.getPreviewKind() != PreviewKind.NONE)
             {
-                cfs.metric.tokenRangesPreviewed.mark(validator.desc.ranges.size());
                 cfs.metric.bytesPreviewed.mark(state.estimatedTotalBytes);
             }
             if (topPartitionCollector != null)
