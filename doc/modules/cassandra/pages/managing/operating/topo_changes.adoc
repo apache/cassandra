@@ -97,7 +97,7 @@ in `nodetool netstats`.
 The replacing node will now start to bootstrap the data from the rest of
 the nodes in the cluster. A replacing node will only receive writes
 during the bootstrapping phase if it has a different ip address to the
-node that is being replaced. (See CASSANDRA-8523 and CASSANDRA-12344)
+node that is being replaced. ( See https://issues.apache.org/jira/browse/CASSANDRA-8523[CASSANDRA-8523] and https://issues.apache.org/jira/browse/CASSANDRA-12344[CASSANDRA-12344] )
 
 Once the bootstrapping is complete the node will be marked "UP".
 

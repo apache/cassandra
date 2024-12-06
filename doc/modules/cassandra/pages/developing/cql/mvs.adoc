@@ -73,7 +73,7 @@ The `WHERE` clause has the following restrictions:
 ** no other restriction is allowed
 ** cannot have columns that are part of the _view_ primary key be null, they must always be at least restricted by a `IS NOT NULL`
 restriction (or any other restriction, but they must have one).
-* cannot have an xref:cassandra:developing/cql/dml.adoc#ordering-clause[ordering clause], a xref:cassandra:developing/cql/dml.adoc#limit-clause[limit], or xref:cassandra:developing/cql/dml.adoc#allow-filtering[ALLOW FILTERING
+* cannot have an xref:cassandra:developing/cql/dml.adoc#ordering-clause[ordering clause], a xref:cassandra:developing/cql/dml.adoc#limit-clause[limit], or xref:cassandra:developing/cql/dml.adoc#allow-filtering[ALLOW FILTERING]
 
 === MV primary key
 
@@ -152,5 +152,5 @@ Removal of columns not selected in the Materialized View (via
 `DELETE unselected_column FROM base`) may shadow missed updates to other
 columns received by hints or repair. For this reason, we advise against
 doing deletions on base columns not selected in views until this is
-fixed on CASSANDRA-13826.
+fixed on https://issues.apache.org/jira/browse/CASSANDRA-13826[CASSANDRA-13826].
 ====

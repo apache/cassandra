@@ -35,7 +35,7 @@ This kind of deleted but persistent object is called a https://cassandra.apache.
 == Grace period
 
 To prevent the reappearance of zombies, {cassandra} gives each tombstone a grace period.
-The grace period for a tombstone is set with the table property ` WITH gc_grace_seconds`. 
+The grace period for a tombstone is set with the table property `WITH gc_grace_seconds`.
 Its default value is 864000 seconds (ten days), after which a tombstone expires and can be deleted during compaction.
 Prior to the grace period expiring, {cassandra} will retain a tombstone through compaction events.
 Each table can have its own value for this property.

@@ -22,7 +22,7 @@ WITH CLUSTERING ORDER BY (created_at DESC);
 
 // tag::alter-vs-table[]
 ALTER TABLE cycling.comments_vs
-   ADD comment_vector VECTOR <FLOAT, 5>; <1>
+   ADD comment_vector VECTOR <FLOAT, 5>;
 // end::alter-vs-table[]
 
 // tag::create-vs-index[]

@@ -301,7 +301,7 @@ UDFs can be _overloaded_, so that multiple UDFs with different argument types ca
 [NOTE]
 ====
 _JavaScript_ user-defined functions have been deprecated in Cassandra 4.1. In preparation for Cassandra 5.0, their removal is
-already in progress. For more information - CASSANDRA-17281, CASSANDRA-18252.
+already in progress. For more information - https://issues.apache.org/jira/browse/CASSANDRA-17281[CASSANDRA-17281], https://issues.apache.org/jira/browse/CASSANDRA-18252[CASSANDRA-18252].
 ====
 
 For example:
