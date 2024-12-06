@@ -249,11 +249,19 @@ during validation.
 |PartitionsValidated |Histogram |Histogram over the number of partitions
 read during validation.
 
-|BytesAnticompacted |Counter |How many bytes we anticompacted.
+|BytesAnticompacted |Meter |How many bytes we anticompacted.
 
-|BytesMutatedAnticompaction |Counter |How many bytes we avoided
+|BytesMutatedAnticompaction |Meter |How many bytes we avoided
 anticompacting because the sstable was fully contained in the repaired
 range.
+
+|BytesPreviewed |Meter |How many bytes we scanned during preview repair.
+
+|TokenRangesPreviewed |Meter |How many token ranges we scanned during preview repair.
+
+|BytesPreviewedDesynchronized |Meter |How many desynchronized bytes we found during preview repair.
+
+|TokenRangesPreviewedDesynchronized |Meter |How many desynchronized token ranges we found during preview repair.
 
 |MutatedAnticompactionGauge |Gauge<Double> |Ratio of bytes mutated vs
 total bytes repaired.
