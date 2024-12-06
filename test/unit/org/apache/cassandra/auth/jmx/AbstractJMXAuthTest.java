@@ -22,6 +22,7 @@ import java.lang.reflect.Field;
 import java.rmi.server.RMISocketFactory;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Queue;
 import javax.management.JMX;
 import javax.management.MBeanServerConnection;
 import javax.management.ObjectName;
@@ -39,6 +40,11 @@ import org.junit.Before;
 import org.junit.Ignore;
 import org.junit.Test;
 
+import org.apache.cassandra.audit.AuditLogEntry;
+import org.apache.cassandra.audit.AuditLogEntryType;
+import org.apache.cassandra.audit.AuditLogManager;
+import org.apache.cassandra.audit.AuditLogOptions;
+import org.apache.cassandra.audit.InMemoryAuditLogger;
 import org.apache.cassandra.auth.AuthenticatedUser;
 import org.apache.cassandra.auth.CassandraPrincipal;
 import org.apache.cassandra.auth.IAuthorizer;
@@ -51,6 +57,7 @@ import org.apache.cassandra.config.JMXServerOptions;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.db.ColumnFamilyStoreMBean;
 import org.apache.cassandra.utils.JMXServerUtils;
+import org.assertj.core.api.Assertions;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.fail;
@@ -64,6 +71,7 @@ public abstract class AbstractJMXAuthTest extends CQLTester
     private RoleResource role;
     private String tableName;
     private JMXResource tableMBean;
+    private Queue<AuditLogEntry> auditLogs;
 
     @Before
     public void setup() throws Throwable
@@ -73,6 +81,8 @@ public abstract class AbstractJMXAuthTest extends CQLTester
         tableName = createTable("CREATE TABLE %s (k int, v int, PRIMARY KEY (k))");
         tableMBean = JMXResource.mbean(String.format("org.apache.cassandra.db:type=Tables,keyspace=%s,table=%s",
                                                      KEYSPACE, tableName));
+        AuditLogManager.instance.enable(DatabaseDescriptor.getAuditLoggingOptions());
+        auditLogs = ((InMemoryAuditLogger) AuditLogManager.instance.getLogger()).internalQueue();
     }
 
     @Test
@@ -157,6 +167,12 @@ public abstract class AbstractJMXAuthTest extends CQLTester
 
     protected static void setupJMXServer(JMXServerOptions jmxServerOptions) throws Exception
     {
+        DatabaseDescriptor.setAuditLoggingOptions(new AuditLogOptions.Builder()
+                                                  .withEnabled(true)
+                                                  .withBlock(true)
+                                                  .withLogger("InMemoryAuditLogger", null)
+                                                  .build());
+
         jmxServerOptions.jmx_encryption_options.applyConfig();
         jmxServer = JMXServerUtils.createJMXServer(jmxServerOptions, "localhost");
         jmxServer.start();
@@ -210,6 +226,10 @@ public abstract class AbstractJMXAuthTest extends CQLTester
     private void assertAuthorized(MBeanAction action)
     {
         action.execute();
+        AuditLogEntry entry = nextAuditEvent(auditLogs);
+        Assertions.assertThat(entry.getType()).isSameAs(AuditLogEntryType.JMX);
+        Assertions.assertThat(entry.getUser()).contains(role.getRoleName());
+        Assertions.assertThat(entry.getOperation()).contains("JMX INVOCATION");
     }
 
     private void assertUnauthorized(MBeanAction action)
@@ -222,7 +242,21 @@ public abstract class AbstractJMXAuthTest extends CQLTester
         catch (SecurityException e)
         {
             assertEquals("Access Denied", e.getLocalizedMessage());
+            AuditLogEntry entry = nextAuditEvent(auditLogs);
+            Assertions.assertThat(entry.getType()).isSameAs(AuditLogEntryType.JMX);
+            Assertions.assertThat(entry.getUser()).contains(role.getRoleName());
+            Assertions.assertThat(entry.getOperation()).contains("JMX FAILURE");
+            Assertions.assertThat(entry.getOperation()).contains(e.getLocalizedMessage());
         }
+    }
+
+    private static AuditLogEntry nextAuditEvent(Queue<AuditLogEntry> auditLogs)
+    {
+        // When creating a new proxy, classloaders are loaded over JMX, so ignore those for permission assertions
+        AuditLogEntry next = auditLogs.remove();
+        if (next.getOperation().startsWith("JMX INVOCATION: javax.management.MBeanServer#getClassLoaderFor"))
+            return auditLogs.remove();
+        return next;
     }
 
     private void clearAllPermissions()

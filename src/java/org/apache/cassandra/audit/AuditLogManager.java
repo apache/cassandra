@@ -18,13 +18,26 @@
 
 package org.apache.cassandra.audit;
 
+import java.lang.reflect.InvocationHandler;
+import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Method;
+import java.lang.reflect.Proxy;
 import java.nio.ByteBuffer;
+import java.security.AccessControlContext;
+import java.security.AccessController;
+import java.security.Principal;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Objects;
+import java.util.StringJoiner;
 import java.util.UUID;
+
 import javax.annotation.Nullable;
+import javax.management.MBeanServer;
 import javax.management.openmbean.CompositeData;
+import javax.management.remote.MBeanServerForwarder;
+import javax.security.auth.Subject;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableList;
@@ -49,15 +62,18 @@ import org.apache.cassandra.service.QueryState;
 import org.apache.cassandra.transport.Message;
 import org.apache.cassandra.transport.messages.ResultMessage;
 import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.JmxInvocationListener;
 import org.apache.cassandra.utils.MBeanWrapper;
 
 import static org.apache.cassandra.utils.LocalizeString.toLowerCaseLocalized;
+
+import static org.apache.cassandra.audit.AuditLogEntryType.JMX;
 
 /**
  * Central location for managing the logging of client/user-initated actions (like queries, log in commands, and so on).
  *
  */
-public class AuditLogManager implements QueryEvents.Listener, AuthEvents.Listener, AuditLogManagerMBean
+public class AuditLogManager implements QueryEvents.Listener, AuthEvents.Listener, AuditLogManagerMBean, JmxInvocationListener
 {
     private static final Logger logger = LoggerFactory.getLogger(AuditLogManager.class);
 
@@ -68,6 +84,9 @@ public class AuditLogManager implements QueryEvents.Listener, AuthEvents.Listene
     private volatile IAuditLogger auditLogger;
     private volatile AuditLogFilter filter;
     private volatile AuditLogOptions auditLogOptions;
+
+    // Only reset in tests
+    private MBeanServerForwarder mbsf = createMBeanServerForwarder();
 
     private AuditLogManager()
     {
@@ -159,7 +178,7 @@ public class AuditLogManager implements QueryEvents.Listener, AuthEvents.Listene
         {
             builder.setType(AuditLogEntryType.LOGIN_ERROR);
         }
-        else
+        else if (logEntry.getType() != JMX)
         {
             builder.setType(AuditLogEntryType.REQUEST_FAILURE);
         }
@@ -399,5 +418,113 @@ public class AuditLogManager implements QueryEvents.Listener, AuthEvents.Listene
         }
 
         return PasswordObfuscator.obfuscate(e.getMessage());
+    }
+
+    private static class JmxFormatter
+    {
+        private static String user(Subject subject)
+        {
+            if (subject == null)
+                return "null";
+            StringJoiner joiner = new StringJoiner(", ");
+            for (Principal principal : subject.getPrincipals())
+                joiner.add(Objects.toString(principal));
+            return joiner.toString();
+        }
+
+        private static String method(Method method, Object[] args)
+        {
+            String argsFmt = "";
+            if (args != null)
+            {
+                StringJoiner joiner = new StringJoiner(", ");
+                for (Object arg : args)
+                    joiner.add(Objects.toString(arg));
+                argsFmt = joiner.toString();
+            }
+            return String.format("%s#%s(%s)", method.getDeclaringClass().getCanonicalName(), method.getName(), argsFmt);
+        }
+    }
+
+    @Override
+    public void onInvocation(Subject subject, Method method, Object[] args)
+    {
+        if (filter.isFiltered(AuditLogEntryCategory.JMX))
+            return;
+
+        AuditLogEntry entry = new AuditLogEntry.Builder(JMX)
+                              .setOperation(String.format("JMX INVOCATION: %s", JmxFormatter.method(method, args)))
+                              .setUser(JmxFormatter.user(subject))
+                              .build();
+        log(entry);
+    }
+
+    @Override
+    public void onFailure(Subject subject, Method method, Object[] args, Exception exception)
+    {
+        if (filter.isFiltered(AuditLogEntryCategory.JMX))
+            return;
+
+        AuditLogEntry entry = new AuditLogEntry.Builder(JMX)
+                              .setOperation(String.format("JMX FAILURE: %s due to %s", JmxFormatter.method(method, args), exception.getClass().getSimpleName()))
+                              .setUser(JmxFormatter.user(subject))
+                              .build();
+        log(entry, exception);
+    }
+
+    private class JmxHandler implements InvocationHandler
+    {
+        private MBeanServer mbs = null;
+
+        @Override
+        public Object invoke(Object proxy, Method method, Object[] args) throws Throwable
+        {
+            // See AuthorizationProxy.invoke
+            if ("setMBeanServer".equals(method.getName()))
+            {
+                if (args[0] == null)
+                    throw new IllegalArgumentException("Null MBeanServer");
+
+                if (mbs != null)
+                    throw new IllegalArgumentException("MBeanServer already initialized");
+
+                mbs = (MBeanServer) args[0];
+                return null;
+            }
+
+            AccessControlContext acc = AccessController.getContext();
+            Subject subject = Subject.getSubject(acc);
+
+            try
+            {
+                Object invoke = method.invoke(mbs, args);
+                AuditLogManager.this.onInvocation(subject, method, args);
+                return invoke;
+            }
+            catch (InvocationTargetException e)
+            {
+                AuditLogManager.instance.onFailure(subject, method, args, e);
+                throw e.getCause();
+            }
+        }
+    }
+
+    private MBeanServerForwarder createMBeanServerForwarder()
+    {
+        InvocationHandler handler = new JmxHandler();
+        Class<?>[] interfaces = { MBeanServerForwarder.class };
+        Object proxy = Proxy.newProxyInstance(MBeanServerForwarder.class.getClassLoader(), interfaces, handler);
+        return (MBeanServerForwarder) proxy;
+    }
+
+    @VisibleForTesting
+    void resetMBeanServerForwarder()
+    {
+        this.mbsf = createMBeanServerForwarder();
+    }
+
+    public MBeanServerForwarder getMBeanServerForwarder()
+    {
+        return mbsf;
     }
 }

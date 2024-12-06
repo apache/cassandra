@@ -53,6 +53,7 @@ import com.google.common.collect.ImmutableMap;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.audit.AuditLogManager;
 import org.apache.cassandra.auth.jmx.AuthenticationProxy;
 import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.config.JMXServerOptions;
@@ -135,6 +136,9 @@ public class JMXServerUtils
         // If a custom authz proxy was created, attach it to the server now.
         if (authzProxy != null)
             jmxServer.setMBeanServerForwarder(authzProxy);
+        else
+            jmxServer.setMBeanServerForwarder(AuditLogManager.instance.getMBeanServerForwarder());
+
         jmxServer.start();
 
         registry.setRemoteServerStub(server.toStub());
@@ -274,7 +278,7 @@ public class JMXServerUtils
         }
         return String.format(urlTemplate, hostName, port);
     }
-    
+
     private static class JMXPluggableAuthenticatorWrapper implements JMXAuthenticator
     {
         private static final MethodHandle ctorHandle;

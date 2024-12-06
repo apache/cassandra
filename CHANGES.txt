@@ -1,4 +1,5 @@
 5.1
+ * Support audit logging for JMX operations (CASSANDRA-20128)
  * Enable sorting of nodetool status output (CASSANDRA-20104)
  * Support downgrading after CMS is initialized (CASSANDRA-20145)
  * Deprecate IEndpointSnitch (CASSANDRA-19488)

@@ -17,12 +17,24 @@
  */
 package org.apache.cassandra.audit;
 
-import org.junit.After;
 import java.io.IOException;
+import java.lang.reflect.Field;
+import java.net.InetAddress;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.rmi.server.RMISocketFactory;
 import java.util.Collections;
+import java.util.HashMap;
+import java.util.Map;
+import javax.management.JMX;
+import javax.management.MBeanServerConnection;
+import javax.management.ObjectName;
+import javax.management.remote.JMXConnector;
+import javax.management.remote.JMXConnectorFactory;
+import javax.management.remote.JMXServiceURL;
 
+import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.BeforeClass;
@@ -36,15 +48,35 @@ import com.datastax.driver.core.exceptions.NoHostAvailableException;
 import com.datastax.driver.core.exceptions.SyntaxError;
 import net.openhft.chronicle.queue.RollCycles;
 import org.apache.cassandra.auth.AuthEvents;
+import org.apache.cassandra.auth.AuthenticatedUser;
+import org.apache.cassandra.auth.IAuthorizer;
+import org.apache.cassandra.auth.JMXResource;
+import org.apache.cassandra.auth.Permission;
+import org.apache.cassandra.auth.RoleResource;
+import org.apache.cassandra.auth.StubAuthorizer;
+import org.apache.cassandra.auth.jmx.AbstractJMXAuthTest;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.config.JMXServerOptions;
 import org.apache.cassandra.config.ParameterizedClass;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.cql3.QueryEvents;
+import org.apache.cassandra.db.ColumnFamilyStoreMBean;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.utils.JMXServerUtils;
+import org.assertj.core.api.Assertions;
 
+import static org.apache.cassandra.config.CassandraRelevantProperties.CASSANDRA_JMX_AUTHORIZER;
+import static org.apache.cassandra.config.CassandraRelevantProperties.CASSANDRA_JMX_LOCAL_PORT;
+import static org.apache.cassandra.config.CassandraRelevantProperties.CASSANDRA_JMX_REMOTE_LOGIN_CONFIG;
+import static org.apache.cassandra.config.CassandraRelevantProperties.COM_SUN_MANAGEMENT_JMXREMOTE_AUTHENTICATE;
+import static org.apache.cassandra.config.CassandraRelevantProperties.JAVA_SECURITY_AUTH_LOGIN_CONFIG;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.instanceOf;
+import static org.hamcrest.CoreMatchers.is;
+import static org.hamcrest.Matchers.emptyCollectionOf;
+import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.stringContainsInOrder;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotEquals;
 import static org.junit.Assert.assertNull;
@@ -756,6 +788,108 @@ public class AuditLoggerTest extends CQLTester
                                                1000L, 1000, null);
         assertTrue(AuditLogManager.instance.isEnabled());
         assertEquals("/xyz/not/null", AuditLogManager.instance.getAuditLogOptions().archive_command);
+    }
+
+    @Test
+    public void testJMXAuditLogs() throws Throwable
+    {
+        // Need to use distinct ports, otherwise would get RMI registry object ID collision, even with server shutdown between
+        testJMXAuditLogs(false, getAutomaticallyAllocatedPort(InetAddress.getLoopbackAddress()));
+        testJMXAuditLogs(true, getAutomaticallyAllocatedPort(InetAddress.getLoopbackAddress()));
+    }
+
+    private void testJMXAuditLogs(boolean enableAuthorizationProxy, int port) throws Throwable
+    {
+        if (enableAuthorizationProxy)
+        {
+            // Set up JMX; see AbstractJMXAuthTest.setupAuthorizer
+            IAuthorizer authorizer = new StubAuthorizer();
+            Field authorizerField = DatabaseDescriptor.class.getDeclaredField("authorizer");
+            authorizerField.setAccessible(true);
+            authorizerField.set(null, authorizer);
+            DatabaseDescriptor.setPermissionsValidity(0);
+        }
+
+        JMXResource tableMBean = JMXResource.mbean("org.apache.cassandra.db:type=Tables,keyspace=system_auth,table=roles");
+
+        if (enableAuthorizationProxy)
+        {
+            DatabaseDescriptor.getAuthorizer().grant(AuthenticatedUser.SYSTEM_USER,
+                                                     Permission.ALL,
+                                                     tableMBean,
+                                                     RoleResource.role("test_role"));
+        }
+
+        DatabaseDescriptor.setAuditLoggingOptions(new AuditLogOptions.Builder()
+                                                  .withEnabled(true)
+                                                  .withBlock(true)
+                                                  .withLogger("InMemoryAuditLogger", null)
+                                                  .build());
+
+        if (enableAuthorizationProxy)
+        {
+            String config = Paths.get(ClassLoader.getSystemResource("auth/cassandra-test-jaas.conf").toURI()).toString();
+            COM_SUN_MANAGEMENT_JMXREMOTE_AUTHENTICATE.setBoolean(true);
+            JAVA_SECURITY_AUTH_LOGIN_CONFIG.setString(config);
+            CASSANDRA_JMX_REMOTE_LOGIN_CONFIG.setString("TestLogin");
+            CASSANDRA_JMX_AUTHORIZER.setString(AbstractJMXAuthTest.NoSuperUserAuthorizationProxy.class.getName());
+        }
+        CASSANDRA_JMX_LOCAL_PORT.setInt(port);
+        JMXServerOptions options = JMXServerOptions.createParsingSystemProperties();
+        options.jmx_encryption_options.applyConfig();
+        JMXServerUtils.createJMXServer(options, "localhost").start();
+
+        JMXServiceURL jmxUrl = new JMXServiceURL(String.format("service:jmx:rmi:///jndi/rmi://localhost:%d/jmxrmi", port));
+        Map<String, Object> env = new HashMap<>();
+        env.put("com.sun.jndi.rmi.factory.socket", RMISocketFactory.getDefaultSocketFactory());
+        JMXConnector jmxc = JMXConnectorFactory.connect(jmxUrl, env);
+        MBeanServerConnection connection = jmxc.getMBeanServerConnection();
+
+        // Setting up the connection will cause a few JMX methods to be called, so need to reset to empty
+        Assert.assertThat(((InMemoryAuditLogger) AuditLogManager.instance.getLogger()).inMemQueue, not(emptyCollectionOf(AuditLogEntry.class)));
+        ((InMemoryAuditLogger) AuditLogManager.instance.getLogger()).inMemQueue.clear();
+
+        // Do an operation that doesn't fail
+        ColumnFamilyStoreMBean proxy = JMX.newMBeanProxy(connection,
+                                                         ObjectName.getInstance(tableMBean.getObjectName()),
+                                                         ColumnFamilyStoreMBean.class);
+        proxy.getTableName();
+        AuditLogEntry logEntry = ((InMemoryAuditLogger) AuditLogManager.instance.getLogger()).inMemQueue.poll();
+        assertEquals(AuditLogEntryType.JMX, logEntry.getType());
+        assertThat(logEntry.getOperation(), containsString("JMX INVOCATION"));
+        if (enableAuthorizationProxy)
+            assertThat(logEntry.getUser(), is("CassandraPrincipal: test_role"));
+        else
+            assertThat(logEntry.getUser(), is("null"));
+        assertEquals(0, ((InMemoryAuditLogger) AuditLogManager.instance.getLogger()).inMemQueue.size());
+
+        // Do an operation that fails
+        tableMBean = JMXResource.mbean("org.apache.cassandra.db:type=Tables,keyspace=system_auth,table=roles");
+        proxy = JMX.newMBeanProxy(connection,
+                ObjectName.getInstance(tableMBean.getObjectName()),
+                ColumnFamilyStoreMBean.class);
+
+        ColumnFamilyStoreMBean finalProxy = proxy;
+        Assertions.assertThatThrownBy(() -> finalProxy.setMinimumCompactionThreshold(Integer.MAX_VALUE))
+                  .isInstanceOf(RuntimeException.class)
+                  .hasMessageContaining("min_compaction_threshold cannot be larger than the max_compaction_threshold");
+
+        logEntry = ((InMemoryAuditLogger) AuditLogManager.instance.getLogger()).inMemQueue.poll();
+        assertEquals(AuditLogEntryType.JMX, logEntry.getType());
+        assertThat(logEntry.getOperation(), stringContainsInOrder("JMX INVOCATION", "getClassLoaderFor"));
+        assertThat(logEntry.getUser(), containsString("null"));
+
+        // 2 JMX calls are produced, one to search for class, then one to invoke
+        logEntry = ((InMemoryAuditLogger) AuditLogManager.instance.getLogger()).inMemQueue.poll();
+        assertEquals(AuditLogEntryType.JMX, logEntry.getType());
+        assertThat(logEntry.getOperation(), stringContainsInOrder("JMX FAILURE", "setAttribute"));
+        if (enableAuthorizationProxy)
+            assertThat(logEntry.getUser(), is("CassandraPrincipal: test_role"));
+        else
+            assertThat(logEntry.getUser(), is("null"));
+        Assertions.assertThat(((InMemoryAuditLogger) AuditLogManager.instance.getLogger()).inMemQueue).isEmpty();
+
+        AuditLogManager.instance.resetMBeanServerForwarder();
     }
 
     /**
