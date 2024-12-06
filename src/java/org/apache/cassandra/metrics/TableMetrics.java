@@ -206,8 +206,6 @@ public class TableMetrics
     public final Meter bytesMutatedAnticompaction;
     /** number of bytes that were scanned during preview repair */
     public final Meter bytesPreviewed;
-    /** number of token ranges that were scanned during preview repair */
-    public final Meter tokenRangesPreviewed;
     /** number of desynchronized token ranges that were detected during preview repair */
     public final Meter tokenRangesPreviewedDesynchronized;
     /** number of desynchronized bytes that were detected during preview repair */
@@ -909,7 +907,6 @@ public class TableMetrics
         bytesAnticompacted = createTableMeter("BytesAnticompacted");
         bytesMutatedAnticompaction = createTableMeter("BytesMutatedAnticompaction");
         bytesPreviewed = createTableMeter("BytesPreviewed");
-        tokenRangesPreviewed = createTableMeter("TokenRangesPreviewed");
         tokenRangesPreviewedDesynchronized = createTableMeter("TokenRangesPreviewedDesynchronized");
         bytesPreviewedDesynchronized = createTableMeter("BytesPreviewedDesynchronized");
         mutatedAnticompactionGauge = createTableGauge("MutatedAnticompactionGauge", () ->
