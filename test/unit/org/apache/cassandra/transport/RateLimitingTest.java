@@ -171,9 +171,9 @@ public class RateLimitingTest extends CQLTester
 
             StorageService.instance.setNativeTransportRateLimitingEnabled(true);
             ClientResourceLimits.GLOBAL_REQUEST_LIMITER.setRate(OVERLOAD_PERMITS_PER_SECOND, ticker);
-            // test massage = 1x
+            // test message = 1x
             // emulated concurrent message = 1.5x
-            // test massage + emulated concurrent message = 2.5x > 2x set as a global limit
+            // test message + emulated concurrent message = 2.5x > 2x set as a global limit
             ClientResourceLimits.setGlobalLimit(payloadSize * 2);
             emulateInFlightConcurrentMessage(emulatedConcurrentMessageSize);
 

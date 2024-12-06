@@ -284,9 +284,9 @@ public class ClientResourceLimitsTest extends CQLTester
     {
         // Bump the per-endpoint limit to make sure we exhaust the global
         ClientResourceLimits.setEndpointLimit(HIGH_LIMIT);
-        // test massage = 2/3 x
+        // test message = 2/3 x
         // emulated concurrent message = 2/3 x
-        // test massage + emulated concurrent message = 4/3 x > x set as a global limit
+        // test message + emulated concurrent message = 4/3 x > x set as a global limit
         emulateInFlightConcurrentMessage(LOW_LIMIT * 2 / 3);
         testOverloadedException(() -> client(true, Ints.checkedCast(LOW_LIMIT / 2)), LOW_LIMIT * 2 / 3);
     }
@@ -296,9 +296,9 @@ public class ClientResourceLimitsTest extends CQLTester
     {
         // Make sure we can only exceed the per-endpoint limit
         ClientResourceLimits.setGlobalLimit(HIGH_LIMIT);
-        // test massage = 2/3 x
+        // test message = 2/3 x
         // emulated concurrent message = 2/3 x
-        // test massage + emulated concurrent message = 4/3 x > x set as an endpoint limit
+        // test message + emulated concurrent message = 4/3 x > x set as an endpoint limit
         emulateInFlightConcurrentMessage(LOW_LIMIT * 2 / 3);
         testOverloadedException(() -> client(true, Ints.checkedCast(LOW_LIMIT / 2)), LOW_LIMIT * 2 / 3);
     }
