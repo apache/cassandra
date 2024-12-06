@@ -197,8 +197,11 @@ public class Journal<K, V> implements Shutdownable
 
     public void start()
     {
+        if (state.get() == State.NORMAL)
+            return;
+
         Invariants.checkState(state.compareAndSet(State.UNINITIALIZED, State.INITIALIZING),
-                              "Unexpected journal state during initialization", state);
+                              "Unexpected journal state during initialization: %s", state);
         metrics.register(flusher);
 
         deleteTmpFiles();
@@ -253,7 +256,7 @@ public class Journal<K, V> implements Shutdownable
         try
         {
             Invariants.checkState(state.compareAndSet(State.NORMAL, State.SHUTDOWN),
-                                  "Unexpected journal state while trying to shut down", state);
+                                  "Unexpected journal state while trying to shut down: %s", state);
             allocator.shutdown();
             wakeAllocator(); // Wake allocator to force it into shutdown
             // TODO (expected): why are we awaitingTermination here when we have a separate method for it?
@@ -269,7 +272,7 @@ public class Journal<K, V> implements Shutdownable
             releaser.awaitTermination(1, TimeUnit.MINUTES);
             metrics.deregister();
             Invariants.checkState(state.compareAndSet(State.SHUTDOWN, State.TERMINATED),
-                                  "Unexpected journal state while trying to shut down", state);
+                                  "Unexpected journal state while trying to shut down %s", state);
         }
         catch (InterruptedException e)
         {

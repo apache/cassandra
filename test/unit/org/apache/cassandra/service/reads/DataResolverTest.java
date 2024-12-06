@@ -64,10 +64,11 @@ import org.apache.cassandra.locator.Replica;
 import org.apache.cassandra.locator.ReplicaPlan;
 import org.apache.cassandra.locator.ReplicaPlans;
 import org.apache.cassandra.locator.ReplicaUtils;
+import org.apache.cassandra.service.reads.untracked.DataResolver;
+import org.apache.cassandra.service.reads.untracked.UntrackedReadRepair;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.net.*;
-import org.apache.cassandra.service.reads.repair.ReadRepair;
 import org.apache.cassandra.service.reads.repair.RepairedDataTracker;
 import org.apache.cassandra.service.reads.repair.RepairedDataVerifier;
 import org.apache.cassandra.service.reads.repair.TestableReadRepair;
@@ -1251,14 +1252,14 @@ public class DataResolverTest extends AbstractReadResponseTest
 
     private DataResolver resolverWithVerifier(final ReadCommand command,
                                               final ReplicaPlan.SharedForRangeRead plan,
-                                              final ReadRepair readRepair,
+                                              final UntrackedReadRepair readRepair,
                                               final Dispatcher.RequestTime requestTime,
                                               final RepairedDataVerifier verifier)
     {
         class TestableDataResolver extends DataResolver
         {
 
-            public TestableDataResolver(ReadCommand command, ReplicaPlan.SharedForRangeRead plan, ReadRepair readRepair, Dispatcher.RequestTime requestTime)
+            public TestableDataResolver(ReadCommand command, ReplicaPlan.SharedForRangeRead plan, UntrackedReadRepair readRepair, Dispatcher.RequestTime requestTime)
             {
                 super(command, plan, readRepair, requestTime, true);
             }

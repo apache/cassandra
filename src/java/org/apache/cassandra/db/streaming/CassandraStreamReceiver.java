@@ -32,6 +32,7 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.Mutation;
+import org.apache.cassandra.replication.MutationId;
 import org.apache.cassandra.db.compaction.OperationType;
 import org.apache.cassandra.db.filter.ColumnFilter;
 import org.apache.cassandra.db.lifecycle.LifecycleNewTracker;
@@ -216,7 +217,7 @@ public class CassandraStreamReceiver implements StreamReceiver
                     //
                     // If the CFS has CDC, however, these updates need to be written to the CommitLog
                     // so they get archived into the cdc_raw folder
-                    ks.apply(new Mutation(PartitionUpdate.fromIterator(throttledPartitions.next(), filter)),
+                    ks.apply(new Mutation(MutationId.fixme(), PartitionUpdate.fromIterator(throttledPartitions.next(), filter)),
                              writeCDCCommitLog,
                              true,
                              false);

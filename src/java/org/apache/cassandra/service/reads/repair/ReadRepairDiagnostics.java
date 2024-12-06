@@ -26,7 +26,7 @@ import org.apache.cassandra.db.Mutation;
 import org.apache.cassandra.diag.DiagnosticEventService;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.ReplicaPlan;
-import org.apache.cassandra.service.reads.DigestResolver;
+import org.apache.cassandra.service.reads.ResponseResolver;
 import org.apache.cassandra.service.reads.repair.PartitionRepairEvent.PartitionRepairEventType;
 import org.apache.cassandra.service.reads.repair.ReadRepairEvent.ReadRepairEventType;
 
@@ -38,7 +38,7 @@ final class ReadRepairDiagnostics
     {
     }
 
-    static void startRepair(AbstractReadRepair readRepair, ReplicaPlan.ForRead<?, ?> fullPlan, DigestResolver digestResolver)
+    static void startRepair(AbstractReadRepair readRepair, ReplicaPlan.ForRead<?, ?> fullPlan, ResponseResolver digestResolver)
     {
         if (service.isEnabled(ReadRepairEvent.class, ReadRepairEventType.START_REPAIR))
             service.publish(new ReadRepairEvent(ReadRepairEventType.START_REPAIR,

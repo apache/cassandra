@@ -41,6 +41,7 @@ import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.io.util.TeeDataInputPlus;
 import org.apache.cassandra.locator.ReplicaPlan;
 import org.apache.cassandra.net.MessagingService;
+import org.apache.cassandra.replication.MutationId;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.schema.TableMetadata;
@@ -51,12 +52,14 @@ import org.apache.cassandra.utils.concurrent.Future;
 import static org.apache.cassandra.net.MessagingService.VERSION_40;
 import static org.apache.cassandra.net.MessagingService.VERSION_50;
 import static org.apache.cassandra.net.MessagingService.VERSION_51;
+import static org.apache.cassandra.net.MessagingService.VERSION_52;
 import static org.apache.cassandra.utils.MonotonicClock.Global.approxTime;
 
 public class Mutation implements IMutation, Supplier<Mutation>
 {
     public static final MutationSerializer serializer = new MutationSerializer();
 
+    private final MutationId id;
     // todo this is redundant
     // when we remove it, also restore SerializationsTest.testMutationRead to not regenerate new Mutations each test
     private final String keyspaceName;
@@ -81,23 +84,41 @@ public class Mutation implements IMutation, Supplier<Mutation>
     /** @see CassandraRelevantProperties#CACHEABLE_MUTATION_SIZE_LIMIT */
     private static final long CACHEABLE_MUTATION_SIZE_LIMIT = CassandraRelevantProperties.CACHEABLE_MUTATION_SIZE_LIMIT.getLong();
 
+    public Mutation(MutationId id, PartitionUpdate update)
+    {
+        this(id, update.metadata().keyspace, update.partitionKey(), ImmutableMap.of(update.metadata().id, update), approxTime.now(), update.metadata().params.cdc);
+    }
+
     public Mutation(PartitionUpdate update)
     {
-        this(update.metadata().keyspace, update.partitionKey(), ImmutableMap.of(update.metadata().id, update), approxTime.now(), update.metadata().params.cdc);
+        this(MutationId.none(), update);
     }
 
-    public Mutation(String keyspaceName, DecoratedKey key, ImmutableMap<TableId, PartitionUpdate> modifications, long approxCreatedAtNanos)
+    public Mutation(MutationId id, String keyspaceName, DecoratedKey key, ImmutableMap<TableId, PartitionUpdate> modifications, long approxCreatedAtNanos)
     {
-        this(keyspaceName, key, modifications, approxCreatedAtNanos, cdcEnabled(modifications.values()));
+        this(id, keyspaceName, key, modifications, approxCreatedAtNanos, cdcEnabled(modifications.values()));
     }
 
-    public Mutation(String keyspaceName, DecoratedKey key, ImmutableMap<TableId, PartitionUpdate> modifications, long approxCreatedAtNanos, boolean cdcEnabled)
+    public Mutation(MutationId id, String keyspaceName, DecoratedKey key, ImmutableMap<TableId, PartitionUpdate> modifications, long approxCreatedAtNanos, boolean cdcEnabled)
     {
+        this.id = id;
         this.keyspaceName = keyspaceName;
         this.key = key;
         this.modifications = modifications;
         this.cdcEnabled = cdcEnabled;
         this.approxCreatedAtNanos = approxCreatedAtNanos;
+    }
+
+    @Override
+    public MutationId id()
+    {
+        return id;
+    }
+
+    @Override
+    public Mutation withMutationId(MutationId mutationId)
+    {
+        return new Mutation(mutationId, keyspaceName, key, modifications, approxCreatedAtNanos, cdcEnabled);
     }
 
     private static boolean cdcEnabled(Iterable<PartitionUpdate> modifications)
@@ -122,7 +143,7 @@ public class Mutation implements IMutation, Supplier<Mutation>
             }
         }
 
-        return new Mutation(keyspaceName, key, builder.build(), approxCreatedAtNanos);
+        return new Mutation(id, keyspaceName, key, builder.build(), approxCreatedAtNanos);
     }
 
     public Mutation without(TableId tableId)
@@ -211,6 +232,8 @@ public class Mutation implements IMutation, Supplier<Mutation>
         for (Mutation mutation : mutations)
         {
             updatedTables.addAll(mutation.modifications.keySet());
+            if (!mutation.id().isNone())
+                throw new IllegalArgumentException();
             if (ks != null && !ks.equals(mutation.keyspaceName))
                 throw new IllegalArgumentException();
             if (key != null && !key.equals(mutation.key))
@@ -236,7 +259,7 @@ public class Mutation implements IMutation, Supplier<Mutation>
             modifications.put(table, updates.size() == 1 ? updates.get(0) : PartitionUpdate.merge(updates));
             updates.clear();
         }
-        return new Mutation(ks, key, modifications.build(), approxTime.now());
+        return new Mutation(MutationId.none(), ks, key, modifications.build(), approxTime.now());
     }
 
     public Future<?> applyFuture()
@@ -324,6 +347,7 @@ public class Mutation implements IMutation, Supplier<Mutation>
     private int serializedSize40;
     private int serializedSize50;
     private int serializedSize51;
+    private int serializedSize52;
 
     public int serializedSize(int version)
     {
@@ -341,6 +365,10 @@ public class Mutation implements IMutation, Supplier<Mutation>
                 if (serializedSize51 == 0)
                     serializedSize51 = (int) serializer.serializedSize(this, VERSION_51);
                 return serializedSize51;
+            case VERSION_52:
+                if (serializedSize52 == 0)
+                    serializedSize52 = (int) serializer.serializedSize(this, VERSION_52);
+                return serializedSize52;
             default:
                 throw new IllegalStateException("Unknown serialization version: " + version);
         }
@@ -353,9 +381,9 @@ public class Mutation implements IMutation, Supplier<Mutation>
      * @param partitionKey the key of partition this if a mutation for.
      * @return a newly created builder.
      */
-    public static SimpleBuilder simpleBuilder(String keyspaceName, DecoratedKey partitionKey)
+    public static SimpleBuilder simpleBuilder(MutationId mutationId, String keyspaceName, DecoratedKey partitionKey)
     {
-        return new SimpleBuilders.MutationBuilder(keyspaceName, partitionKey);
+        return new SimpleBuilders.MutationBuilder(mutationId, keyspaceName, partitionKey);
     }
 
     /**
@@ -472,11 +500,14 @@ public class Mutation implements IMutation, Supplier<Mutation>
         }
 
         static void serializeInternal(PartitionUpdate.PartitionUpdateSerializer serializer,
-                                         Mutation mutation,
-                                         DataOutputPlus out,
-                                         int version) throws IOException
+                                      Mutation mutation,
+                                      DataOutputPlus out,
+                                      int version) throws IOException
         {
             Map<TableId, PartitionUpdate> modifications = mutation.modifications;
+
+            if (version >= MessagingService.VERSION_52)
+                MutationId.serializer.serialize(mutation.id, out, version);
 
             /* serialize the modifications in the mutation */
             int size = modifications.size();
@@ -497,13 +528,17 @@ public class Mutation implements IMutation, Supplier<Mutation>
             {
                 teeIn = new TeeDataInputPlus(in, dob, CACHEABLE_MUTATION_SIZE_LIMIT);
 
+                MutationId id = version >= MessagingService.VERSION_52
+                              ? MutationId.serializer.deserialize(teeIn, version)
+                              : MutationId.none();
+
                 int size = teeIn.readUnsignedVInt32();
                 assert size > 0;
 
                 PartitionUpdate update = PartitionUpdate.serializer.deserialize(teeIn, version, flag);
                 if (size == 1)
                 {
-                    m = new Mutation(update);
+                    m = new Mutation(id, update);
                 }
                 else
                 {
@@ -516,7 +551,7 @@ public class Mutation implements IMutation, Supplier<Mutation>
                         update = PartitionUpdate.serializer.deserialize(teeIn, version, flag);
                         modifications.put(update.metadata().id, update);
                     }
-                    m = new Mutation(update.metadata().keyspace, dk, modifications.build(), approxTime.now());
+                    m = new Mutation(id, update.metadata().keyspace, dk, modifications.build(), approxTime.now());
                 }
 
                 //Only cache serializations that don't hit the limit
@@ -594,7 +629,9 @@ public class Mutation implements IMutation, Supplier<Mutation>
             long size = this.size;
             if (size == 0L)
             {
-                size = TypeSizes.sizeofUnsignedVInt(mutation.modifications.size());
+                if (version >= MessagingService.VERSION_52)
+                    size += MutationId.serializer.serializedSize(mutation.id, version);
+                size += TypeSizes.sizeofUnsignedVInt(mutation.modifications.size());
                 for (PartitionUpdate partitionUpdate : mutation.modifications.values())
                     size += serializer.serializedSize(partitionUpdate, version);
                 this.size = size;
@@ -609,13 +646,15 @@ public class Mutation implements IMutation, Supplier<Mutation>
     public static class PartitionUpdateCollector
     {
         private final ImmutableMap.Builder<TableId, PartitionUpdate> modifications = new ImmutableMap.Builder<>();
+        private final MutationId mutationId;
         private final String keyspaceName;
         private final DecoratedKey key;
         private final long approxCreatedAtNanos = approxTime.now();
         private boolean empty = true;
 
-        public PartitionUpdateCollector(String keyspaceName, DecoratedKey key)
+        public PartitionUpdateCollector(MutationId mutationId, String keyspaceName, DecoratedKey key)
         {
+            this.mutationId = mutationId;
             this.keyspaceName = keyspaceName;
             this.key = key;
         }
@@ -647,7 +686,7 @@ public class Mutation implements IMutation, Supplier<Mutation>
 
         public Mutation build()
         {
-            return new Mutation(keyspaceName, key, modifications.build(), approxCreatedAtNanos);
+            return new Mutation(mutationId, keyspaceName, key, modifications.build(), approxCreatedAtNanos);
         }
     }
 }

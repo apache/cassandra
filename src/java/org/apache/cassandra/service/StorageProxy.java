@@ -65,7 +65,6 @@ import org.apache.cassandra.db.Mutation;
 import org.apache.cassandra.db.PartitionRangeReadCommand;
 import org.apache.cassandra.db.ReadCommand;
 import org.apache.cassandra.db.ReadExecutionController;
-import org.apache.cassandra.db.ReadResponse;
 import org.apache.cassandra.db.RejectException;
 import org.apache.cassandra.db.SinglePartitionReadCommand;
 import org.apache.cassandra.db.TruncateRequest;
@@ -117,6 +116,8 @@ import org.apache.cassandra.net.MessageFlag;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.net.RequestCallback;
 import org.apache.cassandra.net.Verb;
+import org.apache.cassandra.replication.MutationSummary;
+import org.apache.cassandra.replication.TrackedWriteRequest;
 import org.apache.cassandra.schema.PartitionDenylist;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.SchemaConstants;
@@ -130,6 +131,7 @@ import org.apache.cassandra.service.paxos.PaxosState;
 import org.apache.cassandra.service.paxos.v1.PrepareCallback;
 import org.apache.cassandra.service.paxos.v1.ProposeCallback;
 import org.apache.cassandra.service.reads.AbstractReadExecutor;
+import org.apache.cassandra.service.reads.IReadResponse;
 import org.apache.cassandra.service.reads.ReadCallback;
 import org.apache.cassandra.service.reads.range.RangeCommands;
 import org.apache.cassandra.service.reads.repair.ReadRepair;
@@ -150,6 +152,7 @@ import org.apache.cassandra.utils.concurrent.CountDownLatch;
 import org.apache.cassandra.utils.concurrent.UncheckedInterruptedException;
 
 import static com.google.common.collect.Iterables.concat;
+import static java.util.Collections.singleton;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import static java.util.concurrent.TimeUnit.NANOSECONDS;
 import static org.apache.cassandra.db.ConsistencyLevel.SERIAL;
@@ -865,6 +868,71 @@ public class StorageProxy implements StorageProxyMBean
     }
 
     /**
+     * Performs a coordinated write with mutation tracking.
+     * Assumes that local coordinator is a replica (forwarding implementation pending).
+     *
+     * @param mutation
+     * @param consistencyLevel
+     * @param requestTime
+     */
+    public static void mutateWithTracking(Mutation mutation, ConsistencyLevel consistencyLevel, Dispatcher.RequestTime requestTime)
+    {
+        try
+        {
+            TrackedWriteRequest.perform(mutation, consistencyLevel, requestTime).get();
+        }
+        catch (WriteTimeoutException|WriteFailureException ex)
+        {
+            if (consistencyLevel == ConsistencyLevel.ANY)
+            {
+                // TODO (expected): what exactly?
+            }
+            else
+            {
+                if (ex instanceof WriteFailureException)
+                {
+                    writeMetrics.failures.mark();
+                    writeMetricsForLevel(consistencyLevel).failures.mark();
+                    WriteFailureException fe = (WriteFailureException)ex;
+                    Tracing.trace("Write failure; received {} of {} required replies, failed {} requests",
+                                  fe.received, fe.blockFor, fe.failureReasonByEndpoint.size());
+                }
+                else
+                {
+                    writeMetrics.timeouts.mark();
+                    writeMetricsForLevel(consistencyLevel).timeouts.mark();
+                    WriteTimeoutException te = (WriteTimeoutException)ex;
+                    Tracing.trace("Write timeout; received {} of {} required replies", te.received, te.blockFor);
+                }
+                throw ex;
+            }
+        }
+        catch (UnavailableException e)
+        {
+            writeMetrics.unavailables.mark();
+            writeMetricsForLevel(consistencyLevel).unavailables.mark();
+            Tracing.trace("Unavailable");
+            throw e;
+        }
+        catch (OverloadedException e)
+        {
+            writeMetrics.unavailables.mark();
+            writeMetricsForLevel(consistencyLevel).unavailables.mark();
+            Tracing.trace("Overloaded");
+            throw e;
+        }
+        finally
+        {
+            // We track latency based on request processing time, since the amount of time that request spends in the queue
+            // is not a representative metric of replica performance.
+            long latency = nanoTime() - requestTime.startedAtNanos();
+            writeMetrics.addNano(latency);
+            writeMetricsForLevel(consistencyLevel).addNano(latency);
+            updateCoordinatorWriteLatencyTableMetric(singleton(mutation), latency);
+        }
+    }
+
+    /**
      * Use this method to have these Mutations applied
      * across all replicas. This method will take care
      * of the possibility of a replica being down and hint
@@ -1122,10 +1190,10 @@ public class StorageProxy implements StorageProxyMBean
     }
 
     @SuppressWarnings("unchecked")
-    public static void mutateWithTriggers(List<? extends IMutation> mutations,
-                                          ConsistencyLevel consistencyLevel,
-                                          boolean mutateAtomically,
-                                          Dispatcher.RequestTime requestTime)
+    public static void mutateWithoutConditions(List<? extends IMutation> mutations,
+                                               ConsistencyLevel consistencyLevel,
+                                               boolean mutateAtomically,
+                                               Dispatcher.RequestTime requestTime)
     throws WriteTimeoutException, WriteFailureException, UnavailableException, OverloadedException, InvalidRequestException
     {
         if (DatabaseDescriptor.getPartitionDenylistEnabled() && DatabaseDescriptor.getDenylistWritesEnabled())
@@ -1157,14 +1225,33 @@ public class StorageProxy implements StorageProxyMBean
         writeMetrics.mutationSize.update(size);
         writeMetricsForLevel(consistencyLevel).mutationSize.update(size);
 
-        if (augmented != null)
+        boolean isTracked = Schema.instance.getKeyspaceMetadata(mutations.get(0).getKeyspaceName()).params.replicationType.isTracked();
+        if (isTracked)
+        {
+            if (mutations.stream().anyMatch(m -> m instanceof CounterMutation))
+                throw new InvalidRequestException("Mutation tracking is currently unsupported with counters");
+            if (augmented != null)
+                throw new InvalidRequestException("Mutation tracking is currently unsupported with triggers");
+            if (mutateAtomically)
+                throw new InvalidRequestException("Mutation tracking is currently unsupported with logged batches");
+            if (mutations.size() > 1)
+                throw new InvalidRequestException("Mutation tracking is currently unsupported with unlogged batches");
+            if (updatesView)
+                throw new InvalidRequestException("Mutation tracking is currently unsupported with materialized views");
+
+            mutateWithTracking((Mutation) mutations.get(0), consistencyLevel, requestTime);
+        }
+        else if (augmented != null)
+        {
             mutateAtomically(augmented, consistencyLevel, updatesView, requestTime);
+        }
+        else if (mutateAtomically || updatesView)
+        {
+            mutateAtomically((Collection<Mutation>) mutations, consistencyLevel, updatesView, requestTime);
+        }
         else
         {
-            if (mutateAtomically || updatesView)
-                mutateAtomically((Collection<Mutation>) mutations, consistencyLevel, updatesView, requestTime);
-            else
-                mutate(mutations, consistencyLevel, requestTime);
+            mutate(mutations, consistencyLevel, requestTime);
         }
     }
 
@@ -2159,11 +2246,12 @@ public class StorageProxy implements StorageProxyMBean
                 long deadline = requestTime.computeDeadline(verb.expiresAfterNanos());
                 command.setMonitoringTime(requestTime.startedAtNanos(), false, deadline - requestTime.startedAtNanos(), DatabaseDescriptor.getSlowQueryTimeout(NANOSECONDS));
 
-                ReadResponse response;
+                IReadResponse response;
+                MutationSummary initialSummary = command.createMutationSummary(false);
                 try (ReadExecutionController controller = command.executionController(trackRepairedStatus);
                      UnfilteredPartitionIterator iterator = command.executeLocally(controller))
                 {
-                    response = command.createResponse(iterator, controller.getRepairedDataInfo());
+                    response = command.createResponse(iterator, controller.getRepairedDataInfo(), initialSummary);
                 }
                 catch (RejectException e)
                 {

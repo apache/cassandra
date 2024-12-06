@@ -58,7 +58,6 @@ import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.ReadCommand;
 import org.apache.cassandra.db.ReadQuery;
-import org.apache.cassandra.db.ReadResponse;
 import org.apache.cassandra.db.SinglePartitionReadQuery;
 import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.db.marshal.AbstractType;
@@ -88,6 +87,7 @@ import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.QueryState;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.service.pager.QueryPager;
+import org.apache.cassandra.service.reads.IReadResponse;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.transport.Dispatcher;
@@ -514,17 +514,17 @@ public class QueryProcessor implements QueryHandler
             {
                 throw new IllegalArgumentException("Unable to handle; only expected ReadCommands but given " + readQuery.getClass());
             }
-            Future<List<Message<ReadResponse>>> future = FutureCombiner.allOf(commands.stream()
-                                                                                      .map(rc -> Message.out(rc.verb(), rc))
-                                                                                      .map(m -> MessagingService.instance().<ReadCommand, ReadResponse>sendWithResult(m, address))
-                                                                                      .collect(Collectors.toList()));
+            Future<List<Message<IReadResponse>>> future = FutureCombiner.allOf(commands.stream()
+                                                                                       .map(rc -> Message.out(rc.verb(), rc))
+                                                                                       .map(m -> MessagingService.instance().<ReadCommand, IReadResponse>sendWithResult(m, address))
+                                                                                       .collect(Collectors.toList()));
 
             ResultSetBuilder result = new ResultSetBuilder(select.getResultMetadata(), select.getSelection().newSelectors(options), false);
             return future.map(list -> {
                 int i = 0;
-                for (Message<ReadResponse> m : list)
+                for (Message<IReadResponse> m : list)
                 {
-                    ReadResponse rsp = m.payload;
+                    IReadResponse rsp = m.payload;
                     try (PartitionIterator it = UnfilteredPartitionIterators.filter(rsp.makeIterator(commands.get(i++)), nowInSec))
                     {
                         while (it.hasNext())

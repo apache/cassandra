@@ -144,7 +144,7 @@ public class ResourceLeakTest extends TestBaseImpl
 
     void dumpResources(String description) throws IOException, InterruptedException
     {
-        dumpHeap(description, false);
+        dumpHeap(description, true);
         if (dumpFileHandles)
         {
             dumpOpenFiles(description);

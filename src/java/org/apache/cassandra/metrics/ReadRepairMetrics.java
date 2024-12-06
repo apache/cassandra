@@ -31,6 +31,7 @@ public class ReadRepairMetrics
 
     public static final Meter repairedBlocking = Metrics.meter(factory.createMetricName("RepairedBlocking"));
     public static final Meter reconcileRead = Metrics.meter(factory.createMetricName("ReconcileRead"));
+    public static final Meter trackedReconcile = Metrics.meter(factory.createMetricName("TrackedReconcile"));
 
     /** @deprecated See CASSANDRA-13910 */
     @Deprecated(since = "4.0")

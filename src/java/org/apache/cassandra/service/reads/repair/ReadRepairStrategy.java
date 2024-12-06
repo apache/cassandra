@@ -21,16 +21,17 @@ package org.apache.cassandra.service.reads.repair;
 import org.apache.cassandra.db.ReadCommand;
 import org.apache.cassandra.locator.Endpoints;
 import org.apache.cassandra.locator.ReplicaPlan;
+import org.apache.cassandra.service.reads.untracked.UntrackedReadRepair;
 import org.apache.cassandra.transport.Dispatcher;
 
 import static org.apache.cassandra.utils.LocalizeString.toUpperCaseLocalized;
 
-public enum ReadRepairStrategy implements ReadRepair.Factory
+public enum ReadRepairStrategy implements UntrackedReadRepair.Factory
 {
     NONE
     {
         public <E extends Endpoints<E>, P extends ReplicaPlan.ForRead<E, P>>
-        ReadRepair<E, P> create(ReadCommand command, ReplicaPlan.Shared<E, P> replicaPlan, Dispatcher.RequestTime requestTime)
+        UntrackedReadRepair<E, P> create(ReadCommand command, ReplicaPlan.Shared<E, P> replicaPlan, Dispatcher.RequestTime requestTime)
         {
             return new ReadOnlyReadRepair<>(command, replicaPlan, requestTime);
         }
@@ -39,7 +40,7 @@ public enum ReadRepairStrategy implements ReadRepair.Factory
     BLOCKING
     {
         public <E extends Endpoints<E>, P extends ReplicaPlan.ForRead<E, P>>
-        ReadRepair<E, P> create(ReadCommand command, ReplicaPlan.Shared<E, P> replicaPlan, Dispatcher.RequestTime requestTime)
+        UntrackedReadRepair<E, P> create(ReadCommand command, ReplicaPlan.Shared<E, P> replicaPlan, Dispatcher.RequestTime requestTime)
         {
             return new BlockingReadRepair<>(command, replicaPlan, requestTime);
         }

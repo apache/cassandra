@@ -28,21 +28,27 @@ import org.apache.cassandra.db.rows.*;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputBuffer;
 import org.apache.cassandra.io.util.DataInputPlus;
-import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.schema.TableMetadata;
+import org.apache.cassandra.service.reads.IReadResponse;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
 import static org.apache.cassandra.db.RepairedDataInfo.NO_OP_REPAIRED_DATA_INFO;
 
-public abstract class ReadResponse
+public abstract class ReadResponse implements IReadResponse
 {
     // Serializer for single partition read response
     public static final IVersionedSerializer<ReadResponse> serializer = new Serializer();
 
     protected ReadResponse()
     {
+    }
+
+    @Override
+    public Kind kind()
+    {
+        return Kind.UNTRACKED;
     }
 
     public static ReadResponse createDataResponse(UnfilteredPartitionIterator data, ReadCommand command, RepairedDataInfo rdi)
@@ -67,7 +73,7 @@ public abstract class ReadResponse
                                                         ReadCommand command,
                                                         int version)
     {
-        return new RemoteDataResponse(LocalDataResponse.build(data, command.columnFilter()),
+        return new RemoteDataResponse(IReadResponse.serializeData(data, command.columnFilter()),
                                       repairedDataDigest,
                                       isRepairedDigestConclusive,
                                       version);
@@ -79,7 +85,6 @@ public abstract class ReadResponse
         return new DigestResponse(makeDigest(data, command));
     }
 
-    public abstract UnfilteredPartitionIterator makeIterator(ReadCommand command);
     public abstract ByteBuffer digest(ReadCommand command);
     public abstract ByteBuffer repairedDataDigest();
     public abstract boolean isRepairedDigestConclusive();
@@ -87,9 +92,17 @@ public abstract class ReadResponse
 
     public abstract boolean isDigestResponse();
 
+    public static ReadResponse fromResponse(IReadResponse response)
+    {
+        if (response.kind() != Kind.UNTRACKED)
+            throw new IllegalArgumentException("Response kind must be " + Kind.UNTRACKED + ", got " + response.kind());
+        return (ReadResponse) response;
+    }
+
     /**
      * Creates a string of the requested partition in this read response suitable for debugging.
      */
+    @Override
     public String toDebugString(ReadCommand command, DecoratedKey key)
     {
         if (isDigestResponse())
@@ -190,7 +203,7 @@ public abstract class ReadResponse
     {
         private LocalDataResponse(UnfilteredPartitionIterator iter, ReadCommand command, RepairedDataInfo rdi)
         {
-            super(build(iter, command.columnFilter()),
+            super(IReadResponse.serializeData(iter, command.columnFilter()),
                   rdi.getDigest(), rdi.isConclusive(),
                   MessagingService.current_version,
                   DeserializationHelper.Flag.LOCAL);
@@ -198,22 +211,9 @@ public abstract class ReadResponse
 
         private LocalDataResponse(UnfilteredPartitionIterator iter, ColumnFilter selection)
         {
-            super(build(iter, selection), null, false, MessagingService.current_version, DeserializationHelper.Flag.LOCAL);
+            super(IReadResponse.serializeData(iter, selection), null, false, MessagingService.current_version, DeserializationHelper.Flag.LOCAL);
         }
 
-        private static ByteBuffer build(UnfilteredPartitionIterator iter, ColumnFilter selection)
-        {
-            try (DataOutputBuffer buffer = new DataOutputBuffer())
-            {
-                UnfilteredPartitionIterators.serializerForIntraNode().serialize(iter, selection, buffer, MessagingService.current_version);
-                return buffer.buffer();
-            }
-            catch (IOException e)
-            {
-                // We're serializing in memory so this shouldn't happen
-                throw new RuntimeException(e);
-            }
-        }
     }
 
     // built on the coordinator node receiving a response

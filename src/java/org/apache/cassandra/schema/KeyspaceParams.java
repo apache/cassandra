@@ -51,10 +51,14 @@ public final class KeyspaceParams
     @VisibleForTesting
     public static boolean DEFAULT_LOCAL_DURABLE_WRITES = true;
 
+
+    public static final ReplicationType DEFAULT_REPLICATION_TYPE = ReplicationType.untracked;
+
     public enum Option
     {
         DURABLE_WRITES,
-        REPLICATION;
+        REPLICATION,
+        REPLICATION_TYPE;
 
         @Override
         public String toString()
@@ -65,41 +69,59 @@ public final class KeyspaceParams
 
     public final boolean durableWrites;
     public final ReplicationParams replication;
+    public final ReplicationType replicationType;
 
-    public KeyspaceParams(boolean durableWrites, ReplicationParams replication)
+    public KeyspaceParams(boolean durableWrites, ReplicationParams replication, ReplicationType replicationType)
     {
         this.durableWrites = durableWrites;
         this.replication = replication;
+        this.replicationType = replicationType;
+    }
+
+    public static KeyspaceParams create(boolean durableWrites, Map<String, String> replication, ReplicationType replicationType)
+    {
+        return new KeyspaceParams(durableWrites, ReplicationParams.fromMap(replication), replicationType);
     }
 
     public static KeyspaceParams create(boolean durableWrites, Map<String, String> replication)
     {
-        return new KeyspaceParams(durableWrites, ReplicationParams.fromMap(replication));
+        return create(durableWrites, replication, ReplicationType.untracked);
     }
 
     public static KeyspaceParams local()
     {
-        return new KeyspaceParams(DEFAULT_LOCAL_DURABLE_WRITES, ReplicationParams.local());
+        return new KeyspaceParams(DEFAULT_LOCAL_DURABLE_WRITES, ReplicationParams.local(), ReplicationType.untracked);
+    }
+
+    public static KeyspaceParams simple(int replicationFactor, ReplicationType replicationType)
+    {
+        return new KeyspaceParams(true, ReplicationParams.simple(replicationFactor), replicationType);
     }
 
     public static KeyspaceParams simple(int replicationFactor)
     {
-        return new KeyspaceParams(true, ReplicationParams.simple(replicationFactor));
+        return simple(replicationFactor, ReplicationType.untracked);
     }
 
     public static KeyspaceParams simple(String replicationFactor)
     {
-        return new KeyspaceParams(true, ReplicationParams.simple(replicationFactor));
+        return new KeyspaceParams(true, ReplicationParams.simple(replicationFactor), ReplicationType.untracked);
     }
 
     public static KeyspaceParams simpleTransient(int replicationFactor)
     {
-        return new KeyspaceParams(false, ReplicationParams.simple(replicationFactor));
+        return new KeyspaceParams(false, ReplicationParams.simple(replicationFactor), ReplicationType.untracked);
     }
+
+    public static KeyspaceParams nts(ReplicationType replicationType, Object... args)
+    {
+        return new KeyspaceParams(true, ReplicationParams.nts(args), replicationType);
+    }
+
 
     public static KeyspaceParams nts(Object... args)
     {
-        return new KeyspaceParams(true, ReplicationParams.nts(args));
+        return nts(ReplicationType.untracked, args);
     }
 
     public void validate(String name, ClientState state, ClusterMetadata metadata)
@@ -118,13 +140,15 @@ public final class KeyspaceParams
 
         KeyspaceParams p = (KeyspaceParams) o;
 
-        return durableWrites == p.durableWrites && replication.equals(p.replication);
+        return durableWrites == p.durableWrites
+               && replication.equals(p.replication)
+               && replicationType == p.replicationType;
     }
 
     @Override
     public int hashCode()
     {
-        return Objects.hashCode(durableWrites, replication);
+        return Objects.hashCode(durableWrites, replication, replicationType);
     }
 
     @Override
@@ -133,6 +157,7 @@ public final class KeyspaceParams
         return MoreObjects.toStringHelper(this)
                           .add(Option.DURABLE_WRITES.toString(), durableWrites)
                           .add(Option.REPLICATION.toString(), replication)
+                          .add(Option.REPLICATION_TYPE.toString(), replicationType)
                           .toString();
     }
 
@@ -140,20 +165,23 @@ public final class KeyspaceParams
     {
         public void serialize(KeyspaceParams t, DataOutputPlus out, Version version) throws IOException
         {
+            ReplicationType.serializer.serialize(t.replicationType, out, version);
             ReplicationParams.serializer.serialize(t.replication, out, version);
             out.writeBoolean(t.durableWrites);
         }
 
         public KeyspaceParams deserialize(DataInputPlus in, Version version) throws IOException
         {
+            ReplicationType rtype = ReplicationType.serializer.deserialize(in, version);
             ReplicationParams params = ReplicationParams.serializer.deserialize(in, version);
             boolean durableWrites = in.readBoolean();
-            return new KeyspaceParams(durableWrites, params);
+            return new KeyspaceParams(durableWrites, params, rtype);
         }
 
         public long serializedSize(KeyspaceParams t, Version version)
         {
-            return ReplicationParams.serializer.serializedSize(t.replication, version) +
+            return ReplicationType.serializer.serializedSize(t.replicationType, version) +
+                   ReplicationParams.serializer.serializedSize(t.replication, version) +
                    TypeSizes.sizeof(t.durableWrites);
         }
     }

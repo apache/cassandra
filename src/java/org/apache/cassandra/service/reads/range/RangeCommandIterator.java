@@ -24,6 +24,7 @@ import java.util.List;
 import java.util.concurrent.TimeUnit;
 
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.base.Preconditions;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -46,8 +47,11 @@ import org.apache.cassandra.metrics.ClientRangeRequestMetrics;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.service.StorageProxy;
-import org.apache.cassandra.service.reads.DataResolver;
+import org.apache.cassandra.service.reads.untracked.DataResolver;
 import org.apache.cassandra.service.reads.ReadCallback;
+import org.apache.cassandra.service.reads.untracked.UntrackedReadRepair;
+import org.apache.cassandra.service.reads.tracked.TrackedReadReconciliation;
+import org.apache.cassandra.service.reads.tracked.TrackedResolver;
 import org.apache.cassandra.service.reads.repair.ReadRepair;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.transport.Dispatcher;
@@ -177,31 +181,20 @@ public class RangeCommandIterator extends AbstractIterator<RowIterator> implemen
         return concurrencyFactor;
     }
 
-    /**
-     * Queries the provided sub-range.
-     *
-     * @param replicaPlan the subRange to query.
-     * @param isFirst in the case where multiple queries are sent in parallel, whether that's the first query on
-     * that batch or not. The reason it matters is that whe paging queries, the command (more specifically the
-     * {@code DataLimits}) may have "state" information and that state may only be valid for the first query (in
-     * that it's the query that "continues" whatever we're previously queried).
-     */
-    private SingleRangeResponse query(ReplicaPlan.ForRangeRead replicaPlan, boolean isFirst)
+
+    private SingleRangeResponse queryUntracked(PartitionRangeReadCommand rangeCommand, ReplicaPlan.ForRangeRead replicaPlan, boolean isFirst)
     {
-        PartitionRangeReadCommand rangeCommand = command.forSubRange(replicaPlan.range(), isFirst);
-        
         // If enabled, request repaired data tracking info from full replicas, but
         // only if there are multiple full replicas to compare results from.
         boolean trackRepairedStatus = DatabaseDescriptor.getRepairedDataTrackingForRangeReadsEnabled()
-                                      && replicaPlan.contacts().filter(Replica::isFull).size() > 1;
+                                      && replicaPlan.contacts().filter(Replica::isFull).size() > 1
+                                      && !command.responseType().isTracked();
 
         ReplicaPlan.SharedForRangeRead sharedReplicaPlan = ReplicaPlan.shared(replicaPlan);
-        ReadRepair<EndpointsForRange, ReplicaPlan.ForRangeRead> readRepair =
-                ReadRepair.create(command, sharedReplicaPlan, requestTime);
-        DataResolver<EndpointsForRange, ReplicaPlan.ForRangeRead> resolver =
-                new DataResolver<>(rangeCommand, sharedReplicaPlan, readRepair, requestTime, trackRepairedStatus);
+        UntrackedReadRepair<EndpointsForRange, ReplicaPlan.ForRangeRead> readRepair = command.metadata().params.readRepair.create(command, sharedReplicaPlan, requestTime);
+        DataResolver<EndpointsForRange, ReplicaPlan.ForRangeRead> resolver = new DataResolver<>(rangeCommand, sharedReplicaPlan,  readRepair, requestTime, trackRepairedStatus);
         ReadCallback<EndpointsForRange, ReplicaPlan.ForRangeRead> handler =
-                new ReadCallback<>(resolver, rangeCommand, sharedReplicaPlan, requestTime);
+        new ReadCallback<>(resolver, rangeCommand, sharedReplicaPlan, requestTime);
 
         if (replicaPlan.contacts().size() == 1 && replicaPlan.contacts().get(0).isSelf())
         {
@@ -218,7 +211,68 @@ public class RangeCommandIterator extends AbstractIterator<RowIterator> implemen
             }
         }
 
-        return new SingleRangeResponse(resolver, handler, readRepair);
+        return new SingleRangeResponse.Untracked(resolver, handler, readRepair);
+    }
+
+    private SingleRangeResponse queryTracked(PartitionRangeReadCommand rangeCommand, ReplicaPlan.ForRangeRead replicaPlan, boolean isFirst)
+    {
+        ReplicaPlan.SharedForRangeRead sharedReplicaPlan = ReplicaPlan.shared(replicaPlan);
+        TrackedReadReconciliation<EndpointsForRange, ReplicaPlan.ForRangeRead> reconciliation = TrackedReadReconciliation.create(command, sharedReplicaPlan, requestTime);
+        TrackedResolver<EndpointsForRange, ReplicaPlan.ForRangeRead> resolver = new TrackedResolver<>(rangeCommand, sharedReplicaPlan, requestTime);
+
+        ReadCallback<EndpointsForRange, ReplicaPlan.ForRangeRead> handler = new ReadCallback<>(resolver, rangeCommand, sharedReplicaPlan, requestTime);
+
+        boolean dataRequestSent = false;
+        if (replicaPlan.contacts().size() == 1 && replicaPlan.contacts().get(0).isSelf())
+        {
+            Stage.READ.execute(new StorageProxy.LocalReadRunnable(rangeCommand, handler, requestTime, false));
+            dataRequestSent = true;
+        }
+        else
+        {
+            for (Replica replica : replicaPlan.contacts())
+            {
+                Tracing.trace("Enqueuing request to {}", replica);
+                ReadCommand command;
+                if (replica.isFull())
+                {
+                    command = dataRequestSent ? rangeCommand.copyAsSummaryQuery(replica) : rangeCommand;
+                    dataRequestSent = true;
+                }
+                else
+                {
+                    command = rangeCommand.copyAsTransientQuery(replica);
+
+                }
+                Message<ReadCommand> message = command.createMessage(false, requestTime);
+                MessagingService.instance().sendWithCallback(message, replica.endpoint(), handler);
+            }
+        }
+        Preconditions.checkState(dataRequestSent);
+        return new SingleRangeResponse.Tracked(handler, reconciliation, resolver);
+    }
+
+    /**
+     * Queries the provided sub-range.
+     *
+     * @param replicaPlan the subRange to query.
+     * @param isFirst in the case where multiple queries are sent in parallel, whether that's the first query on
+     * that batch or not. The reason it matters is that whe paging queries, the command (more specifically the
+     * {@code DataLimits}) may have "state" information and that state may only be valid for the first query (in
+     * that it's the query that "continues" whatever we're previously queried).
+     */
+    private SingleRangeResponse query(ReplicaPlan.ForRangeRead replicaPlan, boolean isFirst)
+    {
+        PartitionRangeReadCommand rangeCommand = command.forSubRange(replicaPlan.range(), isFirst);
+
+        if (command.responseType().isTracked())
+        {
+            return queryTracked(rangeCommand, replicaPlan, isFirst);
+        }
+        else
+        {
+            return queryUntracked(rangeCommand, replicaPlan, isFirst);
+        }
     }
 
     PartitionIterator sendNextRequests()

@@ -34,6 +34,7 @@ import org.apache.cassandra.db.partitions.PartitionUpdate;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
+import org.apache.cassandra.replication.MutationId;
 import org.apache.cassandra.schema.TableMetadata;
 
 import static org.apache.cassandra.db.SystemKeyspace.*;
@@ -314,7 +315,15 @@ public class Commit
 
     public Mutation makeMutation()
     {
-        return new Mutation(update);
+        // TODO (expected): what's the best thing to do here? Deriving the mutation id from the ballot seems like the best
+        //   thing to do, like we do with the partition update timestamps, but there are caveats related to id collisions
+        //   and the assumption that a mutation id is unique amonth other mutations, which is not the case w/ paxos ballots,
+        //   which only need to be unique to a given partition key to be accepted. It may be best to keep them separate anyway,
+        //   since the reconciliation process as currently planned will not allow writes with ids before some point in time,
+        //   and there might be edge cases where that locks up paxos execution or has other side effects. The downside of
+        //   not making paxos mutation ids deterministic is that the same commit may create multiple mutation ids if a paxos
+        //   operation is not fully committed, then re-committed on repair or the next operation
+        return new Mutation(MutationId.fixme(), update);
     }
 
     @Override

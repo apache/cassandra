@@ -29,6 +29,7 @@ import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 
 import org.apache.cassandra.distributed.Cluster;
+import org.apache.cassandra.schema.ReplicationType;
 import org.apache.cassandra.service.reads.repair.ReadRepairStrategy;
 
 import static org.apache.cassandra.distributed.shared.AssertUtils.assertEquals;
@@ -97,15 +98,19 @@ public abstract class ReadRepairQueryTester extends TestBaseImpl
     @Parameterized.Parameter(3)
     public boolean paging;
 
-    @Parameterized.Parameters(name = "{index}: strategy={0} coordinator={1} flush={2} paging={3}")
+    @Parameterized.Parameter(4)
+    public ReplicationType replicationType;
+
+    @Parameterized.Parameters(name = "{index}: strategy={0} coordinator={1} flush={2} paging={3} replication={4}")
     public static Collection<Object[]> data()
     {
         List<Object[]> result = new ArrayList<>();
         for (int coordinator = 1; coordinator <= NUM_NODES; coordinator++)
             for (boolean flush : BOOLEANS)
                 for (boolean paging : BOOLEANS)
-                    result.add(new Object[]{ ReadRepairStrategy.BLOCKING, coordinator, flush, paging });
-        result.add(new Object[]{ ReadRepairStrategy.NONE, 1, false, false });
+                    for (ReplicationType replication : ReplicationType.values())
+                        result.add(new Object[]{ ReadRepairStrategy.BLOCKING, coordinator, flush, paging, replication });
+        result.add(new Object[]{ ReadRepairStrategy.NONE, 1, false, false, ReplicationType.untracked });
         return result;
     }
 
@@ -118,7 +123,6 @@ public abstract class ReadRepairQueryTester extends TestBaseImpl
                               .withConfig(config -> config.set("read_request_timeout", "1m")
                                                           .set("write_request_timeout", "1m"))
                               .start());
-        cluster.schemaChange(withKeyspace("CREATE TYPE %s.udt (x int, y int)"));
     }
 
     @AfterClass
@@ -130,7 +134,7 @@ public abstract class ReadRepairQueryTester extends TestBaseImpl
 
     protected Tester tester(String restriction)
     {
-        return new Tester(restriction, cluster, strategy, coordinator, flush, paging);
+        return new Tester(restriction, cluster, strategy, coordinator, flush, paging, replicationType);
     }
 
     protected static class Tester extends ReadRepairTester<Tester>
@@ -138,9 +142,9 @@ public abstract class ReadRepairQueryTester extends TestBaseImpl
         private final String restriction; // the tested CQL query WHERE restriction
         private final String allColumnsQuery; // a SELECT * query for the table using the tested restriction
 
-        Tester(String restriction, Cluster cluster, ReadRepairStrategy strategy, int coordinator, boolean flush, boolean paging)
+        Tester(String restriction, Cluster cluster, ReadRepairStrategy strategy, int coordinator, boolean flush, boolean paging, ReplicationType replicationType)
         {
-            super(cluster, strategy, coordinator, flush, paging, false);
+            super(cluster, strategy, coordinator, flush, paging, false, replicationType);
             this.restriction = restriction;
 
             allColumnsQuery = String.format("SELECT * FROM %s %s", qualifiedTableName, restriction);
@@ -173,6 +177,32 @@ public abstract class ReadRepairQueryTester extends TestBaseImpl
         {
             // query only the selected columns with CL=ALL to trigger partial read repair on that column
             String columnsQuery = String.format("SELECT %s FROM %s %s", columns, qualifiedTableName, restriction);
+
+            if (replicationType.isTracked())
+            {
+                // for tracked replication, entire mutations will be replicated, so unlike untracked read repair we'd
+                // expect the node that missed writes to be completely up to date with the node that was last written to.
+                // So here we adjust expected rows for tracked replication
+                switch (lastMutatedNode)
+                {
+                    case 1:
+                        node2Rows = node1Rows;
+                        break;
+                    case 2:
+                        node1Rows = node2Rows;
+                        break;
+                    default:
+                        throw new AssertionError("Unhandled lastMutatedNode value: " + lastMutatedNode);
+                }
+
+                // we also expect all pending mutations to be reconciled in the initial read, and none to be reconciled on the verification step
+                columnsQueryRepairedRows = Math.max(columnsQueryRepairedRows, rowsQueryRepairedRows);
+                rowsQueryRepairedRows = 0;
+
+                // and all missing mutations should be reconciled as part of a single reconciliation, not one per-partition
+                columnsQueryRepairedRows = Math.min(columnsQueryRepairedRows, 1);
+            }
+
             assertRowsDistributed(columnsQuery, columnsQueryRepairedRows, columnsQueryResults);
 
             // query entire rows to repair the rest of the columns, that might trigger new repairs for those columns
@@ -223,6 +253,12 @@ public abstract class ReadRepairQueryTester extends TestBaseImpl
         Tester deleteRows(String rowDeletion, long repairedRows, Object[][] node1Rows, Object[][] node2Rows)
         {
             mutate(1, rowDeletion);
+
+            // for range reads we still expect all missing mutations to be reconciled as part
+            // of a single reconciliation operation
+            if (replicationType.isTracked())
+                repairedRows = Math.min(repairedRows, 1);
+
             return verifyQuery(allColumnsQuery, repairedRows, node1Rows, node2Rows);
         }
 
@@ -259,9 +295,32 @@ public abstract class ReadRepairQueryTester extends TestBaseImpl
          * Verifies the final status of the nodes with an unrestricted query, to ensure that the main tested query
          * hasn't triggered any unexpected repairs. Then, it verifies that the node that hasn't been used as coordinator
          * hasn't triggered any unexpected repairs. Finally, it drops the table.
+         *
+         * The expectUnrepaired flag is meant for range query tests where logged replication table special casing
+         * doesn't apply since we do expect the final query to find and repair missing mutations
          */
-        void tearDown(long repairedRows, Object[][] node1Rows, Object[][] node2Rows)
+        void tearDown(long repairedRows, Object[][] node1Rows, Object[][] node2Rows, boolean expectUnrepaired)
         {
+            if (replicationType.isTracked() && !expectUnrepaired)
+            {
+                // for tracked replication, entire mutations will be replicated, so unlike untracked read repair we'd
+                // expect the node that missed writes to be completely up to date with the node that was last written to.
+                // So here we adjust expected rows for tracked replication
+                switch (lastMutatedNode)
+                {
+                    case 1:
+                        node2Rows = node1Rows;
+                        break;
+                    case 2:
+                        node1Rows = node2Rows;
+                        break;
+                    default:
+                        throw new AssertionError("Unhandled lastMutatedNode value: " + lastMutatedNode);
+                }
+
+                // we also expect all pending mutations to be reconciled in the initial read, and none to be reconciled on the verification step
+                repairedRows = 0;
+            }
             verifyQuery("SELECT * FROM " + qualifiedTableName, repairedRows, node1Rows, node2Rows);
             for (int n = 1; n <= cluster.size(); n++)
             {
@@ -274,6 +333,11 @@ public abstract class ReadRepairQueryTester extends TestBaseImpl
                 assertEquals(message, 0, requests);
             }
             schemaChange("DROP TABLE " + qualifiedTableName);
+        }
+
+        void tearDown(long repairedRows, Object[][] node1Rows, Object[][] node2Rows)
+        {
+            tearDown(repairedRows, node1Rows, node2Rows, false);
         }
     }
 }

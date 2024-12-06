@@ -94,7 +94,7 @@ public class CancelCMSReconfiguration implements Transformation
 
             // Also update schema with the corrected params
             KeyspaceMetadata keyspace = prev.schema.getKeyspaceMetadata(SchemaConstants.METADATA_KEYSPACE_NAME);
-            KeyspaceMetadata newKeyspace = keyspace.withSwapped(new KeyspaceParams(keyspace.params.durableWrites, fromPlacement));
+            KeyspaceMetadata newKeyspace = keyspace.withSwapped(new KeyspaceParams(keyspace.params.durableWrites, fromPlacement, keyspace.params.replicationType));
             transformer = transformer.with(new DistributedSchema(prev.schema.getKeyspaces().withAddedOrUpdated(newKeyspace)));
         }
 

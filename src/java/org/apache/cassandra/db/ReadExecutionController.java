@@ -21,6 +21,7 @@ import java.nio.ByteBuffer;
 import java.util.concurrent.TimeUnit;
 
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.base.Preconditions;
 
 import org.apache.cassandra.db.filter.DataLimits;
 import org.apache.cassandra.index.Index;
@@ -69,6 +70,7 @@ public class ReadExecutionController implements AutoCloseable
 
         if (trackRepairedStatus)
         {
+            Preconditions.checkArgument(!command.responseType().isTracked(), "Tracking repaired status is not supported for tracked reads");
             DataLimits.Counter repairedReadCount = command.limits().newCounter(command.nowInSec(),
                                                                                false,
                                                                                command.selectsFullPartition(),

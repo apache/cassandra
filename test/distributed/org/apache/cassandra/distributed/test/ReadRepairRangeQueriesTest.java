@@ -20,10 +20,13 @@ package org.apache.cassandra.distributed.test;
 
 import org.junit.Test;
 
+import org.apache.cassandra.distributed.test.tracking.MutationTrackingUtils;
+
 import static org.apache.cassandra.distributed.shared.AssertUtils.row;
 
 /**
  * {@link ReadRepairQueryTester} for range queries.
+ *
  */
 public class ReadRepairRangeQueriesTest extends ReadRepairQueryTester
 {
@@ -51,7 +54,8 @@ public class ReadRepairRangeQueriesTest extends ReadRepairQueryTester
                     rows(row(2, null, 200), row(3, 30, 300)))
         .tearDown(1,
                   rows(row(1, 10, 100), row(2, null, 200)),
-                  rows(row(2, null, 200)));
+                  rows(row(2, null, 200)),
+                  true);
     }
 
     /**
@@ -84,7 +88,8 @@ public class ReadRepairRangeQueriesTest extends ReadRepairQueryTester
                     rows(row(2, 20, 200, 2000), row(3, 30, 300, 3000)))
         .tearDown(1,
                   rows(row(1, 10, 100, 1000), row(3, 30, 300, 3000)),
-                  rows(row(3, 30, 300, 3000)));
+                  rows(row(3, 30, 300, 3000)),
+                  true);
     }
 
     /**
@@ -93,6 +98,8 @@ public class ReadRepairRangeQueriesTest extends ReadRepairQueryTester
     @Test
     public void testRangeQueryWithLimitOnSkinnyTable()
     {
+        if (coordinator == 2)
+            MutationTrackingUtils.fixmeSkipIfTracked(replicationType, "Depends on short read protection");
         tester("WHERE token(k) >= token(1) LIMIT 2")
         .createTable("CREATE TABLE %s (k int PRIMARY KEY, a int, b int)")
         .mutate("INSERT INTO %s (k, a, b) VALUES (1, 10, 100)",
@@ -120,6 +127,9 @@ public class ReadRepairRangeQueriesTest extends ReadRepairQueryTester
     @Test
     public void testRangeQueryWithLimitOnWideTable()
     {
+        if (coordinator == 2)
+            MutationTrackingUtils.fixmeSkipIfTracked(replicationType, "Depends on short read protection");
+
         tester("WHERE token(k) >= token(1) LIMIT 2")
         .createTable("CREATE TABLE %s (k int, c int, a int, b int, PRIMARY KEY(k, c))")
         .mutate("INSERT INTO %s (k, c, a, b) VALUES (1, 10, 100, 1000)",
@@ -151,6 +161,8 @@ public class ReadRepairRangeQueriesTest extends ReadRepairQueryTester
     @Test
     public void testRangeQueryWithFilterOnSelectedColumnOnSkinnyTable()
     {
+        if (coordinator == 2)
+            MutationTrackingUtils.fixmeSkipIfTracked(replicationType, "Depends on ReplicaFilteringProtection");
         tester("WHERE a=2 ALLOW FILTERING")
         .createTable("CREATE TABLE %s (k int PRIMARY KEY, a int, b int)")
         .mutate("INSERT INTO %s (k, a, b) VALUES (1, 2, 3)",
@@ -177,6 +189,8 @@ public class ReadRepairRangeQueriesTest extends ReadRepairQueryTester
     @Test
     public void testRangeQueryWithFilterOnSelectedColumnOnWideTable()
     {
+        if (coordinator == 2)
+            MutationTrackingUtils.fixmeSkipIfTracked(replicationType, "Depends on ReplicaFilteringProtection");
         tester("WHERE a=1 ALLOW FILTERING")
         .createTable("CREATE TABLE %s (k int, c int, a int, b int, PRIMARY KEY(k, c))")
         .mutate("INSERT INTO %s (k, c, a, b) VALUES (1, 1, 1, 1)",
@@ -208,6 +222,9 @@ public class ReadRepairRangeQueriesTest extends ReadRepairQueryTester
     @Test
     public void testRangeQueryWithFilterOnUnselectedColumnOnSkinnyTable()
     {
+        if (coordinator == 2)
+            MutationTrackingUtils.fixmeSkipIfTracked(replicationType, "depends on ReplicaFilteringProtection");
+
         tester("WHERE b=3 ALLOW FILTERING")
         .createTable("CREATE TABLE %s (k int PRIMARY KEY, a int, b int)")
         .mutate("INSERT INTO %s (k, a, b) VALUES (1, 2, 3)",
@@ -234,6 +251,8 @@ public class ReadRepairRangeQueriesTest extends ReadRepairQueryTester
     @Test
     public void testRangeQueryWithFilterOnUnselectedColumnOnWideTable()
     {
+        if (coordinator == 2)
+            MutationTrackingUtils.fixmeSkipIfTracked(replicationType, "Depends on short read protection");
         tester("WHERE b=2 ALLOW FILTERING")
         .createTable("CREATE TABLE %s (k int, c int, a int, b int, PRIMARY KEY(k, c))")
         .mutate("INSERT INTO %s (k, c, a, b) VALUES (1, 1, 1, 1)",

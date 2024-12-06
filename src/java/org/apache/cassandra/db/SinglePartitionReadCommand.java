@@ -21,6 +21,7 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.NavigableSet;
@@ -28,7 +29,10 @@ import java.util.TreeSet;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
+import javax.annotation.Nullable;
+
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.base.Preconditions;
 import com.google.common.collect.Sets;
 
 import org.apache.cassandra.cache.IRowCacheEntry;
@@ -49,8 +53,10 @@ import org.apache.cassandra.db.partitions.CachedPartition;
 import org.apache.cassandra.db.partitions.ImmutableBTreePartition;
 import org.apache.cassandra.db.partitions.PartitionIterator;
 import org.apache.cassandra.db.partitions.PartitionIterators;
+import org.apache.cassandra.db.partitions.PartitionUpdate;
 import org.apache.cassandra.db.partitions.SingletonUnfilteredPartitionIterator;
 import org.apache.cassandra.db.partitions.UnfilteredPartitionIterator;
+import org.apache.cassandra.db.partitions.UnfilteredPartitionIterators;
 import org.apache.cassandra.db.rows.Cell;
 import org.apache.cassandra.db.rows.Row;
 import org.apache.cassandra.db.rows.Rows;
@@ -72,6 +78,10 @@ import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.metrics.TableMetrics;
 import org.apache.cassandra.net.Verb;
+import org.apache.cassandra.replication.MutationJournal;
+import org.apache.cassandra.replication.MutationSummary;
+import org.apache.cassandra.replication.MutationTrackingService;
+import org.apache.cassandra.replication.ShortMutationId;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.CacheService;
@@ -95,7 +105,7 @@ public class SinglePartitionReadCommand extends ReadCommand implements SinglePar
 
     @VisibleForTesting
     protected SinglePartitionReadCommand(Epoch serializedAtEpoch,
-                                         boolean isDigest,
+                                         ResponseType responseType,
                                          int digestVersion,
                                          boolean acceptsTransient,
                                          TableMetadata metadata,
@@ -109,14 +119,14 @@ public class SinglePartitionReadCommand extends ReadCommand implements SinglePar
                                          boolean trackWarnings,
                                          DataRange dataRange)
     {
-        super(serializedAtEpoch, Kind.SINGLE_PARTITION, isDigest, digestVersion, acceptsTransient, metadata, nowInSec, columnFilter, rowFilter, limits, indexQueryPlan, trackWarnings, dataRange);
+        super(serializedAtEpoch, Kind.SINGLE_PARTITION, responseType, digestVersion, acceptsTransient, metadata, nowInSec, columnFilter, rowFilter, limits, indexQueryPlan, trackWarnings, dataRange);
         assert partitionKey.getPartitioner() == metadata.partitioner;
         this.partitionKey = partitionKey;
         this.clusteringIndexFilter = clusteringIndexFilter;
     }
 
     private static SinglePartitionReadCommand create(Epoch serializedAtEpoch,
-                                                     boolean isDigest,
+                                                     ResponseType responseType,
                                                      int digestVersion,
                                                      boolean acceptsTransient,
                                                      TableMetadata metadata,
@@ -133,7 +143,7 @@ public class SinglePartitionReadCommand extends ReadCommand implements SinglePar
 
         if (metadata.isVirtual())
         {
-            return new VirtualTableSinglePartitionReadCommand(isDigest,
+            return new VirtualTableSinglePartitionReadCommand(responseType,
                                                               digestVersion,
                                                               acceptsTransient,
                                                               metadata,
@@ -149,7 +159,7 @@ public class SinglePartitionReadCommand extends ReadCommand implements SinglePar
         }
 
         return new SinglePartitionReadCommand(serializedAtEpoch,
-                                              isDigest,
+                                              responseType,
                                               digestVersion,
                                               acceptsTransient,
                                               metadata,
@@ -188,7 +198,7 @@ public class SinglePartitionReadCommand extends ReadCommand implements SinglePar
                                                     Index.QueryPlan indexQueryPlan)
     {
         return create(metadata.epoch,
-                      false,
+                      ResponseType.fromMetadata(metadata),
                       0,
                       false,
                       metadata,
@@ -366,7 +376,7 @@ public class SinglePartitionReadCommand extends ReadCommand implements SinglePar
     public SinglePartitionReadCommand copy()
     {
         return create(serializedAtEpoch(),
-                      isDigestQuery(),
+                      responseType(),
                       digestVersion(),
                       acceptsTransient(),
                       metadata(),
@@ -381,10 +391,10 @@ public class SinglePartitionReadCommand extends ReadCommand implements SinglePar
     }
 
     @Override
-    protected SinglePartitionReadCommand copyAsDigestQuery()
+    protected SinglePartitionReadCommand copyAsSummaryQuery()
     {
         return create(serializedAtEpoch(),
-                      true,
+                      responseType().asSummaryType(),
                       digestVersion(),
                       acceptsTransient(),
                       metadata(),
@@ -402,7 +412,7 @@ public class SinglePartitionReadCommand extends ReadCommand implements SinglePar
     protected SinglePartitionReadCommand copyAsTransientQuery()
     {
         return create(serializedAtEpoch(),
-                      false,
+                      ResponseType.UNTRACKED_DATA,
                       0,
                       true,
                       metadata(),
@@ -420,7 +430,7 @@ public class SinglePartitionReadCommand extends ReadCommand implements SinglePar
     public SinglePartitionReadCommand withUpdatedLimit(DataLimits newLimits)
     {
         return create(serializedAtEpoch(),
-                      isDigestQuery(),
+                      responseType(),
                       digestVersion(),
                       acceptsTransient(),
                       metadata(),
@@ -494,6 +504,9 @@ public class SinglePartitionReadCommand extends ReadCommand implements SinglePar
 
     protected UnfilteredPartitionIterator queryStorage(final ColumnFamilyStore cfs, ReadExecutionController executionController)
     {
+        if (responseType() == ResponseType.TRACKED_SUMMARY)
+            return EmptyIterators.unfilteredPartition(metadata());
+
         // skip the row cache and go directly to sstables/memtable if repaired status of
         // data is being tracked. This is only requested after an initial digest mismatch
         UnfilteredRowIterator partition = cfs.isRowCacheEnabled() && !executionController.isTrackingRepairedStatus()
@@ -835,6 +848,67 @@ public class SinglePartitionReadCommand extends ReadCommand implements SinglePar
             }
             throw e;
         }
+    }
+
+    @Override
+    public UnfilteredPartitionIterator augmentResultWithMutations(UnfilteredPartitionIterator result, Collection<Mutation> mutations)
+    {
+        if (mutations.isEmpty())
+            return result;
+
+        List<UnfilteredRowIterator> rows = new ArrayList<>(mutations.size());
+        Slices slices = clusteringIndexFilter().getSlices(metadata());
+
+        for (Mutation mutation : mutations)
+        {
+            UnfilteredRowIterator rowIter = queryMutation(mutation, slices);
+            if (rowIter != null) rows.add(rowIter);
+        }
+        UnfilteredRowIterator merged = UnfilteredRowIterators.merge(rows);
+
+        List<UnfilteredPartitionIterator> partitions = new ArrayList<>(2);
+        partitions.add(result);
+        partitions.add(new SingletonUnfilteredPartitionIterator(merged));
+        return UnfilteredPartitionIterators.merge(partitions, UnfilteredPartitionIterators.MergeListener.NOOP);
+    }
+
+    @Override
+    public UnfilteredPartitionIterator queryJournal(Collection<ShortMutationId> mutationIds)
+    {
+        if (mutationIds.isEmpty())
+            return EmptyIterators.unfilteredPartition(metadata());
+
+        List<UnfilteredRowIterator> rows = new ArrayList<>(mutationIds.size());
+        Slices slices = clusteringIndexFilter().getSlices(metadata());
+
+        for (ShortMutationId mutationId : mutationIds)
+        {
+            Mutation mutation = MutationJournal.instance.read(mutationId);
+            Preconditions.checkNotNull(mutation);
+            UnfilteredRowIterator rowIter = queryMutation(mutation, slices);
+            if (rowIter != null) rows.add(rowIter);
+        }
+
+        return rows.isEmpty()
+             ? EmptyIterators.unfilteredPartition(metadata())
+             : new SingletonUnfilteredPartitionIterator(UnfilteredRowIterators.merge(rows));
+    }
+
+    @Nullable
+    private UnfilteredRowIterator queryMutation(Mutation mutation, Slices slices)
+    {
+        if (!partitionKey().equals(mutation.key()))
+            return null;
+        PartitionUpdate update = mutation.getPartitionUpdate(metadata());
+        if (update == null)
+            return null;
+        // FIXME: support index queries
+        return update.unfilteredIterator(columnFilter(), slices, clusteringIndexFilter().isReversed());
+    }
+
+    protected MutationSummary createMutationSummaryInternal(boolean includePending)
+    {
+        return MutationTrackingService.instance.createSummaryForKey(partitionKey, metadata().id, includePending);
     }
 
     @Override
@@ -1320,7 +1394,7 @@ public class SinglePartitionReadCommand extends ReadCommand implements SinglePar
         public ReadCommand deserialize(DataInputPlus in,
                                        int version,
                                        Epoch serializedAtEpoch,
-                                       boolean isDigest,
+                                       ResponseType responseType,
                                        int digestVersion,
                                        boolean acceptsTransient,
                                        TableMetadata metadata,
@@ -1333,7 +1407,7 @@ public class SinglePartitionReadCommand extends ReadCommand implements SinglePar
         {
             DecoratedKey key = metadata.partitioner.decorateKey(metadata.partitionKeyType.readBuffer(in, DatabaseDescriptor.getMaxValueSize()));
             ClusteringIndexFilter filter = ClusteringIndexFilter.serializer.deserialize(in, version, metadata);
-            return SinglePartitionReadCommand.create(serializedAtEpoch, isDigest, digestVersion, acceptsTransient, metadata, nowInSec, columnFilter, rowFilter, limits, key, filter, indexQueryPlan, false);
+            return SinglePartitionReadCommand.create(serializedAtEpoch, responseType, digestVersion, acceptsTransient, metadata, nowInSec, columnFilter, rowFilter, limits, key, filter, indexQueryPlan, false);
         }
     }
 
@@ -1367,7 +1441,7 @@ public class SinglePartitionReadCommand extends ReadCommand implements SinglePar
 
     public static class VirtualTableSinglePartitionReadCommand extends SinglePartitionReadCommand
     {
-        protected VirtualTableSinglePartitionReadCommand(boolean isDigest,
+        protected VirtualTableSinglePartitionReadCommand(ResponseType responseType,
                                                          int digestVersion,
                                                          boolean acceptsTransient,
                                                          TableMetadata metadata,
@@ -1381,7 +1455,7 @@ public class SinglePartitionReadCommand extends ReadCommand implements SinglePar
                                                          boolean trackWarnings,
                                                          DataRange dataRange)
         {
-            super(metadata.epoch, isDigest, digestVersion, acceptsTransient, metadata, nowInSec, columnFilter, 
+            super(metadata.epoch, responseType, digestVersion, acceptsTransient, metadata, nowInSec, columnFilter,
                   rowFilter, limits, partitionKey, clusteringIndexFilter, indexQueryPlan, trackWarnings, dataRange);
         }
 

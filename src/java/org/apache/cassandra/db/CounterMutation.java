@@ -41,6 +41,7 @@ import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.locator.AbstractReplicationStrategy;
+import org.apache.cassandra.replication.MutationId;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.service.CacheService;
 import org.apache.cassandra.tracing.Tracing;
@@ -48,9 +49,7 @@ import org.apache.cassandra.utils.*;
 import org.apache.cassandra.utils.btree.BTreeSet;
 
 import static java.util.concurrent.TimeUnit.*;
-import static org.apache.cassandra.net.MessagingService.VERSION_40;
-import static org.apache.cassandra.net.MessagingService.VERSION_50;
-import static org.apache.cassandra.net.MessagingService.VERSION_51;
+import static org.apache.cassandra.net.MessagingService.*;
 import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 
 public class CounterMutation implements IMutation
@@ -66,6 +65,18 @@ public class CounterMutation implements IMutation
     {
         this.mutation = mutation;
         this.consistency = consistency;
+    }
+
+    @Override
+    public MutationId id()
+    {
+        return mutation.id();
+    }
+
+    @Override
+    public CounterMutation withMutationId(MutationId mutationId)
+    {
+        return new CounterMutation(mutation.withMutationId(mutationId), consistency);
     }
 
     public String getKeyspaceName()
@@ -129,7 +140,7 @@ public class CounterMutation implements IMutation
      */
     public Mutation applyCounterMutation() throws WriteTimeoutException
     {
-        Mutation.PartitionUpdateCollector resultBuilder = new Mutation.PartitionUpdateCollector(getKeyspaceName(), key());
+        Mutation.PartitionUpdateCollector resultBuilder = new Mutation.PartitionUpdateCollector(id(), getKeyspaceName(), key());
         Keyspace keyspace = Keyspace.open(getKeyspaceName());
 
         List<Lock> locks = new ArrayList<>();
@@ -334,6 +345,7 @@ public class CounterMutation implements IMutation
     private int serializedSize40;
     private int serializedSize50;
     private int serializedSize51;
+    private int serializedSize52;
 
     public int serializedSize(int version)
     {
@@ -351,6 +363,10 @@ public class CounterMutation implements IMutation
                 if (serializedSize51 == 0)
                     serializedSize51 = (int) serializer.serializedSize(this, VERSION_51);
                 return serializedSize51;
+            case VERSION_52:
+                if (serializedSize52 == 0)
+                    serializedSize52 = (int) serializer.serializedSize(this, VERSION_52);
+                return serializedSize52;
             default:
                 throw new IllegalStateException("Unknown serialization version: " + version);
         }

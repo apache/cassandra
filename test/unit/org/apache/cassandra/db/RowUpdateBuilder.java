@@ -22,6 +22,7 @@ import java.util.*;
 
 import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.db.context.CounterContext;
+import org.apache.cassandra.replication.MutationId;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.db.rows.*;
@@ -138,7 +139,7 @@ public class RowUpdateBuilder
     {
         PartitionUpdate.Builder update = new PartitionUpdate.Builder(metadata, makeKey(metadata, key), metadata.regularAndStaticColumns(), 0);
         deleteRow(update, timestamp, localDeletionTime, clusteringValues);
-        return new Mutation.PartitionUpdateCollector(update.metadata().keyspace, update.partitionKey()).add(update.build()).build();
+        return new Mutation.PartitionUpdateCollector(MutationId.none(), update.metadata().keyspace, update.partitionKey()).add(update.build()).build();
     }
 
     private static DecoratedKey makeKey(TableMetadata metadata, Object... partitionKey)

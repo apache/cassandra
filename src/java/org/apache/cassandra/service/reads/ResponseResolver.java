@@ -23,7 +23,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.db.ReadCommand;
-import org.apache.cassandra.db.ReadResponse;
+import org.apache.cassandra.db.partitions.PartitionIterator;
 import org.apache.cassandra.locator.Endpoints;
 import org.apache.cassandra.locator.ReplicaPlan;
 import org.apache.cassandra.net.Message;
@@ -38,7 +38,7 @@ public abstract class ResponseResolver<E extends Endpoints<E>, P extends Replica
     protected final Supplier<? extends P> replicaPlan;
 
     // Accumulator gives us non-blocking thread-safety with optimal algorithmic constraints
-    protected final Accumulator<Message<ReadResponse>> responses;
+    protected final Accumulator<Message<IReadResponse>> responses;
     protected final Dispatcher.RequestTime requestTime;
 
     public ResponseResolver(ReadCommand command, Supplier<? extends P> replicaPlan, Dispatcher.RequestTime requestTime)
@@ -56,12 +56,20 @@ public abstract class ResponseResolver<E extends Endpoints<E>, P extends Replica
 
     public abstract boolean isDataPresent();
 
-    public void preprocess(Message<ReadResponse> message)
-    {
-        if (replicaPlan().lookup(message.from()).isTransient() &&
-            message.payload.isDigestResponse())
-            throw new IllegalArgumentException("Digest response received from transient replica");
+    public abstract boolean responsesMatch();
 
+    public abstract PartitionIterator getData();
+
+    protected abstract void validateResponse(Message<IReadResponse> message);
+
+    public void onResponseReceived(Message<IReadResponse> message)
+    {
+
+    }
+
+    public final void preprocess(Message<IReadResponse> message)
+    {
+        validateResponse(message);
         try
         {
             responses.add(message);
@@ -72,9 +80,10 @@ public abstract class ResponseResolver<E extends Endpoints<E>, P extends Replica
                          message, command, replicaPlan);
             throw e;
         }
+        onResponseReceived(message);
     }
 
-    public Accumulator<Message<ReadResponse>> getMessages()
+    public Accumulator<Message<IReadResponse>> getMessages()
     {
         return responses;
     }

@@ -36,6 +36,7 @@ import org.apache.cassandra.db.rows.Row;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
+import org.apache.cassandra.replication.MutationId;
 import org.apache.cassandra.schema.CachingParams;
 import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.utils.ByteBufferUtil;
@@ -193,7 +194,7 @@ public class CompactionsPurgeTest
         }
         Util.flush(cfs);
 
-        new Mutation.PartitionUpdateCollector(KEYSPACE1, dk(key))
+        new Mutation.PartitionUpdateCollector(MutationId.none(), KEYSPACE1, dk(key))
             .add(PartitionUpdate.fullPartitionDelete(cfs.metadata(), dk(key), Long.MAX_VALUE, FBUtilities.nowInSeconds()))
             .build()
             .applyUnsafe();
@@ -426,7 +427,7 @@ public class CompactionsPurgeTest
         }
 
         // deletes partition
-        Mutation.PartitionUpdateCollector rm = new Mutation.PartitionUpdateCollector(KEYSPACE_CACHED, dk(key));
+        Mutation.PartitionUpdateCollector rm = new Mutation.PartitionUpdateCollector(MutationId.none(), KEYSPACE_CACHED, dk(key));
         rm.add(PartitionUpdate.fullPartitionDelete(cfs.metadata(), dk(key), 1, FBUtilities.nowInSeconds()));
         rm.build().applyUnsafe();
 
@@ -466,7 +467,7 @@ public class CompactionsPurgeTest
         }
 
         // deletes partition with timestamp such that not all columns are deleted
-        Mutation.PartitionUpdateCollector rm = new Mutation.PartitionUpdateCollector(KEYSPACE1, dk(key));
+        Mutation.PartitionUpdateCollector rm = new Mutation.PartitionUpdateCollector(MutationId.none(), KEYSPACE1, dk(key));
         rm.add(PartitionUpdate.fullPartitionDelete(cfs.metadata(), dk(key), 4, FBUtilities.nowInSeconds()));
         rm.build().applyUnsafe();
 

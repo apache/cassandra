@@ -270,15 +270,15 @@ public class RepairedDataVerifierTest
 
     private ReadCommand command(int key)
     {
-        return new StubReadCommand(key, metadata, false);
+        return new StubReadCommand(key, metadata, ReadCommand.ResponseType.UNTRACKED_DATA);
     }
 
     private static class StubReadCommand extends SinglePartitionReadCommand
     {
-        StubReadCommand(int key, TableMetadata metadata, boolean isDigest)
+        StubReadCommand(int key, TableMetadata metadata, ResponseType responseType)
         {
             super(metadata.epoch,
-                  isDigest,
+                  responseType,
                   0,
                   false,
                   metadata,

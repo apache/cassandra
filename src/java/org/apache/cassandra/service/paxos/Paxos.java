@@ -91,7 +91,7 @@ import org.apache.cassandra.service.FailureRecordingCallback.AsMap;
 import org.apache.cassandra.service.paxos.Commit.Proposal;
 import org.apache.cassandra.service.paxos.cleanup.PaxosRepairState;
 import org.apache.cassandra.tcm.ClusterMetadata;
-import org.apache.cassandra.service.reads.DataResolver;
+import org.apache.cassandra.service.reads.untracked.DataResolver;
 import org.apache.cassandra.service.reads.repair.NoopReadRepair;
 import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.tcm.membership.NodeId;

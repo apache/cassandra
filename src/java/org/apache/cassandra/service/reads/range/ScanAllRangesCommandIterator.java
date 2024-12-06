@@ -36,7 +36,7 @@ import org.apache.cassandra.locator.ReplicaPlan;
 import org.apache.cassandra.locator.ReplicaPlans;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
-import org.apache.cassandra.service.reads.DataResolver;
+import org.apache.cassandra.service.reads.untracked.DataResolver;
 import org.apache.cassandra.service.reads.ReadCallback;
 import org.apache.cassandra.service.reads.repair.NoopReadRepair;
 import org.apache.cassandra.tracing.Tracing;
@@ -110,6 +110,6 @@ public class ScanAllRangesCommandIterator extends RangeCommandIterator
         Tracing.trace("Submitted scanning all ranges requests to {} nodes", nodes);
 
         // skip read-repair for top-k query because data mismatch may be caused by top-k algorithm instead of actual inconsistency.
-        return new SingleRangeResponse(resolver, handler, NoopReadRepair.instance);
+        return new SingleRangeResponse.Untracked(resolver, handler, NoopReadRepair.instance);
     }
 }

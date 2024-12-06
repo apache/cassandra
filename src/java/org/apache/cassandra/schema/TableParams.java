@@ -49,6 +49,7 @@ import static org.apache.cassandra.utils.LocalizeString.toLowerCaseLocalized;
 public final class TableParams
 {
     public static final Serializer serializer = new Serializer();
+
     public enum Option
     {
         ALLOW_AUTO_SNAPSHOT,

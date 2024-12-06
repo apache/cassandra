@@ -31,7 +31,6 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.MessageParams;
 import org.apache.cassandra.db.PartitionRangeReadCommand;
 import org.apache.cassandra.db.ReadCommand;
-import org.apache.cassandra.db.ReadResponse;
 import org.apache.cassandra.exceptions.ReadFailureException;
 import org.apache.cassandra.exceptions.ReadTimeoutException;
 import org.apache.cassandra.exceptions.RequestFailureReason;
@@ -42,6 +41,7 @@ import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.ParamType;
 import org.apache.cassandra.net.RequestCallback;
 import org.apache.cassandra.net.Verb;
+import org.apache.cassandra.service.reads.untracked.DigestResolver;
 import org.apache.cassandra.service.reads.thresholds.CoordinatorWarnings;
 import org.apache.cassandra.service.reads.thresholds.WarningContext;
 import org.apache.cassandra.service.reads.thresholds.WarningsSnapshot;
@@ -56,7 +56,7 @@ import static java.util.concurrent.atomic.AtomicIntegerFieldUpdater.newUpdater;
 import static org.apache.cassandra.tracing.Tracing.isTracing;
 import static org.apache.cassandra.utils.concurrent.Condition.newOneTimeCondition;
 
-public class ReadCallback<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<E, P>> implements RequestCallback<ReadResponse>
+public class ReadCallback<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<E, P>> implements RequestCallback<IReadResponse>
 {
     protected static final Logger logger = LoggerFactory.getLogger(ReadCallback.class);
 
@@ -179,7 +179,7 @@ public class ReadCallback<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<
     }
 
     @Override
-    public void onResponse(Message<ReadResponse> message)
+    public void onResponse(Message<IReadResponse> message)
     {
         assertWaitingFor(message.from());
         Map<ParamType, Object> params = message.header.params();
@@ -221,10 +221,10 @@ public class ReadCallback<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<
         return current;
     }
 
-    public void response(ReadResponse result)
+    public void response(IReadResponse result)
     {
         Verb kind = command.isRangeRequest() ? Verb.RANGE_RSP : Verb.READ_RSP;
-        Message<ReadResponse> message = Message.internalResponse(kind, result);
+        Message<IReadResponse> message = Message.internalResponse(kind, result);
         message = MessageParams.addToMessage(message);
         onResponse(message);
     }

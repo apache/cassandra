@@ -29,12 +29,13 @@ import org.apache.cassandra.exceptions.ReadTimeoutException;
 import org.apache.cassandra.locator.Endpoints;
 import org.apache.cassandra.locator.Replica;
 import org.apache.cassandra.locator.ReplicaPlan;
-import org.apache.cassandra.service.reads.DigestResolver;
+import org.apache.cassandra.service.reads.ResponseResolver;
+import org.apache.cassandra.service.reads.untracked.UntrackedReadRepair;
 
 /**
  * Bypasses the read repair path for short read protection and testing
  */
-public class NoopReadRepair<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<E, P>> implements ReadRepair<E, P>
+public class NoopReadRepair<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<E, P>> implements UntrackedReadRepair<E, P>
 {
     public static final NoopReadRepair instance = new NoopReadRepair();
 
@@ -47,9 +48,9 @@ public class NoopReadRepair<E extends Endpoints<E>, P extends ReplicaPlan.ForRea
     }
 
     @Override
-    public void startRepair(DigestResolver<E, P> digestResolver, Consumer<PartitionIterator> resultConsumer)
+    public void startRepair(ResponseResolver<E, P> resolver, Consumer<PartitionIterator> resultConsumer)
     {
-        resultConsumer.accept(digestResolver.getData());
+        resultConsumer.accept(resolver.getData());
     }
 
     public void awaitReads() throws ReadTimeoutException

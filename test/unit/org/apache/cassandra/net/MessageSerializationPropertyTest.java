@@ -74,6 +74,8 @@ public class MessageSerializationPropertyTest implements Serializable
             qt().withShrinkCycles(0).forAll(MESSAGE_GEN).checkAssert(orFail(message -> {
                 for (MessagingService.Version version : MessagingService.Version.supportedVersions())
                 {
+                    if (shouldSkipForVersion(version, message))
+                        continue;
                     out.clear();
                     serializer.serialize(message, out, version.value);
                     Assertions.assertThat(out.getLength())
@@ -84,6 +86,17 @@ public class MessageSerializationPropertyTest implements Serializable
                 }
             }));
         }
+    }
+
+    private static boolean shouldSkipForVersion(MessagingService.Version version, Message<?> message)
+    {
+        // attempting to serialize read commands with logged responses for versions < 52 will fail
+        if (message.verb() == Verb.READ_REQ && version.value < MessagingService.VERSION_52)
+        {
+            ReadCommand command = (ReadCommand) message.payload;
+            return command.responseType().isTracked();
+        }
+        return false;
     }
 
     /**
@@ -103,6 +116,9 @@ public class MessageSerializationPropertyTest implements Serializable
                 withTable(schema, message, orFail(ignore -> {
                     for (MessagingService.Version version : MessagingService.Version.supportedVersions())
                     {
+                        if (shouldSkipForVersion(version, message))
+                            continue;
+
                         first.clear();
                         second.clear();
 

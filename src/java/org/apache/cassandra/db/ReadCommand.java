@@ -64,7 +64,10 @@ import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.locator.Replica;
 import org.apache.cassandra.metrics.TableMetrics;
 import org.apache.cassandra.net.Message;
+import org.apache.cassandra.replication.MutationSummary;
+import org.apache.cassandra.replication.ShortMutationId;
 import org.apache.cassandra.schema.IndexMetadata;
+import org.apache.cassandra.schema.ReplicationType;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.schema.TableId;
@@ -72,6 +75,8 @@ import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.schema.SchemaProvider;
 import org.apache.cassandra.service.ActiveRepairService;
 import org.apache.cassandra.service.ClientWarn;
+import org.apache.cassandra.service.reads.IReadResponse;
+import org.apache.cassandra.service.reads.tracked.TrackedReadResponse;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.tracing.Tracing;
@@ -92,10 +97,94 @@ import static org.apache.cassandra.utils.MonotonicClock.Global.approxTime;
  * General interface for storage-engine read commands (common to both range and
  * single partition commands).
  * <p>
- * This contains all the informations needed to do a local read.
+ * This contains all the information needed to do a local read.
  */
 public abstract class ReadCommand extends AbstractReadQuery
 {
+    public enum ResponseType
+    {
+        UNTRACKED_DATA,
+        UNTRACKED_DIGEST,
+        TRACKED_DATA,
+        TRACKED_SUMMARY;
+
+        public boolean isSummary()
+        {
+            switch (this)
+            {
+                case UNTRACKED_DIGEST:
+                case TRACKED_SUMMARY:
+                    return true;
+                default:
+                    return false;
+            }
+        }
+
+        public boolean isTracked()
+        {
+
+            switch (this)
+            {
+                case TRACKED_DATA:
+                case TRACKED_SUMMARY:
+                    return true;
+                default:
+                    return false;
+            }
+        }
+
+        public boolean isUntracked()
+        {
+            switch (this)
+            {
+                case UNTRACKED_DATA:
+                case UNTRACKED_DIGEST:
+                    return true;
+                default:
+                    return false;
+            }
+        }
+
+        public ResponseType asSummaryType()
+        {
+            switch (this)
+            {
+                case UNTRACKED_DATA:
+                    return UNTRACKED_DIGEST;
+                case TRACKED_DATA:
+                    return TRACKED_SUMMARY;
+                default:
+                    throw new IllegalArgumentException("Unable to convert " + this + " to summary type");
+            }
+        }
+
+        public static ResponseType fromFlags(boolean isSummary, boolean isTracked)
+        {
+            if (isTracked)
+                return isSummary ? TRACKED_SUMMARY : TRACKED_DATA;
+            else
+                return isSummary ? UNTRACKED_DIGEST : UNTRACKED_DATA;
+        }
+
+        public static ResponseType fromMetadata(TableMetadata metadata)
+        {
+
+            if (metadata.kind != TableMetadata.Kind.REGULAR)
+                return UNTRACKED_DATA;
+
+            ReplicationType replicationType = metadata.replicationType();
+            switch (replicationType)
+            {
+                case untracked:
+                    return UNTRACKED_DATA;
+                case tracked:
+                    return TRACKED_DATA;
+                default:
+                    throw new IllegalArgumentException("Unable to convert " + replicationType + " to response type");
+            }
+        }
+    }
+
     private static final int TEST_ITERATION_DELAY_MILLIS = CassandraRelevantProperties.TEST_READ_ITERATION_DELAY_MS.getInt();
 
     protected static final Logger logger = LoggerFactory.getLogger(ReadCommand.class);
@@ -107,7 +196,7 @@ public abstract class ReadCommand extends AbstractReadQuery
 
     private final Kind kind;
 
-    private final boolean isDigestQuery;
+    private final ResponseType responseType;
     private final boolean acceptsTransient;
     private final Epoch serializedAtEpoch;
     // if a digest query, the version for which the digest is expected. Ignored if not a digest.
@@ -125,7 +214,7 @@ public abstract class ReadCommand extends AbstractReadQuery
         public abstract ReadCommand deserialize(DataInputPlus in,
                                                 int version,
                                                 Epoch serializedAtEpoch,
-                                                boolean isDigest,
+                                                ResponseType responseType,
                                                 int digestVersion,
                                                 boolean acceptsTransient,
                                                 TableMetadata metadata,
@@ -151,7 +240,7 @@ public abstract class ReadCommand extends AbstractReadQuery
 
     protected ReadCommand(Epoch serializedAtEpoch,
                           Kind kind,
-                          boolean isDigestQuery,
+                          ResponseType responseType,
                           int digestVersion,
                           boolean acceptsTransient,
                           TableMetadata metadata,
@@ -164,11 +253,11 @@ public abstract class ReadCommand extends AbstractReadQuery
                           DataRange dataRange)
     {
         super(metadata, nowInSec, columnFilter, rowFilter, limits);
-        if (acceptsTransient && isDigestQuery)
+        if (acceptsTransient && responseType == ResponseType.UNTRACKED_DIGEST)
             throw new IllegalArgumentException("Attempted to issue a digest response to transient replica");
 
         this.kind = kind;
-        this.isDigestQuery = isDigestQuery;
+        this.responseType = responseType;
         this.digestVersion = digestVersion;
         this.acceptsTransient = acceptsTransient;
         this.indexQueryPlan = indexQueryPlan;
@@ -204,6 +293,12 @@ public abstract class ReadCommand extends AbstractReadQuery
      */
     public abstract long getTimeout(TimeUnit unit);
 
+
+    public ResponseType responseType()
+    {
+        return responseType;
+    }
+
     /**
      * Whether this query is a digest one or not.
      *
@@ -211,7 +306,7 @@ public abstract class ReadCommand extends AbstractReadQuery
      */
     public boolean isDigestQuery()
     {
-        return isDigestQuery;
+        return responseType == ResponseType.UNTRACKED_DIGEST;
     }
 
     /**
@@ -343,27 +438,44 @@ public abstract class ReadCommand extends AbstractReadQuery
     /**
      * Returns a copy of this command with isDigestQuery set to true.
      */
-    public ReadCommand copyAsDigestQuery(Replica replica)
+    public ReadCommand copyAsSummaryQuery(Replica replica)
     {
         Preconditions.checkArgument(replica.isFull(),
                                     "Can't make a digest request on a transient replica " + replica);
-        return copyAsDigestQuery();
+        return copyAsSummaryQuery();
     }
 
     /**
      * Returns a copy of this command with isDigestQuery set to true.
      */
-    public ReadCommand copyAsDigestQuery(Iterable<Replica> replicas)
+    public ReadCommand copyAsSummaryQuery(Iterable<Replica> replicas)
     {
         if (any(replicas, Replica::isTransient))
             throw new IllegalArgumentException("Can't make a digest request on a transient replica " + Iterables.toString(filter(replicas, Replica::isTransient)));
 
-        return copyAsDigestQuery();
+        return copyAsSummaryQuery();
     }
 
-    protected abstract ReadCommand copyAsDigestQuery();
+    protected abstract ReadCommand copyAsSummaryQuery();
 
     protected abstract UnfilteredPartitionIterator queryStorage(ColumnFamilyStore cfs, ReadExecutionController executionController);
+
+    /**
+     * Used by TrackedReadReconciliation, applies missing mutations to a read result
+     */
+    public abstract UnfilteredPartitionIterator augmentResultWithMutations(UnfilteredPartitionIterator result, Collection<Mutation> mutations);
+
+    public abstract UnfilteredPartitionIterator queryJournal(Collection<ShortMutationId> mutationIds);
+
+    protected abstract MutationSummary createMutationSummaryInternal(boolean includePending);
+
+    public MutationSummary createMutationSummary(boolean includePending)
+    {
+        if (!responseType.isTracked())
+            return null;
+
+        return createMutationSummaryInternal(includePending);
+    }
 
     /**
      * Whether the underlying {@code ClusteringIndexFilter} is reversed or not.
@@ -372,18 +484,28 @@ public abstract class ReadCommand extends AbstractReadQuery
      */
     public abstract boolean isReversed();
 
-    public ReadResponse createResponse(UnfilteredPartitionIterator iterator, RepairedDataInfo rdi)
+    public IReadResponse createResponse(UnfilteredPartitionIterator iterator, RepairedDataInfo rdi, MutationSummary initialSummary)
     {
         // validate that the sequence of RT markers is correct: open is followed by close, deletion times for both
         // ends equal, and there are no dangling RT bound in any partition.
         iterator = RTBoundValidator.validate(iterator, Stage.PROCESSED, true);
 
-        return isDigestQuery()
-               ? ReadResponse.createDigestResponse(iterator, this)
-               : ReadResponse.createDataResponse(iterator, this, rdi);
+        switch (responseType())
+        {
+            case UNTRACKED_DATA:
+                return ReadResponse.createDataResponse(iterator, this, rdi);
+            case UNTRACKED_DIGEST:
+                return ReadResponse.createDigestResponse(iterator, this);
+            case TRACKED_DATA:
+                return TrackedReadResponse.createDataResponse(iterator, this, initialSummary);
+            case TRACKED_SUMMARY:
+                return TrackedReadResponse.createSummaryResponse(initialSummary);
+            default:
+                throw new IllegalArgumentException("Unsupported response type: " + responseType());
+        }
     }
 
-    public ReadResponse createEmptyResponse()
+    public IReadResponse createEmptyResponse()
     {
         UnfilteredPartitionIterator iterator = EmptyIterators.unfilteredPartition(metadata());
         
@@ -457,6 +579,9 @@ public abstract class ReadCommand extends AbstractReadQuery
                                             .map(i -> i.getIndexMetadata().name)
                                             .collect(Collectors.joining(",")));
             }
+
+            if (searcher != null && responseType().isTracked())
+                throw new UnsupportedOperationException("TODO: support tracked index reads");
 
             UnfilteredPartitionIterator iterator = (null == searcher) ? queryStorage(cfs, executionController) : searcher.search(executionController);
             iterator = RTBoundValidator.validate(iterator, Stage.MERGED, false);
@@ -1217,6 +1342,7 @@ public abstract class ReadCommand extends AbstractReadQuery
         private static final int HAS_INDEX = 0x04;
         private static final int ACCEPTS_TRANSIENT = 0x08;
         private static final int NEEDS_RECONCILIATION = 0x10;
+        private static final int TRACKED_READ = 0x20;
 
         private final SchemaProvider schema;
 
@@ -1281,17 +1407,33 @@ public abstract class ReadCommand extends AbstractReadQuery
             return (flags & NEEDS_RECONCILIATION) != 0;
         }
 
+        private static int isTrackedFlag(boolean isTracked)
+        {
+            return isTracked ? TRACKED_READ : 0;
+        }
+
+        private static boolean isTracked(int flags)
+        {
+            return (flags & TRACKED_READ) != 0;
+        }
+
         public void serialize(ReadCommand command, DataOutputPlus out, int version) throws IOException
         {
             out.writeByte(command.kind.ordinal());
+            ResponseType responseType = command.responseType();
+            Preconditions.checkArgument(version >= MessagingService.VERSION_52 || !responseType.isTracked(),
+                                        "Can't serialize tracked read commands for version " + version);
             out.writeByte(
-                    digestFlag(command.isDigestQuery())
-                    | indexFlag(null != command.indexQueryPlan())
-                    | acceptsTransientFlag(command.acceptsTransient())
-                    | needsReconciliationFlag(command.rowFilter().needsReconciliation())
+            digestFlag(responseType.isSummary())
+            | indexFlag(null != command.indexQueryPlan())
+            | acceptsTransientFlag(command.acceptsTransient())
+            | needsReconciliationFlag(command.rowFilter().needsReconciliation())
+            | isTrackedFlag(responseType.isTracked())
             );
-            if (command.isDigestQuery())
+
+            if (responseType == ResponseType.UNTRACKED_DIGEST)
                 out.writeUnsignedVInt32(command.digestVersion());
+
             command.metadata().id.serialize(out);
             if (version >= MessagingService.VERSION_51)
                 Epoch.serializer.serialize(command.serializedAtEpoch, out);
@@ -1312,7 +1454,7 @@ public abstract class ReadCommand extends AbstractReadQuery
         {
             Kind kind = Kind.values()[in.readByte()];
             int flags = in.readByte();
-            boolean isDigest = isDigest(flags);
+            ResponseType responseType = ResponseType.fromFlags(isDigest(flags), isTracked(flags));
             boolean acceptsTransient = acceptsTransient(flags);
             // Shouldn't happen or it's a user error (see comment above) but
             // better complain loudly than doing the wrong thing.
@@ -1323,7 +1465,7 @@ public abstract class ReadCommand extends AbstractReadQuery
                                                 + "upgrading to 4.0");
 
             boolean hasIndex = hasIndex(flags);
-            int digestVersion = isDigest ? (int)in.readUnsignedVInt() : 0;
+            int digestVersion = responseType == ResponseType.UNTRACKED_DIGEST ? (int)in.readUnsignedVInt() : 0;
             boolean needsReconciliation = needsReconciliation(flags);
             TableId tableId = TableId.deserialize(in);
 
@@ -1359,7 +1501,7 @@ public abstract class ReadCommand extends AbstractReadQuery
                     indexQueryPlan = indexGroup.queryPlanFor(rowFilter);
             }
 
-            return kind.selectionDeserializer.deserialize(in, version, schemaVersion, isDigest, digestVersion, acceptsTransient, tableMetadata, nowInSec, columnFilter, rowFilter, limits, indexQueryPlan);
+            return kind.selectionDeserializer.deserialize(in, version, schemaVersion, responseType, digestVersion, acceptsTransient, tableMetadata, nowInSec, columnFilter, rowFilter, limits, indexQueryPlan);
         }
 
         private IndexMetadata deserializeIndexMetadata(DataInputPlus in, int version, TableMetadata metadata) throws IOException
@@ -1382,7 +1524,7 @@ public abstract class ReadCommand extends AbstractReadQuery
         public long serializedSize(ReadCommand command, int version)
         {
             return 2 // kind + flags
-                   + (command.isDigestQuery() ? TypeSizes.sizeofUnsignedVInt(command.digestVersion()) : 0)
+                   + (command.responseType == ResponseType.UNTRACKED_DIGEST ? TypeSizes.sizeofUnsignedVInt(command.digestVersion()) : 0)
                    + command.metadata().id.serializedSize()
                    + (version >= MessagingService.VERSION_51 ? Epoch.serializer.serializedSize(command.metadata().epoch) : 0)
                    + TypeSizes.INT_SIZE // command.nowInSec() is serialized as uint

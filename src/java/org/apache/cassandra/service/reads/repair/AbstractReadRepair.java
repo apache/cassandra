@@ -41,16 +41,17 @@ import org.apache.cassandra.metrics.ReadRepairMetrics;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.service.StorageProxy;
-import org.apache.cassandra.service.reads.DataResolver;
-import org.apache.cassandra.service.reads.DigestResolver;
 import org.apache.cassandra.service.reads.ReadCallback;
+import org.apache.cassandra.service.reads.ResponseResolver;
+import org.apache.cassandra.service.reads.untracked.DataResolver;
+import org.apache.cassandra.service.reads.untracked.UntrackedReadRepair;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.transport.Dispatcher;
 
 import static java.util.concurrent.TimeUnit.MICROSECONDS;
 
 public abstract class AbstractReadRepair<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<E, P>>
-        implements ReadRepair<E, P>
+implements UntrackedReadRepair<E, P>
 {
     protected static final Logger logger = LoggerFactory.getLogger(AbstractReadRepair.class);
 
@@ -123,7 +124,7 @@ public abstract class AbstractReadRepair<E extends Endpoints<E>, P extends Repli
     abstract Meter getRepairMeter();
 
     // digestResolver isn't used here because we resend read requests to all participants
-    public void startRepair(DigestResolver<E, P> digestResolver, Consumer<PartitionIterator> resultConsumer)
+    public void startRepair(ResponseResolver<E, P> digestResolver, Consumer<PartitionIterator> resultConsumer)
     {
         getRepairMeter().mark();
 
@@ -136,7 +137,8 @@ public abstract class AbstractReadRepair<E extends Endpoints<E>, P extends Repli
          * positives caused by compaction lagging which can leave sstables from committed sessions in the pending state
          * for a time.
          */
-        boolean trackRepairedStatus = DatabaseDescriptor.getRepairedDataTrackingForPartitionReadsEnabled();
+        boolean trackRepairedStatus = DatabaseDescriptor.getRepairedDataTrackingForPartitionReadsEnabled()
+                                      && !command.responseType().isTracked();
 
         // Do a full data read to resolve the correct response (and repair node that need be)
         DataResolver<E, P> resolver = new DataResolver<>(command, replicaPlan, this, requestTime, trackRepairedStatus);

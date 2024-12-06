@@ -42,6 +42,9 @@ import org.apache.cassandra.locator.ReplicaPlans;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.service.StorageProxy.LocalReadRunnable;
+import org.apache.cassandra.service.reads.untracked.DigestResolver;
+import org.apache.cassandra.service.reads.tracked.TrackedReadReconciliation;
+import org.apache.cassandra.service.reads.tracked.TrackedResolver;
 import org.apache.cassandra.service.reads.repair.ReadRepair;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tracing.TraceState;
@@ -69,7 +72,7 @@ public abstract class AbstractReadExecutor
     protected final ReadCommand command;
     private   final ReplicaPlan.SharedForTokenRead replicaPlan;
     protected final ReadRepair<EndpointsForToken, ReplicaPlan.ForTokenRead> readRepair;
-    protected final DigestResolver<EndpointsForToken, ReplicaPlan.ForTokenRead> digestResolver;
+    protected final ResponseResolver<EndpointsForToken, ReplicaPlan.ForTokenRead> resolver;
     protected final ReadCallback<EndpointsForToken, ReplicaPlan.ForTokenRead> handler;
     protected final TraceState traceState;
     protected final ColumnFamilyStore cfs;
@@ -83,10 +86,22 @@ public abstract class AbstractReadExecutor
         this.command = command;
         this.replicaPlan = ReplicaPlan.shared(replicaPlan);
         this.initialDataRequestCount = initialDataRequestCount;
+
+        if (command.responseType().isUntracked())
+        {
+            // TODO (expected): tighten up alter table validation so you can't adjust read repair type for tracked keyspace tables
+            this.readRepair = command.metadata().params.readRepair.create(command, this.replicaPlan, requestTime);
+            this.resolver = new DigestResolver<>(command, this.replicaPlan, requestTime);
+        }
+        else
+        {
+            Preconditions.checkArgument(command.responseType().isTracked());
+            this.readRepair = TrackedReadReconciliation.create(command, this.replicaPlan, requestTime);
+            this.resolver = new TrackedResolver<>(command, this.replicaPlan, requestTime);
+        }
+        this.handler = new ReadCallback<>(resolver, command, this.replicaPlan, requestTime);
+
         // the ReadRepair and DigestResolver both need to see our updated
-        this.readRepair = ReadRepair.create(command, this.replicaPlan, requestTime);
-        this.digestResolver = new DigestResolver<>(command, this.replicaPlan, requestTime);
-        this.handler = new ReadCallback<>(digestResolver, command, this.replicaPlan, requestTime);
         this.cfs = cfs;
         this.traceState = Tracing.instance.get();
         this.requestTime = requestTime;
@@ -129,11 +144,12 @@ public abstract class AbstractReadExecutor
     {
         assert all(replicas, Replica::isFull);
         // only send digest requests to full replicas, send data requests instead to the transient replicas
-        makeRequests(command.copyAsDigestQuery(replicas), replicas);
+        makeRequests(command.copyAsSummaryQuery(replicas), replicas);
     }
 
     private void makeRequests(ReadCommand readCommand, Iterable<Replica> replicas)
     {
+        assert !readCommand.acceptsTransient() || !readCommand.responseType().isTracked() : "TODO";
         boolean hasLocalEndpoint = false;
         Message<ReadCommand> message = null;
 
@@ -326,7 +342,7 @@ public abstract class AbstractReadExecutor
 
                     retryCommand = extraReplica.isTransient()
                             ? command.copyAsTransientQuery(extraReplica)
-                            : command.copyAsDigestQuery(extraReplica);
+                            : command.copyAsSummaryQuery(extraReplica);
                 }
                 else
                 {
@@ -414,7 +430,7 @@ public abstract class AbstractReadExecutor
         try
         {
             handler.awaitResults();
-            assert digestResolver.isDataPresent() : "awaitResults returned with no data present.";
+            assert resolver.isDataPresent() : "awaitResults returned with no data present.";
         }
         catch (ReadTimeoutException e)
         {
@@ -429,14 +445,14 @@ public abstract class AbstractReadExecutor
         }
 
         // return immediately, or begin a read repair
-        if (digestResolver.responsesMatch())
+        if (resolver.responsesMatch())
         {
-            setResult(digestResolver.getData());
+            setResult(resolver.getData());
         }
         else
         {
             Tracing.trace("Digest mismatch: Mismatch for key {}", getKey());
-            readRepair.startRepair(digestResolver, this::setResult);
+            readRepair.startRepair(resolver, this::setResult);
             if (logBlockingReadRepairAttempt)
             {
                 logger.info("Blocking Read Repair triggered for query [{}] at CL.{} with endpoints {}",

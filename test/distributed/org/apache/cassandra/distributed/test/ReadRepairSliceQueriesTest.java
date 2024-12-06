@@ -20,6 +20,8 @@ package org.apache.cassandra.distributed.test;
 
 import org.junit.Test;
 
+import org.apache.cassandra.distributed.test.tracking.MutationTrackingUtils;
+
 import static org.apache.cassandra.distributed.shared.AssertUtils.row;
 
 /**
@@ -62,6 +64,7 @@ public class ReadRepairSliceQueriesTest extends ReadRepairQueryTester
     @Test
     public void testSliceQueryWithFilter()
     {
+        MutationTrackingUtils.fixmeSkipIfTracked(replicationType, "Depends on short read protection and ReplicaFilteringProtection");
         tester("WHERE k=0 AND a>10 AND a<40 ALLOW FILTERING")
         .createTable("CREATE TABLE %s (k int, c int, a int, b int, PRIMARY KEY(k, c))")
         .mutate("INSERT INTO %s (k, c, a, b) VALUES (0, 1, 10, 100)",
@@ -91,6 +94,7 @@ public class ReadRepairSliceQueriesTest extends ReadRepairQueryTester
     @Test
     public void testSliceQueryWithLimit()
     {
+        MutationTrackingUtils.fixmeSkipIfTracked(replicationType, "Depends on short read protection");
         tester("WHERE k=0 AND c>1 LIMIT 2")
         .createTable("CREATE TABLE %s (k int, c int, a int, b int, PRIMARY KEY(k, c))")
         .mutate("INSERT INTO %s (k, c, a, b) VALUES (0, 1, 10, 100)",

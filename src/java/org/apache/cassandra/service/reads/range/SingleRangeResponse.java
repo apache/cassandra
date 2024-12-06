@@ -18,29 +18,31 @@
 
 package org.apache.cassandra.service.reads.range;
 
+import java.util.concurrent.ExecutionException;
+
 import org.apache.cassandra.db.partitions.PartitionIterator;
 import org.apache.cassandra.db.rows.RowIterator;
 import org.apache.cassandra.exceptions.ReadTimeoutException;
 import org.apache.cassandra.locator.EndpointsForRange;
 import org.apache.cassandra.locator.ReplicaPlan;
-import org.apache.cassandra.service.reads.DataResolver;
+import org.apache.cassandra.service.reads.untracked.DataResolver;
 import org.apache.cassandra.service.reads.ReadCallback;
+import org.apache.cassandra.service.reads.tracked.TrackedResolver;
 import org.apache.cassandra.service.reads.repair.ReadRepair;
 import org.apache.cassandra.utils.AbstractIterator;
+import org.apache.cassandra.utils.concurrent.AsyncPromise;
+import org.apache.cassandra.utils.concurrent.UncheckedInterruptedException;
 
-class SingleRangeResponse extends AbstractIterator<RowIterator> implements PartitionIterator
+abstract class SingleRangeResponse extends AbstractIterator<RowIterator> implements PartitionIterator
 {
-    private final DataResolver<EndpointsForRange, ReplicaPlan.ForRangeRead> resolver;
     private final ReadCallback<EndpointsForRange, ReplicaPlan.ForRangeRead> handler;
-    private final ReadRepair<EndpointsForRange, ReplicaPlan.ForRangeRead> readRepair;
+    protected final ReadRepair<EndpointsForRange, ReplicaPlan.ForRangeRead> readRepair;
 
     private PartitionIterator result;
 
-    SingleRangeResponse(DataResolver<EndpointsForRange, ReplicaPlan.ForRangeRead> resolver,
-                        ReadCallback<EndpointsForRange, ReplicaPlan.ForRangeRead> handler,
+    SingleRangeResponse(ReadCallback<EndpointsForRange, ReplicaPlan.ForRangeRead> handler,
                         ReadRepair<EndpointsForRange, ReplicaPlan.ForRangeRead> readRepair)
     {
-        this.resolver = resolver;
         this.handler = handler;
         this.readRepair = readRepair;
     }
@@ -50,13 +52,15 @@ class SingleRangeResponse extends AbstractIterator<RowIterator> implements Parti
         return readRepair;
     }
 
+    abstract PartitionIterator getResult();
+
     private void waitForResponse() throws ReadTimeoutException
     {
         if (result != null)
             return;
 
         handler.awaitResults();
-        result = resolver.resolve();
+        result = getResult();
     }
 
     @Override
@@ -71,5 +75,59 @@ class SingleRangeResponse extends AbstractIterator<RowIterator> implements Parti
     {
         if (result != null)
             result.close();
+    }
+
+    static class Untracked extends SingleRangeResponse
+    {
+        private final DataResolver<EndpointsForRange, ReplicaPlan.ForRangeRead> resolver;
+
+        public Untracked(DataResolver<EndpointsForRange, ReplicaPlan.ForRangeRead> resolver, ReadCallback<EndpointsForRange, ReplicaPlan.ForRangeRead> handler, ReadRepair<EndpointsForRange, ReplicaPlan.ForRangeRead> readRepair)
+        {
+            super(handler, readRepair);
+            this.resolver = resolver;
+        }
+
+        @Override
+        PartitionIterator getResult()
+        {
+            return resolver.resolve();
+        }
+    }
+
+    static class Tracked extends SingleRangeResponse
+    {
+        private final TrackedResolver<EndpointsForRange, ReplicaPlan.ForRangeRead> resolver;
+
+        public Tracked(ReadCallback<EndpointsForRange, ReplicaPlan.ForRangeRead> handler, ReadRepair<EndpointsForRange, ReplicaPlan.ForRangeRead> readRepair, TrackedResolver<EndpointsForRange, ReplicaPlan.ForRangeRead> resolver)
+        {
+            super(handler, readRepair);
+            this.resolver = resolver;
+        }
+
+        @Override
+        PartitionIterator getResult()
+        {
+            if (resolver.responsesMatch())
+                return resolver.getData();
+
+            // TODO (prefer): this should work more like AbstractReadExecutor#executeAsync
+            // TODO (prefer): this doesn't allow any speculation - legacy replication doesn't either though
+            AsyncPromise<PartitionIterator> result = new AsyncPromise<>();
+            readRepair.startRepair(resolver, result::trySuccess);
+            readRepair.maybeSendAdditionalReads();
+            readRepair.awaitReads();
+            try
+            {
+                return result.get();
+            }
+            catch (InterruptedException e)
+            {
+                throw new UncheckedInterruptedException(e);
+            }
+            catch (ExecutionException e)
+            {
+                throw new RuntimeException(e);
+            }
+        }
     }
 }

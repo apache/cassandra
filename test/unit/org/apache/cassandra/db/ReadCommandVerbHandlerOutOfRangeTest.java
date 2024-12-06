@@ -210,7 +210,7 @@ public class ReadCommandVerbHandlerOutOfRangeTest
         StubReadCommand(int key, TableMetadata tmd)
         {
             super(tmd.epoch,
-                  false,
+                  ResponseType.UNTRACKED_DATA,
                   0,
                   false,
                   tmd,
@@ -245,7 +245,7 @@ public class ReadCommandVerbHandlerOutOfRangeTest
         StubRangeReadCommand(Range<Token> range, TableMetadata tmd)
         {
             super(tmd.epoch,
-                  false,
+                  ResponseType.UNTRACKED_DATA,
                   0,
                   false,
                   tmd,

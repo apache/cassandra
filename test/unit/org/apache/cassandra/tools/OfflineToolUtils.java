@@ -73,6 +73,7 @@ public abstract class OfflineToolUtils
     "Strong-Reference-Leak-Detector:[1-9]",
     "Background_Reporter:[1-9]",
     "EXPIRING-MAP-REAPER:[1-9]",
+    "Reconciliation-Map-Reaper:[1-9]",
     "ObjectCleanerThread",
     "process reaper",  // spawned by the jvm when executing external processes
                        // and may still be active when we check

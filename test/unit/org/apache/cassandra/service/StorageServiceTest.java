@@ -21,6 +21,7 @@ package org.apache.cassandra.service;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import org.apache.cassandra.replication.MutationJournal;
 import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
@@ -73,6 +74,7 @@ public class StorageServiceTest extends TestBaseImpl
                                                               SimpleLocationProvider.LOCATION,
                                                               NodeVersion.CURRENT));
         CommitLog.instance.start();
+        MutationJournal.instance.start();
     }
 
     @Before

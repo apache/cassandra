@@ -43,6 +43,7 @@ import org.apache.cassandra.dht.ExcludingBounds;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.locator.Replica;
 import org.apache.cassandra.net.MessagingService;
+import org.apache.cassandra.service.reads.untracked.DataResolver;
 import org.apache.cassandra.service.reads.repair.NoopReadRepair;
 import org.apache.cassandra.service.StorageProxy;
 import org.apache.cassandra.tracing.Tracing;

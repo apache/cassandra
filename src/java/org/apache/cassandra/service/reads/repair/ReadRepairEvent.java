@@ -34,8 +34,9 @@ import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.diag.DiagnosticEvent;
 import org.apache.cassandra.locator.InetAddressAndPort;
-import org.apache.cassandra.service.reads.DigestResolver;
-import org.apache.cassandra.service.reads.DigestResolver.DigestResolverDebugResult;
+import org.apache.cassandra.service.reads.ResponseResolver;
+import org.apache.cassandra.service.reads.untracked.DigestResolver;
+import org.apache.cassandra.service.reads.untracked.DigestResolver.DigestResolverDebugResult;
 import org.apache.cassandra.service.reads.SpeculativeRetryPolicy;
 
 final class ReadRepairEvent extends DiagnosticEvent
@@ -61,7 +62,7 @@ final class ReadRepairEvent extends DiagnosticEvent
     }
 
     ReadRepairEvent(ReadRepairEventType type, AbstractReadRepair readRepair, Collection<InetAddressAndPort> destinations,
-                    Collection<InetAddressAndPort> allEndpoints, DigestResolver digestResolver)
+                    Collection<InetAddressAndPort> allEndpoints, ResponseResolver digestResolver)
     {
         this.keyspace = readRepair.cfs.keyspace;
         this.tableName = readRepair.cfs.getTableName();
@@ -70,7 +71,8 @@ final class ReadRepairEvent extends DiagnosticEvent
         this.speculativeRetry = readRepair.cfs.metadata().params.speculativeRetry.kind();
         this.destinations = destinations;
         this.allEndpoints = allEndpoints;
-        this.digestsByEndpoint = digestResolver != null ? digestResolver.getDigestsByEndpoint() : null;
+        this.digestsByEndpoint = digestResolver != null && (digestResolver instanceof DigestResolver)
+                                 ? ((DigestResolver) digestResolver).getDigestsByEndpoint() : null;
         this.type = type;
     }
 

@@ -44,6 +44,7 @@ import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.service.reads.IReadResponse;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.metrics.PaxosMetrics;
 import org.apache.cassandra.net.IVerbHandler;
@@ -146,12 +147,12 @@ public class PaxosPrepare extends PaxosRequestCallback<PaxosPrepare.Response> im
 
     static class Success extends WithRequestedBallot
     {
-        final List<Message<ReadResponse>> responses;
+        final List<Message<IReadResponse>> responses;
         final boolean isReadSafe; // read responses constitute a linearizable read (though short read protection would invalidate that)
         final @Nullable
         Ballot supersededBy; // if known and READ_SUCCESS
 
-        Success(Outcome outcome, Ballot ballot, Participants participants, List<Message<ReadResponse>> responses, boolean isReadSafe, @Nullable Ballot supersededBy)
+        Success(Outcome outcome, Ballot ballot, Participants participants, List<Message<IReadResponse>> responses, boolean isReadSafe, @Nullable Ballot supersededBy)
         {
             super(outcome, participants, ballot);
             this.responses = responses;
@@ -159,12 +160,12 @@ public class PaxosPrepare extends PaxosRequestCallback<PaxosPrepare.Response> im
             this.supersededBy = supersededBy;
         }
 
-        static Success read(Ballot ballot, Participants participants, List<Message<ReadResponse>> responses, @Nullable Ballot supersededBy)
+        static Success read(Ballot ballot, Participants participants, List<Message<IReadResponse>> responses, @Nullable Ballot supersededBy)
         {
             return new Success(Outcome.READ_PERMITTED, ballot, participants, responses, true, supersededBy);
         }
 
-        static Success readOrWrite(Ballot ballot, Participants participants, List<Message<ReadResponse>> responses, boolean isReadConsistent)
+        static Success readOrWrite(Ballot ballot, Participants participants, List<Message<IReadResponse>> responses, boolean isReadConsistent)
         {
             return new Success(Outcome.PROMISED, ballot, participants, responses, isReadConsistent, null);
         }
@@ -284,7 +285,7 @@ public class PaxosPrepare extends PaxosRequestCallback<PaxosPrepare.Response> im
 
     private final Participants participants;
 
-    private final List<Message<ReadResponse>> readResponses;
+    private final List<Message<IReadResponse>> readResponses;
     private boolean haveReadResponseWithLatest;
     private boolean haveQuorumOfPermissions; // permissions => SUCCESS or READ_SUCCESS
     private @Nonnull List<InetAddressAndPort> withLatest; // promised and have latest commit
@@ -799,7 +800,7 @@ public class PaxosPrepare extends PaxosRequestCallback<PaxosPrepare.Response> im
      *
      * Must be invoked while owning lock
      */
-    private void addReadResponse(ReadResponse response, InetAddressAndPort from)
+    private void addReadResponse(IReadResponse response, InetAddressAndPort from)
     {
         readResponses.add(Message.synthetic(from, PAXOS2_PREPARE_RSP, response));
     }
@@ -991,7 +992,7 @@ public class PaxosPrepare extends PaxosRequestCallback<PaxosPrepare.Response> im
         // a proposal that has been accepted but not committed, i.e. must be null or > latestCommit
         @Nullable final Accepted latestAcceptedButNotCommitted;
         final Committed latestCommitted;
-        @Nullable final ReadResponse readResponse;
+        @Nullable final IReadResponse readResponse;
         // latestAcceptedButNotCommitted and latestCommitted were the same before and after the read occurred, and no incomplete promise was witnessed
         final boolean hadProposalStability;
         // it would be great if we could get rid of this, but probably we need to preserve for migration purposes
@@ -999,7 +1000,7 @@ public class PaxosPrepare extends PaxosRequestCallback<PaxosPrepare.Response> im
         @Nullable final Ballot supersededBy;
         final Epoch electorateEpoch;
 
-        Permitted(MaybePromise.Outcome outcome, long lowBound, @Nullable Accepted latestAcceptedButNotCommitted, Committed latestCommitted, @Nullable ReadResponse readResponse, boolean hadProposalStability, Map<InetAddressAndPort, EndpointState> gossipInfo, Epoch electorateEpoch, @Nullable Ballot supersededBy)
+        Permitted(MaybePromise.Outcome outcome, long lowBound, @Nullable Accepted latestAcceptedButNotCommitted, Committed latestCommitted, @Nullable IReadResponse readResponse, boolean hadProposalStability, Map<InetAddressAndPort, EndpointState> gossipInfo, Epoch electorateEpoch, @Nullable Ballot supersededBy)
         {
             super(outcome);
             this.lowBound = lowBound;
@@ -1082,7 +1083,7 @@ public class PaxosPrepare extends PaxosRequestCallback<PaxosPrepare.Response> im
                     Map<InetAddressAndPort, EndpointState> gossipInfo = verifyElectorate(request.electorate, localElectorate);
                     // TODO when 5.1 is the minimum supported version we can modify verifyElectorate to just return this epoch
                     Epoch electorateEpoch = gossipInfo.isEmpty() ? Epoch.EMPTY : localElectorate.createdAt;
-                    ReadResponse readResponse = null;
+                    IReadResponse readResponse = null;
 
                     // Check we cannot race with a proposal, i.e. that we have not made a promise that
                     // could be in the process of making a proposal. If a majority of nodes have made no such promise
@@ -1107,7 +1108,7 @@ public class PaxosPrepare extends PaxosRequestCallback<PaxosPrepare.Response> im
                         try (ReadExecutionController executionController = request.read.executionController();
                              UnfilteredPartitionIterator iterator = request.read.executeLocally(executionController))
                         {
-                            readResponse = request.read.createResponse(iterator, executionController.getRepairedDataInfo());
+                            readResponse = request.read.createResponse(iterator, executionController.getRepairedDataInfo(), request.read.createMutationSummary(false));
                         }
 
                         if (hasProposalStability)
@@ -1231,7 +1232,7 @@ public class PaxosPrepare extends PaxosRequestCallback<PaxosPrepare.Response> im
                     Accepted.serializer.serialize(promised.latestAcceptedButNotCommitted, out, version);
                 Committed.serializer.serialize(promised.latestCommitted, out, version);
                 if (promised.readResponse != null)
-                    ReadResponse.serializer.serialize(promised.readResponse, out, version);
+                    IReadResponse.serializer.serialize(promised.readResponse, out, version);
                 serializeMap(inetAddressAndPortSerializer, EndpointState.nullableSerializer, promised.gossipInfo, out, version);
                 if (version >= MessagingService.VERSION_51)
                     Epoch.messageSerializer.serialize(promised.electorateEpoch, out, version);
@@ -1253,7 +1254,7 @@ public class PaxosPrepare extends PaxosRequestCallback<PaxosPrepare.Response> im
                 long lowBound = in.readUnsignedVInt();
                 Accepted acceptedNotCommitted = (flags & 2) != 0 ? Accepted.serializer.deserialize(in, version) : null;
                 Committed committed = Committed.serializer.deserialize(in, version);
-                ReadResponse readResponse = (flags & 4) != 0 ? ReadResponse.serializer.deserialize(in, version) : null;
+                IReadResponse readResponse = (flags & 4) != 0 ? IReadResponse.serializer.deserialize(in, version) : null;
                 Map<InetAddressAndPort, EndpointState> gossipInfo = deserializeMap(inetAddressAndPortSerializer, EndpointState.nullableSerializer, newHashMap(), in, version);
                 Epoch electorateEpoch = version >= MessagingService.VERSION_51 ? Epoch.messageSerializer.deserialize(in, version) : Epoch.EMPTY;
                 MaybePromise.Outcome outcome = (flags & 16) != 0 ? PERMIT_READ : PROMISE;
@@ -1278,7 +1279,7 @@ public class PaxosPrepare extends PaxosRequestCallback<PaxosPrepare.Response> im
                         + VIntCoding.computeUnsignedVIntSize(permitted.lowBound)
                         + (permitted.latestAcceptedButNotCommitted == null ? 0 : Accepted.serializer.serializedSize(permitted.latestAcceptedButNotCommitted, version))
                         + Committed.serializer.serializedSize(permitted.latestCommitted, version)
-                        + (permitted.readResponse == null ? 0 : ReadResponse.serializer.serializedSize(permitted.readResponse, version))
+                        + (permitted.readResponse == null ? 0 : IReadResponse.serializer.serializedSize(permitted.readResponse, version))
                         + serializedSizeMap(inetAddressAndPortSerializer, EndpointState.nullableSerializer, permitted.gossipInfo, version)
                         + (version >= MessagingService.VERSION_51 ? Epoch.messageSerializer.serializedSize(permitted.electorateEpoch, version) : 0)
                         + (permitted.outcome == PERMIT_READ ? Ballot.sizeInBytes() : 0);

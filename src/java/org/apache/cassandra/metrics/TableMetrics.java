@@ -57,6 +57,7 @@ import org.apache.cassandra.io.sstable.metadata.MetadataCollector;
 import org.apache.cassandra.metrics.Sampler.SamplerType;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.SchemaConstants;
+import org.apache.cassandra.service.reads.ReplicaFilteringProtection;
 import org.apache.cassandra.utils.EstimatedHistogram;
 import org.apache.cassandra.utils.ExpMovingAverage;
 import org.apache.cassandra.utils.MovingAverage;
@@ -351,7 +352,7 @@ public class TableMetrics
     public final Meter replicaFilteringProtectionRequests;
     
     /**
-     * This histogram records the maximum number of rows {@link org.apache.cassandra.service.reads.ReplicaFilteringProtection}
+     * This histogram records the maximum number of rows {@link ReplicaFilteringProtection}
      * caches at a point in time per query. With no replica divergence, this is equivalent to the maximum number of
      * cached rows in a single partition during a query. It can be helpful when choosing appropriate values for the
      * replica_filtering_protection thresholds in cassandra.yaml.

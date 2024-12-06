@@ -223,7 +223,7 @@ public final class DistributedMetadataLogKeyspace
 
     public static KeyspaceMetadata initialMetadata(Set<String> knownDatacenters)
     {
-        return KeyspaceMetadata.create(SchemaConstants.METADATA_KEYSPACE_NAME, new KeyspaceParams(true, ReplicationParams.simpleMeta(1, knownDatacenters)), Tables.of(Log));
+        return KeyspaceMetadata.create(SchemaConstants.METADATA_KEYSPACE_NAME, new KeyspaceParams(true, ReplicationParams.simpleMeta(1, knownDatacenters), ReplicationType.untracked), Tables.of(Log));
     }
 
     public static KeyspaceMetadata initialMetadata(String datacenter)
