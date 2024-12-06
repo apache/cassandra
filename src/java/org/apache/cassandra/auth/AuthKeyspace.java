@@ -31,6 +31,7 @@ import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.schema.Tables;
+import org.apache.cassandra.utils.StorageCompatibilityMode;
 
 import static java.lang.String.format;
 import static org.apache.cassandra.config.CassandraRelevantProperties.SUPERUSER_SETUP_DELAY_MS;
@@ -154,11 +155,18 @@ public final class AuthKeyspace
 
     public static KeyspaceMetadata metadata()
     {
-        return KeyspaceMetadata.create(SchemaConstants.AUTH_KEYSPACE_NAME,
-                                       KeyspaceParams.simple(Math.max(DEFAULT_RF, DatabaseDescriptor.getDefaultKeyspaceRF())),
-                                       Tables.of(Roles, RoleMembers, RolePermissions,
-                                                 ResourceRoleIndex, NetworkPermissions,
-                                                 CIDRPermissions, CIDRGroups,
-                                                 IdentityToRoles));
+        if (DatabaseDescriptor.getStorageCompatibilityMode() == StorageCompatibilityMode.CASSANDRA_4)
+            return KeyspaceMetadata.create(SchemaConstants.AUTH_KEYSPACE_NAME,
+                                           KeyspaceParams.simple(Math.max(DEFAULT_RF, DatabaseDescriptor.getDefaultKeyspaceRF())),
+                                           Tables.of(Roles, RoleMembers, RolePermissions,
+                                                     ResourceRoleIndex, NetworkPermissions));
+        else
+            return KeyspaceMetadata.create(SchemaConstants.AUTH_KEYSPACE_NAME,
+                                           KeyspaceParams.simple(Math.max(DEFAULT_RF, DatabaseDescriptor.getDefaultKeyspaceRF())),
+                                           Tables.of(Roles, RoleMembers, RolePermissions,
+                                                     ResourceRoleIndex, NetworkPermissions,
+                                                     CIDRPermissions, CIDRGroups,
+                                                     IdentityToRoles));
+
     }
 }
