@@ -263,7 +263,7 @@ public abstract class PrepareCMSReconfiguration implements Transformation
             // In a complex reconfiguration, in addition to initiating the sequence of membership changes,
             // we're modifying the replication params of the metadata keyspace so we supply a function to do that
             KeyspaceMetadata keyspace = prev.schema.getKeyspaceMetadata(SchemaConstants.METADATA_KEYSPACE_NAME);
-            KeyspaceMetadata newKeyspace = keyspace.withSwapped(new KeyspaceParams(keyspace.params.durableWrites, replicationParams));
+            KeyspaceMetadata newKeyspace = keyspace.withSwapped(new KeyspaceParams(keyspace.params.durableWrites, replicationParams, keyspace.params.replicationType));
 
             return executeInternal(prev,
                                    transformer -> transformer.with(prev.placements.replaceParams(prev.nextEpoch(), ReplicationParams.meta(prev), replicationParams))

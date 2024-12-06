@@ -32,6 +32,7 @@ import org.apache.cassandra.schema.MemtableParams;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.schema.TableParams;
 import org.apache.cassandra.schema.TableParams.Option;
+import org.apache.cassandra.schema.TableParams.TableReplicationType;
 import org.apache.cassandra.service.reads.SpeculativeRetryPolicy;
 import org.apache.cassandra.service.reads.repair.ReadRepairStrategy;
 
@@ -150,6 +151,9 @@ public final class TableAttributes extends PropertyDefinitions
 
         if (hasOption(READ_REPAIR))
             builder.readRepair(ReadRepairStrategy.fromString(getString(READ_REPAIR)));
+
+        if (hasOption(REPLICATION_TYPE))
+            builder.replicationType(TableReplicationType.fromString(getString(REPLICATION_TYPE)));
 
         return builder.build();
     }
