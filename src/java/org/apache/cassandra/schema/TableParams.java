@@ -63,6 +63,7 @@ public final class TableParams
         REPAIR_FULL,
         REPAIR_INCREMENTAL,
         REPAIR_PREVIEW_REPAIRED,
+        AUTO_REPAIR,
         ;
 
         @Override
@@ -91,6 +92,7 @@ public final class TableParams
     public final ReadRepairStrategy readRepair;
 
     public final Map<AutoRepairConfig.RepairType, AutoRepairParams> automatedRepair;
+    public final Map<AutoRepairConfig.RepairType, AutoRepairParams> autoRepair;
 
     private TableParams(Builder builder)
     {
@@ -121,6 +123,7 @@ public final class TableParams
                 put(AutoRepairConfig.RepairType.PREVIEW_REPAIRED, builder.automatedRepairPreviewRepaired);
             }
         };
+        autoRepair = builder.autoRepair;
     }
 
     public static Builder builder()
@@ -150,7 +153,7 @@ public final class TableParams
                             .automatedRepairFull(params.automatedRepair.get(AutoRepairConfig.RepairType.FULL))
                             .automatedRepairIncremental(params.automatedRepair.get(AutoRepairConfig.RepairType.INCREMENTAL))
                             .automatedRepairPreviewRepaired(params.automatedRepair.get(AutoRepairConfig.RepairType.PREVIEW_REPAIRED))
-        ;
+                            .automatedRepair(params.autoRepair);
     }
 
     public Builder unbuild()
@@ -210,6 +213,11 @@ public final class TableParams
         {
             entry.getValue().validate();
         }
+
+        for (Map.Entry<AutoRepairConfig.RepairType, AutoRepairParams> entry : autoRepair.entrySet())
+        {
+            entry.getValue().validate();
+        }
     }
 
     private static void fail(String format, Object... args)
@@ -244,7 +252,8 @@ public final class TableParams
                && extensions.equals(p.extensions)
                && cdc == p.cdc
                && readRepair == p.readRepair
-               && automatedRepair.equals(p.automatedRepair);
+               && automatedRepair.equals(p.automatedRepair)
+               && autoRepair.equals(p.autoRepair);
     }
 
     @Override
@@ -266,7 +275,8 @@ public final class TableParams
                                 extensions,
                                 cdc,
                                 readRepair,
-                                automatedRepair);
+                                automatedRepair,
+                                autoRepair);
     }
 
     @Override
@@ -292,6 +302,7 @@ public final class TableParams
                           .add(Option.REPAIR_FULL.toString(), automatedRepair.get(AutoRepairConfig.RepairType.FULL))
                           .add(Option.REPAIR_INCREMENTAL.toString(), automatedRepair.get(AutoRepairConfig.RepairType.INCREMENTAL))
                           .add(Option.REPAIR_PREVIEW_REPAIRED.toString(), automatedRepair.get(AutoRepairConfig.RepairType.PREVIEW_REPAIRED))
+                          .add(Option.AUTO_REPAIR.toString(), autoRepair)
                           .toString();
     }
 
@@ -345,7 +356,9 @@ public final class TableParams
                .newLine()
                .append("AND repair_incremental = ").append(automatedRepair.get(AutoRepairConfig.RepairType.INCREMENTAL).asMap())
                .newLine()
-               .append("AND repair_preview_repaired = ").append(automatedRepair.get(AutoRepairConfig.RepairType.PREVIEW_REPAIRED).asMap());
+               .append("AND repair_preview_repaired = ").append(automatedRepair.get(AutoRepairConfig.RepairType.PREVIEW_REPAIRED).asMap())
+               .newLine()
+               .append("AND auto_repair = ").append1(autoRepair.entrySet().stream().collect(toMap(e -> e.getKey().toString().toLowerCase(), e -> e.getValue().asMap())));
     }
 
     public static final class Builder
@@ -371,6 +384,7 @@ public final class TableParams
         private AutoRepairParams automatedRepairFull = new AutoRepairParams(AutoRepairConfig.RepairType.FULL);
         private AutoRepairParams automatedRepairIncremental = new AutoRepairParams(AutoRepairConfig.RepairType.INCREMENTAL);
         private AutoRepairParams automatedRepairPreviewRepaired = new AutoRepairParams(AutoRepairConfig.RepairType.PREVIEW_REPAIRED);
+        private Map<AutoRepairConfig.RepairType, AutoRepairParams> autoRepair = new EnumMap<>(AutoRepairConfig.RepairType.class);
 
         public Builder()
         {
@@ -498,6 +512,11 @@ public final class TableParams
         public Builder automatedRepairPreviewRepaired(AutoRepairParams val)
         {
             automatedRepairPreviewRepaired = val;
+            return this;
+        }
+
+        public Builder automatedRepair(Map<AutoRepairConfig.RepairType, AutoRepairParams> val) {
+            autoRepair = val;
             return this;
         }
     }

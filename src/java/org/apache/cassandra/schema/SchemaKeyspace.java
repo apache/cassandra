@@ -990,6 +990,7 @@ public final class SchemaKeyspace
                           .automatedRepairFull(AutoRepairParams.fromMap(AutoRepairConfig.RepairType.FULL, row.getFrozenTextMap("repair_full")))
                           .automatedRepairIncremental(AutoRepairParams.fromMap(AutoRepairConfig.RepairType.INCREMENTAL, row.getFrozenTextMap("repair_incremental")))
                           .automatedRepairPreviewRepaired(AutoRepairParams.fromMap(AutoRepairConfig.RepairType.PREVIEW_REPAIRED, row.getFrozenTextMap("repair_preview_repaired")))
+                          .automatedRepair(AutoRepairParams.fromMap(row.getFrozenMap("auto_repair", UTF8Type.instance, MapType.getInstance(UTF8Type.instance, UTF8Type.instance, false))))
                           .build();
     }
 

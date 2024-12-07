@@ -98,8 +98,8 @@ public class RepairRangeSplitter implements IAutoRepairTokenRangeSplitter
     private final long bytesPerSubrange;
     private final long partitionsPerSubrange;
 
-    private static final long DEFAULT_SUBRANGE_SIZE = new DataStorageSpec.LongBytesBound("100GiB").toBytes();
-    private static final long DEFAULT_MAX_BYTES_PER_SCHEDULE = Long.MAX_VALUE;
+    private static final long DEFAULT_SUBRANGE_SIZE = new DataStorageSpec.LongBytesBound("1MiB").toBytes();
+    private static final long DEFAULT_MAX_BYTES_PER_SCHEDULE = new DataStorageSpec.LongBytesBound("100GiB").toBytes();
     private static final long DEFAULT_PARTITION_LIMIT = (long) Math.pow(2, DatabaseDescriptor.getRepairSessionMaxTreeDepth());
     private static final int DEFAULT_TABLE_BATCH_LIMIT = 64;
 
@@ -608,6 +608,7 @@ public class RepairRangeSplitter implements IAutoRepairTokenRangeSplitter
         double ratio = approxBytesInRange / (double) totalBytes;
         // use the ratio from size to estimate the partitions in the range as well
         long partitions = (long) Math.max(1, Math.ceil(cardinality.cardinality() * ratio));
+        logger.info("approxBytesInRange {}, totalBytes: {}, table: {}", approxBytesInRange, totalBytes, table);
         return new SizeEstimate(repairType, keyspace, table, tokenRange, partitions, approxBytesInRange, totalBytes);
     }
 
