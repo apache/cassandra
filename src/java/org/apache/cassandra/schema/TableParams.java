@@ -62,6 +62,7 @@ public final class TableParams
         READ_REPAIR,
         REPAIR_FULL,
         REPAIR_INCREMENTAL,
+        REPAIR_PREVIEW_REPAIRED,
         ;
 
         @Override
@@ -117,6 +118,7 @@ public final class TableParams
             {
                 put(AutoRepairConfig.RepairType.FULL, builder.automatedRepairFull);
                 put(AutoRepairConfig.RepairType.INCREMENTAL, builder.automatedRepairIncremental);
+                put(AutoRepairConfig.RepairType.PREVIEW_REPAIRED, builder.automatedRepairPreviewRepaired);
             }
         };
     }
@@ -147,6 +149,7 @@ public final class TableParams
                             .readRepair(params.readRepair)
                             .automatedRepairFull(params.automatedRepair.get(AutoRepairConfig.RepairType.FULL))
                             .automatedRepairIncremental(params.automatedRepair.get(AutoRepairConfig.RepairType.INCREMENTAL))
+                            .automatedRepairPreviewRepaired(params.automatedRepair.get(AutoRepairConfig.RepairType.PREVIEW_REPAIRED))
         ;
     }
 
@@ -288,6 +291,7 @@ public final class TableParams
                           .add(Option.READ_REPAIR.toString(), readRepair)
                           .add(Option.REPAIR_FULL.toString(), automatedRepair.get(AutoRepairConfig.RepairType.FULL))
                           .add(Option.REPAIR_INCREMENTAL.toString(), automatedRepair.get(AutoRepairConfig.RepairType.INCREMENTAL))
+                          .add(Option.REPAIR_PREVIEW_REPAIRED.toString(), automatedRepair.get(AutoRepairConfig.RepairType.PREVIEW_REPAIRED))
                           .toString();
     }
 
@@ -339,7 +343,9 @@ public final class TableParams
                .newLine()
                .append("AND repair_full = ").append(automatedRepair.get(AutoRepairConfig.RepairType.FULL).asMap())
                .newLine()
-               .append("AND repair_incremental = ").append(automatedRepair.get(AutoRepairConfig.RepairType.INCREMENTAL).asMap());
+               .append("AND repair_incremental = ").append(automatedRepair.get(AutoRepairConfig.RepairType.INCREMENTAL).asMap())
+               .newLine()
+               .append("AND repair_preview_repaired = ").append(automatedRepair.get(AutoRepairConfig.RepairType.PREVIEW_REPAIRED).asMap());
     }
 
     public static final class Builder
@@ -364,6 +370,7 @@ public final class TableParams
 
         private AutoRepairParams automatedRepairFull = new AutoRepairParams(AutoRepairConfig.RepairType.FULL);
         private AutoRepairParams automatedRepairIncremental = new AutoRepairParams(AutoRepairConfig.RepairType.INCREMENTAL);
+        private AutoRepairParams automatedRepairPreviewRepaired = new AutoRepairParams(AutoRepairConfig.RepairType.PREVIEW_REPAIRED);
 
         public Builder()
         {
@@ -485,6 +492,12 @@ public final class TableParams
         public Builder automatedRepairIncremental(AutoRepairParams val)
         {
             automatedRepairIncremental = val;
+            return this;
+        }
+
+        public Builder automatedRepairPreviewRepaired(AutoRepairParams val)
+        {
+            automatedRepairPreviewRepaired = val;
             return this;
         }
     }

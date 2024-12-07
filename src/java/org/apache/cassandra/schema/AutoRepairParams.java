@@ -20,7 +20,6 @@ package org.apache.cassandra.schema;
 import java.util.Arrays;
 import java.util.EnumMap;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.Map;
 import java.util.Objects;
 
@@ -52,9 +51,11 @@ public final class AutoRepairParams
         Option.PRIORITY.toString(), "0"
     );
 
-    public static final Map<AutoRepairConfig.RepairType, Map<String, String>> DEFAULT_OPTIONS =
-    ImmutableMap.of(AutoRepairConfig.RepairType.FULL, DEFAULT_SUB_OPTIONS,
-                    AutoRepairConfig.RepairType.INCREMENTAL, DEFAULT_SUB_OPTIONS);
+    public static final Map<AutoRepairConfig.RepairType, Map<String, String>> DEFAULT_OPTIONS = ImmutableMap.of(
+        AutoRepairConfig.RepairType.FULL, DEFAULT_SUB_OPTIONS,
+        AutoRepairConfig.RepairType.INCREMENTAL, DEFAULT_SUB_OPTIONS,
+        AutoRepairConfig.RepairType.PREVIEW_REPAIRED, DEFAULT_SUB_OPTIONS
+    );
 
     public final AutoRepairConfig.RepairType type;
 

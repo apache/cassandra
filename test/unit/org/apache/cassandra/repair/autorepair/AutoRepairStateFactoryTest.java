@@ -24,6 +24,7 @@ import org.apache.cassandra.repair.autorepair.AutoRepairConfig.RepairType;
 
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
+import static org.junit.Assert.assertTrue;
 
 public class AutoRepairStateFactoryTest
 {
@@ -31,11 +32,15 @@ public class AutoRepairStateFactoryTest
     public void testGetRepairState() {
         AutoRepairState state = RepairType.getAutoRepairState(RepairType.FULL);
 
-        assert state instanceof FullRepairState;
+        assertTrue(state instanceof FullRepairState);
 
         state = RepairType.getAutoRepairState(RepairType.INCREMENTAL);
 
-        assert state instanceof IncrementalRepairState;
+        assertTrue(state instanceof IncrementalRepairState);
+
+        state = RepairType.getAutoRepairState(RepairType.PREVIEW_REPAIRED);
+
+        assertTrue(state instanceof PreviewRepairedState);
     }
 
     @Test

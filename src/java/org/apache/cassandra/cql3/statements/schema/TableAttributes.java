@@ -163,6 +163,9 @@ public final class TableAttributes extends PropertyDefinitions
         if (hasOption(Option.REPAIR_INCREMENTAL))
             builder.automatedRepairIncremental(AutoRepairParams.fromMap(AutoRepairConfig.RepairType.INCREMENTAL, getMap(Option.REPAIR_INCREMENTAL)));
 
+        if (hasOption(Option.REPAIR_PREVIEW_REPAIRED))
+            builder.automatedRepairPreviewRepaired(AutoRepairParams.fromMap(AutoRepairConfig.RepairType.PREVIEW_REPAIRED, getMap(Option.REPAIR_PREVIEW_REPAIRED)));
+
         return builder.build();
     }
 

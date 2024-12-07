@@ -58,7 +58,8 @@ public class AutoRepairConfig implements Serializable
     public enum RepairType implements Serializable
     {
         FULL,
-        INCREMENTAL;
+        INCREMENTAL,
+        PREVIEW_REPAIRED;
 
         private final String configName;
 
@@ -89,6 +90,8 @@ public class AutoRepairConfig implements Serializable
                     return new FullRepairState();
                 case INCREMENTAL:
                     return new IncrementalRepairState();
+                case PREVIEW_REPAIRED:
+                     return new PreviewRepairedState();
             }
 
             throw new IllegalArgumentException("Invalid repair type: " + repairType);
