@@ -300,6 +300,26 @@ public abstract class AutoRepairState implements ProgressListener
     }
 }
 
+class PreviewRepairedState extends AutoRepairState
+{
+    public PreviewRepairedState()
+    {
+        super(RepairType.preview_repaired);
+    }
+
+    @Override
+    public RepairRunnable getRepairRunnable(String keyspace, List<String> tables, Set<Range<Token>> ranges, boolean primaryRangeOnly)
+    {
+        RepairOption option = new RepairOption(RepairParallelism.PARALLEL, primaryRangeOnly, false, false,
+                AutoRepairService.instance.getAutoRepairConfig().getRepairThreads(repairType), ranges,
+                !ranges.isEmpty(), false, false, PreviewKind.REPAIRED, false, true, false, false);
+
+        option.getColumnFamilies().addAll(tables);
+
+        return getRepairRunnable(keyspace, option);
+    }
+}
+
 class IncrementalRepairState extends AutoRepairState
 {
     public IncrementalRepairState()

@@ -201,9 +201,15 @@ public class TableMetrics
     /** number of partitions read creating merkle trees */
     public final TableHistogram partitionsValidated;
     /** number of bytes read while doing anticompaction */
-    public final Counter bytesAnticompacted;
+    public final Meter bytesAnticompacted;
     /** number of bytes where the whole sstable was contained in a repairing range so that we only mutated the repair status */
-    public final Counter bytesMutatedAnticompaction;
+    public final Meter bytesMutatedAnticompaction;
+    /** number of bytes that were scanned during preview repair */
+    public final Meter bytesPreviewed;
+    /** number of desynchronized token ranges that were detected during preview repair */
+    public final Meter tokenRangesPreviewedDesynchronized;
+    /** number of desynchronized bytes that were detected during preview repair */
+    public final Meter bytesPreviewedDesynchronized;
     /** ratio of how much we anticompact vs how much we could mutate the repair status*/
     public final Gauge<Double> mutatedAnticompactionGauge;
 
@@ -898,8 +904,11 @@ public class TableMetrics
 
         bytesValidated = createTableHistogram("BytesValidated", cfs.keyspace.metric.bytesValidated, false);
         partitionsValidated = createTableHistogram("PartitionsValidated", cfs.keyspace.metric.partitionsValidated, false);
-        bytesAnticompacted = createTableCounter("BytesAnticompacted");
-        bytesMutatedAnticompaction = createTableCounter("BytesMutatedAnticompaction");
+        bytesAnticompacted = createTableMeter("BytesAnticompacted");
+        bytesMutatedAnticompaction = createTableMeter("BytesMutatedAnticompaction");
+        bytesPreviewed = createTableMeter("BytesPreviewed");
+        tokenRangesPreviewedDesynchronized = createTableMeter("TokenRangesPreviewedDesynchronized");
+        bytesPreviewedDesynchronized = createTableMeter("BytesPreviewedDesynchronized");
         mutatedAnticompactionGauge = createTableGauge("MutatedAnticompactionGauge", () ->
         {
             double bytesMutated = bytesMutatedAnticompaction.getCount();

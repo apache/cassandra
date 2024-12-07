@@ -59,7 +59,8 @@ public class AutoRepairConfig implements Serializable
     public enum RepairType implements Serializable
     {
         full,
-        incremental;
+        incremental,
+        preview_repaired;
 
         public static AutoRepairState getAutoRepairState(RepairType repairType)
         {
@@ -69,6 +70,8 @@ public class AutoRepairConfig implements Serializable
                     return new FullRepairState();
                 case incremental:
                     return new IncrementalRepairState();
+                case preview_repaired:
+                     return new PreviewRepairedState();
             }
 
             throw new IllegalArgumentException("Invalid repair type: " + repairType);

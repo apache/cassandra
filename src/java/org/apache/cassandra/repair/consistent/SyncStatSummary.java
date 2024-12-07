@@ -76,7 +76,7 @@ public class SyncStatSummary
         }
     }
 
-    private static class Table
+    public static class Table
     {
         final String keyspace;
 
@@ -89,7 +89,7 @@ public class SyncStatSummary
 
         final Map<Pair<InetSocketAddress, InetSocketAddress>, Session> sessions = new HashMap<>();
 
-        Table(String keyspace, String table)
+        public Table(String keyspace, String table)
         {
             this.keyspace = keyspace;
             this.table = table;
@@ -133,7 +133,7 @@ public class SyncStatSummary
             totalsCalculated = true;
         }
 
-        boolean isCounter()
+        public boolean isCounter()
         {
             TableMetadata tmd = Schema.instance.getTableMetadata(keyspace, table);
             return tmd != null && tmd.isCounter();
@@ -153,6 +153,16 @@ public class SyncStatSummary
                 output.append("    ").append(session.toString()).append('\n');
             }
             return output.toString();
+        }
+
+        public long getBytes()
+        {
+            return this.bytes;
+        }
+
+        public long getRanges()
+        {
+            return this.ranges;
         }
     }
 
@@ -211,6 +221,12 @@ public class SyncStatSummary
             ranges += table.ranges;
         }
         totalsCalculated = true;
+    }
+
+    public Map<Pair<String, String>, Table> getTotals()
+    {
+        calculateTotals();
+        return summaries;
     }
 
     public String toString()
