@@ -1,4 +1,5 @@
 5.1
+ * Improve debug around paused and disabled compaction (CASSANDRA-20131,CASSANDRA-19728)
  * DiskUsageBroadcaster does not update usageInfo on node replacement (CASSANDRA-21033)
  * Reject PrepareJoin if tokens are already assigned (CASSANDRA-21006)
  * Don't update registration status if node state for decommissioned peer is found with the same address (CASSANDRA-21005)
