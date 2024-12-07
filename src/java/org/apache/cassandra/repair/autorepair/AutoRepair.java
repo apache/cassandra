@@ -104,8 +104,8 @@ public class AutoRepair
         repairStates = new EnumMap<>(AutoRepairConfig.RepairType.class);
         for (AutoRepairConfig.RepairType repairType : AutoRepairConfig.RepairType.values())
         {
-            repairExecutors.put(repairType, executorFactory().scheduled(false, "AutoRepair-Repair-" + repairType, Thread.NORM_PRIORITY));
-            repairRunnableExecutors.put(repairType, executorFactory().scheduled(false, "AutoRepair-RepairRunnable-" + repairType, Thread.NORM_PRIORITY));
+            repairExecutors.put(repairType, executorFactory().scheduled(false, "AutoRepair-Repair-" + repairType.getConfigName(), Thread.NORM_PRIORITY));
+            repairRunnableExecutors.put(repairType, executorFactory().scheduled(false, "AutoRepair-RepairRunnable-" + repairType.getConfigName(), Thread.NORM_PRIORITY));
             repairStates.put(repairType, AutoRepairConfig.RepairType.getAutoRepairState(repairType));
             tokenRangeSplitters.put(repairType, FBUtilities.newAutoRepairTokenRangeSplitter(config.getTokenRangeSplitter(repairType)));
         }
