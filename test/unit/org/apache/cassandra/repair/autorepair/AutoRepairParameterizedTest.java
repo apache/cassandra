@@ -135,9 +135,10 @@ public class AutoRepairParameterizedTest extends CQLTester
                            .addClusteringColumn("i", IntegerType.instance)
                            .addRegularColumn("v", UTF8Type.instance)
                            .params(TableParams.builder()
-                                              .automatedRepairFull(AutoRepairParams.create(AutoRepairConfig.RepairType.FULL, ImmutableMap.of(AutoRepairParams.Option.ENABLED.toString(), Boolean.toString(true))))
-                                              .automatedRepairIncremental(AutoRepairParams.create(AutoRepairConfig.RepairType.INCREMENTAL, ImmutableMap.of(AutoRepairParams.Option.ENABLED.toString(), Boolean.toString(true))))
-                                              .automatedRepairPreviewRepaired(AutoRepairParams.create(AutoRepairConfig.RepairType.PREVIEW_REPAIRED, ImmutableMap.of(AutoRepairParams.Option.ENABLED.toString(), Boolean.toString(true))))
+                                              .automatedRepair(AutoRepairParams.create(ImmutableMap.of(AutoRepairParams.Option.FULL_ENABLED.name().toLowerCase(), Boolean.toString(true),
+                                                                                                       AutoRepairParams.Option.INCREMENTAL_ENABLED.name().toLowerCase(), Boolean.toString(true),
+                                                                                                       AutoRepairParams.Option.PREVIEW_REPAIRED_ENABLED.name().toLowerCase(), Boolean.toString(true),
+                                                                                                       AutoRepairParams.Option.PRIORITY.name().toString(), Integer.toString(0))))
                                               .build())
                            .build();
 
@@ -147,9 +148,10 @@ public class AutoRepairParameterizedTest extends CQLTester
                                              .addClusteringColumn("i", IntegerType.instance)
                                              .addRegularColumn("v", UTF8Type.instance)
                                              .params(TableParams.builder()
-                                                                .automatedRepairFull(AutoRepairParams.create(AutoRepairConfig.RepairType.FULL, ImmutableMap.of(AutoRepairParams.Option.ENABLED.toString(), Boolean.toString(false))))
-                                                                .automatedRepairIncremental(AutoRepairParams.create(AutoRepairConfig.RepairType.INCREMENTAL, ImmutableMap.of(AutoRepairParams.Option.ENABLED.toString(), Boolean.toString(false))))
-                                                                .automatedRepairPreviewRepaired(AutoRepairParams.create(AutoRepairConfig.RepairType.PREVIEW_REPAIRED, ImmutableMap.of(AutoRepairParams.Option.ENABLED.toString(), Boolean.toString(false))))
+                                                                .automatedRepair(AutoRepairParams.create(ImmutableMap.of(AutoRepairParams.Option.FULL_ENABLED.name().toLowerCase(), Boolean.toString(false),
+                                                                                                                         AutoRepairParams.Option.INCREMENTAL_ENABLED.name().toLowerCase(), Boolean.toString(false),
+                                                                                                                         AutoRepairParams.Option.PREVIEW_REPAIRED_ENABLED.name().toLowerCase(), Boolean.toString(false),
+                                                                                                                         AutoRepairParams.Option.PRIORITY.name().toString(), Integer.toString(0))))
                                                                 .build())
                                              .build();
 
@@ -552,10 +554,10 @@ public class AutoRepairParameterizedTest extends CQLTester
     @Test
     public void testDisabledAutoRepairForATableThroughTableLevelConfiguration()
     {
-        Assert.assertTrue(cfm.params.automatedRepair.get(AutoRepairConfig.RepairType.FULL).repairEnabled());
-        Assert.assertTrue(cfm.params.automatedRepair.get(AutoRepairConfig.RepairType.INCREMENTAL).repairEnabled());
-        Assert.assertFalse(cfmDisabledAutoRepair.params.automatedRepair.get(AutoRepairConfig.RepairType.FULL).repairEnabled());
-        Assert.assertFalse(cfmDisabledAutoRepair.params.automatedRepair.get(AutoRepairConfig.RepairType.INCREMENTAL).repairEnabled());
+        Assert.assertTrue(cfm.params.autoRepair.repairEnabled(AutoRepairConfig.RepairType.FULL));
+        Assert.assertTrue(cfm.params.autoRepair.repairEnabled(AutoRepairConfig.RepairType.INCREMENTAL));
+        Assert.assertFalse(cfmDisabledAutoRepair.params.autoRepair.repairEnabled(AutoRepairConfig.RepairType.FULL));
+        Assert.assertFalse(cfmDisabledAutoRepair.params.autoRepair.repairEnabled(AutoRepairConfig.RepairType.INCREMENTAL));
 
         AutoRepairConfig config = AutoRepairService.instance.getAutoRepairConfig();
         config.setRepairMinInterval(repairType, "0s");
@@ -597,9 +599,7 @@ public class AutoRepairParameterizedTest extends CQLTester
     @Test
     public void testTableAttribute()
     {
-        assertTrue(TableAttributes.validKeywords().contains("repair_full"));
-        assertTrue(TableAttributes.validKeywords().contains("repair_incremental"));
-        assertTrue(TableAttributes.validKeywords().contains("repair_preview_repaired"));
+        assertTrue(TableAttributes.validKeywords().contains("auto_repair"));
     }
 
     @Test
@@ -608,9 +608,9 @@ public class AutoRepairParameterizedTest extends CQLTester
         for (AutoRepairConfig.RepairType repairType : AutoRepairConfig.RepairType.values())
         {
             Assert.assertTrue(String.format("expected repair type %s to be enabled on table %s", repairType, cfm.name),
-                              cfm.params.automatedRepair.get(repairType).repairEnabled());
+                              cfm.params.autoRepair.repairEnabled(repairType));
             Assert.assertFalse(String.format("expected repair type %s to be disabled on table %s", repairType, cfmDisabledAutoRepair.name),
-                               cfmDisabledAutoRepair.params.automatedRepair.get(repairType).repairEnabled());
+                               cfmDisabledAutoRepair.params.autoRepair.repairEnabled(repairType));
         }
     }
 
