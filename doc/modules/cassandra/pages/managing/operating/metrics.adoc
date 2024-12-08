@@ -181,6 +181,9 @@ by compression meta data.
 |TombstoneScannedHistogram |Histogram |Histogram of tombstones scanned
 in queries on this table.
 
+|PurgeableTombstoneScannedHistogram |Histogram |Histogram of purgeable tombstones scanned
+in queries on this table. Use tombstone_read_purgeable_metric_granularity property in cassandra.yaml to enable it.
+
 |LiveScannedHistogram |Histogram |Histogram of live cells scanned in
 queries on this table.
 

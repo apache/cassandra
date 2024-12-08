@@ -5523,4 +5523,15 @@ public class DatabaseDescriptor
     {
         return conf.password_validator_reconfiguration_enabled;
     }
+
+    public static Config.TombstonesMetricGranularity getPurgeableTobmstonesMetricGranularity()
+    {
+        return conf.tombstone_read_purgeable_metric_granularity;
+    }
+
+    @VisibleForTesting
+    public static void setPurgeableTobmstonesMetricGranularity(Config.TombstonesMetricGranularity granularity)
+    {
+        conf.tombstone_read_purgeable_metric_granularity = granularity;
+    }
 }

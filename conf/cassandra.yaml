@@ -1964,6 +1964,20 @@ transparent_data_encryption_options:
 tombstone_warn_threshold: 1000
 tombstone_failure_threshold: 100000
 
+# Controls the granularity of purgeable tombstones reported to PurgeableTombstoneScannedHistogram table metric
+# Possible values:
+# 'disabled' - do not collect the metric at all
+# 'row'      - track only partition/range/row level tombstone,
+#              a good compromise between overheads and usability.
+#              For CPU-bound workload you may get less than 1% of overhead for throughput.
+#              For IO-bound workload the overhead is negligible.
+# 'cell'     - track partition/range/row/cell level tombstones.
+#              This is the most granular option,
+#              but it has some performance overheads due to iteration over cells.
+#              For CPU-bound workload you may get about 5% of overhead for throughput.
+#              For IO-bound workload the overhead is almost negligible.
+# tombstone_read_purgeable_metric_granularity: disabled
+
 # Filtering and secondary index queries at read consistency levels above ONE/LOCAL_ONE use a
 # mechanism called replica filtering protection to ensure that results from stale replicas do
 # not violate consistency. (See CASSANDRA-8272 and CASSANDRA-15907 for more details.) This

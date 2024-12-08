@@ -544,6 +544,8 @@ public class Config
     public volatile int tombstone_warn_threshold = 1000;
     public volatile int tombstone_failure_threshold = 100000;
 
+    public TombstonesMetricGranularity tombstone_read_purgeable_metric_granularity = TombstonesMetricGranularity.disabled;
+
     public final ReplicaFilteringProtectionOptions replica_filtering_protection = new ReplicaFilteringProtectionOptions();
 
     @Replaces(oldName = "index_summary_capacity_in_mb", converter = Converters.MEBIBYTES_DATA_STORAGE_LONG, deprecated = true)
@@ -1325,6 +1327,34 @@ public class Config
             this.useDynamicSnitchScores = useDynamicSnitchScores;
             this.preferLocalRack = preferLocalRack;
         }
+    }
+
+    /**
+     * Allow to control the granularity of metrics related to tombstones.
+     * It is a trade-off between granularity of a metric vs performance overheads.
+     * See CASSANDRA-20132 for more details.
+     */
+    public enum TombstonesMetricGranularity
+    {
+        /**
+         * Do not collect the metric at all.
+         */
+        disabled,
+        /**
+         * Track only partition/range/row level tombstone,
+         * a good compromise between overheads and usability.
+         * For CPU-bound workload you may get less than 1% of overhead for throughput.
+         * For IO-bound workload the overhead is negligible.
+         */
+        row,
+        /**
+         * Track partition/range/row/cell level tombstones.
+         * This is the most granular option,
+         * but it has some performance overheads due to iteration over cells.
+         * For CPU-bound workload you may get about 5% of overhead for throughput.
+         * For IO-bound workload the overhead is almost negligible.
+         */
+        cell
     }
 
     private static final Set<String> SENSITIVE_KEYS = new HashSet<String>() {{

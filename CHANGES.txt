@@ -1,4 +1,5 @@
 5.1
+ * Add table metric PurgeableTombstoneScannedHistogram and a tracing event for scanned purgeable tombstones (CASSANDRA-20132)
  * Make sure we can parse the expanded CQL before writing it to the log or sending it to replicas (CASSANDRA-20218)
  * Add format_bytes and format_time functions (CASSANDRA-19546)
  * Fix error when trying to assign a tuple to target type not being a tuple (CASSANDRA-20237)
