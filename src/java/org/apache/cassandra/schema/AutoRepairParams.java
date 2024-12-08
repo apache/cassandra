@@ -18,10 +18,9 @@
 package org.apache.cassandra.schema;
 
 import java.util.Arrays;
-import java.util.EnumMap;
-import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
+import java.util.TreeMap;
 
 import com.google.common.base.MoreObjects;
 import com.google.common.collect.ImmutableMap;
@@ -37,7 +36,9 @@ public final class AutoRepairParams
 {
     public enum Option
     {
-        ENABLED,
+        FULL_ENABLED,
+        INCREMENTAL_ENABLED,
+        PREVIEW_REPAIRED_ENABLED,
         PRIORITY;
 
         @Override
@@ -47,31 +48,29 @@ public final class AutoRepairParams
         }
     }
 
-    public static final Map<String, String> DEFAULT_SUB_OPTIONS = ImmutableMap.of(
-        Option.ENABLED.toString(), Boolean.toString(true),
-        Option.PRIORITY.toString(), "0"
+    private ImmutableMap<String, String> options;
+
+    public static final Map<String, String> DEFAULT_OPTIONS = ImmutableMap.of(
+    Option.FULL_ENABLED.name().toLowerCase(), Boolean.toString(true),
+    Option.INCREMENTAL_ENABLED.name().toLowerCase(), Boolean.toString(true),
+    Option.PREVIEW_REPAIRED_ENABLED.name().toLowerCase(), Boolean.toString(true),
+    Option.PRIORITY.toString(), "0"
     );
 
-    public static final Map<AutoRepairConfig.RepairType, Map<String, String>> DEFAULT_OPTIONS =
-    ImmutableMap.of(AutoRepairConfig.RepairType.FULL, DEFAULT_SUB_OPTIONS,
-                    AutoRepairConfig.RepairType.INCREMENTAL, DEFAULT_SUB_OPTIONS,
-                    AutoRepairConfig.RepairType.PREVIEW_REPAIRED, DEFAULT_SUB_OPTIONS);
-
-    public final AutoRepairConfig.RepairType type;
-
-    private Map<AutoRepairConfig.RepairType, Map<String, String>> options = DEFAULT_OPTIONS;
-
-    AutoRepairParams(AutoRepairConfig.RepairType type)
+    AutoRepairParams(Map<String, String> options)
     {
-        this.type = type;
+        this.options = ImmutableMap.copyOf(options);
     }
 
-    public static AutoRepairParams create(AutoRepairConfig.RepairType repairType, Map<String, String> options)
+    public static final AutoRepairParams DEFAULT =
+    new AutoRepairParams(DEFAULT_OPTIONS);
+
+    public static AutoRepairParams create(Map<String, String> options)
     {
-        Map<AutoRepairConfig.RepairType, Map<String, String>> optionsMap = new EnumMap<>(AutoRepairConfig.RepairType.class);
-        for (Map.Entry<AutoRepairConfig.RepairType, Map<String, String>> entry : DEFAULT_OPTIONS.entrySet())
+        Map<String, String> optionsMap = new TreeMap<>();
+        for (Map.Entry<String, String> entry : DEFAULT_OPTIONS.entrySet())
         {
-            optionsMap.put(entry.getKey(), new HashMap<>(entry.getValue()));
+            optionsMap.put(entry.getKey(), entry.getValue());
         }
         if (options != null)
         {
@@ -81,38 +80,61 @@ public final class AutoRepairParams
                 {
                     throw new ConfigurationException(format("Unknown property '%s'", entry.getKey()));
                 }
-                optionsMap.get(repairType).put(entry.getKey(), entry.getValue());
+                optionsMap.put(entry.getKey(), entry.getValue());
             }
         }
-        AutoRepairParams repairParams = new AutoRepairParams(repairType);
-        repairParams.options = optionsMap;
-        return repairParams;
+        return new AutoRepairParams(optionsMap);
     }
 
-    public boolean repairEnabled()
+    public boolean repairEnabled(AutoRepairConfig.RepairType type)
     {
-        String enabled = options.get(type).get(Option.ENABLED.toString());
+        String option = type.toString().toLowerCase() + "_enabled";
+        String enabled = options.get(option);
         return enabled == null
-               ? Boolean.parseBoolean(DEFAULT_OPTIONS.get(type).get(Option.ENABLED.toString()))
+               ? Boolean.parseBoolean(DEFAULT_OPTIONS.get(option))
                : Boolean.parseBoolean(enabled);
     }
 
     public int priority()
     {
-        String priority = options.get(type).get(Option.PRIORITY.toString());
+        String priority = options.get(Option.PRIORITY.toString());
         return priority == null
-               ? Integer.parseInt(DEFAULT_OPTIONS.get(type).get(Option.PRIORITY.toString()))
+               ? Integer.parseInt(DEFAULT_OPTIONS.get(Option.PRIORITY.toString()))
                : Integer.parseInt(priority);
     }
 
     public void validate()
     {
-        String enabled = options.get(type).get(Option.ENABLED.toString());
-        if (enabled != null && !isValidBoolean(enabled))
+        for (Option option : Option.values())
+        {
+            if (!options.containsKey(option.toString().toLowerCase()))
+            {
+                throw new ConfigurationException(format("Missing repair sub-option '%s'", option));
+            }
+        }
+        if (options.get(Option.FULL_ENABLED.toString().toLowerCase()) != null && !isValidBoolean(options.get(Option.FULL_ENABLED.toString().toLowerCase())))
         {
             throw new ConfigurationException(format("Invalid value %s for '%s' repair sub-option - must be a boolean",
-                                                    enabled,
-                                                    Option.ENABLED));
+                                                    options.get(Option.FULL_ENABLED.toString().toLowerCase()),
+                                                    Option.FULL_ENABLED));
+        }
+        if (options.get(Option.INCREMENTAL_ENABLED.toString().toLowerCase()) != null && !isValidBoolean(options.get(Option.INCREMENTAL_ENABLED.toString().toLowerCase())))
+        {
+            throw new ConfigurationException(format("Invalid value %s for '%s' repair sub-option - must be a boolean",
+                                                    options.get(Option.INCREMENTAL_ENABLED.toString().toLowerCase()),
+                                                    Option.INCREMENTAL_ENABLED));
+        }
+        if (options.get(Option.PREVIEW_REPAIRED_ENABLED.toString().toLowerCase()) != null && !isValidBoolean(options.get(Option.PREVIEW_REPAIRED_ENABLED.toString().toLowerCase())))
+        {
+            throw new ConfigurationException(format("Invalid value %s for '%s' repair sub-option - must be a boolean",
+                                                    options.get(Option.PREVIEW_REPAIRED_ENABLED.toString().toLowerCase()),
+                                                    Option.PREVIEW_REPAIRED_ENABLED));
+        }
+        if (options.get(Option.PRIORITY.toString().toLowerCase()) != null && !isValidInt(options.get(Option.PRIORITY.toString().toLowerCase())))
+        {
+            throw new ConfigurationException(format("Invalid value %s for '%s' repair sub-option - must be an integer",
+                                                    options.get(Option.PRIORITY.toString().toLowerCase()),
+                                                    Option.PRIORITY));
         }
     }
 
@@ -121,19 +143,25 @@ public final class AutoRepairParams
         return StringUtils.equalsIgnoreCase(value, "true") || StringUtils.equalsIgnoreCase(value, "false");
     }
 
-    public Map<String, String> options()
+    public static boolean isValidInt(String value)
     {
-        return options.get(type);
+        return StringUtils.isNumeric(value);
     }
 
-    public static AutoRepairParams fromMap(AutoRepairConfig.RepairType repairType, Map<String, String> map)
+
+    public Map<String, String> options()
     {
-        return create(repairType, map);
+        return options;
+    }
+
+    public static AutoRepairParams fromMap(Map<String, String> map)
+    {
+        return create(map);
     }
 
     public Map<String, String> asMap()
     {
-        return options.get(type);
+        return options;
     }
 
     @Override

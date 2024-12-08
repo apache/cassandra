@@ -155,6 +155,6 @@ public class PrioritizedRepairPlan
     private static int getPriority(AutoRepairConfig.RepairType repairType, String keyspaceName, String tableName)
     {
         ColumnFamilyStore cfs = ColumnFamilyStore.getIfExists(keyspaceName, tableName);
-        return cfs != null ? cfs.metadata().params.automatedRepair.get(repairType).priority() : 0;
+        return cfs != null ? cfs.metadata().params.autoRepair.priority() : 0;
     }
 }

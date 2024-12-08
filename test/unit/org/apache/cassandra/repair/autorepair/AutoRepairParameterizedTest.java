@@ -128,7 +128,7 @@ public class AutoRepairParameterizedTest extends CQLTester
         SYSTEM_DISTRIBUTED_DEFAULT_RF.setInt(1);
         QueryProcessor.executeInternal(String.format("CREATE KEYSPACE %s WITH replication = {'class': 'SimpleStrategy', 'replication_factor': '1'}", KEYSPACE));
         QueryProcessor.executeInternal(String.format("CREATE TABLE %s.%s (k text, s text static, i int, v text, primary key(k,i))", KEYSPACE, TABLE));
-        QueryProcessor.executeInternal(String.format("CREATE TABLE %s.%s (k text, s text static, i int, v text, primary key(k,i)) WITH repair_full = {'enabled': 'false'} AND repair_incremental = {'enabled': 'false'} AND repair_preview_repaired = {'enabled': 'false'}", KEYSPACE, TABLE_DISABLED_AUTO_REPAIR));
+        QueryProcessor.executeInternal(String.format("CREATE TABLE %s.%s (k text, s text static, i int, v text, primary key(k,i)) WITH auto_repair = {'full_enabled': 'false', 'incremental_enabled': 'false', 'preview_repaired_enabled': 'false', 'priority': '0'}", KEYSPACE, TABLE_DISABLED_AUTO_REPAIR));
 
         QueryProcessor.executeInternal(String.format("CREATE MATERIALIZED VIEW %s.%s AS SELECT i, k from %s.%s " +
                 "WHERE k IS NOT null AND i IS NOT null PRIMARY KEY (i, k)", KEYSPACE, MV, KEYSPACE, TABLE));
@@ -520,10 +520,10 @@ public class AutoRepairParameterizedTest extends CQLTester
     @Test
     public void testDisabledAutoRepairForATableThroughTableLevelConfiguration()
     {
-        Assert.assertTrue(cfm.params.automatedRepair.get(AutoRepairConfig.RepairType.FULL).repairEnabled());
-        Assert.assertTrue(cfm.params.automatedRepair.get(AutoRepairConfig.RepairType.INCREMENTAL).repairEnabled());
-        Assert.assertFalse(cfmDisabledAutoRepair.params.automatedRepair.get(AutoRepairConfig.RepairType.FULL).repairEnabled());
-        Assert.assertFalse(cfmDisabledAutoRepair.params.automatedRepair.get(AutoRepairConfig.RepairType.INCREMENTAL).repairEnabled());
+        Assert.assertTrue(cfm.params.autoRepair.repairEnabled(AutoRepairConfig.RepairType.FULL));
+        Assert.assertTrue(cfm.params.autoRepair.repairEnabled(AutoRepairConfig.RepairType.INCREMENTAL));
+        Assert.assertFalse(cfmDisabledAutoRepair.params.autoRepair.repairEnabled(AutoRepairConfig.RepairType.FULL));
+        Assert.assertFalse(cfmDisabledAutoRepair.params.autoRepair.repairEnabled(AutoRepairConfig.RepairType.INCREMENTAL));
 
         AutoRepairConfig config = AutoRepairService.instance.getAutoRepairConfig();
         config.setRepairMinInterval(repairType, "0s");
@@ -565,9 +565,7 @@ public class AutoRepairParameterizedTest extends CQLTester
     @Test
     public void testTableAttribute()
     {
-        assertTrue(TableAttributes.validKeywords().contains("repair_full"));
-        assertTrue(TableAttributes.validKeywords().contains("repair_incremental"));
-        assertTrue(TableAttributes.validKeywords().contains("repair_preview_repaired"));
+        assertTrue(TableAttributes.validKeywords().contains("auto_repair"));
     }
 
     @Test
@@ -576,9 +574,9 @@ public class AutoRepairParameterizedTest extends CQLTester
         for (AutoRepairConfig.RepairType repairType : AutoRepairConfig.RepairType.values())
         {
             Assert.assertTrue(String.format("expected repair type %s to be enabled on table %s", repairType, cfm.name),
-                              cfm.params.automatedRepair.get(repairType).repairEnabled());
+                              cfm.params.autoRepair.repairEnabled(repairType));
             Assert.assertFalse(String.format("expected repair type %s to be disabled on table %s", repairType, cfmDisabledAutoRepair.name),
-                               cfmDisabledAutoRepair.params.automatedRepair.get(repairType).repairEnabled());
+                               cfmDisabledAutoRepair.params.autoRepair.repairEnabled(repairType));
         }
     }
 

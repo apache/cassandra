@@ -155,7 +155,7 @@ public class AutoRepair
     private int getPriority(AutoRepairConfig.RepairType repairType, String keyspaceName, String tableName)
     {
         ColumnFamilyStore cfs = ColumnFamilyStore.getIfExists(keyspaceName, tableName);
-        return cfs != null ? cfs.metadata().params.automatedRepair.get(repairType).priority() : 0;
+        return cfs != null ? cfs.metadata().params.autoRepair.priority() : 0;
     }
 
     // repair runs a repair session of the given type synchronously.
@@ -412,7 +412,7 @@ public class AutoRepair
             String tableName = tableMetadata.name;
 
             ColumnFamilyStore columnFamilyStore = keyspace.getColumnFamilyStore(tableName);
-            if (!columnFamilyStore.metadata().params.automatedRepair.get(repairType).repairEnabled())
+            if (!columnFamilyStore.metadata().params.autoRepair.repairEnabled(repairType))
             {
                 logger.info("Repair is disabled for keyspace {} for tables: {}", keyspace.getName(), tableName);
                 repairState.setTotalDisabledTablesRepairCount(repairState.getTotalDisabledTablesRepairCount() + 1);
