@@ -152,27 +152,6 @@ public final class CqlBuilder
         return append(map, true);
     }
 
-    public CqlBuilder append1(Map<String, Map<String, String>> map)
-    {
-        indentIfNeeded();
-        builder.append('{');
-
-        Iterator<Entry<String, Map<String, String>>> iter = new TreeMap<>(map).entrySet()
-                          .iterator();
-        while(iter.hasNext())
-        {
-            Entry<String, Map<String, String>> e = iter.next();
-            appendWithSingleQuotes(e.getKey());
-            append(": ");
-            append(e.getValue());
-            if (iter.hasNext())
-                builder.append(", ");
-        }
-        builder.append('}');
-        return this;
-    }
-
-
     public CqlBuilder append(Map<String, String> map, boolean quoteValue)
     {
         indentIfNeeded();

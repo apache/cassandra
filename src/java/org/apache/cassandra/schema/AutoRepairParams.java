@@ -69,11 +69,10 @@ public final class AutoRepairParams
     public static AutoRepairParams create(AutoRepairConfig.RepairType repairType, Map<String, String> options)
     {
         Map<AutoRepairConfig.RepairType, Map<String, String>> optionsMap = new EnumMap<>(AutoRepairConfig.RepairType.class);
-        //for (Map.Entry<AutoRepairConfig.RepairType, Map<String, String>> entry : DEFAULT_OPTIONS.get(repairType))
-        //{
-          //  optionsMap.put(entry.getKey(), new HashMap<>(entry.getValue()));
-        //}
-        optionsMap.put(repairType, new HashMap<>(DEFAULT_OPTIONS.get(repairType)));
+        for (Map.Entry<AutoRepairConfig.RepairType, Map<String, String>> entry : DEFAULT_OPTIONS.entrySet())
+        {
+            optionsMap.put(entry.getKey(), new HashMap<>(entry.getValue()));
+        }
         if (options != null)
         {
             for (Map.Entry<String, String> entry : options.entrySet())
@@ -131,22 +130,6 @@ public final class AutoRepairParams
     {
         return create(repairType, map);
     }
-
-    public static Map<AutoRepairConfig.RepairType, AutoRepairParams> fromMap(Map<String, Map<String, String>> map)
-    {
-        Map<AutoRepairConfig.RepairType, AutoRepairParams> repairParams = new EnumMap<>(AutoRepairConfig.RepairType.class);
-        for (AutoRepairConfig.RepairType repairType : AutoRepairConfig.RepairType.values())
-        {
-            Map<String, String> options = null;
-            if (map != null)
-            {
-                options = map.get(repairType.toString());
-            }
-            repairParams.put(repairType, create(repairType, options));
-        }
-        return repairParams;
-    }
-
 
     public Map<String, String> asMap()
     {
