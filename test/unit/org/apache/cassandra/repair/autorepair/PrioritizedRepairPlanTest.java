@@ -37,9 +37,9 @@ public class PrioritizedRepairPlanTest extends CQLTester
     public void testBuildWithDifferentPriorities()
     {
         // Test reordering assignments with different priorities
-        String table1 = createTable("CREATE TABLE %s (k INT PRIMARY KEY, v INT) WITH repair_full = {'enabled': 'true', 'priority': '2'}");
-        String table2 = createTable("CREATE TABLE %s (k INT PRIMARY KEY, v INT) WITH repair_full = {'enabled': 'true', 'priority': '3'}");
-        String table3 = createTable("CREATE TABLE %s (k INT PRIMARY KEY, v INT) WITH repair_full = {'enabled': 'true', 'priority': '1'}");
+        String table1 = createTable("CREATE TABLE %s (k INT PRIMARY KEY, v INT) WITH auto_repair = {'full_enabled': 'true', 'priority': '2'}");
+        String table2 = createTable("CREATE TABLE %s (k INT PRIMARY KEY, v INT) WITH auto_repair = {'full_enabled': 'true', 'priority': '3'}");
+        String table3 = createTable("CREATE TABLE %s (k INT PRIMARY KEY, v INT) WITH auto_repair = {'full_enabled': 'true', 'priority': '1'}");
 
         List<PrioritizedRepairPlan> prioritizedRepairPlans = PrioritizedRepairPlan.buildSingleKeyspacePlan(AutoRepairConfig.RepairType.FULL, KEYSPACE, table1, table2, table3);
         assertEquals(3, prioritizedRepairPlans.size());
@@ -59,9 +59,9 @@ public class PrioritizedRepairPlanTest extends CQLTester
     public void testBuildWithSamePriority()
     {
         // Test reordering assignments with the same priority
-        String table1 = createTable("CREATE TABLE %s (k INT PRIMARY KEY, v INT) WITH repair_full = {'enabled': 'true', 'priority': '2'}");
-        String table2 = createTable("CREATE TABLE %s (k INT PRIMARY KEY, v INT) WITH repair_full = {'enabled': 'true', 'priority': '2'}");
-        String table3 = createTable("CREATE TABLE %s (k INT PRIMARY KEY, v INT) WITH repair_full = {'enabled': 'true', 'priority': '2'}");
+        String table1 = createTable("CREATE TABLE %s (k INT PRIMARY KEY, v INT) WITH auto_repair = {'full_enabled': 'true', 'priority': '2'}");
+        String table2 = createTable("CREATE TABLE %s (k INT PRIMARY KEY, v INT) WITH auto_repair = {'full_enabled': 'true', 'priority': '2'}");
+        String table3 = createTable("CREATE TABLE %s (k INT PRIMARY KEY, v INT) WITH auto_repair = {'full_enabled': 'true', 'priority': '2'}");
 
         // Expect only 1 plan since all tables share the same priority
         List<PrioritizedRepairPlan> prioritizedRepairPlans = PrioritizedRepairPlan.buildSingleKeyspacePlan(AutoRepairConfig.RepairType.FULL, KEYSPACE, table1, table2, table3);
@@ -82,17 +82,17 @@ public class PrioritizedRepairPlanTest extends CQLTester
     public void testBuildWithMixedPriorities()
     {
         String ks1 = createKeyspace("CREATE KEYSPACE %s WITH replication={ 'class' : 'SimpleStrategy', 'replication_factor' : 1 }");
-        String table1 = createTable(ks1, "CREATE TABLE %s (k INT PRIMARY KEY, v INT) WITH repair_full = {'enabled': 'true', 'priority': '2'}");
-        String table2 = createTable(ks1, "CREATE TABLE %s (k INT PRIMARY KEY, v INT) WITH repair_full = {'enabled': 'true', 'priority': '3'}");
-        String table3 = createTable(ks1, "CREATE TABLE %s (k INT PRIMARY KEY, v INT) WITH repair_full = {'enabled': 'true', 'priority': '2'}");
-        String table4 = createTable(ks1, "CREATE TABLE %s (k INT PRIMARY KEY, v INT) WITH repair_full = {'enabled': 'true', 'priority': '1'}");
+        String table1 = createTable(ks1, "CREATE TABLE %s (k INT PRIMARY KEY, v INT) WITH auto_repair = {'full_enabled': 'true', 'priority': '2'}");
+        String table2 = createTable(ks1, "CREATE TABLE %s (k INT PRIMARY KEY, v INT) WITH auto_repair = {'full_enabled': 'true', 'priority': '3'}");
+        String table3 = createTable(ks1, "CREATE TABLE %s (k INT PRIMARY KEY, v INT) WITH auto_repair = {'full_enabled': 'true', 'priority': '2'}");
+        String table4 = createTable(ks1, "CREATE TABLE %s (k INT PRIMARY KEY, v INT) WITH auto_repair = {'full_enabled': 'true', 'priority': '1'}");
         // No priority table should be bucketed at priority 0
         String table5 = createTable(ks1,"CREATE TABLE %s (k INT PRIMARY KEY, v INT)");
 
         // Create a new keyspace to ensure its tables get grouped with appropriate priority bucket
         String ks2 = createKeyspace("CREATE KEYSPACE %s WITH replication={ 'class' : 'SimpleStrategy', 'replication_factor' : 1 }");
         String table6 = createTable(ks2,"CREATE TABLE %s (k INT PRIMARY KEY, v INT)");
-        String table7 = createTable(ks2,"CREATE TABLE %s (k INT PRIMARY KEY, v INT) WITH repair_full = {'enabled': 'true', 'priority': '1'}");
+        String table7 = createTable(ks2,"CREATE TABLE %s (k INT PRIMARY KEY, v INT) WITH auto_repair = {'full_enabled': 'true', 'priority': '1'}");
 
         Map<String, List<String>> keyspaceToTableMap = new HashMap<>();
         keyspaceToTableMap.put(ks1, Lists.newArrayList(table1, table2, table3, table4, table5));
@@ -149,7 +149,7 @@ public class PrioritizedRepairPlanTest extends CQLTester
     public void testBuildWithOneTable()
     {
         // Test with a single element (should remain unchanged)
-        String table1 = createTable("CREATE TABLE %s (k INT PRIMARY KEY, v INT) WITH repair_full = {'enabled': 'true', 'priority': '5'}");
+        String table1 = createTable("CREATE TABLE %s (k INT PRIMARY KEY, v INT) WITH auto_repair = {'full_enabled': 'true', 'priority': '5'}");
 
         // Expect only 1 plans
         List<PrioritizedRepairPlan> prioritizedRepairPlans = PrioritizedRepairPlan.buildSingleKeyspacePlan(AutoRepairConfig.RepairType.FULL, KEYSPACE, table1);

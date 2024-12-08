@@ -133,9 +133,7 @@ public final class SchemaKeyspace
               + "cdc boolean,"
               + "read_repair text,"
               + "fast_path frozen<map<text, text>>,"
-              + "repair_full frozen<map<text, text>>,"
-              + "repair_incremental frozen<map<text, text>>,"
-              + "repair_preview_repaired frozen<map<text, text>>,"
+              + "auto_repair frozen<map<text, text>>,"
               + "PRIMARY KEY ((keyspace_name), table_name))");
 
     private static final TableMetadata Columns =
@@ -220,9 +218,7 @@ public final class SchemaKeyspace
               + "additional_write_policy text,"
               + "cdc boolean,"
               + "read_repair text,"
-              + "repair_full frozen<map<text, text>>,"
-              + "repair_incremental frozen<map<text, text>>,"
-              + "repair_preview_repaired frozen<map<text, text>>,"
+              + "auto_repair frozen<map<text, text>>,"
               + "PRIMARY KEY ((keyspace_name), view_name))");
 
     private static final TableMetadata Indexes =
@@ -600,9 +596,7 @@ public final class SchemaKeyspace
                .add("compression", params.compression.asMap())
                .add("read_repair", params.readRepair.toString())
                .add("extensions", params.extensions)
-               .add("repair_full", params.automatedRepair.get(AutoRepairConfig.RepairType.FULL).asMap())
-               .add("repair_incremental", params.automatedRepair.get(AutoRepairConfig.RepairType.INCREMENTAL).asMap())
-               .add("repair_preview_repaired", params.automatedRepair.get(AutoRepairConfig.RepairType.PREVIEW_REPAIRED).asMap());
+               .add("auto_repair", params.autoRepair.asMap());
 
 
         // Only add CDC-enabled flag to schema if it's enabled on the node. This is to work around RTE's post-8099 if a 3.8+
@@ -1093,9 +1087,8 @@ public final class SchemaKeyspace
                                                  .cdc(row.has("cdc") && row.getBoolean("cdc"))
                                                  .readRepair(getReadRepairStrategy(row))
                                                  .fastPath(getFastPathStrategy(row))
-                                                 .automatedRepairFull(AutoRepairParams.fromMap(AutoRepairConfig.RepairType.FULL, row.getFrozenTextMap("repair_full")))
-                                                 .automatedRepairIncremental(AutoRepairParams.fromMap(AutoRepairConfig.RepairType.INCREMENTAL, row.getFrozenTextMap("repair_incremental")))
-                                                 .automatedRepairPreviewRepaired(AutoRepairParams.fromMap(AutoRepairConfig.RepairType.PREVIEW_REPAIRED, row.getFrozenTextMap("repair_preview_repaired")));
+                                                 .automatedRepair(AutoRepairParams.fromMap(row.getFrozenTextMap("auto_repair")))
+;
 
         // allow_auto_snapshot column was introduced in 4.2
         if (row.has("allow_auto_snapshot"))

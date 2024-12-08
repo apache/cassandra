@@ -19,7 +19,6 @@ package org.apache.cassandra.schema;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.util.EnumMap;
 import java.util.Map;
 import java.util.Map.Entry;
 
@@ -39,7 +38,6 @@ import org.apache.cassandra.service.consensus.TransactionalMode;
 import org.apache.cassandra.service.consensus.migration.TransactionalMigrationFromMode;
 import org.apache.cassandra.tcm.serialization.MetadataSerializer;
 import org.apache.cassandra.tcm.serialization.Version;
-import org.apache.cassandra.repair.autorepair.AutoRepairConfig;
 import org.apache.cassandra.service.reads.PercentileSpeculativeRetryPolicy;
 import org.apache.cassandra.service.reads.SpeculativeRetryPolicy;
 import org.apache.cassandra.service.reads.repair.ReadRepairStrategy;
@@ -103,9 +101,7 @@ public final class TableParams
         TRANSACTIONAL_MODE,
         TRANSACTIONAL_MIGRATION_FROM,
         PENDING_DROP,
-        REPAIR_FULL,
-        REPAIR_INCREMENTAL,
-        REPAIR_PREVIEW_REPAIRED,
+        AUTO_REPAIR,
         ;
 
         @Override
@@ -139,7 +135,7 @@ public final class TableParams
     public final TransactionalMigrationFromMode transactionalMigrationFrom;
     public final boolean pendingDrop;
 
-    public final Map<AutoRepairConfig.RepairType, AutoRepairParams> automatedRepair;
+    public final AutoRepairParams autoRepair;
 
     private TableParams(Builder builder)
     {
@@ -169,14 +165,7 @@ public final class TableParams
         transactionalMigrationFrom = builder.transactionalMigrationFrom;
         pendingDrop = builder.pendingDrop;
         checkNotNull(transactionalMigrationFrom);
-        automatedRepair = new EnumMap<AutoRepairConfig.RepairType, AutoRepairParams>(AutoRepairConfig.RepairType.class)
-        {
-            {
-                put(AutoRepairConfig.RepairType.FULL, builder.automatedRepairFull);
-                put(AutoRepairConfig.RepairType.INCREMENTAL, builder.automatedRepairIncremental);
-                put(AutoRepairConfig.RepairType.PREVIEW_REPAIRED, builder.automatedRepairPreviewRepaired);
-            }
-        };
+        autoRepair = builder.autoRepair;
     }
 
     public static Builder builder()
@@ -209,9 +198,7 @@ public final class TableParams
                             .transactionalMode(params.transactionalMode)
                             .transactionalMigrationFrom(params.transactionalMigrationFrom)
                             .pendingDrop(params.pendingDrop)
-                            .automatedRepairFull(params.automatedRepair.get(AutoRepairConfig.RepairType.FULL))
-                            .automatedRepairIncremental(params.automatedRepair.get(AutoRepairConfig.RepairType.INCREMENTAL))
-                            .automatedRepairPreviewRepaired(params.automatedRepair.get(AutoRepairConfig.RepairType.PREVIEW_REPAIRED))
+                            .automatedRepair(params.autoRepair)
         ;
     }
 
@@ -271,10 +258,7 @@ public final class TableParams
         if (transactionalMode.isTestMode() && !CassandraRelevantProperties.ACCORD_ALLOW_TEST_MODES.getBoolean())
             fail("Transactional mode " + transactionalMode + " can't be used if " + CassandraRelevantProperties.ACCORD_ALLOW_TEST_MODES.getKey() + " is not set");
 
-        for (Map.Entry<AutoRepairConfig.RepairType, AutoRepairParams> entry : automatedRepair.entrySet())
-        {
-            entry.getValue().validate();
-        }
+        autoRepair.validate();
     }
 
     private static void fail(String format, Object... args)
@@ -316,7 +300,7 @@ public final class TableParams
             && transactionalMode == p.transactionalMode
             && transactionalMigrationFrom == p.transactionalMigrationFrom
             && pendingDrop == p.pendingDrop
-            && automatedRepair.equals(p.automatedRepair);
+            && autoRepair.equals(p.autoRepair);
     }
 
     @Override
@@ -345,7 +329,7 @@ public final class TableParams
                                 transactionalMode,
                                 transactionalMigrationFrom,
                                 pendingDrop,
-                                automatedRepair);
+                                autoRepair);
     }
 
     @Override
@@ -376,9 +360,7 @@ public final class TableParams
                           .add(Option.TRANSACTIONAL_MODE.toString(), transactionalMode)
                           .add(Option.TRANSACTIONAL_MIGRATION_FROM.toString(), transactionalMigrationFrom)
                           .add(PENDING_DROP.toString(), pendingDrop)
-                          .add(Option.REPAIR_FULL.toString(), automatedRepair.get(AutoRepairConfig.RepairType.FULL))
-                          .add(Option.REPAIR_INCREMENTAL.toString(), automatedRepair.get(AutoRepairConfig.RepairType.INCREMENTAL))
-                          .add(Option.REPAIR_PREVIEW_REPAIRED.toString(), automatedRepair.get(AutoRepairConfig.RepairType.PREVIEW_REPAIRED))
+                          .add(Option.AUTO_REPAIR.toString(), autoRepair)
                           .toString();
     }
 
@@ -441,11 +423,7 @@ public final class TableParams
 
         builder.append("AND speculative_retry = ").appendWithSingleQuotes(speculativeRetry.toString())
                .newLine()
-               .append("AND repair_full = ").append(automatedRepair.get(AutoRepairConfig.RepairType.FULL).asMap())
-               .newLine()
-               .append("AND repair_incremental = ").append(automatedRepair.get(AutoRepairConfig.RepairType.INCREMENTAL).asMap())
-               .newLine()
-               .append("AND repair_preview_repaired = ").append(automatedRepair.get(AutoRepairConfig.RepairType.PREVIEW_REPAIRED).asMap());
+               .append("AND auto_repair = ").append(autoRepair.asMap());
     }
 
     public static final class Builder
@@ -474,10 +452,7 @@ public final class TableParams
         public TransactionalMigrationFromMode transactionalMigrationFrom = TransactionalMigrationFromMode.none;
         public boolean pendingDrop = false;
 
-        private AutoRepairParams automatedRepairFull = new AutoRepairParams(AutoRepairConfig.RepairType.FULL);
-        private AutoRepairParams automatedRepairIncremental = new AutoRepairParams(AutoRepairConfig.RepairType.INCREMENTAL);
-        private AutoRepairParams automatedRepairPreviewRepaired = new AutoRepairParams(AutoRepairConfig.RepairType.PREVIEW_REPAIRED);
-
+        private AutoRepairParams autoRepair = AutoRepairParams.DEFAULT;
         public Builder()
         {
         }
@@ -625,21 +600,9 @@ public final class TableParams
             return this;
         }
 
-        public Builder automatedRepairFull(AutoRepairParams val)
+        public Builder automatedRepair(AutoRepairParams val)
         {
-            automatedRepairFull = val;
-            return this;
-        }
-
-        public Builder automatedRepairIncremental(AutoRepairParams val)
-        {
-            automatedRepairIncremental = val;
-            return this;
-        }
-
-        public Builder automatedRepairPreviewRepaired(AutoRepairParams val)
-        {
-            automatedRepairPreviewRepaired = val;
+            autoRepair = val;
             return this;
         }
     }
