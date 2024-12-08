@@ -466,6 +466,7 @@ public abstract class ReadCommand extends AbstractReadQuery
                 iterator = withQuerySizeTracking(iterator);
                 iterator = maybeSlowDownForTesting(iterator);
                 iterator = withQueryCancellation(iterator);
+                iterator = withPurgeableTombstonesMetricRecording(iterator, cfs);
                 iterator = RTBoundValidator.validate(withoutPurgeableTombstones(iterator, cfs, executionController), Stage.PURGED, false);
                 iterator = withMetricsRecording(iterator, cfs.metric, startTimeNanos);
 
@@ -892,6 +893,130 @@ public abstract class ReadCommand extends AbstractReadQuery
             }
         }
         return Transformation.apply(iterator, new WithoutPurgeableTombstones());
+    }
+
+
+    /**
+     * Wraps the provided iterator so that metrics on count of purgeable tombstones are tracked and traced.
+     * It tracks only tombstones with localDeletionTime < now - gc_grace_period.
+     * Other (non-purgeable) tombstones will be tracked by regular Cassandra logic later.
+     */
+    private UnfilteredPartitionIterator withPurgeableTombstonesMetricRecording(UnfilteredPartitionIterator iter,
+                                                                               ColumnFamilyStore cfs)
+    {
+        class PurgeableTombstonesMetricRecording extends Transformation<UnfilteredRowIterator>
+        {
+            private int purgeableTombstones = 0;
+
+            @Override
+            public UnfilteredRowIterator applyToPartition(UnfilteredRowIterator iter)
+            {
+                return Transformation.apply(iter, this);
+            }
+
+            @Override
+            public Row applyToStatic(Row row)
+            {
+                return applyToRow(row);
+            }
+
+            @Override
+            public Row applyToRow(Row row)
+            {
+                final long nowInSec = nowInSec();
+                boolean hasTombstones = false;
+
+                for (Cell<?> cell : row.cells())
+                {
+                    if (!cell.isLive(nowInSec) && isPurgeable(cell.localDeletionTime(), nowInSec))
+                    {
+                        purgeableTombstones++;
+                        hasTombstones = true; // allows to avoid counting an extra tombstone if the whole row expired
+                    }
+                }
+
+                if (!row.primaryKeyLivenessInfo().isLive(nowInSec)
+                    && row.hasDeletion(nowInSec)
+                    && isPurgeable(row.deletion().time(), nowInSec)
+                    && !hasTombstones)
+                {
+                    // We're counting primary key deletions only here.
+                    purgeableTombstones++;
+                }
+
+                return row;
+            }
+
+            @Override
+            public RangeTombstoneMarker applyToMarker(RangeTombstoneMarker marker)
+            {
+                final long nowInSec = nowInSec();
+
+                // for boundary markers - increment metric only if both - close and open - markers are purgeable,
+                if (marker.isBoundary())
+                {
+                    countIfBothPurgeable(marker.closeDeletionTime(false),
+                                         marker.openDeletionTime(false),
+                                         nowInSec);
+                }
+                // for bound markers - just increment if it is purgeable
+                else
+                {
+                    countIfPurgeable(((RangeTombstoneBoundMarker) marker).deletionTime(), nowInSec);
+                }
+
+                return marker;
+            }
+
+            @Override
+            public void onClose()
+            {
+                cfs.metric.purgeableTombstoneScannedHistogram.update(purgeableTombstones);
+                if (purgeableTombstones > 0)
+                    Tracing.trace("Read {} purgeable tombstone cells", purgeableTombstones);
+            }
+
+            /**
+             * Increments if both - close and open - deletion times less than (now - gc_grace_period)
+             */
+            private void countIfBothPurgeable(DeletionTime closeDeletionTime,
+                                              DeletionTime openDeletionTime,
+                                              long nowInSec)
+            {
+                if (isPurgeable(closeDeletionTime, nowInSec) && isPurgeable(openDeletionTime, nowInSec))
+                    purgeableTombstones++;
+            }
+
+            /**
+             * Increments if deletion time less than (now - gc_grace_period)
+             */
+            private void countIfPurgeable(DeletionTime deletionTime,
+                                          long nowInSec)
+            {
+                if (isPurgeable(deletionTime, nowInSec))
+                    purgeableTombstones++;
+            }
+
+            /**
+             * Checks that deletion time < now - gc_grace_period
+             */
+            private boolean isPurgeable(DeletionTime deletionTime,
+                                        long nowInSec)
+            {
+                return isPurgeable(deletionTime.localDeletionTime(), nowInSec);
+            }
+
+            /**
+             * Checks that deletion time < now - gc_grace_period
+             */
+            private boolean isPurgeable(long localDeletionTime,
+                                        long nowInSec)
+            {
+                return localDeletionTime < cfs.gcBefore(nowInSec);
+            }
+        }
+
+        return Transformation.apply(iter, new PurgeableTombstonesMetricRecording());
     }
 
     /**
