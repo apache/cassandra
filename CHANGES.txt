@@ -1,4 +1,5 @@
 4.0.16
+ * Do not attach rows and partitions to CheckForAbort when already attached (CASSANDRA-20135)
  * Allow hint delivery during schema mismatch (CASSANDRA-20188)
  * Fix gossip issue with gossip-only and bootstrapping nodes missing DC/Rack/Host ID endpoint state (CASSANDRA-19983)
  * IndexOutOfBoundsException when accessing partition where the column was deleted (CASSANDRA-20108)

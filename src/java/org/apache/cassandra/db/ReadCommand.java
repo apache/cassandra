@@ -35,6 +35,8 @@ import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.*;
 import org.apache.cassandra.db.filter.*;
+import org.apache.cassandra.db.transform.BasePartitions;
+import org.apache.cassandra.db.transform.BaseRows;
 import org.apache.cassandra.net.MessageFlag;
 import org.apache.cassandra.net.Verb;
 import org.apache.cassandra.db.partitions.*;
@@ -558,6 +560,22 @@ public abstract class ReadCommand extends AbstractReadQuery
     protected class CheckForAbort extends StoppingTransformation<UnfilteredRowIterator>
     {
         long lastChecked = 0;
+
+        @Override
+        protected void attachTo(BasePartitions partitions)
+        {
+            Preconditions.checkArgument(this.partitions == null || this.partitions == partitions,
+                                        "Attempted to attach 2nd different BasePartitions in StoppingTransformation; this is a bug.");
+            this.partitions = partitions;
+        }
+
+        @Override
+        protected void attachTo(BaseRows rows)
+        {
+            Preconditions.checkArgument(this.rows == null || this.rows == rows,
+                                        "Attempted to attach 2nd different BaseRows in StoppingTransformation; this is a bug.");
+            this.rows = rows;
+        }
 
         protected UnfilteredRowIterator applyToPartition(UnfilteredRowIterator partition)
         {
