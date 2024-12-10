@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 
-package org.apache.cassandra.service.reads;
+package org.apache.cassandra.service.reads.legacy;
 
 import java.util.ArrayDeque;
 import java.util.ArrayList;
@@ -70,6 +70,7 @@ import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.ClientWarn;
 import org.apache.cassandra.service.StorageProxy;
+import org.apache.cassandra.service.reads.ReadCallback;
 import org.apache.cassandra.service.reads.repair.NoopReadRepair;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.transport.Dispatcher;

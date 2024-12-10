@@ -15,7 +15,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.apache.cassandra.service.reads;
+package org.apache.cassandra.service.reads.legacy;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -51,6 +51,8 @@ import org.apache.cassandra.locator.Endpoints;
 import org.apache.cassandra.locator.ReplicaPlan;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.schema.TableMetadata;
+import org.apache.cassandra.service.reads.IReadResponse;
+import org.apache.cassandra.service.reads.ShortReadProtection;
 import org.apache.cassandra.service.reads.repair.NoopReadRepair;
 import org.apache.cassandra.service.reads.repair.ReadRepair;
 import org.apache.cassandra.service.reads.repair.RepairedDataTracker;
@@ -59,7 +61,7 @@ import org.apache.cassandra.transport.Dispatcher;
 
 import static com.google.common.collect.Iterables.*;
 
-public class DataResolver<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<E, P>> extends ResponseResolver<E, P>
+public class DataResolver<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<E, P>> extends LegacyResolver<E, P>
 {
     private final boolean enforceStrictLiveness;
     private final ReadRepair<E, P> readRepair;
@@ -78,15 +80,23 @@ public class DataResolver<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<
         this.trackRepairedStatus = trackRepairedStatus;
     }
 
+    @Override
     public PartitionIterator getData()
     {
         ReadResponse response = ReadResponse.fromResponse(responses.get(0).payload);
         return UnfilteredPartitionIterators.filter(response.makeIterator(command), command.nowInSec());
     }
 
+    @Override
     public boolean isDataPresent()
     {
         return !responses.isEmpty();
+    }
+
+    @Override
+    public boolean responsesMatch()
+    {
+        throw new UnsupportedOperationException();
     }
 
     public PartitionIterator resolve()

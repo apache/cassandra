@@ -29,7 +29,7 @@ import org.apache.cassandra.exceptions.ReadTimeoutException;
 import org.apache.cassandra.locator.Endpoints;
 import org.apache.cassandra.locator.Replica;
 import org.apache.cassandra.locator.ReplicaPlan;
-import org.apache.cassandra.service.reads.DigestResolver;
+import org.apache.cassandra.service.reads.legacy.DigestResolver;
 
 /**
  * Bypasses the read repair path for short read protection and testing

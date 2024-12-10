@@ -69,7 +69,7 @@ public abstract class AbstractReadExecutor
     protected final ReadCommand command;
     private   final ReplicaPlan.SharedForTokenRead replicaPlan;
     protected final ReadRepair<EndpointsForToken, ReplicaPlan.ForTokenRead> readRepair;
-    protected final DigestResolver<EndpointsForToken, ReplicaPlan.ForTokenRead> digestResolver;
+    protected final ResponseResolver<EndpointsForToken, ReplicaPlan.ForTokenRead> resolver;
     protected final ReadCallback<EndpointsForToken, ReplicaPlan.ForTokenRead> handler;
     protected final TraceState traceState;
     protected final ColumnFamilyStore cfs;
@@ -85,8 +85,8 @@ public abstract class AbstractReadExecutor
         this.initialDataRequestCount = initialDataRequestCount;
         // the ReadRepair and DigestResolver both need to see our updated
         this.readRepair = ReadRepair.create(command, this.replicaPlan, requestTime);
-        this.digestResolver = new DigestResolver<>(command, this.replicaPlan, requestTime);
-        this.handler = new ReadCallback<>(digestResolver, command, this.replicaPlan, requestTime);
+        this.resolver = ResponseResolver.create(command, this.replicaPlan, requestTime);
+        this.handler = new ReadCallback<>(resolver, command, this.replicaPlan, requestTime);
         this.cfs = cfs;
         this.traceState = Tracing.instance.get();
         this.requestTime = requestTime;
@@ -414,7 +414,7 @@ public abstract class AbstractReadExecutor
         try
         {
             handler.awaitResults();
-            assert digestResolver.isDataPresent() : "awaitResults returned with no data present.";
+            assert resolver.isDataPresent() : "awaitResults returned with no data present.";
         }
         catch (ReadTimeoutException e)
         {
@@ -429,14 +429,14 @@ public abstract class AbstractReadExecutor
         }
 
         // return immediately, or begin a read repair
-        if (digestResolver.responsesMatch())
+        if (resolver.responsesMatch())
         {
-            setResult(digestResolver.getData());
+            setResult(resolver.getData());
         }
         else
         {
             Tracing.trace("Digest mismatch: Mismatch for key {}", getKey());
-            readRepair.startRepair(digestResolver, this::setResult);
+            readRepair.startRepair(resolver, this::setResult);
             if (logBlockingReadRepairAttempt)
             {
                 logger.info("Blocking Read Repair triggered for query [{}] at CL.{} with endpoints {}",

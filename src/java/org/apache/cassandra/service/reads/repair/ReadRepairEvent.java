@@ -34,8 +34,8 @@ import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.diag.DiagnosticEvent;
 import org.apache.cassandra.locator.InetAddressAndPort;
-import org.apache.cassandra.service.reads.DigestResolver;
-import org.apache.cassandra.service.reads.DigestResolver.DigestResolverDebugResult;
+import org.apache.cassandra.service.reads.legacy.DigestResolver;
+import org.apache.cassandra.service.reads.legacy.DigestResolver.DigestResolverDebugResult;
 import org.apache.cassandra.service.reads.SpeculativeRetryPolicy;
 
 final class ReadRepairEvent extends DiagnosticEvent
