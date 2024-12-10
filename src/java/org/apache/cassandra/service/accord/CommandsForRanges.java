@@ -40,7 +40,6 @@ import accord.primitives.Unseekable;
 import accord.primitives.Unseekables;
 import accord.utils.Invariants;
 import org.agrona.collections.ObjectHashSet;
-import org.apache.cassandra.index.accord.RoutesSearcher;
 import org.apache.cassandra.service.accord.api.AccordRoutingKey;
 
 import static accord.local.CommandSummaries.SummaryStatus.NOT_DIRECTLY_WITNESSED;
@@ -62,7 +61,7 @@ public class CommandsForRanges extends TreeMap<Timestamp, Summary> implements Co
     public static class Manager implements AccordCache.Listener<TxnId, Command>
     {
         private final AccordCommandStore commandStore;
-        private final RoutesSearcher searcher = new RoutesSearcher();
+        private final RangeSearcher searcher;
         private final NavigableMap<TxnId, Ranges> transitive = new TreeMap<>();
         private final ObjectHashSet<TxnId> cachedRangeTxns = new ObjectHashSet<>();
 
@@ -73,6 +72,7 @@ public class CommandsForRanges extends TreeMap<Timestamp, Summary> implements Co
             {
                 caches.commands().register(this);
             }
+            this.searcher = commandStore.rangeSearcher();
         }
 
         @Override
@@ -137,11 +137,11 @@ public class CommandsForRanges extends TreeMap<Timestamp, Summary> implements Co
             {
                 case Range:
                     for (Unseekable range : searchKeysOrRanges)
-                        manager.searcher.intersects(manager.commandStore.id(), (TokenRange) range, minTxnId, maxTxnId, forEach);
+                        manager.searcher.search(manager.commandStore.id(), (TokenRange) range, minTxnId, maxTxnId).consume(forEach);
                     break;
                 case Key:
                     for (Unseekable key : searchKeysOrRanges)
-                        manager.searcher.intersects(manager.commandStore.id(), (AccordRoutingKey) key, minTxnId, maxTxnId, forEach);
+                        manager.searcher.search(manager.commandStore.id(), (AccordRoutingKey) key, minTxnId, maxTxnId).consume(forEach);
             }
 
             if (!manager.transitive.isEmpty())

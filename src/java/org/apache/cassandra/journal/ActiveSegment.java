@@ -37,7 +37,7 @@ import org.apache.cassandra.utils.concurrent.WaitQueue;
 import static org.apache.cassandra.utils.Simulate.With.MONITORS;
 
 @Simulate(with=MONITORS)
-final class ActiveSegment<K, V> extends Segment<K, V>
+public final class ActiveSegment<K, V> extends Segment<K, V>
 {
     final FileChannel channel;
 
@@ -98,7 +98,7 @@ final class ActiveSegment<K, V> extends Segment<K, V>
     }
 
     @Override
-    InMemoryIndex<K> index()
+    public InMemoryIndex<K> index()
     {
         return index;
     }

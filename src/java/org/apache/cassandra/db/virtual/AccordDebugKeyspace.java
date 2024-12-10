@@ -214,7 +214,7 @@ public class AccordDebugKeyspace extends VirtualKeyspace
             {
                 try (AccordExecutor.ExclusiveGlobalCaches cache = executor.lockCaches())
                 {
-                    addRow(ds, executor.executorId(), AccordKeyspace.COMMANDS, cache.commands.statsSnapshot());
+                    addRow(ds, executor.executorId(), "commands", cache.commands.statsSnapshot());
                     addRow(ds, executor.executorId(), AccordKeyspace.COMMANDS_FOR_KEY, cache.commandsForKey.statsSnapshot());
                 }
             }

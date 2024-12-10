@@ -245,6 +245,8 @@ public class AccordService implements IAccordService, Shutdownable
 
     public synchronized static void startup(NodeId tcmId)
     {
+        if (instance != null)
+            throw new IllegalStateException("Attempt to call startup multiple times");
         if (!DatabaseDescriptor.getAccordTransactionsEnabled())
         {
             instance = NOOP_SERVICE;
@@ -269,7 +271,8 @@ public class AccordService implements IAccordService, Shutdownable
         replayJournal(as);
     }
 
-    private static void replayJournal(AccordService as)
+    @VisibleForTesting
+    public static void replayJournal(AccordService as)
     {
         logger.info("Starting journal replay.");
         CommandsForKey.disableLinearizabilityViolationsReporting();
@@ -320,7 +323,8 @@ public class AccordService implements IAccordService, Shutdownable
         return instance != null;
     }
 
-    private AccordService(Id localId)
+    @VisibleForTesting
+    public AccordService(Id localId)
     {
         Invariants.checkState(localId != null, "static localId must be set before instantiating AccordService");
         logger.info("Starting accord with nodeId {}", localId);
@@ -428,7 +432,7 @@ public class AccordService implements IAccordService, Shutdownable
                 {
                     for (InetAddressAndPort peer : group.endpoints())
                     {
-                        if (!alive.contains(peer)) continue;
+                        if (peer.equals(self) || !alive.contains(peer)) continue;
                         for (TableMetadata table : tables)
                             peers.computeIfAbsent(peer, i -> new HashSet<>()).add(AccordTopology.fullRange(table.id));
                     }
@@ -1224,14 +1228,17 @@ public class AccordService implements IAccordService, Shutdownable
         Int2ObjectHashMap<RedundantBefore> redundantBefores = new Int2ObjectHashMap<>();
         Int2ObjectHashMap<DurableBefore> durableBefores = new Int2ObjectHashMap<>();
         Int2ObjectHashMap<RangesForEpoch> ranges = new Int2ObjectHashMap<>();
-        AsyncChains.getBlockingAndRethrow(node.commandStores().forEach(safeStore -> {
-            synchronized (redundantBefores)
-            {
-                redundantBefores.put(safeStore.commandStore().id(), safeStore.redundantBefore());
-                ranges.put(safeStore.commandStore().id(), safeStore.ranges());
-                durableBefores.put(safeStore.commandStore().id(), safeStore.durableBefore());
-            }
-        }));
+        if (node.commandStores().all().length > 0)
+        {
+            AsyncChains.getBlockingAndRethrow(node.commandStores().forEach(safeStore -> {
+                synchronized (redundantBefores)
+                {
+                    redundantBefores.put(safeStore.commandStore().id(), safeStore.redundantBefore());
+                    ranges.put(safeStore.commandStore().id(), safeStore.ranges());
+                    durableBefores.put(safeStore.commandStore().id(), safeStore.durableBefore());
+                }
+            }));
+        }
         return new CompactionInfo(redundantBefores, ranges, durableBefores);
     }
 

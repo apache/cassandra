@@ -19,6 +19,8 @@ package org.apache.cassandra.utils;
 
 import java.util.*;
 
+import accord.utils.Invariants;
+
 /** Merges sorted input iterators which individually contain unique items. */
 public abstract class MergeIterator<In,Out> extends AbstractIterator<Out> implements IMergeIterator<In, Out>
 {
@@ -42,6 +44,33 @@ public abstract class MergeIterator<In,Out> extends AbstractIterator<Out> implem
                  : new OneToOne<>(sources, reducer);
         }
         return new ManyToOne<>(sources, comparator, reducer);
+    }
+
+    public static <E extends Comparable<? super E>> MergeIterator<E, E> get(List<? extends Iterator<E>> sources)
+    {
+        return get(sources, Comparator.naturalOrder(), new Reducer<>()
+        {
+            private E first = null;
+            @Override
+            protected void onKeyChange()
+            {
+                first = null;
+            }
+
+            @Override
+            public void reduce(int idx, E current)
+            {
+                if (first == null)
+                    first = current;
+            }
+
+            @Override
+            protected E getReduced()
+            {
+                Invariants.checkState(first != null);
+                return first;
+            }
+        });
     }
 
     public Iterable<? extends Iterator<In>> iterators()

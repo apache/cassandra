@@ -32,7 +32,7 @@ import org.apache.cassandra.journal.StaticSegment.SequentialReader;
 /**
  * An index for a segment that's still being updated by journal writers concurrently.
  */
-final class InMemoryIndex<K> extends Index<K>
+public final class InMemoryIndex<K> extends Index<K>
 {
     private static final long[] EMPTY = new long[0];
 
@@ -53,6 +53,11 @@ final class InMemoryIndex<K> extends Index<K>
         super(keySupport);
         this.index = index;
         this.lastId = new AtomicReference<>();
+    }
+
+    public int size()
+    {
+        return index.size();
     }
 
     public void update(K id, int offset, int size)

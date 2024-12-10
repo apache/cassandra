@@ -137,7 +137,6 @@ public class AccordCommandStoreTest
         safeCommand.set(expected);
 
         AccordTestUtils.appendCommandsBlocking(commandStore, null, expected);
-        AccordKeyspace.getCommandMutation(commandStore, safeCommand, commandStore.nextSystemTimestampMicros()).apply();
 
         logger.info("E: {}", expected);
         Command actual = commandStore.loadCommand(txnId);

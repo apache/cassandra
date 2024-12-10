@@ -40,7 +40,7 @@ public class IndexMetrics
     private final String indexName;
     public final Timer memtableIndexWriteLatency;
 
-    public IndexMetrics(RouteIndex index)
+    public IndexMetrics(RouteJournalIndex index)
     {
         this.ks = index.baseCfs().getKeyspaceName();
         this.table = index.baseCfs().name;

@@ -49,7 +49,7 @@ public class RouteSecondaryIndexBuilder extends SecondaryIndexBuilder
     private static final Logger logger = LoggerFactory.getLogger(RouteSecondaryIndexBuilder.class);
 
     private final TimeUUID compactionId = nextTimeUUID();
-    private final RouteIndex index;
+    private final RouteJournalIndex index;
     private final TableMetadata metadata;
     private final Tracker tracker;
     private final SSTableManager sstableManager;
@@ -59,7 +59,7 @@ public class RouteSecondaryIndexBuilder extends SecondaryIndexBuilder
     private final long totalSizeInBytes;
     private long bytesProcessed = 0;
 
-    public RouteSecondaryIndexBuilder(RouteIndex index,
+    public RouteSecondaryIndexBuilder(RouteJournalIndex index,
                                       SSTableManager sstableManager,
                                       List<SSTableReader> sstables,
                                       boolean isFullRebuild,

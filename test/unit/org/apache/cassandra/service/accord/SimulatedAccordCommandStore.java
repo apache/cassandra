@@ -30,6 +30,7 @@ import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.function.ToLongFunction;
 
+import accord.api.Agent;
 import accord.api.Journal;
 import accord.api.LocalListeners;
 import accord.api.ProgressLog;
@@ -62,6 +63,7 @@ import accord.primitives.FullRoute;
 import accord.primitives.Ranges;
 import accord.primitives.Routable;
 import accord.primitives.RoutableKey;
+import accord.primitives.Route;
 import accord.primitives.RoutingKeys;
 import accord.primitives.Timestamp;
 import accord.primitives.Txn;
@@ -209,7 +211,7 @@ public class SimulatedAccordCommandStore implements AutoCloseable
             }
         };
 
-        this.journal = new InMemoryJournal(nodeId, agent);
+        this.journal = new DefaultJournal(nodeId, agent);
         this.commandStore = new AccordCommandStore(0,
                                                    storeService,
                                                    agent,
@@ -439,5 +441,39 @@ public class SimulatedAccordCommandStore implements AutoCloseable
     public void close() throws Exception
     {
         commandStore.shutdown();
+    }
+
+    private static class DefaultJournal extends InMemoryJournal implements RangeSearcher.Supplier
+    {
+        private final RouteInMemoryIndex<?> index = new RouteInMemoryIndex<>();
+        private DefaultJournal(Node.Id id, Agent agent)
+        {
+            super(id, agent);
+        }
+
+        @Override
+        public void saveCommand(int store, CommandUpdate update, Runnable onFlush)
+        {
+            super.saveCommand(store, update, onFlush);
+            if (!update.after.txnId().domain().isRange())
+                return;
+            Command after = update.after;
+            Route<?> route = after.participants().route();
+            if (route != null)
+                index.update(0, store, after.txnId(), route);
+        }
+
+        @Override
+        public void purge(CommandStores commandStores)
+        {
+            super.purge(commandStores);
+            index.truncateForTesting();
+        }
+
+        @Override
+        public RangeSearcher rangeSearcher()
+        {
+            return index;
+        }
     }
 }

@@ -75,7 +75,7 @@ class Segments<K, V>
         Invariants.checkArgument(activeSegment.descriptor.equals(staticSegment.descriptor));
         Long2ObjectHashMap<Segment<K, V>> newSegments = new Long2ObjectHashMap<>(segments);
         Segment<K, V> oldValue = newSegments.put(staticSegment.descriptor.timestamp, staticSegment);
-        Invariants.checkState(oldValue == activeSegment);
+        Invariants.checkState(oldValue == activeSegment, () -> String.format("old value %s != new %s", oldValue, activeSegment));
         return new Segments<>(newSegments);
     }
 

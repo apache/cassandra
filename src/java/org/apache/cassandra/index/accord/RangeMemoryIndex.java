@@ -134,7 +134,7 @@ public class RangeMemoryIndex
             throw new IllegalArgumentException("Unexpected domain: " + keyOrRange.domain());
         TokenRange ts = (TokenRange) keyOrRange;
 
-        int storeId = AccordKeyspace.CommandRows.getStoreId(key);
+        int storeId = AccordKeyspace.JournalColumns.getStoreId(key);
         TableId tableId = ts.table();
         Group group = new Group(storeId, tableId);
         byte[] start = OrderedRouteSerializer.serializeRoutingKeyNoTable(ts.start());

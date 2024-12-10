@@ -28,19 +28,19 @@ import java.util.concurrent.TimeUnit;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.lifecycle.LifecycleNewTracker;
 import org.apache.cassandra.db.memtable.Memtable;
-import org.apache.cassandra.db.rows.Cell;
 import org.apache.cassandra.db.rows.Row;
 import org.apache.cassandra.schema.TableId;
+import org.apache.cassandra.service.accord.AccordKeyspace;
+import org.apache.cassandra.service.accord.JournalKey;
 
 import static org.apache.cassandra.utils.Clock.Global.nanoTime;
-import static org.apache.cassandra.utils.Clock.Global.nowInSeconds;
 
 public class RouteMemtableIndexManager implements MemtableIndexManager
 {
     private final ConcurrentMap<Memtable, MemtableIndex> liveMemtableIndexMap = new ConcurrentHashMap<>();
-    private final RouteIndex index;
+    private final RouteJournalIndex index;
 
-    public RouteMemtableIndexManager(RouteIndex index)
+    public RouteMemtableIndexManager(RouteJournalIndex index)
     {
         this.index = index;
     }
@@ -49,6 +49,9 @@ public class RouteMemtableIndexManager implements MemtableIndexManager
     public long index(DecoratedKey key, Row row, Memtable mt)
     {
         if (row.isStatic())
+            return 0;
+        JournalKey journalKey = AccordKeyspace.JournalColumns.getJournalKey(key);
+        if (!RouteJournalIndex.allowed(journalKey))
             return 0;
         //TODO (performance): we dropped jdk8 and this was fixed in jdk8... so do we need to do this still?
         MemtableIndex current = liveMemtableIndexMap.get(mt);
@@ -63,10 +66,7 @@ public class RouteMemtableIndexManager implements MemtableIndexManager
 
         long bytes = 0;
 
-        // simplified version of org.apache.cassandra.index.sai.utils.IndexTermType.valueOf
-        Cell<?> cell = row.getCell(index.column());
-        ByteBuffer value = cell == null || !cell.isLive(nowInSeconds()) ? null : cell.buffer();
-
+        ByteBuffer value = RouteIndexFormat.extractParticipants(index, journalKey.id, row);
         bytes += target.index(key, row.clustering(), value);
         index.indexMetrics().memtableIndexWriteLatency.update(nanoTime() - start, TimeUnit.NANOSECONDS);
         return bytes;

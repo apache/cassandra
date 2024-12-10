@@ -754,7 +754,7 @@ public class Journal<K, V> implements Shutdownable
         return oldest;
     }
 
-    ActiveSegment<K, V> currentActiveSegment()
+    public ActiveSegment<K, V> currentActiveSegment()
     {
         return currentSegment;
     }
@@ -906,8 +906,19 @@ public class Journal<K, V> implements Shutdownable
     @VisibleForTesting
     public void truncateForTesting()
     {
-        advanceSegment(null);
-        segments.set(Segments.none());
+        ActiveSegment<?, ?> discarding = currentSegment;
+        if (!discarding.isEmpty()) // if there is no data in the segement then ignore it
+        {
+            closeCurrentSegmentForTestingIfNonEmpty();
+            //TODO (desired): wait for the ActiveSegment to get released, else can see weird race conditions;
+            // this thread will see the static segmenet and will release it (which will delete the file),
+            // and the sync thread will then try to release and will fail as the file no longer exists...
+            while (discarding.selfRef().globalCount() > 0) {}
+        }
+
+        Segments<K, V> statics = swapSegments(s -> s.select(Segment::isActive)).select(Segment::isStatic);
+        for (Segment<K, V> segment : statics.all())
+            ((StaticSegment) segment).discard(this);
     }
 
     public interface Writer
@@ -939,6 +950,8 @@ public class Journal<K, V> implements Shutdownable
                 StaticSegment.KeyOrderReader<K> reader = staticSegment.keyOrderReader();
                 if (reader.advance())
                     this.readers.add(reader);
+                else
+                    reader.close();
             }
         }
 
@@ -962,6 +975,8 @@ public class Journal<K, V> implements Shutdownable
                 reader.accept(next.descriptor.timestamp, next.offset, next.key(), next.record(), next.hosts(), next.descriptor.userVersion);
                 if (next.advance())
                     readers.add(next);
+                else
+                    next.close();
             }
         }
 

@@ -29,12 +29,14 @@ import java.util.Set;
 import java.util.concurrent.Callable;
 import java.util.stream.Collectors;
 
+import com.google.common.base.Splitter;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import accord.primitives.TxnId;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.Operator;
-import org.apache.cassandra.cql3.statements.schema.IndexTarget;
 import org.apache.cassandra.db.CassandraWriteContext;
 import org.apache.cassandra.db.Clustering;
 import org.apache.cassandra.db.ColumnFamilyStore;
@@ -62,7 +64,6 @@ import org.apache.cassandra.db.rows.UnfilteredRowIterator;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.index.Index;
 import org.apache.cassandra.index.IndexRegistry;
-import org.apache.cassandra.index.TargetParser;
 import org.apache.cassandra.index.sai.StorageAttachedIndex;
 import org.apache.cassandra.index.transactions.IndexTransaction;
 import org.apache.cassandra.io.sstable.Component;
@@ -81,25 +82,24 @@ import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.ClientState;
-import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.service.accord.AccordJournalTable;
 import org.apache.cassandra.service.accord.AccordKeyspace;
+import org.apache.cassandra.service.accord.JournalKey;
 import org.apache.cassandra.service.accord.api.AccordRoutingKey;
 import org.apache.cassandra.utils.AbstractIterator;
-import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.concurrent.Future;
 import org.apache.cassandra.utils.concurrent.FutureCombiner;
 
-public class RouteIndex implements Index, INotificationConsumer
+public class RouteJournalIndex implements Index, INotificationConsumer
 {
     public enum RegisterStatus
     {PENDING, REGISTERED, UNREGISTERED}
 
-    private static final Logger logger = LoggerFactory.getLogger(RouteIndex.class);
+    private static final Logger logger = LoggerFactory.getLogger(RouteJournalIndex.class);
 
     private static final Component.Type type = Component.Type.createSingleton("AccordRoute", "AccordRoute.*.db", true, null);
 
     private final ColumnFamilyStore baseCfs;
-    private final ColumnMetadata column;
     private final IndexMetadata indexMetadata;
     private final IndexMetrics indexMetrics;
     private final MemtableIndexManager memtableIndexManager;
@@ -108,40 +108,53 @@ public class RouteIndex implements Index, INotificationConsumer
     private volatile boolean initBuildStarted = false;
     private volatile RegisterStatus registerStatus = RegisterStatus.PENDING;
 
-    public RouteIndex(ColumnFamilyStore baseCfs, IndexMetadata indexMetadata)
+    public RouteJournalIndex(ColumnFamilyStore baseCfs, IndexMetadata indexMetadata)
     {
-        if (!SchemaConstants.ACCORD_KEYSPACE_NAME.equals(baseCfs.getKeyspaceName()))
-            throw new IllegalArgumentException("Route index is only allowed for accord commands table; given " + baseCfs().metadata());
-        if (!AccordKeyspace.COMMANDS.equals(baseCfs.name))
-            throw new IllegalArgumentException("Route index is only allowed for accord commands table; given " + baseCfs().metadata());
-
-        TableMetadata tableMetadata = baseCfs.metadata();
-        Pair<ColumnMetadata, IndexTarget.Type> target = TargetParser.parse(tableMetadata, indexMetadata);
-        if (!AccordKeyspace.CommandsColumns.participants.name.equals(target.left.name))
-            throw new IllegalArgumentException("Attempted to index the wrong column; needed " + AccordKeyspace.CommandsColumns.participants.name + " but given " + target.left.name);
-
-        if (target.right != IndexTarget.Type.VALUES)
-            throw new IllegalArgumentException("Attempted to index " + AccordKeyspace.CommandsColumns.participants.name + " with index type " + target.right + "; only " + IndexTarget.Type.VALUES + " is supported");
+        validateTargets(baseCfs, indexMetadata);
 
         this.baseCfs = baseCfs;
+        // type is only IndexTarget.Type.VALUES
         this.indexMetadata = indexMetadata;
+
         this.memtableIndexManager = new RouteMemtableIndexManager(this);
         this.sstableManager = new RouteSSTableManager();
         this.indexMetrics = new IndexMetrics(this);
-        this.column = target.left;
 
         Tracker tracker = baseCfs.getTracker();
         tracker.subscribe(this);
     }
 
-    public ColumnMetadata column()
+    public static boolean allowed(JournalKey id)
     {
-        return column;
+        return id.type == JournalKey.Type.COMMAND_DIFF && allowed(id.id);
+    }
+
+    public static boolean allowed(TxnId id)
+    {
+        return id.domain().isRange();
+    }
+
+    private static void validateTargets(ColumnFamilyStore baseCfs, IndexMetadata indexMetadata)
+    {
+        // this contains 2 columns....
+        if (!SchemaConstants.ACCORD_KEYSPACE_NAME.equals(baseCfs.getKeyspaceName()))
+            throw new IllegalArgumentException("Route index is only allowed for accord journal table; given " + baseCfs.metadata());
+        if (!AccordKeyspace.JOURNAL.equals(baseCfs.name))
+            throw new IllegalArgumentException("Route index is only allowed for accord journal table; given " + baseCfs.metadata());
+        Set<String> columns = Splitter.on(',').trimResults().omitEmptyStrings().splitToStream(indexMetadata.options.get("target")).collect(Collectors.toSet());
+        Set<String> expected = Set.of("record", "user_version");
+        if (!expected.equals(columns))
+            throw new IllegalArgumentException("Route index is only allowed for accord journal table, and on the record/user_value columns; given " + baseCfs.metadata() + " and columns " + columns);
     }
 
     public IndexMetrics indexMetrics()
     {
         return indexMetrics;
+    }
+
+    public RegisterStatus registerStatus()
+    {
+        return registerStatus;
     }
 
     public ColumnFamilyStore baseCfs()
@@ -182,8 +195,6 @@ public class RouteIndex implements Index, INotificationConsumer
     @Override
     public Callable<?> getInitializationTask()
     {
-        //TODO (now): in SAI startup doesn't validate... what are the downstream issues this can face?  Corrupt indexes not being detected?
-        boolean starting = StorageService.instance.isStarting();
         return () -> {
             if (baseCfs.indexManager.isIndexQueryable(this))
             {
@@ -250,11 +261,6 @@ public class RouteIndex implements Index, INotificationConsumer
         return status == Status.BUILD_SUCCEEDED || status == Status.UNKNOWN;
     }
 
-    public RegisterStatus registerStatus()
-    {
-        return registerStatus;
-    }
-
     @Override
     public synchronized void register(IndexRegistry registry)
     {
@@ -307,10 +313,6 @@ public class RouteIndex implements Index, INotificationConsumer
     {
         // only internal can write... so it must be valid no?
     }
-
-
-    //TODO (now): flesh this stuff out...
-
 
     @Override
     public SSTableFlushObserver getFlushObserver(Descriptor descriptor,
@@ -383,7 +385,7 @@ public class RouteIndex implements Index, INotificationConsumer
         Integer storeId = null;
         for (RowFilter.Expression e : expressions)
         {
-            if (e.column() == AccordKeyspace.CommandsColumns.participants)
+            if (e.column() == AccordJournalTable.SyntheticColumn.participants.metadata)
             {
                 switch (e.operator())
                 {
@@ -407,9 +409,13 @@ public class RouteIndex implements Index, INotificationConsumer
                         return null;
                 }
             }
-            else if (e.column() == AccordKeyspace.CommandsColumns.store_id && e.operator() == Operator.EQ)
+            else if (e.column() == AccordJournalTable.SyntheticColumn.store_id.metadata && e.operator() == Operator.EQ)
             {
                 storeId = Int32Type.instance.compose(e.getIndexValue());
+            }
+            else
+            {
+                throw new IllegalArgumentException("Unexpected expression: " + e.toCQLString());
             }
         }
         if (start == null || end == null || storeId == null)
@@ -435,7 +441,7 @@ public class RouteIndex implements Index, INotificationConsumer
                 // find all partitions from memtable / sstable
                 NavigableSet<ByteBuffer> partitions = search(storeId, key);
                 // do SinglePartitionReadCommand per partition
-                return new SearchIterator(executionController, command, partitions);
+                return new SearchIterator(command, partitions);
             }
 
             NavigableSet<ByteBuffer> search(int storeId, ByteBuffer key)
@@ -471,7 +477,7 @@ public class RouteIndex implements Index, INotificationConsumer
                 // find all partitions from memtable / sstable
                 NavigableSet<ByteBuffer> partitions = search(storeId, start, startInclusive, end, endInclusive);
                 // do SinglePartitionReadCommand per partition
-                return new SearchIterator(executionController, command, partitions);
+                return new SearchIterator(command, partitions);
             }
 
             NavigableSet<ByteBuffer> search(int storeId,
@@ -494,17 +500,57 @@ public class RouteIndex implements Index, INotificationConsumer
         };
     }
 
+    @Override
+    public void handleNotification(INotification notification, Object sender)
+    {
+        // unfortunately, we can only check the type of notification via instanceof :(
+        if (notification instanceof SSTableAddedNotification)
+        {
+            SSTableAddedNotification notice = (SSTableAddedNotification) notification;
+            sstableManager.onSSTableChanged(Collections.emptySet(), notice.added);
+        }
+        else if (notification instanceof SSTableListChangedNotification)
+        {
+            SSTableListChangedNotification notice = (SSTableListChangedNotification) notification;
+            sstableManager.onSSTableChanged(notice.removed, notice.added);
+        }
+        else if (notification instanceof MemtableRenewedNotification)
+        {
+            memtableIndexManager.renewMemtable(((MemtableRenewedNotification) notification).renewed);
+        }
+        else if (notification instanceof MemtableDiscardedNotification)
+        {
+            memtableIndexManager.discardMemtable(((MemtableDiscardedNotification) notification).memtable);
+        }
+    }
+
+    //TODO (coverage): everything below here never triggered...
+
+    @Override
+    public boolean dependsOn(ColumnMetadata column)
+    {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public AbstractType<?> customExpressionValueType()
+    {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public long getEstimatedResultRows()
+    {
+        throw new UnsupportedOperationException();
+    }
+
     private class SearchIterator extends AbstractIterator<UnfilteredRowIterator> implements UnfilteredPartitionIterator
     {
-        private final ReadExecutionController executionController;
-        private final ReadCommand command;
         private final TableMetadata metadata;
         private final Iterator<ByteBuffer> partitions;
 
-        private SearchIterator(ReadExecutionController executionController, ReadCommand command, NavigableSet<ByteBuffer> partitions)
+        private SearchIterator(ReadCommand command, NavigableSet<ByteBuffer> partitions)
         {
-            this.executionController = executionController;
-            this.command = command;
             this.metadata = command.metadata();
             this.partitions = partitions.iterator();
         }
@@ -594,49 +640,5 @@ public class RouteIndex implements Index, INotificationConsumer
         {
 
         }
-    }
-
-    @Override
-    public void handleNotification(INotification notification, Object sender)
-    {
-        // unfortunately, we can only check the type of notification via instanceof :(
-        if (notification instanceof SSTableAddedNotification)
-        {
-            SSTableAddedNotification notice = (SSTableAddedNotification) notification;
-            sstableManager.onSSTableChanged(Collections.emptySet(), notice.added);
-        }
-        else if (notification instanceof SSTableListChangedNotification)
-        {
-            SSTableListChangedNotification notice = (SSTableListChangedNotification) notification;
-            sstableManager.onSSTableChanged(notice.removed, notice.added);
-        }
-        else if (notification instanceof MemtableRenewedNotification)
-        {
-            memtableIndexManager.renewMemtable(((MemtableRenewedNotification) notification).renewed);
-        }
-        else if (notification instanceof MemtableDiscardedNotification)
-        {
-            memtableIndexManager.discardMemtable(((MemtableDiscardedNotification) notification).memtable);
-        }
-    }
-
-    //TODO (coverage): everything below here never triggered...
-
-    @Override
-    public boolean dependsOn(ColumnMetadata column)
-    {
-        throw new UnsupportedOperationException();
-    }
-
-    @Override
-    public AbstractType<?> customExpressionValueType()
-    {
-        throw new UnsupportedOperationException();
-    }
-
-    @Override
-    public long getEstimatedResultRows()
-    {
-        throw new UnsupportedOperationException();
     }
 }

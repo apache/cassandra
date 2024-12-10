@@ -19,6 +19,7 @@
 package org.apache.cassandra.index.accord;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -32,7 +33,10 @@ import java.util.zip.Checksum;
 
 import com.google.common.collect.Maps;
 
+import accord.local.StoreParticipants;
+import accord.primitives.TxnId;
 import org.apache.cassandra.db.DecoratedKey;
+import org.apache.cassandra.db.marshal.Int32Type;
 import org.apache.cassandra.db.rows.Cell;
 import org.apache.cassandra.db.rows.Row;
 import org.apache.cassandra.db.rows.Unfiltered;
@@ -43,6 +47,10 @@ import org.apache.cassandra.io.util.ChecksumedSequentialWriter;
 import org.apache.cassandra.io.util.FileHandle;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.serializers.UUIDSerializer;
+import org.apache.cassandra.service.accord.AccordJournal;
+import org.apache.cassandra.service.accord.AccordJournalTable;
+import org.apache.cassandra.service.accord.AccordKeyspace;
+import org.apache.cassandra.service.accord.JournalKey;
 import org.apache.cassandra.utils.ByteArrayUtil;
 import org.apache.cassandra.utils.Throwables;
 
@@ -61,10 +69,11 @@ public class RouteIndexFormat
 
     public static class SSTableIndexWriter extends MemtableRouteIndexWriter
     {
-        private final RouteIndex index;
+        private final RouteJournalIndex index;
         private DecoratedKey current;
+        private JournalKey journalKey;
 
-        public SSTableIndexWriter(RouteIndex index, IndexDescriptor id)
+        public SSTableIndexWriter(RouteJournalIndex index, IndexDescriptor id)
         {
             super(id, new MemtableIndex());
             this.index = index;
@@ -74,6 +83,7 @@ public class RouteIndexFormat
         public void startPartition(DecoratedKey key, long keyPosition, long keyPositionForSASI)
         {
             this.current = key;
+            this.journalKey = AccordKeyspace.JournalColumns.getJournalKey(key);
         }
 
         @Override
@@ -81,14 +91,56 @@ public class RouteIndexFormat
         {
             // there is some duplication from org.apache.cassandra.index.accord.RouteMemtableIndexManager.index
             // should this be cleaned up?
-            if (!unfiltered.isRow())
+            if (!unfiltered.isRow() || !RouteJournalIndex.allowed(journalKey))
                 return;
             Row row = (Row) unfiltered;
-            // simplified version of org.apache.cassandra.index.sai.utils.IndexTermType.valueOf
-            Cell<?> cell = row.getCell(index.column());
-            ByteBuffer value = cell == null || !cell.isLive(nowInSeconds()) ? null : cell.buffer();
+            ByteBuffer value = extractParticipants(index, journalKey.id, row);
             indexer.index(current, row.clustering(), value);
         }
+    }
+
+    public static ByteBuffer extractParticipants(RouteJournalIndex index, TxnId txnId, Row row)
+    {
+        boolean recordNull = row.getCell(AccordKeyspace.JournalColumns.record) == null;
+        boolean userVersionNull = row.getCell(AccordKeyspace.JournalColumns.user_version) == null;
+        if (recordNull != userVersionNull)
+            throw new IllegalStateException(String.format("Record is %s, but user_version is %s",
+                                                          (recordNull ? "null" : "defined"),
+                                                          (userVersionNull ? "null" : "defined")));
+        if (recordNull)
+            return null;
+        Cell<?> recordCell = row.getCell(AccordKeyspace.JournalColumns.record);
+        Cell<?> user_versionCell = row.getCell(AccordKeyspace.JournalColumns.user_version);
+        long nowInSec = nowInSeconds();
+        boolean recordLive = recordCell.isLive(nowInSec);
+        boolean user_versionLive = user_versionCell.isLive(nowInSec);
+        if (recordLive != user_versionLive)
+            throw new IllegalStateException(String.format("Record is %s, but user_version is %s",
+                                                          (recordLive ? "live" : "dead"),
+                                                          (user_versionLive ? "live" : "dead")));
+        if (!recordLive)
+            return null;
+        ByteBuffer record = recordCell.buffer();
+        int user_version = Int32Type.instance.compose(user_versionCell.buffer());
+        AccordJournal.Builder builder = extract(txnId, record, user_version);
+        StoreParticipants participants = builder.participants();
+        if (participants == null)
+            return null;
+        try
+        {
+            return AccordKeyspace.LocalVersionedSerializers.serialize(participants);
+        }
+        catch (IOException e)
+        {
+            throw new UncheckedIOException(e);
+        }
+    }
+
+    public static AccordJournal.Builder extract(TxnId txnId, ByteBuffer record, int user_version)
+    {
+        AccordJournal.Builder builder = new AccordJournal.Builder(txnId, AccordJournal.Load.ALL);
+        AccordJournalTable.readBuffer(record, builder::deserializeNext, user_version);
+        return builder;
     }
 
     public static class MemtableRouteIndexWriter implements Writer
@@ -170,8 +222,8 @@ public class RouteIndexFormat
     {
         List<Segment> segments = new ArrayList<>();
 
-        try (var metaReader = new ChecksumedRandomAccessReader(index.get(IndexComponent.METADATA).createReader(), CHECKSUM_SUPPLIER);
-             var segmentReader = new ChecksumedRandomAccessReader(index.get(IndexComponent.SEGMENT).createReader(), CHECKSUM_SUPPLIER))
+        try (ChecksumedRandomAccessReader metaReader = new ChecksumedRandomAccessReader(index.get(IndexComponent.METADATA).createReader(), CHECKSUM_SUPPLIER);
+             ChecksumedRandomAccessReader segmentReader = new ChecksumedRandomAccessReader(index.get(IndexComponent.SEGMENT).createReader(), CHECKSUM_SUPPLIER))
         {
             while (metaReader.getFilePointer() < metaReader.length())
             {
@@ -218,8 +270,8 @@ public class RouteIndexFormat
         List<Group> groups = new ArrayList<>(segment.groups.keySet());
         groups.sort(Comparator.naturalOrder());
 
-        try (var segmentWriter = ChecksumedSequentialWriter.open(id.fileFor(IndexComponent.SEGMENT), true, CHECKSUM_SUPPLIER);
-             var metadataWriter = ChecksumedSequentialWriter.open(id.fileFor(IndexComponent.METADATA), true, CHECKSUM_SUPPLIER))
+        try (ChecksumedSequentialWriter segmentWriter = ChecksumedSequentialWriter.open(id.fileFor(IndexComponent.SEGMENT), true, CHECKSUM_SUPPLIER);
+             ChecksumedSequentialWriter metadataWriter = ChecksumedSequentialWriter.open(id.fileFor(IndexComponent.METADATA), true, CHECKSUM_SUPPLIER))
         {
             long startPointer = segmentWriter.getFilePointer();
             for (Group group : groups)

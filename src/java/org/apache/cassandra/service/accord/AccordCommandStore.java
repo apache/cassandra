@@ -55,7 +55,6 @@ import accord.primitives.PartialTxn;
 import accord.primitives.Participants;
 import accord.primitives.RangeDeps;
 import accord.primitives.Ranges;
-import accord.primitives.Routable;
 import accord.primitives.RoutableKey;
 import accord.primitives.Status;
 import accord.primitives.Timestamp;
@@ -63,7 +62,6 @@ import accord.primitives.TxnId;
 import accord.utils.Invariants;
 import accord.utils.async.AsyncChain;
 import accord.utils.async.AsyncChains;
-import org.apache.cassandra.db.Mutation;
 import org.apache.cassandra.service.accord.api.AccordRoutingKey.TokenKey;
 import org.apache.cassandra.service.accord.txn.TxnRead;
 import org.apache.cassandra.utils.Clock;
@@ -142,6 +140,7 @@ public class AccordCommandStore extends CommandStore
 
     public final String loggingId;
     private final Journal journal;
+    private final RangeSearcher rangeSearcher;
     private final AccordExecutor executor;
     private final Executor taskExecutor;
     private final ExclusiveCaches caches;
@@ -166,6 +165,7 @@ public class AccordCommandStore extends CommandStore
         super(id, node, agent, dataStore, progressLogFactory, listenerFactory, epochUpdateHolder);
         loggingId = String.format("[%s]", id);
         this.journal = journal;
+        this.rangeSearcher = RangeSearcher.extractRangeSearcher(journal);
         this.executor = executor;
 
         final AccordCache.Type<TxnId, Command, AccordSafeCommand>.Instance commands;
@@ -253,22 +253,6 @@ public class AccordCommandStore extends CommandStore
     public Caches cachesUnsafe()
     {
         return caches;
-    }
-
-    @Nullable
-    @VisibleForTesting
-    public Runnable appendToKeyspace(TxnId txnId, Command after)
-    {
-        if (txnId.is(Routable.Domain.Key))
-            return null;
-
-        Mutation mutation = AccordKeyspace.getCommandMutation(this.id, after, nextSystemTimestampMicros());
-
-        // TODO (required): make sure we test recovering when this has failed to be persisted
-        if (null != mutation)
-            return mutation::applyUnsafe;
-
-        return null;
     }
 
     public void persistFieldUpdates(FieldUpdates fieldUpdates, Runnable onFlush)
@@ -483,6 +467,11 @@ public class AccordCommandStore extends CommandStore
     public Command.Minimal loadMinimal(TxnId txnId)
     {
         return journal.loadMinimal(id, txnId, MINIMAL, unsafeGetRedundantBefore(), durableBefore());
+    }
+
+    public RangeSearcher rangeSearcher()
+    {
+        return rangeSearcher;
     }
 
     public Loader loader()

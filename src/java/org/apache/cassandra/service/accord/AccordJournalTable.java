@@ -21,21 +21,38 @@ import java.io.Closeable;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
+import java.util.function.Consumer;
 
+import javax.annotation.Nullable;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import accord.primitives.Timestamp;
+import accord.primitives.TxnId;
 import accord.utils.Invariants;
 import org.agrona.collections.IntHashSet;
 import org.agrona.collections.LongHashSet;
 import org.apache.cassandra.cql3.ColumnIdentifier;
+import org.apache.cassandra.cql3.Operator;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.ColumnFamilyStore.RefViewFragment;
+import org.apache.cassandra.db.DataRange;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.EmptyIterators;
+import org.apache.cassandra.db.PartitionRangeReadCommand;
+import org.apache.cassandra.db.ReadExecutionController;
 import org.apache.cassandra.db.Slices;
 import org.apache.cassandra.db.StorageHook;
 import org.apache.cassandra.db.filter.ColumnFilter;
+import org.apache.cassandra.db.filter.DataLimits;
+import org.apache.cassandra.db.filter.RowFilter;
 import org.apache.cassandra.db.lifecycle.SSTableSet;
 import org.apache.cassandra.db.lifecycle.View;
+import org.apache.cassandra.db.marshal.AbstractType;
+import org.apache.cassandra.db.marshal.BytesType;
 import org.apache.cassandra.db.marshal.Int32Type;
 import org.apache.cassandra.db.marshal.LongType;
 import org.apache.cassandra.db.partitions.UnfilteredPartitionIterator;
@@ -44,6 +61,9 @@ import org.apache.cassandra.db.rows.Row;
 import org.apache.cassandra.db.rows.Unfiltered;
 import org.apache.cassandra.db.rows.UnfilteredRowIterator;
 import org.apache.cassandra.db.rows.UnfilteredRowIterators;
+import org.apache.cassandra.index.Index;
+import org.apache.cassandra.index.accord.OrderedRouteSerializer;
+import org.apache.cassandra.index.accord.RouteJournalIndex;
 import org.apache.cassandra.io.sstable.ISSTableScanner;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.util.DataInputBuffer;
@@ -53,11 +73,18 @@ import org.apache.cassandra.journal.Journal;
 import org.apache.cassandra.journal.KeySupport;
 import org.apache.cassandra.journal.RecordConsumer;
 import org.apache.cassandra.schema.ColumnMetadata;
+import org.apache.cassandra.service.accord.api.AccordRoutingKey;
+import org.apache.cassandra.utils.CloseableIterator;
+import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.JVMStabilityInspector;
+import org.apache.cassandra.utils.MergeIterator;
 
 import static org.apache.cassandra.io.sstable.SSTableReadsListener.NOOP_LISTENER;
 
-public class AccordJournalTable<K extends JournalKey, V>
+public class AccordJournalTable<K extends JournalKey, V> implements RangeSearcher.Supplier
 {
+    private static final Logger logger = LoggerFactory.getLogger(AccordJournalTable.class);
+
     private static final IntHashSet SENTINEL_HOSTS = new IntHashSet();
 
     private final Journal<K, V> journal;
@@ -67,6 +94,13 @@ public class AccordJournalTable<K extends JournalKey, V>
     private final ColumnMetadata versionColumn;
 
     private final KeySupport<K> keySupport;
+    /**
+     * Access to this field should only ever be handled by {@link #safeNotify(Consumer)}.  There is an assumption that
+     * an error in the index should not cause the journal to crash, so {@link #safeNotify(Consumer)} exists to make sure
+     * this property holds true.
+     */
+    @Nullable
+    private final RouteInMemoryIndex<Object> index;
     private final int accordJournalVersion;
 
     public AccordJournalTable(Journal<K, V> journal, KeySupport<K> keySupport, ColumnFamilyStore cfs, int accordJournalVersion)
@@ -77,11 +111,44 @@ public class AccordJournalTable<K extends JournalKey, V>
         this.versionColumn = cfs.metadata().getColumn(ColumnIdentifier.getInterned("user_version", false));
         this.keySupport = keySupport;
         this.accordJournalVersion = accordJournalVersion;
+
+        this.index = cfs.indexManager.getIndexByName(AccordKeyspace.JOURNAL_INDEX_NAME) != null
+                     ? new RouteInMemoryIndex<>()
+                     : null;
+    }
+
+    boolean shouldIndex(JournalKey key)
+    {
+        if (index == null) return false;
+        return RouteJournalIndex.allowed(key);
+    }
+
+    void safeNotify(Consumer<RouteInMemoryIndex<Object>> fn)
+    {
+        if (index == null)
+            return;
+        try
+        {
+            fn.accept(index);
+        }
+        catch (Throwable t)
+        {
+            JVMStabilityInspector.inspectThrowable(t);
+            logger.warn("Failure updating index", t);
+        }
     }
 
     public void forceCompaction()
     {
         cfs.forceMajorCompaction();
+    }
+
+    @Override
+    public RangeSearcher rangeSearcher()
+    {
+        if (index == null)
+            return RangeSearcher.NoopRangeSearcher.instance;
+        return new TableRangeSearcher();
     }
 
     public interface Reader
@@ -156,6 +223,117 @@ public class AccordJournalTable<K extends JournalKey, V>
         {
             if (!tableRecordConsumer.visited(segment))
                 super.accept(segment, position, key, buffer, hosts, userVersion);
+        }
+    }
+
+    /**
+     * When using {@link PartitionRangeReadCommand} we need to work with {@link RowFilter} which works with columns.
+     * But the index doesn't care about table based queries and needs to be queried using the fields in the index, to
+     * support that this enum exists.  This enum represents the fields present in the index and can be used to apply
+     * filters to the index.
+     */
+    public enum SyntheticColumn
+    {
+        participants("participants", BytesType.instance),
+        store_id("store_id", Int32Type.instance),
+        txn_id("txn_id", AccordKeyspace.TIMESTAMP_TYPE);
+
+        public final ColumnMetadata metadata;
+
+        SyntheticColumn(String name, AbstractType<?> type)
+        {
+            this.metadata = new ColumnMetadata("journal", "routes", new ColumnIdentifier(name, false), type, ColumnMetadata.NO_POSITION, ColumnMetadata.Kind.REGULAR, null);
+        }
+    }
+
+    private class TableRangeSearcher implements RangeSearcher
+    {
+        private final Index tableIndex;
+
+        private TableRangeSearcher()
+        {
+            this.tableIndex = cfs.indexManager.getIndexByName("record");
+            if (!cfs.indexManager.isIndexQueryable(tableIndex))
+                throw new AssertionError("Journal record index is not queryable");
+        }
+
+        @Override
+        public Result search(int commandStoreId, TokenRange range, TxnId minTxnId, Timestamp maxTxnId)
+        {
+            CloseableIterator<TxnId> inMemory = index.search(commandStoreId, range, minTxnId, maxTxnId).results();
+            CloseableIterator<TxnId> table = tableSearch(commandStoreId, range.start(), range.end());
+            return new DefaultResult(minTxnId, maxTxnId, MergeIterator.get(Arrays.asList(inMemory, table)));
+        }
+
+        @Override
+        public Result search(int commandStoreId, AccordRoutingKey key, TxnId minTxnId, Timestamp maxTxnId)
+        {
+            CloseableIterator<TxnId> inMemory = index.search(commandStoreId, key, minTxnId, maxTxnId).results();
+            CloseableIterator<TxnId> table = tableSearch(commandStoreId, key);
+            return new DefaultResult(minTxnId, maxTxnId, MergeIterator.get(Arrays.asList(inMemory, table)));
+        }
+
+        private CloseableIterator<TxnId> tableSearch(int store, AccordRoutingKey start, AccordRoutingKey end)
+        {
+            RowFilter rowFilter = RowFilter.create(false);
+            rowFilter.add(AccordJournalTable.SyntheticColumn.participants.metadata, Operator.GT, OrderedRouteSerializer.serializeRoutingKey(start));
+            rowFilter.add(AccordJournalTable.SyntheticColumn.participants.metadata, Operator.LTE, OrderedRouteSerializer.serializeRoutingKey(end));
+            rowFilter.add(AccordJournalTable.SyntheticColumn.store_id.metadata, Operator.EQ, Int32Type.instance.decompose(store));
+
+            return process(store, rowFilter);
+        }
+
+        private CloseableIterator<TxnId> tableSearch(int store, AccordRoutingKey key)
+        {
+            RowFilter rowFilter = RowFilter.create(false);
+            rowFilter.add(AccordJournalTable.SyntheticColumn.participants.metadata, Operator.GTE, OrderedRouteSerializer.serializeRoutingKey(key));
+            rowFilter.add(AccordJournalTable.SyntheticColumn.participants.metadata, Operator.LTE, OrderedRouteSerializer.serializeRoutingKey(key));
+            rowFilter.add(AccordJournalTable.SyntheticColumn.store_id.metadata, Operator.EQ, Int32Type.instance.decompose(store));
+
+            return process(store, rowFilter);
+        }
+
+        private CloseableIterator<TxnId> process(int storeId, RowFilter rowFilter)
+        {
+            PartitionRangeReadCommand cmd = PartitionRangeReadCommand.create(cfs.metadata(),
+                                                                             FBUtilities.nowInSeconds(),
+                                                                             ColumnFilter.selectionBuilder()
+                                                                                         .add(AccordJournalTable.SyntheticColumn.store_id.metadata)
+                                                                                         .add(AccordJournalTable.SyntheticColumn.txn_id.metadata)
+                                                                                         .build(),
+                                                                             rowFilter,
+                                                                             DataLimits.NONE,
+                                                                             DataRange.allData(cfs.getPartitioner()));
+            Index.Searcher s = tableIndex.searcherFor(cmd);
+            try (ReadExecutionController controller = cmd.executionController())
+            {
+                UnfilteredPartitionIterator partitionIterator = s.search(controller);
+                return new CloseableIterator<>()
+                {
+
+                    @Override
+                    public void close()
+                    {
+                        partitionIterator.close();
+                    }
+
+                    @Override
+                    public boolean hasNext()
+                    {
+                        return partitionIterator.hasNext();
+                    }
+
+                    @Override
+                    public TxnId next()
+                    {
+                        UnfilteredRowIterator next = partitionIterator.next();
+                        JournalKey partitionKeyComponents = AccordKeyspace.JournalColumns.getJournalKey(next.partitionKey());
+                        Invariants.checkState(partitionKeyComponents.commandStoreId == storeId,
+                                              () -> String.format("table index returned a command store other than the exepcted one; expected %d != %d", storeId, partitionKeyComponents.commandStoreId));
+                        return partitionKeyComponents.id;
+                    }
+                };
+            }
         }
     }
 

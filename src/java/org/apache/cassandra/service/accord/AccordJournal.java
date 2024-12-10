@@ -19,6 +19,7 @@ package org.apache.cassandra.service.accord;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.NavigableMap;
@@ -29,8 +30,6 @@ import java.util.function.BiConsumer;
 import javax.annotation.Nullable;
 
 import com.google.common.annotations.VisibleForTesting;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import accord.impl.CommandChange;
 import accord.impl.CommandChange.Field;
@@ -64,6 +63,7 @@ import org.apache.cassandra.journal.Compactor;
 import org.apache.cassandra.journal.Journal;
 import org.apache.cassandra.journal.Params;
 import org.apache.cassandra.journal.RecordPointer;
+import org.apache.cassandra.journal.StaticSegment;
 import org.apache.cassandra.journal.ValueSerializer;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.service.accord.AccordJournalValueSerializers.IdentityAccumulator;
@@ -92,15 +92,13 @@ import static accord.primitives.SaveStatus.ErasedOrVestigial;
 import static accord.primitives.Status.Truncated;
 import static org.apache.cassandra.service.accord.AccordJournalValueSerializers.DurableBeforeAccumulator;
 
-public class AccordJournal implements accord.api.Journal, Shutdownable
+public class AccordJournal implements accord.api.Journal, RangeSearcher.Supplier, Shutdownable
 {
     static
     {
         // make noise early if we forget to update our version mappings
         Invariants.checkState(MessagingService.current_version == MessagingService.VERSION_51, "Expected current version to be %d but given %d", MessagingService.VERSION_51, MessagingService.current_version);
     }
-
-    private static final Logger logger = LoggerFactory.getLogger(AccordJournal.class);
 
     private static final Set<Integer> SENTINEL_HOSTS = Collections.singleton(0);
 
@@ -124,6 +122,18 @@ public class AccordJournal implements accord.api.Journal, Shutdownable
     public AccordJournal(Params params, AccordAgent agent, File directory, ColumnFamilyStore cfs)
     {
         this.agent = agent;
+        AccordSegmentCompactor<Object> compactor = new AccordSegmentCompactor<>(params.userVersion(), cfs) {
+            @Nullable
+            @Override
+            public Collection<StaticSegment<JournalKey, Object>> compact(Collection<StaticSegment<JournalKey, Object>> staticSegments)
+            {
+                if (journalTable == null)
+                    throw new IllegalStateException("Unsafe access to AccordJournal during <init>; journalTable was touched before it was published");
+                Collection<StaticSegment<JournalKey, Object>> result = super.compact(staticSegments);
+                journalTable.safeNotify(index -> index.remove(staticSegments));
+                return result;
+            }
+        };
         this.journal = new Journal<>("AccordJournal", directory, params, JournalKey.SUPPORT,
                                      // In Accord, we are using streaming serialization, i.e. Reader/Writer interfaces instead of materializing objects
                                      new ValueSerializer<>()
@@ -140,9 +150,15 @@ public class AccordJournal implements accord.api.Journal, Shutdownable
                                              throw new UnsupportedOperationException();
                                          }
                                      },
-                                     new AccordSegmentCompactor<>(params.userVersion(), cfs));
+                                     compactor);
         this.journalTable = new AccordJournalTable<>(journal, JournalKey.SUPPORT, cfs, params.userVersion());
         this.params = params;
+    }
+
+    @VisibleForTesting
+    public int inMemorySize()
+    {
+        return journal.currentActiveSegment().index().size();
     }
 
     public AccordJournal start(Node node)
@@ -268,7 +284,7 @@ public class AccordJournal implements accord.api.Journal, Shutdownable
     }
 
     @Override
-    public void saveCommand(int store, CommandUpdate update, Runnable onFlush)
+    public void saveCommand(int store, CommandUpdate update, @Nullable Runnable onFlush)
     {
         Writer diff = Writer.make(update.before, update.after);
         if (diff == null)
@@ -280,6 +296,12 @@ public class AccordJournal implements accord.api.Journal, Shutdownable
 
         JournalKey key = new JournalKey(update.txnId, JournalKey.Type.COMMAND_DIFF, store);
         RecordPointer pointer = journal.asyncWrite(key, diff, SENTINEL_HOSTS);
+        if (journalTable.shouldIndex(key)
+            && diff.hasParticipants()
+            && diff.after.route() != null)
+            journal.onDurable(pointer, () ->
+                                       journalTable.safeNotify(index ->
+                                                               index.update(pointer.segment, key.commandStoreId, key.id, diff.after.route())));
         if (onFlush != null)
             journal.onDurable(pointer, onFlush);
     }
@@ -400,6 +422,7 @@ public class AccordJournal implements accord.api.Journal, Shutdownable
     public void truncateForTesting()
     {
         journal.truncateForTesting();
+        journalTable.safeNotify(RouteInMemoryIndex::truncateForTesting);
     }
 
     @VisibleForTesting
@@ -441,6 +464,11 @@ public class AccordJournal implements accord.api.Journal, Shutdownable
                     try (DataInputBuffer in = new DataInputBuffer(buffer, false))
                     {
                         builder.deserializeNext(in, userVersion);
+                        if (journalTable.shouldIndex(finalKey)
+                            && builder.participants() != null
+                            && builder.participants().route() != null)
+                            journalTable.safeNotify(index ->
+                                                    index.update(segment, finalKey.commandStoreId, finalKey.id, builder.participants().route()));
                     }
                     catch (IOException e)
                     {
@@ -503,6 +531,12 @@ public class AccordJournal implements accord.api.Journal, Shutdownable
     public void unsafeSetStarted()
     {
         status = Status.STARTED;
+    }
+
+    @Override
+    public RangeSearcher rangeSearcher()
+    {
+        return journalTable.rangeSearcher();
     }
 
     public static class Writer implements Journal.Writer
@@ -600,6 +634,16 @@ public class AccordJournal implements accord.api.Journal, Shutdownable
 
                 iterable = unsetIterableFields(field, iterable);
             }
+        }
+
+        private boolean hasField(Field fields)
+        {
+            return !getFieldIsNull(fields, flags);
+        }
+
+        public boolean hasParticipants()
+        {
+            return hasField(Field.PARTICIPANTS);
         }
     }
 
