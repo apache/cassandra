@@ -28,6 +28,7 @@ import org.apache.commons.lang3.StringUtils;
 
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.repair.autorepair.AutoRepairConfig;
+import org.apache.cassandra.utils.LocalizeString;
 
 import static java.lang.String.format;
 import static org.apache.cassandra.utils.LocalizeString.toLowerCaseLocalized;
@@ -51,9 +52,9 @@ public final class AutoRepairParams
     private ImmutableMap<String, String> options;
 
     public static final Map<String, String> DEFAULT_OPTIONS = ImmutableMap.of(
-    Option.FULL_ENABLED.name().toLowerCase(), Boolean.toString(true),
-    Option.INCREMENTAL_ENABLED.name().toLowerCase(), Boolean.toString(true),
-    Option.PREVIEW_REPAIRED_ENABLED.name().toLowerCase(), Boolean.toString(true),
+    LocalizeString.toLowerCaseLocalized(Option.FULL_ENABLED.name()), Boolean.toString(true),
+    LocalizeString.toLowerCaseLocalized(Option.INCREMENTAL_ENABLED.name()), Boolean.toString(true),
+    LocalizeString.toLowerCaseLocalized(Option.PREVIEW_REPAIRED_ENABLED.name()), Boolean.toString(true),
     Option.PRIORITY.toString(), "0"
     );
 
@@ -88,7 +89,7 @@ public final class AutoRepairParams
 
     public boolean repairEnabled(AutoRepairConfig.RepairType type)
     {
-        String option = type.toString().toLowerCase() + "_enabled";
+        String option = LocalizeString.toLowerCaseLocalized(type.toString()) + "_enabled";
         String enabled = options.get(option);
         return enabled == null
                ? Boolean.parseBoolean(DEFAULT_OPTIONS.get(option))
@@ -107,33 +108,33 @@ public final class AutoRepairParams
     {
         for (Option option : Option.values())
         {
-            if (!options.containsKey(option.toString().toLowerCase()))
+            if (!options.containsKey(LocalizeString.toLowerCaseLocalized(option.toString())))
             {
                 throw new ConfigurationException(format("Missing repair sub-option '%s'", option));
             }
         }
-        if (options.get(Option.FULL_ENABLED.toString().toLowerCase()) != null && !isValidBoolean(options.get(Option.FULL_ENABLED.toString().toLowerCase())))
+        if (options.get(LocalizeString.toLowerCaseLocalized(Option.FULL_ENABLED.toString())) != null && !isValidBoolean(options.get(LocalizeString.toLowerCaseLocalized(Option.FULL_ENABLED.toString()))))
         {
             throw new ConfigurationException(format("Invalid value %s for '%s' repair sub-option - must be a boolean",
-                                                    options.get(Option.FULL_ENABLED.toString().toLowerCase()),
+                                                    options.get(LocalizeString.toLowerCaseLocalized(Option.FULL_ENABLED.toString())),
                                                     Option.FULL_ENABLED));
         }
-        if (options.get(Option.INCREMENTAL_ENABLED.toString().toLowerCase()) != null && !isValidBoolean(options.get(Option.INCREMENTAL_ENABLED.toString().toLowerCase())))
+        if (options.get(LocalizeString.toLowerCaseLocalized(Option.INCREMENTAL_ENABLED.toString())) != null && !isValidBoolean(options.get(LocalizeString.toLowerCaseLocalized(Option.INCREMENTAL_ENABLED.toString()))))
         {
             throw new ConfigurationException(format("Invalid value %s for '%s' repair sub-option - must be a boolean",
-                                                    options.get(Option.INCREMENTAL_ENABLED.toString().toLowerCase()),
+                                                    options.get(LocalizeString.toLowerCaseLocalized(Option.INCREMENTAL_ENABLED.toString())),
                                                     Option.INCREMENTAL_ENABLED));
         }
-        if (options.get(Option.PREVIEW_REPAIRED_ENABLED.toString().toLowerCase()) != null && !isValidBoolean(options.get(Option.PREVIEW_REPAIRED_ENABLED.toString().toLowerCase())))
+        if (options.get(LocalizeString.toLowerCaseLocalized(Option.PREVIEW_REPAIRED_ENABLED.toString())) != null && !isValidBoolean(options.get(LocalizeString.toLowerCaseLocalized(Option.PREVIEW_REPAIRED_ENABLED.toString()))))
         {
             throw new ConfigurationException(format("Invalid value %s for '%s' repair sub-option - must be a boolean",
-                                                    options.get(Option.PREVIEW_REPAIRED_ENABLED.toString().toLowerCase()),
+                                                    options.get(LocalizeString.toLowerCaseLocalized(Option.PREVIEW_REPAIRED_ENABLED.toString())),
                                                     Option.PREVIEW_REPAIRED_ENABLED));
         }
-        if (options.get(Option.PRIORITY.toString().toLowerCase()) != null && !isValidInt(options.get(Option.PRIORITY.toString().toLowerCase())))
+        if (options.get(LocalizeString.toLowerCaseLocalized(Option.PRIORITY.toString())) != null && !isValidInt(options.get(LocalizeString.toLowerCaseLocalized(Option.PRIORITY.toString()))))
         {
             throw new ConfigurationException(format("Invalid value %s for '%s' repair sub-option - must be an integer",
-                                                    options.get(Option.PRIORITY.toString().toLowerCase()),
+                                                    options.get(LocalizeString.toLowerCaseLocalized(Option.PRIORITY.toString())),
                                                     Option.PRIORITY));
         }
     }

@@ -27,7 +27,6 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.statements.PropertyDefinitions;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.exceptions.SyntaxException;
-import org.apache.cassandra.repair.autorepair.AutoRepairConfig;
 import org.apache.cassandra.schema.AutoRepairParams;
 import org.apache.cassandra.schema.CachingParams;
 import org.apache.cassandra.schema.CompactionParams;
