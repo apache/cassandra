@@ -67,10 +67,41 @@ public class ClusterMetadataUpgradeHintsTest extends UpgradeTestBase
             });
 
             IInvokableInstance inst = (IInvokableInstance)cluster.get(2);
-            long hintsDelivered = inst.callOnInstance(() -> {
-                return (long)HintsServiceMetrics.hintsSucceeded.getCount();
-            });
+            long hintsDelivered = inst.callOnInstance(() -> HintsServiceMetrics.hintsSucceeded.getCount());
             assertEquals(rowCount, hintsDelivered);
+        }).run();
+    }
+
+    @Test
+    public void upgradeWithHintsMixedModeTest() throws Throwable
+    {
+        final int rowCount = 50;
+        new TestCase()
+        .nodes(2)
+        .nodesToUpgrade(1)
+        .withConfig((cfg) -> cfg.with(Feature.NETWORK, Feature.GOSSIP))
+        .upgradesToCurrentFrom(v50)
+        .setup((cluster) -> {
+            cluster.schemaChange(withKeyspace("ALTER KEYSPACE %s WITH replication = {'class': 'SimpleStrategy', 'replication_factor':2}"));
+            cluster.schemaChange("CREATE TABLE " + KEYSPACE + ".tbl (k int, v int, PRIMARY KEY (k))");
+            cluster.get(2).nodetoolResult("pausehandoff").asserts().success();
+
+            // insert some data while node1 is down so that hints are written
+            cluster.get(1).shutdown().get();
+            for (int i = 0; i < rowCount; i++)
+                cluster.coordinator(2).execute("INSERT INTO " + KEYSPACE + ".tbl(k,v) VALUES (?, ?)", ConsistencyLevel.ANY, i, i);
+            cluster.get(2).flush(KEYSPACE);
+            cluster.get(1).startup();
+            // Check that none of the writes got to node1
+            SimpleQueryResult rows = cluster.get(1).executeInternalWithResult("SELECT * FROM " + KEYSPACE + ".tbl");
+            assertFalse(rows.hasNext());
+        })
+        .runAfterNodeUpgrade((cluster, i) -> {
+            cluster.get(2).nodetoolResult("resumehandoff").asserts().success();
+            Awaitility.waitAtMost(20, TimeUnit.SECONDS).until(() -> {
+                SimpleQueryResult rows = cluster.get(1).executeInternalWithResult("SELECT * FROM " + KEYSPACE + ".tbl");
+                return rows.toObjectArrays().length == rowCount;
+            });
         }).run();
     }
 }

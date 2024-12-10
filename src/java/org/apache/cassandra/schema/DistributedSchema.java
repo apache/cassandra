@@ -94,7 +94,7 @@ public class DistributedSchema implements MetadataValue<DistributedSchema>
         Objects.requireNonNull(keyspaces);
         this.keyspaces = keyspaces;
         this.epoch = epoch;
-        this.version = new UUID(0, epoch.getEpoch());
+        this.version = epoch.isBefore(Epoch.EMPTY) ? SchemaKeyspace.calculateSchemaDigest() : new UUID(0, epoch.getEpoch());
         validate();
     }
 
