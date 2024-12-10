@@ -70,7 +70,7 @@ import static org.mockito.Mockito.when;
 
 public class AutoRepairUtilsTest extends CQLTester
 {
-    static RepairType repairType = RepairType.incremental;
+    static RepairType repairType = RepairType.INCREMENTAL;
     static UUID hostId;
 
     static InetAddressAndPort localEndpoint;

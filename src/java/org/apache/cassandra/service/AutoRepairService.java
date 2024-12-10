@@ -61,7 +61,7 @@ public class AutoRepairService implements AutoRepairServiceMBean
         if (!config.isAutoRepairSchedulingEnabled())
             throw new ConfigurationException("Auto-repair scheduller is disabled.");
 
-        if (repairType != RepairType.incremental)
+        if (repairType != RepairType.INCREMENTAL)
             return;
 
         if (DatabaseDescriptor.isMaterializedViewsOnRepairEnabled())

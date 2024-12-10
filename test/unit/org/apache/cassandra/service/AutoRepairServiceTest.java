@@ -119,7 +119,7 @@ public class AutoRepairServiceTest
         {
             autoRepairService.config = new AutoRepairConfig(false);
 
-            autoRepairService.setAutoRepairEnabled(AutoRepairConfig.RepairType.incremental, true);
+            autoRepairService.setAutoRepairEnabled(AutoRepairConfig.RepairType.INCREMENTAL, true);
         }
 
         @Test(expected = ConfigurationException.class)
@@ -128,7 +128,7 @@ public class AutoRepairServiceTest
             autoRepairService.config = new AutoRepairConfig(true);
             DatabaseDescriptor.setMaterializedViewsOnRepairEnabled(true);
 
-            autoRepairService.setAutoRepairEnabled(AutoRepairConfig.RepairType.incremental, true);
+            autoRepairService.setAutoRepairEnabled(AutoRepairConfig.RepairType.INCREMENTAL, true);
         }
 
         @Test
@@ -139,7 +139,7 @@ public class AutoRepairServiceTest
             DatabaseDescriptor.setCDCOnRepairEnabled(false);
             DatabaseDescriptor.setMaterializedViewsOnRepairEnabled(false);
 
-            autoRepairService.setAutoRepairEnabled(AutoRepairConfig.RepairType.incremental, true);
+            autoRepairService.setAutoRepairEnabled(AutoRepairConfig.RepairType.INCREMENTAL, true);
         }
 
         @Test(expected = ConfigurationException.class)
@@ -148,7 +148,7 @@ public class AutoRepairServiceTest
             autoRepairService.config = new AutoRepairConfig(true);
             DatabaseDescriptor.setCDCOnRepairEnabled(true);
 
-            autoRepairService.setAutoRepairEnabled(AutoRepairConfig.RepairType.incremental, true);
+            autoRepairService.setAutoRepairEnabled(AutoRepairConfig.RepairType.INCREMENTAL, true);
         }
 
         @Test
@@ -158,7 +158,7 @@ public class AutoRepairServiceTest
             DatabaseDescriptor.setCDCEnabled(true);
             DatabaseDescriptor.setCDCOnRepairEnabled(false);
 
-            autoRepairService.setAutoRepairEnabled(AutoRepairConfig.RepairType.incremental, true);
+            autoRepairService.setAutoRepairEnabled(AutoRepairConfig.RepairType.INCREMENTAL, true);
         }
     }
 
