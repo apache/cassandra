@@ -648,7 +648,7 @@ public class AutoRepairParameterizedTest extends CQLTester
         // system_auth.resource_role_permissons_index,system_traces.sessions,system_traces.events,ks.tbl,
         // system_distributed.auto_repair_priority,system_distributed.repair_history,system_distributed.auto_repair_history,
         // system_distributed.view_build_status,system_distributed.parent_repair_history,system_distributed.partition_denylist
-        int exptedTablesGoingThroughRepair = 18;
+        int exptedTablesGoingThroughRepair = 17;
         assertEquals(config.getRepairMaxRetries()*exptedTablesGoingThroughRepair, sleepCalls.get());
         verify(autoRepairState, Mockito.times(1)).setSucceededTokenRangesCount(0);
         verify(autoRepairState, Mockito.times(1)).setSkippedTokenRangesCount(0);
