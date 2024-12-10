@@ -86,6 +86,7 @@ TESTSUITE_NAME="${TESTSUITE_NAME}.$(uname -m)"
 ccm remove test || true # in case an old ccm cluster is left behind
 ccm create test -n 1 --install-dir=${CASSANDRA_DIR}
 ccm updateconf "user_defined_functions_enabled: true"
+ccm updateconf "storage_compatibility_mode: NONE"
 
 version_from_build=$(ccm node1 versionfrombuild)
 export pre_or_post_cdc=$(python -c """from distutils.version import LooseVersion

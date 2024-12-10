@@ -67,6 +67,7 @@ local_read_size_warn_threshold: 4096KiB
 local_read_size_fail_threshold: 8192KiB
 row_index_read_size_warn_threshold: 4096KiB
 row_index_read_size_fail_threshold: 8192KiB
+storage_compatibility_mode: NONE
 
 memtable:
     configurations:
