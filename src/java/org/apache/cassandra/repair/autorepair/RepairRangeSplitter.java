@@ -577,7 +577,7 @@ public class RepairRangeSplitter implements IAutoRepairTokenRangeSplitter
                 // get the bounds of the sstable for this range using the index file but do not actually read it.
                 List<AbstractBounds<PartitionPosition>> bounds = BigTableScanner.makeBounds(reader, Collections.singleton(tokenRange));
 
-                ISSTableScanner rangeScanner = BigTableScanner.getScanner((BigTableReader) reader, Collections.singleton(tokenRange));
+                ISSTableScanner rangeScanner = reader.getScanner(Collections.singleton(tokenRange));
                 // Type check scanner returned as it may be an EmptySSTableScanner if the range is not covered in the
                 // SSTable, in this case we will avoid incrementing approxBytesInRange.
                 if (rangeScanner instanceof BigTableScanner)
