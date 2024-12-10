@@ -576,13 +576,9 @@ public class AutoRepairParameterizedTest extends CQLTester
         for (AutoRepairConfig.RepairType repairType : AutoRepairConfig.RepairType.values())
         {
             Assert.assertTrue(String.format("expected repair type %s to be enabled on table %s", repairType, cfm.name),
-                              cfm.params.automatedRepair.get(AutoRepairConfig.RepairType.FULL).repairEnabled());
-            Assert.assertTrue(String.format("expected repair type %s to be enabled on table %s", repairType, cfm.name),
-                              cfm.params.automatedRepair.get(AutoRepairConfig.RepairType.INCREMENTAL).repairEnabled());
+                              cfm.params.automatedRepair.get(repairType).repairEnabled());
             Assert.assertFalse(String.format("expected repair type %s to be disabled on table %s", repairType, cfmDisabledAutoRepair.name),
-                               cfmDisabledAutoRepair.params.automatedRepair.get(AutoRepairConfig.RepairType.FULL).repairEnabled());
-            Assert.assertFalse(String.format("expected repair type %s to be disabled on table %s", repairType, cfmDisabledAutoRepair.name),
-                               cfmDisabledAutoRepair.params.automatedRepair.get(AutoRepairConfig.RepairType.INCREMENTAL).repairEnabled());
+                               cfmDisabledAutoRepair.params.automatedRepair.get(repairType).repairEnabled());
         }
     }
 
