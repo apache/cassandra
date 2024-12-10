@@ -55,6 +55,7 @@ import org.apache.cassandra.db.marshal.UUIDType;
 import org.apache.cassandra.gms.Gossiper;
 import org.apache.cassandra.locator.AbstractReplicationStrategy;
 import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.locator.MetaStrategy;
 import org.apache.cassandra.locator.NetworkTopologyStrategy;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.SchemaConstants;
@@ -802,7 +803,7 @@ public class AutoRepairUtils
                 ksReplicaOnNode = false;
             }
         }
-        if (replicationStrategy instanceof LocalStrategy)
+        if (replicationStrategy instanceof LocalStrategy || replicationStrategy instanceof MetaStrategy)
         {
             ksReplicaOnNode = false;
         }
