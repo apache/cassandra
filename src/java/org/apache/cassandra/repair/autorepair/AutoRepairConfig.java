@@ -32,6 +32,7 @@ import com.google.common.collect.Maps;
 
 import org.apache.cassandra.config.DurationSpec;
 import org.apache.cassandra.config.ParameterizedClass;
+import org.apache.cassandra.utils.LocalizeString;
 
 public class AutoRepairConfig implements Serializable
 {
@@ -65,7 +66,7 @@ public class AutoRepairConfig implements Serializable
 
         RepairType()
         {
-            this.configName = name().toLowerCase();
+            this.configName = LocalizeString.toLowerCaseLocalized(name());
         }
 
         RepairType(String configName)
