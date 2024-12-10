@@ -30,7 +30,7 @@ import org.apache.cassandra.db.partitions.UnfilteredPartitionIterators;
 import org.apache.cassandra.exceptions.ReadTimeoutException;
 import org.apache.cassandra.locator.Replica;
 import org.apache.cassandra.locator.ReplicaPlan;
-import org.apache.cassandra.service.reads.DigestResolver;
+import org.apache.cassandra.service.reads.legacy.DigestResolver;
 import org.apache.cassandra.transport.Dispatcher;
 
 public interface ReadRepair<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<E, P>>

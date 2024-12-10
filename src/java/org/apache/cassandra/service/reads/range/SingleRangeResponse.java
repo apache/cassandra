@@ -23,7 +23,7 @@ import org.apache.cassandra.db.rows.RowIterator;
 import org.apache.cassandra.exceptions.ReadTimeoutException;
 import org.apache.cassandra.locator.EndpointsForRange;
 import org.apache.cassandra.locator.ReplicaPlan;
-import org.apache.cassandra.service.reads.DataResolver;
+import org.apache.cassandra.service.reads.legacy.DataResolver;
 import org.apache.cassandra.service.reads.ReadCallback;
 import org.apache.cassandra.service.reads.repair.ReadRepair;
 import org.apache.cassandra.utils.AbstractIterator;

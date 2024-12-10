@@ -35,7 +35,7 @@ import org.apache.cassandra.locator.Endpoints;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.Replica;
 import org.apache.cassandra.locator.ReplicaPlan;
-import org.apache.cassandra.service.reads.DigestResolver;
+import org.apache.cassandra.service.reads.legacy.DigestResolver;
 
 public class TestableReadRepair<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<E, P>>
         implements ReadRepair<E, P>

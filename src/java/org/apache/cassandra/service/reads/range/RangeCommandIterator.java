@@ -46,7 +46,7 @@ import org.apache.cassandra.metrics.ClientRangeRequestMetrics;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.service.StorageProxy;
-import org.apache.cassandra.service.reads.DataResolver;
+import org.apache.cassandra.service.reads.legacy.DataResolver;
 import org.apache.cassandra.service.reads.ReadCallback;
 import org.apache.cassandra.service.reads.repair.ReadRepair;
 import org.apache.cassandra.tracing.Tracing;

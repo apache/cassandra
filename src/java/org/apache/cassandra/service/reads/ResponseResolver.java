@@ -23,7 +23,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.db.ReadCommand;
-import org.apache.cassandra.db.ReadResponse;
+import org.apache.cassandra.db.partitions.PartitionIterator;
 import org.apache.cassandra.locator.Endpoints;
 import org.apache.cassandra.locator.ReplicaPlan;
 import org.apache.cassandra.net.Message;
@@ -56,13 +56,20 @@ public abstract class ResponseResolver<E extends Endpoints<E>, P extends Replica
 
     public abstract boolean isDataPresent();
 
-    public void preprocess(Message<IReadResponse> message)
-    {
-        ReadResponse response = ReadResponse.fromResponse(message.payload);
-        if (replicaPlan().lookup(message.from()).isTransient() &&
-            response.isDigestResponse())
-            throw new IllegalArgumentException("Digest response received from transient replica");
+    public abstract boolean responsesMatch();
 
+    public abstract PartitionIterator getData();
+
+    protected abstract void validateResponse(Message<IReadResponse> message);
+
+    public void onResponseReceived(Message<IReadResponse> message)
+    {
+
+    }
+
+    public final void preprocess(Message<IReadResponse> message)
+    {
+        validateResponse(message);
         try
         {
             responses.add(message);
@@ -73,6 +80,7 @@ public abstract class ResponseResolver<E extends Endpoints<E>, P extends Replica
                          message, command, replicaPlan);
             throw e;
         }
+        onResponseReceived(message);
     }
 
     public Accumulator<Message<IReadResponse>> getMessages()

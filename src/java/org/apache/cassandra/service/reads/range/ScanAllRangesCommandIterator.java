@@ -36,7 +36,7 @@ import org.apache.cassandra.locator.ReplicaPlan;
 import org.apache.cassandra.locator.ReplicaPlans;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
-import org.apache.cassandra.service.reads.DataResolver;
+import org.apache.cassandra.service.reads.legacy.DataResolver;
 import org.apache.cassandra.service.reads.ReadCallback;
 import org.apache.cassandra.service.reads.repair.NoopReadRepair;
 import org.apache.cassandra.tracing.Tracing;

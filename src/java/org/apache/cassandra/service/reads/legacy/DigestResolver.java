@@ -15,7 +15,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.apache.cassandra.service.reads;
+package org.apache.cassandra.service.reads.legacy;
 
 import java.nio.ByteBuffer;
 import java.util.Collection;
@@ -34,6 +34,7 @@ import org.apache.cassandra.locator.Replica;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.ReplicaPlan;
 import org.apache.cassandra.net.Message;
+import org.apache.cassandra.service.reads.IReadResponse;
 import org.apache.cassandra.service.reads.repair.NoopReadRepair;
 import org.apache.cassandra.transport.Dispatcher;
 import org.apache.cassandra.utils.ByteBufferUtil;
@@ -41,7 +42,7 @@ import org.apache.cassandra.utils.ByteBufferUtil;
 import static com.google.common.collect.Iterables.any;
 import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 
-public class DigestResolver<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<E, P>> extends ResponseResolver<E, P>
+public class DigestResolver<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<E, P>> extends LegacyResolver<E, P>
 {
     private volatile Message<IReadResponse> dataResponse;
 
@@ -53,9 +54,8 @@ public class DigestResolver<E extends Endpoints<E>, P extends ReplicaPlan.ForRea
     }
 
     @Override
-    public void preprocess(Message<IReadResponse> message)
+    public void onResponseReceived(Message<IReadResponse> message)
     {
-        super.preprocess(message);
         ReadResponse response = ReadResponse.fromResponse(message.payload);
         Replica replica = replicaPlan().lookup(message.from());
         if (dataResponse == null && !response.isDigestResponse() && replica.isFull())

@@ -26,7 +26,7 @@ import org.apache.cassandra.db.Mutation;
 import org.apache.cassandra.diag.DiagnosticEventService;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.ReplicaPlan;
-import org.apache.cassandra.service.reads.DigestResolver;
+import org.apache.cassandra.service.reads.legacy.DigestResolver;
 import org.apache.cassandra.service.reads.repair.PartitionRepairEvent.PartitionRepairEventType;
 import org.apache.cassandra.service.reads.repair.ReadRepairEvent.ReadRepairEventType;
 
