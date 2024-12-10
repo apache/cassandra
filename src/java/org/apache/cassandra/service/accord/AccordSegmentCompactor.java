@@ -49,11 +49,13 @@ public class AccordSegmentCompactor<V> implements SegmentCompactor<JournalKey, V
     private static final Logger logger = LoggerFactory.getLogger(AccordSegmentCompactor.class);
     private final int userVersion;
     private final ColumnFamilyStore cfs;
+    private final AccordJournal.Listeners<V> listeners;
 
-    public AccordSegmentCompactor(int userVersion, ColumnFamilyStore cfs)
+    public AccordSegmentCompactor(int userVersion, ColumnFamilyStore cfs, AccordJournal.Listeners<V> listeners)
     {
         this.userVersion = userVersion;
         this.cfs = cfs;
+        this.listeners = listeners;
     }
 
     @Override
@@ -141,6 +143,7 @@ public class AccordSegmentCompactor<V> implements SegmentCompactor<JournalKey, V
             }
 
             cfs.addSSTables(writer.finish(true));
+            listeners.safeNotify(l -> l.onCompact(segments, Collections.emptyList()));
             return Collections.emptyList();
         }
     }

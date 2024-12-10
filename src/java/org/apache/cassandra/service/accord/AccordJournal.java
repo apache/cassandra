@@ -19,13 +19,17 @@ package org.apache.cassandra.service.accord;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.Iterator;
+import java.util.List;
 import java.util.NavigableMap;
 import java.util.Set;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.function.BiConsumer;
+import java.util.function.Consumer;
 import javax.annotation.Nullable;
 
 import com.google.common.annotations.VisibleForTesting;
@@ -64,6 +68,7 @@ import org.apache.cassandra.journal.Compactor;
 import org.apache.cassandra.journal.Journal;
 import org.apache.cassandra.journal.Params;
 import org.apache.cassandra.journal.RecordPointer;
+import org.apache.cassandra.journal.StaticSegment;
 import org.apache.cassandra.journal.ValueSerializer;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.service.accord.AccordJournalValueSerializers.IdentityAccumulator;
@@ -74,6 +79,7 @@ import org.apache.cassandra.service.accord.serializers.DepsSerializers;
 import org.apache.cassandra.service.accord.serializers.ResultSerializers;
 import org.apache.cassandra.service.accord.serializers.WaitingOnSerializer;
 import org.apache.cassandra.utils.ExecutorUtils;
+import org.apache.cassandra.utils.JVMStabilityInspector;
 import org.apache.cassandra.utils.Throwables;
 import org.apache.cassandra.utils.concurrent.AsyncPromise;
 
@@ -92,7 +98,7 @@ import static accord.primitives.SaveStatus.ErasedOrVestigial;
 import static accord.primitives.Status.Truncated;
 import static org.apache.cassandra.service.accord.AccordJournalValueSerializers.DurableBeforeAccumulator;
 
-public class AccordJournal implements accord.api.Journal, Shutdownable
+public class AccordJournal implements accord.api.Journal, RangeSearcher.Supplier, Shutdownable
 {
     static
     {
@@ -107,6 +113,7 @@ public class AccordJournal implements accord.api.Journal, Shutdownable
     static final ThreadLocal<byte[]> keyCRCBytes = ThreadLocal.withInitial(() -> new byte[JournalKeySupport.TOTAL_SIZE]);
 
     private final Journal<JournalKey, Object> journal;
+    private final Listeners<Object> listeners = new Listeners<>();
     private final AccordJournalTable<JournalKey, Object> journalTable;
     private final Params params;
     private final AccordAgent agent;
@@ -140,9 +147,15 @@ public class AccordJournal implements accord.api.Journal, Shutdownable
                                              throw new UnsupportedOperationException();
                                          }
                                      },
-                                     new AccordSegmentCompactor<>(params.userVersion(), cfs));
-        this.journalTable = new AccordJournalTable<>(journal, JournalKey.SUPPORT, cfs, params.userVersion());
+                                     new AccordSegmentCompactor<>(params.userVersion(), cfs, listeners));
+        this.journalTable = new AccordJournalTable<>(journal, JournalKey.SUPPORT, cfs, params.userVersion(), listeners);
         this.params = params;
+    }
+
+    @VisibleForTesting
+    public int inMemorySize()
+    {
+        return journal.currentActiveSegment().index().size();
     }
 
     public AccordJournal start(Node node)
@@ -280,6 +293,7 @@ public class AccordJournal implements accord.api.Journal, Shutdownable
 
         JournalKey key = new JournalKey(update.txnId, JournalKey.Type.COMMAND_DIFF, store);
         RecordPointer pointer = journal.asyncWrite(key, diff, SENTINEL_HOSTS);
+        listeners.safeNotify(l -> l.onWrite(key, diff, SENTINEL_HOSTS, pointer));
         if (onFlush != null)
             journal.onDurable(pointer, onFlush);
     }
@@ -400,6 +414,7 @@ public class AccordJournal implements accord.api.Journal, Shutdownable
     public void truncateForTesting()
     {
         journal.truncateForTesting();
+        journalTable.truncateForTesting();
     }
 
     @VisibleForTesting
@@ -420,7 +435,7 @@ public class AccordJournal implements accord.api.Journal, Shutdownable
     public void replay(CommandStores commandStores)
     {
         journal.closeCurrentSegmentForTestingIfNonEmpty();
-        try (AccordJournalTable.KeyOrderIterator<JournalKey> iter = journalTable.readAll())
+        try (AccordJournalTable.KeyOrderIterator<JournalKey> iter = journalTable.readAll(AccordJournalTable.ReadAllIntent.Reply))
         {
             JournalKey key;
             Builder builder = new Builder();
@@ -505,9 +520,15 @@ public class AccordJournal implements accord.api.Journal, Shutdownable
         status = Status.STARTED;
     }
 
+    @Override
+    public RangeSearcher rangeSearcher()
+    {
+        return journalTable;
+    }
+
     public static class Writer implements Journal.Writer
     {
-        private final Command after;
+        public final Command after;
         private final int flags;
 
         private Writer(Command after, int flags)
@@ -599,6 +620,44 @@ public class AccordJournal implements accord.api.Journal, Shutdownable
                 }
 
                 iterable = unsetIterableFields(field, iterable);
+            }
+        }
+
+        public boolean hasField(CommandChange.Fields fields)
+        {
+            return !getFieldIsNull(fields, flags);
+        }
+    }
+
+    public interface Listener<V>
+    {
+        void onWrite(JournalKey id, Journal.Writer writer, Set<Integer> hosts, RecordPointer pointer);
+
+        void onCompact(Collection<StaticSegment<JournalKey, V>> oldSegments,
+                       Collection<StaticSegment<JournalKey, V>> compactedSegments);
+    }
+    public static class Listeners<V>
+    {
+        private final List<Listener<V>> listeners = new CopyOnWriteArrayList<>();
+
+        public void register(Listener<V> l)
+        {
+            listeners.add(l);
+        }
+
+        void safeNotify(Consumer<Listener<V>> fn)
+        {
+            for (Listener<V> listener : listeners)
+            {
+                try
+                {
+                    fn.accept(listener);
+                }
+                catch (Throwable t)
+                {
+                    JVMStabilityInspector.inspectThrowable(t);
+                    logger.warn("Failure notifying listener {}", listener, t);
+                }
             }
         }
     }

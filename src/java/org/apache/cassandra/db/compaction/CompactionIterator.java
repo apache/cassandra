@@ -35,17 +35,10 @@ import com.google.common.collect.Ordering;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import accord.api.Agent;
 import accord.local.Cleanup;
 import accord.local.CommandStores;
-import accord.local.CommandStores.RangesForEpoch;
 import accord.local.DurableBefore;
 import accord.local.RedundantBefore;
-import accord.local.StoreParticipants;
-import accord.primitives.SaveStatus;
-import accord.primitives.Status;
-import accord.primitives.Status.Durability;
-import accord.primitives.TxnId;
 import accord.utils.Invariants;
 import org.agrona.collections.Int2ObjectHashMap;
 import org.apache.cassandra.config.DatabaseDescriptor;
@@ -66,8 +59,6 @@ import org.apache.cassandra.db.partitions.PartitionUpdate;
 import org.apache.cassandra.db.partitions.PurgeFunction;
 import org.apache.cassandra.db.partitions.UnfilteredPartitionIterator;
 import org.apache.cassandra.db.partitions.UnfilteredPartitionIterators;
-import org.apache.cassandra.db.rows.BTreeRow;
-import org.apache.cassandra.db.rows.Cell;
 import org.apache.cassandra.db.rows.RangeTombstoneBoundMarker;
 import org.apache.cassandra.db.rows.RangeTombstoneMarker;
 import org.apache.cassandra.db.rows.Row;
@@ -96,8 +87,6 @@ import org.apache.cassandra.service.accord.AccordJournal;
 import org.apache.cassandra.service.accord.AccordJournalValueSerializers;
 import org.apache.cassandra.service.accord.AccordJournalValueSerializers.FlyweightSerializer;
 import org.apache.cassandra.service.accord.AccordKeyspace;
-import org.apache.cassandra.service.accord.AccordKeyspace.CommandRows;
-import org.apache.cassandra.service.accord.AccordKeyspace.CommandsColumns;
 import org.apache.cassandra.service.accord.AccordKeyspace.CommandsForKeyAccessor;
 import org.apache.cassandra.service.accord.AccordService;
 import org.apache.cassandra.service.accord.IAccordService;
@@ -109,19 +98,11 @@ import org.apache.cassandra.service.paxos.uncommitted.PaxosRows;
 import org.apache.cassandra.utils.TimeUUID;
 
 import static accord.local.Cleanup.ERASE;
-import static accord.local.Cleanup.TRUNCATE_WITH_OUTCOME;
-import static accord.local.Cleanup.shouldCleanupPartial;
 import static com.google.common.base.Preconditions.checkState;
 import static java.util.concurrent.TimeUnit.MICROSECONDS;
 import static org.apache.cassandra.config.Config.PaxosStatePurging.legacy;
 import static org.apache.cassandra.config.DatabaseDescriptor.paxosStatePurging;
-import static org.apache.cassandra.service.accord.AccordKeyspace.CommandRows.expungePartial;
-import static org.apache.cassandra.service.accord.AccordKeyspace.CommandRows.saveStatusOnly;
-import static org.apache.cassandra.service.accord.AccordKeyspace.CommandRows.truncatedApply;
 import static org.apache.cassandra.service.accord.AccordKeyspace.CommandsForKeysAccessor;
-import static org.apache.cassandra.service.accord.AccordKeyspace.deserializeDurabilityOrNull;
-import static org.apache.cassandra.service.accord.AccordKeyspace.deserializeParticipantsOrNull;
-import static org.apache.cassandra.service.accord.AccordKeyspace.deserializeSaveStatusOrNull;
 
 /**
  * Merge multiple iterators over the content of sstable into a "compacted" iterator.
@@ -232,8 +213,6 @@ public class CompactionIterator extends CompactionInfo.Holder implements Unfilte
         if (!requiresAccordSpecificPurger(cfs))
             return new Purger(controller, nowInSec);
 
-        if (isAccordCommands(cfs))
-            return new AccordCommandsPurger(accordService);
         if (isAccordJournal(cfs))
             return new AccordJournalPurger(accordService, cfs);
         if (isAccordCommandsForKey(cfs))
@@ -796,98 +775,6 @@ public class CompactionIterator extends CompactionInfo.Holder implements Unfilte
         }
     }
 
-    class AccordCommandsPurger extends AbstractPurger
-    {
-        final Agent agent;
-        final Int2ObjectHashMap<RedundantBefore> redundantBefores;
-        final Int2ObjectHashMap<DurableBefore> durableBefores;
-        final Int2ObjectHashMap<RangesForEpoch> ranges;
-
-        int storeId;
-        TxnId txnId;
-
-        AccordCommandsPurger(Supplier<IAccordService> accordService)
-        {
-            IAccordService service = accordService.get();
-            IAccordService.CompactionInfo compactionInfo = service.getCompactionInfo();
-            this.agent = service.agent();
-            this.redundantBefores = compactionInfo.redundantBefores;
-            this.ranges = compactionInfo.ranges;
-            this.durableBefores = compactionInfo.durableBefores;
-        }
-
-        protected void beginPartition(UnfilteredRowIterator partition)
-        {
-            ByteBuffer[] partitionKeyComponents = CommandRows.splitPartitionKey(partition.partitionKey());
-            storeId = CommandRows.getStoreId(partitionKeyComponents);
-            txnId = CommandRows.getTxnId(partitionKeyComponents);
-        }
-
-        @Override
-        protected Row applyToRow(Row row)
-        {
-            updateProgress();
-
-            RedundantBefore redundantBefore = redundantBefores.get(storeId);
-            DurableBefore durableBefore = durableBefores.get(storeId);
-            // TODO (expected): if the store has been retired, this should return null
-            if (redundantBefore == null)
-                return row;
-
-            Cell durabilityCell = row.getCell(CommandsColumns.durability);
-            Durability durability = deserializeDurabilityOrNull(durabilityCell);
-            Cell executeAtCell = row.getCell(CommandsColumns.execute_at);
-            Cell participantsCell = row.getCell(CommandsColumns.participants);
-            StoreParticipants participants = deserializeParticipantsOrNull(participantsCell);
-            Cell statusCell = row.getCell(CommandsColumns.status);
-            SaveStatus saveStatus = deserializeSaveStatusOrNull(statusCell);
-
-            if (saveStatus == null)
-                return row;
-
-            if (saveStatus.is(Status.Invalidated))
-                return saveStatusOnly(saveStatus, row, nowInSec);
-
-            Cleanup cleanup = shouldCleanupPartial(agent, txnId, saveStatus, durability, participants,
-                                                   redundantBefore, durableBefore);
-            switch (cleanup)
-            {
-                default: throw new AssertionError(String.format("Unexpected cleanup task: %s", cleanup));
-                case EXPUNGE:
-                    return null;
-
-                case EXPUNGE_PARTIAL:
-                    return expungePartial(row, durabilityCell, executeAtCell, participantsCell);
-
-                case ERASE:
-                    // Emit a tombstone so if this is slicing the command and making it not possible to determine if it
-                    // can be truncated later it can still be dropped via the tombstone.
-                    // Eventually the tombstone can be dropped by `durableBefore.min(txnId) == Universal`
-                    // We can still encounter sliced command state just because compaction inputs are random
-                    return BTreeRow.emptyDeletedRow(row.clustering(), new Row.Deletion(DeletionTime.build(row.primaryKeyLivenessInfo().timestamp(), nowInSec), false));
-
-                case VESTIGIAL:
-                case INVALIDATE:
-                    return saveStatusOnly(cleanup.appliesIfNot, row, nowInSec);
-
-                case TRUNCATE_WITH_OUTCOME:
-                case TRUNCATE:
-                    return truncatedApply(cleanup.appliesIfNot, row, nowInSec, durability, durabilityCell, executeAtCell, participantsCell, cleanup == TRUNCATE_WITH_OUTCOME);
-
-                case NO:
-                    // TODO (required): when we port this to journal, make sure to expunge extra fields beyond those we need to retain
-                    return row;
-            }
-        }
-
-        @Override
-        protected Row applyToStatic(Row row)
-        {
-            checkState(row.isStatic() && row.isEmpty());
-            return row;
-        }
-    }
-
     class AccordCommandsForKeyPurger extends AbstractPurger
     {
         final CommandsForKeyAccessor accessor;
@@ -1142,8 +1029,7 @@ public class CompactionIterator extends CompactionInfo.Holder implements Unfilte
     private static boolean requiresAccordSpecificPurger(ColumnFamilyStore cfs)
     {
         return cfs.getKeyspaceName().equals(SchemaConstants.ACCORD_KEYSPACE_NAME) &&
-               ImmutableSet.of(AccordKeyspace.COMMANDS,
-                               AccordKeyspace.JOURNAL,
+               ImmutableSet.of(AccordKeyspace.JOURNAL,
                                AccordKeyspace.COMMANDS_FOR_KEY)
                            .contains(cfs.getTableName());
     }
@@ -1156,11 +1042,6 @@ public class CompactionIterator extends CompactionInfo.Holder implements Unfilte
     private static boolean isAccordJournal(ColumnFamilyStore cfs)
     {
         return cfs.getKeyspaceName().equals(SchemaConstants.ACCORD_KEYSPACE_NAME) && cfs.name.startsWith(AccordKeyspace.JOURNAL);
-    }
-
-    private static boolean isAccordCommands(ColumnFamilyStore cfs)
-    {
-        return isAccordTable(cfs, AccordKeyspace.COMMANDS);
     }
 
     private static boolean isAccordCommandsForKey(ColumnFamilyStore cfs)

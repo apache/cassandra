@@ -133,7 +133,7 @@ public class RangeMemoryIndex
             throw new IllegalArgumentException("Unexpected domain: " + keyOrRange.domain());
         TokenRange ts = (TokenRange) keyOrRange;
 
-        var storeId = AccordKeyspace.CommandRows.getStoreId(key);
+        var storeId = AccordKeyspace.JournalColumns.getStoreId(key);
         var tableId = ts.table();
         var group = new Group(storeId, tableId);
         var start = OrderedRouteSerializer.serializeRoutingKeyNoTable(ts.start());

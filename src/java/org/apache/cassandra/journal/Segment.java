@@ -71,6 +71,11 @@ public abstract class Segment<K, V> implements SelfRefCounted<Segment<K, V>>, Co
     abstract ActiveSegment<K, V> asActive();
     abstract StaticSegment<K, V> asStatic();
 
+    public long id()
+    {
+        return descriptor.timestamp;
+    }
+
     /*
      * Reading entries (by id, by offset, iterate)
      */

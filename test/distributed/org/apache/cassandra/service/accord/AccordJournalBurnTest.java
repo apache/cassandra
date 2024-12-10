@@ -123,13 +123,12 @@ public class AccordJournalBurnTest extends BurnTestBase
             {
                 ServerTestUtils.daemonInitialization();
 
-                TableMetadata[] metadatas = new TableMetadata[4 + nodes.size()];
-                metadatas[0] = AccordKeyspace.Commands;
-                metadatas[1] = AccordKeyspace.CommandsForKeys;
-                metadatas[2] = AccordKeyspace.Topologies;
-                metadatas[3] = AccordKeyspace.EpochMetadata;
+                TableMetadata[] metadatas = new TableMetadata[3 + nodes.size()];
+                metadatas[0] = AccordKeyspace.CommandsForKeys;
+                metadatas[1] = AccordKeyspace.Topologies;
+                metadatas[2] = AccordKeyspace.EpochMetadata;
                 for (int i = 0; i < nodes.size(); i++)
-                    metadatas[4 + i] = AccordKeyspace.journalMetadata("journal_" + nodes.get(i));
+                    metadatas[3 + i] = AccordKeyspace.journalMetadata("journal_" + nodes.get(i), false);
 
                 AccordKeyspace.TABLES = Tables.of(metadatas);
                 setUp();

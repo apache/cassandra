@@ -3441,17 +3441,26 @@ public abstract class CQLTester
          * Used by {@link #cleanupFileSystemListeners()} to know if file system listeners should be removed at the start
          * of a test; can disable for cases where listeners are needed cross mutliple tests.
          */
-        protected boolean cleanupFileSystemListeners = true;
+        protected static boolean cleanupFileSystemListeners = true;
 
         @BeforeClass
         public static void setUpClass()
+        {
+            prePrepareServer();
+
+            // Once per-JVM is enough
+            prepareServer();
+        }
+
+        protected static void prePrepareServer()
         {
             fs = FileSystems.newGlobalInMemoryFileSystem();
             CassandraRelevantProperties.IGNORE_MISSING_NATIVE_FILE_HINTS.setBoolean(true);
             FileSystems.maybeCreateTmp();
 
-            CQLTester.setUpClass();
+            CQLTester.prePrepareServer();
         }
+
         @Before
         public void cleanupFileSystemListeners()
         {

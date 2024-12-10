@@ -67,7 +67,6 @@ import accord.utils.Gens;
 import accord.utils.RandomSource;
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.cql3.QueryProcessor;
-import org.apache.cassandra.cql3.UntypedResultSet;
 import org.apache.cassandra.db.ReadExecutionController;
 import org.apache.cassandra.db.SinglePartitionReadCommand;
 import org.apache.cassandra.db.transform.FilteredPartitions;
@@ -114,7 +113,6 @@ public class AccordTaskTest
     @Before
     public void before()
     {
-        QueryProcessor.executeInternal(String.format("TRUNCATE %s.%s", SchemaConstants.ACCORD_KEYSPACE_NAME, AccordKeyspace.COMMANDS));
         QueryProcessor.executeInternal(String.format("TRUNCATE %s.%s", SchemaConstants.ACCORD_KEYSPACE_NAME, AccordKeyspace.COMMANDS_FOR_KEY));
     }
 
@@ -134,9 +132,6 @@ public class AccordTaskTest
             Assert.assertNull(instance.ifInitialised(txnId));
             Assert.assertNull(instance.ifLoadedAndInitialised(txnId));
         }));
-
-        UntypedResultSet result = AccordKeyspace.loadCommandRow(commandStore, txnId);
-        Assert.assertTrue(result.isEmpty());
     }
 
     @Test
@@ -150,9 +145,6 @@ public class AccordTaskTest
             SafeCommand command = safe.get(txnId, participants);
             Assert.assertNotNull(command);
         }));
-
-        UntypedResultSet result = AccordKeyspace.loadCommandRow(commandStore, txnId);
-        Assert.assertTrue(result.isEmpty());
     }
 
     @Test
@@ -182,7 +174,6 @@ public class AccordTaskTest
         AccordSafeCommand safeCommand = new AccordSafeCommand(loaded(txnId, null));
         safeCommand.set(command);
 
-        AccordKeyspace.getCommandMutation(commandStore, safeCommand, commandStore.nextSystemTimestampMicros()).apply();
         appendDiffToLog(commandStore).accept(null, command);
         return command;
     }

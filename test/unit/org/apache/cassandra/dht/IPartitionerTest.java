@@ -34,6 +34,7 @@ import org.apache.cassandra.utils.CassandraGenerators;
 import org.apache.cassandra.utils.bytecomparable.ByteComparable;
 import org.apache.cassandra.utils.bytecomparable.ByteSource;
 import org.assertj.core.api.Assertions;
+import org.quicktheories.core.Gen;
 import org.reflections.Reflections;
 import org.reflections.scanners.Scanners;
 import org.reflections.util.ConfigurationBuilder;
@@ -93,7 +94,9 @@ public class IPartitionerTest
     @Test
     public void byteCompareSerde()
     {
-        qt().forAll(AccordGenerators.fromQT(CassandraGenerators.token())).check(token -> {
+        // make sure to use simplify as local partitioner can have a type that could generate data too large causing this test to be flakey
+        Gen<Token> qt = CassandraGenerators.partitioners().flatMap(p -> CassandraGenerators.token(CassandraGenerators.simplify(p)));
+        qt().forAll(AccordGenerators.fromQT(qt)).check(token -> {
             var p = token.getPartitioner();
             var comparable = Objects.requireNonNull(ByteSource.peekable(p.getTokenFactory().asComparableBytes(token, ByteComparable.Version.OSS50)));
             Token read = p.getTokenFactory().fromComparableBytes(comparable, ByteComparable.Version.OSS50);

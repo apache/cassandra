@@ -1191,7 +1191,7 @@ public class AccordCache implements CacheSize
                     return null;
             }
 
-            return commandStore.appendToKeyspace(txnId, value);
+            return null;
         }
 
         @Override

@@ -54,7 +54,7 @@ public class CassandraGeneratorsTest
     @Test
     public void partitionerKeys()
     {
-        qt().forAll(Gens.random(), toGen(CassandraGenerators.partitioners()))
+        qt().forAll(Gens.random(), toGen(CassandraGenerators.partitioners().map(CassandraGenerators::simplify)))
             .check((rs, p) -> Assertions.assertThat(toGen(CassandraGenerators.decoratedKeys(i -> p)).next(rs)).isNotNull());
     }
 

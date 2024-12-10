@@ -123,9 +123,6 @@ public class AccordKeyspaceTest extends CQLTester.InMemory
 
         AccordTestUtils.appendCommandsBlocking(store, null, committed);
 
-        Mutation mutation = AccordKeyspace.getCommandMutation(store, safeCommand, 42);
-        mutation.apply();
-
         Command loaded = store.loadCommand(id);
         Assertions.assertThat(loaded).isEqualTo(committed);
     }

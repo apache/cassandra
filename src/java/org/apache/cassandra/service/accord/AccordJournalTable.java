@@ -21,21 +21,37 @@ import java.io.Closeable;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Iterator;
 import java.util.List;
+import java.util.NavigableMap;
+import java.util.Set;
+import java.util.TreeSet;
+import java.util.function.Consumer;
 
+import accord.primitives.Timestamp;
+import accord.primitives.TxnId;
 import accord.utils.Invariants;
 import org.agrona.collections.IntHashSet;
 import org.agrona.collections.LongHashSet;
 import org.apache.cassandra.cql3.ColumnIdentifier;
+import org.apache.cassandra.cql3.Operator;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.ColumnFamilyStore.RefViewFragment;
+import org.apache.cassandra.db.DataRange;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.EmptyIterators;
+import org.apache.cassandra.db.PartitionRangeReadCommand;
+import org.apache.cassandra.db.ReadExecutionController;
 import org.apache.cassandra.db.Slices;
 import org.apache.cassandra.db.StorageHook;
 import org.apache.cassandra.db.filter.ColumnFilter;
+import org.apache.cassandra.db.filter.DataLimits;
+import org.apache.cassandra.db.filter.RowFilter;
 import org.apache.cassandra.db.lifecycle.SSTableSet;
 import org.apache.cassandra.db.lifecycle.View;
+import org.apache.cassandra.db.marshal.AbstractType;
+import org.apache.cassandra.db.marshal.BytesType;
 import org.apache.cassandra.db.marshal.Int32Type;
 import org.apache.cassandra.db.marshal.LongType;
 import org.apache.cassandra.db.partitions.UnfilteredPartitionIterator;
@@ -44,6 +60,8 @@ import org.apache.cassandra.db.rows.Row;
 import org.apache.cassandra.db.rows.Unfiltered;
 import org.apache.cassandra.db.rows.UnfilteredRowIterator;
 import org.apache.cassandra.db.rows.UnfilteredRowIterators;
+import org.apache.cassandra.index.Index;
+import org.apache.cassandra.index.accord.OrderedRouteSerializer;
 import org.apache.cassandra.io.sstable.ISSTableScanner;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.util.DataInputBuffer;
@@ -53,10 +71,14 @@ import org.apache.cassandra.journal.Journal;
 import org.apache.cassandra.journal.KeySupport;
 import org.apache.cassandra.journal.RecordConsumer;
 import org.apache.cassandra.schema.ColumnMetadata;
+import org.apache.cassandra.service.accord.api.AccordRoutingKey;
+import org.apache.cassandra.utils.CloseableIterator;
+import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.MergeIterator;
 
 import static org.apache.cassandra.io.sstable.SSTableReadsListener.NOOP_LISTENER;
 
-public class AccordJournalTable<K extends JournalKey, V>
+public class AccordJournalTable<K extends JournalKey, V> implements RangeSearcher
 {
     private static final IntHashSet SENTINEL_HOSTS = new IntHashSet();
 
@@ -65,16 +87,22 @@ public class AccordJournalTable<K extends JournalKey, V>
 
     private final ColumnMetadata recordColumn;
     private final ColumnMetadata versionColumn;
-
+    private final Index tableIndex;
+    
     private final KeySupport<K> keySupport;
     private final int accordJournalVersion;
+    private final ParticipantsInMemoryIndex index = new ParticipantsInMemoryIndex();
 
-    public AccordJournalTable(Journal<K, V> journal, KeySupport<K> keySupport, ColumnFamilyStore cfs, int accordJournalVersion)
+    public AccordJournalTable(Journal<K, V> journal, KeySupport<K> keySupport, ColumnFamilyStore cfs, int accordJournalVersion, AccordJournal.Listeners<Object> listeners)
     {
         this.journal = journal;
+        // To support org.apache.cassandra.service.accord.AccordJournalBurnTest, need to check if the table is indexed or not... only register if indexed
+        if (cfs.indexManager.getIndexByName(AccordKeyspace.JOURNAL_INDEX_NAME) != null)
+            listeners.register(index);
         this.cfs = cfs;
         this.recordColumn = cfs.metadata().getColumn(ColumnIdentifier.getInterned("record", false));
         this.versionColumn = cfs.metadata().getColumn(ColumnIdentifier.getInterned("user_version", false));
+        this.tableIndex = cfs.indexManager.getIndexByName("record");
         this.keySupport = keySupport;
         this.accordJournalVersion = accordJournalVersion;
     }
@@ -82,6 +110,11 @@ public class AccordJournalTable<K extends JournalKey, V>
     public void forceCompaction()
     {
         cfs.forceMajorCompaction();
+    }
+
+    public void truncateForTesting()
+    {
+        index.truncateForTesting();
     }
 
     public interface Reader
@@ -211,10 +244,233 @@ public class AccordJournalTable<K extends JournalKey, V>
         onEntry.accept(descriptor, position, into.key, into.value, into.hosts, into.userVersion);
     }
 
+    enum ReadAllIntent { Reply, CheckAll }
+
     @SuppressWarnings("resource") // Auto-closeable iterator will release related resources
-    public KeyOrderIterator<K> readAll()
+    public KeyOrderIterator<K> readAll(ReadAllIntent intent)
     {
-        return new JournalAndTableKeyIterator();
+        return new JournalAndTableKeyIterator(intent);
+    }
+
+    @Override
+    public void intersects(int storeId, TokenRange range, TxnId minTxnId, Timestamp maxTxnId, Consumer<TxnId> forEach)
+    {
+        try (CloseableIterator<Entry> it = search(storeId, range.start(), range.end()))
+        {
+            consume(it, storeId, minTxnId, maxTxnId, forEach);
+        }
+    }
+
+    @Override
+    public void intersects(int storeId, AccordRoutingKey key, TxnId minTxnId, Timestamp maxTxnId, Consumer<TxnId> forEach)
+    {
+        try (CloseableIterator<Entry> it = search(storeId, key))
+        {
+            consume(it, storeId, minTxnId, maxTxnId, forEach);
+        }
+    }
+
+    private void consume(Iterator<Entry> it, int storeId, TxnId minTxnId, Timestamp maxTxnId, Consumer<TxnId> forEach)
+    {
+        while (it.hasNext())
+        {
+            Entry next = it.next();
+            if (next.store_id != storeId) continue; // the index should filter out, but just in case...
+            if (next.txnId.compareTo(minTxnId) >= 0 && next.txnId.compareTo(maxTxnId) < 0)
+                forEach.accept(next.txnId);
+        }
+    }
+
+    private CloseableIterator<Entry> search(int store, AccordRoutingKey start, AccordRoutingKey end)
+    {
+        Invariants.checkArgument(start.table().equals(end.table()), "Start %s has different table than end %s", start, end);
+        var inMemory = toIterator(store, index.search(store, start, end));
+        var table = tableSearch(store, start, end);
+        return merge(inMemory, table);
+    }
+
+    public enum SyntheticColumn
+    {
+        participants("participants", BytesType.instance),
+        store_id("store_id", Int32Type.instance),
+        txn_id("txn_id", AccordKeyspace.TIMESTAMP_TYPE);
+
+        public final ColumnMetadata metadata;
+
+        SyntheticColumn(String name, AbstractType<?> type)
+        {
+            this.metadata = new ColumnMetadata("journal", "routes", new ColumnIdentifier(name, false), type, ColumnMetadata.NO_POSITION, ColumnMetadata.Kind.REGULAR, null);
+        }
+    }
+
+    private CloseableIterator<Entry> tableSearch(int store, AccordRoutingKey start, AccordRoutingKey end)
+    {
+        RowFilter rowFilter = RowFilter.create(false);
+        rowFilter.add(SyntheticColumn.participants.metadata, Operator.GT, OrderedRouteSerializer.serializeRoutingKey(start));
+        rowFilter.add(SyntheticColumn.participants.metadata, Operator.LTE, OrderedRouteSerializer.serializeRoutingKey(end));
+        rowFilter.add(SyntheticColumn.store_id.metadata, Operator.EQ, Int32Type.instance.decompose(store));
+
+        var cmd = PartitionRangeReadCommand.create(cfs.metadata(),
+                                                   FBUtilities.nowInSeconds(),
+                                                   ColumnFilter.selectionBuilder()
+                                                               .add(SyntheticColumn.store_id.metadata)
+                                                               .add(SyntheticColumn.txn_id.metadata)
+                                                               .build(),
+                                                   rowFilter,
+                                                   DataLimits.NONE,
+                                                   DataRange.allData(cfs.getPartitioner()));
+        Index.Searcher s = tableIndex.searcherFor(cmd);
+        try (var controller = cmd.executionController())
+        {
+            UnfilteredPartitionIterator partitionIterator = s.search(controller);
+            return new CloseableIterator<Entry>()
+            {
+                private final Entry entry = new Entry();
+                @Override
+                public void close()
+                {
+                    partitionIterator.close();
+                }
+
+                @Override
+                public boolean hasNext()
+                {
+                    return partitionIterator.hasNext();
+                }
+
+                @Override
+                public Entry next()
+                {
+                    UnfilteredRowIterator next = partitionIterator.next();
+                    var partitionKeyComponents = AccordKeyspace.JournalColumns.getJournalKey(next.partitionKey());
+                    entry.store_id = partitionKeyComponents.commandStoreId;
+                    entry.txnId = partitionKeyComponents.id;
+                    return entry;
+                }
+            };
+        }
+    }
+
+    private CloseableIterator<Entry> search(int store, AccordRoutingKey key)
+    {
+        var inMemory = toIterator(store, index.search(store, key));
+        var table = tableSearch(store, key);
+        return merge(inMemory, table);
+    }
+
+    private CloseableIterator<Entry> tableSearch(int store, AccordRoutingKey key)
+    {
+        RowFilter rowFilter = RowFilter.create(false);
+        rowFilter.add(SyntheticColumn.participants.metadata, Operator.GTE, OrderedRouteSerializer.serializeRoutingKey(key));
+        rowFilter.add(SyntheticColumn.participants.metadata, Operator.LTE, OrderedRouteSerializer.serializeRoutingKey(key));
+        rowFilter.add(SyntheticColumn.store_id.metadata, Operator.EQ, Int32Type.instance.decompose(store));
+
+        var cmd = PartitionRangeReadCommand.create(cfs.metadata(),
+                                                   FBUtilities.nowInSeconds(),
+                                                   ColumnFilter.selectionBuilder()
+                                                               .add(SyntheticColumn.store_id.metadata)
+                                                               .add(SyntheticColumn.txn_id.metadata)
+                                                               .build(),
+                                                   rowFilter,
+                                                   DataLimits.NONE,
+                                                   DataRange.allData(cfs.getPartitioner()));
+        Index.Searcher s = tableIndex.searcherFor(cmd);
+        try (ReadExecutionController controller = cmd.executionController())
+        {
+            UnfilteredPartitionIterator partitionIterator = s.search(controller);
+            return new CloseableIterator<Entry>()
+            {
+                private final Entry entry = new Entry();
+                @Override
+                public void close()
+                {
+                    partitionIterator.close();
+                }
+
+                @Override
+                public boolean hasNext()
+                {
+                    return partitionIterator.hasNext();
+                }
+
+                @Override
+                public Entry next()
+                {
+                    UnfilteredRowIterator next = partitionIterator.next();
+                    var partitionKeyComponents = AccordKeyspace.JournalColumns.getJournalKey(next.partitionKey());
+                    entry.store_id = partitionKeyComponents.commandStoreId;
+                    entry.txnId = partitionKeyComponents.id;
+                    return entry;
+                }
+            };
+        }
+    }
+
+    private static CloseableIterator<Entry> toIterator(int store, NavigableMap<IndexRange, Set<TxnId>> journalSearch)
+    {
+        TreeSet<TxnId> matches = new TreeSet<>();
+        journalSearch.values().forEach(s -> matches.addAll(s));
+        var inMemory = new CloseableIterator<Entry>()
+        {
+            private final Entry entry = new Entry();
+            private final Iterator<TxnId> it = matches.iterator();
+            @Override
+            public void close()
+            {
+                matches.clear();
+            }
+
+            @Override
+            public boolean hasNext()
+            {
+                return it.hasNext();
+            }
+
+            @Override
+            public Entry next()
+            {
+                entry.store_id = store;
+                entry.txnId = it.next();
+                return entry;
+            }
+        };
+        return inMemory;
+    }
+
+    private static CloseableIterator<Entry> merge(CloseableIterator<Entry> inMemory, CloseableIterator<Entry> disk)
+    {
+        return MergeIterator.get(Arrays.asList(inMemory, disk), (a, b) -> {
+            Invariants.checkArgument(a.store_id == b.store_id);
+            return a.txnId.compareTo(b.txnId);
+        }, new MergeIterator.Reducer<Entry, Entry>()
+        {
+            private Entry first = null;
+            @Override
+            protected void onKeyChange()
+            {
+                first = null;
+            }
+
+            @Override
+            public void reduce(int idx, Entry current)
+            {
+                if (first == null)
+                    first = current;
+            }
+
+            @Override
+            protected Entry getReduced()
+            {
+                Invariants.checkState(first != null);
+                return first;
+            }
+        });
+    }
+
+    private static final class Entry
+    {
+        public int store_id;
+        public TxnId txnId;
     }
 
     private class TableIterator implements Closeable
@@ -296,11 +552,13 @@ public class AccordJournalTable<K extends JournalKey, V>
     {
         final TableIterator tableIterator;
         final Journal<K, V>.StaticSegmentIterator staticSegmentIterator;
+        final ReadAllIntent intent;
 
-        private JournalAndTableKeyIterator()
+        private JournalAndTableKeyIterator(ReadAllIntent intent)
         {
             this.tableIterator = new TableIterator();
             this.staticSegmentIterator = journal.staticSegmentIterator();
+            this.intent = intent;
         }
 
         @Override
@@ -325,7 +583,12 @@ public class AccordJournalTable<K extends JournalKey, V>
             if (journalKey != null && keySupport.compare(journalKey, key) == 0)
                 staticSegmentIterator.readAllForKey(key, (segment, position, key1, buffer, hosts, userVersion) -> {
                     if (!tableIterator.visited(segment))
+                    {
+                        // reader is going to consume the buffer, so populate the index first
+                        if (intent == ReadAllIntent.Reply)
+                            index.update(segment, key1, buffer.duplicate(), userVersion);
                         reader.accept(segment, position, key1, buffer, hosts, userVersion);
+                    }
                 });
 
             if (tableKey != null && keySupport.compare(tableKey, key) == 0)

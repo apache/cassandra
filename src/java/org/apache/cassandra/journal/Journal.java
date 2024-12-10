@@ -26,11 +26,13 @@ import java.util.Collection;
 import java.util.List;
 import java.util.PriorityQueue;
 import java.util.Set;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.locks.LockSupport;
 import java.util.function.BooleanSupplier;
+import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.zip.CRC32;
@@ -123,6 +125,36 @@ public class Journal<K, V> implements Shutdownable
     private final FlusherCallbacks flusherCallbacks;
 
     final OpOrder readOrder = new OpOrder();
+
+    public interface Listener<K, V>
+    {
+        void onWrite(K id, Writer writer, Set<Integer> hosts, RecordPointer pointer);
+
+        void onCompact(Collection<StaticSegment<K, V>> oldSegments, Collection<StaticSegment<K, V>> compactedSegments);
+    }
+
+    private final List<Listener<K, V>> listeners = new CopyOnWriteArrayList<>();
+
+    private void safeNotify(Consumer<Listener<K, V>> fn)
+    {
+        for (Listener<K, V> listener : listeners)
+        {
+            try
+            {
+                fn.accept(listener);
+            }
+            catch (Throwable t)
+            {
+                JVMStabilityInspector.inspectThrowable(t);
+                logger.warn("Failure notifying listener {}", listener, t);
+            }
+        }
+    }
+
+    public void register(Listener<K, V> l)
+    {
+        listeners.add(l);
+    }
 
     private class FlusherCallbacks implements Flusher.Callbacks
     {
@@ -488,7 +520,9 @@ public class Journal<K, V> implements Shutdownable
             writer.write(dob, params.userVersion());
             ActiveSegment<K, V>.Allocation alloc = allocate(dob.getLength(), hosts);
             alloc.write(id, dob.unsafeGetBufferAndFlip(), hosts);
-            return flusher.flush(alloc);
+            RecordPointer pointer = flusher.flush(alloc);
+            safeNotify(l -> l.onWrite(id, writer, hosts, pointer));
+            return pointer;
         }
         catch (IOException e)
         {
@@ -734,6 +768,7 @@ public class Journal<K, V> implements Shutdownable
     void replaceCompactedSegments(Collection<StaticSegment<K, V>> oldSegments, Collection<StaticSegment<K, V>> compactedSegments)
     {
         swapSegments(current -> current.withCompactedSegments(oldSegments, compactedSegments));
+        safeNotify(l -> l.onCompact(oldSegments, compactedSegments));
     }
 
     void selectSegmentToFlush(Collection<ActiveSegment<K, V>> into)
@@ -754,7 +789,7 @@ public class Journal<K, V> implements Shutdownable
         return oldest;
     }
 
-    ActiveSegment<K, V> currentActiveSegment()
+    public ActiveSegment<K, V> currentActiveSegment()
     {
         return currentSegment;
     }
@@ -906,8 +941,19 @@ public class Journal<K, V> implements Shutdownable
     @VisibleForTesting
     public void truncateForTesting()
     {
-        advanceSegment(null);
-        segments.set(Segments.none());
+        ActiveSegment<?, ?> discarding = currentSegment;
+        if (discarding.index.size() > 0) // if there is no data in the segement then ignore it
+        {
+            closeCurrentSegmentForTestingIfNonEmpty();
+            // wait for the ActiveSegment to get released, else can see weird race conditions;
+            // this thread will see the static segmenet and will release it (which will delete the file),
+            // and the sync thread will then try to release and will fail as the file no longer exists...
+            while (discarding.selfRef().globalCount() > 0) {}
+        }
+
+        Segments<K, V> statics = swapSegments(s -> s.select(Segment::isActive)).select(Segment::isStatic);
+        for (Segment<K, V> segment : statics.all())
+            ((StaticSegment) segment).discard(this);
     }
 
     public interface Writer
@@ -939,6 +985,8 @@ public class Journal<K, V> implements Shutdownable
                 StaticSegment.KeyOrderReader<K> reader = staticSegment.keyOrderReader();
                 if (reader.advance())
                     this.readers.add(reader);
+                else
+                    reader.close();
             }
         }
 
@@ -962,6 +1010,8 @@ public class Journal<K, V> implements Shutdownable
                 reader.accept(next.descriptor.timestamp, next.offset, next.key(), next.record(), next.hosts(), next.descriptor.userVersion);
                 if (next.advance())
                     readers.add(next);
+                else
+                    next.close();
             }
         }
 
