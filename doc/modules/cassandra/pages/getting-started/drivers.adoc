@@ -6,7 +6,7 @@ functionality supported by a specific driver.
 
 == Java
 
-* http://achilles.archinnov.info/[Achilles]
+* https://github.com/doanduyhai/Achilles[Achilles]
 * https://github.com/Netflix/astyanax/wiki/Getting-Started[Astyanax]
 * https://github.com/noorq/casser[Casser]
 * https://github.com/datastax/java-driver[Datastax Java driver]
