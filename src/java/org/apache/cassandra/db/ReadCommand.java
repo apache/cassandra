@@ -64,7 +64,9 @@ import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.locator.Replica;
 import org.apache.cassandra.metrics.TableMetrics;
 import org.apache.cassandra.net.Message;
+import org.apache.cassandra.replication.MutationSummary;
 import org.apache.cassandra.schema.IndexMetadata;
+import org.apache.cassandra.schema.ReplicationType;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.schema.TableId;
@@ -73,6 +75,7 @@ import org.apache.cassandra.schema.SchemaProvider;
 import org.apache.cassandra.service.ActiveRepairService;
 import org.apache.cassandra.service.ClientWarn;
 import org.apache.cassandra.service.reads.IReadResponse;
+import org.apache.cassandra.service.reads.logged.LoggedReadResponse;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.tracing.Tracing;
@@ -129,12 +132,39 @@ public abstract class ReadCommand extends AbstractReadQuery
             }
         }
 
+        public ResponseType asSummaryType()
+        {
+            switch (this)
+            {
+                case LEGACY_DATA:
+                    return LEGACY_DIGEST;
+                case LOGGED_DATA:
+                    return LOGGED_SUMMARY;
+                default:
+                    throw new IllegalArgumentException("Unable to convert " + this + " to summary type");
+            }
+        }
+
         public static ResponseType fromFlags(boolean isSummary, boolean isLogged)
         {
             if (isLogged)
                 return isSummary ? LOGGED_SUMMARY : LOGGED_DATA;
             else
                 return isSummary ? LEGACY_DIGEST : LEGACY_DATA;
+        }
+
+        public static ResponseType fromMetadata(TableMetadata metadata)
+        {
+            ReplicationType replicationType = metadata.replicationType();
+            switch (replicationType)
+            {
+                case legacy:
+                    return LEGACY_DATA;
+                case logged:
+                    return LOGGED_DATA;
+                default:
+                    throw new IllegalArgumentException("Unable to convert " + replicationType + " to response type");
+            }
         }
     }
 
@@ -391,25 +421,25 @@ public abstract class ReadCommand extends AbstractReadQuery
     /**
      * Returns a copy of this command with isDigestQuery set to true.
      */
-    public ReadCommand copyAsDigestQuery(Replica replica)
+    public ReadCommand copyAsSummaryQuery(Replica replica)
     {
         Preconditions.checkArgument(replica.isFull(),
                                     "Can't make a digest request on a transient replica " + replica);
-        return copyAsDigestQuery();
+        return copyAsSummaryQuery();
     }
 
     /**
      * Returns a copy of this command with isDigestQuery set to true.
      */
-    public ReadCommand copyAsDigestQuery(Iterable<Replica> replicas)
+    public ReadCommand copyAsSummaryQuery(Iterable<Replica> replicas)
     {
         if (any(replicas, Replica::isTransient))
             throw new IllegalArgumentException("Can't make a digest request on a transient replica " + Iterables.toString(filter(replicas, Replica::isTransient)));
 
-        return copyAsDigestQuery();
+        return copyAsSummaryQuery();
     }
 
-    protected abstract ReadCommand copyAsDigestQuery();
+    protected abstract ReadCommand copyAsSummaryQuery();
 
     protected abstract UnfilteredPartitionIterator queryStorage(ColumnFamilyStore cfs, ReadExecutionController executionController);
 
@@ -420,15 +450,25 @@ public abstract class ReadCommand extends AbstractReadQuery
      */
     public abstract boolean isReversed();
 
-    public IReadResponse createResponse(UnfilteredPartitionIterator iterator, RepairedDataInfo rdi)
+    public IReadResponse createResponse(UnfilteredPartitionIterator iterator, RepairedDataInfo rdi, MutationSummary summary)
     {
         // validate that the sequence of RT markers is correct: open is followed by close, deletion times for both
         // ends equal, and there are no dangling RT bound in any partition.
         iterator = RTBoundValidator.validate(iterator, Stage.PROCESSED, true);
 
-        return isDigestQuery()
-               ? ReadResponse.createDigestResponse(iterator, this)
-               : ReadResponse.createDataResponse(iterator, this, rdi);
+        switch (responseType())
+        {
+            case LEGACY_DATA:
+                return ReadResponse.createDataResponse(iterator, this, rdi);
+            case LEGACY_DIGEST:
+                return ReadResponse.createDigestResponse(iterator, this);
+            case LOGGED_DATA:
+                return LoggedReadResponse.createDataResponse(iterator, this, summary);
+            case LOGGED_SUMMARY:
+                return LoggedReadResponse.createSummaryResponse(summary);
+            default:
+                throw new IllegalArgumentException("Unsupported response type: " + responseType());
+        }
     }
 
     public IReadResponse createEmptyResponse()

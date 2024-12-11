@@ -133,7 +133,7 @@ public class PartitionRangeReadCommand extends ReadCommand implements PartitionR
                                                    DataRange dataRange)
     {
         return create(metadata.epoch,
-                      ResponseType.LEGACY_DATA,
+                      ResponseType.fromMetadata(metadata),
                       0,
                       false,
                       metadata,
@@ -233,7 +233,7 @@ public class PartitionRangeReadCommand extends ReadCommand implements PartitionR
     }
 
     @Override
-    protected PartitionRangeReadCommand copyAsDigestQuery()
+    protected PartitionRangeReadCommand copyAsSummaryQuery()
     {
         return create(serializedAtEpoch(),
                       ResponseType.LEGACY_DIGEST,
