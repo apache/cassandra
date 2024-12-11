@@ -95,7 +95,7 @@ public class SinglePartitionReadCommand extends ReadCommand implements SinglePar
 
     @VisibleForTesting
     protected SinglePartitionReadCommand(Epoch serializedAtEpoch,
-                                         boolean isDigest,
+                                         ResponseType responseType,
                                          int digestVersion,
                                          boolean acceptsTransient,
                                          TableMetadata metadata,
@@ -109,14 +109,14 @@ public class SinglePartitionReadCommand extends ReadCommand implements SinglePar
                                          boolean trackWarnings,
                                          DataRange dataRange)
     {
-        super(serializedAtEpoch, Kind.SINGLE_PARTITION, isDigest, digestVersion, acceptsTransient, metadata, nowInSec, columnFilter, rowFilter, limits, indexQueryPlan, trackWarnings, dataRange);
+        super(serializedAtEpoch, Kind.SINGLE_PARTITION, responseType, digestVersion, acceptsTransient, metadata, nowInSec, columnFilter, rowFilter, limits, indexQueryPlan, trackWarnings, dataRange);
         assert partitionKey.getPartitioner() == metadata.partitioner;
         this.partitionKey = partitionKey;
         this.clusteringIndexFilter = clusteringIndexFilter;
     }
 
     private static SinglePartitionReadCommand create(Epoch serializedAtEpoch,
-                                                     boolean isDigest,
+                                                     ResponseType responseType,
                                                      int digestVersion,
                                                      boolean acceptsTransient,
                                                      TableMetadata metadata,
@@ -133,7 +133,7 @@ public class SinglePartitionReadCommand extends ReadCommand implements SinglePar
 
         if (metadata.isVirtual())
         {
-            return new VirtualTableSinglePartitionReadCommand(isDigest,
+            return new VirtualTableSinglePartitionReadCommand(responseType,
                                                               digestVersion,
                                                               acceptsTransient,
                                                               metadata,
@@ -149,7 +149,7 @@ public class SinglePartitionReadCommand extends ReadCommand implements SinglePar
         }
 
         return new SinglePartitionReadCommand(serializedAtEpoch,
-                                              isDigest,
+                                              responseType,
                                               digestVersion,
                                               acceptsTransient,
                                               metadata,
@@ -188,7 +188,7 @@ public class SinglePartitionReadCommand extends ReadCommand implements SinglePar
                                                     Index.QueryPlan indexQueryPlan)
     {
         return create(metadata.epoch,
-                      false,
+                      ResponseType.LEGACY_DATA,
                       0,
                       false,
                       metadata,
@@ -366,7 +366,7 @@ public class SinglePartitionReadCommand extends ReadCommand implements SinglePar
     public SinglePartitionReadCommand copy()
     {
         return create(serializedAtEpoch(),
-                      isDigestQuery(),
+                      responseType(),
                       digestVersion(),
                       acceptsTransient(),
                       metadata(),
@@ -384,7 +384,7 @@ public class SinglePartitionReadCommand extends ReadCommand implements SinglePar
     protected SinglePartitionReadCommand copyAsDigestQuery()
     {
         return create(serializedAtEpoch(),
-                      true,
+                      ResponseType.LEGACY_DIGEST,
                       digestVersion(),
                       acceptsTransient(),
                       metadata(),
@@ -402,7 +402,7 @@ public class SinglePartitionReadCommand extends ReadCommand implements SinglePar
     protected SinglePartitionReadCommand copyAsTransientQuery()
     {
         return create(serializedAtEpoch(),
-                      false,
+                      ResponseType.LEGACY_DATA,
                       0,
                       true,
                       metadata(),
@@ -420,7 +420,7 @@ public class SinglePartitionReadCommand extends ReadCommand implements SinglePar
     public SinglePartitionReadCommand withUpdatedLimit(DataLimits newLimits)
     {
         return create(serializedAtEpoch(),
-                      isDigestQuery(),
+                      responseType(),
                       digestVersion(),
                       acceptsTransient(),
                       metadata(),
@@ -1320,7 +1320,7 @@ public class SinglePartitionReadCommand extends ReadCommand implements SinglePar
         public ReadCommand deserialize(DataInputPlus in,
                                        int version,
                                        Epoch serializedAtEpoch,
-                                       boolean isDigest,
+                                       ResponseType responseType,
                                        int digestVersion,
                                        boolean acceptsTransient,
                                        TableMetadata metadata,
@@ -1333,7 +1333,7 @@ public class SinglePartitionReadCommand extends ReadCommand implements SinglePar
         {
             DecoratedKey key = metadata.partitioner.decorateKey(metadata.partitionKeyType.readBuffer(in, DatabaseDescriptor.getMaxValueSize()));
             ClusteringIndexFilter filter = ClusteringIndexFilter.serializer.deserialize(in, version, metadata);
-            return SinglePartitionReadCommand.create(serializedAtEpoch, isDigest, digestVersion, acceptsTransient, metadata, nowInSec, columnFilter, rowFilter, limits, key, filter, indexQueryPlan, false);
+            return SinglePartitionReadCommand.create(serializedAtEpoch, responseType, digestVersion, acceptsTransient, metadata, nowInSec, columnFilter, rowFilter, limits, key, filter, indexQueryPlan, false);
         }
     }
 
@@ -1367,7 +1367,7 @@ public class SinglePartitionReadCommand extends ReadCommand implements SinglePar
 
     public static class VirtualTableSinglePartitionReadCommand extends SinglePartitionReadCommand
     {
-        protected VirtualTableSinglePartitionReadCommand(boolean isDigest,
+        protected VirtualTableSinglePartitionReadCommand(ResponseType responseType,
                                                          int digestVersion,
                                                          boolean acceptsTransient,
                                                          TableMetadata metadata,
@@ -1381,7 +1381,7 @@ public class SinglePartitionReadCommand extends ReadCommand implements SinglePar
                                                          boolean trackWarnings,
                                                          DataRange dataRange)
         {
-            super(metadata.epoch, isDigest, digestVersion, acceptsTransient, metadata, nowInSec, columnFilter, 
+            super(metadata.epoch, responseType, digestVersion, acceptsTransient, metadata, nowInSec, columnFilter,
                   rowFilter, limits, partitionKey, clusteringIndexFilter, indexQueryPlan, trackWarnings, dataRange);
         }
 

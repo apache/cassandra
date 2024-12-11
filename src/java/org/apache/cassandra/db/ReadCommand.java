@@ -97,6 +97,47 @@ import static org.apache.cassandra.utils.MonotonicClock.Global.approxTime;
  */
 public abstract class ReadCommand extends AbstractReadQuery
 {
+    public enum ResponseType
+    {
+        LEGACY_DATA,
+        LEGACY_DIGEST,
+        LOGGED_DATA,
+        LOGGED_SUMMARY;
+
+        public boolean isSummary()
+        {
+            switch (this)
+            {
+                case LEGACY_DIGEST:
+                case LOGGED_SUMMARY:
+                    return true;
+                default:
+                    return false;
+            }
+        }
+
+        public boolean isLogged()
+        {
+
+            switch (this)
+            {
+                case LOGGED_DATA:
+                case LOGGED_SUMMARY:
+                    return true;
+                default:
+                    return false;
+            }
+        }
+
+        public static ResponseType fromFlags(boolean isSummary, boolean isLogged)
+        {
+            if (isLogged)
+                return isSummary ? LOGGED_SUMMARY : LOGGED_DATA;
+            else
+                return isSummary ? LEGACY_DIGEST : LEGACY_DATA;
+        }
+    }
+
     private static final int TEST_ITERATION_DELAY_MILLIS = CassandraRelevantProperties.TEST_READ_ITERATION_DELAY_MS.getInt();
 
     protected static final Logger logger = LoggerFactory.getLogger(ReadCommand.class);
@@ -108,7 +149,7 @@ public abstract class ReadCommand extends AbstractReadQuery
 
     private final Kind kind;
 
-    private final boolean isDigestQuery;
+    private final ResponseType responseType;
     private final boolean acceptsTransient;
     private final Epoch serializedAtEpoch;
     // if a digest query, the version for which the digest is expected. Ignored if not a digest.
@@ -126,7 +167,7 @@ public abstract class ReadCommand extends AbstractReadQuery
         public abstract ReadCommand deserialize(DataInputPlus in,
                                                 int version,
                                                 Epoch serializedAtEpoch,
-                                                boolean isDigest,
+                                                ResponseType responseType,
                                                 int digestVersion,
                                                 boolean acceptsTransient,
                                                 TableMetadata metadata,
@@ -152,7 +193,7 @@ public abstract class ReadCommand extends AbstractReadQuery
 
     protected ReadCommand(Epoch serializedAtEpoch,
                           Kind kind,
-                          boolean isDigestQuery,
+                          ResponseType responseType,
                           int digestVersion,
                           boolean acceptsTransient,
                           TableMetadata metadata,
@@ -165,11 +206,11 @@ public abstract class ReadCommand extends AbstractReadQuery
                           DataRange dataRange)
     {
         super(metadata, nowInSec, columnFilter, rowFilter, limits);
-        if (acceptsTransient && isDigestQuery)
+        if (acceptsTransient && responseType == ResponseType.LEGACY_DIGEST)
             throw new IllegalArgumentException("Attempted to issue a digest response to transient replica");
 
         this.kind = kind;
-        this.isDigestQuery = isDigestQuery;
+        this.responseType = responseType;
         this.digestVersion = digestVersion;
         this.acceptsTransient = acceptsTransient;
         this.indexQueryPlan = indexQueryPlan;
@@ -205,6 +246,12 @@ public abstract class ReadCommand extends AbstractReadQuery
      */
     public abstract long getTimeout(TimeUnit unit);
 
+
+    public ResponseType responseType()
+    {
+        return responseType;
+    }
+
     /**
      * Whether this query is a digest one or not.
      *
@@ -212,7 +259,7 @@ public abstract class ReadCommand extends AbstractReadQuery
      */
     public boolean isDigestQuery()
     {
-        return isDigestQuery;
+        return responseType == ResponseType.LEGACY_DIGEST;
     }
 
     /**
@@ -1218,6 +1265,7 @@ public abstract class ReadCommand extends AbstractReadQuery
         private static final int HAS_INDEX = 0x04;
         private static final int ACCEPTS_TRANSIENT = 0x08;
         private static final int NEEDS_RECONCILIATION = 0x10;
+        private static final int LOGGED_READ = 0x20;
 
         private final SchemaProvider schema;
 
@@ -1282,17 +1330,31 @@ public abstract class ReadCommand extends AbstractReadQuery
             return (flags & NEEDS_RECONCILIATION) != 0;
         }
 
+        private static int isLoggedFlag(boolean isLogged)
+        {
+            return isLogged ? LOGGED_READ : 0;
+        }
+
+        private static boolean isLogged(int flags)
+        {
+            return (flags & LOGGED_READ) != 0;
+        }
+
         public void serialize(ReadCommand command, DataOutputPlus out, int version) throws IOException
         {
             out.writeByte(command.kind.ordinal());
+            ResponseType responseType = command.responseType();
             out.writeByte(
-                    digestFlag(command.isDigestQuery())
+                    digestFlag(responseType.isSummary())
                     | indexFlag(null != command.indexQueryPlan())
                     | acceptsTransientFlag(command.acceptsTransient())
                     | needsReconciliationFlag(command.rowFilter().needsReconciliation())
+                    | isLoggedFlag(responseType.isLogged())
             );
-            if (command.isDigestQuery())
+
+            if (responseType == ResponseType.LEGACY_DIGEST)
                 out.writeUnsignedVInt32(command.digestVersion());
+
             command.metadata().id.serialize(out);
             if (version >= MessagingService.VERSION_51)
                 Epoch.serializer.serialize(command.serializedAtEpoch, out);
@@ -1313,7 +1375,7 @@ public abstract class ReadCommand extends AbstractReadQuery
         {
             Kind kind = Kind.values()[in.readByte()];
             int flags = in.readByte();
-            boolean isDigest = isDigest(flags);
+            ResponseType responseType = ResponseType.fromFlags(isDigest(flags), isLogged(flags));
             boolean acceptsTransient = acceptsTransient(flags);
             // Shouldn't happen or it's a user error (see comment above) but
             // better complain loudly than doing the wrong thing.
@@ -1324,7 +1386,7 @@ public abstract class ReadCommand extends AbstractReadQuery
                                                 + "upgrading to 4.0");
 
             boolean hasIndex = hasIndex(flags);
-            int digestVersion = isDigest ? (int)in.readUnsignedVInt() : 0;
+            int digestVersion = responseType == ResponseType.LEGACY_DIGEST ? (int)in.readUnsignedVInt() : 0;
             boolean needsReconciliation = needsReconciliation(flags);
             TableId tableId = TableId.deserialize(in);
 
@@ -1360,7 +1422,7 @@ public abstract class ReadCommand extends AbstractReadQuery
                     indexQueryPlan = indexGroup.queryPlanFor(rowFilter);
             }
 
-            return kind.selectionDeserializer.deserialize(in, version, schemaVersion, isDigest, digestVersion, acceptsTransient, tableMetadata, nowInSec, columnFilter, rowFilter, limits, indexQueryPlan);
+            return kind.selectionDeserializer.deserialize(in, version, schemaVersion, responseType, digestVersion, acceptsTransient, tableMetadata, nowInSec, columnFilter, rowFilter, limits, indexQueryPlan);
         }
 
         private IndexMetadata deserializeIndexMetadata(DataInputPlus in, int version, TableMetadata metadata) throws IOException
@@ -1383,7 +1445,7 @@ public abstract class ReadCommand extends AbstractReadQuery
         public long serializedSize(ReadCommand command, int version)
         {
             return 2 // kind + flags
-                   + (command.isDigestQuery() ? TypeSizes.sizeofUnsignedVInt(command.digestVersion()) : 0)
+                   + (command.responseType == ResponseType.LEGACY_DIGEST ? TypeSizes.sizeofUnsignedVInt(command.digestVersion()) : 0)
                    + command.metadata().id.serializedSize()
                    + (version >= MessagingService.VERSION_51 ? Epoch.serializer.serializedSize(command.metadata().epoch) : 0)
                    + TypeSizes.INT_SIZE // command.nowInSec() is serialized as uint

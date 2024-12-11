@@ -214,12 +214,12 @@ public class ReadResponseTest
 
     private ReadCommand digestCommand(int key, TableMetadata metadata)
     {
-        return new StubReadCommand(key, metadata, true);
+        return new StubReadCommand(key, metadata, ReadCommand.ResponseType.LEGACY_DIGEST);
     }
 
     private ReadCommand command(int key, TableMetadata metadata)
     {
-        return new StubReadCommand(key, metadata, false);
+        return new StubReadCommand(key, metadata, ReadCommand.ResponseType.LEGACY_DATA);
     }
 
     private static class StubRepairedDataInfo extends RepairedDataInfo
@@ -249,10 +249,10 @@ public class ReadResponseTest
 
     private static class StubReadCommand extends SinglePartitionReadCommand
     {
-        StubReadCommand(int key, TableMetadata metadata, boolean isDigest)
+        StubReadCommand(int key, TableMetadata metadata, ResponseType responseType)
         {
             super(metadata.epoch,
-                  isDigest,
+                  responseType,
                   0,
                   false,
                   metadata,
