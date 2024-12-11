@@ -464,6 +464,7 @@ public class Config
     public volatile DataStorageSpec.IntMebibytesBound sstable_preemptive_open_interval = new DataStorageSpec.IntMebibytesBound("50MiB");
 
     public volatile boolean key_cache_migrate_during_compaction = true;
+    public volatile boolean key_cache_invalidate_after_sstable_deletion = false;
     public volatile int key_cache_keys_to_save = Integer.MAX_VALUE;
     @Replaces(oldName = "key_cache_size_in_mb", converter = Converters.MEBIBYTES_DATA_STORAGE_LONG, deprecated = true)
     public DataStorageSpec.LongMebibytesBound key_cache_size = null;

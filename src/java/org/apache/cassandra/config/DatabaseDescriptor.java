@@ -3841,6 +3841,16 @@ public class DatabaseDescriptor
         conf.key_cache_migrate_during_compaction = migrateCacheEntry;
     }
 
+    public static boolean shouldInvalidateKeycacheOnSSTableDeletion()
+    {
+        return conf.key_cache_invalidate_after_sstable_deletion;
+    }
+
+    public static void setInvalidateKeycacheOnSSTableDeletion(boolean invalidateCacheEntry)
+    {
+        conf.key_cache_invalidate_after_sstable_deletion = invalidateCacheEntry;
+    }
+
     /**
      * This method can return negative number for disabled
      */

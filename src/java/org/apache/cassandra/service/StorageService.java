@@ -4502,6 +4502,16 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         DatabaseDescriptor.setMigrateKeycacheOnCompaction(invalidateKeyCacheOnCompaction);
     }
 
+    public boolean getInvalidateKeycacheOnSSTableDeletion()
+    {
+        return DatabaseDescriptor.shouldInvalidateKeycacheOnSSTableDeletion();
+    }
+
+    public void setInvalidateKeycacheOnSSTableDeletion(boolean invalidate)
+    {
+        DatabaseDescriptor.setInvalidateKeycacheOnSSTableDeletion(invalidate);
+    }
+
     public int getTombstoneWarnThreshold()
     {
         return DatabaseDescriptor.getTombstoneWarnThreshold();
