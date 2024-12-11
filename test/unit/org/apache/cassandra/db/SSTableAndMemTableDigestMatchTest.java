@@ -189,7 +189,7 @@ public class SSTableAndMemTableDigestMatchTest extends CQLTester
                                                  (int) (System.currentTimeMillis() / 1000),
                                                  key,
                                                  filter,
-                                                 new ClusteringIndexNamesFilter(clusteringSet, false)).copyAsDigestQuery();
+                                                 new ClusteringIndexNamesFilter(clusteringSet, false)).copyAsSummaryQuery();
         cmd.setDigestVersion(MessagingService.current_version);
         ReadResponse resp;
         try (ReadExecutionController ctrl = ReadExecutionController.forCommand(cmd, false); UnfilteredRowIterator iterator = cmd.queryMemtableAndDisk(cfs, ctrl))

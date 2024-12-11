@@ -129,11 +129,12 @@ public abstract class AbstractReadExecutor
     {
         assert all(replicas, Replica::isFull);
         // only send digest requests to full replicas, send data requests instead to the transient replicas
-        makeRequests(command.copyAsDigestQuery(replicas), replicas);
+        makeRequests(command.copyAsSummaryQuery(replicas), replicas);
     }
 
     private void makeRequests(ReadCommand readCommand, Iterable<Replica> replicas)
     {
+        assert !readCommand.acceptsTransient() || !readCommand.responseType().isLogged() : "TODO";
         boolean hasLocalEndpoint = false;
         Message<ReadCommand> message = null;
 
@@ -326,7 +327,7 @@ public abstract class AbstractReadExecutor
 
                     retryCommand = extraReplica.isTransient()
                             ? command.copyAsTransientQuery(extraReplica)
-                            : command.copyAsDigestQuery(extraReplica);
+                            : command.copyAsSummaryQuery(extraReplica);
                 }
                 else
                 {

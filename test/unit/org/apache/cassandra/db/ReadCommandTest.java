@@ -1567,7 +1567,7 @@ public class ReadCommandTest
     {
         ColumnFamilyStore cfs = Keyspace.open(KEYSPACE).getColumnFamilyStore(CF6);
         ReadCommand readCommand = Util.cmd(cfs, Util.dk("key")).build();
-        readCommand.copyAsDigestQuery(ReplicaUtils.trans(FBUtilities.getBroadcastAddressAndPort()));
+        readCommand.copyAsSummaryQuery(ReplicaUtils.trans(FBUtilities.getBroadcastAddressAndPort()));
     }
 
     @Test (expected = IllegalArgumentException.class)
@@ -1593,9 +1593,9 @@ public class ReadCommandTest
         // Address is unimportant for this test
         InetAddressAndPort addr = FBUtilities.getBroadcastAddressAndPort();
         ReadCommand readCommand = Util.cmd(cfs, key).build();
-        readCommand.copyAsDigestQuery(EndpointsForToken.of(token,
-                                                           ReplicaUtils.trans(addr, token),
-                                                           ReplicaUtils.full(addr, token)));
+        readCommand.copyAsSummaryQuery(EndpointsForToken.of(token,
+                                                            ReplicaUtils.trans(addr, token),
+                                                            ReplicaUtils.full(addr, token)));
     }
 
     @Test

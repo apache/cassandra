@@ -188,7 +188,7 @@ public class SinglePartitionReadCommand extends ReadCommand implements SinglePar
                                                     Index.QueryPlan indexQueryPlan)
     {
         return create(metadata.epoch,
-                      ResponseType.LEGACY_DATA,
+                      ResponseType.fromMetadata(metadata),
                       0,
                       false,
                       metadata,
@@ -381,10 +381,10 @@ public class SinglePartitionReadCommand extends ReadCommand implements SinglePar
     }
 
     @Override
-    protected SinglePartitionReadCommand copyAsDigestQuery()
+    protected SinglePartitionReadCommand copyAsSummaryQuery()
     {
         return create(serializedAtEpoch(),
-                      ResponseType.LEGACY_DIGEST,
+                      responseType().asSummaryType(),
                       digestVersion(),
                       acceptsTransient(),
                       metadata(),
