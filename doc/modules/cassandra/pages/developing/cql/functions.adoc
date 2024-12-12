@@ -291,18 +291,39 @@ include::cassandra:partial$vector-search/vector_functions.adoc[]
 [[human-helper-functions]]
 ==== Human helper functions
 
-For user's convenience, there are currently two functions which are converting values to more human-friendly
-represetations.
+For user's convenience, there are currently two functions which are converting values to more human-friendly represetations.
 
-==== format_bytes
+[cols=",,",options="header",]
+|===
+| Function name | Input type | Description
+| `format_bytes` |`int`, `tinyint`, `smallint`, `bigint`, `varint`, `ascii`, `text` | Converts values in bytes to a more human-friendly representation.
 
-This function looks at values in a column as if it was in bytes, and it will convert it to whatever a user pleases. There are three ways how to call this function
+| `format_time` |`int`, `tinyint`, `smallint`, `bigint`, `varint`, `ascii`, `text` | Converts values in milliseconds to a more human-friendly representation.
 
+|===
+
+
+===== format_bytes
+
+This function looks at values in a column as if it was in bytes, and it will convert it to whatever a user pleases. Supported units are: `B`, `KiB`, `MiB` and `GiB`. The result will be rounded to two decimal places.
+
+Supported column types on which this function is possible to be applied:
+`INT`, `TINYINT`, `SMALLINT`, `BIGINT`, `VARINT`, `ASCII`, `TEXT`.
+For `ASCII` and `TEXT` types, text of such column has to be a non-negative number.
+
+Return values can be max of `Long.MAX_VALUE`, If the conversion produces overflown value, `Long.MAX_VALUE` will be returned.
+
+[NOTE]
+====
+The actual return value of the `Long.MAX_VALUE` will be 9223372036854776000 due to the limitations of floating-point precision.
+====
+
+There are three ways how to call this function.
 Let's have this table:
 
 [source,cql]
 ----
-cqlsh> select * from ks.tb ;
+cqlsh> select * from ks.tb;
 
  id | val
 ----+----------------
@@ -331,22 +352,22 @@ automatically convert it.
 
 [NOTE]
 ====
-the default source unit for `format_bytes` function is _bytes_, (`B`).
+The default source unit for `format_bytes` function is _bytes_, (`B`).
 ====
 
 [source,cql]
 ----
-cqlsh> select format_bytes(val) from ks.tb ;
+cqlsh> select format_bytes(val) from ks.tb;
 
  system.format_bytes(val)
----------------------------
-                    58 KiB
-                     1 MiB
-                 11494 GiB
-                    58 KiB
-                      null
-                      43 B
-                   120 KiB
+--------------------------
+                58.59 KiB
+                 1.18 MiB
+              11494.7 GiB
+                58.59 KiB
+                     null
+                     43 B
+               120.53 KiB
 ----
 
 The second way to call `format_bytes` functions is to specify into what size unit we would like to see all
@@ -354,17 +375,17 @@ values to be converted to. For example, we want all size to be represented in me
 
 [source,cql]
 ----
-cqlsh> select format_bytes(val, 'MiB') from ks.tb ;
+cqlsh> select format_bytes(val, 'MiB') from ks.tb;
 
  system.format_bytes(val, 'MiB')
 ----------------------------------
-                            0 MiB
-                            1 MiB
-                     11770573 MiB
-                            0 MiB
-                             null
-                            0 MiB
-                            0 MiB
+                        0.06 MiB
+                        1.18 MiB
+                 11770573.84 MiB
+                        0.06 MiB
+                            null
+                           0 MiB
+                        0.12 MiB
 ----
 
 Lastly, we can specify a source unit and a target unit. A source unit tells what unit that column is logically of, the target unit tells what unit we want these values to be converted to. For example,
@@ -372,73 +393,82 @@ if we know that our column is logically in kibibytes and we want them to be conv
 
 [source,cql]
 ----
-cqlsh> select format_bytes(val, 'Kib', 'MiB') from ks.tb ;
+cqlsh> select format_bytes(val, 'Kib', 'MiB') from ks.tb;
 
- system.format_bytes(val, 'Kib', 'MiB')
------------------------------------------
-                                  58 MiB
-                                1205 MiB
-                         12053067611 MiB
-                                  58 MiB
-                                    null
-                                   0 MiB
-                                 120 MiB
+ system.format_bytes(val, 'KiB', 'MiB')
+----------------------------------------
+                              58.59 MiB
+                            1205.31 MiB
+                     12053067611.56 MiB
+                              58.59 MiB
+                                   null
+                               0.04 MiB
+                             120.53 MiB
 ----
 
-==== format_time
+===== format_time
 
 Similarly to `format_bytes`, we can do transformations on duration-like columns.
 
+Supported units are: `d`, `h`, `m`, `s`, `ms`, `us`, `µs`, `ns`.
+
+Supported column types on which this function is possible to be applied:
+`INT`, `TINYINT`, `SMALLINT`, `BIGINT`, `VARINT`, `ASCII`, `TEXT`. For `ASCII` and `TEXT` types, text of such column has to be a non-negative number.
+
+Return values can be max of `Double.MAX_VALUE`, If the conversion produces overflown value, `Double.MAX_VALUE` will be returned.
+
 [NOTE]
 ====
-the default source unit for `format_time` function is _milliseconds_, (`ms`).
+The default source unit for `format_time` function is _milliseconds_, (`ms`).
 ====
 
 [source,cql]
 ----
-cqlsh> select format_time(val) from ks.tb ;
+cqlsh> select format_time(val) from ks.tb;
 
  system.format_time(val)
--------------------------------
-                           1 m
-                          20 m
-                      142851 d
-                           1 m
-                          null
-                         43 ms
-                           2 m
+-------------------------
+                     1 m
+                 20.57 m
+             142851.17 d
+                     1 m
+                    null
+                   43 ms
+                  2.06 m
 ----
 
-We may specify what unit we want that value to be converted to, give the column's values are in millisecods:
+We may specify what unit we want that value to be converted to, give the column's values are in millseconds:
 
 [source,cql]
 ----
+cqlsh> select format_time(val, 'm') from ks.tb;
+
  system.format_time(val, 'm')
-------------------------------------
-                                1 m
-                               20 m
-                        205705687 m
-                                1 m
-                               null
-                                0 m
-                                2 m
+------------------------------
+                          1 m
+                      20.57 m
+               205705687.24 m
+                          1 m
+                         null
+                          0 m
+                       2.06 m
 ----
 
 Lastly, we can specify both source and target values:
 
 [source,cql]
 ----
-cqlsh> select format_time(val, 's', 'h') from ks.tb ;
+cqlsh> select format_time(val, 's', 'h') from ks.tb;
 
  system.format_time(val, 's', 'h')
------------------------------------------
-                                    16 h
-                                   342 h
-                            3428428120 h
-                                    16 h
-                                    null
-                                     0 h
-                                    34 h
+-----------------------------------
+                           16.67 h
+                          342.84 h
+                   3428428120.62 h
+                           16.67 h
+                              null
+                            0.01 h
+                           34.28 h
 ----
 
 [[user-defined-scalar-functions]]

@@ -21,13 +21,9 @@ package org.apache.cassandra.cql3.functions;
 import java.math.RoundingMode;
 import java.nio.ByteBuffer;
 import java.text.DecimalFormat;
-import java.time.Duration;
 import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.TimeUnit;
-import java.util.function.LongSupplier;
-
-import org.apache.commons.lang3.time.DurationUtils;
 
 import org.apache.cassandra.config.DataStorageSpec.DataStorageUnit;
 import org.apache.cassandra.config.DurationSpec;
@@ -37,13 +33,7 @@ import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.utils.Pair;
 
-import static java.util.concurrent.TimeUnit.DAYS;
-import static java.util.concurrent.TimeUnit.HOURS;
-import static java.util.concurrent.TimeUnit.MICROSECONDS;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
-import static java.util.concurrent.TimeUnit.MINUTES;
-import static java.util.concurrent.TimeUnit.NANOSECONDS;
-import static java.util.concurrent.TimeUnit.SECONDS;
 import static org.apache.cassandra.config.DataStorageSpec.DataStorageUnit.BYTES;
 import static org.apache.cassandra.config.DataStorageSpec.DataStorageUnit.GIBIBYTES;
 import static org.apache.cassandra.config.DataStorageSpec.DataStorageUnit.KIBIBYTES;
@@ -60,331 +50,42 @@ import static org.apache.cassandra.cql3.functions.FunctionParameter.optional;
 
 public class FormatFcts
 {
+    private static final DecimalFormat decimalFormat;
+
+    static
+    {
+        decimalFormat = new DecimalFormat("#.##");
+        decimalFormat.setRoundingMode(RoundingMode.HALF_UP);
+    }
+
+    /**
+     * Formats a double value to a string with two decimal places.
+     * <p>
+     * Supported column types on which this function is possible to be applied:
+     * <pre>DOUBLE</pre>
+     */
+    public static String format(double value)
+    {
+        return decimalFormat.format(value);
+    }
+
     public static void addFunctionsTo(NativeFunctions functions)
     {
         functions.add(FormatBytesFct.factory());
         functions.add(FormatTimeFct.factory());
     }
 
-    /**
-     * Converts numeric value in a column to a value of specified unit.
-     * <p>
-     * If the function call contains just one argument - value to convert - then it will be
-     * looked at as the value is of unit 'ms' and it will be converted to a value of a unit which is closes to it. E.g.
-     * If a value is (60 * 1000 + 1) then the unit will be in minutes and converted value will be 1.
-     * <p>
-     * If the function call contains two arguments - value to convert and a unit - then it will be looked at
-     * as the unit of such value is 'ms' and it will be converted into the value of the second (unit) argument.
-     * <p>
-     * If the function call contains three arguments - value to covert and source and target unit - then the value
-     * will be considered of a unit of the second argument, and it will be converted
-     * into a value of the third (unit) argument.
-     * <p>
-     * Examples:
-     * <pre>
-     * format_time(val)
-     * format_time(val, 'm') = format_time(val, 'ms', 'm')
-     * format_time(val, 's', 'm')
-     * format_time(val, 's', 'h')
-     * format_time(val, 's', 'd')
-     * format_time(val, 's') = format_bytes(val, 'ms', 's')
-     * format_time(val, 'h') = format_bytes(val, 'ms', 'h')
-     * </pre>
-     * <p>
-     * It is possible to convert values of a bigger unit to values of a smaller unit, e.g. this is possible:
-     *
-     * <pre>
-     * format_time(val, 'm', 's')
-     * </pre>
-     * <p>
-     * Values can be max of Long.MAX_VALUE, If the conversion produces overflown value, Long.MAX_VALUE will be returned.
-     * <p>
-     * Supported units are: d, h, m, s, ms, us, µs, ns
-     * <p>
-     * Supported column types on which this function is possible to be applied:
-     * <pre>INT, TINYINT, SMALLINT, BIGINT, VARINT, ASCII, TEXT</pre>
-     * For ASCII and TEXT types, text of such column has to be a non-negative number.
-     * <p>
-     * The conversion of negative values is not supported.
-     */
-    public static class FormatTimeFct extends NativeScalarFunction
+    private static long validateAndGetValue(Arguments arguments)
     {
-        private static final String FUNCTION_NAME = "format_time";
+        if (arguments.containsNulls())
+            throw new InvalidRequestException("none of the arguments may be null");
 
-        private FormatTimeFct(AbstractType<?>... argsTypes)
-        {
-            super(FUNCTION_NAME, UTF8Type.instance, argsTypes);
-        }
+        long value = getValue(arguments);
 
-        @Override
-        public ByteBuffer execute(Arguments arguments) throws InvalidRequestException
-        {
-            if (arguments.get(0) == null)
-                return null;
+        if (value < 0)
+            throw new InvalidRequestException("value must be non-negative");
 
-            if (arguments.containsNulls())
-                throw new InvalidRequestException("none of the arguments may be null");
-
-            long value = getValue(arguments);
-
-            if (value < 0)
-                throw new InvalidRequestException("value must be non-negative");
-
-            if (arguments.size() == 1)
-            {
-                Pair<Long, String> convertedValue = convertValue(value);
-                return UTF8Type.instance.fromString(convertedValue.left + " " + convertedValue.right);
-            }
-
-            TimeUnit sourceUnit;
-            TimeUnit targetUnit;
-            String targetUnitAsString;
-
-            if (arguments.size() == 2)
-            {
-                sourceUnit = MILLISECONDS;
-                targetUnitAsString = arguments.get(1);
-            }
-            else
-            {
-                sourceUnit = validateUnit(arguments.get(1));
-                targetUnitAsString = arguments.get(2);
-            }
-
-            targetUnit = validateUnit(targetUnitAsString);
-
-            long convertedValue = convertValue(value, sourceUnit, targetUnit);
-            return UTF8Type.instance.fromString(convertedValue + " " + targetUnitAsString);
-        }
-
-        private TimeUnit validateUnit(String unitAsString)
-        {
-            try
-            {
-                return DurationSpec.fromSymbol(unitAsString);
-            }
-            catch (Exception ex)
-            {
-                throw new InvalidRequestException(ex.getMessage());
-            }
-        }
-
-        private Pair<Long, String> convertValue(long valueToConvert)
-        {
-            long value;
-            if ((value = convertValue(valueToConvert, MILLISECONDS, DAYS)) > 0)
-                return Pair.create(value, "d");
-            else if ((value = convertValue(valueToConvert, MILLISECONDS, HOURS)) > 0)
-                return Pair.create(value, "h");
-            else if ((value = convertValue(valueToConvert, MILLISECONDS, MINUTES)) > 0)
-                return Pair.create(value, "m");
-            else if ((value = convertValue(valueToConvert, MILLISECONDS, SECONDS)) > 0)
-                return Pair.create(value, "s");
-            else
-                return Pair.create(valueToConvert, "ms");
-        }
-
-        private long convertValue(long valueToConvert, TimeUnit sourceUnit, TimeUnit targetUnit)
-        {
-            Duration duration = DurationUtils.toDuration(valueToConvert, sourceUnit);
-
-            if (targetUnit == NANOSECONDS)
-                return x(duration::toNanos);
-            if (targetUnit == MICROSECONDS)
-                return x(() -> duration.toNanos() / 1000);
-            else if (targetUnit == MILLISECONDS)
-                return x(duration::toMillis);
-            else if (targetUnit == SECONDS)
-                return x(duration::toSeconds);
-            else if (targetUnit == MINUTES)
-                return x(duration::toMinutes);
-            else if (targetUnit == HOURS)
-                return x(duration::toHours);
-            else if (targetUnit == DAYS)
-                return x(duration::toDays);
-            else
-                throw new InvalidRequestException("unsupported target unit " + targetUnit);
-        }
-
-        // This has a short name to make above code more readable, same pattern as for DataStorageSpec
-        private long x(LongSupplier longSupplier)
-        {
-            try
-            {
-                return longSupplier.getAsLong();
-            }
-            catch (ArithmeticException ex)
-            {
-                return Long.MAX_VALUE;
-            }
-        }
-
-        public static FunctionFactory factory()
-        {
-            return new FunctionFactory(FUNCTION_NAME,
-                                       fixed(INT, TINYINT, SMALLINT, BIGINT, VARINT, ASCII, TEXT),
-                                       optional(fixed(ASCII)),
-                                       optional(fixed(ASCII)))
-            {
-                @Override
-                protected NativeFunction doGetOrCreateFunction(List<AbstractType<?>> argTypes, AbstractType<?> receiverType)
-                {
-                    if (argTypes.isEmpty() || argTypes.size() > 3)
-                        throw invalidNumberOfArgumentsException();
-
-                    return new FormatTimeFct(argTypes.toArray(new AbstractType<?>[0]));
-                }
-            };
-        }
-    }
-
-    private static final DecimalFormat decimalFormat;
-
-    static
-    {
-        decimalFormat = new DecimalFormat("0");
-        decimalFormat.setRoundingMode(RoundingMode.DOWN);
-    }
-
-    /**
-     * Converts numeric value in a column to a size value of specified unit.
-     * <p>
-     * If the function call contains just one argument - value to convert - then it will be
-     * looked at as the value is of unit 'B' and it will be converted to a value of a unit which is closest to it. E.g.
-     * If a value is (1024 * 1024 + 1) then the unit will be in MiB and converted value will be 1.
-     * <p>
-     * If the function call contains two arguments - value to convert and a unit - then it will be looked at
-     * as the unit of such value is 'B' and it will be converted into the value of the second (unit) argument.
-     * <p>
-     * If the function call contains three arguments - value to covert and source and target unit - then the value
-     * will be considered of a unit of the second argument, and it will be converted
-     * into a value of the third (unit) argument.
-     * <p>
-     * Examples:
-     * <pre>
-     * format_bytes(val) = format_bytes(val, 'B', 'MiB')
-     * format_bytes(val, 'B', 'MiB')
-     * format_bytes(val, 'B', 'GiB')
-     * format_bytes(val, 'KiB', 'GiB')
-     * format_bytes(val, 'MiB') = format_bytes(val, 'B', 'MiB')
-     * format_bytes(val, 'GiB') = format_bytes(val, 'B', 'GiB')
-     * </pre>
-     * <p>
-     * It is possible to convert values of a bigger unit to values of a smaller unit, e.g. this is possible:
-     *
-     * <pre>
-     * format_bytes(val, 'GiB', 'B')
-     * </pre>
-     * <p>
-     * Values can be max of Long.MAX_VALUE, If the conversion produces overflown value, Long.MAX_VALUE will be returned.
-     * <p>
-     * Supported units are: B, KiB, MiB, GiB
-     * <p>
-     * Supported column types on which this function is possible to be applied:
-     * <pre>INT, TINYINT, SMALLINT, BIGINT, VARINT, ASCII, TEXT</pre>
-     * For ASCII and TEXT types, text of such column has to be a non-negative number.
-     * <p>
-     *
-     * The conversion of negative values is not supported.
-     */
-    public static class FormatBytesFct extends NativeScalarFunction
-    {
-        private static final String FUNCTION_NAME = "format_bytes";
-
-        private FormatBytesFct(AbstractType<?>... argsTypes)
-        {
-            super(FUNCTION_NAME, UTF8Type.instance, argsTypes);
-        }
-
-        @Override
-        public ByteBuffer execute(Arguments arguments) throws InvalidRequestException
-        {
-            if (arguments.get(0) == null)
-                return null;
-
-            if (arguments.containsNulls())
-                throw new InvalidRequestException("none of the arguments may be null");
-
-            long value = getValue(arguments);
-
-            if (value < 0)
-                throw new InvalidRequestException("value must be non-negative");
-
-            DataStorageUnit sourceUnit;
-            DataStorageUnit targetUnit;
-
-            if (arguments.size() == 1)
-            {
-                sourceUnit = BYTES;
-
-                if (value > FileUtils.ONE_GIB)
-                    targetUnit = GIBIBYTES;
-                else if (value > FileUtils.ONE_MIB)
-                    targetUnit = MEBIBYTES;
-                else if (value > FileUtils.ONE_KIB)
-                    targetUnit = KIBIBYTES;
-                else
-                    targetUnit = BYTES;
-            }
-            else if (arguments.size() == 2)
-            {
-                sourceUnit = BYTES;
-                targetUnit = validateUnit(arguments.get(1));
-            }
-            else
-            {
-                sourceUnit = validateUnit(arguments.get(1));
-                targetUnit = validateUnit(arguments.get(2));
-            }
-
-            long convertedValue = convertValue(value, sourceUnit, targetUnit);
-
-            return UTF8Type.instance.fromString(convertedValue + " " + targetUnit.getSymbol());
-        }
-
-        private long convertValue(long valueToConvert, DataStorageUnit sourceUnit, DataStorageUnit targetUnit)
-        {
-            if (targetUnit == BYTES)
-                return sourceUnit.toBytes(valueToConvert);
-            else if (targetUnit == KIBIBYTES)
-                return sourceUnit.toKibibytes(valueToConvert);
-            else if (targetUnit == MEBIBYTES)
-                return sourceUnit.toMebibytes(valueToConvert);
-            else if (targetUnit == GIBIBYTES)
-                return sourceUnit.toGibibytes(valueToConvert);
-            else
-                throw new InvalidRequestException("unsupported target unit " + targetUnit);
-        }
-
-        private DataStorageUnit validateUnit(String unitAsString)
-        {
-            try
-            {
-                return DataStorageUnit.fromSymbol(unitAsString);
-            }
-            catch (Exception ex)
-            {
-                throw new InvalidRequestException(ex.getMessage());
-            }
-        }
-
-        public static FunctionFactory factory()
-        {
-            return new FunctionFactory(FUNCTION_NAME,
-                                       fixed(INT, TINYINT, SMALLINT, BIGINT, VARINT, ASCII, TEXT),
-                                       optional(fixed(ASCII)),
-                                       optional(fixed(ASCII)))
-            {
-                @Override
-                protected NativeFunction doGetOrCreateFunction(List<AbstractType<?>> argTypes, AbstractType<?> receiverType)
-                {
-                    if (argTypes.isEmpty() || argTypes.size() > 3)
-                        throw invalidNumberOfArgumentsException();
-
-                    return new FormatBytesFct(argTypes.toArray(new AbstractType<?>[0]));
-                }
-            };
-        }
+        return value;
     }
 
     private static long getValue(Arguments arguments)
@@ -422,5 +123,325 @@ public class FormatFcts
 
     private FormatFcts()
     {
+    }
+
+    /**
+     * Converts numeric value in a column to a value of specified unit.
+     * <p>
+     * If the function call contains just one argument - value to convert - then it will be
+     * looked at as the value is of unit 'ms' and it will be converted to a value of a unit which is closest to it.
+     * The result will be rounded to two decimal places.
+     * E.g. If a value is (20 * 1000 + 250) then the unit will be in seconds and converted value will be 20.25.
+     * <p>
+     * If the function call contains two arguments - value to convert and a unit - then it will be looked at
+     * as the unit of such value is 'ms' and it will be converted into the value of the second (unit) argument.
+     * <p>
+     * If the function call contains three arguments - value to covert and source and target unit - then the value
+     * will be considered of a unit of the second argument, and it will be converted
+     * into a value of the third (unit) argument.
+     * <p>
+     * Examples:
+     * <pre>
+     * format_time(val)
+     * format_time(val, 'm') = format_time(val, 'ms', 'm')
+     * format_time(val, 's', 'm')
+     * format_time(val, 's', 'h')
+     * format_time(val, 's', 'd')
+     * format_time(val, 's') = format_time(val, 'ms', 's')
+     * format_time(val, 'h') = format_time(val, 'ms', 'h')
+     * </pre>
+     * <p>
+     * It is possible to convert values of a bigger unit to values of a smaller unit, e.g. this is possible:
+     *
+     * <pre>
+     * format_time(val, 'm', 's')
+     * </pre>
+     * <p>
+     * Values can be max of Double.MAX_VALUE, If the conversion produces overflown value, Double.MAX_VALUE will be returned.
+     * <p>
+     * Supported units are: d, h, m, s, ms, us, µs, ns
+     * <p>
+     * Supported column types on which this function is possible to be applied:
+     * <pre>INT, TINYINT, SMALLINT, BIGINT, VARINT, ASCII, TEXT</pre>
+     * For ASCII and TEXT types, text of such column has to be a non-negative number.
+     * <p>
+     * The conversion of negative values is not supported.
+     */
+    public static class FormatTimeFct extends NativeScalarFunction
+    {
+        private static final String FUNCTION_NAME = "format_time";
+
+        private static final String[] UNITS = { "d", "h", "m", "s" };
+        private static final long[] CONVERSION_FACTORS = { 86400000, 3600000, 60000, 1000 }; // Milliseconds in a day, hour, minute, second
+
+        private FormatTimeFct(AbstractType<?>... argsTypes)
+        {
+            super(FUNCTION_NAME, UTF8Type.instance, argsTypes);
+        }
+
+        @Override
+        public ByteBuffer execute(Arguments arguments) throws InvalidRequestException
+        {
+            if (arguments.get(0) == null)
+                return null;
+
+            long value = validateAndGetValue(arguments);
+
+            if (arguments.size() == 1)
+            {
+                Pair<Double, String> convertedValue = convertValue(value);
+                return UTF8Type.instance.fromString(format(convertedValue.left) + ' ' + convertedValue.right);
+            }
+
+            TimeUnit sourceUnit;
+            TimeUnit targetUnit;
+            String targetUnitAsString;
+
+            if (arguments.size() == 2)
+            {
+                sourceUnit = MILLISECONDS;
+                targetUnitAsString = arguments.get(1);
+            }
+            else
+            {
+                sourceUnit = validateUnit(arguments.get(1));
+                targetUnitAsString = arguments.get(2);
+            }
+
+            targetUnit = validateUnit(targetUnitAsString);
+
+            double convertedValue = convertValue(value, sourceUnit, targetUnit);
+            return UTF8Type.instance.fromString(format(convertedValue) + ' ' + targetUnitAsString);
+        }
+
+        private TimeUnit validateUnit(String unitAsString)
+        {
+            try
+            {
+                return DurationSpec.fromSymbol(unitAsString);
+            }
+            catch (Exception ex)
+            {
+                throw new InvalidRequestException(ex.getMessage());
+            }
+        }
+
+        private Pair<Double, String> convertValue(long valueToConvert)
+        {
+            for (int i = 0; i < CONVERSION_FACTORS.length; i++)
+            {
+                if (valueToConvert >= CONVERSION_FACTORS[i])
+                {
+                    double convertedValue = (double) valueToConvert / CONVERSION_FACTORS[i];
+                    return Pair.create(convertedValue, UNITS[i]);
+                }
+            }
+            return Pair.create((double) valueToConvert, "ms");
+        }
+
+        private Double convertValue(long valueToConvert, TimeUnit sourceUnit, TimeUnit targetUnit)
+        {
+            try
+            {
+                double conversionFactor = getConversionFactor(sourceUnit, targetUnit);
+                return valueToConvert * conversionFactor;
+            }
+            catch (ArithmeticException ex)
+            {
+                return Double.MAX_VALUE;
+            }
+        }
+
+        private static double getConversionFactor(TimeUnit sourceUnit, TimeUnit targetUnit)
+        {
+            // Define conversion factors between units
+            double nanosPerSourceUnit = getNanosPerUnit(sourceUnit);
+            double nanosPerTargetUnit = getNanosPerUnit(targetUnit);
+
+            // Calculate the conversion factor
+            return nanosPerSourceUnit / nanosPerTargetUnit;
+        }
+
+        private static double getNanosPerUnit(TimeUnit unit)
+        {
+            switch (unit)
+            {
+                case NANOSECONDS:
+                    return 1.0;
+                case MICROSECONDS:
+                    return 1_000.0;
+                case MILLISECONDS:
+                    return 1_000_000.0;
+                case SECONDS:
+                    return 1_000_000_000.0;
+                case MINUTES:
+                    return 60.0 * 1_000_000_000.0;
+                case HOURS:
+                    return 3600.0 * 1_000_000_000.0;
+                case DAYS:
+                    return 86400.0 * 1_000_000_000.0;
+                default:
+                    throw new IllegalArgumentException("Unsupported time unit: " + unit);
+            }
+        }
+
+        public static FunctionFactory factory()
+        {
+            return new FunctionFactory(FUNCTION_NAME,
+                                       fixed(INT, TINYINT, SMALLINT, BIGINT, VARINT, ASCII, TEXT),
+                                       optional(fixed(ASCII)),
+                                       optional(fixed(ASCII)))
+            {
+                @Override
+                protected NativeFunction doGetOrCreateFunction(List<AbstractType<?>> argTypes, AbstractType<?> receiverType)
+                {
+                    if (argTypes.isEmpty() || argTypes.size() > 3)
+                        throw invalidNumberOfArgumentsException();
+
+                    return new FormatTimeFct(argTypes.toArray(new AbstractType<?>[0]));
+                }
+            };
+        }
+    }
+
+    /**
+     * Converts numeric value in a column to a size value of specified unit.
+     * <p>
+     * If the function call contains just one argument - value to convert - then it will be
+     * looked at as the value is of unit 'B' and it will be converted to a value of a unit which is closest to it.
+     * The result will be rounded to two decimal places.
+     * E.g. If a value is (100 * 1024 + 150) then the unit will be in KiB and converted value will be 100.15.
+     * <p>
+     * If the function call contains two arguments - value to convert and a unit - then it will be looked at
+     * as the unit of such value is 'B' and it will be converted into the value of the second (unit) argument.
+     * <p>
+     * If the function call contains three arguments - value to covert and source and target unit - then the value
+     * will be considered of a unit of the second argument, and it will be converted
+     * into a value of the third (unit) argument.
+     * <p>
+     * Examples:
+     * <pre>
+     * format_bytes(val) = format_bytes(val, 'B', 'MiB')
+     * format_bytes(val, 'B', 'MiB')
+     * format_bytes(val, 'B', 'GiB')
+     * format_bytes(val, 'KiB', 'GiB')
+     * format_bytes(val, 'MiB') = format_bytes(val, 'B', 'MiB')
+     * format_bytes(val, 'GiB') = format_bytes(val, 'B', 'GiB')
+     * </pre>
+     * <p>
+     * It is possible to convert values of a bigger unit to values of a smaller unit, e.g. this is possible:
+     *
+     * <pre>
+     * format_bytes(val, 'GiB', 'B')
+     * </pre>
+     * <p>
+     * Values can be max of Long.MAX_VALUE, If the conversion produces overflown value, Long.MAX_VALUE will be returned.
+     * Note that the actual return value will be 9223372036854776000 due to the limitations of double precision.
+     * <p>
+     * Supported units are: B, KiB, MiB, GiB
+     * <p>
+     * Supported column types on which this function is possible to be applied:
+     * <pre>INT, TINYINT, SMALLINT, BIGINT, VARINT, ASCII, TEXT</pre>
+     * For ASCII and TEXT types, text of such column has to be a non-negative number.
+     * <p>
+     * <p>
+     * The conversion of negative values is not supported.
+     */
+    public static class FormatBytesFct extends NativeScalarFunction
+    {
+        private static final String FUNCTION_NAME = "format_bytes";
+
+        private FormatBytesFct(AbstractType<?>... argsTypes)
+        {
+            super(FUNCTION_NAME, UTF8Type.instance, argsTypes);
+        }
+
+        @Override
+        public ByteBuffer execute(Arguments arguments) throws InvalidRequestException
+        {
+            if (arguments.get(0) == null)
+                return null;
+
+            long value = validateAndGetValue(arguments);
+
+            DataStorageUnit sourceUnit;
+            DataStorageUnit targetUnit;
+
+            if (arguments.size() == 1)
+            {
+                sourceUnit = BYTES;
+
+                if (value > FileUtils.ONE_GIB)
+                    targetUnit = GIBIBYTES;
+                else if (value > FileUtils.ONE_MIB)
+                    targetUnit = MEBIBYTES;
+                else if (value > FileUtils.ONE_KIB)
+                    targetUnit = KIBIBYTES;
+                else
+                    targetUnit = BYTES;
+            }
+            else if (arguments.size() == 2)
+            {
+                sourceUnit = BYTES;
+                targetUnit = validateUnit(arguments.get(1));
+            }
+            else
+            {
+                sourceUnit = validateUnit(arguments.get(1));
+                targetUnit = validateUnit(arguments.get(2));
+            }
+
+            double convertedValue = convertValue(value, sourceUnit, targetUnit);
+            String convertedValueAsString = format(convertedValue);
+
+            return UTF8Type.instance.fromString(convertedValueAsString + ' ' + targetUnit.getSymbol());
+        }
+
+        private double convertValue(long valueToConvert, DataStorageUnit sourceUnit, DataStorageUnit targetUnit)
+        {
+            switch (targetUnit)
+            {
+                case BYTES:
+                    return sourceUnit.toBytesDouble(valueToConvert);
+                case KIBIBYTES:
+                    return sourceUnit.toKibibytesDouble(valueToConvert);
+                case MEBIBYTES:
+                    return sourceUnit.toMebibytesDouble(valueToConvert);
+                case GIBIBYTES:
+                    return sourceUnit.toGibibytesDouble(valueToConvert);
+                default:
+                    throw new InvalidRequestException("unsupported target unit " + targetUnit);
+            }
+        }
+
+        private DataStorageUnit validateUnit(String unitAsString)
+        {
+            try
+            {
+                return DataStorageUnit.fromSymbol(unitAsString);
+            }
+            catch (Exception ex)
+            {
+                throw new InvalidRequestException(ex.getMessage());
+            }
+        }
+
+        public static FunctionFactory factory()
+        {
+            return new FunctionFactory(FUNCTION_NAME,
+                                       fixed(INT, TINYINT, SMALLINT, BIGINT, VARINT, ASCII, TEXT),
+                                       optional(fixed(ASCII)),
+                                       optional(fixed(ASCII)))
+            {
+                @Override
+                protected NativeFunction doGetOrCreateFunction(List<AbstractType<?>> argTypes, AbstractType<?> receiverType)
+                {
+                    if (argTypes.isEmpty() || argTypes.size() > 3)
+                        throw invalidNumberOfArgumentsException();
+
+                    return new FormatBytesFct(argTypes.toArray(new AbstractType<?>[0]));
+                }
+            };
+        }
     }
 }

@@ -18,14 +18,7 @@
 
 package org.apache.cassandra.cql3.functions;
 
-import java.util.Arrays;
-import java.util.List;
-import java.util.stream.Collectors;
-
 import org.junit.Test;
-
-import org.apache.cassandra.cql3.CQL3Type;
-import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 
 import static java.util.List.of;
@@ -36,23 +29,52 @@ import static org.apache.cassandra.cql3.CQL3Type.Native.SMALLINT;
 import static org.apache.cassandra.cql3.CQL3Type.Native.TEXT;
 import static org.apache.cassandra.cql3.CQL3Type.Native.TINYINT;
 import static org.apache.cassandra.cql3.CQL3Type.Native.VARINT;
+import static org.apache.cassandra.cql3.functions.FormatFcts.format;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.quicktheories.QuickTheory.qt;
+import static org.quicktheories.generators.SourceDSL.integers;
 
-public class FormatBytesFctTest extends CQLTester
+public class FormatBytesFctTest extends AbstractFormatFctTest
 {
     @Test
-    public void testOneValueArgument()
+    public void testOneValueArgumentExact()
     {
         createTable(of(INT), new Object[][]{ { 1, 1073741825 },
                                              { 2, 1073741823 },
                                              { 3, 0 } }); // 0 B
         assertRows(execute("select format_bytes(col1) from %s where pk = 1"), row("1 GiB"));
-        assertRows(execute("select format_bytes(col1) from %s where pk = 2"), row("1023 MiB"));
+        assertRows(execute("select format_bytes(col1) from %s where pk = 2"), row("1024 MiB"));
         assertRows(execute("select format_bytes(col1) from %s where pk = 3"), row("0 B"));
     }
 
     @Test
-    public void testValueAndUnitArguments()
+    public void testOneValueArgumentDecimalRoundup()
+    {
+        createTable(of(INT), new Object[][]{ { 1, 1563401650 },
+                                             { 2, 1072441589 },
+                                             { 3, 102775 },
+                                             { 4, 102 } });
+        assertRows(execute("select format_bytes(col1) from %s where pk = 1"), row("1.46 GiB")); // 1.4560
+        assertRows(execute("select format_bytes(col1) from %s where pk = 2"), row("1022.76 MiB")); // 1022.7599
+        assertRows(execute("select format_bytes(col1) from %s where pk = 3"), row("100.37 KiB")); // 100.3662
+        assertRows(execute("select format_bytes(col1) from %s where pk = 4"), row("102 B"));
+    }
+
+    @Test
+    public void testOneValueArgumentDecimalRoundDown()
+    {
+        createTable(of(INT), new Object[][]{ { 1, 1557999386 },
+                                             { 2, 1072433201 },
+                                             { 3, 102769 },
+                                             { 4, 102 } });
+        assertRows(execute("select format_bytes(col1) from %s where pk = 1"), row("1.45 GiB")); // 1.451
+        assertRows(execute("select format_bytes(col1) from %s where pk = 2"), row("1022.75 MiB")); // 1022.752
+        assertRows(execute("select format_bytes(col1) from %s where pk = 3"), row("100.36 KiB")); // 100.3613
+        assertRows(execute("select format_bytes(col1) from %s where pk = 4"), row("102 B"));
+    }
+
+    @Test
+    public void testValueAndUnitArgumentsExact()
     {
         createTable(of(INT), new Object[][]{ { 1, 1073741825 },
                                              { 2, 0 } });
@@ -68,7 +90,23 @@ public class FormatBytesFctTest extends CQLTester
     }
 
     @Test
-    public void testValueWithSourceAndTargetArgument()
+    public void testValueAndUnitArgumentsDecimal()
+    {
+        createTable(of(INT), new Object[][]{ { 1, 1563401650 },
+                                             { 2, 1557999336 } });
+        assertRows(execute("select format_bytes(col1, 'B') from %s where pk = 1"), row("1563401650 B"));
+        assertRows(execute("select format_bytes(col1, 'KiB') from %s where pk = 1"), row("1526759.42 KiB"));
+        assertRows(execute("select format_bytes(col1, 'MiB') from %s where pk = 1"), row("1490.98 MiB"));
+        assertRows(execute("select format_bytes(col1, 'GiB') from %s where pk = 1"), row("1.46 GiB"));
+
+        assertRows(execute("select format_bytes(col1, 'B') from %s where pk = 2"), row("1557999336 B"));
+        assertRows(execute("select format_bytes(col1, 'KiB') from %s where pk = 2"), row("1521483.73 KiB"));
+        assertRows(execute("select format_bytes(col1, 'MiB') from %s where pk = 2"), row("1485.82 MiB"));
+        assertRows(execute("select format_bytes(col1, 'GiB') from %s where pk = 2"), row("1.45 GiB"));
+    }
+
+    @Test
+    public void testValueWithSourceAndTargetArgumentExact()
     {
         createTable(of(INT), new Object[][]{ { 1, 1073741825 },
                                              { 2, 1 },
@@ -90,6 +128,37 @@ public class FormatBytesFctTest extends CQLTester
     }
 
     @Test
+    public void testValueWithSourceAndTargetArgumentDecimal()
+    {
+        createTable(of(INT), new Object[][]{ { 1, 1563401650 },
+                                             { 2, 1557999336 },});
+        assertRows(execute("select format_bytes(col1, 'B',   'B') from %s where pk = 1"), row("1563401650 B"));
+        assertRows(execute("select format_bytes(col1, 'B', 'KiB') from %s where pk = 1"), row("1526759.42 KiB"));
+        assertRows(execute("select format_bytes(col1, 'B', 'MiB') from %s where pk = 1"), row("1490.98 MiB"));
+        assertRows(execute("select format_bytes(col1, 'B', 'GiB') from %s where pk = 1"), row("1.46 GiB"));
+
+        assertRows(execute("select format_bytes(col1, 'B', 'B') from %s where pk = 2"), row("1557999336 B"));
+        assertRows(execute("select format_bytes(col1, 'B', 'KiB') from %s where pk = 2"), row("1521483.73 KiB"));
+        assertRows(execute("select format_bytes(col1, 'B', 'MiB') from %s where pk = 2"), row("1485.82 MiB"));
+        assertRows(execute("select format_bytes(col1, 'B', 'GiB') from %s where pk = 2"), row("1.45 GiB"));
+    }
+
+    @Test
+    public void testFuzzNumberGenerators()
+    {
+        createTable("CREATE TABLE %s (pk int primary key, col1 int)");
+
+        qt().withExamples(1024).forAll(integers().allPositive()).checkAssert(
+        (randInt) -> {
+            execute("INSERT INTO %s (pk, col1) VALUES (?, ?)", 1, randInt);
+
+            assertRows(execute("select format_bytes(col1, 'MiB') from %s where pk = 1"), row(format(randInt / 1024.0 / 1024.0) + " MiB"));
+            assertRows(execute("select format_bytes(col1, 'KiB', 'GiB') from %s where pk = 1"), row(format(randInt / 1024.0 / 1024.0) + " GiB"));
+            assertRows(execute("select format_bytes(col1, 'B', 'GiB') from %s where pk = 1"), row(format(randInt / 1024.0 / 1024.0 / 1024.0 ) + " GiB"));
+        });
+    }
+
+    @Test
     public void testOverflow()
     {
         createTable(of(BIGINT, INT, SMALLINT, TINYINT),
@@ -105,12 +174,12 @@ public class FormatBytesFctTest extends CQLTester
                                       Byte.MAX_VALUE } });
 
         // this will stop at Long.MAX_VALUE
-        assertRows(execute("select format_bytes(col1, 'GiB', 'B') from %s where pk = 1"), row("9223372036854775807 B"));
-        assertRows(execute("select format_bytes(col2, 'GiB', 'B') from %s where pk = 1"), row("2305843007066210304 B"));
+        assertRows(execute("select format_bytes(col1, 'GiB', 'B') from %s where pk = 1"), row("9223372036854776000 B"));
+        assertRows(execute("select format_bytes(col2, 'GiB', 'B') from %s where pk = 1"), row("2305843007066210300 B"));
         assertRows(execute("select format_bytes(col3, 'GiB', 'B') from %s where pk = 1"), row("35182224605184 B"));
         assertRows(execute("select format_bytes(col4, 'GiB', 'B') from %s where pk = 1"), row("135291469824 B"));
 
-        assertRows(execute("select format_bytes(col2, 'GiB', 'B') from %s where pk = 2"), row("2305843008139952128 B"));
+        assertRows(execute("select format_bytes(col2, 'GiB', 'B') from %s where pk = 2"), row("2305843008139952130 B"));
         assertRows(execute("select format_bytes(col3, 'GiB', 'B') from %s where pk = 2"), row("35183298347008 B"));
         assertRows(execute("select format_bytes(col4, 'GiB', 'B') from %s where pk = 2"), row("136365211648 B"));
     }
@@ -129,13 +198,13 @@ public class FormatBytesFctTest extends CQLTester
                                       '\'' + Integer.valueOf(Integer.MAX_VALUE).toString() + '\'',
                                       } });
 
-        assertRows(execute("select format_bytes(col1) from %s where pk = 1"), row("1 GiB"));
+        assertRows(execute("select format_bytes(col1) from %s where pk = 1"), row("2 GiB"));
         assertRows(execute("select format_bytes(col2) from %s where pk = 1"), row("127 B"));
-        assertRows(execute("select format_bytes(col3) from %s where pk = 1"), row("31 KiB"));
-        assertRows(execute("select format_bytes(col4) from %s where pk = 1"), row("8589934591 GiB"));
-        assertRows(execute("select format_bytes(col5) from %s where pk = 1"), row("1 GiB"));
-        assertRows(execute("select format_bytes(col6) from %s where pk = 1"), row("1 GiB"));
-        assertRows(execute("select format_bytes(col7) from %s where pk = 1"), row("1 GiB"));
+        assertRows(execute("select format_bytes(col3) from %s where pk = 1"), row("32 KiB"));
+        assertRows(execute("select format_bytes(col4) from %s where pk = 1"), row("8589934592 GiB"));
+        assertRows(execute("select format_bytes(col5) from %s where pk = 1"), row("2 GiB"));
+        assertRows(execute("select format_bytes(col6) from %s where pk = 1"), row("2 GiB"));
+        assertRows(execute("select format_bytes(col7) from %s where pk = 1"), row("2 GiB"));
     }
 
     @Test
@@ -182,7 +251,14 @@ public class FormatBytesFctTest extends CQLTester
     public void testInvalidArgumentsSize()
     {
         createDefaultTable(new Object[][]{ { "1", "1", "2" } });
-        assertThatThrownBy(() -> execute("select format_bytes(col1, 'arg1', 'arg2', 'arg3') from %s where pk = 1"))
+        
+        // Test arguemnt size = 0
+        assertThatThrownBy(() -> execute("select format_bytes() from %s where pk = 1"))
+        .isInstanceOf(InvalidRequestException.class)
+        .hasMessageContaining("Invalid number of arguments for function system.format_bytes([int|tinyint|smallint|bigint|varint|ascii|text], [ascii], [ascii])");
+
+        // Test argument size > 3
+        assertThatThrownBy(() -> execute("select format_bytes(col1, 'B', 'KiB', 'GiB') from %s where pk = 1"))
         .isInstanceOf(InvalidRequestException.class)
         .hasMessageContaining("Invalid number of arguments for function system.format_bytes([int|tinyint|smallint|bigint|varint|ascii|text], [ascii], [ascii])");
     }
@@ -227,57 +303,5 @@ public class FormatBytesFctTest extends CQLTester
     {
         createDefaultTable(new Object[][]{ { "1", "900", "2000" } });
         assertRows(execute("select format_bytes(col1) from %s where pk = 1"), row("900 B"));
-    }
-
-    private void createTable(List<CQL3Type.Native> columnTypes, Object[][] rows)
-    {
-        String[][] columns = new String[columnTypes.size() + 1][2];
-
-        columns[0][0] = "pk";
-        columns[0][1] = "int";
-
-        for (int i = 1; i <= columnTypes.size(); i++)
-        {
-            columns[i][0] = "col" + i;
-            columns[i][1] = columnTypes.get(i - 1).name().toLowerCase();
-        }
-
-        createTable(columns, rows);
-    }
-
-    private void createDefaultTable(Object[][] rows)
-    {
-        createTable(new String[][]{ { "pk", "int" }, { "col1", "int" }, { "col2", "int" } }, rows);
-    }
-
-    private void createTable(String[][] columns, Object[][] rows)
-    {
-        StringBuilder sb = new StringBuilder();
-        for (int i = 0; i < columns.length; i++)
-        {
-            sb.append(columns[i][0]);
-            sb.append(' ');
-            sb.append(columns[i][1]);
-
-            if (i == 0)
-                sb.append(" primary key");
-
-            if (i + 1 != columns.length)
-                sb.append(", ");
-        }
-        String columnsDefinition = sb.toString();
-        createTable(KEYSPACE, "CREATE TABLE %s (" + columnsDefinition + ')');
-
-        String cols = Arrays.stream(columns).map(s -> s[0]).collect(Collectors.joining(", "));
-
-        for (Object[] row : rows)
-        {
-            String vals = Arrays.stream(row).map(v -> {
-                if (v == null)
-                    return "null";
-                return v.toString();
-            }).collect(Collectors.joining(", "));
-            execute("INSERT INTO %s (" + cols + ") values (" + vals + ')');
-        }
     }
 }
