@@ -41,6 +41,7 @@ import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
+import org.apache.cassandra.io.sstable.format.big.BigFormat;
 import org.apache.cassandra.repair.autorepair.AutoRepairConfig.RepairType;
 import org.apache.cassandra.repair.autorepair.RepairRangeSplitter.FilteredRepairAssignments;
 import org.apache.cassandra.repair.autorepair.RepairRangeSplitter.SizeEstimate;
@@ -67,6 +68,7 @@ public class RepairRangeSplitterTest extends CQLTester
         AutoRepairService.setup();
         AutoRepairService.instance.getAutoRepairConfig().setRepairByKeyspace(RepairType.FULL, true);
         FULL_RANGE = new Range<>(DatabaseDescriptor.getPartitioner().getMinimumToken(), DatabaseDescriptor.getPartitioner().getMaximumToken());
+        DatabaseDescriptor.setSelectedSSTableFormat(DatabaseDescriptor.getSSTableFormats().get(BigFormat.NAME));
     }
 
     @Before
@@ -74,6 +76,7 @@ public class RepairRangeSplitterTest extends CQLTester
     {
         repairRangeSplitter = new RepairRangeSplitter(Collections.emptyMap());
         tableName = createTable("CREATE TABLE %s (k INT PRIMARY KEY, v INT)");
+        assertTrue(BigFormat.isSelected());
     }
 
     @Test
