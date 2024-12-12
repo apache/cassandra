@@ -21,7 +21,6 @@ package org.apache.cassandra.repair.autorepair;
 import java.util.List;
 import java.util.Objects;
 
-import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 
