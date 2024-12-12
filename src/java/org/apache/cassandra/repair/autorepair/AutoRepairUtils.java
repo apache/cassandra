@@ -841,7 +841,7 @@ public class AutoRepairUtils
     {
         Collection<Range<Token>> ranges;
         Optional<Splitter> splitter = DatabaseDescriptor.getPartitioner().splitter();
-        if (splitter.isEmpty())
+        if (!splitter.isPresent())
         {
             NoSpamLogger.log(logger, NoSpamLogger.Level.WARN, 30, TimeUnit.MINUTES, "Partitioner {} does not support splitting, falling back to splitting by token range", DatabaseDescriptor.getPartitioner());
             ranges = Collections.singleton(tokenRange);
