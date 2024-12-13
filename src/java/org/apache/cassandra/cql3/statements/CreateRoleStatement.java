@@ -26,6 +26,8 @@ import org.apache.cassandra.cql3.RoleName;
 import org.apache.cassandra.exceptions.*;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.transport.messages.ResultMessage;
+import org.apache.cassandra.utils.StorageCompatibilityMode;
+
 import org.apache.commons.lang3.builder.ToStringBuilder;
 import org.apache.commons.lang3.builder.ToStringStyle;
 
@@ -36,6 +38,11 @@ public class CreateRoleStatement extends AuthenticationStatement
     final DCPermissions dcPermissions;
     final CIDRPermissions cidrPermissions;
     private final boolean ifNotExists;
+
+    public CreateRoleStatement(RoleName name, RoleOptions options, DCPermissions dcPermissions, boolean ifNotExists)
+    {
+        this(name, options, dcPermissions, null, ifNotExists);
+    }
 
     public CreateRoleStatement(RoleName name, RoleOptions options, DCPermissions dcPermissions,
                                CIDRPermissions cidrPermissions, boolean ifNotExists)
@@ -93,7 +100,7 @@ public class CreateRoleStatement extends AuthenticationStatement
             DatabaseDescriptor.getNetworkAuthorizer().setRoleDatacenters(role, dcPermissions);
         }
 
-        if (cidrPermissions != null)
+        if (cidrPermissions != null && DatabaseDescriptor.getStorageCompatibilityMode() != StorageCompatibilityMode.CASSANDRA_4)
             DatabaseDescriptor.getCIDRAuthorizer().setCidrGroupsForRole(role, cidrPermissions);
 
         grantPermissionsToCreator(state);
