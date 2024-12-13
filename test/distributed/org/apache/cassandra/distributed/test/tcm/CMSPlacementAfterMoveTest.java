@@ -39,6 +39,7 @@ public class CMSPlacementAfterMoveTest extends TestBaseImpl
     {
         try (Cluster cluster = init(Cluster.build(4)
                                            .withConfig(c -> c.with(Feature.GOSSIP, Feature.NETWORK))
+                                           .withoutVNodes()
                                            .start()))
         {
             cluster.get(1).nodetoolResult("cms", "reconfigure", "3").asserts().success();
