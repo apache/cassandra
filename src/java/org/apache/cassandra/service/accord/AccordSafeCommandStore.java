@@ -64,9 +64,9 @@ public class AccordSafeCommandStore extends AbstractSafeCommandStore<AccordSafeC
     }
 
     @Override
-    public CommandStores.RangesForEpoch rangesForEpoch()
+    public CommandStores.RangesForEpoch ranges()
     {
-        CommandStores.RangesForEpoch ranges = super.rangesForEpoch();
+        CommandStores.RangesForEpoch ranges = super.ranges();
         if (ranges != null)
             return ranges;
 

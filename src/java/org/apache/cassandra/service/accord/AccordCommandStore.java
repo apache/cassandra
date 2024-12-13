@@ -461,10 +461,10 @@ public class AccordCommandStore extends CommandStore
             return;
 
         RedundantBefore redundantBefore = unsafeGetRedundantBefore();
-        CommandStores.RangesForEpoch ranges = safeStore.rangesForEpoch();
+        CommandStores.RangesForEpoch ranges = safeStore.ranges();
         // used in places such as accord.local.CommandStore.fetchMajorityDeps
         // We find a set of dependencies for a range then update CommandsFor to know about them
-        Ranges allRanges = safeStore.rangesForEpoch().all();
+        Ranges allRanges = safeStore.ranges().all();
         Ranges coordinateRanges = Ranges.EMPTY;
         long coordinateEpoch = -1;
         try (ExclusiveCaches caches = lockCaches())

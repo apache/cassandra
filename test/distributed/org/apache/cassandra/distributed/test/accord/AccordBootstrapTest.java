@@ -320,7 +320,7 @@ public class AccordBootstrapTest extends TestBaseImpl
                         Assert.assertEquals(key, row.getInt("v"));
 
                         awaitUninterruptiblyAndRethrow(service().node().commandStores().forEach(safeStore -> {
-                            if (safeStore.rangesForEpoch().currentRanges().contains(partitionKey))
+                            if (safeStore.ranges().currentRanges().contains(partitionKey))
                             {
                                 AccordSafeCommandStore ss = (AccordSafeCommandStore) safeStore;
                                 Assert.assertFalse(ss.bootstrapBeganAt().isEmpty());
@@ -465,7 +465,7 @@ public class AccordBootstrapTest extends TestBaseImpl
                             awaitUninterruptiblyAndRethrow(service().node().commandStores().forEach(PreLoadContext.contextFor(partitionKey.toUnseekable()),
                                                                                           partitionKey.toUnseekable(), moveMax, moveMax,
                                                                                           safeStore -> {
-                                if (!safeStore.rangesForEpoch().allAt(preMove).contains(partitionKey))
+                                if (!safeStore.ranges().allAt(preMove).contains(partitionKey))
                                 {
                                     AccordSafeCommandStore ss = (AccordSafeCommandStore) safeStore;
                                     Assert.assertFalse(ss.bootstrapBeganAt().isEmpty());
