@@ -1,4 +1,6 @@
 5.1
+ * Support downgrading after CMS is initialized (CASSANDRA-20145)
+ * Deprecate IEndpointSnitch (CASSANDRA-19488)
  * Check presence of a snapshot in a case-insensitive manner on macOS platform to prevent hardlinking failures (CASSANDRA-20146)
  * Enable JMX server configuration to be in cassandra.yaml (CASSANDRA-11695)
  * Parallelized UCS compactions (CASSANDRA-18802)

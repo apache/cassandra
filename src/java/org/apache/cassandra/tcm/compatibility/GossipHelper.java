@@ -51,6 +51,8 @@ import org.apache.cassandra.gms.TokenSerializer;
 import org.apache.cassandra.gms.VersionedValue;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.schema.DistributedSchema;
+import org.apache.cassandra.schema.Keyspaces;
+import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.schema.SchemaKeyspace;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.tcm.ClusterMetadata;
@@ -275,9 +277,15 @@ public class GossipHelper
 
     public static ClusterMetadata emptyWithSchemaFromSystemTables(Set<String> allKnownDatacenters)
     {
+        // If this instance was previously upgraded then subsequently downgraded, the metadata keyspace may have been
+        // added to system_schema tables. If so, don't include it in the initial schema as this will cause it to be
+        // incorrectly configured with the global partitioner. It will be created afresh from
+        // DistributedMetadataLogKeyspace.initialMetadata.
+        Keyspaces keyspaces = SchemaKeyspace.fetchNonSystemKeyspaces()
+                                            .filter(k -> !k.name.equals(SchemaConstants.METADATA_KEYSPACE_NAME));
         return new ClusterMetadata(Epoch.UPGRADE_STARTUP,
                                    DatabaseDescriptor.getPartitioner(),
-                                   DistributedSchema.fromSystemTables(SchemaKeyspace.fetchNonSystemKeyspaces(), allKnownDatacenters),
+                                   DistributedSchema.fromSystemTables(keyspaces, allKnownDatacenters),
                                    Directory.EMPTY,
                                    new TokenMap(DatabaseDescriptor.getPartitioner()),
                                    DataPlacements.empty(),

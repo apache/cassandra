@@ -64,7 +64,8 @@ public class GossipDigestSynVerbHandler extends GossipVerbHandler<GossipDigestSy
             return;
         }
 
-        if (gDigestMessage.metadataId != ClusterMetadata.current().metadataIdentifier)
+        if (gDigestMessage.metadataId != ClusterMetadata.EMPTY_METADATA_IDENTIFIER
+            && gDigestMessage.metadataId != ClusterMetadata.current().metadataIdentifier)
         {
             logger.warn("Cluster metadata identifier mismatch from {} {}!={}", from, gDigestMessage.metadataId, ClusterMetadata.current().metadataIdentifier);
             return;
