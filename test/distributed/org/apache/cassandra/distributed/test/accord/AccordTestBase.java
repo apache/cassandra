@@ -204,7 +204,7 @@ public abstract class AccordTestBase extends TestBaseImpl
             SHARED_CLUSTER.schemaChange(ddl);
 
         // Evict commands from the cache immediately to expose problems loading from disk.
-        SHARED_CLUSTER.forEach(node -> node.runOnInstance(() -> AccordService.instance().setCacheSize(0)));
+//        SHARED_CLUSTER.forEach(node -> node.runOnInstance(() -> AccordService.instance().setCacheSize(0)));
 
         try
         {

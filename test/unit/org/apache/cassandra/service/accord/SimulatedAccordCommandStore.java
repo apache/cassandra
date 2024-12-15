@@ -421,7 +421,7 @@ public class SimulatedAccordCommandStore implements AutoCloseable
 
         return Pair.create(txnId, processAsync(br, safe -> {
             var reply = br.apply(safe);
-            Assertions.assertThat(reply.isOk()).isTrue();
+            Assertions.assertThat(reply.kind() == BeginRecovery.RecoverReply.Kind.Ok).isTrue();
             return (BeginRecovery.RecoverOk) reply;
         }).beginAsResult());
     }

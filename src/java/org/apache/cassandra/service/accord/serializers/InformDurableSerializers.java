@@ -25,6 +25,7 @@ import accord.primitives.Route;
 import accord.primitives.Status;
 import accord.primitives.Timestamp;
 import accord.primitives.TxnId;
+import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
@@ -36,6 +37,8 @@ public class InformDurableSerializers
         @Override
         public void serializeBody(InformDurable msg, DataOutputPlus out, int version) throws IOException
         {
+            out.writeVInt(msg.minEpoch - msg.waitForEpoch);
+            out.writeVInt(msg.maxEpoch - msg.waitForEpoch);
             CommandSerializers.nullableTimestamp.serialize(msg.executeAt, out, version);
             CommandSerializers.durability.serialize(msg.durability, out, version);
         }
@@ -43,16 +46,20 @@ public class InformDurableSerializers
         @Override
         public InformDurable deserializeBody(DataInputPlus in, int version, TxnId txnId, Route<?> scope, long waitForEpoch) throws IOException
         {
+            long minEpoch = waitForEpoch + in.readVInt();
+            long maxEpoch = waitForEpoch + in.readVInt();
             Timestamp executeAt = CommandSerializers.nullableTimestamp.deserialize(in, version);
             Status.Durability durability = CommandSerializers.durability.deserialize(in, version);
-            return InformDurable.SerializationSupport.create(txnId, scope, waitForEpoch, executeAt, durability);
+            return InformDurable.SerializationSupport.create(txnId, scope, executeAt, minEpoch, waitForEpoch, maxEpoch, durability);
         }
 
         @Override
         public long serializedBodySize(InformDurable msg, int version)
         {
-            return CommandSerializers.nullableTimestamp.serializedSize(msg.executeAt, version)
-            + CommandSerializers.durability.serializedSize(msg.durability, version);
+            return   TypeSizes.sizeofVInt(msg.minEpoch - msg.waitForEpoch)
+                   + TypeSizes.sizeofVInt(msg.maxEpoch - msg.waitForEpoch)
+                   + CommandSerializers.nullableTimestamp.serializedSize(msg.executeAt, version)
+                   + CommandSerializers.durability.serializedSize(msg.durability, version);
         }
     };
 }

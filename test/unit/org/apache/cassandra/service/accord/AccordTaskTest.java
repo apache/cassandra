@@ -205,7 +205,7 @@ public class AccordTaskTest
         FullRoute<?> route = partialTxn.keys().toRoute(routingKey);
         Ranges ranges = AccordTestUtils.fullRange(partialTxn.keys());
         route.slice(ranges);
-        PartialDeps deps = PartialDeps.builder(ranges).build();
+        PartialDeps deps = PartialDeps.builder(ranges, true).build();
 
         try
         {
@@ -257,7 +257,7 @@ public class AccordTaskTest
         FullRoute<?> route = partialTxn.keys().toRoute(routingKey);
         Ranges ranges = AccordTestUtils.fullRange(partialTxn.keys());
         Route<?> partialRoute = route.slice(ranges);
-        PartialDeps deps = PartialDeps.builder(ranges).build();
+        PartialDeps deps = PartialDeps.builder(ranges, true).build();
 
         try
         {

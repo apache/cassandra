@@ -1390,9 +1390,7 @@ public class AccordService implements IAccordService, Shutdownable
         return RetryDecission.FAIL;
     }
 
-    // TODO (duplication): this is 95% of accord.coordinate.CoordinateShardDurable
-    //   we already report all this information to EpochState; would be better to use that
-    //   Taken from ListStore...
+    // TODO (required): this should use ExecuteSyncPoint.ExecuteExclusive, or perhaps should not exist at all (should have some mechanism to request and await durability)
     private static class Await extends AsyncResults.SettableResult<SyncPoint<?>> implements Callback<ReadData.ReadReply>
     {
         private final Node node;
@@ -1401,7 +1399,7 @@ public class AccordService implements IAccordService, Shutdownable
 
         private Await(Node node, SyncPoint<?> exclusiveSyncPoint)
         {
-            Topologies topologies = node.topology().forEpoch(exclusiveSyncPoint.route, exclusiveSyncPoint.sourceEpoch());
+            Topologies topologies = node.topology().forEpoch(exclusiveSyncPoint.route, exclusiveSyncPoint.syncId.epoch());
             this.node = node;
             this.tracker = new AllTracker(topologies);
             this.exclusiveSyncPoint = exclusiveSyncPoint;
@@ -1409,7 +1407,7 @@ public class AccordService implements IAccordService, Shutdownable
 
         public static AsyncChain<Void> coordinate(Node node, SyncPoint<?> sp)
         {
-            return node.withEpoch(sp.sourceEpoch(), () -> {
+            return node.withEpoch(sp.syncId.epoch(), () -> {
                 Await coordinate = new Await(node, sp);
                 coordinate.start();
                 AsyncChain<Void> chain = coordinate.map(i -> null);

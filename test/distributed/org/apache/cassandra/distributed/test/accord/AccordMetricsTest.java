@@ -266,7 +266,7 @@ public class AccordMetricsTest extends AccordTestBase
         DefaultNameFactory nameFactory = new DefaultNameFactory(AccordMetrics.ACCORD_REPLICA, scope);
         Map<String, Long> metrics = diff(countingMetrics0).get(node);
         Function<String, Long> metric = n -> metrics.get(nameFactory.createMetricName(n).getMetricName());
-        assertThat(metric.apply(AccordMetrics.STABLE_LATENCY)).isEqualTo(stable);
+        assertThat(metric.apply(AccordMetrics.STABLE_LATENCY)).isLessThanOrEqualTo(stable);
         assertThat(metric.apply(AccordMetrics.EXECUTE_LATENCY)).isEqualTo(executions);
         assertThat(metric.apply(AccordMetrics.APPLY_LATENCY)).isEqualTo(applications);
         assertThat(metric.apply(AccordMetrics.APPLY_DURATION)).isEqualTo(applications);

@@ -49,6 +49,7 @@ import accord.local.Node;
 import accord.local.RedundantBefore;
 import accord.local.StoreParticipants;
 import accord.local.cfk.CommandsForKey;
+import accord.local.cfk.Serialize;
 import accord.primitives.Ranges;
 import accord.primitives.Route;
 import accord.primitives.SaveStatus;
@@ -137,7 +138,6 @@ import org.apache.cassandra.service.accord.api.AccordRoutingKey;
 import org.apache.cassandra.service.accord.api.AccordRoutingKey.TokenKey;
 import org.apache.cassandra.service.accord.serializers.AccordRoutingKeyByteSource;
 import org.apache.cassandra.service.accord.serializers.CommandSerializers;
-import org.apache.cassandra.service.accord.serializers.CommandsForKeySerializer;
 import org.apache.cassandra.service.accord.serializers.KeySerializers;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.utils.Clock.Global;
@@ -677,7 +677,7 @@ public class AccordKeyspace
             if (cell == null)
                 return null;
 
-            return CommandsForKeySerializer.fromBytes(key, cell.buffer());
+            return Serialize.fromBytes(key, cell.buffer());
         }
 
         @VisibleForTesting
@@ -695,7 +695,7 @@ public class AccordKeyspace
             if (cell == null)
                 return row;
 
-            CommandsForKey current = CommandsForKeySerializer.fromBytes(key, cell.buffer());
+            CommandsForKey current = Serialize.fromBytes(key, cell.buffer());
             if (current == null)
                 return null;
 
@@ -706,7 +706,7 @@ public class AccordKeyspace
             if (updated.size() == 0)
                 return null;
 
-            ByteBuffer buffer = CommandsForKeySerializer.toBytesWithoutKey(updated);
+            ByteBuffer buffer = Serialize.toBytesWithoutKey(updated);
             return BTreeRow.singleCellRow(Clustering.EMPTY, BufferCell.live(data, cell.timestamp(), buffer));
         }
 
@@ -1244,7 +1244,7 @@ public class AccordKeyspace
     {
         ByteBuffer bytes;
         if (serialized instanceof ByteBuffer) bytes = (ByteBuffer) serialized;
-        else bytes = CommandsForKeySerializer.toBytesWithoutKey(commandsForKey);
+        else bytes = Serialize.toBytesWithoutKey(commandsForKey);
         return getCommandsForKeyPartitionUpdate(storeId, key, timestampMicros, bytes);
     }
 
@@ -1318,7 +1318,7 @@ public class AccordKeyspace
                 Invariants.checkState(partition.hasNext());
                 Row row = partition.next();
                 ByteBuffer data = cellValue(row, accessor.data);
-                return CommandsForKeySerializer.fromBytes(key, data);
+                return Serialize.fromBytes(key, data);
             }
         }
         catch (Throwable t)

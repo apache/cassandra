@@ -98,7 +98,7 @@ import org.apache.cassandra.service.reads.ReadCoordinator;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.transport.Dispatcher;
 
-import static accord.coordinate.CoordinationAdapter.Factory.Step.Continue;
+import static accord.coordinate.CoordinationAdapter.Factory.Kind.Standard;
 import static accord.utils.Invariants.checkArgument;
 import static org.apache.cassandra.metrics.ClientRequestsMetricsHolder.accordReadMetrics;
 import static org.apache.cassandra.metrics.ClientRequestsMetricsHolder.accordWriteMetrics;
@@ -191,8 +191,8 @@ public class AccordInteropExecution implements ReadCoordinator, MaximalCommitSen
         this.allTopologies = txnId.epoch() != executeAt.epoch()
                              ? node.topology().preciseEpochs(route, txnId.epoch(), executeAt.epoch())
                              : executes;
-        this.executeTopology = executes.forEpoch(executeAt.epoch());
-        this.coordinateTopology = allTopologies.forEpoch(txnId.epoch());
+        this.executeTopology = executes.getEpoch(executeAt.epoch());
+        this.coordinateTopology = allTopologies.getEpoch(txnId.epoch());
         if (consistencyLevel != ConsistencyLevel.ALL)
         {
             readsCurrentlyUnderConstruction = new AtomicInteger(txn.read().keys().size());
@@ -406,7 +406,7 @@ public class AccordInteropExecution implements ReadCoordinator, MaximalCommitSen
         CommandStore cs = node.commandStores().select(route.homeKey());
         result.beginAsResult().withExecutor(cs).begin((data, failure) -> {
             if (failure == null)
-                ((CoordinationAdapter)node.coordinationAdapter(txnId, Continue)).persist(node, executes, route, txnId, txn, executeAt, deps, txn.execute(txnId, executeAt, data), txn.result(txnId, executeAt, data), callback);
+                ((CoordinationAdapter)node.coordinationAdapter(txnId, Standard)).persist(node, executes, route, txnId, txn, executeAt, deps, txn.execute(txnId, executeAt, data), txn.result(txnId, executeAt, data), callback);
             else
                 callback.accept(null, failure);
         });

@@ -97,6 +97,7 @@ import org.apache.cassandra.service.accord.serializers.CalculateDepsSerializers;
 import org.apache.cassandra.service.accord.serializers.GetEphmrlReadDepsSerializers;
 import org.apache.cassandra.service.accord.serializers.GetMaxConflictSerializers;
 import org.apache.cassandra.service.accord.serializers.InformDurableSerializers;
+import org.apache.cassandra.service.accord.serializers.LatestDepsSerializers;
 import org.apache.cassandra.service.accord.serializers.PreacceptSerializers;
 import org.apache.cassandra.service.accord.serializers.QueryDurableBeforeSerializers;
 import org.apache.cassandra.service.accord.serializers.ReadDataSerializers;
@@ -332,6 +333,8 @@ public enum Verb
     ACCORD_CHECK_STATUS_REQ         (142, P2, writeTimeout, IMMEDIATE,          () -> CheckStatusSerializers.request,       AccordService::requestHandlerOrNoop, ACCORD_CHECK_STATUS_RSP                   ),
     ACCORD_CALCULATE_DEPS_RSP       (143, P2, writeTimeout, IMMEDIATE,          () -> CalculateDepsSerializers.reply,       AccordService::responseHandlerOrNoop                                           ),
     ACCORD_CALCULATE_DEPS_REQ       (144, P2, longTimeout,  IMMEDIATE,          () -> CalculateDepsSerializers.request,     AccordService::requestHandlerOrNoop, ACCORD_CALCULATE_DEPS_RSP),
+    ACCORD_GET_LATEST_DEPS_RSP      (167, P2, writeTimeout, IMMEDIATE,          () -> LatestDepsSerializers.reply,          AccordService::responseHandlerOrNoop                                           ),
+    ACCORD_GET_LATEST_DEPS_REQ      (168, P2, writeTimeout, IMMEDIATE,          () -> LatestDepsSerializers.request,        AccordService::requestHandlerOrNoop, ACCORD_GET_LATEST_DEPS_RSP),
     ACCORD_GET_EPHMRL_READ_DEPS_RSP (161, P2, writeTimeout, IMMEDIATE,          () -> GetEphmrlReadDepsSerializers.reply,   AccordService::responseHandlerOrNoop                                           ),
     ACCORD_GET_EPHMRL_READ_DEPS_REQ (162, P2, writeTimeout, IMMEDIATE,          () -> GetEphmrlReadDepsSerializers.request, AccordService::requestHandlerOrNoop, ACCORD_GET_EPHMRL_READ_DEPS_RSP),
     ACCORD_GET_MAX_CONFLICT_RSP     (163, P2, writeTimeout, IMMEDIATE,          () -> GetMaxConflictSerializers.reply,      AccordService::responseHandlerOrNoop                                           ),

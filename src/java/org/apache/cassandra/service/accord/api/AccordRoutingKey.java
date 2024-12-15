@@ -48,7 +48,7 @@ import org.apache.cassandra.utils.ObjectSizes;
 import static com.google.common.base.Preconditions.checkState;
 import static org.apache.cassandra.config.DatabaseDescriptor.getPartitioner;
 
-public abstract class AccordRoutingKey extends AccordRoutableKey implements RoutingKey
+public abstract class AccordRoutingKey extends AccordRoutableKey implements RoutingKey, RangeFactory
 {
     public enum RoutingKeyKind
     {
@@ -67,8 +67,21 @@ public abstract class AccordRoutingKey extends AccordRoutableKey implements Rout
     @Override
     public RangeFactory rangeFactory()
     {
-        return (s, e) -> new TokenRange((AccordRoutingKey) s, (AccordRoutingKey) e);
+        return this;
     }
+
+    @Override
+    public Range newRange(RoutingKey start, RoutingKey end)
+    {
+        return TokenRange.create((AccordRoutingKey) start, (AccordRoutingKey) end);
+    }
+
+    @Override
+    public Range newAntiRange(RoutingKey start, RoutingKey end)
+    {
+        return TokenRange.createUnsafe((AccordRoutingKey) start, (AccordRoutingKey) end);
+    }
+
 
     public SentinelKey asSentinelKey()
     {
@@ -301,7 +314,7 @@ public abstract class AccordRoutingKey extends AccordRoutableKey implements Rout
                                       ? new SentinelKey(table, true, false)
                                       : new MinTokenKey(table, token);
 
-            return new TokenRange(before, this);
+            return TokenRange.create(before, this);
         }
 
         final Token token;

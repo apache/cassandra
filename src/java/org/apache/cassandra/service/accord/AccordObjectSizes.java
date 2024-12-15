@@ -274,11 +274,11 @@ public class AccordObjectSizes
         private final static TokenKey EMPTY_KEY = new TokenKey(EMPTY_ID, null);
         private final static TxnId EMPTY_TXNID = new TxnId(42, 42, Kind.Read, Domain.Key, new Node.Id(42));
 
-        private static CommonAttributes attrs(boolean hasDeps, boolean hasTxn)
+        private static CommonAttributes attrs(boolean hasDeps, boolean hasTxn, boolean executes)
         {
             FullKeyRoute route = new FullKeyRoute(EMPTY_KEY, new RoutingKey[]{ EMPTY_KEY });
             CommonAttributes.Mutable attrs = new CommonAttributes.Mutable(EMPTY_TXNID)
-                                             .setParticipants(StoreParticipants.empty(EMPTY_TXNID, route));
+                                             .setParticipants(StoreParticipants.empty(EMPTY_TXNID, route, !executes));
             attrs.durability(Status.Durability.NotDurable);
             if (hasDeps)
                 attrs.partialDeps(PartialDeps.NONE);
@@ -292,12 +292,12 @@ public class AccordObjectSizes
         private static final Writes EMPTY_WRITES = new Writes(EMPTY_TXNID, EMPTY_TXNID, Keys.EMPTY, (key, safeStore, txnId, executeAt, store, txn) -> null);
         private static final Result EMPTY_RESULT = new Result() {};
 
-        final static long NOT_DEFINED = measure(Command.SerializerSupport.notDefined(attrs(false, false), Ballot.ZERO));
-        final static long PREACCEPTED = measure(Command.SerializerSupport.preaccepted(attrs(false, true), EMPTY_TXNID, Ballot.ZERO));;
-        final static long ACCEPTED = measure(Command.SerializerSupport.accepted(attrs(true, false), SaveStatus.Accepted, EMPTY_TXNID, Ballot.ZERO, Ballot.ZERO));
-        final static long COMMITTED = measure(Command.SerializerSupport.committed(attrs(true, true), SaveStatus.Committed, EMPTY_TXNID, Ballot.ZERO, Ballot.ZERO, null));
-        final static long EXECUTED = measure(Command.SerializerSupport.executed(attrs(true, true), SaveStatus.Applied, EMPTY_TXNID, Ballot.ZERO, Ballot.ZERO, WaitingOn.empty(Domain.Key), EMPTY_WRITES, ResultSerializers.APPLIED));
-        final static long TRUNCATED = measure(Command.SerializerSupport.truncatedApply(attrs(false, false), SaveStatus.TruncatedApply,  EMPTY_TXNID, null, null));
+        final static long NOT_DEFINED = measure(Command.SerializerSupport.notDefined(attrs(false, false, false), Ballot.ZERO));
+        final static long PREACCEPTED = measure(Command.SerializerSupport.preaccepted(attrs(false, true, false), EMPTY_TXNID, Ballot.ZERO));;
+        final static long ACCEPTED = measure(Command.SerializerSupport.accepted(attrs(true, false, false), SaveStatus.Accepted, EMPTY_TXNID, Ballot.ZERO, Ballot.ZERO));
+        final static long COMMITTED = measure(Command.SerializerSupport.committed(attrs(true, true, false), SaveStatus.Committed, EMPTY_TXNID, Ballot.ZERO, Ballot.ZERO, null));
+        final static long EXECUTED = measure(Command.SerializerSupport.executed(attrs(true, true, true), SaveStatus.Applied, EMPTY_TXNID, Ballot.ZERO, Ballot.ZERO, WaitingOn.empty(Domain.Key), EMPTY_WRITES, ResultSerializers.APPLIED));
+        final static long TRUNCATED = measure(Command.SerializerSupport.truncatedApply(attrs(false, false, false), SaveStatus.TruncatedApply,  EMPTY_TXNID, null, null));
         final static long INVALIDATED = measure(Command.SerializerSupport.invalidated(EMPTY_TXNID));
 
         private static long emptySize(Command command)
@@ -370,7 +370,7 @@ public class AccordObjectSizes
 
     private static long EMPTY_CFK_SIZE = measure(new CommandsForKey(null));
     private static long EMPTY_INFO_SIZE = measure(CommandsForKey.NO_INFO);
-    private static long EMPTY_INFO_EXTRA_ADDITIONAL_SIZE = measure(TxnInfo.create(TxnId.NONE, ACCEPTED, false, TxnId.NONE, NO_TXNIDS, Ballot.MAX)) - EMPTY_INFO_SIZE;
+    private static long EMPTY_INFO_EXTRA_ADDITIONAL_SIZE = measure(TxnInfo.create(TxnId.NONE, ACCEPTED, false, false, TxnId.NONE, NO_TXNIDS, Ballot.MAX)) - EMPTY_INFO_SIZE;
     public static long commandsForKey(CommandsForKey cfk)
     {
         long size = EMPTY_CFK_SIZE;

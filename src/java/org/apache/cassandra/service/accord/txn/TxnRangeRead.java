@@ -140,7 +140,7 @@ public class TxnRangeRead extends AbstractSerialized<ReadCommand> implements Txn
                 stopAccordRoutingKey = new TokenKey(tableId, stopToken);
             else
                 stopAccordRoutingKey = new MinTokenKey(tableId, stopToken);
-            accordRanges[i] = new TokenRange(startAccordRoutingKey, stopAccordRoutingKey);
+            accordRanges[i] = TokenRange.create(startAccordRoutingKey, stopAccordRoutingKey);
         }
         covering = Ranges.of(accordRanges);
     }

@@ -57,8 +57,8 @@ public abstract class AccordSplitter implements ShardDistributor.EvenSplit.Split
         BigInteger sizeOfRange = end.subtract(start);
 
         TableId tableId = startBound.table();
-        return new TokenRange(startOffset.equals(ZERO) ? startBound : new TokenKey(tableId, tokenForValue(start.add(startOffset))),
-                              endOffset.compareTo(sizeOfRange) >= 0 ? endBound : new TokenKey(tableId, tokenForValue(start.add(endOffset))));
+        return TokenRange.create(startOffset.equals(ZERO) ? startBound : new TokenKey(tableId, tokenForValue(start.add(startOffset))),
+                                 endOffset.compareTo(sizeOfRange) >= 0 ? endBound : new TokenKey(tableId, tokenForValue(start.add(endOffset))));
     }
 
     @Override

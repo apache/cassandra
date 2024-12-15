@@ -145,7 +145,7 @@ public class RouteIndexTest extends CQLTester.InMemory
                         a = b;
                         b = tmp;
                     }
-                    range = new TokenRange((AccordRoutingKey) a.start(), (AccordRoutingKey) b.end());
+                    range = TokenRange.create((AccordRoutingKey) a.start(), (AccordRoutingKey) b.end());
                 }
                 break;
                 default:
@@ -191,7 +191,7 @@ public class RouteIndexTest extends CQLTester.InMemory
                         a = b;
                         b = tmp;
                     }
-                    range = new TokenRange((AccordRoutingKey) a.start(), (AccordRoutingKey) b.end());
+                    range = TokenRange.create((AccordRoutingKey) a.start(), (AccordRoutingKey) b.end());
                 }
                 break;
                 default:
@@ -254,8 +254,8 @@ public class RouteIndexTest extends CQLTester.InMemory
                         b = tmp;
                     }
                     TableId tableId = tableIdGen.next(rs);
-                    return new TokenRange(new TokenKey(tableId, new LongToken(a)),
-                                          new TokenKey(tableId, new LongToken(b)));
+                    return TokenRange.create(new TokenKey(tableId, new LongToken(a)),
+                                             new TokenKey(tableId, new LongToken(b)));
                 };
             case 1: // small range
                 Gen.IntGen rangeSizeGen = RANGE_SIZE_DISTRIBUTION.next(rand);
@@ -269,16 +269,16 @@ public class RouteIndexTest extends CQLTester.InMemory
                         a = b - rangeSize;
                     }
                     TableId tableId = tableIdGen.next(rs);
-                    return new TokenRange(new TokenKey(tableId, new LongToken(a)),
-                                          new TokenKey(tableId, new LongToken(b)));
+                    return TokenRange.create(new TokenKey(tableId, new LongToken(a)),
+                                             new TokenKey(tableId, new LongToken(b)));
                 };
             case 2: // single element
                 return rs -> {
                     int a = tokenGen.nextInt(rs);
                     int b = a + 1;
                     TableId tableId = tableIdGen.next(rs);
-                    return new TokenRange(new TokenKey(tableId, new LongToken(a)),
-                                          new TokenKey(tableId, new LongToken(b)));
+                    return TokenRange.create(new TokenKey(tableId, new LongToken(a)),
+                                             new TokenKey(tableId, new LongToken(b)));
                 };
             default:
                 throw new AssertionError();
@@ -586,13 +586,13 @@ public class RouteIndexTest extends CQLTester.InMemory
         @Override
         public boolean contains(AccordRoutingKey start, AccordRoutingKey end, AccordRoutingKey accordRoutingKey)
         {
-            return new TokenRange(start, end).contains(accordRoutingKey);
+            return TokenRange.create(start, end).contains(accordRoutingKey);
         }
 
         @Override
         public boolean intersects(TokenRange tokenRange, AccordRoutingKey start, AccordRoutingKey end)
         {
-            return tokenRange.compareIntersecting(new TokenRange(start, end)) == 0;
+            return tokenRange.compareIntersecting(TokenRange.create(start, end)) == 0;
         }
     };
 }

@@ -206,24 +206,24 @@ public class AccordTopology
 
     static TokenRange minRange(TableId table, Token token)
     {
-        return new TokenRange(SentinelKey.min(table), new TokenKey(table, token));
+        return TokenRange.create(SentinelKey.min(table), new TokenKey(table, token));
     }
 
     static TokenRange maxRange(TableId table, Token token)
     {
-        return new TokenRange(new TokenKey(table, token), SentinelKey.max(table));
+        return TokenRange.create(new TokenKey(table, token), SentinelKey.max(table));
     }
 
     static TokenRange fullRange(TableId table)
     {
-        return new TokenRange(SentinelKey.min(table), SentinelKey.max(table));
+        return TokenRange.create(SentinelKey.min(table), SentinelKey.max(table));
     }
 
     static TokenRange range(TableId table, Range<Token> range)
     {
         Token minToken = range.left.minValue();
-        return new TokenRange(range.left.equals(minToken) ? SentinelKey.min(table) : new TokenKey(table, range.left),
-                              range.right.equals(minToken) ? SentinelKey.max(table) : new TokenKey(table, range.right));
+        return TokenRange.create(range.left.equals(minToken) ? SentinelKey.min(table) : new TokenKey(table, range.left),
+                                 range.right.equals(minToken) ? SentinelKey.max(table) : new TokenKey(table, range.right));
     }
 
     public static accord.primitives.Ranges toAccordRanges(TableId tableId, Collection<Range<Token>> ranges)

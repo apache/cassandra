@@ -136,7 +136,7 @@ public class AccordCommandTest
         TxnId txnId2 = txnId(1, clock.incrementAndGet(), 1);
         Timestamp executeAt = timestamp(1, clock.incrementAndGet(), 1);
         PartialDeps deps;
-        try (PartialDeps.Builder builder = PartialDeps.builder(route))
+        try (PartialDeps.Builder builder = PartialDeps.builder(route, true))
         {
             builder.add(key.toUnseekable(), txnId2);
             deps = builder.build();
@@ -147,7 +147,7 @@ public class AccordCommandTest
             Command before = safeStore.ifInitialised(txnId).current();
             Accept.AcceptReply reply = accept.apply(safeStore);
             Assert.assertTrue(reply.isOk());
-            Assert.assertTrue(reply.deps.isEmpty());
+            Assert.assertEquals(deps.keyDeps, reply.deps.keyDeps);
             Command after = safeStore.ifInitialised(txnId).current();
             AccordTestUtils.appendCommandsBlocking(commandStore, before, after);
         }));

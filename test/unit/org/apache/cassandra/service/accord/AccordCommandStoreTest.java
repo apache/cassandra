@@ -116,7 +116,7 @@ public class AccordCommandStoreTest
         TxnId txnId = txnId(1, clock.incrementAndGet(), 1, Txn.Kind.Write, Routable.Domain.Range);
 
         PartialDeps dependencies;
-        try (PartialDeps.Builder builder = PartialDeps.builder(Ranges.of(range)))
+        try (PartialDeps.Builder builder = PartialDeps.builder(Ranges.of(range), true))
         {
             builder.add(range, oldTxnId1);
             builder.add(range, oldTxnId2);

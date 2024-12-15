@@ -62,6 +62,7 @@ public class ApplySerializers
         @Override
         public void serializeBody(A apply, DataOutputPlus out, int version) throws IOException
         {
+            out.writeVInt(apply.minEpoch - apply.waitForEpoch);
             kind.serialize(apply.kind, out, version);
             CommandSerializers.timestamp.serialize(apply.executeAt, out, version);
             DepsSerializers.partialDeps.serialize(apply.deps, out, version);
@@ -70,13 +71,13 @@ public class ApplySerializers
             CommandSerializers.writes.serialize(apply.writes, out, version);
         }
 
-        protected abstract A deserializeApply(TxnId txnId, Route<?> scope, long waitForEpoch, Apply.Kind kind,
+        protected abstract A deserializeApply(TxnId txnId, Route<?> scope, long minEpoch, long waitForEpoch, Apply.Kind kind,
                                               Timestamp executeAt, PartialDeps deps, PartialTxn txn, FullRoute<?> fullRoute, Writes writes, Result result);
 
         @Override
         public A deserializeBody(DataInputPlus in, int version, TxnId txnId, Route<?> scope, long waitForEpoch) throws IOException
         {
-            return deserializeApply(txnId, scope, waitForEpoch,
+            return deserializeApply(txnId, scope, waitForEpoch + in.readVInt(), waitForEpoch,
                                     kind.deserialize(in, version),
                                     CommandSerializers.timestamp.deserialize(in, version),
                                     DepsSerializers.partialDeps.deserialize(in, version),
@@ -89,7 +90,8 @@ public class ApplySerializers
         @Override
         public long serializedBodySize(A apply, int version)
         {
-            return kind.serializedSize(apply.kind, version)
+            return TypeSizes.sizeofVInt(apply.minEpoch - apply.waitForEpoch)
+                   + kind.serializedSize(apply.kind, version)
                    + CommandSerializers.timestamp.serializedSize(apply.executeAt, version)
                    + DepsSerializers.partialDeps.serializedSize(apply.deps, version)
                    + CommandSerializers.nullablePartialTxn.serializedSize(apply.txn, version)
@@ -101,10 +103,10 @@ public class ApplySerializers
     public static final IVersionedSerializer<Apply> request = new ApplySerializer<>()
     {
         @Override
-        protected Apply deserializeApply(TxnId txnId, Route<?> scope, long waitForEpoch, Apply.Kind kind,
+        protected Apply deserializeApply(TxnId txnId, Route<?> scope, long minEpoch, long waitForEpoch, Apply.Kind kind,
                                Timestamp executeAt, PartialDeps deps, PartialTxn txn, FullRoute<?> fullRoute, Writes writes, Result result)
         {
-            return Apply.SerializationSupport.create(txnId, scope, waitForEpoch, kind, executeAt, deps, txn, fullRoute, writes, result);
+            return Apply.SerializationSupport.create(txnId, scope, minEpoch, waitForEpoch, kind, executeAt, deps, txn, fullRoute, writes, result);
         }
     };
 

@@ -24,6 +24,7 @@ import accord.messages.SetShardDurable;
 import accord.primitives.Deps;
 import accord.primitives.FullRoute;
 import accord.primitives.SyncPoint;
+import accord.primitives.Timestamp;
 import accord.primitives.TxnId;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
@@ -79,6 +80,7 @@ public class SetDurableSerializers
         public void serialize(SyncPoint sp, DataOutputPlus out, int version) throws IOException
         {
             CommandSerializers.txnId.serialize(sp.syncId, out, version);
+            CommandSerializers.timestamp.serialize(sp.executeAt, out, version);
             DepsSerializers.deps.serialize(sp.waitFor, out, version);
             KeySerializers.fullRoute.serialize(sp.route, out, version);
         }
@@ -87,15 +89,17 @@ public class SetDurableSerializers
         public SyncPoint deserialize(DataInputPlus in, int version) throws IOException
         {
             TxnId syncId = CommandSerializers.txnId.deserialize(in, version);
+            Timestamp executeAt = CommandSerializers.timestamp.deserialize(in, version);
             Deps waitFor = DepsSerializers.deps.deserialize(in, version);
             FullRoute<?> route = KeySerializers.fullRoute.deserialize(in, version);
-            return SyncPoint.SerializationSupport.construct(syncId, waitFor, route);
+            return SyncPoint.SerializationSupport.construct(syncId, executeAt, waitFor, route);
         }
 
         @Override
         public long serializedSize(SyncPoint sp, int version)
         {
-            return CommandSerializers.txnId.serializedSize(sp.syncId, version)
+            return   CommandSerializers.txnId.serializedSize(sp.syncId, version)
+                   + CommandSerializers.timestamp.serializedSize(sp.executeAt, version)
                    + DepsSerializers.deps.serializedSize(sp.waitFor, version)
                    + KeySerializers.fullRoute.serializedSize(sp.route, version);
         }

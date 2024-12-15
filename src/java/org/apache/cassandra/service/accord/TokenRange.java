@@ -40,9 +40,19 @@ public class TokenRange extends Range.EndInclusive
     public TokenRange(AccordRoutingKey start, AccordRoutingKey end)
     {
         super(start, end);
+    }
+
+    public static TokenRange create(AccordRoutingKey start, AccordRoutingKey end)
+    {
         Invariants.checkArgument(start.table().equals(end.table()),
                                  "Token ranges cannot cover more than one keyspace start:%s, end:%s",
                                  start, end);
+        return new TokenRange(start, end);
+    }
+
+    public static TokenRange createUnsafe(AccordRoutingKey start, AccordRoutingKey end)
+    {
+        return new TokenRange(start, end);
     }
 
     public TableId table()
@@ -115,8 +125,8 @@ public class TokenRange extends Range.EndInclusive
         @Override
         public TokenRange deserialize(DataInputPlus in, int version) throws IOException
         {
-            return new TokenRange(AccordRoutingKey.serializer.deserialize(in, version),
-                                  AccordRoutingKey.serializer.deserialize(in, version));
+            return TokenRange.create(AccordRoutingKey.serializer.deserialize(in, version),
+                                     AccordRoutingKey.serializer.deserialize(in, version));
         }
 
         @Override

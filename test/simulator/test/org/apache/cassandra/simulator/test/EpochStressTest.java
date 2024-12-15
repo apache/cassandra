@@ -224,7 +224,7 @@ public class EpochStressTest extends SimulationTestBase
     private static boolean isDone(ConfigurationService.EpochReady ready)
     {
         return ready.metadata.isDone()
-               && ready.fastPath.isDone()
+               && ready.coordinate.isDone()
                && ready.data.isDone()
                && ready.reads.isDone();
     }

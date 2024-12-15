@@ -114,17 +114,18 @@ abstract class AccordExecutorAbstractLockLoop extends AccordExecutor
 
     private void exitLockExclusive()
     {
-        isHeldByExecutor = false;
         notifyIfMoreWorkExclusive();
     }
 
     private void pauseExclusive()
     {
+        isHeldByExecutor = false;
         --running;
     }
 
     private void resumeExclusive()
     {
+        isHeldByExecutor = true;
         ++running;
     }
 

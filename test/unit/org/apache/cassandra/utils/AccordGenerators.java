@@ -349,8 +349,8 @@ public class AccordGenerators
             AccordRoutingKey b = gen.next(rs);
             while (a.equals(b))
                 b = gen.next(rs);
-            if (a.compareTo(b) < 0) return new TokenRange(a, b);
-            else                    return new TokenRange(b, a);
+            if (a.compareTo(b) < 0) return TokenRange.create(a, b);
+            else                    return TokenRange.create(b, a);
         };
     }
 
@@ -367,7 +367,7 @@ public class AccordGenerators
             IPartitioner partitioner = partitionerGen.next(rs);
             List<Range> ranges = new ArrayList<>();
             int numSplits = rs.nextInt(10, 100);
-            TokenRange range = new TokenRange(AccordRoutingKey.SentinelKey.min(TABLE_ID1), AccordRoutingKey.SentinelKey.max(TABLE_ID1));
+            TokenRange range = TokenRange.create(AccordRoutingKey.SentinelKey.min(TABLE_ID1), AccordRoutingKey.SentinelKey.max(TABLE_ID1));
             AccordSplitter splitter = partitioner.accordSplitter().apply(Ranges.of(range));
             BigInteger size = splitter.sizeOf(range);
             BigInteger update = splitter.divide(size, numSplits);
