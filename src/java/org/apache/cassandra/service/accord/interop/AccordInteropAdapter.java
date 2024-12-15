@@ -64,9 +64,9 @@ public class AccordInteropAdapter extends AbstractTxnAdapter
         }
 
         @Override
-        public <R> CoordinationAdapter<R> get(TxnId txnId, Step step)
+        public <R> CoordinationAdapter<R> get(TxnId txnId, Kind step)
         {
-            return (CoordinationAdapter<R>) (step == Step.InitiateRecovery ? recovery : standard);
+            return (CoordinationAdapter<R>) (step == Kind.Recovery ? recovery : standard);
         }
     };
 

@@ -947,7 +947,7 @@ public class SavedCommand
                         return Command.Truncated.truncatedApply(attrs, status, executeAt, writes, result, executesAtLeast);
                     return Command.Truncated.truncatedApply(attrs, status, executeAt, writes, result, null);
                 case ErasedOrVestigial:
-                    return Command.Truncated.erasedOrInvalidOrVestigial(attrs.txnId(), attrs.durability(), attrs.participants());
+                    return Command.Truncated.erasedOrVestigial(attrs.txnId(), attrs.participants());
                 case Erased:
                     return Command.Truncated.erased(attrs.txnId(), attrs.durability(), attrs.participants());
                 case Invalidated:

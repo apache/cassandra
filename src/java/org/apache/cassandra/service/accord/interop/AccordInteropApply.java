@@ -76,9 +76,9 @@ public class AccordInteropApply extends Apply implements LocalListeners.ComplexL
     public static final IVersionedSerializer<AccordInteropApply> serializer = new ApplySerializer<AccordInteropApply>()
     {
         @Override
-        protected AccordInteropApply deserializeApply(TxnId txnId, Route<?> scope, long waitForEpoch, Apply.Kind kind, Timestamp executeAt, PartialDeps deps, PartialTxn txn, @Nullable FullRoute<?> fullRoute, Writes writes, Result result)
+        protected AccordInteropApply deserializeApply(TxnId txnId, Route<?> scope, long minEpoch, long waitForEpoch, Apply.Kind kind, Timestamp executeAt, PartialDeps deps, PartialTxn txn, @Nullable FullRoute<?> fullRoute, Writes writes, Result result)
         {
-            return new AccordInteropApply(kind, txnId, scope, waitForEpoch, executeAt, deps, txn, fullRoute, writes, result);
+            return new AccordInteropApply(kind, txnId, scope, minEpoch, waitForEpoch, executeAt, deps, txn, fullRoute, writes, result);
         }
     };
 
@@ -86,9 +86,9 @@ public class AccordInteropApply extends Apply implements LocalListeners.ComplexL
     transient Int2ObjectHashMap<LocalListeners.Registered> listeners;
     boolean failed;
 
-    private AccordInteropApply(Kind kind, TxnId txnId, Route<?> route, long waitForEpoch, Timestamp executeAt, PartialDeps deps, @Nullable PartialTxn txn, @Nullable FullRoute<?> fullRoute, Writes writes, Result result)
+    private AccordInteropApply(Kind kind, TxnId txnId, Route<?> route, long minEpoch, long waitForEpoch, Timestamp executeAt, PartialDeps deps, @Nullable PartialTxn txn, @Nullable FullRoute<?> fullRoute, Writes writes, Result result)
     {
-        super(kind, txnId, route, waitForEpoch, executeAt, deps, txn, fullRoute, writes, result);
+        super(kind, txnId, route, minEpoch, waitForEpoch, executeAt, deps, txn, fullRoute, writes, result);
     }
 
     private AccordInteropApply(Kind kind, Id to, Topologies participates, TxnId txnId, Route<?> route, Txn txn, Timestamp executeAt, Deps deps, Writes writes, Result result, FullRoute<?> fullRoute)

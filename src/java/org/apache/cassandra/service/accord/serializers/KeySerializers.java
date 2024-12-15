@@ -582,8 +582,8 @@ public class KeySerializers
         Range[] ranges = new Range[blobMap.size()];
         for (Map.Entry<ByteBuffer, ByteBuffer> e : blobMap.entrySet())
         {
-            ranges[i++] = new TokenRange(AccordRoutingKey.serializer.deserialize(e.getKey()),
-                                         AccordRoutingKey.serializer.deserialize(e.getValue()));
+            ranges[i++] = TokenRange.create(AccordRoutingKey.serializer.deserialize(e.getKey()),
+                                            AccordRoutingKey.serializer.deserialize(e.getValue()));
         }
         return Ranges.of(ranges);
     }

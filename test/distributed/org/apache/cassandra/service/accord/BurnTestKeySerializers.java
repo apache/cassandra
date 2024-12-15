@@ -134,7 +134,7 @@ public class BurnTestKeySerializers
         {
             RoutingKey start = routingKey.deserialize(in, version);
             RoutingKey end = routingKey.deserialize(in, version);
-            return new PrefixedIntHashKey.Range((PrefixedIntHashKey.PrefixedIntRoutingKey) start, (PrefixedIntHashKey.PrefixedIntRoutingKey) end);
+            return PrefixedIntHashKey.range((PrefixedIntHashKey.PrefixedIntRoutingKey) start, (PrefixedIntHashKey.PrefixedIntRoutingKey) end);
         }
 
         @Override

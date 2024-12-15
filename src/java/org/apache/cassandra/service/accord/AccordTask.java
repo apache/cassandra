@@ -1086,7 +1086,7 @@ public abstract class AccordTask<R> extends Task implements Runnable, Function<S
             @Override
             public void onUpdate(AccordCacheEntry<TxnId, Command> state)
             {
-                CommandsForRanges.Summary summary = summaryLoader.from(state);
+                CommandsForRanges.Summary summary = summaryLoader.ifRelevant(state);
                 if (summary != null)
                     summaries.put(summary.txnId, summary);
             }

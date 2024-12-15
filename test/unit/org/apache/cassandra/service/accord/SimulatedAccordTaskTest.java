@@ -174,7 +174,7 @@ public class SimulatedAccordTaskTest extends SimulatedAccordCommandStoreTestBase
 
     private static TokenRange range(TableId tableId, long start, long end)
     {
-        return new TokenRange(new TokenKey(tableId, new LongToken(start)), new TokenKey(tableId, new LongToken(end)));
+        return TokenRange.create(new TokenKey(tableId, new LongToken(start)), new TokenKey(tableId, new LongToken(end)));
     }
 
     private enum Action { SUCCESS, FAILURE, LOAD_FAILURE }

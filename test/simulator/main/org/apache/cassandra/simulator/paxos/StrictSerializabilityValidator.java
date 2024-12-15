@@ -63,7 +63,7 @@ public class StrictSerializabilityValidator implements HistoryValidator
             @Override
             public void close()
             {
-                convertHistoryViolation(() -> verifier.apply(start, end));
+                convertHistoryViolation(() -> verifier.apply("", start, end));
             }
         };
     }

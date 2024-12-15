@@ -21,7 +21,7 @@ package org.apache.cassandra.service.accord;
 import java.util.Collections;
 import java.util.Map;
 import java.util.Set;
-import java.util.function.BiFunction;
+import java.util.function.Predicate;
 import javax.annotation.Nullable;
 
 import com.google.common.annotations.VisibleForTesting;
@@ -31,17 +31,14 @@ import accord.api.DataStore;
 import accord.api.ProgressLog;
 import accord.api.RoutingKey;
 import accord.impl.AbstractSafeCommandStore;
-import accord.impl.CommandsSummary;
 import accord.local.CommandStores;
 import accord.local.NodeCommandStoreService;
 import accord.local.cfk.CommandsForKey;
-import accord.primitives.AbstractKeys;
-import accord.primitives.Routables;
+import accord.local.cfk.SafeCommandsForKey;
 import accord.primitives.Timestamp;
 import accord.primitives.Txn;
 import accord.primitives.TxnId;
 import accord.primitives.Unseekables;
-import accord.utils.Invariants;
 import org.apache.cassandra.service.accord.AccordCommandStore.ExclusiveCaches;
 
 import static accord.utils.Invariants.illegalState;
@@ -197,75 +194,38 @@ public class AccordSafeCommandStore extends AbstractSafeCommandStore<AccordSafeC
         return commandStore.node();
     }
 
-    private <O> O mapReduce(Routables<?> keysOrRanges, BiFunction<CommandsSummary, O, O> map, O accumulate)
+    private boolean visitForKey(Unseekables<?> keysOrRanges, Predicate<CommandsForKey> forEach)
     {
-        Invariants.checkState(context.keys().containsAll(keysOrRanges), "Attempted to access keysOrRanges outside of what was asked for; asked for %s, accessed %s", context.keys(), keysOrRanges);
-        accumulate = mapReduceForRange(keysOrRanges, map, accumulate);
-        return mapReduceForKey(keysOrRanges, map, accumulate);
-    }
+        Map<RoutingKey, AccordSafeCommandsForKey> commandsForKey = task.commandsForKey;
+        if (commandsForKey == null)
+            return true;
 
-    private <O> O mapReduceForRange(Routables<?> keysOrRanges, BiFunction<CommandsSummary, O, O> map, O accumulate)
-    {
-        if (commandsForRanges == null)
-            return accumulate;
-
-        return map.apply(commandsForRanges, accumulate);
-    }
-
-    private <O> O mapReduceForKey(Routables<?> keysOrRanges, BiFunction<CommandsSummary, O, O> map, O accumulate)
-    {
-        switch (keysOrRanges.domain())
+        Unseekables<?> skip = context.keys().without(keysOrRanges);
+        for (SafeCommandsForKey safeCfk : commandsForKey.values())
         {
-            default:
-                throw new AssertionError("Unknown domain: " + keysOrRanges.domain());
-            case Key:
-            {
-                // TODO: efficiency
-                AbstractKeys<RoutingKey> keys = (AbstractKeys<RoutingKey>) keysOrRanges;
-                for (RoutingKey key : keys)
-                {
-                    CommandsForKey commands = get(key).current();
-                    accumulate = map.apply(commands, accumulate);
-                }
-            }
-            break;
-            case Range:
-            {
-                // Assuming the range provided is in the PreLoadContext, then AsyncLoader has populated commandsForKeys with keys that
-                // are contained within the ranges... so walk all keys found in commandsForKeys
-                if (!context.keys().containsAll(keysOrRanges))
-                    throw new AssertionError("Range(s) detected not present in the PreLoadContext: expected " + context.keys() + " but given " + keysOrRanges);
+            if (skip.contains(safeCfk.key()))
+                continue;
 
-                Map<RoutingKey, AccordSafeCommandsForKey> commandsForKey = task.commandsForKey();
-                if (commandsForKey == null)
-                    break;
-
-                for (RoutingKey key : commandsForKey.keySet())
-                {
-                    //TODO (duplicate code): this is a repeat of Key... only change is checking contains in range
-                    CommandsForKey commands = get(key).current();
-                    accumulate = map.apply(commands, accumulate);
-                }
-            }
-            break;
+            if (!forEach.test(safeCfk.current()))
+                return false;
         }
-        return accumulate;
+        return true;
     }
 
     @Override
-    public <P1, T> T mapReduceActive(Unseekables<?> keysOrRanges, @Nullable Timestamp withLowerTxnId, Txn.Kind.Kinds testKind, CommandFunction<P1, T, T> map, P1 p1, T accumulate)
+    public <P1, P2> void visit(Unseekables<?> keysOrRanges, Timestamp startedBefore, Txn.Kind.Kinds testKind, ActiveCommandVisitor<P1, P2> visitor, P1 p1, P2 p2)
     {
-        return mapReduce(keysOrRanges, (summary, in) -> {
-            return summary.mapReduceActive(keysOrRanges, withLowerTxnId, testKind, map, p1, in);
-        }, accumulate);
+        visitForKey(keysOrRanges, cfk -> { cfk.visit(startedBefore, testKind, visitor, p1, p2); return true; });
+        if (commandsForRanges != null)
+            commandsForRanges.visit(keysOrRanges, startedBefore, testKind, visitor, p1, p2);
     }
 
+    // TODO (expected): instead of accepting a slice, accept the min/max epoch and let implementation handle it
     @Override
-    public <P1, T> T mapReduceFull(Unseekables<?> keysOrRanges, TxnId testTxnId, Txn.Kind.Kinds testKind, TestStartedAt testStartedAt, TestDep testDep, TestStatus testStatus, CommandFunction<P1, T, T> map, P1 p1, T accumulate)
+    public boolean visit(Unseekables<?> keysOrRanges, TxnId testTxnId, Txn.Kind.Kinds testKind, TestStartedAt testStartedAt, Timestamp testStartedAtTimestamp, ComputeIsDep computeIsDep, AllCommandVisitor visit)
     {
-        return mapReduce(keysOrRanges, (summary, in) -> {
-            return summary.mapReduceFull(keysOrRanges, testTxnId, testKind, testStartedAt, testDep, testStatus, map, p1, in);
-        }, accumulate);
+        return visitForKey(keysOrRanges, cfk -> cfk.visit(testTxnId, testKind, testStartedAt, testStartedAtTimestamp, computeIsDep, null, visit))
+               && (commandsForRanges == null || commandsForRanges.visit(keysOrRanges, testTxnId, testKind, testStartedAt, testStartedAtTimestamp, computeIsDep, visit));
     }
 
     @Override

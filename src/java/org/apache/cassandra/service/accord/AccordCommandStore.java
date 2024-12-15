@@ -485,7 +485,7 @@ public class AccordCommandStore extends CommandStore
                     coordinateRanges = ranges.allAt(txnId.epoch());
                 }
                 if (addRanges.intersects(coordinateRanges)) continue;
-                addRanges = redundantBefore.removeShardRedundant(txnId, txnId, addRanges);
+                addRanges = redundantBefore.removeGcBefore(txnId, txnId, addRanges);
                 if (addRanges.isEmpty()) continue;
                 diskCommandsForRanges().mergeTransitive(txnId, addRanges, Ranges::with);
             }
@@ -576,7 +576,7 @@ public class AccordCommandStore extends CommandStore
             PreLoadContext context = context(command, KeyHistory.TIMESTAMPS);
             store.execute(context,
                           safeStore -> {
-                              applyWrites(command, safeStore, (safeCommand, cmd) -> {
+                              applyWrites(command.txnId(), safeStore, (safeCommand, cmd) -> {
                                   Commands.applyWrites(safeStore, context, cmd).begin(store.agent);
                               });
                           })

@@ -43,6 +43,7 @@ import org.junit.Test;
 import accord.api.Agent;
 import accord.impl.AbstractConfigurationService;
 import accord.impl.TestAgent;
+import accord.impl.basic.Pending;
 import accord.impl.basic.PendingQueue;
 import accord.impl.basic.MonitoredPendingQueue;
 import accord.impl.basic.RandomDelayQueue;
@@ -113,6 +114,7 @@ public class AccordSyncPropagatorTest
             long epochOffset = rs.nextLong(1, 1024);
             int numEpochs = rs.nextInt(1, 10);
             Map<Long, Ranges> allRanges = new HashMap<>();
+            Pending.Global.setNoActiveOrigin();
             for (int i = 0; i < numEpochs; i++)
             {
                 long epoch = epochOffset + i;
@@ -136,13 +138,16 @@ public class AccordSyncPropagatorTest
                     }
                 }, rs.nextInt(30, 300), TimeUnit.SECONDS);
             }
+            Pending.Global.clearActiveOrigin();
 
             while (queue.size() > 0)
             {
                 Runnable next = (Runnable) queue.poll();
                 if (next == null)
                     break;
+                Pending.Global.setActiveOrigin((Pending)next);
                 next.run();
+                Pending.Global.clearActiveOrigin();
                 if (!failures.isEmpty())
                 {
                     RuntimeException e = new RuntimeException("Failures detected");

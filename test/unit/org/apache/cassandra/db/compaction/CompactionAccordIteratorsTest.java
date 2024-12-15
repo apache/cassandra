@@ -49,6 +49,7 @@ import accord.local.DurableBefore;
 import accord.local.RedundantBefore;
 import accord.local.StoreParticipants;
 import accord.local.cfk.CommandsForKey;
+import accord.local.cfk.Serialize;
 import accord.primitives.Ballot;
 import accord.primitives.Deps;
 import accord.primitives.FullRoute;
@@ -93,7 +94,6 @@ import org.apache.cassandra.service.accord.AccordService;
 import org.apache.cassandra.service.accord.AccordTestUtils;
 import org.apache.cassandra.service.accord.IAccordService;
 import org.apache.cassandra.service.accord.api.AccordRoutingKey.TokenKey;
-import org.apache.cassandra.service.accord.serializers.CommandsForKeySerializer;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Pair;
 import org.assertj.core.api.Assertions;
@@ -531,7 +531,7 @@ public class CompactionAccordIteratorsTest
         UntypedResultSet commandsForKeyTable = QueryProcessor.executeInternal("SELECT * FROM " + ACCORD_KEYSPACE_NAME + "." + COMMANDS_FOR_KEY + ";");
         logger.info(commandsForKeyTable.toStringUnsafe());
         assertEquals(1, commandsForKeyTable.size());
-        CommandsForKey cfk = CommandsForKeySerializer.fromBytes(((Key) key).toUnseekable(), commandsForKeyTable.iterator().next().getBytes("data"));
+        CommandsForKey cfk = Serialize.fromBytes(((Key) key).toUnseekable(), commandsForKeyTable.iterator().next().getBytes("data"));
         assertEquals(txnIds.length, cfk.size());
         for (int i = 0; i < txnIds.length; ++i)
             assertEquals(txnIds[i], cfk.txnId(i));

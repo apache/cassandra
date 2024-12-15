@@ -143,12 +143,12 @@ public abstract class SimulatedAccordCommandStoreTestBase extends CQLTester
 
     protected static TokenRange fullRange(TableId id)
     {
-        return new TokenRange(AccordRoutingKey.SentinelKey.min(id), AccordRoutingKey.SentinelKey.max(id));
+        return TokenRange.create(AccordRoutingKey.SentinelKey.min(id), AccordRoutingKey.SentinelKey.max(id));
     }
 
     protected static TokenRange tokenRange(TableId id, long start, long end)
     {
-        return new TokenRange(start == Long.MIN_VALUE ? AccordRoutingKey.SentinelKey.min(id) : tokenKey(id, start), tokenKey(id, end));
+        return TokenRange.create(start == Long.MIN_VALUE ? AccordRoutingKey.SentinelKey.min(id) : tokenKey(id, start), tokenKey(id, end));
     }
 
     protected static AccordRoutingKey.TokenKey tokenKey(TableId id, long token)
@@ -290,7 +290,7 @@ public abstract class SimulatedAccordCommandStoreTestBase extends CQLTester
         }));
         var recoverAsync = delay.flatMap(br -> instance.processAsync(br, safe -> {
             var reply = br.apply(safe);
-            Assertions.assertThat(reply.isOk()).isTrue();
+            Assertions.assertThat(reply.kind() == BeginRecovery.RecoverReply.Kind.Ok).isTrue();
             BeginRecovery.RecoverOk success = (BeginRecovery.RecoverOk) reply;
             Deps proposeDeps = LatestDeps.mergeProposal(Collections.singletonList(success), ok -> ok.deps);
             assertDeps(success.txnId, proposeDeps, cloneKeyConflicts, cloneRangeConflicts);

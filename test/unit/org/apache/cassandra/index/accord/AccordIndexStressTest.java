@@ -512,7 +512,7 @@ public class AccordIndexStressTest extends CQLTester
                         default:
                             throw new IllegalArgumentException("Unknown pattern: " + pattern);
                     }
-                    ranges.add(new TokenRange(new TokenKey(table, new Murmur3Partitioner.LongToken(a)), new TokenKey(table, new Murmur3Partitioner.LongToken(b))));
+                    ranges.add(TokenRange.create(new TokenKey(table, new Murmur3Partitioner.LongToken(a)), new TokenKey(table, new Murmur3Partitioner.LongToken(b))));
                     if (routingKey == null)
                     {
                         routingKey = new TokenKey(table, new Murmur3Partitioner.LongToken(b));

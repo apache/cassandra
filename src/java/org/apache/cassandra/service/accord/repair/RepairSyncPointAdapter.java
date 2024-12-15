@@ -48,7 +48,7 @@ import accord.topology.Topologies;
  * adapter requires responses from all of the supplied endpoints before completing. Note that shards only block on the
  * intersection of the provided replicas and their own endpoints.
  */
-public class RepairSyncPointAdapter<U extends Unseekable> extends CoordinationAdapter.Adapters.AbstractInclusiveSyncPointAdapter<U>
+public class RepairSyncPointAdapter<U extends Unseekable> extends CoordinationAdapter.Adapters.AsyncInclusiveSyncPointAdapter<U>
 {
     private final ImmutableSet<Node.Id> requiredResponses;
 
@@ -61,7 +61,7 @@ public class RepairSyncPointAdapter<U extends Unseekable> extends CoordinationAd
     public void execute(Node node, Topologies all, FullRoute<?> route, ExecutePath path, TxnId txnId, Txn txn, Timestamp executeAt, Deps deps, BiConsumer<? super SyncPoint<U>, Throwable> callback)
     {
         RequiredResponseTracker tracker = new RequiredResponseTracker(requiredResponses, all);
-        ExecuteSyncPoint.ExecuteInclusive<U> execute = new ExecuteSyncPoint.ExecuteInclusive<>(node, new SyncPoint<>(txnId, deps, (FullRoute<U>) route), tracker, executeAt);
+        ExecuteSyncPoint.ExecuteInclusive<U> execute = new ExecuteSyncPoint.ExecuteInclusive<>(node, new SyncPoint<>(txnId, executeAt, deps, (FullRoute<U>) route), tracker, executeAt);
         execute.addCallback(callback);
         execute.start();
     }

@@ -168,7 +168,7 @@ public class TableMigrationState
     public boolean hasMigratedFullTokenRange(IPartitioner partitioner)
     {
         // migrated ranges are normalized
-        if (!migratingRanges.isEmpty() || migratedRanges.size() > 1)
+        if (!migratingRanges.isEmpty() || migratedRanges.size() != 1)
             return false;
 
         Range<Token> fullRange = new Range<>(partitioner.getMinimumToken(), partitioner.getMinimumToken());

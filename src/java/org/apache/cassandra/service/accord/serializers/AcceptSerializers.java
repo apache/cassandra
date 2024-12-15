@@ -33,6 +33,7 @@ import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 
 import static accord.messages.Accept.SerializerSupport.create;
+import static accord.utils.Invariants.illegalState;
 
 public class AcceptSerializers
 {
@@ -101,6 +102,9 @@ public class AcceptSerializers
             switch (reply.outcome())
             {
                 default: throw new AssertionError();
+                case Retired:
+                case Truncated:
+                    throw illegalState("AcceptReply with invalid AcceptOutcome: " + reply.outcome);
                 case Success:
                     if (reply.deps != null)
                     {
@@ -113,15 +117,12 @@ public class AcceptSerializers
                         out.writeByte(2);
                     }
                     break;
-                case Truncated:
-                    out.writeByte(3);
-                    break;
                 case RejectedBallot:
-                    out.writeByte(4);
+                    out.writeByte(3);
                     CommandSerializers.ballot.serialize(reply.supersededBy, out, version);
                     break;
                 case Redundant:
-                    int flags = 5 | (reply.supersededBy != null ? 0x8 : 0) | (reply.committedExecuteAt != null ? 0x10 : 0);
+                    int flags = 4 | (reply.supersededBy != null ? 0x8 : 0) | (reply.committedExecuteAt != null ? 0x10 : 0);
                     out.writeByte(flags);
                     if (reply.supersededBy != null)
                         CommandSerializers.ballot.serialize(reply.supersededBy, out, version);
@@ -142,10 +143,8 @@ public class AcceptSerializers
                 case 2:
                     return AcceptReply.ACCEPT_INVALIDATE;
                 case 3:
-                    return AcceptReply.TRUNCATED;
-                case 4:
                     return new AcceptReply(CommandSerializers.ballot.deserialize(in, version));
-                case 5:
+                case 4:
                     Ballot supersededBy = (flags & 0x8) == 0 ? null : CommandSerializers.ballot.deserialize(in, version);
                     Timestamp committedExecuteAt = (flags & 0x10) == 0 ? null : CommandSerializers.timestamp.deserialize(in, version);
                     return new AcceptReply(supersededBy, committedExecuteAt);
@@ -159,11 +158,12 @@ public class AcceptSerializers
             switch (reply.outcome())
             {
                 default: throw new AssertionError();
+                case Retired:
+                case Truncated:
+                    throw illegalState("AcceptReply with invalid AcceptOutcome: " + reply.outcome);
                 case Success:
                     if (reply.deps != null)
                         size += DepsSerializers.deps.serializedSize(reply.deps, version);
-                    break;
-                case Truncated:
                     break;
                 case RejectedBallot:
                     size += CommandSerializers.ballot.serializedSize(reply.supersededBy, version);

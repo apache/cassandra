@@ -499,10 +499,10 @@ public abstract class AccordExecutor implements CacheSize, AccordCacheEntry.OnLo
                 task.cancelExclusive();
                 break;
 
+            case SCANNING_RANGES:
             case LOADING:
             case WAITING_TO_LOAD:
             case WAITING_TO_SCAN_RANGES:
-            case SCANNING_RANGES:
             case WAITING_TO_RUN:
                 --tasks;
                 task.unqueueIfQueued();

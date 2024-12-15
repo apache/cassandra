@@ -78,13 +78,15 @@ public class CommandSerializers
     public static final EnumSerializer<Txn.Kind> kind = new EnumSerializer<>(Txn.Kind.class);
     public static final StoreParticipantsSerializer participants = new StoreParticipantsSerializer();
 
-    // TODO (expected): optimise using subset serializers (but be careful for range txns, e.g. some collections have differently sliced sub ranges)
+    // TODO (expected): optimise using subset serializers, or perhaps simply with some deduping key serializer
     public static class StoreParticipantsSerializer implements IVersionedSerializer<StoreParticipants>
     {
         static final int HAS_ROUTE = 0x1;
         static final int HAS_TOUCHED_EQUALS_ROUTE = 0x2;
         static final int TOUCHES_EQUALS_HAS_TOUCHED = 0x4;
         static final int OWNS_EQUALS_TOUCHES = 0x8;
+        static final int EXECUTES_IS_NULL = 0x10;
+        static final int EXECUTES_IS_OWNS = 0x20;
 
         @Override
         public void serialize(StoreParticipants t, DataOutputPlus out, int version) throws IOException
@@ -93,15 +95,20 @@ public class CommandSerializers
             boolean hasTouchedEqualsRoute = t.route() == t.hasTouched();
             boolean touchesEqualsHasTouched = t.touches() == t.hasTouched();
             boolean ownsEqualsTouches = t.owns() == t.touches();
+            boolean executesIsNull = t.executes() == null;
+            boolean executesIsOwns = !executesIsNull && t.executes() == t.owns();
             out.writeByte((hasRoute ? HAS_ROUTE : 0)
                           | (hasTouchedEqualsRoute ? HAS_TOUCHED_EQUALS_ROUTE : 0)
                           | (touchesEqualsHasTouched ? TOUCHES_EQUALS_HAS_TOUCHED : 0)
                           | (ownsEqualsTouches ? OWNS_EQUALS_TOUCHES : 0)
+                          | (executesIsNull ? EXECUTES_IS_NULL : 0)
+                          | (executesIsOwns ? EXECUTES_IS_OWNS : 0)
             );
             if (hasRoute) KeySerializers.route.serialize(t.route(), out, version);
             if (!hasTouchedEqualsRoute) KeySerializers.participants.serialize(t.hasTouched(), out, version);
             if (!touchesEqualsHasTouched) KeySerializers.participants.serialize(t.touches(), out, version);
             if (!ownsEqualsTouches) KeySerializers.participants.serialize(t.owns(), out, version);
+            if (!executesIsNull && !executesIsOwns) KeySerializers.participants.serialize(t.executes(), out, version);
         }
 
         public void skip(DataInputPlus in, int version) throws IOException
@@ -119,7 +126,8 @@ public class CommandSerializers
             Participants<?> hasTouched = 0 != (flags & HAS_TOUCHED_EQUALS_ROUTE) ? route : KeySerializers.participants.deserialize(in, version);
             Participants<?> touches = 0 != (flags & TOUCHES_EQUALS_HAS_TOUCHED) ? hasTouched : KeySerializers.participants.deserialize(in, version);
             Participants<?> owns = 0 != (flags & OWNS_EQUALS_TOUCHES) ? touches : KeySerializers.participants.deserialize(in, version);
-            return StoreParticipants.SerializationSupport.create(route, owns, touches, hasTouched);
+            Participants<?> executes = 0 != (flags & EXECUTES_IS_NULL) ? null : 0 != (flags & EXECUTES_IS_OWNS) ? owns : KeySerializers.participants.deserialize(in, version);
+            return StoreParticipants.create(route, owns, executes, touches, hasTouched);
         }
 
         public Route<?> deserializeRouteOnly(DataInputPlus in, int version) throws IOException
@@ -138,11 +146,13 @@ public class CommandSerializers
             boolean hasTouchedEqualsRoute = t.route() == t.hasTouched();
             boolean touchesEqualsHasTouched = t.touches() == t.hasTouched();
             boolean ownsEqualsTouches = t.owns() == t.touches();
+            boolean executesIsNotNullAndNotOwns = t.executes() != null && t.owns() != t.executes();
             long size = 1;
             if (hasRoute) size += KeySerializers.route.serializedSize(t.route(), version);
             if (!hasTouchedEqualsRoute) size += KeySerializers.participants.serializedSize(t.hasTouched(), version);
             if (!touchesEqualsHasTouched) size += KeySerializers.participants.serializedSize(t.touches(), version);
             if (!ownsEqualsTouches) size += KeySerializers.participants.serializedSize(t.owns(), version);
+            if (executesIsNotNullAndNotOwns) size += KeySerializers.participants.serializedSize(t.executes(), version);
             return size;
         }
     }

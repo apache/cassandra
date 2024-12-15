@@ -96,7 +96,7 @@ public class AccordKeyspaceTest extends CQLTester.InMemory
 
         String tableName = createTable("CREATE TABLE %s (k int, c int, v int, PRIMARY KEY (k, c)) WITH transactional_mode = 'full'");
         TableId tableId = Schema.instance.getTableMetadata(KEYSPACE, tableName).id;
-        Ranges scope = Ranges.of(new TokenRange(AccordRoutingKey.SentinelKey.min(tableId), AccordRoutingKey.SentinelKey.max(tableId)));
+        Ranges scope = Ranges.of(TokenRange.create(AccordRoutingKey.SentinelKey.min(tableId), AccordRoutingKey.SentinelKey.max(tableId)));
 
         AccordCommandStore store = AccordTestUtils.createAccordCommandStore(now::incrementAndGet, KEYSPACE, tableName);
 

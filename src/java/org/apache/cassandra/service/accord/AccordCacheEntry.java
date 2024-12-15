@@ -246,9 +246,13 @@ public class AccordCacheEntry<K, V> extends IntrusiveLinkedListNode
     private void setStatus(Status newStatus)
     {
         Invariants.checkState((newStatus.permittedFrom & (1 << (status & STATUS_MASK))) != 0, "%s not permitted from %s", newStatus, status());
+        setStatusUnsafe(newStatus);
+    }
+
+    private void setStatusUnsafe(Status newStatus)
+    {
         status &= ~STATUS_MASK;
         status |= newStatus.ordinal();
-        Invariants.checkState(status() == newStatus);
     }
 
     public void initialize(V value)
@@ -507,7 +511,9 @@ public class AccordCacheEntry<K, V> extends IntrusiveLinkedListNode
 
     public AccordCacheEntry<K, V> evicted()
     {
-        setStatus(EVICTED);
+        if (isNoEvict())
+            setStatusUnsafe(EVICTED);
+        else setStatus(EVICTED);
         state = null;
         return this;
     }

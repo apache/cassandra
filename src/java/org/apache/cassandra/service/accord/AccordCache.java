@@ -43,6 +43,7 @@ import org.slf4j.LoggerFactory;
 import accord.api.RoutingKey;
 import accord.local.Command;
 import accord.local.cfk.CommandsForKey;
+import accord.local.cfk.Serialize;
 import accord.primitives.Routable;
 import accord.primitives.SaveStatus;
 import accord.primitives.Txn;
@@ -61,7 +62,6 @@ import org.apache.cassandra.metrics.AccordCacheMetrics;
 import org.apache.cassandra.metrics.CacheAccessMetrics;
 import org.apache.cassandra.service.accord.AccordCacheEntry.Status;
 import org.apache.cassandra.service.accord.events.CacheEvents;
-import org.apache.cassandra.service.accord.serializers.CommandsForKeySerializer;
 import org.apache.cassandra.utils.NoSpamLogger;
 import org.apache.cassandra.utils.NoSpamLogger.NoSpamLogStatement;
 import org.apache.cassandra.utils.ObjectSizes;
@@ -199,6 +199,7 @@ public class AccordCache implements CacheSize
             if (age >= entry.noEvictMaxAge())
             {
                 evictNoEvict.warn(entry, age, entry.noEvictMaxAge());
+                entry.unlink();
                 evict(entry, true);
             }
             else
@@ -1131,13 +1132,13 @@ public class AccordCache implements CacheSize
             if (value.isEmpty())
                 return null;
 
-            return CommandsForKeySerializer.toBytesWithoutKey(value.maximalPrune());
+            return Serialize.toBytesWithoutKey(value.maximalPrune());
         }
 
         @Override
         public CommandsForKey inflate(RoutingKey key, Object shrunk)
         {
-            return CommandsForKeySerializer.fromBytes(key, (ByteBuffer)shrunk);
+            return Serialize.fromBytes(key, (ByteBuffer)shrunk);
         }
 
         @Override

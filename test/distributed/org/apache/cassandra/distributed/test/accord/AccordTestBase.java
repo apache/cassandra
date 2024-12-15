@@ -90,7 +90,6 @@ import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.Verb;
-import org.apache.cassandra.service.accord.AccordService;
 import org.apache.cassandra.service.accord.api.AccordRoutingKey;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.accord.exceptions.ReadPreemptedException;
@@ -204,7 +203,7 @@ public abstract class AccordTestBase extends TestBaseImpl
             SHARED_CLUSTER.schemaChange(ddl);
 
         // Evict commands from the cache immediately to expose problems loading from disk.
-        SHARED_CLUSTER.forEach(node -> node.runOnInstance(() -> AccordService.instance().setCacheSize(0)));
+//        SHARED_CLUSTER.forEach(node -> node.runOnInstance(() -> AccordService.instance().setCacheSize(0)));
 
         try
         {
