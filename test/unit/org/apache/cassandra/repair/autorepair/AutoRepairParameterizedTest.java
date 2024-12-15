@@ -37,6 +37,7 @@ import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.repair.RepairCoordinator;
 import org.apache.cassandra.exceptions.ConfigurationException;
+import org.apache.cassandra.locator.LocalStrategy;
 import org.apache.cassandra.schema.SystemDistributedKeyspace;
 import org.apache.cassandra.service.StorageService;
 
@@ -100,6 +101,9 @@ public class AutoRepairParameterizedTest extends CQLTester
     RepairCoordinator repairRunnable;
     private static AutoRepairConfig defaultConfig;
 
+    // Expected number of tables that should be repaired.
+    private static int expectedTablesGoingThroughRepair;
+
 
     @Parameterized.Parameter()
     public AutoRepairConfig.RepairType repairType;
@@ -120,6 +124,22 @@ public class AutoRepairParameterizedTest extends CQLTester
         AutoRepairUtils.setup();
         StorageService.instance.doAutoRepairSetup();
         DatabaseDescriptor.setCDCEnabled(false);
+
+        // Calculate the expected number of tables to be repaired, this should be all system keyspaces that are
+        // distributed, plus 1 for the table we created (ks.tbl), excluding the 'mv' materialized view and
+        // 'tbl_disabled_auto_repair' we created.
+        expectedTablesGoingThroughRepair = 0;
+        for (Keyspace keyspace : Keyspace.all())
+        {
+            // skip LocalStrategy keyspaces as these aren't repaired.
+            if (keyspace.getReplicationStrategy() instanceof LocalStrategy)
+            {
+                continue;
+            }
+
+            int expectedTables = keyspace.getName().equals("ks") ? 1 : keyspace.getColumnFamilyStores().size();
+            expectedTablesGoingThroughRepair += expectedTables;
+        }
     }
 
     @Before
@@ -644,15 +664,10 @@ public class AutoRepairParameterizedTest extends CQLTester
 
         AutoRepair.instance.repair(repairType);
 
-        //system_auth.role_permissions,system_auth.network_permissions,system_auth.role_members,system_auth.roles,
-        // system_auth.resource_role_permissons_index,system_traces.sessions,system_traces.events,ks.tbl,
-        // system_distributed.auto_repair_priority,system_distributed.repair_history,system_distributed.auto_repair_history,
-        // system_distributed.view_build_status,system_distributed.parent_repair_history,system_distributed.partition_denylist
-        int exptedTablesGoingThroughRepair = 17;
-        assertEquals(config.getRepairMaxRetries()*exptedTablesGoingThroughRepair, sleepCalls.get());
+        assertEquals(config.getRepairMaxRetries()*expectedTablesGoingThroughRepair, sleepCalls.get());
         verify(autoRepairState, Mockito.times(1)).setSucceededTokenRangesCount(0);
         verify(autoRepairState, Mockito.times(1)).setSkippedTokenRangesCount(0);
-        verify(autoRepairState, Mockito.times(1)).setFailedTokenRangesCount(exptedTablesGoingThroughRepair);
+        verify(autoRepairState, Mockito.times(1)).setFailedTokenRangesCount(expectedTablesGoingThroughRepair);
     }
 
     @Test
@@ -678,7 +693,7 @@ public class AutoRepairParameterizedTest extends CQLTester
         AutoRepair.instance.repair(repairType);
 
         assertEquals(1, sleepCalls.get());
-        verify(autoRepairState, Mockito.times(1)).setSucceededTokenRangesCount(18);
+        verify(autoRepairState, Mockito.times(1)).setSucceededTokenRangesCount(expectedTablesGoingThroughRepair);
         verify(autoRepairState, Mockito.times(1)).setSkippedTokenRangesCount(0);
         verify(autoRepairState, Mockito.times(1)).setFailedTokenRangesCount(0);
     }
