@@ -590,12 +590,12 @@ public class AccordJournal implements accord.api.Journal, Shutdownable
     {
         public Builder()
         {
-            super();
+            super(null, Load.ALL);
         }
 
         public Builder(TxnId txnId)
         {
-            super(txnId);
+            super(txnId, Load.ALL);
         }
 
         public Builder(TxnId txnId, Load load)
@@ -625,68 +625,6 @@ public class AccordJournal implements accord.api.Journal, Shutdownable
 
             int flags = validateFlags(this.flags);
             Writer.serialize(construct(), flags, out, userVersion);
-//            out.writeInt(validateFlags(flags));
-//
-//            int iterable = toIterableSetFields(flags);
-//            while (iterable != 0)
-//            {
-//                CommandChange.Fields field = nextSetField(iterable);
-//                if (getFieldIsNull(field, flags))
-//                {
-//                    iterable = unsetIterableFields(field, iterable);
-//                    continue;
-//                }
-//
-//                switch (field)
-//                {
-//                    case EXECUTE_AT:
-//                        CommandSerializers.timestamp.serialize(executeAt(), out, userVersion);
-//                        break;
-//                    case EXECUTES_AT_LEAST:
-//                        CommandSerializers.timestamp.serialize(executeAtLeast(), out, userVersion);
-//                        break;
-//                    case SAVE_STATUS:
-//                        out.writeShort(saveStatus().ordinal());
-//                        break;
-//                    case DURABILITY:
-//                        out.writeByte(durability().ordinal());
-//                        break;
-//                    case ACCEPTED:
-//                        CommandSerializers.ballot.serialize(acceptedOrCommitted(), out, userVersion);
-//                        break;
-//                    case PROMISED:
-//                        CommandSerializers.ballot.serialize(promised(), out, userVersion);
-//                        break;
-//                    case PARTICIPANTS:
-//                        CommandSerializers.participants.serialize(participants(), out, userVersion);
-//                        break;
-//                    case PARTIAL_TXN:
-//                        CommandSerializers.partialTxn.serialize(partialTxn(), out, userVersion);
-//                        break;
-//                    case PARTIAL_DEPS:
-//                        DepsSerializers.partialDeps.serialize(partialDeps(), out, userVersion);
-//                        break;
-//                    case WAITING_ON:
-//                        Command.WaitingOn waitingOn = waitingOn().provide(txnId, partialDeps);
-//                        long size = WaitingOnSerializer.serializedSize(txnId, waitingOn);
-//                        ByteBuffer serialized = WaitingOnSerializer.serialize(txnId, waitingOn);
-//                        Invariants.checkState(serialized.remaining() == size);
-//                        out.writeInt((int) size);
-//                        out.write(serialized);
-//                        break;
-//                    case WRITES:
-//                        CommandSerializers.writes.serialize(writes(), out, userVersion);
-//                        break;
-//                    case CLEANUP:
-//                        out.writeByte(cleanup.ordinal());
-//                        break;
-//                    case RESULT:
-//                        ResultSerializers.result.serialize(result(), out, userVersion);
-//                        break;
-//                }
-//
-//                iterable = unsetIterableFields(field, iterable);
-//            }
         }
 
         public void deserializeNext(DataInputPlus in, int userVersion) throws IOException
