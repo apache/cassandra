@@ -29,8 +29,8 @@ import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.config.DurationSpec;
 import org.apache.cassandra.cql3.CQLTester;
-import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.repair.AutoRepairConfig.Options;
 
 import static org.junit.Assert.assertEquals;
@@ -96,6 +96,14 @@ public class AutoRepairConfigTest extends CQLTester
         assertFalse(config.isAutoRepairEnabled(repairType));
     }
 
+    @Test
+    public void testRepairMinDuration()
+    {
+        config = new AutoRepairConfig(false);
+
+        config.setRepairTaskMinDuration(new DurationSpec.LongSecondsBound("3s"));
+        assertEquals(3L, config.getRepairTaskMinDuration().toSeconds());
+    }
 
     @Test
     public void testIsAutoRepairEnabledReturnsTrueWhenRepairIsDisabledForRepairType()

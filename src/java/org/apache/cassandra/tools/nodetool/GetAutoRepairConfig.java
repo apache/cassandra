@@ -18,7 +18,6 @@
 package org.apache.cassandra.tools.nodetool;
 
 import java.io.PrintStream;
-import java.util.Set;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Joiner;
@@ -55,6 +54,7 @@ public class GetAutoRepairConfig extends NodeToolCmd
         sb.append("\n\tTTL for repair history for dead nodes: " + config.getAutoRepairHistoryClearDeleteHostsBufferInSec() + " seconds");
         sb.append("\n\tmax retries for repair: " + config.getRepairMaxRetries());
         sb.append("\n\tretry backoff: " + config.getRepairRetryBackoffInSec() + " seconds");
+        sb.append("\n\tmin repair job duration: " + config.getRepairTaskMinDuration().toSeconds() + " seconds");
         for (RepairType repairType : RepairType.values())
         {
             sb.append(formatRepairTypeConfig(probe, repairType, config));

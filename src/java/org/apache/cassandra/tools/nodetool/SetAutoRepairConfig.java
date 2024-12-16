@@ -46,7 +46,7 @@ public class SetAutoRepairConfig extends NodeToolCmd
                   "[threads|subranges|minrepairintervalinhours|sstablehigherthreshold|ignorekeyspacesregex" +
                   "|enabled|repaironlykeyspacesregex|tablemaxrepairtimeinsec|priorityhost|forcerepairhosts|ignoredcs" +
                   "|historydeletehostsclearbufferinsec|primarytokenrangeonly|parallelrepaircount|parallelrepairpercentage" +
-                  "|mvrepairenabled|maxretriescount|retrybackoffinsec]",
+                  "|mvrepairenabled|maxretriescount|retrybackoffinsec|minrepairtaskdurationinsec]",
     required = true)
     protected List<String> args = new ArrayList<>();
 
@@ -85,6 +85,9 @@ public class SetAutoRepairConfig extends NodeToolCmd
                 return;
             case "retrybackoffinsec":
                 probe.setAutoRepairRetryBackoffInSec(Long.parseLong(paramVal));
+                return;
+            case "minrepairtaskdurationinsec":
+                probe.setAutoRepairMinRepairTaskDurationInSec(Long.parseLong(paramVal));
                 return;
             default:
                 // proceed to options that require --repair-type option

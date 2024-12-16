@@ -105,7 +105,6 @@ public class SetAutoRepairConfigTest
             verify(probe, times(1)).setAutoRepairMaxRetriesCount(2);
         }
 
-
         @Test
         public void testRetryBackoffInSec()
         {
@@ -114,6 +113,16 @@ public class SetAutoRepairConfigTest
             cmd.execute(probe);
 
             verify(probe, times(1)).setAutoRepairRetryBackoffInSec(3);
+        }
+
+        @Test
+        public void testMinRepairDuration()
+        {
+            cmd.args = ImmutableList.of("minrepairtaskdurationinsec", "4");
+
+            cmd.execute(probe);
+
+            verify(probe, times(1)).setAutoRepairMinRepairTaskDurationInSec(4);
         }
     }
 

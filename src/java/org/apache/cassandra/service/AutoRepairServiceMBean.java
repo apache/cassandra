@@ -91,6 +91,11 @@ public interface AutoRepairServiceMBean
     public void setAutoRepairRetryBackoffInSec(long seconds);
 
     /**
+     * Set minimum duration for a single repair job
+     */
+    public void setAutoRepairMinRepairTaskDurationInSec(long duration);
+
+    /**
      * Set repair sstable count higher threshold
      */
     public void setRepairSSTableCountHigherThreshold(RepairType repairType, int ssTableHigherThreshold);

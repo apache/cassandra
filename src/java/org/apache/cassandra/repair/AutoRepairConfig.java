@@ -30,6 +30,8 @@ import java.util.function.Function;
 
 import com.google.common.annotations.VisibleForTesting;
 
+import org.apache.cassandra.config.DurationSpec;
+
 public class AutoRepairConfig implements Serializable
 {
     // enable/disable auto repair globally, overrides all other settings. Cannot be modified dynamically.
@@ -40,6 +42,10 @@ public class AutoRepairConfig implements Serializable
     public volatile Integer repair_max_retries = 3;
     // the backoff time in seconds for retrying a repair session.
     public volatile Long repair_retry_backoff_in_sec = 60L;
+    // the minimum duration for the execution of a single repair task (i.e.: RepairRunnable).
+    // This helps prevent the auto-repair scheduler from overwhelming the node by scheduling a large number of
+    // repair tasks in a short period of time.
+    public volatile DurationSpec.LongSecondsBound repair_task_min_duration = new DurationSpec.LongSecondsBound("5s");
     // configures how long repair history is kept for a replaced node
     public volatile Integer history_clear_delete_hosts_buffer_in_sec = 60 * 60 * 2;  // two hours
     // global_settings overides Options.defaultOptions for all repair types
@@ -104,6 +110,16 @@ public class AutoRepairConfig implements Serializable
     public void setRepairRetryBackoffInSec(long backoff)
     {
         repair_retry_backoff_in_sec = backoff;
+    }
+
+    public DurationSpec.LongSecondsBound getRepairTaskMinDuration()
+    {
+        return repair_task_min_duration;
+    }
+
+    public void setRepairTaskMinDuration(DurationSpec.LongSecondsBound duration)
+    {
+        repair_task_min_duration = duration;
     }
 
     public boolean isAutoRepairEnabled(RepairType repairType)

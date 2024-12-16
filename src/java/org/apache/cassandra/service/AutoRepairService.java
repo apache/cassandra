@@ -19,6 +19,7 @@ package org.apache.cassandra.service;
 
 import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.config.DurationSpec;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.repair.AutoRepairConfig;
@@ -182,6 +183,12 @@ public class AutoRepairService implements AutoRepairServiceMBean
     public void setAutoRepairRetryBackoffInSec(long seconds)
     {
         config.setRepairRetryBackoffInSec(seconds);
+    }
+
+    @Override
+    public void setAutoRepairMinRepairTaskDurationInSec(long seconds)
+    {
+        config.setRepairTaskMinDuration(new DurationSpec.LongSecondsBound(seconds + "s"));
     }
 
     @Override

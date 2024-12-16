@@ -39,6 +39,7 @@ import junit.framework.Assert;
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.concurrent.ScheduledExecutorPlus;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.config.DurationSpec;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.db.ColumnFamilyStore;
@@ -148,6 +149,7 @@ public class AutoRepairV2ParameterizedTest extends CQLTester
 
         timeFuncCalls = 0;
         AutoRepairV2.timeFunc = System::currentTimeMillis;
+        AutoRepairV2.sleepFunc = (Long startTime, TimeUnit unit) -> {};
         resetCounters();
         resetConfig();
     }
@@ -183,6 +185,7 @@ public class AutoRepairV2ParameterizedTest extends CQLTester
         config.repair_type_overrides = defaultConfig.repair_type_overrides;
         config.global_settings = defaultConfig.global_settings;
         config.history_clear_delete_hosts_buffer_in_sec = defaultConfig.history_clear_delete_hosts_buffer_in_sec;
+        config.repair_task_min_duration = new DurationSpec.LongSecondsBound("0s");
     }
 
     private void executeCQL()
@@ -659,5 +662,51 @@ public class AutoRepairV2ParameterizedTest extends CQLTester
         {
             AutoRepairV2.instance.repair(repairType, 0);
         }
+    }
+
+    @Test
+    public void testSoakAfterImmediateRepair()
+    {
+        when(autoRepairState.getRepairRunnable(any(), any(), any(), anyBoolean(), any())).thenReturn(repairRunnable);
+        when(autoRepairState.isSuccess()).thenReturn(true);
+        AutoRepairConfig config = AutoRepairService.instance.getAutoRepairConfig();
+        config.repair_task_min_duration = new DurationSpec.LongSecondsBound("1s");
+        AtomicInteger sleepCalls = new AtomicInteger();
+        AutoRepairV2.sleepFunc = (Long duration, TimeUnit unit) -> {
+            sleepCalls.getAndIncrement();
+            assertEquals(TimeUnit.MILLISECONDS, unit);
+            assertTrue(config.getRepairTaskMinDuration().toMilliseconds() >= duration);
+        };
+        config.setRepairMinIntervalInHours(repairType, -1);
+        config.setRepairOnlyKeyspaces(repairType, KEYSPACE);
+        AutoRepairV2.instance.repairStates.put(repairType, autoRepairState);
+
+        AutoRepairV2.instance.repair(repairType, 0);
+
+        assertEquals(1, sleepCalls.get());
+        verify(autoRepairState, Mockito.times(1)).setSucceededTokenRangesCount(1);
+        verify(autoRepairState, Mockito.times(1)).setSkippedTokenRangesCount(0);
+        verify(autoRepairState, Mockito.times(1)).setFailedTokenRangesCount(0);
+    }
+
+    @Test
+    public void testNoSoakAfterRepair()
+    {
+        when(autoRepairState.getRepairRunnable(any(), any(), any(), anyBoolean(), any())).thenReturn(repairRunnable);
+        when(autoRepairState.isSuccess()).thenReturn(true);
+        AutoRepairConfig config = AutoRepairService.instance.getAutoRepairConfig();
+        config.repair_task_min_duration = new DurationSpec.LongSecondsBound("0s");
+        AutoRepairV2.sleepFunc = (Long duration, TimeUnit unit) -> {
+            fail("Should not sleep after repair");
+        };
+        config.setRepairMinIntervalInHours(repairType, -1);
+        config.setRepairOnlyKeyspaces(repairType, KEYSPACE);
+        AutoRepairV2.instance.repairStates.put(repairType, autoRepairState);
+
+        AutoRepairV2.instance.repair(repairType, 0);
+
+        verify(autoRepairState, Mockito.times(1)).setSucceededTokenRangesCount(1);
+        verify(autoRepairState, Mockito.times(1)).setSkippedTokenRangesCount(0);
+        verify(autoRepairState, Mockito.times(1)).setFailedTokenRangesCount(0);
     }
 }

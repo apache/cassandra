@@ -55,6 +55,7 @@ import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.schema.Tables;
 import org.apache.cassandra.service.AutoRepairService;
 import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.utils.Clock;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.repair.AutoRepairUtilsV2.RepairTurn;
 
@@ -70,7 +71,7 @@ public class AutoRepairV2
     private static final Logger logger = LoggerFactory.getLogger(AutoRepairV2.class);
 
     @VisibleForTesting
-    protected static Supplier<Long> timeFunc = System::currentTimeMillis;
+    protected static Supplier<Long> timeFunc = Clock.Global::currentTimeMillis;
 
     public static AutoRepairV2 instance = new AutoRepairV2();
 
@@ -350,7 +351,9 @@ public class AutoRepairV2
                                             new Thread(NamedThreadFactory.createAnonymousThread(new FutureTask<>(task, null))).start();
                                             try
                                             {
+                                                long jobStartTime = timeFunc.get();
                                                 repairState.waitForRepairToComplete();
+                                                soakAfterRepair(jobStartTime, config.getRepairTaskMinDuration().toMilliseconds());
                                             }
                                             catch (InterruptedException e)
                                             {
@@ -455,5 +458,17 @@ public class AutoRepairV2
     public AutoRepairState getRepairState(AutoRepairConfig.RepairType repairType)
     {
         return repairStates.get(repairType);
+    }
+
+    private void soakAfterRepair(long startTimeMilis, long minDurationMilis)
+    {
+        long currentTime = timeFunc.get();
+        long timeElapsed = currentTime - startTimeMilis;
+        if (timeElapsed < minDurationMilis)
+        {
+            long timeToSoak = minDurationMilis - timeElapsed;
+            logger.info("Soaking for {} ms after repair", timeToSoak);
+            sleepFunc.accept(timeToSoak, TimeUnit.MILLISECONDS);
+        }
     }
 }
