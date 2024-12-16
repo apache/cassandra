@@ -27,7 +27,9 @@ import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.net.IVerbHandler;
+import org.apache.cassandra.net.MessageDelivery;
 import org.apache.cassandra.net.MessagingService;
+import org.apache.cassandra.net.MessagingUtils;
 import org.apache.cassandra.net.Verb;
 import org.apache.cassandra.repair.SharedContext;
 import org.apache.cassandra.service.accord.serializers.TopologySerializers;
@@ -108,7 +110,10 @@ public class FetchTopology
     public static Future<Topology> fetch(SharedContext context, Collection<InetAddressAndPort> peers, long epoch)
     {
         FetchTopology req = new FetchTopology(epoch);
-        return context.messaging().<FetchTopology, FetchTopology.Response>sendWithRetries(SharedContext.Global.instance, Verb.ACCORD_FETCH_TOPOLOGY_REQ, req, peers)
+        return context.messaging().<FetchTopology, Response>sendWithRetries(Verb.ACCORD_FETCH_TOPOLOGY_REQ, req, MessagingUtils.tryAliveFirst(SharedContext.Global.instance, peers),
+                                                                                          // If the epoch is already discovered, no need to retry
+                                                                                          (attempt, from, failure) -> AccordService.instance().currentEpoch() < epoch,
+                                                                                          MessageDelivery.RetryErrorMessage.EMPTY)
                       .map(m -> m.payload.topology);
     }
 }

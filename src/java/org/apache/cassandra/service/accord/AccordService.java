@@ -382,9 +382,19 @@ public class AccordService implements IAccordService, Shutdownable
         {
             for (long epoch = minEpoch; epoch <= metadata.epoch.getEpoch(); epoch++)
                 node.configService().fetchTopologyForEpoch(epoch);
-//            Invariants.checkState(node.configService().currentEpoch() >= metadata.epoch.getEpoch(),
-//                                  "Config service epoch is %s, but metadata epoch is reported to be %s",
-//                                  node.configService().currentEpoch(), metadata.epoch.getEpoch());
+
+            try
+            {
+                epochReady(metadata.epoch).get(DatabaseDescriptor.getTransactionTimeout(MILLISECONDS), MILLISECONDS);
+            }
+            catch (InterruptedException e)
+            {
+                throw new UncheckedInterruptedException(e);
+            }
+            catch (ExecutionException | TimeoutException e)
+            {
+                throw new RuntimeException(e);
+            }
         }
 
         fastPathCoordinator.start();

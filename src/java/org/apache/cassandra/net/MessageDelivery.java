@@ -31,7 +31,6 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.exceptions.RequestFailure;
 import org.apache.cassandra.exceptions.RequestFailureReason;
 import org.apache.cassandra.locator.InetAddressAndPort;
-import org.apache.cassandra.repair.SharedContext;
 import org.apache.cassandra.utils.Backoff;
 import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.concurrent.Accumulator;
@@ -100,41 +99,12 @@ public interface MessageDelivery
         return promise;
     }
 
-    public default <REQ, RSP> Future<Message<RSP>> sendWithRetries(SharedContext sharedContext, Verb verb, REQ request, Collection<InetAddressAndPort> peers)
+    public default <REQ, RSP> Future<Message<RSP>> sendWithRetries(Verb verb, REQ request,
+                                                                   Iterator<InetAddressAndPort> candidates,
+                                                                   RetryPredicate shouldRetry,
+                                                                   RetryErrorMessage errorMessage)
     {
-        // TODO: move somewhere else
-        Iterator<InetAddressAndPort> candidates = new Iterator<>()
-        {
-            boolean firstRun = true;
-            Iterator<InetAddressAndPort> iter = peers.iterator();
-
-            public boolean hasNext()
-            {
-                return !peers.isEmpty();
-            }
-
-            public InetAddressAndPort next()
-            {
-                // At first, try all alive nodes
-                if (firstRun)
-                {
-                    while (iter.hasNext())
-                    {
-                        InetAddressAndPort candidate = iter.next();
-                        if (sharedContext.failureDetector().isAlive(candidate))
-                            return candidate;
-                    }
-                    firstRun = false;
-                }
-
-                // After that, cycle through all nodes
-                if (!iter.hasNext())
-                    iter = peers.iterator();
-
-                return iter.next();
-            }
-        };
-        return sendWithRetries(Backoff.None.INSTANCE, ImmediateRetryScheduler.instance, verb, request, candidates, RetryPredicate.ALWAYS_RETRY, RetryErrorMessage.EMPTY);
+        return sendWithRetries(Backoff.None.INSTANCE, ImmediateRetryScheduler.instance, verb, request, candidates, shouldRetry, errorMessage);
     }
 
     public default <REQ, RSP> void sendWithRetries(Backoff backoff, RetryScheduler retryThreads,

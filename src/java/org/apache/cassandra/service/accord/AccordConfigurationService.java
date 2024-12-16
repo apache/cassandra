@@ -440,11 +440,15 @@ public class AccordConfigurationService extends AbstractConfigurationService<Acc
         }
         catch (InterruptedException e)
         {
+            if (currentEpoch() >= epoch)
+                return;
             Thread.currentThread().interrupt();
             throw new UncheckedInterruptedException(e);
         }
         catch (ExecutionException e)
         {
+            if (currentEpoch() >= epoch)
+                return;
             throw new RuntimeException(e.getCause());
         }
     }
