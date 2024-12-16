@@ -46,12 +46,16 @@ import org.apache.cassandra.io.sstable.SSTableId;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.util.FileUtils;
+import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.LocalizeString;
 import org.apache.cassandra.utils.Throwables;
 import org.apache.cassandra.utils.concurrent.Refs;
+import oshi.PlatformEnum;
 
 public class TableSnapshot
 {
     private static final Logger logger = LoggerFactory.getLogger(TableSnapshot.class);
+    private static final PlatformEnum PLATFORM = FBUtilities.getSystemInfo().platform();
 
     private final String keyspaceName;
     private final String tableName;
@@ -139,12 +143,14 @@ public class TableSnapshot
 
     public Instant getCreatedAt()
     {
-
         if (createdAt == null)
         {
             long minCreation = 0;
             for (File snapshotDir : snapshotDirs)
             {
+                if (!snapshotDir.exists())
+                    continue;
+
                 long lastModified = snapshotDir.lastModified();
                 if (lastModified == 0)
                     continue;
@@ -377,7 +383,27 @@ public class TableSnapshot
         return Objects.equals(keyspaceName, snapshot.keyspaceName) &&
                Objects.equals(tableName, snapshot.tableName) &&
                Objects.equals(tableId, snapshot.tableId) &&
-               Objects.equals(tag, snapshot.tag);
+               tagsEqual(tag, snapshot.tag);
+    }
+
+    private boolean tagsEqual(String tag1, String tag2)
+    {
+        if (tag1 == null && tag2 == null)
+            return true;
+
+        if (tag1 == null || tag2 == null)
+            return false;
+
+        // When hardlinks are created for a snapshot with the name "snapshot"
+        // and then we take a snapshot with the name "Snapshot", macOS platform thinks
+        // that this was already hardlinked because its hardlinking implementation
+        // does not seem to be case-sensitive. The fix consists of checking,
+        // in a case-insensitive manner, if there is already such snapshot,
+        // but only on macOS platform.
+        if (PLATFORM == PlatformEnum.MACOS)
+            return LocalizeString.toLowerCaseLocalized(tag1).equals(LocalizeString.toLowerCaseLocalized(tag2));
+
+        return Objects.equals(tag1, tag2);
     }
 
     @Override

@@ -18,6 +18,7 @@
 
 package org.apache.cassandra.db.virtual;
 
+import java.time.Instant;
 import java.util.Date;
 
 import org.apache.cassandra.db.marshal.BooleanType;
@@ -64,12 +65,15 @@ public class SnapshotsTable extends AbstractVirtualTable
 
         for (TableSnapshot tableSnapshot : SnapshotManager.instance.getSnapshots(false, true))
         {
+            Instant snapshotCreatedAt = tableSnapshot.getCreatedAt();
+            Date createdAt = snapshotCreatedAt != null ? new Date(snapshotCreatedAt.toEpochMilli()) : null;
+
             SimpleDataSet row = result.row(tableSnapshot.getTag(),
                                            tableSnapshot.getKeyspaceName(),
                                            tableSnapshot.getTableName())
                                       .column(TRUE_SIZE, tableSnapshot.computeTrueSizeBytes())
                                       .column(SIZE_ON_DISK, tableSnapshot.computeSizeOnDiskBytes())
-                                      .column(CREATED_AT, new Date(tableSnapshot.getCreatedAt().toEpochMilli()));
+                                      .column(CREATED_AT, createdAt);
 
             if (tableSnapshot.isExpiring())
                 row.column(EXPIRES_AT, new Date(tableSnapshot.getExpiresAt().toEpochMilli()));

@@ -650,6 +650,18 @@ public class Directories
         }
     }
 
+    public static File getSnapshotDirectoryWithoutCreation(File location, String snapshotName)
+    {
+        if (isSecondaryIndexFolder(location))
+        {
+            return getWithoutCreation(location.parent(), SNAPSHOT_SUBDIR, snapshotName, location.name());
+        }
+        else
+        {
+            return getWithoutCreation(location, SNAPSHOT_SUBDIR, snapshotName);
+        }
+    }
+
     /**
      * Returns directory to write a snapshot to. If directory does not exist, then it is NOT created.
      *
@@ -679,6 +691,16 @@ public class Directories
 
         for (File cfDir : getCFDirectories())
             snapshotDirs.add(Directories.getSnapshotDirectory(cfDir, tag).toAbsolute());
+
+        return snapshotDirs;
+    }
+
+    public Set<File> getSnapshotDirsWithoutCreation(String tag)
+    {
+        Set<File> snapshotDirs = new HashSet<>();
+
+        for (File cfDir : getCFDirectories())
+            snapshotDirs.add(Directories.getSnapshotDirectoryWithoutCreation(cfDir, tag).toAbsolute());
 
         return snapshotDirs;
     }
@@ -1299,6 +1321,11 @@ public class Directories
     {
         File dir = subdirs == null || subdirs.length == 0 ? base : new File(base, join(subdirs));
         return dir.exists() ? Optional.of(dir) : Optional.empty();
+    }
+
+    public static File getWithoutCreation(File base, String... subdirs)
+    {
+        return subdirs == null || subdirs.length == 0 ? base : new File(base, join(subdirs));
     }
 
     private static String join(String... s)

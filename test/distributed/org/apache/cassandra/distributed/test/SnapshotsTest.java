@@ -40,15 +40,21 @@ import org.apache.cassandra.distributed.api.IIsolatedExecutor.SerializableCallab
 import org.apache.cassandra.distributed.api.NodeToolResult;
 import org.apache.cassandra.distributed.shared.WithProperties;
 import org.apache.cassandra.utils.Clock;
+import org.apache.cassandra.utils.FBUtilities;
 
 import static java.lang.String.format;
 import static java.util.concurrent.TimeUnit.SECONDS;
 import static java.util.stream.Collectors.toList;
 import static org.apache.cassandra.distributed.shared.ClusterUtils.stopUnchecked;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.awaitility.Awaitility.await;
+import static org.hamcrest.CoreMatchers.is;
+import static org.hamcrest.CoreMatchers.not;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
+import static org.junit.Assume.assumeThat;
+import static oshi.PlatformEnum.MACOS;
 
 public class SnapshotsTest extends TestBaseImpl
 {
@@ -57,6 +63,9 @@ public class SnapshotsTest extends TestBaseImpl
     public static final Integer TEN_SECONDS = 10;
     private static final WithProperties properties = new WithProperties();
     private static Cluster cluster;
+
+    private final String[] exoticSnapshotNamesOnMac = new String[]{ "snapshot", "snapshots", "backup", "backups",
+                                                                    "snapshot.with.dots-and-dashes" };
 
     private final String[] exoticSnapshotNames = new String[]{ "snapshot", "snapshots", "backup", "backups",
                                                                "Snapshot", "Snapshots", "Backups", "Backup",
@@ -330,18 +339,24 @@ public class SnapshotsTest extends TestBaseImpl
     @Test
     public void testExoticSnapshotNames()
     {
-        IInvokableInstance instance = cluster.get(1);
-        cluster.schemaChange(withKeyspace("CREATE TABLE %s.tbl (key int, value text, PRIMARY KEY (key))"));
-        populate(cluster);
+        assumeThat(FBUtilities.getSystemInfo().platform(), not(MACOS));
+        exoticSnapshotNamesInternal(exoticSnapshotNames);
+    }
 
-        for (String tag : exoticSnapshotNames)
-        {
-            instance.nodetoolResult("snapshot",
-                                    "-t", tag,
-                                    "-kt", withKeyspace("%s.tbl")).asserts().success();
+    @Test
+    public void testExoticSnapshotNamesOnMacOS()
+    {
+        assumeThat(FBUtilities.getSystemInfo().platform(), is(MACOS));
+        exoticSnapshotNamesInternal(exoticSnapshotNamesOnMac);
+    }
 
-            waitForSnapshot(tag, true, true);
-        }
+    @Test
+    public void testDuplicateSnapshotOnMacOS()
+    {
+        assumeThat(FBUtilities.getSystemInfo().platform(), is(MACOS));
+        exoticSnapshotNamesInternal(new String[]{ "snapshot" });
+        assertThatThrownBy(() -> exoticSnapshotNamesInternal(new String[]{ "Snapshot" }))
+        .hasMessageContaining(withKeyspace("Snapshot Snapshot for %s.tbl already exists."));
     }
 
     @Test
@@ -434,5 +449,24 @@ public class SnapshotsTest extends TestBaseImpl
                                    .collect(toList());
 
         return expectPresent == lines.stream().anyMatch(line -> line.startsWith(snapshotName));
+    }
+
+    private void exoticSnapshotNamesInternal(String[] exoticSnapshotNames)
+    {
+        IInvokableInstance instance = cluster.get(1);
+        cluster.schemaChange(withKeyspace("CREATE TABLE IF NOT EXISTS %s.tbl (key int, value text, PRIMARY KEY (key))"));
+        populate(cluster);
+
+        for (String tag : exoticSnapshotNames)
+        {
+            NodeToolResult result = instance.nodetoolResult("snapshot",
+                                                            "-t", tag,
+                                                            "-kt", withKeyspace("%s.tbl"));
+
+            if (result.getRc() != 0)
+                throw new RuntimeException(result.getError());
+
+            waitForSnapshot(tag, true, true);
+        }
     }
 }

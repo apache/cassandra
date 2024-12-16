@@ -94,7 +94,7 @@ public class TakeSnapshotTask extends AbstractSnapshotTask<List<TableSnapshot>>
 
         for (ColumnFamilyStore cfs : entitiesForSnapshot)
         {
-            Set<File> snapshotDirs = cfs.getDirectories().getSnapshotDirs(snapshotName);
+            Set<File> snapshotDirs = cfs.getDirectories().getSnapshotDirsWithoutCreation(snapshotName);
 
             TableSnapshot tableSnapshot = new TableSnapshot(cfs.metadata.keyspace,
                                                             cfs.metadata.name,
