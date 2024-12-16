@@ -56,7 +56,6 @@ import static java.util.Arrays.stream;
 import static java.util.concurrent.TimeUnit.NANOSECONDS;
 import static org.apache.cassandra.config.CassandraRelevantProperties.ALLOW_ALTER_RF_DURING_RANGE_MOVEMENT;
 import static org.apache.cassandra.config.CassandraRelevantProperties.BATCH_COMMIT_LOG_SYNC_INTERVAL;
-import static org.apache.cassandra.config.CassandraRelevantProperties.CASSANDRA_JMX_REMOTE_PORT;
 import static org.apache.cassandra.config.CassandraRelevantProperties.CLOCK_GLOBAL;
 import static org.apache.cassandra.config.CassandraRelevantProperties.CLOCK_MONOTONIC_APPROX;
 import static org.apache.cassandra.config.CassandraRelevantProperties.CLOCK_MONOTONIC_PRECISE;
@@ -111,7 +110,6 @@ public class SimulationRunner
         for (CassandraRelevantProperties property : Arrays.asList(CLOCK_GLOBAL, CLOCK_MONOTONIC_APPROX, CLOCK_MONOTONIC_PRECISE))
             property.setString("org.apache.cassandra.simulator.systems.SimulatedTime$Global");
 
-        CASSANDRA_JMX_REMOTE_PORT.setString("");
         RING_DELAY.setInt(0);
         PAXOS_REPAIR_RETRY_TIMEOUT_IN_MS.setLong(NANOSECONDS.toMillis(Long.MAX_VALUE));
         SHUTDOWN_ANNOUNCE_DELAY_IN_MS.setInt(0);
