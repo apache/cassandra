@@ -78,13 +78,23 @@ public interface SnapshotManagerMBean
     long getTrueSnapshotsSize(String keyspace);
 
     /**
-     * Get the true size take by all snapshots in given keyspace and table.
+     * Get the true size taken by all snapshots in given keyspace and table.
      *
      * @param keyspace keyspace to get true size of all snapshots of
      * @param table table in a keyspace to get true size of all snapshots of
      * @return true size of all snapshots in given keyspace and table
      */
     long getTrueSnapshotsSize(String keyspace, String table);
+
+    /**
+     * Get the true size of a snapshot in given keyspace and table.
+     *
+     * @param keyspace keyspace to get true size of all snapshots of
+     * @param table table in a keyspace to get true size of all snapshots of
+     * @param snapshotName name of snapshot in given keyspace and table to get true size of
+     * @return true size of all snapshots in given keyspace and table
+     */
+    long getTrueSnapshotsSize(String keyspace, String table, String snapshotName);
 
     /**
      * Set the current hardlink-per-second throttle for snapshots

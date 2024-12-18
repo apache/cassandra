@@ -385,6 +385,9 @@ public class ColumnFamilyStoreTest
         SnapshotManager.instance.takeSnapshot("snapshot_without_index", cfs.getKeyspaceTableName());
 
         long firstSnapshotsSize = cfs.trueSnapshotsSize();
+        // test that true snapshot size computed from manager is same as true snapshot size from cfs with one snapshot
+        long trueSnapshotSizeViaManagerWithoutIndex = SnapshotManager.instance.getTrueSnapshotsSize(cfs.getKeyspaceName(), cfs.getTableName(), "snapshot_without_index");
+        Assert.assertEquals(firstSnapshotsSize, trueSnapshotSizeViaManagerWithoutIndex);
         Map<String, TableSnapshot> listedSnapshots = Util.listSnapshots(cfs);
         assertThat(firstSnapshotsSize).isPositive();
         assertThat(listedSnapshots.size()).isEqualTo(1);
@@ -417,6 +420,10 @@ public class ColumnFamilyStoreTest
         SnapshotManager.instance.takeSnapshot("snapshot_with_index", new HashMap<>(), cfs.getKeyspaceTableName());
 
         long secondSnapshotSize = cfs.trueSnapshotsSize();
+        long trueSnapshotSizeViaManagerWithIndex = SnapshotManager.instance.getTrueSnapshotsSize(cfs.getKeyspaceName(), cfs.getTableName(), "snapshot_with_index");
+
+        assertThat(trueSnapshotSizeViaManagerWithIndex).isGreaterThan(trueSnapshotSizeViaManagerWithoutIndex);
+
         Map<String, TableSnapshot> secondListedSnapshots = Util.listSnapshots(cfs);
         assertThat(secondSnapshotSize).isPositive();
         assertThat(secondSnapshotSize).isGreaterThan(firstSnapshotsSize);
