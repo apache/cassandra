@@ -18,22 +18,13 @@
 
 package org.apache.cassandra.replication;
 
-import java.util.Collection;
-import java.util.List;
-import java.util.Map;
+import java.util.Set;
 
-import org.apache.cassandra.db.DecoratedKey;
-import org.apache.cassandra.db.Mutation;
 import org.apache.cassandra.db.MutationId;
 import org.apache.cassandra.locator.InetAddressAndPort;
-import org.apache.cassandra.schema.TableId;
 
-public interface MutationTracker
+public interface ReconciliationPlan
 {
-    void add(Mutation mutation);
-
-    MutationSummary summaryForKey(TableId table, DecoratedKey key);
-    MutationSummarizer summarizer();
-    Map<InetAddressAndPort, ReconciliationPlan> calculateReconciliation(Map<InetAddressAndPort, MutationSummary> summaries);
-    List<Mutation> mutations(Collection<MutationId> ids);
+    Set<InetAddressAndPort> nodes();
+    Set<MutationId> idsFor(InetAddressAndPort node);
 }
