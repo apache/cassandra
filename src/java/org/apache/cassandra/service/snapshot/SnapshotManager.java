@@ -472,6 +472,15 @@ public class SnapshotManager implements SnapshotManagerMBean, INotificationConsu
     }
 
     @Override
+    public long getTrueSnapshotsSize(String keyspace, String table, String snapshotName)
+    {
+        return new TrueSnapshotSizeTask(this,
+                                        s -> s.getKeyspaceName().equals(keyspace)
+                                             && s.getTableName().equals(table)
+                                             && s.getTag().equals(snapshotName)).call();
+    }
+
+    @Override
     public void setSnapshotLinksPerSecond(long throttle)
     {
         logger.info("Setting snapshot throttle to {}", throttle);
