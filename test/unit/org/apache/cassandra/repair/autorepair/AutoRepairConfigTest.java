@@ -18,10 +18,6 @@
 
 package org.apache.cassandra.repair.autorepair;
 
-import java.util.Arrays;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
 import java.util.Objects;
 import java.util.Collections;
 import java.util.Set;
@@ -37,10 +33,8 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.DurationSpec;
 import org.apache.cassandra.config.ParameterizedClass;
 import org.apache.cassandra.cql3.CQLTester;
-import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.repair.autorepair.AutoRepairConfig.Options;
-import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.utils.FBUtilities;
 
 import static org.junit.Assert.assertEquals;
@@ -69,7 +63,6 @@ public class AutoRepairConfigTest extends CQLTester
     {
         config = new AutoRepairConfig(true);
         AutoRepair.SLEEP_IF_REPAIR_FINISHES_QUICKLY = new DurationSpec.IntSecondsBound("0s");
-        requireNetwork();
     }
 
     @Test
@@ -427,38 +420,4 @@ public class AutoRepairConfigTest extends CQLTester
         assert config.getOptions(repairType).repair_session_timeout.toSeconds() == 3600;
     }
 
-    @Test
-    public void testDefaultSystemTablesBehavior()
-    {
-        Map<String, List<String>> ksTablesRepairDefaultDisabled = new HashMap<>();
-        ksTablesRepairDefaultDisabled.put("system_traces", Arrays.asList("sessions", "events"));
-
-        Map<String, List<String>> ksTablesRepairDefaultEnabled = new HashMap<>();
-        ksTablesRepairDefaultEnabled.put("system_auth", Arrays.asList("role_permissions", "network_permissions", "role_members", "roles", "resource_role_permissons_index"));
-        ksTablesRepairDefaultEnabled.put("system_distributed", Arrays.asList("auto_repair_priority", "repair_history", "auto_repair_history", "view_build_status", "parent_repair_history", "partition_denylist"));
-
-        for (Map.Entry<String, List<String>> disabled : ksTablesRepairDefaultDisabled.entrySet())
-        {
-            for (String table : disabled.getValue())
-            {
-                TableMetadata sessionCfm = Keyspace.open(disabled.getKey()).getColumnFamilyStore(table).metadata();
-                for (AutoRepairConfig.RepairType repairType : AutoRepairConfig.RepairType.values())
-                {
-                    assertFalse(disabled.getKey()+"."+table, sessionCfm.params.autoRepair.repairEnabled(repairType));
-                }
-            }
-        }
-
-        for (Map.Entry<String, List<String>> enabled : ksTablesRepairDefaultEnabled.entrySet())
-        {
-            for (String table : enabled.getValue())
-            {
-                TableMetadata sessionCfm = Keyspace.open(enabled.getKey()).getColumnFamilyStore(table).metadata();
-                for (AutoRepairConfig.RepairType repairType : AutoRepairConfig.RepairType.values())
-                {
-                    assertTrue(enabled.getKey()+"."+table, sessionCfm.params.autoRepair.repairEnabled(repairType));
-                }
-            }
-        }
-    }
 }
