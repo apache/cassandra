@@ -141,14 +141,14 @@ public class AutoRepairTest extends CQLTester
                 // case 1 :
                 // node reside in "datacenter1"
                 // keyspace has replica in "datacenter1"
-                Assert.assertTrue(AutoRepairUtils.checkNodeContainsKeyspaceReplica(ks));
+                Assert.assertTrue(AutoRepairUtils.shouldConsiderKeyspace(ks));
             }
             else if (ks.getName().equals(ksname2))
             {
                 // case 2 :
                 // node reside in "datacenter1"
                 // keyspace has replica in "datacenter2"
-                Assert.assertFalse(AutoRepairUtils.checkNodeContainsKeyspaceReplica(ks));
+                Assert.assertFalse(AutoRepairUtils.shouldConsiderKeyspace(ks));
             }
         }
     }

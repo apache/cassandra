@@ -790,24 +790,30 @@ public class AutoRepairUtils
         return hosts;
     }
 
-    public static boolean checkNodeContainsKeyspaceReplica(Keyspace ks)
+    public static boolean shouldConsiderKeyspace(Keyspace ks)
     {
         AbstractReplicationStrategy replicationStrategy = ks.getReplicationStrategy();
-        boolean ksReplicaOnNode = true;
+        boolean repair = true;
         if (replicationStrategy instanceof NetworkTopologyStrategy)
         {
             Set<String> datacenters = ((NetworkTopologyStrategy) replicationStrategy).getDatacenters();
             String localDC = DatabaseDescriptor.getEndpointSnitch().getDatacenter(FBUtilities.getBroadcastAddressAndPort());
             if (!datacenters.contains(localDC))
             {
-                ksReplicaOnNode = false;
+                repair = false;
             }
         }
         if (replicationStrategy instanceof LocalStrategy || replicationStrategy instanceof MetaStrategy)
         {
-            ksReplicaOnNode = false;
+            repair = false;
         }
-        return ksReplicaOnNode;
+        if (ks.getName().equalsIgnoreCase(SchemaConstants.TRACE_KEYSPACE_NAME))
+        {
+            // by default, ignore the tables under system_traces as they do not have
+            // that much important data
+            repair = false;
+        }
+        return repair;
     }
 
 
