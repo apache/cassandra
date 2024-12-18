@@ -22,7 +22,9 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -35,6 +37,8 @@ import java.util.stream.Stream;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.config.CassandraRelevantProperties;
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Directories;
 import org.apache.cassandra.db.Keyspace;
@@ -42,10 +46,14 @@ import org.apache.cassandra.db.lifecycle.SSTableSet;
 import org.apache.cassandra.io.FSReadError;
 import org.apache.cassandra.io.sstable.Component;
 import org.apache.cassandra.io.sstable.Descriptor;
+import org.apache.cassandra.io.sstable.SSTable;
 import org.apache.cassandra.io.sstable.SSTableId;
+import org.apache.cassandra.io.sstable.format.SSTableFormat;
+import org.apache.cassandra.io.sstable.format.SSTableFormat.Components.Types;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.util.FileUtils;
+import org.apache.cassandra.utils.Clock;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.LocalizeString;
 import org.apache.cassandra.utils.Throwables;
@@ -490,7 +498,113 @@ public class TableSnapshot
 
         TableSnapshot build()
         {
+            maybeCreateOrEnrichManifest();
             return new TableSnapshot(keyspaceName, tableName, tableId, tag, createdAt, expiresAt, snapshotDirs, ephemeral);
+        }
+
+        private void maybeCreateOrEnrichManifest()
+        {
+            boolean oldManifestExists = false;
+
+            if (!CassandraRelevantProperties.SNAPSHOT_MANIFEST_ENRICH_OR_CREATE_ENABLED.getBoolean())
+                return;
+
+            // this is caused by not reading any manifest or that snapshot had a basic manifest just with sstables
+            // enumerated (pre CASSANDRA-16789), so we just go ahead and enrich it in each snapshot dir
+
+            if (createdAt != null)
+                return;
+
+            for (File snapshotDir : snapshotDirs)
+            {
+                File maybeManifest = new File(snapshotDir.toPath().resolve("manifest.json"));
+                if (maybeManifest.exists())
+                {
+                    oldManifestExists = true;
+                    break;
+                }
+            }
+
+            if (oldManifestExists)
+                logger.info("Manifest in the old format for snapshot {} was detected, going to enrich it.", this);
+            else
+                logger.info("There is no manifest for {}, going to create it.", this);
+
+            long lastModified = -1;
+
+            List<String> allDataFiles = new ArrayList<>();
+            for (File snapshotDir : snapshotDirs)
+            {
+                // we will consider time of the creation the oldest last modified
+                // timestamp on any snapshot directory
+                long currentLastModified = snapshotDir.lastModified();
+                if ((currentLastModified < lastModified || lastModified == -1) && currentLastModified > 0)
+                    lastModified = currentLastModified;
+
+                List<File> dataFiles = new ArrayList<>();
+                try
+                {
+                    List<File> indicesDirs = new ArrayList<>();
+                    File[] snapshotFiles = snapshotDir.list(file -> {
+                        if (file.isDirectory() && file.name().startsWith("."))
+                        {
+                            indicesDirs.add(file);
+                            return false;
+                        }
+                        else
+                        {
+                            return file.name().endsWith('-' + SSTableFormat.Components.DATA.type.repr);
+                        }
+                    });
+
+                    Collections.addAll(dataFiles, snapshotFiles);
+
+                    SSTableFormat<?, ?> selectedSSTableFormat = DatabaseDescriptor.getSelectedSSTableFormat();
+                    for (File indexDir : indicesDirs)
+                    {
+                        File[] indexDirFiles = indexDir.list(file -> Component.parse(file.name(), selectedSSTableFormat).type == Types.DATA);
+                        dataFiles.addAll(Arrays.asList(indexDirFiles));
+                    }
+                }
+                catch (IOException ex)
+                {
+                    logger.error("Unable to list a directory for data components: {}", snapshotDir);
+                }
+
+                for (File dataFile : dataFiles)
+                {
+                    Descriptor descriptor = SSTable.tryDescriptorFromFile(dataFile);
+                    if (descriptor != null)
+                    {
+                        String relativeDataFileName = descriptor.relativeFilenameFor(SSTableFormat.Components.DATA);
+                        allDataFiles.add(relativeDataFileName);
+                    }
+                }
+            }
+
+            // in any case of not being able to resolve it, set it to current time
+            if (lastModified < 0)
+                createdAt = Instant.ofEpochMilli(Clock.Global.currentTimeMillis());
+            else
+                createdAt = Instant.ofEpochMilli(lastModified);
+
+            for (File snapshotDir : snapshotDirs)
+            {
+                SnapshotManifest snapshotManifest = new SnapshotManifest(allDataFiles, null, createdAt, ephemeral);
+                File manifestFile = new File(snapshotDir, "manifest.json");
+                try
+                {
+                    snapshotManifest.serializeToJsonFile(manifestFile);
+                    if (oldManifestExists)
+                        logger.debug("Manifest file {} was rewritten for snapshot {}", manifestFile.absolutePath(), this);
+                    else
+                        logger.debug("Manifest file {} was created for snapshot {}", manifestFile.absolutePath(), this);
+                }
+                catch (IOException ex)
+                {
+                    logger.error("Unable to create a manifest.json file in {}", manifestFile.absolutePath());
+                }
+            }
         }
     }
 
