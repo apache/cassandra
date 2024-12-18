@@ -18,7 +18,10 @@
 
 package org.apache.cassandra.replication.simple;
 
+import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.SortedSet;
 import java.util.TreeSet;
@@ -31,9 +34,11 @@ import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.Mutation;
 import org.apache.cassandra.db.MutationId;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
+import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.replication.MutationSummarizer;
 import org.apache.cassandra.replication.MutationSummary;
 import org.apache.cassandra.replication.MutationTracker;
+import org.apache.cassandra.replication.ReconciliationPlan;
 import org.apache.cassandra.schema.TableId;
 
 public class SimpleMutationTracker implements MutationTracker
@@ -151,5 +156,23 @@ public class SimpleMutationTracker implements MutationTracker
     public MutationSummarizer summarizer()
     {
         return new SimpleAccumulator();
+    }
+
+    @Override
+    public Map<InetAddressAndPort, ReconciliationPlan> calculateReconciliation(Map<InetAddressAndPort, MutationSummary> summaries)
+    {
+        return SimpleReconciliationPlan.calculateReconciliation(summaries);
+    }
+
+    @Override
+    public List<Mutation> mutations(Collection<MutationId> ids)
+    {
+        List<Mutation> result = new ArrayList<Mutation>(ids.size());
+        ids.forEach(id -> {
+            Mutation mutation = mutations.get(id);
+            Preconditions.checkArgument(mutation != null);
+            result.add(mutation);
+        });
+        return result;
     }
 }
