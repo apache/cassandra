@@ -182,7 +182,11 @@ public class AutoRepairParameterizedTest extends CQLTester
             {
                 continue;
             }
-
+            // skip system_traces keyspaces
+            if (keyspace.getName().equalsIgnoreCase(SchemaConstants.TRACE_KEYSPACE_NAME))
+            {
+                continue;
+            }
             int expectedTables = keyspace.getName().equals("ks") ? 1 : keyspace.getColumnFamilyStores().size();
             expectedTablesGoingThroughRepair += expectedTables;
         }
