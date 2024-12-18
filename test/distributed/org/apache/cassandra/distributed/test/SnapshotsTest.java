@@ -33,32 +33,40 @@ import org.junit.Test;
 
 import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.db.ColumnFamilyStore;
+import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
 import org.apache.cassandra.distributed.api.IInvokableInstance;
+import org.apache.cassandra.distributed.api.IIsolatedExecutor;
 import org.apache.cassandra.distributed.api.IIsolatedExecutor.SerializableCallable;
 import org.apache.cassandra.distributed.api.NodeToolResult;
 import org.apache.cassandra.distributed.shared.WithProperties;
+import org.apache.cassandra.io.util.File;
+import org.apache.cassandra.service.snapshot.SnapshotManager;
 import org.apache.cassandra.utils.Clock;
 import org.apache.cassandra.utils.FBUtilities;
 
 import static java.lang.String.format;
 import static java.util.concurrent.TimeUnit.SECONDS;
 import static java.util.stream.Collectors.toList;
+import static org.apache.cassandra.config.CassandraRelevantProperties.SNAPSHOT_MANIFEST_ENRICH_OR_CREATE_ENABLED;
 import static org.apache.cassandra.distributed.shared.ClusterUtils.stopUnchecked;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.apache.cassandra.schema.SchemaConstants.LOCAL_SYSTEM_KEYSPACE_NAMES;
+import static org.apache.cassandra.schema.SchemaConstants.REPLICATED_SYSTEM_KEYSPACE_NAMES;
 import static org.awaitility.Awaitility.await;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.CoreMatchers.not;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assume.assumeThat;
 import static oshi.PlatformEnum.MACOS;
 
 public class SnapshotsTest extends TestBaseImpl
 {
-    public static final Integer SNAPSHOT_CLEANUP_PERIOD_SECONDS = 1;
+    public static final Integer SNAPSHOT_CLEANUP_PERIOD_SECONDS = 2;
     public static final Integer FIVE_SECONDS = 5;
     public static final Integer TEN_SECONDS = 10;
     private static final WithProperties properties = new WithProperties();
@@ -131,9 +139,116 @@ public class SnapshotsTest extends TestBaseImpl
     }
 
     @Test
+    public void testLocalOrReplicatedSystemTablesSnapshotsDoNotHaveSchema()
+    {
+        cluster.get(1)
+               .nodetoolResult("snapshot", "-t", "snapshot_with_local_or_replicated")
+               .asserts()
+               .success();
+
+        String[] dataDirs = (String[]) cluster.get(1).config().get("data_file_directories");
+        String[] paths = getSnapshotPaths(true);
+
+        for (String dataDir : dataDirs)
+        {
+            for (String path : paths)
+            {
+                Path snapshotDir = Paths.get(dataDir)
+                                        .resolve(path)
+                                        .resolve("snapshots")
+                                        .resolve("snapshot_with_local_or_replicated");
+
+                if (snapshotDir.toFile().exists())
+                    assertFalse(new File(snapshotDir, "schema.cql").exists());
+            }
+        }
+    }
+
+    @Test
+    public void testMissingManifestIsCreatedOnStartupWithEnrichmentEnabled()
+    {
+        cluster.schemaChange(withKeyspace("CREATE TABLE %s.tbl (key int, value text, PRIMARY KEY (key))"));
+        populate(cluster);
+
+        cluster.get(1)
+               .nodetoolResult("snapshot", "-t", "snapshot_with_local_or_replicated")
+               .asserts()
+               .success();
+
+        String[] dataDirs = (String[]) cluster.get(1).config().get("data_file_directories");
+        String[] paths = getSnapshotPaths(false);
+
+        assertManifestsPresence(dataDirs, paths, true);
+
+        // remove all manifest files
+        removeAllManifests(dataDirs, paths);
+        assertManifestsPresence(dataDirs, paths, false);
+
+        // restart which should add them back
+        cluster.get(1).shutdown(true);
+        cluster.get(1).startup();
+
+        assertManifestsPresence(dataDirs, paths, true);
+
+        // remove them again and reload by mbean, that should create them too
+        removeAllManifests(dataDirs, paths);
+        assertManifestsPresence(dataDirs, paths, false);
+        cluster.get(1).runOnInstance((IIsolatedExecutor.SerializableRunnable) () -> SnapshotManager.instance.restart(true));
+        assertManifestsPresence(dataDirs, paths, true);
+
+        cluster.get(1).shutdown(true);
+
+        // remove manifest only in the first data dir
+        removeAllManifests(new String[] {dataDirs[0]}, paths);
+
+        // they will be still created for that first dir
+        cluster.get(1).startup();
+        assertManifestsPresence(dataDirs, paths, true);
+    }
+
+    @Test
+    public void testMissingManifestIsNotCreatedOnStartupWithEnrichmentDisabled()
+    {
+        cluster.schemaChange(withKeyspace("CREATE TABLE %s.tbl (key int, value text, PRIMARY KEY (key))"));
+        populate(cluster);
+
+        cluster.get(1)
+               .nodetoolResult("snapshot", "-t", "snapshot_with_local_or_replicated")
+               .asserts()
+               .success();
+
+        String[] dataDirs = (String[]) cluster.get(1).config().get("data_file_directories");
+        String[] paths = getSnapshotPaths(false);
+
+        assertManifestsPresence(dataDirs, paths, true);
+
+        cluster.get(1).shutdown(true);
+
+        // remove all manifest files
+        removeAllManifests(dataDirs, paths);
+        assertManifestsPresence(dataDirs, paths, false);
+
+        try (WithProperties ignored = new WithProperties().set(SNAPSHOT_MANIFEST_ENRICH_OR_CREATE_ENABLED, false))
+        {
+            // restart which should NOT add them back because we disabled it by system property
+            cluster.get(1).startup();
+
+            // no manifests created
+            assertManifestsPresence(dataDirs, paths, false);
+
+            cluster.get(1).runOnInstance((IIsolatedExecutor.SerializableRunnable) () -> SnapshotManager.instance.restart(true));
+
+            // no manifests created, even after restart of SnapshotManager
+            assertManifestsPresence(dataDirs, paths, false);
+        }
+    }
+
+    @Test
     public void testSnapshotsCleanupByTTL()
     {
-        cluster.get(1).nodetoolResult("snapshot", "--ttl", format("%ds", FIVE_SECONDS),
+        cluster.schemaChange(withKeyspace("CREATE TABLE %s.tbl (key int, value text, PRIMARY KEY (key))"));
+        populate(cluster, withKeyspace("%s"), "tbl");
+        cluster.get(1).nodetoolResult("snapshot", "-kt", withKeyspace("%s.tbl"), "--ttl", format("%ds", FIVE_SECONDS),
                                       "-t", "basic").asserts().success();
         waitForSnapshotPresent("basic");
         waitForSnapshotCleared("basic");
@@ -468,5 +583,53 @@ public class SnapshotsTest extends TestBaseImpl
 
             waitForSnapshot(tag, true, true);
         }
+    }
+
+    private void assertManifestsPresence(String[] dataDirs, String[] paths, boolean shouldExist)
+    {
+        for (String dataDir : dataDirs)
+        {
+            for (String path : paths)
+            {
+                Path snapshotDir = Paths.get(dataDir).resolve(path).resolve("snapshots").resolve("snapshot_with_local_or_replicated");
+                assertEquals(shouldExist, new File(snapshotDir, "manifest.json").exists());
+            }
+        }
+    }
+
+    private void removeAllManifests(String[] dataDirs, String[] paths)
+    {
+        for (String dataDir : dataDirs)
+        {
+            for (String path : paths)
+            {
+                Path snapshotDir = Paths.get(dataDir).resolve(path).resolve("snapshots").resolve("snapshot_with_local_or_replicated");
+
+                File manifest = new File(snapshotDir, "manifest.json");
+                assertTrue(manifest.exists());
+                manifest.delete();
+                assertFalse(manifest.exists());
+            }
+        }
+    }
+
+    private String[] getSnapshotPaths(boolean forSystemKeyspaces)
+    {
+        return cluster.get(1).applyOnInstance((IIsolatedExecutor.SerializableFunction<Boolean, String[]>) forSystem -> {
+            List<String> result = new ArrayList<>();
+
+            for (Keyspace keyspace : Keyspace.all())
+            {
+                if (forSystem && !LOCAL_SYSTEM_KEYSPACE_NAMES.contains(keyspace.getName()) && !REPLICATED_SYSTEM_KEYSPACE_NAMES.contains(keyspace.getName()))
+                    continue;
+                else if (LOCAL_SYSTEM_KEYSPACE_NAMES.contains(keyspace.getName()) || REPLICATED_SYSTEM_KEYSPACE_NAMES.contains(keyspace.getName()))
+                    continue;
+
+                for (ColumnFamilyStore cfs : keyspace.getColumnFamilyStores())
+                    result.add(format("%s/%s-%s", keyspace.getName(), cfs.name, cfs.metadata().id.toHexString()));
+            }
+
+            return result.toArray(new String[0]);
+        }, forSystemKeyspaces);
     }
 }

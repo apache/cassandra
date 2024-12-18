@@ -1,4 +1,5 @@
 5.1
+ * Create manifest upon loading where it does not exist or enrich it (CASSANDRA-20150)
  * Propagate true size of snapshot in SnapshotDetailsTabularData to not call JMX twice in nodetool listsnapshots (CASSANDRA-20149)
  * Implementation of CEP-43 (CASSANDRA-19964)
  * Periodically disconnect roles that are revoked or have LOGIN=FALSE set (CASSANDRA-19385)

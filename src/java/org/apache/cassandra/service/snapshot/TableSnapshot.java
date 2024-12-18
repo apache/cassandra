@@ -19,10 +19,13 @@ package org.apache.cassandra.service.snapshot;
 
 import java.io.IOException;
 import java.nio.file.Files;
+import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -35,6 +38,7 @@ import java.util.stream.Stream;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Directories;
 import org.apache.cassandra.db.Keyspace;
@@ -42,10 +46,13 @@ import org.apache.cassandra.db.lifecycle.SSTableSet;
 import org.apache.cassandra.io.FSReadError;
 import org.apache.cassandra.io.sstable.Component;
 import org.apache.cassandra.io.sstable.Descriptor;
+import org.apache.cassandra.io.sstable.SSTable;
 import org.apache.cassandra.io.sstable.SSTableId;
+import org.apache.cassandra.io.sstable.format.SSTableFormat;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.util.FileUtils;
+import org.apache.cassandra.utils.Clock;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.LocalizeString;
 import org.apache.cassandra.utils.Throwables;
@@ -262,7 +269,8 @@ public class TableSnapshot
         }
         catch (Throwable t)
         {
-            logger.error("Could not list directory content {}", dir, t);
+            if (!(t instanceof NoSuchFileException))
+                logger.error("Could not list directory content {}", dir, t);
         }
 
         return paths;
@@ -490,7 +498,143 @@ public class TableSnapshot
 
         TableSnapshot build()
         {
+            maybeCreateOrEnrichManifest();
             return new TableSnapshot(keyspaceName, tableName, tableId, tag, createdAt, expiresAt, snapshotDirs, ephemeral);
+        }
+
+        private List<File> getSnapshotDirsWithoutManifest()
+        {
+            List<File> snapshotDirNotHavingManifests = new ArrayList<>();
+            for (File snapshotDir : snapshotDirs)
+            {
+                if (!new File(snapshotDir.toPath().resolve("manifest.json")).exists())
+                    snapshotDirNotHavingManifests.add(snapshotDir);
+            }
+
+            return snapshotDirNotHavingManifests;
+        }
+
+        private void maybeCreateOrEnrichManifest()
+        {
+            if (!CassandraRelevantProperties.SNAPSHOT_MANIFEST_ENRICH_OR_CREATE_ENABLED.getBoolean())
+                return;
+
+            // this is caused by not reading any manifest or that snapshot had a basic manifest just with sstables
+            // enumerated (pre CASSANDRA-16789), so we just go ahead and enrich it in each snapshot dir
+
+            List<File> snapshotDirsWithoutManifests = getSnapshotDirsWithoutManifest();
+            if (createdAt != null && snapshotDirsWithoutManifests.isEmpty())
+                return;
+
+            if (createdAt == null && snapshotDirsWithoutManifests.isEmpty())
+                logger.info("Manifest in the old format for snapshot {} for {}.{} was detected, going to enrich it.",
+                            tag, keyspaceName, tableName);
+
+            if (!snapshotDirsWithoutManifests.isEmpty())
+                logger.info("There is no manifest for snapshot {} for {}.{} at paths {}, going to create it.",
+                            tag, keyspaceName, tableName, snapshotDirsWithoutManifests);
+
+            long lastModified = createdAt == null ? -1 : createdAt.toEpochMilli();
+
+            if (lastModified == -1)
+            {
+                for (File snapshotDir : snapshotDirs)
+                {
+                    // we will consider time of the creation the oldest last modified
+                    // timestamp on any snapshot directory
+                    long currentLastModified = snapshotDir.lastModified();
+                    if ((currentLastModified < lastModified || lastModified == -1) && currentLastModified > 0)
+                        lastModified = currentLastModified;
+                }
+            }
+
+            List<String> allDataFiles = new ArrayList<>();
+            for (File snapshotDir : snapshotDirs)
+            {
+                List<File> dataFiles = new ArrayList<>();
+                try
+                {
+                    List<File> indicesDirs = new ArrayList<>();
+                    File[] snapshotFiles = snapshotDir.list(file -> {
+                        if (file.isDirectory() && file.name().startsWith("."))
+                        {
+                            indicesDirs.add(file);
+                            return false;
+                        }
+                        else
+                        {
+                            return file.name().endsWith('-' + SSTableFormat.Components.DATA.type.repr);
+                        }
+                    });
+
+                    Collections.addAll(dataFiles, snapshotFiles);
+
+                    for (File indexDir : indicesDirs)
+                        dataFiles.addAll(Arrays.asList(indexDir.list(file -> file.name().endsWith('-' + SSTableFormat.Components.DATA.type.repr))));
+                }
+                catch (IOException ex)
+                {
+                    logger.error("Unable to list a directory for data components: {}", snapshotDir);
+                }
+
+                for (File dataFile : dataFiles)
+                {
+                    Descriptor descriptor = SSTable.tryDescriptorFromFile(dataFile);
+                    if (descriptor != null)
+                    {
+                        String relativeDataFileName = descriptor.relativeFilenameFor(SSTableFormat.Components.DATA);
+                        allDataFiles.add(relativeDataFileName);
+                    }
+                }
+            }
+
+            // in any case of not being able to resolve it, set it to current time
+            if (lastModified < 0)
+                createdAt = Instant.ofEpochMilli(Clock.Global.currentTimeMillis());
+            else
+                createdAt = Instant.ofEpochMilli(lastModified);
+
+            for (File snapshotDir : snapshotDirs)
+            {
+                SnapshotManifest snapshotManifest = new SnapshotManifest(allDataFiles, null, createdAt, ephemeral);
+                File manifestFile = new File(snapshotDir, "manifest.json");
+                if (snapshotDirsWithoutManifests.contains(snapshotDir))
+                {
+                    writeManifest(snapshotManifest, manifestFile);
+                }
+                else
+                {
+                    SnapshotManifest existingManifest = readManifest(manifestFile);
+                    if (existingManifest != null && existingManifest.createdAt == null)
+                        writeManifest(snapshotManifest, manifestFile);
+                }
+            }
+        }
+
+        private SnapshotManifest readManifest(File manifestFile)
+        {
+            try
+            {
+                return SnapshotManifest.deserializeFromJsonFile(manifestFile);
+            }
+            catch (IOException ex)
+            {
+                logger.error("Unable to read a manifest.json file in {}", manifestFile.absolutePath());
+            }
+
+            return null;
+        }
+
+        private void writeManifest(SnapshotManifest snapshotManifest, File manifestFile)
+        {
+            try
+            {
+                snapshotManifest.serializeToJsonFile(manifestFile);
+            }
+            catch (IOException ex)
+            {
+                logger.error("Unable to create a manifest.json file in {}", manifestFile.absolutePath());
+            }
         }
     }
 
