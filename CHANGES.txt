@@ -1,7 +1,8 @@
 5.1
+ * Enable filtering of snapshots on keyspace, table and snapshot name in nodetool listsnapshots (CASSANDRA-20151)
  * Create manifest upon loading where it does not exist or enrich it (CASSANDRA-20150)
  * Propagate true size of snapshot in SnapshotDetailsTabularData to not call JMX twice in nodetool listsnapshots (CASSANDRA-20149)
- * Implementation of CEP-43 (CASSANDRA-19964)
+ * Implementation of CEP-43 - copying a table via CQL by CREATE TABLE LIKE (CASSANDRA-19964)
  * Periodically disconnect roles that are revoked or have LOGIN=FALSE set (CASSANDRA-19385)
  * AST library for CQL-based fuzz tests (CASSANDRA-20198)
  * Support audit logging for JMX operations (CASSANDRA-20128)

@@ -512,6 +512,49 @@ public class SnapshotsTest extends TestBaseImpl
         cluster.get(1).nodetoolResult("snapshot", "-t", "somename", "-kt", String.format("%s.tbl2", KEYSPACE)).asserts().success();
     }
 
+    @Test
+    public void testListingOfSnapshotsByKeyspaceAndTable()
+    {
+        IInvokableInstance instance = cluster.get(1);
+        cluster.schemaChange("CREATE KEYSPACE IF NOT EXISTS ks1 WITH replication = {'class': 'SimpleStrategy', 'replication_factor': 1};");
+        cluster.schemaChange("CREATE KEYSPACE IF NOT EXISTS ks2 WITH replication = {'class': 'SimpleStrategy', 'replication_factor': 1};");
+        cluster.schemaChange("CREATE TABLE IF NOT EXISTS ks1.tbl (key int, value text, PRIMARY KEY (key))");
+        cluster.schemaChange("CREATE TABLE IF NOT EXISTS ks1.tbl2 (key int, value text, PRIMARY KEY (key))");
+        cluster.schemaChange("CREATE TABLE IF NOT EXISTS ks2.tbl (key int, value text, PRIMARY KEY (key))");
+        cluster.schemaChange("CREATE TABLE IF NOT EXISTS ks2.tbl2 (key int, value text, PRIMARY KEY (key))");
+
+        populate(cluster, "ks1", "tbl");
+        populate(cluster, "ks1", "tbl2");
+        populate(cluster, "ks2", "tbl");
+        populate(cluster, "ks2", "tbl2");
+
+        instance.nodetoolResult("snapshot", "-t", "tagks1tbl", "-kt", "ks1.tbl").asserts().success();
+        instance.nodetoolResult("snapshot", "-t", "tagks1tbl2", "-kt", "ks1.tbl2").asserts().success();
+        instance.nodetoolResult("snapshot", "-t", "tagks2tbl", "-kt", "ks2.tbl").asserts().success();
+        instance.nodetoolResult("snapshot", "-t", "tagks2tbl2", "-kt", "ks2.tbl2").asserts().success();
+
+        waitForSnapshot("ks1", null, "tagks1tbl", true, false);
+        waitForSnapshot("ks1", null, "tagks1tbl2", true, false);
+        waitForSnapshot("ks1", null, "tagks2tbl", false, false);
+        waitForSnapshot("ks1", null, "tagks2tbl2", false, false);
+
+        waitForSnapshot("ks1", "tbl", "tagks1tbl", true, false);
+        waitForSnapshot("ks1", "tbl", "tagks1tbl2", false, false);
+        waitForSnapshot("ks1", "tbl", "tagks2tbl", false, false);
+        waitForSnapshot("ks1", "tbl", "tagks2tbl2", false, false);
+
+        waitForSnapshot(null, "tbl", "tagks1tbl", true, false);
+        waitForSnapshot(null, "tbl", "tagks1tbl2", false, false);
+        waitForSnapshot(null, "tbl", "tagks2tbl", true, false);
+        waitForSnapshot(null, "tbl", "tagks2tbl2", false, false);
+
+        NodeToolResult nodeToolResult = instance.nodetoolResult("listsnapshots", "-n", "tagks1tbl");
+        nodeToolResult.asserts().success();
+        List<String> snapshots = extractSnapshots(nodeToolResult.getStdout());
+        assertEquals(1, snapshots.size());
+        assertTrue(snapshots.get(0).contains("tagks1tbl"));
+    }
+
     private void populate(Cluster cluster)
     {
         for (int i = 0; i < 100; i++)
@@ -555,13 +598,27 @@ public class SnapshotsTest extends TestBaseImpl
         if (noTTL)
             args.add("-nt");
 
+        if (keyspaceName != null)
+        {
+            args.add("-k");
+            args.add(keyspaceName);
+        }
+
+        if (tableName != null)
+        {
+            args.add("-t");
+            args.add(tableName);
+        }
+
+        if (snapshotName != null)
+        {
+            args.add("-n");
+            args.add(snapshotName);
+        }
+
         listsnapshots = cluster.get(1).nodetoolResult(args.toArray(new String[0]));
 
-        List<String> lines = Arrays.stream(listsnapshots.getStdout().split("\n"))
-                                   .filter(line -> !line.isEmpty())
-                                   .filter(line -> !line.startsWith("Snapshot Details:") && !line.startsWith("There are no snapshots"))
-                                   .filter(line -> !line.startsWith("Snapshot name") && !line.startsWith("Total TrueDiskSpaceUsed"))
-                                   .collect(toList());
+        List<String> lines = extractSnapshots(listsnapshots.getStdout());
 
         return expectPresent == lines.stream().anyMatch(line -> line.startsWith(snapshotName));
     }
@@ -631,5 +688,16 @@ public class SnapshotsTest extends TestBaseImpl
 
             return result.toArray(new String[0]);
         }, forSystemKeyspaces);
+    }
+
+    private List<String> extractSnapshots(String listSnapshotsStdOut)
+    {
+        return Arrays.stream(listSnapshotsStdOut.split("\n"))
+                     .filter(line -> !line.isEmpty())
+                     .filter(line -> !line.startsWith("Snapshot Details:"))
+                     .filter(line -> !line.startsWith("There are no snapshots"))
+                     .filter(line -> !line.startsWith("Snapshot name"))
+                     .filter(line -> !line.startsWith("Total TrueDiskSpaceUsed"))
+                     .collect(toList());
     }
 }
