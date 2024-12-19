@@ -2653,12 +2653,12 @@ public abstract class CQLTester
 
     protected UntypedResultSet execute(org.apache.cassandra.cql3.ast.Statement stmt)
     {
-        return executeFormattedQuery(stmt.toCQL(), stmt.bindsEncoded());
+        return executeFormattedQuery(stmt.toCQL(), (Object[]) stmt.bindsEncoded());
     }
 
     protected ResultSet executeNet(ProtocolVersion protocolVersion, org.apache.cassandra.cql3.ast.Statement stmt)
     {
-        return sessionNet(protocolVersion).execute(stmt.toCQL(), stmt.bindsEncoded());
+        return sessionNet(protocolVersion).execute(stmt.toCQL(), (Object[]) stmt.bindsEncoded());
     }
 
     @FunctionalInterface
