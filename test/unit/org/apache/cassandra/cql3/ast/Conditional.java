@@ -293,6 +293,11 @@ public interface Conditional extends Expression
     interface EqBuilder<T extends EqBuilder<T>>
     {
         T value(Symbol symbol, Expression e);
+        default T value(Symbol symbol, Object value)
+        {
+            return value(symbol, new Bind(value, symbol.type()));
+        }
+
         default T value(String symbol, int e)
         {
             return value(new Symbol(symbol, Int32Type.instance), Bind.of(e));
@@ -303,6 +308,10 @@ public interface Conditional extends Expression
     {
 
         T where(Expression ref, Where.Inequality kind, Expression expression);
+        default T where(Expression ref, Where.Inequality kind, Object value)
+        {
+            return where(ref, kind, new Bind(value, ref.type()));
+        }
 
         default <Type> T where(String name, Where.Inequality kind, Type value, AbstractType<Type> type)
         {
