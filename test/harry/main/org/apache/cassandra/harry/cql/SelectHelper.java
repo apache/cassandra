@@ -22,11 +22,11 @@ import java.util.HashMap;
 import java.util.Map;
 
 import org.apache.cassandra.cql3.ast.Bind;
+import org.apache.cassandra.cql3.ast.CQLFormatter;
+import org.apache.cassandra.cql3.ast.Conditional.Where;
 import org.apache.cassandra.cql3.ast.FunctionCall;
-import org.apache.cassandra.cql3.ast.Reference;
 import org.apache.cassandra.cql3.ast.Select;
 import org.apache.cassandra.cql3.ast.Symbol;
-import org.apache.cassandra.cql3.ast.Where;
 import org.apache.cassandra.harry.ColumnSpec;
 import org.apache.cassandra.harry.op.Operations;
 import org.apache.cassandra.harry.Relations;
@@ -44,7 +44,7 @@ public class SelectHelper
             for (int i = 0; i < schema.clusteringKeys.size(); i++)
             {
                 ColumnSpec<?> c = schema.clusteringKeys.get(i);
-                builder.withOrderByColumn(c.name, c.type.asServerType(), c.isReversed() ? Select.OrderBy.Ordering.ASC : Select.OrderBy.Ordering.DESC);
+                builder.orderByColumn(c.name, c.type.asServerType(), c.isReversed() ? Select.OrderBy.Ordering.ASC : Select.OrderBy.Ordering.DESC);
             }
         }
 
@@ -60,9 +60,9 @@ public class SelectHelper
         for (int i = 0; i < schema.clusteringKeys.size(); i++)
         {
             ColumnSpec<?> column = schema.clusteringKeys.get(i);
-            builder.withWhere(Reference.of(new Symbol(column.name, column.type.asServerType())),
-                              toInequalities(Relations.RelationKind.EQ),
-                              new Bind(ck[i], column.type.asServerType()));
+            builder.where(new Symbol(column.name, column.type.asServerType()),
+                          toInequalities(Relations.RelationKind.EQ),
+                          new Bind(ck[i], column.type.asServerType()));
         }
 
         return toCompiled(builder.build());
@@ -80,16 +80,16 @@ public class SelectHelper
             ColumnSpec<?> column = schema.clusteringKeys.get(i);
             if (select.lowerBoundRelation()[i] != null)
             {
-                builder.withWhere(Reference.of(new Symbol(column.name, column.type.asServerType())),
-                                  toInequalities(select.lowerBoundRelation()[i]),
-                                  new Bind(lowBound[i], column.type.asServerType()));
+                builder.where(new Symbol(column.name, column.type.asServerType()),
+                              toInequalities(select.lowerBoundRelation()[i]),
+                              new Bind(lowBound[i], column.type.asServerType()));
             }
 
             if (select.upperBoundRelation()[i] != null)
             {
-                builder.withWhere(Reference.of(new Symbol(column.name, column.type.asServerType())),
-                                  toInequalities(select.upperBoundRelation()[i]),
-                                  new Bind(highBound[i], column.type.asServerType()));
+                builder.where(new Symbol(column.name, column.type.asServerType()),
+                              toInequalities(select.upperBoundRelation()[i]),
+                              new Bind(highBound[i], column.type.asServerType()));
             }
         }
 
@@ -98,7 +98,7 @@ public class SelectHelper
             for (int i = 0; i < schema.clusteringKeys.size(); i++)
             {
                 ColumnSpec<?> c = schema.clusteringKeys.get(i);
-                builder.withOrderByColumn(c.name, c.type.asServerType(), c.isReversed() ? Select.OrderBy.Ordering.ASC : Select.OrderBy.Ordering.DESC);
+                builder.orderByColumn(c.name, c.type.asServerType(), c.isReversed() ? Select.OrderBy.Ordering.ASC : Select.OrderBy.Ordering.DESC);
             }
         }
 
@@ -114,27 +114,27 @@ public class SelectHelper
         {
             Object[] query = cache.computeIfAbsent(relation.descriptor, schema.valueGenerators.ckGen()::inflate);
             ColumnSpec<?> column = schema.clusteringKeys.get(relation.column);
-            builder.withWhere(Reference.of(new Symbol(column.name, column.type.asServerType())),
-                              toInequalities(relation.kind),
-                              new Bind(query[relation.column], column.type.asServerType()));
+            builder.where(new Symbol(column.name, column.type.asServerType()),
+                          toInequalities(relation.kind),
+                          new Bind(query[relation.column], column.type.asServerType()));
         }
 
         for (Relations.Relation relation : select.regularRelations())
         {
             ColumnSpec<?> column = schema.regularColumns.get(relation.column);
             Object query = schema.valueGenerators.regularColumnGen(relation.column).inflate(relation.descriptor);
-            builder.withWhere(Reference.of(new Symbol(column.name, column.type.asServerType())),
-                              toInequalities(relation.kind),
-                              new Bind(query, column.type.asServerType()));
+            builder.where(new Symbol(column.name, column.type.asServerType()),
+                          toInequalities(relation.kind),
+                          new Bind(query, column.type.asServerType()));
         }
 
         for (Relations.Relation relation : select.staticRelations())
         {
             Object query = schema.valueGenerators.staticColumnGen(relation.column).inflate(relation.descriptor);
             ColumnSpec<?> column = schema.staticColumns.get(relation.column);
-            builder.withWhere(Reference.of(new Symbol(column.name, column.type.asServerType())),
-                              toInequalities(relation.kind),
-                              new Bind(query, column.type.asServerType()));
+            builder.where(new Symbol(column.name, column.type.asServerType()),
+                          toInequalities(relation.kind),
+                          new Bind(query, column.type.asServerType()));
         }
 
         if (select.orderBy() == Operations.ClusteringOrderBy.DESC)
@@ -142,7 +142,7 @@ public class SelectHelper
             for (int i = 0; i < schema.clusteringKeys.size(); i++)
             {
                 ColumnSpec<?> c = schema.clusteringKeys.get(i);
-                builder.withOrderByColumn(c.name, c.type.asServerType(), c.isReversed() ? Select.OrderBy.Ordering.ASC : Select.OrderBy.Ordering.DESC);
+                builder.orderByColumn(c.name, c.type.asServerType(), c.isReversed() ? Select.OrderBy.Ordering.ASC : Select.OrderBy.Ordering.DESC);
             }
         }
 
@@ -158,7 +158,7 @@ public class SelectHelper
         Operations.Selection selection = Operations.Selection.fromBitSet(select.selection(), schema);
         if (selection.isWildcard())
         {
-            builder.withWildcard();
+            builder.wildcard();
         }
         else
         {
@@ -168,7 +168,7 @@ public class SelectHelper
                 if (!selection.columns().contains(spec))
                     continue;
 
-                builder.withColumnSelection(spec.name, spec.type.asServerType());
+                builder.columnSelection(spec.name, spec.type.asServerType());
             }
 
             if (selection.includeTimestamps())
@@ -177,52 +177,52 @@ public class SelectHelper
                 {
                     if (!selection.columns().contains(spec))
                         continue;
-                    builder.withSelection(FunctionCall.writetime(spec.name, spec.type.asServerType()));
+                    builder.selection(FunctionCall.writetime(spec.name, spec.type.asServerType()));
                 }
 
                 for (ColumnSpec<?> spec : schema.regularColumns)
                 {
                     if (!selection.columns().contains(spec))
                         continue;
-                    builder.withSelection(FunctionCall.writetime(spec.name, spec.type.asServerType()));
+                    builder.selection(FunctionCall.writetime(spec.name, spec.type.asServerType()));
                 }
             }
         }
 
-        builder.withTable(schema.keyspace, schema.table);
+        builder.table(schema.keyspace, schema.table);
 
         Object[] pk = schema.valueGenerators.pkGen().inflate(select.pd());
         for (int i = 0; i < schema.partitionKeys.size(); i++)
         {
             ColumnSpec<?> column = schema.partitionKeys.get(i);
             Object value = pk[i];
-            builder.withWhere(Reference.of(new Symbol(column.name, column.type.asServerType())),
-                              Where.Inequalities.EQUAL,
-                              new Bind(value, column.type.asServerType()));
+            builder.where(new Symbol(column.name, column.type.asServerType()),
+                          Where.Inequality.EQUAL,
+                          new Bind(value, column.type.asServerType()));
         }
 
         return builder;
     }
 
-    private static Where.Inequalities toInequalities(Relations.RelationKind kind)
+    private static Where.Inequality toInequalities(Relations.RelationKind kind)
     {
-        Where.Inequalities inequalities;
+        Where.Inequality inequalities;
         switch (kind)
         {
             case LT:
-                inequalities = Where.Inequalities.LESS_THAN;
+                inequalities = Where.Inequality.LESS_THAN;
                 break;
             case LTE:
-                inequalities = Where.Inequalities.LESS_THAN_EQ;
+                inequalities = Where.Inequality.LESS_THAN_EQ;
                 break;
             case GT:
-                inequalities = Where.Inequalities.GREATER_THAN;
+                inequalities = Where.Inequality.GREATER_THAN;
                 break;
             case GTE:
-                inequalities = Where.Inequalities.GREATER_THAN_EQ;
+                inequalities = Where.Inequality.GREATER_THAN_EQ;
                 break;
             case EQ:
-                inequalities = Where.Inequalities.EQUAL;
+                inequalities = Where.Inequality.EQUAL;
                 break;
             default:
                 throw new UnsupportedOperationException("Unknown kind: " + kind);
@@ -233,7 +233,7 @@ public class SelectHelper
     private static CompiledStatement toCompiled(Select select)
     {
         // Select does not add ';' by default, but CompiledStatement expects this
-        String cql = select.toCQL().replace("\n", " ") + ";";
+        String cql = select.toCQL(CQLFormatter.None.instance) + ';';
         Object[] bindingsArr = select.binds();
         return new CompiledStatement(cql, bindingsArr);
     }

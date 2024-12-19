@@ -18,338 +18,47 @@
 
 package org.apache.cassandra.cql3.ast;
 
-import java.nio.ByteBuffer;
 import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Iterator;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
-import java.util.Map;
 import java.util.Optional;
-import java.util.OptionalInt;
-import java.util.OptionalLong;
 import java.util.Set;
-import java.util.stream.Collectors;
 import java.util.stream.Stream;
-import java.util.stream.StreamSupport;
-
-import com.google.common.collect.Maps;
-import com.google.common.collect.Sets;
+import javax.annotation.Nullable;
 
 import org.apache.cassandra.db.marshal.Int32Type;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.TableMetadata;
 
-import static org.apache.cassandra.cql3.ast.Elements.newLine;
-
-public class Mutation implements Statement
+public abstract class Mutation implements Statement
 {
     public enum Kind
     {INSERT, UPDATE, DELETE}
 
     public final Kind kind;
-    public final TableMetadata table;
-    public final Map<Symbol, Expression> values;
-    private final Set<Symbol> partitionColumns, clusteringColumns, primaryColumns, nonPrimaryColumns;
-    public final OptionalInt ttl;
-    public final OptionalLong timestamp;
-    public final Optional<? extends CasCondition> casCondition;
-    private final List<Element> orderedElements = new ArrayList<>();
+    public final TableReference table;
 
-    public Mutation(Kind kind, TableMetadata table, Map<Symbol, Expression> values, OptionalInt ttl, OptionalLong timestamp, Optional<? extends CasCondition> casCondition)
+    protected Mutation(Kind kind, TableReference table)
     {
         this.kind = kind;
         this.table = table;
-        this.values = values;
-        this.ttl = ttl;
-        this.timestamp = timestamp;
-        this.casCondition = casCondition;
-
-        // partition key is always required, so validate
-        this.partitionColumns = toSet(table.partitionKeyColumns());
-        this.clusteringColumns = toSet(table.clusteringColumns());
-        this.primaryColumns = Sets.union(partitionColumns, clusteringColumns);
-        Set<Symbol> allColumns = toSet(table.columns());
-        nonPrimaryColumns = Sets.difference(allColumns, primaryColumns);
-
-        Set<Symbol> requiredColumns;
-        switch (kind)
-        {
-            case INSERT:
-            case UPDATE:
-                requiredColumns = primaryColumns;
-                break;
-            case DELETE:
-                requiredColumns = partitionColumns;
-                break;
-            default:
-                throw new IllegalArgumentException("Unknown kind: " + kind);
-        }
-        if (!values.keySet().containsAll(requiredColumns))
-            throw new IllegalArgumentException("Not all required columns present; expected (" + requiredColumns + ") but was (" + values.keySet() + ")");
     }
 
-    private Mutation(Kind kind, TableMetadata table, Map<Symbol, Expression> values,
-                     Set<Symbol> partitionColumns, Set<Symbol> clusteringColumns, Set<Symbol> primaryColumns, Set<Symbol> nonPrimaryColumns,
-                     OptionalInt ttl, OptionalLong timestamp, Optional<? extends CasCondition> casCondition)
-    {
-        this.kind = kind;
-        this.table = table;
-        this.values = values;
-        this.partitionColumns = partitionColumns;
-        this.clusteringColumns = clusteringColumns;
-        this.primaryColumns = primaryColumns;
-        this.nonPrimaryColumns = nonPrimaryColumns;
-        this.ttl = ttl;
-        this.timestamp = timestamp;
-        this.casCondition = casCondition;
-    }
+    public abstract boolean isCas();
 
-    public static Builder builder(TableMetadata table)
+    public final Mutation.Kind mutationKind()
     {
-        return new Builder(table);
+        return kind;
     }
 
     @Override
-    public Statement.Kind kind()
+    public final Statement.Kind kind()
     {
         return Statement.Kind.MUTATION;
-    }
-
-    public Mutation withoutTimestamp()
-    {
-        return new Mutation(kind, table, values, partitionColumns, clusteringColumns, primaryColumns, nonPrimaryColumns, ttl, OptionalLong.empty(), casCondition);
-    }
-
-    public Mutation withoutTTL()
-    {
-        return new Mutation(kind, table, values, partitionColumns, clusteringColumns, primaryColumns, nonPrimaryColumns, OptionalInt.empty(), timestamp, casCondition);
-    }
-
-    public Mutation withTable(TableMetadata table)
-    {
-        return new Mutation(kind, table, values, partitionColumns, clusteringColumns, primaryColumns, nonPrimaryColumns, ttl, timestamp, casCondition);
-    }
-
-    public Map<Symbol, Expression> partitionKeys()
-    {
-        return Maps.filterKeys(values, partitionColumns::contains);
-    }
-
-    public Map<Symbol, Expression> clusteringKeys()
-    {
-        return Maps.filterKeys(values, clusteringColumns::contains);
-    }
-
-    public Map<Symbol, Expression> primaryKeys()
-    {
-        return Maps.filterKeys(values, primaryColumns::contains);
-    }
-
-    public Object[] toRow()
-    {
-        //TODO (coverage): mutations don't really allow functions in the value def side... so this hack kinda works...
-        Object[] array = new Object[table.columns().size()];
-        Iterator<ColumnMetadata> it = table.allColumnsInSelectOrder();
-        for (int i = 0; it.hasNext(); i++)
-        {
-            Symbol symbol = new Symbol(it.next());
-            Expression expression = values.get(symbol);
-            Optional<Object> opt = ExpressionEvaluator.tryEval(expression);
-            array[i] = opt.orElseThrow(() -> new IllegalStateException("Unable to eval expression " + expression + "; " + expression.toCQL()));
-        }
-        return array;
-    }
-
-    public ByteBuffer[] toRowEncoded()
-    {
-        //TODO (coverage): mutations don't really allow functions in the value def side... so this hack kinda works...
-        ByteBuffer[] array = new ByteBuffer[table.columns().size()];
-        Iterator<ColumnMetadata> it = table.allColumnsInSelectOrder();
-        for (int i = 0; it.hasNext(); i++)
-        {
-            Symbol symbol = new Symbol(it.next());
-            Expression expression = values.get(symbol);
-            Optional<ByteBuffer> opt = ExpressionEvaluator.tryEvalEncoded(expression);
-            array[i] = opt.orElseThrow(() -> new IllegalStateException("Unable to eval expression " + expression + "; " + expression.toCQL()));
-        }
-        return array;
-    }
-
-    public boolean isCas()
-    {
-        return casCondition.isPresent();
-    }
-
-    @Override
-    public void toCQL(StringBuilder sb, int indent)
-    {
-        if (!orderedElements.isEmpty())
-            orderedElements.clear();
-        switch (kind)
-        {
-            case INSERT:
-                toCQLInsert(sb, indent);
-                break;
-            case UPDATE:
-                toCQLUpdate(sb, indent);
-                break;
-            case DELETE:
-                toCQLDelete(sb, indent);
-                break;
-            default:
-                throw new IllegalArgumentException("Unsupported kind: " + kind);
-        }
-    }
-
-    private void toCQLInsert(StringBuilder sb, int indent)
-    {
-        /*
-INSERT INTO [keyspace_name.] table_name (column_list)
-VALUES (column_values)
-[IF NOT EXISTS]
-[USING TTL seconds | TIMESTAMP epoch_in_microseconds]
-         */
-        sb.append("INSERT INTO ").append(table.toString()).append(" (");
-        List<Symbol> columnOrder = new ArrayList<>(values.keySet());
-        for (Symbol name : columnOrder)
-        {
-            name.toCQL(sb, indent);
-            orderedElements.add(name);
-            sb.append(", ");
-        }
-        sb.setLength(sb.length() - 2);
-        sb.append(")");
-        newLine(sb, indent);
-        sb.append("VALUES (");
-        for (Symbol name : columnOrder)
-        {
-            Element value = values.get(name);
-            orderedElements.add(value);
-            value.toCQL(sb, indent);
-            sb.append(", ");
-        }
-        sb.setLength(sb.length() - 2);
-        sb.append(")");
-        maybeAddCasCondition(sb, indent);
-        maybeAddTTL(sb, indent);
-    }
-
-    private void maybeAddCasCondition(StringBuilder sb, int indent)
-    {
-        if (casCondition.isPresent())
-        {
-            newLine(sb, indent);
-            CasCondition condition = casCondition.get();
-            orderedElements.add(condition);
-            condition.toCQL(sb, indent);
-        }
-    }
-
-    private void maybeAddTTL(StringBuilder sb, int indent)
-    {
-        if (ttl.isPresent() || timestamp.isPresent())
-        {
-            newLine(sb, indent);
-            sb.append("USING ");
-            if (ttl.isPresent())
-                sb.append("TTL ").append(ttl.getAsInt()).append(" ");
-            if (timestamp.isPresent())
-                sb.append(ttl.isPresent() ? "AND " : "").append("TIMESTAMP ").append(timestamp.getAsLong());
-        }
-    }
-
-    private void toCQLUpdate(StringBuilder sb, int indent)
-    {
-        /*
-UPDATE [keyspace_name.] table_name
-[USING TTL time_value | USING TIMESTAMP timestamp_value]
-SET assignment [, assignment] . . .
-WHERE row_specification
-[IF EXISTS | IF condition [AND condition] . . .] ;
-         */
-        sb.append("UPDATE ").append(table.toString());
-        maybeAddTTL(sb, indent);
-        newLine(sb, indent);
-        sb.append("SET ");
-        int subindent = indent + 4;
-        for (Symbol name : nonPrimaryColumns)
-        {
-            newLine(sb, subindent);
-            Element value = values.get(name);
-            name.toCQL(sb, subindent);
-            orderedElements.add(name);
-            // when a AssignmentOperator the `=` is added there so don't add
-            //TODO this is super hacky...
-            if (!(value instanceof AssignmentOperator))
-                sb.append('=');
-            value.toCQL(sb, subindent);
-            orderedElements.add(value);
-            sb.append(", ");
-        }
-        if (!nonPrimaryColumns.isEmpty())
-            sb.setLength(sb.length() - 2);
-        newLine(sb, indent);
-        sb.append("WHERE ");
-        valuesAnd(sb, indent + 2, primaryColumns);
-        maybeAddCasCondition(sb, indent);
-    }
-
-    private void toCQLDelete(StringBuilder sb, int indent)
-    {
-        /*
-DELETE [column_name (term)][, ...]
-FROM [keyspace_name.] table_name
-[USING TIMESTAMP timestamp_value]
-WHERE PK_column_conditions
-[IF EXISTS | IF static_column_conditions]
-         */
-        sb.append("DELETE ");
-        Set<Symbol> toDelete = Sets.intersection(nonPrimaryColumns, values.keySet());
-        for (Symbol column : toDelete)
-        {
-            column.toCQL(sb, indent);
-            orderedElements.add(column);
-            sb.append(", ");
-        }
-        if (!toDelete.isEmpty())
-            sb.setLength(sb.length() - 2);
-        newLine(sb, indent);
-        sb.append("FROM ").append(table.toString());
-        newLine(sb, indent);
-        if (timestamp.isPresent())
-        {
-            sb.append("USING TIMESTAMP ").append(timestamp.getAsLong());
-            newLine(sb, indent);
-        }
-        sb.append("WHERE ");
-        // in the case of partition delete, need to exclude clustering
-        valuesAnd(sb, indent + 2, Sets.intersection(primaryColumns, values.keySet()));
-        maybeAddCasCondition(sb, indent);
-    }
-
-    private void valuesAnd(StringBuilder sb, int indent, Collection<Symbol> names)
-    {
-        for (Symbol name : names)
-        {
-            newLine(sb, indent);
-            Element value = values.get(name);
-            name.toCQL(sb, indent);
-            orderedElements.add(name);
-            sb.append('=');
-            value.toCQL(sb, indent);
-            orderedElements.add(value);
-            sb.append(" AND ");
-        }
-        sb.setLength(sb.length() - 5);
-    }
-
-    @Override
-    public Stream<? extends Element> stream()
-    {
-        if (orderedElements.isEmpty())
-            toCQL();
-        return orderedElements.stream();
     }
 
     @Override
@@ -358,54 +67,739 @@ WHERE PK_column_conditions
         return detailedToString();
     }
 
-    public static Set<Symbol> toSet(Iterable<ColumnMetadata> columns)
+    public static InsertBuilder insert(TableMetadata metadata)
     {
-        return StreamSupport.stream(columns.spliterator(), false).map(m -> new Symbol(m)).collect(Collectors.toSet());
+        return new InsertBuilder(metadata);
     }
 
-    public static class Builder
+    public static UpdateBuilder update(TableMetadata metadata)
     {
-        private final TableMetadata metadata;
-        private Kind kind;
-        private Map<Symbol, Expression> values = new LinkedHashMap<>();
-        private OptionalInt ttl = OptionalInt.empty();
-        private OptionalLong timestamp = OptionalLong.empty();
-        private Optional<? extends CasCondition> casCondition = Optional.empty();
+        return new UpdateBuilder(metadata);
+    }
 
-        public Builder(TableMetadata metadata)
+    public static DeleteBuilder delete(TableMetadata metadata)
+    {
+        return new DeleteBuilder(metadata);
+    }
+
+    public static LinkedHashSet<Symbol> toSet(Iterable<ColumnMetadata> columns)
+    {
+        LinkedHashSet<Symbol> set = new LinkedHashSet<>();
+        for (var col : columns)
+            set.add(Symbol.from(col));
+        return set;
+    }
+
+    private static void toCQLWhere(Conditional conditional, StringBuilder sb, CQLFormatter formatter)
+    {
+        formatter.section(sb);
+        sb.append("WHERE ");
+        List<Conditional> where = conditional.simplify();
+        formatter.group(sb);
+        for (var c : where)
         {
-            this.metadata = metadata;
+            formatter.element(sb);
+            c.toCQL(sb, formatter);
+            sb.append(" AND ");
+        }
+        sb.setLength(sb.length() - 5); // 5 = " AND "
+        formatter.endgroup(sb);
+    }
+
+    public static class TTL implements Element
+    {
+        public final Value value;
+
+        public TTL(Value value)
+        {
+            this.value = value;
         }
 
-        public Builder kind(Kind kind)
+        @Override
+        public void toCQL(StringBuilder sb, CQLFormatter formatter)
+        {
+            sb.append("TTL ");
+            value.toCQL(sb, formatter);
+        }
+
+        @Override
+        public Stream<? extends Element> stream()
+        {
+            return Stream.of(value);
+        }
+    }
+
+    public static class Timestamp implements Element
+    {
+        public final Value value;
+
+        public Timestamp(Value value)
+        {
+            this.value = value;
+        }
+
+        @Override
+        public void toCQL(StringBuilder sb, CQLFormatter formatter)
+        {
+            sb.append("TIMESTAMP ");
+            value.toCQL(sb, formatter);
+        }
+
+        @Override
+        public Stream<? extends Element> stream()
+        {
+            return Stream.of(value);
+        }
+    }
+
+    public static class Using implements Element
+    {
+        public final Optional<TTL> ttl;
+        public final Optional<Timestamp> timestamp;
+
+        public Using(Optional<TTL> ttl, Optional<Timestamp> timestamp)
+        {
+            this.ttl = ttl;
+            this.timestamp = timestamp;
+        }
+
+        @Override
+        public void toCQL(StringBuilder sb, CQLFormatter formatter)
+        {
+            if (ttl.isEmpty() && timestamp.isEmpty())
+                return;
+            sb.append("USING ");
+            if (ttl.isPresent())
+                ttl.get().toCQL(sb, formatter);
+            if (timestamp.isPresent())
+            {
+                if (ttl.isPresent())
+                    sb.append(" AND ");
+                timestamp.get().toCQL(sb, formatter);
+            }
+        }
+    }
+
+    public static class Insert extends Mutation
+    {
+        public final LinkedHashMap<Symbol, Expression> values;
+        public final boolean ifNotExists;
+        public final Optional<Using> using;
+
+        public Insert(TableReference table, LinkedHashMap<Symbol, Expression> values, boolean ifNotExists, Optional<Using> using)
+        {
+            super(Mutation.Kind.INSERT, table);
+            this.values = values;
+            this.ifNotExists = ifNotExists;
+            this.using = using;
+        }
+
+        @Override
+        public void toCQL(StringBuilder sb, CQLFormatter formatter)
+        {
+            // INSERT INTO [keyspace_name.] table_name (column_list)
+            sb.append("INSERT INTO ");
+            table.toCQL(sb, formatter);
+            sb.append(" (");
+            for (Symbol col : values.keySet())
+            {
+                col.toCQL(sb, formatter);
+                sb.append(", ");
+            }
+            sb.setLength(sb.length() - 2); // 2 = ", "
+            sb.append(")");
+            // VALUES (column_values)
+            formatter.section(sb);
+            sb.append("VALUES (");
+            for (Expression e : values.values())
+            {
+                e.toCQL(sb, formatter);
+                sb.append(", ");
+            }
+            sb.setLength(sb.length() - 2); // 2 = ", "
+            sb.append(")");
+            // [IF NOT EXISTS]
+            if (ifNotExists)
+            {
+                formatter.section(sb);
+                sb.append("IF NOT EXISTS");
+            }
+            // [USING TTL seconds | TIMESTAMP epoch_in_microseconds]
+            if (using.isPresent())
+            {
+                formatter.section(sb);
+                using.get().toCQL(sb, formatter);
+            }
+        }
+
+        @Override
+        public Stream<? extends Element> stream()
+        {
+            List<Element> elements = new ArrayList<>(1 + (using.isPresent() ? 1 : 0) + (values.size() * 2));
+            elements.add(table);
+            values.keySet().forEach(elements::add);
+            values.values().forEach(elements::add);
+            if (using.isPresent())
+                elements.add(using.get());
+            return elements.stream();
+        }
+
+        @Override
+        public Statement visit(Visitor v)
+        {
+            var u = v.visit(this);
+            if (u != this) return u;
+            boolean updated = false;
+            LinkedHashMap<Symbol, Expression> copied = new LinkedHashMap<>(values.size());
+            for (var e : values.entrySet())
+            {
+                Symbol s = e.getKey();
+                Symbol s2 = s.visit("INSERT", v);
+                if (s != s2)
+                    updated = true;
+                Expression ex = e.getValue();
+                Expression ex2 = ex.visit(v);
+                if (ex != ex2)
+                    updated = true;
+                copied.put(s2, ex2);
+            }
+            if (!updated) return this;
+            return new Insert(table, copied, ifNotExists, using);
+        }
+
+        @Override
+        public boolean isCas()
+        {
+            return ifNotExists;
+        }
+    }
+
+    public static class Update extends Mutation
+    {
+        public final Optional<Using> using;
+        public final LinkedHashMap<Symbol, Expression> set;
+        public final Conditional where;
+        public final Optional<? extends CasCondition> casCondition;
+
+        public Update(TableReference table, Optional<Using> using, LinkedHashMap<Symbol, Expression> set, Conditional where, Optional<? extends CasCondition> casCondition)
+        {
+            super(Mutation.Kind.UPDATE, table);
+            this.using = using;
+            this.set = set;
+            this.where = where;
+            this.casCondition = casCondition;
+        }
+
+        @Override
+        public void toCQL(StringBuilder sb, CQLFormatter formatter)
+        {
+            // UPDATE [keyspace_name.] table_name
+            sb.append("UPDATE ");
+            table.toCQL(sb, formatter);
+            // [USING TTL time_value | USING TIMESTAMP timestamp_value]
+            if (using.isPresent())
+            {
+                formatter.section(sb);
+                using.get().toCQL(sb, formatter);
+            }
+            // SET assignment [, assignment] . . .
+            formatter.section(sb);
+            sb.append("SET");
+            formatter.group(sb);
+            for (var e : set.entrySet())
+            {
+                formatter.element(sb);
+                e.getKey().toCQL(sb, formatter);
+                // when a AssignmentOperator the `=` is added there so don't add
+                //TODO this is super hacky...
+                if (!(e.getValue() instanceof AssignmentOperator))
+                    sb.append('=');
+                e.getValue().toCQL(sb, formatter);
+                sb.append(",");
+            }
+            sb.setLength(sb.length() - 1); // 1 = ","
+            formatter.endgroup(sb);
+            // WHERE row_specification
+            toCQLWhere(this.where, sb, formatter);
+            // [IF EXISTS | IF condition [AND condition] . . .] ;
+            if (casCondition.isPresent())
+            {
+                formatter.section(sb);
+                casCondition.get().toCQL(sb, formatter);
+            }
+        }
+
+        @Override
+        public Stream<? extends Element> stream()
+        {
+            List<Element> elements = new ArrayList<>(2 +
+                                                     (using.isPresent() ? 1 : 0) +
+                                                     (casCondition.isPresent() ? 1 : 0) +
+                                                     (set.size() * 2));
+            elements.add(table);
+            if (using.isPresent())
+                elements.add(using.get());
+            for (var e : set.entrySet())
+            {
+                elements.add(e.getKey());
+                elements.add(e.getValue());
+            }
+            elements.add(where);
+            if (casCondition.isPresent())
+                elements.add(casCondition.get());
+            return elements.stream();
+        }
+
+        @Override
+        public Statement visit(Visitor v)
+        {
+            var u = v.visit(this);
+            if (u != this) return u;
+            boolean updated = false;
+            LinkedHashMap<Symbol, Expression> copied = new LinkedHashMap<>(set.size());
+            for (var e : set.entrySet())
+            {
+                Symbol s = e.getKey().visit("UPDATE", v);
+                if (s != e.getKey())
+                    updated = true;
+                Expression ex = e.getValue().visit(v);
+                if (e.getValue() != ex)
+                    updated = true;
+                copied.put(s, ex);
+            }
+            Conditional copiedWhere = where.visit(v);
+            if (where != copiedWhere)
+                updated = true;
+
+            if (!updated) return this;
+            return new Update(table, using, copied, copiedWhere, casCondition);
+        }
+
+        @Override
+        public boolean isCas()
+        {
+            return casCondition.isPresent();
+        }
+    }
+
+    public static class Delete extends Mutation
+    {
+        public final List<Symbol> columns;
+        public final Optional<Timestamp> using;
+        public final Conditional where;
+        public final Optional<? extends CasCondition> casCondition;
+
+        public Delete(List<Symbol> columns,
+                      TableReference table,
+                      Optional<Timestamp> using,
+                      Conditional where,
+                      Optional<? extends CasCondition> casCondition)
+        {
+            super(Mutation.Kind.DELETE, table);
+            this.columns = columns;
+            this.using = using;
+            this.where = where;
+            this.casCondition = casCondition;
+        }
+
+        /*
+DELETE [column_name (term)][, ...]
+FROM [keyspace_name.] table_name
+[USING TIMESTAMP timestamp_value]
+WHERE PK_column_conditions
+[IF EXISTS | IF static_column_conditions]
+         */
+        @Override
+        public void toCQL(StringBuilder sb, CQLFormatter formatter)
+        {
+            // DELETE [column_name (term)][, ...]
+            sb.append("DELETE");
+            if (!columns.isEmpty())
+            {
+                sb.append(" ");
+                for (var c : columns)
+                {
+                    c.toCQL(sb, formatter);
+                    sb.append(", ");
+                }
+                sb.setLength(sb.length() - 2); // 2 = ", "
+            }
+            // FROM [keyspace_name.] table_name
+            formatter.section(sb);
+            sb.append("FROM ");
+            table.toCQL(sb, formatter);
+            // [USING TIMESTAMP timestamp_value]
+            if (using.isPresent())
+            {
+                formatter.section(sb);
+                using.get().toCQL(sb, formatter);
+            }
+            // WHERE PK_column_conditions
+            toCQLWhere(this.where, sb, formatter);
+            // [IF EXISTS | IF static_column_conditions]
+            if (casCondition.isPresent())
+            {
+                formatter.section(sb);
+                casCondition.get().toCQL(sb, formatter);
+            }
+        }
+
+        @Override
+        public Stream<? extends Element> stream()
+        {
+            List<Element> elements = new ArrayList<>(columns.size() + 4);
+            elements.addAll(columns);
+            elements.add(table);
+            if (using.isPresent())
+                elements.add(using.get());
+            elements.add(where);
+            if (casCondition.isPresent())
+                elements.add(casCondition.get());
+            return elements.stream();
+        }
+
+        @Override
+        public Statement visit(Visitor v)
+        {
+            var u = v.visit(this);
+            if (u != this)
+                return u;
+            boolean updated = false;
+            List<Symbol> copiedColumns = new ArrayList<>(columns.size());
+            for (var s : columns)
+            {
+                var s2 = s.visit("DELETE", v);
+                if (s != s2)
+                    updated = true;
+                copiedColumns.add(s2);
+            }
+            var copiedWhere = where.visit(v);
+            if (copiedWhere != where)
+                updated = true;
+
+            if (!updated) return this;
+            return new Delete(copiedColumns, table, using, copiedWhere, casCondition);
+        }
+
+        @Override
+        public boolean isCas()
+        {
+            return casCondition.isPresent();
+        }
+    }
+
+    public static abstract class BaseBuilder<T, B extends BaseBuilder<T, B>>
+    {
+        private final Mutation.Kind kind;
+        private final TableMetadata metadata;
+        protected final LinkedHashSet<Symbol> partitionColumns, clusteringColumns, primaryColumns, regularAndStatic, allColumns;
+        private boolean includeKeyspace = true;
+        private final Set<Symbol> neededPks = new HashSet<>();
+
+        protected BaseBuilder(Kind kind, TableMetadata table)
         {
             this.kind = kind;
+            this.metadata = table;
+
+            // partition key is always required, so validate
+            this.partitionColumns = toSet(table.partitionKeyColumns());
+            this.clusteringColumns = toSet(table.clusteringColumns());
+            this.primaryColumns = new LinkedHashSet<>();
+            this.primaryColumns.addAll(partitionColumns);
+            this.primaryColumns.addAll(clusteringColumns);
+            this.regularAndStatic = new LinkedHashSet<>();
+            this.regularAndStatic.addAll(toSet(table.regularAndStaticColumns()));
+            this.allColumns = toSet(table.columns());
+            neededPks.addAll(partitionColumns);
+        }
+
+        public abstract T build();
+
+        protected void assertAllPksHaveEq()
+        {
+            if (neededPks.isEmpty())
+                return;
+            throw new IllegalStateException("Attempted to create a " + kind + " but not all partition columns have an equality condition; missing " + neededPks);
+        }
+
+        protected void maybePkEq(Expression symbol)
+        {
+            if (symbol instanceof Symbol)
+                pkEq((Symbol) symbol);
+        }
+
+        private void pkEq(Symbol symbol)
+        {
+            neededPks.remove(symbol);
+        }
+
+        public B includeKeyspace(boolean value)
+        {
+            this.includeKeyspace = value;
+            return (B) this;
+        }
+
+        public B includeKeyspace()
+        {
+            return includeKeyspace(true);
+        }
+
+        public B excludeKeyspace()
+        {
+            return includeKeyspace(false);
+        }
+
+        protected TableReference tableRef()
+        {
+            return includeKeyspace ? TableReference.from(metadata) : new TableReference(metadata.name);
+        }
+    }
+
+    public static class InsertBuilder extends BaseBuilder<Insert, InsertBuilder> implements Conditional.EqBuilder<InsertBuilder>
+    {
+        private final LinkedHashMap<Symbol, Expression> values = new LinkedHashMap<>();
+        private boolean ifNotExists = false;
+        private @Nullable TTL ttl;
+        private @Nullable Timestamp timestamp;
+
+        protected InsertBuilder(TableMetadata table)
+        {
+            super(Kind.INSERT, table);
+        }
+
+        public InsertBuilder ifNotExists()
+        {
+            ifNotExists = true;
             return this;
         }
 
-        public Builder value(String col, int value)
+        public InsertBuilder timestamp(Value value)
         {
-            return value(new Symbol(col, Int32Type.instance), value);
-        }
-
-        public Builder value(Symbol symbol, Object value)
-        {
-            values.put(symbol, new Literal(value, symbol.type()));
+            this.timestamp = new Timestamp(value);
             return this;
         }
 
-        public Builder ttl(int ttl)
+        public InsertBuilder ttl(Value value)
         {
-            this.ttl = OptionalInt.of(ttl);
+            this.ttl = new TTL(value);
             return this;
         }
 
-        public Mutation build()
+        public InsertBuilder ttl(int value)
         {
-            if (kind == null)
-                throw new IllegalStateException("Kind is not defined, must call kind method before build");
-            // don't need to check values as Mutation does
-            return new Mutation(kind, metadata, new LinkedHashMap<>(values), ttl, timestamp, casCondition);
+            return ttl(Bind.of(value));
+        }
+
+        @Override
+        public InsertBuilder value(Symbol ref, Expression e)
+        {
+            maybePkEq(ref);
+            values.put(ref, e);
+            return this;
+        }
+
+        @Override
+        public Insert build()
+        {
+            assertAllPksHaveEq();
+            return new Insert(tableRef(),
+                              new LinkedHashMap<>(values),
+                              ifNotExists,
+                              (ttl == null && timestamp == null) ? Optional.empty() : Optional.of(new Using(Optional.ofNullable(ttl), Optional.ofNullable(timestamp))));
+        }
+    }
+
+    public static class UpdateBuilder extends BaseBuilder<Update, UpdateBuilder> implements Conditional.ConditionalBuilder<UpdateBuilder>
+    {
+        private @Nullable TTL ttl;
+        private @Nullable Timestamp timestamp;
+        private final LinkedHashMap<Symbol, Expression> set = new LinkedHashMap<>();
+        private final Conditional.Builder where = new Conditional.Builder();
+        private @Nullable CasCondition casCondition;
+
+        protected UpdateBuilder(TableMetadata table)
+        {
+            super(Kind.UPDATE, table);
+        }
+
+        public UpdateBuilder timestamp(Value value)
+        {
+            this.timestamp = new Timestamp(value);
+            return this;
+        }
+
+        public UpdateBuilder ttl(Value value)
+        {
+            this.ttl = new TTL(value);
+            return this;
+        }
+
+        public UpdateBuilder ttl(int value)
+        {
+            return ttl(Bind.of(value));
+        }
+
+        public UpdateBuilder ifExists()
+        {
+            casCondition = CasCondition.Simple.Exists;
+            return this;
+        }
+
+        public UpdateBuilder ifCondition(CasCondition condition)
+        {
+            casCondition = condition;
+            return this;
+        }
+
+        public UpdateBuilder set(Symbol column, Expression value)
+        {
+            if (!regularAndStatic.contains(column))
+                throw new IllegalArgumentException("Attempted to set a non regular or static column " + column + "; expected " + regularAndStatic);
+            set.put(column, value);
+            return this;
+        }
+
+        public UpdateBuilder set(String column, int value)
+        {
+            return set(new Symbol(column, Int32Type.instance), Bind.of(value));
+        }
+
+        @Override
+        public UpdateBuilder where(Expression ref, Conditional.Where.Inequality kind, Expression expression)
+        {
+            if (kind == Conditional.Where.Inequality.EQUAL)
+                maybePkEq(ref);
+            where.where(ref, kind, expression);
+            return this;
+        }
+
+        @Override
+        public UpdateBuilder between(Expression ref, Expression start, Expression end)
+        {
+            where.between(ref, start, end);
+            return this;
+        }
+
+        @Override
+        public UpdateBuilder in(Expression ref, List<Expression> expressions)
+        {
+            maybePkEq(ref);
+            where.in(ref, expressions);
+            return this;
+        }
+
+        @Override
+        public UpdateBuilder is(Symbol ref, Conditional.Is.Kind kind)
+        {
+            where.is(ref, kind);
+            return this;
+        }
+
+        @Override
+        public Update build()
+        {
+            assertAllPksHaveEq();
+            if (set.isEmpty())
+                throw new IllegalStateException("Unable to create an Update without a SET section; set function was never called");
+
+            return new Update(tableRef(),
+                              (ttl == null && timestamp == null) ? Optional.empty() : Optional.of(new Using(Optional.ofNullable(ttl), Optional.ofNullable(timestamp))),
+                              new LinkedHashMap<>(set),
+                              where.build(),
+                              Optional.ofNullable(casCondition));
+        }
+    }
+
+    public static class DeleteBuilder extends BaseBuilder<Delete, DeleteBuilder> implements Conditional.ConditionalBuilder<DeleteBuilder>
+    {
+        private final List<Symbol> columns = new ArrayList<>();
+        private @Nullable Timestamp timestamp = null;
+        private final Conditional.Builder where = new Conditional.Builder();
+        //TODO (now): casCondition
+        private @Nullable CasCondition casCondition;
+
+        public DeleteBuilder(TableMetadata table)
+        {
+            super(Kind.DELETE, table);
+        }
+
+        public DeleteBuilder ifExists()
+        {
+            casCondition = CasCondition.Simple.Exists;
+            return this;
+        }
+
+        public DeleteBuilder ifCondition(CasCondition condition)
+        {
+            casCondition = condition;
+            return this;
+        }
+
+        public DeleteBuilder column(Symbol symbol)
+        {
+            if (!regularAndStatic.contains(symbol))
+                throw new IllegalArgumentException("Can not delete column " + symbol + "; only regular/static columns can be deleted, expected " + regularAndStatic);
+            columns.add(symbol);
+            return this;
+        }
+
+        public DeleteBuilder column(Symbol... symbols)
+        {
+            return column(Arrays.asList(symbols));
+        }
+
+        public DeleteBuilder column(List<Symbol> symbols)
+        {
+            symbols.forEach(this::column);
+            return this;
+        }
+
+        public DeleteBuilder timestamp(Value value)
+        {
+            this.timestamp = new Timestamp(value);
+            return this;
+        }
+
+        @Override
+        public DeleteBuilder where(Expression ref, Conditional.Where.Inequality kind, Expression expression)
+        {
+            if (kind == Conditional.Where.Inequality.EQUAL)
+                maybePkEq(ref);
+            where.where(ref, kind, expression);
+            return this;
+        }
+
+        @Override
+        public DeleteBuilder between(Expression ref, Expression start, Expression end)
+        {
+            where.between(ref, start, end);
+            return this;
+        }
+
+        @Override
+        public DeleteBuilder in(Expression ref, List<Expression> expressions)
+        {
+            maybePkEq(ref);
+            where.in(ref, expressions);
+            return this;
+        }
+
+        @Override
+        public DeleteBuilder is(Symbol ref, Conditional.Is.Kind kind)
+        {
+            where.is(ref, kind);
+            return this;
+        }
+
+        @Override
+        public Delete build()
+        {
+            assertAllPksHaveEq();
+            return new Delete(columns.isEmpty() ? Collections.emptyList() : new ArrayList<>(columns),
+                              tableRef(),
+                              Optional.ofNullable(timestamp),
+                              where.build(),
+                              Optional.ofNullable(casCondition));
         }
     }
 }

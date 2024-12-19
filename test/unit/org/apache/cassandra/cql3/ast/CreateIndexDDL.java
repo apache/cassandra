@@ -19,27 +19,33 @@
 package org.apache.cassandra.cql3.ast;
 
 import java.util.Arrays;
+import java.util.EnumSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.stream.Stream;
+
+import com.google.common.collect.ImmutableSet;
 
 import org.apache.cassandra.cql3.ast.Symbol.UnquotedSymbol;
 import org.apache.cassandra.db.marshal.AbstractType;
+import org.apache.cassandra.db.marshal.AsciiType;
+import org.apache.cassandra.db.marshal.BooleanType;
 import org.apache.cassandra.db.marshal.CompositeType;
 import org.apache.cassandra.db.marshal.DurationType;
 import org.apache.cassandra.db.marshal.UTF8Type;
+import org.apache.cassandra.db.marshal.UUIDType;
 import org.apache.cassandra.index.sai.StorageAttachedIndex;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.utils.AbstractTypeGenerators;
 
-import static org.apache.cassandra.cql3.ast.Elements.newLine;
-
 //TODO (now): replace with IndexMetadata?  Rather than create a custom DDL type can just leverage the existing metadata like Table/Keyspace
 public class CreateIndexDDL implements Element
 {
     public enum Version { V1, V2 }
+    public enum QueryType { Eq, Range }
 
     public interface Indexer
     {
@@ -55,6 +61,10 @@ public class CreateIndexDDL implements Element
             return name();
         }
         boolean supported(TableMetadata table, ColumnMetadata column);
+        default EnumSet<QueryType> supportedQueries(AbstractType<?> type)
+        {
+            return EnumSet.of(QueryType.Eq);
+        }
     }
 
     public static List<Indexer> supportedIndexers()
@@ -99,6 +109,10 @@ public class CreateIndexDDL implements Element
         }
     };
 
+    private static final Set<AbstractType<?>> SAI_EQ_ONLY = ImmutableSet.of(UTF8Type.instance, AsciiType.instance,
+                                                                            BooleanType.instance,
+                                                                            UUIDType.instance);
+
     public static final Indexer SAI = new Indexer()
     {
         @Override
@@ -134,6 +148,15 @@ public class CreateIndexDDL implements Element
                 return true;
             return false;
         }
+
+        @Override
+        public EnumSet<QueryType> supportedQueries(AbstractType<?> type)
+        {
+            type = type.unwrap();
+            if (SAI_EQ_ONLY.contains(type))
+                return EnumSet.of(QueryType.Eq);
+            return EnumSet.allOf(QueryType.class);
+        }
     };
 
     public final Version version;
@@ -154,7 +177,7 @@ public class CreateIndexDDL implements Element
     }
 
     @Override
-    public void toCQL(StringBuilder sb, int indent)
+    public void toCQL(StringBuilder sb, CQLFormatter formatter)
     {
         switch (version)
         {
@@ -171,15 +194,15 @@ public class CreateIndexDDL implements Element
         if (name.isPresent())
         {
             sb.append(' ');
-            name.get().toCQL(sb, indent);
+            name.get().toCQL(sb, formatter);
         }
-        newLine(sb, indent);
+        formatter.section(sb);
         sb.append("ON ");
-        on.toCQL(sb, indent);
+        on.toCQL(sb, formatter);
         sb.append('(');
         for (ReferenceExpression ref : references)
         {
-            ref.toCQL(sb, indent);
+            ref.toCQL(sb, formatter);
             sb.append(", ");
         }
         sb.setLength(sb.length() - 2); // remove last ", "
@@ -199,14 +222,14 @@ public class CreateIndexDDL implements Element
         }
         if (indexerName != null)
         {
-            newLine(sb, indent);
+            formatter.section(sb);
             sb.append("USING '");
-            indexerName.toCQL(sb, indent);
+            indexerName.toCQL(sb, formatter);
             sb.append("'");
         }
         if (!options.isEmpty())
         {
-            newLine(sb, indent);
+            formatter.section(sb);
             sb.append("WITH OPTIONS = {");
             for (Map.Entry<String, String> e : options.entrySet())
                 sb.append("'").append(e.getKey()).append("': '").append(e.getValue()).append("', ");
@@ -235,10 +258,10 @@ public class CreateIndexDDL implements Element
         }
 
         @Override
-        public void toCQL(StringBuilder sb, int indent)
+        public void toCQL(StringBuilder sb, CQLFormatter formatter)
         {
             sb.append(kind.name()).append('(');
-            column.toCQL(sb, indent);
+            column.toCQL(sb, formatter);
             sb.append(')');
         }
 

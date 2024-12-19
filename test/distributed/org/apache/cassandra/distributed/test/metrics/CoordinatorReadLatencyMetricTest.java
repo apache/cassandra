@@ -39,8 +39,7 @@ import org.apache.cassandra.service.consensus.TransactionalMode;
 import org.apache.cassandra.service.paxos.Paxos;
 import org.assertj.core.api.Assertions;
 
-import static org.apache.cassandra.cql3.ast.Where.Inequalities.EQUAL;
-import static org.apache.cassandra.cql3.ast.Where.Inequalities.LESS_THAN;
+import static org.apache.cassandra.cql3.ast.Conditional.Where.Inequality.LESS_THAN;
 import static org.junit.Assert.assertTrue;
 
 public class CoordinatorReadLatencyMetricTest extends TestBaseImpl
@@ -57,10 +56,10 @@ public class CoordinatorReadLatencyMetricTest extends TestBaseImpl
             var select = Select.builder()
                                //TODO (now, correctness, coverage): count(v) breaks accord as we get mutliple rows rather than the count of rows...
 //                               .withSelection(FunctionCall.count("v"))
-                               .withTable(KEYSPACE, "tbl")
-                               .withWhere("pk", EQUAL, 0)
-                               .withWhere("ck", LESS_THAN, 42)
-                               .withLimit(1)
+                               .table(KEYSPACE, "tbl")
+                               .value("pk", 0)
+                               .where("ck", LESS_THAN, 42)
+                               .limit(1)
                                .build();
 
             verifyTableLatency(cluster, 1, () -> verifyLatencyMetrics(cluster, select.toCQL(), ConsistencyLevel.QUORUM));

@@ -18,18 +18,21 @@
 
 package org.apache.cassandra.cql3.statements;
 
+import java.util.Arrays;
+
 import org.junit.BeforeClass;
 import org.junit.Test;
 
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.cql3.CQLStatement;
+import org.apache.cassandra.cql3.QueryOptions;
 import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.cql3.ast.Conditional.Is;
 import org.apache.cassandra.cql3.ast.FunctionCall;
+import org.apache.cassandra.cql3.ast.Literal;
 import org.apache.cassandra.cql3.ast.Mutation;
 import org.apache.cassandra.cql3.ast.Select;
 import org.apache.cassandra.cql3.ast.Txn;
-import org.apache.cassandra.cql3.ast.Where;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.exceptions.SyntaxException;
@@ -42,7 +45,6 @@ import org.apache.cassandra.transport.Dispatcher;
 import org.apache.cassandra.transport.messages.ResultMessage;
 import org.assertj.core.api.Assertions;
 
-import static org.apache.cassandra.cql3.ast.Where.Inequalities.EQUAL;
 import static org.apache.cassandra.cql3.statements.TransactionStatement.DUPLICATE_TUPLE_NAME_MESSAGE;
 import static org.apache.cassandra.cql3.statements.TransactionStatement.EMPTY_TRANSACTION_MESSAGE;
 import static org.apache.cassandra.cql3.statements.TransactionStatement.ILLEGAL_RANGE_QUERY_MESSAGE;
@@ -371,14 +373,29 @@ public class TransactionStatementTest
     @Test
     public void shouldRejectTTL()
     {
-        Mutation.Builder builder = Mutation.builder(tbl5())
-                                           .value("k", 1)
-                                           .value("v", 2)
-                                           .ttl(42);
         for (Mutation.Kind kind : Mutation.Kind.values())
         {
             if (kind == Mutation.Kind.DELETE) continue; // deletes don't support TTL
-            Mutation mutation = builder.kind(kind).build();
+            Mutation mutation;
+            switch (kind)
+            {
+                case INSERT:
+                    mutation = Mutation.insert(tbl5())
+                                       .value("k", 1)
+                                       .value("v", 2)
+                                       .ttl(42)
+                                       .build();
+                    break;
+                case UPDATE:
+                    mutation = Mutation.update(tbl5())
+                                       .value("k", 1)
+                                       .set("v", 2)
+                                       .ttl(42)
+                                       .build();
+                    break;
+                default:
+                    throw new UnsupportedOperationException(kind.name());
+            }
             String query = Txn.wrap(mutation).toCQL();
             Assertions.assertThatThrownBy(() -> prepare(query))
                       .isInstanceOf(InvalidRequestException.class)
@@ -386,8 +403,8 @@ public class TransactionStatementTest
 
             var txn = Txn.builder()
                          .addLet("a", Select.builder()
-                                            .withTable(tbl5())
-                                            .withWhere("k", Where.Inequalities.EQUAL, 1)
+                                            .table(tbl5())
+                                            .value("k", 1)
                                             .build())
                          .addIf(new Is("a", Is.Kind.Null), mutation)
                          .build();
@@ -401,9 +418,9 @@ public class TransactionStatementTest
     public void shouldRejectAggFunctions()
     {
         var select = Select.builder()
-                           .withSelection(FunctionCall.count("v"))
-                           .withTable(tbl5())
-                           .withWhere("k", EQUAL, 0)
+                           .selection(FunctionCall.count("v"))
+                           .table(tbl5())
+                           .value("k",0)
                            .build();
 
         Assertions.assertThatThrownBy(() -> prepare(Txn.wrap(select).toCQL()))
@@ -465,11 +482,11 @@ public class TransactionStatementTest
     {
         // this is blocked not because this isn't safe, but that the logic to handle this is currently in the read coordinator, which Accord doesn't call.
         // So rather than return bad results to users, IN w/ LIMIT is blocked... until we can fix
-        var select = Select.builder()
-                .withTable(tbl(1))
-                .withIn("k", 0, 1)
-                .withLimit(1)
-                .build();
+        Select select = Select.builder()
+                              .table(tbl(1))
+                              .in("k", 0, 1)
+                              .limit(Literal.of(1))
+                              .build();
 
         Assertions.assertThatThrownBy(() -> prepare(Txn.wrap(select).toCQL()))
                 .isInstanceOf(InvalidRequestException.class)
@@ -481,6 +498,30 @@ public class TransactionStatementTest
                         .build().toCQL()))
                 .isInstanceOf(InvalidRequestException.class)
                 .hasMessageContaining(String.format(NO_PARTITION_IN_CLAUSE_WITH_LIMIT, "SELECT", "at"));
+    }
+
+    @Test
+    public void shouldRejectInClauseInLetWithBind()
+    {
+        Select select = Select.builder()
+                              .table(tbl(1))
+                              .in("k", 0, 1)
+                              .limit(1)
+                              .build();
+
+        TransactionStatement stmt = (TransactionStatement) prepare(Txn.wrap(select).toCQL());
+        QueryState state = QueryState.forInternalCalls();
+        Dispatcher.RequestTime now = Dispatcher.RequestTime.forImmediateExecution();
+        Assertions.assertThatThrownBy(() -> stmt.execute(state, QueryOptions.forInternalCalls(Arrays.asList(select.bindsEncoded())), now)).isInstanceOf(InvalidRequestException.class)
+                  .hasMessageContaining(String.format(NO_PARTITION_IN_CLAUSE_WITH_LIMIT, "SELECT", "at"));
+        Txn txn = Txn.builder()
+                   .addLet("a", select)
+                   .addReturn(select)
+                   .build();
+        TransactionStatement stmt2 = (TransactionStatement) prepare(txn
+                                                                       .toCQL());
+        Assertions.assertThatThrownBy(() -> stmt2.execute(state, QueryOptions.forInternalCalls(Arrays.asList(txn.bindsEncoded())), now)).isInstanceOf(InvalidRequestException.class)
+                  .hasMessageContaining(String.format(NO_PARTITION_IN_CLAUSE_WITH_LIMIT, "SELECT", "at"));
     }
 
     @Test

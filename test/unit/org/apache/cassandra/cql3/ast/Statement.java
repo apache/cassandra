@@ -55,6 +55,8 @@ public interface Statement extends Element
                                                             .collect(Collectors.joining("\n"));
     }
 
+    Statement visit(Visitor v);
+
     static boolean hasByteBuffer(Object value)
     {
         if (value == null)

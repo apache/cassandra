@@ -27,4 +27,9 @@ public interface Expression extends Element
     {
         return toCQL();
     }
+
+    default Expression visit(Visitor v)
+    {
+        return v.visit(this);
+    }
 }

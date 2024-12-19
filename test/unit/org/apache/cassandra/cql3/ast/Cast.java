@@ -34,10 +34,10 @@ public class Cast implements Expression
     }
 
     @Override
-    public void toCQL(StringBuilder sb, int indent)
+    public void toCQL(StringBuilder sb, CQLFormatter formatter)
     {
         sb.append("CAST (");
-        e.toCQL(sb, indent);
+        e.toCQL(sb, formatter);
         sb.append(" AS ");
         sb.append(type.asCQL3Type());
         sb.append(")");
@@ -53,5 +53,15 @@ public class Cast implements Expression
     public AbstractType<?> type()
     {
         return type;
+    }
+
+    @Override
+    public Expression visit(Visitor v)
+    {
+        var u = v.visit(this);
+        if (u != this) return u;
+        Expression e = this.e.visit(v);
+        if (e == this.e) return this;
+        return new Cast(e, type);
     }
 }

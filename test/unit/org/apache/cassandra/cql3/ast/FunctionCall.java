@@ -18,20 +18,22 @@
 
 package org.apache.cassandra.cql3.ast;
 
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.stream.Stream;
 
 import org.apache.cassandra.db.marshal.AbstractType;
+import org.apache.cassandra.db.marshal.BytesType;
 import org.apache.cassandra.db.marshal.LongType;
 
 public class FunctionCall implements Expression
 {
-    private final String name;
-    private final List<Expression> arguments;
-    private final AbstractType<?> returnType;
+    public final String name;
+    public final List<? extends Expression> arguments;
+    public final AbstractType<?> returnType;
 
-    public FunctionCall(String name, List<Expression> arguments, AbstractType<?> returnType)
+    public FunctionCall(String name, List<? extends Expression> arguments, AbstractType<?> returnType)
     {
         this.name = name;
         this.arguments = arguments;
@@ -39,12 +41,12 @@ public class FunctionCall implements Expression
     }
 
     @Override
-    public void toCQL(StringBuilder sb, int indent)
+    public void toCQL(StringBuilder sb, CQLFormatter formatter)
     {
         sb.append(name).append('(');
         for (Expression e : arguments)
         {
-            e.toCQL(sb, indent);
+            e.toCQL(sb, formatter);
             sb.append(", ");
         }
         if (!arguments.isEmpty())
@@ -70,9 +72,27 @@ public class FunctionCall implements Expression
         return name;
     }
 
+    @Override
+    public Expression visit(Visitor v)
+    {
+        var u = v.visit(this);
+        if (u != this) return u;
+        boolean updated = false;
+        List<Expression> as = new ArrayList<>(arguments.size());
+        for (Expression e : arguments)
+        {
+            u = e.visit(v);
+            if (u != e)
+                updated = true;
+            as.add(u);
+        }
+        if (!updated) return this;
+        return new FunctionCall(name, as, returnType);
+    }
+
     public static FunctionCall writetime(String column, AbstractType<?> type)
     {
-        return new FunctionCall("writetime", Collections.singletonList(Reference.of(new Symbol(column, type))), LongType.instance);
+        return new FunctionCall("writetime", Collections.singletonList(new Symbol(column, type)), LongType.instance);
     }
 
     public static FunctionCall countStar()
@@ -87,6 +107,16 @@ public class FunctionCall implements Expression
 
     public static FunctionCall count(Symbol symbol)
     {
-        return new FunctionCall("count", Collections.singletonList(Reference.of(symbol)), LongType.instance);
+        return new FunctionCall("count", Collections.singletonList(symbol), LongType.instance);
+    }
+
+    public static FunctionCall tokenByColumns(List<Symbol> columns)
+    {
+        return new FunctionCall("token", columns, BytesType.instance);
+    }
+
+    public static FunctionCall tokenByValue(List<? extends Value> values)
+    {
+        return new FunctionCall("token", values, BytesType.instance);
     }
 }

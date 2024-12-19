@@ -132,6 +132,7 @@ public class ExpressionEvaluator
     public static Optional<ByteBuffer> tryEvalEncoded(Expression e)
     {
         return tryEval(e).map(v -> {
+            if (v instanceof ByteBuffer) return (ByteBuffer) v;
             try
             {
                 return ((AbstractType) e.type()).decompose(v);

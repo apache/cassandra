@@ -36,11 +36,11 @@ public class CollectionAccess implements ReferenceExpression
     }
 
     @Override
-    public void toCQL(StringBuilder sb, int indent)
+    public void toCQL(StringBuilder sb, CQLFormatter formatter)
     {
-        column.toCQL(sb, indent);
+        column.toCQL(sb, formatter);
         sb.append('[');
-        element.toCQL(sb, indent);
+        element.toCQL(sb, formatter);
         sb.append(']');
     }
 

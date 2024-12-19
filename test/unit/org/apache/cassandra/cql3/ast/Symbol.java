@@ -26,12 +26,14 @@ import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.cql3.ReservedKeywords;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.BytesType;
+import org.apache.cassandra.db.marshal.ReversedType;
 import org.apache.cassandra.schema.ColumnMetadata;
 
 public class Symbol implements ReferenceExpression, Comparable<Symbol>
 {
     public final String symbol;
     private final AbstractType<?> type;
+    public final boolean reversed;
 
     public Symbol(ColumnMetadata column)
     {
@@ -41,12 +43,13 @@ public class Symbol implements ReferenceExpression, Comparable<Symbol>
     public Symbol(String symbol, AbstractType<?> type)
     {
         this.symbol = Objects.requireNonNull(symbol);
-        this.type = Objects.requireNonNull(type);
+        this.type = Objects.requireNonNull(type).unwrap();
+        this.reversed = type.isReversed();
     }
 
     public static Symbol from(ColumnMetadata metadata)
     {
-        return new Symbol(metadata.name.toString(), metadata.type.unwrap());
+        return new Symbol(metadata.name.toString(), metadata.type);
     }
 
     public static Symbol unknownType(String name)
@@ -55,7 +58,7 @@ public class Symbol implements ReferenceExpression, Comparable<Symbol>
     }
 
     @Override
-    public void toCQL(StringBuilder sb, int indent)
+    public void toCQL(StringBuilder sb, CQLFormatter formatter)
     {
         maybeQuote(sb, symbol);
     }
@@ -92,10 +95,33 @@ public class Symbol implements ReferenceExpression, Comparable<Symbol>
         return type;
     }
 
+    public AbstractType<?> rawType()
+    {
+        if (reversed) return ReversedType.getInstance(type);
+        return type;
+    }
+
     @Override
     public String name()
     {
         return symbol;
+    }
+
+    /**
+     * Same as {@link #visit(Visitor)} but has the restriction that the return type may not be changed away from {@link Symbol}.
+     */
+    public Symbol visit(String type, Visitor v)
+    {
+        var u = v.visit(this);
+        if (u == this) return this;
+        if (!(u instanceof Symbol))
+            throw new IllegalStateException("Visitor converted a Symbol to " + u.getClass().getSimpleName() + "; this is not supported with " + type);
+        return (Symbol) u;
+    }
+
+    public String detailedName()
+    {
+        return symbol + " " + type.asCQL3Type() + (reversed ? " (reversed)" : "");
     }
 
     @Override
@@ -133,7 +159,7 @@ public class Symbol implements ReferenceExpression, Comparable<Symbol>
         }
 
         @Override
-        public void toCQL(StringBuilder sb, int indent)
+        public void toCQL(StringBuilder sb, CQLFormatter formatter)
         {
             sb.append(symbol);
         }

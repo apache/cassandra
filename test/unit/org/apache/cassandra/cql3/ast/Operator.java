@@ -80,16 +80,27 @@ public class Operator implements Expression
     }
 
     @Override
-    public void toCQL(StringBuilder sb, int indent)
+    public void toCQL(StringBuilder sb, CQLFormatter formatter)
     {
-        left.toCQL(sb, indent);
+        left.toCQL(sb, formatter);
         sb.append(' ').append(kind.value).append(' ');
-        right.toCQL(sb, indent);
+        right.toCQL(sb, formatter);
     }
 
     @Override
     public Stream<? extends Element> stream()
     {
         return Stream.of(left, right);
+    }
+
+    @Override
+    public Expression visit(Visitor v)
+    {
+        var u = v.visit(this);
+        if (u != this) return u;
+        var left = this.left.visit(v);
+        var right = this.right.visit(v);
+        if (left == this.left && right == this.right) return this;
+        return new Operator(kind, left, right);
     }
 }

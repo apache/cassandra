@@ -25,7 +25,7 @@ import org.apache.cassandra.db.marshal.AbstractType;
 public class TypeHint implements Expression
 {
     public final Expression e;
-    private final AbstractType<?> type;
+    public final AbstractType<?> type;
 
     public TypeHint(Expression e, AbstractType<?> type)
     {
@@ -54,10 +54,10 @@ public class TypeHint implements Expression
     }
 
     @Override
-    public void toCQL(StringBuilder sb, int indent)
+    public void toCQL(StringBuilder sb, CQLFormatter formatter)
     {
         sb.append('(').append(type.asCQL3Type()).append(") ");
-        e.toCQL(sb, indent);
+        e.toCQL(sb, formatter);
     }
 
     @Override
@@ -70,5 +70,15 @@ public class TypeHint implements Expression
     public Stream<? extends Element> stream()
     {
         return Stream.of(e);
+    }
+
+    @Override
+    public Expression visit(Visitor v)
+    {
+        var u = v.visit(this);
+        if (u != this) return u;
+        var e = this.e.visit(v);
+        if (e == this.e) return this;
+        return new TypeHint(e, type);
     }
 }

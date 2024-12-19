@@ -37,8 +37,6 @@ import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.BytesType;
 import org.apache.cassandra.db.marshal.UserType;
 
-import static org.apache.cassandra.cql3.ast.Elements.newLine;
-
 public class Txn implements Statement
 {
     // lets
@@ -74,18 +72,19 @@ public class Txn implements Statement
     }
 
     @Override
-    public void toCQL(StringBuilder sb, int indent)
+    public void toCQL(StringBuilder sb, CQLFormatter formatter)
     {
         sb.append("BEGIN TRANSACTION");
-        int subIndent = indent + 2;
 
+        formatter.group(sb);
         stream().forEach(e -> {
-            newLine(sb, subIndent);
-            e.toCQL(sb, subIndent);
+            formatter.section(sb);
+            e.toCQL(sb, formatter);
             if (!(e instanceof If))
                 sb.append(';');
         });
-        newLine(sb, indent);
+        formatter.endgroup(sb);
+        formatter.section(sb);
         sb.append("COMMIT TRANSACTION");
     }
 
@@ -111,6 +110,72 @@ public class Txn implements Statement
     public Kind kind()
     {
         return Kind.TXN;
+    }
+
+    @Override
+    public Statement visit(Visitor v)
+    {
+        var u = v.visit(this);
+        if (u != this) return u;
+        boolean updated = false;
+        List<Let> lets = new ArrayList<>(this.lets.size());
+        for (Let l : this.lets)
+        {
+            Statement update = l.select.visit(v);
+            if (!(update instanceof Select))
+                throw new IllegalArgumentException("Unable to use type " + update.getClass() + " in Let");
+            boolean localUpdated = update != l.select;
+            updated |= localUpdated;
+            lets.add(!localUpdated ? l : new Let(l.symbol, (Select) update));
+        }
+        Optional<Select> output;
+        if (this.output.isPresent())
+        {
+            Select select = this.output.get();
+            Statement update = select.visit(v);
+            if (!(update instanceof Select))
+                throw new IllegalArgumentException("Unable to use type " + update.getClass() + " in output");
+            boolean localUpdated = select != update;
+            updated |= localUpdated;
+            output = !localUpdated ? this.output : Optional.ofNullable((Select) update);
+        }
+        else
+        {
+            output = this.output;
+        }
+        Optional<If> ifBlock;
+        if (this.ifBlock.isPresent())
+        {
+            If block = this.ifBlock.get();
+            boolean localUpdated = false;
+            Conditional c = block.conditional.visit(v);
+            localUpdated |= c != block.conditional;
+            List<Mutation> mutations = new ArrayList<>(this.mutations.size());
+            for (Mutation m : block.mutations)
+            {
+                Statement update = m.visit(v);
+                if (!(update instanceof Mutation))
+                    throw new IllegalArgumentException("Unable to use type " + update.getClass() + " where Mutation is expected");
+                updated |= update != m;
+                mutations.add((Mutation) update);
+            }
+            ifBlock = !localUpdated ? this.ifBlock : Optional.of(new If(c, mutations));
+        }
+        else
+        {
+            ifBlock = this.ifBlock;
+        }
+        List<Mutation> mutations = new ArrayList<>(this.mutations.size());
+        for (Mutation m : this.mutations)
+        {
+            Statement update = m.visit(v);
+            if (!(update instanceof Mutation))
+                throw new IllegalArgumentException("Unable to use type " + update.getClass() + " where Mutation is expected");
+            updated |= update != m;
+            mutations.add((Mutation) update);
+        }
+        if (!updated) return this;
+        return new Txn(lets, output, ifBlock, mutations);
     }
 
     private static void recursiveReferences(Collection<Reference> accum, Reference ref)
@@ -224,7 +289,7 @@ public class Txn implements Statement
         {
             Select.Builder builder = new Select.Builder();
             for (String name : names)
-                builder.withSelection(ref(name));
+                builder.selection(ref(name));
             addReturn(builder.build());
             return this;
         }
@@ -280,19 +345,20 @@ public class Txn implements Statement
         }
 
         @Override
-        public void toCQL(StringBuilder sb, int indent)
+        public void toCQL(StringBuilder sb, CQLFormatter formatter)
         {
             sb.append("IF ");
-            conditional.toCQL(sb, indent);
+            conditional.toCQL(sb, formatter);
             sb.append(" THEN");
-            int subIndent = indent + 2;
+            formatter.group(sb);
             for (Mutation mutation : mutations)
             {
-                newLine(sb, subIndent);
-                mutation.toCQL(sb, subIndent);
+                formatter.element(sb);
+                mutation.toCQL(sb, formatter);
                 sb.append(';');
             }
-            newLine(sb, indent);
+            formatter.endgroup(sb);
+            formatter.section(sb);
             sb.append("END IF");
         }
 
@@ -315,11 +381,12 @@ public class Txn implements Statement
         }
 
         @Override
-        public void toCQL(StringBuilder sb, int indent)
+        public void toCQL(StringBuilder sb, CQLFormatter formatter)
         {
-            int offset = sb.length();
             sb.append("LET ").append(symbol).append(" = (");
-            select.toCQL(sb, sb.length() - offset + 2);
+            formatter.subgroup(sb);
+            select.toCQL(sb, formatter);
+            formatter.endsubgroup(sb);
             sb.append(")");
         }
 

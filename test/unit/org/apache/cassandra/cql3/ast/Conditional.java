@@ -18,13 +18,20 @@
 
 package org.apache.cassandra.cql3.ast;
 
+import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
+import java.util.stream.Stream;
 
 import accord.utils.Invariants;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.BooleanType;
+import org.apache.cassandra.db.marshal.BytesType;
+import org.apache.cassandra.db.marshal.Int32Type;
 
 public interface Conditional extends Expression
 {
@@ -34,12 +41,124 @@ public interface Conditional extends Expression
         return BooleanType.instance;
     }
 
+    @Override
+    default Conditional visit(Visitor v)
+    {
+        return v.visit(this);
+    }
+
+    default List<Conditional> simplify()
+    {
+        return Collections.singletonList(this);
+    }
+
+    class Where implements Conditional
+    {
+        public enum Inequality
+        {
+            EQUAL("="),
+            NOT_EQUAL("!="),
+            GREATER_THAN(">"),
+            GREATER_THAN_EQ(">="),
+            LESS_THAN("<"),
+            LESS_THAN_EQ("<=");
+
+            private final String value;
+
+            Inequality(String value)
+            {
+                this.value = value;
+            }
+        }
+
+        public final Inequality kind;
+        public final Expression lhs;
+        public final Expression rhs;
+
+        private Where(Inequality kind, Expression lhs, Expression rhs)
+        {
+            this.kind = kind;
+            this.lhs = lhs;
+            this.rhs = rhs;
+        }
+
+        public static Where create(Inequality kind, Expression ref, Expression expression)
+        {
+            return new Where(kind, ref, expression);
+        }
+
+        @Override
+        public void toCQL(StringBuilder sb, CQLFormatter formatter)
+        {
+            lhs.toCQL(sb, formatter);
+            sb.append(' ').append(kind.value).append(' ');
+            rhs.toCQL(sb, formatter);
+        }
+
+        @Override
+        public Stream<? extends Element> stream()
+        {
+            return Stream.of(lhs, rhs);
+        }
+
+        @Override
+        public Conditional visit(Visitor v)
+        {
+            var u = v.visit(this);
+            if (u != this) return u;
+            var lhs = this.lhs.visit(v);
+            var rhs = this.rhs.visit(v);
+            if (lhs == this.lhs && rhs == this.rhs) return this;
+            return new Where(kind, lhs, rhs);
+        }
+    }
+
+    class Between implements Conditional
+    {
+        public final Expression ref, start, end;
+
+        public Between(Expression ref, Expression start, Expression end)
+        {
+            this.ref = ref;
+            this.start = start;
+            this.end = end;
+        }
+
+        @Override
+        public void toCQL(StringBuilder sb, CQLFormatter formatter)
+        {
+            ref.toCQL(sb, formatter);
+            sb.append(" BETWEEN ");
+            start.toCQL(sb, formatter);
+            sb.append(" AND ");
+            end.toCQL(sb, formatter);
+        }
+
+        @Override
+        public Stream<? extends Element> stream()
+        {
+            return Stream.of(ref, start, end);
+        }
+
+        @Override
+        public Conditional visit(Visitor v)
+        {
+            var u = v.visit(this);
+            if (u != this) return u;
+            Expression ref = this.ref.visit(v);
+            Expression start = this.start.visit(v);
+            Expression end = this.end.visit(v);
+            if (ref == this.ref && start == this.start && end == this.end) return this;
+            return new Between(ref, start, end);
+        }
+    }
+
     class In implements Conditional
     {
-        public final ReferenceExpression symbol;
+        public final Expression symbol;
         public final List<Expression> expressions;
 
-        public In(ReferenceExpression symbol, List<Expression> expressions)
+        public In(Expression symbol, List<Expression> expressions)
         {
             Invariants.checkArgument(!expressions.isEmpty());
             this.symbol = symbol;
@@ -47,18 +166,45 @@ public interface Conditional extends Expression
         }
 
         @Override
-        public void toCQL(StringBuilder sb, int indent)
+        public void toCQL(StringBuilder sb, CQLFormatter formatter)
         {
-            symbol.toCQL(sb, indent);
+            symbol.toCQL(sb, formatter);
             sb.append(" IN ");
             sb.append('(');
             for (Expression e : expressions)
             {
-                e.toCQL(sb, indent);
+                e.toCQL(sb, formatter);
                 sb.append(", ");
             }
             sb.setLength(sb.length() - 2); // ", "
             sb.append(')');
+        }
+
+        @Override
+        public Stream<? extends Element> stream()
+        {
+            List<Element> es = new ArrayList<>(expressions.size() + 1);
+            es.add(symbol);
+            es.addAll(expressions);
+            return es.stream();
+        }
+
+        @Override
+        public Conditional visit(Visitor v)
+        {
+            var u = v.visit(this);
+            if (u != this) return u;
+            var symbol = this.symbol.visit(v);
+            boolean updated = symbol == this.symbol;
+            List<Expression> expressions = new ArrayList<>(this.expressions.size());
+            for (Expression e : this.expressions)
+            {
+                var e2 = e.visit(v);
+                updated |= e == e2;
+                expressions.add(e2);
+            }
+            if (!updated) return this;
+            return new In(symbol, expressions);
         }
     }
 
@@ -77,29 +223,158 @@ public interface Conditional extends Expression
             }
         }
 
+        public final ReferenceExpression reference;
         public final Kind kind;
-        public final Reference reference;
 
         public Is(String symbol, Kind kind)
         {
-            this(Reference.of(Symbol.unknownType(symbol)), kind);
+            this(Symbol.unknownType(symbol), kind);
         }
 
-        public Is(Reference reference, Kind kind)
+        public Is(ReferenceExpression reference, Kind kind)
         {
-            this.kind = kind;
             this.reference = reference;
+            this.kind = kind;
         }
 
         @Override
-        public void toCQL(StringBuilder sb, int indent)
+        public void toCQL(StringBuilder sb, CQLFormatter formatter)
         {
-            reference.toCQL(sb, indent);
+            reference.toCQL(sb, formatter);
             sb.append(" IS ").append(kind.cql);
         }
     }
 
-    class Builder
+    class And implements Conditional
+    {
+        public final Conditional left, right;
+
+        public And(Conditional left, Conditional right)
+        {
+            this.left = left;
+            this.right = right;
+        }
+
+        @Override
+        public void toCQL(StringBuilder sb, CQLFormatter formatter)
+        {
+            left.toCQL(sb, formatter);
+            sb.append(" AND ");
+            right.toCQL(sb, formatter);
+        }
+
+        @Override
+        public Stream<? extends Element> stream()
+        {
+            return Stream.of(left, right);
+        }
+
+        @Override
+        public Conditional visit(Visitor v)
+        {
+            var u = v.visit(this);
+            if (u != this) return u;
+            Conditional left = this.left.visit(v);
+            Conditional right = this.right.visit(v);
+            if (this.left == left && this.right == right) return this;
+            return new And(left, right);
+        }
+
+        @Override
+        public List<Conditional> simplify()
+        {
+            List<Conditional> result = new ArrayList<>();
+            result.addAll(left.simplify());
+            result.addAll(right.simplify());
+            return result;
+        }
+    }
+
+    interface EqBuilder<T extends EqBuilder<T>>
+    {
+        T value(Symbol symbol, Expression e);
+        default T value(String symbol, int e)
+        {
+            return value(new Symbol(symbol, Int32Type.instance), Bind.of(e));
+        }
+    }
+
+    interface ConditionalBuilder<T extends ConditionalBuilder<T>> extends EqBuilder<T>
+    {
+
+        T where(Expression ref, Where.Inequality kind, Expression expression);
+
+        default <Type> T where(String name, Where.Inequality kind, Type value, AbstractType<Type> type)
+        {
+            return where(new Symbol(name, type), kind, new Bind(value, type));
+        }
+
+        default T where(String name, Where.Inequality kind, int value)
+        {
+            return where(name, kind, value, Int32Type.instance);
+        }
+
+        T between(Expression ref, Expression start, Expression end);
+
+        default T between(String name, Expression start, Expression end)
+        {
+            return between(new Symbol(name, start.type()), start, end);
+        }
+
+        T in(Expression ref, List<Expression> expressions);
+
+        default T in(Expression ref, Expression... expressions)
+        {
+            return in(ref, Arrays.asList(expressions));
+        }
+
+        default T in(String name, Expression... expressions)
+        {
+            if (expressions == null || expressions.length == 0)
+                throw new IllegalArgumentException("expressions may not be empty");
+            return in(new Symbol(name, expressions[0].type()), expressions);
+        }
+
+        default T in(String name, int... values)
+        {
+            return in(name, Int32Type.instance, IntStream.of(values).boxed().collect(Collectors.toList()));
+        }
+
+        default <Type> T in(String name, AbstractType<Type> type, Type... values)
+        {
+            return in(name, type, Arrays.asList(values));
+        }
+
+        default <Type> T in(String name, AbstractType<Type> type, List<Type> values)
+        {
+            return in(new Symbol(name, type), values.stream().map(v -> new Bind(v, type)).collect(Collectors.toList()));
+        }
+
+        T is(Symbol ref, Conditional.Is.Kind kind);
+
+        @Override
+        default T value(Symbol symbol, Expression e)
+        {
+            return where(symbol, Where.Inequality.EQUAL, e);
+        }
+
+        default T value(String symbol, int e)
+        {
+            return value(symbol, e, Int32Type.instance);
+        }
+
+        default T value(String symbol, ByteBuffer e)
+        {
+            return value(symbol, e, BytesType.instance);
+        }
+
+        default <Type> T value(String symbol, Type value, AbstractType<Type> type)
+        {
+            return value(new Symbol(symbol, type), new Bind(value, type));
+        }
+    }
+
+    class Builder implements ConditionalBuilder<Builder>
     {
         private final List<Conditional> sub = new ArrayList<>();
 
@@ -114,19 +389,28 @@ public interface Conditional extends Expression
             return this;
         }
 
-        public Builder where(Where.Inequalities kind, ReferenceExpression ref, Expression expression)
+        @Override
+        public Builder where(Expression ref, Where.Inequality kind, Expression expression)
         {
             return add(Where.create(kind, ref, expression));
         }
 
-        public Builder in(ReferenceExpression symbol, Expression... expressions)
+        @Override
+        public Builder between(Expression ref, Expression start, Expression end)
         {
-            return add(new In(symbol, Arrays.asList(expressions)));
+            return add(new Between(ref, start, end));
         }
 
-        public Builder in(ReferenceExpression symbol, List<Expression> expressions)
+        @Override
+        public Builder in(Expression symbol, List<Expression> expressions)
         {
             return add(new In(symbol, expressions));
+        }
+
+        @Override
+        public Builder is(Symbol ref, Is.Kind kind)
+        {
+            return add(new Conditional.Is(ref, kind));
         }
 
         public Conditional build()

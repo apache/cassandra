@@ -92,10 +92,10 @@ public class AssignmentOperator implements Expression
     }
 
     @Override
-    public void toCQL(StringBuilder sb, int indent)
+    public void toCQL(StringBuilder sb, CQLFormatter formatter)
     {
         sb.append(' ').append(kind.value).append("= ");
-        right.toCQL(sb, indent);
+        right.toCQL(sb, formatter);
     }
 
     @Override
@@ -108,5 +108,15 @@ public class AssignmentOperator implements Expression
     public AbstractType<?> type()
     {
         return right.type();
+    }
+
+    @Override
+    public Expression visit(Visitor v)
+    {
+        var u = v.visit(this);
+        if (u != this) return u;
+        var r = right.visit(v);
+        if (r == right) return this;
+        return new AssignmentOperator(kind, r);
     }
 }

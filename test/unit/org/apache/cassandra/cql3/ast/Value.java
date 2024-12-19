@@ -30,4 +30,10 @@ public interface Value extends Expression
         return ((AbstractType) type()).decompose(value());
     }
     Value with(Object value, AbstractType<?> type);
+
+    @Override
+    default Value visit(Visitor v)
+    {
+        return v.visit(this);
+    }
 }

@@ -35,7 +35,7 @@ public interface CasCondition extends Element
         }
 
         @Override
-        public void toCQL(StringBuilder sb, int indent)
+        public void toCQL(StringBuilder sb, CQLFormatter formatter)
         {
             sb.append(cql);
         }
@@ -51,10 +51,10 @@ public interface CasCondition extends Element
         }
 
         @Override
-        public void toCQL(StringBuilder sb, int indent)
+        public void toCQL(StringBuilder sb, CQLFormatter formatter)
         {
             sb.append("IF ");
-            conditional.toCQL(sb, indent);
+            conditional.toCQL(sb, formatter);
         }
 
         @Override

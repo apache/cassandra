@@ -18,26 +18,17 @@
 
 package org.apache.cassandra.cql3.ast;
 
-import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
-import java.util.stream.Collectors;
-import java.util.stream.IntStream;
 import java.util.stream.Stream;
-
 import javax.annotation.Nullable;
 
 import com.google.common.collect.ImmutableList;
 
 import org.apache.cassandra.db.marshal.AbstractType;
-import org.apache.cassandra.db.marshal.BytesType;
-import org.apache.cassandra.db.marshal.Int32Type;
-import org.apache.cassandra.db.marshal.LongType;
 import org.apache.cassandra.schema.TableMetadata;
-
-import static org.apache.cassandra.cql3.ast.Elements.newLine;
 
 public class Select implements Statement
 {
@@ -49,7 +40,7 @@ FROM [keyspace_name.] table_name
    [AND static_filters]]]
 [ORDER BY PK_column_name ASC|DESC]
 [LIMIT N]
-[ALLOW FILTERING] //TODO
+[ALLOW FILTERING]
      */
     // select
     public final List<Expression> selections;
@@ -104,7 +95,7 @@ FROM [keyspace_name.] table_name
     }
 
     @Override
-    public void toCQL(StringBuilder sb, int indent)
+    public void toCQL(StringBuilder sb, CQLFormatter formatter)
     {
         sb.append("SELECT ");
         if (selections.isEmpty())
@@ -113,40 +104,39 @@ FROM [keyspace_name.] table_name
         }
         else
         {
-            int finalIndent = indent;
             selections.forEach(s -> {
-                s.toCQL(sb, finalIndent);
+                s.toCQL(sb, formatter);
                 sb.append(", ");
             });
             sb.setLength(sb.length() - 2); // last ', '
         }
         if (source.isPresent())
         {
-            newLine(sb, indent);
+            formatter.section(sb);
             sb.append("FROM ");
-            source.get().toCQL(sb, indent);
+            source.get().toCQL(sb, formatter);
             if (where.isPresent())
             {
-                newLine(sb, indent);
+                formatter.section(sb);
                 sb.append("WHERE ");
-                where.get().toCQL(sb, indent);
+                where.get().toCQL(sb, formatter);
             }
             if (orderBy.isPresent())
             {
-                newLine(sb, indent);
+                formatter.section(sb);
                 sb.append("ORDER BY ");
-                orderBy.get().toCQL(sb, indent);
+                orderBy.get().toCQL(sb, formatter);
             }
             if (limit.isPresent())
             {
-                newLine(sb, indent);
+                formatter.section(sb);
                 sb.append("LIMIT ");
-                limit.get().toCQL(sb, indent);
+                limit.get().toCQL(sb, formatter);
             }
 
             if (allowFiltering)
             {
-                newLine(sb, indent);
+                formatter.section(sb);
                 sb.append("ALLOW FILTERING");
             }
         }
@@ -184,6 +174,47 @@ FROM [keyspace_name.] table_name
         return Kind.SELECT;
     }
 
+    @Override
+    public Statement visit(Visitor v)
+    {
+        var u = v.visit(this);
+        if (u != this) return u;
+        boolean updated = false;
+        List<Expression> selections = new ArrayList<>(this.selections.size());
+        for (Expression e : this.selections)
+        {
+            Expression update = e.visit(v);
+            updated |= e != update;
+            selections.add(update);
+        }
+        Optional<Conditional> where;
+        if (this.where.isPresent())
+        {
+            var c = this.where.get();
+            var update = c.visit(v);
+            updated |= c != update;
+            where = Optional.ofNullable(update);
+        }
+        else
+        {
+            where = this.where;
+        }
+        Optional<Value> limit;
+        if (this.limit.isPresent())
+        {
+            var l = this.limit.get();
+            var update = l.visit(v);
+            updated |= l != update;
+            limit = Optional.ofNullable(update);
+        }
+        else
+        {
+            limit = this.limit;
+        }
+        if (!updated) return this;
+        return new Select(selections, source, where, orderBy, limit, allowFiltering);
+    }
+
     public static class OrderBy implements Element
     {
         public enum Ordering
@@ -199,18 +230,18 @@ FROM [keyspace_name.] table_name
         }
 
         @Override
-        public void toCQL(StringBuilder sb, int indent)
+        public void toCQL(StringBuilder sb, CQLFormatter formatter)
         {
             if (ordered.size() == 1)
             {
-                ordered.get(0).toCQL(sb, indent);
+                ordered.get(0).toCQL(sb, formatter);
                 return;
             }
 
             String postfix = ", ";
             for (Ordered o : ordered)
             {
-                o.toCQL(sb, indent);
+                o.toCQL(sb, formatter);
                 sb.append(postfix);
             }
             sb.setLength(sb.length() - postfix.length());
@@ -234,9 +265,9 @@ FROM [keyspace_name.] table_name
             }
 
             @Override
-            public void toCQL(StringBuilder sb, int indent)
+            public void toCQL(StringBuilder sb, CQLFormatter formatter)
             {
-                expression.toCQL(sb, indent);
+                expression.toCQL(sb, formatter);
                 sb.append(' ');
                 sb.append(ordering.name());
             }
@@ -270,17 +301,17 @@ FROM [keyspace_name.] table_name
         }
     }
 
-    public static class Builder
+    public static class Builder implements Conditional.ConditionalBuilder<Builder>
     {
-        private boolean filtering = false;
         @Nullable // null means wildcard
         private List<Expression> selections = new ArrayList<>();
         private Optional<TableReference> source = Optional.empty();
         private Conditional.Builder where = new Conditional.Builder();
         private OrderBy.Builder orderBy = new OrderBy.Builder();
         private Optional<Value> limit = Optional.empty();
+        private boolean allowFiltering = false;
 
-        public Builder withWildcard()
+        public Builder wildcard()
         {
             if (selections != null && !selections.isEmpty())
                 throw new IllegalStateException("Attempted to use * for selection but existing selections exist: " + selections);
@@ -288,18 +319,18 @@ FROM [keyspace_name.] table_name
             return this;
         }
 
-        public Builder withColumnSelection(String name, AbstractType<?> type)
+        public Builder columnSelection(String name, AbstractType<?> type)
         {
-            return withSelection(Reference.of(new Symbol(name, type)));
+            return selection(new Symbol(name, type));
         }
 
         public Builder allowFiltering()
         {
-            filtering = true;
+            allowFiltering = true;
             return this;
         }
 
-        public Builder withSelection(Expression e)
+        public Builder selection(Expression e)
         {
             if (selections == null)
                 throw new IllegalStateException("Unable to add '" + e.name() + "' as a selection as * was already requested");
@@ -307,87 +338,70 @@ FROM [keyspace_name.] table_name
             return this;
         }
 
-        public Builder withTable(String ks, String name)
+        public Builder table(TableReference ref)
         {
-            source = Optional.of(new TableReference(Optional.of(ks), name));
+            source = Optional.of(ref);
             return this;
         }
 
-        public Builder withTable(String name)
+        public Builder table(String ks, String name)
         {
-            source = Optional.of(new TableReference(name));
+            return table(new TableReference(Optional.of(ks), name));
+        }
+
+        public Builder table(String name)
+        {
+            return table(new TableReference(name));
+        }
+
+        public Builder table(TableMetadata table)
+        {
+            return table(TableReference.from(table));
+        }
+
+        @Override
+        public Builder where(Expression ref, Conditional.Where.Inequality kind, Expression expression)
+        {
+            where.where(ref, kind, expression);
             return this;
         }
 
-        public Builder withTable(TableMetadata table)
+        @Override
+        public Builder between(Expression ref, Expression start, Expression end)
         {
-            source = Optional.of(TableReference.from(table));
+            where.between(ref, start, end);
             return this;
         }
 
-        public Builder withWhere(ReferenceExpression ref, Where.Inequalities kind, Expression expression)
+        @Override
+        public Builder in(Expression ref, List<Expression> expressions)
         {
-            where.where(kind, ref, expression);
+            where.in(ref, expressions);
             return this;
         }
 
-        public Builder withWhere(String name, Where.Inequalities kind, int value)
+        @Override
+        public Builder is(Symbol ref, Conditional.Is.Kind kind)
         {
-            return withWhere(kind, name, value, Int32Type.instance);
-        }
-
-        public <T> Builder withWhere(Where.Inequalities kind, String name, T value, AbstractType<T> type)
-        {
-            return withWhere(Reference.of(new Symbol(name, type)), kind, new Literal(value, type));
-        }
-
-        public Builder withIn(ReferenceExpression symbol, Expression... expressions)
-        {
-            where.in(symbol, expressions);
+            where.is(ref, kind);
             return this;
         }
 
-        public Builder withIn(ReferenceExpression symbol, List<Expression> expressions)
+        public Builder orderByColumn(String name, AbstractType<?> type, OrderBy.Ordering ordering)
         {
-            where.in(symbol, expressions);
+            orderBy.add(new Symbol(name, type), ordering);
             return this;
         }
 
-        public Builder withIn(String name, int... values)
-        {
-            where.in(new Symbol(name, Int32Type.instance), IntStream.of(values).mapToObj(i -> new Literal(i, Int32Type.instance)).collect(Collectors.toList()));
-            return this;
-        }
-
-        /**
-         * When the column type/value type isn't known, this will fall back to byte type
-         */
-        public Builder withColumnEquals(String column, ByteBuffer value)
-        {
-            BytesType type = BytesType.instance;
-            return withWhere(Reference.of(new Symbol(column, type)), Where.Inequalities.EQUAL, new Bind(value, type));
-        }
-
-        public Builder withColumnEquals(Symbol column, Expression value)
-        {
-            return withWhere(Reference.of(column), Where.Inequalities.EQUAL, value);
-        }
-
-        public Builder withOrderByColumn(String name, AbstractType<?> type, OrderBy.Ordering ordering)
-        {
-            orderBy.add(Reference.of(new Symbol(name, type)), ordering);
-            return this;
-        }
-
-        public Builder withLimit(Value limit)
+        public Builder limit(Value limit)
         {
             this.limit = Optional.of(limit);
             return this;
         }
 
-        public Builder withLimit(long limit)
+        public Builder limit(int limit)
         {
-            return withLimit(new Literal(limit, LongType.instance));
+            return limit(Bind.of(limit));
         }
 
         public Select build()
@@ -397,7 +411,7 @@ FROM [keyspace_name.] table_name
                               where.isEmpty() ? Optional.empty() : Optional.of(where.build()),
                               orderBy.isEmpty() ? Optional.empty() : Optional.of(orderBy.build()),
                               limit,
-                              filtering);
+                              allowFiltering);
         }
     }
 }

@@ -22,17 +22,24 @@ import java.util.stream.Stream;
 
 public interface Element
 {
-    void toCQL(StringBuilder sb, int indent);
+    void toCQL(StringBuilder sb, CQLFormatter formatter);
 
     default void toCQL(StringBuilder sb)
     {
-        toCQL(sb, 0);
+        toCQL(sb, CQLFormatter.None.instance);
     }
 
     default String toCQL()
     {
         StringBuilder sb = new StringBuilder();
-        toCQL(sb, 0);
+        toCQL(sb, CQLFormatter.None.instance);
+        return sb.toString();
+    }
+
+    default String toCQL(CQLFormatter formatter)
+    {
+        StringBuilder sb = new StringBuilder();
+        toCQL(sb, formatter);
         return sb.toString();
     }
 

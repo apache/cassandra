@@ -18,29 +18,35 @@
 
 package org.apache.cassandra.cql3.ast;
 
-import java.util.stream.Stream;
+import java.util.Arrays;
 
-public class And implements Conditional
+public class StandardVisitors
 {
-    private final Conditional left, right;
-
-    public And(Conditional left, Conditional right)
+    public static final Visitor BIND_TO_LITERAL = new Visitor()
     {
-        this.left = left;
-        this.right = right;
-    }
+        @Override
+        public Value visit(Value v)
+        {
+            if (!(v instanceof Bind)) return v;
+            Bind b = (Bind) v;
+            return new Literal(b.value(), b.type());
+        }
+    };
 
-    @Override
-    public void toCQL(StringBuilder sb, int indent)
+    public static final Visitor UNWRAP_TYPE_HINT = new Visitor()
     {
-        left.toCQL(sb, indent);
-        sb.append(" AND ");
-        right.toCQL(sb, indent);
-    }
+        @Override
+        public Expression visit(Expression e)
+        {
+            if (!(e instanceof TypeHint)) return e;
+            TypeHint hint = (TypeHint) e;
+            if (hint.type.equals(hint.e.type()))
+                return hint.e;
+            return e;
+        }
+    };
 
-    @Override
-    public Stream<? extends Element> stream()
-    {
-        return Stream.of(left, right);
-    }
+    public static final Visitor DEBUG = new Visitor.CompositeVisitor(Arrays.asList(UNWRAP_TYPE_HINT, BIND_TO_LITERAL));
+
+    private StandardVisitors() {}
 }

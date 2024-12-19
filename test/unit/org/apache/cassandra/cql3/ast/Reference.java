@@ -95,10 +95,10 @@ public class Reference implements ReferenceExpression
     }
 
     @Override
-    public void toCQL(StringBuilder sb, int indent)
+    public void toCQL(StringBuilder sb, CQLFormatter formatter)
     {
         path.forEach(p -> {
-            p.toCQL(sb, indent);
+            p.toCQL(sb, formatter);
             sb.append('.');
         });
         sb.setLength(sb.length() - 1); // last .

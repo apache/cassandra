@@ -387,7 +387,15 @@ public class TransactionStatement implements CQLStatement.CompositeCQLStatement,
 
         // check again since now we have query options; note that statements are quaranted to be single partition reads at this point
         for (NamedSelect assignment : assignments)
+        {
             checkFalse(isSelectingMultipleClusterings(assignment.select, options), INCOMPLETE_PRIMARY_KEY_SELECT_MESSAGE, "LET assignment", assignment.select.source);
+            if (assignment.select.getRestrictions().keyIsInRelation())
+                checkTrue(assignment.select.getLimit(options) == DataLimits.NO_LIMIT, NO_PARTITION_IN_CLAUSE_WITH_LIMIT, "SELECT", assignment.select.source);
+        }
+        if (returningSelect != null && returningSelect.select.getRestrictions().keyIsInRelation())
+        {
+            checkTrue(returningSelect.select.getLimit(options) == DataLimits.NO_LIMIT, NO_PARTITION_IN_CLAUSE_WITH_LIMIT, "SELECT", returningSelect.select.source);
+        }
 
         Txn txn = createTxn(state.getClientState(), options);
 
@@ -492,8 +500,9 @@ public class TransactionStatement implements CQLStatement.CompositeCQLStatement,
         if (prepared.hasAggregation())
             throw invalidRequest(NO_AGGREGATION_IN_TXNS_MESSAGE, "SELECT", prepared.source);
 
+        // when "LIMIT ?" this check can't be performed, so need to do again once the options are known
         if (prepared.getRestrictions().keyIsInRelation())
-            checkTrue(prepared.getLimit(null) == DataLimits.NO_LIMIT, NO_PARTITION_IN_CLAUSE_WITH_LIMIT, "SELECT", prepared.source);
+            checkTrue(prepared.isLimitMarker() || prepared.getLimit(null) == DataLimits.NO_LIMIT, NO_PARTITION_IN_CLAUSE_WITH_LIMIT, "SELECT", prepared.source);
     }
 
     public static class Parsed extends QualifiedStatement.Composite

@@ -75,7 +75,7 @@ public class NewSchemaTest extends AccordTestBase
         assert !keys.isEmpty();
         Txn.Builder builder = new Txn.Builder();
         for (int i = 0; i < keys.size(); i++)
-            builder.addLet("row" + i, new Select.Builder().withWildcard().withTable(ks, table).withColumnEquals("pk", keys.get(i)));
+            builder.addLet("row" + i, new Select.Builder().wildcard().table(ks, table).value("pk", keys.get(i)));
         builder.addReturnReferences("row0.pk");
         Txn txn = builder.build();
         ByteBuffer[] binds = txn.bindsEncoded();

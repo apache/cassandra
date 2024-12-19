@@ -69,17 +69,9 @@ import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Iterables;
 
 import accord.utils.RandomSource;
-import org.apache.cassandra.cql3.ast.Conditional;
-import org.apache.cassandra.cql3.ast.Expression;
-import org.apache.cassandra.cql3.ast.Mutation;
-import org.apache.cassandra.cql3.ast.Select;
-import org.apache.cassandra.cql3.ast.Symbol;
-import org.apache.cassandra.cql3.ast.TableReference;
-import org.apache.cassandra.cql3.ast.Where;
 import org.apache.cassandra.db.marshal.ByteBufferAccessor;
 import org.apache.cassandra.db.virtual.SystemViewsKeyspace;
 import org.apache.cassandra.service.accord.AccordCache;
-import org.apache.cassandra.utils.ASTGenerators;
 import org.apache.cassandra.utils.CassandraGenerators;
 import org.apache.cassandra.utils.Generators;
 import org.assertj.core.api.Assertions;
@@ -540,7 +532,7 @@ public abstract class CQLTester
         ServerTestUtils.resetCMS();
         keyspaces.clear();
         tables.clear();
-        indexes.clear();;
+        indexes.clear();
         views.clear();
         types.clear();
         functions.clear();
@@ -2667,36 +2659,6 @@ public abstract class CQLTester
     protected ResultSet executeNet(ProtocolVersion protocolVersion, org.apache.cassandra.cql3.ast.Statement stmt)
     {
         return sessionNet(protocolVersion).execute(stmt.toCQL(), stmt.bindsEncoded());
-    }
-
-    protected Mutation nonTransactionMutation(RandomSource rs, TableMetadata metadata)
-    {
-        return Generators.toGen(new ASTGenerators.MutationGenBuilder(metadata).withoutTransaction().build()).next(rs);
-    }
-
-    protected Select select(Mutation mutation)
-    {
-        // select * from table where <primaryKeys>
-        return new Select(Collections.emptyList(),
-                          Optional.of(new TableReference(Optional.of(mutation.table.keyspace), mutation.table.name)),
-                          where(mutation.primaryKeys()),
-                          Optional.empty(),
-                          Optional.empty());
-    }
-
-    private Optional<Conditional> where(Map<Symbol, Expression> keys)
-    {
-        if (keys.isEmpty())
-            throw new IllegalArgumentException("Unable to create a where clause from empty keys");
-        Conditional.Builder builder = new Conditional.Builder();
-        for (Map.Entry<Symbol, Expression> e : keys.entrySet())
-            builder.where(Where.Inequalities.EQUAL, e.getKey(), e.getValue());
-        return Optional.of(builder.build());
-    }
-
-    protected Object[][] rows(Mutation mutation)
-    {
-        return mutation.kind == Mutation.Kind.DELETE ? new Object[0][] : new Object[][]{row(mutation.toRowEncoded())};
     }
 
     @FunctionalInterface

@@ -45,7 +45,7 @@ public class TableReference implements Element
     }
 
     @Override
-    public void toCQL(StringBuilder sb, int indent)
+    public void toCQL(StringBuilder sb, CQLFormatter formatter)
     {
         if (keyspace.isPresent())
         {
