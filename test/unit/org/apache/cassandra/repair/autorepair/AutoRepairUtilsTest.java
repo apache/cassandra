@@ -504,7 +504,7 @@ public class AutoRepairUtilsTest extends CQLTester
     }
 
     @Test
-    public void tesSkipSystemTraces()
+    public void testSkipSystemTraces()
     {
         assertFalse(AutoRepairUtils.shouldConsiderKeyspace(Keyspace.open(SchemaConstants.TRACE_KEYSPACE_NAME)));
     }
