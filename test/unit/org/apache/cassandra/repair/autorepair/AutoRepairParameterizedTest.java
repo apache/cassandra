@@ -62,7 +62,6 @@ import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.AutoRepairService;
 import org.apache.cassandra.utils.FBUtilities;
-import org.apache.cassandra.utils.LocalizeString;
 import org.mockito.Mock;
 import org.mockito.Mockito;
 import org.mockito.MockitoAnnotations;
