@@ -216,7 +216,7 @@ public class AutoRepair
                 Map<String, List<String>> keyspacesAndTablesToRepair = new LinkedHashMap<>();
                 for (Keyspace keyspace : keyspaces)
                 {
-                    if (!AutoRepairUtils.checkNodeContainsKeyspaceReplica(keyspace))
+                    if (!AutoRepairUtils.shouldConsiderKeyspace(keyspace))
                     {
                         continue;
                     }
