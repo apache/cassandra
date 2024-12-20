@@ -221,7 +221,8 @@ public class MessagingService extends MessagingServiceMBeanImpl implements Messa
         VERSION_40(12),
         // c14227 TTL overflow, 'uint' timestamps
         VERSION_50(13),
-        VERSION_51(14);
+        VERSION_51(14),
+        VERSION_52(15);
 
         public static final Version CURRENT;
 
@@ -229,15 +230,15 @@ public class MessagingService extends MessagingServiceMBeanImpl implements Messa
 
         static
         {
-             if (DatabaseDescriptor.getStorageCompatibilityMode().isBefore(5))
-             {
-                 logger.warn("Starting in storage compatibility mode " + DatabaseDescriptor.getStorageCompatibilityMode());
-                 CURRENT = VERSION_40;
-             }
-             else
-             {
-                 CURRENT = VERSION_51;
-             }
+            if (DatabaseDescriptor.getStorageCompatibilityMode().isBefore(5))
+            {
+                logger.warn("Starting in storage compatibility mode " + DatabaseDescriptor.getStorageCompatibilityMode());
+                CURRENT = VERSION_40;
+            }
+            else
+            {
+                CURRENT = VERSION_52;
+            }
         }
 
         public final int value;
@@ -269,12 +270,13 @@ public class MessagingService extends MessagingServiceMBeanImpl implements Messa
     public static final int VERSION_40 = 12;
     public static final int VERSION_50 = 13; // c14227 TTL overflow, 'uint' timestamps
     public static final int VERSION_51 = 14; // TCM
+    public static final int VERSION_52 = 15; // Mutation Tracking
     public static final int minimum_version = VERSION_40;
-    public static final int maximum_version = VERSION_51;
+    public static final int maximum_version = VERSION_52;
     // we want to use a modified behavior for the tools and clients - that is, since they are not running a server, they
     // should not need to run in a compatibility mode. They should be able to connect to the server regardless whether
     // it uses messaving version 4 or 5
-    public static final int current_version = DatabaseDescriptor.getStorageCompatibilityMode().isBefore(5) ? VERSION_40 : VERSION_51;
+    public static final int current_version = DatabaseDescriptor.getStorageCompatibilityMode().isBefore(5) ? VERSION_40 : VERSION_52;
     static AcceptVersions accept_messaging;
     static AcceptVersions accept_streaming;
     static
