@@ -325,7 +325,9 @@ public class AutoRepair
                         f = repairRunnableExecutors.get(repairType).submit(task);
                         try
                         {
+                            long jobStartTime = timeFunc.get();
                             repairState.waitForRepairToComplete(config.getRepairSessionTimeout(repairType));
+                            soakAfterRepair(jobStartTime, config.getRepairTaskMinDuration().toMilliseconds());
                         }
                         catch (InterruptedException e)
                         {
