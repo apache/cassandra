@@ -168,6 +168,13 @@ public class KeyspaceMetrics
     public final Meter rowIndexSizeAborts;
     public final Histogram rowIndexSize;
 
+    public final Meter bytesAnticompacted;
+    public final Meter bytesMutatedAnticompaction;
+    public final Meter bytesPreviewed;
+    public final Meter tokenRangesPreviewedDesynchronized;
+    public final Meter bytesPreviewedDesynchronized;
+
+
     public final MetricNameFactory factory;
     private Keyspace keyspace;
 
@@ -265,6 +272,12 @@ public class KeyspaceMetrics
         rowIndexSizeWarnings = createKeyspaceMeter("RowIndexSizeWarnings");
         rowIndexSizeAborts = createKeyspaceMeter("RowIndexSizeAborts");
         rowIndexSize = createKeyspaceHistogram("RowIndexSize", false);
+
+        bytesAnticompacted =  createKeyspaceMeter("BytesAnticompacted");
+        bytesMutatedAnticompaction = createKeyspaceMeter("BytesMutatedAnticompaction");
+        bytesPreviewed = createKeyspaceMeter("BytesPreviewed");
+        tokenRangesPreviewedDesynchronized = createKeyspaceMeter("TokenRangesPreviewedDesynchronized");
+        bytesPreviewedDesynchronized = createKeyspaceMeter("BytesPreviewedDesynchronized");
     }
 
     /**

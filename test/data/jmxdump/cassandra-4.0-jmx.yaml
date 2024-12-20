@@ -103362,9 +103362,33 @@ org.apache.cassandra.metrics:type=Table,name=BloomFilterOffHeapMemoryUsed:
   - name: objectName
     parameters: []
     returnType: javax.management.ObjectName
+org.apache.cassandra.metrics:type=Table,name=BytesAnticompacted:
+  attributes:
+  - {access: read-only, name: Count, type: long}
+  - {access: read-only, name: FifteenMinuteRate, type: double}
+  - {access: read-only, name: FiveMinuteRate, type: double}
+  - {access: read-only, name: MeanRate, type: double}
+  - {access: read-only, name: OneMinuteRate, type: double}
+  - {access: read-only, name: RateUnit, type: java.lang.String}
+  operations:
+  - name: objectName
+    parameters: []
+    returnType: javax.management.ObjectName
 org.apache.cassandra.metrics:type=Table,name=BytesFlushed:
   attributes:
   - {access: read-only, name: Value, type: java.lang.Object}
+  operations:
+  - name: objectName
+    parameters: []
+    returnType: javax.management.ObjectName
+org.apache.cassandra.metrics:type=Table,name=BytesMutatedAnticompaction:
+  attributes:
+  - {access: read-only, name: Count, type: long}
+  - {access: read-only, name: FifteenMinuteRate, type: double}
+  - {access: read-only, name: FiveMinuteRate, type: double}
+  - {access: read-only, name: MeanRate, type: double}
+  - {access: read-only, name: OneMinuteRate, type: double}
+  - {access: read-only, name: RateUnit, type: java.lang.String}
   operations:
   - name: objectName
     parameters: []
