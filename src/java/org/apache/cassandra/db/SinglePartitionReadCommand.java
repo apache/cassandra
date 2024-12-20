@@ -494,6 +494,12 @@ public class SinglePartitionReadCommand extends ReadCommand implements SinglePar
 
     protected UnfilteredPartitionIterator queryStorage(final ColumnFamilyStore cfs, ReadExecutionController executionController)
     {
+
+        // TODO: actually retrieve mutation data from disk
+        executionController.summarizer().addForKey(metadata().id, partitionKey);
+        if (responseType() == ResponseType.LOGGED_SUMMARY)
+            return EmptyIterators.unfilteredPartition(metadata());
+
         // skip the row cache and go directly to sstables/memtable if repaired status of
         // data is being tracked. This is only requested after an initial digest mismatch
         UnfilteredRowIterator partition = cfs.isRowCacheEnabled() && !executionController.isTrackingRepairedStatus()

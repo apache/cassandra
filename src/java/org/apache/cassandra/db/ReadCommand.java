@@ -506,6 +506,9 @@ public abstract class ReadCommand extends AbstractReadQuery
                                             .collect(Collectors.joining(",")));
             }
 
+            if (searcher != null && responseType().isLogged())
+                throw new UnsupportedOperationException("TODO: support logged index reads");
+
             UnfilteredPartitionIterator iterator = (null == searcher) ? queryStorage(cfs, executionController) : searcher.search(executionController);
             iterator = RTBoundValidator.validate(iterator, Stage.MERGED, false);
 
