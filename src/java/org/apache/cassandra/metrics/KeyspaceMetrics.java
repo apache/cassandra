@@ -174,7 +174,6 @@ public class KeyspaceMetrics
     public final Meter tokenRangesPreviewedDesynchronized;
     public final Meter bytesPreviewedDesynchronized;
 
-
     public final MetricNameFactory factory;
     private Keyspace keyspace;
 
