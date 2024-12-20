@@ -107,12 +107,11 @@ public class AutoRepairParameterizedTest extends CQLTester
     RepairRunnable repairRunnable;
     private static AutoRepairConfig defaultConfig;
 
-    //system_auth.role_permissions,system_auth.network_permissions,system_auth.role_members,system_auth.roles,
+    // system_auth.role_permissions,system_auth.network_permissions,system_auth.role_members,system_auth.roles,
     // system_auth.resource_role_permissons_index,system_traces.sessions,system_traces.events,ks.tbl,
     // system_distributed.auto_repair_priority,system_distributed.repair_history,system_distributed.auto_repair_history,
     // system_distributed.view_build_status,system_distributed.parent_repair_history,system_distributed.partition_denylist
     private final int expectedTablesGoingThroughRepair = 14;
-
 
     @Parameterized.Parameter()
     public AutoRepairConfig.RepairType repairType;
