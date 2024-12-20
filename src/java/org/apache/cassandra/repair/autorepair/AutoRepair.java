@@ -319,8 +319,8 @@ public class AutoRepair
                     while (retryCount <= config.getRepairMaxRetries())
                     {
                         RepairCoordinator task = repairState.getRepairRunnable(keyspaceName,
-                                                                            Lists.newArrayList(curRepairAssignment.getTableNames()),
-                                                                            ranges, primaryRangeOnly);
+                                                                               Lists.newArrayList(curRepairAssignment.getTableNames()),
+                                                                               ranges, primaryRangeOnly);
                         repairState.resetWaitCondition();
                         f = repairRunnableExecutors.get(repairType).submit(task);
                         try
@@ -487,6 +487,18 @@ public class AutoRepair
     public AutoRepairState getRepairState(AutoRepairConfig.RepairType repairType)
     {
         return repairStates.get(repairType);
+    }
+
+    private void soakAfterRepair(long startTimeMilis, long minDurationMilis)
+    {
+        long currentTime = timeFunc.get();
+        long timeElapsed = currentTime - startTimeMilis;
+        if (timeElapsed < minDurationMilis)
+        {
+            long timeToSoak = minDurationMilis - timeElapsed;
+            logger.info("Soaking for {} ms after repair", timeToSoak);
+            sleepFunc.accept(timeToSoak, TimeUnit.MILLISECONDS);
+        }
     }
 
     static class CollectedRepairStats

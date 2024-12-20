@@ -50,6 +50,8 @@ public interface AutoRepairServiceMBean
 
     public void setAutoRepairRetryBackoff(String interval);
 
+    public void setAutoRepairMinRepairTaskDuration(String duration);
+
     public void setRepairSSTableCountHigherThreshold(RepairType repairType, int ssTableHigherThreshold);
 
     public void setAutoRepairTableMaxRepairTime(RepairType repairType, String autoRepairTableMaxRepairTime);
