@@ -38,7 +38,7 @@ public class MutationTrackingService
         return tracker;
     }
 
-    public static MutationSummarizer summarizerForCommand(ReadCommand command)
+    public static MutationSummarizer summarizerForRead(ReadCommand command)
     {
         if (!command.responseType().isLogged())
             return MutationSummarizer.NOOP;

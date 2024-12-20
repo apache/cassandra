@@ -72,7 +72,7 @@ public class ReadCommandVerbHandler implements IVerbHandler<ReadCommand>
         try (ReadExecutionController controller = command.executionController(message.trackRepairedData());
              UnfilteredPartitionIterator iterator = command.executeLocally(controller))
         {
-            response = command.createResponse(iterator, controller.getRepairedDataInfo());
+            response = command.createResponse(iterator, controller.getRepairedDataInfo(), controller.summarizer().summary());
         }
         catch (RejectException e)
         {
