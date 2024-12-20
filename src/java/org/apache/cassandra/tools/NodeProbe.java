@@ -2200,6 +2200,11 @@ public class NodeProbe implements AutoCloseable
         autoRepairProxy.setAutoRepairRetryBackoff(interval);
     }
 
+    public void setAutoRepairMinRepairTaskDuration(String duration)
+    {
+        autoRepairProxy.setAutoRepairMinRepairTaskDuration(duration);
+    }
+
     public void setRepairSSTableCountHigherThreshold(AutoRepairConfig.RepairType repairType, int ssTableHigherThreshold)
     {
         autoRepairProxy.setRepairSSTableCountHigherThreshold(repairType, ssTableHigherThreshold);

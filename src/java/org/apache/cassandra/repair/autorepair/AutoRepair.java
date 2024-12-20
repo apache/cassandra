@@ -304,7 +304,9 @@ public class AutoRepair
                                         f = repairRunnableExecutors.get(repairType).submit(task);
                                         try
                                         {
+                                            long jobStartTime = timeFunc.get();
                                             repairState.waitForRepairToComplete(config.getRepairSessionTimeout(repairType));
+                                            soakAfterRepair(jobStartTime, config.getRepairTaskMinDuration().toMilliseconds());
                                         }
                                         catch (InterruptedException e)
                                         {
@@ -465,5 +467,17 @@ public class AutoRepair
     public AutoRepairState getRepairState(AutoRepairConfig.RepairType repairType)
     {
         return repairStates.get(repairType);
+    }
+
+    private void soakAfterRepair(long startTimeMilis, long minDurationMilis)
+    {
+        long currentTime = timeFunc.get();
+        long timeElapsed = currentTime - startTimeMilis;
+        if (timeElapsed < minDurationMilis)
+        {
+            long timeToSoak = minDurationMilis - timeElapsed;
+            logger.info("Soaking for {} ms after repair", timeToSoak);
+            sleepFunc.accept(timeToSoak, TimeUnit.MILLISECONDS);
+        }
     }
 }

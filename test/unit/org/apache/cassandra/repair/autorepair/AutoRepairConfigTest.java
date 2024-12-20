@@ -91,13 +91,21 @@ public class AutoRepairConfigTest extends CQLTester
     }
 
     @Test
+    public void testRepairMinDuration()
+    {
+        config = new AutoRepairConfig(false);
+
+        config.setRepairTaskMinDuration("3s");
+        assertEquals(3L, config.getRepairTaskMinDuration().toSeconds());
+    }
+
+    @Test
     public void testIsAutoRepairEnabledReturnsTrueWhenRepairIsDisabledGlobally()
     {
         config = new AutoRepairConfig(false);
         config.global_settings.enabled = true;
         assertFalse(config.isAutoRepairEnabled(repairType));
     }
-
 
     @Test
     public void testIsAutoRepairEnabledReturnsTrueWhenRepairIsDisabledForRepairType()
