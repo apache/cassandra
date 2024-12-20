@@ -19,10 +19,12 @@ package org.apache.cassandra.repair.autorepair;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.UUID;
@@ -32,6 +34,9 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.MoreObjects;
 import com.google.common.collect.Lists;
 
+import org.apache.cassandra.dht.Range;
+import org.apache.cassandra.dht.Splitter;
+import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.locator.LocalStrategy;
 
 import org.slf4j.Logger;
@@ -68,6 +73,7 @@ import org.apache.cassandra.transport.messages.ResultMessage;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.repair.autorepair.AutoRepairConfig.RepairType;
+import org.apache.cassandra.utils.NoSpamLogger;
 
 import static org.apache.cassandra.repair.autorepair.AutoRepairUtils.RepairTurn.MY_TURN;
 import static org.apache.cassandra.repair.autorepair.AutoRepairUtils.RepairTurn.MY_TURN_DUE_TO_PRIORITY;
@@ -573,12 +579,8 @@ public class AutoRepairUtils
                     }
                 }
 
-                // get the longest unrepaired node from the nodes which are not running repair
-                AutoRepairHistory defaultNodeToBeRepaired = getHostWithLongestUnrepairTime(currentRepairStatus.historiesWithoutOnGoingRepair);
-                //check who is next, which is helpful for debugging
-                logger.info("Next node to be repaired for repair type {} by default: {}", repairType, defaultNodeToBeRepaired);
                 UUID priorityHostId = null;
-                if (currentRepairStatus.priority != null)
+                if (currentRepairStatus != null && currentRepairStatus.priority != null)
                 {
                     for (UUID priorityID : currentRepairStatus.priority)
                     {
@@ -609,8 +611,14 @@ public class AutoRepairUtils
                     return MY_TURN_DUE_TO_PRIORITY;
                 }
 
-                if (defaultNodeToBeRepaired.hostId.equals(myId))
+                // get the longest unrepaired node from the nodes which are not running repair
+                AutoRepairHistory defaultNodeToBeRepaired = getHostWithLongestUnrepairTime(currentRepairStatus.historiesWithoutOnGoingRepair);
+                //check who is next, which is helpful for debugging
+                logger.info("Next node to be repaired for repair type {} by default: {}", repairType, defaultNodeToBeRepaired);
+                if (defaultNodeToBeRepaired != null && defaultNodeToBeRepaired.hostId.equals(myId))
+                {
                     return MY_TURN;
+                }
             }
             else if (currentRepairStatus.hostIdsWithOnGoingForceRepair.contains(myId))
             {
@@ -777,24 +785,30 @@ public class AutoRepairUtils
         return hosts;
     }
 
-    public static boolean checkNodeContainsKeyspaceReplica(Keyspace ks)
+    public static boolean shouldConsiderKeyspace(Keyspace ks)
     {
         AbstractReplicationStrategy replicationStrategy = ks.getReplicationStrategy();
-        boolean ksReplicaOnNode = true;
+        boolean repair = true;
         if (replicationStrategy instanceof NetworkTopologyStrategy)
         {
             Set<String> datacenters = ((NetworkTopologyStrategy) replicationStrategy).getDatacenters();
             String localDC = DatabaseDescriptor.getEndpointSnitch().getDatacenter(FBUtilities.getBroadcastAddressAndPort());
             if (!datacenters.contains(localDC))
             {
-                ksReplicaOnNode = false;
+                repair = false;
             }
         }
         if (replicationStrategy instanceof LocalStrategy)
         {
-            ksReplicaOnNode = false;
+            repair = false;
         }
-        return ksReplicaOnNode;
+        if (ks.getName().equalsIgnoreCase(SchemaConstants.TRACE_KEYSPACE_NAME))
+        {
+            // by default, ignore the tables under system_traces as they do not have
+            // that much important data
+            repair = false;
+        }
+        return repair;
     }
 
 
@@ -827,5 +841,21 @@ public class AutoRepairUtils
             }
         }
         return allMvs;
+    }
+
+    public static Collection<Range<Token>> split(Range<Token> tokenRange, int numberOfSplits)
+    {
+        Collection<Range<Token>> ranges;
+        Optional<Splitter> splitter = DatabaseDescriptor.getPartitioner().splitter();
+        if (!splitter.isPresent())
+        {
+            NoSpamLogger.log(logger, NoSpamLogger.Level.WARN, 30, TimeUnit.MINUTES, "Partitioner {} does not support splitting, falling back to splitting by token range", DatabaseDescriptor.getPartitioner());
+            ranges = Collections.singleton(tokenRange);
+        }
+        else
+        {
+            ranges = splitter.get().split(Collections.singleton(tokenRange), numberOfSplits);
+        }
+        return ranges;
     }
 }

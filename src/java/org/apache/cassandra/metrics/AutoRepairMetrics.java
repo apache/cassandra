@@ -38,7 +38,7 @@ public class AutoRepairMetrics
     public Gauge<Integer> succeededTokenRangesCount;
     public Gauge<Integer> failedTokenRangesCount;
     public Gauge<Integer> skippedTokenRangesCount;
-
+    public Gauge<Integer> skippedTablesCount;
     public Counter repairTurnMyTurn;
     public Counter repairTurnMyTurnDueToPriority;
     public Counter repairTurnMyTurnForceRepair;
@@ -80,6 +80,15 @@ public class AutoRepairMetrics
                 return AutoRepair.instance.getRepairState(repairType).getSkippedTokenRangesCount();
             }
         });
+
+        skippedTablesCount = Metrics.register(factory.createMetricName("SkippedTablesCount"), new Gauge<Integer>()
+        {
+            public Integer getValue()
+            {
+                return AutoRepair.instance.getRepairState(repairType).getSkippedTablesCount();
+            }
+        });
+
 
         longestUnrepairedSec = Metrics.register(factory.createMetricName("LongestUnrepairedSec"), new Gauge<Integer>()
         {

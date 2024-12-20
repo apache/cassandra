@@ -3641,6 +3641,16 @@ public class DatabaseDescriptor
         conf.materialized_views_enabled = enableMaterializedViews;
     }
 
+    public static boolean isMaterializedViewsOnRepairEnabled()
+    {
+        return conf.materialized_views_on_repair_enabled;
+    }
+
+    public static void setMaterializedViewsOnRepairEnabled(boolean val)
+    {
+        conf.materialized_views_on_repair_enabled = val;
+    }
+
     public static boolean getSASIIndexesEnabled()
     {
         return conf.sasi_indexes_enabled;
@@ -3736,6 +3746,16 @@ public class DatabaseDescriptor
     public static void setCDCBlockWrites(boolean val)
     {
         conf.cdc_block_writes = val;
+    }
+
+    public static boolean isCDCOnRepairEnabled()
+    {
+        return conf.cdc_on_repair_enabled;
+    }
+
+    public static void setCDCOnRepairEnabled(boolean val)
+    {
+        conf.cdc_on_repair_enabled = val;
     }
 
     public static String getCDCLogLocation()
@@ -4530,5 +4550,11 @@ public class DatabaseDescriptor
     public static void setIncrementalRepairDiskHeadroomRejectRatio(double value)
     {
         conf.incremental_repair_disk_headroom_reject_ratio = value;
+    }
+
+    @VisibleForTesting
+    public static void setInitialTokens(String initial_token)
+    {
+        conf.initial_token = initial_token;
     }
 }

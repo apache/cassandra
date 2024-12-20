@@ -17,7 +17,6 @@
  */
 package org.apache.cassandra.service;
 
-import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.DurationSpec;
 import org.apache.cassandra.exceptions.ConfigurationException;
@@ -63,14 +62,14 @@ public class AutoRepairService implements AutoRepairServiceMBean
         if (!config.isAutoRepairSchedulingEnabled())
             throw new ConfigurationException("Auto-repair scheduller is disabled.");
 
-        if (repairType != RepairType.incremental)
+        if (repairType != RepairType.INCREMENTAL)
             return;
 
-        if (CassandraRelevantProperties.STREAMING_REQUIRES_VIEW_BUILD_DURING_REPAIR.getBoolean())
-            throw new ConfigurationException("Cannot run incremental repair while materialized view replay is enabled.");
+        if (DatabaseDescriptor.isMaterializedViewsOnRepairEnabled())
+            throw new ConfigurationException("Cannot run incremental repair while materialized view replay is enabled. Set materialized_views_on_repair_enabled to false.");
 
-        if (CassandraRelevantProperties.STREAMING_REQUIRES_CDC_REPLAY.getBoolean())
-            throw new ConfigurationException("Cannot run incremental repair while CDC replay is enabled.");
+        if (DatabaseDescriptor.isCDCOnRepairEnabled())
+            throw new ConfigurationException("Cannot run incremental repair while CDC replay is enabled. Set cdc_on_repair_enabled to false.");
     }
 
     @Override
@@ -121,6 +120,12 @@ public class AutoRepairService implements AutoRepairServiceMBean
         config.setRepairMinInterval(repairType, minRepairInterval);
     }
 
+    @Override
+    public void startScheduler()
+    {
+        config.startScheduler();
+    }
+
     public void setAutoRepairHistoryClearDeleteHostsBufferDuration(String duration)
     {
         config.setAutoRepairHistoryClearDeleteHostsBufferInterval(duration);
@@ -169,15 +174,15 @@ public class AutoRepairService implements AutoRepairServiceMBean
     }
 
     @Override
-    public void setParallelRepairPercentageInGroup(RepairType repairType, int percentageInGroup)
+    public void setParallelRepairPercentage(RepairType repairType, int percentage)
     {
-        config.setParallelRepairPercentage(repairType, percentageInGroup);
+        config.setParallelRepairPercentage(repairType, percentage);
     }
 
     @Override
-    public void setParallelRepairCountInGroup(RepairType repairType, int countInGroup)
+    public void setParallelRepairCount(RepairType repairType, int count)
     {
-        config.setParallelRepairCount(repairType, countInGroup);
+        config.setParallelRepairCount(repairType, count);
     }
 
     public void setMVRepairEnabled(RepairType repairType, boolean enabled)

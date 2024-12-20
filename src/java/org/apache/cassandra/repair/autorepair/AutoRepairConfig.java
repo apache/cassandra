@@ -19,25 +19,26 @@
 package org.apache.cassandra.repair.autorepair;
 
 import java.io.Serializable;
-import java.util.ArrayList;
-import java.util.EnumMap;
+import java.util.Collections;
 import java.util.HashSet;
-import java.util.Map;
-import java.util.Objects;
-import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.ConcurrentMap;
 import java.util.function.Function;
 
+import javax.annotation.Nonnull;
+
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.collect.Maps;
 
 import org.apache.cassandra.config.DurationSpec;
+import org.apache.cassandra.config.ParameterizedClass;
 
 public class AutoRepairConfig implements Serializable
 {
     // enable/disable auto repair globally, overrides all other settings. Cannot be modified dynamically.
     // if it is set to false, then no repair will be scheduled, including full and incremental repairs by this framework.
     // if it is set to true, then this repair scheduler will consult another config available for each RepairType, and based on that config, it will schedule repairs.
-    public final Boolean enabled;
+    public volatile Boolean enabled;
     // the interval between successive checks for repair scheduler to check if either the ongoing repair is completed or if
     // none is going, then check if it's time to schedule or wait
     public final DurationSpec.IntSecondsBound repair_check_interval = new DurationSpec.IntSecondsBound("5m");
@@ -60,19 +61,40 @@ public class AutoRepairConfig implements Serializable
 
     public enum RepairType implements Serializable
     {
-        full,
-        incremental,
-        preview_repaired;
+        FULL,
+        INCREMENTAL,
+        PREVIEW_REPAIRED;
+
+        private final String configName;
+
+        RepairType()
+        {
+            this.configName = name().toLowerCase();
+        }
+
+        RepairType(String configName)
+        {
+            this.configName = configName;
+        }
+
+        /**
+         * @return Format of the repair type as it should be represented in configuration.
+         * Canonically this is the enum name in lowerCase.
+         */
+        public String getConfigName()
+        {
+            return configName;
+        }
 
         public static AutoRepairState getAutoRepairState(RepairType repairType)
         {
             switch (repairType)
             {
-                case full:
+                case FULL:
                     return new FullRepairState();
-                case incremental:
+                case INCREMENTAL:
                     return new IncrementalRepairState();
-                case preview_repaired:
+                case PREVIEW_REPAIRED:
                      return new PreviewRepairedState();
             }
 
@@ -80,8 +102,9 @@ public class AutoRepairConfig implements Serializable
         }
     }
 
-    // repair_type_overrides overrides the global_settings for a specific repair type
-    public volatile Map<RepairType, Options> repair_type_overrides = new EnumMap<>(RepairType.class);
+    // repair_type_overrides overrides the global_settings for a specific repair type.  String used as key instead
+    // of enum to allow lower case key in yaml.
+    public volatile ConcurrentMap<String, Options> repair_type_overrides = Maps.newConcurrentMap();
 
     public AutoRepairConfig()
     {
@@ -92,10 +115,6 @@ public class AutoRepairConfig implements Serializable
     {
         this.enabled = enabled;
         global_settings = Options.getDefaultOptions();
-        for (RepairType type : RepairType.values())
-        {
-            repair_type_overrides.put(type, new Options());
-        }
     }
 
     public DurationSpec.IntSecondsBound getRepairCheckInterval()
@@ -111,6 +130,12 @@ public class AutoRepairConfig implements Serializable
     public DurationSpec.IntSecondsBound getAutoRepairHistoryClearDeleteHostsBufferInterval()
     {
         return history_clear_delete_hosts_buffer_interval;
+    }
+
+    public void startScheduler()
+    {
+        enabled = true;
+        AutoRepair.instance.setup();
     }
 
     public void setAutoRepairHistoryClearDeleteHostsBufferInterval(String duration)
@@ -155,14 +180,12 @@ public class AutoRepairConfig implements Serializable
 
     public void setAutoRepairEnabled(RepairType repairType, boolean enabled)
     {
-        ensureOverrides(repairType);
-        repair_type_overrides.get(repairType).enabled = enabled;
+        getOptions(repairType).enabled = enabled;
     }
 
     public void setRepairByKeyspace(RepairType repairType, boolean repairByKeyspace)
     {
-        ensureOverrides(repairType);
-        repair_type_overrides.get(repairType).repair_by_keyspace = repairByKeyspace;
+        getOptions(repairType).repair_by_keyspace = repairByKeyspace;
     }
 
     public boolean getRepairByKeyspace(RepairType repairType)
@@ -177,8 +200,7 @@ public class AutoRepairConfig implements Serializable
 
     public void setRepairThreads(RepairType repairType, int repairThreads)
     {
-        ensureOverrides(repairType);
-        repair_type_overrides.get(repairType).number_of_repair_threads = repairThreads;
+        getOptions(repairType).number_of_repair_threads = repairThreads;
     }
 
     public int getRepairSubRangeNum(RepairType repairType)
@@ -188,8 +210,7 @@ public class AutoRepairConfig implements Serializable
 
     public void setRepairSubRangeNum(RepairType repairType, int repairSubRanges)
     {
-        ensureOverrides(repairType);
-        repair_type_overrides.get(repairType).number_of_subranges = repairSubRanges;
+        getOptions(repairType).number_of_subranges = repairSubRanges;
     }
 
     public DurationSpec.IntSecondsBound getRepairMinInterval(RepairType repairType)
@@ -199,8 +220,7 @@ public class AutoRepairConfig implements Serializable
 
     public void setRepairMinInterval(RepairType repairType, String minRepairInterval)
     {
-        ensureOverrides(repairType);
-        repair_type_overrides.get(repairType).min_repair_interval = new DurationSpec.IntSecondsBound(minRepairInterval);
+        getOptions(repairType).min_repair_interval = new DurationSpec.IntSecondsBound(minRepairInterval);
     }
 
     public int getRepairSSTableCountHigherThreshold(RepairType repairType)
@@ -210,8 +230,7 @@ public class AutoRepairConfig implements Serializable
 
     public void setRepairSSTableCountHigherThreshold(RepairType repairType, int sstableHigherThreshold)
     {
-        ensureOverrides(repairType);
-        repair_type_overrides.get(repairType).sstable_upper_threshold = sstableHigherThreshold;
+        getOptions(repairType).sstable_upper_threshold = sstableHigherThreshold;
     }
 
     public DurationSpec.IntSecondsBound getAutoRepairTableMaxRepairTime(RepairType repairType)
@@ -221,8 +240,7 @@ public class AutoRepairConfig implements Serializable
 
     public void setAutoRepairTableMaxRepairTime(RepairType repairType, String autoRepairTableMaxRepairTime)
     {
-        ensureOverrides(repairType);
-        repair_type_overrides.get(repairType).table_max_repair_time = new DurationSpec.IntSecondsBound(autoRepairTableMaxRepairTime);
+        getOptions(repairType).table_max_repair_time = new DurationSpec.IntSecondsBound(autoRepairTableMaxRepairTime);
     }
 
     public Set<String> getIgnoreDCs(RepairType repairType)
@@ -232,8 +250,7 @@ public class AutoRepairConfig implements Serializable
 
     public void setIgnoreDCs(RepairType repairType, Set<String> ignoreDCs)
     {
-        ensureOverrides(repairType);
-        repair_type_overrides.get(repairType).ignore_dcs = ignoreDCs;
+        getOptions(repairType).ignore_dcs = ignoreDCs;
     }
 
     public boolean getRepairPrimaryTokenRangeOnly(RepairType repairType)
@@ -243,8 +260,7 @@ public class AutoRepairConfig implements Serializable
 
     public void setRepairPrimaryTokenRangeOnly(RepairType repairType, boolean primaryTokenRangeOnly)
     {
-        ensureOverrides(repairType);
-        repair_type_overrides.get(repairType).repair_primary_token_range_only = primaryTokenRangeOnly;
+        getOptions(repairType).repair_primary_token_range_only = primaryTokenRangeOnly;
     }
 
     public int getParallelRepairPercentage(RepairType repairType)
@@ -254,8 +270,7 @@ public class AutoRepairConfig implements Serializable
 
     public void setParallelRepairPercentage(RepairType repairType, int percentage)
     {
-        ensureOverrides(repairType);
-        repair_type_overrides.get(repairType).parallel_repair_percentage = percentage;
+        getOptions(repairType).parallel_repair_percentage = percentage;
     }
 
     public int getParallelRepairCount(RepairType repairType)
@@ -265,8 +280,7 @@ public class AutoRepairConfig implements Serializable
 
     public void setParallelRepairCount(RepairType repairType, int count)
     {
-        ensureOverrides(repairType);
-        repair_type_overrides.get(repairType).parallel_repair_count = count;
+        getOptions(repairType).parallel_repair_count = count;
     }
 
     public boolean getMVRepairEnabled(RepairType repairType)
@@ -276,14 +290,12 @@ public class AutoRepairConfig implements Serializable
 
     public void setMVRepairEnabled(RepairType repairType, boolean enabled)
     {
-        ensureOverrides(repairType);
-        repair_type_overrides.get(repairType).mv_repair_enabled = enabled;
+        getOptions(repairType).mv_repair_enabled = enabled;
     }
 
     public void setForceRepairNewNode(RepairType repairType, boolean forceRepairNewNode)
     {
-        ensureOverrides(repairType);
-        repair_type_overrides.get(repairType).force_repair_new_node = forceRepairNewNode;
+        getOptions(repairType).force_repair_new_node = forceRepairNewNode;
     }
 
     public boolean getForceRepairNewNode(RepairType repairType)
@@ -291,15 +303,14 @@ public class AutoRepairConfig implements Serializable
         return applyOverrides(repairType, opt -> opt.force_repair_new_node);
     }
 
-    public String getTokenRangeSplitter(RepairType repairType)
+    public ParameterizedClass getTokenRangeSplitter(RepairType repairType)
     {
         return applyOverrides(repairType, opt -> opt.token_range_splitter);
     }
 
     public void setInitialSchedulerDelay(RepairType repairType, String initialSchedulerDelay)
     {
-        ensureOverrides(repairType);
-        repair_type_overrides.get(repairType).initial_scheduler_delay = new DurationSpec.IntSecondsBound(initialSchedulerDelay);
+        getOptions(repairType).initial_scheduler_delay = new DurationSpec.IntSecondsBound(initialSchedulerDelay);
     }
 
     public DurationSpec.IntSecondsBound getInitialSchedulerDelay(RepairType repairType)
@@ -314,8 +325,7 @@ public class AutoRepairConfig implements Serializable
 
     public void setRepairSessionTimeout(RepairType repairType, String repairSessionTimeout)
     {
-        ensureOverrides(repairType);
-        repair_type_overrides.get(repairType).repair_session_timeout = new DurationSpec.IntSecondsBound(repairSessionTimeout);
+        getOptions(repairType).repair_session_timeout = new DurationSpec.IntSecondsBound(repairSessionTimeout);
     }
 
     // Options configures auto-repair behavior for a given repair type.
@@ -348,7 +358,7 @@ public class AutoRepairConfig implements Serializable
             opts.force_repair_new_node = false;
             opts.table_max_repair_time = new DurationSpec.IntSecondsBound("6h");
             opts.mv_repair_enabled = false;
-            opts.token_range_splitter = DefaultAutoRepairTokenSplitter.class.getName();
+            opts.token_range_splitter = new ParameterizedClass(DefaultAutoRepairTokenSplitter.class.getName(), Collections.emptyMap());
             opts.initial_scheduler_delay = new DurationSpec.IntSecondsBound("5m"); // 5 minutes
             opts.repair_session_timeout = new DurationSpec.IntSecondsBound("3h"); // 3 hours
 
@@ -412,9 +422,9 @@ public class AutoRepairConfig implements Serializable
         // the default is 'true'.
         // This flag determines whether the auto-repair framework needs to run anti-entropy, a.k.a, repair on the MV table or not.
         public volatile Boolean mv_repair_enabled;
-        // the default is DefaultAutoRepairTokenSplitter.class.getName(). The class should implement IAutoRepairTokenRangeSplitter.
+        // the default is DefaultAutoRepairTokenSplitter. The class should implement IAutoRepairTokenRangeSplitter.
         // The default implementation splits the tokens based on the token ranges owned by this node divided by the number of 'number_of_subranges'
-        public volatile String token_range_splitter;
+        public volatile ParameterizedClass token_range_splitter;
         // the minimum delay after a node starts before the scheduler starts running repair
         public volatile DurationSpec.IntSecondsBound initial_scheduler_delay;
         // repair session timeout - this is applicable for each repair session
@@ -444,31 +454,37 @@ public class AutoRepairConfig implements Serializable
         }
     }
 
+    @Nonnull
+    protected Options getOptions(RepairType repairType)
+    {
+        return repair_type_overrides.computeIfAbsent(repairType.getConfigName(), k -> new Options());
+    }
+
+    private static <T> T getOverride(Options options, Function<Options, T> optionSupplier)
+    {
+        return options != null ? optionSupplier.apply(options) : null;
+    }
+
     @VisibleForTesting
     protected <T> T applyOverrides(RepairType repairType, Function<Options, T> optionSupplier)
     {
-        ArrayList<Options> optsProviders = new ArrayList<>();
-        if (repair_type_overrides != null)
-        {
-            optsProviders.add(repair_type_overrides.get(repairType));
-        }
-        optsProviders.add(global_settings);
-        optsProviders.add(Options.defaultOptions);
+        // Check option by repair type first
+        Options repairTypeOverrides = getOptions(repairType);
+        T val = optionSupplier.apply(repairTypeOverrides);
 
-        return optsProviders.stream()
-                            .map(opt -> Optional.ofNullable(opt).map(optionSupplier).orElse(null))
-                            .filter(Objects::nonNull)
-                            .findFirst()
-                            .orElse(null);
-    }
+        if (val != null)
+            return val;
 
-    protected void ensureOverrides(RepairType repairType)
-    {
-        if (repair_type_overrides == null)
+        // Check option in global settings
+        if (global_settings != null)
         {
-            repair_type_overrides = new EnumMap<>(RepairType.class);
+            val = getOverride(global_settings, optionSupplier);
+
+            if (val != null)
+                return val;
         }
 
-        repair_type_overrides.computeIfAbsent(repairType, k -> new Options());
+        // Otherwise check defaults
+        return getOverride(Options.defaultOptions, optionSupplier);
     }
 }

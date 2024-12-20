@@ -70,7 +70,7 @@ import static org.mockito.Mockito.when;
 
 public class AutoRepairUtilsTest extends CQLTester
 {
-    static RepairType repairType = RepairType.incremental;
+    static RepairType repairType = RepairType.INCREMENTAL;
     static UUID hostId;
 
     static InetAddressAndPort localEndpoint;
@@ -430,7 +430,7 @@ public class AutoRepairUtilsTest extends CQLTester
     {
         Keyspace ks = Keyspace.open("ks");
 
-        assertTrue(AutoRepairUtils.checkNodeContainsKeyspaceReplica(ks));
+        assertTrue(AutoRepairUtils.shouldConsiderKeyspace(ks));
     }
 
     @Test
@@ -479,8 +479,8 @@ public class AutoRepairUtilsTest extends CQLTester
     @Test
     public void testLocalStrategyAndNetworkKeyspace()
     {
-        assertFalse(AutoRepairUtils.checkNodeContainsKeyspaceReplica(Keyspace.open("system")));
-        assertTrue(AutoRepairUtils.checkNodeContainsKeyspaceReplica(Keyspace.open(KEYSPACE)));
+        assertFalse(AutoRepairUtils.shouldConsiderKeyspace(Keyspace.open("system")));
+        assertTrue(AutoRepairUtils.shouldConsiderKeyspace(Keyspace.open(KEYSPACE)));
     }
 
     @Test
@@ -501,5 +501,11 @@ public class AutoRepairUtilsTest extends CQLTester
         UUID myID = UUID.randomUUID();
 
         assertEquals(0, AutoRepairUtils.getLastRepairTimeForNode(repairType, myID));
+    }
+
+    @Test
+    public void testSkipSystemTraces()
+    {
+        assertFalse(AutoRepairUtils.shouldConsiderKeyspace(Keyspace.open(SchemaConstants.TRACE_KEYSPACE_NAME)));
     }
 }

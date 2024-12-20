@@ -2190,6 +2190,11 @@ public class NodeProbe implements AutoCloseable
         autoRepairProxy.setAutoRepairHistoryClearDeleteHostsBufferDuration(duration);
     }
 
+    public void startScheduler()
+    {
+        autoRepairProxy.startScheduler();
+    }
+
     public void setAutoRepairMaxRetriesCount(int retries)
     {
         autoRepairProxy.setAutoRepairMaxRetriesCount(retries);
@@ -2220,12 +2225,12 @@ public class NodeProbe implements AutoCloseable
         autoRepairProxy.setIgnoreDCs(repairType, ignoreDCs);
     }
 
-    public void setParallelRepairPercentageInGroup(AutoRepairConfig.RepairType repairType, int percentageInGroup) {
-        autoRepairProxy.setParallelRepairPercentageInGroup(repairType, percentageInGroup);
+    public void setParallelRepairPercentage(AutoRepairConfig.RepairType repairType, int percentage) {
+        autoRepairProxy.setParallelRepairPercentage(repairType, percentage);
     }
 
-    public void setParallelRepairCountInGroup(AutoRepairConfig.RepairType repairType, int countInGroup) {
-        autoRepairProxy.setParallelRepairCountInGroup(repairType, countInGroup);
+    public void setParallelRepairCount(AutoRepairConfig.RepairType repairType, int count) {
+        autoRepairProxy.setParallelRepairCount(repairType, count);
     }
 
     public void setPrimaryTokenRangeOnly(AutoRepairConfig.RepairType repairType, boolean primaryTokenRangeOnly)

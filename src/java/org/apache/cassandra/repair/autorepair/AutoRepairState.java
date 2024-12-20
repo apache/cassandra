@@ -88,6 +88,10 @@ public abstract class AutoRepairState implements ProgressListener
     protected int succeededTokenRangesCount = 0;
     @VisibleForTesting
     protected int skippedTokenRangesCount = 0;
+
+    @VisibleForTesting
+    protected int skippedTablesCount = 0;
+
     @VisibleForTesting
     protected AutoRepairHistory longestUnrepairedNode;
     @VisibleForTesting
@@ -260,6 +264,16 @@ public abstract class AutoRepairState implements ProgressListener
         return skippedTokenRangesCount;
     }
 
+    public void setSkippedTablesCount(int count)
+    {
+        skippedTablesCount = count;
+    }
+
+    public int getSkippedTablesCount()
+    {
+        return skippedTablesCount;
+    }
+
     public boolean isSuccess()
     {
         return success;
@@ -290,7 +304,7 @@ class PreviewRepairedState extends AutoRepairState
 {
     public PreviewRepairedState()
     {
-        super(RepairType.preview_repaired);
+        super(RepairType.PREVIEW_REPAIRED);
     }
 
     @Override
@@ -310,7 +324,7 @@ class IncrementalRepairState extends AutoRepairState
 {
     public IncrementalRepairState()
     {
-        super(RepairType.incremental);
+        super(RepairType.INCREMENTAL);
     }
 
     @Override
@@ -355,7 +369,7 @@ class FullRepairState extends AutoRepairState
 {
     public FullRepairState()
     {
-        super(RepairType.full);
+        super(RepairType.FULL);
     }
 
     @Override

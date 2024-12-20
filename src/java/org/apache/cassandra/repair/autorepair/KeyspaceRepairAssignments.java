@@ -15,21 +15,39 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 package org.apache.cassandra.repair.autorepair;
 
-import java.util.Iterator;
 import java.util.List;
 
-public interface IAutoRepairTokenRangeSplitter
+/**
+ * A grouping of repair assignments that were generated for a particular keyspace for a given priority.
+ */
+public class KeyspaceRepairAssignments
 {
+    private final int priority;
+    private final String keyspaceName;
+    private final List<RepairAssignment> repairAssignments;
 
-    /**
-     * Split the token range you wish to repair into multiple assignments.
-     * The autorepair framework will repair the list of returned subrange in a sequence.
-     * @param repairType The type of repair being executed
-     * @param primaryRangeOnly Whether to repair only this node's primary ranges or all of its ranges.
-     * @param repairPlans A list of ordered prioritized repair plans to generate assignments for in order.
-     * @return Iterator of repair assignments, with each element representing a grouping of repair assignments for a given keyspace.
-     */
-    Iterator<KeyspaceRepairAssignments> getRepairAssignments(AutoRepairConfig.RepairType repairType, boolean primaryRangeOnly, List<PrioritizedRepairPlan> repairPlans);
+    public KeyspaceRepairAssignments(int priority, String keyspaceName, List<RepairAssignment> repairAssignments)
+    {
+        this.priority = priority;
+        this.keyspaceName = keyspaceName;
+        this.repairAssignments = repairAssignments;
+    }
+
+    public int getPriority()
+    {
+        return priority;
+    }
+
+    public String getKeyspaceName()
+    {
+        return keyspaceName;
+    }
+
+    public List<RepairAssignment> getRepairAssignments()
+    {
+        return repairAssignments;
+    }
 }
