@@ -18,6 +18,12 @@
 
 package org.apache.cassandra.replication;
 
+import java.io.IOException;
+
+import org.apache.cassandra.dht.IPartitioner;
+import org.apache.cassandra.io.util.DataInputPlus;
+import org.apache.cassandra.io.util.DataOutputPlus;
+import org.apache.cassandra.replication.simple.SimpleMutationSummary;
 import org.apache.cassandra.replication.simple.SimpleMutationTracker;
 
 public class MutationTrackingService
@@ -30,4 +36,25 @@ public class MutationTrackingService
     {
         return tracker;
     }
+
+    public static final MutationSummary.Serializer<MutationSummary> summarySerializer = new MutationSummary.Serializer<MutationSummary>()
+    {
+        @Override
+        public void serialize(MutationSummary summary, DataOutputPlus out, int version) throws IOException
+        {
+            SimpleMutationSummary.serializer.serialize((SimpleMutationSummary) summary, out, version);
+        }
+
+        @Override
+        public MutationSummary deserialize(IPartitioner partitioner, DataInputPlus in, int version) throws IOException
+        {
+            return SimpleMutationSummary.serializer.deserialize(partitioner, in, version);
+        }
+
+        @Override
+        public long serializedSize(MutationSummary summary, int version)
+        {
+            return SimpleMutationSummary.serializer.serializedSize((SimpleMutationSummary) summary, version);
+        }
+    };
 }
