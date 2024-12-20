@@ -784,7 +784,6 @@ public class AutoRepairParameterizedTest extends CQLTester
         }
     }
 
-
     @Test
     public void testSoakAfterImmediateRepair()
     {
