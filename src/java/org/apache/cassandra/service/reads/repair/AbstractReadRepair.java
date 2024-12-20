@@ -41,16 +41,17 @@ import org.apache.cassandra.metrics.ReadRepairMetrics;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.service.StorageProxy;
-import org.apache.cassandra.service.reads.legacy.DataResolver;
-import org.apache.cassandra.service.reads.legacy.DigestResolver;
 import org.apache.cassandra.service.reads.ReadCallback;
+import org.apache.cassandra.service.reads.ResponseResolver;
+import org.apache.cassandra.service.reads.legacy.DataResolver;
+import org.apache.cassandra.service.reads.legacy.LegacyReadRepair;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.transport.Dispatcher;
 
 import static java.util.concurrent.TimeUnit.MICROSECONDS;
 
 public abstract class AbstractReadRepair<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<E, P>>
-        implements ReadRepair<E, P>
+implements LegacyReadRepair<E, P>
 {
     protected static final Logger logger = LoggerFactory.getLogger(AbstractReadRepair.class);
 
@@ -123,7 +124,7 @@ public abstract class AbstractReadRepair<E extends Endpoints<E>, P extends Repli
     abstract Meter getRepairMeter();
 
     // digestResolver isn't used here because we resend read requests to all participants
-    public void startRepair(DigestResolver<E, P> digestResolver, Consumer<PartitionIterator> resultConsumer)
+    public void startRepair(ResponseResolver<E, P> digestResolver, Consumer<PartitionIterator> resultConsumer)
     {
         getRepairMeter().mark();
 
