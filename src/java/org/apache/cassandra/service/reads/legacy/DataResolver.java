@@ -54,7 +54,6 @@ import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.reads.IReadResponse;
 import org.apache.cassandra.service.reads.ShortReadProtection;
 import org.apache.cassandra.service.reads.repair.NoopReadRepair;
-import org.apache.cassandra.service.reads.repair.ReadRepair;
 import org.apache.cassandra.service.reads.repair.RepairedDataTracker;
 import org.apache.cassandra.service.reads.repair.RepairedDataVerifier;
 import org.apache.cassandra.transport.Dispatcher;
@@ -64,15 +63,15 @@ import static com.google.common.collect.Iterables.*;
 public class DataResolver<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<E, P>> extends LegacyResolver<E, P>
 {
     private final boolean enforceStrictLiveness;
-    private final ReadRepair<E, P> readRepair;
+    private final LegacyReadRepair<E, P> readRepair;
     private final boolean trackRepairedStatus;
 
-    public DataResolver(ReadCommand command, Supplier<? extends P> replicaPlan, ReadRepair<E, P> readRepair, Dispatcher.RequestTime requestTime)
+    public DataResolver(ReadCommand command, Supplier<? extends P> replicaPlan, LegacyReadRepair<E, P> readRepair, Dispatcher.RequestTime requestTime)
     {
         this(command, replicaPlan, readRepair, requestTime, false);
     }
 
-    public DataResolver(ReadCommand command, Supplier<? extends P> replicaPlan, ReadRepair<E, P> readRepair, Dispatcher.RequestTime requestTime, boolean trackRepairedStatus)
+    public DataResolver(ReadCommand command, Supplier<? extends P> replicaPlan, LegacyReadRepair<E, P> readRepair, Dispatcher.RequestTime requestTime, boolean trackRepairedStatus)
     {
         super(command, replicaPlan, requestTime);
         this.enforceStrictLiveness = command.metadata().enforceStrictLiveness();
