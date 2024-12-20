@@ -1,4 +1,5 @@
 4.1.12
+ * IndexSummaryRedistribution should unmark compacting SSTables in batch (CASSANDRA-20159)
  * Harden data resurrection startup check with atomic heartbeat file write with fallback (CASSANDRA-21290)
 
 4.1.11
