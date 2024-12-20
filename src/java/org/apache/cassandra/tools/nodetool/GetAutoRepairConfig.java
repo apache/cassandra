@@ -49,6 +49,7 @@ public class GetAutoRepairConfig extends NodeToolCmd
         sb.append("\n\tTTL for repair history for dead nodes: " + config.getAutoRepairHistoryClearDeleteHostsBufferInterval());
         sb.append("\n\tmax retries for repair: " + config.getRepairMaxRetries());
         sb.append("\n\tretry backoff: " + config.getRepairRetryBackoff());
+        sb.append("\n\tmin repair job duration: " + config.getRepairTaskMinDuration().toSeconds() + " seconds");
         for (RepairType repairType : RepairType.values())
         {
             sb.append(formatRepairTypeConfig(probe, repairType, config));

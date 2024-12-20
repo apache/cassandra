@@ -52,6 +52,10 @@ public class AutoRepairConfig implements Serializable
     public volatile Integer repair_max_retries = 3;
     // the backoff time in seconds for retrying a repair session.
     public volatile DurationSpec.LongSecondsBound repair_retry_backoff = new DurationSpec.LongSecondsBound("30s");
+    // the minimum duration for the execution of a single repair task (i.e.: RepairRunnable).
+    // This helps prevent the auto-repair scheduler from overwhelming the node by scheduling a large number of
+    // repair tasks in a short period of time.
+    public volatile DurationSpec.LongSecondsBound repair_task_min_duration = new DurationSpec.LongSecondsBound("5s");
 
     // global_settings overides Options.defaultOptions for all repair types
     public volatile Options global_settings;
@@ -158,6 +162,16 @@ public class AutoRepairConfig implements Serializable
     public void setRepairRetryBackoff(String interval)
     {
         repair_retry_backoff = new DurationSpec.LongSecondsBound(interval);
+    }
+
+    public DurationSpec.LongSecondsBound getRepairTaskMinDuration()
+    {
+        return repair_task_min_duration;
+    }
+
+    public void setRepairTaskMinDuration(String duration)
+    {
+        repair_task_min_duration = new DurationSpec.LongSecondsBound(duration);
     }
 
     public boolean isAutoRepairEnabled(RepairType repairType)

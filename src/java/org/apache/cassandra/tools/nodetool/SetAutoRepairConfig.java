@@ -46,7 +46,8 @@ public class SetAutoRepairConfig extends NodeToolCmd
                   "[start_scheduler|number_of_repair_threads|number_of_subranges|min_repair_interval|sstable_upper_threshold" +
                   "|enabled|table_max_repair_time|priority_hosts|forcerepair_hosts|ignore_dcs" +
                   "|history_clear_delete_hosts_buffer_interval|repair_primary_token_range_only" +
-                  "|parallel_repair_count|parallel_repair_percentage|mv_repair_enabled|repair_max_retries|repair_retry_backoff|repair_session_timeout]",
+                  "|parallel_repair_count|parallel_repair_percentage|mv_repair_enabled|repair_max_retries" +
+                  "|repair_retry_backoff|repair_session_timeout|min_repair_task_duration]",
     required = true)
     protected List<String> args = new ArrayList<>();
 
@@ -87,6 +88,9 @@ public class SetAutoRepairConfig extends NodeToolCmd
                 return;
             case "repair_retry_backoff":
                 probe.setAutoRepairRetryBackoff(paramVal);
+                return;
+            case "min_repair_task_duration":
+                probe.setAutoRepairMinRepairTaskDuration(paramVal);
                 return;
             default:
                 // proceed to options that require --repair-type option
