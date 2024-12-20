@@ -1672,7 +1672,7 @@ public final class SystemKeyspace
                            .add("mean_partition_size", values.right)
                            .build());
         }
-        new Mutation(update.build()).apply();
+        new Mutation(MutationId.none(), update.build()).apply();
     }
 
     /**
@@ -1699,7 +1699,7 @@ public final class SystemKeyspace
                            .build());
         }
 
-        new Mutation(update.build()).apply();
+        new Mutation(MutationId.none(), update.build()).apply();
     }
 
 

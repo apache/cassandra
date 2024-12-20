@@ -68,6 +68,12 @@ public class CounterMutation implements IMutation
         this.consistency = consistency;
     }
 
+    @Override
+    public MutationId id()
+    {
+        return mutation.id();
+    }
+
     public String getKeyspaceName()
     {
         return mutation.getKeyspaceName();

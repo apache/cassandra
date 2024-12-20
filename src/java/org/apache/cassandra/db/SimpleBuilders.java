@@ -145,7 +145,7 @@ public abstract class SimpleBuilders
             assert !updateBuilders.isEmpty() : "Cannot create empty mutation";
 
             if (updateBuilders.size() == 1)
-                return new Mutation(updateBuilders.values().iterator().next().build());
+                return new Mutation(MutationId.fixme(), updateBuilders.values().iterator().next().build());
 
             Mutation.PartitionUpdateCollector mutationBuilder = new Mutation.PartitionUpdateCollector(keyspaceName, key);
             for (PartitionUpdateBuilder builder : updateBuilders.values())
@@ -246,7 +246,7 @@ public abstract class SimpleBuilders
 
         public Mutation buildAsMutation()
         {
-            return new Mutation(build());
+            return new Mutation(MutationId.fixme(), build());
         }
 
         private static class RTBuilder implements RangeTombstoneBuilder

@@ -28,6 +28,7 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.IMutation;
 import org.apache.cassandra.db.Mutation;
+import org.apache.cassandra.db.MutationId;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.service.ClientState;
@@ -53,6 +54,12 @@ public final class VirtualMutation implements IMutation
         this.keyspaceName = keyspaceName;
         this.partitionKey = partitionKey;
         this.modifications = modifications;
+    }
+
+    @Override
+    public MutationId id()
+    {
+        return MutationId.none();
     }
 
     @Override

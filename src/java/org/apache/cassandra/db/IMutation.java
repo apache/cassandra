@@ -30,6 +30,7 @@ public interface IMutation
 {
     long MAX_MUTATION_SIZE = DatabaseDescriptor.getMaxMutationSize();
 
+    MutationId id();
     void apply();
     String getKeyspaceName();
     Collection<TableId> getTableIds();
