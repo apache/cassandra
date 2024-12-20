@@ -80,7 +80,7 @@ public class DataResolver<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<
 
     public PartitionIterator getData()
     {
-        ReadResponse response = responses.get(0).payload;
+        ReadResponse response = ReadResponse.fromResponse(responses.get(0).payload);
         return UnfilteredPartitionIterators.filter(response.makeIterator(command), command.nowInSec());
     }
 
@@ -98,8 +98,8 @@ public class DataResolver<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<
     {
         // We could get more responses while this method runs, which is ok (we're happy to ignore any response not here
         // at the beginning of this method), so grab the response count once and use that through the method.
-        Collection<Message<ReadResponse>> messages = responses.snapshot();
-        assert !any(messages, msg -> msg.payload.isDigestResponse());
+        Collection<Message<IReadResponse>> messages = responses.snapshot();
+        assert !any(messages, msg -> ReadResponse.fromResponse(msg.payload).isDigestResponse());
 
         E replicas = replicaPlan().readCandidates().select(transform(messages, Message::from), false);
 
@@ -110,11 +110,12 @@ public class DataResolver<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<
         if (repairedDataTracker != null)
         {
             messages.forEach(msg -> {
-                if (msg.payload.mayIncludeRepairedDigest() && replicas.byEndpoint().get(msg.from()).isFull())
+                ReadResponse response = ReadResponse.fromResponse(msg.payload);
+                if (response.mayIncludeRepairedDigest() && replicas.byEndpoint().get(msg.from()).isFull())
                 {
                     repairedDataTracker.recordDigest(msg.from(),
-                                                     msg.payload.repairedDataDigest(),
-                                                     msg.payload.isRepairedDigestConclusive());
+                                                     response.repairedDataDigest(),
+                                                     response.isRepairedDigestConclusive());
                 }
             });
         }

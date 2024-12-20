@@ -241,7 +241,7 @@ public abstract class AbstractReadResponseTest
     }
 
 
-    static Message<ReadResponse> response(ReadCommand command,
+    static Message<IReadResponse> response(ReadCommand command,
                                             InetAddressAndPort from,
                                             UnfilteredPartitionIterator data,
                                             boolean isDigestResponse,
@@ -249,7 +249,7 @@ public abstract class AbstractReadResponseTest
                                             ByteBuffer repairedDataDigest,
                                             boolean hasPendingRepair)
     {
-        ReadResponse response = isDigestResponse
+        IReadResponse response = isDigestResponse
                                 ? ReadResponse.createDigestResponse(data, command)
                                 : ReadResponse.createRemoteDataResponse(data, repairedDataDigest, hasPendingRepair, command, fromVersion);
         return Message.builder(READ_REQ, response)
@@ -258,7 +258,7 @@ public abstract class AbstractReadResponseTest
                       .build();
     }
 
-    static Message<ReadResponse> response(InetAddressAndPort from,
+    static Message<IReadResponse> response(InetAddressAndPort from,
                                             UnfilteredPartitionIterator partitionIterator,
                                             ByteBuffer repairedDigest,
                                             boolean hasPendingRepair,
@@ -267,12 +267,12 @@ public abstract class AbstractReadResponseTest
         return response(cmd, from, partitionIterator, false, MessagingService.current_version, repairedDigest, hasPendingRepair);
     }
 
-    static Message<ReadResponse> response(ReadCommand command, InetAddressAndPort from, UnfilteredPartitionIterator data, boolean isDigestResponse)
+    static Message<IReadResponse> response(ReadCommand command, InetAddressAndPort from, UnfilteredPartitionIterator data, boolean isDigestResponse)
     {
         return response(command, from, data, false, MessagingService.current_version, ByteBufferUtil.EMPTY_BYTE_BUFFER, isDigestResponse);
     }
 
-    static Message<ReadResponse> response(ReadCommand command, InetAddressAndPort from, UnfilteredPartitionIterator data)
+    static Message<IReadResponse> response(ReadCommand command, InetAddressAndPort from, UnfilteredPartitionIterator data)
     {
         return response(command, from, data, false, MessagingService.current_version, ByteBufferUtil.EMPTY_BYTE_BUFFER, false);
     }
