@@ -104,7 +104,6 @@ public class AutoRepairParameterizedTest extends CQLTester
     // Expected number of tables that should be repaired.
     private static int expectedTablesGoingThroughRepair;
 
-
     @Parameterized.Parameter()
     public AutoRepairConfig.RepairType repairType;
 
