@@ -18,6 +18,7 @@
 
 package org.apache.cassandra.replication.simple;
 
+import java.io.IOException;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.Map;
@@ -32,7 +33,12 @@ import com.google.common.collect.ImmutableSortedSet;
 
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.MutationId;
+import org.apache.cassandra.db.TypeSizes;
+import org.apache.cassandra.dht.IPartitioner;
+import org.apache.cassandra.io.util.DataInputPlus;
+import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.replication.MutationSummary;
+import org.apache.cassandra.utils.ByteBufferUtil;
 
 public class SimpleMutationSummary implements MutationSummary
 {
@@ -111,4 +117,58 @@ public class SimpleMutationSummary implements MutationSummary
     {
         return new SimpleMutationSummary(ImmutableSortedMap.of(key, ImmutableSortedSet.copyOf(ids)));
     }
+
+    public static MutationSummary.Serializer<SimpleMutationSummary> serializer = new Serializer<SimpleMutationSummary>()
+    {
+        @Override
+        public void serialize(SimpleMutationSummary summary, DataOutputPlus out, int version) throws IOException
+        {
+            out.writeInt(summary.ids.size());
+            for (Map.Entry<DecoratedKey, ImmutableSortedSet<MutationId>> entry : summary.ids.entrySet())
+            {
+                ByteBufferUtil.writeWithVIntLength(entry.getKey().getKey(), out);
+                out.writeInt(entry.getValue().size());
+                for (MutationId id : entry.getValue())
+                    MutationId.serializer.serialize(id, out, version);
+            }
+        }
+
+        @Override
+        public SimpleMutationSummary deserialize(IPartitioner partitioner, DataInputPlus in, int version) throws IOException
+        {
+            int numKeys = in.readInt();
+            if (numKeys == 0)
+                return empty();
+
+            ImmutableSortedMap.Builder<DecoratedKey, ImmutableSortedSet<MutationId>> builder = ImmutableSortedMap.builder();
+            for (int i = 0; i < numKeys; i++)
+            {
+                DecoratedKey key = partitioner.decorateKey(ByteBufferUtil.readWithVIntLength(in));
+                int numIds = in.readInt();
+                ImmutableSortedSet.Builder<MutationId> ids = ImmutableSortedSet.builder();
+                for (int j = 0; j < numIds; j++)
+                    ids.add(MutationId.serializer.deserialize(in, version));
+
+                builder.put(key, ids.build());
+            }
+
+            return new SimpleMutationSummary(builder.build());
+        }
+
+        @Override
+        public long serializedSize(SimpleMutationSummary summary, int version)
+        {
+            long size = TypeSizes.sizeof(summary.ids.size());
+            for (Map.Entry<DecoratedKey, ImmutableSortedSet<MutationId>> entry : summary.ids.entrySet())
+            {
+                size += ByteBufferUtil.serializedSizeWithVIntLength(entry.getKey().getKey());
+                size += TypeSizes.sizeof(entry.getValue().size());
+                for (MutationId id : entry.getValue())
+                    size += MutationId.serializer.serializedSize(id, version);
+            }
+            return size;
+        }
+    };
+
+
 }

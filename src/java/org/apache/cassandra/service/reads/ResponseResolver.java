@@ -38,7 +38,7 @@ public abstract class ResponseResolver<E extends Endpoints<E>, P extends Replica
     protected final Supplier<? extends P> replicaPlan;
 
     // Accumulator gives us non-blocking thread-safety with optimal algorithmic constraints
-    protected final Accumulator<Message<ReadResponse>> responses;
+    protected final Accumulator<Message<IReadResponse>> responses;
     protected final Dispatcher.RequestTime requestTime;
 
     public ResponseResolver(ReadCommand command, Supplier<? extends P> replicaPlan, Dispatcher.RequestTime requestTime)
@@ -56,10 +56,11 @@ public abstract class ResponseResolver<E extends Endpoints<E>, P extends Replica
 
     public abstract boolean isDataPresent();
 
-    public void preprocess(Message<ReadResponse> message)
+    public void preprocess(Message<IReadResponse> message)
     {
+        ReadResponse response = ReadResponse.fromResponse(message.payload);
         if (replicaPlan().lookup(message.from()).isTransient() &&
-            message.payload.isDigestResponse())
+            response.isDigestResponse())
             throw new IllegalArgumentException("Digest response received from transient replica");
 
         try
@@ -74,7 +75,7 @@ public abstract class ResponseResolver<E extends Endpoints<E>, P extends Replica
         }
     }
 
-    public Accumulator<Message<ReadResponse>> getMessages()
+    public Accumulator<Message<IReadResponse>> getMessages()
     {
         return responses;
     }

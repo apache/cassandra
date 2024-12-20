@@ -32,6 +32,7 @@ import org.apache.cassandra.locator.Replica;
 import org.apache.cassandra.metrics.TCMMetrics;
 import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.service.reads.IReadResponse;
 import org.apache.cassandra.tcm.ClusterMetadataService;
 import org.apache.cassandra.net.IVerbHandler;
 import org.apache.cassandra.net.Message;
@@ -67,7 +68,7 @@ public class ReadCommandVerbHandler implements IVerbHandler<ReadCommand>
         if (message.trackWarnings())
             command.trackWarnings();
 
-        ReadResponse response;
+        IReadResponse response;
         try (ReadExecutionController controller = command.executionController(message.trackRepairedData());
              UnfilteredPartitionIterator iterator = command.executeLocally(controller))
         {
@@ -82,7 +83,7 @@ public class ReadCommandVerbHandler implements IVerbHandler<ReadCommand>
             logger.error(e.getMessage());
 
             response = command.createEmptyResponse();
-            Message<ReadResponse> reply = message.responseWith(response);
+            Message<IReadResponse> reply = message.responseWith(response);
             reply = MessageParams.addToMessage(reply);
 
             MessagingService.instance().send(reply, message.from());
@@ -102,7 +103,7 @@ public class ReadCommandVerbHandler implements IVerbHandler<ReadCommand>
         if (command.complete())
         {
             Tracing.trace("Enqueuing response to {}", message.from());
-            Message<ReadResponse> reply = message.responseWith(response);
+            Message<IReadResponse> reply = message.responseWith(response);
             reply = MessageParams.addToMessage(reply);
             MessagingService.instance().send(reply, message.from());
         }
