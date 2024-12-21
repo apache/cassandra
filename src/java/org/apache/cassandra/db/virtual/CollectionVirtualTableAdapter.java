@@ -51,6 +51,7 @@ import org.apache.cassandra.db.DeletionTime;
 import org.apache.cassandra.db.EmptyIterators;
 import org.apache.cassandra.db.filter.ClusteringIndexFilter;
 import org.apache.cassandra.db.filter.ColumnFilter;
+import org.apache.cassandra.db.filter.RowFilter;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.BooleanType;
 import org.apache.cassandra.db.marshal.ByteType;
@@ -307,7 +308,8 @@ public class CollectionVirtualTableAdapter<R> implements VirtualTable
     @Override
     public UnfilteredPartitionIterator select(DecoratedKey partitionKey,
                                               ClusteringIndexFilter clusteringFilter,
-                                              ColumnFilter columnFilter)
+                                              ColumnFilter columnFilter,
+                                              RowFilter rowFilter)
     {
         if (!data.iterator().hasNext())
             return EmptyIterators.unfilteredPartition(metadata);
@@ -348,7 +350,7 @@ public class CollectionVirtualTableAdapter<R> implements VirtualTable
     }
 
     @Override
-    public UnfilteredPartitionIterator select(DataRange dataRange, ColumnFilter columnFilter)
+    public UnfilteredPartitionIterator select(DataRange dataRange, ColumnFilter columnFilter, RowFilter rowFilter)
     {
         return createPartitionIterator(metadata, new AbstractIterator<>()
         {

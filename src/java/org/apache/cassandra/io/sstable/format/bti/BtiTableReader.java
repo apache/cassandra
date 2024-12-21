@@ -45,6 +45,7 @@ import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.sstable.CorruptSSTableException;
 import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.IVerifier;
+import org.apache.cassandra.io.sstable.KeyReader;
 import org.apache.cassandra.io.sstable.SSTable;
 import org.apache.cassandra.io.sstable.SSTableReadsListener;
 import org.apache.cassandra.io.sstable.SSTableReadsListener.SelectionReason;
@@ -122,6 +123,15 @@ public class BtiTableReader extends SSTableReaderWithFilter
     public long estimatedKeys()
     {
         return partitionIndex == null ? 0 : partitionIndex.size();
+    }
+
+    @Override
+    public KeyReader keyReader(PartitionPosition key) throws IOException
+    {
+        return PartitionIterator.create(partitionIndex, metadata().partitioner, rowIndexFile, dfile,
+                                        key, -1,
+                                        metadata().partitioner.getMaximumToken().maxKeyBound(), 0,
+                                        descriptor.version);
     }
 
     @Override
