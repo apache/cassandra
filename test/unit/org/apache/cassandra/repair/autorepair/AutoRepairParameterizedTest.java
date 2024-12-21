@@ -757,19 +757,20 @@ public class AutoRepairParameterizedTest extends CQLTester
         when(autoRepairState.getRepairRunnable(any(), any(), any(), anyBoolean())).thenReturn(repairRunnable);
         when(autoRepairState.isSuccess()).thenReturn(true);
         AutoRepairConfig config = AutoRepairService.instance.getAutoRepairConfig();
-        config.repair_task_min_duration = new DurationSpec.LongSecondsBound("1s");
+        config.repair_task_min_duration = new DurationSpec.LongSecondsBound("10s");
         AtomicInteger sleepCalls = new AtomicInteger();
         AutoRepair.sleepFunc = (Long duration, TimeUnit unit) -> {
             sleepCalls.getAndIncrement();
             assertEquals(TimeUnit.MILLISECONDS, unit);
             assertTrue(config.getRepairTaskMinDuration().toMilliseconds() >= duration);
+            config.repair_task_min_duration = new DurationSpec.LongSecondsBound("0s");
         };
         config.setRepairMinInterval(repairType, "0s");
         AutoRepair.instance.repairStates.put(repairType, autoRepairState);
 
         AutoRepair.instance.repair(repairType);
 
-        assertEquals(expectedTablesGoingThroughRepair, sleepCalls.get());
+        assertEquals(1, sleepCalls.get());
         verify(autoRepairState, Mockito.times(1)).setSucceededTokenRangesCount(expectedTablesGoingThroughRepair);
         verify(autoRepairState, Mockito.times(1)).setSkippedTokenRangesCount(0);
         verify(autoRepairState, Mockito.times(1)).setFailedTokenRangesCount(0);
