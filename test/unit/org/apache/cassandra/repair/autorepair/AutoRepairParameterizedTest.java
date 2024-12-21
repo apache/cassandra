@@ -113,7 +113,6 @@ public class AutoRepairParameterizedTest extends CQLTester
     // Expected number of tables that should be repaired.
     private static int expectedTablesGoingThroughRepair;
 
-
     @Parameterized.Parameter()
     public AutoRepairConfig.RepairType repairType;
 
@@ -214,6 +213,7 @@ public class AutoRepairParameterizedTest extends CQLTester
 
         timeFuncCalls = 0;
         AutoRepair.timeFunc = System::currentTimeMillis;
+        AutoRepair.sleepFunc = (Long startTime, TimeUnit unit) -> {};
         resetCounters();
         resetConfig();
 
@@ -252,6 +252,7 @@ public class AutoRepairParameterizedTest extends CQLTester
         config.global_settings = defaultConfig.global_settings;
         config.history_clear_delete_hosts_buffer_interval = defaultConfig.history_clear_delete_hosts_buffer_interval;
         config.setRepairSubRangeNum(repairType, 1);
+        config.repair_task_min_duration = new DurationSpec.LongSecondsBound("0s");
     }
 
     private void executeCQL()
@@ -781,5 +782,50 @@ public class AutoRepairParameterizedTest extends CQLTester
         {
             AutoRepair.instance.repair(repairType);
         }
+    }
+
+    @Test
+    public void testSoakAfterImmediateRepair()
+    {
+        when(autoRepairState.getRepairRunnable(any(), any(), any(), anyBoolean())).thenReturn(repairRunnable);
+        when(autoRepairState.isSuccess()).thenReturn(true);
+        AutoRepairConfig config = AutoRepairService.instance.getAutoRepairConfig();
+        config.repair_task_min_duration = new DurationSpec.LongSecondsBound("10s");
+        AtomicInteger sleepCalls = new AtomicInteger();
+        AutoRepair.sleepFunc = (Long duration, TimeUnit unit) -> {
+            sleepCalls.getAndIncrement();
+            assertEquals(TimeUnit.MILLISECONDS, unit);
+            assertTrue(config.getRepairTaskMinDuration().toMilliseconds() >= duration);
+            config.repair_task_min_duration = new DurationSpec.LongSecondsBound("0s");
+        };
+        config.setRepairMinInterval(repairType, "0s");
+        AutoRepair.instance.repairStates.put(repairType, autoRepairState);
+
+        AutoRepair.instance.repair(repairType);
+
+        assertEquals(1, sleepCalls.get());
+        verify(autoRepairState, Mockito.times(1)).setSucceededTokenRangesCount(expectedTablesGoingThroughRepair);
+        verify(autoRepairState, Mockito.times(1)).setSkippedTokenRangesCount(0);
+        verify(autoRepairState, Mockito.times(1)).setFailedTokenRangesCount(0);
+    }
+
+    @Test
+    public void testNoSoakAfterRepair()
+    {
+        when(autoRepairState.getRepairRunnable(any(), any(), any(), anyBoolean())).thenReturn(repairRunnable);
+        when(autoRepairState.isSuccess()).thenReturn(true);
+        AutoRepairConfig config = AutoRepairService.instance.getAutoRepairConfig();
+        config.repair_task_min_duration = new DurationSpec.LongSecondsBound("0s");
+        AutoRepair.sleepFunc = (Long duration, TimeUnit unit) -> {
+            fail("Should not sleep after repair");
+        };
+        config.setRepairMinInterval(repairType, "0s");
+        AutoRepair.instance.repairStates.put(repairType, autoRepairState);
+
+        AutoRepair.instance.repair(repairType);
+
+        verify(autoRepairState, Mockito.times(1)).setSucceededTokenRangesCount(expectedTablesGoingThroughRepair);
+        verify(autoRepairState, Mockito.times(1)).setSkippedTokenRangesCount(0);
+        verify(autoRepairState, Mockito.times(1)).setFailedTokenRangesCount(0);
     }
 }

@@ -1,4 +1,5 @@
 4.1.6
+ * Implement minimum repair task duration setting for auto-repair scheduler (CASSANDRA-20160)
  * Implement preview_repaired auto-repair type (CASSANDRA-20046)
  * Refresh stale paxos commit (CASSANDRA-19617)
  * Reduce info logging from automatic paxos repair (CASSANDRA-19445)
