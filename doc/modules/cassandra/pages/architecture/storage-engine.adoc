@@ -244,7 +244,7 @@ For implementation docs see (https://github.com/apache/cassandra/blob/cassandra-
 
 === Version 5
 
-* da (5.0): initial version of the BIT format
+* da (5.0): initial version of the BTI format
 
 === Example Code
 
