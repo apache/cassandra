@@ -75,6 +75,15 @@ public interface IPartitioner
     }
 
     /**
+     *
+     * @return true if supports splitting as per {@link IPartitioner#split(Token, Token, double)}, false otherwise. Defaults to false.
+     */
+    default boolean supportsSplitting()
+    {
+        return false;
+    }
+
+    /**
      * @return a Token that can be used to route a given key
      * (This is NOT a method to create a Token from its string representation;
      * for that, use TokenFactory.fromString.)

@@ -88,6 +88,7 @@ import org.apache.commons.lang3.builder.ToStringBuilder;
 import org.apache.commons.lang3.builder.ToStringStyle;
 
 import static java.lang.String.format;
+import static org.apache.cassandra.cql3.restrictions.StatementRestrictions.requiresAllowFilteringIfNotSpecified;
 import static org.apache.cassandra.cql3.statements.RequestValidations.checkFalse;
 import static org.apache.cassandra.cql3.statements.RequestValidations.checkNotNull;
 import static org.apache.cassandra.cql3.statements.RequestValidations.checkNull;
@@ -1357,7 +1358,7 @@ public class SelectStatement implements CQLStatement.SingleKeyspaceCqlStatement
                                              boundNames,
                                              orderings,
                                              selectsOnlyStaticColumns,
-                                             parameters.allowFiltering,
+                                             parameters.allowFiltering || !requiresAllowFilteringIfNotSpecified(metadata),
                                              forView);
         }
 
@@ -1583,7 +1584,7 @@ public class SelectStatement implements CQLStatement.SingleKeyspaceCqlStatement
             {
                 // We will potentially filter data if the row filter is not the identity and there isn't any index group
                 // supporting all the expressions in the filter.
-                if (restrictions.requiresAllowFilteringIfNotSpecified())
+                if (requiresAllowFilteringIfNotSpecified(table))
                     checkFalse(restrictions.needFiltering(table), StatementRestrictions.REQUIRES_ALLOW_FILTERING_MESSAGE);
             }
         }
