@@ -69,17 +69,27 @@ public class CassandraMetricsRegistry extends MetricRegistry
 
     public Meter meter(MetricName name)
     {
-        Meter meter = meter(name.getMetricName());
-        registerMBean(meter, name.getMBeanName());
+        return meter(name, false);
+    }
 
+    public Meter meter(MetricName name, boolean gaugeCompatible)
+    {
+        Meter meter = meter(name.getMetricName());
+        registerMBean(meter, name.getMBeanName(), gaugeCompatible);
+
+        return meter;
+    }
+
+    public Meter meter(MetricName name, MetricName alias, boolean gaugeCompatible)
+    {
+        Meter meter = meter(name, gaugeCompatible);
+        registerAlias(name, alias, gaugeCompatible);
         return meter;
     }
 
     public Meter meter(MetricName name, MetricName alias)
     {
-        Meter meter = meter(name);
-        registerAlias(name, alias);
-        return meter;
+        return meter(name, alias, false);
     }
 
     public Histogram histogram(MetricName name, boolean considerZeroes)
@@ -218,6 +228,11 @@ public class CassandraMetricsRegistry extends MetricRegistry
 
     public void registerMBean(Metric metric, ObjectName name)
     {
+        registerMBean(metric, name, false);
+    }
+
+    public void registerMBean(Metric metric, ObjectName name, boolean gaugeCompatible)
+    {
         AbstractBean mbean;
 
         if (metric instanceof Gauge)
@@ -229,7 +244,18 @@ public class CassandraMetricsRegistry extends MetricRegistry
         else if (metric instanceof Timer)
             mbean = new JmxTimer((Timer) metric, name, TimeUnit.SECONDS, DEFAULT_TIMER_UNIT);
         else if (metric instanceof Metered)
-            mbean = new JmxMeter((Metered) metric, name, TimeUnit.SECONDS);
+        {
+            // If a gauge compatible meter is requested, create a special implementation which
+            // also yields a 'Value' attribute for backwards compatibility.
+            if (gaugeCompatible)
+            {
+                mbean = new JmxMeterGaugeCompatible((Metered) metric, name, TimeUnit.SECONDS);
+            }
+            else
+            {
+                mbean = new JmxMeter((Metered) metric, name, TimeUnit.SECONDS);
+            }
+        }
         else
             throw new IllegalArgumentException("Unknown metric type: " + metric.getClass());
 
@@ -239,10 +265,15 @@ public class CassandraMetricsRegistry extends MetricRegistry
 
     private void registerAlias(MetricName existingName, MetricName aliasName)
     {
+        registerAlias(existingName, aliasName, false);
+    }
+
+    private void registerAlias(MetricName existingName, MetricName aliasName, boolean gaugeCompatible)
+    {
         Metric existing = Metrics.getMetrics().get(existingName.getMetricName());
         assert existing != null : existingName + " not registered";
 
-        registerMBean(existing, aliasName.getMBeanName());
+        registerMBean(existing, aliasName.getMBeanName(), gaugeCompatible);
     }
 
     private void removeAlias(MetricName name)
@@ -530,6 +561,30 @@ public class CassandraMetricsRegistry extends MetricRegistry
             return s.substring(0, s.length() - 1);
         }
     }
+
+    public interface JmxMeterGaugeCompatibleMBean extends JmxMeterMBean, JmxGaugeMBean {}
+
+    /**
+     * An implementation of {@link JmxMeter} that is compatible with {@link JmxGaugeMBean} in that it also
+     * implements {@link JmxGaugeMBean}.  This is useful for metrics that were migrated from {@link JmxGauge}
+     * to {@link JmxMeter} like {@link TableMetrics#bytesAnticompacted} and
+     * {@link TableMetrics#bytesMutatedAnticompaction}.
+     */
+    private static class JmxMeterGaugeCompatible extends JmxMeter implements JmxMeterGaugeCompatibleMBean
+    {
+
+        private JmxMeterGaugeCompatible(Metered metric, ObjectName objectName, TimeUnit rateUnit)
+        {
+            super(metric, objectName, rateUnit);
+        }
+
+        @Override
+        public Object getValue()
+        {
+            return getCount();
+        }
+    }
+
 
     public interface JmxTimerMBean extends JmxMeterMBean
     {
