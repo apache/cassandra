@@ -817,8 +817,8 @@ public class TableMetrics
 
         bytesValidated = createTableHistogram("BytesValidated", cfs.keyspace.metric.bytesValidated, false);
         partitionsValidated = createTableHistogram("PartitionsValidated", cfs.keyspace.metric.partitionsValidated, false);
-        bytesAnticompacted = createTableMeter("BytesAnticompacted", cfs.keyspace.metric.bytesAnticompacted);
-        bytesMutatedAnticompaction = createTableMeter("BytesMutatedAnticompaction", cfs.keyspace.metric.bytesMutatedAnticompaction);
+        bytesAnticompacted = createTableMeter("BytesAnticompacted", cfs.keyspace.metric.bytesAnticompacted, true);
+        bytesMutatedAnticompaction = createTableMeter("BytesMutatedAnticompaction", cfs.keyspace.metric.bytesMutatedAnticompaction, true);
         bytesPreviewed = createTableMeter("BytesPreviewed", cfs.keyspace.metric.bytesPreviewed);
         tokenRangesPreviewedDesynchronized = createTableMeter("TokenRangesPreviewedDesynchronized", cfs.keyspace.metric.tokenRangesPreviewedDesynchronized);
         bytesPreviewedDesynchronized = createTableMeter("BytesPreviewedDesynchronized", cfs.keyspace.metric.bytesPreviewedDesynchronized);
@@ -1090,16 +1090,21 @@ public class TableMetrics
 
     protected TableMeter createTableMeter(String name, Meter keyspaceMeter)
     {
-        return createTableMeter(name, name, keyspaceMeter);
+        return createTableMeter(name, keyspaceMeter, false);
     }
 
-    protected TableMeter createTableMeter(String name, String alias, Meter keyspaceMeter)
+    protected TableMeter createTableMeter(String name, Meter keyspaceMeter, boolean globalMeterGaugeCompatible)
+    {
+        return createTableMeter(name, name, keyspaceMeter, globalMeterGaugeCompatible);
+    }
+
+    protected TableMeter createTableMeter(String name, String alias, Meter keyspaceMeter, boolean globalMeterGaugeCompatible)
     {
         Meter meter = Metrics.meter(factory.createMetricName(name), aliasFactory.createMetricName(alias));
         register(name, alias, meter);
         return new TableMeter(meter,
                               keyspaceMeter,
-                              Metrics.meter(GLOBAL_FACTORY.createMetricName(name),
+                              Metrics.meter(globalMeterGaugeCompatible, GLOBAL_FACTORY.createMetricName(name),
                                             GLOBAL_ALIAS_FACTORY.createMetricName(alias)));
     }
 

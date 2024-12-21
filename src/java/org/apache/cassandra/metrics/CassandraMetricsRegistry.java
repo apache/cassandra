@@ -302,8 +302,13 @@ public class CassandraMetricsRegistry extends MetricRegistry
 
     public Meter meter(MetricName... name)
     {
+        return meter(false, name);
+    }
+
+    public Meter meter(boolean gaugeCompatible, MetricName... name)
+    {
         Meter meter = super.meter(name[0].getMetricName());
-        Stream.of(name).forEach(n -> register(n, meter));
+        Stream.of(name).forEach(n -> register(gaugeCompatible, n, meter));
         return meter;
     }
 
@@ -371,13 +376,18 @@ public class CassandraMetricsRegistry extends MetricRegistry
 
     public <T extends Metric> T register(MetricName name, T metric)
     {
+        return register(false, name, metric);
+    }
+
+    public <T extends Metric> T register(boolean gaugeCompatible, MetricName name, T metric)
+    {
         if (metric instanceof MetricSet)
             throw new IllegalArgumentException("MetricSet registration using MetricName is not supported");
 
         try
         {
             verifyUnknownMetric(name);
-            registerMBean(metric, name.getMBeanName(), MBeanWrapper.instance);
+            registerMBean(metric, name.getMBeanName(), MBeanWrapper.instance, gaugeCompatible);
             return super.register(name.getMetricName(), metric);
         }
         catch (IllegalArgumentException e)
@@ -491,7 +501,7 @@ public class CassandraMetricsRegistry extends MetricRegistry
         @Nullable String resolve(String fullName);
     }
 
-    private void registerMBean(Metric metric, ObjectName name, MBeanWrapper mBeanServer)
+    public void registerMBean(Metric metric, ObjectName name, MBeanWrapper mBeanServer, boolean gaugeCompatible)
     {
         AbstractBean mbean;
 
@@ -504,7 +514,18 @@ public class CassandraMetricsRegistry extends MetricRegistry
         else if (metric instanceof Timer)
             mbean = new JmxTimer((Timer) metric, name, TimeUnit.SECONDS, DEFAULT_TIMER_UNIT);
         else if (metric instanceof Metered)
-            mbean = new JmxMeter((Metered) metric, name, TimeUnit.SECONDS);
+        {
+            // If a gauge compatible meter is requested, create a special implementation which
+            // also yields a 'Value' attribute for backwards compatibility.
+            if (gaugeCompatible)
+            {
+                mbean = new JmxMeterGaugeCompatible((Metered) metric, name, TimeUnit.SECONDS);
+            }
+            else
+            {
+                mbean = new JmxMeter((Metered) metric, name, TimeUnit.SECONDS);
+            }
+        }
         else
             throw new IllegalArgumentException("Unknown metric type: " + metric.getClass());
 
@@ -813,6 +834,29 @@ public class CassandraMetricsRegistry extends MetricRegistry
         {
             final String s = toLowerCaseLocalized(unit.toString());
             return s.substring(0, s.length() - 1);
+        }
+    }
+
+    public interface JmxMeterGaugeCompatibleMBean extends JmxMeterMBean, JmxGaugeMBean {}
+
+    /**
+     * An implementation of {@link JmxMeter} that is compatible with {@link JmxGaugeMBean} in that it also
+     * implements {@link JmxGaugeMBean}.  This is useful for metrics that were migrated from {@link JmxGauge}
+     * to {@link JmxMeter} like {@link TableMetrics#bytesAnticompacted} and
+     * {@link TableMetrics#bytesMutatedAnticompaction}.
+     */
+    private static class JmxMeterGaugeCompatible extends JmxMeter implements JmxMeterGaugeCompatibleMBean
+    {
+
+        private JmxMeterGaugeCompatible(Metered metric, ObjectName objectName, TimeUnit rateUnit)
+        {
+            super(metric, objectName, rateUnit);
+        }
+
+        @Override
+        public Object getValue()
+        {
+            return getCount();
         }
     }
 
