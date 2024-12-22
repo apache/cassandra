@@ -57,7 +57,6 @@ print_help() {
   echo "      or when there are too many changed tests the CI env to handle."
   echo "   -e <key=value> Environment variables to be used in the repeated runs:"
   echo "                   -e REPEATED_TESTS_STOP_ON_FAILURE=false"
-  echo "                   -e REPEATED_TESTS=org.apache.cassandra.cql3.ViewTest,ForceCompactionTest"
   echo "                   -e REPEATED_TESTS_COUNT=500"
   echo "                  If you want to specify multiple environment variables simply add multiple -e options."
   echo "   -i Ignore unknown environment variables"
@@ -125,7 +124,7 @@ if $has_env_vars && $check_env_vars; then
   for entry in $(echo $env_vars | tr "|" "\n"); do
     key=$(echo $entry | tr "=" "\n" | sed -n 1p)
     case $key in
-      "REPEATED_TESTS_STOP_ON_FAILURE" | "REPEATED_TESTS" | "REPEATED_TESTS_COUNT" )
+      "REPEATED_TESTS_STOP_ON_FAILURE" | "REPEATED_TESTS_COUNT" )
         [[ ${test_target} == *"-repeat" ]] || { error 1 "'-e REPEATED_*' variables only valid against *-repeat target types"; }
         ;;
       *)
@@ -298,7 +297,7 @@ _main() {
   if [[ ${test_target} == *"-repeat" ]] ; then
     [[ "${split_chunk}" =~ ^[0-9]+/[0-9]+$ ]] && { error 1 "Repeated tests not valid with splits"; }
     if [[ -z "${test_name_regexp}" ]] ; then
-      test_name_regexp="$(_get_env_var 'REPEATED_TESTS')"
+      error 1 "Repeated tests requires use of -t option"
     fi
     local -r repeat_count="$(_get_env_var 'REPEATED_TESTS_COUNT')"
   else

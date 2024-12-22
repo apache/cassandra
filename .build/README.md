@@ -123,8 +123,12 @@ Repeating tests
 
 Just add the '-repeat' suffix to the test type and pass in the repeat arguments
 
-    .build/run-tests.sh -a jvm-dtest-repeat -e REPEATED_TESTS_COUNT=2 -e REPEATED_TESTS=BooleanTest
-    .build/docker/run-tests.sh -a jvm-dtest-repeat -e REPEATED_TESTS_COUNT=2 -e REPEATED_TESTS=BooleanTest -j 11
+    .build/run-tests.sh -a jvm-dtest-repeat -t BooleanTest -e REPEATED_TESTS_COUNT=2
+    .build/docker/run-tests.sh -a jvm-dtest-repeat -t BooleanTest -e REPEATED_TESTS_COUNT=2 -j 11
+
+Fail fast with repeating tests is done with REPEATED_TESTS_STOP_ON_FAILURE
+
+    .build/run-tests.sh -a jvm-dtest-repeat -t BooleanTest -e REPEATED_TESTS_COUNT=2 -e REPEATED_TESTS_STOP_ON_FAILURE=false
 
 Running python dtests without docker:
 
@@ -139,6 +143,10 @@ Other test types without docker:
 Other python dtest types without docker:
 
     .build/run-python-dtests.sh dtest-upgrade-large
+
+Debugging test scripts:
+
+    DEBUG=true .build/docker/run-tests.sh -a test
 
 
 Running Sonar analysis (experimental)
