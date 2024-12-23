@@ -93,6 +93,12 @@ public class NativeClustering implements Clustering<ByteBuffer>
         return MemoryUtil.getShort(peer);
     }
 
+    public int dataSize()
+    {
+        int dataSizeOffset = (size() * 2) + 2; // metadataSize - 2
+        return MemoryUtil.getShort(peer + dataSizeOffset);
+    }
+
     public ByteBuffer get(int i)
     {
         // offset at which we store the dataOffset
