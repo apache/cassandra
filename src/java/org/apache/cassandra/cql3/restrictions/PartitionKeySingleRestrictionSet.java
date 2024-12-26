@@ -70,6 +70,14 @@ final class PartitionKeySingleRestrictionSet extends RestrictionSetWrapper imple
         return l;
     }
 
+    private List<ByteBuffer> toByteBuffers(ClusteringPrefix clustering)
+    {
+        if (clustering == null)
+            return Collections.emptyList();
+        clustering.validate();
+        return Collections.singletonList(clustering.serializeAsPartitionKey());
+    }
+
     @Override
     public PartitionKeyRestrictions mergeWith(Restriction restriction)
     {
@@ -88,7 +96,7 @@ final class PartitionKeySingleRestrictionSet extends RestrictionSetWrapper imple
     public List<ByteBuffer> values(QueryOptions options, ClientState state)
     {
         MultiCBuilder builder = MultiCBuilder.create(comparator, hasIN());
-        for (SingleRestriction r : restrictions)
+        for (SingleRestriction r : restrictions.asArray())
         {
             r.appendTo(builder, options);
 
@@ -97,6 +105,11 @@ final class PartitionKeySingleRestrictionSet extends RestrictionSetWrapper imple
 
             if (builder.hasMissingElements())
                 break;
+        }
+        // memory allocation optimization: to avoid BTreeSet, iterators allocation and use cheaper collections
+        // we handle a single clustering explicitly (we frequently modify a single row)
+        if (builder.buildSize() <= 1) {
+            return toByteBuffers(builder.buildSingle());
         }
         return toByteBuffers(builder.build());
     }

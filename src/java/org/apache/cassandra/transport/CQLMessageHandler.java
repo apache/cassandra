@@ -366,7 +366,7 @@ public class CQLMessageHandler<M extends Message> extends AbstractMessageHandler
         ByteBuffer buf = bytes.get();
         int idx = buf.position() + Envelope.Header.LENGTH;
         final int end = idx + Ints.checkedCast(header.bodySizeInBytes);
-        ByteBuf body = Unpooled.wrappedBuffer(buf.slice());
+        ByteBuf body = Unpooled.wrappedBuffer(buf); // buf.slice() is not needed: Unpooled.wrappedBuffer does ByteBuffer.slice inside
         body.readerIndex(Envelope.Header.LENGTH);
         body.retain();
         buf.position(end);

@@ -136,6 +136,44 @@ public class BatchStatement implements CQLStatement
         this.updatesVirtualTables = updatesVirtualTables;
     }
 
+    // an optimized version without MultiTableColumnsBuilder for a typical case
+    // when all statements within a batch are about the same table
+    public BatchStatement(Type type, VariableSpecifications bindVariables, TableId tableId, List<ModificationStatement> statements, Attributes attrs)
+    {
+        this.type = type;
+        this.bindVariables = bindVariables;
+        this.statements = statements;
+        this.attrs = attrs;
+
+        boolean hasConditions = false;
+        RegularAndStaticColumns.Builder builder = RegularAndStaticColumns.builder();
+        RegularAndStaticColumns.Builder conditionBuilder = RegularAndStaticColumns.builder();
+        boolean updateRegular = false;
+        boolean updateStatic = false;
+        boolean updatesVirtualTables = false;
+
+        for (ModificationStatement stmt : statements)
+        {
+            assert tableId.equals(stmt.metadata().id);
+            builder.addAll(stmt.updatedColumns());
+            updateRegular |= stmt.updatesRegularRows();
+            updatesVirtualTables |= stmt.isVirtual();
+            if (stmt.hasConditions())
+            {
+                hasConditions = true;
+                conditionBuilder.addAll(stmt.conditionColumns());
+                updateStatic |= stmt.updatesStaticRow();
+            }
+        }
+
+        this.updatedColumns = Collections.singletonMap(tableId, builder.build());
+        this.conditionColumns = conditionBuilder.build();
+        this.updatesRegularRows = updateRegular;
+        this.updatesStaticRow = updateStatic;
+        this.hasConditions = hasConditions;
+        this.updatesVirtualTables = updatesVirtualTables;
+    }
+
     @Override
     public List<ColumnSpecification> getBindVariables()
     {
@@ -413,8 +451,10 @@ public class BatchStatement implements CQLStatement
             throw new InvalidRequestException("Invalid empty serial consistency level");
 
         ClientState clientState = queryState.getClientState();
-        Guardrails.writeConsistencyLevels.guard(EnumSet.of(options.getConsistency(), options.getSerialConsistency()),
-                                                clientState);
+        if (Guardrails.writeConsistencyLevels.enabled(clientState)) // to avoid EnumSet allocation
+            Guardrails.writeConsistencyLevels.guard(EnumSet.of(options.getConsistency(),
+                                                               options.getSerialConsistency()),
+                                                    clientState);
 
         for (int i = 0; i < statements.size(); i++ )
             statements.get(i).validateDiskUsage(options.forStatement(i), clientState);

@@ -172,6 +172,8 @@ public abstract class MultiCBuilder
      */
     public abstract NavigableSet<Clustering<?>> build();
 
+    public abstract Clustering<?> buildSingle();
+
     /**
      * Builds the <code>ClusteringBound</code>s for slice restrictions.
      *
@@ -272,7 +274,11 @@ public abstract class MultiCBuilder
             if (hasMissingElements)
                 return BTreeSet.empty(comparator);
 
-            return BTreeSet.of(comparator, size == 0 ? Clustering.EMPTY : Clustering.make(elements));
+            return BTreeSet.of(comparator, buildSingle());
+        }
+
+        public Clustering<?> buildSingle() {
+            return size == 0 ? Clustering.EMPTY : Clustering.make(elements);
         }
 
         @Override
@@ -435,6 +441,17 @@ public abstract class MultiCBuilder
                 set.add(builder.buildWith(elements));
             }
             return set.build();
+        }
+
+        public Clustering<?> buildSingle()
+        {
+            if (hasMissingElements)
+                return null;
+            if (elementsList.size() == 1) {
+                CBuilder builder = CBuilder.create(comparator);
+                return builder.buildWith(elementsList.get(0));
+            }
+            throw new UnsupportedOperationException();
         }
 
         public NavigableSet<ClusteringBound<?>> buildBoundForSlice(boolean isStart,

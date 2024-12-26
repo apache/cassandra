@@ -153,6 +153,8 @@ public class RegularAndStaticColumns implements Iterable<ColumnMetadata>
         private BTree.Builder<ColumnMetadata> regularColumns;
         private BTree.Builder<ColumnMetadata> staticColumns;
 
+        private RegularAndStaticColumns lastAddedColumns;
+
         public Builder add(ColumnMetadata c)
         {
             if (c.isStatic())
@@ -180,18 +182,24 @@ public class RegularAndStaticColumns implements Iterable<ColumnMetadata>
 
         public Builder addAll(RegularAndStaticColumns columns)
         {
+            // for batch statements it is a frequent case when we have the same columns in each inner prepared statement
+            // we use == instead of uquals to make the optimization check cheap
+            if (lastAddedColumns != null && lastAddedColumns == columns) {
+                return this;
+            }
             if (regularColumns == null && !columns.regulars.isEmpty())
                 regularColumns = BTree.builder(naturalOrder());
 
-            for (ColumnMetadata c : columns.regulars)
-                regularColumns.add(c);
+            if (!columns.regulars.isEmpty())
+                regularColumns.addAll(columns.regulars);
 
             if (staticColumns == null && !columns.statics.isEmpty())
                 staticColumns = BTree.builder(naturalOrder());
 
-            for (ColumnMetadata c : columns.statics)
-                staticColumns.add(c);
+            if (!columns.statics.isEmpty())
+                staticColumns.addAll(columns.statics);
 
+            lastAddedColumns = columns;
             return this;
         }
 

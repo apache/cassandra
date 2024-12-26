@@ -214,6 +214,18 @@ public class PartitionUpdate extends AbstractBTreePartition
         return new PartitionUpdate(iterator.metadata(), iterator.partitionKey(), holder, deletionInfo, false);
     }
 
+    /**
+     * An override of default AbstractBTreePartition iterator
+     * It is added as a performance optimization to avoid full-functional filtering
+     * using org.apache.cassandra.db.Columns.inOrderInclusionTester() predicate
+     * when we iterate over row within a PartitionUpdate
+     */
+    @Override
+    public UnfilteredRowIterator unfilteredIterator()
+    {
+        return unfilteredIterator(ColumnFilter.SelectionColumnFilter.all(columns()), Slices.ALL, false);
+    }
+
 
     public PartitionUpdate withOnlyPresentColumns()
     {
@@ -919,7 +931,6 @@ public class PartitionUpdate extends AbstractBTreePartition
             {
                 // this assert is expensive, and possibly of limited value; we should consider removing it
                 // or introducing a new class of assertions for test purposes
-                assert columns().statics.containsAll(row.columns()) : columns().statics + " is not superset of " + row.columns();
                 staticRow = staticRow.isEmpty()
                             ? row
                             : Rows.merge(staticRow, row);
@@ -928,7 +939,6 @@ public class PartitionUpdate extends AbstractBTreePartition
             {
                 // this assert is expensive, and possibly of limited value; we should consider removing it
                 // or introducing a new class of assertions for test purposes
-                assert columns().regulars.containsAll(row.columns()) : columns().regulars + " is not superset of " + row.columns();
                 rowBuilder.add(row);
             }
         }
@@ -953,13 +963,14 @@ public class PartitionUpdate extends AbstractBTreePartition
             return metadata;
         }
 
+        private static final UpdateFunction<Row, Row> ROWS_MERGE_FUNCTION = UpdateFunction.Simple.of(Rows::merge);
+
         public PartitionUpdate build()
         {
             // assert that we are not calling build() several times
             assert !isBuilt : "A PartitionUpdate.Builder should only get built once";
             Object[] add = rowBuilder.build();
-            Object[] merged = BTree.<Row, Row, Row>update(tree, add, metadata.comparator,
-                                                          UpdateFunction.Simple.of(Rows::merge));
+            Object[] merged = BTree.<Row, Row, Row>update(tree, add, metadata.comparator, ROWS_MERGE_FUNCTION);
 
             EncodingStats newStats = EncodingStats.Collector.collect(staticRow, BTree.iterator(merged), deletionInfo);
 

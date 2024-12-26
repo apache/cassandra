@@ -195,6 +195,14 @@ public class PendingRangeMaps implements Iterable<Map.Entry<Range<Token>, Endpoi
 
     public EndpointsForToken pendingEndpointsFor(Token token)
     {
+        // a fast path to avoid extra calculations/allocations
+        // for a typical case when we have a stable cluster
+        if (ascendingMap.isEmpty()
+            && descendingMap.isEmpty()
+            && ascendingMapForWrapAround.isEmpty()
+            && descendingMapForWrapAround.isEmpty())
+            return EndpointsForToken.empty(token);
+
         EndpointsForToken.Builder replicas = EndpointsForToken.builder(token);
 
         Range<Token> searchRange = new Range<>(token, token);

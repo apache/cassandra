@@ -57,6 +57,8 @@ final class RestrictionSet implements Restrictions, Iterable<SingleRestriction>
      * The restrictions per column.
      */
     private final TreeMap<ColumnMetadata, SingleRestriction> restrictions;
+    // cache restrictions as an array for faster zero-alocation iteration
+    private final SingleRestriction[] restrictionsAsArray;
 
     /**
      * {@code true} if it contains multi-column restrictions, {@code false} otherwise.
@@ -94,6 +96,15 @@ final class RestrictionSet implements Restrictions, Iterable<SingleRestriction>
         this.hasSlice = hasSlice;
         this.hasAnn = hasAnn;
         this.hasOnlyEqualityRestrictions = hasOnlyEqualityRestrictions;
+
+        int size = 0;
+        // iterator may remove equal items, so we count elements to get the size
+        for (SingleRestriction restriction : this)
+            size++;
+        this.restrictionsAsArray = new SingleRestriction[size];
+        int i = 0;
+        for (SingleRestriction restriction : this)
+            restrictionsAsArray[i++] = restriction;
     }
 
     @Override
@@ -212,6 +223,11 @@ final class RestrictionSet implements Restrictions, Iterable<SingleRestriction>
         }
 
         return restrictions;
+    }
+
+    public SingleRestriction[] asArray()
+    {
+        return restrictionsAsArray;
     }
 
     @Override

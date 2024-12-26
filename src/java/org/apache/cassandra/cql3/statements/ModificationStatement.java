@@ -103,6 +103,8 @@ public abstract class ModificationStatement implements CQLStatement.SingleKeyspa
 
     private final RegularAndStaticColumns requiresRead;
 
+    private final List<Function> functions;
+
     public ModificationStatement(StatementType type,
                                  VariableSpecifications bindVariables,
                                  TableMetadata metadata,
@@ -156,6 +158,7 @@ public abstract class ModificationStatement implements CQLStatement.SingleKeyspa
         this.updatedColumns = modifiedColumns;
         this.conditionColumns = conditionColumnsBuilder.build();
         this.requiresRead = requiresReadBuilder.build();
+        this.functions = findAllFunctions();
     }
 
     @Override
@@ -173,8 +176,18 @@ public abstract class ModificationStatement implements CQLStatement.SingleKeyspa
     @Override
     public Iterable<Function> getFunctions()
     {
+        return functions;
+    }
+
+    private List<Function> findAllFunctions()
+    {
         List<Function> functions = new ArrayList<>();
         addFunctionsTo(functions);
+        if (functions.isEmpty())
+        {
+            functions = Collections.emptyList(); // to avoid a new Iterator object creation during each authorization
+        }
+
         return functions;
     }
 
@@ -783,8 +796,12 @@ public abstract class ModificationStatement implements CQLStatement.SingleKeyspa
 
                 PartitionUpdate.Builder updateBuilder = collector.getPartitionUpdateBuilder(metadata(), dk, options.getConsistency());
 
-                for (Slice slice : slices)
-                    addUpdateForKey(updateBuilder, slice, params);
+                if (slices == Slices.ALL) // to avoid Slices iterator allocation for a common case
+                    addUpdateForKey(updateBuilder, Slice.ALL, params);
+                else
+                    for (Slice slice : slices)
+                        addUpdateForKey(updateBuilder, slice, params);
+
             }
         }
         else

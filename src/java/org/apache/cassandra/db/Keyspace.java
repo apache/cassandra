@@ -159,6 +159,10 @@ public class Keyspace
 
     public static Keyspace open(String keyspaceName, SchemaProvider schema, boolean loadSSTables)
     {
+        // to avoid a capturing lamda allocation as an argument in maybeAddKeyspaceInstance
+        Keyspace keyspace = schema.getKeyspaceInstance(keyspaceName);
+        if (keyspace != null)
+            return keyspace;
         return schema.maybeAddKeyspaceInstance(keyspaceName, () -> new Keyspace(keyspaceName, schema, loadSSTables));
     }
 

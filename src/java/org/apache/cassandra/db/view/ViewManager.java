@@ -75,6 +75,9 @@ public class ViewManager
         if (!enableCoordinatorBatchlog && coordinatorBatchlog)
             return false;
 
+        if (viewsByBaseTable.isEmpty())
+            return false;
+
         for (IMutation mutation : mutations)
         {
             for (PartitionUpdate update : mutation.getPartitionUpdates())
@@ -84,7 +87,8 @@ public class ViewManager
                 if (coordinatorBatchlog && keyspace.getReplicationStrategy().getReplicationFactor().allReplicas == 1)
                     continue;
 
-                if (!forTable(update.metadata().id).updatedViews(update).isEmpty())
+                TableViews tableViews = forTable(update.metadata().id);
+                if (tableViews.hasViews() && !tableViews.updatedViews(update).isEmpty())
                     return true;
             }
         }

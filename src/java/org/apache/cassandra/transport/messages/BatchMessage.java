@@ -36,6 +36,7 @@ import org.apache.cassandra.cql3.statements.BatchStatement;
 import org.apache.cassandra.cql3.statements.ModificationStatement;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.exceptions.PreparedQueryNotFoundException;
+import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.QueryState;
 import org.apache.cassandra.tracing.Tracing;
@@ -209,6 +210,8 @@ public class BatchMessage extends Message.Request
             BatchQueryOptions batchOptions = BatchQueryOptions.withPerStatementVariables(options, values, queryOrIdList);
             List<ModificationStatement> statements = new ArrayList<>(prepared.size());
             List<String> queries = QueryEvents.instance.hasListeners() ? new ArrayList<>(prepared.size()) : null;
+            TableId firstTableId = null;
+            boolean isTableIdSame = true;
             for (int i = 0; i < prepared.size(); i++)
             {
                 CQLStatement statement = prepared.get(i).statement;
@@ -220,11 +223,18 @@ public class BatchMessage extends Message.Request
                     throw new InvalidRequestException("Invalid statement in batch: only UPDATE, INSERT and DELETE statements are allowed.");
 
                 statements.add((ModificationStatement) statement);
+                TableId tableId = ((ModificationStatement) statement).metadata.id;
+                if (firstTableId == null)
+                    firstTableId = tableId;
+                else
+                    isTableIdSame = isTableIdSame && firstTableId.equals(tableId);
             }
 
             // Note: It's ok at this point to pass a bogus value for the number of bound terms in the BatchState ctor
             // (and no value would be really correct, so we prefer passing a clearly wrong one).
-            BatchStatement batch = new BatchStatement(batchType, VariableSpecifications.empty(), statements, Attributes.none());
+            BatchStatement batch = isTableIdSame ?
+                                   new BatchStatement(batchType, VariableSpecifications.empty(), firstTableId, statements, Attributes.none()) :
+                                   new BatchStatement(batchType, VariableSpecifications.empty(), statements, Attributes.none());
 
             long queryTime = currentTimeMillis();
             Message.Response response = handler.processBatch(batch, state, batchOptions, getCustomPayload(), requestTime);

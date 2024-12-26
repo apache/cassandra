@@ -105,7 +105,7 @@ final class ClusteringColumnRestrictions extends RestrictionSetWrapper
     public NavigableSet<Clustering<?>> valuesAsClustering(QueryOptions options, ClientState state) throws InvalidRequestException
     {
         MultiCBuilder builder = MultiCBuilder.create(comparator, hasIN());
-        for (SingleRestriction r : restrictions)
+        for (SingleRestriction r : restrictions.asArray())
         {
             r.appendTo(builder, options);
 
