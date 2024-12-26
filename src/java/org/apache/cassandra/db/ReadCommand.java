@@ -966,7 +966,7 @@ public abstract class ReadCommand extends AbstractReadQuery
                                          nowInSec);
                 }
                 // for bound markers - just increment if it is purgeable
-                else
+                else if (marker instanceof RangeTombstoneBoundMarker)
                 {
                     countIfPurgeable(((RangeTombstoneBoundMarker) marker).deletionTime(), nowInSec);
                 }

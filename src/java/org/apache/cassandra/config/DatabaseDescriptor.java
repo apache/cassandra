@@ -5526,12 +5526,12 @@ public class DatabaseDescriptor
 
     public static Config.TombstonesMetricGranularity getPurgeableTobmstonesMetricGranularity()
     {
-        return conf.tombstones_read_purgeable_metric_granularity;
+        return conf.tombstone_read_purgeable_metric_granularity;
     }
 
     @VisibleForTesting
     public static void setPurgeableTobmstonesMetricGranularity(Config.TombstonesMetricGranularity granularity)
     {
-        conf.tombstones_read_purgeable_metric_granularity = granularity;
+        conf.tombstone_read_purgeable_metric_granularity = granularity;
     }
 }
