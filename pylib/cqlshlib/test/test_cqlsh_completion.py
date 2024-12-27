@@ -837,3 +837,8 @@ class TestCqlshCompletion(CqlshCompletionCase):
         self.trycompletions('ALTER KEYSPACE system_trac', "es WITH replication = {'class': '")
         self.trycompletions("ALTER KEYSPACE system_traces WITH replication = {'class': '", '',
                             choices=['NetworkTopologyStrategy', 'SimpleStrategy'])
+
+    def test_complete_in_create_role(self):
+        self.trycompletions('CREATE ROLE ', choices=['<rolename>'])
+        self.trycompletions('CREATE USER ', choices=['<username>', 'IF'])
+
