@@ -1,4 +1,5 @@
 4.0.17
+ * Fix autocompletion for role names/user names (CASSANDRA-20175)
 
 
 4.0.16

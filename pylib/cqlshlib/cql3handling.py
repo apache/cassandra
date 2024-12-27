@@ -1472,9 +1472,9 @@ syntax_rules += r'''
 '''
 
 syntax_rules += r'''
-<rolename> ::= <identifier>
+<rolename> ::= role=( <identifier>
              | <quotedName>
-             | <unreservedKeyword>
+             | <unreservedKeyword> )
              ;
 
 <createRoleStatement> ::= "CREATE" "ROLE" <rolename>
@@ -1564,32 +1564,22 @@ syntax_rules += r'''
 
 @completer_for('username', 'name')
 def username_name_completer(ctxt, cass):
-    def maybe_quote(name):
-        if CqlRuleSet.is_valid_cql3_name(name):
-            return name
-        return "'%s'" % name
-
     # disable completion for CREATE USER.
     if ctxt.matched[0][1].upper() == 'CREATE':
         return [Hint('<username>')]
 
     session = cass.session
-    return [maybe_quote(list(row.values())[0].replace("'", "''")) for row in session.execute("LIST USERS")]
+    return map(maybe_escape_name, [row['name'] for row in session.execute("LIST USERS")])
 
 
 @completer_for('rolename', 'role')
 def rolename_completer(ctxt, cass):
-    def maybe_quote(name):
-        if CqlRuleSet.is_valid_cql3_name(name):
-            return name
-        return "'%s'" % name
-
     # disable completion for CREATE ROLE.
     if ctxt.matched[0][1].upper() == 'CREATE':
         return [Hint('<rolename>')]
 
     session = cass.session
-    return [maybe_quote(row[0].replace("'", "''")) for row in session.execute("LIST ROLES")]
+    return map(maybe_escape_name, [row['role'] for row in session.execute("LIST ROLES")])
 
 
 syntax_rules += r'''
