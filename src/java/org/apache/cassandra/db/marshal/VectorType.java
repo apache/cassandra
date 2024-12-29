@@ -37,6 +37,7 @@ import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.serializers.MarshalException;
 import org.apache.cassandra.serializers.TypeSerializer;
 import org.apache.cassandra.transport.ProtocolVersion;
+import org.apache.cassandra.utils.ByteArrayUtil;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.JsonUtils;
 import org.apache.cassandra.utils.bytecomparable.ByteComparable;
@@ -195,19 +196,30 @@ public final class VectorType<T> extends MultiElementType<List<T>>
     @Override
     public List<ByteBuffer> filterSortAndValidateElements(List<ByteBuffer> buffers)
     {
+        return filterSortAndValidateElements(buffers, ByteBufferUtil.UNSET_BYTE_BUFFER, ByteBufferAccessor.instance);
+    }
+
+    @Override
+    public List<byte[]> filterSortAndValidateElementsFromArrays(List<byte[]> buffers)
+    {
+        return filterSortAndValidateElements(buffers, ByteArrayUtil.UNSET_BYTE_ARRAY, ByteArrayAccessor.instance);
+    }
+
+    public <V> List<V> filterSortAndValidateElements(List<V> buffers, V unsetValue, ValueAccessor<V> valueAccessor)
+    {
         // We only filter and validate for this type.
         if (buffers == null)
             return null;
 
-        for (ByteBuffer buffer: buffers)
+        for (V buffer : buffers)
         {
-            if (buffer == null || elementType.isNull(buffer))
+            if (buffer == null || elementType.isNull(buffer, valueAccessor))
                 throw new MarshalException("null is not supported inside vectors");
 
-            if (buffer == ByteBufferUtil.UNSET_BYTE_BUFFER )
+            if (buffer == unsetValue)
                 throw new InvalidRequestException("unset is not supported inside vectors");
 
-            elementType.validate(buffer);
+            elementType.validate(buffer, valueAccessor);
         }
         return buffers;
     }

@@ -120,6 +120,11 @@ public abstract class Cell<V> extends ColumnData
         return accessor().toBuffer(value());
     }
 
+    public byte[] valueAsArray()
+    {
+        return accessor().toArray(value());
+    }
+
     /**
      * The cell timestamp.
      * <p>

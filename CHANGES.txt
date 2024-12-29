@@ -1,4 +1,5 @@
 5.1
+ * Use byte[] directly in QueryOptions instead of ByteBuffer and convert them to ArrayCell instead of BufferCell to reduce allocations (CASSANDRA-20166)
  * Log queries scanning too many SSTables per read (CASSANDRA-21048)
  * Extend nodetool verify to (optionally) validate SAI files (CASSANDRA-20949)
  * Fix CompressionDictionary being closed while still in use (CASSANDRA-21047)

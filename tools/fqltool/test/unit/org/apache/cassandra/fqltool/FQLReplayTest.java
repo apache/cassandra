@@ -50,6 +50,7 @@ import org.apache.cassandra.fqltool.commands.Replay;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.QueryState;
 import org.apache.cassandra.tools.Util;
+import org.apache.cassandra.utils.ByteArrayUtil;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.MergeIterator;
 import org.apache.cassandra.utils.Pair;
@@ -705,11 +706,11 @@ public class FQLReplayTest
                 {
                     int batchSize = random ? r.nextInt(99) + 1 : i + 1;
                     List<String> queries = new ArrayList<>(batchSize);
-                    List<List<ByteBuffer>> values = new ArrayList<>(batchSize);
+                    List<byte[][]> values = new ArrayList<>(batchSize);
                     for (int jj = 0; jj < (random ? r.nextInt(batchSize) : 10); jj++)
                     {
                         queries.add("aaaaaa batch "+i+":"+jj);
-                        values.add(Collections.emptyList());
+                        values.add(ByteArrayUtil.EMPTY_ARRAY_OF_BYTE_ARRAYS);
                     }
                     FullQueryLogger.Batch batch = new FullQueryLogger.Batch(BatchStatement.Type.UNLOGGED,
                                                                             queries,

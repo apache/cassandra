@@ -17,7 +17,6 @@
  */
 package org.apache.cassandra.fql;
 
-import java.nio.ByteBuffer;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
@@ -268,7 +267,7 @@ public class FullQueryLogger implements QueryEvents.Listener
     public void batchSuccess(BatchStatement.Type type,
                              List<? extends CQLStatement> statements,
                              List<String> queries,
-                             List<List<ByteBuffer>> values,
+                             List<byte[][]> values,
                              QueryOptions queryOptions,
                              QueryState queryState,
                              long batchTimeMillis,
@@ -383,11 +382,11 @@ public class FullQueryLogger implements QueryEvents.Listener
         private final int weight;
         private final BatchStatement.Type batchType;
         private final List<String> queries;
-        private final List<List<ByteBuffer>> values;
+        private final List<byte[][]> values;
 
         public Batch(BatchStatement.Type batchType,
                      List<String> queries,
-                     List<List<ByteBuffer>> values,
+                     List<byte[][]> values,
                      QueryOptions queryOptions,
                      QueryState queryState,
                      long batchTimeMillis)
@@ -406,11 +405,11 @@ public class FullQueryLogger implements QueryEvents.Listener
                 queriesSize += ObjectSizes.sizeOf(checkNotNull(query));
 
             long valuesSize = EMPTY_LIST_SIZE + ObjectSizes.sizeOfReferenceArray(values.size());
-            for (List<ByteBuffer> subValues : values)
+            for (byte[][] subValues : values)
             {
-                valuesSize += EMPTY_LIST_SIZE + ObjectSizes.sizeOfReferenceArray(subValues.size());
-                for (ByteBuffer subValue : subValues)
-                    valuesSize += ObjectSizes.sizeOnHeapOf(subValue);
+                valuesSize += EMPTY_LIST_SIZE + ObjectSizes.sizeOfReferenceArray(subValues.length);
+                for (byte[] subValue : subValues)
+                    valuesSize += ObjectSizes.sizeOfArray(subValue);
             }
 
             // No need to add the batch type which is an enum.
@@ -450,10 +449,10 @@ public class FullQueryLogger implements QueryEvents.Listener
             }
             valueOut = wire.write(VALUES);
             valueOut.int32(values.size());
-            for (List<ByteBuffer> subValues : values)
+            for (byte[][] subValues : values)
             {
-                valueOut.int32(subValues.size());
-                for (ByteBuffer value : subValues)
+                valueOut.int32(subValues.length);
+                for (byte[] value : subValues)
                     valueOut.bytes(value == null ? null : BytesStore.wrap(value));
             }
         }

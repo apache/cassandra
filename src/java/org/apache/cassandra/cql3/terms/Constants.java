@@ -52,6 +52,7 @@ import org.apache.cassandra.db.rows.Row;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.serializers.MarshalException;
+import org.apache.cassandra.utils.ByteArrayUtil;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FastByteOperations;
 
@@ -479,11 +480,22 @@ public abstract class Constants
 
         public void execute(DecoratedKey partitionKey, UpdateParameters params) throws InvalidRequestException
         {
-            ByteBuffer value = t.bindAndGet(params.options);
-            if (value == null)
-                params.addTombstone(column);
-            else if (value != ByteBufferUtil.UNSET_BYTE_BUFFER) // use reference equality and not object equality
-                params.addCell(column, value);
+            if (t.isByteArrayGetSupported(params.options))
+            {
+                byte[] value = t.bindAndGetByteArray(params.options);
+                if (value == null)
+                    params.addTombstone(column);
+                else if (value != ByteArrayUtil.UNSET_BYTE_ARRAY) // use reference equality and not object equality
+                    params.addCell(column, value);
+            }
+            else
+            {
+                ByteBuffer value = t.bindAndGet(params.options);
+                if (value == null)
+                    params.addTombstone(column);
+                else if (value != ByteBufferUtil.UNSET_BYTE_BUFFER) // use reference equality and not object equality
+                    params.addCell(column, value);
+            }
         }
     }
 

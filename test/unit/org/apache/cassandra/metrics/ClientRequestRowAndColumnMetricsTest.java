@@ -18,7 +18,6 @@
 
 package org.apache.cassandra.metrics;
 
-import java.nio.ByteBuffer;
 import java.util.Collections;
 import java.util.List;
 
@@ -37,6 +36,7 @@ import org.apache.cassandra.service.paxos.Paxos;
 import org.apache.cassandra.transport.SimpleClient;
 import org.apache.cassandra.transport.messages.BatchMessage;
 import org.apache.cassandra.transport.messages.QueryMessage;
+import org.apache.cassandra.utils.ByteArrayUtil;
 
 import static org.apache.cassandra.metrics.CassandraMetricsRegistry.METRIC_SCOPE_UNDEFINED;
 import static org.apache.cassandra.transport.ProtocolVersion.CURRENT;
@@ -261,7 +261,7 @@ public class ClientRequestRowAndColumnMetricsTest extends CQLTester
             String first = String.format("INSERT INTO %s.%s (pk, v1, v2) VALUES (1, 10, 100)", KEYSPACE, currentTable());
             String second = String.format("INSERT INTO %s.%s (pk, v1, v2) VALUES (2, 20, 200)", KEYSPACE, currentTable());
 
-            List<List<ByteBuffer>> values = ImmutableList.of(Collections.emptyList(), Collections.emptyList());
+            List<byte[][]> values = ImmutableList.of(ByteArrayUtil.EMPTY_ARRAY_OF_BYTE_ARRAYS, ByteArrayUtil.EMPTY_ARRAY_OF_BYTE_ARRAYS);
             BatchMessage batch = new BatchMessage(BatchStatement.Type.LOGGED, ImmutableList.of(first, second), values, QueryOptions.DEFAULT);
             client.execute(batch);
 
@@ -316,7 +316,7 @@ public class ClientRequestRowAndColumnMetricsTest extends CQLTester
             String first = String.format("INSERT INTO %s.%s (pk, ck, v0, v1, v2) VALUES (0, 1, 2, 3, 4)", KEYSPACE, currentTable());
             String second = String.format("INSERT INTO %s.%s (pk, ck, v0, v1, v2) VALUES (0, 2, 3, 5, 6)", KEYSPACE, currentTable());
 
-            List<List<ByteBuffer>> values = ImmutableList.of(Collections.emptyList(), Collections.emptyList());
+            List<byte[][]> values = ImmutableList.of(ByteArrayUtil.EMPTY_ARRAY_OF_BYTE_ARRAYS, ByteArrayUtil.EMPTY_ARRAY_OF_BYTE_ARRAYS);
             BatchMessage batch = new BatchMessage(BatchStatement.Type.LOGGED, ImmutableList.of(first, second), values, QueryOptions.DEFAULT);
             client.execute(batch);
 
@@ -377,7 +377,7 @@ public class ClientRequestRowAndColumnMetricsTest extends CQLTester
             String first = String.format("INSERT INTO %s.%s (pk, ck, v1, v2) VALUES (1, 2, 3, 4)", KEYSPACE, currentTable());
             String second = String.format("DELETE FROM %s.%s WHERE pk = 1 AND ck > 1", KEYSPACE, currentTable());
 
-            List<List<ByteBuffer>> values = ImmutableList.of(Collections.emptyList(), Collections.emptyList());
+            List<byte[][]> values = ImmutableList.of(ByteArrayUtil.EMPTY_ARRAY_OF_BYTE_ARRAYS, ByteArrayUtil.EMPTY_ARRAY_OF_BYTE_ARRAYS);
             BatchMessage batch = new BatchMessage(BatchStatement.Type.LOGGED, ImmutableList.of(first, second), values, QueryOptions.DEFAULT);
             client.execute(batch);
 

@@ -90,6 +90,24 @@ public interface Term
     ByteBuffer bindAndGet(QueryOptions options);
 
     /**
+     * return true if an optimized bindAndGetByteArray() method is implemented and can be used for this type of Term
+     * to retrieve a value as byte[] instead of default ByteBuffer provided by bindAndGet()
+     */
+    default boolean isByteArrayGetSupported(QueryOptions options)
+    {
+        return false;
+    }
+
+    /**
+     * an allocation-optimized version of bindAndGet() method
+     */
+    default byte[] bindAndGetByteArray(QueryOptions options) throws InvalidRequestException
+    {
+        throw new IllegalStateException("bindAndGetByteArray() method is not implemented, " +
+                                        "isByteArrayGetSupported() must be always checked before invoking this method");
+    }
+
+    /**
      * A shorter for {@code bind(options).getElements()}.
      * We expose it mainly because for constants it can avoid allocating a temporary
      * object between the bind and the getElements.

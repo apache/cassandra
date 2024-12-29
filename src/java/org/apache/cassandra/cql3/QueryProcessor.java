@@ -914,19 +914,19 @@ public class QueryProcessor implements QueryHandler
     public ResultMessage processPrepared(CQLStatement statement, QueryState queryState, QueryOptions options, Dispatcher.RequestTime requestTime)
     throws RequestExecutionException, RequestValidationException
     {
-        List<ByteBuffer> variables = options.getValues();
+        int variablesSize = options.getValuesSize();
         // Check to see if there are any bound variables to verify
-        if (!(variables.isEmpty() && statement.getBindVariables().isEmpty()))
+        if (!(variablesSize == 0 && statement.getBindVariables().isEmpty()))
         {
-            if (variables.size() != statement.getBindVariables().size())
+            if (variablesSize != statement.getBindVariables().size())
                 throw new InvalidRequestException(String.format("there were %d markers(?) in CQL but %d bound variables",
                                                                 statement.getBindVariables().size(),
-                                                                variables.size()));
+                                                                variablesSize));
 
             // at this point there is a match in count between markers and variables that is non-zero
             if (logger.isTraceEnabled())
-                for (int i = 0; i < variables.size(); i++)
-                    logger.trace("[{}] '{}'", i+1, variables.get(i));
+                for (int i = 0; i < variablesSize; i++)
+                    logger.trace("[{}] '{}'", i+1, options.getValues().get(i));
         }
 
         metrics.preparedStatementsExecuted.inc();
