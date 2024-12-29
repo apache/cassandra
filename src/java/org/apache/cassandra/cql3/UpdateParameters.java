@@ -161,6 +161,11 @@ public class UpdateParameters
         return addCell(column, null, value);
     }
 
+    public Cell<?> addCell(ColumnMetadata column, byte[] value) throws InvalidRequestException
+    {
+        return addCell(column, null, value);
+    }
+
     public Cell<?> addCell(ColumnMetadata column, CellPath path, ByteBuffer value) throws InvalidRequestException
     {
         Guardrails.columnValueSize.guard(value.remaining(), column.name.toString(), false, clientState);
@@ -171,6 +176,21 @@ public class UpdateParameters
         Cell<?> cell = ttl == LivenessInfo.NO_TTL
                        ? BufferCell.live(column, timestamp, value, path)
                        : BufferCell.expiring(column, timestamp, ttl, nowInSec, value, path);
+        builder.addCell(cell);
+        return cell;
+    }
+
+
+    public Cell<?> addCell(ColumnMetadata column, CellPath path, byte[] value) throws InvalidRequestException
+    {
+        Guardrails.columnValueSize.guard(value.length, column.name.toString(), false, clientState);
+
+        if (path != null && column.type.isMultiCell())
+            Guardrails.columnValueSize.guard(path.dataSize(), column.name.toString(), false, clientState);
+
+        Cell<?> cell = ttl == LivenessInfo.NO_TTL
+                       ? ArrayCell.live(column, timestamp, value, path)
+                       : ArrayCell.expiring(column, timestamp, ttl, nowInSec, value, path);
         builder.addCell(cell);
         return cell;
     }

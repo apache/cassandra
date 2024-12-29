@@ -18,7 +18,6 @@
 
 package org.apache.cassandra.audit;
 
-import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -293,7 +292,7 @@ public class AuditLogManager implements QueryEvents.Listener, AuthEvents.Listene
             log(entry, cause, query == null ? null : ImmutableList.of(query));
     }
 
-    public void batchSuccess(BatchStatement.Type batchType, List<? extends CQLStatement> statements, List<String> queries, List<List<ByteBuffer>> values, QueryOptions options, QueryState state, long queryTime, Message.Response response)
+    public void batchSuccess(BatchStatement.Type batchType, List<? extends CQLStatement> statements, List<String> queries, List<byte[][]> values, QueryOptions options, QueryState state, long queryTime, Message.Response response)
     {
         List<AuditLogEntry> entries = buildEntriesForBatch(statements, queries, state, options, queryTime);
         for (AuditLogEntry auditLogEntry : entries)
@@ -302,7 +301,7 @@ public class AuditLogManager implements QueryEvents.Listener, AuthEvents.Listene
         }
     }
 
-    public void batchFailure(BatchStatement.Type batchType, List<? extends CQLStatement> statements, List<String> queries, List<List<ByteBuffer>> values, QueryOptions options, QueryState state, Exception cause)
+    public void batchFailure(BatchStatement.Type batchType, List<? extends CQLStatement> statements, List<String> queries, List<byte[][]> values, QueryOptions options, QueryState state, Exception cause)
     {
         String auditMessage = String.format("BATCH of %d statements at consistency %s", statements.size(), options.getConsistency());
         AuditLogEntry entry = new AuditLogEntry.Builder(state).setOperation(auditMessage)

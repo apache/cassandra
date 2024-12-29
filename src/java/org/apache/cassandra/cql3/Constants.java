@@ -31,6 +31,7 @@ import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.serializers.MarshalException;
 import org.apache.cassandra.transport.ProtocolVersion;
+import org.apache.cassandra.utils.ByteArrayUtil;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FastByteOperations;
 
@@ -451,9 +452,30 @@ public abstract class Constants
         {
             try
             {
-                ByteBuffer value = options.getValues().get(bindIndex);
+                ByteBuffer value = options.getValue(bindIndex);
                 if (value != null && value != ByteBufferUtil.UNSET_BYTE_BUFFER)
                     receiver.type.validate(value);
+                return value;
+            }
+            catch (MarshalException e)
+            {
+                throw new InvalidRequestException(e.getMessage());
+            }
+        }
+
+        public boolean isByteArrayGetSupported(QueryOptions options)
+        {
+            return options.isByteArrayValuesGetSupported();
+        }
+
+        @Override
+        public byte[] bindAndGetByteArray(QueryOptions options) throws InvalidRequestException
+        {
+            try
+            {
+                byte[] value = options.getByteArrayValues()[bindIndex];
+                if (value != null && value != ByteArrayUtil.UNSET_BYTE_ARRAY)
+                    receiver.type.validate(value, ByteArrayAccessor.instance);
                 return value;
             }
             catch (MarshalException e)
@@ -482,11 +504,22 @@ public abstract class Constants
 
         public void execute(DecoratedKey partitionKey, UpdateParameters params) throws InvalidRequestException
         {
-            ByteBuffer value = t.bindAndGet(params.options);
-            if (value == null)
-                params.addTombstone(column);
-            else if (value != ByteBufferUtil.UNSET_BYTE_BUFFER) // use reference equality and not object equality
-                params.addCell(column, value);
+            if (t.isByteArrayGetSupported(params.options))
+            {
+                byte[] value = t.bindAndGetByteArray(params.options);
+                if (value == null)
+                    params.addTombstone(column);
+                else if (value != ByteArrayUtil.UNSET_BYTE_ARRAY) // use reference equality and not object equality
+                    params.addCell(column, value);
+            }
+            else
+            {
+                ByteBuffer value = t.bindAndGet(params.options);
+                if (value == null)
+                    params.addTombstone(column);
+                else if (value != ByteBufferUtil.UNSET_BYTE_BUFFER) // use reference equality and not object equality
+                    params.addCell(column, value);
+            }
         }
     }
 

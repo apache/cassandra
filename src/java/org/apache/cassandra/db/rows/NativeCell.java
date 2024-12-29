@@ -20,6 +20,7 @@ package org.apache.cassandra.db.rows;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 
+import org.apache.cassandra.db.marshal.ByteArrayAccessor;
 import org.apache.cassandra.db.marshal.ByteBufferAccessor;
 import org.apache.cassandra.db.marshal.ValueAccessor;
 import org.apache.cassandra.schema.ColumnMetadata;
@@ -48,6 +49,39 @@ public class NativeCell extends AbstractCell<ByteBuffer>
         this.peer = 0;
     }
 
+    public static NativeCell build(NativeAllocator allocator,
+                                   OpOrder.Group writeOp,
+                                   Cell<?> cell)
+    {
+        if (cell.accessor() == ByteArrayAccessor.instance) // to avoid ByteBuffer allocation via cell.value()
+        {
+            byte[] value = cell.valueAsArray();
+            return new NativeCell(allocator,
+                                  writeOp,
+                                  cell.column(),
+                                  cell.timestamp(),
+                                  cell.ttl(),
+                                  cell.localDeletionTimeAsUnsignedInt(),
+                                  value,
+                                  value.length,
+                                  cell.path());
+        }
+        else
+        {
+            ByteBuffer byteBuffer = cell.buffer();
+            assert byteBuffer.order() == ByteOrder.BIG_ENDIAN;
+            return new NativeCell(allocator,
+                                  writeOp,
+                                  cell.column(),
+                                  cell.timestamp(),
+                                  cell.ttl(),
+                                  cell.localDeletionTimeAsUnsignedInt(),
+                                  byteBuffer,
+                                  byteBuffer.remaining(),
+                                  cell.path());
+        }
+    }
+
     public NativeCell(NativeAllocator allocator,
                       OpOrder.Group writeOp,
                       Cell<?> cell)
@@ -73,22 +107,22 @@ public class NativeCell extends AbstractCell<ByteBuffer>
                       ByteBuffer value,
                       CellPath path)
     {
-        this(allocator, writeOp, column, timestamp, ttl, deletionTimeLongToUnsignedInteger(localDeletionTime), value, path);
+        this(allocator, writeOp, column, timestamp, ttl, deletionTimeLongToUnsignedInteger(localDeletionTime), value, value.remaining(), path);
     }
 
-    public NativeCell(NativeAllocator allocator,
-                      OpOrder.Group writeOp,
-                      ColumnMetadata column,
-                      long timestamp,
-                      int ttl,
-                      int localDeletionTimeUnsignedInteger,
-                      ByteBuffer value,
-                      CellPath path)
+    private NativeCell(NativeAllocator allocator,
+                       OpOrder.Group writeOp,
+                       ColumnMetadata column,
+                       long timestamp,
+                       int ttl,
+                       int localDeletionTimeUnsignedInteger,
+                       Object value,
+                       int valueLength,
+                       CellPath path)
     {
         super(column);
-        long size = offHeapSizeWithoutPath(value.remaining());
+        long size = offHeapSizeWithoutPath(valueLength);
 
-        assert value.order() == ByteOrder.BIG_ENDIAN;
         assert column.isComplex() == (path != null);
         if (path != null)
         {
@@ -105,15 +139,22 @@ public class NativeCell extends AbstractCell<ByteBuffer>
         MemoryUtil.setLong(peer + TIMESTAMP, timestamp);
         MemoryUtil.setInt(peer + TTL, ttl);
         MemoryUtil.setInt(peer + DELETION, localDeletionTimeUnsignedInteger);
-        MemoryUtil.setInt(peer + LENGTH, value.remaining());
-        MemoryUtil.setBytes(peer + VALUE, value);
+        MemoryUtil.setInt(peer + LENGTH, valueLength);
+        if (value instanceof byte[])
+        {
+            MemoryUtil.setBytes(peer + VALUE, (byte[]) value, 0, valueLength);
+        } else if (value instanceof ByteBuffer)
+        {
+            MemoryUtil.setBytes(peer + VALUE, (ByteBuffer) value);
+        } else
+            throw new IllegalArgumentException();
 
         if (path != null)
         {
             ByteBuffer pathbuffer = path.get(0);
             assert pathbuffer.order() == ByteOrder.BIG_ENDIAN;
 
-            long offset = peer + VALUE + value.remaining();
+            long offset = peer + VALUE + valueLength;
             MemoryUtil.setInt(offset, pathbuffer.remaining());
             MemoryUtil.setBytes(offset + 4, pathbuffer);
         }

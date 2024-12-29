@@ -61,6 +61,16 @@ public interface Term
      */
     public ByteBuffer bindAndGet(QueryOptions options) throws InvalidRequestException;
 
+    public default boolean isByteArrayGetSupported(QueryOptions options)
+    {
+        return false;
+    }
+
+    public default byte[] bindAndGetByteArray(QueryOptions options) throws InvalidRequestException
+    {
+        throw new UnsupportedOperationException();
+    }
+
     /**
      * Whether or not that term contains at least one bind marker.
      *

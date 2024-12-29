@@ -29,6 +29,8 @@ import org.apache.cassandra.service.QueryState;
 import org.apache.commons.lang3.builder.ToStringBuilder;
 import org.apache.commons.lang3.builder.ToStringStyle;
 
+import static org.apache.cassandra.utils.ByteArrayUtil.convertToByteBufferValue;
+
 public abstract class BatchQueryOptions
 {
     public static BatchQueryOptions DEFAULT = withoutPerStatementVariables(QueryOptions.DEFAULT);
@@ -47,7 +49,7 @@ public abstract class BatchQueryOptions
         return new WithoutPerStatementVariables(options, Collections.<Object>emptyList());
     }
 
-    public static BatchQueryOptions withPerStatementVariables(QueryOptions options, List<List<ByteBuffer>> variables, List<Object> queryOrIdList)
+    public static BatchQueryOptions withPerStatementVariables(QueryOptions options, List<byte[][]> variables, List<Object> queryOrIdList)
     {
         return new WithPerStatementVariables(options, variables, queryOrIdList);
     }
@@ -89,6 +91,79 @@ public abstract class BatchQueryOptions
         return wrapped.getNowInSeconds(state);
     }
 
+    private static class BatchQueryOptionsWrapper extends QueryOptions.QueryOptionsWrapper {
+        private static final ByteBuffer NOT_INITIALIZED = ByteBuffer.wrap(new byte[]{});
+
+        private final byte[][] valuesAsByteArray;
+        private List<ByteBuffer> values;
+
+        private boolean fullyFilled;
+
+        BatchQueryOptionsWrapper(QueryOptions wrapped, byte[][] vars)
+        {
+            super(wrapped);
+            this.valuesAsByteArray = vars;
+        }
+        public List<ByteBuffer> getValues()
+        {
+            if (values == null)
+            {
+                fullyFilled = true;
+                values = new ArrayList<>(valuesAsByteArray.length);
+                for (byte[] byteArrayValue : valuesAsByteArray)
+                    values.add(convertToByteBufferValue(byteArrayValue));
+            }
+            if (!fullyFilled)
+            {
+                fullyFilled = true;
+                for (int i = 0; i < valuesAsByteArray.length; i++)
+                {
+                    ByteBuffer value = values.get(i);
+                    if (value == NOT_INITIALIZED)
+                    {
+                        value = convertToByteBufferValue(valuesAsByteArray[i]);
+                        values.set(i, value);
+                    }
+                }
+            }
+            return values;
+        }
+
+        public int getValuesSize()
+        {
+            return valuesAsByteArray.length;
+        }
+
+        public ByteBuffer getValue(int index)
+        {
+            if (values == null) // we convert values to ByteBuffer in a lazy way, on demand
+            {
+                values = new ArrayList<>(valuesAsByteArray.length);
+                for (int i = 0; i < valuesAsByteArray.length; i++)
+                    values.add(NOT_INITIALIZED);
+            }
+
+            ByteBuffer value = values.get(index);
+            if (value == NOT_INITIALIZED)
+            {
+                value = convertToByteBufferValue(valuesAsByteArray[index]);
+                values.set(index, value);
+            }
+            return value;
+        }
+
+        public boolean isByteArrayValuesGetSupported()
+        {
+            return true;
+        }
+
+        public byte[][] getByteArrayValues()
+        {
+            return valuesAsByteArray;
+        }
+    }
+
+
     private static class WithoutPerStatementVariables extends BatchQueryOptions
     {
         private WithoutPerStatementVariables(QueryOptions wrapped, List<Object> queryOrIdList)
@@ -106,19 +181,13 @@ public abstract class BatchQueryOptions
     {
         private final List<QueryOptions> perStatementOptions;
 
-        private WithPerStatementVariables(QueryOptions wrapped, List<List<ByteBuffer>> variables, List<Object> queryOrIdList)
+        private WithPerStatementVariables(QueryOptions wrapped, List<byte[][]> variables, List<Object> queryOrIdList)
         {
             super(wrapped, queryOrIdList);
             this.perStatementOptions = new ArrayList<>(variables.size());
-            for (final List<ByteBuffer> vars : variables)
+            for (final byte[][] vars : variables)
             {
-                perStatementOptions.add(new QueryOptions.QueryOptionsWrapper(wrapped)
-                {
-                    public List<ByteBuffer> getValues()
-                    {
-                        return vars;
-                    }
-                });
+                perStatementOptions.add(new BatchQueryOptionsWrapper(wrapped, vars));
             }
         }
 

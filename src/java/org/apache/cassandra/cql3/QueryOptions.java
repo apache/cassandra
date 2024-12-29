@@ -36,10 +36,13 @@ import org.apache.cassandra.transport.CBCodec;
 import org.apache.cassandra.transport.CBUtil;
 import org.apache.cassandra.transport.ProtocolException;
 import org.apache.cassandra.transport.ProtocolVersion;
+import org.apache.cassandra.utils.ByteArrayUtil;
 import org.apache.cassandra.utils.CassandraUInt;
 import org.apache.cassandra.utils.Pair;
 import org.apache.commons.lang3.builder.ToStringBuilder;
 import org.apache.commons.lang3.builder.ToStringStyle;
+
+import static org.apache.cassandra.utils.ByteArrayUtil.convertToByteBufferValue;
 
 /**
  * Options for a query.
@@ -48,6 +51,7 @@ public abstract class QueryOptions
 {
     public static final QueryOptions DEFAULT = new DefaultQueryOptions(ConsistencyLevel.ONE,
                                                                        Collections.emptyList(),
+                                                                       ByteArrayUtil.EMPTY_ARRAY_OF_BYTE_ARRAYS,
                                                                        false,
                                                                        SpecificOptions.DEFAULT,
                                                                        ProtocolVersion.CURRENT);
@@ -61,22 +65,22 @@ public abstract class QueryOptions
 
     public static QueryOptions forInternalCalls(ConsistencyLevel consistency, List<ByteBuffer> values)
     {
-        return new DefaultQueryOptions(consistency, values, false, SpecificOptions.DEFAULT, ProtocolVersion.V3);
+        return new DefaultQueryOptions(consistency, values, ByteArrayUtil.EMPTY_ARRAY_OF_BYTE_ARRAYS, false, SpecificOptions.DEFAULT, ProtocolVersion.V3);
     }
 
     public static QueryOptions forInternalCallsWithNowInSec(long nowInSec, ConsistencyLevel consistency, List<ByteBuffer> values)
     {
-        return new DefaultQueryOptions(consistency, values, false, SpecificOptions.DEFAULT.withNowInSec(nowInSec), ProtocolVersion.CURRENT);
+        return new DefaultQueryOptions(consistency, values, ByteArrayUtil.EMPTY_ARRAY_OF_BYTE_ARRAYS, false, SpecificOptions.DEFAULT.withNowInSec(nowInSec), ProtocolVersion.CURRENT);
     }
 
     public static QueryOptions forInternalCalls(List<ByteBuffer> values)
     {
-        return new DefaultQueryOptions(ConsistencyLevel.ONE, values, false, SpecificOptions.DEFAULT, ProtocolVersion.V3);
+        return new DefaultQueryOptions(ConsistencyLevel.ONE, values, ByteArrayUtil.EMPTY_ARRAY_OF_BYTE_ARRAYS, false, SpecificOptions.DEFAULT, ProtocolVersion.V3);
     }
 
     public static QueryOptions forProtocolVersion(ProtocolVersion protocolVersion)
     {
-        return new DefaultQueryOptions(null, null, true, null, protocolVersion);
+        return new DefaultQueryOptions(null, null, ByteArrayUtil.EMPTY_ARRAY_OF_BYTE_ARRAYS, true, null, protocolVersion);
     }
 
     public static QueryOptions create(ConsistencyLevel consistency,
@@ -104,6 +108,7 @@ public abstract class QueryOptions
     {
         return new DefaultQueryOptions(consistency,
                                        values,
+                                       ByteArrayUtil.EMPTY_ARRAY_OF_BYTE_ARRAYS,
                                        skipMetadata,
                                        new SpecificOptions(pageSize, pagingState, serialConsistency, timestamp, keyspace, nowInSeconds),
                                        version);
@@ -126,6 +131,30 @@ public abstract class QueryOptions
 
     public abstract ConsistencyLevel getConsistency();
     public abstract List<ByteBuffer> getValues();
+
+    public abstract int getValuesSize();
+
+    public ByteBuffer getValue(int index)
+    {
+        return getValues().get(index);
+    }
+
+    /**
+     * to check if it is possible to get values as byte[] instead of ByteBuffer
+     * the logic is added as a memory allocation optimization
+     * to avoid creating of HeapByteBuffer wrappers for some typical requests
+     * getValues method is still in use and must be supported even if true is returned
+     */
+    public boolean isByteArrayValuesGetSupported()
+    {
+        return false;
+    }
+
+    public byte[][] getByteArrayValues()
+    {
+        throw new UnsupportedOperationException();
+    }
+
     public abstract boolean skipMetadata();
 
     /**
@@ -336,8 +365,13 @@ public abstract class QueryOptions
 
     static class DefaultQueryOptions extends QueryOptions
     {
+        private static final ByteBuffer NOT_INITIALIZED = ByteBuffer.wrap(new byte[]{});
         private final ConsistencyLevel consistency;
-        private final List<ByteBuffer> values;
+        private List<ByteBuffer> values;
+        private final byte[][] valuesAsByteArray;
+        private boolean valuesFullyFilled;
+        private final boolean isByteArrayGetSupported;
+
         private final boolean skipMetadata;
 
         private final SpecificOptions options;
@@ -345,10 +379,18 @@ public abstract class QueryOptions
         private final transient ProtocolVersion protocolVersion;
         private final transient ReadThresholds readThresholds = ReadThresholds.create();
 
-        DefaultQueryOptions(ConsistencyLevel consistency, List<ByteBuffer> values, boolean skipMetadata, SpecificOptions options, ProtocolVersion protocolVersion)
+        DefaultQueryOptions(ConsistencyLevel consistency, List<ByteBuffer> values, byte[][] valuesAsByteArray, boolean skipMetadata, SpecificOptions options, ProtocolVersion protocolVersion)
         {
             this.consistency = consistency;
             this.values = values;
+            if (values != null)
+            {
+                valuesFullyFilled = true;
+                isByteArrayGetSupported = false;
+            }
+            else
+                this.isByteArrayGetSupported = true;
+            this.valuesAsByteArray = valuesAsByteArray;
             this.skipMetadata = skipMetadata;
             this.options = options;
             this.protocolVersion = protocolVersion;
@@ -361,7 +403,60 @@ public abstract class QueryOptions
 
         public List<ByteBuffer> getValues()
         {
+            if (values == null)
+            {
+                valuesFullyFilled = true;
+                values = new ArrayList<>(valuesAsByteArray.length);
+                for (byte[] byteArrayValue : valuesAsByteArray)
+                    values.add(convertToByteBufferValue(byteArrayValue));
+            }
+            if (!valuesFullyFilled)
+            {
+                valuesFullyFilled = true;
+                for (int i = 0; i < valuesAsByteArray.length; i++)
+                {
+                    ByteBuffer value = values.get(i);
+                    if (value == NOT_INITIALIZED)
+                    {
+                        value = convertToByteBufferValue(valuesAsByteArray[i]);
+                        values.set(i, value);
+                    }
+                }
+            }
             return values;
+        }
+
+        public int getValuesSize()
+        {
+            return isByteArrayValuesGetSupported() ? valuesAsByteArray.length : values.size();
+        }
+
+        public ByteBuffer getValue(int index)
+        {
+            if (values == null) // we convert values to ByteBuffer in a lazy way, on demand
+            {
+                values = new ArrayList<>(valuesAsByteArray.length);
+                for (int i = 0; i < valuesAsByteArray.length; i++)
+                    values.add(NOT_INITIALIZED);
+            }
+
+            ByteBuffer value = values.get(index);
+            if (value == NOT_INITIALIZED)
+            {
+                value = convertToByteBufferValue(valuesAsByteArray[index]);
+                values.set(index, value);
+            }
+            return value;
+        }
+
+        public boolean isByteArrayValuesGetSupported()
+        {
+            return isByteArrayGetSupported;
+        }
+
+        public byte[][] getByteArrayValues()
+        {
+            return valuesAsByteArray;
         }
 
         public boolean skipMetadata()
@@ -398,6 +493,26 @@ public abstract class QueryOptions
         public List<ByteBuffer> getValues()
         {
             return this.wrapped.getValues();
+        }
+
+        public int getValuesSize()
+        {
+            return wrapped.getValuesSize();
+        }
+
+        public ByteBuffer getValue(int index)
+        {
+            return this.wrapped.getValue(index);
+        }
+
+        public boolean isByteArrayValuesGetSupported()
+        {
+            return wrapped.isByteArrayValuesGetSupported();
+        }
+
+        public byte[][] getByteArrayValues()
+        {
+            return wrapped.getByteArrayValues();
         }
 
         public ConsistencyLevel getConsistency()
@@ -611,19 +726,19 @@ public abstract class QueryOptions
                                                    ? (int)body.readUnsignedInt()
                                                    : (int)body.readUnsignedByte());
 
-            List<ByteBuffer> values = Collections.<ByteBuffer>emptyList();
+            byte[][] values = ByteArrayUtil.EMPTY_ARRAY_OF_BYTE_ARRAYS;
             List<String> names = null;
             if (flags.contains(Flag.VALUES))
             {
                 if (flags.contains(Flag.NAMES_FOR_VALUES))
                 {
-                    Pair<List<String>, List<ByteBuffer>> namesAndValues = CBUtil.readNameAndValueList(body, version);
+                    Pair<List<String>, byte[][]> namesAndValues = CBUtil.readNameAndValueListAsByteArrays(body, version);
                     names = namesAndValues.left;
                     values = namesAndValues.right;
                 }
                 else
                 {
-                    values = CBUtil.readValueList(body, version);
+                    values = CBUtil.readValueListAsByteArrays(body, version);
                 }
             }
 
@@ -651,7 +766,7 @@ public abstract class QueryOptions
                 options = new SpecificOptions(pageSize, pagingState, serialConsistency, timestamp, keyspace, nowInSeconds);
             }
 
-            DefaultQueryOptions opts = new DefaultQueryOptions(consistency, values, skipMetadata, options, version);
+            DefaultQueryOptions opts = new DefaultQueryOptions(consistency, null, values, skipMetadata, options, version);
             return names == null ? opts : new OptionsWithNames(opts, names);
         }
 

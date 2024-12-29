@@ -87,7 +87,7 @@ public class NativeAllocator extends MemtableAllocator
         @Override
         public void addCell(Cell<?> cell)
         {
-            super.addCell(new NativeCell(allocator, writeOp, cell));
+            super.addCell(NativeCell.build(allocator, writeOp, cell));
         }
     }
 
@@ -125,7 +125,7 @@ public class NativeAllocator extends MemtableAllocator
                     @Override
                     public Cell<?> clone(Cell<?> cell)
                     {
-                        return new NativeCell(NativeAllocator.this, opGroup, cell);
+                        return NativeCell.build(NativeAllocator.this, opGroup, cell);
                     }
                 };
     }

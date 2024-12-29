@@ -40,6 +40,7 @@ import io.netty.buffer.UnpooledByteBufAllocator;
 import io.netty.util.concurrent.FastThreadLocal;
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.db.TypeSizes;
+import org.apache.cassandra.utils.ByteArrayUtil;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.TimeUUID;
@@ -548,6 +549,36 @@ public abstract class CBUtil
         return l;
     }
 
+    public static byte[][] readValueListAsByteArrays(ByteBuf cb, ProtocolVersion protocolVersion)
+    {
+        int size = cb.readUnsignedShort();
+        if (size == 0)
+            return ByteArrayUtil.EMPTY_ARRAY_OF_BYTE_ARRAYS;
+
+        byte[][] l = new byte[size][];
+        for (int i = 0; i < size; i++)
+            l[i] = readBoundValueAsByteArray(cb, protocolVersion);
+        return l;
+    }
+
+    public static byte[] readBoundValueAsByteArray(ByteBuf cb, ProtocolVersion protocolVersion)
+    {
+        int length = cb.readInt();
+        if (length < 0)
+        {
+            if (protocolVersion.isSmallerThan(ProtocolVersion.V4)) // backward compatibility for pre-version 4
+                return null;
+            if (length == -1)
+                return null;
+            else if (length == -2)
+                return ByteArrayUtil.UNSET_BYTE_ARRAY;
+            else
+                throw new ProtocolException("Invalid ByteBuf length " + length);
+        }
+        return readRawBytes(cb, length);
+    }
+
+
     public static void writeValueList(List<ByteBuffer> values, ByteBuf cb)
     {
         cb.writeShort(values.size());
@@ -555,10 +586,25 @@ public abstract class CBUtil
             CBUtil.writeValue(value, cb);
     }
 
+    public static void writeValueListOfByteArrays(byte[][] values, ByteBuf cb)
+    {
+        cb.writeShort(values.length);
+        for (byte[] value : values)
+            CBUtil.writeValue(value, cb);
+    }
+
     public static int sizeOfValueList(List<ByteBuffer> values)
     {
         int size = 2;
         for (ByteBuffer value : values)
+            size += CBUtil.sizeOfValue(value);
+        return size;
+    }
+
+    public static int sizeOfValueListOfByteArrays(byte[][] values)
+    {
+        int size = 2;
+        for (byte[] value : values)
             size += CBUtil.sizeOfValue(value);
         return size;
     }
@@ -575,6 +621,22 @@ public abstract class CBUtil
         {
             s.add(readString(cb));
             l.add(readBoundValue(cb, protocolVersion));
+        }
+        return Pair.create(s, l);
+    }
+
+    public static Pair<List<String>, byte[][]> readNameAndValueListAsByteArrays(ByteBuf cb, ProtocolVersion protocolVersion)
+    {
+        int size = cb.readUnsignedShort();
+        if (size == 0)
+            return Pair.create(Collections.<String>emptyList(), ByteArrayUtil.EMPTY_ARRAY_OF_BYTE_ARRAYS);
+
+        List<String> s = new ArrayList<>(size);
+        byte[][] l = new byte[size][];
+        for (int i = 0; i < size; i++)
+        {
+            s.add(readString(cb));
+            l[i] = readBoundValueAsByteArray(cb, protocolVersion);
         }
         return Pair.create(s, l);
     }

@@ -18,7 +18,6 @@
 
 package org.apache.cassandra.cql3;
 
-import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
@@ -146,7 +145,7 @@ public class QueryEvents
     public void notifyBatchSuccess(BatchStatement.Type batchType,
                                    List<? extends CQLStatement> statements,
                                    List<String> queries,
-                                   List<List<ByteBuffer>> values,
+                                   List<byte[][]> values,
                                    QueryOptions options,
                                    QueryState state,
                                    long queryTime,
@@ -167,7 +166,7 @@ public class QueryEvents
     public void notifyBatchFailure(List<QueryHandler.Prepared> prepared,
                                    BatchStatement.Type batchType,
                                    List<Object> queryOrIdList,
-                                   List<List<ByteBuffer>> values,
+                                   List<byte[][]> values,
                                    QueryOptions options,
                                    QueryState state,
                                    Exception cause)
@@ -288,7 +287,7 @@ public class QueryEvents
         default void batchSuccess(BatchStatement.Type batchType,
                                   List<? extends CQLStatement> statements,
                                   List<String> queries,
-                                  List<List<ByteBuffer>> values,
+                                  List<byte[][]> values,
                                   QueryOptions options,
                                   QueryState state,
                                   long queryTime,
@@ -296,7 +295,7 @@ public class QueryEvents
         default void batchFailure(BatchStatement.Type batchType,
                                   List<? extends CQLStatement> statements,
                                   List<String> queries,
-                                  List<List<ByteBuffer>> values,
+                                  List<byte[][]> values,
                                   QueryOptions options,
                                   QueryState state,
                                   Exception cause) {}

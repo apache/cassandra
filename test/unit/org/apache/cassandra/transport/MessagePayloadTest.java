@@ -46,6 +46,7 @@ import org.apache.cassandra.transport.messages.ExecuteMessage;
 import org.apache.cassandra.transport.messages.PrepareMessage;
 import org.apache.cassandra.transport.messages.QueryMessage;
 import org.apache.cassandra.transport.messages.ResultMessage;
+import org.apache.cassandra.utils.ByteArrayUtil;
 import org.apache.cassandra.utils.MD5Digest;
 import org.apache.cassandra.utils.ReflectionUtils;
 
@@ -172,7 +173,7 @@ public class MessagePayloadTest extends CQLTester
 
                 BatchMessage batchMessage = new BatchMessage(BatchStatement.Type.UNLOGGED,
                                                              Collections.<Object>singletonList("INSERT INTO " + KEYSPACE + ".atable (pk,v) VALUES (1, 'foo')"),
-                                                             Collections.singletonList(Collections.<ByteBuffer>emptyList()),
+                                                             Collections.singletonList(ByteArrayUtil.EMPTY_ARRAY_OF_BYTE_ARRAYS),
                                                              queryOptions);
                 reqMap = Collections.singletonMap("foo", bytes(45));
                 responsePayload = respMap = Collections.singletonMap("bar", bytes(45));
@@ -241,7 +242,7 @@ public class MessagePayloadTest extends CQLTester
 
                 BatchMessage batchMessage = new BatchMessage(BatchStatement.Type.UNLOGGED,
                                                              Collections.<Object>singletonList("INSERT INTO " + KEYSPACE + ".atable (pk,v) VALUES (1, 'foo')"),
-                                                             Collections.singletonList(Collections.<ByteBuffer>emptyList()),
+                                                             Collections.singletonList(ByteArrayUtil.EMPTY_ARRAY_OF_BYTE_ARRAYS),
                                                              QueryOptions.DEFAULT);
                 reqMap = Collections.singletonMap("foo", bytes(45));
                 responsePayload = respMap = Collections.singletonMap("bar", bytes(45));
@@ -342,7 +343,7 @@ public class MessagePayloadTest extends CQLTester
 
                 BatchMessage batchMessage = new BatchMessage(BatchStatement.Type.UNLOGGED,
                                                              Collections.<Object>singletonList("INSERT INTO " + KEYSPACE + ".atable (pk,v) VALUES (1, 'foo')"),
-                                                             Collections.singletonList(Collections.<ByteBuffer>emptyList()),
+                                                             Collections.singletonList(ByteArrayUtil.EMPTY_ARRAY_OF_BYTE_ARRAYS),
                                                              QueryOptions.DEFAULT);
                 reqMap = Collections.singletonMap("foo", bytes(45));
                 responsePayload = Collections.singletonMap("bar", bytes(45));
