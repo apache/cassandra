@@ -341,7 +341,7 @@ public class ByteSourceConversionTest extends ByteSourceTestBase
 
     void assertClusteringPairConvertsSame(AbstractType t1, AbstractType t2, Object o1, Object o2)
     {
-        for (ValueAccessor<?> accessor : ValueAccessors.ACCESSORS)
+        for (ValueAccessor<?> accessor : ValueAccessors.FACTORY_SUPPORTED_ACCESSORS)
             assertClusteringPairConvertsSame(accessor, t1, t2, o1, o2, AbstractType::decompose);
     }
 

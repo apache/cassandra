@@ -17,6 +17,7 @@
  */
 package org.apache.cassandra.db;
 
+import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.Iterator;
 import java.util.Random;
@@ -30,6 +31,7 @@ import org.junit.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.cql3.ColumnIdentifier;
@@ -63,7 +65,7 @@ public class NativeCellTest extends CQLTester
     }
 
     @Test
-    public void testCells()
+    public void testCells() throws IOException
     {
         for (int run = 0 ; run < 1000 ; run++)
         {
@@ -152,7 +154,7 @@ public class NativeCellTest extends CQLTester
         return Math.min(Math.max(1, randomsize), 1 << 26);
     }
 
-    private static void test(Row row)
+    private static void test(Row row)  throws IOException
     {
         Row nrow = row.clone(nativeAllocator.cloner(group));
         Row brow = row.clone(HeapCloner.instance);
@@ -175,6 +177,44 @@ public class NativeCellTest extends CQLTester
         assertCellsDataSize(row, nrow);
         assertCellsDataSize(row, brow);
 
+        assertCellsWrittenToOutput(row, nrow);
+        assertCellsWrittenToOutput(row, brow);
+
+        assertCellsSlicing(row, nrow);
+        assertCellsSlicing(row, brow);
+    }
+
+    private static void assertCellsWrittenToOutput(Row row1, Row row2) throws IOException
+    {
+        Iterator<Cell<?>> row1Iterator = row1.cells().iterator();
+        Iterator<Cell<?>> row2Iterator = row2.cells().iterator();
+        while (row1Iterator.hasNext())
+        {
+            Cell cell1 = row1Iterator.next();
+            Cell cell2 = row2Iterator.next();
+            DataOutputBuffer output1 = new DataOutputBuffer(cell1.dataSize());
+            DataOutputBuffer output2 = new DataOutputBuffer(cell2.dataSize());
+            cell1.accessor().write(cell1.value(), output1);
+            cell2.accessor().write(cell2.value(), output2);
+            Assert.assertArrayEquals(output1.toByteArray(), output2.toByteArray());
+        }
+    }
+
+    private static void assertCellsSlicing(Row row1, Row row2)
+    {
+        Iterator<Cell<?>> row1Iterator = row1.cells().iterator();
+        Iterator<Cell<?>> row2Iterator = row2.cells().iterator();
+        while (row1Iterator.hasNext())
+        {
+            Cell cell1 = row1Iterator.next();
+            Cell cell2 = row2Iterator.next();
+            int offset = cell1.accessor().size(cell1.value()) / 3;
+            int length = cell1.accessor().size(cell1.value()) / 2;
+            Object slice1 = cell1.accessor().slice(cell1.value(), offset, length);
+            Object slice2 = cell2.accessor().slice(cell2.value(), offset, length);
+            Assert.assertEquals(0, cell1.accessor().compare(slice1, slice2, cell2.accessor()));
+            Assert.assertEquals(0, cell2.accessor().compare(slice2, slice1, cell1.accessor()));
+        }
     }
 
     private static void assertCellsDataSize(Row row1, Row row2)

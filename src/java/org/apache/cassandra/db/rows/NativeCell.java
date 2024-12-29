@@ -17,11 +17,16 @@
  */
 package org.apache.cassandra.db.rows;
 
+import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 
-import org.apache.cassandra.db.marshal.ByteBufferAccessor;
+import io.netty.util.concurrent.FastThreadLocal;
+import org.apache.cassandra.db.marshal.ByteBufferSliceNativeData;
+import org.apache.cassandra.db.marshal.NativeAccessor;
+import org.apache.cassandra.db.marshal.NativeData;
 import org.apache.cassandra.db.marshal.ValueAccessor;
+import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.ObjectSizes;
@@ -29,7 +34,7 @@ import org.apache.cassandra.utils.concurrent.OpOrder;
 import org.apache.cassandra.utils.memory.MemoryUtil;
 import org.apache.cassandra.utils.memory.NativeAllocator;
 
-public class NativeCell extends AbstractCell<ByteBuffer>
+public class NativeCell extends AbstractCell<NativeData> implements NativeData
 {
     private static final long EMPTY_SIZE = ObjectSizes.measure(new NativeCell());
 
@@ -134,15 +139,20 @@ public class NativeCell extends AbstractCell<ByteBuffer>
         return MemoryUtil.getInt(peer + TTL);
     }
 
-    public ByteBuffer value()// FIXME: add native accessor
+    public NativeData value()
+    {
+        return this;
+    }
+
+    public ByteBuffer byteBufferValue()
     {
         int length = MemoryUtil.getInt(peer + LENGTH);
         return MemoryUtil.getByteBuffer(peer + VALUE, length, ByteOrder.BIG_ENDIAN);
     }
 
-    public ValueAccessor<ByteBuffer> accessor()
+    public ValueAccessor<NativeData> accessor()
     {
-        return ByteBufferAccessor.instance;  // FIXME: add native accessor
+        return NativeAccessor.instance;
     }
 
     public int valueSize()
@@ -167,12 +177,12 @@ public class NativeCell extends AbstractCell<ByteBuffer>
 
     public Cell<?> withUpdatedTimestampAndLocalDeletionTime(long newTimestamp, long newLocalDeletionTime)
     {
-        return new BufferCell(column, newTimestamp, ttl(), newLocalDeletionTime, value(), path());
+        return new BufferCell(column, newTimestamp, ttl(), newLocalDeletionTime, byteBufferValue(), path());
     }
 
     public Cell<?> withUpdatedColumn(ColumnMetadata column)
     {
-        return new BufferCell(column, timestamp(), ttl(), localDeletionTimeAsUnsignedInt(), value(), path());
+        return new BufferCell(column, timestamp(), ttl(), localDeletionTimeAsUnsignedInt(), byteBufferValue(), path());
     }
 
     public Cell withSkippedValue()
@@ -209,5 +219,44 @@ public class NativeCell extends AbstractCell<ByteBuffer>
     protected int localDeletionTimeAsUnsignedInt()
     {
         return MemoryUtil.getInt(peer + DELETION);
+    }
+
+
+    @Override
+    public int nativeDataSize()
+    {
+        return valueSize();
+    }
+
+    @Override
+    public ByteBuffer asByteBuffer()
+    {
+        return byteBufferValue();
+    }
+    @Override
+    public NativeData slice(int offset, int length)
+    {
+        ByteBuffer byteBuffer = asByteBuffer(); // we get a new buffer here each time, so duplicate() is not needed
+        byteBuffer.position(byteBuffer.position() + offset);
+        byteBuffer.limit(byteBuffer.position() + length);
+        return new ByteBufferSliceNativeData(byteBuffer);
+    }
+
+    private static final FastThreadLocal<ByteBuffer> REUSABLE_WRITE_BUFFER = new FastThreadLocal<>()
+    {
+        @Override
+        protected ByteBuffer initialValue()
+        {
+            return MemoryUtil.getHollowDirectByteBuffer(ByteOrder.BIG_ENDIAN);
+        }
+    };
+
+    @Override
+    public void writeTo(DataOutputPlus out) throws IOException
+    {
+        int length = MemoryUtil.getInt(peer + LENGTH);
+        ByteBuffer byteBuffer = REUSABLE_WRITE_BUFFER.get();
+        MemoryUtil.setDirectByteBuffer(byteBuffer, peer + VALUE, length);
+        out.write(byteBuffer);
     }
 }
