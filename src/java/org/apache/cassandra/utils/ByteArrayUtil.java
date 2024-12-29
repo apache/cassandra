@@ -33,6 +33,8 @@ import org.apache.cassandra.io.util.DataOutputPlus;
 public class ByteArrayUtil
 {
     public static final byte[] EMPTY_BYTE_ARRAY = new byte[0];
+    public static final byte[][] EMPTY_ARRAY_OF_BYTE_ARRAYS = new byte[0][];
+    public static final byte[] UNSET_BYTE_ARRAY = new byte[0];
 
     public static int compareUnsigned(byte[] o1, byte[] o2)
     {
@@ -276,5 +278,17 @@ public class ByteArrayUtil
     public static void copyBytes(byte[] src, int srcPos, ByteBuffer dst, int dstPos, int length)
     {
         FastByteOperations.copy(src, srcPos, dst, dstPos, length);
+    }
+
+
+    public static ByteBuffer convertToByteBufferValue(byte[] arrayValue)
+    {
+        if (arrayValue == null)
+            return null;
+        if (arrayValue == ByteArrayUtil.UNSET_BYTE_ARRAY)
+            return ByteBufferUtil.UNSET_BYTE_BUFFER; // it is important for correctness to preserve unset value
+        if (arrayValue == ByteArrayUtil.EMPTY_BYTE_ARRAY)
+            return ByteBufferUtil.EMPTY_BYTE_BUFFER;
+        return ByteBuffer.wrap(arrayValue);
     }
 }

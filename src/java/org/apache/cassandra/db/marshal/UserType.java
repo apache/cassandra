@@ -44,6 +44,7 @@ import org.apache.cassandra.serializers.MarshalException;
 import org.apache.cassandra.serializers.TypeSerializer;
 import org.apache.cassandra.serializers.UserTypeSerializer;
 import org.apache.cassandra.transport.ProtocolVersion;
+import org.apache.cassandra.utils.ByteArrayUtil;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.JsonUtils;
 import org.apache.cassandra.utils.Pair;
@@ -645,6 +646,17 @@ public class UserType extends TupleType implements SchemaElement
     @Override
     public List<ByteBuffer> filterSortAndValidateElements(List<ByteBuffer> buffers)
     {
+        return filterSortAndValidateElements(buffers, ByteBufferUtil.UNSET_BYTE_BUFFER, ByteBufferAccessor.instance);
+    }
+
+    @Override
+    public List<byte[]> filterSortAndValidateElementsFromArrays(List<byte[]> buffers)
+    {
+        return filterSortAndValidateElements(buffers, ByteArrayUtil.UNSET_BYTE_ARRAY, ByteArrayAccessor.instance);
+    }
+
+    private <T> List<T> filterSortAndValidateElements(List<T> buffers, T unsetValue, ValueAccessor<T> valueAccessor)
+    {
         if (buffers.size() > size())
             throw new MarshalException(String.format("UDT value contained too many fields (expected %s, got %s)", size(), buffers.size()));
 
@@ -652,12 +664,12 @@ public class UserType extends TupleType implements SchemaElement
         {
             // Since a frozen UDT value is always written in its entirety Cassandra can't preserve a pre-existing
             // value by 'not setting' the new value. Reject the query.
-            ByteBuffer buffer = buffers.get(i);
+            T buffer = buffers.get(i);
             if (buffer == null)
                 continue;
-            if (!isMultiCell() && buffer == ByteBufferUtil.UNSET_BYTE_BUFFER)
+            if (!isMultiCell() && buffer == unsetValue)
                 throw new MarshalException(String.format("Invalid unset value for field '%s' of user defined type %s", fieldNameAsString(i), getNameAsString()));
-            type(i).validate(buffer);
+            type(i).validate(buffer, valueAccessor);
         }
 
         return buffers;
