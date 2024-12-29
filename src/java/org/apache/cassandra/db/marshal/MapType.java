@@ -21,6 +21,7 @@ import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -384,25 +385,36 @@ public class MapType<K, V> extends CollectionType<Map<K, V>>
     @Override
     public List<ByteBuffer> filterSortAndValidateElements(List<ByteBuffer> buffers)
     {
+        return filterSortAndValidateElements(buffers, ByteBufferAccessor.instance, getKeysType().comparatorSet.buffer);
+    }
+
+    @Override
+    public List<byte[]> filterSortAndValidateElementsFromArrays(List<byte[]> buffers)
+    {
+        return filterSortAndValidateElements(buffers, ByteArrayAccessor.instance, getKeysType().comparatorSet.array);
+    }
+
+    private <T> List<T> filterSortAndValidateElements(List<T> buffers, ValueAccessor<T> valueAccessor, Comparator<T> comparator)
+    {
         // We depend on Maps to be properly sorted by their keys, so use a sorted map implementation here.
-        SortedMap<ByteBuffer, ByteBuffer> map = new TreeMap<>(getKeysType());
-        Iterator<ByteBuffer> iter = buffers.iterator();
+        SortedMap<T, T> map = new TreeMap<>(comparator);
+        Iterator<T> iter = buffers.iterator();
         while (iter.hasNext())
         {
-            ByteBuffer keyBytes = iter.next();
-            ByteBuffer valueBytes = iter.next();
+            T keyBytes = iter.next();
+            T valueBytes = iter.next();
 
             if (keyBytes == null || valueBytes == null)
                 throw new MarshalException("null is not supported inside collections");
 
-            getKeysType().validate(keyBytes);
-            getValuesType().validate(valueBytes);
+            getKeysType().validate(keyBytes, valueAccessor);
+            getValuesType().validate(valueBytes, valueAccessor);
 
             map.put(keyBytes, valueBytes);
         }
 
-        List<ByteBuffer> sortedBuffers = new ArrayList<>(map.size() << 1);
-        for (Map.Entry<ByteBuffer, ByteBuffer> entry : map.entrySet())
+        List<T> sortedBuffers = new ArrayList<>(map.size() << 1);
+        for (Map.Entry<T, T> entry : map.entrySet())
         {
             sortedBuffers.add(entry.getKey());
             sortedBuffers.add(entry.getValue());

@@ -87,7 +87,7 @@ public class NativeAllocator extends MemtableAllocator implements AddressBasedAl
         @Override
         public void addCell(Cell<?> cell)
         {
-            super.addCell(new NativeCell(allocator, writeOp, cell));
+            super.addCell(NativeCell.build(allocator, writeOp, cell));
         }
     }
 
@@ -153,7 +153,7 @@ public class NativeAllocator extends MemtableAllocator implements AddressBasedAl
         @Override
         public Cell<?> clone(Cell<?> cell)
         {
-            return new NativeCell(this, opGroup, cell);
+            return NativeCell.build(this, opGroup, cell);
         }
 
         @Override

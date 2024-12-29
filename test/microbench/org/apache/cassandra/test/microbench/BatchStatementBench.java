@@ -18,13 +18,10 @@
 
 package org.apache.cassandra.test.microbench;
 
-import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
-
-import com.google.common.collect.Lists;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.Attributes;
@@ -44,6 +41,7 @@ import org.apache.cassandra.schema.SchemaTestUtil;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.transport.Dispatcher;
+import org.apache.cassandra.utils.ByteArrayUtil;
 import org.apache.cassandra.utils.FBUtilities;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
@@ -63,8 +61,6 @@ import org.openjdk.jmh.results.RunResult;
 import org.openjdk.jmh.runner.Runner;
 import org.openjdk.jmh.runner.options.Options;
 import org.openjdk.jmh.runner.options.OptionsBuilder;
-
-import static org.apache.cassandra.utils.ByteBufferUtil.bytes;
 
 @BenchmarkMode(Mode.Throughput)
 @OutputTimeUnit(TimeUnit.MILLISECONDS)
@@ -108,14 +104,14 @@ public class BatchStatementBench
         SchemaTestUtil.addOrUpdateKeyspace(ksm.withSwapped(ksm.tables.with(metadata)), false);
 
         List<ModificationStatement> modifications = new ArrayList<>(batchSize);
-        List<List<ByteBuffer>> parameters = new ArrayList<>(batchSize);
+        List<byte[][]> parameters = new ArrayList<>(batchSize);
         List<Object> queryOrIdList = new ArrayList<>(batchSize);
         QueryHandler.Prepared prepared = QueryProcessor.prepareInternal(String.format("INSERT INTO %s.%s (id, ck, v) VALUES (?,?,?)", keyspace, table));
 
         for (int i = 0; i < batchSize; i++)
         {
             modifications.add((ModificationStatement) prepared.statement);
-            parameters.add(Lists.newArrayList(bytes(uniquePartition ? i : 1), bytes(i), bytes(i)));
+            parameters.add(new byte[][] {ByteArrayUtil.bytes(uniquePartition ? i : 1), ByteArrayUtil.bytes(i), ByteArrayUtil.bytes(i)});
             queryOrIdList.add(prepared.rawCQLStatement);
         }
         bs = new BatchStatement(BatchStatement.Type.UNLOGGED, VariableSpecifications.empty(), modifications, Attributes.none());

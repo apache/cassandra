@@ -58,6 +58,7 @@ import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.QueryState;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.transport.ProtocolVersion;
+import org.apache.cassandra.utils.ByteArrayUtil;
 import org.apache.cassandra.utils.ObjectSizes;
 import org.apache.cassandra.utils.binlog.BinLogTest;
 
@@ -462,9 +463,9 @@ public class FullQueryLoggerTest extends CQLTester
         configureFQL();
         logBatch(Type.UNLOGGED,
                  Arrays.asList("foo1", "foo2"),
-                 Arrays.asList(Arrays.asList(ByteBuffer.allocate(1),
-                                             ByteBuffer.allocateDirect(2)),
-                               Collections.emptyList()),
+                 Arrays.asList(new byte[][] {new byte[1],
+                                             new byte[2]},
+                               ByteArrayUtil.EMPTY_ARRAY_OF_BYTE_ARRAYS),
                  QueryOptions.DEFAULT,
                  queryState("abcdefgh"),
                  1);
@@ -486,9 +487,9 @@ public class FullQueryLoggerTest extends CQLTester
         configureFQL();
         logBatch(Type.UNLOGGED,
                  Arrays.asList("foo1", "foo2"),
-                 Arrays.asList(Arrays.asList(ByteBuffer.allocate(1),
-                                             ByteBuffer.allocateDirect(2)),
-                               Collections.emptyList()),
+                 Arrays.asList(new byte[][] {new byte[1],
+                                             new byte[2]},
+                               ByteArrayUtil.EMPTY_ARRAY_OF_BYTE_ARRAYS),
                  QueryOptions.DEFAULT,
                  queryState(),
                  1);
@@ -599,12 +600,10 @@ public class FullQueryLoggerTest extends CQLTester
 
         bigList = null;
         //The size of the list of values should be reflected
-        List<List<ByteBuffer>> bigValues = new ArrayList<>(100000);
+        List<byte[][]> bigValues = new ArrayList<>(100000);
         for (int ii = 0; ii < 100000; ii++)
-        {
-            bigValues.add(new ArrayList<>(0));
-        }
-        bigValues.get(0).add(ByteBuffer.allocate(1024 * 1024 * 5));
+            bigValues.add(ii == 0 ? new byte[][] {new byte[1024 * 1024 * 5]} : new byte[][]{});
+
         batch = new Batch(Type.UNLOGGED, new ArrayList<>(), bigValues, QueryOptions.DEFAULT, queryState(), 1);
         assertTrue(batch.weight() > ObjectSizes.measureDeep(bigValues));
 
@@ -642,7 +641,7 @@ public class FullQueryLoggerTest extends CQLTester
     @Test(expected = NullPointerException.class)
     public void testLogBatchNullValuesValue() throws Exception
     {
-        logBatch(Type.UNLOGGED, new ArrayList<>(), Arrays.asList((List<ByteBuffer>)null), null, queryState(), 1);
+        logBatch(Type.UNLOGGED, new ArrayList<>(), Collections.singletonList(null), null, queryState(), 1);
     }
 
     @Test(expected = NullPointerException.class)
@@ -737,7 +736,7 @@ public class FullQueryLoggerTest extends CQLTester
 
     private void logBatch(BatchStatement.Type type,
                           List<String> queries,
-                          List<List<ByteBuffer>> values,
+                          List<byte[][]> values,
                           QueryOptions options,
                           QueryState queryState,
                           long time)
