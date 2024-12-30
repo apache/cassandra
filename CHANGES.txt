@@ -175,6 +175,7 @@ Merged from 3.0:
  * Fix CQLSH online help topic link (CASSANDRA-17534)
  * Remove unused suppressions (CASSANDRA-18724)
 Unreleased
+ * [SO-37171] Prepared statements cache computation improvements (CASSANDRA-19986)
  * [SO-38674] Fix BTree.FastBuilder.reset() and test (CASSANDRA-19785)
  * [SO-38164] Enforce minimum duration for repair jobs
  * [SO-36705] Configurable sstable size for LCS enforced tables
