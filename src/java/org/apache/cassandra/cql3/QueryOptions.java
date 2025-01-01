@@ -109,7 +109,7 @@ public abstract class QueryOptions
                                        version);
     }
 
-    public static QueryOptions addColumnSpecifications(QueryOptions options, List<ColumnSpecification> columnSpecs)
+    public static QueryOptions addColumnSpecifications(QueryOptions options, ImmutableList<ColumnSpecification> columnSpecs)
     {
         return new OptionsWithColumnSpecifications(options, columnSpecs);
     }
@@ -475,10 +475,10 @@ public abstract class QueryOptions
     {
         private final ImmutableList<ColumnSpecification> columnSpecs;
 
-        OptionsWithColumnSpecifications(QueryOptions wrapped, List<ColumnSpecification> columnSpecs)
+        OptionsWithColumnSpecifications(QueryOptions wrapped, ImmutableList<ColumnSpecification> columnSpecs)
         {
             super(wrapped);
-            this.columnSpecs = ImmutableList.copyOf(columnSpecs);
+            this.columnSpecs = columnSpecs;
         }
 
         @Override

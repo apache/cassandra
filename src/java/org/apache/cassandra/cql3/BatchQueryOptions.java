@@ -22,6 +22,8 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
+import com.google.common.collect.ImmutableList;
+
 import org.apache.cassandra.utils.MD5Digest;
 
 import org.apache.cassandra.db.ConsistencyLevel;
@@ -54,7 +56,7 @@ public abstract class BatchQueryOptions
 
     public abstract QueryOptions forStatement(int i);
 
-    public void prepareStatement(int i, List<ColumnSpecification> boundNames)
+    public void prepareStatement(int i, ImmutableList<ColumnSpecification> boundNames)
     {
         forStatement(i).prepare(boundNames);
     }
@@ -128,7 +130,7 @@ public abstract class BatchQueryOptions
         }
 
         @Override
-        public void prepareStatement(int i, List<ColumnSpecification> boundNames)
+        public void prepareStatement(int i, ImmutableList<ColumnSpecification> boundNames)
         {
             if (isPreparedStatement(i))
             {

@@ -850,7 +850,11 @@ public class PartitionUpdate extends AbstractBTreePartition
         private final MutableDeletionInfo deletionInfo;
         private final boolean canHaveShadowedData;
         private Object[] tree = BTree.empty();
-        private final BTree.Builder<Row> rowBuilder;
+
+        private Row firstRow;
+        private BTree.Builder<Row> rowBuilder;
+
+        private final int initialRowCapacity;
         private Row staticRow = Rows.EMPTY_STATIC_ROW;
         private final RegularAndStaticColumns columns;
         private boolean isBuilt = false;
@@ -886,7 +890,7 @@ public class PartitionUpdate extends AbstractBTreePartition
             this.metadata = metadata;
             this.key = key;
             this.columns = columns;
-            this.rowBuilder = rowBuilder(initialRowCapacity);
+            this.initialRowCapacity = initialRowCapacity;
             this.canHaveShadowedData = canHaveShadowedData;
             this.deletionInfo = deletionInfo.mutableCopy();
             this.staticRow = staticRow;
@@ -929,17 +933,24 @@ public class PartitionUpdate extends AbstractBTreePartition
 
             if (row.isStatic())
             {
-                // this assert is expensive, and possibly of limited value; we should consider removing it
-                // or introducing a new class of assertions for test purposes
                 staticRow = staticRow.isEmpty()
                             ? row
                             : Rows.merge(staticRow, row);
             }
             else
             {
-                // this assert is expensive, and possibly of limited value; we should consider removing it
-                // or introducing a new class of assertions for test purposes
-                rowBuilder.add(row);
+                if (firstRow == null) {
+                    firstRow = row;
+                }
+                else
+                {
+                    if (rowBuilder == null)
+                    {
+                        rowBuilder = rowBuilder(initialRowCapacity);
+                        rowBuilder.add(firstRow);
+                    }
+                    rowBuilder.add(row);
+                }
             }
         }
 
@@ -969,7 +980,14 @@ public class PartitionUpdate extends AbstractBTreePartition
         {
             // assert that we are not calling build() several times
             assert !isBuilt : "A PartitionUpdate.Builder should only get built once";
-            Object[] add = rowBuilder.build();
+            Object[] add;
+            if (rowBuilder == null) {
+                add = firstRow != null ? BTree.singleton(firstRow) : BTree.empty();
+            }
+            else
+            {
+                add = rowBuilder.build();
+            }
             Object[] merged = BTree.<Row, Row, Row>update(tree, add, metadata.comparator, ROWS_MERGE_FUNCTION);
 
             EncodingStats newStats = EncodingStats.Collector.collect(staticRow, BTree.iterator(merged), deletionInfo);
