@@ -60,12 +60,26 @@ if not os.path.exists(outdir):
 def create_help_file():
     with open(helpfilename, "w+") as output_file:
         try:
-            subprocess.check_call([nodetool, "help"], stdout=output_file)
+            proc = subprocess.Popen([nodetool, "help"], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            out, err = proc.communicate()
+            if proc.returncode != 0:
+                print(
+                    'ERROR: Nodetool failed to run, you likely need to build '
+                    'cassandra using ant jar from the top level directory'
+                )
+                raise subprocess.CalledProcessError(proc.returncode, proc.args, output=out, stderr=err)
+
+            # Wrap the initial "usage: ..." block
+            usage_block = re.search(r'usage:.*?\n\n', out.decode('utf-8'), re.DOTALL | re.MULTILINE)
+            if usage_block:
+                output_file.write("[source,console]\n----\n")
+                output_file.write(usage_block.group(0))
+                output_file.write("----\n")
+                out = out.decode('utf-8').replace(usage_block.group(0), '')
+            else:
+                raise ValueError("No usage block matched in nodetool help output")
+            output_file.write(out)
         except subprocess.CalledProcessError as cpe:
-            print(
-                'ERROR: Nodetool failed to run, you likely need to build '
-                'cassandra using ant jar from the top level directory'
-            )
             raise cpe
 
 # for a given command, create the help file and an ADOC file to contain it
@@ -89,7 +103,7 @@ with open(outdir + "/nodetool.adoc", "w+") as output:
     with open(helpfilename, "r+") as helpfile:
         output.write("= Nodetool\n\n== Usage\n\n")
         for commandLine in helpfile:
-            command = command_re.sub(r'\nxref:modules/cassandra/pages/managing/tools/nodetool/\2.adoc[\2] - ',commandLine)
+            command = command_re.sub(r'\nxref:cassandra:managing/tools/nodetool/\2.adoc[\2] - ',commandLine)
             output.write(command)
 
 # create the command usage pages
