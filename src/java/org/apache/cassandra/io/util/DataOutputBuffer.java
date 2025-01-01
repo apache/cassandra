@@ -290,6 +290,18 @@ public class DataOutputBuffer extends BufferedDataOutputStreamPlus
         return result;
     }
 
+    /**
+     * If the calling logic knows that no new calls to this object will happen after calling this
+     * method, then this method can avoid the ByteBuffer copying done in {@link #buffer()}.
+     */
+    public byte[] unsafeToByteArray()
+    {
+        ByteBuffer buffer = unsafeGetBufferAndFlip();
+        byte[] result = new byte[buffer.remaining()];
+        buffer.get(result);
+        return result;
+    }
+
     public String asString()
     {
         try

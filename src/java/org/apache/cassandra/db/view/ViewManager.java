@@ -70,12 +70,22 @@ public class ViewManager
         this.keyspace = keyspace;
     }
 
+    public boolean updatesAffectView(IMutation mutation, boolean coordinatorBatchlog)
+    {
+        if (!enableCoordinatorBatchlog && coordinatorBatchlog)
+            return false;
+
+        if (viewsByName.isEmpty())
+            return false;
+
+        return updatesAffectView(Collections.singleton(mutation), coordinatorBatchlog);
+    }
     public boolean updatesAffectView(Collection<? extends IMutation> mutations, boolean coordinatorBatchlog)
     {
         if (!enableCoordinatorBatchlog && coordinatorBatchlog)
             return false;
 
-        if (viewsByBaseTable.isEmpty())
+        if (viewsByName.isEmpty())
             return false;
 
         for (IMutation mutation : mutations)
