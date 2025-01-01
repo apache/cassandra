@@ -365,11 +365,9 @@ public abstract class QueryOptions
 
     static class DefaultQueryOptions extends QueryOptions
     {
-        private static final ByteBuffer NOT_INITIALIZED = ByteBuffer.wrap(new byte[]{});
         private final ConsistencyLevel consistency;
         private List<ByteBuffer> values;
         private final byte[][] valuesAsByteArray;
-        private boolean valuesFullyFilled;
         private final boolean isByteArrayGetSupported;
 
         private final boolean skipMetadata;
@@ -379,17 +377,13 @@ public abstract class QueryOptions
         private final transient ProtocolVersion protocolVersion;
         private final transient ReadThresholds readThresholds = ReadThresholds.create();
 
-        DefaultQueryOptions(ConsistencyLevel consistency, List<ByteBuffer> values, byte[][] valuesAsByteArray, boolean skipMetadata, SpecificOptions options, ProtocolVersion protocolVersion)
+        DefaultQueryOptions(ConsistencyLevel consistency, List<ByteBuffer> values,
+                            byte[][] valuesAsByteArray, boolean skipMetadata,
+                            SpecificOptions options, ProtocolVersion protocolVersion)
         {
             this.consistency = consistency;
             this.values = values;
-            if (values != null)
-            {
-                valuesFullyFilled = true;
-                isByteArrayGetSupported = false;
-            }
-            else
-                this.isByteArrayGetSupported = true;
+            isByteArrayGetSupported = (values == null);
             this.valuesAsByteArray = valuesAsByteArray;
             this.skipMetadata = skipMetadata;
             this.options = options;
@@ -405,23 +399,9 @@ public abstract class QueryOptions
         {
             if (values == null)
             {
-                valuesFullyFilled = true;
                 values = new ArrayList<>(valuesAsByteArray.length);
                 for (byte[] byteArrayValue : valuesAsByteArray)
                     values.add(convertToByteBufferValue(byteArrayValue));
-            }
-            if (!valuesFullyFilled)
-            {
-                valuesFullyFilled = true;
-                for (int i = 0; i < valuesAsByteArray.length; i++)
-                {
-                    ByteBuffer value = values.get(i);
-                    if (value == NOT_INITIALIZED)
-                    {
-                        value = convertToByteBufferValue(valuesAsByteArray[i]);
-                        values.set(i, value);
-                    }
-                }
             }
             return values;
         }
@@ -433,20 +413,10 @@ public abstract class QueryOptions
 
         public ByteBuffer getValue(int index)
         {
-            if (values == null) // we convert values to ByteBuffer in a lazy way, on demand
-            {
-                values = new ArrayList<>(valuesAsByteArray.length);
-                for (int i = 0; i < valuesAsByteArray.length; i++)
-                    values.add(NOT_INITIALIZED);
-            }
+            if (values != null)
+                return values.get(index);
 
-            ByteBuffer value = values.get(index);
-            if (value == NOT_INITIALIZED)
-            {
-                value = convertToByteBufferValue(valuesAsByteArray[index]);
-                values.set(index, value);
-            }
-            return value;
+            return convertToByteBufferValue(valuesAsByteArray[index]);
         }
 
         public boolean isByteArrayValuesGetSupported()

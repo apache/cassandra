@@ -92,12 +92,8 @@ public abstract class BatchQueryOptions
     }
 
     private static class BatchQueryOptionsWrapper extends QueryOptions.QueryOptionsWrapper {
-        private static final ByteBuffer NOT_INITIALIZED = ByteBuffer.wrap(new byte[]{});
-
         private final byte[][] valuesAsByteArray;
         private List<ByteBuffer> values;
-
-        private boolean fullyFilled;
 
         BatchQueryOptionsWrapper(QueryOptions wrapped, byte[][] vars)
         {
@@ -108,23 +104,9 @@ public abstract class BatchQueryOptions
         {
             if (values == null)
             {
-                fullyFilled = true;
                 values = new ArrayList<>(valuesAsByteArray.length);
                 for (byte[] byteArrayValue : valuesAsByteArray)
                     values.add(convertToByteBufferValue(byteArrayValue));
-            }
-            if (!fullyFilled)
-            {
-                fullyFilled = true;
-                for (int i = 0; i < valuesAsByteArray.length; i++)
-                {
-                    ByteBuffer value = values.get(i);
-                    if (value == NOT_INITIALIZED)
-                    {
-                        value = convertToByteBufferValue(valuesAsByteArray[i]);
-                        values.set(i, value);
-                    }
-                }
             }
             return values;
         }
@@ -138,18 +120,11 @@ public abstract class BatchQueryOptions
         {
             if (values == null) // we convert values to ByteBuffer in a lazy way, on demand
             {
-                values = new ArrayList<>(valuesAsByteArray.length);
-                for (int i = 0; i < valuesAsByteArray.length; i++)
-                    values.add(NOT_INITIALIZED);
-            }
-
-            ByteBuffer value = values.get(index);
-            if (value == NOT_INITIALIZED)
+                return convertToByteBufferValue(valuesAsByteArray[index]);
+            } else
             {
-                value = convertToByteBufferValue(valuesAsByteArray[index]);
-                values.set(index, value);
+                return values.get(index);
             }
-            return value;
         }
 
         public boolean isByteArrayValuesGetSupported()
