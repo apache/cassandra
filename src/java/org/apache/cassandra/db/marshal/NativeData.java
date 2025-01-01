@@ -38,4 +38,9 @@ public interface NativeData
     {
         return ByteBufferUtil.compareUnsigned(this.asByteBuffer(), right.asByteBuffer());
     }
+
+    default int compareTo(ByteBuffer right)
+    {
+        return ByteBufferUtil.compareUnsigned(this.asByteBuffer(), right);
+    }
 }

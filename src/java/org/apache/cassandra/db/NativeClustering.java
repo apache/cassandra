@@ -3,7 +3,7 @@
 * or more contributor license agreements.  See the NOTICE file
 * distributed with this work for additional information
 * regarding copyright ownership.  The ASF licenses this file
-* to you under the Apache License, Version 2.0 (the
+* to you under the Apache License, Version 2.0 (thec
 * "License"); you may not use this file except in compliance
 * with the License.  You may obtain a copy of the License at
 *
@@ -18,11 +18,18 @@
 */
 package org.apache.cassandra.db;
 
+import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 
+import io.netty.util.concurrent.FastThreadLocal;
 import org.apache.cassandra.db.marshal.ByteBufferAccessor;
+import org.apache.cassandra.db.marshal.ByteBufferSliceNativeData;
+import org.apache.cassandra.db.marshal.NativeAccessor;
+import org.apache.cassandra.db.marshal.NativeData;
 import org.apache.cassandra.db.marshal.ValueAccessor;
+import org.apache.cassandra.io.util.DataOutputPlus;
+import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.ObjectSizes;
 import org.apache.cassandra.utils.concurrent.OpOrder;
@@ -30,7 +37,7 @@ import org.apache.cassandra.utils.memory.HeapCloner;
 import org.apache.cassandra.utils.memory.MemoryUtil;
 import org.apache.cassandra.utils.memory.NativeAllocator;
 
-public class NativeClustering implements Clustering<ByteBuffer>
+public class NativeClustering implements Clustering<NativeData>
 {
     private static final long EMPTY_SIZE = ObjectSizes.measure(new NativeClustering());
 
@@ -83,7 +90,7 @@ public class NativeClustering implements Clustering<ByteBuffer>
         return Kind.CLUSTERING;
     }
 
-    public ClusteringPrefix<ByteBuffer> clustering()
+    public ClusteringPrefix<NativeData> clustering()
     {
         return this;
     }
@@ -99,10 +106,173 @@ public class NativeClustering implements Clustering<ByteBuffer>
         return MemoryUtil.getShort(peer + dataSizeOffset);
     }
 
-    public ByteBuffer get(int i)
+
+    private static class NativeClusteringValue implements NativeData {
+        private final long peer;
+        private final int i;
+
+        private NativeClusteringValue(long peer, int i)
+        {
+            this.peer = peer;
+            this.i = i;
+        }
+
+        @Override
+        public int nativeDataSize()
+        {
+            int size = parentSize();
+            return NativeClustering.nativeDataSize(peer, size, i);
+        }
+
+        @Override
+        public ByteBuffer asByteBuffer()
+        {
+            return getByteBuffer((address, length) -> MemoryUtil.getByteBuffer(address, length, ByteOrder.BIG_ENDIAN));
+        }
+
+        @Override
+        public NativeData slice(int offset, int length)
+        {
+            ByteBuffer byteBuffer = asByteBuffer(); // we get a new buffer here each time, so duplicate() is not needed
+            byteBuffer.position(byteBuffer.position() + offset);
+            byteBuffer.limit(byteBuffer.position() + length);
+            return new ByteBufferSliceNativeData(byteBuffer);
+        }
+
+        private int parentSize() {
+            return MemoryUtil.getShort(peer);
+        }
+
+        private static final FastThreadLocal<ByteBuffer> REUSABLE_WRITE_BUFFER_1 = new FastThreadLocal<ByteBuffer>()
+        {
+            @Override
+            protected ByteBuffer initialValue()
+            {
+                return MemoryUtil.getHollowDirectByteBuffer(ByteOrder.BIG_ENDIAN);
+            }
+        };
+
+        /**
+         * we need two re-usable buffers to be able to do compare operation without memory allocations
+         */
+        private static final FastThreadLocal<ByteBuffer> REUSABLE_WRITE_BUFFER_2 = new FastThreadLocal<ByteBuffer>()
+        {
+            @Override
+            protected ByteBuffer initialValue()
+            {
+                return MemoryUtil.getHollowDirectByteBuffer(ByteOrder.BIG_ENDIAN);
+            }
+        };
+
+        @Override
+        public void writeTo(DataOutputPlus out) throws IOException
+        {
+            ByteBuffer byteBuffer = getByteBuffer((address, length) -> {
+                ByteBuffer result = REUSABLE_WRITE_BUFFER_1.get();
+                MemoryUtil.setDirectByteBuffer(result, address, length);
+                return result;
+            });
+            out.write(byteBuffer);
+        }
+
+        private ByteBuffer getByteBuffer(ByteBufferProvider provider)
+        {
+            int size = parentSize();
+            if (i >= size)
+                throw new IndexOutOfBoundsException();
+
+            return NativeClustering.getByteBuffer(peer, i, size, provider);
+        }
+
+        private interface ByteBufferProvider
+        {
+            ByteBuffer get(long address, int length);
+        }
+
+        @Override
+        public int compareTo(NativeData right)
+        {
+            ByteBuffer leftByteBuffer = getByteBuffer((address, length) -> {
+                ByteBuffer result = REUSABLE_WRITE_BUFFER_1.get();
+                MemoryUtil.setDirectByteBuffer(result, address, length);
+                return result;
+            });
+            if (right instanceof NativeClusteringValue) {
+                NativeClusteringValue rightNativeClusteringValue = (NativeClusteringValue) right;
+                ByteBuffer rightByteBuffer = rightNativeClusteringValue.getByteBuffer((address, length) -> {
+                    ByteBuffer result = REUSABLE_WRITE_BUFFER_2.get();
+                    MemoryUtil.setDirectByteBuffer(result, address, length);
+                    return result;
+                });
+                return ByteBufferUtil.compareUnsigned(leftByteBuffer, rightByteBuffer);
+            } else {
+                return ByteBufferUtil.compareUnsigned(leftByteBuffer, right.asByteBuffer());
+            }
+        }
+
+        @Override
+        public int compareTo(ByteBuffer right)
+        {
+            ByteBuffer leftByteBuffer = getByteBuffer((address, length) -> {
+                ByteBuffer result = REUSABLE_WRITE_BUFFER_1.get();
+                MemoryUtil.setDirectByteBuffer(result, address, length);
+                return result;
+            });
+            return ByteBufferUtil.compareUnsigned(leftByteBuffer, right);
+        }
+    }
+
+    public NativeData get(int i)
     {
-        // offset at which we store the dataOffset
+        if (isNull(i))
+            return null;
+
+        return new NativeClusteringValue(peer, i);
+    }
+
+    public boolean isNull(int i)
+    {
         int size = size();
+        return isNull(peer, size, i);
+    }
+
+    static boolean isNull(long peer, int size, int i)
+    {
+        if (i >= size)
+            throw new IndexOutOfBoundsException();
+
+        int metadataSize = (size * 2) + 4;
+        long bitmapStart = peer + metadataSize;
+        int b = MemoryUtil.getByte(bitmapStart + (i >>> 3));
+        return ((b & (1 << (i & 7))) != 0);
+    }
+
+    public boolean isEmpty(int i)
+    {
+        return nativeDataSize(peer, size(), i) == 0;
+    }
+
+    static int nativeDataSize(long peer, int size, int i)
+    {
+        if (isNull(peer, size, i))
+            return 0;
+
+        int startOffset = MemoryUtil.getShort(peer + 2 + i * 2);
+        int endOffset = MemoryUtil.getShort(peer + 4 + i * 2);
+        return (endOffset - startOffset);
+    }
+
+    private ByteBuffer getByteBuffer(int i)
+    {
+        int size = size();
+        if (i >= size)
+            throw new IndexOutOfBoundsException();
+
+        return getByteBuffer(peer, i, size, (address, length) -> MemoryUtil.getByteBuffer(address, length, ByteOrder.BIG_ENDIAN));
+    }
+
+    static ByteBuffer getByteBuffer(long peer, int i, int size, NativeClusteringValue.ByteBufferProvider provider)
+    {
         if (i >= size)
             throw new IndexOutOfBoundsException();
 
@@ -115,14 +285,13 @@ public class NativeClustering implements Clustering<ByteBuffer>
 
         int startOffset = MemoryUtil.getShort(peer + 2 + i * 2);
         int endOffset = MemoryUtil.getShort(peer + 4 + i * 2);
-        return MemoryUtil.getByteBuffer(bitmapStart + bitmapSize + startOffset,
-                                        endOffset - startOffset,
-                                        ByteOrder.BIG_ENDIAN);
+        return provider.get(bitmapStart + bitmapSize + startOffset,
+                            endOffset - startOffset);
     }
 
-    public ByteBuffer[] getRawValues()
+    public NativeData[] getRawValues()
     {
-        ByteBuffer[] values = new ByteBuffer[size()];
+        NativeData[] values = new NativeData[size()];
         for (int i = 0 ; i < values.length ; i++)
             values[i] = get(i);
         return values;
@@ -130,13 +299,15 @@ public class NativeClustering implements Clustering<ByteBuffer>
 
     public ByteBuffer[] getBufferArray()
     {
-        return getRawValues();
+        ByteBuffer[] values = new ByteBuffer[size()];
+        for (int i = 0 ; i < values.length ; i++)
+            values[i] = getByteBuffer(i);
+        return values;
     }
 
-    public ValueAccessor<ByteBuffer> accessor()
+    public ValueAccessor<NativeData> accessor()
     {
-        // TODO: add a native accessor
-        return ByteBufferAccessor.instance;
+        return NativeAccessor.instance;
     }
 
     public long unsharedHeapSize()
@@ -161,8 +332,9 @@ public class NativeClustering implements Clustering<ByteBuffer>
         return ClusteringPrefix.equals(this, o);
     }
 
+    // data are copied to heap byte buffers to detach from a NativeAllocator lifecycle
     @Override
-    public ClusteringPrefix<ByteBuffer> retainable()
+    public ClusteringPrefix<?> retainable()
     {
         assert kind() == Kind.CLUSTERING; // tombstones are never stored natively
 
@@ -170,10 +342,10 @@ public class NativeClustering implements Clustering<ByteBuffer>
         ByteBuffer[] values = new ByteBuffer[size()];
         for (int i = 0; i < values.length; ++i)
         {
-            ByteBuffer value = get(i);
+            ByteBuffer value = getByteBuffer(i);
             values[i] = value != null ? HeapCloner.instance.clone(value) : null;
         }
 
-        return accessor().factory().clustering(values);
+        return ByteBufferAccessor.instance.factory().clustering(values);
     }
 }

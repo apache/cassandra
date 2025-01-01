@@ -39,6 +39,7 @@ import org.apache.cassandra.db.marshal.BytesType;
 import org.apache.cassandra.db.marshal.SetType;
 import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.db.rows.*;
+import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.concurrent.ImmediateFuture;
 import org.apache.cassandra.utils.concurrent.OpOrder;
 import org.apache.cassandra.utils.memory.HeapCloner;
@@ -65,7 +66,7 @@ public class NativeCellTest extends CQLTester
     }
 
     @Test
-    public void testCells() throws IOException
+    public void testCells() throws Exception
     {
         for (int run = 0 ; run < 1000 ; run++)
         {
@@ -154,7 +155,7 @@ public class NativeCellTest extends CQLTester
         return Math.min(Math.max(1, randomsize), 1 << 26);
     }
 
-    private static void test(Row row)  throws IOException
+    private static void test(Row row)  throws Exception
     {
         Row nrow = row.clone(nativeAllocator.cloner(group));
         Row brow = row.clone(HeapCloner.instance);
@@ -162,17 +163,20 @@ public class NativeCellTest extends CQLTester
         Assert.assertEquals(row, brow);
         Assert.assertEquals(nrow, brow);
 
-        Assert.assertEquals(row.clustering(), nrow.clustering());
-        Assert.assertEquals(row.clustering(), brow.clustering());
-        Assert.assertEquals(nrow.clustering(), brow.clustering());
+        Digest rowDigest = Digest.forReadResponse();
+        Digest nativeRowDigest = Digest.forReadResponse();
+        Digest byteBufferRowDigest = Digest.forReadResponse();
+        row.digest(rowDigest);
+        nrow.digest(nativeRowDigest);
+        brow.digest(byteBufferRowDigest);
+        byte[] rowDigestValue = rowDigest.digest();
+        Assert.assertArrayEquals(rowDigestValue, nativeRowDigest.digest());
+        Assert.assertArrayEquals(rowDigestValue, byteBufferRowDigest.digest());
 
-        Assert.assertEquals(row.clustering().dataSize(), nrow.clustering().dataSize());
-        Assert.assertEquals(row.clustering().dataSize(), brow.clustering().dataSize());
+        Assert.assertEquals(row.dataSize(), nrow.dataSize());
+        Assert.assertEquals(row.dataSize(), brow.dataSize());
 
-        ClusteringComparator comparator = new ClusteringComparator(UTF8Type.instance);
-        Assert.assertEquals(0, comparator.compare(row.clustering(), nrow.clustering()));
-        Assert.assertEquals(0, comparator.compare(row.clustering(), brow.clustering()));
-        Assert.assertEquals(0, comparator.compare(nrow.clustering(), brow.clustering()));
+        assertClustering(row, brow, nrow);
 
         assertCellsDataSize(row, nrow);
         assertCellsDataSize(row, brow);
@@ -182,6 +186,114 @@ public class NativeCellTest extends CQLTester
 
         assertCellsSlicing(row, nrow);
         assertCellsSlicing(row, brow);
+    }
+
+    private static void assertClustering(Row row, Row byteBufferRow, Row nativeRow) throws Exception
+    {
+        Assert.assertEquals(row.clustering(), nativeRow.clustering());
+        Assert.assertEquals(row.clustering(), byteBufferRow.clustering());
+        Assert.assertEquals(nativeRow.clustering(), byteBufferRow.clustering());
+
+        ClusteringComparator comparator = new ClusteringComparator(UTF8Type.instance);
+        Assert.assertEquals(0, comparator.compare(row.clustering(), nativeRow.clustering()));
+        Assert.assertEquals(0, comparator.compare(row.clustering(), byteBufferRow.clustering()));
+        Assert.assertEquals(0, comparator.compare(nativeRow.clustering(), byteBufferRow.clustering()));
+        Assert.assertEquals(0, comparator.compare(nativeRow.clustering(), row.clustering()));
+        Assert.assertEquals(0, comparator.compare(nativeRow.clustering(), nativeRow.clustering()));
+
+
+        Assert.assertEquals(row.clustering().size(), nativeRow.clustering().size());
+        Assert.assertEquals(row.clustering().size(), byteBufferRow.clustering().size());
+
+        assertByteBufferArrayEquals(row.clustering().getBufferArray(), nativeRow.clustering().getBufferArray());
+        assertByteBufferArrayEquals(row.clustering().getBufferArray(), byteBufferRow.clustering().getBufferArray());
+
+        assertRawValuesEquals(row.clustering(), nativeRow.clustering());
+        assertRawValuesEquals(row.clustering(), byteBufferRow.clustering());
+
+
+        for (int i = 0; i < row.clustering().size(); i++)
+        {
+            Assert.assertEquals(row.clustering().isEmpty(i), byteBufferRow.clustering().isEmpty(i));
+            Assert.assertEquals(row.clustering().isEmpty(i), nativeRow.clustering().isEmpty(i));
+
+            Assert.assertEquals(row.clustering().isNull(i), byteBufferRow.clustering().isNull(i));
+            Assert.assertEquals(row.clustering().isNull(i), nativeRow.clustering().isNull(i));
+        }
+
+        assertClusteringElementSizes(row.clustering(), byteBufferRow.clustering());
+        assertClusteringElementSizes(row.clustering(), nativeRow.clustering());
+
+        assertClusteringElementWrittenToOutput(row.clustering(), byteBufferRow.clustering());
+        assertClusteringElementWrittenToOutput(row.clustering(), nativeRow.clustering());
+
+        assertClusteringSlicing(row.clustering(), byteBufferRow.clustering());
+        assertClusteringSlicing(row.clustering(), nativeRow.clustering());
+
+    }
+
+    private static <V1, V2> void assertRawValuesEquals(Clustering<V1> c1, Clustering<V2> c2)
+    {
+        V1[] rawValues1 = c1.getRawValues();
+        V2[] rawValues2 = c2.getRawValues();
+        Assert.assertEquals(rawValues1.length, rawValues2.length);
+        for (int i = 0; i < c1.size(); i++)
+        {
+            if (rawValues1[i] != null)
+                Assert.assertEquals(0, c1.accessor().compare(rawValues1[i], rawValues2[i], c2.accessor()));
+        }
+    }
+
+    private static <V1, V2> void assertClusteringElementSizes(Clustering<V1> c1, Clustering<V2> c2)
+    {
+        for (int i = 0; i < c1.size(); i++)
+        {
+            if (c1.get(i) != null)
+            {
+                int sizeC1 = c1.accessor().size(c1.get(i));
+                int sizeC2 = c2.accessor().size(c2.get(i));
+                Assert.assertEquals(sizeC1, sizeC2);
+            }
+        }
+    }
+
+    private static <V1, V2> void assertClusteringElementWrittenToOutput(Clustering<V1> c1, Clustering<V2> c2) throws IOException
+    {
+        for (int i = 0; i < c1.size(); i++)
+        {
+            if (c1.get(i) != null)
+            {
+                DataOutputBuffer outputC1 = new DataOutputBuffer(c1.dataSize());
+                DataOutputBuffer outputC2 = new DataOutputBuffer(c2.dataSize());
+                c1.accessor().write(c1.get(i), outputC1);
+                c2.accessor().write(c2.get(i), outputC2);
+                Assert.assertArrayEquals(outputC1.toByteArray(), outputC2.toByteArray());
+            }
+        }
+    }
+
+    private static <V1, V2> void assertClusteringSlicing(Clustering<V1> c1, Clustering<V2> c2) throws IOException
+    {
+        for (int i = 0; i < c1.size(); i++)
+        {
+            if (c1.get(i) != null)
+            {
+                int offset = c1.accessor().size(c1.get(i)) / 3;
+                int length = c1.accessor().size(c1.get(i)) / 2;
+                V1 slice1 = c1.accessor().slice(c1.get(i), offset, length);
+                V2 slice2 = c2.accessor().slice(c2.get(i), offset, length);
+                Assert.assertEquals(0, c1.accessor().compare(slice1, slice2, c2.accessor()));
+                Assert.assertEquals(0, c2.accessor().compare(slice2, slice1, c1.accessor()));
+            }
+        }
+    }
+
+    private static void assertByteBufferArrayEquals(ByteBuffer[] array1, ByteBuffer[] array2) {
+        Assert.assertEquals(array1.length, array2.length);
+        for (int i = 0; i < array1.length; i++) {
+            if (array1[i] != null)
+                Assert.assertEquals(0, ByteBufferUtil.compareUnsigned(array1[i], array2[i]));
+        }
     }
 
     private static void assertCellsWrittenToOutput(Row row1, Row row2) throws IOException

@@ -124,7 +124,7 @@ public class NativeAccessor implements ValueAccessor<NativeData>
         {
             return left.compareTo((NativeData) right);
         }
-        return accessorR.compareByteBufferTo(left.asByteBuffer(), right);
+        return left.compareTo(accessorR.toBuffer(right));
     }
 
     @Override
@@ -136,7 +136,7 @@ public class NativeAccessor implements ValueAccessor<NativeData>
     @Override
     public int compareByteBufferTo(ByteBuffer left, NativeData right)
     {
-        return ByteBufferUtil.compareUnsigned(left, right.asByteBuffer());
+        return -right.compareTo(left); // we want to avoid ByteBuffer retrieval from NativeData
     }
 
      // -----------------------------------------------------------------------------
