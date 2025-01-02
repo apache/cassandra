@@ -171,7 +171,7 @@ public class RepairTokenRangeSplitter implements IAutoRepairTokenRangeSplitter
     static final String MAX_TABLES_PER_ASSIGNMENT = "max_tables_per_assignment";
     static final String MAX_BYTES_PER_SCHEDULE = "max_bytes_per_schedule";
 
-    static final List<String> PARAMETERS = List.of(BYTES_PER_ASSIGNMENT, PARTITIONS_PER_ASSIGNMENT, MAX_TABLES_PER_ASSIGNMENT, MAX_BYTES_PER_SCHEDULE);
+    static final String[] PARAMETERS = { BYTES_PER_ASSIGNMENT, PARTITIONS_PER_ASSIGNMENT, MAX_TABLES_PER_ASSIGNMENT, MAX_BYTES_PER_SCHEDULE };
 
     private final AutoRepairConfig.RepairType repairType;
 
@@ -199,7 +199,7 @@ public class RepairTokenRangeSplitter implements IAutoRepairTokenRangeSplitter
      * move the entire repaired set from unrepaired to repaired at steady state, assuming not more the 500GiB of
      * data is written to a node per min_repair_interval.
      */
-    private static final Map<AutoRepairConfig.RepairType, RepairTypeDefaults> DEFAULTS_BY_REPAIR_TYPE = new EnumMap<>(AutoRepairConfig.RepairType.class) {{
+    private static final Map<AutoRepairConfig.RepairType, RepairTypeDefaults> DEFAULTS_BY_REPAIR_TYPE = new EnumMap<AutoRepairConfig.RepairType, RepairTypeDefaults>(AutoRepairConfig.RepairType.class) {{
         put(AutoRepairConfig.RepairType.FULL, RepairTypeDefaults.builder(AutoRepairConfig.RepairType.FULL)
                                                                 .build());
         // Restrict incremental repair to 50GB bytes per assignment to confine the amount of possible autocompaction.
@@ -794,7 +794,7 @@ public class RepairTokenRangeSplitter implements IAutoRepairTokenRangeSplitter
                     parameters.put(parameter, "");
             }
         }
-        return parameters;
+        return Collections.unmodifiableMap(parameters);
     }
 
     public DataStorageSpec.LongBytesBound getBytesPerAssignment()
