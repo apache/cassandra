@@ -22,11 +22,13 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.EnumMap;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.NoSuchElementException;
 import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -61,163 +63,258 @@ import org.apache.cassandra.utils.concurrent.Refs;
 import static org.apache.cassandra.repair.autorepair.AutoRepairUtils.split;
 
 /**
- * In Apache Cassandra, tuning the repair ranges has three main goals:
- * <p>
- * 1. **Create smaller, consistent repair times**: Long repairs, such as those lasting 15 hours, can be problematic.
- * If a node fails 14 hours into the repair, the entire process must be restarted. The goal is to reduce the impact
- * of disturbances or failures. However, making the repairs too short can lead to overhead from repair orchestration
- * becoming the main bottleneck.
- * <p>
- * 2. **Minimize the impact on hosts**: Repairs should not heavily affect the host systems. For incremental repairs,
- * this might involve anti-compaction work. In full repairs, streaming large amounts of data—especially with wide
- * partitions—can lead to issues with disk usage and higher compaction costs.
- * <p>
- * 3. **Reduce overstreaming**: The Merkle tree, which represents data within each partition and range, has a maximum size.
- * If a repair covers too many partitions, the tree’s leaves represent larger data ranges. Even a small change in a leaf
- * can trigger excessive data streaming, making the process inefficient.
- * <p>
- * Additionally, if there are many small tables, it's beneficial to batch these tables together under a single parent repair.
- * This prevents the repair overhead from becoming a bottleneck, especially when dealing with hundreds of tables. Running
- * individual repairs for each table can significantly impact performance and efficiency.
- * <p>
- * To manage these issues, the strategy involves estimating the size and number of partitions within a range and splitting
- * it accordingly to bound the size of the range splits.
+ * In Apache Cassandra, tuning repair ranges has four main goals:
+ * <ol>
+ * <li>
+ *     <b>Create smaller, consistent repair times</b>: Long repairs, such as those lasting 15 hours, can be problematic.
+ *     If a node fails 14 hours into the repair, the entire process must be restarted. The goal is to reduce the impact
+ *     of disturbances or failures. However, making the repairs too short can lead to overhead from repair orchestration
+ *     becoming the main bottleneck.
+ * </li>
+ * <li>
+ *     <b>Minimize the impact on hosts</b>: Repairs should not heavily affect the host systems. For incremental repairs,
+ *     this might involve anti-compaction work. In full repairs, streaming large amounts of data—especially with wide
+ *     partitions—can lead to issues with disk usage and higher compaction costs.
+ * </li>
+ * <li>
+ *     <b>Reduce overstreaming</b>: The Merkle tree, which represents data within each partition and range,
+ *     has a maximum size. If a repair covers too many partitions, the tree’s leaves represent larger data ranges.
+ *     Even a small change in a leaf can trigger excessive data streaming, making the process inefficient.
+ * </li>
+ * <li>
+ *     <b>Reduce number of repairs</b>: If there are many small tables, it's beneficial to batch these tables together
+ *     under a single parent repair. This prevents the repair overhead from becoming a bottleneck, especially when
+ *     dealing with hundreds of tables. Running individual repairs for each table can significantly impact performance
+ *     and efficiency.
+ * </li>
+ * </ol>
+ * To manage these issues, the strategy involves estimating the size and number of partitions within a range and
+ * splitting it accordingly to bound the size of the range splits.  This is established by iterating over SSTable
+ * index files to estimate the amount of bytes and partitions involved in the ranges being repaired and by what
+ * repair type is beinb invoked.
+ * <p/>
+ * While this splitter has a lot of tuning parameters, the expectation is that the established default configuration
+ * shall be sensible for all {@link org.apache.cassandra.repair.autorepair.AutoRepairConfig.RepairType}'s. The following
+ * configuration parameters are offered.
+ * <ul>
+ *     <li>
+ *         <b>bytes_per_assigment</b>: The target and maximum amount of bytes that should be included in a repair
+ *         assignment. This is meant to scope the amount of work involved in a repair.  For incremental repair, this
+ *         involves the total number of bytes in all SSTables containing unrepaired data involving the ranges being
+ *         repaired, including data that doesn't cover the range.  This is to account for the amount of anticompaction
+ *         that is expected. For all other repair types, this involves the amount of data covering the range being
+ *         repaired.
+ *     </li>
+ *     <li>
+ *         <b>partitions_per_assignment</b>: The target number of partitions that should be included in a repair
+ *         assignment.  This configuration exists to reduce excessive overstreaming.
+ *     </li>
+ *     <li>
+ *         <b>max_tables_per_assignment</b>: The maximum number of tables that can be included in a repair assignment.
+ *         This aims to reduce the number of repairs, especially in cases where a large amount of tables exists for
+ *         a keyspace.  Note that the splitter will avoid batching tables together if they exceed the other
+ *         configuration paramters such as <code>bytes_per_assignment</code> and <code>partitions_per_assignment</code>.
+ *     </li>
+ *     <li>
+ *         <b>max_bytes_per_schedule</b>: The maximum number of bytes to cover an individiual schedule.  This serves
+ *         as a mechanism for throttling the amount of work that can be done on each repair cycle.  One may opt to
+ *         reduce this value if the impact of repairs is causing too many load on the cluster, or increase it if
+ *         writes outpace the amount of data being repaired.  Alternatively, one may want to choose tuning down or up
+ *         the <code>min_repair_interval</code>.
+ *     </li>
+ * </ul>
+ * Given the impact of what each repair type accomplishes, different defaults are established per repair type.
+ * <ul>
+ *     <li>
+ *         <b>full</b>:  Configured in a way that attempts to accomplish repairing all data in a schedule, with
+ *         individual repairs targeting at most 200GiB of data and 1048576 partitions.
+ *         <ul>
+ *             <li><b>bytes_per_assignment</b>: 200GiB</li>
+ *             <li><b>partitions_per_assignment</b>: 2^repair_session_max_tree_depth (2^20 == 1048576 by default)</li>
+ *             <li><b>max_tables_per_assignment</b>: 64</li>
+ *             <li><b>max_bytes_per_schedule</b>: 100TiB</li>
+ *         </ul>
+ *     </li>
+ *     <li>
+ *         <b>incremental</b>: Configured in a way that attempts to repair 50GiB of data per repair, and 500GiB per
+ *         schedule.  This attempts to throttle the amount of IR and anticompaction done per schedule after turning
+ *         incremental on for the first time.   You may want to consider increasing <code>max_bytes_per_schedule</code>
+ *         more than this much data is written per <code>min_repair_interval</code>.
+ *         <ul>
+ *             <li><b>bytes_per_assignment</b>: 50GiB</li>
+ *             <li><b>partitions_per_assignment</b>: 2^repair_session_max_tree_depth (2^20 == 1048576 by default)</li>
+ *             <li><b>max_tables_per_assignment</b>: 64</li>
+ *             <li><b>max_bytes_per_schedule</b>: 500GiB</li>
+ *         </ul>
+ *     </li>
+ *     <li>
+ *         <b>preview_repaired</b>:  Configured in a way that attempts to accomplish previewing all data in a schedule,
+ *         with previews targeting at most 200GiB of data and 1048576 partitions.
+ *         <ul>
+ *             <li><b>bytes_per_assignment</b>: 200GiB</li>
+ *             <li><b>partitions_per_assignment</b>: 2^repair_session_max_tree_depth (2^20 == 1048576 by default)</li>
+ *             <li><b>max_tables_per_assignment</b>: 64</li>
+ *             <li><b>max_bytes_per_schedule</b>: 100TiB</li>
+ *         </ul>
+ *     </li>
+ * </ul>
  */
-
-public class RepairRangeSplitter implements IAutoRepairTokenRangeSplitter
+public class RepairTokenRangeSplitter implements IAutoRepairTokenRangeSplitter
 {
-    private static final Logger logger = LoggerFactory.getLogger(RepairRangeSplitter.class);
+    private static final Logger logger = LoggerFactory.getLogger(RepairTokenRangeSplitter.class);
 
-    static final String SUBRANGE_SIZE = "bytes_per_assignment";
-    static final String PARTITION_COUNT = "partitions_per_assignment";
-    static final String TABLE_BATCH_LIMIT = "max_tables_per_assignment";
+    // Default max bytes to 100TiB, which is much more readable than Long.MAX_VALUE
+    private static final DataStorageSpec.LongBytesBound MAX_BYTES = new DataStorageSpec.LongBytesBound(100_000, DataStorageSpec.DataStorageUnit.GIBIBYTES);
+
+    static final String BYTES_PER_ASSIGNMENT = "bytes_per_assignment";
+    static final String PARTITIONS_PER_ASSIGNMENT = "partitions_per_assignment";
+    static final String MAX_TABLES_PER_ASSIGNMENT = "max_tables_per_assignment";
     static final String MAX_BYTES_PER_SCHEDULE = "max_bytes_per_schedule";
 
-    private final int tablesPerAssignmentLimit;
-    private final long maxBytesPerSchedule;
-    private final long bytesPerSubrange;
-    private final long partitionsPerSubrange;
+    static final List<String> PARAMETERS = List.of(BYTES_PER_ASSIGNMENT, PARTITIONS_PER_ASSIGNMENT, MAX_TABLES_PER_ASSIGNMENT, MAX_BYTES_PER_SCHEDULE);
 
-    private static final long DEFAULT_SUBRANGE_SIZE = new DataStorageSpec.LongBytesBound("100GiB").toBytes();
-    private static final long DEFAULT_MAX_BYTES_PER_SCHEDULE = Long.MAX_VALUE;
-    private static final long DEFAULT_PARTITION_LIMIT = (long) Math.pow(2, DatabaseDescriptor.getRepairSessionMaxTreeDepth());
-    private static final int DEFAULT_TABLE_BATCH_LIMIT = 64;
+    private final AutoRepairConfig.RepairType repairType;
 
-    public RepairRangeSplitter(Map<String, String> parameters)
+    private final Map<String, String> givenParameters = new HashMap<>();
+
+    private DataStorageSpec.LongBytesBound bytesPerAssignment;
+    private long partitionsPerAssignment;
+    private int maxTablesPerAssignment;
+    private DataStorageSpec.LongBytesBound maxBytesPerSchedule;
+
+    /**
+     * Established default for each {@link org.apache.cassandra.repair.autorepair.AutoRepairConfig.RepairType}, meant to
+     * choose sensible defaults for each.
+     * <p>
+     * Defaults if not specified for the given repair type:
+     * <li>
+     *     <ul><b>bytes_per_assignment</b>: 200GiB</ul>
+     *     <ul><b>partitions_per_assignment</b>: 2^repair_session_max_tree_depth</ul>
+     *     <ul><b>max_tables_per_assignment</b>: 64</ul>
+     *     <ul><b>max_bytes_per_schedule</b>: 1000GiB</ul>
+     * </li>
+     * It's expected that these defaults should work well for everything except incremental, so we confine
+     * bytes_per_assignment to 50GiB and max_bytes_per_schedule to 500GiB.  This should strike a good balance
+     * between the amount of data that will be repaired during an initial migration to incremental repair and should
+     * move the entire repaired set from unrepaired to repaired at steady state, assuming not more the 500GiB of
+     * data is written to a node per min_repair_interval.
+     */
+    private static final Map<AutoRepairConfig.RepairType, RepairTypeDefaults> DEFAULTS_BY_REPAIR_TYPE = new EnumMap<>(AutoRepairConfig.RepairType.class) {{
+        put(AutoRepairConfig.RepairType.FULL, RepairTypeDefaults.builder(AutoRepairConfig.RepairType.FULL)
+                                                                .build());
+        // Restrict incremental repair to 50GB bytes per assignment to confine the amount of possible autocompaction.
+        put(AutoRepairConfig.RepairType.INCREMENTAL, RepairTypeDefaults.builder(AutoRepairConfig.RepairType.INCREMENTAL)
+                                                                       .withBytesPerAssignment(new DataStorageSpec.LongBytesBound("50GiB"))
+                                                                       .withMaxBytesPerSchedule(new DataStorageSpec.LongBytesBound("500GiB"))
+                                                                       .build());
+        put(AutoRepairConfig.RepairType.PREVIEW_REPAIRED, RepairTypeDefaults.builder(AutoRepairConfig.RepairType.PREVIEW_REPAIRED)
+                                                                            .build());
+    }};
+
+
+    public RepairTokenRangeSplitter(AutoRepairConfig.RepairType repairType, Map<String, String> parameters)
     {
-        if (parameters.containsKey(SUBRANGE_SIZE))
+        this.repairType = repairType;
+        this.givenParameters.putAll(parameters);
+        RepairTypeDefaults defaults = DEFAULTS_BY_REPAIR_TYPE.get(repairType);
+
+        if (parameters.containsKey(BYTES_PER_ASSIGNMENT))
         {
-            bytesPerSubrange = new DataStorageSpec.LongBytesBound(parameters.get(SUBRANGE_SIZE)).toBytes();
+            bytesPerAssignment = new DataStorageSpec.LongBytesBound(parameters.get(BYTES_PER_ASSIGNMENT));
         }
         else
         {
-            bytesPerSubrange = DEFAULT_SUBRANGE_SIZE;
+            bytesPerAssignment = defaults.bytesPerAssignment;
+        }
+
+        if (parameters.containsKey(PARTITIONS_PER_ASSIGNMENT))
+        {
+            partitionsPerAssignment = Long.parseLong(parameters.get(PARTITIONS_PER_ASSIGNMENT));
+        }
+        else
+        {
+            partitionsPerAssignment = defaults.partitionsPerAssignment;
+        }
+
+        if (parameters.containsKey(MAX_TABLES_PER_ASSIGNMENT))
+        {
+            maxTablesPerAssignment = Integer.parseInt(parameters.get(MAX_TABLES_PER_ASSIGNMENT));
+        }
+        else{
+            maxTablesPerAssignment = defaults.maxTablesPerAssignment;
         }
 
         if (parameters.containsKey(MAX_BYTES_PER_SCHEDULE))
         {
-            maxBytesPerSchedule = new DataStorageSpec.LongBytesBound(parameters.get(MAX_BYTES_PER_SCHEDULE)).toBytes();
+            maxBytesPerSchedule = new DataStorageSpec.LongBytesBound(parameters.get(MAX_BYTES_PER_SCHEDULE));
         }
         else
         {
-            maxBytesPerSchedule = DEFAULT_MAX_BYTES_PER_SCHEDULE;
+            maxBytesPerSchedule = defaults.maxBytesPerSchedule;
         }
 
-        if (parameters.containsKey(PARTITION_COUNT))
-        {
-            partitionsPerSubrange = Long.parseLong(parameters.get(PARTITION_COUNT));
-        }
-        else
-        {
-            partitionsPerSubrange = DEFAULT_PARTITION_LIMIT;
-        }
 
-        if (parameters.containsKey(TABLE_BATCH_LIMIT))
+        if (bytesPerAssignment.toBytes() > maxBytesPerSchedule.toBytes())
         {
-            tablesPerAssignmentLimit = Integer.parseInt(parameters.get(TABLE_BATCH_LIMIT));
-        }
-        else
-        {
-            tablesPerAssignmentLimit = DEFAULT_TABLE_BATCH_LIMIT;
-        }
-
-        if (bytesPerSubrange > maxBytesPerSchedule)
-        {
-            throw new IllegalArgumentException(String.format("%s='%s' cannot be greater than %s='%s'",
-                                                             SUBRANGE_SIZE,
-                                                             FileUtils.stringifyFileSize(bytesPerSubrange),
+            throw new IllegalArgumentException(String.format("%s='%s' cannot be greater than %s='%s' for %s",
+                                                             BYTES_PER_ASSIGNMENT,
+                                                             bytesPerAssignment.toBytes(),
                                                              MAX_BYTES_PER_SCHEDULE,
-                                                             FileUtils.stringifyFileSize(maxBytesPerSchedule)));
+                                                             maxBytesPerSchedule,
+                                                             repairType.getConfigName()));
         }
 
-        logger.info("Configured {} with {}={}, {}={}, {}={}, {}={}", RepairRangeSplitter.class.getName(),
-                    SUBRANGE_SIZE, FileUtils.stringifyFileSize(bytesPerSubrange),
-                    MAX_BYTES_PER_SCHEDULE, FileUtils.stringifyFileSize(maxBytesPerSchedule),
-                    PARTITION_COUNT, partitionsPerSubrange, TABLE_BATCH_LIMIT, tablesPerAssignmentLimit);
+        logger.info("Configured {}[{}] with {}={}, {}={}, {}={}, {}={}", RepairTokenRangeSplitter.class.getName(),
+                    repairType.getConfigName(),
+                    BYTES_PER_ASSIGNMENT, bytesPerAssignment,
+                    PARTITIONS_PER_ASSIGNMENT, partitionsPerAssignment,
+                    MAX_TABLES_PER_ASSIGNMENT, maxTablesPerAssignment,
+                    MAX_BYTES_PER_SCHEDULE, maxBytesPerSchedule);
     }
+
+    public AutoRepairConfig.RepairType getRepairType()
+    {
+        return repairType;
+    }
+
 
     @Override
-    public Iterator<KeyspaceRepairAssignments> getRepairAssignments(AutoRepairConfig.RepairType repairType, boolean primaryRangeOnly, List<PrioritizedRepairPlan> repairPlans)
+    public Iterator<KeyspaceRepairAssignments> getRepairAssignments(boolean primaryRangeOnly, List<PrioritizedRepairPlan> repairPlans)
     {
-        return new RepairAssignmentIterator(repairType, primaryRangeOnly, repairPlans);
+        return new BytesBasedRepairAssignmentIterator(primaryRangeOnly, repairPlans);
     }
 
-    private class RepairAssignmentIterator implements Iterator<KeyspaceRepairAssignments>
-    {
+    /**
+     * A custom {@link RepairAssignmentIterator} that confines the number of repair assignments to
+     * <code>max_bytes_per_schedule</code>.
+     */
+    private class BytesBasedRepairAssignmentIterator extends RepairAssignmentIterator {
 
-        private final AutoRepairConfig.RepairType repairType;
         private final boolean primaryRangeOnly;
-
-        private final Iterator<PrioritizedRepairPlan> repairPlanIterator;
-
-        private Iterator<KeyspaceRepairPlan> currentIterator = null;
-        private PrioritizedRepairPlan currentPlan = null;
         private long bytesSoFar = 0;
 
-        RepairAssignmentIterator(AutoRepairConfig.RepairType repairType, boolean primaryRangeOnly, List<PrioritizedRepairPlan> repairPlans)
+        BytesBasedRepairAssignmentIterator(boolean primaryRangeOnly, List<PrioritizedRepairPlan> repairPlans)
         {
-            this.repairType = repairType;
+            super(repairPlans);
             this.primaryRangeOnly = primaryRangeOnly;
-            this.repairPlanIterator = repairPlans.iterator();
-        }
-
-        private synchronized Iterator<KeyspaceRepairPlan> currentIterator()
-        {
-            if (currentIterator == null || !currentIterator.hasNext())
-            {
-                // Advance the repair plan iterator if the current repair plan is exhausted, but only
-                // if there are more repair plans.
-                if (repairPlanIterator.hasNext())
-                {
-                    currentPlan = repairPlanIterator.next();
-                    currentIterator = currentPlan.getKeyspaceRepairPlans().iterator();
-                }
-            }
-
-            return currentIterator;
         }
 
         @Override
-        public boolean hasNext()
+        KeyspaceRepairAssignments nextInternal(int priority, KeyspaceRepairPlan repairPlan)
         {
-            return currentIterator().hasNext();
-        }
-
-        @Override
-        public KeyspaceRepairAssignments next()
-        {
-            // Should not happen unless violating the contract of iterator of checking hasNext first.
-            if (!currentIterator.hasNext())
+            // short circuit if we've accumulated too many bytes by returning a KeyspaceRepairAssignments with
+            // no assignments.  We do this rather than returning false in hasNext() because we want to signal
+            // to AutoRepair that a keyspace generated no assignments.
+            if (bytesSoFar >= maxBytesPerSchedule.toBytes())
             {
-                throw new NoSuchElementException("No remaining repair plans");
+                return new KeyspaceRepairAssignments(priority, repairPlan.getKeyspaceName(), Collections.emptyList());
             }
 
-            final KeyspaceRepairPlan repairPlan = currentIterator().next();
             Collection<Range<Token>> tokenRanges = getTokenRanges(primaryRangeOnly, repairPlan.getKeyspaceName());
             List<SizedRepairAssignment> repairAssignments = getRepairAssignmentsForKeyspace(repairType, repairPlan.getKeyspaceName(), repairPlan.getTableNames(), tokenRanges);
-            FilteredRepairAssignments filteredRepairAssignments = filterRepairAssignments(repairType, currentPlan.getPriority(), repairPlan.getKeyspaceName(), repairAssignments, bytesSoFar);
+            FilteredRepairAssignments filteredRepairAssignments = filterRepairAssignments(priority, repairPlan.getKeyspaceName(), repairAssignments, bytesSoFar);
             bytesSoFar = filteredRepairAssignments.newBytesSoFar;
-            return new KeyspaceRepairAssignments(currentPlan.getPriority(), repairPlan.getKeyspaceName(), filteredRepairAssignments.repairAssignments);
+            return new KeyspaceRepairAssignments(priority, repairPlan.getKeyspaceName(), filteredRepairAssignments.repairAssignments);
         }
     }
 
@@ -245,7 +342,7 @@ public class RepairRangeSplitter implements IAutoRepairTokenRangeSplitter
 
         for (String tableName : tableNames)
         {
-            List<SizedRepairAssignment> tableAssignments = getRepairAssignmentsForTable(repairType, keyspaceName, tableName, tokenRanges);
+            List<SizedRepairAssignment> tableAssignments = getRepairAssignmentsForTable(keyspaceName, tableName, tokenRanges);
 
             if (tableAssignments.isEmpty())
                 continue;
@@ -257,13 +354,13 @@ public class RepairRangeSplitter implements IAutoRepairTokenRangeSplitter
             }
             // If the table assignments are for the same token range, and we have room to add more tables to the current assignment
             else if (tableAssignments.size() == 1 &&
-                currentAssignments.size() < tablesPerAssignmentLimit &&
-                (currentAssignments.isEmpty() || currentAssignments.get(0).getTokenRange().equals(tableAssignments.get(0).getTokenRange())))
+                     currentAssignments.size() < maxTablesPerAssignment &&
+                     (currentAssignments.isEmpty() || currentAssignments.get(0).getTokenRange().equals(tableAssignments.get(0).getTokenRange())))
             {
                 long currentAssignmentsBytes = getEstimatedBytes(currentAssignments);
                 long tableAssignmentsBytes = getEstimatedBytes(tableAssignments);
                 // only add assignments together if they don't exceed max bytes per schedule.
-                if (currentAssignmentsBytes + tableAssignmentsBytes < maxBytesPerSchedule) {
+                if (currentAssignmentsBytes + tableAssignmentsBytes < maxBytesPerSchedule.toBytes()) {
                     currentAssignments.addAll(tableAssignments);
                 }
                 else
@@ -291,13 +388,12 @@ public class RepairRangeSplitter implements IAutoRepairTokenRangeSplitter
 
     /**
      * Given a repair type and map of sized-based repair assignments, confine them by <code>maxBytesPerSchedule</code>.
-     * @param repairType used to determine underyling table priorities
      * @param repairAssignments the assignments to filter.
      * @param bytesSoFar repair assignment bytes accumulated so far.
      * @return A list of repair assignments confined by <code>maxBytesPerSchedule</code>.
      */
     @VisibleForTesting
-    FilteredRepairAssignments filterRepairAssignments(AutoRepairConfig.RepairType repairType, int priority, String keyspaceName, List<SizedRepairAssignment> repairAssignments, long bytesSoFar)
+    FilteredRepairAssignments filterRepairAssignments(int priority, String keyspaceName, List<SizedRepairAssignment> repairAssignments, long bytesSoFar)
     {
         // Confine repair assignments by maxBytesPerSchedule.
         long bytesSoFarThisIteration = 0L;
@@ -311,7 +407,7 @@ public class RepairRangeSplitter implements IAutoRepairTokenRangeSplitter
         {
             totalAssignments++;
             // skip any repair assignments that would accumulate us past the maxBytesPerSchedule
-            if (bytesSoFar + repairAssignment.getEstimatedBytes() > maxBytesPerSchedule)
+            if (bytesSoFar + repairAssignment.getEstimatedBytes() > maxBytesPerSchedule.toBytes())
             {
                 // log that repair assignment was skipped.
                 bytesNotRepaired += repairAssignment.getEstimatedBytes();
@@ -379,11 +475,12 @@ public class RepairRangeSplitter implements IAutoRepairTokenRangeSplitter
         }
     }
 
-    private String getBytesOfMaxBytesPerSchedule(long bytes) {
-        if (maxBytesPerSchedule == Long.MAX_VALUE)
+    private String getBytesOfMaxBytesPerSchedule(long bytes)
+    {
+        if (maxBytesPerSchedule.equals(MAX_BYTES))
             return FileUtils.stringifyFileSize(bytes);
         else
-            return String.format("%s of %s", FileUtils.stringifyFileSize(bytes), FileUtils.stringifyFileSize(maxBytesPerSchedule));
+            return String.format("%s of %s", FileUtils.stringifyFileSize(bytes), maxBytesPerSchedule);
     }
 
     /**
@@ -427,9 +524,9 @@ public class RepairRangeSplitter implements IAutoRepairTokenRangeSplitter
     }
 
     @VisibleForTesting
-    protected List<SizedRepairAssignment> getRepairAssignmentsForTable(AutoRepairConfig.RepairType repairType, String keyspaceName, String tableName, Collection<Range<Token>> tokenRanges)
+    protected List<SizedRepairAssignment> getRepairAssignmentsForTable(String keyspaceName, String tableName, Collection<Range<Token>> tokenRanges)
     {
-        List<SizeEstimate> sizeEstimates = getRangeSizeEstimate(repairType, keyspaceName, tableName, tokenRanges);
+        List<SizeEstimate> sizeEstimates = getRangeSizeEstimate(keyspaceName, tableName, tokenRanges);
         return getRepairAssignments(sizeEstimates);
     }
 
@@ -461,7 +558,7 @@ public class RepairRangeSplitter implements IAutoRepairTokenRangeSplitter
             else
             {
                 // Check if the estimate needs splitting based on the criteria
-                boolean needsSplitting = estimate.sizeForRepair > bytesPerSubrange || estimate.partitions > partitionsPerSubrange;
+                boolean needsSplitting = estimate.sizeForRepair > bytesPerAssignment.toBytes() || estimate.partitions > partitionsPerAssignment;
                 if (needsSplitting)
                 {
                     int numberOfSplits = calculateNumberOfSplits(estimate);
@@ -491,8 +588,8 @@ public class RepairRangeSplitter implements IAutoRepairTokenRangeSplitter
     private int calculateNumberOfSplits(SizeEstimate estimate)
     {
         // Calculate the number of splits needed for size and partitions
-        int splitsForSize = (int) Math.ceil((double) estimate.sizeForRepair / bytesPerSubrange);
-        int splitsForPartitions = (int) Math.ceil((double) estimate.partitions / partitionsPerSubrange);
+        int splitsForSize = (int) Math.ceil((double) estimate.sizeForRepair / bytesPerAssignment.toBytes());
+        int splitsForPartitions = (int) Math.ceil((double) estimate.partitions / partitionsPerAssignment);
 
         // Split the token range into subranges based on whichever (partitions, bytes) would generate the most splits.
         boolean splitBySize = splitsForSize > splitsForPartitions;
@@ -536,7 +633,7 @@ public class RepairRangeSplitter implements IAutoRepairTokenRangeSplitter
         return ranges;
     }
 
-    private List<SizeEstimate> getRangeSizeEstimate(AutoRepairConfig.RepairType repairType, String keyspace, String table, Collection<Range<Token>> tokenRanges)
+    private List<SizeEstimate> getRangeSizeEstimate(String keyspace, String table, Collection<Range<Token>> tokenRanges)
     {
         List<SizeEstimate> sizeEstimates = new ArrayList<>();
         for (Range<Token> tokenRange : tokenRanges)
@@ -638,6 +735,111 @@ public class RepairRangeSplitter implements IAutoRepairTokenRangeSplitter
         return refs;
     }
 
+    @Override
+    public void setParameter(String key, String value)
+    {
+        switch (key)
+        {
+            case BYTES_PER_ASSIGNMENT:
+                setBytesPerAssignment(new DataStorageSpec.LongBytesBound(value));
+                givenParameters.put(key, value);
+                return;
+            case PARTITIONS_PER_ASSIGNMENT:
+                setPartitionsPerAssignment(Long.parseLong(value));
+                givenParameters.put(key, value);
+                return;
+            case MAX_TABLES_PER_ASSIGNMENT:
+                setMaxTablesPerAssignment(Integer.parseInt(value));
+                givenParameters.put(key, value);
+                return;
+            case MAX_BYTES_PER_SCHEDULE:
+                setMaxBytesPerSchedule(new DataStorageSpec.LongBytesBound(value));
+                givenParameters.put(key, value);
+                return;
+            default:
+                throw new IllegalArgumentException("Unexpected parameter '" + key + "', must be one of " +
+                                                   PARAMETERS);
+        }
+    }
+
+    @Override
+    public Map<String, String> getParameters()
+    {
+        final Map<String, String> parameters = new LinkedHashMap<>();
+        for (String parameter : PARAMETERS)
+        {
+            // Use the parameter as configured if it exists, user would likely to prefer to see something more readable.
+            if (givenParameters.containsKey(parameter))
+            {
+                parameters.put(parameter, givenParameters.get(parameter));
+                continue;
+            }
+
+            switch (parameter)
+            {
+                case BYTES_PER_ASSIGNMENT:
+                    parameters.put(parameter, getBytesPerAssignment().toString());
+                    continue;
+                case PARTITIONS_PER_ASSIGNMENT:
+                    parameters.put(parameter, Long.toString(getPartitionsPerAssignment()));
+                    continue;
+                case MAX_TABLES_PER_ASSIGNMENT:
+                    parameters.put(parameter, Integer.toString(getMaxTablesPerAssignment()));
+                    continue;
+                case MAX_BYTES_PER_SCHEDULE:
+                    parameters.put(parameter, getMaxBytesPerSchedule().toString());
+                    continue;
+                default:
+                    // not expected
+                    parameters.put(parameter, "");
+            }
+        }
+        return parameters;
+    }
+
+    public DataStorageSpec.LongBytesBound getBytesPerAssignment()
+    {
+        return bytesPerAssignment;
+    }
+
+    public void setBytesPerAssignment(DataStorageSpec.LongBytesBound bytesPerAssignment)
+    {
+        this.bytesPerAssignment = bytesPerAssignment;
+    }
+
+    public long getPartitionsPerAssignment()
+    {
+        return partitionsPerAssignment;
+    }
+
+    public void setPartitionsPerAssignment(long partitionsPerAssignment)
+    {
+        this.partitionsPerAssignment = partitionsPerAssignment;
+    }
+
+    public int getMaxTablesPerAssignment()
+    {
+        return maxTablesPerAssignment;
+    }
+
+    public void setMaxTablesPerAssignment(int maxTablesPerAssignment)
+    {
+        this.maxTablesPerAssignment = maxTablesPerAssignment;
+    }
+
+    public DataStorageSpec.LongBytesBound getMaxBytesPerSchedule()
+    {
+        return maxBytesPerSchedule;
+    }
+
+    public void setMaxBytesPerSchedule(DataStorageSpec.LongBytesBound maxBytesPerSchedule)
+    {
+        this.maxBytesPerSchedule = maxBytesPerSchedule;
+    }
+
+    /**
+     * Represents a size estimate by both bytes and partition count for a given keyspace and table for a token range.
+     */
     @VisibleForTesting
     protected static class SizeEstimate
     {
@@ -752,6 +954,81 @@ public class RepairRangeSplitter implements IAutoRepairTokenRangeSplitter
                    ", tableNames=" + tableNames +
                    ", estimatedBytes=" + FileUtils.stringifyFileSize(estimatedBytes) +
                    '}';
+        }
+    }
+
+    /**
+     * Conveinence builder for establishing defaults by repair type.
+     */
+    protected static class RepairTypeDefaults
+    {
+        final AutoRepairConfig.RepairType repairType;
+        final DataStorageSpec.LongBytesBound bytesPerAssignment;
+        final long partitionsPerAssignment;
+        final int maxTablesPerAssignment;
+        final DataStorageSpec.LongBytesBound maxBytesPerSchedule;
+
+        public RepairTypeDefaults(AutoRepairConfig.RepairType repairType,
+                                  DataStorageSpec.LongBytesBound bytesPerAssignment,
+                                  long partitionsPerAssignment,
+                                  int maxTablesPerAssignment,
+                                  DataStorageSpec.LongBytesBound maxBytesPerSchedule)
+        {
+            this.repairType = repairType;
+            this.bytesPerAssignment = bytesPerAssignment;
+            this.partitionsPerAssignment = partitionsPerAssignment;
+            this.maxTablesPerAssignment = maxTablesPerAssignment;
+            this.maxBytesPerSchedule = maxBytesPerSchedule;
+        }
+
+        static RepairTypeDefaultsBuilder builder(AutoRepairConfig.RepairType repairType)
+        {
+            return new RepairTypeDefaultsBuilder(repairType);
+        }
+
+        static class RepairTypeDefaultsBuilder
+        {
+            private final AutoRepairConfig.RepairType repairType;
+            private DataStorageSpec.LongBytesBound bytesPerAssignment = new DataStorageSpec.LongBytesBound("200GiB");
+            private long partitionsPerAssignment = (long) Math.pow(2, DatabaseDescriptor.getRepairSessionMaxTreeDepth());
+            private int maxTablesPerAssignment = 64;
+            private DataStorageSpec.LongBytesBound maxBytesPerSchedule = MAX_BYTES;
+
+            private RepairTypeDefaultsBuilder(AutoRepairConfig.RepairType repairType)
+            {
+                this.repairType = repairType;
+            }
+
+            public RepairTypeDefaultsBuilder withBytesPerAssignment(DataStorageSpec.LongBytesBound bytesPerAssignment)
+            {
+                this.bytesPerAssignment = bytesPerAssignment;
+                return this;
+            }
+
+            @SuppressWarnings("unused")
+            public RepairTypeDefaultsBuilder withPartitionsPerAssignment(long partitionsPerAssignment)
+            {
+                this.partitionsPerAssignment = partitionsPerAssignment;
+                return this;
+            }
+
+            @SuppressWarnings("unused")
+            public RepairTypeDefaultsBuilder withMaxTablesPerAssignment(int maxTablesPerAssignment)
+            {
+                this.maxTablesPerAssignment = maxTablesPerAssignment;
+                return this;
+            }
+
+            public RepairTypeDefaultsBuilder withMaxBytesPerSchedule(DataStorageSpec.LongBytesBound maxBytesPerSchedule)
+            {
+                this.maxBytesPerSchedule = maxBytesPerSchedule;
+                return this;
+            }
+
+            public RepairTokenRangeSplitter.RepairTypeDefaults build()
+            {
+                return new RepairTypeDefaults(repairType, bytesPerAssignment, partitionsPerAssignment, maxTablesPerAssignment, maxBytesPerSchedule);
+            }
         }
     }
 }

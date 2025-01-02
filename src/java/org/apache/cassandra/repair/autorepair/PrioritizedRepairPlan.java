@@ -33,7 +33,7 @@ import org.apache.cassandra.db.ColumnFamilyStore;
 /**
  * Encapsulates a devised plan to repair tables, grouped by their keyspace and a given priority.  This is used
  * by {@link AutoRepair} to pass in an organized plan to
- * {@link IAutoRepairTokenRangeSplitter#getRepairAssignments(AutoRepairConfig.RepairType, boolean, List)} which
+ * {@link IAutoRepairTokenRangeSplitter#getRepairAssignments(boolean, List)} which
  * can iterate over this plan in order to generate {@link RepairAssignment}s.
  */
 public class PrioritizedRepairPlan

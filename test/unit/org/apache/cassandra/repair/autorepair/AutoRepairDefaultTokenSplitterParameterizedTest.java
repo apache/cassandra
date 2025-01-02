@@ -24,6 +24,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 
 import org.junit.BeforeClass;
 import org.junit.Test;
@@ -95,12 +96,10 @@ public class AutoRepairDefaultTokenSplitterParameterizedTest extends CQLTester
             }
         }
 
-        AutoRepairConfig config = AutoRepairService.instance.getAutoRepairConfig();
-        config.setRepairSubRangeNum(repairType, numberOfSplits);
-
         List<PrioritizedRepairPlan> plan = PrioritizedRepairPlan.buildSingleKeyspacePlan(repairType, KEYSPACE, TABLE1, TABLE2, TABLE3);
 
-        Iterator<KeyspaceRepairAssignments> keyspaceAssignments = new DefaultAutoRepairTokenSplitter().getRepairAssignments(repairType, true, plan);
+        Iterator<KeyspaceRepairAssignments> keyspaceAssignments = new FixedSplitTokenRangeSplitter(repairType, Map.of(FixedSplitTokenRangeSplitter.NUMBER_OF_SUBRANGES, Integer.toString(numberOfSplits)))
+                                                                  .getRepairAssignments(true, plan);
 
         // should be only 1 entry for the keyspace.
         assertTrue(keyspaceAssignments.hasNext());
@@ -148,12 +147,10 @@ public class AutoRepairDefaultTokenSplitterParameterizedTest extends CQLTester
             expectedToken.addAll(AutoRepairUtils.split(range, numberOfSplits));
         }
 
-        AutoRepairConfig config = AutoRepairService.instance.getAutoRepairConfig();
-        config.setRepairSubRangeNum(repairType, numberOfSplits);
-
         List<PrioritizedRepairPlan> plan = PrioritizedRepairPlan.buildSingleKeyspacePlan(repairType, KEYSPACE, TABLE1, TABLE2, TABLE3);
 
-        Iterator<KeyspaceRepairAssignments> keyspaceAssignments = new DefaultAutoRepairTokenSplitter().getRepairAssignments(repairType, true, plan);
+        Iterator<KeyspaceRepairAssignments> keyspaceAssignments = new FixedSplitTokenRangeSplitter(repairType, Map.of(FixedSplitTokenRangeSplitter.NUMBER_OF_SUBRANGES, Integer.toString(numberOfSplits)))
+                                                                  .getRepairAssignments(true, plan);
 
         // should be only 1 entry for the keyspace.
         assertTrue(keyspaceAssignments.hasNext());

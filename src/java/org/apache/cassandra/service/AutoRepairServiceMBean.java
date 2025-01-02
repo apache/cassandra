@@ -21,6 +21,7 @@ import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.repair.autorepair.AutoRepairConfig;
 import org.apache.cassandra.repair.autorepair.AutoRepairConfig.RepairType;
 
+import java.util.Map;
 import java.util.Set;
 
 public interface AutoRepairServiceMBean
@@ -37,8 +38,6 @@ public interface AutoRepairServiceMBean
     public void setForceRepairForHosts(RepairType repairType, Set<InetAddressAndPort> host);
 
     public Set<InetAddressAndPort> getRepairHostPriority(RepairType repairType);
-
-    public void setRepairSubRangeNum(RepairType repairType, int repairSubRangeNum);
 
     public void setRepairMinInterval(RepairType repairType, String minRepairInterval);
 
@@ -71,4 +70,8 @@ public interface AutoRepairServiceMBean
     public void setRepairSessionTimeout(RepairType repairType, String timeout);
 
     public Set<String> getOnGoingRepairHostIds(RepairType rType);
+
+    public Map<String, String> getAutoRepairTokenRangeSplitterParameters(RepairType repairType);
+
+    public void setAutoRepairTokenRangeSplitterParameter(AutoRepairConfig.RepairType repairType, String key, String value);
 }
