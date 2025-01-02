@@ -298,34 +298,86 @@ public interface WaitQueue
          */
         public static abstract class AbstractSignal extends AbstractAwaitable implements Signal
         {
+            public Signal awaitUninterruptibly()
+            {
+                boolean interrupted = false;
+                while (true)
+                {
+                    try
+                    {
+                        await(false);
+                        break;
+                    }
+                    catch (InterruptedException e)
+                    {
+                        interrupted = true;
+                    }
+                }
+                if (interrupted)
+                    Thread.currentThread().interrupt();
+                return this;
+            }
+
             public Signal await() throws InterruptedException
+            {
+                return await(true);
+            }
+
+            private Signal await(boolean cancelOnInterrupt) throws InterruptedException
             {
                 while (!isSet())
                 {
-                    checkInterrupted();
+                    checkInterrupted(cancelOnInterrupt);
                     LockSupport.park();
                 }
                 checkAndClear();
                 return this;
             }
 
+            public boolean awaitUntilUninterruptibly(long nanoTimeDeadline)
+            {
+                boolean interrupted = false;
+                boolean result;
+                while (true)
+                {
+                    try
+                    {
+                        result = awaitUntil(nanoTimeDeadline, false);
+                        break;
+                    }
+                    catch (InterruptedException e)
+                    {
+                        interrupted = true;
+                    }
+                }
+                if (interrupted)
+                    Thread.currentThread().interrupt();
+                return result;
+            }
+
             public boolean awaitUntil(long nanoTimeDeadline) throws InterruptedException
+            {
+                return awaitUntil(nanoTimeDeadline, true);
+            }
+
+            private boolean awaitUntil(long nanoTimeDeadline, boolean cancelOnInterrupt) throws InterruptedException
             {
                 long now;
                 while (nanoTimeDeadline > (now = nanoTime()) && !isSet())
                 {
-                    checkInterrupted();
+                    checkInterrupted(cancelOnInterrupt);
                     long delta = nanoTimeDeadline - now;
                     LockSupport.parkNanos(delta);
                 }
                 return checkAndClear();
             }
 
-            private void checkInterrupted() throws InterruptedException
+            private void checkInterrupted(boolean cancelOnInterrupt) throws InterruptedException
             {
                 if (Thread.interrupted())
                 {
-                    cancel();
+                    if (cancelOnInterrupt)
+                        cancel();
                     throw new InterruptedException();
                 }
             }
