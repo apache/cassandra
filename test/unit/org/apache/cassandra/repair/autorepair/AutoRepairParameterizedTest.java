@@ -25,7 +25,6 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
@@ -258,7 +257,7 @@ public class AutoRepairParameterizedTest extends CQLTester
         // Use fixed splitter so we get a deterministic amount of repairs.
         config.setTokenRangeSplitter(repairType,
                                      new ParameterizedClass(FixedSplitTokenRangeSplitter.class.getName(),
-                                                            Map.of(FixedSplitTokenRangeSplitter.NUMBER_OF_SUBRANGES, "1")));
+                                                            ImmutableMap.of(FixedSplitTokenRangeSplitter.NUMBER_OF_SUBRANGES, "1")));
     }
 
     private void executeCQL()

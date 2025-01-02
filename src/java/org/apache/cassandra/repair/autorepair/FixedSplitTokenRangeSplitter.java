@@ -22,6 +22,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Iterator;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -133,7 +134,10 @@ public class FixedSplitTokenRangeSplitter implements IAutoRepairTokenRangeSplitt
     @Override
     public Map<String, String> getParameters()
     {
-        return Map.of(NUMBER_OF_SUBRANGES, Integer.toString(getNumberOfSubranges()));
+        return Collections.unmodifiableMap(new LinkedHashMap<String, String>()
+        {{
+            put(NUMBER_OF_SUBRANGES, Integer.toString(getNumberOfSubranges()));
+        }});
     }
 
     public void setNumberOfSubranges(int numberOfSubranges)
