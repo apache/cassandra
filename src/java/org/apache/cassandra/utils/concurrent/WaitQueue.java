@@ -74,7 +74,7 @@ import static org.apache.cassandra.utils.Shared.Scope.SIMULATION;
  * to be met that we no longer need.
  * <p>5. This scheme is not fair</p>
  * <p>6. Only the thread that calls register() may call await()</p>
- *
+ * <p>6. A signal can be cancelled while it is within await() if the invoking thread is interrupted</p>
  * TODO: this class should not be backed by CLQ (should use an intrusive linked-list with lower overhead)
  */
 @Shared(scope = SIMULATION, inner = INTERFACES)
@@ -109,9 +109,9 @@ public interface WaitQueue
         public boolean isSet();
 
         /**
-         * atomically: cancels the Signal if !isSet(), or returns true if isSignalled()
+         * atomically: cancels the Signal if !isSet(), or returns true if isSet()
          *
-         * @return true if isSignalled()
+         * @return true if isSet()
          */
         public boolean checkAndClear();
 
@@ -120,6 +120,23 @@ public interface WaitQueue
          * and if signalled propagates the signal to another waiting thread
          */
         public abstract void cancel();
+
+        /**
+         * Await indefinitely, throwing any interrupt.
+         * No spurious wakeups.
+         * Important: the signal can be cancelled if the thread executing await() is interrupted
+         * @throws InterruptedException if interrupted
+         */
+        Awaitable await() throws InterruptedException;
+
+        /**
+         * Await until the deadline (in nanoTime), throwing any interrupt.
+         * No spurious wakeups.
+         * @return true if we were signalled, false if the deadline elapsed
+         * Important: the signal can be cancelled if the thread executing await() is interrupted
+         * @throws InterruptedException if interrupted
+         */
+        boolean awaitUntil(long nanoTimeDeadline) throws InterruptedException;
     }
 
     /**
@@ -281,60 +298,34 @@ public interface WaitQueue
          */
         public static abstract class AbstractSignal extends AbstractAwaitable implements Signal
         {
-            public Signal awaitUninterruptibly()
+            public Signal await() throws InterruptedException
             {
-                boolean interrupted = false;
-                while (true)
+                while (!isSet())
                 {
-                    try
-                    {
-                        await(false);
-                        break;
-                    }
-                    catch (InterruptedException e)
-                    {
-                        interrupted = true;
-                    }
-                }
-                if (interrupted)
-                    Thread.currentThread().interrupt();
-                return this;
-            }
-
-            public Signal await(boolean cancelOnInterrupt) throws InterruptedException
-            {
-                while (!isSignalled())
-                {
-                    checkInterrupted(cancelOnInterrupt);
+                    checkInterrupted();
                     LockSupport.park();
                 }
                 checkAndClear();
                 return this;
             }
 
-            public Signal await() throws InterruptedException
-            {
-                return await(true);
-            }
-
             public boolean awaitUntil(long nanoTimeDeadline) throws InterruptedException
             {
                 long now;
-                while (nanoTimeDeadline > (now = nanoTime()) && !isSignalled())
+                while (nanoTimeDeadline > (now = nanoTime()) && !isSet())
                 {
-                    checkInterrupted(true);
+                    checkInterrupted();
                     long delta = nanoTimeDeadline - now;
                     LockSupport.parkNanos(delta);
                 }
                 return checkAndClear();
             }
 
-            private void checkInterrupted(boolean cancelOnInterrupt) throws InterruptedException
+            private void checkInterrupted() throws InterruptedException
             {
                 if (Thread.interrupted())
                 {
-                    if (cancelOnInterrupt)
-                        cancel();
+                    cancel();
                     throw new InterruptedException();
                 }
             }
