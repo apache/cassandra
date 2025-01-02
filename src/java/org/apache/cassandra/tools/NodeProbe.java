@@ -2531,6 +2531,16 @@ public class NodeProbe implements AutoCloseable
         return autoRepairProxy.getAutoRepairConfig();
     }
 
+    public Map<String, String> getAutoRepairTokenRangeSplitterParameters(AutoRepairConfig.RepairType repairType)
+    {
+        return autoRepairProxy.getAutoRepairTokenRangeSplitterParameters(repairType);
+    }
+
+    public void setAutoRepairTokenRangeSplitterParameter(AutoRepairConfig.RepairType repairType, String key, String value)
+    {
+        autoRepairProxy.setAutoRepairTokenRangeSplitterParameter(repairType, key, value);
+    }
+
     public void setAutoRepairEnabled(AutoRepairConfig.RepairType repairType, boolean enabled)
     {
         autoRepairProxy.setAutoRepairEnabled(repairType, enabled);
@@ -2553,11 +2563,6 @@ public class NodeProbe implements AutoCloseable
 
     public void setForceRepairForHosts(AutoRepairConfig.RepairType repairType, Set<InetAddressAndPort> hosts){
         autoRepairProxy.setForceRepairForHosts(repairType, hosts);
-    }
-
-    public void setRepairSubRangeNum(AutoRepairConfig.RepairType repairType, int repairSubRanges)
-    {
-        autoRepairProxy.setRepairSubRangeNum(repairType, repairSubRanges);
     }
 
     public void setRepairMinInterval(AutoRepairConfig.RepairType repairType, String minRepairInterval)

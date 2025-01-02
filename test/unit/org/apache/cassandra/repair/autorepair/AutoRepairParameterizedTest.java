@@ -21,9 +21,11 @@ package org.apache.cassandra.repair.autorepair;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
@@ -32,6 +34,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import com.google.common.collect.Sets;
 
 import org.apache.cassandra.config.DurationSpec;
+import org.apache.cassandra.config.ParameterizedClass;
 import org.apache.cassandra.cql3.statements.schema.TableAttributes;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
@@ -218,8 +221,11 @@ public class AutoRepairParameterizedTest extends CQLTester
         config.repair_type_overrides = defaultConfig.repair_type_overrides;
         config.global_settings = defaultConfig.global_settings;
         config.history_clear_delete_hosts_buffer_interval = defaultConfig.history_clear_delete_hosts_buffer_interval;
-        config.setRepairSubRangeNum(repairType, 1);
         config.repair_task_min_duration = new DurationSpec.LongSecondsBound("0s");
+        // Use fixed splitter so we get a deterministic amount of repairs.
+        config.setTokenRangeSplitter(repairType,
+                                     new ParameterizedClass(FixedSplitTokenRangeSplitter.class.getName(),
+                                                            Map.of(FixedSplitTokenRangeSplitter.NUMBER_OF_SUBRANGES, "1")));
     }
 
     private void executeCQL()
@@ -572,7 +578,7 @@ public class AutoRepairParameterizedTest extends CQLTester
 
         List<PrioritizedRepairPlan> plan = PrioritizedRepairPlan.buildSingleKeyspacePlan(repairType, KEYSPACE, TABLE);
 
-        Iterator<KeyspaceRepairAssignments> keyspaceAssignments = new DefaultAutoRepairTokenSplitter().getRepairAssignments(repairType, true, plan);
+        Iterator<KeyspaceRepairAssignments> keyspaceAssignments = new FixedSplitTokenRangeSplitter(repairType, Collections.emptyMap()).getRepairAssignments(true, plan);
 
         // should be only 1 entry for the keyspace.
         assertTrue(keyspaceAssignments.hasNext());
@@ -670,6 +676,7 @@ public class AutoRepairParameterizedTest extends CQLTester
 
         AutoRepair.instance.repair(repairType);
 
+        // Expect configured retries for each table expected to be repaired
         assertEquals(config.getRepairMaxRetries()*expectedTablesGoingThroughRepair, sleepCalls.get());
         verify(autoRepairState, Mockito.times(1)).setSucceededTokenRangesCount(0);
         verify(autoRepairState, Mockito.times(1)).setSkippedTokenRangesCount(0);

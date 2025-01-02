@@ -19,6 +19,7 @@
 package org.apache.cassandra.repair.autorepair;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.EnumMap;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -39,6 +40,7 @@ import com.google.common.util.concurrent.Uninterruptibles;
 import org.apache.cassandra.repair.RepairCoordinator;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.config.DurationSpec;
+import org.apache.cassandra.config.ParameterizedClass;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.utils.Clock;
 
@@ -91,8 +93,6 @@ public class AutoRepair
     @VisibleForTesting
     protected static BiConsumer<Long, TimeUnit> sleepFunc = Uninterruptibles::sleepUninterruptibly;
 
-    protected final Map<AutoRepairConfig.RepairType, IAutoRepairTokenRangeSplitter> tokenRangeSplitters = new EnumMap<>(AutoRepairConfig.RepairType.class);
-
     private boolean isSetupDone = false;
 
     @VisibleForTesting
@@ -107,7 +107,43 @@ public class AutoRepair
             repairExecutors.put(repairType, executorFactory().scheduled(false, "AutoRepair-Repair-" + repairType.getConfigName(), Thread.NORM_PRIORITY));
             repairRunnableExecutors.put(repairType, executorFactory().scheduled(false, "AutoRepair-RepairRunnable-" + repairType.getConfigName(), Thread.NORM_PRIORITY));
             repairStates.put(repairType, AutoRepairConfig.RepairType.getAutoRepairState(repairType));
-            tokenRangeSplitters.put(repairType, FBUtilities.newAutoRepairTokenRangeSplitter(config.getTokenRangeSplitter(repairType)));
+        }
+    }
+
+    @VisibleForTesting
+    static IAutoRepairTokenRangeSplitter newAutoRepairTokenRangeSplitter(AutoRepairConfig.RepairType repairType, ParameterizedClass parameterizedClass) throws ConfigurationException
+    {
+        try
+        {
+            Class<?> tokenRangeSplitterClass;
+            final String className;
+            if (parameterizedClass.class_name != null && !parameterizedClass.class_name.isEmpty())
+            {
+                className = parameterizedClass.class_name.contains(".") ?
+                            parameterizedClass.class_name :
+                            "org.apache.cassandra.repair.autorepair." + parameterizedClass.class_name;
+                tokenRangeSplitterClass = FBUtilities.classForName(className, "token_range_splitter");
+            }
+            else
+            {
+                // If token_range_splitter.class_name is not defined, just use default, this is for convenience.
+                tokenRangeSplitterClass = AutoRepairConfig.DEFAULT_SPLITTER;
+            }
+            try
+            {
+                Map<String, String> parameters = parameterizedClass.parameters != null ? parameterizedClass.parameters : Collections.emptyMap();
+                // first attempt to initialize with RepairType and Map arguments.
+                return (IAutoRepairTokenRangeSplitter) tokenRangeSplitterClass.getConstructor(AutoRepairConfig.RepairType.class, Map.class).newInstance(repairType, parameters);
+            }
+            catch (NoSuchMethodException nsme)
+            {
+                // fall back on no argument constructor.
+                return (IAutoRepairTokenRangeSplitter)  tokenRangeSplitterClass.getConstructor().newInstance();
+            }
+        }
+        catch (Exception ex)
+        {
+            throw new ConfigurationException("Unable to create instance of IAutoRepairTokenRangeSplitter", ex);
         }
     }
 
@@ -147,15 +183,6 @@ public class AutoRepair
             throw new ConfigurationException("Auto-repair is disabled for repair type " + repairType);
         }
         repairExecutors.get(repairType).submit(() -> repair(repairType));
-    }
-
-    /**
-     * @return The priority of the given table if defined, otherwise 0.
-     */
-    private int getPriority(AutoRepairConfig.RepairType repairType, String keyspaceName, String tableName)
-    {
-        ColumnFamilyStore cfs = ColumnFamilyStore.getIfExists(keyspaceName, tableName);
-        return cfs != null ? cfs.metadata().params.autoRepair.priority() : 0;
     }
 
     // repair runs a repair session of the given type synchronously.
@@ -228,7 +255,7 @@ public class AutoRepair
                 List<PrioritizedRepairPlan> repairPlans = PrioritizedRepairPlan.build(keyspacesAndTablesToRepair, repairType, shuffleFunc);
 
                 // calculate the repair assignments for each priority:keyspace.
-                Iterator<KeyspaceRepairAssignments> repairAssignmentsIterator = tokenRangeSplitters.get(repairType).getRepairAssignments(repairType, primaryRangeOnly, repairPlans);
+                Iterator<KeyspaceRepairAssignments> repairAssignmentsIterator = config.getTokenRangeSplitterInstance(repairType).getRepairAssignments(primaryRangeOnly, repairPlans);
 
                 while (repairAssignmentsIterator.hasNext())
                 {

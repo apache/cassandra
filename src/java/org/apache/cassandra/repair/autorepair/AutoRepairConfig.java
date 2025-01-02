@@ -20,7 +20,9 @@ package org.apache.cassandra.repair.autorepair;
 
 import java.io.Serializable;
 import java.util.Collections;
+import java.util.EnumMap;
 import java.util.HashSet;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentMap;
 import java.util.function.Function;
@@ -33,6 +35,8 @@ import com.google.common.collect.Maps;
 import org.apache.cassandra.config.DurationSpec;
 import org.apache.cassandra.config.ParameterizedClass;
 import org.apache.cassandra.utils.LocalizeString;
+import org.apache.cassandra.exceptions.ConfigurationException;
+import org.apache.cassandra.utils.FBUtilities;
 
 public class AutoRepairConfig implements Serializable
 {
@@ -59,6 +63,11 @@ public class AutoRepairConfig implements Serializable
 
     // global_settings overides Options.defaultOptions for all repair types
     public volatile Options global_settings;
+
+    public static final Class<? extends IAutoRepairTokenRangeSplitter> DEFAULT_SPLITTER = RepairTokenRangeSplitter.class;
+
+    // make transient so gets consturcted in the implementation.
+    private final transient Map<AutoRepairConfig.RepairType, IAutoRepairTokenRangeSplitter> tokenRangeSplitters = new EnumMap<>(AutoRepairConfig.RepairType.class);
 
     public enum RepairType implements Serializable
     {
@@ -204,16 +213,6 @@ public class AutoRepairConfig implements Serializable
         getOptions(repairType).number_of_repair_threads = repairThreads;
     }
 
-    public int getRepairSubRangeNum(RepairType repairType)
-    {
-        return applyOverrides(repairType, opt -> opt.number_of_subranges);
-    }
-
-    public void setRepairSubRangeNum(RepairType repairType, int repairSubRanges)
-    {
-        getOptions(repairType).number_of_subranges = repairSubRanges;
-    }
-
     public DurationSpec.IntSecondsBound getRepairMinInterval(RepairType repairType)
     {
         return applyOverrides(repairType, opt -> opt.min_repair_interval);
@@ -309,6 +308,26 @@ public class AutoRepairConfig implements Serializable
         return applyOverrides(repairType, opt -> opt.token_range_splitter);
     }
 
+    /**
+     * Set a new token range splitter, this is not meant to be used other than for testing.
+     */
+    public void setTokenRangeSplitter(RepairType repairType, ParameterizedClass tokenRangeSplitter)
+    {
+        getOptions(repairType).token_range_splitter = tokenRangeSplitter;
+        tokenRangeSplitters.remove(repairType);
+    }
+
+    public IAutoRepairTokenRangeSplitter getTokenRangeSplitterInstance(RepairType repairType)
+    {
+        IAutoRepairTokenRangeSplitter splitter = tokenRangeSplitters.get(repairType);
+        if (splitter == null)
+        {
+            splitter = newAutoRepairTokenRangeSplitter(repairType, getTokenRangeSplitter(repairType));
+            tokenRangeSplitters.put(repairType, splitter);
+        }
+        return splitter;
+    }
+
     public void setInitialSchedulerDelay(RepairType repairType, String initialSchedulerDelay)
     {
         getOptions(repairType).initial_scheduler_delay = new DurationSpec.IntSecondsBound(initialSchedulerDelay);
@@ -327,6 +346,43 @@ public class AutoRepairConfig implements Serializable
     public void setRepairSessionTimeout(RepairType repairType, String repairSessionTimeout)
     {
         getOptions(repairType).repair_session_timeout = new DurationSpec.IntSecondsBound(repairSessionTimeout);
+    }
+
+    @VisibleForTesting
+    static IAutoRepairTokenRangeSplitter newAutoRepairTokenRangeSplitter(AutoRepairConfig.RepairType repairType, ParameterizedClass parameterizedClass) throws ConfigurationException
+    {
+        try
+        {
+            Class<?> tokenRangeSplitterClass;
+            final String className;
+            if (parameterizedClass.class_name != null && !parameterizedClass.class_name.isEmpty())
+            {
+                className = parameterizedClass.class_name.contains(".") ?
+                            parameterizedClass.class_name :
+                            "org.apache.cassandra.repair.autorepair." + parameterizedClass.class_name;
+                tokenRangeSplitterClass = FBUtilities.classForName(className, "token_range_splitter");
+            }
+            else
+            {
+                // If token_range_splitter.class_name is not defined, just use default, this is for convenience.
+                tokenRangeSplitterClass = AutoRepairConfig.DEFAULT_SPLITTER;
+            }
+            try
+            {
+                Map<String, String> parameters = parameterizedClass.parameters != null ? parameterizedClass.parameters : Collections.emptyMap();
+                // first attempt to initialize with RepairType and Map arguments.
+                return (IAutoRepairTokenRangeSplitter) tokenRangeSplitterClass.getConstructor(AutoRepairConfig.RepairType.class, Map.class).newInstance(repairType, parameters);
+            }
+            catch (NoSuchMethodException nsme)
+            {
+                // fall back on no argument constructor.
+                return (IAutoRepairTokenRangeSplitter)  tokenRangeSplitterClass.getConstructor().newInstance();
+            }
+        }
+        catch (Exception ex)
+        {
+            throw new ConfigurationException("Unable to create instance of IAutoRepairTokenRangeSplitter", ex);
+        }
     }
 
     // Options configures auto-repair behavior for a given repair type.
@@ -348,7 +404,6 @@ public class AutoRepairConfig implements Serializable
 
             opts.enabled = false;
             opts.repair_by_keyspace = false;
-            opts.number_of_subranges = 16;
             opts.number_of_repair_threads = 1;
             opts.parallel_repair_count = 3;
             opts.parallel_repair_percentage = 3;
@@ -359,7 +414,7 @@ public class AutoRepairConfig implements Serializable
             opts.force_repair_new_node = false;
             opts.table_max_repair_time = new DurationSpec.IntSecondsBound("6h");
             opts.mv_repair_enabled = false;
-            opts.token_range_splitter = new ParameterizedClass(DefaultAutoRepairTokenSplitter.class.getName(), Collections.emptyMap());
+            opts.token_range_splitter = new ParameterizedClass(DEFAULT_SPLITTER.getName(), Collections.emptyMap());
             opts.initial_scheduler_delay = new DurationSpec.IntSecondsBound("5m"); // 5 minutes
             opts.repair_session_timeout = new DurationSpec.IntSecondsBound("3h"); // 3 hours
 
@@ -370,13 +425,6 @@ public class AutoRepairConfig implements Serializable
         public volatile Boolean enabled;
         // auto repair is default repair table by table, if this is enabled, the framework will repair all the tables in a keyspace in one go.
         public volatile Boolean repair_by_keyspace;
-        // the number of subranges to split each to-be-repaired token range into,
-        // the higher this number, the smaller the repair sessions will be
-        // How many subranges to divide one range into? The default is 1.
-        // If you are using v-node, say 256, then the repair will always go one v-node range at a time, this parameter, additionally, will let us further subdivide a given v-node range into sub-ranges.
-        // With the value “1” and v-nodes of 256, a given table on a node will undergo the repair 256 times. But with a value “2,” the same table on a node will undergo a repair 512 times because every v-node range will be further divided by two.
-        // If you do not use v-nodes or the number of v-nodes is pretty small, say 8, setting this value to a higher number, say 16, will be useful to repair on a smaller range, and the chance of succeeding is higher.
-        public volatile Integer number_of_subranges;
         // the number of repair threads to run for a given invoked Repair Job.
         // Once the scheduler schedules one repair session, then howmany threads to use inside that job will be controlled through this parameter.
         // This is similar to -j for repair options for the nodetool repair command.
@@ -423,8 +471,12 @@ public class AutoRepairConfig implements Serializable
         // the default is 'true'.
         // This flag determines whether the auto-repair framework needs to run anti-entropy, a.k.a, repair on the MV table or not.
         public volatile Boolean mv_repair_enabled;
-        // the default is DefaultAutoRepairTokenSplitter. The class should implement IAutoRepairTokenRangeSplitter.
-        // The default implementation splits the tokens based on the token ranges owned by this node divided by the number of 'number_of_subranges'
+        /**
+         * Splitter implementation to use for generating repair assignments.
+         * <p>
+         * The default is {@link RepairTokenRangeSplitter}. The class should implement {@link IAutoRepairTokenRangeSplitter}
+         * and have a constructor accepting ({@link RepairType}, {@link java.util.Map})
+         */
         public volatile ParameterizedClass token_range_splitter;
         // the minimum delay after a node starts before the scheduler starts running repair
         public volatile DurationSpec.IntSecondsBound initial_scheduler_delay;
@@ -437,7 +489,6 @@ public class AutoRepairConfig implements Serializable
             return "Options{" +
                    "enabled=" + enabled +
                    ", repair_by_keyspace=" + repair_by_keyspace +
-                   ", number_of_subranges=" + number_of_subranges +
                    ", number_of_repair_threads=" + number_of_repair_threads +
                    ", parallel_repair_count=" + parallel_repair_count +
                    ", parallel_repair_percentage=" + parallel_repair_percentage +

@@ -43,21 +43,21 @@ import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.sstable.format.big.BigFormat;
 import org.apache.cassandra.repair.autorepair.AutoRepairConfig.RepairType;
-import org.apache.cassandra.repair.autorepair.RepairRangeSplitter.FilteredRepairAssignments;
-import org.apache.cassandra.repair.autorepair.RepairRangeSplitter.SizeEstimate;
-import org.apache.cassandra.repair.autorepair.RepairRangeSplitter.SizedRepairAssignment;
+import org.apache.cassandra.repair.autorepair.RepairTokenRangeSplitter.FilteredRepairAssignments;
+import org.apache.cassandra.repair.autorepair.RepairTokenRangeSplitter.SizeEstimate;
+import org.apache.cassandra.repair.autorepair.RepairTokenRangeSplitter.SizedRepairAssignment;
 import org.apache.cassandra.service.AutoRepairService;
 import org.apache.cassandra.utils.concurrent.Refs;
 
-import static org.apache.cassandra.repair.autorepair.RepairRangeSplitter.MAX_BYTES_PER_SCHEDULE;
-import static org.apache.cassandra.repair.autorepair.RepairRangeSplitter.SUBRANGE_SIZE;
-import static org.apache.cassandra.repair.autorepair.RepairRangeSplitter.TABLE_BATCH_LIMIT;
+import static org.apache.cassandra.repair.autorepair.RepairTokenRangeSplitter.MAX_BYTES_PER_SCHEDULE;
+import static org.apache.cassandra.repair.autorepair.RepairTokenRangeSplitter.BYTES_PER_ASSIGNMENT;
+import static org.apache.cassandra.repair.autorepair.RepairTokenRangeSplitter.MAX_TABLES_PER_ASSIGNMENT;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
-public class RepairRangeSplitterTest extends CQLTester
+public class RepairTokenRangeSplitterTest extends CQLTester
 {
-    private RepairRangeSplitter repairRangeSplitter;
+    private RepairTokenRangeSplitter repairRangeSplitter;
     private String tableName;
     private static Range<Token> FULL_RANGE;
 
@@ -74,7 +74,7 @@ public class RepairRangeSplitterTest extends CQLTester
     @Before
     public void setUp()
     {
-        repairRangeSplitter = new RepairRangeSplitter(Collections.emptyMap());
+        repairRangeSplitter = new RepairTokenRangeSplitter(RepairType.FULL, Collections.emptyMap());
         tableName = createTable("CREATE TABLE %s (k INT PRIMARY KEY, v INT)");
         assertTrue(BigFormat.isSelected());
     }
@@ -83,9 +83,9 @@ public class RepairRangeSplitterTest extends CQLTester
     public void testSizePartitionCount() throws Throwable
     {
         insertAndFlushTable(tableName, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10);
-        Refs<SSTableReader> sstables = RepairRangeSplitter.getSSTableReaderRefs(RepairType.FULL, KEYSPACE, tableName, FULL_RANGE);
+        Refs<SSTableReader> sstables = RepairTokenRangeSplitter.getSSTableReaderRefs(RepairType.FULL, KEYSPACE, tableName, FULL_RANGE);
         assertEquals(10, sstables.iterator().next().getEstimatedPartitionSize().count());
-        SizeEstimate sizes = RepairRangeSplitter.getSizesForRangeOfSSTables(RepairType.FULL, KEYSPACE, tableName, FULL_RANGE, sstables);
+        SizeEstimate sizes = RepairTokenRangeSplitter.getSizesForRangeOfSSTables(RepairType.FULL, KEYSPACE, tableName, FULL_RANGE, sstables);
         assertEquals(10, sizes.partitions);
     }
 
@@ -101,10 +101,10 @@ public class RepairRangeSplitterTest extends CQLTester
         Range<Token> tokenRange2 = range.next();
         Assert.assertFalse(range.hasNext());
 
-        Refs<SSTableReader> sstables1 = RepairRangeSplitter.getSSTableReaderRefs(RepairType.FULL, KEYSPACE, tableName, tokenRange1);
-        Refs<SSTableReader> sstables2 = RepairRangeSplitter.getSSTableReaderRefs(RepairType.FULL, KEYSPACE, tableName, tokenRange2);
-        SizeEstimate sizes1 = RepairRangeSplitter.getSizesForRangeOfSSTables(RepairType.FULL, KEYSPACE, tableName, tokenRange1, sstables1);
-        SizeEstimate sizes2 = RepairRangeSplitter.getSizesForRangeOfSSTables(RepairType.FULL, KEYSPACE, tableName, tokenRange2, sstables2);
+        Refs<SSTableReader> sstables1 = RepairTokenRangeSplitter.getSSTableReaderRefs(RepairType.FULL, KEYSPACE, tableName, tokenRange1);
+        Refs<SSTableReader> sstables2 = RepairTokenRangeSplitter.getSSTableReaderRefs(RepairType.FULL, KEYSPACE, tableName, tokenRange2);
+        SizeEstimate sizes1 = RepairTokenRangeSplitter.getSizesForRangeOfSSTables(RepairType.FULL, KEYSPACE, tableName, tokenRange1, sstables1);
+        SizeEstimate sizes2 = RepairTokenRangeSplitter.getSizesForRangeOfSSTables(RepairType.FULL, KEYSPACE, tableName, tokenRange2, sstables2);
         // +-5% because HLL merge and the applying of range size approx ratio causes estimation errors
         assertTrue(Math.abs(10000 - (sizes1.partitions + sizes2.partitions)) <= 60);
     }
@@ -113,7 +113,7 @@ public class RepairRangeSplitterTest extends CQLTester
     public void testGetRepairAssignmentsForTable_NoSSTables()
     {
         Collection<Range<Token>> ranges = Collections.singleton(new Range<>(Murmur3Partitioner.instance.getMinimumToken(), Murmur3Partitioner.instance.getMaximumToken()));
-        List<SizedRepairAssignment> assignments = repairRangeSplitter.getRepairAssignmentsForTable(RepairType.FULL, CQLTester.KEYSPACE, tableName, ranges);
+        List<SizedRepairAssignment> assignments = repairRangeSplitter.getRepairAssignmentsForTable(CQLTester.KEYSPACE, tableName, ranges);
         assertEquals(0, assignments.size());
     }
 
@@ -121,15 +121,15 @@ public class RepairRangeSplitterTest extends CQLTester
     public void testGetRepairAssignmentsForTable_Single() throws Throwable
     {
         Collection<Range<Token>> ranges = Collections.singleton(new Range<>(DatabaseDescriptor.getPartitioner().getMinimumToken(), DatabaseDescriptor.getPartitioner().getMaximumToken()));
-        insertAndFlushSingleTable(tableName);
-        List<SizedRepairAssignment> assignments = repairRangeSplitter.getRepairAssignmentsForTable(RepairType.FULL, CQLTester.KEYSPACE, tableName, ranges);
+        insertAndFlushSingleTable();
+        List<SizedRepairAssignment> assignments = repairRangeSplitter.getRepairAssignmentsForTable(CQLTester.KEYSPACE, tableName, ranges);
         assertEquals(1, assignments.size());
     }
 
     @Test
     public void testGetRepairAssignmentsForTable_BatchingTables() throws Throwable
     {
-        repairRangeSplitter = new RepairRangeSplitter(Collections.singletonMap(TABLE_BATCH_LIMIT, "2"));
+        repairRangeSplitter = new RepairTokenRangeSplitter(RepairType.FULL, Collections.singletonMap(MAX_TABLES_PER_ASSIGNMENT, "2"));
         Collection<Range<Token>> ranges = Collections.singleton(FULL_RANGE);
 
         List<String> tableNames = createAndInsertTables(3);
@@ -144,7 +144,7 @@ public class RepairRangeSplitterTest extends CQLTester
     @Test
     public void testGetRepairAssignmentsForTable_BatchSize() throws Throwable
     {
-        repairRangeSplitter = new RepairRangeSplitter(Collections.singletonMap(TABLE_BATCH_LIMIT, "2"));
+        repairRangeSplitter = new RepairTokenRangeSplitter(RepairType.FULL, Collections.singletonMap(MAX_TABLES_PER_ASSIGNMENT, "2"));
         Collection<Range<Token>> ranges = Collections.singleton(FULL_RANGE);
 
         List<String> tableNames = createAndInsertTables(2);
@@ -158,7 +158,7 @@ public class RepairRangeSplitterTest extends CQLTester
     @Test
     public void testGetRepairAssignmentsForTable_NoBatching() throws Throwable
     {
-        repairRangeSplitter = new RepairRangeSplitter(Collections.singletonMap(TABLE_BATCH_LIMIT, "1"));
+        repairRangeSplitter = new RepairTokenRangeSplitter(RepairType.FULL, Collections.singletonMap(MAX_TABLES_PER_ASSIGNMENT, "1"));
         Collection<Range<Token>> ranges = Collections.singleton(FULL_RANGE);
 
         List<String> tableNames = createAndInsertTables(3);
@@ -170,7 +170,7 @@ public class RepairRangeSplitterTest extends CQLTester
     @Test
     public void testGetRepairAssignmentsForTable_AllBatched() throws Throwable
     {
-        repairRangeSplitter = new RepairRangeSplitter(Collections.singletonMap(TABLE_BATCH_LIMIT, "100"));
+        repairRangeSplitter = new RepairTokenRangeSplitter(RepairType.FULL, Collections.singletonMap(MAX_TABLES_PER_ASSIGNMENT, "100"));
         Collection<Range<Token>> ranges = Collections.singleton(FULL_RANGE);
 
         List<String> tableNames = createAndInsertTables(5);
@@ -184,7 +184,7 @@ public class RepairRangeSplitterTest extends CQLTester
     {
         // Test when the list of assignments is empty
         List<SizedRepairAssignment> emptyAssignments = Collections.emptyList();
-        RepairRangeSplitter.merge(emptyAssignments);
+        RepairTokenRangeSplitter.merge(emptyAssignments);
     }
 
     @Test
@@ -197,7 +197,7 @@ public class RepairRangeSplitterTest extends CQLTester
         SizedRepairAssignment assignment = new SizedRepairAssignment(FULL_RANGE, keyspaceName, tableNames);
         List<SizedRepairAssignment> assignments = Collections.singletonList(assignment);
 
-        SizedRepairAssignment result = RepairRangeSplitter.merge(assignments);
+        SizedRepairAssignment result = RepairTokenRangeSplitter.merge(assignments);
 
         assertEquals(FULL_RANGE, result.getTokenRange());
         assertEquals(keyspaceName, result.getKeyspaceName());
@@ -216,7 +216,7 @@ public class RepairRangeSplitterTest extends CQLTester
         SizedRepairAssignment assignment2 = new SizedRepairAssignment(FULL_RANGE, keyspaceName, tableNames2);
         List<SizedRepairAssignment> assignments = Arrays.asList(assignment1, assignment2);
 
-        SizedRepairAssignment result = RepairRangeSplitter.merge(assignments);
+        SizedRepairAssignment result = RepairTokenRangeSplitter.merge(assignments);
 
         assertEquals(FULL_RANGE, result.getTokenRange());
         assertEquals(keyspaceName, result.getKeyspaceName());
@@ -239,7 +239,7 @@ public class RepairRangeSplitterTest extends CQLTester
         SizedRepairAssignment assignment2 = new SizedRepairAssignment(tokenRange2, keyspaceName, tableNames);
         List<SizedRepairAssignment> assignments = Arrays.asList(assignment1, assignment2);
 
-        RepairRangeSplitter.merge(assignments); // Should throw IllegalStateException
+        RepairTokenRangeSplitter.merge(assignments); // Should throw IllegalStateException
     }
 
     @Test(expected = IllegalStateException.class)
@@ -252,7 +252,7 @@ public class RepairRangeSplitterTest extends CQLTester
         SizedRepairAssignment assignment2 = new SizedRepairAssignment(FULL_RANGE, "keyspace2", tableNames);
         List<SizedRepairAssignment> assignments = Arrays.asList(assignment1, assignment2);
 
-        RepairRangeSplitter.merge(assignments); // Should throw IllegalStateException
+        RepairTokenRangeSplitter.merge(assignments); // Should throw IllegalStateException
     }
 
     @Test
@@ -267,7 +267,7 @@ public class RepairRangeSplitterTest extends CQLTester
         SizedRepairAssignment assignment2 = new SizedRepairAssignment(FULL_RANGE, keyspaceName, tableNames2);
         List<SizedRepairAssignment> assignments = Arrays.asList(assignment1, assignment2);
 
-        RepairAssignment result = RepairRangeSplitter.merge(assignments);
+        RepairAssignment result = RepairTokenRangeSplitter.merge(assignments);
 
         // The merged result should contain all unique table names
         assertEquals(new HashSet<>(Arrays.asList("table1", "table2", "table3")), new HashSet<>(result.getTableNames()));
@@ -278,12 +278,12 @@ public class RepairRangeSplitterTest extends CQLTester
     {
         // Ensures that getRepairAssignments splits by SUBRANGE_SIZE and filterRepairAssignments limits by MAX_BYTES_PER_SCHEDULE.
         Map<String, String> parameters = new HashMap<>();
-        parameters.put(SUBRANGE_SIZE, "50GiB");
+        parameters.put(BYTES_PER_ASSIGNMENT, "50GiB");
         parameters.put(MAX_BYTES_PER_SCHEDULE, "100GiB");
-        repairRangeSplitter = new RepairRangeSplitter(parameters);
+        repairRangeSplitter = new RepairTokenRangeSplitter(RepairType.INCREMENTAL, parameters);
 
         // Given a size estimate of 1024GiB, we should expect 21 splits (50GiB*21 = 1050GiB < 1024GiB)
-        SizeEstimate sizeEstimate = sizeEstimateByBytes(RepairType.INCREMENTAL, new LongMebibytesBound("1024GiB"));
+        SizeEstimate sizeEstimate = sizeEstimateByBytes(new LongMebibytesBound("1024GiB"));
 
         List<SizedRepairAssignment> assignments = repairRangeSplitter.getRepairAssignments(Collections.singletonList(sizeEstimate));
 
@@ -297,24 +297,24 @@ public class RepairRangeSplitterTest extends CQLTester
         }
 
         // When filtering we should only get 2 assignments back (48.76 * 2 < 100GiB)
-        FilteredRepairAssignments filteredRepairAssignments = repairRangeSplitter.filterRepairAssignments(RepairType.INCREMENTAL, 0, KEYSPACE, assignments, 0);
+        FilteredRepairAssignments filteredRepairAssignments = repairRangeSplitter.filterRepairAssignments(0, KEYSPACE, assignments, 0);
         List<RepairAssignment> finalRepairAssignments = filteredRepairAssignments.repairAssignments;
         assertEquals(2, finalRepairAssignments.size());
         assertEquals(expectedBytes*2, filteredRepairAssignments.newBytesSoFar);
     }
 
-    private SizeEstimate sizeEstimateByBytes(RepairType repairType, LongMebibytesBound totalSize)
+    private SizeEstimate sizeEstimateByBytes(LongMebibytesBound totalSize)
     {
-        return sizeEstimateByBytes(repairType, totalSize, totalSize);
+        return sizeEstimateByBytes(totalSize, totalSize);
     }
 
-    private SizeEstimate sizeEstimateByBytes(RepairType repairType, LongMebibytesBound sizeInRange, LongMebibytesBound totalSize)
+    private SizeEstimate sizeEstimateByBytes(LongMebibytesBound sizeInRange, LongMebibytesBound totalSize)
     {
-        return new SizeEstimate(repairType, KEYSPACE, "table1", FULL_RANGE, 1, sizeInRange.toBytes(), totalSize.toBytes());
+        return new SizeEstimate(RepairType.INCREMENTAL, KEYSPACE, "table1", FULL_RANGE, 1, sizeInRange.toBytes(), totalSize.toBytes());
     }
 
 
-    private void insertAndFlushSingleTable(String tableName) throws Throwable
+    private void insertAndFlushSingleTable() throws Throwable
     {
         execute("INSERT INTO %s (k, v) values (?, ?)", 1, 1);
         flush();

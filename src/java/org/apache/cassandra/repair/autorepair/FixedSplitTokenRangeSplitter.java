@@ -23,7 +23,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
-import java.util.NoSuchElementException;
+import java.util.Map;
 
 import org.apache.cassandra.service.AutoRepairService;
 
@@ -33,68 +33,49 @@ import org.apache.cassandra.service.StorageService;
 
 import static org.apache.cassandra.repair.autorepair.AutoRepairUtils.split;
 
-public class DefaultAutoRepairTokenSplitter implements IAutoRepairTokenRangeSplitter
+public class FixedSplitTokenRangeSplitter implements IAutoRepairTokenRangeSplitter
 {
+    /**
+     * The number of subranges to split each to-be-repaired token range into,
+     * the higher this number, the smaller the repair sessions will be
+     * How many subranges to divide one range into? The default is 1.
+     * If you are using v-node, say 256, then the repair will always go one v-node range at a time, this parameter, additionally, will let us further subdivide a given v-node range into sub-ranges.
+     * With the value “1” and v-nodes of 256, a given table on a node will undergo the repair 256 times. But with a value “2,” the same table on a node will undergo a repair 512 times because every v-node range will be further divided by two.
+     * If you do not use v-nodes or the number of v-nodes is pretty small, say 8, setting this value to a higher number, say 16, will be useful to repair on a smaller range, and the chance of succeeding is higher.
+     */
+    static final String NUMBER_OF_SUBRANGES = "number_of_subranges";
+
+    private final AutoRepairConfig.RepairType repairType;
+    private int numberOfSubranges;
+
+    public FixedSplitTokenRangeSplitter(AutoRepairConfig.RepairType repairType, Map<String, String> parameters)
+    {
+        this.repairType = repairType;
+
+        if (parameters.containsKey(NUMBER_OF_SUBRANGES))
+        {
+            numberOfSubranges = Integer.parseInt(parameters.get(NUMBER_OF_SUBRANGES));
+        }
+        else
+        {
+            numberOfSubranges = 1;
+        }
+    }
+
     @Override
-    public Iterator<KeyspaceRepairAssignments> getRepairAssignments(AutoRepairConfig.RepairType repairType, boolean primaryRangeOnly, List<PrioritizedRepairPlan> repairPlans)
+    public Iterator<KeyspaceRepairAssignments> getRepairAssignments(boolean primaryRangeOnly, List<PrioritizedRepairPlan> repairPlans)
     {
-        return new RepairAssignmentIterator(repairType, primaryRangeOnly, repairPlans);
+        return new RepairAssignmentIterator(repairPlans) {
+
+            @Override
+            KeyspaceRepairAssignments nextInternal(int priority, KeyspaceRepairPlan repairPlan)
+            {
+                return getRepairAssignmentsForKeyspace(primaryRangeOnly, priority, repairPlan);
+            }
+        };
     }
 
-    private class RepairAssignmentIterator implements Iterator<KeyspaceRepairAssignments>
-    {
-
-        private final AutoRepairConfig.RepairType repairType;
-        private final boolean primaryRangeOnly;
-
-        private final Iterator<PrioritizedRepairPlan> repairPlanIterator;
-
-        private Iterator<KeyspaceRepairPlan> currentIterator = null;
-        private PrioritizedRepairPlan currentPlan = null;
-
-        RepairAssignmentIterator(AutoRepairConfig.RepairType repairType, boolean primaryRangeOnly, List<PrioritizedRepairPlan> repairPlans)
-        {
-            this.repairType = repairType;
-            this.primaryRangeOnly = primaryRangeOnly;
-            this.repairPlanIterator = repairPlans.iterator();
-        }
-
-        private synchronized Iterator<KeyspaceRepairPlan> currentIterator()
-        {
-            if (currentIterator == null || !currentIterator.hasNext())
-            {
-                // Advance the repair plan iterator if the current repair plan is exhausted, but only
-                // if there are more repair plans.
-                if (repairPlanIterator.hasNext())
-                {
-                    currentPlan = repairPlanIterator.next();
-                    currentIterator = currentPlan.getKeyspaceRepairPlans().iterator();
-                }
-            }
-
-            return currentIterator;
-        }
-
-        @Override
-        public boolean hasNext()
-        {
-            return currentIterator().hasNext();
-        }
-
-        @Override
-        public KeyspaceRepairAssignments next()
-        {
-            if (!currentIterator.hasNext())
-            {
-                throw new NoSuchElementException("No remaining repair plans");
-            }
-
-            final KeyspaceRepairPlan repairPlan = currentIterator().next();
-            return getRepairAssignmentsForKeyspace(repairType, primaryRangeOnly, currentPlan.getPriority(), repairPlan);
-        }
-    }
-
-    private KeyspaceRepairAssignments getRepairAssignmentsForKeyspace(AutoRepairConfig.RepairType repairType, boolean primaryRangeOnly, int priority, KeyspaceRepairPlan repairPlan)
+    private KeyspaceRepairAssignments getRepairAssignmentsForKeyspace(boolean primaryRangeOnly, int priority, KeyspaceRepairPlan repairPlan)
     {
         AutoRepairConfig config = AutoRepairService.instance.getAutoRepairConfig();
         List<RepairAssignment> repairAssignments = new ArrayList<>();
@@ -107,7 +88,6 @@ public class DefaultAutoRepairTokenSplitter implements IAutoRepairTokenRangeSpli
             // if we need to repair non-primary token ranges, then change the tokens accrodingly
             tokens = StorageService.instance.getLocalReplicas(keyspaceName).onlyFull().ranges();
         }
-        int numberOfSubranges = config.getRepairSubRangeNum(repairType);
 
         boolean byKeyspace = config.getRepairByKeyspace(repairType);
         // collect all token ranges.
@@ -139,4 +119,31 @@ public class DefaultAutoRepairTokenSplitter implements IAutoRepairTokenRangeSpli
 
         return new KeyspaceRepairAssignments(priority, keyspaceName, repairAssignments);
     }
+
+    @Override
+    public void setParameter(String key, String value)
+    {
+        if (key.equals(NUMBER_OF_SUBRANGES))
+        {
+            setNumberOfSubranges(Integer.parseInt(value));
+        }
+        throw new IllegalArgumentException("Unexpected parameter '" + key + "', must be " + NUMBER_OF_SUBRANGES);
+    }
+
+    @Override
+    public Map<String, String> getParameters()
+    {
+        return Map.of(NUMBER_OF_SUBRANGES, Integer.toString(getNumberOfSubranges()));
+    }
+
+    public void setNumberOfSubranges(int numberOfSubranges)
+    {
+        this.numberOfSubranges = numberOfSubranges;
+    }
+
+    public int getNumberOfSubranges()
+    {
+        return this.numberOfSubranges;
+    }
+
 }

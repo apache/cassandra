@@ -27,6 +27,7 @@ import org.apache.cassandra.utils.MBeanWrapper;
 
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 
@@ -105,12 +106,6 @@ public class AutoRepairService implements AutoRepairServiceMBean
     public void setForceRepairForHosts(RepairType repairType, Set<InetAddressAndPort> hosts)
     {
         AutoRepairUtils.setForceRepair(repairType, hosts);
-    }
-
-    @Override
-    public void setRepairSubRangeNum(RepairType repairType, int repairSubRanges)
-    {
-        config.setRepairSubRangeNum(repairType, repairSubRanges);
     }
 
     @Override
@@ -213,5 +208,17 @@ public class AutoRepairService implements AutoRepairServiceMBean
             hostIds.add(id.toString());
         }
         return hostIds;
+    }
+
+    @Override
+    public Map<String, String> getAutoRepairTokenRangeSplitterParameters(RepairType repairType)
+    {
+        return config.getTokenRangeSplitterInstance(repairType).getParameters();
+    }
+
+    @Override
+    public void setAutoRepairTokenRangeSplitterParameter(RepairType repairType, String key, String value)
+    {
+        config.getTokenRangeSplitterInstance(repairType).setParameter(key, value);
     }
 }
