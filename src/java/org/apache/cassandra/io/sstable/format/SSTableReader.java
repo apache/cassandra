@@ -47,8 +47,6 @@ import com.google.common.util.concurrent.RateLimiter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.clearspring.analytics.stream.cardinality.CardinalityMergeException;
-import com.clearspring.analytics.stream.cardinality.ICardinality;
 import org.apache.cassandra.concurrent.ExecutorPlus;
 import org.apache.cassandra.concurrent.ScheduledExecutorPlus;
 import org.apache.cassandra.concurrent.ScheduledExecutors;
@@ -84,6 +82,8 @@ import org.apache.cassandra.io.sstable.SSTableIdentityIterator;
 import org.apache.cassandra.io.sstable.SSTableReadsListener;
 import org.apache.cassandra.io.sstable.format.SSTableFormat.Components;
 import org.apache.cassandra.io.sstable.metadata.CompactionMetadata;
+import org.apache.cassandra.io.sstable.metadata.ICardinality;
+import org.apache.cassandra.io.sstable.metadata.ICardinality.CardinalityMergeException;
 import org.apache.cassandra.io.sstable.metadata.StatsMetadata;
 import org.apache.cassandra.io.util.ChannelProxy;
 import org.apache.cassandra.io.util.CheckedFunction;
@@ -103,6 +103,7 @@ import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.JVMStabilityInspector;
 import org.apache.cassandra.utils.NativeLibrary;
 import org.apache.cassandra.utils.OutputHandler;
+import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.Throwables;
 import org.apache.cassandra.utils.TimeUUID;
 import org.apache.cassandra.utils.concurrent.OpOrder;
@@ -288,8 +289,49 @@ public abstract class SSTableReader extends SSTable implements UnfilteredSource,
         if (Iterables.isEmpty(sstables))
             return count;
 
+        Pair<ICardinality, Boolean> result = null;
+        if (allSSTablesOnSameCardinality(sstables))
+            result = getApproximateKeyCountInternal(sstables);
+
+        if (result != null)
+        {
+            ICardinality cardinality = result.left;
+            boolean failed = result.right;
+
+            if (cardinality != null && !failed)
+                count = cardinality.cardinality();
+        }
+
+        // if something went wrong above or cardinality is not available, calculate using index summary
+        if (count < 0)
+        {
+            count = 0;
+            for (SSTableReader sstable : sstables)
+                count += sstable.estimatedKeys();
+        }
+        return count;
+    }
+
+    private static boolean allSSTablesOnSameCardinality(Iterable<SSTableReader> sstables)
+    {
+        Iterator<SSTableReader> iterator = sstables.iterator();
+
+        boolean hasSameCardinality = iterator.next().descriptor.version.hasLegacyCardinality();
+
+        for (SSTableReader sstable : sstables)
+        {
+            if (sstable.descriptor.version.hasLegacyCardinality() != hasSameCardinality)
+                return false;
+        }
+
+        return true;
+    }
+    
+    private static Pair<ICardinality, Boolean> getApproximateKeyCountInternal(Iterable<SSTableReader> sstables)
+    {
         boolean failed = false;
         ICardinality cardinality = null;
+
         for (SSTableReader sstable : sstables)
         {
             if (sstable.openReason == OpenReason.EARLY)
@@ -310,7 +352,7 @@ public abstract class SSTableReader extends SSTable implements UnfilteredSource,
                 if (cardinality == null)
                     cardinality = metadata.cardinalityEstimator;
                 else
-                    cardinality = cardinality.merge(metadata.cardinalityEstimator);
+                    cardinality = cardinality.merge(metadata.cardinalityEstimator.getCardinality());
             }
             catch (IOException e)
             {
@@ -325,17 +367,8 @@ public abstract class SSTableReader extends SSTable implements UnfilteredSource,
                 break;
             }
         }
-        if (cardinality != null && !failed)
-            count = cardinality.cardinality();
 
-        // if something went wrong above or cardinality is not available, calculate using index summary
-        if (count < 0)
-        {
-            count = 0;
-            for (SSTableReader sstable : sstables)
-                count += sstable.estimatedKeys();
-        }
-        return count;
+        return Pair.create(cardinality, failed);
     }
 
     public static SSTableReader open(SSTable.Owner owner, Descriptor descriptor)

@@ -20,7 +20,6 @@ package org.apache.cassandra.io.sstable.metadata;
 import java.io.IOException;
 
 import com.clearspring.analytics.stream.cardinality.HyperLogLogPlus;
-import com.clearspring.analytics.stream.cardinality.ICardinality;
 
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.io.sstable.format.Version;
@@ -28,6 +27,7 @@ import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.utils.ByteArrayUtil;
 import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.datasketches.hll.HllSketch;
 
 /**
  * Compaction related SSTable metadata.
@@ -87,7 +87,17 @@ public class CompactionMetadata extends MetadataComponent
 
         public CompactionMetadata deserialize(Version version, DataInputPlus in) throws IOException
         {
-            ICardinality cardinality = HyperLogLogPlus.Builder.build(ByteBufferUtil.readBytes(in, in.readInt()));
+            ICardinality cardinality;
+
+            if (version.hasLegacyCardinality())
+                cardinality = new LegacyCardinality(HyperLogLogPlus.Builder.build(ByteBufferUtil.readBytes(in, in.readInt())));
+            else
+            {
+                byte[] bytes = ByteBufferUtil.readBytes(in, in.readInt());
+                HllSketch hllSketch = HllSketch.heapify(bytes);
+                cardinality = new DefaultCardinality(hllSketch);
+            }
+
             return new CompactionMetadata(cardinality);
         }
     }

@@ -23,8 +23,6 @@ import java.util.EnumMap;
 import java.util.Map;
 import java.util.UUID;
 
-import com.clearspring.analytics.stream.cardinality.HyperLogLogPlus;
-import com.clearspring.analytics.stream.cardinality.ICardinality;
 import org.apache.cassandra.db.Clustering;
 import org.apache.cassandra.db.ClusteringBound;
 import org.apache.cassandra.db.ClusteringBoundOrBoundary;
@@ -138,13 +136,7 @@ public class MetadataCollector implements PartitionStatisticsCollector
 
     protected double tokenSpaceCoverage = Double.NaN;
 
-    /**
-     * Default cardinality estimation method is to use HyperLogLog++.
-     * Parameter here(p=13, sp=25) should give reasonable estimation
-     * while lowering bytes required to hold information.
-     * See CASSANDRA-5906 for detail.
-     */
-    protected ICardinality cardinality = new HyperLogLogPlus(13, 25);
+    protected ICardinality cardinality = new DefaultCardinality();
     private final ClusteringComparator comparator;
     private final long nowInSec = FBUtilities.nowInSeconds();
 

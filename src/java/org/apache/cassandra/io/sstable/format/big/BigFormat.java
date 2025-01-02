@@ -433,7 +433,7 @@ public class BigFormat extends AbstractSSTableFormat<BigTableReader, BigTableWri
 
     static class BigVersion extends Version
     {
-        public static final String current_version = DatabaseDescriptor.getStorageCompatibilityMode().isBefore(5) ? "nb" : "oa";
+        public static final String current_version = DatabaseDescriptor.getStorageCompatibilityMode().isBefore(5) ? "nb" : "ob";
         public static final String earliest_supported_version = "ma";
 
         // ma (3.0.0): swap bf hash order
@@ -469,6 +469,7 @@ public class BigFormat extends AbstractSSTableFormat<BigTableReader, BigTableWri
         private final boolean hasKeyRange;
         private final boolean hasUintDeletionTime;
         private final boolean hasTokenSpaceCoverage;
+        private final boolean hasLegacyCardinality;
 
         /**
          * CASSANDRA-9067: 4.0 bloom filter representation changed (two longs just swapped)
@@ -501,6 +502,7 @@ public class BigFormat extends AbstractSSTableFormat<BigTableReader, BigTableWri
             hasKeyRange = version.compareTo("oa") >= 0;
             hasUintDeletionTime = version.compareTo("oa") >= 0;
             hasTokenSpaceCoverage = version.compareTo("oa") >= 0;
+            hasLegacyCardinality = version.compareTo("ob") < 0;
         }
 
         @Override
@@ -549,6 +551,12 @@ public class BigFormat extends AbstractSSTableFormat<BigTableReader, BigTableWri
         public boolean hasMetadataChecksum()
         {
             return hasMetadataChecksum;
+        }
+
+        @Override
+        public boolean hasLegacyCardinality()
+        {
+            return hasLegacyCardinality;
         }
 
         @Override
