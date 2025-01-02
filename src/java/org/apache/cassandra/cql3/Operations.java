@@ -69,7 +69,7 @@ public final class Operations implements Iterable<Operation>
      */
     public boolean appliesToRegularColumns()
     {
-     // If we have regular operations, this applies to regular columns.
+        // If we have regular operations, this applies to regular columns.
         // Otherwise, if the statement is a DELETE and staticOperations is also empty, this means we have no operations,
         // which for a DELETE means a full row deletion. Which means the operation applies to all columns and regular ones in particular.
         return !regularOperations.isEmpty() || (type.isDelete() && staticOperations.isEmpty());

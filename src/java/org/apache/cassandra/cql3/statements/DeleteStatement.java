@@ -181,8 +181,21 @@ public class DeleteStatement extends ModificationStatement
             {
                 checkFalse(stmt.isVirtual(), "DELETE statements must restrict all PRIMARY KEY columns with equality relations");
 
-                checkFalse(operations.appliesToRegularColumns(),
-                           "DELETE statements must restrict all PRIMARY KEY columns with equality relations in order to delete non static columns");
+                // operations.appliesToRegularColumns() will return true if there are no regular/static options for the
+                // reason that this impacts the full partition (which also includes rows, which includes the columns).
+                // This causes issues with conditions as the operation is there and not in operations!
+                if (operations.isEmpty())
+                {
+                    // can only do partition delete if-and-only-if the condition is a static column
+                    checkTrue(conditions.appliesToStaticColumns(),
+                              "DELETE statements must restrict all PRIMARY KEY columns with equality relations" +
+                              " in order to use IF condition on non static columns");
+                }
+                else
+                {
+                    checkFalse(operations.appliesToRegularColumns(),
+                               "DELETE statements must restrict all PRIMARY KEY columns with equality relations in order to delete non static columns");
+                }
 
                 // All primary keys must be specified, unless this has static column restrictions
                 checkFalse(conditions.appliesToRegularColumns(),

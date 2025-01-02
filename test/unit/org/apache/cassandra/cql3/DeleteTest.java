@@ -46,7 +46,7 @@ public class DeleteTest extends CQLTester
         session.getCluster().getConfiguration().getQueryOptions().setConsistencyLevel(ConsistencyLevel.ONE);
 
         session.execute("drop keyspace if exists junit;");
-        session.execute("create keyspace junit WITH REPLICATION = { 'class' : 'SimpleStrategy', 'replication_factor' : 2 };");
+        session.execute("create keyspace junit WITH REPLICATION = { 'class' : 'SimpleStrategy', 'replication_factor' : 1 };");
         session.execute("CREATE TABLE junit.tpc_base (\n" +
                 "  id int ,\n" +
                 "  cid int ,\n" +
@@ -91,6 +91,33 @@ public class DeleteTest extends CQLTester
         pstmt3 = session.prepare("select id, cid, inh_b, val from junit.tpc_inherit_b where id=? and cid=?");
         pstmt4 = session.prepare("select id, cid, inh_b, inh_b2, val from junit.tpc_inherit_b2 where id=? and cid=?");
         pstmt5 = session.prepare("select id, cid, inh_c, val from junit.tpc_inherit_c where id=? and cid=?");
+    }
+
+    @Test
+    public void deleteCasWithStatic()
+    {
+        createTable("CREATE TABLE %s(\n" +
+                    "\t\t    pk0 int,\n" +
+                    "\t\t    ck0 int,\n" +
+                    "\t\t    s0 int static,\n" +
+                    "\t\t    v0 int,\n" +
+                    "\t\t    PRIMARY KEY (pk0, ck0)\n" +
+                    "\t\t)");
+
+        execute("INSERT INTO %s (pk0, ck0, s0, v0) VALUES (0, 0, 0, 0)");
+        executeNet("DELETE\n" +
+                   "FROM %s\n" +
+                   "WHERE \n" +
+                   "  pk0 = 0\n" +
+                   "IF s0 = 2");
+        assertRows(execute("SELECT * FROM %s WHERE pk0 = 0"),
+                   row(0, 0, 0, 0));
+        executeNet("DELETE\n" +
+                   "FROM %s\n" +
+                   "WHERE \n" +
+                   "  pk0 = 0\n" +
+                   "IF s0 = 0");
+        assertRows(execute("SELECT * FROM %s WHERE pk0 = 0"));
     }
 
     @Test
