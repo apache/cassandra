@@ -17,19 +17,55 @@
  */
 package org.apache.cassandra.repair.autorepair;
 
+import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 
+import org.apache.cassandra.config.ParameterizedClass;
+
+/**
+ * Interface that defines how to generate {@link KeyspaceRepairAssignments}.
+ * <p/>
+ * The default is {@link RepairTokenRangeSplitter} which aims to provide sensible defaults for all repair types.
+ * <p/>
+ * Custom implementations class should require a constructor accepting
+ * ({@link AutoRepairConfig.RepairType}, {@link java.util.Map}) with the {@link java.util.Map} parameter accepting
+ * custom configuration for your splitter. If such a constructor does not exist,
+ * {@link AutoRepair#newAutoRepairTokenRangeSplitter(AutoRepairConfig.RepairType, ParameterizedClass)}
+ * will fall back on invoking a default zero argument constructor.
+ */
 public interface IAutoRepairTokenRangeSplitter
 {
-
     /**
      * Split the token range you wish to repair into multiple assignments.
-     * The autorepair framework will repair the list of returned subrange in a sequence.
-     * @param repairType The type of repair being executed
+     * The autorepair framework will repair the assignments from returned subrange iterator in the sequence it's
+     * provided.
      * @param primaryRangeOnly Whether to repair only this node's primary ranges or all of its ranges.
      * @param repairPlans A list of ordered prioritized repair plans to generate assignments for in order.
-     * @return Iterator of repair assignments, with each element representing a grouping of repair assignments for a given keyspace.
+     * @return iterator of repair assignments, with each element representing a grouping of repair assignments for a given keyspace.
+     * The iterator is traversed lazily {@link KeyspaceRepairAssignments} at a time with the intent to try to get the
+     * most up-to-date representation of your data (e.g. how much data exists and is unrepaired at a given time).
      */
-    Iterator<KeyspaceRepairAssignments> getRepairAssignments(AutoRepairConfig.RepairType repairType, boolean primaryRangeOnly, List<PrioritizedRepairPlan> repairPlans);
+    Iterator<KeyspaceRepairAssignments> getRepairAssignments(boolean primaryRangeOnly, List<PrioritizedRepairPlan> repairPlans);
+
+    /**
+     * Update a configuration parameter.  This is meant to be used by <code>nodetool setautorepairconfig</code> to
+     * update configuration dynamically.
+     * @param key parameter to update
+     * @param value The value to set to.
+     */
+    default void setParameter(String key, String value)
+    {
+        throw new IllegalArgumentException(this.getClass().getName() + " does not support custom configuration");
+    }
+
+    /**
+     * @return custom configuration.  This is meant to be used by <code>nodetool getautorepairconfig</code> for
+     * retrieving the splitter configuration.
+     */
+    default Map<String, String> getParameters()
+    {
+        return Collections.emptyMap();
+    }
 }

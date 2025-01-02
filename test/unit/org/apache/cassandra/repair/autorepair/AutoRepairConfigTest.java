@@ -35,7 +35,6 @@ import org.apache.cassandra.config.ParameterizedClass;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.repair.autorepair.AutoRepairConfig.Options;
-import org.apache.cassandra.utils.FBUtilities;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -159,24 +158,6 @@ public class AutoRepairConfigTest extends CQLTester
         int result = config.getRepairThreads(repairType);
 
         assertEquals(5, result);
-    }
-
-    @Test
-    public void testGetRepairSubRangeNum()
-    {
-        config.global_settings.number_of_subranges = 5;
-
-        int result = config.getRepairSubRangeNum(repairType);
-
-        assertEquals(5, result);
-    }
-
-    @Test
-    public void testSetRepairSubRangeNum()
-    {
-        config.setRepairSubRangeNum(repairType, 5);
-
-        assert config.getOptions(repairType).number_of_subranges == 5;
     }
 
     @Test
@@ -390,16 +371,16 @@ public class AutoRepairConfigTest extends CQLTester
     {
         Options defaultOptions = Options.getDefaultOptions();
 
-        ParameterizedClass expectedDefault = new ParameterizedClass(DefaultAutoRepairTokenSplitter.class.getName(), Collections.emptyMap());
+        ParameterizedClass expectedDefault = new ParameterizedClass(RepairTokenRangeSplitter.class.getName(), Collections.emptyMap());
 
         assertEquals(expectedDefault, defaultOptions.token_range_splitter);
-        assertEquals(DefaultAutoRepairTokenSplitter.class.getName(), FBUtilities.newAutoRepairTokenRangeSplitter(defaultOptions.token_range_splitter).getClass().getName());
+        assertEquals(RepairTokenRangeSplitter.class.getName(), AutoRepair.newAutoRepairTokenRangeSplitter(repairType, defaultOptions.token_range_splitter).getClass().getName());
     }
 
     @Test(expected = ConfigurationException.class)
     public void testInvalidTokenRangeSplitter()
     {
-        FBUtilities.newAutoRepairTokenRangeSplitter(new ParameterizedClass("invalid-class", Collections.emptyMap()));
+        AutoRepair.newAutoRepairTokenRangeSplitter(repairType, new ParameterizedClass("invalid-class", Collections.emptyMap()));
     }
 
     @Test

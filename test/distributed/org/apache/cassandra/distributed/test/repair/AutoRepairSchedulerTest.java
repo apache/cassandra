@@ -75,6 +75,8 @@ public class AutoRepairSchedulerTest extends TestBaseImpl
                                                                                  "parallel_repair_percentage", "0",
                                                                                  "min_repair_interval", "1s"))))
                                                         .set("auto_repair.enabled", "true")
+                                                        .set("auto_repair.global_settings.repair_by_keyspace", "true")
+                                                        .set("auto_repair.repair_task_min_duration", "0s")
                                                         .set("auto_repair.repair_check_interval", "10s")).start();
 
         cluster.schemaChange("CREATE KEYSPACE IF NOT EXISTS " + KEYSPACE + " WITH replication = {'class': 'SimpleStrategy', 'replication_factor': 3};");
@@ -124,12 +126,8 @@ public class AutoRepairSchedulerTest extends TestBaseImpl
             sdf.parse(row[2].toString());
             sdf.parse(row[3].toString());
             // the reason why the repair was scheduled
+            Assert.assertNotNull(row[4]);
             Assert.assertEquals("MY_TURN", row[4].toString());
-            for (Object col : row)
-            {
-                System.out.println("Data:" + col);
-            }
-            System.out.println("=====================================");
         }
     }
 }
