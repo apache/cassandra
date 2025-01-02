@@ -23,7 +23,6 @@ import java.util.*;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.function.Consumer;
 
 import com.google.common.annotations.VisibleForTesting;
 import org.slf4j.Logger;
@@ -49,6 +48,9 @@ abstract class Flusher implements Runnable
         Math.min(BufferPool.NORMAL_CHUNK_SIZE,
                  FrameEncoder.Payload.MAX_SIZE - Math.max(FrameEncoderCrc.HEADER_AND_TRAILER_LENGTH, FrameEncoderLZ4.HEADER_AND_TRAILER_LENGTH));
 
+    interface OnFlushCleanup<T> {
+        void cleanup(FlushItem<T> item);
+    }
     static class FlushItem<T>
     {
         enum Kind {FRAMED, UNFRAMED}
@@ -57,9 +59,9 @@ abstract class Flusher implements Runnable
         final Channel channel;
         final T response;
         final Envelope request;
-        final Consumer<FlushItem<T>> tidy;
+        final OnFlushCleanup<T> tidy;
 
-        FlushItem(Kind kind, Channel channel, T response, Envelope request, Consumer<FlushItem<T>> tidy)
+        FlushItem(Kind kind, Channel channel, T response, Envelope request, OnFlushCleanup<T> tidy)
         {
             this.kind = kind;
             this.channel = channel;
@@ -70,7 +72,7 @@ abstract class Flusher implements Runnable
 
         void release()
         {
-            tidy.accept(this);
+            tidy.cleanup(this);
         }
 
         static class Framed extends FlushItem<Envelope>
@@ -80,7 +82,7 @@ abstract class Flusher implements Runnable
                    Envelope response,
                    Envelope request,
                    FrameEncoder.PayloadAllocator allocator,
-                   Consumer<FlushItem<Envelope>> tidy)
+                   OnFlushCleanup<Envelope> tidy)
             {
                 super(Kind.FRAMED, channel, response, request, tidy);
                 this.allocator = allocator;
@@ -89,7 +91,7 @@ abstract class Flusher implements Runnable
 
         static class Unframed extends FlushItem<Response>
         {
-            Unframed(Channel channel, Response response, Envelope request, Consumer<FlushItem<Response>> tidy)
+            Unframed(Channel channel, Response response, Envelope request, OnFlushCleanup<Response> tidy)
             {
                 super(Kind.UNFRAMED, channel, response, request, tidy);
             }
@@ -156,8 +158,14 @@ abstract class Flusher implements Runnable
         }
         else
         {
-            payloads.computeIfAbsent(flush.channel, channel -> new FlushBuffer(channel, flush.allocator, 5))
-                    .add(flush.response);
+            FlushBuffer flushBuffer = payloads.get(flush.channel);
+            if (flushBuffer == null)
+            {
+                flushBuffer = new FlushBuffer(flush.channel, flush.allocator, 5);
+                payloads.put(flushBuffer.channel, flushBuffer);
+            }
+
+            flushBuffer.add(flush.response);
         }
     }
 
@@ -226,8 +234,9 @@ abstract class Flusher implements Runnable
     protected void flushWrittenChannels()
     {
         // flush the channels pre-V5 to which messages were written in writeSingleResponse
-        for (Channel channel : channels)
-            channel.flush();
+        if (!channels.isEmpty())
+            for (Channel channel : channels)
+                channel.flush();
 
         // Framed messages (V5) are grouped by channel, now encode them into payloads, write and flush
         for (FlushBuffer buffer : payloads.values())
@@ -247,8 +256,11 @@ abstract class Flusher implements Runnable
         // collated into frames, and so their buffers can be released immediately after flushing.
         // In V4 however, the buffers containing each CQL envelope are emitted from Envelope.Encoder
         // and so releasing them is handled by Netty internally.
-        for (FlushItem<?> item : processed)
+        for (int i = 0; i < processed.size(); i++)
+        {
+            FlushItem<?> item = processed.get(i);
             item.release();
+        }
 
         payloads.clear();
         channels.clear();
@@ -298,8 +310,9 @@ abstract class Flusher implements Runnable
             int writtenBytes = 0;
             int messagesToWrite = this.size();
             FrameEncoder.Payload sending = allocate(sizeInBytes, messagesToWrite);
-            for (Envelope f : this)
+            for (int i = 0; i < this.size(); i++)
             {
+                Envelope f = this.get(i);
                 messageSize = envelopeSize(f.header);
                 if (sending.remaining() < messageSize)
                 {

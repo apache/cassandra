@@ -74,7 +74,7 @@ import static org.apache.cassandra.utils.MonotonicClock.Global.approxTime;
  * has exceeded the maximum number of allowed permits. The choices are to either pause reads from the incoming socket
  * and allow TCP backpressure to do the work, or to throw an explict exception and rely on the client to back off.
  */
-public class CQLMessageHandler<M extends Message> extends AbstractMessageHandler
+public class CQLMessageHandler<M extends Message> extends AbstractMessageHandler implements Flusher.OnFlushCleanup<Envelope>
 {
     private static final Logger logger = LoggerFactory.getLogger(CQLMessageHandler.class);
     private static final NoSpamLogger noSpamLogger = NoSpamLogger.getLogger(logger, 1L, TimeUnit.SECONDS);
@@ -489,10 +489,11 @@ public class CQLMessageHandler<M extends Message> extends AbstractMessageHandler
                           responseFrame,
                           request.getSource(),
                           payloadAllocator,
-                          this::release);
+                          this);
     }
 
-    private void release(Flusher.FlushItem<Envelope> flushItem)
+    @Override
+    public void cleanup(Flusher.FlushItem<Envelope> flushItem)
     {
         release(flushItem.request.header);
         flushItem.request.release();
