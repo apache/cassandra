@@ -19,7 +19,6 @@
 package org.apache.cassandra.repair.autorepair;
 
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.EnumMap;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -40,7 +39,6 @@ import com.google.common.util.concurrent.Uninterruptibles;
 import org.apache.cassandra.repair.RepairCoordinator;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.config.DurationSpec;
-import org.apache.cassandra.config.ParameterizedClass;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.utils.Clock;
 
@@ -107,43 +105,6 @@ public class AutoRepair
             repairExecutors.put(repairType, executorFactory().scheduled(false, "AutoRepair-Repair-" + repairType.getConfigName(), Thread.NORM_PRIORITY));
             repairRunnableExecutors.put(repairType, executorFactory().scheduled(false, "AutoRepair-RepairRunnable-" + repairType.getConfigName(), Thread.NORM_PRIORITY));
             repairStates.put(repairType, AutoRepairConfig.RepairType.getAutoRepairState(repairType));
-        }
-    }
-
-    @VisibleForTesting
-    static IAutoRepairTokenRangeSplitter newAutoRepairTokenRangeSplitter(AutoRepairConfig.RepairType repairType, ParameterizedClass parameterizedClass) throws ConfigurationException
-    {
-        try
-        {
-            Class<?> tokenRangeSplitterClass;
-            final String className;
-            if (parameterizedClass.class_name != null && !parameterizedClass.class_name.isEmpty())
-            {
-                className = parameterizedClass.class_name.contains(".") ?
-                            parameterizedClass.class_name :
-                            "org.apache.cassandra.repair.autorepair." + parameterizedClass.class_name;
-                tokenRangeSplitterClass = FBUtilities.classForName(className, "token_range_splitter");
-            }
-            else
-            {
-                // If token_range_splitter.class_name is not defined, just use default, this is for convenience.
-                tokenRangeSplitterClass = AutoRepairConfig.DEFAULT_SPLITTER;
-            }
-            try
-            {
-                Map<String, String> parameters = parameterizedClass.parameters != null ? parameterizedClass.parameters : Collections.emptyMap();
-                // first attempt to initialize with RepairType and Map arguments.
-                return (IAutoRepairTokenRangeSplitter) tokenRangeSplitterClass.getConstructor(AutoRepairConfig.RepairType.class, Map.class).newInstance(repairType, parameters);
-            }
-            catch (NoSuchMethodException nsme)
-            {
-                // fall back on no argument constructor.
-                return (IAutoRepairTokenRangeSplitter)  tokenRangeSplitterClass.getConstructor().newInstance();
-            }
-        }
-        catch (Exception ex)
-        {
-            throw new ConfigurationException("Unable to create instance of IAutoRepairTokenRangeSplitter", ex);
         }
     }
 

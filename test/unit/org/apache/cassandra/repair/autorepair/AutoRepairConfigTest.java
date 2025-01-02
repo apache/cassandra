@@ -374,13 +374,13 @@ public class AutoRepairConfigTest extends CQLTester
         ParameterizedClass expectedDefault = new ParameterizedClass(RepairTokenRangeSplitter.class.getName(), Collections.emptyMap());
 
         assertEquals(expectedDefault, defaultOptions.token_range_splitter);
-        assertEquals(RepairTokenRangeSplitter.class.getName(), AutoRepair.newAutoRepairTokenRangeSplitter(repairType, defaultOptions.token_range_splitter).getClass().getName());
+        assertEquals(RepairTokenRangeSplitter.class.getName(), AutoRepairConfig.newAutoRepairTokenRangeSplitter(repairType, defaultOptions.token_range_splitter).getClass().getName());
     }
 
     @Test(expected = ConfigurationException.class)
     public void testInvalidTokenRangeSplitter()
     {
-        AutoRepair.newAutoRepairTokenRangeSplitter(repairType, new ParameterizedClass("invalid-class", Collections.emptyMap()));
+        AutoRepairConfig.newAutoRepairTokenRangeSplitter(repairType, new ParameterizedClass("invalid-class", Collections.emptyMap()));
     }
 
     @Test
