@@ -22,9 +22,10 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashSet;
+import java.util.Iterator;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Set;
-import java.util.Iterator;
 import java.util.Map;
 
 import org.junit.BeforeClass;
@@ -51,12 +52,17 @@ import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 
 @RunWith(Parameterized.class)
-public class AutoRepairDefaultTokenSplitterParameterizedTest
+public class FixedSplitTokenRangeSplitterTest
 {
     private static final String KEYSPACE = "ks";
     private static final String TABLE1 = "tbl1";
     private static final String TABLE2 = "tbl2";
     private static final String TABLE3 = "tbl3";
+
+    private final Map<String, String> splitterParams = new LinkedHashMap<String,String>()
+    {{
+        put(FixedSplitTokenRangeSplitter.NUMBER_OF_SUBRANGES, Integer.toString(4));
+    }};
 
     @Parameterized.Parameter()
     public AutoRepairConfig.RepairType repairType;
@@ -112,7 +118,7 @@ public class AutoRepairDefaultTokenSplitterParameterizedTest
 
         List<PrioritizedRepairPlan> plan = PrioritizedRepairPlan.buildSingleKeyspacePlan(repairType, KEYSPACE, TABLE1, TABLE2, TABLE3);
 
-        Iterator<KeyspaceRepairAssignments> keyspaceAssignments = new FixedSplitTokenRangeSplitter(repairType, Map.of(FixedSplitTokenRangeSplitter.NUMBER_OF_SUBRANGES, Integer.toString(numberOfSplits)))
+        Iterator<KeyspaceRepairAssignments> keyspaceAssignments = new FixedSplitTokenRangeSplitter(repairType, splitterParams)
                                                                   .getRepairAssignments(true, plan);
 
         // should be only 1 entry for the keyspace.
@@ -163,7 +169,7 @@ public class AutoRepairDefaultTokenSplitterParameterizedTest
 
         List<PrioritizedRepairPlan> plan = PrioritizedRepairPlan.buildSingleKeyspacePlan(repairType, KEYSPACE, TABLE1, TABLE2, TABLE3);
 
-        Iterator<KeyspaceRepairAssignments> keyspaceAssignments = new FixedSplitTokenRangeSplitter(repairType, Map.of(FixedSplitTokenRangeSplitter.NUMBER_OF_SUBRANGES, Integer.toString(numberOfSplits)))
+        Iterator<KeyspaceRepairAssignments> keyspaceAssignments = new FixedSplitTokenRangeSplitter(repairType, splitterParams)
                                                                   .getRepairAssignments(true, plan);
 
         // should be only 1 entry for the keyspace.
