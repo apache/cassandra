@@ -32,7 +32,7 @@ import org.apache.cassandra.config.ParameterizedClass;
  * Custom implementations class should require a constructor accepting
  * ({@link AutoRepairConfig.RepairType}, {@link java.util.Map}) with the {@link java.util.Map} parameter accepting
  * custom configuration for your splitter. If such a constructor does not exist,
- * {@link AutoRepair#newAutoRepairTokenRangeSplitter(AutoRepairConfig.RepairType, ParameterizedClass)}
+ * {@link AutoRepairConfig#newAutoRepairTokenRangeSplitter(AutoRepairConfig.RepairType, ParameterizedClass)}
  * will fall back on invoking a default zero argument constructor.
  */
 public interface IAutoRepairTokenRangeSplitter
