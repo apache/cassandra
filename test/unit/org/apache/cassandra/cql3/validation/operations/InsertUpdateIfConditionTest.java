@@ -274,11 +274,14 @@ public class InsertUpdateIfConditionTest extends CQLTester
         assertRows(execute("DELETE v FROM %s WHERE k='k' AND i=0 IF v = 'z' AND s = 'z'"), row(false, null, "s"));
         assertRows(execute("DELETE v FROM %s WHERE k='k' AND i=0 IF EXISTS"), row(false));
         assertRows(execute("DELETE FROM %s WHERE k='k' AND i=0 IF EXISTS"), row(false));
+        // CASSANDRA-20163 added support for this, was blocked before in CASSANDRA-6430
+        assertRows(execute("DELETE FROM %s WHERE k = 'k' IF EXISTS"), row(false));
+        assertRows(execute("DELETE FROM %s WHERE k = 'k' IF s = 'foo'"), row(false));
 
         // CASSANDRA-6430
         assertInvalidMessage("DELETE statements must restrict all PRIMARY KEY columns with equality relations in order to delete non static columns",
-                             "DELETE FROM %s WHERE k = 'k' IF EXISTS");
-        assertInvalidMessage("DELETE statements must restrict all PRIMARY KEY columns with equality relations in order to delete non static columns",
+                             "DELETE FROM %s WHERE k = 'k' AND i > 0 IF s = 'foo'");
+        assertInvalidMessage("DELETE statements must restrict all PRIMARY KEY columns with equality relations in order to use IF condition on non static columns",
                              "DELETE FROM %s WHERE k = 'k' IF v = ?", "foo");
         assertInvalidMessage("Some partition key parts are missing: k",
                              "DELETE FROM %s WHERE i = 0 IF EXISTS");
@@ -289,7 +292,7 @@ public class InsertUpdateIfConditionTest extends CQLTester
                              "DELETE FROM %s WHERE k = 0 AND i > 0 IF v = 'foo'");
         assertInvalidMessage("DELETE statements must restrict all PRIMARY KEY columns with equality relations in order to delete non static columns",
                              "DELETE FROM %s WHERE k = 'k' AND i > 0 IF EXISTS");
-        assertInvalidMessage("DELETE statements must restrict all PRIMARY KEY columns with equality relations in order to delete non static columns",
+        assertInvalidMessage("DELETE statements must restrict all PRIMARY KEY columns with equality relations in order to use IF condition on non static columns",
                              "DELETE FROM %s WHERE k = 'k' AND i > 0 IF v = 'foo'");
         assertInvalidMessage("IN on the clustering key columns is not supported with conditional deletions",
                              "DELETE FROM %s WHERE k = 'k' AND i IN (0, 1) IF v = 'foo'");
