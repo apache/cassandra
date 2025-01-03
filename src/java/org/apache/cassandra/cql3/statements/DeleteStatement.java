@@ -181,7 +181,9 @@ public class DeleteStatement extends ModificationStatement
             {
                 checkFalse(stmt.isVirtual(), "DELETE statements must restrict all PRIMARY KEY columns with equality relations");
 
-                // All primary keys must be specified, unless this has static column restrictions
+                checkTrue(operations.regularOperations().isEmpty(),
+                          "DELETE statements must restrict all PRIMARY KEY columns with equality relations in order to delete non static columns");
+
                 checkFalse(conditions.appliesToRegularColumns(),
                            "DELETE statements must restrict all PRIMARY KEY columns with equality relations" +
                            " in order to use IF condition on non static columns");
@@ -190,10 +192,12 @@ public class DeleteStatement extends ModificationStatement
                 checkFalse(restrictions.hasClusteringColumnsRestrictions(),
                            "DELETE statements must restrict all PRIMARY KEY columns with equality relations in order to delete non static columns");
 
-                // partition has clustering keys, and the current cas query will load the full partition.  If the partition
-                // existence check can become cheap (really only need the liveness) then this condition can go away
-                checkFalse(conditions.isIfExists(),
-                           "DELETE statements must restrict all PRIMARY KEY columns with equality relations in order to check for if exists");
+                // can only do existence check if working with static columns
+                if (operations.staticOperations().isEmpty())
+                    // partition has clustering keys, and the current cas query will load the full partition.  If the partition
+                    // existence check can become cheap (really only need the liveness) then this condition can go away
+                    checkFalse(conditions.isIfExists(),
+                               "DELETE statements must restrict all PRIMARY KEY columns with equality relations in order to check for if exists");
             }
 
             return stmt;

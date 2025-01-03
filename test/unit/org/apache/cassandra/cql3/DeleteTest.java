@@ -94,7 +94,7 @@ public class DeleteTest extends CQLTester
     }
 
     @Test
-    public void deleteCasWithStatic()
+    public void deleteCasWithStaticCondition()
     {
         createTable("CREATE TABLE %s(\n" +
                     "\t\t    pk0 int,\n" +
@@ -118,6 +118,34 @@ public class DeleteTest extends CQLTester
                    "  pk0 = 0\n" +
                    "IF s0 = 0");
         assertRows(execute("SELECT * FROM %s WHERE pk0 = 0"));
+    }
+
+    @Test
+    public void deleteStaticColumnCasWithStaticCondition()
+    {
+        createTable("CREATE TABLE %s(\n" +
+                    "\t\t    pk0 int,\n" +
+                    "\t\t    ck0 int,\n" +
+                    "\t\t    s0 int static,\n" +
+                    "\t\t    v0 int,\n" +
+                    "\t\t    PRIMARY KEY (pk0, ck0)\n" +
+                    "\t\t)");
+
+        execute("INSERT INTO %s (pk0, ck0, s0, v0) VALUES (0, 0, 0, 0)");
+        executeNet("DELETE s0\n" +
+                   "FROM %s\n" +
+                   "WHERE \n" +
+                   "  pk0 = 0\n" +
+                   "IF s0 = 2");
+        assertRows(execute("SELECT * FROM %s WHERE pk0 = 0"),
+                   row(0, 0, 0, 0));
+        executeNet("DELETE s0\n" +
+                   "FROM %s\n" +
+                   "WHERE \n" +
+                   "  pk0 = 0\n" +
+                   "IF s0 = 0");
+        assertRows(execute("SELECT * FROM %s WHERE pk0 = 0"),
+                   row(0, 0, null, 0));
     }
 
     @Test
