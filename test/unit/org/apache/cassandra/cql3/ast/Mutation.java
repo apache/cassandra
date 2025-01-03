@@ -735,6 +735,11 @@ WHERE PK_column_conditions
             return this;
         }
 
+        public List<Symbol> columns()
+        {
+            return Collections.unmodifiableList(columns);
+        }
+
         public DeleteBuilder column(Symbol symbol)
         {
             if (!regularAndStatic.contains(symbol))

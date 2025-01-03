@@ -38,7 +38,6 @@ import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
-import java.util.stream.StreamSupport;
 import javax.annotation.Nullable;
 
 import com.google.common.collect.Iterables;
@@ -550,7 +549,7 @@ public class ASTGenerators
                         {
                             if (useCasIf.generate(rnd))
                             {
-                                ifGen(metadata.regularAndStaticColumns()).generate(rnd).ifPresent(c -> builder.ifCondition(c));
+                                ifGen(new ArrayList<>(regularAndStaticColumns)).generate(rnd).ifPresent(c -> builder.ifCondition(c));
                             }
                             else
                             {
@@ -654,10 +653,52 @@ public class ASTGenerators
                             builder.timestamp(valueGen(timestamp.getAsLong(), LongType.instance).generate(rnd));
                         if (isCas)
                         {
-                            if (metadata.staticColumns().isEmpty() || !useCasIf.generate(rnd))
+                            boolean existAllowed = true;
+                            List<Symbol> columns;
+                            switch (deleteKind)
+                            {
+                                case Partition:
+                                {
+                                    columns = new ArrayList<>(staticColumns);
+                                    // As of this moment delete if partition exists does a full partition read, so its blocked
+                                    // due to being too costly... this query is logically correct so we should support as only
+                                    // liveness information is needed, but its not supported right now so need to work around
+                                    // see ML "[DISCUSS] CASSANDRA-20163 DELETE partition IF static column condition is currently blocked"
+                                    if (!clusteringColumns.isEmpty())
+                                        existAllowed = false;
+                                }
+                                break;
+                                case Row:
+                                {
+                                    columns = new ArrayList<>(regularAndStaticColumns);
+                                }
+                                break;
+                                case Column:
+                                {
+                                    // some column deletes support without clustering, others dont... to avoid
+                                    // relearning this, only allow conditions on the followin columns:
+                                    // 1) the columns in the query; only valid columns are present
+                                    // 2) static columns; these are always safe to include
+                                    LinkedHashSet<Symbol> uniq = new LinkedHashSet<>(builder.columns());
+                                    uniq.addAll(staticColumns);
+                                    columns = new ArrayList<>(uniq);
+                                }
+                                break;
+                                default:
+                                    throw new UnsupportedOperationException(deleteKind.name());
+                            }
+                            if (!columns.isEmpty() && useCasIf.generate(rnd))
+                            {
+                                ifGen(columns).generate(rnd).ifPresent(builder::ifCondition);
+                            }
+                            else if (existAllowed)
+                            {
                                 builder.ifExists();
+                            }
                             else
-                                ifGen(metadata.staticColumns()).generate(rnd).ifPresent(builder::ifCondition);
+                            {
+                                // can't do a CAS query
+                            }
                         }
                         return builder.build();
                     }
@@ -722,9 +763,8 @@ public class ASTGenerators
             return subset;
         }
 
-        private Gen<Optional<CasCondition.IfCondition>> ifGen(Iterable<ColumnMetadata> iterable)
+        private Gen<Optional<CasCondition.IfCondition>> ifGen(List<Symbol> possibleColumns)
         {
-            List<Symbol> possibleColumns = StreamSupport.stream(iterable.spliterator(), false).map(Symbol::new).collect(Collectors.toList());
             return rnd -> {
                 List<Symbol> symbols = ifConditionFilter.apply(rnd, possibleColumns);
                 if (symbols == null || symbols.isEmpty())
