@@ -451,7 +451,8 @@ public abstract class UntypedResultSet implements Iterable<UntypedResultSet.Row>
 
         // this function will return the default value if the row doesn't have that column or the column data is null
         // This function is used to avoid the nullpointerexception
-        public long getLong(String column, long ifNull) {
+        public long getLong(String column, long ifNull)
+        {
             ByteBuffer bytes = data.get(column);
             return bytes == null ? ifNull : LongType.instance.compose(bytes);
         }

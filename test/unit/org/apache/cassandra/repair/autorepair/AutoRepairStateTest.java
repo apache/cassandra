@@ -67,14 +67,16 @@ public class AutoRepairStateTest extends CQLTester
     }
 
     @Before
-    public void setUp() {
+    public void setUp()
+    {
         AutoRepair.SLEEP_IF_REPAIR_FINISHES_QUICKLY = new DurationSpec.IntSecondsBound("0s");
         initMocks(this);
         createTable(String.format("CREATE TABLE IF NOT EXISTS %s.%s (pk int PRIMARY KEY, v int)", KEYSPACE, testTable));
     }
 
     @Test
-    public void testGetRepairRunnable() {
+    public void testGetRepairRunnable()
+    {
         AutoRepairState state = RepairType.getAutoRepairState(repairType);
         AutoRepairService.setup();
 
@@ -138,7 +140,8 @@ public class AutoRepairStateTest extends CQLTester
     }
 
     @Test
-    public void testGetLastRepairTime() {
+    public void testGetLastRepairTime()
+    {
         AutoRepairState state = RepairType.getAutoRepairState(repairType);
         state.lastRepairTimeInMs = 1;
 
@@ -146,7 +149,8 @@ public class AutoRepairStateTest extends CQLTester
     }
 
     @Test
-    public void testSetTotalTablesConsideredForRepair() {
+    public void testSetTotalTablesConsideredForRepair()
+    {
         AutoRepairState state = RepairType.getAutoRepairState(repairType);
 
         state.setTotalTablesConsideredForRepair(1);
@@ -155,7 +159,8 @@ public class AutoRepairStateTest extends CQLTester
     }
 
     @Test
-    public void testGetTotalTablesConsideredForRepair() {
+    public void testGetTotalTablesConsideredForRepair()
+    {
         AutoRepairState state = RepairType.getAutoRepairState(repairType);
         state.totalTablesConsideredForRepair = 1;
 
@@ -163,7 +168,8 @@ public class AutoRepairStateTest extends CQLTester
     }
 
     @Test
-    public void testSetLastRepairTimeInMs() {
+    public void testSetLastRepairTimeInMs()
+    {
         AutoRepairState state = RepairType.getAutoRepairState(repairType);
 
         state.setLastRepairTime(1);
@@ -172,7 +178,8 @@ public class AutoRepairStateTest extends CQLTester
     }
 
     @Test
-    public void testGetClusterRepairTimeInSec() {
+    public void testGetClusterRepairTimeInSec()
+    {
         AutoRepairState state = RepairType.getAutoRepairState(repairType);
         state.clusterRepairTimeInSec = 1;
 
@@ -180,7 +187,8 @@ public class AutoRepairStateTest extends CQLTester
     }
 
     @Test
-    public void testGetNodeRepairTimeInSec() {
+    public void testGetNodeRepairTimeInSec()
+    {
         AutoRepairState state = RepairType.getAutoRepairState(repairType);
         state.nodeRepairTimeInSec = 1;
 
@@ -188,7 +196,8 @@ public class AutoRepairStateTest extends CQLTester
     }
 
     @Test
-    public void testSetRepairInProgress() {
+    public void testSetRepairInProgress()
+    {
         AutoRepairState state = RepairType.getAutoRepairState(repairType);
 
         state.setRepairInProgress(true);
@@ -197,7 +206,8 @@ public class AutoRepairStateTest extends CQLTester
     }
 
     @Test
-    public void testIsRepairInProgress() {
+    public void testIsRepairInProgress()
+    {
         AutoRepairState state = RepairType.getAutoRepairState(repairType);
         state.repairInProgress = true;
 
@@ -205,7 +215,8 @@ public class AutoRepairStateTest extends CQLTester
     }
 
     @Test
-    public void testSetSkippedTokenRangesCount() {
+    public void testSetSkippedTokenRangesCount()
+    {
         AutoRepairState state = RepairType.getAutoRepairState(repairType);
 
         state.setSkippedTokenRangesCount(1);
@@ -214,7 +225,8 @@ public class AutoRepairStateTest extends CQLTester
     }
 
     @Test
-    public void testGetSkippedTokenRangesCount() {
+    public void testGetSkippedTokenRangesCount()
+    {
         AutoRepairState state = RepairType.getAutoRepairState(repairType);
         state.skippedTokenRangesCount = 1;
 
@@ -222,7 +234,8 @@ public class AutoRepairStateTest extends CQLTester
     }
 
     @Test
-    public void testGetLongestUnrepairedSecNull() {
+    public void testGetLongestUnrepairedSecNull()
+    {
         AutoRepairState state = RepairType.getAutoRepairState(repairType);
         state.longestUnrepairedNode = null;
 
@@ -235,7 +248,8 @@ public class AutoRepairStateTest extends CQLTester
     }
 
     @Test
-    public void testGetLongestUnrepairedSec() {
+    public void testGetLongestUnrepairedSec()
+    {
         AutoRepairState state = RepairType.getAutoRepairState(repairType);
         state.longestUnrepairedNode = new AutoRepairHistory(UUID.randomUUID(), "", 0, 1000,
                                                             null, 0, false);
@@ -250,7 +264,8 @@ public class AutoRepairStateTest extends CQLTester
     }
 
     @Test
-    public void testSetTotalMVTablesConsideredForRepair() {
+    public void testSetTotalMVTablesConsideredForRepair()
+    {
         AutoRepairState state = RepairType.getAutoRepairState(repairType);
 
         state.setTotalMVTablesConsideredForRepair(1);
@@ -259,7 +274,8 @@ public class AutoRepairStateTest extends CQLTester
     }
 
     @Test
-    public void testGetTotalMVTablesConsideredForRepair() {
+    public void testGetTotalMVTablesConsideredForRepair()
+    {
         AutoRepairState state = RepairType.getAutoRepairState(repairType);
         state.totalMVTablesConsideredForRepair = 1;
 
@@ -267,7 +283,8 @@ public class AutoRepairStateTest extends CQLTester
     }
 
     @Test
-    public void testSetNodeRepairTimeInSec() {
+    public void testSetNodeRepairTimeInSec()
+    {
         AutoRepairState state = RepairType.getAutoRepairState(repairType);
 
         state.setNodeRepairTimeInSec(1);
@@ -276,7 +293,8 @@ public class AutoRepairStateTest extends CQLTester
     }
 
     @Test
-    public void testSetClusterRepairTimeInSec() {
+    public void testSetClusterRepairTimeInSec()
+    {
         AutoRepairState state = RepairType.getAutoRepairState(repairType);
 
         state.setClusterRepairTimeInSec(1);
@@ -285,15 +303,18 @@ public class AutoRepairStateTest extends CQLTester
     }
 
     @Test
-    public void testSetRepairKeyspaceCount() {
+    public void testSetRepairKeyspaceCount()
+    {
         AutoRepairState state = RepairType.getAutoRepairState(repairType);
 
         state.setRepairKeyspaceCount(1);
 
         assertEquals(1, state.repairKeyspaceCount);
     }
+
     @Test
-    public void testGetRepairKeyspaceCount() {
+    public void testGetRepairKeyspaceCount()
+    {
         AutoRepairState state = RepairType.getAutoRepairState(repairType);
         state.repairKeyspaceCount = 1;
 
@@ -301,7 +322,8 @@ public class AutoRepairStateTest extends CQLTester
     }
 
     @Test
-    public void testSetLongestUnrepairedNode() {
+    public void testSetLongestUnrepairedNode()
+    {
         AutoRepairState state = RepairType.getAutoRepairState(repairType);
         AutoRepairHistory history = new AutoRepairHistory(UUID.randomUUID(), "", 0, 0, null, 0, false);
 
@@ -311,7 +333,8 @@ public class AutoRepairStateTest extends CQLTester
     }
 
     @Test
-    public void testSetSucceededTokenRangesCount() {
+    public void testSetSucceededTokenRangesCount()
+    {
         AutoRepairState state = RepairType.getAutoRepairState(repairType);
 
         state.setSucceededTokenRangesCount(1);
@@ -320,7 +343,8 @@ public class AutoRepairStateTest extends CQLTester
     }
 
     @Test
-    public void testGetSucceededTokenRangesCount() {
+    public void testGetSucceededTokenRangesCount()
+    {
         AutoRepairState state = RepairType.getAutoRepairState(repairType);
         state.succeededTokenRangesCount = 1;
 
@@ -328,7 +352,8 @@ public class AutoRepairStateTest extends CQLTester
     }
 
     @Test
-    public void testSetFailedTokenRangesCount() {
+    public void testSetFailedTokenRangesCount()
+    {
         AutoRepairState state = RepairType.getAutoRepairState(repairType);
 
         state.setFailedTokenRangesCount(1);
@@ -337,7 +362,8 @@ public class AutoRepairStateTest extends CQLTester
     }
 
     @Test
-    public void testGetFailedTokenRangesCount() {
+    public void testGetFailedTokenRangesCount()
+    {
         AutoRepairState state = RepairType.getAutoRepairState(repairType);
         state.failedTokenRangesCount = 1;
 
@@ -345,7 +371,8 @@ public class AutoRepairStateTest extends CQLTester
     }
 
     @Test
-    public void isSuccess() {
+    public void isSuccess()
+    {
         AutoRepairState state = RepairType.getAutoRepairState(repairType);
         state.success = true;
 
