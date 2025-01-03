@@ -113,7 +113,7 @@ public class AccordTopologyMixupTest extends TopologyMixupTestBase<AccordTopolog
     {
         // if a failing seed is detected, populate here
         // Example: builder.withSeed(42L);
-//        HISTORY_SHOWS_CQL = true; // uncomment if the CQL done should be included in the history
+        // HISTORY_SHOWS_CQL = true; // uncomment if the CQL done should be included in the history
     }
 
     private static Spec createSchemaSpec(RandomSource rs, Cluster cluster)
