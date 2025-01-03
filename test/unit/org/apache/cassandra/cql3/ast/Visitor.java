@@ -20,6 +20,29 @@ package org.apache.cassandra.cql3.ast;
 
 import java.util.List;
 
+/**
+ * Visits and conditionally replaces an element in the ast.  Each "visit" method offers the ability to be notified when the
+ * desired type is found in the ast tree, and allows the visitor to replace the current element (return the element unchanged
+ * if no mutations are desired, return a different element if a change is desired).
+ *
+ * For elements that support visitors, the following pattern should be respected.
+ * <ol>
+ *     <li>check the top level element first
+ *         {code}
+ *         var u = visitor.visit(this);
+ *         if (u != this) return u;
+ *     {code}</li>
+ *     <li>check each sub element; replacing the top level element if any sub-elements are changed
+ *     {code}
+ *     boolean updated = false;
+ *     var a = a.visit(visitor);
+ *     updated |= (a != this.a);
+ *     ...
+ *     return !updated ? this : copy...
+ *     {code}
+ *     </li>
+ * </ol>
+ */
 public interface Visitor
 {
     default Statement visit(Statement s)
