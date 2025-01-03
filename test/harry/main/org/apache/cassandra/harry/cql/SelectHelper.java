@@ -61,7 +61,7 @@ public class SelectHelper
         {
             ColumnSpec<?> column = schema.clusteringKeys.get(i);
             builder.where(new Symbol(column.name, column.type.asServerType()),
-                          toInequalities(Relations.RelationKind.EQ),
+                          toInequality(Relations.RelationKind.EQ),
                           new Bind(ck[i], column.type.asServerType()));
         }
 
@@ -81,14 +81,14 @@ public class SelectHelper
             if (select.lowerBoundRelation()[i] != null)
             {
                 builder.where(new Symbol(column.name, column.type.asServerType()),
-                              toInequalities(select.lowerBoundRelation()[i]),
+                              toInequality(select.lowerBoundRelation()[i]),
                               new Bind(lowBound[i], column.type.asServerType()));
             }
 
             if (select.upperBoundRelation()[i] != null)
             {
                 builder.where(new Symbol(column.name, column.type.asServerType()),
-                              toInequalities(select.upperBoundRelation()[i]),
+                              toInequality(select.upperBoundRelation()[i]),
                               new Bind(highBound[i], column.type.asServerType()));
             }
         }
@@ -115,7 +115,7 @@ public class SelectHelper
             Object[] query = cache.computeIfAbsent(relation.descriptor, schema.valueGenerators.ckGen()::inflate);
             ColumnSpec<?> column = schema.clusteringKeys.get(relation.column);
             builder.where(new Symbol(column.name, column.type.asServerType()),
-                          toInequalities(relation.kind),
+                          toInequality(relation.kind),
                           new Bind(query[relation.column], column.type.asServerType()));
         }
 
@@ -124,7 +124,7 @@ public class SelectHelper
             ColumnSpec<?> column = schema.regularColumns.get(relation.column);
             Object query = schema.valueGenerators.regularColumnGen(relation.column).inflate(relation.descriptor);
             builder.where(new Symbol(column.name, column.type.asServerType()),
-                          toInequalities(relation.kind),
+                          toInequality(relation.kind),
                           new Bind(query, column.type.asServerType()));
         }
 
@@ -133,7 +133,7 @@ public class SelectHelper
             Object query = schema.valueGenerators.staticColumnGen(relation.column).inflate(relation.descriptor);
             ColumnSpec<?> column = schema.staticColumns.get(relation.column);
             builder.where(new Symbol(column.name, column.type.asServerType()),
-                          toInequalities(relation.kind),
+                          toInequality(relation.kind),
                           new Bind(query, column.type.asServerType()));
         }
 
@@ -204,7 +204,7 @@ public class SelectHelper
         return builder;
     }
 
-    private static Where.Inequality toInequalities(Relations.RelationKind kind)
+    private static Where.Inequality toInequality(Relations.RelationKind kind)
     {
         Where.Inequality inequalities;
         switch (kind)
