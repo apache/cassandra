@@ -96,7 +96,6 @@ public class AutoRepair
     @VisibleForTesting
     protected AutoRepair()
     {
-        AutoRepairConfig config = DatabaseDescriptor.getAutoRepairConfig();
         repairExecutors = new EnumMap<>(AutoRepairConfig.RepairType.class);
         repairRunnableExecutors = new EnumMap<>(AutoRepairConfig.RepairType.class);
         repairStates = new EnumMap<>(AutoRepairConfig.RepairType.class);
