@@ -67,7 +67,7 @@ public class AutoRepairConfig implements Serializable
     public static final Class<? extends IAutoRepairTokenRangeSplitter> DEFAULT_SPLITTER = RepairTokenRangeSplitter.class;
 
     // make transient so gets consturcted in the implementation.
-    private final transient Map<AutoRepairConfig.RepairType, IAutoRepairTokenRangeSplitter> tokenRangeSplitters = new EnumMap<>(AutoRepairConfig.RepairType.class);
+    private final transient Map<RepairType, IAutoRepairTokenRangeSplitter> tokenRangeSplitters = new EnumMap<>(RepairType.class);
 
     public enum RepairType implements Serializable
     {
@@ -80,11 +80,6 @@ public class AutoRepairConfig implements Serializable
         RepairType()
         {
             this.configName = LocalizeString.toLowerCaseLocalized(name());
-        }
-
-        RepairType(String configName)
-        {
-            this.configName = configName;
         }
 
         /**
@@ -311,7 +306,8 @@ public class AutoRepairConfig implements Serializable
     /**
      * Set a new token range splitter, this is not meant to be used other than for testing.
      */
-    public void setTokenRangeSplitter(RepairType repairType, ParameterizedClass tokenRangeSplitter)
+    @VisibleForTesting
+    void setTokenRangeSplitter(RepairType repairType, ParameterizedClass tokenRangeSplitter)
     {
         getOptions(repairType).token_range_splitter = tokenRangeSplitter;
         tokenRangeSplitters.remove(repairType);
@@ -319,13 +315,8 @@ public class AutoRepairConfig implements Serializable
 
     public IAutoRepairTokenRangeSplitter getTokenRangeSplitterInstance(RepairType repairType)
     {
-        IAutoRepairTokenRangeSplitter splitter = tokenRangeSplitters.get(repairType);
-        if (splitter == null)
-        {
-            splitter = newAutoRepairTokenRangeSplitter(repairType, getTokenRangeSplitter(repairType));
-            tokenRangeSplitters.put(repairType, splitter);
-        }
-        return splitter;
+        return tokenRangeSplitters.computeIfAbsent(repairType,
+                                                   key -> newAutoRepairTokenRangeSplitter(key, getTokenRangeSplitter(key)));
     }
 
     public void setInitialSchedulerDelay(RepairType repairType, String initialSchedulerDelay)
@@ -349,11 +340,11 @@ public class AutoRepairConfig implements Serializable
     }
 
     @VisibleForTesting
-    static IAutoRepairTokenRangeSplitter newAutoRepairTokenRangeSplitter(AutoRepairConfig.RepairType repairType, ParameterizedClass parameterizedClass) throws ConfigurationException
+    static IAutoRepairTokenRangeSplitter newAutoRepairTokenRangeSplitter(RepairType repairType, ParameterizedClass parameterizedClass) throws ConfigurationException
     {
         try
         {
-            Class<?> tokenRangeSplitterClass;
+            Class<? extends IAutoRepairTokenRangeSplitter> tokenRangeSplitterClass;
             final String className;
             if (parameterizedClass.class_name != null && !parameterizedClass.class_name.isEmpty())
             {
@@ -371,12 +362,12 @@ public class AutoRepairConfig implements Serializable
             {
                 Map<String, String> parameters = parameterizedClass.parameters != null ? parameterizedClass.parameters : Collections.emptyMap();
                 // first attempt to initialize with RepairType and Map arguments.
-                return (IAutoRepairTokenRangeSplitter) tokenRangeSplitterClass.getConstructor(AutoRepairConfig.RepairType.class, Map.class).newInstance(repairType, parameters);
+                return tokenRangeSplitterClass.getConstructor(RepairType.class, Map.class).newInstance(repairType, parameters);
             }
             catch (NoSuchMethodException nsme)
             {
                 // fall back on no argument constructor.
-                return (IAutoRepairTokenRangeSplitter)  tokenRangeSplitterClass.getConstructor().newInstance();
+                return tokenRangeSplitterClass.getConstructor().newInstance();
             }
         }
         catch (Exception ex)
