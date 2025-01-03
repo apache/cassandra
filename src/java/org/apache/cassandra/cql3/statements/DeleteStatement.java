@@ -189,6 +189,11 @@ public class DeleteStatement extends ModificationStatement
                 // CAS always requires a single clustering key, so range deletes are not supported as of now
                 checkFalse(restrictions.hasClusteringColumnsRestrictions(),
                            "DELETE statements must restrict all PRIMARY KEY columns with equality relations in order to delete non static columns");
+
+                // partition has clustering keys, and the current cas query will load the full partition.  If the partition
+                // existence check can become cheap (really only need the liveness) then this condition can go away
+                checkFalse(conditions.isIfExists(),
+                           "DELETE statements must restrict all PRIMARY KEY columns with equality relations in order to check for if exists");
             }
 
             return stmt;
