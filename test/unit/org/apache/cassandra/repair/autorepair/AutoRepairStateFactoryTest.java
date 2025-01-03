@@ -29,7 +29,8 @@ import static org.junit.Assert.assertTrue;
 public class AutoRepairStateFactoryTest
 {
     @Test
-    public void testGetRepairState() {
+    public void testGetRepairState()
+    {
         AutoRepairState state = RepairType.getAutoRepairState(RepairType.FULL);
 
         assertTrue(state instanceof FullRepairState);
@@ -44,12 +45,16 @@ public class AutoRepairStateFactoryTest
     }
 
     @Test
-    public void testGetRepairStateSupportsAllRepairTypes() {
-        for (RepairType repairType : RepairType.values()) {
-            try {
+    public void testGetRepairStateSupportsAllRepairTypes()
+    {
+        for (RepairType repairType : RepairType.values())
+        {
+            try
+            {
                 AutoRepairState state = RepairType.getAutoRepairState(repairType);
                 assertNotNull(state);
-            } catch (IllegalArgumentException e) {
+            } catch (IllegalArgumentException e)
+            {
                 assertNull(e);
             }
         }

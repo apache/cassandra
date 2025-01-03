@@ -7072,7 +7072,8 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         DatabaseDescriptor.setEnforceNativeDeadlineForHints(value);
     }
 
-    public List<String> getTablesForKeyspace(String keyspace) {
+    public List<String> getTablesForKeyspace(String keyspace)
+    {
         return Keyspace.open(keyspace).getColumnFamilyStores().stream().map(cfs -> cfs.name).collect(Collectors.toList());
     }
 
@@ -7080,7 +7081,8 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     {
         Map<String, ColumnFamilyStore> tables =  Keyspace.open(keyspace).getColumnFamilyStores()
                                                          .stream().collect(Collectors.toMap(c -> c.name, c -> c));
-        for (String tableName : tableNames) {
+        for (String tableName : tableNames)
+        {
             if (!tables.containsKey(tableName))
                 throw new InvalidRequestException("Table " + tableName + " does not exist in keyspace " + keyspace);
         }
@@ -7091,7 +7093,8 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         // mutate SSTables
         long repairedAt = !repaired ? 0 : currentTimeMillis();
         List<String> sstablesTouched = new ArrayList<>();
-        for (String tableName : tableNames) {
+        for (String tableName : tableNames)
+        {
             ColumnFamilyStore table = tables.get(tableName);
             Set<SSTableReader> result = table.runWithCompactionsDisabled(() -> {
                 Set<SSTableReader> sstables = table.getLiveSSTables().stream().filter(predicate).collect(Collectors.toSet());

@@ -98,7 +98,8 @@ public class AutoRepairService implements AutoRepairServiceMBean
     }
 
     @Override
-    public Set<InetAddressAndPort> getRepairHostPriority(RepairType repairType) {
+    public Set<InetAddressAndPort> getRepairHostPriority(RepairType repairType)
+    {
         return AutoRepairUtils.getPriorityHosts(repairType);
     }
 
