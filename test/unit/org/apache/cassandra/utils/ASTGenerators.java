@@ -75,7 +75,7 @@ import static org.apache.cassandra.utils.Generators.SYMBOL_NOT_RESERVED_KEYWORD_
 
 public class ASTGenerators
 {
-    static <T> Gen<Value> valueGen(Object value, AbstractType<?> type)
+    static Gen<Value> valueGen(Object value, AbstractType<?> type)
     {
         Gen<Boolean> bool = SourceDSL.booleans().all();
         return rnd -> bool.generate(rnd) ? new Bind(value, type) : new Literal(value, type);
