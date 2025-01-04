@@ -113,6 +113,7 @@
  * Add the ability to disable bulk loading of SSTables (CASSANDRA-18781)
  * Clean up obsolete functions and simplify cql_version handling in cqlsh (CASSANDRA-18787)
 Merged from 5.0:
+ * Avoid memory allocation in offheap_object's NativeCell.valueSize() and NativeClustering.dataSize() (CASSANDRA-20162)
  * Add flag to avoid invalidating key cache on sstable deletions (CASSANDRA-20068)
  * Interpret inet, bigint, varint, and decimal as non-reversed types for query construction and post-filtering (CASSANDRA-20100)
  * Streamline the serialized format for index status gossip messages (CASSANDRA-20058)

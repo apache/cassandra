@@ -145,6 +145,11 @@ public class NativeCell extends AbstractCell<ByteBuffer>
         return ByteBufferAccessor.instance;  // FIXME: add native accessor
     }
 
+    public int valueSize()
+    {
+        return MemoryUtil.getInt(peer + LENGTH);
+    }
+
     public CellPath path()
     {
         if (!hasPath())
