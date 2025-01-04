@@ -24,6 +24,8 @@ import org.junit.Test;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.CQLTester;
 
+import java.util.Locale;
+
 import static org.apache.cassandra.tools.ToolRunner.ToolResult;
 import static org.apache.cassandra.tools.ToolRunner.invokeNodetool;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -83,6 +85,19 @@ public class SetGetCompactionThroughputTest extends CQLTester
 
     @Test
     public void testCurrentCompactionThroughput()
+    {
+        Locale defaultLocale = Locale.getDefault();
+        try {
+            Locale.setDefault(Locale.GERMAN);
+            assertCompactionThroughput();
+            Locale.setDefault(Locale.US);
+            assertCompactionThroughput();
+        } finally {
+            Locale.setDefault(defaultLocale);
+        }
+    }
+
+    private void assertCompactionThroughput()
     {
         ToolResult tool = invokeNodetool("getcompactionthroughput");
         tool.assertOnCleanExit();

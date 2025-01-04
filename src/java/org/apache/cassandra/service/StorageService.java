@@ -31,6 +31,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Optional;
@@ -1422,9 +1423,9 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     {
         HashMap<String, String> result = new LinkedHashMap<>();
         Meter rate = CompactionManager.instance.getCompactionThroughput();
-        result.put("1minute", String.format("%.3f", rate.getOneMinuteRate() / ONE_MIB));
-        result.put("5minute", String.format("%.3f", rate.getFiveMinuteRate() / ONE_MIB));
-        result.put("15minute", String.format("%.3f", rate.getFifteenMinuteRate() / ONE_MIB));
+        result.put("1minute", String.format(Locale.US, "%.3f", rate.getOneMinuteRate() / ONE_MIB));
+        result.put("5minute", String.format(Locale.US, "%.3f", rate.getFiveMinuteRate() / ONE_MIB));
+        result.put("15minute", String.format(Locale.US, "%.3f", rate.getFifteenMinuteRate() / ONE_MIB));
         return result;
     }
 
