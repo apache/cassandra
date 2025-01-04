@@ -250,7 +250,7 @@ public class PrimaryIdTable implements VirtualTable
                     long current = reader.dataPosition() == -1 ? sstable.uncompressedLength() : reader.dataPosition();
                     long size = current - lastPosition;
 
-                    String keyString = target.partitionKeyType.getString(key.getKey());
+                    String keyString = target.partitionKeyType.asCQL3Type().toCQLLiteral(key.getKey());
 
                     // Check if the current key is outside the queried range; if so, stop
                     if (range.right.compareTo(key) < 0)
@@ -281,6 +281,8 @@ public class PrimaryIdTable implements VirtualTable
         Slices s = clusteringIndexFilter.getSlices(metadata);
         Token startToken = target.partitioner.getMinimumToken();
         Token endToken = target.partitioner.getMaximumToken();
+        BigInteger startTokenValue = new BigInteger(endToken.getTokenValue().toString(), 10);
+        BigInteger endTokenValue = new BigInteger(startToken.getTokenValue().toString(), 10);
 
         // find min/max token values from the clustering key
         for (int i = 0; i < s.size(); i++)
@@ -288,13 +290,13 @@ public class PrimaryIdTable implements VirtualTable
             Slice slice = s.get(i);
             if (!slice.start().isEmpty())
             {
-                BigInteger token = IntegerType.instance.compose(slice.start().bufferAt(0));
-                startToken = target.partitioner.getTokenFactory().fromString(token.toString());
+                startTokenValue = startTokenValue.min(IntegerType.instance.compose(slice.start().bufferAt(0)));
+                startToken = target.partitioner.getTokenFactory().fromString(startTokenValue.toString());
             }
             if (!slice.end().isEmpty())
             {
-                BigInteger token = IntegerType.instance.compose(slice.end().bufferAt(0));
-                endToken = target.partitioner.getTokenFactory().fromString(token.toString());
+                endTokenValue = endTokenValue.max(IntegerType.instance.compose(slice.end().bufferAt(0)));
+                endToken = target.partitioner.getTokenFactory().fromString(endTokenValue.toString());
             }
         }
 
@@ -307,7 +309,7 @@ public class PrimaryIdTable implements VirtualTable
                     throw new InvalidRequestException(KEY_ONLY_EQUALS_ERROR);
 
                 String keyString = UTF8Type.instance.compose(expression.getIndexValue());
-                ByteBuffer keyAsBB = target.partitionKeyType.fromString(keyString);
+                ByteBuffer keyAsBB = target.partitionKeyType.asCQL3Type().fromCQLLiteral(keyString);
                 Token keyToken = target.partitioner.decorateKey(keyAsBB).getToken();
 
                 if (!DataRange.forKeyRange(new Range<>(startToken.minKeyBound(), endToken.maxKeyBound())).contains(keyToken.minKeyBound()))

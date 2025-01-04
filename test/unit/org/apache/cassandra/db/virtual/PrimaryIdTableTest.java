@@ -77,10 +77,10 @@ public class PrimaryIdTableTest extends CQLTester
 
         table = createTable("CREATE TABLE %s (key blob PRIMARY KEY, value blob)");
 
+        ByteBuffer value = ByteBuffer.wrap(new byte[1]);
         for (int i = -10; i < 1000; i++)
         {
             ByteBuffer key = Murmur3Partitioner.LongToken.keyForToken(i);
-            ByteBuffer value = ByteBuffer.wrap(new byte[1]);
             execute("INSERT INTO %s (key, value) VALUES (?, ?)", key, value);
         }
         Util.flushTable(KEYSPACE, table);
@@ -94,11 +94,7 @@ public class PrimaryIdTableTest extends CQLTester
                                             10, KEYSPACE, table);
         List<Row> all = rs.all();
         assertEquals(1010, all.size());
-        for (int i = -10; i < 1000; i++)
-        {
-            Row row = all.get(i + 10);
-            assertEquals(BigInteger.valueOf(i), row.get("token_value", BigInteger.class));
-        }
+        assertResults(all, -10, 1000);
         // 1010 + 100 for the 1 per 10 page, +1 for the last
         assertEquals(1111, scanned.get());
     }
@@ -110,11 +106,7 @@ public class PrimaryIdTableTest extends CQLTester
                                             10, KEYSPACE, table);
         List<Row> all = rs.all();
         assertEquals(999, all.size());
-        for (int i = 1; i < 1000; i++)
-        {
-            Row row = all.get(i - 1);
-            assertEquals(BigInteger.valueOf(i), row.get("token_value", BigInteger.class));
-        }
+        assertResults(all, 1, 1000);
         assertEquals(1099, scanned.get());
     }
 
@@ -125,11 +117,7 @@ public class PrimaryIdTableTest extends CQLTester
                                             10, KEYSPACE, table);
         List<Row> all = rs.all();
         assertEquals(1004, all.size());
-        for (int i = -4; i < 1000; i++)
-        {
-            Row row = all.get(i + 4);
-            assertEquals(BigInteger.valueOf(i), row.get("token_value", BigInteger.class));
-        }
+        assertResults(all, -4, 1000);
         // 1004 + 100 for the 1 per 10 page, +1 for the last
         assertEquals(1105, scanned.get());
     }
@@ -141,11 +129,7 @@ public class PrimaryIdTableTest extends CQLTester
                                             10, KEYSPACE, table);
         List<Row> all = rs.all();
         assertEquals(16, all.size());
-        for (int i = -10; i <= 5; i++)
-        {
-            Row row = all.get(i + 10);
-            assertEquals(BigInteger.valueOf(i), row.get("token_value", BigInteger.class));
-        }
+        assertResults(all, -10, 5);
         assertEquals(18, scanned.get());
     }
 
@@ -168,21 +152,40 @@ public class PrimaryIdTableTest extends CQLTester
                                             10, KEYSPACE, table);
         List<Row> all = rs.all();
         assertEquals(14, all.size());
-
-        for (int i = 0; i < 14; i++)
-        {
-            Row row = all.get(i);
-            assertEquals(BigInteger.valueOf(i + 1), row.get("token_value", BigInteger.class));
-        }
+        assertResults(all, 1, 14);
         // 0->10 = 11, 10->16 = 7
         assertEquals(18, scanned.get());
+    }
+
+    @Test
+    public void testTokenValueBoundsWithBetween()
+    {
+        ResultSet rs = executeNetWithPaging("SELECT * FROM vts.primary_ids WHERE keyspace_name = ? AND table_name = ? AND token_value BETWEEN 0 AND 15",
+                                            10, KEYSPACE, table);
+        List<Row> all = rs.all();
+        assertEquals(16, all.size());
+        assertResults(all, 0, 15);
+        assertEquals(18, scanned.get());
+    }
+
+    @Test
+    public void testTokenValueBoundsWithIn()
+    {
+        ResultSet rs = executeNetWithPaging("SELECT * FROM vts.primary_ids WHERE keyspace_name = ? AND table_name = ? AND token_value IN (1,3,6)",
+                                            10, KEYSPACE, table);
+        List<Row> all = rs.all();
+        assertEquals(3, all.size());
+        assertEquals(BigInteger.valueOf(1), all.get(0).get("token_value", BigInteger.class));
+        assertEquals(BigInteger.valueOf(3), all.get(1).get("token_value", BigInteger.class));
+        assertEquals(BigInteger.valueOf(6), all.get(2).get("token_value", BigInteger.class));
+        assertEquals(7, scanned.get());
     }
 
     @Test
     public void testTokenValueBoundsWithKey()
     {
         ByteBuffer ten = Murmur3Partitioner.LongToken.keyForToken(10);
-        String key = Hex.toHexString(ten.array());
+        String key = "0x" + Hex.toHexString(ten.array());
         ResultSet rs = executeNetWithPaging("SELECT * FROM vts.primary_ids WHERE keyspace_name = ? AND table_name = ? AND token_value > 0 AND token_value < 15 AND key = ?",
                                             10, KEYSPACE, table, key);
         List<Row> all = rs.all();
@@ -196,7 +199,7 @@ public class PrimaryIdTableTest extends CQLTester
     public void testByKey()
     {
         ByteBuffer ten = Murmur3Partitioner.LongToken.keyForToken(10);
-        String key = Hex.toHexString(ten.array());
+        String key = "0x" + Hex.toHexString(ten.array());
         ResultSet rs = executeNetWithPaging("SELECT * FROM vts.primary_ids WHERE keyspace_name = ? AND table_name = ? AND key = ?",
                                             10, KEYSPACE, table, key);
         List<Row> all = rs.all();
@@ -283,4 +286,15 @@ public class PrimaryIdTableTest extends CQLTester
         assertEquals(2L, row.get("sstables", Long.class).longValue());
         assertEquals(2, scanned.get());
     }
+
+    private static void assertResults(List<Row> all, int start, int end)
+    {
+        for (int i = start, offset = 0; i < end; i++, offset++)
+        {
+            Row row = all.get(offset);
+            System.err.println(row);
+            assertEquals(BigInteger.valueOf(i), row.get("token_value", BigInteger.class));
+        }
+    }
+
 }
