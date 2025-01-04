@@ -263,6 +263,29 @@ public class PrimaryIdTableTest extends CQLTester
     }
 
     @Test
+    public void testPrimaryIdTableDuplicates()
+    {
+        // 0xc25f118f072d6ba5cab7fb1468ace617 hashes to 1563004846366
+        ByteBuffer dup = Murmur3Partitioner.LongToken.keyForToken(1563004846366L);
+        // -19, 68, -61 (0xed44c3) hashes to 1563004846366
+        ByteBuffer dup2 = ByteBuffer.wrap(new byte[] {-19, 68, -61});
+        ByteBuffer value = ByteBuffer.wrap(new byte[10]);
+        execute("INSERT INTO %s (key, value) VALUES (?, ?)", dup, value);
+        execute("INSERT INTO %s (key, value) VALUES (?, ?)", dup2, value);
+        Util.flushTable(KEYSPACE, table);
+
+        ResultSet rs = executeNetWithPaging("SELECT * FROM vts.primary_ids WHERE keyspace_name = ? AND table_name = ? AND token_value = 1563004846366",
+                                            10, KEYSPACE, table);
+        List<Row> all = rs.all();
+        assertEquals(2, all.size());
+        assertEquals(BigInteger.valueOf(1563004846366L), all.get(0).get("token_value", BigInteger.class));
+        assertEquals(BigInteger.valueOf(1563004846366L), all.get(1).get("token_value", BigInteger.class));
+        assertEquals("0xc25f118f072d6ba5cab7fb1468ace617", all.get(0).getString("key"));
+        assertEquals("0xed44c3", all.get(1).getString("key"));
+        assertEquals(2, scanned.get());
+    }
+
+    @Test
     public void testSameKeyInMultipleSSTables()
     {
         String table = createTable("CREATE TABLE %s (key blob PRIMARY KEY, value blob)");
