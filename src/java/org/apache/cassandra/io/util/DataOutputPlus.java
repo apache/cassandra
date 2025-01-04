@@ -18,6 +18,7 @@
 package org.apache.cassandra.io.util;
 
 import org.apache.cassandra.utils.Shared;
+import org.apache.cassandra.utils.memory.MemoryUtil;
 import org.apache.cassandra.utils.vint.VIntCoding;
 
 import java.io.DataOutput;
@@ -42,6 +43,11 @@ public interface DataOutputPlus extends DataOutput
     {
         for (ByteBuffer buffer : memory.asByteBuffers(offset, length))
             write(buffer);
+    }
+
+    default void writeMemory(long address, int length) throws IOException
+    {
+        write(MemoryUtil.getByteBuffer(address, length));
     }
 
     default void writeVInt(long i) throws IOException

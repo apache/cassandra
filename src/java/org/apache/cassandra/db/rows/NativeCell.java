@@ -17,16 +17,13 @@
  */
 package org.apache.cassandra.db.rows;
 
-import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 
-import io.netty.util.concurrent.FastThreadLocal;
-import org.apache.cassandra.db.marshal.ByteBufferSliceNativeData;
+import org.apache.cassandra.db.marshal.AddressBasedNativeData;
 import org.apache.cassandra.db.marshal.NativeAccessor;
 import org.apache.cassandra.db.marshal.NativeData;
 import org.apache.cassandra.db.marshal.ValueAccessor;
-import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.ObjectSizes;
@@ -146,8 +143,8 @@ public class NativeCell extends AbstractCell<NativeData> implements NativeData
 
     public ByteBuffer byteBufferValue()
     {
-        int length = MemoryUtil.getInt(peer + LENGTH);
-        return MemoryUtil.getByteBuffer(peer + VALUE, length, ByteOrder.BIG_ENDIAN);
+        int length = valueSize();
+        return MemoryUtil.getByteBuffer(getAddress(), length, ByteOrder.BIG_ENDIAN);
     }
 
     public ValueAccessor<NativeData> accessor()
@@ -165,7 +162,7 @@ public class NativeCell extends AbstractCell<NativeData> implements NativeData
         if (!hasPath())
             return null;
 
-        long offset = peer + VALUE + MemoryUtil.getInt(peer + LENGTH);
+        long offset = getAddress() + valueSize();
         int size = MemoryUtil.getInt(offset);
         return CellPath.create(MemoryUtil.getByteBuffer(offset + 4, size, ByteOrder.BIG_ENDIAN));
     }
@@ -236,27 +233,12 @@ public class NativeCell extends AbstractCell<NativeData> implements NativeData
     @Override
     public NativeData slice(int offset, int length)
     {
-        ByteBuffer byteBuffer = asByteBuffer(); // we get a new buffer here each time, so duplicate() is not needed
-        byteBuffer.position(byteBuffer.position() + offset);
-        byteBuffer.limit(byteBuffer.position() + length);
-        return new ByteBufferSliceNativeData(byteBuffer);
+        return new AddressBasedNativeData(getAddress() + offset, length);
     }
 
-    private static final FastThreadLocal<ByteBuffer> REUSABLE_WRITE_BUFFER = new FastThreadLocal<>()
-    {
-        @Override
-        protected ByteBuffer initialValue()
-        {
-            return MemoryUtil.getHollowDirectByteBuffer(ByteOrder.BIG_ENDIAN);
-        }
-    };
-
     @Override
-    public void writeTo(DataOutputPlus out) throws IOException
+    public long getAddress()
     {
-        int length = MemoryUtil.getInt(peer + LENGTH);
-        ByteBuffer byteBuffer = REUSABLE_WRITE_BUFFER.get();
-        MemoryUtil.setDirectByteBuffer(byteBuffer, peer + VALUE, length);
-        out.write(byteBuffer);
+        return peer + VALUE;
     }
 }

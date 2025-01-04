@@ -104,25 +104,40 @@ public abstract class MemoryUtil
         unsafe.setMemory(address, count, b);
     }
 
+    public static void setShort(long address, short s, boolean isBigEndian)
+    {
+        unsafe.putShort(address, isBigEndian ? Short.reverseBytes(s) : s);
+    }
+
     public static void setShort(long address, short s)
     {
         unsafe.putShort(address, Architecture.BIG_ENDIAN ? Short.reverseBytes(s) : s);
     }
 
-    public static void setInt(long address, int l)
+    public static void setInt(long address, int l, boolean isBigEndian)
     {
         if (Architecture.IS_UNALIGNED)
-            unsafe.putInt(address, Architecture.BIG_ENDIAN ? Integer.reverseBytes(l) : l);
+            unsafe.putInt(address, isBigEndian ? Integer.reverseBytes(l) : l);
         else
-            putIntByByte(address, l);
+            putIntByByte(address, l, isBigEndian);
+    }
+
+    public static void setInt(long address, int l)
+    {
+        setInt(address, l, Architecture.BIG_ENDIAN);
+    }
+
+    public static void setLong(long address, long l, boolean isBigEndian)
+    {
+        if (Architecture.IS_UNALIGNED)
+            unsafe.putLong(address, isBigEndian ? Long.reverseBytes(l) : l);
+        else
+            putLongByByte(address, l, isBigEndian);
     }
 
     public static void setLong(long address, long l)
     {
-        if (Architecture.IS_UNALIGNED)
-            unsafe.putLong(address, Architecture.BIG_ENDIAN ? Long.reverseBytes(l) : l);
-        else
-            putLongByByte(address, l);
+        setLong(address, l, Architecture.BIG_ENDIAN);
     }
 
     public static byte getByte(long address)
@@ -130,28 +145,43 @@ public abstract class MemoryUtil
         return unsafe.getByte(address);
     }
 
-    public static int getShort(long address)
+
+    public static int getShort(long address, boolean isBigEndian)
     {
         if (Architecture.IS_UNALIGNED)
-            return (Architecture.BIG_ENDIAN ? Short.reverseBytes(unsafe.getShort(address)) : unsafe.getShort(address)) & 0xffff;
+            return (isBigEndian ? Short.reverseBytes(unsafe.getShort(address)) : unsafe.getShort(address)) & 0xffff;
         else
-            return getShortByByte(address) & 0xffff;
+            return getShortByByte(address, isBigEndian) & 0xffff;
+    }
+    public static int getShort(long address)
+    {
+        return getShort(address, Architecture.BIG_ENDIAN);
 	}
+
+    public static int getInt(long address, boolean isBigEndian)
+    {
+        if (Architecture.IS_UNALIGNED)
+            return isBigEndian ? Integer.reverseBytes(unsafe.getInt(address)) : unsafe.getInt(address);
+        else
+            return getIntByByte(address, isBigEndian);
+    }
 
     public static int getInt(long address)
     {
-        if (Architecture.IS_UNALIGNED)
-            return Architecture.BIG_ENDIAN ? Integer.reverseBytes(unsafe.getInt(address)) : unsafe.getInt(address);
-        else
-            return getIntByByte(address);
+        return getInt(address, Architecture.BIG_ENDIAN);
 	}
+
+    public static long getLong(long address, boolean isBigEndian)
+    {
+        if (Architecture.IS_UNALIGNED)
+            return isBigEndian ? Long.reverseBytes(unsafe.getLong(address)) : unsafe.getLong(address);
+        else
+            return getLongByByte(address, isBigEndian);
+    }
 
     public static long getLong(long address)
     {
-        if (Architecture.IS_UNALIGNED)
-            return Architecture.BIG_ENDIAN ? Long.reverseBytes(unsafe.getLong(address)) : unsafe.getLong(address);
-        else
-            return getLongByByte(address);
+        return getLong(address, Architecture.BIG_ENDIAN);
 	}
 
     public static ByteBuffer getByteBuffer(long address, int length)
@@ -250,9 +280,9 @@ public abstract class MemoryUtil
         unsafe.putInt(instance, DIRECT_BYTE_BUFFER_CAPACITY_OFFSET, capacity);
     }
 
-    public static long getLongByByte(long address)
+    public static long getLongByByte(long address, boolean isBigEndian)
     {
-        if (Architecture.BIG_ENDIAN)
+        if (isBigEndian)
         {
             return  (((long) unsafe.getByte(address    )       ) << 56) |
                     (((long) unsafe.getByte(address + 1) & 0xff) << 48) |
@@ -276,9 +306,9 @@ public abstract class MemoryUtil
         }
     }
 
-    public static int getIntByByte(long address)
+    public static int getIntByByte(long address, boolean isBigEndian)
     {
-        if (Architecture.BIG_ENDIAN)
+        if (isBigEndian)
         {
             return  (((int) unsafe.getByte(address    )       ) << 24) |
                     (((int) unsafe.getByte(address + 1) & 0xff) << 16) |
@@ -294,10 +324,9 @@ public abstract class MemoryUtil
         }
     }
 
-
-    public static int getShortByByte(long address)
+    public static int getShortByByte(long address, boolean isBigEndian)
     {
-        if (Architecture.BIG_ENDIAN)
+        if (isBigEndian)
         {
             return  (((int) unsafe.getByte(address    )       ) << 8) |
                     (((int) unsafe.getByte(address + 1) & 0xff)     );
@@ -309,9 +338,9 @@ public abstract class MemoryUtil
         }
     }
 
-    public static void putLongByByte(long address, long value)
+    public static void putLongByByte(long address, long value, boolean isBigEndian)
     {
-        if (Architecture.BIG_ENDIAN)
+        if (isBigEndian)
         {
             unsafe.putByte(address, (byte) (value >> 56));
             unsafe.putByte(address + 1, (byte) (value >> 48));
@@ -335,9 +364,9 @@ public abstract class MemoryUtil
         }
     }
 
-    public static void putIntByByte(long address, int value)
+    public static void putIntByByte(long address, int value, boolean isBigEndian)
     {
-        if (Architecture.BIG_ENDIAN)
+        if (isBigEndian)
         {
             unsafe.putByte(address, (byte) (value >> 24));
             unsafe.putByte(address + 1, (byte) (value >> 16));
@@ -359,6 +388,26 @@ public abstract class MemoryUtil
         int count = buffer.limit() - start;
         if (count == 0)
             return;
+
+        if (buffer.isDirect())
+            setBytes(getAddress(buffer) + start, address, count);
+        else
+            setBytes(address, buffer.array(), buffer.arrayOffset() + start, count);
+    }
+
+    /**
+     * Transfers count bytes to Memory starting at memoryOffset from ByteBuffer starting at bufferOffset
+     *
+     * @param address target start offset in the memory
+     * @param buffer the source data buffer
+     * @param bufferOffset start offset of the buffer
+     * @param count number of bytes to transfer
+     */
+    public static void setBytes(long address, ByteBuffer buffer, int bufferOffset, int count)
+    {
+        if (count == 0)
+            return;
+        int start = buffer.position() + bufferOffset;
 
         if (buffer.isDirect())
             setBytes(getAddress(buffer) + start, address, count);
@@ -406,7 +455,7 @@ public abstract class MemoryUtil
     }
 
     /**
-     * Transfers count bytes from Memory starting at memoryOffset to buffer starting at bufferOffset
+     * Transfers count bytes from Memory starting at address to buffer starting at bufferOffset
      *
      * @param address start offset in the memory
      * @param buffer the data buffer
@@ -423,5 +472,53 @@ public abstract class MemoryUtil
             return;
 
         unsafe.copyMemory(null, address, buffer, BYTE_ARRAY_BASE_OFFSET + bufferOffset, count);
+    }
+
+
+    /**
+     * Transfers count bytes from Memory starting at address to ByteBuffer starting at bufferOffset
+     *
+     * @param address start offset in the memory
+     * @param buffer the target data buffer
+     * @param bufferOffset start offset of the buffer
+     * @param length number of bytes to transfer
+     */
+    public static void getBytes(long address, ByteBuffer buffer, int bufferOffset, int length)
+    {
+        if (buffer == null)
+            throw new NullPointerException();
+        else if (length < 0 || length > buffer.remaining())
+            throw new IndexOutOfBoundsException();
+        else if (length == 0)
+            return;
+
+        Object obj;
+        long offset;
+        if (buffer.hasArray())
+        {
+            obj = buffer.array();
+            offset = BYTE_ARRAY_BASE_OFFSET + buffer.arrayOffset();
+        }
+        else
+        {
+            obj = null;
+            offset = unsafe.getLong(buffer, DIRECT_BYTE_BUFFER_ADDRESS_OFFSET);
+        }
+        offset += buffer.position();
+        offset += bufferOffset;
+
+        unsafe.copyMemory(null, address, obj, offset, length);
+    }
+
+    /**
+     * Transfers count bytes from Memory starting at address to ByteBuffer
+     *
+     * @param address start offset in the memory
+     * @param buffer the target data buffer
+     * @param length number of bytes to transfer
+     */
+    public static void getBytes(long address, ByteBuffer buffer, int length)
+    {
+        getBytes(address, buffer, 0, length);
     }
 }

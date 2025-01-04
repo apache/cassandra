@@ -22,7 +22,9 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.Arrays;
 
+import org.junit.AfterClass;
 import org.junit.Assert;
+import org.junit.BeforeClass;
 import org.junit.Test;
 
 import org.apache.cassandra.io.util.DataOutputBuffer;
@@ -67,6 +69,19 @@ public class ValueAccessorTest extends ValueAccessorTester
         ByteBuffer buffer2 = accessor2.toBuffer(value2);
         Assert.assertEquals(String.format("Inconsistent byte buffers (%s != %s)", bytesToHex(buffer1), bytesToHex(buffer1)),
                             buffer1, buffer2);
+    }
+
+    private static final TestNativeDataAllocator allocator = new TestNativeDataAllocator();
+    @BeforeClass
+    public static void setSetMemoryAllocator()
+    {
+        NativeAccessor.setNativeMemoryAllocator(allocator);
+    }
+
+    @AfterClass
+    public static void releaseMemory()
+    {
+        allocator.close();
     }
 
     /**

@@ -20,7 +20,9 @@ package org.apache.cassandra.db.marshal;
 
 import java.nio.ByteBuffer;
 
+import org.junit.AfterClass;
 import org.junit.Assert;
+import org.junit.BeforeClass;
 import org.junit.Test;
 
 import org.apache.cassandra.utils.ByteBufferUtil;
@@ -29,6 +31,21 @@ import static org.quicktheories.QuickTheory.qt;
 
 public class ByteBufferAccessorTest extends ValueAccessorTester
 {
+
+    private static final TestNativeDataAllocator allocator = new TestNativeDataAllocator();
+    @BeforeClass
+    public static void setSetMemoryAllocator()
+    {
+        NativeAccessor.setNativeMemoryAllocator(allocator);
+    }
+
+    @AfterClass
+    public static void releaseMemory()
+    {
+        allocator.close();
+    }
+
+
     private static byte[] array(int start, int size)
     {
         byte[] a = new byte[size];

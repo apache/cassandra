@@ -18,47 +18,58 @@
 
 package org.apache.cassandra.db.marshal;
 
-import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 
-import org.apache.cassandra.io.util.DataOutputPlus;
-import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.utils.memory.MemoryUtil;
 
 /**
  * Temporary created object as a part of slicing (usually to parse collection parts)
  */
-public class ByteBufferSliceNativeData implements NativeData
+public class AddressBasedNativeData implements NativeData
 {
-    public static final ByteBufferSliceNativeData EMPTY = new ByteBufferSliceNativeData(ByteBufferUtil.EMPTY_BYTE_BUFFER);
+    public static final AddressBasedNativeData EMPTY = new AddressBasedNativeData(-1, 0);
 
-    private final ByteBuffer byteBuffer;
+    private final long address;
+    private final int length;
 
-    public ByteBufferSliceNativeData(ByteBuffer byteBuffer)
+    public AddressBasedNativeData(long address, int length)
     {
-        this.byteBuffer = byteBuffer;
+        this.address = address;
+        this.length = length;
     }
+
 
     @Override
     public int nativeDataSize()
     {
-        return byteBuffer.remaining();
+        return length;
     }
 
     @Override
     public ByteBuffer asByteBuffer()
     {
-        return byteBuffer;
+        return MemoryUtil.getByteBuffer(address, length, ByteOrder.BIG_ENDIAN);
     }
 
     @Override
     public NativeData slice(int offset, int length)
     {
-        return new ByteBufferSliceNativeData(ByteBufferAccessor.instance.slice(byteBuffer, offset, length));
+        if (offset < 0 || offset > this.length)
+            throw new IllegalArgumentException("offset must but be >= 0 and < parent length");
+        if (length < 0 || offset + length > this.length) {
+            throw new IllegalArgumentException("length must but be >= 0 and offset + length > parent length");
+        }
+
+        if (length == 0) {
+            return EMPTY;
+        }
+        return new AddressBasedNativeData(address + offset, length);
     }
 
     @Override
-    public void writeTo(DataOutputPlus out) throws IOException
+    public long getAddress()
     {
-        out.write(byteBuffer);
+        return address;
     }
 }

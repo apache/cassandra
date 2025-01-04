@@ -3,7 +3,7 @@
 * or more contributor license agreements.  See the NOTICE file
 * distributed with this work for additional information
 * regarding copyright ownership.  The ASF licenses this file
-* to you under the Apache License, Version 2.0 (thec
+ * to you under the Apache License, Version 2.0 (the
 * "License"); you may not use this file except in compliance
 * with the License.  You may obtain a copy of the License at
 *
@@ -18,19 +18,16 @@
 */
 package org.apache.cassandra.db;
 
-import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 
-import io.netty.util.concurrent.FastThreadLocal;
+import org.apache.cassandra.db.marshal.AddressBasedNativeData;
 import org.apache.cassandra.db.marshal.ByteBufferAccessor;
-import org.apache.cassandra.db.marshal.ByteBufferSliceNativeData;
 import org.apache.cassandra.db.marshal.NativeAccessor;
 import org.apache.cassandra.db.marshal.NativeData;
 import org.apache.cassandra.db.marshal.ValueAccessor;
-import org.apache.cassandra.io.util.DataOutputPlus;
-import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.FastByteOperations;
 import org.apache.cassandra.utils.ObjectSizes;
 import org.apache.cassandra.utils.concurrent.OpOrder;
 import org.apache.cassandra.utils.memory.HeapCloner;
@@ -131,48 +128,38 @@ public class NativeClustering implements Clustering<NativeData>
         }
 
         @Override
-        public NativeData slice(int offset, int length)
+        public NativeData slice(int offset, int sliceLength)
         {
-            ByteBuffer byteBuffer = asByteBuffer(); // we get a new buffer here each time, so duplicate() is not needed
-            byteBuffer.position(byteBuffer.position() + offset);
-            byteBuffer.limit(byteBuffer.position() + length);
-            return new ByteBufferSliceNativeData(byteBuffer);
+            int clusteringSize = parentSize();
+            if (i >= clusteringSize)
+                throw new IndexOutOfBoundsException();
+
+            int metadataSize = (clusteringSize * 2) + 4;
+            int bitmapSize = ((clusteringSize + 7) >>> 3);
+            long bitmapStart = peer + metadataSize;
+            int b = MemoryUtil.getByte(bitmapStart + (i >>> 3));
+            if ((b & (1 << (i & 7))) != 0)
+                return AddressBasedNativeData.EMPTY;
+
+            int startOffset = MemoryUtil.getShort(peer + 2 + i * 2);
+            int endOffset = MemoryUtil.getShort(peer + 4 + i * 2);
+            long address = bitmapStart + bitmapSize + startOffset;
+            int length =  endOffset - startOffset;
+
+            if (offset < 0 || offset > length)
+                throw new IllegalArgumentException("offset must but be >= 0 and < parent length");
+            if (sliceLength < 0 || offset + sliceLength > length) {
+                throw new IllegalArgumentException("length must but be >= 0 and offset + length > parent length");
+            }
+
+            if (length == 0) {
+                return AddressBasedNativeData.EMPTY;
+            }
+            return new AddressBasedNativeData(address + offset, sliceLength);
         }
 
         private int parentSize() {
             return MemoryUtil.getShort(peer);
-        }
-
-        private static final FastThreadLocal<ByteBuffer> REUSABLE_WRITE_BUFFER_1 = new FastThreadLocal<ByteBuffer>()
-        {
-            @Override
-            protected ByteBuffer initialValue()
-            {
-                return MemoryUtil.getHollowDirectByteBuffer(ByteOrder.BIG_ENDIAN);
-            }
-        };
-
-        /**
-         * we need two re-usable buffers to be able to do compare operation without memory allocations
-         */
-        private static final FastThreadLocal<ByteBuffer> REUSABLE_WRITE_BUFFER_2 = new FastThreadLocal<ByteBuffer>()
-        {
-            @Override
-            protected ByteBuffer initialValue()
-            {
-                return MemoryUtil.getHollowDirectByteBuffer(ByteOrder.BIG_ENDIAN);
-            }
-        };
-
-        @Override
-        public void writeTo(DataOutputPlus out) throws IOException
-        {
-            ByteBuffer byteBuffer = getByteBuffer((address, length) -> {
-                ByteBuffer result = REUSABLE_WRITE_BUFFER_1.get();
-                MemoryUtil.setDirectByteBuffer(result, address, length);
-                return result;
-            });
-            out.write(byteBuffer);
         }
 
         private ByteBuffer getByteBuffer(ByteBufferProvider provider)
@@ -192,33 +179,35 @@ public class NativeClustering implements Clustering<NativeData>
         @Override
         public int compareTo(NativeData right)
         {
-            ByteBuffer leftByteBuffer = getByteBuffer((address, length) -> {
-                ByteBuffer result = REUSABLE_WRITE_BUFFER_1.get();
-                MemoryUtil.setDirectByteBuffer(result, address, length);
-                return result;
-            });
-            if (right instanceof NativeClusteringValue) {
-                NativeClusteringValue rightNativeClusteringValue = (NativeClusteringValue) right;
-                ByteBuffer rightByteBuffer = rightNativeClusteringValue.getByteBuffer((address, length) -> {
-                    ByteBuffer result = REUSABLE_WRITE_BUFFER_2.get();
-                    MemoryUtil.setDirectByteBuffer(result, address, length);
-                    return result;
-                });
-                return ByteBufferUtil.compareUnsigned(leftByteBuffer, rightByteBuffer);
-            } else {
-                return ByteBufferUtil.compareUnsigned(leftByteBuffer, right.asByteBuffer());
-            }
+            int leftSize = this.nativeDataSize();
+            int rightSize = right.nativeDataSize();
+            return FastByteOperations.compareUnsigned(this.getAddress(), leftSize, right.getAddress(), rightSize);
+        }
+
+        @Override
+        public long getAddress()
+        {
+            int parentSize = parentSize();
+            if (i >= parentSize)
+                throw new IndexOutOfBoundsException();
+
+            int metadataSize = (parentSize * 2) + 4;
+            int bitmapSize = ((parentSize + 7) >>> 3);
+            long bitmapStart = peer + metadataSize;
+            int b = MemoryUtil.getByte(bitmapStart + (i >>> 3));
+            if ((b & (1 << (i & 7))) != 0)
+                return -1;
+
+            int startOffset = MemoryUtil.getShort(peer + 2 + i * 2);
+            long address = bitmapStart + bitmapSize + startOffset;
+            return  address;
         }
 
         @Override
         public int compareTo(ByteBuffer right)
         {
-            ByteBuffer leftByteBuffer = getByteBuffer((address, length) -> {
-                ByteBuffer result = REUSABLE_WRITE_BUFFER_1.get();
-                MemoryUtil.setDirectByteBuffer(result, address, length);
-                return result;
-            });
-            return ByteBufferUtil.compareUnsigned(leftByteBuffer, right);
+            int leftSize = this.nativeDataSize();
+            return -FastByteOperations.compareUnsigned(right, this.getAddress(), leftSize);
         }
     }
 
@@ -236,12 +225,12 @@ public class NativeClustering implements Clustering<NativeData>
         return isNull(peer, size, i);
     }
 
-    static boolean isNull(long peer, int size, int i)
+    static boolean isNull(long peer, int parentSize, int i)
     {
-        if (i >= size)
+        if (i >= parentSize)
             throw new IndexOutOfBoundsException();
 
-        int metadataSize = (size * 2) + 4;
+        int metadataSize = (parentSize * 2) + 4;
         long bitmapStart = peer + metadataSize;
         int b = MemoryUtil.getByte(bitmapStart + (i >>> 3));
         return ((b & (1 << (i & 7))) != 0);
@@ -252,9 +241,9 @@ public class NativeClustering implements Clustering<NativeData>
         return nativeDataSize(peer, size(), i) == 0;
     }
 
-    static int nativeDataSize(long peer, int size, int i)
+    static int nativeDataSize(long peer, int parentSize, int i)
     {
-        if (isNull(peer, size, i))
+        if (isNull(peer, parentSize, i))
             return 0;
 
         int startOffset = MemoryUtil.getShort(peer + 2 + i * 2);

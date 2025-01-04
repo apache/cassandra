@@ -20,10 +20,11 @@ package org.apache.cassandra.db.marshal;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.nio.FloatBuffer;
 import java.nio.charset.CharacterCodingException;
 import java.nio.charset.Charset;
 import java.util.UUID;
+
+import com.google.common.annotations.VisibleForTesting;
 
 import org.apache.cassandra.db.Digest;
 import org.apache.cassandra.db.TypeSizes;
@@ -34,6 +35,7 @@ import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FastByteOperations;
 import org.apache.cassandra.utils.TimeUUID;
 import org.apache.cassandra.utils.UUIDGen;
+import org.apache.cassandra.utils.memory.MemoryUtil;
 
 /**
  * ValueAccessor has a lot of different methods are grouped together in a single interface.
@@ -64,7 +66,7 @@ public class NativeAccessor implements ValueAccessor<NativeData>
     @Override
     public void write(NativeData sourceValue, DataOutputPlus out) throws IOException
     {
-        sourceValue.writeTo(out);
+        out.writeMemory(sourceValue.getAddress(), sourceValue.nativeDataSize());
     }
 
     @Override
@@ -78,35 +80,50 @@ public class NativeAccessor implements ValueAccessor<NativeData>
     @Override
     public void write(NativeData value, ByteBuffer out)
     {
-        out.put(value.asByteBuffer().duplicate()); // ByteBufferSliceNativeDataasByteBuffer() returns a re-usable byte buffer
+        int size = value.nativeDataSize();
+        MemoryUtil.getBytes(value.getAddress(), out, size);
+        out.position(out.position() + size);
+
     }
 
     @Override
     public <V2> int copyTo(NativeData src, int srcOffset, V2 dst, ValueAccessor<V2> dstAccessor, int dstOffset, int size)
     {
-        dstAccessor.copyByteBufferTo(src.asByteBuffer(), srcOffset, dst, dstOffset, size);
+        if (dstAccessor == ByteArrayAccessor.instance)
+            MemoryUtil.getBytes(src.getAddress() + srcOffset, dstAccessor.toArray(dst), dstOffset, size);
+        else if (dstAccessor == ByteBufferAccessor.instance)
+        {
+            ByteBuffer dstBuffer = dstAccessor.toBuffer(dst);
+            MemoryUtil.getBytes(src.getAddress() + srcOffset, dstBuffer, dstOffset, size);
+            dstBuffer.position(dstBuffer.position() + size);
+        }
+        else if (dstAccessor == NativeAccessor.instance)
+            MemoryUtil.setBytes(src.getAddress() + srcOffset, ((NativeData) dst).getAddress() + dstOffset, size);
+        else
+            dstAccessor.copyByteBufferTo(src.asByteBuffer(), srcOffset, dst, dstOffset, size);
+
         return size;
     }
 
     @Override
     public int copyByteArrayTo(byte[] src, int srcOffset, NativeData dstNative, int dstOffset, int size)
     {
-        ByteBuffer dst = dstNative.asByteBuffer();
-        FastByteOperations.copy(src, srcOffset, dst, dst.position() + dstOffset, size);
+        MemoryUtil.setBytes(src, srcOffset, dstNative.getAddress() + dstOffset, size);
         return size;
     }
 
     @Override
     public int copyByteBufferTo(ByteBuffer src, int srcOffset, NativeData dstNative, int dstOffset, int size)
     {
-        ByteBuffer dst = dstNative.asByteBuffer();
-        FastByteOperations.copy(src, src.position() + srcOffset, dst, dst.position() + dstOffset, size);
+        MemoryUtil.setBytes(dstNative.getAddress() + dstOffset, src, srcOffset, size);
         return size;
     }
 
     @Override
     public void digest(NativeData value, int offset, int size, Digest digest)
     {
+        // not used for NativeData (we copy data to heap during a select)
+        // so, there is no much reason to optimize to avoid a ByteBuffer object allocation
         ByteBuffer byteBuffer = value.asByteBuffer();
         digest.update(byteBuffer, byteBuffer.position() + offset, size);
     }
@@ -120,23 +137,31 @@ public class NativeAccessor implements ValueAccessor<NativeData>
     @Override
     public <VR> int compare(NativeData left, VR right, ValueAccessor<VR> accessorR)
     {
-        if (right instanceof NativeData)
+
+        if (accessorR == ByteArrayAccessor.instance)
+            return -compareByteArrayTo(accessorR.toArray(right), left);
+        else if (accessorR == ByteBufferAccessor.instance)
+            return -compareByteBufferTo(accessorR.toBuffer(right), left);
+        if (accessorR == NativeAccessor.instance)
         {
-            return left.compareTo((NativeData) right);
-        }
-        return left.compareTo(accessorR.toBuffer(right));
+            NativeData rightNative = (NativeData) right;
+            int leftSize = left.nativeDataSize();
+            int rightSize = rightNative.nativeDataSize();
+            return FastByteOperations.compareUnsigned(left.getAddress(), leftSize, rightNative.getAddress(), rightSize);
+        } else
+            return left.compareTo(accessorR.toBuffer(right));
     }
 
     @Override
     public int compareByteArrayTo(byte[] left, NativeData right)
     {
-        return ByteBufferUtil.compare(left, right.asByteBuffer());
+        return FastByteOperations.compareUnsigned(left, 0, left.length, right.getAddress(), right.nativeDataSize());
     }
 
     @Override
     public int compareByteBufferTo(ByteBuffer left, NativeData right)
     {
-        return -right.compareTo(left); // we want to avoid ByteBuffer retrieval from NativeData
+        return FastByteOperations.compareUnsigned(left, right.getAddress(), right.nativeDataSize());
     }
 
      // -----------------------------------------------------------------------------
@@ -147,7 +172,10 @@ public class NativeAccessor implements ValueAccessor<NativeData>
     {
         if (value == null)
             return null;
-        return ByteBufferUtil.getArray(value.asByteBuffer());
+        int size = value.nativeDataSize();
+        byte[] result = new byte[size];
+        MemoryUtil.getBytes(value.getAddress(), result, 0, size);
+        return result;
     }
 
     @Override
@@ -155,8 +183,10 @@ public class NativeAccessor implements ValueAccessor<NativeData>
     {
         if (value == null)
             return null;
-        ByteBuffer byteBuffer = value.asByteBuffer();
-        return ByteBufferUtil.getArray(byteBuffer, byteBuffer.position() + offset, length);
+        int size = value.nativeDataSize();
+        byte[] result = new byte[size];
+        MemoryUtil.getBytes(value.getAddress() + offset, result, 0, size);
+        return result;
     }
 
     @Override
@@ -174,117 +204,118 @@ public class NativeAccessor implements ValueAccessor<NativeData>
     @Override
     public byte toByte(NativeData value)
     {
-        return ByteBufferUtil.toByte(value.asByteBuffer());
+        return getByte(value, 0);
     }
 
     @Override
     public byte getByte(NativeData value, int offset)
     {
-        ByteBuffer byteBuffer = value.asByteBuffer();
-        return byteBuffer.get(byteBuffer.position() + offset);
+        return MemoryUtil.getByte(value.getAddress() + offset);
     }
 
     @Override
     public short toShort(NativeData value)
     {
-        return ByteBufferUtil.toShort(value.asByteBuffer());
+        return getShort(value, 0);
     }
 
     @Override
     public short getShort(NativeData value, int offset)
     {
-        ByteBuffer byteBuffer = value.asByteBuffer();
-        return byteBuffer.getShort(byteBuffer.position() + offset);
+        return (short) MemoryUtil.getShort(value.getAddress() + offset, true);
     }
 
     @Override
     public int getUnsignedShort(NativeData value, int offset)
     {
-        ByteBuffer byteBuffer = value.asByteBuffer();
-        return ByteBufferUtil.getUnsignedShort(byteBuffer, byteBuffer.position() + offset);
+        return ((short) MemoryUtil.getShort(value.getAddress() + offset, true)) & 0xFFFF;
     }
 
     @Override
     public int toInt(NativeData value)
     {
-        return ByteBufferUtil.toInt(value.asByteBuffer());
+        return getInt(value, 0);
     }
 
     @Override
     public int getInt(NativeData value, int offset)
     {
-        ByteBuffer byteBuffer = value.asByteBuffer();
-        return byteBuffer.getInt(byteBuffer.position() + offset);
+        return MemoryUtil.getInt(value.getAddress() + offset, true);
     }
 
     @Override
     public long toLong(NativeData value)
     {
-        return ByteBufferUtil.toLong(value.asByteBuffer());
+        return getLong(value, 0);
     }
 
     @Override
     public long getLong(NativeData value, int offset)
     {
-        ByteBuffer byteBuffer = value.asByteBuffer();
-        return byteBuffer.getLong(byteBuffer.position() + offset);
+        return MemoryUtil.getLong(value.getAddress() + offset, true);
     }
 
     @Override
     public float getFloat(NativeData value, int offset)
     {
-        ByteBuffer byteBuffer = value.asByteBuffer();
-        return byteBuffer.getFloat(byteBuffer.position() + offset);
+        return Float.intBitsToFloat(MemoryUtil.getInt(value.getAddress() + offset, true));
     }
 
     @Override
     public double getDouble(NativeData value, int offset)
     {
-        ByteBuffer byteBuffer = value.asByteBuffer();
-        return byteBuffer.getDouble(byteBuffer.position() + offset);
+        return Double.longBitsToDouble(MemoryUtil.getLong(value.getAddress() + offset, true));
     }
 
     @Override
     public float toFloat(NativeData value)
     {
-        return ByteBufferUtil.toFloat(value.asByteBuffer());
+        return getFloat(value, 0);
     }
 
     @Override
     public double toDouble(NativeData value)
     {
-        return ByteBufferUtil.toDouble(value.asByteBuffer());
+        return getDouble(value, 0);
     }
 
     @Override
     public UUID toUUID(NativeData value)
     {
-        return UUIDGen.getUUID(value.asByteBuffer());
+        long mostSigBits = getLong(value, 0);
+        long leastSigBits = getLong(value, 8);
+
+        return UUIDGen.getUUID(mostSigBits, leastSigBits);
     }
 
     @Override
     public TimeUUID toTimeUUID(NativeData value)
     {
-        ByteBuffer byteBuffer = value.asByteBuffer();
-        return TimeUUID.fromBytes(byteBuffer.getLong(byteBuffer.position()), byteBuffer.getLong(byteBuffer.position() + 8));
+        long mostSigBits = getLong(value, 0);
+        long leastSigBits = getLong(value, 8);
+        return TimeUUID.fromBytes(mostSigBits, leastSigBits);
     }
 
     @Override
     public Ballot toBallot(NativeData value)
     {
-        return Ballot.deserialize(value.asByteBuffer());
+        long mostSigBits = getLong(value, 0);
+        long leastSigBits = getLong(value, 8);
+        return Ballot.fromBytes(mostSigBits, leastSigBits);
     }
 
     @Override
     public float[] toFloatArray(NativeData value, int dimension)
     {
-        ByteBuffer byteBuffer = value.asByteBuffer();
-        FloatBuffer floatBuffer = byteBuffer.asFloatBuffer();
-        if (floatBuffer.remaining() != dimension)
+        int arraySize = value.nativeDataSize() / Float.BYTES;
+        if (arraySize != dimension)
             throw new IllegalArgumentException(String.format("Could not convert to a float[] with different dimension. " +
-                                                             "Was expecting %d but got %d", dimension, floatBuffer.remaining()));
-        float[] floatArray = new float[floatBuffer.remaining()];
-        floatBuffer.get(floatArray);
+                                                             "Was expecting %d but got %d", dimension, arraySize));
+        float[] floatArray = new float[arraySize];
+        for (int i = 0; i < arraySize; i++)
+        {
+            floatArray[i] = Float.intBitsToFloat(getInt(value, i * Float.BYTES));
+        }
         return floatArray;
     }
 
@@ -294,40 +325,35 @@ public class NativeAccessor implements ValueAccessor<NativeData>
     @Override
     public int putByte(NativeData dstNative, int offset, byte value)
     {
-        ByteBuffer dst = dstNative.asByteBuffer();
-        dst.put(dst.position() + offset, value);
+        MemoryUtil.setByte(dstNative.getAddress() + offset, value);
         return TypeSizes.BYTE_SIZE;
     }
 
     @Override
     public int putShort(NativeData dstNative, int offset, short value)
     {
-        ByteBuffer dst = dstNative.asByteBuffer();
-        dst.putShort(dst.position() + offset, value);
+        MemoryUtil.setShort(dstNative.getAddress() + offset, value, true);
         return TypeSizes.SHORT_SIZE;
     }
 
     @Override
     public int putInt(NativeData dstNative, int offset, int value)
     {
-        ByteBuffer dst = dstNative.asByteBuffer();
-        dst.putInt(dst.position() + offset, value);
+        MemoryUtil.setInt(dstNative.getAddress() + offset, value, true);
         return TypeSizes.INT_SIZE;
     }
 
     @Override
     public int putLong(NativeData dstNative, int offset, long value)
     {
-        ByteBuffer dst = dstNative.asByteBuffer();
-        dst.putLong(dst.position() + offset, value);
+        MemoryUtil.setLong(dstNative.getAddress() + offset, value, true);
         return TypeSizes.LONG_SIZE;
     }
 
     @Override
     public int putFloat(NativeData dstNative, int offset, float value)
     {
-        ByteBuffer dst = dstNative.asByteBuffer();
-        dst.putFloat(dst.position() + offset, value);
+        putLong(dstNative, offset, Float.floatToIntBits(value));
         return TypeSizes.FLOAT_SIZE;
     }
 
@@ -341,98 +367,106 @@ public class NativeAccessor implements ValueAccessor<NativeData>
     // Value object creation methods
     // We do not expect the methods are used in real logic for NativeData,
     // but they are needed to reuse existing unit tests written for other implementation of ValueAccessor.
-    // The objects created by the methods don't actually represent a real native memory
-    // but just heap ByteBuffer wrappers which provide NativeData
+    
+    private static NativeDataAllocator allocator = NativeDataAllocator.UNSUPPORTED;
+
+    @VisibleForTesting
+    public static void setNativeMemoryAllocator(NativeDataAllocator allocatorToSet)
+    {
+        allocator = allocatorToSet;
+    }
 
     @Override
     public NativeData read(DataInputPlus in, int length) throws IOException
     {
         ByteBuffer data = ByteBufferUtil.read(in, length);
-        return new ByteBufferSliceNativeData(data);
+        return allocator.allocateBasedOnBuffer(data);
     }
 
     @Override
     public NativeData empty()
     {
-        return ByteBufferSliceNativeData.EMPTY;
+        return AddressBasedNativeData.EMPTY;
     }
 
     @Override
     public NativeData valueOf(byte[] bytes)
     {
-        return new ByteBufferSliceNativeData(ByteBufferAccessor.instance.valueOf(bytes));
+        return allocator.allocateBasedOnBuffer(ByteBufferAccessor.instance.valueOf(bytes));
     }
 
     @Override
     public NativeData valueOf(ByteBuffer bytes)
     {
-        return new ByteBufferSliceNativeData(ByteBufferAccessor.instance.valueOf(bytes));
+        return allocator.allocateBasedOnBuffer(ByteBufferAccessor.instance.valueOf(bytes));
     }
 
     @Override
     public NativeData valueOf(String s, Charset charset)
     {
-        return new ByteBufferSliceNativeData(ByteBufferAccessor.instance.valueOf(s, charset));
+        return allocator.allocateBasedOnBuffer(ByteBufferAccessor.instance.valueOf(s, charset));
     }
 
     @Override
     public NativeData valueOf(UUID v)
     {
-        return new ByteBufferSliceNativeData(ByteBufferAccessor.instance.valueOf(v));
+        return allocator.allocateBasedOnBuffer(ByteBufferAccessor.instance.valueOf(v));
     }
 
     @Override
     public NativeData valueOf(boolean v)
     {
-        return new ByteBufferSliceNativeData(ByteBufferAccessor.instance.valueOf(v));
+        return allocator.allocateBasedOnBuffer(ByteBufferAccessor.instance.valueOf(v));
     }
 
     @Override
     public NativeData valueOf(byte v)
     {
-        return new ByteBufferSliceNativeData(ByteBufferAccessor.instance.valueOf(v));
+        return allocator.allocateBasedOnBuffer(ByteBufferAccessor.instance.valueOf(v));
     }
 
     @Override
     public NativeData valueOf(short v)
     {
-        return new ByteBufferSliceNativeData(ByteBufferAccessor.instance.valueOf(v));
+        return allocator.allocateBasedOnBuffer(ByteBufferAccessor.instance.valueOf(v));
     }
 
     @Override
     public NativeData valueOf(int v)
     {
-        return new ByteBufferSliceNativeData(ByteBufferAccessor.instance.valueOf(v));
+        return allocator.allocateBasedOnBuffer(ByteBufferAccessor.instance.valueOf(v));
     }
 
     @Override
     public NativeData valueOf(long v)
     {
-        return new ByteBufferSliceNativeData(ByteBufferAccessor.instance.valueOf(v));
+        return allocator.allocateBasedOnBuffer(ByteBufferAccessor.instance.valueOf(v));
     }
 
     @Override
     public NativeData valueOf(float v)
     {
-        return new ByteBufferSliceNativeData(ByteBufferAccessor.instance.valueOf(v));
+        return allocator.allocateBasedOnBuffer(ByteBufferAccessor.instance.valueOf(v));
     }
 
     @Override
     public NativeData valueOf(double v)
     {
-        return new ByteBufferSliceNativeData(ByteBufferAccessor.instance.valueOf(v));
+        return allocator.allocateBasedOnBuffer(ByteBufferAccessor.instance.valueOf(v));
     }
 
     @Override
     public <V2> NativeData convert(V2 src, ValueAccessor<V2> accessor)
     {
-        return new ByteBufferSliceNativeData(accessor.toBuffer(src));
+        if (accessor == NativeAccessor.instance)
+            return (NativeData) src;
+        return allocator.allocateBasedOnBuffer(accessor.toBuffer(src));
     }
 
     @Override
     public NativeData allocate(int size)
     {
-        return new ByteBufferSliceNativeData(ByteBufferAccessor.instance.allocate(size));
+        return allocator.allocateBasedOnBuffer(ByteBufferAccessor.instance.allocate(size));
     }
 
     @Override

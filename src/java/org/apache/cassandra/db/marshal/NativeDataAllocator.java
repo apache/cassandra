@@ -20,25 +20,15 @@ package org.apache.cassandra.db.marshal;
 
 import java.nio.ByteBuffer;
 
-import org.apache.cassandra.utils.ByteBufferUtil;
-
-public interface NativeData
+public interface NativeDataAllocator extends AutoCloseable
 {
-    int nativeDataSize();
+    NativeDataAllocator UNSUPPORTED = data -> {
+        throw new UnsupportedOperationException("The method is not expected to be used by NativeAccessor outside of tests. " +
+                                                "NativeData can be allocated only by a memtable NativeAllocator");
+    };
 
-    ByteBuffer asByteBuffer();
+    NativeData allocateBasedOnBuffer(ByteBuffer data);
 
-    NativeData slice(int offset, int length);
-
-    default int compareTo(NativeData right)
-    {
-        return ByteBufferUtil.compareUnsigned(this.asByteBuffer(), right.asByteBuffer());
-    }
-
-    public long getAddress();
-
-    default int compareTo(ByteBuffer right)
-    {
-        return ByteBufferUtil.compareUnsigned(this.asByteBuffer(), right);
-    }
+    @Override
+    default void close() {};
 }
