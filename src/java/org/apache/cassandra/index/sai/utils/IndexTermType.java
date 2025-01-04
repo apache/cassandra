@@ -93,6 +93,7 @@ public class IndexTermType
     private static final int INET_ADDRESS_SIZE = 16;
     private static final int DEFAULT_FIXED_LENGTH = 16;
 
+
     private enum Capability
     {
         STRING,
@@ -118,7 +119,6 @@ public class IndexTermType
     private final AbstractType<?> vectorElementType;
     private final int vectorDimension;
     private final EnumSet<Capability> capabilities;
-
     /**
      * Create an {@link IndexTermType} from a {@link ColumnMetadata} and {@link IndexTarget.Type}.
      *
@@ -493,10 +493,13 @@ public class IndexTermType
      * raw value. At present only {@link InetAddressType} values are compared by their encoded values to
      * allow for ipv4 -> ipv6 equivalency in searches.
      */
-    public int comparePostFilter(Expression.Value requestedValue, Expression.Value columnValue)
+    public int comparePostFilter(Expression.Value requestedValue, Expression.Value columnValue, boolean equalV4V6IPs)
     {
         if (isInetAddress())
-            return compareInet(requestedValue.encoded, columnValue.encoded);
+            if(equalV4V6IPs)
+                return compareInet(requestedValue.encoded, columnValue.encoded);
+            else
+                return InetAddressType.instance.compareForCQL(requestedValue.raw, columnValue.raw);
         // bigint, decimal, and varint are not indexed in reversed byte-comparable form or treated as reversed types by
         // Expression, so it is correct to compare with the base/unwrapped type
         else if (isLong() || isBigDecimal() || isBigInteger())

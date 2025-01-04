@@ -43,6 +43,7 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableSet;
 
+import org.apache.cassandra.index.sai.utils.IPv6v4ComparisonSupport;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -116,6 +117,7 @@ import org.apache.cassandra.utils.concurrent.ImmediateFuture;
 import org.apache.cassandra.utils.concurrent.OpOrder;
 
 import static org.apache.cassandra.index.sai.disk.v1.IndexWriterConfig.MAX_TOP_K;
+import static org.apache.cassandra.index.sai.utils.IPv6v4ComparisonSupport.IP_COMPARISON_OPTION;
 
 public class StorageAttachedIndex implements Index
 {
@@ -157,7 +159,8 @@ public class StorageAttachedIndex implements Index
                                                                      IndexWriterConfig.OPTIMIZE_FOR,
                                                                      NonTokenizingOptions.CASE_SENSITIVE,
                                                                      NonTokenizingOptions.NORMALIZE,
-                                                                     NonTokenizingOptions.ASCII);
+                                                                     NonTokenizingOptions.ASCII,
+                                                                     IP_COMPARISON_OPTION);
 
     public static final Set<CQL3Type> SUPPORTED_TYPES = ImmutableSet.of(CQL3Type.Native.ASCII, CQL3Type.Native.BIGINT, CQL3Type.Native.DATE,
                                                                         CQL3Type.Native.DOUBLE, CQL3Type.Native.FLOAT, CQL3Type.Native.INT,
@@ -181,6 +184,7 @@ public class StorageAttachedIndex implements Index
     private final MemtableIndexManager memtableIndexManager;
     private final IndexMetrics indexMetrics;
     private final MaxThreshold maxTermSizeGuardrail;
+    private final boolean equalV4V6IPs;
 
     // Tracks whether we've started the index build on initialization.
     private volatile boolean initBuildStarted = false;
@@ -208,6 +212,8 @@ public class StorageAttachedIndex implements Index
                                ? Guardrails.saiVectorTermSize
                                : (indexTermType.isFrozen() ? Guardrails.saiFrozenTermSize
                                                            : Guardrails.saiStringTermSize);
+        this.equalV4V6IPs = Boolean.parseBoolean(indexMetadata.options.getOrDefault(IP_COMPARISON_OPTION,
+                String.valueOf(IPv6v4ComparisonSupport.IP_COMPARISON_OPTION_DEFAULT)));
     }
 
     /**
@@ -255,7 +261,9 @@ public class StorageAttachedIndex implements Index
             throw new InvalidRequestException("Failed to retrieve target column for: " + targetColumn);
         }
 
-        // In order to support different index targets on non-frozen map, ie. KEYS, VALUE, ENTRIES, we need to put index
+        IPv6v4ComparisonSupport.fromMap(options, target.left.type);
+
+        // In order to support different index targets on non-frozen map, i.e. KEYS, VALUE, ENTRIES, we need to put index
         // name as part of index file name instead of column name. We only need to check that the target is different
         // between indexes. This will only allow indexes in the same column with a different IndexTarget.Type.
         //
@@ -644,6 +652,11 @@ public class StorageAttachedIndex implements Index
     public boolean hasAnalyzer()
     {
         return analyzerFactory != null;
+    }
+
+    public boolean getIPComparisonOption()
+    {
+        return equalV4V6IPs;
     }
 
     /**

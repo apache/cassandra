@@ -21,6 +21,7 @@ package org.apache.cassandra.index.sai.plan;
 import java.nio.ByteBuffer;
 import java.util.Objects;
 
+import org.apache.cassandra.index.sai.utils.IPv6v4ComparisonSupport;
 import org.apache.commons.lang3.builder.HashCodeBuilder;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -125,6 +126,8 @@ public abstract class Expression
 
     abstract AbstractAnalyzer getAnalyzer();
 
+    abstract boolean getIPComparisonOption();
+
     public IndexOperator getIndexOperator()
     {
         return operator;
@@ -221,10 +224,14 @@ public abstract class Expression
     }
 
     /**
-     * Used in post-filtering to determine is an indexed value matches the expression
+     * Used in post-filtering to determine if an indexed value matches the expression
      */
     public boolean isSatisfiedBy(ByteBuffer columnValue)
     {
+        boolean equalV4V6IPs = getIPComparisonOption();
+        if (columnValue == null)
+            return false;
+
         // If the expression represents an ANN ordering then we return true because the actual result
         // is approximate and will rarely / never match the expression value
         if (indexTermType.isVector())
@@ -246,7 +253,7 @@ public abstract class Expression
             else
             {
                 // range or (not-)equals - (mainly) for numeric values
-                int cmp = indexTermType.comparePostFilter(lower.value, value);
+                int cmp = indexTermType.comparePostFilter(lower.value, value, equalV4V6IPs);
 
                 // in case of EQ lower == upper
                 if (operator == IndexOperator.EQ || operator == IndexOperator.CONTAINS_KEY || operator == IndexOperator.CONTAINS_VALUE)
@@ -265,7 +272,7 @@ public abstract class Expression
             else
             {
                 // range - mainly for numeric values
-                int cmp = indexTermType.comparePostFilter(upper.value, value);
+                int cmp = indexTermType.comparePostFilter(upper.value, value, equalV4V6IPs);
                 return (cmp > 0 || (cmp == 0 && upperInclusive));
             }
         }
@@ -414,6 +421,12 @@ public abstract class Expression
         {
             return index.analyzer();
         }
+
+        @Override
+        boolean getIPComparisonOption()
+        {
+            return index.getIPComparisonOption();
+        }
     }
 
     public static class UnindexedExpression extends Expression
@@ -445,6 +458,12 @@ public abstract class Expression
         AbstractAnalyzer getAnalyzer()
         {
             throw new UnsupportedOperationException();
+        }
+
+        @Override
+        boolean getIPComparisonOption()
+        {
+            return IPv6v4ComparisonSupport.IP_COMPARISON_OPTION_DEFAULT;
         }
     }
 
