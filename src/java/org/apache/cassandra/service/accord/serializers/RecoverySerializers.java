@@ -98,8 +98,8 @@ public class RecoverySerializers
             CommandSerializers.ballot.serialize(recoverOk.accepted, out, version);
             CommandSerializers.nullableTimestamp.serialize(recoverOk.executeAt, out, version);
             latestDeps.serialize(recoverOk.deps, out, version);
-            DepsSerializers.deps.serialize(recoverOk.earlierCommittedWitness, out, version);
-            DepsSerializers.deps.serialize(recoverOk.earlierAcceptedNoWitness, out, version);
+            DepsSerializers.deps.serialize(recoverOk.earlierWait, out, version);
+            DepsSerializers.deps.serialize(recoverOk.earlierNoWait, out, version);
             out.writeBoolean(recoverOk.selfAcceptsFastPath);
             out.writeBoolean(recoverOk.supersedingRejects);
             CommandSerializers.nullableWrites.serialize(recoverOk.writes, out, version);
@@ -118,9 +118,9 @@ public class RecoverySerializers
             return new RecoverNack(kind, supersededBy);
         }
 
-        RecoverOk deserializeOk(TxnId txnId, Status status, Ballot accepted, Timestamp executeAt, @Nonnull LatestDeps deps, Deps earlierCommittedWitness, Deps earlierAcceptedNoWitness, boolean acceptsFastPath, boolean rejectsFastPath, Writes writes, Result result, DataInputPlus in, int version)
+        RecoverOk deserializeOk(TxnId txnId, Status status, Ballot accepted, Timestamp executeAt, @Nonnull LatestDeps deps, Deps earlierWait, Deps earlierNoWait, boolean acceptsFastPath, boolean rejectsFastPath, Writes writes, Result result, DataInputPlus in, int version)
         {
-            return new RecoverOk(txnId, status, accepted, executeAt, deps, earlierCommittedWitness, earlierAcceptedNoWitness, acceptsFastPath, rejectsFastPath, writes, result);
+            return new RecoverOk(txnId, status, accepted, executeAt, deps, earlierWait, earlierNoWait, acceptsFastPath, rejectsFastPath, writes, result);
         }
 
         @Override
@@ -164,8 +164,8 @@ public class RecoverySerializers
             size += CommandSerializers.ballot.serializedSize(recoverOk.accepted, version);
             size += CommandSerializers.nullableTimestamp.serializedSize(recoverOk.executeAt, version);
             size += latestDeps.serializedSize(recoverOk.deps, version);
-            size += DepsSerializers.deps.serializedSize(recoverOk.earlierCommittedWitness, version);
-            size += DepsSerializers.deps.serializedSize(recoverOk.earlierAcceptedNoWitness, version);
+            size += DepsSerializers.deps.serializedSize(recoverOk.earlierWait, version);
+            size += DepsSerializers.deps.serializedSize(recoverOk.earlierNoWait, version);
             size += TypeSizes.sizeof(recoverOk.selfAcceptsFastPath);
             size += TypeSizes.sizeof(recoverOk.supersedingRejects);
             size += CommandSerializers.nullableWrites.serializedSize(recoverOk.writes, version);

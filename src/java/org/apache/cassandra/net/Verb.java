@@ -96,7 +96,6 @@ import org.apache.cassandra.service.accord.serializers.EnumSerializer;
 import org.apache.cassandra.service.accord.serializers.FetchSerializers;
 import org.apache.cassandra.service.accord.serializers.CalculateDepsSerializers;
 import org.apache.cassandra.service.accord.serializers.GetEphmrlReadDepsSerializers;
-import org.apache.cassandra.service.accord.serializers.GetMaxConflictSerializers;
 import org.apache.cassandra.service.accord.serializers.InformDurableSerializers;
 import org.apache.cassandra.service.accord.serializers.LatestDepsSerializers;
 import org.apache.cassandra.service.accord.serializers.PreacceptSerializers;
@@ -341,8 +340,6 @@ public enum Verb
     ACCORD_GET_LATEST_DEPS_REQ      (168, P2, writeTimeout, IMMEDIATE,          () -> LatestDepsSerializers.request,        AccordService::requestHandlerOrNoop, ACCORD_GET_LATEST_DEPS_RSP),
     ACCORD_GET_EPHMRL_READ_DEPS_RSP (161, P2, writeTimeout, IMMEDIATE,          () -> GetEphmrlReadDepsSerializers.reply,   AccordService::responseHandlerOrNoop                                           ),
     ACCORD_GET_EPHMRL_READ_DEPS_REQ (162, P2, writeTimeout, IMMEDIATE,          () -> GetEphmrlReadDepsSerializers.request, AccordService::requestHandlerOrNoop, ACCORD_GET_EPHMRL_READ_DEPS_RSP),
-    ACCORD_GET_MAX_CONFLICT_RSP     (163, P2, writeTimeout, IMMEDIATE,          () -> GetMaxConflictSerializers.reply,      AccordService::responseHandlerOrNoop                                           ),
-    ACCORD_GET_MAX_CONFLICT_REQ     (164, P2, writeTimeout, IMMEDIATE,          () -> GetMaxConflictSerializers.request,    AccordService::requestHandlerOrNoop, ACCORD_GET_MAX_CONFLICT_RSP),
     ACCORD_FETCH_DATA_RSP           (145, P2, writeTimeout, IMMEDIATE,          () -> FetchSerializers.reply,               AccordService::responseHandlerOrNoop                                           ),
     ACCORD_FETCH_DATA_REQ           (146, P2, writeTimeout, IMMEDIATE,          () -> FetchSerializers.request,             AccordService::requestHandlerOrNoop, ACCORD_FETCH_DATA_RSP                     ),
     ACCORD_SET_SHARD_DURABLE_REQ    (147, P2, writeTimeout, MISC,               () -> SetDurableSerializers.shardDurable,   AccordService::requestHandlerOrNoop, ACCORD_SIMPLE_RSP                         ),

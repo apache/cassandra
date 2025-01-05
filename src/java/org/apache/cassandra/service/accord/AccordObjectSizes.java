@@ -297,7 +297,7 @@ public class AccordObjectSizes
         final static long COMMITTED = measure(Command.SerializerSupport.committed(attrs(true, true, false), SaveStatus.Committed, EMPTY_TXNID, Ballot.ZERO, Ballot.ZERO, null));
         final static long EXECUTED = measure(Command.SerializerSupport.executed(attrs(true, true, true), SaveStatus.Applied, EMPTY_TXNID, Ballot.ZERO, Ballot.ZERO, WaitingOn.empty(Domain.Key), EMPTY_WRITES, ResultSerializers.APPLIED));
         final static long TRUNCATED = measure(Command.SerializerSupport.truncatedApply(attrs(false, false, false), SaveStatus.TruncatedApply,  EMPTY_TXNID, null, null));
-        final static long INVALIDATED = measure(Command.SerializerSupport.invalidated(EMPTY_TXNID));
+        final static long INVALIDATED = measure(Command.SerializerSupport.invalidated(EMPTY_TXNID, StoreParticipants.empty(EMPTY_TXNID)));
 
         private static long emptySize(Command command)
         {

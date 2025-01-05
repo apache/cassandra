@@ -53,7 +53,7 @@ import static org.apache.cassandra.cql3.statements.schema.CreateTableStatement.p
 
 public class CommandChangeTest
 {
-    private static final EnumSet<Fields> ALL = EnumSet.allOf(Fields.class);
+    private static final EnumSet<Field> ALL = EnumSet.allOf(Field.class);
 
     @BeforeClass
     public static void beforeClass() throws Throwable
@@ -77,9 +77,9 @@ public class CommandChangeTest
     public void simpleNullChangeCheck()
     {
         int flags = getFlags(null, Command.NotDefined.uninitialised(TxnId.NONE));
-        EnumSet<Fields> has = EnumSet.of(Fields.SAVE_STATUS, Fields.PARTICIPANTS, Fields.DURABILITY, Fields.PROMISED,
-                                         Fields.ACCEPTED /* this is Zero... which kinda means null... */);
-        Set<Fields> missing = Sets.difference(ALL, has);
+        EnumSet<Field> has = EnumSet.of(Field.SAVE_STATUS, Field.PARTICIPANTS, Field.DURABILITY, Field.PROMISED,
+                                        Field.ACCEPTED /* this is Zero... which kinda means null... */);
+        Set<Field> missing = Sets.difference(ALL, has);
         assertHas(flags, has);
         assertMissing(flags, missing);
     }
@@ -117,10 +117,10 @@ public class CommandChangeTest
         }
     }
 
-    private void assertHas(int flags, Set<Fields> missing)
+    private void assertHas(int flags, Set<Field> missing)
     {
         SoftAssertions checks = new SoftAssertions();
-        for (Fields field : missing)
+        for (Field field : missing)
         {
             checks.assertThat(CommandChange.getFieldChanged(field, flags))
                   .describedAs("field %s changed", field).
@@ -132,12 +132,12 @@ public class CommandChangeTest
         checks.assertAll();
     }
 
-    private void assertMissing(int flags, Set<Fields> missing)
+    private void assertMissing(int flags, Set<Field> missing)
     {
         SoftAssertions checks = new SoftAssertions();
-        for (Fields field : missing)
+        for (Field field : missing)
         {
-            if (field == Fields.CLEANUP) continue;
+            if (field == Field.CLEANUP) continue;
             checks.assertThat(CommandChange.getFieldChanged(field, flags))
                   .describedAs("field %s changed", field)
                   .isFalse();

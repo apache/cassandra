@@ -30,6 +30,7 @@ import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
+import org.apache.cassandra.service.accord.AccordFetchCoordinator.AccordFetchRequest;
 import org.apache.cassandra.service.accord.AccordFetchCoordinator.StreamData;
 import org.apache.cassandra.service.accord.AccordFetchCoordinator.StreamingTxn;
 import org.apache.cassandra.utils.CastingSerializer;
@@ -55,11 +56,11 @@ public class FetchSerializers
         @Override
         public FetchRequest deserialize(DataInputPlus in, int version) throws IOException
         {
-            return new FetchRequest(in.readUnsignedVInt(),
-                                    CommandSerializers.txnId.deserialize(in, version),
-                                    KeySerializers.ranges.deserialize(in, version),
-                                    DepsSerializers.partialDeps.deserialize(in, version),
-                                    StreamingTxn.serializer.deserialize(in, version));
+            return new AccordFetchRequest(in.readUnsignedVInt(),
+                                          CommandSerializers.txnId.deserialize(in, version),
+                                          KeySerializers.ranges.deserialize(in, version),
+                                          DepsSerializers.partialDeps.deserialize(in, version),
+                                          StreamingTxn.serializer.deserialize(in, version));
         }
 
         @Override
@@ -91,7 +92,7 @@ public class FetchSerializers
             FetchResponse response = (FetchResponse) reply;
             serializeNullable(response.unavailable, out, version, KeySerializers.ranges);
             serializeNullable(response.data, out, version, streamDataSerializer);
-            CommandSerializers.nullableTimestamp.serialize(response.maxApplied, out, version);
+            CommandSerializers.nullableTimestamp.serialize(response.safeToReadAfter, out, version);
         }
 
         @Override
@@ -116,7 +117,7 @@ public class FetchSerializers
             return TypeSizes.BYTE_SIZE
                    + serializedNullableSize(response.unavailable, version, KeySerializers.ranges)
                    + serializedNullableSize(response.data, version, streamDataSerializer)
-                   + CommandSerializers.nullableTimestamp.serializedSize(response.maxApplied, version);
+                   + CommandSerializers.nullableTimestamp.serializedSize(response.safeToReadAfter, version);
         }
     };
 

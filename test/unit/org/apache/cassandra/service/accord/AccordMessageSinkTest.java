@@ -27,6 +27,7 @@ import accord.impl.RequestCallbacks;
 import accord.messages.ReadData;
 import accord.messages.ReadData.CommitOrReadNack;
 import accord.topology.TopologyUtils;
+import org.apache.cassandra.service.accord.AccordFetchCoordinator.AccordFetchRequest;
 import org.apache.cassandra.service.accord.api.AccordTimeService;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
@@ -82,7 +83,7 @@ public class AccordMessageSinkTest
         TxnId id = nextTxnId(epoch, txn);
         Ranges ranges = Ranges.of(IntKey.range(40, 50));
         PartialTxn partialTxn = txn.slice(ranges, true);
-        Request request = new AbstractFetchCoordinator.FetchRequest(epoch, id, ranges, PartialDeps.NONE, partialTxn);
+        Request request = new AccordFetchRequest(epoch, id, ranges, PartialDeps.NONE, partialTxn);
 
         checkRequestReplies(request,
                             new AbstractFetchCoordinator.FetchResponse(null, null, id),

@@ -224,7 +224,6 @@ public class SimulatedAccordCommandStore implements AutoCloseable
         this.topologies = new Topologies.Single(SizeOfIntersectionSorter.SUPPLIER, topology);
         CommandStores.RangesForEpoch rangesForEpoch = new CommandStores.RangesForEpoch(topology.epoch(), topology.ranges());
         updateHolder.add(topology.epoch(), rangesForEpoch, topology.ranges());
-        updateHolder.updateGlobal(topology.ranges());
         commandStore.unsafeUpdateRangesForEpoch();
 
         shouldEvict = boolSource(rs.fork());

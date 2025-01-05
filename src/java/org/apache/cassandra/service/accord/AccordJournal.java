@@ -33,6 +33,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import accord.impl.CommandChange;
+import accord.impl.CommandChange.Field;
 import accord.impl.ErasedSafeCommand;
 import accord.local.Cleanup;
 import accord.local.Command;
@@ -543,7 +544,7 @@ public class AccordJournal implements accord.api.Journal, Shutdownable
             int iterable = toIterableSetFields(flags);
             while (iterable != 0)
             {
-                CommandChange.Fields field = nextSetField(iterable);
+                Field field = nextSetField(iterable);
                 if (getFieldIsNull(field, flags))
                 {
                     iterable = unsetIterableFields(field, iterable);
@@ -653,7 +654,7 @@ public class AccordJournal implements accord.api.Journal, Shutdownable
             int iterable = toIterableSetFields(flags);
             while (iterable != 0)
             {
-                CommandChange.Fields field = nextSetField(iterable);
+                Field field = nextSetField(iterable);
                 if (getFieldChanged(field, this.flags) || getFieldIsNull(field, mask))
                 {
                     if (!getFieldIsNull(field, flags))
@@ -677,7 +678,7 @@ public class AccordJournal implements accord.api.Journal, Shutdownable
             }
         }
 
-        private void deserialize(CommandChange.Fields field, DataInputPlus in, int userVersion) throws IOException
+        private void deserialize(Field field, DataInputPlus in, int userVersion) throws IOException
         {
             switch (field)
             {
@@ -740,7 +741,7 @@ public class AccordJournal implements accord.api.Journal, Shutdownable
             }
         }
 
-        private void skip(CommandChange.Fields field, DataInputPlus in, int userVersion) throws IOException
+        private void skip(Field field, DataInputPlus in, int userVersion) throws IOException
         {
             switch (field)
             {

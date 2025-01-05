@@ -273,7 +273,7 @@ public class AccordGenerators
                 case Erased:
                 case ErasedOrVestigial:
                 case Invalidated:
-                    return Command.SerializerSupport.invalidated(txnId);
+                    return Command.SerializerSupport.invalidated(txnId, attributes(saveStatus).participants());
             }
         }
     }

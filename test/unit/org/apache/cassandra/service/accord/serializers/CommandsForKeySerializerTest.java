@@ -198,7 +198,7 @@ public class CommandsForKeySerializerTest
                     return Command.SerializerSupport.executed(attributes(), saveStatus, executeAt, ballot, ballot, Command.WaitingOn.empty(txnId.domain()), new Writes(txnId, executeAt, txn.keys(), new TxnWrite(Collections.emptyList(), true)), new TxnData());
 
                 case Invalidated:
-                    return Command.SerializerSupport.invalidated(txnId);
+                    return Command.SerializerSupport.invalidated(txnId, attributes().participants());
             }
         }
 

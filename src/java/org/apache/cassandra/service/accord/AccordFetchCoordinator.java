@@ -34,6 +34,7 @@ import accord.impl.AbstractFetchCoordinator;
 import accord.local.CommandStore;
 import accord.local.Node;
 import accord.local.SafeCommandStore;
+import accord.primitives.PartialDeps;
 import accord.primitives.PartialTxn;
 import accord.primitives.Participants;
 import accord.primitives.Range;
@@ -44,6 +45,7 @@ import accord.primitives.Seekables;
 import accord.primitives.SyncPoint;
 import accord.primitives.Timestamp;
 import accord.primitives.Txn;
+import accord.primitives.TxnId;
 import accord.utils.Invariants;
 import accord.utils.async.AsyncChain;
 import accord.utils.async.AsyncChains;
@@ -267,13 +269,13 @@ public class AccordFetchCoordinator extends AbstractFetchCoordinator implements 
                 Invariants.checkArgument(key.domain() == Routable.Domain.Range, "Required Range but saw %s: %s", key.domain(), key);
                 TokenRange range = (TokenRange) key;
 
-                // TODO (correctness): check epoch
-                // TODO (correctness): handle dropped tables
+                // TODO (required): check epoch
+                // TODO (required): handle dropped tables
                 TableId tableId = range.table();
                 TableMetadata table = ClusterMetadata.current().schema.getKeyspaces().getTableOrViewNullable(tableId);
                 Invariants.checkState(table != null, "Table with id %s not found", tableId);
 
-                // FIXME: may also be relocation
+                // TODO (required): may also be relocation
                 StreamPlan plan = new StreamPlan(StreamOperation.BOOTSTRAP, 1, false,
                                                  null, PreviewKind.NONE).flushBeforeTransfer(true);
 
@@ -409,5 +411,28 @@ public class AccordFetchCoordinator extends AbstractFetchCoordinator implements 
                 success(from, Ranges.of(range));
             }
         });
+    }
+
+    public static class AccordFetchRequest extends FetchRequest
+    {
+        public AccordFetchRequest(long sourceEpoch, TxnId syncId, Ranges ranges, PartialDeps partialDeps, PartialTxn partialTxn)
+        {
+            super(sourceEpoch, syncId, ranges, partialDeps, partialTxn);
+        }
+
+        @Override
+        protected AsyncChain<Data> beginRead(SafeCommandStore safeStore, Timestamp executeAt, PartialTxn txn, Ranges unavailable)
+        {
+            AsyncChain<Data> result = super.beginRead(safeStore, executeAt, txn, unavailable);
+            // TODO (required): verify that streaming snapshots have all been created by now, so we won't stream any data that arrives after this
+            readStarted(safeStore, unavailable);
+            return result;
+        }
+    }
+
+    @Override
+    protected FetchRequest newFetchRequest(long sourceEpoch, TxnId syncId, Ranges ranges, PartialDeps partialDeps, PartialTxn partialTxn)
+    {
+        return new AccordFetchRequest(sourceEpoch, syncId, ranges, partialDeps, partialTxn);
     }
 }

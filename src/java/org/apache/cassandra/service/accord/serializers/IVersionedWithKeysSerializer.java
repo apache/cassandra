@@ -333,7 +333,7 @@ public interface IVersionedWithKeysSerializer<K extends Routables<?>, T> extends
                 default: throw new AssertionError("Unhandled domain: " + superset.domain());
                 case Key:
                 {
-                    RoutingKeys keys = (RoutingKeys) superset;
+                    AbstractUnseekableKeys keys = (AbstractUnseekableKeys) superset;
                     RoutingKey[] out = new RoutingKey[deserializeCount];
                     int supersetIndex = 0;
                     int count = 0;

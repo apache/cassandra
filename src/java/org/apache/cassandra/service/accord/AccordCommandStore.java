@@ -181,10 +181,10 @@ public class AccordCommandStore extends CommandStore
         this.commandsForRanges = new CommandsForRanges.Manager(this);
         this.loader = new CommandStoreLoader(this);
 
-        loadRedundantBefore(journal.loadRedundantBefore(id()));
-        loadBootstrapBeganAt(journal.loadBootstrapBeganAt(id()));
-        loadSafeToRead(journal.loadSafeToRead(id()));
-        loadRangesForEpoch(journal.loadRangesForEpoch(id()));
+        maybeLoadRedundantBefore(journal.loadRedundantBefore(id()));
+        maybeLoadBootstrapBeganAt(journal.loadBootstrapBeganAt(id()));
+        maybeLoadSafeToRead(journal.loadSafeToRead(id()));
+        maybeLoadRangesForEpoch(journal.loadRangesForEpoch(id()));
     }
 
     static Factory factory(Journal journal, IntFunction<AccordExecutor> executorFactory)
@@ -253,13 +253,6 @@ public class AccordCommandStore extends CommandStore
     public Caches cachesUnsafe()
     {
         return caches;
-    }
-
-    @VisibleForTesting
-    @Override
-    public void unsafeSetRangesForEpoch(CommandStores.RangesForEpoch newRangesForEpoch)
-    {
-        super.unsafeSetRangesForEpoch(newRangesForEpoch);
     }
 
     @Nullable
@@ -556,27 +549,27 @@ public class AccordCommandStore extends CommandStore
      * Replay/state reloading
      */
 
-    void loadRedundantBefore(RedundantBefore redundantBefore)
+    void maybeLoadRedundantBefore(RedundantBefore redundantBefore)
     {
         if (redundantBefore != null)
-            unsafeSetRedundantBefore(redundantBefore);
+            loadRedundantBefore(redundantBefore);
     }
 
-    void loadBootstrapBeganAt(NavigableMap<TxnId, Ranges> bootstrapBeganAt)
+    void maybeLoadBootstrapBeganAt(NavigableMap<TxnId, Ranges> bootstrapBeganAt)
     {
         if (bootstrapBeganAt != null)
-            unsafeSetBootstrapBeganAt(bootstrapBeganAt);
+            loadBootstrapBeganAt(bootstrapBeganAt);
     }
 
-    void loadSafeToRead(NavigableMap<Timestamp, Ranges> safeToRead)
+    void maybeLoadSafeToRead(NavigableMap<Timestamp, Ranges> safeToRead)
     {
         if (safeToRead != null)
-            unsafeSetSafeToRead(safeToRead);
+            loadSafeToRead(safeToRead);
     }
 
-    void loadRangesForEpoch(CommandStores.RangesForEpoch rangesForEpoch)
+    void maybeLoadRangesForEpoch(CommandStores.RangesForEpoch rangesForEpoch)
     {
         if (rangesForEpoch != null)
-            unsafeSetRangesForEpoch(rangesForEpoch);
+            loadRangesForEpoch(rangesForEpoch);
     }
 }
