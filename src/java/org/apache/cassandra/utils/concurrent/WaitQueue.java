@@ -344,7 +344,7 @@ public interface WaitQueue
             public boolean awaitUntil(long nanoTimeDeadline) throws InterruptedException
             {
                 long now;
-                while (nanoTimeDeadline > (now = nanoTime()) && !isSignalled())
+                while (nanoTimeDeadline > (now = nanoTime()) && !isSet())
                 {
                     checkInterrupted();
                     long delta = nanoTimeDeadline - now;
