@@ -301,17 +301,11 @@ public interface WaitQueue
             public Signal awaitUninterruptibly()
             {
                 boolean interrupted = false;
-                while (true)
+                while (!isSet())
                 {
-                    try
-                    {
-                        await(false);
-                        break;
-                    }
-                    catch (InterruptedException e)
-                    {
+                    if (Thread.interrupted())
                         interrupted = true;
-                    }
+                    LockSupport.park();
                 }
                 if (interrupted)
                     Thread.currentThread().interrupt();
@@ -320,14 +314,9 @@ public interface WaitQueue
 
             public Signal await() throws InterruptedException
             {
-                return await(true);
-            }
-
-            private Signal await(boolean cancelOnInterrupt) throws InterruptedException
-            {
                 while (!isSet())
                 {
-                    checkInterrupted(cancelOnInterrupt);
+                    checkInterrupted();
                     LockSupport.park();
                 }
                 checkAndClear();
@@ -337,47 +326,37 @@ public interface WaitQueue
             public boolean awaitUntilUninterruptibly(long nanoTimeDeadline)
             {
                 boolean interrupted = false;
-                boolean result;
-                while (true)
+                long now;
+                while (nanoTimeDeadline > (now = nanoTime()) && !isSet())
                 {
-                    try
-                    {
-                        result = awaitUntil(nanoTimeDeadline, false);
-                        break;
-                    }
-                    catch (InterruptedException e)
-                    {
+                    if (Thread.interrupted())
                         interrupted = true;
-                    }
+                    long delta = nanoTimeDeadline - now;
+                    LockSupport.parkNanos(delta);
                 }
                 if (interrupted)
                     Thread.currentThread().interrupt();
-                return result;
+
+                return checkAndClear();
             }
 
             public boolean awaitUntil(long nanoTimeDeadline) throws InterruptedException
             {
-                return awaitUntil(nanoTimeDeadline, true);
-            }
-
-            private boolean awaitUntil(long nanoTimeDeadline, boolean cancelOnInterrupt) throws InterruptedException
-            {
                 long now;
-                while (nanoTimeDeadline > (now = nanoTime()) && !isSet())
+                while (nanoTimeDeadline > (now = nanoTime()) && !isSignalled())
                 {
-                    checkInterrupted(cancelOnInterrupt);
+                    checkInterrupted();
                     long delta = nanoTimeDeadline - now;
                     LockSupport.parkNanos(delta);
                 }
                 return checkAndClear();
             }
 
-            private void checkInterrupted(boolean cancelOnInterrupt) throws InterruptedException
+            private void checkInterrupted() throws InterruptedException
             {
                 if (Thread.interrupted())
                 {
-                    if (cancelOnInterrupt)
-                        cancel();
+                    cancel();
                     throw new InterruptedException();
                 }
             }
