@@ -23,12 +23,12 @@ import java.nio.ByteOrder;
 
 import org.apache.cassandra.utils.memory.MemoryUtil;
 
-/**
- * Temporary created object as a part of slicing (usually to parse collection parts)
- */
 public class AddressBasedNativeData implements NativeData
 {
-    public static final AddressBasedNativeData EMPTY = new AddressBasedNativeData(-1, 0);
+    // use a real address, just in case
+    private static final ByteBuffer EMPTY_NATIVE_BUFFER = ByteBuffer.allocateDirect(1);
+    private static final long EMPTY_VALUE_ADDRESS = MemoryUtil.getAddress(EMPTY_NATIVE_BUFFER);
+    public static final AddressBasedNativeData EMPTY = new AddressBasedNativeData(EMPTY_VALUE_ADDRESS, 0);
 
     private final long address;
     private final int length;

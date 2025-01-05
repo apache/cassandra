@@ -20,8 +20,6 @@ package org.apache.cassandra.db.marshal;
 
 import java.nio.ByteBuffer;
 
-import org.apache.cassandra.utils.ByteBufferUtil;
-
 public interface NativeData
 {
     int nativeDataSize();
@@ -30,15 +28,5 @@ public interface NativeData
 
     NativeData slice(int offset, int length);
 
-    default int compareTo(NativeData right)
-    {
-        return ByteBufferUtil.compareUnsigned(this.asByteBuffer(), right.asByteBuffer());
-    }
-
     public long getAddress();
-
-    default int compareTo(ByteBuffer right)
-    {
-        return ByteBufferUtil.compareUnsigned(this.asByteBuffer(), right);
-    }
 }

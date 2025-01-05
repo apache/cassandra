@@ -99,7 +99,7 @@ public class NativeAccessor implements ValueAccessor<NativeData>
         }
         else if (dstAccessor == NativeAccessor.instance)
             MemoryUtil.setBytes(src.getAddress() + srcOffset, ((NativeData) dst).getAddress() + dstOffset, size);
-        else
+        else // just in case of new implementations of ValueAccessor appear
             dstAccessor.copyByteBufferTo(src.asByteBuffer(), srcOffset, dst, dstOffset, size);
 
         return size;
@@ -148,8 +148,8 @@ public class NativeAccessor implements ValueAccessor<NativeData>
             int leftSize = left.nativeDataSize();
             int rightSize = rightNative.nativeDataSize();
             return FastByteOperations.compareUnsigned(left.getAddress(), leftSize, rightNative.getAddress(), rightSize);
-        } else
-            return left.compareTo(accessorR.toBuffer(right));
+        } else // just in case of new implementations of ValueAccessor appear
+            return ByteBufferUtil.compareUnsigned(left.asByteBuffer(), accessorR.toBuffer(right));
     }
 
     @Override
