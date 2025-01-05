@@ -309,6 +309,7 @@ public interface WaitQueue
                 }
                 if (interrupted)
                     Thread.currentThread().interrupt();
+                checkAndClear();
                 return this;
             }
 
