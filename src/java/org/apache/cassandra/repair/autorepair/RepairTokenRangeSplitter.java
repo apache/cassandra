@@ -538,6 +538,18 @@ public class RepairTokenRangeSplitter implements IAutoRepairTokenRangeSplitter
         // since its possible for us to hit maxBytesPerSchedule before seeing all ranges, shuffle so there is chance
         // at least of hitting all the ranges _eventually_ for the worst case scenarios
         Collections.shuffle(sizeEstimates);
+        int totalExpectedSubRanges = 0;
+        for (SizeEstimate estimate : sizeEstimates)
+        {
+            if (estimate.sizeForRepair != 0)
+            {
+                boolean needsSplitting = estimate.sizeForRepair > bytesPerAssignment.toBytes() || estimate.partitions > partitionsPerAssignment;
+                if (needsSplitting)
+                {
+                    totalExpectedSubRanges += calculateNumberOfSplits(estimate);
+                }
+            }
+        }
         for (SizeEstimate estimate : sizeEstimates)
         {
             if (estimate.sizeForRepair == 0)
@@ -567,7 +579,7 @@ public class RepairTokenRangeSplitter implements IAutoRepairTokenRangeSplitter
                     for (Range<Token> subrange : subranges)
                     {
                         SizedRepairAssignment assignment = new SizedRepairAssignment(subrange, estimate.keyspace, Collections.singletonList(estimate.table),
-                                                                                     String.format("subrange %d of %d", repairAssignments.size()+1, numberOfSplits),
+                                                                                     String.format("subrange %d of %d", repairAssignments.size()+1, totalExpectedSubRanges),
                                                                                      approximateBytesPerSplit);
                         repairAssignments.add(assignment);
                     }
