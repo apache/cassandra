@@ -146,6 +146,9 @@ public abstract class MemoryUtil
     }
 
 
+    /**
+     * @return unsigned short
+     */
     public static int getShort(long address, boolean isBigEndian)
     {
         if (Architecture.IS_UNALIGNED)

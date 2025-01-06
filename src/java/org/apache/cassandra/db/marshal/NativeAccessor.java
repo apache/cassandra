@@ -95,7 +95,7 @@ public class NativeAccessor implements ValueAccessor<NativeData>
         {
             ByteBuffer dstBuffer = dstAccessor.toBuffer(dst);
             MemoryUtil.getBytes(src.getAddress() + srcOffset, dstBuffer, dstOffset, size);
-            dstBuffer.position(dstBuffer.position() + size);
+            // note: position of dstBuffer expected to stay the same
         }
         else if (dstAccessor == NativeAccessor.instance)
             MemoryUtil.setBytes(src.getAddress() + srcOffset, ((NativeData) dst).getAddress() + dstOffset, size);
@@ -184,8 +184,11 @@ public class NativeAccessor implements ValueAccessor<NativeData>
         if (value == null)
             return null;
         int size = value.nativeDataSize();
-        byte[] result = new byte[size];
-        MemoryUtil.getBytes(value.getAddress() + offset, result, 0, size);
+        if (length > size)
+            throw new IllegalArgumentException("length (" + length + ") cannot be more than the value size (" + size + ")");
+
+        byte[] result = new byte[length];
+        MemoryUtil.getBytes(value.getAddress() + offset, result, 0, length);
         return result;
     }
 
@@ -228,7 +231,7 @@ public class NativeAccessor implements ValueAccessor<NativeData>
     @Override
     public int getUnsignedShort(NativeData value, int offset)
     {
-        return ((short) MemoryUtil.getShort(value.getAddress() + offset, true)) & 0xFFFF;
+        return MemoryUtil.getShort(value.getAddress() + offset, true);
     }
 
     @Override
