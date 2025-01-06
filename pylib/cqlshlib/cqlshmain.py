@@ -845,8 +845,15 @@ class Shell(cmd.Cmd):
 
             if self.tracing_enabled:
                 try:
-                    for trace in future.get_all_query_traces(max_wait_per=self.max_trace_wait, query_cl=self.consistency_level):
-                        print_trace(self, trace)
+                    if self.use_paging:
+                        last_trace = None
+                        for trace in future.get_all_query_traces(max_wait_per=self.max_trace_wait, query_cl=self.consistency_level):
+                            last_trace = trace
+                        if last_trace:
+                            print_trace(self, last_trace)
+                    else:
+                        for trace in future.get_all_query_traces(max_wait_per=self.max_trace_wait, query_cl=self.consistency_level):
+                            print_trace(self, trace)
                 except TraceUnavailable:
                     msg = "Statement trace did not complete within %d seconds; trace data may be incomplete." % (self.session.max_trace_wait,)
                     self.writeresult(msg, color=RED)
@@ -1580,7 +1587,7 @@ class Shell(cmd.Cmd):
           TRACING with no arguments shows the current tracing status.
         """
         self.tracing_enabled \
-            = self.on_off_switch("TRACING", self.tracing_enabled, parsed.get_binding('switch'))
+            = self.on_off_switch_with_value("TRACING", self.tracing_enabled, parsed.get_binding('switch'))
 
     def do_elapsed(self, parsed):
         """
