@@ -444,6 +444,11 @@ public abstract class ReadCommand extends AbstractReadQuery
     protected abstract UnfilteredPartitionIterator queryStorage(ColumnFamilyStore cfs, ReadExecutionController executionController);
 
     /**
+     * Used by LoggedReadReconciliation, applies missing mutations to a read result
+     */
+    public abstract UnfilteredPartitionIterator augmentResultWithMutations(UnfilteredPartitionIterator result, Collection<Mutation> mutations);
+
+    /**
      * Whether the underlying {@code ClusteringIndexFilter} is reversed or not.
      *
      * @return whether the underlying {@code ClusteringIndexFilter} is reversed or not.
