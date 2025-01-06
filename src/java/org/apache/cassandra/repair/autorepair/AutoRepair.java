@@ -91,14 +91,11 @@ public class AutoRepair
     @VisibleForTesting
     protected static BiConsumer<Long, TimeUnit> sleepFunc = Uninterruptibles::sleepUninterruptibly;
 
-    protected final Map<AutoRepairConfig.RepairType, IAutoRepairTokenRangeSplitter> tokenRangeSplitters = new EnumMap<>(AutoRepairConfig.RepairType.class);
-
     private boolean isSetupDone = false;
 
     @VisibleForTesting
     protected AutoRepair()
     {
-        AutoRepairConfig config = DatabaseDescriptor.getAutoRepairConfig();
         repairExecutors = new EnumMap<>(AutoRepairConfig.RepairType.class);
         repairRunnableExecutors = new EnumMap<>(AutoRepairConfig.RepairType.class);
         repairStates = new EnumMap<>(AutoRepairConfig.RepairType.class);
@@ -107,7 +104,6 @@ public class AutoRepair
             repairExecutors.put(repairType, executorFactory().scheduled(false, "AutoRepair-Repair-" + repairType.getConfigName(), Thread.NORM_PRIORITY));
             repairRunnableExecutors.put(repairType, executorFactory().scheduled(false, "AutoRepair-RepairRunnable-" + repairType.getConfigName(), Thread.NORM_PRIORITY));
             repairStates.put(repairType, AutoRepairConfig.RepairType.getAutoRepairState(repairType));
-            tokenRangeSplitters.put(repairType, FBUtilities.newAutoRepairTokenRangeSplitter(config.getTokenRangeSplitter(repairType)));
         }
     }
 
@@ -147,15 +143,6 @@ public class AutoRepair
             throw new ConfigurationException("Auto-repair is disabled for repair type " + repairType);
         }
         repairExecutors.get(repairType).submit(() -> repair(repairType));
-    }
-
-    /**
-     * @return The priority of the given table if defined, otherwise 0.
-     */
-    private int getPriority(AutoRepairConfig.RepairType repairType, String keyspaceName, String tableName)
-    {
-        ColumnFamilyStore cfs = ColumnFamilyStore.getIfExists(keyspaceName, tableName);
-        return cfs != null ? cfs.metadata().params.autoRepair.priority() : 0;
     }
 
     // repair runs a repair session of the given type synchronously.
@@ -228,7 +215,7 @@ public class AutoRepair
                 List<PrioritizedRepairPlan> repairPlans = PrioritizedRepairPlan.build(keyspacesAndTablesToRepair, repairType, shuffleFunc);
 
                 // calculate the repair assignments for each priority:keyspace.
-                Iterator<KeyspaceRepairAssignments> repairAssignmentsIterator = tokenRangeSplitters.get(repairType).getRepairAssignments(repairType, primaryRangeOnly, repairPlans);
+                Iterator<KeyspaceRepairAssignments> repairAssignmentsIterator = config.getTokenRangeSplitterInstance(repairType).getRepairAssignments(primaryRangeOnly, repairPlans);
 
                 while (repairAssignmentsIterator.hasNext())
                 {

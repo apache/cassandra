@@ -430,7 +430,7 @@ public class AutoRepairUtils
             }
             else
             {
-                logger.info("Node is not present in Gossipe cache node {}, node data center {}", node, nodeDC);
+                logger.warn("Node is not present in Gossip cache node {}, node data center {}", node, nodeDC);
             }
         }
         return hostIdsInCurrentRing;

@@ -24,6 +24,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 
 import org.junit.BeforeClass;
 import org.junit.Test;
@@ -48,12 +49,14 @@ import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 
 @RunWith(Parameterized.class)
-public class AutoRepairDefaultTokenSplitterParameterizedTest extends CQLTester
+public class FixedSplitTokenRangeSplitterTest extends CQLTester
 {
     private static final String KEYSPACE = "ks";
     private static final String TABLE1 = "tbl1";
     private static final String TABLE2 = "tbl2";
     private static final String TABLE3 = "tbl3";
+
+    private static final Map<String, String> splitterParams = Collections.singletonMap(FixedSplitTokenRangeSplitter.NUMBER_OF_SUBRANGES, Integer.toString(4));
 
     @Parameterized.Parameter()
     public AutoRepairConfig.RepairType repairType;
@@ -95,12 +98,10 @@ public class AutoRepairDefaultTokenSplitterParameterizedTest extends CQLTester
             }
         }
 
-        AutoRepairConfig config = AutoRepairService.instance.getAutoRepairConfig();
-        config.setRepairSubRangeNum(repairType, numberOfSplits);
-
         List<PrioritizedRepairPlan> plan = PrioritizedRepairPlan.buildSingleKeyspacePlan(repairType, KEYSPACE, TABLE1, TABLE2, TABLE3);
 
-        Iterator<KeyspaceRepairAssignments> keyspaceAssignments = new DefaultAutoRepairTokenSplitter().getRepairAssignments(repairType, true, plan);
+        Iterator<KeyspaceRepairAssignments> keyspaceAssignments = new FixedSplitTokenRangeSplitter(repairType, splitterParams)
+                                                                  .getRepairAssignments(true, plan);
 
         // should be only 1 entry for the keyspace.
         assertTrue(keyspaceAssignments.hasNext());
@@ -148,12 +149,10 @@ public class AutoRepairDefaultTokenSplitterParameterizedTest extends CQLTester
             expectedToken.addAll(AutoRepairUtils.split(range, numberOfSplits));
         }
 
-        AutoRepairConfig config = AutoRepairService.instance.getAutoRepairConfig();
-        config.setRepairSubRangeNum(repairType, numberOfSplits);
-
         List<PrioritizedRepairPlan> plan = PrioritizedRepairPlan.buildSingleKeyspacePlan(repairType, KEYSPACE, TABLE1, TABLE2, TABLE3);
 
-        Iterator<KeyspaceRepairAssignments> keyspaceAssignments = new DefaultAutoRepairTokenSplitter().getRepairAssignments(repairType, true, plan);
+        Iterator<KeyspaceRepairAssignments> keyspaceAssignments = new FixedSplitTokenRangeSplitter(repairType, splitterParams)
+                                                                  .getRepairAssignments(true, plan);
 
         // should be only 1 entry for the keyspace.
         assertTrue(keyspaceAssignments.hasNext());
@@ -171,6 +170,34 @@ public class AutoRepairDefaultTokenSplitterParameterizedTest extends CQLTester
         {
             assertEquals(expectedToken.get(i), assignments.get(i).getTokenRange());
             assertEquals(tables, assignments.get(i).getTableNames());
+        }
+    }
+
+    @Test
+    public void testTokenRangesNoSplitByDefault()
+    {
+        Collection<Range<Token>> tokens = StorageService.instance.getPrimaryRanges(KEYSPACE);
+        int totalTokenRanges = 3;
+        assertEquals(totalTokenRanges, tokens.size());
+        List<Range<Token>> expectedToken = new ArrayList<>(tokens);
+
+        List<PrioritizedRepairPlan> plan = PrioritizedRepairPlan.buildSingleKeyspacePlan(repairType, KEYSPACE, TABLE1);
+
+        Iterator<KeyspaceRepairAssignments> keyspaceAssignments = new FixedSplitTokenRangeSplitter(repairType, Collections.emptyMap()).getRepairAssignments(true, plan);
+
+        // should be only 1 entry for the keyspace.
+        assertTrue(keyspaceAssignments.hasNext());
+        KeyspaceRepairAssignments keyspace = keyspaceAssignments.next();
+        assertFalse(keyspaceAssignments.hasNext());
+
+        List<RepairAssignment> assignments = keyspace.getRepairAssignments();
+        assertNotNull(assignments);
+
+        // should be 3 entries for the table which covers each token range.
+        assertEquals(totalTokenRanges, assignments.size());
+        for (int i = 0; i < totalTokenRanges; i++)
+        {
+            assertEquals(expectedToken.get(i), assignments.get(i).getTokenRange());
         }
     }
 }

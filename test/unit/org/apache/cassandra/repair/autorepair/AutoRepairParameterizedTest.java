@@ -18,11 +18,9 @@
 
 package org.apache.cassandra.repair.autorepair;
 
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashSet;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
@@ -34,15 +32,12 @@ import com.google.common.collect.Sets;
 
 import org.apache.cassandra.config.DurationSpec;
 import org.apache.cassandra.cql3.statements.schema.TableAttributes;
-import org.apache.cassandra.dht.Range;
-import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.locator.LocalStrategy;
 import org.apache.cassandra.repair.RepairRunnable;
 import org.apache.cassandra.schema.AutoRepairParams;
 import org.apache.cassandra.schema.SystemDistributedKeyspace;
 import org.apache.cassandra.schema.TableParams;
-import org.apache.cassandra.service.StorageService;
 
 import org.junit.After;
 import org.junit.Assert;
@@ -82,7 +77,6 @@ import static org.apache.cassandra.repair.autorepair.AutoRepairUtils.RepairTurn.
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotEquals;
-import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 import static org.mockito.ArgumentMatchers.any;
@@ -108,10 +102,9 @@ public class AutoRepairParameterizedTest extends CQLTester
     AutoRepairState autoRepairState;
     @Mock
     RepairRunnable repairRunnable;
-    private static AutoRepairConfig defaultConfig;
 
-    // Expected number of tables that should be repaired.
-    private static int expectedTablesGoingThroughRepair;
+    // Expected number of repairs to be executed.
+    private static int expectedRepairAssignments;
 
     @Parameterized.Parameter()
     public AutoRepairConfig.RepairType repairType;
@@ -173,7 +166,7 @@ public class AutoRepairParameterizedTest extends CQLTester
         // Calculate the expected number of tables to be repaired, this should be all system keyspaces that are
         // distributed, plus 1 for the table we created (ks.tbl), excluding the 'mv' materialized view and
         // 'tbl_disabled_auto_repair' we created.
-        expectedTablesGoingThroughRepair = 0;
+        int expectedTablesGoingThroughRepair = 0;
         for (Keyspace keyspace : Keyspace.all())
         {
             // skip LocalStrategy keyspaces as these aren't repaired.
@@ -189,6 +182,8 @@ public class AutoRepairParameterizedTest extends CQLTester
             int expectedTables = keyspace.getName().equals("ks") ? 1 : keyspace.getColumnFamilyStores().size();
             expectedTablesGoingThroughRepair += expectedTables;
         }
+        // Since the splitter will unwrap a full token range, we expect twice as many repairs.
+        expectedRepairAssignments = expectedTablesGoingThroughRepair * 2;
     }
 
     @Before
@@ -239,7 +234,7 @@ public class AutoRepairParameterizedTest extends CQLTester
     private void resetConfig()
     {
         // prepare a fresh default config
-        defaultConfig = new AutoRepairConfig(true);
+        AutoRepairConfig defaultConfig = new AutoRepairConfig(true);
         for (AutoRepairConfig.RepairType repairType : AutoRepairConfig.RepairType.values())
         {
             defaultConfig.setAutoRepairEnabled(repairType, true);
@@ -251,7 +246,6 @@ public class AutoRepairParameterizedTest extends CQLTester
         config.repair_type_overrides = defaultConfig.repair_type_overrides;
         config.global_settings = defaultConfig.global_settings;
         config.history_clear_delete_hosts_buffer_interval = defaultConfig.history_clear_delete_hosts_buffer_interval;
-        config.setRepairSubRangeNum(repairType, 1);
         config.repair_task_min_duration = new DurationSpec.LongSecondsBound("0s");
     }
 
@@ -597,31 +591,6 @@ public class AutoRepairParameterizedTest extends CQLTester
     }
 
     @Test
-    public void testTokenRangesNoSplit()
-    {
-        Collection<Range<Token>> tokens = StorageService.instance.getPrimaryRanges(KEYSPACE);
-        assertEquals(1, tokens.size());
-        List<Range<Token>> expectedToken = new ArrayList<>(tokens);
-
-        List<PrioritizedRepairPlan> plan = PrioritizedRepairPlan.buildSingleKeyspacePlan(repairType, KEYSPACE, TABLE);
-
-        Iterator<KeyspaceRepairAssignments> keyspaceAssignments = new DefaultAutoRepairTokenSplitter().getRepairAssignments(repairType, true, plan);
-
-        // should be only 1 entry for the keyspace.
-        assertTrue(keyspaceAssignments.hasNext());
-        KeyspaceRepairAssignments keyspace = keyspaceAssignments.next();
-        assertFalse(keyspaceAssignments.hasNext());
-
-        List<RepairAssignment> assignments = keyspace.getRepairAssignments();
-        assertNotNull(assignments);
-
-        // should be 1 entry for the table which covers the full range.
-        assertEquals(1, assignments.size());
-        assertEquals(expectedToken.get(0).left, assignments.get(0).getTokenRange().left);
-        assertEquals(expectedToken.get(0).right, assignments.get(0).getTokenRange().right);
-    }
-
-    @Test
     public void testTableAttribute()
     {
         assertTrue(TableAttributes.validKeywords().contains("auto_repair"));
@@ -703,10 +672,11 @@ public class AutoRepairParameterizedTest extends CQLTester
 
         AutoRepair.instance.repair(repairType);
 
-        assertEquals(config.getRepairMaxRetries()*expectedTablesGoingThroughRepair, sleepCalls.get());
+        // Expect configured retries for each table expected to be repaired
+        assertEquals(config.getRepairMaxRetries() * expectedRepairAssignments, sleepCalls.get());
         verify(autoRepairState, Mockito.times(1)).setSucceededTokenRangesCount(0);
         verify(autoRepairState, Mockito.times(1)).setSkippedTokenRangesCount(0);
-        verify(autoRepairState, Mockito.times(1)).setFailedTokenRangesCount(expectedTablesGoingThroughRepair);
+        verify(autoRepairState, Mockito.times(1)).setFailedTokenRangesCount(expectedRepairAssignments);
     }
 
     @Test
@@ -732,7 +702,7 @@ public class AutoRepairParameterizedTest extends CQLTester
         AutoRepair.instance.repair(repairType);
 
         assertEquals(1, sleepCalls.get());
-        verify(autoRepairState, Mockito.times(1)).setSucceededTokenRangesCount(expectedTablesGoingThroughRepair);
+        verify(autoRepairState, Mockito.times(1)).setSucceededTokenRangesCount(expectedRepairAssignments);
         verify(autoRepairState, Mockito.times(1)).setSkippedTokenRangesCount(0);
         verify(autoRepairState, Mockito.times(1)).setFailedTokenRangesCount(0);
     }
@@ -804,7 +774,7 @@ public class AutoRepairParameterizedTest extends CQLTester
         AutoRepair.instance.repair(repairType);
 
         assertEquals(1, sleepCalls.get());
-        verify(autoRepairState, Mockito.times(1)).setSucceededTokenRangesCount(expectedTablesGoingThroughRepair);
+        verify(autoRepairState, Mockito.times(1)).setSucceededTokenRangesCount(expectedRepairAssignments);
         verify(autoRepairState, Mockito.times(1)).setSkippedTokenRangesCount(0);
         verify(autoRepairState, Mockito.times(1)).setFailedTokenRangesCount(0);
     }
@@ -824,7 +794,7 @@ public class AutoRepairParameterizedTest extends CQLTester
 
         AutoRepair.instance.repair(repairType);
 
-        verify(autoRepairState, Mockito.times(1)).setSucceededTokenRangesCount(expectedTablesGoingThroughRepair);
+        verify(autoRepairState, Mockito.times(1)).setSucceededTokenRangesCount(expectedRepairAssignments);
         verify(autoRepairState, Mockito.times(1)).setSkippedTokenRangesCount(0);
         verify(autoRepairState, Mockito.times(1)).setFailedTokenRangesCount(0);
     }
