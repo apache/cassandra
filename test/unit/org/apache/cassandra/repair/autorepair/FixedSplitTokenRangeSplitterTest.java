@@ -21,9 +21,9 @@ package org.apache.cassandra.repair.autorepair;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.Iterator;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Set;
 import java.util.Map;
@@ -59,10 +59,7 @@ public class FixedSplitTokenRangeSplitterTest
     private static final String TABLE2 = "tbl2";
     private static final String TABLE3 = "tbl3";
 
-    private final Map<String, String> splitterParams = new LinkedHashMap<String,String>()
-    {{
-        put(FixedSplitTokenRangeSplitter.NUMBER_OF_SUBRANGES, Integer.toString(4));
-    }};
+    private static final Map<String, String> splitterParams = Collections.singletonMap(FixedSplitTokenRangeSplitter.NUMBER_OF_SUBRANGES, Integer.toString(4));
 
     @Parameterized.Parameter()
     public AutoRepairConfig.RepairType repairType;
@@ -188,6 +185,34 @@ public class FixedSplitTokenRangeSplitterTest
         {
             assertEquals(expectedToken.get(i), assignments.get(i).getTokenRange());
             assertEquals(tables, assignments.get(i).getTableNames());
+        }
+    }
+
+    @Test
+    public void testTokenRangesNoSplitByDefault()
+    {
+        Collection<Range<Token>> tokens = StorageService.instance.getPrimaryRanges(KEYSPACE);
+        int totalTokenRanges = 3;
+        assertEquals(totalTokenRanges, tokens.size());
+        List<Range<Token>> expectedToken = new ArrayList<>(tokens);
+
+        List<PrioritizedRepairPlan> plan = PrioritizedRepairPlan.buildSingleKeyspacePlan(repairType, KEYSPACE, TABLE1);
+
+        Iterator<KeyspaceRepairAssignments> keyspaceAssignments = new FixedSplitTokenRangeSplitter(repairType, Collections.emptyMap()).getRepairAssignments(true, plan);
+
+        // should be only 1 entry for the keyspace.
+        assertTrue(keyspaceAssignments.hasNext());
+        KeyspaceRepairAssignments keyspace = keyspaceAssignments.next();
+        assertFalse(keyspaceAssignments.hasNext());
+
+        List<RepairAssignment> assignments = keyspace.getRepairAssignments();
+        assertNotNull(assignments);
+
+        // should be 3 entries for the table which covers each token range.
+        assertEquals(totalTokenRanges, assignments.size());
+        for (int i = 0; i < totalTokenRanges; i++)
+        {
+            assertEquals(expectedToken.get(i), assignments.get(i).getTokenRange());
         }
     }
 }

@@ -112,9 +112,10 @@ public class RepairTokenRangeSplitterTest extends CQLTester
     @Test
     public void testGetRepairAssignmentsForTable_NoSSTables()
     {
+        // Should return 1 assignment if there are no SSTables
         Collection<Range<Token>> ranges = Collections.singleton(new Range<>(Murmur3Partitioner.instance.getMinimumToken(), Murmur3Partitioner.instance.getMaximumToken()));
         List<SizedRepairAssignment> assignments = repairRangeSplitter.getRepairAssignmentsForTable(CQLTester.KEYSPACE, tableName, ranges);
-        assertEquals(0, assignments.size());
+        assertEquals(1, assignments.size());
     }
 
     @Test
@@ -276,11 +277,10 @@ public class RepairTokenRangeSplitterTest extends CQLTester
     @Test
     public void testGetRepairAssignmentsSplitsBySubrangeSizeAndFilterLimitsByMaxBytesPerSchedule()
     {
-        // Ensures that getRepairAssignments splits by SUBRANGE_SIZE and filterRepairAssignments limits by MAX_BYTES_PER_SCHEDULE.
-        Map<String, String> parameters = new HashMap<>();
-        parameters.put(BYTES_PER_ASSIGNMENT, "50GiB");
-        parameters.put(MAX_BYTES_PER_SCHEDULE, "100GiB");
-        repairRangeSplitter = new RepairTokenRangeSplitter(RepairType.INCREMENTAL, parameters);
+        // Ensures that getRepairAssignments splits by BYTES_PER_ASSIGNMENT and filterRepairAssignments limits by MAX_BYTES_PER_SCHEDULE.
+        repairRangeSplitter = new RepairTokenRangeSplitter(RepairType.INCREMENTAL, Collections.emptyMap());
+        repairRangeSplitter.setParameter(BYTES_PER_ASSIGNMENT, "50GiB");
+        repairRangeSplitter.setParameter(MAX_BYTES_PER_SCHEDULE, "100GiB");
 
         // Given a size estimate of 1024GiB, we should expect 21 splits (50GiB*21 = 1050GiB < 1024GiB)
         SizeEstimate sizeEstimate = sizeEstimateByBytes(new LongMebibytesBound("1024GiB"));
@@ -301,6 +301,40 @@ public class RepairTokenRangeSplitterTest extends CQLTester
         List<RepairAssignment> finalRepairAssignments = filteredRepairAssignments.repairAssignments;
         assertEquals(2, finalRepairAssignments.size());
         assertEquals(expectedBytes*2, filteredRepairAssignments.newBytesSoFar);
+    }
+
+    @Test(expected=IllegalArgumentException.class)
+    public void testSetParameterShouldNotAllowUnknownParameter()
+    {
+        repairRangeSplitter.setParameter("unknown", "x");
+    }
+
+    @Test(expected=IllegalArgumentException.class)
+    public void testSetParameterShouldNotAllowSettingBytesPerAssignmentGreaterThanMaxBytesPerSchedule()
+    {
+        repairRangeSplitter.setParameter(MAX_BYTES_PER_SCHEDULE, "500GiB");
+        repairRangeSplitter.setParameter(BYTES_PER_ASSIGNMENT, "600GiB");
+    }
+
+    @Test(expected=IllegalArgumentException.class)
+    public void testSetParameterShouldNotAllowSettingMaxBytesPerScheduleLessThanBytesPerAssignment()
+    {
+        repairRangeSplitter.setParameter(BYTES_PER_ASSIGNMENT, "100MiB");
+        repairRangeSplitter.setParameter(MAX_BYTES_PER_SCHEDULE, "50MiB");
+    }
+
+    @Test
+    public void testGetParameters()
+    {
+        repairRangeSplitter.setParameter(BYTES_PER_ASSIGNMENT, "100MiB");
+        repairRangeSplitter.setParameter(MAX_TABLES_PER_ASSIGNMENT, "5");
+
+        Map<String, String> parameters = repairRangeSplitter.getParameters();
+        // Each parameter should be present.
+        assertEquals(RepairTokenRangeSplitter.PARAMETERS.size(), parameters.size());
+        // The parameters we explicitly set should be set exactly as we set them.
+        assertEquals("100MiB", parameters.get(BYTES_PER_ASSIGNMENT));
+        assertEquals("5", parameters.get(MAX_TABLES_PER_ASSIGNMENT));
     }
 
     private SizeEstimate sizeEstimateByBytes(LongMebibytesBound totalSize)
