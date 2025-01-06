@@ -73,5 +73,5 @@ public interface AutoRepairServiceMBean
 
     public Map<String, String> getAutoRepairTokenRangeSplitterParameters(RepairType repairType);
 
-    public void setAutoRepairTokenRangeSplitterParameter(AutoRepairConfig.RepairType repairType, String key, String value);
+    public void setAutoRepairTokenRangeSplitterParameter(RepairType repairType, String key, String value);
 }

@@ -22,9 +22,11 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Iterator;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.service.AutoRepairService;
 
@@ -36,13 +38,22 @@ import static org.apache.cassandra.repair.autorepair.AutoRepairUtils.split;
 
 public class FixedSplitTokenRangeSplitter implements IAutoRepairTokenRangeSplitter
 {
+    private static final Logger logger = LoggerFactory.getLogger(FixedSplitTokenRangeSplitter.class);
+
     /**
-     * The number of subranges to split each to-be-repaired token range into,
-     * the higher this number, the smaller the repair sessions will be
-     * How many subranges to divide one range into? The default is 1.
-     * If you are using v-node, say 256, then the repair will always go one v-node range at a time, this parameter, additionally, will let us further subdivide a given v-node range into sub-ranges.
-     * With the value “1” and v-nodes of 256, a given table on a node will undergo the repair 256 times. But with a value “2,” the same table on a node will undergo a repair 512 times because every v-node range will be further divided by two.
-     * If you do not use v-nodes or the number of v-nodes is pretty small, say 8, setting this value to a higher number, say 16, will be useful to repair on a smaller range, and the chance of succeeding is higher.
+     * The number of subranges to split each to-be-repaired token range into. Defaults to 1.
+     * <p>
+     * The higher this number, the smaller the repair sessions will be.
+     * <p>
+     * If you are using vnodes, say 256, then the repair will always go one vnode range at a time.  This parameter,
+     * additionally, will let us further subdivide a given vnode range into subranges.
+     * <p>
+     * With the value "1" and vnodes of 256, a given table on a node will undergo the repair 256 times. But with a
+     * value "2", the same table on a node will undergo a repair 512 times because every vnode range will be further
+     * divided by two.
+     * <p>
+     * If you do not use vnodes or the number of vnodes is pretty small, say 8, setting this value to a higher number,
+     * such as 16, will be useful to repair on a smaller range, and the chance of succeeding is higher.
      */
     static final String NUMBER_OF_SUBRANGES = "number_of_subranges";
 
@@ -53,14 +64,7 @@ public class FixedSplitTokenRangeSplitter implements IAutoRepairTokenRangeSplitt
     {
         this.repairType = repairType;
 
-        if (parameters.containsKey(NUMBER_OF_SUBRANGES))
-        {
-            numberOfSubranges = Integer.parseInt(parameters.get(NUMBER_OF_SUBRANGES));
-        }
-        else
-        {
-            numberOfSubranges = 1;
-        }
+        numberOfSubranges = Integer.parseInt(parameters.getOrDefault(NUMBER_OF_SUBRANGES, "1"));
     }
 
     @Override
@@ -69,7 +73,7 @@ public class FixedSplitTokenRangeSplitter implements IAutoRepairTokenRangeSplitt
         return new RepairAssignmentIterator(repairPlans) {
 
             @Override
-            KeyspaceRepairAssignments nextInternal(int priority, KeyspaceRepairPlan repairPlan)
+            protected KeyspaceRepairAssignments next(int priority, KeyspaceRepairPlan repairPlan)
             {
                 return getRepairAssignmentsForKeyspace(primaryRangeOnly, priority, repairPlan);
             }
@@ -86,7 +90,7 @@ public class FixedSplitTokenRangeSplitter implements IAutoRepairTokenRangeSplitt
         Collection<Range<Token>> tokens = StorageService.instance.getPrimaryRanges(keyspaceName);
         if (!primaryRangeOnly)
         {
-            // if we need to repair non-primary token ranges, then change the tokens accrodingly
+            // if we need to repair non-primary token ranges, then change the tokens accordingly
             tokens = StorageService.instance.getLocalReplicas(keyspaceName).onlyFull().ranges();
         }
 
@@ -124,30 +128,18 @@ public class FixedSplitTokenRangeSplitter implements IAutoRepairTokenRangeSplitt
     @Override
     public void setParameter(String key, String value)
     {
-        if (key.equals(NUMBER_OF_SUBRANGES))
+        if (!key.equals(NUMBER_OF_SUBRANGES))
         {
-            setNumberOfSubranges(Integer.parseInt(value));
+            throw new IllegalArgumentException("Unexpected parameter '" + key + "', must be " + NUMBER_OF_SUBRANGES);
         }
-        throw new IllegalArgumentException("Unexpected parameter '" + key + "', must be " + NUMBER_OF_SUBRANGES);
+
+        logger.info("Setting {} to {} for repair type {}", key, value, repairType);
+        this.numberOfSubranges = Integer.parseInt(value);
     }
 
     @Override
     public Map<String, String> getParameters()
     {
-        return Collections.unmodifiableMap(new LinkedHashMap<String, String>()
-        {{
-            put(NUMBER_OF_SUBRANGES, Integer.toString(getNumberOfSubranges()));
-        }});
+        return Collections.singletonMap(NUMBER_OF_SUBRANGES, Integer.toString(numberOfSubranges));
     }
-
-    public void setNumberOfSubranges(int numberOfSubranges)
-    {
-        this.numberOfSubranges = numberOfSubranges;
-    }
-
-    public int getNumberOfSubranges()
-    {
-        return this.numberOfSubranges;
-    }
-
 }
