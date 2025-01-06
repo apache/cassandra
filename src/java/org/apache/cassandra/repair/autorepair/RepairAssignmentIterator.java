@@ -23,9 +23,9 @@ import java.util.List;
 import java.util.NoSuchElementException;
 
 /**
- * Convenience {@link Iterator} implementation for to assist implementations of
+ * Convenience {@link Iterator} implementation to assist implementations of
  * {@link IAutoRepairTokenRangeSplitter#getRepairAssignments(boolean, List)} by passing {@link KeyspaceRepairPlan}
- * to a custom {@link #nextInternal(int, KeyspaceRepairPlan)} in priority order.
+ * to a custom {@link #next(int, KeyspaceRepairPlan)} method in priority order.
  */
 public abstract class RepairAssignmentIterator implements Iterator<KeyspaceRepairAssignments>
 {
@@ -34,7 +34,7 @@ public abstract class RepairAssignmentIterator implements Iterator<KeyspaceRepai
     private Iterator<KeyspaceRepairPlan> currentIterator = null;
     private PrioritizedRepairPlan currentPlan = null;
 
-    RepairAssignmentIterator(List<PrioritizedRepairPlan> repairPlans)
+    public RepairAssignmentIterator(List<PrioritizedRepairPlan> repairPlans)
     {
         this.repairPlanIterator = repairPlans.iterator();
     }
@@ -58,19 +58,20 @@ public abstract class RepairAssignmentIterator implements Iterator<KeyspaceRepai
     @Override
     public boolean hasNext()
     {
-        return currentIterator().hasNext();
+        Iterator<KeyspaceRepairPlan> iterator = currentIterator();
+        return (iterator != null && iterator.hasNext());
     }
 
     @Override
     public KeyspaceRepairAssignments next()
     {
-        if (!currentIterator.hasNext())
+        if (!hasNext())
         {
             throw new NoSuchElementException("No remaining repair plans");
         }
 
         final KeyspaceRepairPlan repairPlan = currentIterator().next();
-        return nextInternal(currentPlan.getPriority(), repairPlan);
+        return next(currentPlan.getPriority(), repairPlan);
     }
 
     /**
@@ -80,5 +81,5 @@ public abstract class RepairAssignmentIterator implements Iterator<KeyspaceRepai
      * @return assignments for the given keyspace at this priority.  Should never return null, if one desires to
      * short-circuit the iterator, override {@link #hasNext()}.
      */
-    abstract KeyspaceRepairAssignments nextInternal(int priority, KeyspaceRepairPlan repairPlan);
+    protected abstract KeyspaceRepairAssignments next(int priority, KeyspaceRepairPlan repairPlan);
 }
