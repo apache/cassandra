@@ -194,7 +194,8 @@ public class RangeCommandIterator extends AbstractIterator<RowIterator> implemen
         // If enabled, request repaired data tracking info from full replicas, but
         // only if there are multiple full replicas to compare results from.
         boolean trackRepairedStatus = DatabaseDescriptor.getRepairedDataTrackingForRangeReadsEnabled()
-                                      && replicaPlan.contacts().filter(Replica::isFull).size() > 1;
+                                      && replicaPlan.contacts().filter(Replica::isFull).size() > 1
+                                      && !command.responseType().isLogged();
 
         ReplicaPlan.SharedForRangeRead sharedReplicaPlan = ReplicaPlan.shared(replicaPlan);
         ReadRepair<EndpointsForRange, ReplicaPlan.ForRangeRead> readRepair =

@@ -137,7 +137,8 @@ implements LegacyReadRepair<E, P>
          * positives caused by compaction lagging which can leave sstables from committed sessions in the pending state
          * for a time.
          */
-        boolean trackRepairedStatus = DatabaseDescriptor.getRepairedDataTrackingForPartitionReadsEnabled();
+        boolean trackRepairedStatus = DatabaseDescriptor.getRepairedDataTrackingForPartitionReadsEnabled()
+                                      && !command.responseType().isLogged();
 
         // Do a full data read to resolve the correct response (and repair node that need be)
         DataResolver<E, P> resolver = new DataResolver<>(command, replicaPlan, this, requestTime, trackRepairedStatus);
