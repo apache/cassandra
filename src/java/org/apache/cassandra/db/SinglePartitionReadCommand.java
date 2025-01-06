@@ -21,6 +21,7 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.NavigableSet;
@@ -49,8 +50,10 @@ import org.apache.cassandra.db.partitions.CachedPartition;
 import org.apache.cassandra.db.partitions.ImmutableBTreePartition;
 import org.apache.cassandra.db.partitions.PartitionIterator;
 import org.apache.cassandra.db.partitions.PartitionIterators;
+import org.apache.cassandra.db.partitions.PartitionUpdate;
 import org.apache.cassandra.db.partitions.SingletonUnfilteredPartitionIterator;
 import org.apache.cassandra.db.partitions.UnfilteredPartitionIterator;
+import org.apache.cassandra.db.partitions.UnfilteredPartitionIterators;
 import org.apache.cassandra.db.rows.Cell;
 import org.apache.cassandra.db.rows.Row;
 import org.apache.cassandra.db.rows.Rows;
@@ -841,6 +844,33 @@ public class SinglePartitionReadCommand extends ReadCommand implements SinglePar
             }
             throw e;
         }
+    }
+
+    @Override
+    public UnfilteredPartitionIterator augmentResultWithMutations(UnfilteredPartitionIterator result, Collection<Mutation> mutations)
+    {
+        if (mutations.isEmpty())
+            return result;
+
+        List<UnfilteredRowIterator> rows = new ArrayList<>(mutations.size());
+        ClusteringIndexFilter filter = clusteringIndexFilter();
+        Slices slices = filter.getSlices(metadata());
+        mutations.forEach(mutation -> {
+            if (!partitionKey().equals(mutation.key()))
+                return;
+            PartitionUpdate update = mutation.getPartitionUpdate(metadata());
+            if (update == null)
+                return;
+            UnfilteredRowIterator rowIter = update.unfilteredIterator(columnFilter(), slices, filter.isReversed());
+            if (rowIter != null)
+                rows.add(rowIter);
+        });
+        UnfilteredRowIterator merged = UnfilteredRowIterators.merge(rows);
+
+        List<UnfilteredPartitionIterator> partitions = new ArrayList<>(2);
+        partitions.add(result);
+        partitions.add(new SingletonUnfilteredPartitionIterator(merged));
+        return UnfilteredPartitionIterators.merge(partitions, UnfilteredPartitionIterators.MergeListener.NOOP);
     }
 
     @Override

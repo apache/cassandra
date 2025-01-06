@@ -40,6 +40,7 @@ import org.apache.cassandra.db.Mutation;
 import org.apache.cassandra.db.MutationId;
 import org.apache.cassandra.db.ReadCommand;
 import org.apache.cassandra.db.partitions.PartitionIterator;
+import org.apache.cassandra.db.partitions.UnfilteredPartitionIterator;
 import org.apache.cassandra.db.partitions.UnfilteredPartitionIterators;
 import org.apache.cassandra.exceptions.ReadTimeoutException;
 import org.apache.cassandra.locator.Endpoints;
@@ -99,7 +100,11 @@ public class LoggedReadReconciliation<E extends Endpoints<E>, P extends ReplicaP
 
         public PartitionIterator partitionIterator()
         {
-            return UnfilteredPartitionIterators.filter(dataResponse.makeIterator(command), command.nowInSec());
+            UnfilteredPartitionIterator result = dataResponse.makeIterator(command);
+            if (!mutations.isEmpty())
+                result = command.augmentResultWithMutations(result, mutations.values());
+
+            return UnfilteredPartitionIterators.filter(result, command.nowInSec());
         }
 
         private void maybeComplete()
