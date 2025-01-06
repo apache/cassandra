@@ -356,7 +356,7 @@ public class NativeAccessor implements ValueAccessor<NativeData>
     @Override
     public int putFloat(NativeData dstNative, int offset, float value)
     {
-        putLong(dstNative, offset, Float.floatToIntBits(value));
+        putInt(dstNative, offset, Float.floatToIntBits(value));
         return TypeSizes.FLOAT_SIZE;
     }
 

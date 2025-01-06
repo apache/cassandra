@@ -37,14 +37,17 @@ public class TestNativeDataAllocator implements NativeDataAllocator, Closeable
     private final NativePool nativePool = new NativePool(0, 10 * 1024 * 1024, 1.0f,
                                                          () -> ImmediateFuture.success(true));
     private NativeAllocator nativeAllocator = nativePool.newAllocator("test");
+    private final OpOrder order = new OpOrder();
+
     @Override
     public NativeData allocateBasedOnBuffer(ByteBuffer data)
     {
-        OpOrder order = new OpOrder();
-        OpOrder.Group group = order.start();
-        long address = nativeAllocator.allocate(data.remaining(), group);
-        MemoryUtil.setBytes(address, data);
-        return new AddressBasedNativeData(address, data.remaining());
+        try(OpOrder.Group group = order.start())
+        {
+            long address = nativeAllocator.allocate(data.remaining(), group);
+            MemoryUtil.setBytes(address, data);
+            return new AddressBasedNativeData(address, data.remaining());
+        }
     }
 
     public void releaseMemory() {
