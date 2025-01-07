@@ -28,7 +28,7 @@ import org.apache.cassandra.net.FrameEncoder;
 import org.apache.cassandra.transport.messages.QueryMessage;
 import org.apache.cassandra.utils.FBUtilities;
 
-public class NativeProtocolLimitsTest extends CQLTester
+public abstract class NativeProtocolLimitsTest extends CQLTester
 {
     protected final ProtocolVersion version;
 
