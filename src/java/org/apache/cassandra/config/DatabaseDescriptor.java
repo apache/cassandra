@@ -828,14 +828,16 @@ public class DatabaseDescriptor
         if (conf.native_transport_max_message_size == null)
         {
             conf.native_transport_max_message_size = new DataStorageSpec.LongBytesBound(calculateDefaultNativeTransportMaxMessageSizeInBytes());
-        } else {
+        }
+        else
+        {
             nativeTransportMaxMessageSizeConfiguredExplicitly = true;
             long maxCqlMessageSize = conf.native_transport_max_message_size.toBytes();
             if (maxCqlMessageSize > conf.native_transport_max_request_data_in_flight.toBytes())
-                throw new ConfigurationException("native_transport_max_message_size must no exceed native_transport_max_request_data_in_flight", false);
+                throw new ConfigurationException("native_transport_max_message_size must not exceed native_transport_max_request_data_in_flight", false);
 
             if (maxCqlMessageSize > conf.native_transport_max_request_data_in_flight_per_ip.toBytes())
-                throw new ConfigurationException("native_transport_max_message_size must no exceed native_transport_max_request_data_in_flight_per_ip", false);
+                throw new ConfigurationException("native_transport_max_message_size must not exceed native_transport_max_request_data_in_flight_per_ip", false);
 
         }
         nativeTransportMaxMessageSizeInBytes = conf.native_transport_max_message_size.toBytes();

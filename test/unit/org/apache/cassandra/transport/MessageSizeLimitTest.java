@@ -18,38 +18,26 @@
 
 package org.apache.cassandra.transport;
 
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.cql3.CQLTester;
-import org.apache.cassandra.cql3.QueryOptions;
-import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.net.FrameEncoder;
 import org.apache.cassandra.transport.messages.QueryMessage;
+import org.assertj.core.api.Assertions;
 
-public class MessageSizeLimitTest extends CQLTester
+public class MessageSizeLimitTest extends NativeProtocolLimitsTest
 {
     private static final int MAX_CQL_MESSAGE_SIZE = FrameEncoder.Payload.MAX_SIZE * 3;
     private static final int TOO_BIG_MESSAGE_SIZE = MAX_CQL_MESSAGE_SIZE * 2;
     private static final int NORMAL_MESSAGE_SIZE = MAX_CQL_MESSAGE_SIZE - 500;
-    private static final QueryOptions V5_DEFAULT_OPTIONS = QueryOptions.create(QueryOptions.DEFAULT.getConsistency(),
-                                                                               QueryOptions.DEFAULT.getValues(),
-                                                                               QueryOptions.DEFAULT.skipMetadata(),
-                                                                               QueryOptions.DEFAULT.getPageSize(),
-                                                                               QueryOptions.DEFAULT.getPagingState(),
-                                                                               QueryOptions.DEFAULT.getSerialConsistency(),
-                                                                               ProtocolVersion.V5,
-                                                                               KEYSPACE);
 
     @BeforeClass
     public static void setUp()
@@ -68,52 +56,18 @@ public class MessageSizeLimitTest extends CQLTester
         ClientResourceLimits.setEndpointLimit(MAX_CQL_MESSAGE_SIZE);
     }
 
-    @After
-    public void dropCreatedTable()
-    {
-        try
-        {
-            QueryProcessor.executeOnceInternal("DROP TABLE " + KEYSPACE + ".test_table");
-        }
-        catch (Throwable t)
-        {
-            // ignore
-        }
-    }
-
-    @SuppressWarnings({"resource", "SameParameterValue"})
-    private SimpleClient client()
-    {
-        try
-        {
-            return SimpleClient.builder(nativeAddr.getHostAddress(), nativePort)
-                               .protocolVersion(ProtocolVersion.V5)
-                               .useBeta()
-                               .build()
-                               .connect(false, false);
-        }
-        catch (IOException e)
-        {
-            throw new RuntimeException("Error initializing client", e);
-        }
-    }
-
     @Test
     public void sendMessageWithSizeMoreThanMaxMessageSize()
     {
         runClientLogic((client) ->
                {
-                   try
-                   {
-                       QueryMessage tooBigQueryMessage = createQueryMessage(TOO_BIG_MESSAGE_SIZE);
-                       client.execute(tooBigQueryMessage);
-                   } catch (RuntimeException e) {
-                       // InvalidRequestException: CQL Message of size 524362 bytes exceeds allowed maximum of 262144 bytes
-                       Assert.assertTrue(e.getCause() instanceof InvalidRequestException);
-                   }
+                   QueryMessage tooBigQueryMessage = queryMessage(TOO_BIG_MESSAGE_SIZE);
+                   Assertions.assertThatThrownBy(() -> client.execute(tooBigQueryMessage))
+                             .hasCauseInstanceOf(InvalidRequestException.class);
+                   // InvalidRequestException: CQL Message of size 524362 bytes exceeds allowed maximum of 262144 bytes
 
                    // we send one more message to check that the server continues to process new messages in the opened connection
-                   QueryMessage queryMessage = createQueryMessage(NORMAL_MESSAGE_SIZE);
+                   QueryMessage queryMessage = queryMessage(NORMAL_MESSAGE_SIZE);
                    client.execute(queryMessage);
                }
         );
@@ -148,7 +102,7 @@ public class MessageSizeLimitTest extends CQLTester
     {
         for (int i = 0; i < messagesCount; i++)
         {
-            QueryMessage queryMessage1 = createQueryMessage(messageSize);
+            QueryMessage queryMessage1 = queryMessage(messageSize);
             client.execute(queryMessage1);
         }
     }
@@ -158,45 +112,13 @@ public class MessageSizeLimitTest extends CQLTester
     {
         runClientLogic((client) ->
                {
-                   QueryMessage queryMessage = createQueryMessage(NORMAL_MESSAGE_SIZE);
+                   QueryMessage queryMessage = queryMessage(NORMAL_MESSAGE_SIZE);
                    client.execute(queryMessage);
 
                    // run one more time, to validate that the connection is still alive
-                   queryMessage = createQueryMessage(NORMAL_MESSAGE_SIZE);
+                   queryMessage = queryMessage(NORMAL_MESSAGE_SIZE);
                    client.execute(queryMessage);
                }
         );
-    }
-
-    private void runClientLogic(ClientLogic clientLogic)
-    {
-        runClientLogic(clientLogic, true);
-    }
-
-    private void runClientLogic(ClientLogic clientLogic, boolean createTable)
-    {
-        try (SimpleClient client = client())
-        {
-            if (createTable)
-            {
-                QueryMessage queryMessage = new QueryMessage("CREATE TABLE test_table (pk int PRIMARY KEY, v text)",
-                                                             V5_DEFAULT_OPTIONS);
-                client.execute(queryMessage);
-            }
-            clientLogic.run(client);
-        }
-    }
-    private interface ClientLogic
-    {
-        void run(SimpleClient simpleClient);
-    }
-
-    private QueryMessage createQueryMessage(int valueSize)
-    {
-        StringBuilder query = new StringBuilder("INSERT INTO test_table (pk, v) VALUES (1, '");
-        for (int i=0; i < valueSize; i++)
-            query.append('a');
-        query.append("')");
-        return new QueryMessage(query.toString(), V5_DEFAULT_OPTIONS);
     }
 }

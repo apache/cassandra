@@ -82,6 +82,10 @@ public class CQLMessageHandler<M extends Message> extends AbstractMessageHandler
     public static final int LARGE_MESSAGE_THRESHOLD = FrameEncoder.Payload.MAX_SIZE - 1;
     public static final TimeUnit RATE_LIMITER_DELAY_UNIT = TimeUnit.NANOSECONDS;
 
+    static final String MULTI_FRAME_AUTH_ERROR_MESSAGE_PREFIX = "The connection is not yet in a valid state " +
+                                                                "to process multi frame CQL Messages, usually this" +
+                                                                "means that authentication is still pending. ";
+
     private final QueueBackpressure queueBackpressure;
     private final Envelope.Decoder envelopeDecoder;
     private final Message.Decoder<M> messageDecoder;
@@ -531,8 +535,7 @@ public class CQLMessageHandler<M extends Message> extends AbstractMessageHandler
                 // clients. In this case, we raise a fatal error and close the connection so it does
                 // not make sense to continue processing subsequent frames
                 handleError(ProtocolException.toFatalException(new OversizedAuthMessageException(
-                            "The connection is not yet in a valid state to process multi frame CQL Messages, usually this" +
-                            "means that authentication is still pending. " +
+                            MULTI_FRAME_AUTH_ERROR_MESSAGE_PREFIX +
                             "type = " + header.type + ", size = " + header.bodySizeInBytes)));
                 ClientMetrics.instance.markRequestDiscarded();
                 return false;
@@ -784,6 +787,7 @@ public class CQLMessageHandler<M extends Message> extends AbstractMessageHandler
             this.tooBig = true;
         }
 
+        @Override
         protected void onIntactFrame(IntactFrame frame)
         {
             if (tooBig || overload != Overload.NONE)
@@ -794,6 +798,7 @@ public class CQLMessageHandler<M extends Message> extends AbstractMessageHandler
                 super.onIntactFrame(frame);
         }
 
+        @Override
         protected void onCorruptFrame()
         {
             if (!isExpired && !isCorrupt && !tooBig)
@@ -807,6 +812,7 @@ public class CQLMessageHandler<M extends Message> extends AbstractMessageHandler
         }
 
 
+        @Override
         protected void onComplete()
         {
             if (tooBig)
@@ -822,6 +828,7 @@ public class CQLMessageHandler<M extends Message> extends AbstractMessageHandler
                 processRequest(assembleFrame(), backpressure);
         }
 
+        @Override
         protected void abort()
         {
             if (!isCorrupt && !tooBig && overload == Overload.NONE)
