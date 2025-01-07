@@ -18,7 +18,6 @@
 
 package org.apache.cassandra.fuzz.sai;
 
-import org.junit.Before;
 import org.junit.BeforeClass;
 
 import org.apache.cassandra.distributed.Cluster;
@@ -52,11 +51,10 @@ public abstract class MultiNodeSAITestBase extends SingleNodeSAITestBase
         cluster = init(cluster);
     }
 
-    @Before
-    public void beforeEach()
+    @Override
+    protected int rf()
     {
-        cluster.schemaChange("DROP KEYSPACE IF EXISTS harry");
-        cluster.schemaChange("CREATE KEYSPACE harry WITH replication = {'class': 'SimpleStrategy', 'replication_factor': 2};");
+        return 2;
     }
 
     @Override

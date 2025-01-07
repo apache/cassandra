@@ -440,7 +440,7 @@ public class QueryController
                "PrimaryKey " + firstKey + " clustering does not match table. There should be a clustering of size " + cfs.metadata().comparator.size();
 
         ClusteringIndexFilter clusteringIndexFilter = command.clusteringIndexFilter(firstKey.partitionKey());
-        
+
         // If we have skinny partitions or the key is for a static row then we need to get the partition as
         // requested by the original query.
         if (cfs.metadata().comparator.size() == 0 || firstKey.kind() == PrimaryKey.Kind.STATIC)

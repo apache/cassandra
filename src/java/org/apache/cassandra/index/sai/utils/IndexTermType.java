@@ -319,6 +319,11 @@ public class IndexTermType
         return this.columnMetadata.compareTo(columnMetadata) == 0;
     }
 
+    public static boolean isEqOnlyType(AbstractType<?> type)
+    {
+        return EQ_ONLY_TYPES.contains(type);
+    }
+
     /**
      * Indicates if the type encoding supports rounding of the raw value.
      * <p>

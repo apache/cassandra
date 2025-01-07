@@ -19,11 +19,11 @@
 package org.apache.cassandra.fuzz.sai;
 
 
-import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.function.Consumer;
+import java.util.function.Supplier;
 
 import com.google.common.collect.Streams;
 import org.junit.AfterClass;
@@ -47,6 +47,7 @@ import org.apache.cassandra.harry.gen.EntropySource;
 import org.apache.cassandra.harry.gen.Generator;
 import org.apache.cassandra.harry.gen.Generators;
 import org.apache.cassandra.harry.gen.SchemaGenerators;
+import org.apache.cassandra.index.sai.utils.IndexTermType;
 
 import static org.apache.cassandra.distributed.api.Feature.GOSSIP;
 import static org.apache.cassandra.distributed.api.Feature.NETWORK;
@@ -56,21 +57,27 @@ import static org.apache.cassandra.harry.dsl.SingleOperationBuilder.IdxRelation;
 // TODO: "WITH OPTIONS = {'case_sensitive': 'false', 'normalize': 'true', 'ascii': 'true'};",
 public abstract class SingleNodeSAITestBase extends TestBaseImpl
 {
-    private static final int OPERATIONS_PER_RUN = 30_000;
-    private static final int REPAIR_SKIP = OPERATIONS_PER_RUN / 2;
-    private static final int FLUSH_SKIP = OPERATIONS_PER_RUN / 7;
-    private static final int COMPACTION_SKIP = OPERATIONS_PER_RUN / 11;
+    private static final int ITERATIONS = 5;
 
-    private static final int NUM_PARTITIONS = OPERATIONS_PER_RUN / 1000;
-    protected static final int MAX_PARTITION_SIZE = 10_000;
+    private static final int VALIDATION_SKIP = 739;
+    private static final int QUERIES_PER_VALIDATION = 8;
+
+    private static final int FLUSH_SKIP = 1499;
+    private static final int COMPACTION_SKIP = 1503;
+    private static final int DEFAULT_REPAIR_SKIP = 6101;
+
+    private static final int OPERATIONS_PER_RUN = DEFAULT_REPAIR_SKIP * 5;
+
+    private static final int NUM_PARTITIONS = 64;
+    private static final int NUM_VISITED_PARTITIONS = 16;
+    private static final int MAX_PARTITION_SIZE = 2000;
+
     private static final int UNIQUE_CELL_VALUES = 5;
 
     protected static final Logger logger = LoggerFactory.getLogger(SingleNodeSAITest.class);
     protected static Cluster cluster;
 
-    protected SingleNodeSAITestBase()
-    {
-    }
+    protected SingleNodeSAITestBase() {}
 
     @BeforeClass
     public static void before() throws Throwable
@@ -104,28 +111,52 @@ public abstract class SingleNodeSAITestBase extends TestBaseImpl
     @Before
     public void beforeEach()
     {
-        cluster.schemaChange("DROP KEYSPACE IF EXISTS harry");
-        cluster.schemaChange("CREATE KEYSPACE harry WITH replication = {'class': 'SimpleStrategy', 'replication_factor': 1};");
+        cluster.schemaChange("DROP KEYSPACE IF EXISTS " + KEYSPACE);
+        cluster.schemaChange("CREATE KEYSPACE " + KEYSPACE + " WITH replication = {'class': 'SimpleStrategy', 'replication_factor': " + rf() + "};");
+    }
+
+    protected int rf()
+    {
+        return 1;
     }
 
     @Test
     public void simplifiedSaiTest()
     {
-        withRandom(rng -> basicSaiTest(rng, SchemaGenerators.trivialSchema("harry", "simplified", 1000).generate(rng)));
+        withRandom(rng -> saiTest(rng,
+                                  SchemaGenerators.trivialSchema(KEYSPACE, "simplified", 1000).generate(rng),
+                                  () -> true,
+                                  DEFAULT_REPAIR_SKIP));
     }
 
     @Test
-    public void basicSaiTest()
+    public void indexOnlySaiTest()
     {
-        Generator<SchemaSpec> schemaGen = schemaGenerator();
-        withRandom(rng -> {
-            basicSaiTest(rng, schemaGen.generate(rng));
-        });
+        for (int i = 0; i < ITERATIONS; i++)
+        {
+            logger.info("Starting iteration {}...", i);
+            withRandom(rng -> saiTest(rng,
+                                      schemaGenerator(rng.nextBoolean()).generate(rng),
+                                      () -> true,
+                                      rng.nextBoolean() ? DEFAULT_REPAIR_SKIP : Integer.MAX_VALUE));
+        }
     }
 
-    private void basicSaiTest(EntropySource rng, SchemaSpec schema)
+    @Test
+    public void mixedFilteringSaiTest()
     {
-        Set<Integer> usedPartitions = new HashSet<>();
+        for (int i = 0; i < ITERATIONS; i++)
+        {
+            logger.info("Starting iteration {}...", i);
+            withRandom(rng -> saiTest(rng,
+                                      schemaGenerator(rng.nextBoolean()).generate(rng),
+                                      () -> rng.nextFloat() < 0.7f,
+                                      rng.nextBoolean() ? DEFAULT_REPAIR_SKIP : Integer.MAX_VALUE));
+        }
+    }
+
+    private void saiTest(EntropySource rng, SchemaSpec schema, Supplier<Boolean> createIndex, int repairSkip)
+    {
         logger.info(schema.compile());
 
         Generator<Integer> globalPkGen = Generators.int32(0, Math.min(NUM_PARTITIONS, schema.valueGenerators.pkPopulation()));
@@ -136,17 +167,20 @@ public abstract class SingleNodeSAITestBase extends TestBaseImpl
         cluster.forEach(i -> i.nodetool("disableautocompaction"));
 
         cluster.schemaChange(schema.compile());
-        cluster.schemaChange(schema.compile().replace(schema.keyspace + "." + schema.table,
-                                                      schema.keyspace + ".debug_table"));
-        Streams.concat(schema.clusteringKeys.stream(),
-                       schema.regularColumns.stream(),
-                       schema.staticColumns.stream())
+        cluster.schemaChange(schema.compile().replace(schema.keyspace + '.' + schema.table, schema.keyspace + ".debug_table"));
+
+        Streams.concat(schema.clusteringKeys.stream(), schema.regularColumns.stream(), schema.staticColumns.stream())
                .forEach(column -> {
+                   if (createIndex.get())
+                   {
+                       logger.info("Adding index to column {}...", column.name);
                        cluster.schemaChange(String.format("CREATE INDEX %s_sai_idx ON %s.%s (%s) USING 'sai' ",
-                                                          column.name,
-                                                          schema.keyspace,
-                                                          schema.table,
-                                                          column.name));
+                               column.name, schema.keyspace, schema.table, column.name));
+                   }
+                   else
+                   {
+                       logger.info("Leaving column {} unindexed...", column.name);
+                   }
                });
 
         waitForIndexesQueryable(schema);
@@ -156,20 +190,35 @@ public abstract class SingleNodeSAITestBase extends TestBaseImpl
                                                                                             .pageSizeSelector(pageSizeSelector(rng))
                                                                                             .consistencyLevel(consistencyLevelSelector())
                                                                                             .doubleWriting(schema, hb, cluster, "debug_table"));
-        List<Integer> partitions = new ArrayList<>();
-        for (int j = 0; j < 5; j++)
+        Set<Integer> partitions = new HashSet<>();
+        int attempts = 0;
+        while (partitions.size() < NUM_VISITED_PARTITIONS && attempts < NUM_VISITED_PARTITIONS * 10)
         {
-            int picked = globalPkGen.generate(rng);
-            if (usedPartitions.contains(picked))
-                continue;
-            partitions.add(picked);
+            partitions.add(globalPkGen.generate(rng));
+            attempts++;
         }
 
-        usedPartitions.addAll(partitions);
-        if (partitions.isEmpty())
-            return;
+        if (partitions.size() < NUM_VISITED_PARTITIONS)
+            logger.warn("Unable to generate {} partitions to visit. Continuing with {}...", NUM_VISITED_PARTITIONS, partitions.size());
 
-        Generator<Integer> pkGen = Generators.pick(partitions);
+        Generator<Integer> pkGen = Generators.pick(List.copyOf(partitions));
+
+        // Ensure that we don't attempt to use range queries against SAI indexes that don't support them:
+        Set<Integer> eqOnlyRegularColumns = new HashSet<>();
+        for (int i = 0; i < schema.regularColumns.size(); i++)
+            if (IndexTermType.isEqOnlyType(schema.regularColumns.get(i).type.asServerType()))
+                eqOnlyRegularColumns.add(i);
+
+        Set<Integer> eqOnlyStaticColumns = new HashSet<>();
+        for (int i = 0; i < schema.staticColumns.size(); i++)
+            if (IndexTermType.isEqOnlyType(schema.staticColumns.get(i).type.asServerType()))
+                eqOnlyStaticColumns.add(i);
+
+        Set<Integer> eqOnlyClusteringColumns = new HashSet<>();
+        for (int i = 0; i < schema.clusteringKeys.size(); i++)
+            if (IndexTermType.isEqOnlyType(schema.clusteringKeys.get(i).type.asServerType()))
+                eqOnlyClusteringColumns.add(i);
+
         for (int i = 0; i < OPERATIONS_PER_RUN; i++)
         {
             int partitionIndex = pkGen.generate(rng);
@@ -193,33 +242,50 @@ public abstract class SingleNodeSAITestBase extends TestBaseImpl
             if (rng.nextFloat() > 0.9995f)
                 history.deletePartition(partitionIndex);
 
-            if (i % REPAIR_SKIP == 0)
-                history.custom(() -> repair(schema), "Repair");
-            else if (i % FLUSH_SKIP == 0)
+            if (i % FLUSH_SKIP == 0)
                 history.custom(() -> flush(schema), "Flush");
             else if (i % COMPACTION_SKIP == 0)
                 history.custom(() -> compact(schema), "Compact");
+            else if (i % repairSkip == 0)
+                history.custom(() -> repair(schema), "Repair");
 
-            if (i > 0 && i % 1000 == 0)
+            if (i > 0 && i % VALIDATION_SKIP == 0)
             {
-                for (int j = 0; j < 5; j++)
+                for (int j = 0; j < QUERIES_PER_VALIDATION; j++)
                 {
-                    List<IdxRelation> regularRelations = HistoryBuilderHelper.generateValueRelations(rng, schema.regularColumns.size(),
-                                                                                                     column -> Math.min(schema.valueGenerators.regularPopulation(column), UNIQUE_CELL_VALUES));
-                    List<IdxRelation> staticRelations = HistoryBuilderHelper.generateValueRelations(rng, schema.staticColumns.size(),
-                                                                                                    column -> Math.min(schema.valueGenerators.staticPopulation(column), UNIQUE_CELL_VALUES));
-                    history.select(pkGen.generate(rng),
-                                   HistoryBuilderHelper.generateClusteringRelations(rng, schema.clusteringKeys.size(), ckGen).toArray(new IdxRelation[0]),
-                                   regularRelations.toArray(new IdxRelation[regularRelations.size()]),
-                                   staticRelations.toArray(new IdxRelation[staticRelations.size()]));
+                    List<IdxRelation> regularRelations = 
+                            HistoryBuilderHelper.generateValueRelations(rng,
+                                                                        schema.regularColumns.size(),
+                                                                        column -> Math.min(schema.valueGenerators.regularPopulation(column), UNIQUE_CELL_VALUES),
+                                                                        eqOnlyRegularColumns::contains);
+
+                    List<IdxRelation> staticRelations = 
+                            HistoryBuilderHelper.generateValueRelations(rng,
+                                                                        schema.staticColumns.size(),
+                                                                        column -> Math.min(schema.valueGenerators.staticPopulation(column), UNIQUE_CELL_VALUES),
+                                                                        eqOnlyStaticColumns::contains);
+
+                    Integer pk = pkGen.generate(rng);
+
+                    IdxRelation[] ckRelations = 
+                            HistoryBuilderHelper.generateClusteringRelations(rng,
+                                                                             schema.clusteringKeys.size(),
+                                                                             ckGen,
+                                                                             eqOnlyClusteringColumns).toArray(new IdxRelation[0]);
+
+                    IdxRelation[] regularRelationsArray = regularRelations.toArray(new IdxRelation[regularRelations.size()]);
+                    IdxRelation[] staticRelationsArray = staticRelations.toArray(new IdxRelation[staticRelations.size()]);
+
+                    history.select(pk, ckRelations, regularRelationsArray, staticRelationsArray);
                 }
             }
         }
     }
 
-    protected Generator<SchemaSpec> schemaGenerator()
+    protected Generator<SchemaSpec> schemaGenerator(boolean disableReadRepair)
     {
-        SchemaSpec.OptionsBuilder builder = SchemaSpec.optionsBuilder().compactionStrategy("LeveledCompactionStrategy");
+        SchemaSpec.OptionsBuilder builder = SchemaSpec.optionsBuilder().disableReadRepair(disableReadRepair)
+                                                                       .compactionStrategy("LeveledCompactionStrategy");
         return SchemaGenerators.schemaSpecGen(KEYSPACE, "basic_sai", MAX_PARTITION_SIZE, builder);
     }
 

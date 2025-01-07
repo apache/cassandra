@@ -19,19 +19,21 @@
 package org.apache.cassandra.harry.dsl;
 
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.EnumSet;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
+import java.util.function.Predicate;
 
-import org.apache.cassandra.harry.gen.EntropySource;
-import org.apache.cassandra.harry.gen.Generator;
-import org.apache.cassandra.harry.gen.Generators;
 import org.apache.cassandra.harry.MagicConstants;
 import org.apache.cassandra.harry.Relations;
 import org.apache.cassandra.harry.SchemaSpec;
+import org.apache.cassandra.harry.gen.EntropySource;
+import org.apache.cassandra.harry.gen.Generator;
+import org.apache.cassandra.harry.gen.Generators;
 import org.apache.cassandra.harry.util.BitSet;
 
 import static org.apache.cassandra.harry.Relations.RelationKind.EQ;
@@ -84,7 +86,6 @@ public class HistoryBuilderHelper
         history.insert(partitionIdx, rowIdx, vIdxs, sIdxs);
     }
 
-
     public static void deleteRandomColumns(SchemaSpec schema, int partitionIdx, int rowIdx, EntropySource rng, SingleOperationBuilder history)
     {
         Generator<BitSet> regularMask = Generators.bitSet(schema.regularColumns.size());
@@ -98,6 +99,11 @@ public class HistoryBuilderHelper
 
     private static final Generator<Relations.RelationKind> relationKindGen = Generators.pick(LT, GT, EQ);
     private static final Set<Relations.RelationKind> lowBoundRelations = Set.of(GT, GTE, EQ);
+
+    public static List<SingleOperationBuilder.IdxRelation> generateValueRelations(EntropySource rng, int numColumns, Function<Integer, Integer> population)
+    {
+        return generateValueRelations(rng, numColumns, population, c -> false);
+    }
 
     /**
      * Generates random relations for regular and static columns for FILTERING and SAI queries.
@@ -113,7 +119,7 @@ public class HistoryBuilderHelper
      * @param population - expected population / number of possible values for a given column
      * @return a list of relations
      */
-    public static List<SingleOperationBuilder.IdxRelation> generateValueRelations(EntropySource rng, int numColumns, Function<Integer, Integer> population)
+    public static List<SingleOperationBuilder.IdxRelation> generateValueRelations(EntropySource rng, int numColumns, Function<Integer, Integer> population, Predicate<Integer> eqOnlyColumns)
     {
         List<SingleOperationBuilder.IdxRelation> relations = new ArrayList<>();
         Map<Integer, Set<Relations.RelationKind>> kindsMap = new HashMap<>();
@@ -121,11 +127,16 @@ public class HistoryBuilderHelper
         while (remainingColumns > 0)
         {
             int column = rng.nextInt(numColumns);
-            Set<Relations.RelationKind> kinds = kindsMap.computeIfAbsent(column, c -> new HashSet<>());
+            Set<Relations.RelationKind> kinds = kindsMap.computeIfAbsent(column, c -> EnumSet.noneOf(Relations.RelationKind.class));
             if (kinds.size() > 1 || kinds.contains(EQ))
                 continue;
             Relations.RelationKind kind;
-            if (kinds.size() == 1)
+            
+            if (eqOnlyColumns.test(column))
+            {
+                kind = EQ;
+            }
+            else if (kinds.size() == 1)
             {
                 if (kinds.contains(LT)) kind = GT;
                 else kind = LT;
@@ -148,6 +159,11 @@ public class HistoryBuilderHelper
         return relations;
     }
 
+    public static List<SingleOperationBuilder.IdxRelation> generateClusteringRelations(EntropySource rng, int numColumns, Generator<Integer> ckGen)
+    {
+        return generateClusteringRelations(rng, numColumns, ckGen, Collections.emptySet());
+    }
+
     /**
      * Generates random relations for regular and static columns for FILTERING and SAI queries.
      *
@@ -158,7 +174,7 @@ public class HistoryBuilderHelper
      * @param numColumns - number of columns in the generated set of relationships
      * @return a list of relations
      */
-    public static List<SingleOperationBuilder.IdxRelation> generateClusteringRelations(EntropySource rng, int numColumns, Generator<Integer> ckGen)
+    public static List<SingleOperationBuilder.IdxRelation> generateClusteringRelations(EntropySource rng, int numColumns, Generator<Integer> ckGen, Set<Integer> eqOnlyColumns)
     {
         List<SingleOperationBuilder.IdxRelation> relations = new ArrayList<>();
         Map<Integer, Set<Relations.RelationKind>> kindsMap = new HashMap<>();
@@ -168,11 +184,16 @@ public class HistoryBuilderHelper
         while (remainingColumns > 0)
         {
             int column = rng.nextInt(numColumns);
-            Set<Relations.RelationKind> kinds = kindsMap.computeIfAbsent(column, c -> new HashSet<>());
+            Set<Relations.RelationKind> kinds = kindsMap.computeIfAbsent(column, c -> EnumSet.noneOf(Relations.RelationKind.class));
             if (kinds.size() > 1 || kinds.contains(EQ))
                 continue;
             Relations.RelationKind kind;
-            if (kinds.size() == 1)
+
+            if (eqOnlyColumns.contains(column))
+            {
+                kind = EQ;
+            }
+            else if (kinds.size() == 1)
             {
                 if (kinds.contains(LT)) kind = GT;
                 else kind = LT;
