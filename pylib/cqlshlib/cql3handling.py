@@ -163,7 +163,7 @@ dequote_value = CqlRuleSet.dequote_value
 dequote_name = CqlRuleSet.dequote_name
 escape_value = CqlRuleSet.escape_value
 
-# BEGIN BNF SYNTAX/COMPLETION RULE DEFINITIONS
+# BEGIN SYNTAX/COMPLETION RULE DEFINITIONS
 
 syntax_rules = r'''
 <Start> ::= <CQL_Statement>*
@@ -602,7 +602,7 @@ def cf_prop_val_mapender_completer(ctxt, cass):
 
 @completer_for('tokenDefinition', 'token')
 def token_word_completer(ctxt, cass):
-    return ['token']
+    return ['TOKEN']
 
 
 @completer_for('simpleStorageType', 'typename')
@@ -741,9 +741,7 @@ syntax_rules += r'''
                     ;
 <whereClause> ::= <relation> ( "AND" <relation> )*
                 ;
-<termOrScalar> ::= <term> | <scalarMathFunction>
-                ;
-<relation> ::= [rel_lhs]=<cident> ( "[" <term> "]" )? ( "=" | "<" | ">" | "<=" | ">=" | "!=" | ( "NOT" )? "CONTAINS" ( "KEY" )? ) <termOrScalar>
+<relation> ::= [rel_lhs]=<cident> ( "[" <term> "]" )? ( "=" | "<" | ">" | "<=" | ">=" | "!=" | ( "NOT" )? "CONTAINS" ( "KEY" )? ) <term>
              | token="TOKEN" "(" [rel_tokname]=<cident>
                                  ( "," [rel_tokname]=<cident> )*
                              ")" ("=" | "<" | ">" | "<=" | ">=") <tokenDefinition>
@@ -800,19 +798,22 @@ syntax_rules += r'''
                              ;
 <groupByFunctionArgument> ::= [groupcol]=<cident>
                             | <term>
-                ;
+                            ;
+
 <aggregateMathFunction> ::= "COUNT" "(" star=( "*" | "1" ) ")"
              | "AVG" "(" star=( "*" | "1" ) ")"
              | "MIN" "(" star=( "*" | "1" ) ")"
              | "MAX" "(" star=( "*" | "1" ) ")"
              | "SUM" "(" star=( "*" | "1" ) ")"
-                ;
+             ;
+
 <scalarMathFunction> ::= "ABS" "(" [colname]=<cident> ")"
              | "EXP" "(" [colname]=<cident> ")"
              | "LOG" "(" [colname]=<cident> ")"
              | "LOG10" "(" [colname]=<cident> ")"
              | "ROUND" "(" [colname]=<cident> ")"
-                ;
+             ;
+
 '''
 
 

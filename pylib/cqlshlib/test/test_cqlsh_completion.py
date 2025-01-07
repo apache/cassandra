@@ -182,28 +182,39 @@ class TestCqlshCompletion(CqlshCompletionCase):
 
     def test_complete_in_select(self):
         self.trycompletions('SELECT ',
-                            choices=('*', '-',
-                                     '<blobLiteral>', '<colname>', '<float>',
-                                     '<identifier>', '<pgStringLiteral>',
-                                     '<quotedStringLiteral>', '<uuid>',
-                                     '<wholenumber>',
+                            choices=('*', '<colname>',
+                                     '-', '<blobLiteral>', '<float>', '<wholenumber>', '<uuid>',
+                                     '<identifier>', '<pgStringLiteral>', '<quotedStringLiteral>',
                                      'ABS', 'AVG', 'CAST', 'COUNT', 'DISTINCT',
                                      'EXP', 'JSON', 'LOG', 'LOG10',
                                      'MAP_KEYS', 'MAP_VALUES',
                                      'MAX', 'MAX_TIMEUUID', 'MIN_TIMEUUID',
                                      'MIN', 'MIN_TIMEUUID', 'MIN_TIMEUUID',
                                      'MAX_WRITETIME', 'MIN_WRITETIME',
-                                     'NULL', 'ROUND', 'SUM', 'TOKEN',
+                                     'ROUND', 'SUM', 'TOKEN',
                                      'TO_DATE', 'TO_TIMESTAMP', 'TO_UNIX_TIMESTAMP',
                                      'TTL', 'WRITETIME',
                                      'COLLECTION_AVG', 'COLLECTION_COUNT', 'COLLECTION_MAX',
                                      'COLLECTION_MIN', 'COLLECTION_SUM',
                                      'MASK_DEFAULT', 'MASK_HASH', 'MASK_INNER', 'MASK_NULL',
                                      'MASK_OUTER', 'MASK_REPLACE',
-                                     '[', 'false', 'true', '{',
-                                     self.cqlsh.keyspace + '.'
+                                     '[', '{', 'false', 'true', 'NULL'
                                      ),
                             other_choices_ok=True
+                            )
+
+    def test_complete_in_select_where(self):
+        self.trycompletions('SELECT * FROM system.peers WHERE ',
+                            choices=('<identifier>', '<quotedName>', 'peer', 'TOKEN', 'MAX_TIMEUUID', 'MIN_TIMEUUID')
+                            )
+
+    def test_complete_in_select_where_equal(self):
+        self.trycompletions('SELECT * FROM system.peers WHERE rack = ',
+                            choices=('-', '<blobLiteral>', '<float>', '<wholenumber>', '<uuid>',
+                                     '<identifier>', '<pgStringLiteral>', '<quotedStringLiteral>',
+                                     '[', '{', 'false', 'true', 'NULL',
+                                     'TOKEN'
+                                     )
                             )
 
     def test_complete_in_insert(self):
@@ -495,8 +506,8 @@ class TestCqlshCompletion(CqlshCompletionCase):
         self.trycompletions('DELETE FROM twenty_rows_composite_table USING TIMESTAMP 0 WHERE a ',
                             choices=['<=', '>=', 'BETWEEN', 'CONTAINS', 'IN', 'NOT', '[', '=', '<', '>', '!='])
 
-        self.trycompletions('DELETE FROM twenty_rows_composite_table USING TIMESTAMP 0 WHERE TOKEN',
-                            immediate=' (a ')
+        self.trycompletions('DELETE FROM twenty_rows_composite_table USING TIMESTAMP 0 WHERE TOKEN(',
+                            immediate='a ')
         self.trycompletions('DELETE FROM twenty_rows_composite_table USING TIMESTAMP 0 WHERE TOKEN(a',
                             immediate=' ')
         self.trycompletions('DELETE FROM twenty_rows_composite_table USING TIMESTAMP 0 WHERE TOKEN(a ',
@@ -505,7 +516,7 @@ class TestCqlshCompletion(CqlshCompletionCase):
                             choices=['>=', '<=', '=', '<', '>'])
         self.trycompletions('DELETE FROM twenty_rows_composite_table USING TIMESTAMP 0 WHERE TOKEN(a) >= ',
                             choices=['false', 'true', '<pgStringLiteral>',
-                                     'token', '-', '<float>', 'TOKEN',
+                                     '-', '<float>', 'TOKEN',
                                      '<identifier>', '<uuid>', '{', '[', 'NULL',
                                      '<quotedStringLiteral>', '<blobLiteral>',
                                      '<wholenumber>'])
