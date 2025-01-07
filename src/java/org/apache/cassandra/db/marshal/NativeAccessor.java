@@ -147,7 +147,7 @@ public class NativeAccessor implements ValueAccessor<NativeData>
             NativeData rightNative = (NativeData) right;
             int leftSize = left.nativeDataSize();
             int rightSize = rightNative.nativeDataSize();
-            return FastByteOperations.compareUnsigned(left.getAddress(), leftSize, rightNative.getAddress(), rightSize);
+            return FastByteOperations.compareMemoryUnsigned(left.getAddress(), leftSize, rightNative.getAddress(), rightSize);
         } else // just in case of new implementations of ValueAccessor appear
             return ByteBufferUtil.compareUnsigned(left.asByteBuffer(), accessorR.toBuffer(right));
     }
@@ -155,13 +155,13 @@ public class NativeAccessor implements ValueAccessor<NativeData>
     @Override
     public int compareByteArrayTo(byte[] left, NativeData right)
     {
-        return FastByteOperations.compareUnsigned(left, 0, left.length, right.getAddress(), right.nativeDataSize());
+        return FastByteOperations.compareWithMemoryUnsigned(left, 0, left.length, right.getAddress(), right.nativeDataSize());
     }
 
     @Override
     public int compareByteBufferTo(ByteBuffer left, NativeData right)
     {
-        return FastByteOperations.compareUnsigned(left, right.getAddress(), right.nativeDataSize());
+        return FastByteOperations.compareWithMemoryUnsigned(left, right.getAddress(), right.nativeDataSize());
     }
 
      // -----------------------------------------------------------------------------

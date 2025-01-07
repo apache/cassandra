@@ -70,17 +70,17 @@ public class FastByteOperations
         return BestHolder.BEST.compare(b1, b2);
     }
 
-    public static int compareUnsigned(ByteBuffer b1, long address2, int length2)
+    public static int compareWithMemoryUnsigned(ByteBuffer b1, long address2, int length2)
     {
         return BestHolder.BEST.compare(b1, address2, length2);
     }
 
-    public static int compareUnsigned(byte[] b1, int s1, int l1, long address2, int length2)
+    public static int compareWithMemoryUnsigned(byte[] b1, int s1, int l1, long address2, int length2)
     {
         return BestHolder.BEST.compare(b1, s1,l1, address2, length2);
     }
 
-    public static int compareUnsigned(long address1, int length1, long address2, int length2)
+    public static int compareMemoryUnsigned(long address1, int length1, long address2, int length2)
     {
         return BestHolder.BEST.compare(address1, length1, address2, length2);
     }

@@ -39,6 +39,7 @@ import org.apache.cassandra.service.paxos.Ballot;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.TimeUUID;
 import org.apache.cassandra.utils.UUIDGen;
+import org.apache.cassandra.utils.memory.MemoryUtil;
 
 import static org.apache.cassandra.utils.TimeUUID.Generator.nextTimeUUID;
 import static org.quicktheories.QuickTheory.qt;
@@ -258,6 +259,15 @@ public class NativeAccessorTest extends ValueAccessorTester
         NativeData nativeData = nativeAccessor.valueOf(originalData);
         String nativeHex = nativeAccessor.toHex(nativeData);
         Assert.assertEquals(bufferHex, nativeHex);
+    }
+
+    @Test
+    public void test() {
+        NativeData nativeData = nativeAccessor.allocate(4);
+        MemoryUtil.setInt(nativeData.getAddress(), 0x00FF);
+
+        String nativeHex = nativeAccessor.toHex(nativeData);
+        System.out.println(nativeHex);
     }
 
     @Test
