@@ -249,16 +249,9 @@ public class AccordService implements IAccordService, Shutdownable
             instance = NOOP_SERVICE;
             return;
         }
+
         AccordService as = new AccordService(AccordTopology.tcmIdToAccord(tcmId));
         as.startup();
-        if (StorageService.instance.isReplacingSameAddress())
-        {
-            // when replacing another node but using the same ip the hostId will also match, this causes no TCM transactions
-            // to be committed...
-            // In order to bootup correctly, need to pull in the current epoch
-            ClusterMetadata current = ClusterMetadata.current();
-            as.configurationService().notifyPostCommit(current, current, false);
-        }
         instance = as;
 
         replayJournal(as);
@@ -364,13 +357,9 @@ public class AccordService implements IAccordService, Shutdownable
         node.load();
 
         ClusterMetadata metadata = ClusterMetadata.current();
-        // TODO (review/discussion): Even though previous version was updating metadatas and topologies in the loop, in
-        //      reality mappings were just "waved" through, while historical topologies would be saved by configuration
-        //      service. In other words, it was _always_ possible for historical topologies to contain peers that are
-        //      _not_ present in metadata anymore.
         configService.updateMapping(metadata);
 
-        node.commandStores().restoreShardStateUnsafe();
+        node.commandStores().restoreShardStateUnsafe(configService::reportTopology);
         configService.start();
 
         long minEpoch = fetchMinEpoch();
