@@ -1,4 +1,5 @@
 5.0.4
+ * Avoid possible consistency violations for SAI intersection queries over repaired index matches and multiple non-indexed column matches (CASSANDRA-20189)
  * Skip check for DirectIO when initializing tools (CASSANDRA-20289)
  * Avoid under-skipping during intersections when an iterator has mixed STATIC and WIDE keys (CASSANDRA-20258)
  * Correct the default behavior of compareTo() when comparing WIDE and STATIC PrimaryKeys (CASSANDRA-20238)
