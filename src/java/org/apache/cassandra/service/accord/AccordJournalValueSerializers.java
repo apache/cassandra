@@ -80,7 +80,11 @@ public class AccordJournalValueSerializers
         @Override
         public void reserialize(JournalKey key, AccordJournal.Builder from, DataOutputPlus out, int userVersion) throws IOException
         {
-            from.serialize(out, userVersion);
+            from.serialize(out,
+                           // In CompactionIterator, we are dealing with relatively recent records, so we do not pass redundant before here.
+                           // However, we do on load and during Journal SSTable compaction.
+                           RedundantBefore.EMPTY,
+                           userVersion);
         }
 
         @Override

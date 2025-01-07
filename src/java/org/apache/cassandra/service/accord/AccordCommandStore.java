@@ -300,9 +300,9 @@ public class AccordCommandStore extends CommandStore
     }
 
     @VisibleForTesting
-    public void sanityCheckCommand(Command command)
+    public void sanityCheckCommand(RedundantBefore redundantBefore, Command command)
     {
-        ((AccordJournal) journal).sanityCheck(id, command);
+        ((AccordJournal) journal).sanityCheck(id, redundantBefore, command);
     }
 
     CommandsForKey loadCommandsForKey(RoutableKey key)

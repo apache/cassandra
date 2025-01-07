@@ -225,7 +225,7 @@ public class CommandsForRanges extends TreeMap<Timestamp, Summary> implements Co
             return ifRelevant(cmd.txnId(), cmd.executeAt(), cmd.saveStatus(), cmd.participants(), cmd.partialDeps());
         }
 
-        public Summary from(Command.Minimal cmd)
+        public Summary ifRelevant(Command.Minimal cmd)
         {
             Invariants.checkState(findAsDep == null);
             return ifRelevant(cmd.txnId, cmd.executeAt, cmd.saveStatus, cmd.participants, null);

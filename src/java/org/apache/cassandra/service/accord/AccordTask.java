@@ -618,7 +618,7 @@ public abstract class AccordTask<R> extends Task implements Runnable, Function<S
             condition.awaitUninterruptibly();
 
             for (Command check : sanityCheck)
-                this.commandStore.sanityCheckCommand(check);
+                this.commandStore.sanityCheckCommand(commandStore.unsafeGetRedundantBefore(), check);
 
             if (onFlush != null) onFlush.run();
         }

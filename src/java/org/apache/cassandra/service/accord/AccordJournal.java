@@ -215,7 +215,7 @@ public class AccordJournal implements accord.api.Journal, Shutdownable
             case ERASE:
                 return ErasedSafeCommand.erased(txnId, ErasedOrVestigial);
         }
-        return builder.construct();
+        return builder.construct(redundantBefore);
     }
 
     @Override
@@ -366,12 +366,12 @@ public class AccordJournal implements accord.api.Journal, Shutdownable
         journal.closeCurrentSegmentForTestingIfNonEmpty();
     }
 
-    public void sanityCheck(int commandStoreId, Command orig)
+    public void sanityCheck(int commandStoreId, RedundantBefore redundantBefore, Command orig)
     {
         Builder builder = load(commandStoreId, orig.txnId());
         builder.forceResult(orig.result());
         // We can only use strict equality if we supply result.
-        Command reconstructed = builder.construct();
+        Command reconstructed = builder.construct(redundantBefore);
         Invariants.checkState(orig.equals(reconstructed),
                               '\n' +
                               "Original:      %s\n" +
@@ -434,10 +434,10 @@ public class AccordJournal implements accord.api.Journal, Shutdownable
 
                 if (!builder.isEmpty())
                 {
-                    Command command = builder.construct();
+                    CommandStore commandStore = commandStores.forId(key.commandStoreId);
+                    Command command = builder.construct(commandStore.unsafeGetRedundantBefore());
                     Invariants.checkState(command.saveStatus() != SaveStatus.Uninitialised,
                                           "Found uninitialized command in the log: %s %s", command.toString(), builder.toString());
-                    CommandStore commandStore = commandStores.forId(key.commandStoreId);
                     Loader loader = commandStore.loader();
                     async(loader::load, command).get();
                     if (command.saveStatus().compareTo(SaveStatus.Stable) >= 0 && !command.hasBeen(Truncated))
@@ -602,12 +602,11 @@ public class AccordJournal implements accord.api.Journal, Shutdownable
         {
             super(txnId, load);
         }
-
-        public ByteBuffer asByteBuffer(int userVersion) throws IOException
+        public ByteBuffer asByteBuffer(RedundantBefore redundantBefore, int userVersion) throws IOException
         {
             try (DataOutputBuffer out = new DataOutputBuffer())
             {
-                serialize(out, userVersion);
+                serialize(out, redundantBefore, userVersion);
                 return out.asNewBuffer();
             }
         }
@@ -618,13 +617,13 @@ public class AccordJournal implements accord.api.Journal, Shutdownable
             return this;
         }
 
-        public void serialize(DataOutputPlus out, int userVersion) throws IOException
+        public void serialize(DataOutputPlus out, RedundantBefore redundantBefore, int userVersion) throws IOException
         {
             Invariants.checkState(mask == 0);
             Invariants.checkState(flags != 0);
 
             int flags = validateFlags(this.flags);
-            Writer.serialize(construct(), flags, out, userVersion);
+            Writer.serialize(construct(redundantBefore), flags, out, userVersion);
         }
 
         public void deserializeNext(DataInputPlus in, int userVersion) throws IOException

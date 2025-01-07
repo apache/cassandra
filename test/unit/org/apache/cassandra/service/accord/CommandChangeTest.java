@@ -28,6 +28,7 @@ import org.junit.Test;
 
 import accord.impl.CommandChange;
 import accord.local.Command;
+import accord.local.RedundantBefore;
 import accord.primitives.SaveStatus;
 import accord.primitives.TxnId;
 import accord.utils.Gen;
@@ -105,7 +106,7 @@ public class CommandChangeTest
                     // We are not persisting the result, so force it for strict equality
                     builder.forceResult(orig.result());
 
-                    Command reconstructed = builder.construct();
+                    Command reconstructed = builder.construct(RedundantBefore.EMPTY);
 
                     checks.assertThat(reconstructed)
                           .describedAs("lhs=expected\nrhs=actual\n%s", new LazyToString(() -> ReflectionUtils.recursiveEquals(orig, reconstructed).toString()))
