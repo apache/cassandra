@@ -25,6 +25,7 @@ import accord.messages.PreAccept;
 import accord.messages.PreAccept.PreAcceptOk;
 import accord.messages.PreAccept.PreAcceptReply;
 import accord.primitives.FullRoute;
+import accord.primitives.PartialDeps;
 import accord.primitives.PartialTxn;
 import accord.primitives.Route;
 import accord.primitives.TxnId;
@@ -33,10 +34,6 @@ import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.service.accord.serializers.TxnRequestSerializer.WithUnsyncedSerializer;
-
-import static org.apache.cassandra.utils.NullableSerializer.deserializeNullable;
-import static org.apache.cassandra.utils.NullableSerializer.serializeNullable;
-import static org.apache.cassandra.utils.NullableSerializer.serializedNullableSize;
 
 public class PreacceptSerializers
 {
@@ -47,27 +44,40 @@ public class PreacceptSerializers
         @Override
         public void serializeBody(PreAccept msg, DataOutputPlus out, int version) throws IOException
         {
+            int flags = (msg.partialDeps == null ? 0 : 1)
+                        | (msg.route == null ? 0 : 2)
+                        | (msg.hasCoordinatorVote ? 4 : 0)
+                        | (msg.acceptEpoch == msg.minEpoch ? 0 : 8);
+            out.writeByte(flags);
             CommandSerializers.partialTxn.serialize(msg.partialTxn, out, version);
-            serializeNullable(msg.route, out, version, KeySerializers.fullRoute);
-            out.writeUnsignedVInt(msg.acceptEpoch - msg.minEpoch);
+            if (msg.partialDeps != null)
+                DepsSerializers.partialDeps.serialize(msg.partialDeps, out, version);
+            if (msg.route != null)
+                KeySerializers.fullRoute.serialize(msg.route, out, version);
+            if (msg.acceptEpoch != msg.minEpoch)
+                out.writeUnsignedVInt(msg.acceptEpoch - msg.minEpoch);
         }
 
         @Override
         public PreAccept deserializeBody(DataInputPlus in, int version, TxnId txnId, Route<?> scope, long waitForEpoch, long minEpoch) throws IOException
         {
+            byte flags = in.readByte();
             PartialTxn partialTxn = CommandSerializers.partialTxn.deserialize(in, version);
-            @Nullable FullRoute<?> fullRoute = deserializeNullable(in, version, KeySerializers.fullRoute);
-            long acceptEpoch = in.readUnsignedVInt() + minEpoch;
-            return PreAccept.SerializerSupport.create(txnId, scope, waitForEpoch, minEpoch,
-                                                      acceptEpoch, partialTxn, fullRoute);
+            @Nullable PartialDeps partialDeps = (flags & 1) == 0 ? null : DepsSerializers.partialDeps.deserialize(in, version);
+            @Nullable FullRoute<?> fullRoute = (flags & 2) == 0 ? null : KeySerializers.fullRoute.deserialize(in, version);
+            boolean hasCoordinatorVote = (flags & 4) != 0;
+            long acceptEpoch = (flags & 8) == 0 ? minEpoch : in.readUnsignedVInt() + minEpoch;
+            return PreAccept.SerializerSupport.create(txnId, scope, waitForEpoch, minEpoch, acceptEpoch, partialTxn, partialDeps, hasCoordinatorVote, fullRoute);
         }
 
         @Override
         public long serializedBodySize(PreAccept msg, int version)
         {
-            return CommandSerializers.partialTxn.serializedSize(msg.partialTxn, version)
-                   + serializedNullableSize(msg.route, version, KeySerializers.fullRoute)
-                   + TypeSizes.sizeofUnsignedVInt(msg.acceptEpoch - msg.minEpoch);
+            return   TypeSizes.BYTE_SIZE
+                   + CommandSerializers.partialTxn.serializedSize(msg.partialTxn, version)
+                   + (msg.partialDeps == null ? 0 : DepsSerializers.partialDeps.serializedSize(msg.partialDeps, version))
+                   + (msg.route == null ? 0 : KeySerializers.fullRoute.serializedSize(msg.route, version))
+                   + (msg.acceptEpoch == msg.minEpoch ? 0 : TypeSizes.sizeofUnsignedVInt(msg.acceptEpoch - msg.minEpoch));
         }
     };
 

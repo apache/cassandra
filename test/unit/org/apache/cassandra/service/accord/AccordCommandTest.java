@@ -34,6 +34,7 @@ import accord.local.Node;
 import accord.local.PreLoadContext;
 import accord.local.SafeCommand;
 import accord.local.SafeCommandStore;
+import accord.primitives.KeyDeps;
 import accord.primitives.Status;
 import accord.messages.Accept;
 import accord.messages.Commit;
@@ -55,6 +56,8 @@ import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.service.accord.api.PartitionKey;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
+import static accord.api.ProtocolModifiers.Toggles.filterDuplicateDependenciesFromAcceptReply;
+import static accord.messages.Accept.Kind.SLOW;
 import static accord.utils.async.AsyncChains.getUninterruptibly;
 import static org.apache.cassandra.cql3.statements.schema.CreateTableStatement.parse;
 import static org.apache.cassandra.service.accord.AccordTestUtils.createAccordCommandStore;
@@ -102,7 +105,7 @@ public class AccordCommandTest
         FullRoute<?> fullRoute = txn.keys().toRoute(homeKey);
         Route<?> route = fullRoute.slice(fullRange(txn));
         PartialTxn partialTxn = txn.intersecting(route, true);
-        PreAccept preAccept = PreAccept.SerializerSupport.create(txnId, route, 1, 1, 1, partialTxn, fullRoute);
+        PreAccept preAccept = PreAccept.SerializerSupport.create(txnId, route, 1, 1, 1, partialTxn, null, false, fullRoute);
 
         // Check preaccept
         getUninterruptibly(commandStore.execute(preAccept, safeStore -> {
@@ -141,13 +144,13 @@ public class AccordCommandTest
             builder.add(key.toUnseekable(), txnId2);
             deps = builder.build();
         }
-        Accept accept = Accept.SerializerSupport.create(txnId, route, 1, 1, Ballot.ZERO, executeAt, deps);
+        Accept accept = Accept.SerializerSupport.create(txnId, route, 1, 1, SLOW, Ballot.ZERO, executeAt, deps);
 
         getUninterruptibly(commandStore.execute(accept, safeStore -> {
             Command before = safeStore.ifInitialised(txnId).current();
             Accept.AcceptReply reply = accept.apply(safeStore);
             Assert.assertTrue(reply.isOk());
-            Assert.assertEquals(deps.keyDeps, reply.deps.keyDeps);
+            Assert.assertEquals(filterDuplicateDependenciesFromAcceptReply() ? KeyDeps.NONE : deps.keyDeps, reply.deps.keyDeps);
             Command after = safeStore.ifInitialised(txnId).current();
             AccordTestUtils.appendCommandsBlocking(commandStore, before, after);
         }));
@@ -155,7 +158,7 @@ public class AccordCommandTest
         getUninterruptibly(commandStore.execute(accept, safeStore -> {
             Command before = safeStore.ifInitialised(txnId).current();
             Assert.assertEquals(executeAt, before.executeAt());
-            Assert.assertEquals(Status.Accepted, before.status());
+            Assert.assertEquals(Status.AcceptedSlow, before.status());
             Assert.assertEquals(deps, before.partialDeps());
 
             CommandsForKey cfk = safeStore.get(key(1).toUnseekable()).current();
@@ -165,7 +168,7 @@ public class AccordCommandTest
         }));
 
         // check commit
-        Commit commit = Commit.SerializerSupport.create(txnId, route, 1, 1, Commit.Kind.StableWithTxnAndDeps, Ballot.ZERO, executeAt, partialTxn, deps, fullRoute, null);
+        Commit commit = Commit.SerializerSupport.create(txnId, route, 1, 1, Commit.Kind.StableWithTxnAndDeps, Ballot.ZERO, executeAt, partialTxn, deps, fullRoute);
         getUninterruptibly(commandStore.execute(commit, commit::apply));
 
         getUninterruptibly(commandStore.execute(PreLoadContext.contextFor(txnId, Keys.of(key).toParticipants(), KeyHistory.SYNC), safeStore -> {
@@ -194,7 +197,7 @@ public class AccordCommandTest
         FullRoute<?> fullRoute = txn.keys().toRoute(homeKey);
         Route<?> route = fullRoute.slice(fullRange(txn));
         PartialTxn partialTxn = txn.intersecting(route, true);
-        PreAccept preAccept1 = PreAccept.SerializerSupport.create(txnId1, route, 1, 1, 1, partialTxn, fullRoute);
+        PreAccept preAccept1 = PreAccept.SerializerSupport.create(txnId1, route, 1, 1, 1, partialTxn, null, false, fullRoute);
 
         getUninterruptibly(commandStore.execute(preAccept1, safeStore -> {
             persistDiff(commandStore, safeStore, txnId1, route, () -> {
@@ -204,7 +207,7 @@ public class AccordCommandTest
 
         // second preaccept should identify txnId1 as a dependency
         TxnId txnId2 = txnId(1, clock.incrementAndGet(), 1);
-        PreAccept preAccept2 = PreAccept.SerializerSupport.create(txnId2, route, 1, 1, 1, partialTxn, fullRoute);
+        PreAccept preAccept2 = PreAccept.SerializerSupport.create(txnId2, route, 1, 1, 1, partialTxn, null, false, fullRoute);
         getUninterruptibly(commandStore.execute(preAccept2, safeStore -> {
             persistDiff(commandStore, safeStore, txnId2, route, () -> {
                 PreAccept.PreAcceptReply reply = preAccept2.apply(safeStore);

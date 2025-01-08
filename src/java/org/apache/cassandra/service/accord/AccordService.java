@@ -1077,7 +1077,7 @@ public class AccordService implements IAccordService, Shutdownable
     private static CommandStoreTxnBlockedGraph.TxnState populate(CommandStoreTxnBlockedGraph.Builder state, Command cmd)
     {
         CommandStoreTxnBlockedGraph.Builder.TxnBuilder cmdTxnState = state.txn(cmd.txnId(), cmd.executeAt(), cmd.saveStatus());
-        if (!cmd.hasBeen(Status.Applied) && cmd.isCommitted())
+        if (!cmd.hasBeen(Status.Applied) && cmd.hasBeen(Status.Stable))
         {
             // check blocking state
             Command.WaitingOn waitingOn = cmd.asCommitted().waitingOn();
@@ -1419,9 +1419,6 @@ public class AccordService implements IAccordService, Shutdownable
                     case Redundant:
                         tryFailure(new ExecuteSyncPoint.SyncPointErased());
                         return;
-                    case Invalid:
-                        tryFailure(new Invalidated(exclusiveSyncPoint.syncId, exclusiveSyncPoint.route.homeKey()));
-                        return;
                 }
             }
             else
@@ -1461,9 +1458,9 @@ public class AccordService implements IAccordService, Shutdownable
         }
 
         @Override
-        public void onCallbackFailure(Node.Id from, Throwable failure)
+        public boolean onCallbackFailure(Node.Id from, Throwable failure)
         {
-            tryFailure(failure);
+            return tryFailure(failure);
         }
     }
 }

@@ -85,7 +85,7 @@ public class AccordMarkStale implements Transformation
                 // We're trying to mark a node in this shard stale...
                 if (!Collections.disjoint(shard.nodes(), accordIds))
                 {
-                    int quorumSize = Shard.slowPathQuorumSize(shard.nodes().size());
+                    int quorumSize = Shard.slowQuorumSize(shard.nodes().size());
                     Set<Node.Id> nonStaleNodes = new HashSet<>(shard.nodes());
                     nonStaleNodes.removeAll(accordIds);
                     nonStaleNodes.removeAll(prev.accordStaleReplicas.ids());

@@ -26,7 +26,7 @@ import accord.api.Result;
 import accord.api.RoutingKey;
 import accord.local.Command;
 import accord.local.Command.WaitingOn;
-import accord.local.CommonAttributes;
+import accord.local.ICommand;
 import accord.local.Node;
 import accord.local.StoreParticipants;
 import accord.local.cfk.CommandsForKey;
@@ -61,9 +61,9 @@ import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.service.accord.api.AccordRoutingKey;
 import org.apache.cassandra.service.accord.api.AccordRoutingKey.TokenKey;
 import org.apache.cassandra.service.accord.api.PartitionKey;
-import org.apache.cassandra.service.accord.serializers.ResultSerializers;
 import org.apache.cassandra.service.accord.serializers.WaitingOnSerializer;
 import org.apache.cassandra.service.accord.txn.AccordUpdate;
+import org.apache.cassandra.service.accord.txn.TxnData;
 import org.apache.cassandra.service.accord.txn.TxnQuery;
 import org.apache.cassandra.service.accord.txn.TxnRead;
 import org.apache.cassandra.service.accord.txn.TxnResult;
@@ -271,53 +271,86 @@ public class AccordObjectSizes
     private static class CommandEmptySizes
     {
         private final static TokenKey EMPTY_KEY = new TokenKey(EMPTY_ID, null);
-        private final static TxnId EMPTY_TXNID = new TxnId(42, 42, Kind.Read, Domain.Key, new Node.Id(42));
+        private final static TxnId EMPTY_TXNID = new TxnId(42, 42, 0, Kind.Read, Domain.Key, new Node.Id(42));
 
-        private static CommonAttributes attrs(boolean hasDeps, boolean hasTxn, boolean executes)
+        private static ICommand attrs(boolean hasDeps, boolean hasTxn, boolean executes)
         {
             FullKeyRoute route = new FullKeyRoute(EMPTY_KEY, new RoutingKey[]{ EMPTY_KEY });
-            CommonAttributes.Mutable attrs = new CommonAttributes.Mutable(EMPTY_TXNID)
-                                             .setParticipants(StoreParticipants.empty(EMPTY_TXNID, route, !executes));
-            attrs.durability(Status.Durability.NotDurable);
+            ICommand.Builder builder = new ICommand.Builder(EMPTY_TXNID)
+                                       .setParticipants(StoreParticipants.empty(EMPTY_TXNID, route, !executes))
+                                       .durability(Status.Durability.NotDurable)
+                                       .executeAt(EMPTY_TXNID)
+                                       .promised(Ballot.ZERO);
             if (hasDeps)
-                attrs.partialDeps(PartialDeps.NONE);
+                builder.partialDeps(PartialDeps.NONE);
 
             if (hasTxn)
-                attrs.partialTxn(new PartialTxn.InMemory(null, null, null, null, null));
+                builder.partialTxn(new PartialTxn.InMemory(null, null, null, null, null));
 
-            return attrs;
+            if (executes)
+            {
+                builder.waitingOn(WaitingOn.empty(Domain.Key));
+                builder.result(new TxnData());
+            }
+
+            return builder;
         }
 
-        private static final Writes EMPTY_WRITES = new Writes(EMPTY_TXNID, EMPTY_TXNID, Keys.EMPTY, (key, safeStore, txnId, executeAt, store, txn) -> null);
-        private static final Result EMPTY_RESULT = new Result() {};
-
-        final static long NOT_DEFINED = measure(Command.SerializerSupport.notDefined(attrs(false, false, false), Ballot.ZERO));
-        final static long PREACCEPTED = measure(Command.SerializerSupport.preaccepted(attrs(false, true, false), EMPTY_TXNID, Ballot.ZERO));;
-        final static long ACCEPTED = measure(Command.SerializerSupport.accepted(attrs(true, false, false), SaveStatus.Accepted, EMPTY_TXNID, Ballot.ZERO, Ballot.ZERO));
-        final static long COMMITTED = measure(Command.SerializerSupport.committed(attrs(true, true, false), SaveStatus.Committed, EMPTY_TXNID, Ballot.ZERO, Ballot.ZERO, null));
-        final static long EXECUTED = measure(Command.SerializerSupport.executed(attrs(true, true, true), SaveStatus.Applied, EMPTY_TXNID, Ballot.ZERO, Ballot.ZERO, WaitingOn.empty(Domain.Key), EMPTY_WRITES, ResultSerializers.APPLIED));
-        final static long TRUNCATED = measure(Command.SerializerSupport.truncatedApply(attrs(false, false, false), SaveStatus.TruncatedApply,  EMPTY_TXNID, null, null));
-        final static long INVALIDATED = measure(Command.SerializerSupport.invalidated(EMPTY_TXNID, StoreParticipants.empty(EMPTY_TXNID)));
+        final static long NOT_DEFINED = measure(Command.NotDefined.notDefined(attrs(false, false, false)));
+        final static long PREACCEPTED = measure(Command.PreAccepted.preaccepted(attrs(false, true, false), SaveStatus.PreAccepted));
+        final static long NOTACCEPTED = measure(Command.NotAcceptedWithoutDefinition.notAccepted(attrs(false, false, false), SaveStatus.NotAccepted));
+        final static long ACCEPTED = measure(Command.Accepted.accepted(attrs(true, false, false), SaveStatus.AcceptedMedium));
+        final static long COMMITTED = measure(Command.Committed.committed(attrs(true, true, false), SaveStatus.Committed));
+        final static long EXECUTED = measure(Command.Executed.executed(attrs(true, true, true), SaveStatus.Applied));
+        final static long TRUNCATED = measure(Command.Truncated.truncatedApply(attrs(false, false, false), SaveStatus.TruncatedApply,  EMPTY_TXNID, null, null));
+        final static long INVALIDATED = measure(Command.Truncated.invalidated(EMPTY_TXNID, StoreParticipants.empty(EMPTY_TXNID)));
 
         private static long emptySize(Command command)
         {
-            switch (command.status())
+            switch (command.saveStatus())
             {
+                case Uninitialised:
                 case NotDefined:
                     return NOT_DEFINED;
                 case PreAccepted:
+                case PreAcceptedWithDeps:
+                case PreAcceptedWithVote:
                     return PREACCEPTED;
+                case NotAccepted:
+                case PreNotAccepted:
                 case AcceptedInvalidate:
-                case Accepted:
+                    return NOTACCEPTED;
+                case NotAcceptedWithDefinition:
+                case NotAcceptedWithDefAndVote:
+                case NotAcceptedWithDefAndDeps:
+                case PreNotAcceptedWithDefinition:
+                case PreNotAcceptedWithDefAndVote:
+                case PreNotAcceptedWithDefAndDeps:
+                case AcceptedInvalidateWithDefinition:
+                case AcceptedMedium:
+                case AcceptedMediumWithDefinition:
+                case AcceptedSlow:
+                case AcceptedSlowWithDefinition:
                 case PreCommitted:
+                case PreCommittedWithDeps:
+                case PreCommittedWithFixedDeps:
+                case PreCommittedWithDefinition:
+                case PreCommittedWithDefAndDeps:
+                case PreCommittedWithDefAndFixedDeps:
                     return ACCEPTED;
                 case Committed:
+                case ReadyToExecute:
                 case Stable:
                     return COMMITTED;
                 case PreApplied:
+                case Applying:
                 case Applied:
                     return EXECUTED;
-                case Truncated:
+                case TruncatedApply:
+                case TruncatedApplyWithDeps:
+                case TruncatedApplyWithOutcome:
+                case ErasedOrVestigial:
+                case Erased:
                     return TRUNCATED;
                 case Invalidated:
                     return INVALIDATED;

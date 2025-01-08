@@ -100,6 +100,8 @@ public class RecoverySerializers
             latestDeps.serialize(recoverOk.deps, out, version);
             DepsSerializers.deps.serialize(recoverOk.earlierWait, out, version);
             DepsSerializers.deps.serialize(recoverOk.earlierNoWait, out, version);
+            DepsSerializers.deps.serialize(recoverOk.laterWait, out, version);
+            DepsSerializers.deps.serialize(recoverOk.laterNoWait, out, version);
             out.writeBoolean(recoverOk.selfAcceptsFastPath);
             out.writeBoolean(recoverOk.supersedingRejects);
             CommandSerializers.nullableWrites.serialize(recoverOk.writes, out, version);
@@ -118,9 +120,9 @@ public class RecoverySerializers
             return new RecoverNack(kind, supersededBy);
         }
 
-        RecoverOk deserializeOk(TxnId txnId, Status status, Ballot accepted, Timestamp executeAt, @Nonnull LatestDeps deps, Deps earlierWait, Deps earlierNoWait, boolean acceptsFastPath, boolean rejectsFastPath, Writes writes, Result result, DataInputPlus in, int version)
+        RecoverOk deserializeOk(TxnId txnId, Status status, Ballot accepted, Timestamp executeAt, @Nonnull LatestDeps deps, Deps earlierWait, Deps earlierNoWait, Deps laterWait, Deps laterNoWait, boolean acceptsFastPath, boolean rejectsFastPath, Writes writes, Result result, DataInputPlus in, int version)
         {
-            return new RecoverOk(txnId, status, accepted, executeAt, deps, earlierWait, earlierNoWait, acceptsFastPath, rejectsFastPath, writes, result);
+            return new RecoverOk(txnId, status, accepted, executeAt, deps, earlierWait, earlierNoWait, laterWait, laterNoWait, acceptsFastPath, rejectsFastPath, writes, result);
         }
 
         @Override
@@ -142,6 +144,8 @@ public class RecoverySerializers
                                  CommandSerializers.ballot.deserialize(in, version),
                                  CommandSerializers.nullableTimestamp.deserialize(in, version),
                                  latestDeps.deserialize(in, version),
+                                 DepsSerializers.deps.deserialize(in, version),
+                                 DepsSerializers.deps.deserialize(in, version),
                                  DepsSerializers.deps.deserialize(in, version),
                                  DepsSerializers.deps.deserialize(in, version),
                                  in.readBoolean(),
@@ -166,6 +170,8 @@ public class RecoverySerializers
             size += latestDeps.serializedSize(recoverOk.deps, version);
             size += DepsSerializers.deps.serializedSize(recoverOk.earlierWait, version);
             size += DepsSerializers.deps.serializedSize(recoverOk.earlierNoWait, version);
+            size += DepsSerializers.deps.serializedSize(recoverOk.laterWait, version);
+            size += DepsSerializers.deps.serializedSize(recoverOk.laterNoWait, version);
             size += TypeSizes.sizeof(recoverOk.selfAcceptsFastPath);
             size += TypeSizes.sizeof(recoverOk.supersedingRejects);
             size += CommandSerializers.nullableWrites.serializedSize(recoverOk.writes, version);

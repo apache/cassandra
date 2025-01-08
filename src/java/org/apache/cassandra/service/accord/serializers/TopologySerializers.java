@@ -20,7 +20,6 @@ package org.apache.cassandra.service.accord.serializers;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.util.Set;
 
 import accord.local.Node;
 import accord.primitives.Range;
@@ -137,9 +136,9 @@ public class TopologySerializers
         {
             range.serialize(shard.range, out, version);
             CollectionSerializers.serializeList(shard.nodes, out, version, nodeId);
-            CollectionSerializers.serializeCollection(shard.fastPathElectorate, out, version, nodeId);
-            CollectionSerializers.serializeCollection(shard.joining, out, version, nodeId);
-
+            CollectionSerializers.serializeList(shard.notInFastPath, out, version, nodeId);
+            CollectionSerializers.serializeList(shard.joining, out, version, nodeId);
+            out.writeBoolean(shard.pendingRemoval);
         }
 
         @Override
@@ -147,9 +146,10 @@ public class TopologySerializers
         {
             Range range = ShardSerializer.this.range.deserialize(in, version);
             SortedArrayList<Node.Id> nodes = CollectionSerializers.deserializeSortedArrayList(in, version, nodeId, Node.Id[]::new);
-            Set<Node.Id> fastPathElectorate = CollectionSerializers.deserializeSet(in, version, nodeId);
-            Set<Node.Id> joining = CollectionSerializers.deserializeSet(in, version, nodeId);
-            return new Shard(range, nodes, fastPathElectorate, joining);
+            SortedArrayList<Node.Id> notInFastPath = CollectionSerializers.deserializeSortedArrayList(in, version, nodeId, Node.Id[]::new);
+            SortedArrayList<Node.Id> joining = CollectionSerializers.deserializeSortedArrayList(in, version, nodeId, Node.Id[]::new);
+            boolean pendingRemoval = in.readBoolean();
+            return Shard.SerializerSupport.create(range, nodes, notInFastPath, joining, pendingRemoval);
         }
 
         @Override
@@ -157,8 +157,9 @@ public class TopologySerializers
         {
             long size = range.serializedSize(shard.range, version);
             size += CollectionSerializers.serializedListSize(shard.nodes, version, nodeId);
-            size += CollectionSerializers.serializedCollectionSize(shard.fastPathElectorate, version, nodeId);
-            size += CollectionSerializers.serializedCollectionSize(shard.joining, version, nodeId);
+            size += CollectionSerializers.serializedListSize(shard.notInFastPath, version, nodeId);
+            size += CollectionSerializers.serializedListSize(shard.joining, version, nodeId);
+            size += TypeSizes.BOOL_SIZE;
             return size;
         }
     };

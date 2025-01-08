@@ -436,31 +436,19 @@ public class CommandSerializers
         @Override
         public void serialize(Known known, DataOutputPlus out, int version) throws IOException
         {
-            knownRoute.serialize(known.route, out, version);
-            definition.serialize(known.definition, out, version);
-            knownExecuteAt.serialize(known.executeAt, out, version);
-            knownDeps.serialize(known.deps, out, version);
-            outcome.serialize(known.outcome, out, version);
+            out.writeUnsignedVInt32(known.encoded);
         }
 
         @Override
         public Known deserialize(DataInputPlus in, int version) throws IOException
         {
-            return new Known(knownRoute.deserialize(in, version),
-                             definition.deserialize(in, version),
-                             knownExecuteAt.deserialize(in, version),
-                             knownDeps.deserialize(in, version),
-                             outcome.deserialize(in, version));
+            return new Known(in.readUnsignedVInt32());
         }
 
         @Override
         public long serializedSize(Known known, int version)
         {
-            return knownRoute.serializedSize(known.route, version)
-                   + definition.serializedSize(known.definition, version)
-                   + knownExecuteAt.serializedSize(known.executeAt, version)
-                   + knownDeps.serializedSize(known.deps, version)
-                   + outcome.serializedSize(known.outcome, version);
+            return TypeSizes.sizeofUnsignedVInt(known.encoded);
         }
     };
 

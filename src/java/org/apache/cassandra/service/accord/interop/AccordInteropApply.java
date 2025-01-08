@@ -41,6 +41,7 @@ import accord.primitives.TxnId;
 import accord.primitives.Unseekables;
 import accord.primitives.Writes;
 import accord.topology.Topologies;
+import accord.utils.UnhandledEnum;
 import org.agrona.collections.Int2ObjectHashMap;
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.io.IVersionedSerializer;
@@ -119,10 +120,14 @@ public class AccordInteropApply extends Apply implements LocalListeners.ComplexL
             default: throw new AssertionError();
             case NotDefined:
             case PreAccepted:
-            case Accepted:
+            case PreNotAccepted:
+            case NotAccepted:
             case AcceptedInvalidate:
+            case AcceptedMedium:
+            case AcceptedSlow:
             case PreCommitted:
             case Committed:
+            case Stable:
             case PreApplied:
                 LocalListeners.Registered listener = safeStore.register(txnId, this);
                 synchronized (this)
@@ -239,14 +244,18 @@ public class AccordInteropApply extends Apply implements LocalListeners.ComplexL
         Command command = safeCommand.current();
         switch (command.status())
         {
-            default: throw new AssertionError();
+            default: throw new UnhandledEnum(command.status());
             case NotDefined:
             case PreAccepted:
-            case Accepted:
+            case PreNotAccepted:
+            case NotAccepted:
             case AcceptedInvalidate:
+            case AcceptedMedium:
+            case AcceptedSlow:
             case PreCommitted:
             case Committed:
             case PreApplied:
+            case Stable:
                 return true;
 
             case Applied:

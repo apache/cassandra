@@ -209,7 +209,7 @@ public class AccordJournal implements accord.api.Journal, Shutdownable
     public Command loadCommand(int commandStoreId, TxnId txnId, RedundantBefore redundantBefore, DurableBefore durableBefore)
     {
         Builder builder = load(commandStoreId, txnId);
-        Cleanup cleanup = builder.shouldCleanup(agent, redundantBefore, durableBefore);
+        Cleanup cleanup = builder.shouldCleanup(agent, redundantBefore, durableBefore, false);
         switch (cleanup)
         {
             case EXPUNGE_PARTIAL:
@@ -227,7 +227,7 @@ public class AccordJournal implements accord.api.Journal, Shutdownable
         if (builder.isEmpty())
             return null;
 
-        Cleanup cleanup = builder.shouldCleanup(node.agent(), redundantBefore, durableBefore);
+        Cleanup cleanup = builder.shouldCleanup(node.agent(), redundantBefore, durableBefore, false);
         switch (cleanup)
         {
             case EXPUNGE_PARTIAL:

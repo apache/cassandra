@@ -31,6 +31,7 @@ import org.junit.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import accord.api.ProtocolModifiers;
 import accord.messages.TxnRequest;
 import accord.primitives.Routable;
 import accord.primitives.SaveStatus;
@@ -52,6 +53,7 @@ import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.concurrent.Condition;
 import org.awaitility.Awaitility;
 
+import static accord.primitives.TxnId.FastPath.UNOPTIMISED;
 import static org.apache.cassandra.Util.spinUntilSuccess;
 import static org.apache.cassandra.service.accord.AccordTestUtils.createTxn;
 
@@ -133,6 +135,8 @@ public class AccordDebugKeyspaceTest extends CQLTester
     @Test
     public void blocked() throws ExecutionException, InterruptedException
     {
+        ProtocolModifiers.Toggles.setPermitLocalExecution(false);
+        ProtocolModifiers.Toggles.setPermittedFastPaths(new TxnId.FastPaths(UNOPTIMISED));
         AccordMsgFilter filter = new AccordMsgFilter();
         MessagingService.instance().outboundSink.add(filter);
         try
@@ -225,15 +229,20 @@ public class AccordDebugKeyspaceTest extends CQLTester
                     preAccept.signalAll();
                     return true;
                 case ACCORD_COMMIT_REQ:
+                case ACCORD_STABLE_THEN_READ_REQ:
                     commit.signalAll();
                     return true;
                 case ACCORD_PRE_ACCEPT_REQ:
+                case ACCORD_ACCEPT_REQ:
+                case ACCORD_ACCEPT_RSP:
                 case ACCORD_CHECK_STATUS_REQ:
                 case ACCORD_CHECK_STATUS_RSP:
                 case ACCORD_READ_RSP:
                 case ACCORD_AWAIT_REQ:
                 case ACCORD_AWAIT_RSP:
                 case ACCORD_AWAIT_ASYNC_RSP_REQ:
+                case ACCORD_FETCH_MIN_EPOCH_REQ:
+                case ACCORD_FETCH_MIN_EPOCH_RSP:
                     return true;
                 default:
                     // many code paths don't log the error...

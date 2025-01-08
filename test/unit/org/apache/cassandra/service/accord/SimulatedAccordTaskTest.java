@@ -118,7 +118,7 @@ public class SimulatedAccordTaskTest extends SimulatedAccordCommandStoreTestBase
                         Action action = actionGen.next(rs);
                         TxnId txnId = instance.nextTxnId(txn.kind(), txn.keys().domain());
                         FullRoute<?> route = txnWithRoute.right;
-                        PreAccept preAccept = new PreAccept(nodeId, instance.topologies, txnId, txn, route) {
+                        PreAccept preAccept = new PreAccept(nodeId, instance.topologies, txnId, txn, null, false, route) {
                             @Override
                             public PreAcceptReply apply(SafeCommandStore safeStore)
                             {

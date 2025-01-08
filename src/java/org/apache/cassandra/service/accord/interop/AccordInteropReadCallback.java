@@ -90,8 +90,9 @@ public abstract class AccordInteropReadCallback<T> implements Callback<ReadReply
         wrapped.onFailure(endpoint, requestFailure);
     }
 
-    public void onCallbackFailure(Node.Id from, Throwable failure)
+    public boolean onCallbackFailure(Node.Id from, Throwable failure)
     {
         wrapped.onFailure(endpoint, RequestFailure.UNKNOWN);
+        return true;
     }
 }

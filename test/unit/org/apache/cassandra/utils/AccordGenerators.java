@@ -33,7 +33,7 @@ import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSortedMap;
 
 import accord.local.Command;
-import accord.local.CommonAttributes;
+import accord.local.ICommand;
 import accord.local.DurableBefore;
 import accord.local.RedundantBefore;
 import accord.local.StoreParticipants;
@@ -49,6 +49,7 @@ import accord.primitives.Ranges;
 import accord.primitives.Routable;
 import accord.primitives.SaveStatus;
 import accord.primitives.Seekables;
+import accord.primitives.Status;
 import accord.primitives.Timestamp;
 import accord.primitives.Txn;
 import accord.primitives.TxnId;
@@ -75,6 +76,7 @@ import org.quicktheories.impl.JavaRandom;
 
 import static accord.local.CommandStores.RangesForEpoch;
 import static accord.primitives.Status.Durability.NotDurable;
+import static accord.primitives.Txn.Kind.Write;
 import static org.apache.cassandra.service.accord.AccordTestUtils.TABLE_ID1;
 import static org.apache.cassandra.service.accord.AccordTestUtils.createPartialTxn;
 
@@ -212,18 +214,30 @@ public class AccordGenerators
             this.keysOrRanges = txn.keys();
         }
 
-        private CommonAttributes attributes(SaveStatus saveStatus)
+        private ICommand attributes(SaveStatus saveStatus)
         {
-            CommonAttributes.Mutable mutable = new CommonAttributes.Mutable(txnId);
+            ICommand.Builder builder = new ICommand.Builder(txnId);
             if (saveStatus.known.isDefinitionKnown())
-                mutable.partialTxn(partialTxn);
-            if (saveStatus.known.deps.hasProposedOrDecidedDeps())
-                mutable.partialDeps(partialDeps);
+                builder.partialTxn(partialTxn);
+            if (saveStatus.known.deps().hasPreAcceptedOrProposedOrDecidedDeps())
+                builder.partialDeps(partialDeps);
 
-            mutable.setParticipants(StoreParticipants.all(route));
-            mutable.durability(NotDurable);
-
-            return mutable;
+            builder.setParticipants(StoreParticipants.all(route));
+            builder.durability(NotDurable);
+            if (saveStatus.compareTo(SaveStatus.PreAccepted) >= 0)
+                builder.executeAt(executeAt);
+            builder.promised(promised);
+            if (saveStatus.status.compareTo(Status.PreAccepted) > 0)
+                builder.acceptedOrCommitted(accepted);
+            if (saveStatus.compareTo(SaveStatus.Stable) >= 0 && !saveStatus.hasBeen(Status.Truncated))
+                builder.waitingOn(waitingOn);
+            if (saveStatus.hasBeen(Status.PreApplied) && !saveStatus.hasBeen(Status.Truncated))
+            {
+                if (txnId.is(Write))
+                    builder.writes(new Writes(txnId, executeAt, keysOrRanges, new TxnWrite(Collections.emptyList(), true)));
+                builder.result(new TxnData());
+            }
+            return builder;
         }
 
         public Command build(SaveStatus saveStatus)
@@ -235,45 +249,61 @@ public class AccordGenerators
                     throw new IllegalArgumentException("TruncatedApplyWithDeps is not a valid state for a Command to be in, its for FetchData");
                 case Uninitialised:
                 case NotDefined:
-                    return Command.SerializerSupport.notDefined(attributes(saveStatus), Ballot.ZERO);
+                    return Command.NotDefined.notDefined(attributes(saveStatus), Ballot.ZERO);
                 case PreAccepted:
-                    return Command.SerializerSupport.preaccepted(attributes(saveStatus), executeAt, Ballot.ZERO);
+                case PreAcceptedWithVote:
+                case PreAcceptedWithDeps:
+                    return Command.PreAccepted.preaccepted(attributes(saveStatus), saveStatus);
+                case PreNotAccepted:
+                case PreNotAcceptedWithDefinition:
+                case PreNotAcceptedWithDefAndDeps:
+                case PreNotAcceptedWithDefAndVote:
+                case NotAccepted:
+                case NotAcceptedWithDefinition:
+                case NotAcceptedWithDefAndDeps:
+                case NotAcceptedWithDefAndVote:
                 case AcceptedInvalidate:
-                    return Command.AcceptedInvalidateWithoutDefinition.acceptedInvalidate(attributes(saveStatus), promised, Ballot.ZERO);
+                    return Command.NotAcceptedWithoutDefinition.acceptedInvalidate(attributes(saveStatus));
 
-                case Accepted:
-                case AcceptedWithDefinition:
+                case AcceptedMedium:
+                case AcceptedMediumWithDefinition:
+                case AcceptedMediumWithDefAndVote:
                 case AcceptedInvalidateWithDefinition:
+                case AcceptedSlow:
+                case AcceptedSlowWithDefinition:
+                case AcceptedSlowWithDefAndVote:
                 case PreCommittedWithDefinition:
-                case PreCommittedWithDefinitionAndAcceptedDeps:
-                case PreCommittedWithAcceptedDeps:
+                case PreCommittedWithDeps:
+                case PreCommittedWithFixedDeps:
+                case PreCommittedWithDefAndDeps:
+                case PreCommittedWithDefAndFixedDeps:
                 case PreCommitted:
-                    return Command.SerializerSupport.accepted(attributes(saveStatus), saveStatus, executeAt, promised, accepted);
+                    return Command.Accepted.accepted(attributes(saveStatus), saveStatus);
 
                 case Committed:
-                    return Command.SerializerSupport.committed(attributes(saveStatus), saveStatus, executeAt, promised, accepted, null);
+                    return Command.Committed.committed(attributes(saveStatus), saveStatus);
 
                 case Stable:
                 case ReadyToExecute:
-                    return Command.SerializerSupport.committed(attributes(saveStatus), saveStatus, executeAt, promised, accepted, waitingOn);
+                    return Command.Committed.committed(attributes(saveStatus), saveStatus);
 
                 case PreApplied:
                 case Applying:
                 case Applied:
-                    return Command.SerializerSupport.executed(attributes(saveStatus), saveStatus, executeAt, promised, accepted, waitingOn, new Writes(txnId, executeAt, keysOrRanges, new TxnWrite(Collections.emptyList(), true)), new TxnData());
+                    return Command.Executed.executed(attributes(saveStatus), saveStatus);
 
                 case TruncatedApply:
-                    if (txnId.kind().awaitsOnlyDeps()) return Command.SerializerSupport.truncatedApply(attributes(saveStatus), saveStatus, executeAt, null, null, txnId);
-                    else return Command.SerializerSupport.truncatedApply(attributes(saveStatus), saveStatus, executeAt, null, null);
+                    if (txnId.kind().awaitsOnlyDeps()) return Command.Truncated.truncatedApply(attributes(saveStatus), saveStatus, executeAt, null, null, txnId);
+                    else return Command.Truncated.truncatedApply(attributes(saveStatus), saveStatus, executeAt, null, null);
 
                 case TruncatedApplyWithOutcome:
-                    if (txnId.kind().awaitsOnlyDeps()) return Command.SerializerSupport.truncatedApply(attributes(saveStatus), saveStatus, executeAt, new Writes(txnId, executeAt, keysOrRanges, new TxnWrite(Collections.emptyList(), true)), new TxnData(), txnId);
-                    else return Command.SerializerSupport.truncatedApply(attributes(saveStatus), saveStatus, executeAt, new Writes(txnId, executeAt, keysOrRanges, new TxnWrite(Collections.emptyList(), true)), new TxnData());
+                    if (txnId.kind().awaitsOnlyDeps()) return Command.Truncated.truncatedApply(attributes(saveStatus), saveStatus, executeAt, txnId.is(Write) ? new Writes(txnId, executeAt, keysOrRanges,new TxnWrite(Collections.emptyList(), true)) : null, new TxnData(), txnId);
+                    else return Command.Truncated.truncatedApply(attributes(saveStatus), saveStatus, executeAt, txnId.is(Write) ? new Writes(txnId, executeAt, keysOrRanges, new TxnWrite(Collections.emptyList(), true)) : null, new TxnData());
 
                 case Erased:
                 case ErasedOrVestigial:
                 case Invalidated:
-                    return Command.SerializerSupport.invalidated(txnId, attributes(saveStatus).participants());
+                    return Command.Truncated.invalidated(txnId, attributes(saveStatus).participants());
             }
         }
     }

@@ -49,6 +49,7 @@ public class AccordInteropPersist extends Persist
 {
     private static class CallbackHolder
     {
+        boolean isDone = false;
         private final ResponseTracker tracker;
         private final Result result;
         private final BiConsumer<? super Result, Throwable> clientCallback;
@@ -63,13 +64,18 @@ public class AccordInteropPersist extends Persist
 
         private void handleStatus(RequestStatus status)
         {
+            if (isDone)
+                return;
+
             switch (status)
             {
                 default: throw new IllegalStateException("Unhandled request status " + status);
                 case Success:
+                    isDone = true;
                     clientCallback.accept(result, null);
                     return;
                 case Failed:
+                    isDone = true;
                     clientCallback.accept(null, failure);
                     return;
                 case NoChange:
@@ -86,6 +92,16 @@ public class AccordInteropPersist extends Persist
         {
             failure = Throwables.merge(failure, throwable);
             handleStatus(tracker.recordFailure(node));
+        }
+
+        boolean recordCallbackFailure(Throwable throwable)
+        {
+            if (isDone)
+                return false;
+            isDone = true;
+            failure = Throwables.merge(failure, throwable);
+            clientCallback.accept(null, failure);
+            return true;
         }
     }
 
@@ -143,8 +159,8 @@ public class AccordInteropPersist extends Persist
     }
 
     @Override
-    public void onCallbackFailure(Node.Id from, Throwable failure)
+    public boolean onCallbackFailure(Node.Id from, Throwable failure)
     {
-        callback.recordFailure(from, failure);
+        return callback.recordCallbackFailure(failure);
     }
 }

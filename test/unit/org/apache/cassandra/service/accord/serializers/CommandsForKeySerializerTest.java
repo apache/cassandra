@@ -45,8 +45,7 @@ import org.junit.Test;
 import accord.api.Key;
 import accord.api.RoutingKey;
 import accord.local.Command;
-import accord.local.CommonAttributes;
-import accord.local.CommonAttributes.Mutable;
+import accord.local.ICommand;
 import accord.local.Node;
 import accord.local.StoreParticipants;
 import accord.local.cfk.CommandsForKey;
@@ -56,6 +55,7 @@ import accord.local.cfk.CommandsForKey.Unmanaged;
 import accord.local.cfk.Serialize;
 import accord.primitives.Ballot;
 import accord.primitives.KeyDeps;
+import accord.primitives.Known;
 import accord.primitives.PartialDeps;
 import accord.primitives.PartialTxn;
 import accord.primitives.RangeDeps;
@@ -71,6 +71,7 @@ import accord.utils.Gen;
 import accord.utils.Gens;
 import accord.utils.RandomSource;
 import accord.utils.SortedArrays;
+import accord.utils.UnhandledEnum;
 import org.agrona.collections.Int2ObjectHashMap;
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.dht.Murmur3Partitioner;
@@ -143,25 +144,38 @@ public class CommandsForKeySerializerTest
             this.isDurable = isDurable;
         }
 
-        CommonAttributes attributes()
+        ICommand.Builder builder()
         {
-            Mutable mutable = new Mutable(txnId);
+            ICommand.Builder builder = new ICommand.Builder(txnId);
             if (saveStatus.known.isDefinitionKnown())
-                mutable.partialTxn(txn);
+                builder.partialTxn(txn);
 
-            mutable.setParticipants(StoreParticipants.all(txn.keys().toRoute(txn.keys().get(0).someIntersectingRoutingKey(null))));
-            mutable.durability(isDurable ? Majority : NotDurable);
-            if (saveStatus.known.deps.hasProposedOrDecidedDeps())
+            builder.setParticipants(StoreParticipants.all(txn.keys().toRoute(txn.keys().get(0).someIntersectingRoutingKey(null))));
+            builder.durability(isDurable ? Majority : NotDurable);
+            if (saveStatus.known.deps().hasPreAcceptedOrProposedOrDecidedDeps())
             {
-                try (KeyDeps.Builder builder = KeyDeps.builder();)
+                try (KeyDeps.Builder keyBuilder = KeyDeps.builder();)
                 {
                     for (TxnId id : deps)
-                        builder.add(((Key)txn.keys().get(0)).toUnseekable(), id);
-                    mutable.partialDeps(new PartialDeps(AccordTestUtils.fullRange(txn), builder.build(), RangeDeps.NONE, KeyDeps.NONE));
+                        keyBuilder.add(((Key)txn.keys().get(0)).toUnseekable(), id);
+                    builder.partialDeps(new PartialDeps(AccordTestUtils.fullRange(txn), keyBuilder.build(), RangeDeps.NONE, KeyDeps.NONE));
                 }
             }
 
-            return mutable;
+            builder.executeAt(executeAt);
+            builder.promised(ballot);
+            builder.acceptedOrCommitted(ballot);
+            builder.durability(isDurable ? Majority : NotDurable);
+            if (saveStatus.compareTo(SaveStatus.Stable) >= 0 && !saveStatus.hasBeen(Status.Truncated))
+                builder.waitingOn(Command.WaitingOn.empty(txnId.domain()));
+
+            if (saveStatus.known.outcome() == Known.Outcome.Apply)
+            {
+                if (txnId.is(Txn.Kind.Write))
+                    builder.writes(new Writes(txnId, executeAt, txn.keys(), new TxnWrite(Collections.emptyList(), true)));
+                builder.result(new TxnData());
+            }
+            return builder;
         }
 
         Command toCommand()
@@ -171,34 +185,50 @@ public class CommandsForKeySerializerTest
                 default: throw new AssertionError("Unhandled saveStatus: " + saveStatus);
                 case Uninitialised:
                 case NotDefined:
-                    return Command.SerializerSupport.notDefined(attributes(), Ballot.ZERO);
+                    return Command.NotDefined.notDefined(builder(), Ballot.ZERO);
                 case PreAccepted:
-                    return Command.SerializerSupport.preaccepted(attributes(), executeAt, Ballot.ZERO);
+                case PreAcceptedWithVote:
+                case PreAcceptedWithDeps:
+                    return Command.PreAccepted.preaccepted(builder(), saveStatus);
                 case AcceptedInvalidate:
-                    return Command.SerializerSupport.acceptedInvalidateWithoutDefinition(attributes(), ballot, ballot);
-                case Accepted:
-                case AcceptedWithDefinition:
+                case PreNotAccepted:
+                case NotAccepted:
+                    return Command.NotAcceptedWithoutDefinition.notAccepted(builder(), saveStatus);
+                case AcceptedMedium:
+                case AcceptedMediumWithDefinition:
+                case AcceptedMediumWithDefAndVote:
+                case AcceptedSlow:
+                case AcceptedSlowWithDefinition:
+                case AcceptedSlowWithDefAndVote:
                 case AcceptedInvalidateWithDefinition:
+                case PreNotAcceptedWithDefinition:
+                case PreNotAcceptedWithDefAndVote:
+                case PreNotAcceptedWithDefAndDeps:
+                case NotAcceptedWithDefinition:
+                case NotAcceptedWithDefAndVote:
+                case NotAcceptedWithDefAndDeps:
                 case PreCommittedWithDefinition:
-                case PreCommittedWithDefinitionAndAcceptedDeps:
-                case PreCommittedWithAcceptedDeps:
+                case PreCommittedWithDefAndDeps:
+                case PreCommittedWithDefAndFixedDeps:
+                case PreCommittedWithDeps:
+                case PreCommittedWithFixedDeps:
                 case PreCommitted:
-                    return Command.SerializerSupport.accepted(attributes(), saveStatus, executeAt, ballot, ballot);
+                    return Command.Accepted.accepted(builder(), saveStatus);
 
                 case Committed:
-                    return Command.SerializerSupport.committed(attributes(), saveStatus, executeAt, ballot, ballot, null);
+                    return Command.Committed.committed(builder(), saveStatus);
 
                 case Stable:
                 case ReadyToExecute:
-                    return Command.SerializerSupport.committed(attributes(), saveStatus, executeAt, ballot, ballot, Command.WaitingOn.empty(txnId.domain()));
+                    return Command.Committed.committed(builder(), saveStatus);
 
                 case PreApplied:
                 case Applying:
                 case Applied:
-                    return Command.SerializerSupport.executed(attributes(), saveStatus, executeAt, ballot, ballot, Command.WaitingOn.empty(txnId.domain()), new Writes(txnId, executeAt, txn.keys(), new TxnWrite(Collections.emptyList(), true)), new TxnData());
+                    return Command.Executed.executed(builder(), saveStatus);
 
                 case Invalidated:
-                    return Command.SerializerSupport.invalidated(txnId, attributes().participants());
+                    return Command.Truncated.invalidated(txnId, builder().participants());
             }
         }
 
@@ -242,14 +272,14 @@ public class CommandsForKeySerializerTest
             TxnId txnId = txnIdSupplier.get();
             SaveStatus saveStatus = saveStatusSupplier.get();
             Timestamp executeAt = txnId;
-            if (!txnId.kind().awaitsOnlyDeps() && saveStatus.known.executeAt != ExecuteAtErased && saveStatus.known.executeAt != ExecuteAtUnknown)
+            if (!txnId.kind().awaitsOnlyDeps() && !saveStatus.known.is(ExecuteAtErased) && !saveStatus.known.is(ExecuteAtUnknown))
                 executeAt = timestampSupplier.apply(txnId);
 
             boolean isDurable = false;
             Ballot ballot;
             switch (saveStatus.status)
             {
-                default: throw new AssertionError();
+                default: throw new UnhandledEnum(saveStatus.status);
                 case NotDefined:
                 case PreAccepted:
                 case Invalidated:
@@ -259,8 +289,11 @@ public class CommandsForKeySerializerTest
                 case PreApplied:
                 case Applied:
                     isDurable = source.nextBoolean();
+                case PreNotAccepted:
+                case NotAccepted:
                 case AcceptedInvalidate:
-                case Accepted:
+                case AcceptedMedium:
+                case AcceptedSlow:
                 case PreCommitted:
                 case Committed:
                 case Stable:
@@ -272,10 +305,10 @@ public class CommandsForKeySerializerTest
         Arrays.sort(cmds, Comparator.comparing(o -> o.txnId));
         for (int i = 0 ; i < txnIdCount ; ++i)
         {
-            if (!cmds[i].saveStatus.known.deps.hasProposedOrDecidedDeps())
+            if (!cmds[i].saveStatus.known.deps().hasProposedOrDecidedDeps())
                 continue;
 
-            Timestamp knownBefore = cmds[i].saveStatus.known.deps.hasCommittedOrDecidedDeps() ? cmds[i].executeAt : cmds[i].txnId;
+            Timestamp knownBefore = cmds[i].saveStatus.known.deps().hasCommittedOrDecidedDeps() ? cmds[i].executeAt : cmds[i].txnId;
             int limit = SortedArrays.binarySearch(cmds, 0, cmds.length, knownBefore, (a, b) -> a.compareTo(b.txnId), FAST);
             if (limit < 0) limit = -1 - limit;
 
@@ -573,7 +606,7 @@ public class CommandsForKeySerializerTest
         TokenKey pk = new TokenKey(TableId.fromString("1b255f4d-ef25-40a6-0000-000000000009"), token);
         TxnId txnId = TxnId.fromValues(11,34052499,2,1);
         CommandsForKey expected = CommandsForKey.SerializerSupport.create(pk,
-                                                     new TxnInfo[] { TxnInfo.create(txnId, InternalStatus.PREACCEPTED_OR_ACCEPTED_INVALIDATE, true, txnId, TxnId.NO_TXNIDS, Ballot.ZERO) },
+                                                     new TxnInfo[] { TxnInfo.create(txnId, InternalStatus.PREACCEPTED_WITHOUT_DEPS, true, txnId, TxnId.NO_TXNIDS, Ballot.ZERO) },
                                                                           0, CommandsForKey.NO_PENDING_UNMANAGED, TxnId.NONE, NO_BOUNDS_INFO);
 
         ByteBuffer buffer = Serialize.toBytesWithoutKey(expected);

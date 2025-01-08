@@ -220,16 +220,16 @@ public class ParameterizedFastPathStrategy implements FastPathStrategy
 
         sorters.sort(Comparator.naturalOrder());
 
-        int slowQuorum = Shard.slowPathQuorumSize(nodes.size());
+        int slowQuorum = Shard.slowQuorumSize(nodes.size());
         int fpSize = Math.max(size, slowQuorum);
         Node.Id[] array = new Node.Id[fpSize];
         for (int i=0; i<fpSize; i++)
             array[i] = sorters.get(i).id;
 
         Arrays.sort(array);
-        SortedArrayList<Node.Id> fastPath = new SortedArrayList<>(array);
-        Invariants.checkState(fastPath.size() >= slowQuorum);
-        return fastPath;
+        SortedArrayList<Node.Id> electorate = new SortedArrayList<>(array);
+        Invariants.checkState(electorate.size() >= slowQuorum);
+        return electorate;
     }
 
     private static ConfigurationException cfe(String fmt, Object... args)

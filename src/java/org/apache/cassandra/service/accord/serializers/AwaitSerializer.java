@@ -44,7 +44,7 @@ public class AwaitSerializer
         {
             CommandSerializers.txnId.serialize(await.txnId, out, version);
             KeySerializers.participants.serialize(await.scope, out, version);
-            out.writeByte(await.blockedUntil.ordinal());
+            out.writeByte((await.blockedUntil.ordinal() << 1) | (await.notifyProgressLog ? 1 : 0));
             out.writeUnsignedVInt(await.maxAwaitEpoch - await.txnId.epoch());
             out.writeUnsignedVInt(await.maxAwaitEpoch - await.minAwaitEpoch);
             out.writeUnsignedVInt32(await.callbackId + 1);
@@ -56,12 +56,14 @@ public class AwaitSerializer
         {
             TxnId txnId = CommandSerializers.txnId.deserialize(in, version);
             Participants<?> scope = KeySerializers.participants.deserialize(in, version);
-            BlockedUntil blockedUntil = BlockedUntil.forOrdinal(in.readByte());
+            int blockedAndNotify = in.readByte();
+            BlockedUntil blockedUntil = BlockedUntil.forOrdinal(blockedAndNotify >>> 1);
+            boolean notifyProgressLog = (blockedAndNotify & 1) == 1;
             long maxAwaitEpoch = in.readUnsignedVInt() + txnId.epoch();
             long minAwaitEpoch = maxAwaitEpoch - in.readUnsignedVInt();
             int callbackId = in.readUnsignedVInt32() - 1;
             Invariants.checkState(callbackId >= -1);
-            return Await.SerializerSupport.create(txnId, scope, blockedUntil, minAwaitEpoch, maxAwaitEpoch, callbackId);
+            return Await.SerializerSupport.create(txnId, scope, blockedUntil, notifyProgressLog, minAwaitEpoch, maxAwaitEpoch, callbackId);
         }
 
         @Override

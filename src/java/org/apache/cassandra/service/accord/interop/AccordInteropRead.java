@@ -56,13 +56,13 @@ import static accord.primitives.SaveStatus.ReadyToExecute;
 
 public class AccordInteropRead extends ReadData
 {
-    public static final IVersionedSerializer<AccordInteropRead> requestSerializer = new ReadDataSerializer<AccordInteropRead>()
+    public static final IVersionedSerializer<AccordInteropRead> requestSerializer = new ReadDataSerializer<>()
     {
         @Override
         public void serialize(AccordInteropRead read, DataOutputPlus out, int version) throws IOException
         {
             CommandSerializers.txnId.serialize(read.txnId, out, version);
-            KeySerializers.participants.serialize(read.readScope, out, version);
+            KeySerializers.participants.serialize(read.scope, out, version);
             out.writeUnsignedVInt(read.executeAtEpoch);
             SinglePartitionReadCommand.serializer.serialize(read.command, out, version);
         }
@@ -71,17 +71,17 @@ public class AccordInteropRead extends ReadData
         public AccordInteropRead deserialize(DataInputPlus in, int version) throws IOException
         {
             TxnId txnId = CommandSerializers.txnId.deserialize(in, version);
-            Participants<?> readScope = KeySerializers.participants.deserialize(in, version);
+            Participants<?> scope = KeySerializers.participants.deserialize(in, version);
             long executeAtEpoch = in.readUnsignedVInt();
             SinglePartitionReadCommand command = (SinglePartitionReadCommand) SinglePartitionReadCommand.serializer.deserialize(in, version);
-            return new AccordInteropRead(txnId, readScope, executeAtEpoch, command);
+            return new AccordInteropRead(txnId, scope, executeAtEpoch, command);
         }
 
         @Override
         public long serializedSize(AccordInteropRead read, int version)
         {
             return CommandSerializers.txnId.serializedSize(read.txnId, version)
-                   + KeySerializers.participants.serializedSize(read.readScope, version)
+                   + KeySerializers.participants.serializedSize(read.scope, version)
                    + TypeSizes.sizeofUnsignedVInt(read.executeAtEpoch)
                    + SinglePartitionReadCommand.serializer.serializedSize(read.command, version);
         }
@@ -148,17 +148,17 @@ public class AccordInteropRead extends ReadData
 
     private static final ExecuteOn EXECUTE_ON = new ExecuteOn(ReadyToExecute, PreApplied);
 
-    private final SinglePartitionReadCommand command;
+    final SinglePartitionReadCommand command;
 
-    public AccordInteropRead(Node.Id to, Topologies topologies, TxnId txnId, Participants<?> readScope, long executeAtEpoch, SinglePartitionReadCommand command)
+    public AccordInteropRead(Node.Id to, Topologies topologies, TxnId txnId, Participants<?> scope, long executeAtEpoch, SinglePartitionReadCommand command)
     {
-        super(to, topologies, txnId, readScope, executeAtEpoch);
+        super(to, topologies, txnId, scope, executeAtEpoch);
         this.command = command;
     }
 
-    public AccordInteropRead(TxnId txnId, Participants<?> readScope, long executeAtEpoch, SinglePartitionReadCommand command)
+    public AccordInteropRead(TxnId txnId, Participants<?> scope, long executeAtEpoch, SinglePartitionReadCommand command)
     {
-        super(txnId, readScope, executeAtEpoch);
+        super(txnId, scope, executeAtEpoch);
         this.command = command;
     }
 
