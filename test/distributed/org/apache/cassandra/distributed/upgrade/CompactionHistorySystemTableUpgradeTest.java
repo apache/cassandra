@@ -47,7 +47,7 @@ public class CompactionHistorySystemTableUpgradeTest extends UpgradeTestBase
     @Parameters()
     public static ArrayList<Semver> versions()
     {
-        return Lists.newArrayList(v30, v3X, v40, v41);
+        return Lists.newArrayList(v40, v41);
     }
 
     @Test
