@@ -89,8 +89,6 @@ public class UpgradeTestBase extends DistributedTestBase
         public void run(UpgradeableCluster cluster, int node) throws Throwable;
     }
 
-    public static final Semver v30 = new Semver("3.0.0-alpha1", SemverType.LOOSE);
-    public static final Semver v3X = new Semver("3.11.0", SemverType.LOOSE);
     public static final Semver v40 = new Semver("4.0-alpha1", SemverType.LOOSE);
     public static final Semver v41 = new Semver("4.1-alpha1", SemverType.LOOSE);
     public static final Semver v42 = new Semver("4.2-alpha1", SemverType.LOOSE);
@@ -98,11 +96,6 @@ public class UpgradeTestBase extends DistributedTestBase
     public static final Semver v51 = new Semver("5.1-alpha1", SemverType.LOOSE);
 
     protected static final SimpleGraph<Semver> SUPPORTED_UPGRADE_PATHS = new SimpleGraph.Builder<Semver>()
-                                                                         .addEdge(v30, v3X)
-                                                                         .addEdge(v30, v40)
-                                                                         .addEdge(v30, v41)
-                                                                         .addEdge(v3X, v40)
-                                                                         .addEdge(v3X, v41)
                                                                          .addEdge(v40, v41)
                                                                          .addEdge(v40, v50)
                                                                          .addEdge(v40, v51)
@@ -431,7 +424,7 @@ public class UpgradeTestBase extends DistributedTestBase
     protected TestCase allUpgrades(int nodes, int... toUpgrade)
     {
         return new TestCase().nodes(nodes)
-                             .upgradesToCurrentFrom(v30)
+                             .upgradesToCurrentFrom(OLDEST)
                              .withConfig(c -> c.with(Feature.GOSSIP))
                              .nodesToUpgrade(toUpgrade);
     }

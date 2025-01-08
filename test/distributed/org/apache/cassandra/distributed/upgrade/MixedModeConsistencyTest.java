@@ -39,7 +39,7 @@ import static org.apache.cassandra.distributed.api.ConsistencyLevel.QUORUM;
 import static org.apache.cassandra.distributed.shared.AssertUtils.assertRows;
 import static org.apache.cassandra.distributed.shared.AssertUtils.row;
 
-public class MixedModeConsistencyV30Test extends UpgradeTestBase
+public class MixedModeConsistencyTest extends UpgradeTestBase
 {
     @Test
     public void testConsistency() throws Throwable
@@ -52,7 +52,7 @@ public class MixedModeConsistencyV30Test extends UpgradeTestBase
         new TestCase()
         .nodes(3)
         .nodesToUpgrade(1)
-        .upgradesToCurrentFrom(v30)
+        .upgradesToCurrentFrom(OLDEST)
         .withConfig(config -> config.set("read_request_timeout_in_ms", SECONDS.toMillis(30))
                                     .set("write_request_timeout_in_ms", SECONDS.toMillis(30))
                                     .with(Feature.GOSSIP))

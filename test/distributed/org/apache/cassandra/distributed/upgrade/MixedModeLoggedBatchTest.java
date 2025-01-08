@@ -20,17 +20,11 @@ package org.apache.cassandra.distributed.upgrade;
 
 import org.junit.Test;
 
-public class MixedModeFrom3UnloggedBatchTest extends MixedModeBatchTestBase
+public class MixedModeLoggedBatchTest extends MixedModeBatchTestBase
 {
-    @Test
-    public void testSimpleStrategy30to3X() throws Throwable
-    {
-        testSimpleStrategy(v30, v3X, false);
-    }
-
     @Test
     public void testSimpleStrategy() throws Throwable
     {
-        testSimpleStrategy(v30, false);
+        testSimpleStrategy(OLDEST, true);
     }
 }
