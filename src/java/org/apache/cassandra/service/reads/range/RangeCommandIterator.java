@@ -24,6 +24,7 @@ import java.util.List;
 import java.util.concurrent.TimeUnit;
 
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.base.Preconditions;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -49,6 +50,8 @@ import org.apache.cassandra.service.StorageProxy;
 import org.apache.cassandra.service.reads.legacy.DataResolver;
 import org.apache.cassandra.service.reads.ReadCallback;
 import org.apache.cassandra.service.reads.legacy.LegacyReadRepair;
+import org.apache.cassandra.service.reads.logged.LoggedReadReconciliation;
+import org.apache.cassandra.service.reads.logged.LoggedResolver;
 import org.apache.cassandra.service.reads.repair.ReadRepair;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.transport.Dispatcher;
@@ -190,20 +193,36 @@ public class RangeCommandIterator extends AbstractIterator<RowIterator> implemen
     private SingleRangeResponse query(ReplicaPlan.ForRangeRead replicaPlan, boolean isFirst)
     {
         PartitionRangeReadCommand rangeCommand = command.forSubRange(replicaPlan.range(), isFirst);
-        
+        ReplicaPlan.SharedForRangeRead sharedReplicaPlan = ReplicaPlan.shared(replicaPlan);
+
         // If enabled, request repaired data tracking info from full replicas, but
         // only if there are multiple full replicas to compare results from.
-        boolean trackRepairedStatus = DatabaseDescriptor.getRepairedDataTrackingForRangeReadsEnabled()
-                                      && replicaPlan.contacts().filter(Replica::isFull).size() > 1
-                                      && !command.responseType().isLogged();
+        boolean trackRepairedStatus;
+        SingleRangeResponse response;
+        ReadCallback<EndpointsForRange, ReplicaPlan.ForRangeRead> handler;
 
-        ReplicaPlan.SharedForRangeRead sharedReplicaPlan = ReplicaPlan.shared(replicaPlan);
-        ReadRepair<EndpointsForRange, ReplicaPlan.ForRangeRead> readRepair =
-                ReadRepair.create(command, sharedReplicaPlan, requestTime);
-        DataResolver<EndpointsForRange, ReplicaPlan.ForRangeRead> resolver =
-                new DataResolver<>(rangeCommand, sharedReplicaPlan, (LegacyReadRepair<EndpointsForRange, ReplicaPlan.ForRangeRead>) readRepair, requestTime, trackRepairedStatus);
-        ReadCallback<EndpointsForRange, ReplicaPlan.ForRangeRead> handler =
-                new ReadCallback<>(resolver, rangeCommand, sharedReplicaPlan, requestTime);
+        if (command.responseType().isLogged())
+        {
+            trackRepairedStatus = false;
+
+            LoggedReadReconciliation<EndpointsForRange, ReplicaPlan.ForRangeRead> reconciliation = LoggedReadReconciliation.create(command, sharedReplicaPlan, requestTime);
+            LoggedResolver<EndpointsForRange, ReplicaPlan.ForRangeRead> resolver = new LoggedResolver<>(rangeCommand, sharedReplicaPlan, requestTime);
+
+            handler = new ReadCallback<>(resolver, rangeCommand, sharedReplicaPlan, requestTime);
+            response = new SingleRangeResponse.Logged(handler, reconciliation, resolver);
+        }
+        else
+        {
+            Preconditions.checkArgument(command.responseType().isLegacy());
+            trackRepairedStatus = DatabaseDescriptor.getRepairedDataTrackingForRangeReadsEnabled() && replicaPlan.contacts().filter(Replica::isFull).size() > 1;
+
+            // FIXME: tighten up alter table validation so you can't adjust read repair type for logged tables
+            LegacyReadRepair<EndpointsForRange, ReplicaPlan.ForRangeRead> readRepair = command.metadata().params.readRepair.create(command, sharedReplicaPlan, requestTime);
+            DataResolver<EndpointsForRange, ReplicaPlan.ForRangeRead> resolver = new DataResolver<>(rangeCommand, sharedReplicaPlan, readRepair, requestTime, trackRepairedStatus);
+
+            handler = new ReadCallback<>(resolver, rangeCommand, sharedReplicaPlan, requestTime);
+            response = new SingleRangeResponse.Legacy(handler, readRepair, resolver);
+        }
 
         if (replicaPlan.contacts().size() == 1 && replicaPlan.contacts().get(0).isSelf())
         {
@@ -220,7 +239,7 @@ public class RangeCommandIterator extends AbstractIterator<RowIterator> implemen
             }
         }
 
-        return new SingleRangeResponse(resolver, handler, readRepair);
+        return response;
     }
 
     PartitionIterator sendNextRequests()
