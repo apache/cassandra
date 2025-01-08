@@ -359,7 +359,8 @@ public class AccordService implements IAccordService, Shutdownable
         ClusterMetadata metadata = ClusterMetadata.current();
         configService.updateMapping(metadata);
 
-        node.commandStores().restoreShardStateUnsafe(configService::reportTopology);
+        // Load all active topologies, wihout writing them to journal again. No-op on bootstrap.
+        node.commandStores().restoreShardStateUnsafe(topology -> configService.reportTopology(topology, true, true));
         configService.start();
 
         long minEpoch = fetchMinEpoch();

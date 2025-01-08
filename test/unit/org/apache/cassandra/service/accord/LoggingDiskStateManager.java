@@ -44,9 +44,9 @@ public class LoggingDiskStateManager implements AccordConfigurationService.DiskS
     }
 
     @Override
-    public AccordKeyspace.EpochDiskState loadTopologies(AccordKeyspace.TopologyLoadConsumer consumer) {
+    public AccordKeyspace.EpochDiskState loadLocalTopologyState(AccordKeyspace.TopologyLoadConsumer consumer) {
         logger.info("[node={}] Calling loadTopologies()", self);
-        return delegate.loadTopologies(consumer);
+        return delegate.loadLocalTopologyState(consumer);
     }
 
     @Override

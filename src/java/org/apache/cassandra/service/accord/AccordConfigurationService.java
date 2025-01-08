@@ -19,11 +19,9 @@
 package org.apache.cassandra.service.accord;
 
 import java.util.HashSet;
-import java.util.Iterator;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
-import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import javax.annotation.Nullable;
@@ -41,7 +39,6 @@ import accord.topology.Topology;
 import accord.utils.Invariants;
 import accord.utils.async.AsyncResult;
 import accord.utils.async.AsyncResults;
-import org.agrona.collections.Long2ObjectHashMap;
 import org.agrona.collections.LongArrayList;
 import org.apache.cassandra.concurrent.ScheduledExecutorPlus;
 import org.apache.cassandra.concurrent.ScheduledExecutors;
@@ -134,7 +131,10 @@ public class AccordConfigurationService extends AbstractConfigurationService<Acc
     @VisibleForTesting
     interface DiskStateManager
     {
-        EpochDiskState loadTopologies(AccordKeyspace.TopologyLoadConsumer consumer);
+        /**
+         * Loads local states known to the _current_ node.
+         */
+        EpochDiskState loadLocalTopologyState(AccordKeyspace.TopologyLoadConsumer consumer);
 
         EpochDiskState setNotifyingLocalSync(long epoch, Set<Node.Id> pending, EpochDiskState diskState);
 
@@ -156,7 +156,7 @@ public class AccordConfigurationService extends AbstractConfigurationService<Acc
         instance;
 
         @Override
-        public EpochDiskState loadTopologies(AccordKeyspace.TopologyLoadConsumer consumer)
+        public EpochDiskState loadLocalTopologyState(AccordKeyspace.TopologyLoadConsumer consumer)
         {
             return AccordKeyspace.loadTopologies(consumer);
         }
@@ -241,19 +241,8 @@ public class AccordConfigurationService extends AbstractConfigurationService<Acc
         Invariants.checkState(state == State.INITIALIZED, "Expected state to be INITIALIZED but was %s", state);
         state = State.LOADING;
 
-        Iterator<Journal.TopologyUpdate> iter = journal.replayTopologies();
-        // Load all active topologies. No-op on bootstrap. Since we are loading them _after_ restoring shard state, there should be no back-writes to journal.
-        Long2ObjectHashMap<Topology> topologies = new Long2ObjectHashMap<>();
-        while (iter.hasNext())
-        {
-            Journal.TopologyUpdate update = iter.next();
-            topologies.put(update.global.epoch(), update.global);
-        }
-
         EndpointMapping snapshot = mapping;
-        diskStateManager.loadTopologies((epoch, syncStatus, pendingSyncNotify, remoteSyncComplete, closed, redundant) -> {
-            Topology topology = Invariants.nonNull(topologies.get(epoch));
-            reportTopology(topology, syncStatus == SyncStatus.NOT_STARTED, true);
+        diskStateManager.loadLocalTopologyState((epoch, syncStatus, pendingSyncNotify, remoteSyncComplete, closed, redundant) -> {
             getOrCreateEpochState(epoch).setSyncStatus(syncStatus);
             switch (syncStatus)
             {
