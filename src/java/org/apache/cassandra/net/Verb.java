@@ -348,12 +348,12 @@ public enum Verb
     ACCORD_QUERY_DURABLE_BEFORE_RSP (149, P2, writeTimeout, IMMEDIATE,          () -> QueryDurableBeforeSerializers.reply,  AccordService::responseHandlerOrNoop                                           ),
     ACCORD_QUERY_DURABLE_BEFORE_REQ (150, P2, writeTimeout, IMMEDIATE,          () -> QueryDurableBeforeSerializers.request,AccordService::requestHandlerOrNoop, ACCORD_QUERY_DURABLE_BEFORE_RSP           ),
 
-    ACCORD_SYNC_NOTIFY_RSP          (151, P2, writeTimeout, IMMEDIATE,          () -> EnumSerializer.simpleReply,           RESPONSE_HANDLER),
-    ACCORD_SYNC_NOTIFY_REQ          (152, P2, writeTimeout, IMMEDIATE,          () -> Notification.listSerializer,          () -> AccordSyncPropagator.verbHandler,       ACCORD_SYNC_NOTIFY_RSP             ),
+    ACCORD_SYNC_NOTIFY_RSP          (151, P2, writeTimeout, MISC,               () -> EnumSerializer.simpleReply,           RESPONSE_HANDLER),
+    ACCORD_SYNC_NOTIFY_REQ          (152, P2, writeTimeout, MISC,               () -> Notification.listSerializer,          () -> AccordSyncPropagator.verbHandler,       ACCORD_SYNC_NOTIFY_RSP             ),
 
     ACCORD_APPLY_AND_WAIT_REQ       (153, P2, writeTimeout, IMMEDIATE,          () -> ReadDataSerializers.readData,         AccordService::requestHandlerOrNoop, ACCORD_READ_RSP),
 
-    CONSENSUS_KEY_MIGRATION         (154, P1, writeTimeout,  MUTATION,          () -> ConsensusKeyMigrationFinished.serializer,() -> ConsensusKeyMigrationState.consensusKeyMigrationFinishedHandler),
+    CONSENSUS_KEY_MIGRATION         (154, P1, writeTimeout,  MISC,              () -> ConsensusKeyMigrationFinished.serializer,() -> ConsensusKeyMigrationState.consensusKeyMigrationFinishedHandler),
 
     ACCORD_INTEROP_READ_RSP         (155, P2, writeTimeout, IMMEDIATE,          () -> AccordInteropRead.replySerializer,         AccordService::responseHandlerOrNoop),
     ACCORD_INTEROP_READ_REQ         (156, P2, writeTimeout, IMMEDIATE,          () -> AccordInteropRead.requestSerializer,       AccordService::requestHandlerOrNoop, ACCORD_INTEROP_READ_RSP),
@@ -362,10 +362,10 @@ public enum Verb
     ACCORD_INTEROP_READ_REPAIR_REQ  (159, P2, writeTimeout, IMMEDIATE,          () -> AccordInteropReadRepair.requestSerializer, AccordService::requestHandlerOrNoop, ACCORD_INTEROP_READ_REPAIR_RSP),
     ACCORD_INTEROP_APPLY_REQ        (160, P2, writeTimeout, IMMEDIATE,          () -> AccordInteropApply.serializer,             AccordService::requestHandlerOrNoop,             ACCORD_APPLY_RSP),
     // TODO (desired): swap verb order to make IDS sequential?
-    ACCORD_FETCH_MIN_EPOCH_RSP      (166, P0, shortTimeout, FETCH_METADATA, () -> FetchMinEpoch.Response.serializer, RESPONSE_HANDLER),
-    ACCORD_FETCH_MIN_EPOCH_REQ      (165, P0, shortTimeout, FETCH_METADATA, () -> FetchMinEpoch.serializer, () -> FetchMinEpoch.handler, ACCORD_FETCH_MIN_EPOCH_RSP),
-    ACCORD_FETCH_TOPOLOGY_RSP       (169, P0, shortTimeout, FETCH_METADATA, () -> FetchTopology.Response.serializer, RESPONSE_HANDLER),
-    ACCORD_FETCH_TOPOLOGY_REQ       (170, P0, shortTimeout, FETCH_METADATA, () -> FetchTopology.serializer, () -> FetchTopology.handler, ACCORD_FETCH_TOPOLOGY_RSP),
+    ACCORD_FETCH_MIN_EPOCH_RSP      (166, P0, shortTimeout, FETCH_METADATA,     () -> FetchMinEpoch.Response.serializer,         RESPONSE_HANDLER),
+    ACCORD_FETCH_MIN_EPOCH_REQ      (165, P0, shortTimeout, FETCH_METADATA,     () -> FetchMinEpoch.serializer,                  () -> FetchMinEpoch.handler, ACCORD_FETCH_MIN_EPOCH_RSP),
+    ACCORD_FETCH_TOPOLOGY_RSP       (169, P0, shortTimeout, FETCH_METADATA,     () -> FetchTopology.Response.serializer,         RESPONSE_HANDLER),
+    ACCORD_FETCH_TOPOLOGY_REQ       (170, P0, shortTimeout, FETCH_METADATA,     () -> FetchTopology.serializer,                  () -> FetchTopology.handler, ACCORD_FETCH_TOPOLOGY_RSP),
 
     // generic failure response
     FAILURE_RSP            (99,  P0, noTimeout,       REQUEST_RESPONSE,  () -> RequestFailure.serializer,            RESPONSE_HANDLER                             ),
