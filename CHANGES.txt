@@ -1,4 +1,5 @@
 5.0.3
+ * Remove v30 and v3X from 5.x in-JVM upgrade tests (CASSANDRA-20103)
  * Avoid memory allocation in offheap_object's NativeCell.valueSize() and NativeClustering.dataSize() (CASSANDRA-20162)
  * Add flag to avoid invalidating key cache on sstable deletions (CASSANDRA-20068)
  * Interpret inet, bigint, varint, and decimal as non-reversed types for query construction and post-filtering (CASSANDRA-20100)
