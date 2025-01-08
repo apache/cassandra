@@ -34,6 +34,8 @@ import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.Mutation;
 import org.apache.cassandra.db.MutationId;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
+import org.apache.cassandra.dht.Range;
+import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.replication.MutationSummarizer;
 import org.apache.cassandra.replication.MutationSummary;
@@ -146,6 +148,33 @@ public class SimpleMutationTracker implements MutationTracker
                 return SimpleMutationSummary.empty(tableId);
 
             return SimpleMutationSummary.of(tableId, key, keyIds.mutationIds);
+        }
+        finally
+        {
+            lock.readLock().unlock();
+        }
+    }
+
+    @Override
+    public MutationSummary summaryForRange(TableId tableId, Range<Token> range)
+    {
+        lock.readLock().lock();
+        try
+        {
+            TableIds ids = tableIds.get(tableId);
+
+            SimpleMutationSummary summary = SimpleMutationSummary.empty(tableId);
+            if (ids == null)
+                return summary;
+
+            for (Map.Entry<DecoratedKey, KeyIds> entry : ids.tableIds.entrySet())
+            {
+                if (!range.contains(entry.getKey().getToken()))
+                    continue;
+                summary = summary.merge(SimpleMutationSummary.of(tableId, entry.getKey(), entry.getValue().mutationIds));
+            }
+
+            return summary;
         }
         finally
         {
