@@ -22,4 +22,5 @@
 
 <suppressions>
   <suppress checks="RegexpSinglelineJava" files="Semaphore\.java"/>
+  <suppress checks="RegexpSinglelineJava" files="Invariants\.java"/>
 </suppressions>
