@@ -435,7 +435,8 @@ public class AccordConfigurationService extends AbstractConfigurationService<Acc
         {
             Set<InetAddressAndPort> peers = new HashSet<>(ClusterMetadata.current().directory.allJoinedEndpoints());
             peers.remove(FBUtilities.getBroadcastAddressAndPort());
-            Invariants.checkState(!peers.isEmpty());
+            if (peers.isEmpty())
+                return;
             Topology topology = FetchTopology.fetch(SharedContext.Global.instance, peers, epoch).get();
             reportTopology(topology);
         }
