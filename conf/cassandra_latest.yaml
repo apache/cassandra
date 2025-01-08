@@ -2376,7 +2376,7 @@ storage_compatibility_mode: NONE
 #      # Threshold to skip a table if it has too many sstables. The default is 10000. This means, if a table on a node has 10000 or more SSTables, then that table will be skipped.
 #      # This is to avoid penalizing good tables (neighbors) with an outlier.
 #      sstable_upper_threshold: 10000
-#      # Max time for repairing one table on a given node, if exceeded, skip the table. The default is 6 hours.
+#      # Max time for repairing one table on a given node, if exceeded, skip the table.
 #      # Let's say there is a Cassandra cluster in that there are 10 tables belonging to 10 different customers.
 #      # Out of these 10 tables, 1 table is humongous. Repairing this 1 table, say, takes 5 days, in the worst case, but others could finish in just 1 hour.
 #      # Then we would penalize 9 customers just because of one bad actor, and those 9 customers would ping an operator and would require a lot of back-and-forth manual interventions, etc.
@@ -2385,10 +2385,10 @@ storage_compatibility_mode: NONE
 #      # This is useful if you want to completely avoid running repairs in one or more data centers. By default, it is empty, i.e., the framework will repair nodes in all the datacenters.
 #      # If you want to avoid repairing nodes in one or more data centers, then you can specify the data centers in this list.
 #      ignore_dcs: []
-#      # Set this 'true' if AutoRepair should repair only the primary ranges owned by this node; else, 'false'
+#      # Set this 'true' if AutoRepair should repair only the primary ranges owned by this node; else, 'false'.
 #      # It is the same as -pr in nodetool repair options.
 #      repair_primary_token_range_only: true
-#      # The number of nodes running repair parallelly. If parallel_repair_percentage is set, it will choose the larger value of the two. The default is 3.
+#      # The number of nodes running repair parallelly. If parallel_repair_percentage is set, it will choose the larger value of the two.
 #      # This configuration controls how many nodes would run repair in parallel.
 #      # The value “3” means, at any given point in time, at most 3 nodes would be running repair in parallel. These selected nodes can be from any datacenters.
 #      # If one or more node(s) finish repair, then the framework automatically picks up the next candidate(s) based on the least repair time.
@@ -2399,7 +2399,7 @@ storage_compatibility_mode: NONE
 #      # the nodes keep getting added/removed due to elasticity, so if we have a fixed number, then manual interventions would increase because, on a continuous basis,operators would have to adjust to meet the SLA.
 #      # The default is 3%, which means that 3% of the nodes in the Cassandra cluster would be repaired in parallel.
 #      # So now, if a fleet, an operator won't have to worry about changing the repair frequency, etc., as overall repair time will continue to remain the same even if nodes are added or removed due to elasticity.
-#      # Extremely fewer manual interventions as it will rarely violate the repair SLA for customers
+#      # Extremely fewer manual interventions as it will rarely violate the repair SLA for customers.
 #      parallel_repair_percentage: 3
 #      # If the scheduler should repair MV table or not.
 #      mv_repair_enabled: false
@@ -2426,9 +2426,9 @@ storage_compatibility_mode: NONE
 #      # The maximum number of tables that can be included in a repair assignment.
 #      # This aims to reduce the number of repairs, especially in cases where a large amount of tables exists for
 #      # a keyspace.  Note that the splitter will avoid batching tables together if they exceed the other
-#      # configuration paramters such as <code>bytes_per_assignment</code> and <code>partitions_per_assignment</code>
+#      # configuration parameters such as <code>bytes_per_assignment</code> and <code>partitions_per_assignment</code>
 #      token_range_splitter.max_tables_per_assignment: 64
-#      # The maximum number of bytes to cover an individiual schedule.  This serves
+#      # The maximum number of bytes to cover an individual schedule.  This serves
 #      # as a mechanism for throttling the amount of work that can be done on each repair cycle.  One may opt to
 #      # reduce this value if the impact of repairs is causing too many load on the cluster, or increase it if
 #      # writes outpace the amount of data being repaired.  Alternatively, one may want to choose tuning down or up
