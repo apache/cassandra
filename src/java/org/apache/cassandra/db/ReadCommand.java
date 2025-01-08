@@ -132,6 +132,18 @@ public abstract class ReadCommand extends AbstractReadQuery
             }
         }
 
+        public boolean isLegacy()
+        {
+            switch (this)
+            {
+                case LEGACY_DATA:
+                case LEGACY_DIGEST:
+                    return true;
+                default:
+                    return false;
+            }
+        }
+
         public ResponseType asSummaryType()
         {
             switch (this)
