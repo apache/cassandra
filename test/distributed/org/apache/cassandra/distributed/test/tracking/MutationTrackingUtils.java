@@ -31,6 +31,8 @@ import org.junit.Assert;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.MutationId;
 import org.apache.cassandra.dht.Murmur3Partitioner;
+import org.apache.cassandra.dht.Range;
+import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.distributed.api.IInvokableInstance;
 import org.apache.cassandra.io.util.DataInputBuffer;
 import org.apache.cassandra.io.util.DataOutputBuffer;
@@ -85,6 +87,12 @@ public class MutationTrackingUtils
         return  summaryForKey(keyspaceName, tableName, Murmur3Partitioner.instance.decorateKey(ByteBufferUtil.bytes(key)));
     }
 
+    public static SimpleMutationSummary summaryForRange(String keyspaceName, String tableName, Range<Token> range)
+    {
+        TableMetadata table = Schema.instance.getTableMetadata(keyspaceName, tableName);
+        return  (SimpleMutationSummary) MutationTrackingService.instance().summaryForRange(table.id, range);
+    }
+
     public static Set<MutationId> getIdsForKey(IInvokableInstance node, String keyspaceName, String tableName, int key)
     {
         byte[][] encodedIds = node.callOnInstance(() -> {
@@ -109,9 +117,43 @@ public class MutationTrackingUtils
         return result;
     }
 
+    public static Set<MutationId> getIdsForTable(IInvokableInstance node, String keyspaceName, String tableName)
+    {
+        byte[][] encodedIds = node.callOnInstance(() -> {
+            Range<Token> range = new Range<>(Murmur3Partitioner.instance.getMinimumToken(), Murmur3Partitioner.instance.getMinimumToken());
+            SimpleMutationSummary summary = summaryForRange(keyspaceName, tableName, range);
+
+
+            TreeSet<MutationId> ids = new TreeSet<>();
+            summary.ids.values().forEach(ids::addAll);
+            if (ids == null || ids.isEmpty())
+                return new byte[][] {};
+
+            byte[][] result = new byte[ids.size()][];
+            int idx = 0;
+            for (MutationId id : ids)
+            {
+                result[idx++] = encodeId(id);
+            }
+            return result;
+        });
+
+        SortedSet<MutationId> result = new TreeSet<>();
+        for (byte[] encodedId : encodedIds)
+            result.add(decodeId(encodedId));
+        return result;
+    }
+
+
     public static void assertIdsForKey(IInvokableInstance node, String keyspaceName, String tableName, int key, Set<MutationId> expected)
     {
         Set<MutationId> actual = getIdsForKey(node, keyspaceName, tableName, key);
+        Assert.assertEquals(expected, actual);
+    }
+
+    public static void assertIdsForTable(IInvokableInstance node, String keyspaceName, String tableName, Set<MutationId> expected)
+    {
+        Set<MutationId> actual = getIdsForTable(node, keyspaceName, tableName);
         Assert.assertEquals(expected, actual);
     }
 

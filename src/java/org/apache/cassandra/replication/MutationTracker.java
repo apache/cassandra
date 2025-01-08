@@ -25,6 +25,8 @@ import java.util.Map;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.Mutation;
 import org.apache.cassandra.db.MutationId;
+import org.apache.cassandra.dht.Range;
+import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.schema.TableId;
 
@@ -32,6 +34,7 @@ public interface MutationTracker
 {
     void add(Mutation mutation);
     MutationSummary summaryForKey(TableId tableId, DecoratedKey key);
+    MutationSummary summaryForRange(TableId tableId, Range<Token> range);
     MutationSummarizer summarizer(TableId tableId);
     Map<InetAddressAndPort, ReconciliationPlan> calculateReconciliation(Map<InetAddressAndPort, MutationSummary> summaries);
     List<Mutation> mutations(Collection<MutationId> ids);
