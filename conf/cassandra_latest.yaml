@@ -2333,3 +2333,104 @@ default_secondary_index_enabled: true
 #   compatibility mode would no longer toggle behaviors as when it was running in the UPGRADING mode.
 #
 storage_compatibility_mode: NONE
+
+# Configuration for AutoRepair Scheduler
+#auto_repair:
+#  # Enable/Disable auto repair scheduler.
+#  # If it is set to false, then the scheduler thread will not be spun up.
+#  # If it is set to true, then the repair scheduler thread will be created. The thread will
+#  # look for secondary config available for each repair type (full, incremental, and preview_repaired),
+#  # and based on that, it will schedule repairs.
+#  enabled: false
+#  # Time interval between successive checks for repair scheduler to check if either the ongoing repair is completed or if
+#  # none is going, then check if it's time to schedule or wait.
+#  repair_check_interval: 5m
+#  # Maximum number of retries for a repair session.
+#  repair_max_retries: 3
+#  # Backoff time in seconds for retrying a repair session.
+#  repair_retry_backoff: 30s
+#  # Minimum duration for the execution of a single repair task (i.e.: RepairRunnable).
+#  # This helps prevent the auto-repair scheduler from overwhelming the node by scheduling a large number of
+#  # repair tasks in a short period of time.
+#  repair_task_min_duration: 5s
+#  # When any nodes leave the ring then the repair schedule needs to adjust the order, etc.
+#  # The AutoRepair scheduler keeps the deleted hosts information in its persisted metadata for the defined interval in this config.
+#  # This information is useful so the scheduler is absolutely sure that the node is indeed removed from the ring, and then it can adjust the repair schedule accordingly.
+#  # So, the duration in this config determinses for how long deleted host's information is kept in the scheduler's metadata.
+#  history_clear_delete_hosts_buffer_interval: 2h
+#  # Configuration specific to each repair type. Options: full, incremental, and preview_repaired.
+#  repair_type_overrides:
+#    full:
+#      # Enable/Disable full auto repair
+#      enabled: false
+#      # Minimum time in hours between repairing the same node again. This is useful for extremely tiny clusters, say 5 nodes, which finishes
+#      # repair quicly. The default is 24 hours. This means that if the scheduler finishes one round on all the nodes in < 24 hours. On a given node it won’t start a new repair round
+#      # until the last repair conducted on a given node is < 24 hours.
+#      min_repair_interval: 24h
+#      # Repair table by table if this is set to 'false'. If it is 'true', then repair all the tables in a keyspace in one go.
+#      repair_by_keyspace: false
+#      # Number of repair threads to run for a given invoked Repair Job.
+#      # Once the scheduler schedules one repair session, then howmany threads to use inside that job will be controlled through this parameter.
+#      # This is similar to -j for repair options for the nodetool repair command.
+#      number_of_repair_threads: 1
+#      # Threshold to skip a table if it has too many sstables. The default is 10000. This means, if a table on a node has 10000 or more SSTables, then that table will be skipped.
+#      # This is to avoid penalizing good tables (neighbors) with an outlier.
+#      sstable_upper_threshold: 10000
+#      # Max time for repairing one table on a given node, if exceeded, skip the table. The default is 6 hours.
+#      # Let's say there is a Cassandra cluster in that there are 10 tables belonging to 10 different customers.
+#      # Out of these 10 tables, 1 table is humongous. Repairing this 1 table, say, takes 5 days, in the worst case, but others could finish in just 1 hour.
+#      # Then we would penalize 9 customers just because of one bad actor, and those 9 customers would ping an operator and would require a lot of back-and-forth manual interventions, etc.
+#      # So, the idea here is to penalize the outliers instead of good candidates. This can easily be configured with a higher value if we want to disable the functionality.
+#      table_max_repair_time: 6h
+#      # This is useful if you want to completely avoid running repairs in one or more data centers. By default, it is empty, i.e., the framework will repair nodes in all the datacenters.
+#      # If you want to avoid repairing nodes in one or more data centers, then you can specify the data centers in this list.
+#      ignore_dcs: []
+#      # Set this 'true' if AutoRepair should repair only the primary ranges owned by this node; else, 'false'
+#      # It is the same as -pr in nodetool repair options.
+#      repair_primary_token_range_only: true
+#      # The number of nodes running repair parallelly. If parallel_repair_percentage is set, it will choose the larger value of the two. The default is 3.
+#      # This configuration controls how many nodes would run repair in parallel.
+#      # The value “3” means, at any given point in time, at most 3 nodes would be running repair in parallel. These selected nodes can be from any datacenters.
+#      # If one or more node(s) finish repair, then the framework automatically picks up the next candidate(s) based on the least repair time.
+#      # It will ensure the maximum number of nodes running repair do not exceed “3”.
+#      parallel_repair_count: 3
+#      # The percentage of nodes in the cluster that run repair parallelly. If parallel_repair_count is set, it will choose the larger value of the two.
+#      # The problem with a fixed number of nodes (parallel_repair_count property) is that in a large-scale environment,
+#      # the nodes keep getting added/removed due to elasticity, so if we have a fixed number, then manual interventions would increase because, on a continuous basis,operators would have to adjust to meet the SLA.
+#      # The default is 3%, which means that 3% of the nodes in the Cassandra cluster would be repaired in parallel.
+#      # So now, if a fleet, an operator won't have to worry about changing the repair frequency, etc., as overall repair time will continue to remain the same even if nodes are added or removed due to elasticity.
+#      # Extremely fewer manual interventions as it will rarely violate the repair SLA for customers
+#      parallel_repair_percentage: 3
+#      # If the scheduler should repair MV table or not.
+#      mv_repair_enabled: false
+#      # After a node restart, wait for this much delay before scheduler starts running repair; this is to avoid starting repair immediately after a node restart.
+#      initial_scheduler_delay: 5m
+#      # The major issue with Repair is sometimes repair session hangs; so this timeout is useful to resume such stuck repair sessions.
+#      repair_session_timeout: 3h
+#      # Whether to force immediate repair on new nodes. This is useful if you want to repair newly bootstrapped nodes immediately after they join the ring.
+#      force_repair_new_node: false
+#      # Splitter implementation to use for generating repair assignments.
+#      # The default is {@link RepairTokenRangeSplitter}. The class should implement {@link IAutoRepairTokenRangeSplitter}
+#      # and have a constructor accepting ({@link RepairType}, {@link java.util.Map})
+#      token_range_splitter: org.apache.cassandra.repair.autorepair.RepairTokenRangeSplitter
+#      # The target and maximum amount of bytes that should be included in a repair
+#      # assignment. This is meant to scope the amount of work involved in a repair.  For incremental repair, this
+#      # involves the total number of bytes in all SSTables containing unrepaired data involving the ranges being
+#      # repaired, including data that doesn't cover the range.  This is to account for the amount of anticompaction
+#      # that is expected. For all other repair types, this involves the amount of data covering the range being
+#      # repaired.
+#      token_range_splitter.bytes_per_assignment: 200GiB
+#      # The target number of partitions that should be included in a repair
+#      # assignment.  This configuration exists to reduce excessive overstreaming.
+#      token_range_splitter.partitions_per_assignment: 1048576
+#      # The maximum number of tables that can be included in a repair assignment.
+#      # This aims to reduce the number of repairs, especially in cases where a large amount of tables exists for
+#      # a keyspace.  Note that the splitter will avoid batching tables together if they exceed the other
+#      # configuration paramters such as <code>bytes_per_assignment</code> and <code>partitions_per_assignment</code>
+#      token_range_splitter.max_tables_per_assignment: 64
+#      # The maximum number of bytes to cover an individiual schedule.  This serves
+#      # as a mechanism for throttling the amount of work that can be done on each repair cycle.  One may opt to
+#      # reduce this value if the impact of repairs is causing too many load on the cluster, or increase it if
+#      # writes outpace the amount of data being repaired.  Alternatively, one may want to choose tuning down or up
+#      # the <code>min_repair_interval</code>.
+#      token_range_splitter.max_bytes_per_schedule: 100000GiB
