@@ -143,7 +143,7 @@ import org.apache.cassandra.utils.UUIDSerializer;
 import static java.util.concurrent.TimeUnit.NANOSECONDS;
 import static org.apache.cassandra.concurrent.Stage.ANTI_ENTROPY;
 import static org.apache.cassandra.concurrent.Stage.COUNTER_MUTATION;
-import static org.apache.cassandra.concurrent.Stage.FETCH_LOG;
+import static org.apache.cassandra.concurrent.Stage.FETCH_METADATA;
 import static org.apache.cassandra.concurrent.Stage.GOSSIP;
 import static org.apache.cassandra.concurrent.Stage.IMMEDIATE;
 import static org.apache.cassandra.concurrent.Stage.INTERNAL_METADATA;
@@ -173,6 +173,7 @@ import static org.apache.cassandra.net.VerbTimeouts.repairTimeout;
 import static org.apache.cassandra.net.VerbTimeouts.repairValidationRspTimeout;
 import static org.apache.cassandra.net.VerbTimeouts.repairWithBackoffTimeout;
 import static org.apache.cassandra.net.VerbTimeouts.rpcTimeout;
+import static org.apache.cassandra.net.VerbTimeouts.shortTimeout;
 import static org.apache.cassandra.net.VerbTimeouts.truncateTimeout;
 import static org.apache.cassandra.net.VerbTimeouts.writeTimeout;
 import static org.apache.cassandra.tcm.ClusterMetadataService.commitRequestHandler;
@@ -287,8 +288,8 @@ public enum Verb
     // transactional cluster metadata
     TCM_COMMIT_RSP         (801, P0, rpcTimeout,      INTERNAL_METADATA,    MessageSerializers::commitResultSerializer,         RESPONSE_HANDLER                                 ),
     TCM_COMMIT_REQ         (802, P0, rpcTimeout,      INTERNAL_METADATA,    MessageSerializers::commitSerializer,               () -> commitRequestHandler(),               TCM_COMMIT_RSP         ),
-    TCM_FETCH_CMS_LOG_RSP  (803, P0, rpcTimeout,      FETCH_LOG,            MessageSerializers::logStateSerializer,             RESPONSE_HANDLER                                 ),
-    TCM_FETCH_CMS_LOG_REQ  (804, P0, rpcTimeout,      FETCH_LOG,            () -> FetchCMSLog.serializer,                       () -> fetchLogRequestHandler(),             TCM_FETCH_CMS_LOG_RSP  ),
+    TCM_FETCH_CMS_LOG_RSP  (803, P0, rpcTimeout, FETCH_METADATA, MessageSerializers::logStateSerializer, RESPONSE_HANDLER                                 ),
+    TCM_FETCH_CMS_LOG_REQ  (804, P0, rpcTimeout, FETCH_METADATA, () -> FetchCMSLog.serializer, () -> fetchLogRequestHandler(), TCM_FETCH_CMS_LOG_RSP  ),
     TCM_REPLICATION        (805, P0, rpcTimeout,      INTERNAL_METADATA,    MessageSerializers::logStateSerializer,             () -> replicationHandler()                                         ),
     TCM_NOTIFY_RSP         (806, P0, rpcTimeout,      INTERNAL_METADATA,    () -> Epoch.messageSerializer,                      RESPONSE_HANDLER                                 ),
     TCM_NOTIFY_REQ         (807, P0, rpcTimeout,      INTERNAL_METADATA,    MessageSerializers::logStateSerializer,             () -> logNotifyHandler(),                   TCM_NOTIFY_RSP         ),
@@ -298,10 +299,10 @@ public enum Verb
     TCM_ABORT_MIG          (811, P0, rpcTimeout,      INTERNAL_METADATA,    () -> Election.Initiator.serializer,                () -> Election.instance.abortHandler,       TCM_INIT_MIG_RSP       ),
     TCM_DISCOVER_RSP       (812, P0, rpcTimeout,      INTERNAL_METADATA,    () -> Discovery.serializer,                         RESPONSE_HANDLER                                 ),
     TCM_DISCOVER_REQ       (813, P0, rpcTimeout,      INTERNAL_METADATA,    () -> NoPayload.serializer,                         () -> Discovery.instance.requestHandler,    TCM_DISCOVER_RSP       ),
-    TCM_FETCH_PEER_LOG_RSP (818, P0, rpcTimeout,      FETCH_LOG,            MessageSerializers::logStateSerializer,             RESPONSE_HANDLER                                 ),
-    TCM_FETCH_PEER_LOG_REQ (819, P0, rpcTimeout,      FETCH_LOG,            () -> FetchPeerLog.serializer,                      () -> FetchPeerLog.Handler.instance,        TCM_FETCH_PEER_LOG_RSP ),
-    TCM_RECONSTRUCT_EPOCH_RSP (820, P0, rpcTimeout,   FETCH_LOG,            MessageSerializers::logStateSerializer,             () -> ResponseVerbHandler.instance                                 ),
-    TCM_RECONSTRUCT_EPOCH_REQ (821, P0, rpcTimeout,   FETCH_LOG,            () -> ReconstructLogState.serializer,               () -> ReconstructLogState.Handler.instance, TCM_FETCH_PEER_LOG_RSP ),
+    TCM_FETCH_PEER_LOG_RSP (818, P0, rpcTimeout, FETCH_METADATA, MessageSerializers::logStateSerializer, RESPONSE_HANDLER                                 ),
+    TCM_FETCH_PEER_LOG_REQ (819, P0, rpcTimeout, FETCH_METADATA, () -> FetchPeerLog.serializer, () -> FetchPeerLog.Handler.instance, TCM_FETCH_PEER_LOG_RSP ),
+    TCM_RECONSTRUCT_EPOCH_RSP (820, P0, rpcTimeout, FETCH_METADATA, MessageSerializers::logStateSerializer, () -> ResponseVerbHandler.instance                                 ),
+    TCM_RECONSTRUCT_EPOCH_REQ (821, P0, rpcTimeout, FETCH_METADATA, () -> ReconstructLogState.serializer, () -> ReconstructLogState.Handler.instance, TCM_FETCH_PEER_LOG_RSP ),
 
     INITIATE_DATA_MOVEMENTS_RSP (814, P1, rpcTimeout, MISC, () -> NoPayload.serializer,             RESPONSE_HANDLER                                  ),
     INITIATE_DATA_MOVEMENTS_REQ (815, P1, rpcTimeout, MISC, () -> DataMovement.serializer,          () -> DataMovementVerbHandler.instance, INITIATE_DATA_MOVEMENTS_RSP ),
@@ -361,10 +362,10 @@ public enum Verb
     ACCORD_INTEROP_READ_REPAIR_REQ  (159, P2, writeTimeout, IMMEDIATE,          () -> AccordInteropReadRepair.requestSerializer, AccordService::requestHandlerOrNoop, ACCORD_INTEROP_READ_REPAIR_RSP),
     ACCORD_INTEROP_APPLY_REQ        (160, P2, writeTimeout, IMMEDIATE,          () -> AccordInteropApply.serializer,             AccordService::requestHandlerOrNoop,             ACCORD_APPLY_RSP),
     // TODO (desired): swap verb order to make IDS sequential?
-    ACCORD_FETCH_MIN_EPOCH_RSP      (166, P2, writeTimeout, IMMEDIATE,          () -> FetchMinEpoch.Response.serializer,         RESPONSE_HANDLER),
-    ACCORD_FETCH_MIN_EPOCH_REQ      (165, P2, writeTimeout, IMMEDIATE,          () -> FetchMinEpoch.serializer,                  () -> FetchMinEpoch.handler, ACCORD_FETCH_MIN_EPOCH_RSP),
-    ACCORD_FETCH_TOPOLOGY_RSP       (169, P2, writeTimeout, IMMEDIATE,          () -> FetchTopology.Response.serializer,         RESPONSE_HANDLER),
-    ACCORD_FETCH_TOPOLOGY_REQ       (170, P2, writeTimeout, IMMEDIATE,          () -> FetchTopology.serializer,                  () -> FetchTopology.handler, ACCORD_FETCH_TOPOLOGY_RSP),
+    ACCORD_FETCH_MIN_EPOCH_RSP      (166, P0, shortTimeout, FETCH_METADATA, () -> FetchMinEpoch.Response.serializer, RESPONSE_HANDLER),
+    ACCORD_FETCH_MIN_EPOCH_REQ      (165, P0, shortTimeout, FETCH_METADATA, () -> FetchMinEpoch.serializer, () -> FetchMinEpoch.handler, ACCORD_FETCH_MIN_EPOCH_RSP),
+    ACCORD_FETCH_TOPOLOGY_RSP       (169, P0, shortTimeout, FETCH_METADATA, () -> FetchTopology.Response.serializer, RESPONSE_HANDLER),
+    ACCORD_FETCH_TOPOLOGY_REQ       (170, P0, shortTimeout, FETCH_METADATA, () -> FetchTopology.serializer, () -> FetchTopology.handler, ACCORD_FETCH_TOPOLOGY_RSP),
 
     // generic failure response
     FAILURE_RSP            (99,  P0, noTimeout,       REQUEST_RESPONSE,  () -> RequestFailure.serializer,            RESPONSE_HANDLER                             ),
@@ -636,6 +637,7 @@ public enum Verb
 class VerbTimeouts
 {
     static final ToLongFunction<TimeUnit> rpcTimeout      = DatabaseDescriptor::getRpcTimeout;
+    static final ToLongFunction<TimeUnit> shortTimeout    = DatabaseDescriptor::getShortRpcTimeout;
     static final ToLongFunction<TimeUnit> writeTimeout    = DatabaseDescriptor::getWriteRpcTimeout;
     static final ToLongFunction<TimeUnit> readTimeout     = DatabaseDescriptor::getReadRpcTimeout;
     static final ToLongFunction<TimeUnit> rangeTimeout    = DatabaseDescriptor::getRangeRpcTimeout;

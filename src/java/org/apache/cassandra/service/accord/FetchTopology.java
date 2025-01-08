@@ -67,27 +67,45 @@ public class FetchTopology
 
     public static class Response
     {
+        private static Response UNKNOWN = new Response(-1, null) {
+            public String toString()
+            {
+                return "UNKNOWN_TOPOLOGY{}";
+            }
+        };
+
+        // TODO (required): messaging version after version patch
         public static final IVersionedSerializer<Response> serializer = new IVersionedSerializer<>()
         {
             @Override
             public void serialize(Response t, DataOutputPlus out, int version) throws IOException
             {
+                if (t == UNKNOWN)
+                {
+                    out.writeLong(-1);
+                    return;
+                }
                 out.writeLong(t.epoch);
-                TopologySerializers.topology.serialize(t.topology, out, version); // TODO: not messaging version though
+                TopologySerializers.topology.serialize(t.topology, out, version);
             }
 
             @Override
             public Response deserialize(DataInputPlus in, int version) throws IOException
             {
                 long epoch = in.readLong();
-                Topology topology = TopologySerializers.topology.deserialize(in, version); // TODO: version
+                if (epoch == -1)
+                    return UNKNOWN;
+                Topology topology = TopologySerializers.topology.deserialize(in, version);
                 return new Response(epoch, topology);
             }
 
             @Override
             public long serializedSize(Response t, int version)
             {
-                return Long.BYTES + TopologySerializers.topology.serializedSize(t.topology, version); // TODO: version
+                if (t == UNKNOWN)
+                    return Long.BYTES;
+
+                return Long.BYTES + TopologySerializers.topology.serializedSize(t.topology, version);
             }
         };
 
@@ -103,8 +121,11 @@ public class FetchTopology
 
     public static final IVerbHandler<FetchTopology> handler = message -> {
         long epoch = message.payload.epoch;
-        Topology topology = AccordService.instance().topology().globalForEpoch(epoch);
-        MessagingService.instance().respond(new Response(epoch, topology), message);
+        Topology topology = AccordService.instance().topology().maybeGlobalForEpoch(epoch);
+        if (topology == null)
+            MessagingService.instance().respond(Response.UNKNOWN, message);
+        else
+            MessagingService.instance().respond(new Response(epoch, topology), message);
     };
 
     public static Future<Topology> fetch(SharedContext context, Collection<InetAddressAndPort> peers, long epoch)

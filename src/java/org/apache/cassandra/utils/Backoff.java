@@ -69,19 +69,19 @@ public interface Backoff
         @Override
         public boolean mayRetry(int attempt)
         {
-            return false;
+            return true;
         }
 
         @Override
         public long computeWaitTime(int retryCount)
         {
-            throw new UnsupportedOperationException();
+            return 0;
         }
 
         @Override
         public TimeUnit unit()
         {
-            throw new UnsupportedOperationException();
+            return TimeUnit.NANOSECONDS;
         }
     }
 

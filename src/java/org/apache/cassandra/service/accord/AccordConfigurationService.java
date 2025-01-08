@@ -437,7 +437,8 @@ public class AccordConfigurationService extends AbstractConfigurationService<Acc
             peers.remove(FBUtilities.getBroadcastAddressAndPort());
             if (peers.isEmpty())
                 return;
-            Topology topology = FetchTopology.fetch(SharedContext.Global.instance, peers, epoch).get();
+            Topology topology;
+            while ((topology =FetchTopology.fetch(SharedContext.Global.instance, peers, epoch).get()) == null) {}
             reportTopology(topology);
         }
         catch (InterruptedException e)
@@ -447,7 +448,7 @@ public class AccordConfigurationService extends AbstractConfigurationService<Acc
             Thread.currentThread().interrupt();
             throw new UncheckedInterruptedException(e);
         }
-        catch (ExecutionException e)
+        catch (Throwable e)
         {
             if (currentEpoch() >= epoch)
                 return;
