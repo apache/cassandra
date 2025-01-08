@@ -286,8 +286,8 @@ public class AccordJournal implements accord.api.Journal, Shutdownable
     @Override
     public Iterator<TopologyUpdate> replayTopologies()
     {
-        AccordJournalValueSerializers.ListAccumulator<TopologyUpdate> accumulator = readAll(new JournalKey(TxnId.NONE, JournalKey.Type.TOPOLOGY_UPDATE, -1));
-        return accumulator.get().iterator();
+        AccordJournalValueSerializers.MapAccumulator<Long, TopologyUpdate> accumulator = readAll(new JournalKey(TxnId.NONE, JournalKey.Type.TOPOLOGY_UPDATE, -1));
+        return accumulator.get().values().iterator();
     }
 
     @Override

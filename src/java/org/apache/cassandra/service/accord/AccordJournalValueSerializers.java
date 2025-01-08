@@ -23,6 +23,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.NavigableMap;
+import java.util.TreeMap;
+import java.util.function.Function;
 
 import com.google.common.collect.ImmutableSortedMap;
 
@@ -355,14 +357,33 @@ public class AccordJournalValueSerializers
         }
     }
 
+    public static class MapAccumulator<K, V> extends Accumulator<NavigableMap<K, V>, V>
+    {
+        private final Function<V, K> getKey;
+
+        public MapAccumulator(Function<V, K> getKey)
+        {
+            super(new TreeMap<>());
+            this.getKey = getKey;
+        }
+
+        @Override
+        protected NavigableMap<K, V> accumulate(NavigableMap<K, V> accumulator, V newValue)
+        {
+            V prev = accumulator.put(getKey.apply(newValue), newValue);
+            Invariants.checkState(prev == null || prev.equals(newValue));
+            return accumulator;
+        }
+    }
+
     public static class TopologyUpdateSerializer
-    implements FlyweightSerializer<Journal.TopologyUpdate, ListAccumulator<Journal.TopologyUpdate>>
+    implements FlyweightSerializer<Journal.TopologyUpdate, MapAccumulator<Long, Journal.TopologyUpdate>>
     {
         private final RangesForEpochSerializer rangesForEpochSerializer = new RangesForEpochSerializer();
         @Override
-        public ListAccumulator<Journal.TopologyUpdate> mergerFor(JournalKey key)
+        public MapAccumulator<Long, Journal.TopologyUpdate> mergerFor(JournalKey key)
         {
-            return new ListAccumulator<>();
+            return new MapAccumulator<>(topologyUpdate -> topologyUpdate.global.epoch());
         }
 
         @Override
@@ -385,29 +406,21 @@ public class AccordJournalValueSerializers
         }
 
         @Override
-        public void reserialize(JournalKey key, ListAccumulator<Journal.TopologyUpdate> from, DataOutputPlus out, int userVersion) throws IOException
+        public void reserialize(JournalKey key, MapAccumulator<Long, Journal.TopologyUpdate> from, DataOutputPlus out, int userVersion) throws IOException
         {
             out.writeInt(from.accumulated.size());
-            for (Journal.TopologyUpdate update : from.accumulated)
+            for (Journal.TopologyUpdate update : from.accumulated.values())
                 serializeOne(key, update, out, userVersion);
         }
 
         @Override
-        public void deserialize(JournalKey key, ListAccumulator<Journal.TopologyUpdate> into, DataInputPlus in, int userVersion) throws IOException
+        public void deserialize(JournalKey key, MapAccumulator<Long, Journal.TopologyUpdate> into, DataInputPlus in, int userVersion) throws IOException
         {
             int size = in.readInt();
             for (int i = 0; i < size; i++)
             {
                 int commandStoresSize = in.readInt();
-                Accumulator<RangesForEpoch, RangesForEpoch> acc = new Accumulator<>(null)
-                {
-                    @Override
-                    protected RangesForEpoch accumulate(RangesForEpoch oldValue, RangesForEpoch newValue)
-                    {
-                        return this.accumulated = newValue;
-                    }
-                };
-
+                Accumulator<RangesForEpoch, RangesForEpoch> acc = new IdentityAccumulator<>(null);
                 Int2ObjectHashMap<RangesForEpoch> commandStores = new Int2ObjectHashMap<>();
                 for (int j = 0; j < commandStoresSize; j++)
                 {
