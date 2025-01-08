@@ -11,6 +11,7 @@ Merged from 4.1:
  * Add nodetool checktokenmetadata command that checks TokenMetadata is insync with Gossip endpointState (CASSANDRA-18758)
  * Equality check for Paxos.Electorate should not depend on collection types (CASSANDRA-19935)
 Merged from 4.0:
+ * IndexOutOfBoundsException when accessing partition where the column was deleted (CASSANDRA-20108)
  * Enhance CQLSSTableWriter to notify clients on sstable production (CASSANDRA-19800)
  * Fix gossip issue with gossip-only and bootstrapping nodes missing DC/Rack/Host ID endpoint state (CASSANDRA-19983)
  * Change the resolution of AbstractCommitLogService#lastSyncedAt to nanos to be aligned with later comparisons (CASSANDRA-20074)

@@ -2327,6 +2327,36 @@ public class SelectTest extends CQLTester
     }
 
     @Test
+    public void filteringOnDeletedStaticColumnValue() throws Throwable
+    {
+        // Create table with int-only columns
+        createTable("CREATE TABLE %s (pk0 int, pk1 int, ck0 int, ck1 int, s0 tinyint static, v0 int, v1 int, PRIMARY KEY ((pk0, pk1), ck0, ck1))");
+
+        // Insert rows
+        execute("INSERT INTO %s (pk0, pk1, s0, ck0, ck1, v0, v1) VALUES (?, ?, ?, ?, ?, ?, ?)", 1000, 2000, (byte) 126, 100, 1, 20, 30);
+        execute("INSERT INTO %s (pk0, pk1, s0, ck0, ck1, v0, v1) VALUES (?, ?, ?, ?, ?, ?, ?)", 1000, 2000, (byte) 125, 200, 2, 40, 50);
+        execute("INSERT INTO %s (pk0, pk1, s0, ck0, ck1, v0, v1) VALUES (?, ?, ?, ?, ?, ?, ?)", 1000, 3000, (byte) 122, 300, 3, 60, 70);
+        execute("DELETE s0,v0,v1 FROM %s WHERE pk0=1000 AND pk1=2000 and ck0=100 and ck1=1");
+
+        beforeAndAfterFlush(() -> {
+            // Verify the columns are deleted
+            assertRows(execute("SELECT pk0, pk1, s0, ck0, ck1, v0, v1 FROM %s WHERE s0=? ALLOW FILTERING", (byte) 122),
+                    row(1000, 3000, (byte) 122, 300, 3, 60, 70));
+        });
+
+        execute("DELETE v0 FROM %s WHERE pk0=1000 AND pk1=3000 AND ck0=300 AND ck1=3");
+
+        beforeAndAfterFlush(() -> {
+            assertRows(execute("SELECT pk0, pk1, s0, ck0, ck1, v0, v1 FROM %s WHERE s0=? ALLOW FILTERING", (byte) 122),
+                    row(1000, 3000, (byte) 122, 300, 3, null, 70));
+
+            assertRows(execute("SELECT pk0, pk1, s0, ck0, ck1, v0, v1 FROM %s WHERE pk0=1000 AND pk1=3000 AND ck0=300 AND ck1=3"),
+                    row(1000, 3000, (byte) 122, 300, 3, null, 70));
+        });
+
+    }
+
+    @Test
     public void containsFilteringOnNonClusteringColumn() throws Throwable {
         createTable("CREATE TABLE %s (a int, b int, c int, d list<int>, PRIMARY KEY (a, b, c))");
 
