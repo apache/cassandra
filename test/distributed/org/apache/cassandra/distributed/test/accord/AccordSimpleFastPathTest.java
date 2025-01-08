@@ -110,7 +110,7 @@ public class AccordSimpleFastPathTest extends TestBaseImpl
                 AccordConfigurationService configService = ((AccordService) AccordService.instance()).configurationService();
                 Topology topology = configService.getTopologyForEpoch(epoch);
                 Assert.assertFalse(topology.shards().isEmpty());
-                topology.shards().forEach(shard -> Assert.assertEquals(idSet(1, 2, 3), shard.fastPathElectorate));
+                topology.shards().forEach(shard -> Assert.assertEquals(idSet(1, 2, 3), shard.nodes.without(shard.notInFastPath)));
                 return cm.epoch.getEpoch();
             })).max(Comparator.naturalOrder()).get();
 

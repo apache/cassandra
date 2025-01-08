@@ -66,17 +66,18 @@ public class AccordTopology
 
     private static class ShardLookup extends HashMap<accord.primitives.Range, Shard>
     {
-        private Shard createOrReuse(boolean pendingRemoval, accord.primitives.Range range, SortedArrayList<Id> nodes, Set<Id> fastPathElectorate, Set<Id> joining)
+        private Shard createOrReuse(boolean pendingRemoval, accord.primitives.Range range, SortedArrayList<Id> nodes, SortedArrayList<Id> fastPath, Set<Id> joining)
         {
             Shard prev = get(range);
             if (prev != null
                 && prev.pendingRemoval == pendingRemoval
-                && Objects.equals(prev.nodes, nodes)
-                && Objects.equals(prev.fastPathElectorate, fastPathElectorate)
-                && Objects.equals(prev.joining, joining))
+                && prev.nodes.equals(nodes)
+                && prev.fastPathElectorateSize == fastPath.size()
+                && prev.nodes.without(prev.notInFastPath).equals(fastPath)
+                && joining.size() == prev.joining.size() && prev.joining.containsAll(joining))
                 return prev;
 
-            return new Shard(range, nodes, fastPathElectorate, joining, pendingRemoval);
+            return Shard.create(range, nodes, fastPath, joining, pendingRemoval);
         }
     }
 
@@ -112,11 +113,11 @@ public class AccordTopology
                                        .reduce(Ranges.EMPTY, Ranges::with)
                                        .mergeTouching();
 
-            SortedArrayList<Id> fastPath = strategyFor(metadata).calculateFastPath(nodes, unavailable, dcMap);
+            SortedArrayList<Id> electorate = strategyFor(metadata).calculateFastPath(nodes, unavailable, dcMap);
 
             List<Shard> shards = new ArrayList<>(ranges.size());
             for (accord.primitives.Range range : ranges)
-                shards.add(lookup.createOrReuse(metadata.params.pendingDrop, range, nodes, fastPath, pending));
+                shards.add(lookup.createOrReuse(metadata.params.pendingDrop, range, nodes, electorate, pending));
             return shards;
         }
 
@@ -267,7 +268,7 @@ public class AccordTopology
         return builder.build();
     }
 
-    public static Topology createAccordTopology(Epoch epoch, DistributedSchema schema, DataPlacements placements, 
+    public static Topology createAccordTopology(Epoch epoch, DistributedSchema schema, DataPlacements placements,
                                                 Directory directory, AccordFastPath accordFastPath, ShardLookup lookup,
                                                 AccordStaleReplicas staleReplicas)
     {

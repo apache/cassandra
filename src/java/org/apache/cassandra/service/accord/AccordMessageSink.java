@@ -39,7 +39,6 @@ import accord.impl.RequestCallbacks;
 import accord.local.AgentExecutor;
 import accord.local.Node;
 import accord.messages.Callback;
-import accord.messages.Commit;
 import accord.messages.MessageType;
 import accord.messages.ReadData;
 import accord.messages.Reply;
@@ -72,14 +71,13 @@ public class AccordMessageSink implements MessageSink
 
     public static final class AccordMessageType extends MessageType
     {
-        public static final AccordMessageType INTEROP_READ_REQ           = remote("INTEROP_READ_REQ",           false);
-        public static final AccordMessageType INTEROP_READ_RSP           = remote("INTEROP_READ_RSP",           false);
-        public static final AccordMessageType INTEROP_READ_REPAIR_REQ    = remote("INTEROP_READ_REPAIR_REQ",    false);
-        public static final AccordMessageType INTEROP_READ_REPAIR_RSP    = remote("INTEROP_READ_REPAIR_RSP",    false);
-        public static final AccordMessageType INTEROP_COMMIT_MINIMAL_REQ = remote("INTEROP_COMMIT_MINIMAL_REQ", true );
-        public static final AccordMessageType INTEROP_COMMIT_MAXIMAL_REQ = remote("INTEROP_COMMIT_MAXIMAL_REQ", true );
-        public static final AccordMessageType INTEROP_APPLY_MINIMAL_REQ  = remote("INTEROP_APPLY_MINIMAL_REQ",  true );
-        public static final AccordMessageType INTEROP_APPLY_MAXIMAL_REQ  = remote("INTEROP_APPLY_MAXIMAL_REQ",  true );
+        public static final AccordMessageType INTEROP_READ_REQ             = remote("INTEROP_READ_REQ",           false);
+        public static final AccordMessageType INTEROP_READ_RSP             = remote("INTEROP_READ_RSP",           false);
+        public static final AccordMessageType INTEROP_STABLE_THEN_READ_REQ = remote("INTEROP_STABLE_THEN_READ_REQ", false);
+        public static final AccordMessageType INTEROP_READ_REPAIR_REQ      = remote("INTEROP_READ_REPAIR_REQ",    false);
+        public static final AccordMessageType INTEROP_READ_REPAIR_RSP      = remote("INTEROP_READ_REPAIR_RSP",    false);
+        public static final AccordMessageType INTEROP_APPLY_MINIMAL_REQ    = remote("INTEROP_APPLY_MINIMAL_REQ",  true );
+        public static final AccordMessageType INTEROP_APPLY_MAXIMAL_REQ    = remote("INTEROP_APPLY_MAXIMAL_REQ",  true );
 
         public static final List<MessageType> values;
 
@@ -122,7 +120,7 @@ public class AccordMessageSink implements MessageSink
         private final Map<Verb, Set<Verb>> overrideReplyVerbs = ImmutableMap.<Verb, Set<Verb>>builder()
                                                                             // read takes Result | Nack
                                                                             .put(Verb.ACCORD_FETCH_DATA_REQ, EnumSet.of(Verb.ACCORD_FETCH_DATA_RSP, Verb.ACCORD_READ_RSP /* nack */))
-                                                                            .put(Verb.ACCORD_INTEROP_COMMIT_REQ, EnumSet.of(Verb.ACCORD_INTEROP_READ_RSP, Verb.ACCORD_READ_RSP))
+                                                                            .put(Verb.ACCORD_INTEROP_STABLE_THEN_READ_REQ, EnumSet.of(Verb.ACCORD_INTEROP_READ_RSP, Verb.ACCORD_READ_RSP))
                                                                             .put(Verb.ACCORD_INTEROP_READ_REPAIR_REQ, EnumSet.of(Verb.ACCORD_INTEROP_READ_REPAIR_RSP, Verb.ACCORD_READ_RSP))
                                                                             .build();
 
@@ -134,7 +132,7 @@ public class AccordMessageSink implements MessageSink
             builder.put(MessageType.PRE_ACCEPT_RSP,                           Verb.ACCORD_PRE_ACCEPT_RSP);
             builder.put(MessageType.ACCEPT_REQ,                               Verb.ACCORD_ACCEPT_REQ);
             builder.put(MessageType.ACCEPT_RSP,                               Verb.ACCORD_ACCEPT_RSP);
-            builder.put(MessageType.ACCEPT_INVALIDATE_REQ,                    Verb.ACCORD_ACCEPT_INVALIDATE_REQ);
+            builder.put(MessageType.NOT_ACCEPT_REQ,                           Verb.ACCORD_NOT_ACCEPT_REQ);
             builder.put(MessageType.CALCULATE_DEPS_REQ,                       Verb.ACCORD_CALCULATE_DEPS_REQ);
             builder.put(MessageType.CALCULATE_DEPS_RSP,                       Verb.ACCORD_CALCULATE_DEPS_RSP);
             builder.put(MessageType.GET_LATEST_DEPS_REQ,                      Verb.ACCORD_GET_LATEST_DEPS_REQ);
@@ -151,6 +149,7 @@ public class AccordMessageSink implements MessageSink
             builder.put(MessageType.APPLY_MAXIMAL_REQ,                        Verb.ACCORD_APPLY_REQ);
             builder.put(MessageType.APPLY_RSP,                                Verb.ACCORD_APPLY_RSP);
             builder.put(MessageType.READ_REQ,                                 Verb.ACCORD_READ_REQ);
+            builder.put(MessageType.STABLE_THEN_READ_REQ,                     Verb.ACCORD_STABLE_THEN_READ_REQ);
             builder.put(MessageType.READ_EPHEMERAL_REQ,                       Verb.ACCORD_READ_REQ);
             builder.put(MessageType.READ_RSP,                                 Verb.ACCORD_READ_RSP);
             builder.put(MessageType.BEGIN_RECOVER_REQ,                        Verb.ACCORD_BEGIN_RECOVER_REQ);
@@ -173,10 +172,9 @@ public class AccordMessageSink implements MessageSink
             builder.put(MessageType.QUERY_DURABLE_BEFORE_RSP,                 Verb.ACCORD_QUERY_DURABLE_BEFORE_RSP);
             builder.put(AccordMessageType.INTEROP_READ_REQ,                   Verb.ACCORD_INTEROP_READ_REQ);
             builder.put(AccordMessageType.INTEROP_READ_RSP,                   Verb.ACCORD_INTEROP_READ_RSP);
+            builder.put(AccordMessageType.INTEROP_STABLE_THEN_READ_REQ,       Verb.ACCORD_INTEROP_STABLE_THEN_READ_REQ);
             builder.put(AccordMessageType.INTEROP_READ_REPAIR_REQ,            Verb.ACCORD_INTEROP_READ_REPAIR_REQ);
             builder.put(AccordMessageType.INTEROP_READ_REPAIR_RSP,            Verb.ACCORD_INTEROP_READ_REPAIR_RSP);
-            builder.put(AccordMessageType.INTEROP_COMMIT_MINIMAL_REQ,         Verb.ACCORD_INTEROP_COMMIT_REQ);
-            builder.put(AccordMessageType.INTEROP_COMMIT_MAXIMAL_REQ,         Verb.ACCORD_INTEROP_COMMIT_REQ);
             builder.put(AccordMessageType.INTEROP_APPLY_MINIMAL_REQ,          Verb.ACCORD_INTEROP_APPLY_REQ);
             builder.put(AccordMessageType.INTEROP_APPLY_MAXIMAL_REQ,          Verb.ACCORD_INTEROP_APPLY_REQ);
             mapping = builder.build();
@@ -285,11 +283,8 @@ public class AccordMessageSink implements MessageSink
 
         switch (verb)
         {
-            case ACCORD_COMMIT_REQ:
-                if (((Commit)request).readData == null)
-                    break;
-
             case ACCORD_READ_REQ:
+            case ACCORD_STABLE_THEN_READ_REQ:
                 if (slowRead == null || isRangeBarrier(request))
                     break;
 

@@ -43,7 +43,7 @@ import org.agrona.collections.ObjectHashSet;
 import org.apache.cassandra.index.accord.RoutesSearcher;
 import org.apache.cassandra.service.accord.api.AccordRoutingKey;
 
-import static accord.local.CommandSummaries.SummaryStatus.NOT_ACCEPTED;
+import static accord.local.CommandSummaries.SummaryStatus.NOT_DIRECTLY_WITNESSED;
 
 // TODO (required): move to accord-core, merge with existing logic there
 public class CommandsForRanges extends TreeMap<Timestamp, Summary> implements CommandSummaries.Snapshot
@@ -188,7 +188,7 @@ public class CommandsForRanges extends TreeMap<Timestamp, Summary> implements Co
             if (ranges.isEmpty())
                 return null;
 
-            return new Summary(txnId, txnId, NOT_ACCEPTED, ranges, null, null);
+            return new Summary(txnId, txnId, NOT_DIRECTLY_WITNESSED, ranges, null, null);
         }
 
         public Summary ifRelevant(AccordCacheEntry<TxnId, Command> state)

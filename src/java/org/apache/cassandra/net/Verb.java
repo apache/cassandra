@@ -84,9 +84,9 @@ import org.apache.cassandra.service.accord.AccordSyncPropagator.Notification;
 import org.apache.cassandra.service.accord.FetchTopology;
 import org.apache.cassandra.service.accord.FetchMinEpoch;
 import org.apache.cassandra.service.accord.interop.AccordInteropApply;
-import org.apache.cassandra.service.accord.interop.AccordInteropCommit;
 import org.apache.cassandra.service.accord.interop.AccordInteropRead;
 import org.apache.cassandra.service.accord.interop.AccordInteropReadRepair;
+import org.apache.cassandra.service.accord.interop.AccordInteropStableThenRead;
 import org.apache.cassandra.service.accord.serializers.AcceptSerializers;
 import org.apache.cassandra.service.accord.serializers.ApplySerializers;
 import org.apache.cassandra.service.accord.serializers.BeginInvalidationSerializers;
@@ -314,7 +314,7 @@ public enum Verb
     ACCORD_PRE_ACCEPT_REQ           (121, P2, writeTimeout, IMMEDIATE,          () -> PreacceptSerializers.request,         AccordService::requestHandlerOrNoop, ACCORD_PRE_ACCEPT_RSP                     ),
     ACCORD_ACCEPT_RSP               (122, P2, writeTimeout, IMMEDIATE,          () -> AcceptSerializers.reply,              AccordService::responseHandlerOrNoop                                           ),
     ACCORD_ACCEPT_REQ               (123, P2, writeTimeout, IMMEDIATE,          () -> AcceptSerializers.request,            AccordService::requestHandlerOrNoop, ACCORD_ACCEPT_RSP                         ),
-    ACCORD_ACCEPT_INVALIDATE_REQ    (124, P2, writeTimeout, IMMEDIATE,          () -> AcceptSerializers.invalidate,         AccordService::requestHandlerOrNoop, ACCORD_ACCEPT_RSP                         ),
+    ACCORD_NOT_ACCEPT_REQ           (124, P2, writeTimeout, IMMEDIATE,          () -> AcceptSerializers.notAccept,          AccordService::requestHandlerOrNoop, ACCORD_ACCEPT_RSP                         ),
     ACCORD_READ_RSP                 (125, P2, readTimeout,  IMMEDIATE,          () -> ReadDataSerializers.reply,            AccordService::responseHandlerOrNoop                                           ),
     ACCORD_READ_REQ                 (126, P2, readTimeout,  IMMEDIATE,          () -> ReadDataSerializers.readData,         AccordService::requestHandlerOrNoop, ACCORD_READ_RSP                           ),
     ACCORD_COMMIT_REQ               (127, P2, writeTimeout, IMMEDIATE,          () -> CommitSerializers.request,            AccordService::requestHandlerOrNoop, ACCORD_READ_RSP                           ),
@@ -329,6 +329,7 @@ public enum Verb
     ACCORD_AWAIT_REQ                (135, P2, writeTimeout, IMMEDIATE,          () -> AwaitSerializer.request,              AccordService::requestHandlerOrNoop, ACCORD_AWAIT_RSP                          ),
     ACCORD_AWAIT_ASYNC_RSP_REQ      (137, P2, writeTimeout, IMMEDIATE,          () -> AwaitSerializer.asyncReply,           AccordService::requestHandlerOrNoop                                            ),
     ACCORD_WAIT_UNTIL_APPLIED_REQ   (138, P2, writeTimeout, IMMEDIATE,          () -> ReadDataSerializers.waitUntilApplied, AccordService::requestHandlerOrNoop, ACCORD_READ_RSP                           ),
+    ACCORD_STABLE_THEN_READ_REQ     (139, P2, writeTimeout, IMMEDIATE,          () -> ReadDataSerializers.stableThenRead,   AccordService::requestHandlerOrNoop, ACCORD_READ_RSP                           ),
     ACCORD_INFORM_DURABLE_REQ       (140, P2, writeTimeout, IMMEDIATE,          () -> InformDurableSerializers.request,     AccordService::requestHandlerOrNoop, ACCORD_SIMPLE_RSP                         ),
     ACCORD_CHECK_STATUS_RSP         (141, P2, writeTimeout, IMMEDIATE,          () -> CheckStatusSerializers.reply,         AccordService::responseHandlerOrNoop                                           ),
     ACCORD_CHECK_STATUS_REQ         (142, P2, writeTimeout, IMMEDIATE,          () -> CheckStatusSerializers.request,       AccordService::requestHandlerOrNoop, ACCORD_CHECK_STATUS_RSP                   ),
@@ -354,7 +355,7 @@ public enum Verb
 
     ACCORD_INTEROP_READ_RSP         (155, P2, writeTimeout, IMMEDIATE,          () -> AccordInteropRead.replySerializer,         AccordService::responseHandlerOrNoop),
     ACCORD_INTEROP_READ_REQ         (156, P2, writeTimeout, IMMEDIATE,          () -> AccordInteropRead.requestSerializer,       AccordService::requestHandlerOrNoop, ACCORD_INTEROP_READ_RSP),
-    ACCORD_INTEROP_COMMIT_REQ       (157, P2, writeTimeout, IMMEDIATE,          () -> AccordInteropCommit.serializer,            AccordService::requestHandlerOrNoop, ACCORD_INTEROP_READ_RSP),
+    ACCORD_INTEROP_STABLE_THEN_READ_REQ(157, P2, writeTimeout, IMMEDIATE,       () -> AccordInteropStableThenRead.requestSerializer, AccordService::requestHandlerOrNoop, ACCORD_INTEROP_READ_RSP),
     ACCORD_INTEROP_READ_REPAIR_RSP  (158, P2, writeTimeout, IMMEDIATE,          () -> AccordInteropReadRepair.replySerializer,   AccordService::responseHandlerOrNoop),
     ACCORD_INTEROP_READ_REPAIR_REQ  (159, P2, writeTimeout, IMMEDIATE,          () -> AccordInteropReadRepair.requestSerializer, AccordService::requestHandlerOrNoop, ACCORD_INTEROP_READ_REPAIR_RSP),
     ACCORD_INTEROP_APPLY_REQ        (160, P2, writeTimeout, IMMEDIATE,          () -> AccordInteropApply.serializer,             AccordService::requestHandlerOrNoop,             ACCORD_APPLY_RSP),

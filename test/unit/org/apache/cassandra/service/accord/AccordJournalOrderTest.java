@@ -28,8 +28,10 @@ import org.junit.Test;
 
 import accord.api.Journal;
 import accord.local.Command;
-import accord.local.CommonAttributes;
+import accord.local.StoreParticipants;
 import accord.primitives.Ballot;
+import accord.primitives.SaveStatus;
+import accord.primitives.Status;
 import accord.primitives.TxnId;
 import accord.utils.AccordGens;
 import accord.utils.RandomSource;
@@ -80,7 +82,7 @@ public class AccordJournalOrderTest
             TxnId txnId = randomSource.nextBoolean() ? id1 : id2;
             JournalKey key = new JournalKey(txnId, JournalKey.Type.COMMAND_DIFF, randomSource.nextInt(5));
             res.compute(key, (k, prev) -> prev == null ? 1 : prev + 1);
-            Command command = Command.NotDefined.notDefined(new CommonAttributes.Mutable(txnId), Ballot.ZERO);
+            Command command = Command.NotDefined.notDefined(txnId, SaveStatus.NotDefined, Status.Durability.NotDurable, StoreParticipants.empty(txnId), Ballot.ZERO);
             accordJournal.saveCommand(key.commandStoreId,
                                       new Journal.CommandUpdate(null, command),
                                       () -> {});

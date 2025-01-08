@@ -84,7 +84,7 @@ public class AccordTopologyTest
 
         Topology topology = AccordTopology.createAccordTopology(metadata);
         Topology expected = new Topology(1,
-                                         new Shard(AccordTopology.fullRange(tableId), NODE_LIST, NODE_SET));
+                                         Shard.create(AccordTopology.fullRange(tableId), NODE_LIST, NODE_SET));
 
         Assert.assertEquals(expected, topology);
     }
@@ -99,7 +99,7 @@ public class AccordTopologyTest
         ClusterMetadata metadata = configureCluster(ranges, Keyspaces.of(keyspace));
         Topology topology = AccordTopology.createAccordTopology(metadata);
         Topology expected = new Topology(1,
-                                         new Shard(AccordTopology.fullRange(tableId), NODE_LIST, NODE_SET));
+                                         Shard.create(AccordTopology.fullRange(tableId), NODE_LIST, NODE_SET));
 
         Assert.assertEquals(expected, topology);
     }
@@ -113,7 +113,7 @@ public class AccordTopologyTest
         ClusterMetadata metadata = configureCluster(ranges, Keyspaces.of(keyspace));
         Topology topology = AccordTopology.createAccordTopology(metadata);
         Topology expected = new Topology(1,
-                                         new Shard(AccordTopology.fullRange(tableId), NODE_LIST, NODE_SET));
+                                         Shard.create(AccordTopology.fullRange(tableId), NODE_LIST, NODE_SET));
         Assert.assertEquals(expected, topology);
 
         topology = AccordTopology.createAccordTopology(metadata.transformer().withFastPathStatusSince(new Id(1), AccordFastPath.Status.UNAVAILABLE, 1, 1).build().metadata);
@@ -122,7 +122,7 @@ public class AccordTopologyTest
         fastPath.remove(new Node.Id(1));
 
         expected = new Topology(2,
-                                new Shard(AccordTopology.fullRange(tableId), NODE_LIST, fastPath));
+                                Shard.create(AccordTopology.fullRange(tableId), NODE_LIST, fastPath));
         Assert.assertEquals(expected, topology);
     }
 
@@ -138,7 +138,7 @@ public class AccordTopologyTest
         ClusterMetadata metadata = configureCluster(ranges, Keyspaces.of(keyspace));
         Topology topology = AccordTopology.createAccordTopology(metadata);
         Topology expected = new Topology(1,
-                                         new Shard(AccordTopology.fullRange(tableId), NODE_LIST, NODE_SET));
+                                         Shard.create(AccordTopology.fullRange(tableId), NODE_LIST, NODE_SET));
         Assert.assertEquals(expected, topology);
 
         metadata = metadata.transformer()
@@ -151,7 +151,7 @@ public class AccordTopologyTest
         fastPath.remove(new Node.Id(1));
 
         expected = new Topology(2,
-                                new Shard(AccordTopology.fullRange(tableId), NODE_LIST, fastPath));
+                                Shard.create(AccordTopology.fullRange(tableId), NODE_LIST, fastPath));
         Assert.assertEquals(expected, topology);
     }
 }

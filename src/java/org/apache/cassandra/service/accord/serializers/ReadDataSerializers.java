@@ -22,6 +22,7 @@ import java.io.IOException;
 
 import accord.api.Data;
 import accord.messages.ApplyThenWaitUntilApplied;
+import accord.messages.Commit;
 import accord.messages.ReadData;
 import accord.messages.ReadData.CommitOrReadNack;
 import accord.messages.ReadData.ReadOk;
@@ -29,12 +30,14 @@ import accord.messages.ReadData.ReadReply;
 import accord.messages.ReadData.ReadType;
 import accord.messages.ReadEphemeralTxnData;
 import accord.messages.ReadTxnData;
+import accord.messages.StableThenRead;
 import accord.messages.WaitUntilApplied;
 import accord.primitives.FullRoute;
 import accord.primitives.PartialDeps;
 import accord.primitives.PartialTxn;
 import accord.primitives.Participants;
 import accord.primitives.Ranges;
+import accord.primitives.Timestamp;
 import accord.primitives.TxnId;
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.io.IVersionedSerializer;
@@ -42,6 +45,10 @@ import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.service.accord.txn.TxnData;
 
+import static accord.messages.Commit.WithDeps.HasDeps;
+import static accord.messages.Commit.WithDeps.NoDeps;
+import static accord.messages.Commit.WithTxn.HasTxn;
+import static accord.messages.Commit.WithTxn.NoTxn;
 import static org.apache.cassandra.db.TypeSizes.sizeof;
 import static org.apache.cassandra.utils.NullableSerializer.deserializeNullable;
 import static org.apache.cassandra.utils.NullableSerializer.serializeNullable;
@@ -79,13 +86,13 @@ public class ReadDataSerializers
         public void serialize(ApplyThenWaitUntilApplied msg, DataOutputPlus out, int version) throws IOException
         {
             CommandSerializers.txnId.serialize(msg.txnId, out, version);
-            KeySerializers.participants.serialize(msg.readScope, out, version);
+            KeySerializers.participants.serialize(msg.scope, out, version);
             out.writeUnsignedVInt(msg.minEpoch());
             CommandSerializers.timestamp.serialize(msg.executeAt, out, version);
             KeySerializers.fullRoute.serialize(msg.route, out, version);
             CommandSerializers.partialTxn.serialize(msg.txn, out, version);
             DepsSerializers.partialDeps.serialize(msg.deps, out, version);
-            CommandSerializers.writes.serialize(msg.writes, out, version);
+            CommandSerializers.nullableWrites.serialize(msg.writes, out, version);
         }
 
         @Override
@@ -99,7 +106,7 @@ public class ReadDataSerializers
             KeySerializers.fullRoute.deserialize(in, version),
             CommandSerializers.partialTxn.deserialize(in, version),
             DepsSerializers.partialDeps.deserialize(in, version),
-            CommandSerializers.writes.deserialize(in, version),
+            CommandSerializers.nullableWrites.deserialize(in, version),
             ResultSerializers.APPLIED);
          }
 
@@ -107,13 +114,13 @@ public class ReadDataSerializers
         public long serializedSize(ApplyThenWaitUntilApplied msg, int version)
         {
             return CommandSerializers.txnId.serializedSize(msg.txnId, version)
-                   + KeySerializers.participants.serializedSize(msg.readScope, version)
+                   + KeySerializers.participants.serializedSize(msg.scope, version)
                    + TypeSizes.sizeofUnsignedVInt(msg.minEpoch())
                    + CommandSerializers.timestamp.serializedSize(msg.executeAt, version)
                    + KeySerializers.fullRoute.serializedSize(msg.route, version)
                    + CommandSerializers.partialTxn.serializedSize(msg.txn, version)
                    + DepsSerializers.partialDeps.serializedSize(msg.deps, version)
-                   + CommandSerializers.writes.serializedSize(msg.writes, version);
+                   + CommandSerializers.nullableWrites.serializedSize(msg.writes, version);
         }
     }
 
@@ -123,7 +130,7 @@ public class ReadDataSerializers
         public void serialize(ReadTxnData read, DataOutputPlus out, int version) throws IOException
         {
             CommandSerializers.txnId.serialize(read.txnId, out, version);
-            KeySerializers.participants.serialize(read.readScope, out, version);
+            KeySerializers.participants.serialize(read.scope, out, version);
             out.writeUnsignedVInt(read.executeAtEpoch);
         }
 
@@ -131,16 +138,16 @@ public class ReadDataSerializers
         public ReadTxnData deserialize(DataInputPlus in, int version) throws IOException
         {
             TxnId txnId = CommandSerializers.txnId.deserialize(in, version);
-            Participants<?> readScope = KeySerializers.participants.deserialize(in, version);
+            Participants<?> scope = KeySerializers.participants.deserialize(in, version);
             long executeAtEpoch = in.readUnsignedVInt();
-            return ReadTxnData.SerializerSupport.create(txnId, readScope, executeAtEpoch);
+            return ReadTxnData.SerializerSupport.create(txnId, scope, executeAtEpoch);
         }
 
         @Override
         public long serializedSize(ReadTxnData read, int version)
         {
             return CommandSerializers.txnId.serializedSize(read.txnId, version)
-                   + KeySerializers.participants.serializedSize(read.readScope, version)
+                   + KeySerializers.participants.serializedSize(read.scope, version)
                    + TypeSizes.sizeofUnsignedVInt(read.executeAtEpoch);
         }
     };
@@ -151,7 +158,7 @@ public class ReadDataSerializers
         public void serialize(ReadEphemeralTxnData read, DataOutputPlus out, int version) throws IOException
         {
             CommandSerializers.txnId.serialize(read.txnId, out, version);
-            KeySerializers.participants.serialize(read.readScope, out, version);
+            KeySerializers.participants.serialize(read.scope, out, version);
             out.writeUnsignedVInt(read.executeAtEpoch);
             CommandSerializers.partialTxn.serialize(read.partialTxn(), out, version);
             DepsSerializers.partialDeps.serialize(read.partialDeps(), out, version);
@@ -162,19 +169,19 @@ public class ReadDataSerializers
         public ReadEphemeralTxnData deserialize(DataInputPlus in, int version) throws IOException
         {
             TxnId txnId = CommandSerializers.txnId.deserialize(in, version);
-            Participants<?> readScope = KeySerializers.participants.deserialize(in, version);
+            Participants<?> scope = KeySerializers.participants.deserialize(in, version);
             long executeAtEpoch = in.readUnsignedVInt();
             PartialTxn partialTxn = CommandSerializers.partialTxn.deserialize(in, version);
             PartialDeps partialDeps = DepsSerializers.partialDeps.deserialize(in, version);
             FullRoute<?> route = KeySerializers.fullRoute.deserialize(in, version);
-            return ReadEphemeralTxnData.SerializerSupport.create(txnId, readScope, executeAtEpoch, partialTxn, partialDeps, route);
+            return ReadEphemeralTxnData.SerializerSupport.create(txnId, scope, executeAtEpoch, partialTxn, partialDeps, route);
         }
 
         @Override
         public long serializedSize(ReadEphemeralTxnData read, int version)
         {
             return CommandSerializers.txnId.serializedSize(read.txnId, version)
-                   + KeySerializers.participants.serializedSize(read.readScope, version)
+                   + KeySerializers.participants.serializedSize(read.scope, version)
                    + TypeSizes.sizeofUnsignedVInt(read.executeAtEpoch)
                    + CommandSerializers.partialTxn.serializedSize(read.partialTxn(), version)
                    + DepsSerializers.partialDeps.serializedSize(read.partialDeps(), version)
@@ -274,14 +281,14 @@ public class ReadDataSerializers
 
     public static final IVersionedSerializer<ReadReply> reply = new ReplySerializer<>(TxnData.nullableSerializer);
 
-    // TODO (consider): duplicates ReadTxnData ser/de logic; conside deduplicating if another instance of this is added
+    // TODO (desired): duplicates ReadTxnData ser/de logic; conside deduplicating if another instance of this is added
     public static final ReadDataSerializer<WaitUntilApplied> waitUntilApplied = new ReadDataSerializer<WaitUntilApplied>()
     {
         @Override
         public void serialize(WaitUntilApplied waitUntilApplied, DataOutputPlus out, int version) throws IOException
         {
             CommandSerializers.txnId.serialize(waitUntilApplied.txnId, out, version);
-            KeySerializers.participants.serialize(waitUntilApplied.readScope, out, version);
+            KeySerializers.participants.serialize(waitUntilApplied.scope, out, version);
             out.writeUnsignedVInt(waitUntilApplied.minEpoch());
             out.writeUnsignedVInt(waitUntilApplied.executeAtEpoch - waitUntilApplied.minEpoch());
         }
@@ -290,19 +297,66 @@ public class ReadDataSerializers
         public WaitUntilApplied deserialize(DataInputPlus in, int version) throws IOException
         {
             TxnId txnId = CommandSerializers.txnId.deserialize(in, version);
-            Participants<?> readScope = KeySerializers.participants.deserialize(in, version);
+            Participants<?> scope = KeySerializers.participants.deserialize(in, version);
             long minEpoch = in.readUnsignedVInt();
             long executeAtEpoch = minEpoch + in.readUnsignedVInt();
-            return WaitUntilApplied.SerializerSupport.create(txnId, readScope, minEpoch, executeAtEpoch);
+            return WaitUntilApplied.SerializerSupport.create(txnId, scope, minEpoch, executeAtEpoch);
         }
 
         @Override
         public long serializedSize(WaitUntilApplied waitUntilApplied, int version)
         {
             return CommandSerializers.txnId.serializedSize(waitUntilApplied.txnId, version)
-                   + KeySerializers.participants.serializedSize(waitUntilApplied.readScope, version)
+                   + KeySerializers.participants.serializedSize(waitUntilApplied.scope, version)
                    + TypeSizes.sizeofUnsignedVInt(waitUntilApplied.minEpoch())
                    + TypeSizes.sizeofUnsignedVInt(waitUntilApplied.executeAtEpoch - waitUntilApplied.minEpoch());
+        }
+    };
+
+    // TODO (desired): duplicates a lot of Commit serializer
+    public static final ReadDataSerializer<StableThenRead> stableThenRead = new ReadDataSerializer<>()
+    {
+        @Override
+        public void serialize(StableThenRead read, DataOutputPlus out, int version) throws IOException
+        {
+            CommandSerializers.txnId.serialize(read.txnId, out, version);
+            KeySerializers.participants.serialize(read.scope, out, version);
+            CommitSerializers.kind.serialize(read.kind, out, version);
+            out.writeUnsignedVInt(read.minEpoch);
+            CommandSerializers.timestamp.serialize(read.executeAt, out, version);
+            if (read.kind.withTxn != NoTxn)
+                CommandSerializers.nullablePartialTxn.serialize(read.partialTxn, out, version);
+            if (read.kind.withDeps == HasDeps)
+                DepsSerializers.partialDeps.serialize(read.partialDeps, out, version);
+            if (read.kind.withTxn == HasTxn)
+                KeySerializers.fullRoute.serialize(read.route, out, version);
+        }
+
+        @Override
+        public StableThenRead deserialize(DataInputPlus in, int version) throws IOException
+        {
+            TxnId txnId = CommandSerializers.txnId.deserialize(in, version);
+            Participants<?> scope = KeySerializers.participants.deserialize(in, version);
+            Commit.Kind kind = CommitSerializers.kind.deserialize(in, version);
+            long minEpoch = in.readUnsignedVInt();
+            Timestamp executeAt = CommandSerializers.timestamp.deserialize(in, version);
+            PartialTxn partialTxn = kind.withTxn == NoTxn ? null : CommandSerializers.nullablePartialTxn.deserialize(in, version);
+            PartialDeps partialDeps = kind.withDeps == NoDeps ? null : DepsSerializers.partialDeps.deserialize(in, version);
+            FullRoute < ?> route = kind.withTxn == HasTxn ? KeySerializers.fullRoute.deserialize(in, version) : null;
+            return StableThenRead.SerializerSupport.create(txnId, scope, kind, minEpoch, executeAt, partialTxn, partialDeps, route);
+        }
+
+        @Override
+        public long serializedSize(StableThenRead read, int version)
+        {
+            return CommandSerializers.txnId.serializedSize(read.txnId, version)
+                   + KeySerializers.participants.serializedSize(read.scope, version)
+                   + CommitSerializers.kind.serializedSize(read.kind, version)
+                   + TypeSizes.sizeofUnsignedVInt(read.minEpoch)
+                   + CommandSerializers.timestamp.serializedSize(read.executeAt, version)
+                   + (read.kind.withTxn == NoTxn ? 0 : CommandSerializers.nullablePartialTxn.serializedSize(read.partialTxn, version))
+                   + (read.kind.withDeps != HasDeps ? 0 : DepsSerializers.partialDeps.serializedSize(read.partialDeps, version))
+                   + (read.kind.withTxn != HasTxn ? 0 : KeySerializers.fullRoute.serializedSize(read.route, version));
         }
     };
 }

@@ -38,6 +38,7 @@ import accord.primitives.Keys;
 import accord.primitives.Ranges;
 import accord.primitives.Routable;
 import accord.primitives.Seekables;
+import accord.primitives.Status;
 import accord.primitives.Timestamp;
 import accord.primitives.Txn;
 import accord.primitives.Txn.Kind;
@@ -57,6 +58,7 @@ import org.apache.cassandra.utils.Clock;
 import org.apache.cassandra.utils.JVMStabilityInspector;
 
 import static accord.primitives.Routable.Domain.Key;
+import static accord.primitives.Txn.Kind.Write;
 import static accord.utils.Invariants.illegalState;
 import static java.util.concurrent.TimeUnit.MICROSECONDS;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
@@ -239,6 +241,13 @@ public class AccordAgent implements Agent
     {
         // TODO (expected): integrate with contention backoff
         return units.convert((1L << Math.min(retryCount, 4)), SECONDS);
+    }
+
+    @Override
+    public long localExpiresAt(TxnId txnId, Status.Phase phase, TimeUnit unit)
+    {
+        // TODO (expected): make this configurable
+        return txnId.is(Write) ? DatabaseDescriptor.getWriteRpcTimeout(unit) : DatabaseDescriptor.getReadRpcTimeout(unit);
     }
 
     @Override

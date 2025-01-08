@@ -59,7 +59,7 @@ public class SimpleFastPathStrategy implements FastPathStrategy
         Node.Id[] array = new Node.Id[nodes.size() - discarded];
         System.arraycopy(tmp, 0, array, 0, nodes.size() - discarded);
         SortedArrayList<Node.Id> fastPath = new SortedArrayList<>(array);
-        Invariants.checkState(fastPath.size() >= Shard.slowPathQuorumSize(nodes.size()));
+        Invariants.checkState(fastPath.size() >= Shard.slowQuorumSize(nodes.size()));
         return fastPath;
     }
 

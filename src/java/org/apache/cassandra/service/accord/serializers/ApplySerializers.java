@@ -27,6 +27,7 @@ import accord.primitives.PartialDeps;
 import accord.primitives.PartialTxn;
 import accord.primitives.Route;
 import accord.primitives.Timestamp;
+import accord.primitives.Txn;
 import accord.primitives.TxnId;
 import accord.primitives.Writes;
 import accord.utils.Invariants;
@@ -34,6 +35,8 @@ import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
+
+import static accord.primitives.Txn.Kind.Write;
 
 
 public class ApplySerializers
@@ -68,7 +71,8 @@ public class ApplySerializers
             DepsSerializers.partialDeps.serialize(apply.deps, out, version);
             CommandSerializers.nullablePartialTxn.serialize(apply.txn, out, version);
             KeySerializers.nullableFullRoute.serialize(apply.fullRoute, out, version);
-            CommandSerializers.writes.serialize(apply.writes, out, version);
+            if (apply.txnId.is(Write))
+                CommandSerializers.writes.serialize(apply.writes, out, version);
         }
 
         protected abstract A deserializeApply(TxnId txnId, Route<?> scope, long minEpoch, long waitForEpoch, Apply.Kind kind,
@@ -83,7 +87,7 @@ public class ApplySerializers
                                     DepsSerializers.partialDeps.deserialize(in, version),
                                     CommandSerializers.nullablePartialTxn.deserialize(in, version),
                                     KeySerializers.nullableFullRoute.deserialize(in, version),
-                                    CommandSerializers.writes.deserialize(in, version),
+                                    (txnId.is(Write) ? CommandSerializers.writes.deserialize(in, version) : null),
                                     ResultSerializers.APPLIED);
         }
 
@@ -96,7 +100,7 @@ public class ApplySerializers
                    + DepsSerializers.partialDeps.serializedSize(apply.deps, version)
                    + CommandSerializers.nullablePartialTxn.serializedSize(apply.txn, version)
                    + KeySerializers.nullableFullRoute.serializedSize(apply.fullRoute, version)
-                   + CommandSerializers.writes.serializedSize(apply.writes, version);
+                   + (apply.txnId.is(Write) ? CommandSerializers.writes.serializedSize(apply.writes, version) : 0);
         }
     }
 

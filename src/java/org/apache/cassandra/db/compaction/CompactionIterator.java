@@ -1025,7 +1025,7 @@ public class CompactionIterator extends CompactionInfo.Holder implements Unfilte
 
                 RedundantBefore redundantBefore = redundantBefores.get(key.commandStoreId);
                 DurableBefore durableBefore = durableBefores.get(key.commandStoreId);
-                Cleanup cleanup = commandBuilder.shouldCleanup(agent, redundantBefore, durableBefore);
+                Cleanup cleanup = commandBuilder.shouldCleanup(agent, redundantBefore, durableBefore, true);
                 if (cleanup == ERASE)
                     return PartitionUpdate.fullPartitionDelete(metadata(), partition.partitionKey(), maxSeenTimestamp, nowInSec).unfilteredIterator();
 

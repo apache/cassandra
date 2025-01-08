@@ -152,7 +152,7 @@ public class AccordInteroperabilityTest extends AccordTestBase
              cluster -> {
                  SHARED_CLUSTER.setMessageSink(new MessageCountingSink(SHARED_CLUSTER));
                  cluster.coordinator(1).execute("SELECT * FROM " + qualifiedAccordTableName + " WHERE k = 0", org.apache.cassandra.distributed.api.ConsistencyLevel.SERIAL);
-                 assertEquals(2, messageCounts.get(Verb.ACCORD_INTEROP_COMMIT_REQ).get());
+                 assertEquals(2, messageCounts.get(Verb.ACCORD_INTEROP_STABLE_THEN_READ_REQ).get());
                  assertEquals(2, messageCounts.get(Verb.ACCORD_INTEROP_READ_RSP).get());
              });
     }

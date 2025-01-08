@@ -41,7 +41,6 @@ import accord.local.Node;
 import accord.local.Node.Id;
 import accord.messages.Commit;
 import accord.messages.Commit.Kind;
-import accord.messages.ReadTxnData;
 import accord.primitives.Ballot;
 import accord.primitives.Deps;
 import accord.primitives.FullRoute;
@@ -50,6 +49,7 @@ import accord.primitives.Seekables;
 import accord.primitives.Timestamp;
 import accord.primitives.Txn;
 import accord.primitives.TxnId;
+import accord.primitives.Writes;
 import accord.topology.Shard;
 import accord.topology.Topologies;
 import accord.topology.Topology;
@@ -99,6 +99,7 @@ import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.transport.Dispatcher;
 
 import static accord.coordinate.CoordinationAdapter.Factory.Kind.Standard;
+import static accord.primitives.Txn.Kind.Write;
 import static accord.utils.Invariants.checkArgument;
 import static org.apache.cassandra.metrics.ClientRequestsMetricsHolder.accordReadMetrics;
 import static org.apache.cassandra.metrics.ClientRequestsMetricsHolder.accordWriteMetrics;
@@ -234,10 +235,8 @@ public class AccordInteropExecution implements ReadCoordinator, MaximalCommitSen
     {
         Node.Id id = endpointMapper.mappedId(to);
         SinglePartitionReadCommand command = (SinglePartitionReadCommand) message.payload;
-        AccordInteropRead read = new AccordInteropRead(id, executes, txnId, readScope, executeAt.epoch(), command);
         // TODO (required): understand interop and whether StableFastPath is appropriate
-        AccordInteropCommit commit = new AccordInteropCommit(Kind.StableFastPath, id, coordinateTopology, allTopologies,
-                                                             txnId, txn, route, executeAt, deps, read);
+        AccordInteropStableThenRead commit = new AccordInteropStableThenRead(id, allTopologies, txnId, Kind.StableFastPath, executeAt, txn, deps, route, command);
         node.send(id, commit, executor, new AccordInteropRead.ReadCallback(id, to, message, callback, this));
     }
 
@@ -384,7 +383,7 @@ public class AccordInteropExecution implements ReadCoordinator, MaximalCommitSen
     {
         for (Node.Id to : executeTopology.nodes())
             if (!contacted.contains(endpointMapper.mappedEndpoint(to)))
-                node.send(to, new Commit(Kind.StableFastPath, to, coordinateTopology, allTopologies, txnId, txn, route, Ballot.ZERO, executeAt, deps, (ReadTxnData) null));
+                node.send(to, new Commit(Kind.StableFastPath, to, allTopologies, txnId, txn, route, Ballot.ZERO, executeAt, deps));
     }
 
     public void start()
@@ -394,7 +393,7 @@ public class AccordInteropExecution implements ReadCoordinator, MaximalCommitSen
             for (Node.Id to : allTopologies.nodes())
             {
                 if (!executeTopology.contains(to))
-                    node.send(to, new Commit(Kind.StableFastPath, to, coordinateTopology, allTopologies, txnId, txn, route, Ballot.ZERO, executeAt, deps, (ReadTxnData) null));
+                    node.send(to, new Commit(Kind.StableFastPath, to, allTopologies, txnId, txn, route, Ballot.ZERO, executeAt, deps));
             }
         }
         AsyncChain<Data> result;
@@ -406,7 +405,7 @@ public class AccordInteropExecution implements ReadCoordinator, MaximalCommitSen
         CommandStore cs = node.commandStores().select(route.homeKey());
         result.beginAsResult().withExecutor(cs).begin((data, failure) -> {
             if (failure == null)
-                ((CoordinationAdapter)node.coordinationAdapter(txnId, Standard)).persist(node, executes, route, txnId, txn, executeAt, deps, txn.execute(txnId, executeAt, data), txn.result(txnId, executeAt, data), callback);
+                ((CoordinationAdapter)node.coordinationAdapter(txnId, Standard)).persist(node, executes, route, txnId, txn, executeAt, deps, txnId.is(Write) ? txn.execute(txnId, executeAt, data) : null, txn.result(txnId, executeAt, data), callback);
             else
                 callback.accept(null, failure);
         });
@@ -420,7 +419,7 @@ public class AccordInteropExecution implements ReadCoordinator, MaximalCommitSen
             // and can be extended similar to MessageType which allows additional types not from Accord to be added
             // This commit won't necessarily execute before the interop read repair message so there could be an insufficient which is fine
             for (Node.Id to : executeTopology.nodes())
-                    node.send(to, new Commit(Kind.StableFastPath, to, coordinateTopology, allTopologies, txnId, txn, route, Ballot.ZERO, executeAt, deps, (ReadTxnData) null));
+                    node.send(to, new Commit(Kind.StableFastPath, to, allTopologies, txnId, txn, route, Ballot.ZERO, executeAt, deps));
             repairUpdate.runBRR(AccordInteropExecution.this);
             return new TxnData();
         });

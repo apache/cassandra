@@ -41,9 +41,12 @@ public class AcceptSerializers
 
     public static final IVersionedSerializer<Accept> request = new TxnRequestSerializer.WithUnsyncedSerializer<>()
     {
+        final IVersionedSerializer<Accept.Kind> kindSerializer = new EnumSerializer<>(Accept.Kind.class);
+
         @Override
         public void serializeBody(Accept accept, DataOutputPlus out, int version) throws IOException
         {
+            kindSerializer.serialize(accept.kind, out, version);
             CommandSerializers.ballot.serialize(accept.ballot, out, version);
             CommandSerializers.timestamp.serialize(accept.executeAt, out, version);
             DepsSerializers.partialDeps.serialize(accept.partialDeps, out, version);
@@ -53,6 +56,7 @@ public class AcceptSerializers
         public Accept deserializeBody(DataInputPlus in, int version, TxnId txnId, Route<?> scope, long waitForEpoch, long minEpoch) throws IOException
         {
             return create(txnId, scope, waitForEpoch, minEpoch,
+                          kindSerializer.deserialize(in, version),
                           CommandSerializers.ballot.deserialize(in, version),
                           CommandSerializers.timestamp.deserialize(in, version),
                           DepsSerializers.partialDeps.deserialize(in, version));
@@ -61,36 +65,40 @@ public class AcceptSerializers
         @Override
         public long serializedBodySize(Accept accept, int version)
         {
-            return CommandSerializers.ballot.serializedSize(accept.ballot, version)
+            return kindSerializer.serializedSize(accept.kind, version)
+                   + CommandSerializers.ballot.serializedSize(accept.ballot, version)
                    + CommandSerializers.timestamp.serializedSize(accept.executeAt, version)
                    + DepsSerializers.partialDeps.serializedSize(accept.partialDeps, version);
         }
     };
 
-    public static final IVersionedSerializer<Accept.Invalidate> invalidate = new IVersionedSerializer<Accept.Invalidate>()
+    public static final IVersionedSerializer<Accept.NotAccept> notAccept = new IVersionedSerializer<>()
     {
         @Override
-        public void serialize(Accept.Invalidate invalidate, DataOutputPlus out, int version) throws IOException
+        public void serialize(Accept.NotAccept invalidate, DataOutputPlus out, int version) throws IOException
         {
+            CommandSerializers.status.serialize(invalidate.status, out, version);
             CommandSerializers.ballot.serialize(invalidate.ballot, out, version);
             CommandSerializers.txnId.serialize(invalidate.txnId, out, version);
-            KeySerializers.routingKey.serialize(invalidate.someKey, out, version);
+            KeySerializers.participants.serialize(invalidate.participants, out, version);
         }
 
         @Override
-        public Accept.Invalidate deserialize(DataInputPlus in, int version) throws IOException
+        public Accept.NotAccept deserialize(DataInputPlus in, int version) throws IOException
         {
-            return new Accept.Invalidate(CommandSerializers.ballot.deserialize(in, version),
-                                         CommandSerializers.txnId.deserialize(in, version),
-                                         KeySerializers.routingKey.deserialize(in, version));
+            return new Accept.NotAccept(CommandSerializers.status.deserialize(in, version),
+                                        CommandSerializers.ballot.deserialize(in, version),
+                                        CommandSerializers.txnId.deserialize(in, version),
+                                        KeySerializers.participants.deserialize(in, version));
         }
 
         @Override
-        public long serializedSize(Accept.Invalidate invalidate, int version)
+        public long serializedSize(Accept.NotAccept invalidate, int version)
         {
-            return CommandSerializers.ballot.serializedSize(invalidate.ballot, version)
+            return CommandSerializers.status.serializedSize(invalidate.status, version)
+                   + CommandSerializers.ballot.serializedSize(invalidate.ballot, version)
                    + CommandSerializers.txnId.serializedSize(invalidate.txnId, version)
-                   + KeySerializers.routingKey.serializedSize(invalidate.someKey, version);
+                   + KeySerializers.participants.serializedSize(invalidate.participants, version);
         }
     };
 
@@ -113,7 +121,7 @@ public class AcceptSerializers
                     }
                     else
                     {
-                        Invariants.checkState(reply == AcceptReply.ACCEPT_INVALIDATE);
+                        Invariants.checkState(reply == AcceptReply.SUCCESS);
                         out.writeByte(2);
                     }
                     break;
@@ -141,7 +149,7 @@ public class AcceptSerializers
                 case 1:
                     return new AcceptReply(DepsSerializers.deps.deserialize(in, version));
                 case 2:
-                    return AcceptReply.ACCEPT_INVALIDATE;
+                    return AcceptReply.SUCCESS;
                 case 3:
                     return new AcceptReply(CommandSerializers.ballot.deserialize(in, version));
                 case 4:

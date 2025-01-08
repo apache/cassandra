@@ -143,8 +143,8 @@ public class AccordFastPathCoordinatorTest
     public void simpleAlive()
     {
         Topology topology = new Topology(1,
-                new Shard(AccordTopology.minRange(TABLE_1, token(0)), idList(0, 1, 2), idSet(0, 1, 2)),
-                new Shard(AccordTopology.maxRange(TABLE_1, token(0)), idList(3, 4, 5), idSet(3, 4, 5)));
+                Shard.create(AccordTopology.minRange(TABLE_1, token(0)), idList(0, 1, 2), idSet(0, 1, 2)),
+                Shard.create(AccordTopology.maxRange(TABLE_1, token(0)), idList(3, 4, 5), idSet(3, 4, 5)));
 
         InstrumentedFastPathCoordinator coordinator = new InstrumentedFastPathCoordinator(id(0));
         coordinator.updatePeers(topology);
@@ -174,8 +174,8 @@ public class AccordFastPathCoordinatorTest
     public void simpleDead()
     {
         Topology topology = new Topology(1,
-                new Shard(AccordTopology.minRange(TABLE_1, token(0)), idList(0, 1, 2), idSet(0, 1, 2)),
-                new Shard(AccordTopology.maxRange(TABLE_1, token(0)), idList(3, 4, 5), idSet(3, 4, 5)));
+                Shard.create(AccordTopology.minRange(TABLE_1, token(0)), idList(0, 1, 2), idSet(0, 1, 2)),
+                Shard.create(AccordTopology.maxRange(TABLE_1, token(0)), idList(3, 4, 5), idSet(3, 4, 5)));
         InstrumentedFastPathCoordinator coordinator = new InstrumentedFastPathCoordinator(id(0));
         coordinator.updatePeers(topology);
         Assert.assertTrue(coordinator.capturedUpdates.isEmpty());
@@ -236,8 +236,8 @@ public class AccordFastPathCoordinatorTest
     public void peerShutdownTest()
     {
         Topology topology = new Topology(1,
-                new Shard(AccordTopology.minRange(TABLE_1, token(0)), idList(0, 1, 2), idSet(0, 1, 2)),
-                new Shard(AccordTopology.maxRange(TABLE_1, token(0)), idList(3, 4, 5), idSet(3, 4, 5)));
+                Shard.create(AccordTopology.minRange(TABLE_1, token(0)), idList(0, 1, 2), idSet(0, 1, 2)),
+                Shard.create(AccordTopology.maxRange(TABLE_1, token(0)), idList(3, 4, 5), idSet(3, 4, 5)));
         InstrumentedFastPathCoordinator coordinator = new InstrumentedFastPathCoordinator(id(0));
         coordinator.currentMetadata(EMPTY.transformer().withFastPathStatusSince(id(1), Status.SHUTDOWN, 1, 1).build().metadata);
         coordinator.updatePeers(topology);

@@ -65,7 +65,7 @@ public class AccordInteropReadRepair extends ReadData
         public void serialize(AccordInteropReadRepair repair, DataOutputPlus out, int version) throws IOException
         {
             CommandSerializers.txnId.serialize(repair.txnId, out, version);
-            KeySerializers.participants.serialize(repair.readScope, out, version);
+            KeySerializers.participants.serialize(repair.scope, out, version);
             out.writeUnsignedVInt(repair.executeAtEpoch);
             Mutation.serializer.serialize(repair.mutation, out, version);
         }
@@ -74,17 +74,17 @@ public class AccordInteropReadRepair extends ReadData
         public AccordInteropReadRepair deserialize(DataInputPlus in, int version) throws IOException
         {
             TxnId txnId = CommandSerializers.txnId.deserialize(in, version);
-            Participants<?> readScope = KeySerializers.participants.deserialize(in, version);
+            Participants<?> scope = KeySerializers.participants.deserialize(in, version);
             long executeAtEpoch = in.readUnsignedVInt();
             Mutation mutation = Mutation.serializer.deserialize(in, version);
-            return new AccordInteropReadRepair(txnId, readScope, executeAtEpoch, mutation);
+            return new AccordInteropReadRepair(txnId, scope, executeAtEpoch, mutation);
         }
 
         @Override
         public long serializedSize(AccordInteropReadRepair repair, int version)
         {
             return CommandSerializers.txnId.serializedSize(repair.txnId, version)
-                   + KeySerializers.participants.serializedSize(repair.readScope, version)
+                   + KeySerializers.participants.serializedSize(repair.scope, version)
                    + TypeSizes.sizeofUnsignedVInt(repair.executeAtEpoch)
                    + Mutation.serializer.serializedSize(repair.mutation, version);
         }
@@ -120,16 +120,16 @@ public class AccordInteropReadRepair extends ReadData
 
     public static final IVersionedSerializer<ReadReply> replySerializer = new ReadDataSerializers.ReplySerializer<>(noop_data_serializer);
 
-    public AccordInteropReadRepair(Node.Id to, Topologies topologies, TxnId txnId, Participants<?> readScope, long executeAtEpoch, Mutation mutation)
+    public AccordInteropReadRepair(Node.Id to, Topologies topologies, TxnId txnId, Participants<?> scope, long executeAtEpoch, Mutation mutation)
     {
-        super(to, topologies, txnId, readScope, executeAtEpoch);
+        super(to, topologies, txnId, scope, executeAtEpoch);
         this.mutation = mutation;
     }
 
-    public AccordInteropReadRepair(TxnId txnId, Participants<?> readScope, long executeAtEpoch, Mutation mutation)
+    public AccordInteropReadRepair(TxnId txnId, Participants<?> scope, long executeAtEpoch, Mutation mutation)
     {
         // TODO (review): remove followup read - Is there anything left to be done for this or can I remove it?
-        super(txnId, readScope, executeAtEpoch);
+        super(txnId, scope, executeAtEpoch);
         this.mutation = mutation;
     }
 

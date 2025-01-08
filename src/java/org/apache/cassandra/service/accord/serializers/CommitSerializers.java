@@ -19,10 +19,8 @@
 package org.apache.cassandra.service.accord.serializers;
 
 import java.io.IOException;
-import javax.annotation.Nullable;
 
 import accord.messages.Commit;
-import accord.messages.ReadData;
 import accord.primitives.Ballot;
 import accord.primitives.FullRoute;
 import accord.primitives.PartialDeps;
@@ -35,7 +33,6 @@ import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
-import org.apache.cassandra.utils.CastingSerializer;
 
 import static org.apache.cassandra.utils.NullableSerializer.deserializeNullable;
 import static org.apache.cassandra.utils.NullableSerializer.serializeNullable;
@@ -43,19 +40,13 @@ import static org.apache.cassandra.utils.NullableSerializer.serializedNullableSi
 
 public class CommitSerializers
 {
-    private static final IVersionedSerializer<Commit.Kind> kind = new EnumSerializer<>(Commit.Kind.class);
+    public static final IVersionedSerializer<Commit.Kind> kind = new EnumSerializer<>(Commit.Kind.class);
 
-    public abstract static class CommitSerializer<C extends Commit, R extends ReadData> extends TxnRequestSerializer.WithUnsyncedSerializer<C>
+    public static final CommitSerializer request = new CommitSerializer();
+    public static class CommitSerializer extends TxnRequestSerializer.WithUnsyncedSerializer<Commit>
     {
-        private final IVersionedSerializer<ReadData> read;
-
-        public CommitSerializer(Class<R> klass, IVersionedSerializer<R> read)
-        {
-            this.read = new CastingSerializer<>(klass, read);
-        }
-
         @Override
-        public void serializeBody(C msg, DataOutputPlus out, int version) throws IOException
+        public void serializeBody(Commit msg, DataOutputPlus out, int version) throws IOException
         {
             kind.serialize(msg.kind, out, version);
             CommandSerializers.ballot.serialize(msg.ballot, out, version);
@@ -63,48 +54,31 @@ public class CommitSerializers
             CommandSerializers.nullablePartialTxn.serialize(msg.partialTxn, out, version);
             DepsSerializers.partialDeps.serialize(msg.scope, msg.partialDeps, out, version);
             serializeNullable(msg.route, out, version, KeySerializers.fullRoute);
-            serializeNullable(msg.readData, out, version, read);
         }
 
-        protected abstract C deserializeCommit(TxnId txnId, Route<?> scope, long waitForEpoch, long minEpoch, Commit.Kind kind,
-                                               Ballot ballot, Timestamp executeAt,
-                                               @Nullable PartialTxn partialTxn, PartialDeps partialDeps,
-                                               @Nullable FullRoute<?> fullRoute, @Nullable ReadData read);
-
         @Override
-        public C deserializeBody(DataInputPlus in, int version, TxnId txnId, Route<?> scope, long waitForEpoch, long minEpoch) throws IOException
+        public Commit deserializeBody(DataInputPlus in, int version, TxnId txnId, Route<?> scope, long waitForEpoch, long minEpoch) throws IOException
         {
             Commit.Kind kind = CommitSerializers.kind.deserialize(in, version);
             Ballot ballot = CommandSerializers.ballot.deserialize(in, version);
             Timestamp executeAt = CommandSerializers.timestamp.deserialize(in, version);
-            PartialTxn txn = CommandSerializers.nullablePartialTxn.deserialize(in, version);
-            PartialDeps deps = DepsSerializers.partialDeps.deserialize(scope, in, version);
+            PartialTxn partialTxn = CommandSerializers.nullablePartialTxn.deserialize(in, version);
+            PartialDeps partialDeps = DepsSerializers.partialDeps.deserialize(scope, in, version);
             FullRoute<?> route = deserializeNullable(in, version, KeySerializers.fullRoute);
-            ReadData read = deserializeNullable(in, version, this.read);
-            return deserializeCommit(txnId, scope, waitForEpoch, minEpoch, kind, ballot, executeAt, txn, deps, route, read);
+            return Commit.SerializerSupport.create(txnId, scope, waitForEpoch, minEpoch, kind, ballot, executeAt, partialTxn, partialDeps, route);
         }
 
         @Override
-        public long serializedBodySize(C msg, int version)
+        public long serializedBodySize(Commit msg, int version)
         {
             return kind.serializedSize(msg.kind, version)
                    + CommandSerializers.ballot.serializedSize(msg.ballot, version)
                    + CommandSerializers.timestamp.serializedSize(msg.executeAt, version)
                    + CommandSerializers.nullablePartialTxn.serializedSize(msg.partialTxn, version)
                    + DepsSerializers.partialDeps.serializedSize(msg.scope, msg.partialDeps, version)
-                   + serializedNullableSize(msg.route, version, KeySerializers.fullRoute)
-                   + serializedNullableSize(msg.readData, version, read);
+                   + serializedNullableSize(msg.route, version, KeySerializers.fullRoute);
         }
     }
-
-    public static final IVersionedSerializer<Commit> request = new CommitSerializer<Commit, ReadData>(ReadData.class, ReadDataSerializers.readData)
-    {
-        @Override
-        protected Commit deserializeCommit(TxnId txnId, Route<?> scope, long waitForEpoch, long minEpoch, Commit.Kind kind, Ballot ballot, Timestamp executeAt, @Nullable PartialTxn partialTxn, PartialDeps partialDeps, @Nullable FullRoute<?> fullRoute, @Nullable ReadData read)
-        {
-            return Commit.SerializerSupport.create(txnId, scope, waitForEpoch, minEpoch, kind, ballot, executeAt, partialTxn, partialDeps, fullRoute, read);
-        }
-    };
 
     public static final IVersionedSerializer<Commit.Invalidate> invalidate = new IVersionedSerializer<>()
     {

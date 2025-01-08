@@ -46,7 +46,6 @@ import accord.impl.DefaultLocalListeners.NotifySink.NoOpNotifySink;
 import accord.local.Command;
 import accord.local.CommandStore;
 import accord.local.CommandStores;
-import accord.local.CommonAttributes;
 import accord.local.DurableBefore;
 import accord.local.Node;
 import accord.local.Node.Id;
@@ -66,13 +65,13 @@ import accord.primitives.Routable;
 import accord.primitives.SaveStatus;
 import accord.primitives.Seekable;
 import accord.primitives.Seekables;
-import accord.primitives.Status;
 import accord.primitives.Timestamp;
 import accord.primitives.Txn;
 import accord.primitives.TxnId;
 import accord.primitives.Writes;
 import accord.topology.Shard;
 import accord.topology.Topology;
+import accord.topology.TopologyManager;
 import accord.utils.SortedArrays.SortedArrayList;
 import accord.utils.async.AsyncChains;
 import org.apache.cassandra.ServerTestUtils;
@@ -106,6 +105,10 @@ import org.apache.cassandra.utils.concurrent.Condition;
 import org.apache.cassandra.utils.concurrent.UncheckedInterruptedException;
 
 import static accord.primitives.Routable.Domain.Key;
+import static accord.primitives.SaveStatus.NotDefined;
+import static accord.primitives.SaveStatus.PreAccepted;
+import static accord.primitives.Status.Durability.NotDurable;
+import static accord.primitives.Txn.Kind.Write;
 import static accord.utils.async.AsyncChains.getUninterruptibly;
 import static java.lang.String.format;
 import static org.apache.cassandra.service.accord.AccordExecutor.Mode.RUN_WITH_LOCK;
@@ -120,44 +123,24 @@ public class AccordTestUtils
     {
         public static Command notDefined(TxnId txnId, PartialTxn txn)
         {
-            CommonAttributes.Mutable attrs = new CommonAttributes.Mutable(txnId);
-            attrs.partialTxn(txn);
-            return Command.SerializerSupport.notDefined(attrs, Ballot.ZERO);
+            return Command.NotDefined.notDefined(txnId, NotDefined, NotDurable, StoreParticipants.empty(txnId), Ballot.ZERO);
         }
 
         public static Command preaccepted(TxnId txnId, PartialTxn txn, Timestamp executeAt)
         {
-            CommonAttributes.Mutable attrs = new CommonAttributes.Mutable(txnId);
-            attrs.partialTxn(txn);
-            attrs.setParticipants(StoreParticipants.all(route(txn)));
-            attrs.durability(Status.Durability.NotDurable);
-            return Command.SerializerSupport.preaccepted(attrs, executeAt, Ballot.ZERO);
+            return Command.PreAccepted.preaccepted(txnId, PreAccepted, NotDurable, StoreParticipants.all(route(txn)), Ballot.ZERO, executeAt, txn, null);
         }
 
         public static Command committed(TxnId txnId, PartialTxn txn, Timestamp executeAt)
         {
-            CommonAttributes.Mutable attrs = new CommonAttributes.Mutable(txnId).partialDeps(PartialDeps.NONE);
-            attrs.partialTxn(txn);
-            attrs.setParticipants(StoreParticipants.all(route(txn)));
-            return Command.SerializerSupport.committed(attrs,
-                                                       SaveStatus.Committed,
-                                                       executeAt,
-                                                       Ballot.ZERO,
-                                                       Ballot.ZERO,
-                                                       null);
+            return Command.Committed.committed(txnId, SaveStatus.Committed, NotDurable, StoreParticipants.all(route(txn)),
+                                               Ballot.ZERO, executeAt, txn, PartialDeps.NONE, Ballot.ZERO, null);
         }
 
         public static Command stable(TxnId txnId, PartialTxn txn, Timestamp executeAt)
         {
-            CommonAttributes.Mutable attrs = new CommonAttributes.Mutable(txnId).partialDeps(PartialDeps.NONE);
-            attrs.partialTxn(txn);
-            attrs.setParticipants(StoreParticipants.all(route(txn)));
-            return Command.SerializerSupport.committed(attrs,
-                                                       SaveStatus.Stable,
-                                                       executeAt,
-                                                       Ballot.ZERO,
-                                                       Ballot.ZERO,
-                                                       Command.WaitingOn.empty(txnId.domain()));
+            return Command.Committed.committed(txnId, SaveStatus.Stable, NotDurable, StoreParticipants.all(route(txn)),
+                                               Ballot.ZERO, executeAt, txn, PartialDeps.NONE, Ballot.ZERO, Command.WaitingOn.empty(txnId.domain()));
         }
 
         private static FullRoute<?> route(PartialTxn txn)
@@ -202,7 +185,7 @@ public class AccordTestUtils
 
     public static TxnId txnId(long epoch, long hlc, int node)
     {
-        return txnId(epoch, hlc, node, Txn.Kind.Write);
+        return txnId(epoch, hlc, node, Write);
     }
 
     public static TxnId txnId(long epoch, long hlc, int node, Txn.Kind kind)
@@ -251,7 +234,7 @@ public class AccordTestUtils
                                 }
                             })
                             .reduce(null, TxnData::merge);
-        return Pair.create(txn.execute(txnId, executeAt, readData),
+        return Pair.create(txnId.is(Write) ? txn.execute(txnId, executeAt, readData) : null,
                            txn.query().compute(txnId, executeAt, txn.keys(), readData, txn.read(), txn.update()));
 
     }
@@ -377,8 +360,8 @@ public class AccordTestUtils
             @Override public long now() {return now.getAsLong(); }
             @Override public Timestamp uniqueNow() { return uniqueNow(Timestamp.NONE); }
             @Override public Timestamp uniqueNow(Timestamp atLeast) { return Timestamp.fromValues(1, now.getAsLong(), node); }
-            @Override
-            public long elapsed(TimeUnit timeUnit) { return elapsed.applyAsLong(timeUnit); }
+            @Override public long elapsed(TimeUnit timeUnit) { return elapsed.applyAsLong(timeUnit); }
+            @Override public TopologyManager topology() { throw new UnsupportedOperationException(); }
         };
 
 
@@ -410,7 +393,7 @@ public class AccordTestUtils
         TableMetadata metadata = Schema.instance.getTableMetadata(keyspace, table);
         TokenRange range = TokenRange.fullRange(metadata.id);
         Node.Id node = new Id(1);
-        Topology topology = new Topology(1, new Shard(range, new SortedArrayList<>(new Id[] { node }), Sets.newHashSet(node), Collections.emptySet()));
+        Topology topology = new Topology(1, Shard.create(range, new SortedArrayList<>(new Id[] { node }), Sets.newHashSet(node), Collections.emptySet()));
         AccordCommandStore store = createAccordCommandStore(node, now, topology, loadExecutor, saveExecutor);
         store.execute(PreLoadContext.empty(), safeStore -> ((AccordCommandStore)safeStore.commandStore()).executor().cacheUnsafe().setCapacity(1 << 20));
         return store;

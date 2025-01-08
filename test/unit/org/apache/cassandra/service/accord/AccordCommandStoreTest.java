@@ -32,7 +32,6 @@ import org.slf4j.LoggerFactory;
 import accord.api.Key;
 import accord.api.Result;
 import accord.local.Command;
-import accord.local.CommonAttributes;
 import accord.local.StoreParticipants;
 import accord.local.cfk.CommandsForKey;
 import accord.primitives.Ballot;
@@ -121,24 +120,19 @@ public class AccordCommandStoreTest
             dependencies = builder.build();
         }
 
-        CommonAttributes.Mutable attrs = new CommonAttributes.Mutable(txnId);
         PartialTxn txn = createPartialTxn(0);
         Route<?> route = RoutingKeys.of(key.toUnseekable()).toRoute(key.toUnseekable());
-        attrs.partialTxn(txn);
-        attrs.setParticipants(StoreParticipants.all(route));
-        attrs.durability(Majority);
-        attrs.partialTxn(txn);
         Ballot promised = ballot(1, clock.incrementAndGet(), 1);
         Ballot accepted = ballot(1, clock.incrementAndGet(), 1);
         Timestamp executeAt = timestamp(1, clock.incrementAndGet(), 1);
-        attrs.partialDeps(dependencies);
         SimpleBitSet waitingOnApply = new SimpleBitSet(3);
         waitingOnApply.set(1);
         Command.WaitingOn waitingOn = new Command.WaitingOn(dependencies.keyDeps.keys(), dependencies.rangeDeps, dependencies.directKeyDeps, new ImmutableBitSet(waitingOnApply), new ImmutableBitSet(2));
         Pair<Writes, Result> result = AccordTestUtils.processTxnResult(commandStore, txnId, txn, executeAt);
 
-        Command expected = Command.SerializerSupport.executed(attrs, SaveStatus.Applied, executeAt, promised, accepted,
-                                                              waitingOn, result.left, ResultSerializers.APPLIED);
+        Command expected = Command.Executed.executed(txnId, SaveStatus.Applied, Majority, StoreParticipants.all(route),
+                                                     promised, executeAt, txn, dependencies, accepted,
+                                                     waitingOn, result.left, ResultSerializers.APPLIED);
         AccordSafeCommand safeCommand = new AccordSafeCommand(loaded(txnId, null));
         safeCommand.set(expected);
 

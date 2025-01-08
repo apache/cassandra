@@ -33,7 +33,6 @@ import org.junit.Test;
 
 import accord.api.RoutingKey;
 import accord.local.Command;
-import accord.local.CommonAttributes;
 import accord.local.Node;
 import accord.local.StoreParticipants;
 import accord.primitives.Ballot;
@@ -71,6 +70,7 @@ import org.assertj.core.api.Assertions;
 import org.mockito.Mockito;
 import org.mockito.stubbing.Answer;
 
+import static accord.local.Command.Committed.committed;
 import static accord.utils.Property.qt;
 import static org.apache.cassandra.config.DatabaseDescriptor.setSelectedSSTableFormat;
 import static org.apache.cassandra.db.ColumnFamilyStore.FlushReason.UNIT_TESTS;
@@ -110,14 +110,11 @@ public class AccordKeyspaceTest extends CQLTester.InMemory
         StoreParticipants participants = StoreParticipants.all(route);
         Deps deps = new Deps(KeyDeps.none(((Keys) txn.keys()).toParticipants()), RangeDeps.NONE, KeyDeps.NONE);
 
-        CommonAttributes.Mutable common = new CommonAttributes.Mutable(id);
-        common.partialTxn(partialTxn);
-        common.setParticipants(participants);
-        common.partialDeps(deps.intersecting(scope));
-        common.durability(Status.Durability.NotDurable);
         Command.WaitingOn waitingOn = null;
 
-        Command.Committed committed = Command.SerializerSupport.committed(common, SaveStatus.Committed, id, Ballot.ZERO, Ballot.ZERO, waitingOn);
+        Command.Committed committed = committed(id, SaveStatus.Committed, Status.Durability.NotDurable,
+                                                participants, Ballot.ZERO, id, partialTxn, deps.intersecting(scope),
+                                                Ballot.ZERO, waitingOn);
         AccordSafeCommand safeCommand = new AccordSafeCommand(AccordTestUtils.loaded(id, null));
         safeCommand.set(committed);
 

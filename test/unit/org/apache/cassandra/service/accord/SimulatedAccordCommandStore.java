@@ -69,6 +69,7 @@ import accord.primitives.TxnId;
 import accord.primitives.Unseekables;
 import accord.topology.Topologies;
 import accord.topology.Topology;
+import accord.topology.TopologyManager;
 import accord.utils.Gens;
 import accord.utils.RandomSource;
 import accord.utils.async.AsyncChains;
@@ -184,6 +185,12 @@ public class SimulatedAccordCommandStore implements AutoCloseable
                     throw new UnsupportedOperationException();
                 return now;
             }
+
+            @Override
+            public TopologyManager topology()
+            {
+                throw new UnsupportedOperationException();
+            }
         };
 
         TestAgent.RethrowAgent agent = new TestAgent.RethrowAgent()
@@ -260,7 +267,7 @@ public class SimulatedAccordCommandStore implements AutoCloseable
 
     public TxnId nextTxnId(Txn.Kind kind, Routable.Domain domain)
     {
-        return new TxnId(storeService.epoch(), storeService.now(), kind, domain, nodeId);
+        return new TxnId(storeService.epoch(), storeService.now(), 0, kind, domain, nodeId);
     }
 
     public void maybeCacheEvict(Unseekables<?> keysOrRanges)
@@ -288,7 +295,7 @@ public class SimulatedAccordCommandStore implements AutoCloseable
                 if (TxnId.class.equals(keyType))
                 {
                     Command command = (Command) state.getExclusive();
-                    if (command != null && command.known().definition.isKnown()
+                    if (command != null && command.known().isDefinitionKnown()
                         && (command.partialTxn().keys().intersects(keys) || ranges.intersects(command.partialTxn().keys()))
                         && shouldEvict.getAsBoolean())
                         cache.tryEvict(state);
@@ -393,7 +400,7 @@ public class SimulatedAccordCommandStore implements AutoCloseable
     public Pair<TxnId, AsyncResult<PreAccept.PreAcceptOk>> enqueuePreAccept(Txn txn, FullRoute<?> route)
     {
         TxnId txnId = nextTxnId(txn.kind(), txn.keys().domain());
-        PreAccept preAccept = new PreAccept(nodeId, topologies, txnId, txn, route);
+        PreAccept preAccept = new PreAccept(nodeId, topologies, txnId, txn, null, false, route);
         return Pair.create(txnId, processAsync(preAccept, safe -> {
             var reply = preAccept.apply(safe);
             Assertions.assertThat(reply.isOk()).isTrue();

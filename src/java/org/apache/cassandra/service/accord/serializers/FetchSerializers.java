@@ -48,7 +48,7 @@ public class FetchSerializers
         {
             out.writeUnsignedVInt(request.executeAtEpoch);
             CommandSerializers.txnId.serialize(request.txnId, out, version);
-            KeySerializers.ranges.serialize((Ranges) request.readScope, out, version);
+            KeySerializers.ranges.serialize((Ranges) request.scope, out, version);
             DepsSerializers.partialDeps.serialize(request.partialDeps, out, version);
             StreamingTxn.serializer.serialize(request.read, out, version);
         }
@@ -68,7 +68,7 @@ public class FetchSerializers
         {
             return TypeSizes.sizeofUnsignedVInt(request.executeAtEpoch)
                    + CommandSerializers.txnId.serializedSize(request.txnId, version)
-                   + KeySerializers.ranges.serializedSize((Ranges) request.readScope, version)
+                   + KeySerializers.ranges.serializedSize((Ranges) request.scope, version)
                    + DepsSerializers.partialDeps.serializedSize(request.partialDeps, version)
                    + StreamingTxn.serializer.serializedSize(request.read, version);
         }

@@ -275,7 +275,7 @@ public abstract class SimulatedAccordCommandStoreTestBase extends CQLTester
                                                                     .collect(Collectors.toMap(e -> e.getKey(), e -> new ArrayList(e.getValue())));
 
         TxnId txnId = instance.nextTxnId(txn.kind(), txn.keys().domain());
-        PreAccept preAccept = new PreAccept(nodeId, new Topologies.Single(SizeOfIntersectionSorter.SUPPLIER, instance.topology), txnId, txn, route);
+        PreAccept preAccept = new PreAccept(nodeId, new Topologies.Single(SizeOfIntersectionSorter.SUPPLIER, instance.topology), txnId, txn, null, false, route);
 
         var preAcceptAsync = instance.processAsync(preAccept, safe -> {
             var reply = preAccept.apply(safe);

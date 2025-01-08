@@ -43,7 +43,7 @@ public class AccordHarrySimulationTest extends HarrySimulatorTest
     {
 
         Set<Verb> extremelyLossy = new HashSet<>(Arrays.asList(Verb.ACCORD_SIMPLE_RSP, Verb.ACCORD_PRE_ACCEPT_RSP, Verb.ACCORD_PRE_ACCEPT_REQ,
-                                                               Verb.ACCORD_ACCEPT_RSP, Verb.ACCORD_ACCEPT_REQ, Verb.ACCORD_ACCEPT_INVALIDATE_REQ,
+                                                               Verb.ACCORD_ACCEPT_RSP, Verb.ACCORD_ACCEPT_REQ, Verb.ACCORD_NOT_ACCEPT_REQ,
                                                                Verb.ACCORD_READ_RSP, Verb.ACCORD_READ_REQ, Verb.ACCORD_COMMIT_REQ,
                                                                Verb.ACCORD_COMMIT_INVALIDATE_REQ, Verb.ACCORD_APPLY_RSP, Verb.ACCORD_APPLY_REQ,
                                                                Verb.ACCORD_BEGIN_RECOVER_RSP, Verb.ACCORD_BEGIN_RECOVER_REQ, Verb.ACCORD_BEGIN_INVALIDATE_RSP));
