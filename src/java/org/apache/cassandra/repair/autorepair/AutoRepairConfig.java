@@ -415,47 +415,47 @@ public class AutoRepairConfig implements Serializable
 
         // Enable/Disable full auto repair
         public volatile Boolean enabled;
-        //  Repair table by table if this is set to 'false'. If it is 'true', then repair all the tables in a keyspace in one go.
+        // Repair table by table if this is set to 'false'. If it is 'true', then repair all the tables in a keyspace in one go.
         public volatile Boolean repair_by_keyspace;
-        //  Number of repair threads to run for a given invoked Repair Job.
-        //  Once the scheduler schedules one repair session, then howmany threads to use inside that job will be controlled through this parameter.
-        //  This is similar to -j for repair options for the nodetool repair command.
+        // Number of repair threads to run for a given invoked Repair Job.
+        // Once the scheduler schedules one repair session, then howmany threads to use inside that job will be controlled through this parameter.
+        // This is similar to -j for repair options for the nodetool repair command.
         public volatile Integer number_of_repair_threads;
-        //  The number of nodes running repair parallelly. If parallel_repair_percentage is set, it will choose the larger value of the two. The default is 3.
-        //  This configuration controls how many nodes would run repair in parallel.
-        //  The value “3” means, at any given point in time, at most 3 nodes would be running repair in parallel. These selected nodes can be from any datacenters.
-        //  If one or more node(s) finish repair, then the framework automatically picks up the next candidate(s) based on the least repair time.
-        //  It will ensure the maximum number of nodes running repair do not exceed “3”.
+        // The number of nodes running repair parallelly. If parallel_repair_percentage is set, it will choose the larger value of the two.
+        // This configuration controls how many nodes would run repair in parallel.
+        // The value “3” means, at any given point in time, at most 3 nodes would be running repair in parallel. These selected nodes can be from any datacenters.
+        // If one or more node(s) finish repair, then the framework automatically picks up the next candidate(s) based on the least repair time.
+        // It will ensure the maximum number of nodes running repair do not exceed “3”.
         public volatile Integer parallel_repair_count;
-        //  The percentage of nodes in the cluster that run repair parallelly. If parallel_repair_count is set, it will choose the larger value of the two.
-        //  The problem with a fixed number of nodes (parallel_repair_count property) is that in a large-scale environment,
-        //  the nodes keep getting added/removed due to elasticity, so if we have a fixed number, then manual interventions would increase because, on a continuous basis,operators would have to adjust to meet the SLA.
-        //  The default is 3%, which means that 3% of the nodes in the Cassandra cluster would be repaired in parallel.
-        //  So now, if a fleet, an operator won't have to worry about changing the repair frequency, etc., as overall repair time will continue to remain the same even if nodes are added or removed due to elasticity.
-        //  Extremely fewer manual interventions as it will rarely violate the repair SLA for customers
+        // The percentage of nodes in the cluster that run repair parallelly. If parallel_repair_count is set, it will choose the larger value of the two.
+        // The problem with a fixed number of nodes (parallel_repair_count property) is that in a large-scale environment,
+        // the nodes keep getting added/removed due to elasticity, so if we have a fixed number, then manual interventions would increase because, on a continuous basis,operators would have to adjust to meet the SLA.
+        // The default is 3%, which means that 3% of the nodes in the Cassandra cluster would be repaired in parallel.
+        // So now, if a fleet, an operator won't have to worry about changing the repair frequency, etc., as overall repair time will continue to remain the same even if nodes are added or removed due to elasticity.
+        // Extremely fewer manual interventions as it will rarely violate the repair SLA for customers.
         public volatile Integer parallel_repair_percentage;
-        //  Threshold to skip a table if it has too many sstables. The default is 10000. This means, if a table on a node has 10000 or more SSTables, then that table will be skipped.
-        //  This is to avoid penalizing good tables (neighbors) with an outlier.
+        // Threshold to skip a table if it has too many sstables. The default is 10000. This means, if a table on a node has 10000 or more SSTables, then that table will be skipped.
+        // This is to avoid penalizing good tables (neighbors) with an outlier.
         public volatile Integer sstable_upper_threshold;
-        //  Minimum time in hours between repairing the same node again. This is useful for extremely tiny clusters, say 5 nodes, which finishes
-        //  repair quicly. The default is 24 hours. This means that if the scheduler finishes one round on all the nodes in < 24 hours. On a given node it won’t start a new repair round
-        //  until the last repair conducted on a given node is < 24 hours.
+        // Minimum time in hours between repairing the same node again. This is useful for extremely tiny clusters, say 5 nodes, which finishes
+        // repair quicly. The default is 24 hours. This means that if the scheduler finishes one round on all the nodes in < 24 hours. On a given node it won’t start a new repair round
+        // until the last repair conducted on a given node is < 24 hours.
         public volatile DurationSpec.IntSecondsBound min_repair_interval;
-        //  This is useful if you want to completely avoid running repairs in one or more data centers. By default, it is empty, i.e., the framework will repair nodes in all the datacenters.
-        //  If you want to avoid repairing nodes in one or more data centers, then you can specify the data centers in this list.
+        // This is useful if you want to completely avoid running repairs in one or more data centers. By default, it is empty, i.e., the framework will repair nodes in all the datacenters.
+        // If you want to avoid repairing nodes in one or more data centers, then you can specify the data centers in this list.
         public volatile Set<String> ignore_dcs;
-        //  Set this 'true' if AutoRepair should repair only the primary ranges owned by this node; else, 'false'
-        //  It is the same as -pr in nodetool repair options.
+        // Set this 'true' if AutoRepair should repair only the primary ranges owned by this node; else, 'false'.
+        // It is the same as -pr in nodetool repair options.
         public volatile Boolean repair_primary_token_range_only;
-        //  Whether to force immediate repair on new nodes. This is useful if you want to repair newly bootstrapped nodes immediately after they join the ring.
+        // Whether to force immediate repair on new nodes. This is useful if you want to repair newly bootstrapped nodes immediately after they join the ring.
         public volatile Boolean force_repair_new_node;
-        //  Max time for repairing one table on a given node, if exceeded, skip the table. The default is 6 hours.
-        //  Let's say there is a Cassandra cluster in that there are 10 tables belonging to 10 different customers.
-        //  Out of these 10 tables, 1 table is humongous. Repairing this 1 table, say, takes 5 days, in the worst case, but others could finish in just 1 hour.
-        //  Then we would penalize 9 customers just because of one bad actor, and those 9 customers would ping an operator and would require a lot of back-and-forth manual interventions, etc.
-        //  So, the idea here is to penalize the outliers instead of good candidates. This can easily be configured with a higher value if we want to disable the functionality.
+        // Max time for repairing one table on a given node, if exceeded, skip the table.
+        // Let's say there is a Cassandra cluster in that there are 10 tables belonging to 10 different customers.
+        // Out of these 10 tables, 1 table is humongous. Repairing this 1 table, say, takes 5 days, in the worst case, but others could finish in just 1 hour.
+        // Then we would penalize 9 customers just because of one bad actor, and those 9 customers would ping an operator and would require a lot of back-and-forth manual interventions, etc.
+        // So, the idea here is to penalize the outliers instead of good candidates. This can easily be configured with a higher value if we want to disable the functionality.
         public volatile DurationSpec.IntSecondsBound table_max_repair_time;
-        //  If the scheduler should repair MV table or not.
+        // If the scheduler should repair MV table or not.
         public volatile Boolean mv_repair_enabled;
         /**
          * Splitter implementation to use for generating repair assignments.
@@ -464,9 +464,9 @@ public class AutoRepairConfig implements Serializable
          * and have a constructor accepting ({@link RepairType}, {@link java.util.Map})
          */
         public volatile ParameterizedClass token_range_splitter;
-        //  After a node restart, wait for this much delay before scheduler starts running repair; this is to avoid starting repair immediately after a node restart.
+        // After a node restart, wait for this much delay before scheduler starts running repair; this is to avoid starting repair immediately after a node restart.
         public volatile DurationSpec.IntSecondsBound initial_scheduler_delay;
-        //  The major issue with Repair is sometimes repair session hangs; so this timeout is useful to resume such stuck repair sessions.
+        // The major issue with Repair is sometimes repair session hangs; so this timeout is useful to resume such stuck repair sessions.
         public volatile DurationSpec.IntSecondsBound repair_session_timeout;
 
         public String toString()
