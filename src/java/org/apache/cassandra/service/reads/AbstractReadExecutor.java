@@ -42,6 +42,9 @@ import org.apache.cassandra.locator.ReplicaPlans;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.service.StorageProxy.LocalReadRunnable;
+import org.apache.cassandra.service.reads.legacy.DigestResolver;
+import org.apache.cassandra.service.reads.logged.LoggedReadReconciliation;
+import org.apache.cassandra.service.reads.logged.LoggedResolver;
 import org.apache.cassandra.service.reads.repair.ReadRepair;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tracing.TraceState;
@@ -83,10 +86,22 @@ public abstract class AbstractReadExecutor
         this.command = command;
         this.replicaPlan = ReplicaPlan.shared(replicaPlan);
         this.initialDataRequestCount = initialDataRequestCount;
-        // the ReadRepair and DigestResolver both need to see our updated
-        this.readRepair = ReadRepair.create(command, this.replicaPlan, requestTime);
-        this.resolver = ResponseResolver.create(command, this.replicaPlan, requestTime);
+
+        if (command.responseType().isLegacy())
+        {
+            // FIXME: tighten up alter table validation so you can't adjust read repair type for logged tables
+            this.readRepair = command.metadata().params.readRepair.create(command, this.replicaPlan, requestTime);
+            this.resolver = new DigestResolver<>(command, this.replicaPlan, requestTime);
+        }
+        else
+        {
+            Preconditions.checkArgument(command.responseType().isLogged());
+            this.readRepair = LoggedReadReconciliation.create(command, this.replicaPlan, requestTime);
+            this.resolver = new LoggedResolver<>(command, this.replicaPlan, requestTime);
+        }
         this.handler = new ReadCallback<>(resolver, command, this.replicaPlan, requestTime);
+
+        // the ReadRepair and DigestResolver both need to see our updated
         this.cfs = cfs;
         this.traceState = Tracing.instance.get();
         this.requestTime = requestTime;
