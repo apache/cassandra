@@ -514,9 +514,10 @@ public class TransactionStatementTest
         Dispatcher.RequestTime now = Dispatcher.RequestTime.forImmediateExecution();
         Assertions.assertThatThrownBy(() -> stmt.execute(state, QueryOptions.forInternalCalls(Arrays.asList(select.bindsEncoded())), now)).isInstanceOf(InvalidRequestException.class)
                   .hasMessageContaining(String.format(NO_PARTITION_IN_CLAUSE_WITH_LIMIT, "SELECT", "at"));
+
         Txn txn = Txn.builder()
                    .addLet("a", select)
-                   .addReturn(select)
+                   .addReturnReferences("a.v")
                    .build();
         TransactionStatement stmt2 = (TransactionStatement) prepare(txn.toCQL());
         Assertions.assertThatThrownBy(() -> stmt2.execute(state, QueryOptions.forInternalCalls(Arrays.asList(txn.bindsEncoded())), now)).isInstanceOf(InvalidRequestException.class)
