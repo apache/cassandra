@@ -217,7 +217,6 @@ public class MutationTrackingReadReconciliationTest extends TestBaseImpl
                                         "AND replication_type='logged';", keyspaceName));
 
             cluster.forEach(node -> {
-                logger.info(">>> {}", node);
                 node.runOnInstance(() -> {
                     KeyspaceMetadata ksm = Schema.instance.getKeyspaceMetadata(keyspaceName);
                     Assert.assertEquals(ReplicationType.logged, ksm.params.replicationType);
