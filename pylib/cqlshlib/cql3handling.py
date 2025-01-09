@@ -764,19 +764,12 @@ syntax_rules += r'''
              | <scalarMathFunctions>
              | <collectionFunctions>
              | <currentTimeFunctions>
+             | <maskFunctions>
              | "TO_DATE" "(" [colname]=<cident> ")"
              | "TO_TIMESTAMP" "(" [colname]=<cident> ")"
              | "TO_UNIX_TIMESTAMP" "(" [colname]=<cident> ")"
              | "TOKEN" "(" [colname]=<cident> ")"
-             | "MAP_KEYS" "(" [colname]=<cident> ")"
-             | "MAP_VALUES" "(" [colname]=<cident> ")"
              | "CAST" "(" <selector> "AS" <storageType> ")"
-             | "MASK_NULL" "(" [colname]=<cident> ")"
-             | "MASK_DEFAULT" "(" [colname]=<cident> ")"
-             | "MASK_REPLACE" "(" [colname]=<cident> "," <term> ")"
-             | "MASK_HASH" "(" [colname]=<cident> ")"
-             | "MASK_INNER" "(" [colname]=<cident> ")"
-             | "MASK_OUTER" "(" [colname]=<cident> ")"
              | <functionName> <selectionFunctionArguments>
              | <term>
              ;
@@ -822,6 +815,15 @@ syntax_rules += r'''
              | "CURRENT_TIMEUUID()"
              | "CURRENT_TIMESTAMP()"
              ;
+
+<maskFunctions> ::= "MASK_NULL" "(" [colname]=<cident> ")"
+             | "MASK_DEFAULT" "(" [colname]=<cident> ")"
+             | "MASK_REPLACE" "(" [colname]=<cident> "," <term> ")"
+             | "MASK_HASH" "(" [colname]=<cident> ")"
+             | "MASK_INNER" "(" [colname]=<cident> ")"
+             | "MASK_OUTER" "(" [colname]=<cident> ")"
+             ;
+
 
 <timeuuidFunctions> ::= "MAX_TIMEUUID" "(" [colname]=<cident> ")"
              | "MIN_TIMEUUID" "(" [colname]=<cident> ")"
