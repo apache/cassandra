@@ -401,7 +401,7 @@ final class Flusher<K, V>
 
     private interface Mode<K, V>
     {
-        void flushAndAwaitDurable(ActiveSegment<K, V>.Allocation alloc);
+        RecordPointer flushAndAwaitDurable(ActiveSegment<K, V>.Allocation alloc);
         RecordPointer flushAsync(ActiveSegment<K, V>.Allocation alloc);
         boolean isDurable(RecordPointer recordPointer);
     }
@@ -409,13 +409,14 @@ final class Flusher<K, V>
     private class BatchMode implements Mode<K, V>
     {
         @Override
-        public void flushAndAwaitDurable(ActiveSegment<K, V>.Allocation alloc)
+        public RecordPointer flushAndAwaitDurable(ActiveSegment<K, V>.Allocation alloc)
         {
             pending.incrementAndGet();
             requestExtraFlush();
             alloc.awaitDurable(journal.metrics.waitingOnFlush);
             pending.decrementAndGet();
             written.incrementAndGet();
+            return alloc.recordPointer();
         }
 
         @Override
@@ -423,7 +424,7 @@ final class Flusher<K, V>
         {
             requestExtraFlush();
             written.incrementAndGet();
-            return new RecordPointer(alloc.descriptor().timestamp, alloc.start());
+            return alloc.recordPointer();
         }
 
         @Override
@@ -436,19 +437,20 @@ final class Flusher<K, V>
     private class GroupMode implements Mode<K, V>
     {
         @Override
-        public void flushAndAwaitDurable(ActiveSegment<K, V>.Allocation alloc)
+        public RecordPointer flushAndAwaitDurable(ActiveSegment<K, V>.Allocation alloc)
         {
             pending.incrementAndGet();
             alloc.awaitDurable(journal.metrics.waitingOnFlush);
             pending.decrementAndGet();
             written.incrementAndGet();
+            return alloc.recordPointer();
         }
 
         @Override
         public RecordPointer flushAsync(ActiveSegment<K, V>.Allocation alloc)
         {
             written.incrementAndGet();
-            return new RecordPointer(alloc.descriptor().timestamp, alloc.start());
+            return alloc.recordPointer();
         }
 
         @Override
@@ -461,7 +463,7 @@ final class Flusher<K, V>
     private class PeriodicMode implements Mode<K, V>
     {
         @Override
-        public void flushAndAwaitDurable(ActiveSegment<K, V>.Allocation alloc)
+        public RecordPointer flushAndAwaitDurable(ActiveSegment<K, V>.Allocation alloc)
         {
             RecordPointer pointer = flushAsync(alloc);
 
@@ -472,6 +474,7 @@ final class Flusher<K, V>
                 awaitFsyncAt(expectedFsyncTime, journal.metrics.waitingOnFlush.time());
                 pending.decrementAndGet();
             }
+            return pointer;
         }
 
         @Override
