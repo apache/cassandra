@@ -86,7 +86,7 @@ public abstract class Segment<K, V> implements SelfRefCounted<Segment<K, V>>, Co
         int size = Index.readSize(offsetAndSize);
         if (read(offset, size, into))
         {
-            Invariants.checkState(id.equals(into.key), "Index for %s read incorrect key: expected %s but read %s", descriptor, id, into.key);
+            Invariants.checkState(id.equals(into.key));
             consumer.accept(descriptor.timestamp, offset, id, into.value, descriptor.userVersion);
             return true;
         }
@@ -98,7 +98,7 @@ public abstract class Segment<K, V> implements SelfRefCounted<Segment<K, V>>, Co
         long offsetAndSize = index().lookUpLast(id);
         if (offsetAndSize == -1 || !read(Index.readOffset(offsetAndSize), Index.readSize(offsetAndSize), into))
             return false;
-        Invariants.checkState(id.equals(into.key), "Index for %s read incorrect key: expected %s but read %s", descriptor, id, into.key);
+        Invariants.checkState(id.equals(into.key));
         return true;
     }
 
