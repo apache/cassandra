@@ -21,9 +21,8 @@ package org.apache.cassandra.utils;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.EnumMap;
 import java.util.EnumSet;
-import java.util.HashMap;
-import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -33,9 +32,9 @@ import java.util.Optional;
 import java.util.OptionalInt;
 import java.util.OptionalLong;
 import java.util.Set;
+import java.util.TreeMap;
 import java.util.concurrent.TimeUnit;
 import java.util.function.BiFunction;
-import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import javax.annotation.Nullable;
@@ -85,6 +84,22 @@ public class ASTGenerators
     {
         Gen<?> v = AbstractTypeGenerators.getTypeSupport(type).valueGen;
         return rnd -> valueGen(v.generate(rnd), type).generate(rnd);
+    }
+
+    private static <K, V> Map<K, V> assertDeterministic(Map<K, V> map)
+    {
+        if (map instanceof LinkedHashMap || map instanceof TreeMap || map instanceof EnumMap)
+            return map;
+        if (map.size() == 1)
+            return map;
+        throw new AssertionError("Unsupported map type: " + map.getClass());
+    }
+
+    public static List<ColumnMetadata> safeColumns(TableMetadata metadata)
+    {
+        List<ColumnMetadata> columns = new ArrayList<>(metadata.columns().size());
+        metadata.allColumnsInSelectOrder().forEachRemaining(columns::add);
+        return columns;
     }
 
     public static Gen<AssignmentOperator> assignmentOperatorGen(EnumSet<AssignmentOperator.Kind> allowed, Expression right)
@@ -251,12 +266,12 @@ public class ASTGenerators
         public SelectGenBuilder withKeys(Gen<Map<Symbol, Object>> partitionKeys, Gen<Map<Symbol, Object>> clusteringKeys)
         {
             keyGen = rs -> {
-                Map<Symbol, Expression> keys = new HashMap<>();
-                for (Map.Entry<Symbol, Object> e : partitionKeys.generate(rs).entrySet())
+                Map<Symbol, Expression> keys = new LinkedHashMap<>();
+                for (Map.Entry<Symbol, Object> e : assertDeterministic(partitionKeys.generate(rs)).entrySet())
                     keys.put(e.getKey(), literalOrBindGen.apply(e.getValue(), e.getKey().type()).generate(rs));
                 if (!metadata.clusteringColumns().isEmpty())
                 {
-                    for (Map.Entry<Symbol, Object> e : clusteringKeys.generate(rs).entrySet())
+                    for (Map.Entry<Symbol, Object> e : assertDeterministic(clusteringKeys.generate(rs)).entrySet())
                         keys.put(e.getKey(), literalOrBindGen.apply(e.getValue(), e.getKey().type()).generate(rs));
                 }
                 return keys;
@@ -278,18 +293,18 @@ public class ASTGenerators
         private static Conditional and(Map<Symbol, Expression> data)
         {
             Conditional.Builder builder = new Conditional.Builder();
-            for (Map.Entry<Symbol, Expression> e : data.entrySet())
+            for (Map.Entry<Symbol, Expression> e : assertDeterministic(data).entrySet())
                 builder.where(e.getKey(), Conditional.Where.Inequality.EQUAL, e.getValue());
             return builder.build();
         }
 
         private static Gen<List<Expression>> selectColumns(TableMetadata metadata)
         {
-            List<ColumnMetadata> columns = new ArrayList<>(metadata.columns());
+            List<ColumnMetadata> columns = safeColumns(metadata);
             Constraint between = Constraint.between(0, columns.size() - 1);
             Gen<int[]> indexGen = rnd -> {
                 int size = Math.toIntExact(rnd.next(between)) + 1;
-                Set<Integer> dedup = new HashSet<>();
+                Set<Integer> dedup = new LinkedHashSet<>();
                 while (dedup.size() < size)
                     dedup.add(Math.toIntExact(rnd.next(between)));
                 return dedup.stream().mapToInt(Integer::intValue).toArray();
@@ -305,7 +320,7 @@ public class ASTGenerators
         private static Gen<Map<Symbol, Expression>> partitionKeyGen(TableMetadata metadata)
         {
             Map<ColumnMetadata, Gen<?>> gens = new LinkedHashMap<>();
-            for (ColumnMetadata col : metadata.columns())
+            for (ColumnMetadata col : safeColumns(metadata))
                 gens.put(col, AbstractTypeGenerators.getTypeSupport(col.type).valueGen);
             return rnd -> {
                 Map<Symbol, Expression> output = new LinkedHashMap<>();
@@ -334,7 +349,7 @@ public class ASTGenerators
         private Gen<Boolean> useCasIf = SourceDSL.booleans().all();
         private BiFunction<RandomnessSource, List<Symbol>, List<Symbol>> ifConditionFilter = (rnd, symbols) -> symbols;
         private Gen<DeleteKind> deleteKindGen = SourceDSL.arbitrary().enumValues(DeleteKind.class);
-        private Map<Symbol, ExpressionBuilder<?>> columnExpressions = new HashMap<>();
+        private Map<Symbol, ExpressionBuilder<?>> columnExpressions = new LinkedHashMap<>();
 
         public MutationGenBuilder(TableMetadata metadata)
         {
@@ -448,16 +463,16 @@ public class ASTGenerators
             return this;
         }
 
-        private Gen<Map<Symbol, Object>> partitionValueGen = null;
-        private Gen<Map<Symbol, Object>> clusteringValueGen = null;
+        private Gen<? extends Map<Symbol, Object>> partitionValueGen = null;
+        private Gen<? extends Map<Symbol, Object>> clusteringValueGen = null;
 
-        public MutationGenBuilder withPartitions(Gen<Map<Symbol, Object>> values)
+        public MutationGenBuilder withPartitions(Gen<? extends Map<Symbol, Object>> values)
         {
             this.partitionValueGen = values;
             return this;
         }
 
-        public MutationGenBuilder withClusterings(Gen<Map<Symbol, Object>> values)
+        public MutationGenBuilder withClusterings(Gen<? extends Map<Symbol, Object>> values)
         {
             this.clusteringValueGen = values;
             return this;
@@ -467,12 +482,12 @@ public class ASTGenerators
                                    Map<Symbol, ExpressionBuilder<?>> columnExpressions,
                                    Conditional.EqBuilder<?> builder,
                                    LinkedHashSet<Symbol> columns,
-                                   @Nullable Gen<Map<Symbol, Object>> gen)
+                                   @Nullable Gen<? extends Map<Symbol, Object>> gen)
         {
             if (gen != null)
             {
                 Map<Symbol, Object> map = gen.generate(rnd);
-                for (Map.Entry<Symbol, ?> e : map.entrySet())
+                for (Map.Entry<Symbol, ?> e : assertDeterministic(map).entrySet())
                     builder.value(e.getKey(), valueGen(e.getValue(), e.getKey().type()).generate(rnd));
             }
             else
@@ -485,7 +500,6 @@ public class ASTGenerators
 
         public Gen<Mutation> build()
         {
-            Map<Symbol, ColumnMetadata> allColumnsMap = metadata.columns().stream().collect(Collectors.toMap(m -> new Symbol(m), Function.identity()));
             Gen<Boolean> bool = SourceDSL.booleans().all();
             Map<? extends AbstractType<?>, List<Reference>> typeToReference = references.stream().collect(Collectors.groupingBy(Reference::type));
             return rnd -> {

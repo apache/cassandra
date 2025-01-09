@@ -23,4 +23,9 @@ package org.apache.cassandra.cql3.ast;
  */
 public interface ReferenceExpression extends Expression
 {
+    @Override
+    default ReferenceExpression visit(Visitor v)
+    {
+        return this;
+    }
 }

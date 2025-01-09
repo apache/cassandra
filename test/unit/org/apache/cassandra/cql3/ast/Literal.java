@@ -51,7 +51,8 @@ public class Literal implements Value
         return value;
     }
 
-    public ByteBuffer encode()
+    @Override
+    public ByteBuffer valueEncoded()
     {
         return value instanceof ByteBuffer ? (ByteBuffer) value : ((AbstractType) type).decompose(value);
     }
@@ -65,6 +66,6 @@ public class Literal implements Value
     @Override
     public void toCQL(StringBuilder sb, CQLFormatter formatter)
     {
-        sb.append(type.asCQL3Type().toCQLLiteral(encode()));
+        sb.append(type.asCQL3Type().toCQLLiteral(valueEncoded()));
     }
 }

@@ -18,8 +18,6 @@
 
 package org.apache.cassandra.cql3.ast;
 
-import java.util.Collections;
-
 import org.junit.Test;
 
 import accord.utils.Gen;
@@ -33,7 +31,7 @@ import static accord.utils.Property.qt;
 
 public class ExpressionTest
 {
-    private static final Visitor.CompositeVisitor COMPOSITE_VISITOR = new Visitor.CompositeVisitor(Collections.singletonList(StandardVisitors.BIND_TO_LITERAL));
+    private static final Visitor.CompositeVisitor COMPOSITE_VISITOR = Visitor.CompositeVisitor.of(StandardVisitors.BIND_TO_LITERAL);
 
     @Test
     public void simple()

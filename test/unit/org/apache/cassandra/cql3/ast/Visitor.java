@@ -18,7 +18,12 @@
 
 package org.apache.cassandra.cql3.ast;
 
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
+import java.util.stream.Stream;
+
+import accord.utils.Invariants;
 
 /**
  * Visits and conditionally replaces an element in the ast.  Each "visit" method offers the ability to be notified when the
@@ -53,10 +58,16 @@ public interface Visitor
     default Expression visit(Expression e)
     {
         if (e instanceof Value) return visit((Value) e);
+        if (e instanceof ReferenceExpression) return visit((ReferenceExpression) e);
         return e;
     }
 
     default Conditional visit(Conditional c) { return c; }
+
+    default ReferenceExpression visit(ReferenceExpression r)
+    {
+        return r;
+    }
 
     default Value visit(Value v) { return v; }
 
@@ -64,9 +75,53 @@ public interface Visitor
     {
         private final List<Visitor> visitors;
 
-        public CompositeVisitor(List<Visitor> visitors)
+        private CompositeVisitor(List<Visitor> visitors)
         {
             this.visitors = visitors;
+        }
+
+        public static CompositeVisitor of(Visitor... visitors)
+        {
+            return of(Arrays.asList(visitors));
+        }
+
+        public static CompositeVisitor of(List<Visitor> visitors)
+        {
+            Invariants.checkArgument(!visitors.isEmpty(), "Visitors may not be empty");
+
+            if (!Stream.of(visitors).anyMatch(v -> v instanceof CompositeVisitor))
+                return new CompositeVisitor(visitors);
+            List<Visitor> flatten = new ArrayList<>();
+            for (Visitor v : visitors)
+            {
+                if (!(v instanceof CompositeVisitor))
+                {
+                    flatten.add(v);
+                    continue;
+                }
+                CompositeVisitor cv = (CompositeVisitor) v;
+                flatten.addAll(cv.visitors);
+            }
+            return new CompositeVisitor(flatten);
+        }
+
+        public CompositeVisitor append(Visitor v)
+        {
+            if (v instanceof CompositeVisitor)
+            {
+                CompositeVisitor other = (CompositeVisitor) v;
+                List<Visitor> vs = new ArrayList<>(visitors.size() + other.visitors.size());
+                vs.addAll(visitors);
+                vs.addAll(other.visitors);
+                return new CompositeVisitor(vs);
+            }
+            else
+            {
+                List<Visitor> vs = new ArrayList<>(visitors.size() + 1);
+                vs.addAll(visitors);
+                vs.add(v);
+                return new CompositeVisitor(vs);
+            }
         }
 
         @Override

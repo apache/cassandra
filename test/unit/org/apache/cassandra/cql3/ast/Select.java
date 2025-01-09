@@ -374,7 +374,7 @@ FROM [keyspace_name.] table_name
         }
 
         @Override
-        public Builder in(Expression ref, List<Expression> expressions)
+        public Builder in(ReferenceExpression ref, List<? extends Expression> expressions)
         {
             where.in(ref, expressions);
             return this;

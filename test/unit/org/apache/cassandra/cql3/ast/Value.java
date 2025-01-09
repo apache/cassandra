@@ -25,10 +25,7 @@ import org.apache.cassandra.db.marshal.AbstractType;
 public interface Value extends Expression
 {
     Object value();
-    default ByteBuffer valueEncoded()
-    {
-        return ((AbstractType) type()).decompose(value());
-    }
+    ByteBuffer valueEncoded();
     Value with(Object value, AbstractType<?> type);
 
     @Override

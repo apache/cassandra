@@ -46,7 +46,7 @@ public class StandardVisitors
         }
     };
 
-    public static final Visitor DEBUG = new Visitor.CompositeVisitor(Arrays.asList(UNWRAP_TYPE_HINT, BIND_TO_LITERAL));
+    public static final Visitor.CompositeVisitor DEBUG = Visitor.CompositeVisitor.of(UNWRAP_TYPE_HINT, BIND_TO_LITERAL);
 
     private StandardVisitors() {}
 }

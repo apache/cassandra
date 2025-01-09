@@ -19,6 +19,7 @@
 package org.apache.cassandra.cql3.ast;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.stream.Stream;
@@ -110,9 +111,19 @@ public class FunctionCall implements Expression
         return new FunctionCall("count", Collections.singletonList(symbol), LongType.instance);
     }
 
+    public static FunctionCall tokenByColumns(Symbol... columns)
+    {
+        return tokenByColumns(Arrays.asList(columns));
+    }
+
     public static FunctionCall tokenByColumns(List<Symbol> columns)
     {
         return new FunctionCall("token", columns, BytesType.instance);
+    }
+
+    public static FunctionCall tokenByValue(Value... values)
+    {
+        return tokenByValue(Arrays.asList(values));
     }
 
     public static FunctionCall tokenByValue(List<? extends Value> values)

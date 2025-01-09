@@ -43,7 +43,7 @@ public interface Statement extends Element
     {
         return streamRecursive()
                .filter(e -> e instanceof Bind)
-               .map(e -> ((Bind) e).encode())
+               .map(e -> ((Bind) e).valueEncoded())
                .toArray(ByteBuffer[]::new);
     }
 

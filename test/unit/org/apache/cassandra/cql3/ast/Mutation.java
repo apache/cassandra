@@ -33,6 +33,7 @@ import javax.annotation.Nullable;
 import org.apache.cassandra.db.marshal.Int32Type;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.TableMetadata;
+import org.apache.cassandra.utils.ASTGenerators;
 
 public abstract class Mutation implements Statement
 {
@@ -509,7 +510,7 @@ WHERE PK_column_conditions
             this.primaryColumns.addAll(clusteringColumns);
             this.regularAndStatic = new LinkedHashSet<>();
             this.regularAndStatic.addAll(toSet(table.regularAndStaticColumns()));
-            this.allColumns = toSet(table.columns());
+            this.allColumns = toSet(ASTGenerators.safeColumns(table));
             neededPks.addAll(partitionColumns);
         }
 
@@ -681,7 +682,7 @@ WHERE PK_column_conditions
         }
 
         @Override
-        public UpdateBuilder in(Expression ref, List<Expression> expressions)
+        public UpdateBuilder in(ReferenceExpression ref, List<? extends Expression> expressions)
         {
             maybePkEq(ref);
             where.in(ref, expressions);
@@ -782,7 +783,7 @@ WHERE PK_column_conditions
         }
 
         @Override
-        public DeleteBuilder in(Expression ref, List<Expression> expressions)
+        public DeleteBuilder in(ReferenceExpression ref, List<? extends Expression> expressions)
         {
             maybePkEq(ref);
             where.in(ref, expressions);

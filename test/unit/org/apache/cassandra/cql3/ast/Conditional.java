@@ -63,7 +63,7 @@ public interface Conditional extends Expression
             LESS_THAN("<"),
             LESS_THAN_EQ("<=");
 
-            private final String value;
+            public final String value;
 
             Inequality(String value)
             {
@@ -155,20 +155,20 @@ public interface Conditional extends Expression
 
     class In implements Conditional
     {
-        public final Expression symbol;
-        public final List<Expression> expressions;
+        public final ReferenceExpression ref;
+        public final List<? extends Expression> expressions;
 
-        public In(Expression symbol, List<Expression> expressions)
+        public In(ReferenceExpression ref, List<? extends Expression> expressions)
         {
             Invariants.checkArgument(!expressions.isEmpty());
-            this.symbol = symbol;
+            this.ref = ref;
             this.expressions = expressions;
         }
 
         @Override
         public void toCQL(StringBuilder sb, CQLFormatter formatter)
         {
-            symbol.toCQL(sb, formatter);
+            ref.toCQL(sb, formatter);
             sb.append(" IN ");
             sb.append('(');
             for (Expression e : expressions)
@@ -184,7 +184,7 @@ public interface Conditional extends Expression
         public Stream<? extends Element> stream()
         {
             List<Element> es = new ArrayList<>(expressions.size() + 1);
-            es.add(symbol);
+            es.add(ref);
             es.addAll(expressions);
             return es.stream();
         }
@@ -194,8 +194,8 @@ public interface Conditional extends Expression
         {
             var u = v.visit(this);
             if (u != this) return u;
-            var symbol = this.symbol.visit(v);
-            boolean updated = symbol == this.symbol;
+            var symbol = this.ref.visit(v);
+            boolean updated = symbol == this.ref;
             List<Expression> expressions = new ArrayList<>(this.expressions.size());
             for (Expression e : this.expressions)
             {
@@ -330,9 +330,9 @@ public interface Conditional extends Expression
             return between(new Symbol(name, start.type()), start, end);
         }
 
-        T in(Expression ref, List<Expression> expressions);
+        T in(ReferenceExpression ref, List<? extends Expression> expressions);
 
-        default T in(Expression ref, Expression... expressions)
+        default T in(ReferenceExpression ref, Expression... expressions)
         {
             return in(ref, Arrays.asList(expressions));
         }
@@ -411,7 +411,7 @@ public interface Conditional extends Expression
         }
 
         @Override
-        public Builder in(Expression symbol, List<Expression> expressions)
+        public Builder in(ReferenceExpression symbol, List<? extends Expression> expressions)
         {
             return add(new In(symbol, expressions));
         }
