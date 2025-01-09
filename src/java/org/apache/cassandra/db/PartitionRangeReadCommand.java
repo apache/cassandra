@@ -240,7 +240,7 @@ public class PartitionRangeReadCommand extends ReadCommand implements PartitionR
     protected PartitionRangeReadCommand copyAsSummaryQuery()
     {
         return create(serializedAtEpoch(),
-                      ResponseType.LEGACY_DIGEST,
+                      responseType().asSummaryType(),
                       digestVersion(),
                       false,
                       metadata(),
@@ -327,8 +327,10 @@ public class PartitionRangeReadCommand extends ReadCommand implements PartitionR
     @VisibleForTesting
     public UnfilteredPartitionIterator queryStorage(final ColumnFamilyStore cfs, ReadExecutionController controller)
     {
-        if (responseType().isLogged())
-            throw new UnsupportedOperationException("TODO: support logged range reads");
+        // TODO: actually retrieve mutation data from disk
+        controller.summarizer().addForRange(metadata().id, dataRange.keyRange);
+        if (responseType() == ResponseType.LOGGED_SUMMARY)
+            return EmptyIterators.unfilteredPartition(metadata());
 
         ColumnFamilyStore.ViewFragment view = cfs.select(View.selectLive(dataRange().keyRange()));
         Tracing.trace("Executing seq scan across {} sstables for {}", view.sstables.size(), dataRange().keyRange().getString(metadata().partitionKeyType));

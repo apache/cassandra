@@ -18,6 +18,8 @@
 
 package org.apache.cassandra.service.reads.range;
 
+import java.util.concurrent.ExecutionException;
+
 import org.apache.cassandra.db.partitions.PartitionIterator;
 import org.apache.cassandra.db.rows.RowIterator;
 import org.apache.cassandra.exceptions.ReadTimeoutException;
@@ -28,11 +30,13 @@ import org.apache.cassandra.service.reads.ReadCallback;
 import org.apache.cassandra.service.reads.logged.LoggedResolver;
 import org.apache.cassandra.service.reads.repair.ReadRepair;
 import org.apache.cassandra.utils.AbstractIterator;
+import org.apache.cassandra.utils.concurrent.AsyncPromise;
+import org.apache.cassandra.utils.concurrent.UncheckedInterruptedException;
 
 abstract class SingleRangeResponse extends AbstractIterator<RowIterator> implements PartitionIterator
 {
     private final ReadCallback<EndpointsForRange, ReplicaPlan.ForRangeRead> handler;
-    private final ReadRepair<EndpointsForRange, ReplicaPlan.ForRangeRead> readRepair;
+    protected final ReadRepair<EndpointsForRange, ReplicaPlan.ForRangeRead> readRepair;
 
     private PartitionIterator result;
 
@@ -77,7 +81,7 @@ abstract class SingleRangeResponse extends AbstractIterator<RowIterator> impleme
     {
         private final DataResolver<EndpointsForRange, ReplicaPlan.ForRangeRead> resolver;
 
-        public Legacy(ReadCallback<EndpointsForRange, ReplicaPlan.ForRangeRead> handler, ReadRepair<EndpointsForRange, ReplicaPlan.ForRangeRead> readRepair, DataResolver<EndpointsForRange, ReplicaPlan.ForRangeRead> resolver)
+        public Legacy(DataResolver<EndpointsForRange, ReplicaPlan.ForRangeRead> resolver, ReadCallback<EndpointsForRange, ReplicaPlan.ForRangeRead> handler, ReadRepair<EndpointsForRange, ReplicaPlan.ForRangeRead> readRepair)
         {
             super(handler, readRepair);
             this.resolver = resolver;
@@ -103,7 +107,25 @@ abstract class SingleRangeResponse extends AbstractIterator<RowIterator> impleme
         @Override
         PartitionIterator getResult()
         {
-            return resolver.getData();
+            if (resolver.responsesMatch())
+                return resolver.getData();
+
+            AsyncPromise<PartitionIterator> result = new AsyncPromise<>();
+            readRepair.startRepair(resolver, result::trySuccess);
+            readRepair.maybeSendAdditionalReads();
+            readRepair.awaitReads();
+            try
+            {
+                return result.get();
+            }
+            catch (InterruptedException e)
+            {
+                throw new UncheckedInterruptedException(e);
+            }
+            catch (ExecutionException e)
+            {
+                throw new RuntimeException(e);
+            }
         }
     }
 }

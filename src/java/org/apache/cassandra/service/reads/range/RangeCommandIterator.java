@@ -181,48 +181,20 @@ public class RangeCommandIterator extends AbstractIterator<RowIterator> implemen
         return concurrencyFactor;
     }
 
-    /**
-     * Queries the provided sub-range.
-     *
-     * @param replicaPlan the subRange to query.
-     * @param isFirst in the case where multiple queries are sent in parallel, whether that's the first query on
-     * that batch or not. The reason it matters is that whe paging queries, the command (more specifically the
-     * {@code DataLimits}) may have "state" information and that state may only be valid for the first query (in
-     * that it's the query that "continues" whatever we're previously queried).
-     */
-    private SingleRangeResponse query(ReplicaPlan.ForRangeRead replicaPlan, boolean isFirst)
-    {
-        PartitionRangeReadCommand rangeCommand = command.forSubRange(replicaPlan.range(), isFirst);
-        ReplicaPlan.SharedForRangeRead sharedReplicaPlan = ReplicaPlan.shared(replicaPlan);
 
+    private SingleRangeResponse queryLegacy(PartitionRangeReadCommand rangeCommand, ReplicaPlan.ForRangeRead replicaPlan, boolean isFirst)
+    {
         // If enabled, request repaired data tracking info from full replicas, but
         // only if there are multiple full replicas to compare results from.
-        boolean trackRepairedStatus;
-        SingleRangeResponse response;
-        ReadCallback<EndpointsForRange, ReplicaPlan.ForRangeRead> handler;
+        boolean trackRepairedStatus = DatabaseDescriptor.getRepairedDataTrackingForRangeReadsEnabled()
+                                      && replicaPlan.contacts().filter(Replica::isFull).size() > 1
+                                      && !command.responseType().isLogged();
 
-        if (command.responseType().isLogged())
-        {
-            trackRepairedStatus = false;
-
-            LoggedReadReconciliation<EndpointsForRange, ReplicaPlan.ForRangeRead> reconciliation = LoggedReadReconciliation.create(command, sharedReplicaPlan, requestTime);
-            LoggedResolver<EndpointsForRange, ReplicaPlan.ForRangeRead> resolver = new LoggedResolver<>(rangeCommand, sharedReplicaPlan, requestTime);
-
-            handler = new ReadCallback<>(resolver, rangeCommand, sharedReplicaPlan, requestTime);
-            response = new SingleRangeResponse.Logged(handler, reconciliation, resolver);
-        }
-        else
-        {
-            Preconditions.checkArgument(command.responseType().isLegacy());
-            trackRepairedStatus = DatabaseDescriptor.getRepairedDataTrackingForRangeReadsEnabled() && replicaPlan.contacts().filter(Replica::isFull).size() > 1;
-
-            // FIXME: tighten up alter table validation so you can't adjust read repair type for logged tables
-            LegacyReadRepair<EndpointsForRange, ReplicaPlan.ForRangeRead> readRepair = command.metadata().params.readRepair.create(command, sharedReplicaPlan, requestTime);
-            DataResolver<EndpointsForRange, ReplicaPlan.ForRangeRead> resolver = new DataResolver<>(rangeCommand, sharedReplicaPlan, readRepair, requestTime, trackRepairedStatus);
-
-            handler = new ReadCallback<>(resolver, rangeCommand, sharedReplicaPlan, requestTime);
-            response = new SingleRangeResponse.Legacy(handler, readRepair, resolver);
-        }
+        ReplicaPlan.SharedForRangeRead sharedReplicaPlan = ReplicaPlan.shared(replicaPlan);
+        LegacyReadRepair<EndpointsForRange, ReplicaPlan.ForRangeRead> readRepair = command.metadata().params.readRepair.create(command, sharedReplicaPlan, requestTime);
+        DataResolver<EndpointsForRange, ReplicaPlan.ForRangeRead> resolver = new DataResolver<>(rangeCommand, sharedReplicaPlan,  readRepair, requestTime, trackRepairedStatus);
+        ReadCallback<EndpointsForRange, ReplicaPlan.ForRangeRead> handler =
+        new ReadCallback<>(resolver, rangeCommand, sharedReplicaPlan, requestTime);
 
         if (replicaPlan.contacts().size() == 1 && replicaPlan.contacts().get(0).isSelf())
         {
@@ -239,7 +211,68 @@ public class RangeCommandIterator extends AbstractIterator<RowIterator> implemen
             }
         }
 
-        return response;
+        return new SingleRangeResponse.Legacy(resolver, handler, readRepair);
+    }
+
+    private SingleRangeResponse queryLogged(PartitionRangeReadCommand rangeCommand, ReplicaPlan.ForRangeRead replicaPlan, boolean isFirst)
+    {
+        ReplicaPlan.SharedForRangeRead sharedReplicaPlan = ReplicaPlan.shared(replicaPlan);
+        LoggedReadReconciliation<EndpointsForRange, ReplicaPlan.ForRangeRead> reconciliation = LoggedReadReconciliation.create(command, sharedReplicaPlan, requestTime);
+        LoggedResolver<EndpointsForRange, ReplicaPlan.ForRangeRead> resolver = new LoggedResolver<>(rangeCommand, sharedReplicaPlan, requestTime);
+
+        ReadCallback<EndpointsForRange, ReplicaPlan.ForRangeRead> handler = new ReadCallback<>(resolver, rangeCommand, sharedReplicaPlan, requestTime);
+
+        boolean dataRequestSent = false;
+        if (replicaPlan.contacts().size() == 1 && replicaPlan.contacts().get(0).isSelf())
+        {
+            Stage.READ.execute(new StorageProxy.LocalReadRunnable(rangeCommand, handler, requestTime, false));
+            dataRequestSent = true;
+        }
+        else
+        {
+            for (Replica replica : replicaPlan.contacts())
+            {
+                Tracing.trace("Enqueuing request to {}", replica);
+                ReadCommand command;
+                if (replica.isFull())
+                {
+                    command = dataRequestSent ? rangeCommand.copyAsSummaryQuery(replica) : rangeCommand;
+                    dataRequestSent = true;
+                }
+                else
+                {
+                    command = rangeCommand.copyAsTransientQuery(replica);
+
+                }
+                Message<ReadCommand> message = command.createMessage(false, requestTime);
+                MessagingService.instance().sendWithCallback(message, replica.endpoint(), handler);
+            }
+        }
+        Preconditions.checkState(dataRequestSent);
+        return new SingleRangeResponse.Logged(handler, reconciliation, resolver);
+    }
+
+    /**
+     * Queries the provided sub-range.
+     *
+     * @param replicaPlan the subRange to query.
+     * @param isFirst in the case where multiple queries are sent in parallel, whether that's the first query on
+     * that batch or not. The reason it matters is that whe paging queries, the command (more specifically the
+     * {@code DataLimits}) may have "state" information and that state may only be valid for the first query (in
+     * that it's the query that "continues" whatever we're previously queried).
+     */
+    private SingleRangeResponse query(ReplicaPlan.ForRangeRead replicaPlan, boolean isFirst)
+    {
+        PartitionRangeReadCommand rangeCommand = command.forSubRange(replicaPlan.range(), isFirst);
+
+        if (command.responseType().isLogged())
+        {
+            return queryLogged(rangeCommand, replicaPlan, isFirst);
+        }
+        else
+        {
+            return queryLegacy(rangeCommand, replicaPlan, isFirst);
+        }
     }
 
     PartitionIterator sendNextRequests()
