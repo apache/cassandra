@@ -188,9 +188,8 @@ class TestCqlshCompletion(CqlshCompletionCase):
                                      'ABS', 'AVG', 'CAST', 'COUNT', 'DISTINCT',
                                      'EXP', 'JSON', 'LOG', 'LOG10',
                                      'MAP_KEYS', 'MAP_VALUES',
-                                     'MAX', 'MAX_TIMEUUID', 'MIN_TIMEUUID',
-                                     'MIN', 'MIN_TIMEUUID', 'MIN_TIMEUUID',
-                                     'MAX_WRITETIME', 'MIN_WRITETIME',
+                                     'MIN', 'MAX',
+                                     'MIN_WRITETIME', 'MAX_WRITETIME',
                                      'ROUND', 'SUM', 'TOKEN',
                                      'TO_DATE', 'TO_TIMESTAMP', 'TO_UNIX_TIMESTAMP',
                                      'TTL', 'WRITETIME',
@@ -205,7 +204,7 @@ class TestCqlshCompletion(CqlshCompletionCase):
 
     def test_complete_in_select_where(self):
         self.trycompletions('SELECT * FROM system.peers WHERE ',
-                            choices=('<identifier>', '<quotedName>', 'peer', 'TOKEN', 'MAX_TIMEUUID', 'MIN_TIMEUUID')
+                            choices=('<identifier>', '<quotedName>', 'peer', 'TOKEN', 'MIN_TIMEUUID', 'MAX_TIMEUUID')
                             )
 
     def test_complete_in_select_where_equal(self):
@@ -213,7 +212,8 @@ class TestCqlshCompletion(CqlshCompletionCase):
                             choices=('-', '<blobLiteral>', '<float>', '<wholenumber>', '<uuid>',
                                      '<identifier>', '<pgStringLiteral>', '<quotedStringLiteral>',
                                      '[', '{', 'false', 'true', 'NULL',
-                                     'TOKEN'
+                                     'TOKEN', 'MIN_TIMEUUID', 'MAX_TIMEUUID',
+                                     'CURRENT_TIME()', 'CURRENT_TIMEUUID()', 'CURRENT_DATE()', 'CURRENT_TIMESTAMP()'
                                      )
                             )
 

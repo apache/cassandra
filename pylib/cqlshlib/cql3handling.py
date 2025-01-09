@@ -741,14 +741,13 @@ syntax_rules += r'''
                     ;
 <whereClause> ::= <relation> ( "AND" <relation> )*
                 ;
-<relation> ::= [rel_lhs]=<cident> ( "[" <term> "]" )? ( "=" | "<" | ">" | "<=" | ">=" | "!=" | ( "NOT" )? "CONTAINS" ( "KEY" )? ) <term>
+<relation> ::= [rel_lhs]=<cident> ( "[" <term> "]" )? ( "=" | "<" | ">" | "<=" | ">=" | "!=" | ( "NOT" )? "CONTAINS" ( "KEY" )? ) (<term> |  <rhsFunctions>)
              | token="TOKEN" "(" [rel_tokname]=<cident>
                                  ( "," [rel_tokname]=<cident> )*
                              ")" ("=" | "<" | ">" | "<=" | ">=") <tokenDefinition>
              | [rel_lhs]=<cident> (( "NOT" )? "IN" ) "(" <term> ( "," <term> )* ")"
              | [rel_lhs]=<cident> "BETWEEN" <term> "AND" <term>
-             | "MAX_TIMEUUID" "(" [colname]=<cident> ")"
-             | "MIN_TIMEUUID" "(" [colname]=<cident> ")"
+             | <timeuuidFunctions>
              ;
 <selectClause> ::= "DISTINCT"? <selector> ("AS" <cident>)? ("," <selector> ("AS" <cident>)?)*
                  | "*"
@@ -758,25 +757,20 @@ syntax_rules += r'''
 <selector> ::= [colname]=<cident> ( "[" ( <term> ( ".." <term> "]" )? | <term> ".." ) )?
              | <udtSubfieldSelection>
              | "WRITETIME" "(" [colname]=<cident> ")"
-             | "MAX_WRITETIME" "(" [colname]=<cident> ")"
              | "MIN_WRITETIME" "(" [colname]=<cident> ")"
+             | "MAX_WRITETIME" "(" [colname]=<cident> ")"
              | "TTL" "(" [colname]=<cident> ")"
-             | <aggregateMathFunction>
-             | <scalarMathFunction>
+             | <aggregateMathFunctions>
+             | <scalarMathFunctions>
+             | <collectionFunctions>
+             | <currentTimeFunctions>
              | "TO_DATE" "(" [colname]=<cident> ")"
              | "TO_TIMESTAMP" "(" [colname]=<cident> ")"
              | "TO_UNIX_TIMESTAMP" "(" [colname]=<cident> ")"
              | "TOKEN" "(" [colname]=<cident> ")"
              | "MAP_KEYS" "(" [colname]=<cident> ")"
              | "MAP_VALUES" "(" [colname]=<cident> ")"
-             | "MIN_TIMEUUID" "(" [colname]=<cident> ")"
-             | "MAX_TIMEUUID" "(" [colname]=<cident> ")"
              | "CAST" "(" <selector> "AS" <storageType> ")"
-             | "COLLECTION_AVG" "(" [colname]=<cident> ")"
-             | "COLLECTION_COUNT" "(" [colname]=<cident> ")"
-             | "COLLECTION_MIN" "(" [colname]=<cident> ")"
-             | "COLLECTION_MAX" "(" [colname]=<cident> ")"
-             | "COLLECTION_SUM" "(" [colname]=<cident> ")"
              | "MASK_NULL" "(" [colname]=<cident> ")"
              | "MASK_DEFAULT" "(" [colname]=<cident> ")"
              | "MASK_REPLACE" "(" [colname]=<cident> "," <term> ")"
@@ -800,19 +794,42 @@ syntax_rules += r'''
                             | <term>
                             ;
 
-<aggregateMathFunction> ::= "COUNT" "(" star=( "*" | "1" ) ")"
+<aggregateMathFunctions> ::= "COUNT" "(" star=( "*" | "1" ) ")"
              | "AVG" "(" star=( "*" | "1" ) ")"
              | "MIN" "(" star=( "*" | "1" ) ")"
              | "MAX" "(" star=( "*" | "1" ) ")"
              | "SUM" "(" star=( "*" | "1" ) ")"
              ;
 
-<scalarMathFunction> ::= "ABS" "(" [colname]=<cident> ")"
+<scalarMathFunctions> ::= "ABS" "(" [colname]=<cident> ")"
              | "EXP" "(" [colname]=<cident> ")"
              | "LOG" "(" [colname]=<cident> ")"
              | "LOG10" "(" [colname]=<cident> ")"
              | "ROUND" "(" [colname]=<cident> ")"
              ;
+
+<collectionFunctions> ::= "MAP_KEYS" "(" [colname]=<cident> ")"
+             | "MAP_VALUES" "(" [colname]=<cident> ")"
+             | "COLLECTION_AVG" "(" [colname]=<cident> ")"
+             | "COLLECTION_COUNT" "(" [colname]=<cident> ")"
+             | "COLLECTION_MIN" "(" [colname]=<cident> ")"
+             | "COLLECTION_MAX" "(" [colname]=<cident> ")"
+             | "COLLECTION_SUM" "(" [colname]=<cident> ")"
+             ;
+
+<currentTimeFunctions> ::= "CURRENT_DATE()"
+             | "CURRENT_TIME()"
+             | "CURRENT_TIMEUUID()"
+             | "CURRENT_TIMESTAMP()"
+             ;
+
+<timeuuidFunctions> ::= "MAX_TIMEUUID" "(" [colname]=<cident> ")"
+             | "MIN_TIMEUUID" "(" [colname]=<cident> ")"
+             ;
+
+<rhsFunctions> ::= <currentTimeFunctions> | <timeuuidFunctions>
+             ;
+
 
 '''
 
