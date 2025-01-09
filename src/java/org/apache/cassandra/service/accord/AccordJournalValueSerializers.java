@@ -19,8 +19,6 @@
 package org.apache.cassandra.service.accord;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.List;
 import java.util.Map;
 import java.util.NavigableMap;
 import java.util.TreeMap;
@@ -342,21 +340,6 @@ public class AccordJournalValueSerializers
         }
     }
 
-    public static class ListAccumulator<T> extends Accumulator<List<T>, T>
-    {
-        public ListAccumulator()
-        {
-            super(new ArrayList<>());
-        }
-
-        @Override
-        protected List<T> accumulate(List<T> oldValue, T newValue)
-        {
-            oldValue.add(newValue);
-            return oldValue;
-        }
-    }
-
     public static class MapAccumulator<K, V> extends Accumulator<NavigableMap<K, V>, V>
     {
         private final Function<V, K> getKey;
@@ -380,6 +363,7 @@ public class AccordJournalValueSerializers
     implements FlyweightSerializer<Journal.TopologyUpdate, MapAccumulator<Long, Journal.TopologyUpdate>>
     {
         private final RangesForEpochSerializer rangesForEpochSerializer = new RangesForEpochSerializer();
+
         @Override
         public MapAccumulator<Long, Journal.TopologyUpdate> mergerFor(JournalKey key)
         {
@@ -420,7 +404,14 @@ public class AccordJournalValueSerializers
             for (int i = 0; i < size; i++)
             {
                 int commandStoresSize = in.readInt();
-                Accumulator<RangesForEpoch, RangesForEpoch> acc = new IdentityAccumulator<>(null);
+                Accumulator<RangesForEpoch, RangesForEpoch> acc = new Accumulator<>(null)
+                {
+                    @Override
+                    protected RangesForEpoch accumulate(RangesForEpoch oldValue, RangesForEpoch newValue)
+                    {
+                        return this.accumulated = newValue;
+                    }
+                };
                 Int2ObjectHashMap<RangesForEpoch> commandStores = new Int2ObjectHashMap<>();
                 for (int j = 0; j < commandStoresSize; j++)
                 {
