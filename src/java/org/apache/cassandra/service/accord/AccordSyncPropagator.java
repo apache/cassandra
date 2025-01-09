@@ -232,21 +232,32 @@ public class AccordSyncPropagator
                '}';
     }
 
-    public synchronized void onNodesRemoved(Node.Id removed)
+    public void onNodesRemoved(Node.Id removed)
     {
-        PendingEpochs pendingEpochs = pending.get(removed.id);
-        if (pendingEpochs == null) return;
-        long[] toComplete = new long[pendingEpochs.size()];
-        Long2ObjectHashMap<PendingEpoch>.KeyIterator it = pendingEpochs.keySet().iterator();
-        for (int i = 0; it.hasNext(); i++)
-            toComplete[i] = it.nextLong();
-        Arrays.sort(toComplete);
-        for (long epoch : toComplete)
-            listener.onEndpointAck(removed, epoch);
-        pending.remove(removed.id);
-        for (long epoch : toComplete)
+        long[] toAck;
+        boolean[] syncCompletedFor;
+
+        synchronized (AccordSyncPropagator.this)
         {
-            if (hasSyncCompletedFor(epoch))
+            PendingEpochs pendingEpochs = pending.remove(removed.id);
+            if (pendingEpochs == null) return;
+            toAck = new long[pendingEpochs.size()];
+            syncCompletedFor = new boolean[pendingEpochs.size()];
+            Long2ObjectHashMap<PendingEpoch>.KeyIterator it = pendingEpochs.keySet().iterator();
+            for (int i = 0; it.hasNext(); i++)
+            {
+                long epoch = it.nextLong();
+                toAck[i] = epoch;
+                syncCompletedFor[i] = hasSyncCompletedFor(epoch);
+            }
+            Arrays.sort(toAck);
+        }
+
+        for (int i = 0; i < toAck.length; i++)
+        {
+            long epoch = toAck[i];
+            listener.onEndpointAck(removed, epoch);
+            if (syncCompletedFor[i])
                 listener.onComplete(epoch);
         }
     }

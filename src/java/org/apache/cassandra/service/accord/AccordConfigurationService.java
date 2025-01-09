@@ -244,15 +244,9 @@ public class AccordConfigurationService extends AbstractConfigurationService<Acc
         EndpointMapping snapshot = mapping;
         diskStateManager.loadLocalTopologyState((epoch, syncStatus, pendingSyncNotify, remoteSyncComplete, closed, redundant) -> {
             getOrCreateEpochState(epoch).setSyncStatus(syncStatus);
-            switch (syncStatus)
-            {
-                case NOTIFYING:
-                    // TODO (expected, correctness): since this is loading old topologies, might see nodes no longer present (host replacement, decom, shrink, etc.); attempt to remove unknown nodes
-                    syncPropagator.reportSyncComplete(epoch, Sets.filter(pendingSyncNotify, snapshot::containsId), localId);
-                    break;
-                case COMPLETED:
-                    break;
-            }
+            // TODO (expected, correctness): since this is loading old topologies, might see nodes no longer present (host replacement, decom, shrink, etc.); attempt to remove unknown nodes
+            if (Objects.requireNonNull(syncStatus) == SyncStatus.NOTIFYING)
+                syncPropagator.reportSyncComplete(epoch, Sets.filter(pendingSyncNotify, snapshot::containsId), localId);
 
             remoteSyncComplete.forEach(id -> receiveRemoteSyncComplete(id, epoch));
             // TODO (required): disk doesn't get updated until we see our own notification, so there is an edge case where this instance notified others and fails in the middle, but Apply was already sent!  This could leave partial closed/redudant accross the cluster
