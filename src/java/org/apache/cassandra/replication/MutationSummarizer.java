@@ -19,6 +19,8 @@
 package org.apache.cassandra.replication;
 
 import org.apache.cassandra.db.DecoratedKey;
+import org.apache.cassandra.db.PartitionPosition;
+import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.schema.TableId;
 
 /**
@@ -34,6 +36,9 @@ public interface MutationSummarizer extends AutoCloseable
         public void addForKey(TableId table, DecoratedKey key) {}
 
         @Override
+        public void addForRange(TableId table, AbstractBounds<PartitionPosition> range) {}
+
+        @Override
         public MutationSummary summary() { return null; }
 
         @Override
@@ -42,6 +47,9 @@ public interface MutationSummarizer extends AutoCloseable
 
     // TODO: accept sstable/memtable id data to accumulate
     void addForKey(TableId table, DecoratedKey key);
+
+    void addForRange(TableId table, AbstractBounds<PartitionPosition> range);
+
     MutationSummary summary();
 
     @Override
