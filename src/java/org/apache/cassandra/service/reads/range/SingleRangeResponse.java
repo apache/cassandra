@@ -110,6 +110,8 @@ abstract class SingleRangeResponse extends AbstractIterator<RowIterator> impleme
             if (resolver.responsesMatch())
                 return resolver.getData();
 
+            // FIXME: this should work more like AbstractReadExecutor#executeAsync
+            // FIXME: this doesn't allow any speculation - legacy replication doesn't either though
             AsyncPromise<PartitionIterator> result = new AsyncPromise<>();
             readRepair.startRepair(resolver, result::trySuccess);
             readRepair.maybeSendAdditionalReads();
