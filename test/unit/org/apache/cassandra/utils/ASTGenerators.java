@@ -673,13 +673,24 @@ public class ASTGenerators
                             {
                                 case Partition:
                                 {
-                                    columns = new ArrayList<>(staticColumns);
                                     // As of this moment delete if partition exists does a full partition read, so its blocked
                                     // due to being too costly... this query is logically correct so we should support as only
                                     // liveness information is needed, but its not supported right now so need to work around
                                     // see ML "[DISCUSS] CASSANDRA-20163 DELETE partition IF static column condition is currently blocked"
-                                    if (!clusteringColumns.isEmpty())
+                                    // I tried to enable delete partition if static column condition in CASSANDRA-20156, but was
+                                    // asked to abandon the patch for consistency reasons.
+                                    // Delete partition when there are clustering columns is unsupported, so avoid generating
+                                    if (clusteringColumns.isEmpty())
+                                    {
+                                        // this is the same as delete row
+                                        columns = new ArrayList<>(regularAndStaticColumns);
+                                        existAllowed = true;
+                                    }
+                                    else
+                                    {
+                                        columns = Collections.emptyList();
                                         existAllowed = false;
+                                    }
                                 }
                                 break;
                                 case Row:
