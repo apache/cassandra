@@ -518,8 +518,7 @@ public class TransactionStatementTest
                    .addLet("a", select)
                    .addReturn(select)
                    .build();
-        TransactionStatement stmt2 = (TransactionStatement) prepare(txn
-                                                                       .toCQL());
+        TransactionStatement stmt2 = (TransactionStatement) prepare(txn.toCQL());
         Assertions.assertThatThrownBy(() -> stmt2.execute(state, QueryOptions.forInternalCalls(Arrays.asList(txn.bindsEncoded())), now)).isInstanceOf(InvalidRequestException.class)
                   .hasMessageContaining(String.format(NO_PARTITION_IN_CLAUSE_WITH_LIMIT, "SELECT", "at"));
     }
