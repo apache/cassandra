@@ -497,6 +497,11 @@ final class ActiveSegment<K, V> extends Segment<K, V>
         {
             return start;
         }
+
+        RecordPointer recordPointer()
+        {
+            return new RecordPointer(descriptor.timestamp, start);
+        }
     }
 
     private int maybeCompleteInProgress()
