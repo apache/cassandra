@@ -759,17 +759,15 @@ syntax_rules += r'''
              | "WRITETIME" "(" [colname]=<cident> ")"
              | "MIN_WRITETIME" "(" [colname]=<cident> ")"
              | "MAX_WRITETIME" "(" [colname]=<cident> ")"
+             | "CAST" "(" <selector> "AS" <storageType> ")"
              | "TTL" "(" [colname]=<cident> ")"
+             | "TOKEN" "(" [colname]=<cident> ")"
              | <aggregateMathFunctions>
              | <scalarMathFunctions>
              | <collectionFunctions>
              | <currentTimeFunctions>
              | <maskFunctions>
-             | "TO_DATE" "(" [colname]=<cident> ")"
-             | "TO_TIMESTAMP" "(" [colname]=<cident> ")"
-             | "TO_UNIX_TIMESTAMP" "(" [colname]=<cident> ")"
-             | "TOKEN" "(" [colname]=<cident> ")"
-             | "CAST" "(" <selector> "AS" <storageType> ")"
+             | <timeConversionFunctions>
              | <functionName> <selectionFunctionArguments>
              | <term>
              ;
@@ -824,6 +822,10 @@ syntax_rules += r'''
              | "MASK_OUTER" "(" [colname]=<cident> ")"
              ;
 
+<timeConversionFunctions> ::= "TO_DATE" "(" [colname]=<cident> ")"
+             | "TO_TIMESTAMP" "(" [colname]=<cident> ")"
+             | "TO_UNIX_TIMESTAMP" "(" [colname]=<cident> ")"
+             ;
 
 <timeuuidFunctions> ::= "MAX_TIMEUUID" "(" [colname]=<cident> ")"
              | "MIN_TIMEUUID" "(" [colname]=<cident> ")"
