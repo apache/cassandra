@@ -263,6 +263,7 @@ public class Journal<K, V> implements Shutdownable
             segmentPrepared.signalAll(); // Wake up all threads waiting on the new segment
             compactor.shutdown();
             compactor.awaitTermination(1, TimeUnit.MINUTES);
+            closeAllSegments();
             flusher.shutdown();
             closeAllSegments();
             releaser.shutdown();
@@ -450,7 +451,7 @@ public class Journal<K, V> implements Shutdownable
      * @param id user-provided record id, expected to roughly correlate with time and go up
      * @param record the record to store
      */
-    public void blockingWrite(K id, V record)
+    public RecordPointer blockingWrite(K id, V record)
     {
         try (DataOutputBuffer dob = DataOutputBuffer.scratchBuffer.get())
         {
@@ -458,6 +459,7 @@ public class Journal<K, V> implements Shutdownable
             ActiveSegment<K, V>.Allocation alloc = allocate(dob.getLength());
             alloc.writeInternal(id, dob.unsafeGetBufferAndFlip());
             flusher.flushAndAwaitDurable(alloc);
+            return alloc.recordPointer();
         }
         catch (IOException e)
         {
