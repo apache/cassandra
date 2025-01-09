@@ -263,4 +263,68 @@ public class MutationTrackingReadReconciliationTest extends TestBaseImpl
             assertIdsForTable(cluster.get(3), keyspaceName, tableName, allIds);
         }
     }
+
+    @Test
+    public void testBasicRangeReadReconciliationApplyMutations() throws Throwable
+    {
+        try (Cluster cluster = Cluster.build(3)
+                                      .withConfig(cfg -> cfg.with(Feature.NETWORK)
+                                                            .with(Feature.GOSSIP)
+                                                            .set("mutation_tracking_enabled", "true")
+                                                            .set("write_request_timeout", "1000ms"))
+                                      .start())
+        {
+            String keyspaceName = "basic_reconciliation_test";
+            String tableName = "tbl";
+            cluster.schemaChange(format("CREATE KEYSPACE %s WITH replication = " +
+                                        "{'class': 'SimpleStrategy', 'replication_factor': 3} " +
+                                        "AND replication_type='logged';", keyspaceName));
+
+            cluster.forEach(node -> {
+                logger.info(">>> {}", node);
+                node.runOnInstance(() -> {
+                    KeyspaceMetadata ksm = Schema.instance.getKeyspaceMetadata(keyspaceName);
+                    Assert.assertEquals(ReplicationType.logged, ksm.params.replicationType);
+                });
+            });
+
+            cluster.schemaChange(format("CREATE TABLE %s.%s (k int, c int, v int, primary key (k, c));", keyspaceName, tableName));
+
+            // insert a row at all, confirm it's present on all nodes
+            cluster.coordinator(1).execute(format("INSERT INTO %s.%s (k, c, v) VALUES (1, 0, 0)", keyspaceName, tableName), ConsistencyLevel.ALL);
+            Set<MutationId> firstIds = getIdsForTable(cluster.get(1), keyspaceName, "tbl");
+            MutationId firstId = Iterables.getOnlyElement(firstIds);
+
+            cluster.get(2, 3).forEach(node -> {
+                assertIdsForKey(node, keyspaceName, tableName, 1, firstIds);
+            });
+
+            // block messages to node 3 and perform a write at quorum
+            cluster.filters().allVerbs().to(3).drop();
+            cluster.filters().allVerbs().from(3).drop();
+
+            cluster.coordinator(1).execute(format("INSERT INTO %s.%s (k, c, v) VALUES (1, 1, 1)", keyspaceName, tableName), ConsistencyLevel.QUORUM);
+            cluster.coordinator(1).execute(format("INSERT INTO %s.%s (k, c, v) VALUES (2, 2, 2)", keyspaceName, tableName), ConsistencyLevel.QUORUM);
+            Set<MutationId> allIds = getIdsForTable(cluster.get(1), keyspaceName, "tbl");
+            Assert.assertEquals(3, allIds.size());
+            Assert.assertTrue(allIds.contains(firstId));
+
+            // second node should have the new id, third should not
+            assertIdsForTable(cluster.get(2), keyspaceName, tableName, allIds);
+            assertIdsForTable(cluster.get(3), keyspaceName, tableName, firstIds);
+
+            // reverse the partition and do a read
+            cluster.filters().reset();
+            cluster.filters().allVerbs().to(2).drop();
+            cluster.filters().allVerbs().from(2).drop();
+
+
+            Assert.assertEquals(0, numLogReconciliations(cluster.get(1)));
+            Object[][] result = cluster.coordinator(3).execute(format("SELECT * FROM %s.%s", keyspaceName, tableName), ConsistencyLevel.QUORUM);
+            Assert.assertEquals(row(row(1, 0, 0), row(1, 1, 1), row(2, 2, 2)), result);
+
+            // check that node3 has the new ids
+            assertIdsForTable(cluster.get(3), keyspaceName, tableName, allIds);
+        }
+    }
 }
