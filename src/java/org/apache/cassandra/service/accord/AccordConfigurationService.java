@@ -370,6 +370,7 @@ public class AccordConfigurationService extends AbstractConfigurationService<Acc
     public void onNodeRemoved(long epoch, Topology current, Node.Id removed)
     {
         syncPropagator.onNodesRemoved(removed);
+        // TODO (now): it seems to be incorrect to mark remote syncs complete if/when node got removed.
         for (long oldEpoch : nonCompletedEpochsBefore(epoch))
             receiveRemoteSyncCompletePreListenerNotify(removed, oldEpoch);
 
