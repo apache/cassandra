@@ -238,8 +238,8 @@ public abstract class Mutation implements Statement
         {
             List<Element> elements = new ArrayList<>(1 + (using.isPresent() ? 1 : 0) + (values.size() * 2));
             elements.add(table);
-            values.keySet().forEach(elements::add);
-            values.values().forEach(elements::add);
+            elements.addAll(values.keySet());
+            elements.addAll(values.values());
             if (using.isPresent())
                 elements.add(using.get());
             return elements.stream();
