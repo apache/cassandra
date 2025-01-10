@@ -33,14 +33,14 @@ public interface CQLFormatter
 
     class PrettyPrint implements CQLFormatter
     {
-        private final int spacePerGroup = 2;
+        private static final int SPACE_PER_GROUP = 2;
         private int indent;
         private int subgroup = -1;
 
         @Override
         public void group(StringBuilder sb)
         {
-            indent += spacePerGroup;
+            indent += SPACE_PER_GROUP;
         }
 
         @Override
@@ -48,7 +48,7 @@ public interface CQLFormatter
         {
             if (indent == 0)
                 throw new IllegalStateException("Unable to end group; more endgroup calls than group calls");
-            indent -= spacePerGroup;
+            indent -= SPACE_PER_GROUP;
         }
 
         @Override
