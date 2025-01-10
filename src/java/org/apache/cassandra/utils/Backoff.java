@@ -27,6 +27,7 @@ import org.apache.cassandra.tcm.Retry;
 
 public interface Backoff
 {
+    // TODO (required): backoff should not have retries
     boolean mayRetry(int attempt);
     long computeWaitTime(int attempt);
     TimeUnit unit();
