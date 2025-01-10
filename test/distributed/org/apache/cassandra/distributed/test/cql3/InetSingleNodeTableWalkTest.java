@@ -18,7 +18,9 @@
 
 package org.apache.cassandra.distributed.test.cql3;
 
+import java.net.Inet6Address;
 import java.net.InetAddress;
+import java.net.UnknownHostException;
 import javax.annotation.Nullable;
 
 import accord.utils.Property;
@@ -31,6 +33,7 @@ import org.apache.cassandra.utils.AbstractTypeGenerators.TypeSupport;
 import org.apache.cassandra.utils.FastByteOperations;
 import org.apache.cassandra.utils.Generators;
 import org.quicktheories.core.Gen;
+import org.quicktheories.generators.SourceDSL;
 
 public class InetSingleNodeTableWalkTest extends SingleNodeTableWalkTest
 {
@@ -54,9 +57,7 @@ public class InetSingleNodeTableWalkTest extends SingleNodeTableWalkTest
     {
         // if a failing seed is detected, populate here
         // Example: builder.withSeed(42L);
-//        builder.withSeed(3985593186746556237L);
-
-        builder.withSeed(-7293505339069640960L); // ipv6 allow fitering missing partition
+        builder.withSeed(3985593186746556237L);
     }
 
     @Override
@@ -73,8 +74,8 @@ public class InetSingleNodeTableWalkTest extends SingleNodeTableWalkTest
     protected InetState createState(RandomSource rs, Cluster cluster)
     {
 //        Mode mode = rs.pick(Mode.values());
-        Mode mode = rs.pick(Mode.ipv4, Mode.ipv6);
-//        Mode mode = Mode.mixed;
+//        Mode mode = rs.pick(Mode.ipv4, Mode.ipv6);
+        Mode mode = Mode.mixed;
         Gen<InetAddress> gen;
         switch (mode)
         {
@@ -85,7 +86,21 @@ public class InetSingleNodeTableWalkTest extends SingleNodeTableWalkTest
                 gen = Generators.INET_6_ADDRESS_UNRESOLVED_GEN;
                 break;
             case mixed:
-                gen = Generators.INET_ADDRESS_UNRESOLVED_GEN;
+                var bool = SourceDSL.booleans().all();
+                gen = rnd -> {
+                    if (bool.generate(rnd)) return Generators.INET_6_ADDRESS_UNRESOLVED_GEN.generate(rnd);
+                    InetAddress ipv4 = Generators.INET_4_ADDRESS_UNRESOLVED_GEN.generate(rnd);
+                    // lets convert to ipv6
+                    byte[] address = normalize(ipv4.getAddress());
+                    try
+                    {
+                        return Inet6Address.getByAddress(null, address, -1);
+                    }
+                    catch (UnknownHostException e)
+                    {
+                        throw new AssertionError(e);
+                    }
+                };
                 break;
             default:
                 throw new UnsupportedOperationException(mode.name());
@@ -112,5 +127,19 @@ public class InetSingleNodeTableWalkTest extends SingleNodeTableWalkTest
         {
             return "Mode: " + mode + "\n" + super.toString();
         }
+    }
+
+    public static byte[] normalize(byte[] address)
+    {
+        if (address.length == 16) return address;
+        // migrate ipv4 to ipv6
+        byte[] ipv6 = new byte[16];
+        ipv6[10] = (byte)0xff;
+        ipv6[11] = (byte)0xff;
+        ipv6[12] = address[0];
+        ipv6[13] = address[1];
+        ipv6[14] = address[2];
+        ipv6[15] = address[3];
+        return ipv6;
     }
 }
