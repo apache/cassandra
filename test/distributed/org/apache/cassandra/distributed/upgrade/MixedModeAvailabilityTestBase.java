@@ -61,7 +61,7 @@ public abstract class MixedModeAvailabilityTestBase extends UpgradeTestBase
         new TestCase()
         .nodes(NUM_NODES)
         .nodesToUpgrade(upgradedCoordinator() ? 1 : 2)
-        .upgradesToCurrentFrom(v30)
+        .upgradesToCurrentFrom(OLDEST)
         .withConfig(config -> config.with(GOSSIP, NETWORK, NATIVE_PROTOCOL)
                                     .set("request_timeout_in_ms", MINUTES.toMillis(10))
                                     .set("read_request_timeout_in_ms", MINUTES.toMillis(10))

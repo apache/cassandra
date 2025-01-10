@@ -29,7 +29,7 @@ import org.apache.cassandra.distributed.api.Feature;
 import static org.apache.cassandra.distributed.shared.AssertUtils.assertRows;
 import static org.apache.cassandra.distributed.shared.AssertUtils.row;
 
-public class MixedModeFrom3ReplicationTest extends UpgradeTestBase
+public class MixedModeReplicationTest extends UpgradeTestBase
 {
     @Test
     public void testSimpleStrategy() throws Throwable
@@ -40,7 +40,7 @@ public class MixedModeFrom3ReplicationTest extends UpgradeTestBase
         new TestCase()
         .nodes(3)
         .nodesToUpgrade(1, 2)
-        .upgradesToCurrentFrom(v30)
+        .upgradesToCurrentFrom(OLDEST)
         .withConfig(c -> c.with(Feature.GOSSIP))
         .setup(cluster -> {
             cluster.schemaChange("CREATE KEYSPACE test_simple WITH replication = {'class': 'SimpleStrategy', 'replication_factor': 2};");
