@@ -26,12 +26,12 @@ import org.assertj.core.api.Assertions;
 
 public class CQLFormatterPrettyPrintTest
 {
-    private static TableMetadata TBL1 = TableMetadata.builder("ks", "tbl")
-                                                     .addPartitionKeyColumn("pk", Int32Type.instance)
-                                                     .addClusteringColumn("ck", Int32Type.instance)
-                                                     .addRegularColumn("v0", Int32Type.instance)
-                                                     .addRegularColumn("v1", Int32Type.instance)
-                                                     .build();
+    private static final TableMetadata TBL1 = TableMetadata.builder("ks", "tbl")
+                                                           .addPartitionKeyColumn("pk", Int32Type.instance)
+                                                           .addClusteringColumn("ck", Int32Type.instance)
+                                                           .addRegularColumn("v0", Int32Type.instance)
+                                                           .addRegularColumn("v1", Int32Type.instance)
+                                                           .build();
     private static final Symbol pk = new Symbol("pk", Int32Type.instance);
     private static final Symbol ck = new Symbol("ck", Int32Type.instance);
     private static final Symbol v0 = new Symbol("v0", Int32Type.instance);
