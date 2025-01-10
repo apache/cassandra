@@ -89,7 +89,7 @@ public interface Visitor
         {
             Invariants.checkArgument(!visitors.isEmpty(), "Visitors may not be empty");
 
-            if (!Stream.of(visitors).anyMatch(v -> v instanceof CompositeVisitor))
+            if (Stream.of(visitors).noneMatch(v -> v instanceof CompositeVisitor))
                 return new CompositeVisitor(visitors);
             List<Visitor> flatten = new ArrayList<>();
             for (Visitor v : visitors)
