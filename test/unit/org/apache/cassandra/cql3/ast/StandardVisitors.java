@@ -18,8 +18,6 @@
 
 package org.apache.cassandra.cql3.ast;
 
-import java.util.Arrays;
-
 public class StandardVisitors
 {
     public static final Visitor BIND_TO_LITERAL = new Visitor()
