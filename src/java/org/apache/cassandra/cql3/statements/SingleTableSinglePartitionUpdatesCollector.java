@@ -80,6 +80,10 @@ final class SingleTableSinglePartitionUpdatesCollector implements UpdatesCollect
     @Override
     public List<IMutation> toMutations(ClientState state)
     {
+        // it is possible that a modification statement does not create any mutations
+        // for example: DELETE FROM some_table WHERE part_key = 1 AND clust_key < 3 AND clust_key > 5
+        if (builder == null)
+            return Collections.emptyList();
         return Collections.singletonList(createMutation(state, builder));
     }
 
