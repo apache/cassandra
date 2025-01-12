@@ -21,6 +21,7 @@ package org.apache.cassandra.service.accord;
 import java.net.UnknownHostException;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -31,11 +32,15 @@ import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
-import accord.api.ConfigurationService.EpochReady;
+import accord.api.Journal;
 import accord.impl.AbstractConfigurationServiceTest;
+import accord.impl.TestAgent;
+import accord.impl.basic.InMemoryJournal;
 import accord.local.Node.Id;
 import accord.topology.Topology;
 import accord.utils.SortedArrays.SortedArrayList;
+import accord.utils.async.AsyncResult;
+import org.agrona.collections.Int2ObjectHashMap;
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.ServerTestUtils;
 import org.apache.cassandra.concurrent.ScheduledExecutors;
@@ -201,31 +206,42 @@ public class AccordConfigurationServiceTest
     {
         ValidatingClusterMetadataService cms = ValidatingClusterMetadataService.createAndRegister(Version.MIN_ACCORD_VERSION);
 
-        // TODO
-        AccordConfigurationService service = new AccordConfigurationService(ID1, new Messaging(), new MockFailureDetector(), AccordConfigurationService.SystemTableDiskStateManager.instance, ScheduledExecutors.scheduledTasks, null);
+        InMemoryJournal journal = new InMemoryJournal(ID1, new TestAgent());
+        AccordConfigurationService service = new AccordConfigurationService(ID1, new Messaging(), new MockFailureDetector(), AccordConfigurationService.SystemTableDiskStateManager.instance, ScheduledExecutors.scheduledTasks, journal);
+        TestListener listener = new TestListener(service, true) {
+            @Override
+            public AsyncResult<Void> onTopologyUpdate(Topology topology, boolean isLoad, boolean startSync)
+            {
+                // Fake journal save
+                journal.saveTopology(new Journal.TopologyUpdate(new Int2ObjectHashMap<>(), topology, topology), () -> {});
+                return super.onTopologyUpdate(topology, isLoad, startSync);
+            }
+        };
+        service.registerListener(listener);
         service.start();
 
         Topology topology1 = createTopology(cms);
         service.updateMapping(mappingForEpoch(cms.metadata().epoch.getEpoch() + 1));
         service.reportTopology(topology1);
-        service.acknowledgeEpoch(EpochReady.done(1), true);
         service.receiveRemoteSyncComplete(ID1, 1);
         service.receiveRemoteSyncComplete(ID2, 1);
         service.receiveRemoteSyncComplete(ID3, 1);
 
         Topology topology2 = createTopology(cms);
         service.reportTopology(topology2);
-        service.acknowledgeEpoch(EpochReady.done(2), true);
         service.receiveRemoteSyncComplete(ID1, 2);
 
         Topology topology3 = createTopology(cms);
         service.reportTopology(topology3);
-        service.acknowledgeEpoch(EpochReady.done(3), true);
 
-        AccordConfigurationService loaded = new AccordConfigurationService(ID1, new Messaging(), new MockFailureDetector(), AccordConfigurationService.SystemTableDiskStateManager.instance, ScheduledExecutors.scheduledTasks, null); // TODO
+        AccordConfigurationService loaded = new AccordConfigurationService(ID1, new Messaging(), new MockFailureDetector(), AccordConfigurationService.SystemTableDiskStateManager.instance, ScheduledExecutors.scheduledTasks, journal);
         loaded.updateMapping(mappingForEpoch(cms.metadata().epoch.getEpoch() + 1));
-        AbstractConfigurationServiceTest.TestListener listener = new AbstractConfigurationServiceTest.TestListener(loaded, true);
+        listener = new AbstractConfigurationServiceTest.TestListener(loaded, true);
         loaded.registerListener(listener);
+        Iterator<Journal.TopologyUpdate> iter = journal.replayTopologies();
+        // Simulate journal replay
+        while (iter.hasNext())
+            loaded.reportTopology(iter.next().global);
         loaded.start();
 
         listener.assertNoTruncates();
@@ -242,9 +258,17 @@ public class AccordConfigurationServiceTest
     public void truncateTest()
     {
         ValidatingClusterMetadataService cms = ValidatingClusterMetadataService.createAndRegister(Version.MIN_ACCORD_VERSION);
-
-        AccordConfigurationService service = new AccordConfigurationService(ID1, new Messaging(), new MockFailureDetector(), AccordConfigurationService.SystemTableDiskStateManager.instance, ScheduledExecutors.scheduledTasks, null); // TODO
-        TestListener serviceListener = new TestListener(service, true);
+        InMemoryJournal journal = new InMemoryJournal(ID1, new TestAgent());
+        AccordConfigurationService service = new AccordConfigurationService(ID1, new Messaging(), new MockFailureDetector(), AccordConfigurationService.SystemTableDiskStateManager.instance, ScheduledExecutors.scheduledTasks, journal);
+        TestListener serviceListener = new TestListener(service, true) {
+            @Override
+            public AsyncResult<Void> onTopologyUpdate(Topology topology, boolean isLoad, boolean startSync)
+            {
+                // Fake journal save
+                journal.saveTopology(new Journal.TopologyUpdate(new Int2ObjectHashMap<>(), topology, topology), () -> {});
+                return super.onTopologyUpdate(topology, isLoad, startSync);
+            }
+        };
         service.registerListener(serviceListener);
         service.start();
 
@@ -261,10 +285,14 @@ public class AccordConfigurationServiceTest
         Assert.assertEquals(EpochDiskState.create(3), service.diskState());
         serviceListener.assertTruncates(3L);
 
-        AccordConfigurationService loaded = new AccordConfigurationService(ID1, new Messaging(), new MockFailureDetector(), AccordConfigurationService.SystemTableDiskStateManager.instance, ScheduledExecutors.scheduledTasks, null); // TODO
+        AccordConfigurationService loaded = new AccordConfigurationService(ID1, new Messaging(), new MockFailureDetector(), AccordConfigurationService.SystemTableDiskStateManager.instance, ScheduledExecutors.scheduledTasks, journal);
         loaded.updateMapping(mappingForEpoch(cms.metadata().epoch.getEpoch() + 1));
         TestListener loadListener = new TestListener(loaded, true);
         loaded.registerListener(loadListener);
+        Iterator<Journal.TopologyUpdate> iter = journal.replayTopologies();
+        // Simulate journal replay
+        while (iter.hasNext())
+            loaded.reportTopology(iter.next().global);
         loaded.start();
         loadListener.assertTopologiesFor(3L);
     }
