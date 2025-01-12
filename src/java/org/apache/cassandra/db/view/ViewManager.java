@@ -70,9 +70,22 @@ public class ViewManager
         this.keyspace = keyspace;
     }
 
+    public boolean updatesAffectView(IMutation mutation, boolean coordinatorBatchlog)
+    {
+        if (!enableCoordinatorBatchlog && coordinatorBatchlog)
+            return false;
+
+        if (viewsByName.isEmpty())
+            return false;
+
+        return updatesAffectView(Collections.singleton(mutation), coordinatorBatchlog);
+    }
     public boolean updatesAffectView(Collection<? extends IMutation> mutations, boolean coordinatorBatchlog)
     {
         if (!enableCoordinatorBatchlog && coordinatorBatchlog)
+            return false;
+
+        if (viewsByName.isEmpty())
             return false;
 
         for (IMutation mutation : mutations)
@@ -84,7 +97,8 @@ public class ViewManager
                 if (coordinatorBatchlog && keyspace.getReplicationStrategy().getReplicationFactor().allReplicas == 1)
                     continue;
 
-                if (!forTable(update.metadata().id).updatedViews(update).isEmpty())
+                TableViews tableViews = forTable(update.metadata().id);
+                if (tableViews.hasViews() && !tableViews.updatedViews(update).isEmpty())
                     return true;
             }
         }

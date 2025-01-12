@@ -159,6 +159,10 @@ public class Keyspace
 
     public static Keyspace open(String keyspaceName, SchemaProvider schema, boolean loadSSTables)
     {
+        // to avoid a capturing lamda allocation as an argument in maybeAddKeyspaceInstance
+        Keyspace keyspace = schema.getKeyspaceInstance(keyspaceName);
+        if (keyspace != null)
+            return keyspace;
         return schema.maybeAddKeyspaceInstance(keyspaceName, () -> new Keyspace(keyspaceName, schema, loadSSTables));
     }
 
@@ -532,7 +536,7 @@ public class Keyspace
 
         Lock[] locks = null;
 
-        boolean requiresViewUpdate = updateIndexes && viewManager.updatesAffectView(Collections.singleton(mutation), false);
+        boolean requiresViewUpdate = updateIndexes && viewManager.updatesAffectView(mutation, false);
 
         if (requiresViewUpdate)
         {
@@ -632,10 +636,11 @@ public class Keyspace
                     logger.error("Attempting to mutate non-existant table {} ({}.{})", upd.metadata().id, upd.metadata().keyspace, upd.metadata().name);
                     continue;
                 }
-                AtomicLong baseComplete = new AtomicLong(Long.MAX_VALUE);
+                AtomicLong baseComplete = null;
 
                 if (requiresViewUpdate)
                 {
+                    baseComplete = new AtomicLong(Long.MAX_VALUE);
                     try
                     {
                         Tracing.trace("Creating materialized view mutations from base table replica");

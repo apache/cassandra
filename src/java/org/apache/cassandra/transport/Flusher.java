@@ -156,8 +156,14 @@ abstract class Flusher implements Runnable
         }
         else
         {
-            payloads.computeIfAbsent(flush.channel, channel -> new FlushBuffer(channel, flush.allocator, 5))
-                    .add(flush.response);
+            FlushBuffer flushBuffer = payloads.get(flush.channel);
+            if (flushBuffer == null)
+            {
+                flushBuffer = new FlushBuffer(flush.channel, flush.allocator, 5);
+                payloads.put(flushBuffer.channel, flushBuffer);
+            }
+
+            flushBuffer.add(flush.response);
         }
     }
 
@@ -226,8 +232,9 @@ abstract class Flusher implements Runnable
     protected void flushWrittenChannels()
     {
         // flush the channels pre-V5 to which messages were written in writeSingleResponse
-        for (Channel channel : channels)
-            channel.flush();
+        if (!channels.isEmpty())
+            for (Channel channel : channels)
+                channel.flush();
 
         // Framed messages (V5) are grouped by channel, now encode them into payloads, write and flush
         for (FlushBuffer buffer : payloads.values())
@@ -247,8 +254,11 @@ abstract class Flusher implements Runnable
         // collated into frames, and so their buffers can be released immediately after flushing.
         // In V4 however, the buffers containing each CQL envelope are emitted from Envelope.Encoder
         // and so releasing them is handled by Netty internally.
-        for (FlushItem<?> item : processed)
+        for (int i = 0; i < processed.size(); i++)
+        {
+            FlushItem<?> item = processed.get(i);
             item.release();
+        }
 
         payloads.clear();
         channels.clear();
@@ -298,8 +308,9 @@ abstract class Flusher implements Runnable
             int writtenBytes = 0;
             int messagesToWrite = this.size();
             FrameEncoder.Payload sending = allocate(sizeInBytes, messagesToWrite);
-            for (Envelope f : this)
+            for (int i = 0; i < this.size(); i++)
             {
+                Envelope f = this.get(i);
                 messageSize = envelopeSize(f.header);
                 if (sending.remaining() < messageSize)
                 {
