@@ -18,6 +18,8 @@
 
 package org.apache.cassandra.service;
 
+import java.lang.reflect.Field;
+import java.lang.reflect.Method;
 import java.net.UnknownHostException;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
@@ -30,18 +32,32 @@ import org.junit.Test;
 import org.junit.runner.RunWith;
 
 import org.apache.cassandra.ServerTestUtils;
+import org.apache.cassandra.concurrent.ExecutorPlus;
+import org.apache.cassandra.concurrent.Stage;
 import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.db.IMutation;
+import org.apache.cassandra.db.Mutation;
+import org.apache.cassandra.dht.IPartitioner;
+import org.apache.cassandra.dht.Murmur3Partitioner;
+import org.apache.cassandra.dht.Range;
+import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.gms.EndpointState;
 import org.apache.cassandra.gms.Gossiper;
 import org.apache.cassandra.gms.HeartBeatState;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.Replica;
+import org.apache.cassandra.metrics.StorageMetrics;
 import org.jboss.byteman.contrib.bmunit.BMRule;
 import org.jboss.byteman.contrib.bmunit.BMUnitRunner;
 
 import static org.apache.cassandra.locator.ReplicaUtils.full;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 
 @RunWith(BMUnitRunner.class)
 public class StorageProxyTest
@@ -147,5 +163,66 @@ public class StorageProxyTest
         {
             StorageService.instance.getTokenMetadata().removeEndpoint(testEp);
         }
+    }
+
+    private void setExecutors(ExecutorPlus mockHintExecutor, ExecutorPlus mockMutationExecutor) throws Exception {
+        Field executorField = Stage.class.getDeclaredField("executor");
+        executorField.setAccessible(true);
+
+        // Replace the HINT and MUTATION executors with the mocked ones
+        executorField.set(Stage.HINT, mockHintExecutor);
+        executorField.set(Stage.MUTATION, mockMutationExecutor);
+    }
+
+    private Replica createRealReplica() throws UnknownHostException {
+        InetAddressAndPort inetAddress = InetAddressAndPort.getByName("127.0.0.1");
+        // Create a Token and Range<Token>
+        IPartitioner partitioner = Murmur3Partitioner.instance;
+        Token startToken = partitioner.getMinimumToken();
+        Token endToken = partitioner.getRandomToken();
+        Range<Token> tokenRange = new Range<>(startToken, endToken);
+
+        return Replica.fullReplica(inetAddress, tokenRange);
+    }
+
+    private void invokeSubmitHint(Mutation mockMutation, Replica realReplica, AbstractWriteResponseHandler<IMutation> mockResponseHandler) throws Exception {
+        // Use reflection to access the private method submitHint
+        Method submitHintMethod = StorageProxy.class.getDeclaredMethod(
+        "submitHint", Mutation.class, Replica.class, AbstractWriteResponseHandler.class);
+        submitHintMethod.setAccessible(true);
+
+        // Invoke the private `submitHint` method via reflection
+        submitHintMethod.invoke(StorageProxy.instance, mockMutation, realReplica, mockResponseHandler);
+    }
+
+    @Test
+    public void testHintIsPutByDefaultInHintQueueAndNotMutationQueue() throws Exception {
+        // Mock the executors for both HINT and MUTATION stages
+        ExecutorPlus mockHintExecutor = mock(ExecutorPlus.class);
+        ExecutorPlus mockMutationExecutor = mock(ExecutorPlus.class);
+
+        // Set the mocked executors
+        setExecutors(mockHintExecutor, mockMutationExecutor);
+
+        // Mock mutation and create a real replica
+        Mutation mockMutation = mock(Mutation.class);
+        Replica realReplica = createRealReplica();
+
+        // Mock the response handler
+        AbstractWriteResponseHandler<IMutation> mockResponseHandler = mock(AbstractWriteResponseHandler.class);
+
+        // Capture the metrics before the method call
+        long hintsBefore = StorageMetrics.totalHintsInProgress.getCount();
+
+        // Invoke the submitHint method
+        invokeSubmitHint(mockMutation, realReplica, mockResponseHandler);
+
+        // Capture the metrics after the method call
+        long hintsAfter = StorageMetrics.totalHintsInProgress.getCount();
+
+        // Assertions
+        Assert.assertEquals(1, hintsAfter - hintsBefore);
+        verify(mockHintExecutor, times(1)).submit(any(Runnable.class));
+        verify(mockMutationExecutor, never()).submit(any(Runnable.class));
     }
 }
