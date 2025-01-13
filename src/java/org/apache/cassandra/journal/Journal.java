@@ -907,7 +907,7 @@ public class Journal<K, V> implements Shutdownable
     public void truncateForTesting()
     {
         ActiveSegment<?, ?> discarding = currentSegment;
-        if (discarding.index.size() > 0) // if there is no data in the segement then ignore it
+        if (!discarding.isEmpty()) // if there is no data in the segement then ignore it
         {
             closeCurrentSegmentForTestingIfNonEmpty();
             // wait for the ActiveSegment to get released, else can see weird race conditions;
