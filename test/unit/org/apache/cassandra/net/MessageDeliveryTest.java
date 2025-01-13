@@ -35,9 +35,7 @@ import org.apache.cassandra.concurrent.ScheduledExecutorPlus;
 import org.apache.cassandra.concurrent.SimulatedExecutorFactory;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.dht.Murmur3Partitioner;
-import org.apache.cassandra.exceptions.RequestFailure;
 import org.apache.cassandra.locator.InetAddressAndPort;
-import org.apache.cassandra.net.MessageDelivery.FailedResponseException;
 import org.apache.cassandra.net.MessageDelivery.MaxRetriesException;
 import org.apache.cassandra.net.SimulatedMessageDelivery.Action;
 import org.apache.cassandra.net.SimulatedMessageDelivery.SimulatedMessageReceiver;
@@ -47,7 +45,8 @@ import org.apache.cassandra.utils.Backoff;
 import org.mockito.Mockito;
 
 import static accord.utils.Property.qt;
-import static org.apache.cassandra.net.MessageDelivery.*;
+import static org.apache.cassandra.net.MessageDelivery.RetryErrorMessage;
+import static org.apache.cassandra.net.MessageDelivery.RetryPredicate;
 import static org.assertj.core.api.Assertions.assertThat;
 
 public class MessageDeliveryTest
@@ -184,22 +183,6 @@ public class MessageDeliveryTest
                                                                           failures::add);
         receivers.put(ID1, messaging.receiver(m -> messaging.respond(NoPayload.noPayload, m)));
         return messaging;
-    }
-
-    private static FailedResponseException getFailedResponseException(Future<Message<Void>> result) throws InterruptedException
-    {
-        FailedResponseException ex;
-        try
-        {
-            result.get();
-            Assert.fail("Should have failed");
-            throw new AssertionError("Not Reachable");
-        }
-        catch (ExecutionException e)
-        {
-            ex = (FailedResponseException) e.getCause();
-        }
-        return ex;
     }
 
     private static MaxRetriesException getMaxRetriesException(Future<Message<Void>> result) throws InterruptedException
