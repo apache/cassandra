@@ -161,17 +161,14 @@ public class MessageDeliveryTest
                                                                      scheduler::schedule,
                                                                      Verb.ECHO_REQ, NoPayload.noPayload,
                                                                      Iterators.cycle(ID1),
-                                                                     RetryPredicate.ALWAYS_REJECT,
+                                                                     RetryPredicate.times(3),
                                                                      RetryErrorMessage.EMPTY);
             assertThat(result).isNotDone();
             factory.processAll();
             assertThat(result).isDone();
-            FailedResponseException e = getFailedResponseException(result);
-            assertThat(e.from).isEqualTo(ID1);
-            assertThat(e.failure).isEqualTo(RequestFailure.TIMEOUT);
-            Mockito.verify(backoff, Mockito.times(1)).mayRetry(Mockito.anyInt());
-            Mockito.verify(backoff, Mockito.never()).computeWaitTime(Mockito.anyInt());
-            Mockito.verify(backoff, Mockito.never()).unit();
+            MaxRetriesException e = getMaxRetriesException(result);
+            assertThat(e.attempts).isEqualTo(3);
+            Mockito.verify(backoff, Mockito.times(4)).mayRetry(Mockito.anyInt());
         });
     }
 
