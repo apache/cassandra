@@ -156,7 +156,7 @@ public class RTree<Token, Range, Value> implements RangeTree<Token, Range, Value
 
     public int remove(Range key, Value value)
     {
-        var match = Map.entry(key, value);
+        Map.Entry<Range, Value> match = Map.entry(key, value);
         return node.removeIf(match::equals);
     }
 
