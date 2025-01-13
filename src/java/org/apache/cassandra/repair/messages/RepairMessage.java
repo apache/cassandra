@@ -220,7 +220,6 @@ public abstract class RepairMessage
                                                     if (failure.reason == RequestFailureReason.TIMEOUT && allowRetry.get())
                                                         return true;
                                                     maybeRecordRetry.accept(attempt, failure.reason);
-                                                    finalCallback.onFailure(from, failure);
                                                     return false;
                                                 default:
                                                     throw new AssertionError("Unknown error handler: " + allowed);

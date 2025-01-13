@@ -177,14 +177,9 @@ public interface MessageDelivery
             public void onFailure(InetAddressAndPort from, RequestFailure failure)
             {
                 // TODO (required): we already have a separate retry predicate, backoff should not be taken into consideration when retrying
-                if (!backoff.mayRetry(attempt))
+                if (!backoff.mayRetry(attempt) || !shouldRetry.test(attempt, from, failure))
                 {
                     onResult.result(attempt, null, new MaxRetriesException(attempt, errorMessage.apply(attempt, ResponseFailureReason.MaxRetries, from, failure)));
-                    return;
-                }
-                if (!shouldRetry.test(attempt, from, failure))
-                {
-                    onResult.result(attempt, null, new FailedResponseException(from, failure, errorMessage.apply(attempt, ResponseFailureReason.Rejected, from, failure))); 
                     return;
                 }
                 try

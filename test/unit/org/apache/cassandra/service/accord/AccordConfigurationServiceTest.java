@@ -282,6 +282,7 @@ public class AccordConfigurationServiceTest
         Topology topology3 = createTopology(cms);
         service.reportTopology(topology3);
         service.truncateTopologiesUntil(3);
+        journal.truncateTopologiesForTesting(3);
         Assert.assertEquals(EpochDiskState.create(3), service.diskState());
         serviceListener.assertTruncates(3L);
 
