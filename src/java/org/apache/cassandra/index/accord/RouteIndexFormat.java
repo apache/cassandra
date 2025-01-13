@@ -222,8 +222,8 @@ public class RouteIndexFormat
     {
         List<Segment> segments = new ArrayList<>();
 
-        try (var metaReader = new ChecksumedRandomAccessReader(index.get(IndexComponent.METADATA).createReader(), CHECKSUM_SUPPLIER);
-             var segmentReader = new ChecksumedRandomAccessReader(index.get(IndexComponent.SEGMENT).createReader(), CHECKSUM_SUPPLIER))
+        try (ChecksumedRandomAccessReader metaReader = new ChecksumedRandomAccessReader(index.get(IndexComponent.METADATA).createReader(), CHECKSUM_SUPPLIER);
+             ChecksumedRandomAccessReader segmentReader = new ChecksumedRandomAccessReader(index.get(IndexComponent.SEGMENT).createReader(), CHECKSUM_SUPPLIER))
         {
             while (metaReader.getFilePointer() < metaReader.length())
             {
@@ -270,8 +270,8 @@ public class RouteIndexFormat
         List<Group> groups = new ArrayList<>(segment.groups.keySet());
         groups.sort(Comparator.naturalOrder());
 
-        try (var segmentWriter = ChecksumedSequentialWriter.open(id.fileFor(IndexComponent.SEGMENT), true, CHECKSUM_SUPPLIER);
-             var metadataWriter = ChecksumedSequentialWriter.open(id.fileFor(IndexComponent.METADATA), true, CHECKSUM_SUPPLIER))
+        try (ChecksumedSequentialWriter segmentWriter = ChecksumedSequentialWriter.open(id.fileFor(IndexComponent.SEGMENT), true, CHECKSUM_SUPPLIER);
+             ChecksumedSequentialWriter metadataWriter = ChecksumedSequentialWriter.open(id.fileFor(IndexComponent.METADATA), true, CHECKSUM_SUPPLIER))
         {
             long startPointer = segmentWriter.getFilePointer();
             for (Group group : groups)
