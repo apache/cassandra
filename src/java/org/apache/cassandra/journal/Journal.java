@@ -26,13 +26,11 @@ import java.util.Collection;
 import java.util.List;
 import java.util.PriorityQueue;
 import java.util.Set;
-import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.locks.LockSupport;
 import java.util.function.BooleanSupplier;
-import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.zip.CRC32;
@@ -125,36 +123,6 @@ public class Journal<K, V> implements Shutdownable
     private final FlusherCallbacks flusherCallbacks;
 
     final OpOrder readOrder = new OpOrder();
-
-    public interface Listener<K, V>
-    {
-        void onWrite(K id, Writer writer, Set<Integer> hosts, RecordPointer pointer);
-
-        void onCompact(Collection<StaticSegment<K, V>> oldSegments, Collection<StaticSegment<K, V>> compactedSegments);
-    }
-
-    private final List<Listener<K, V>> listeners = new CopyOnWriteArrayList<>();
-
-    private void safeNotify(Consumer<Listener<K, V>> fn)
-    {
-        for (Listener<K, V> listener : listeners)
-        {
-            try
-            {
-                fn.accept(listener);
-            }
-            catch (Throwable t)
-            {
-                JVMStabilityInspector.inspectThrowable(t);
-                logger.warn("Failure notifying listener {}", listener, t);
-            }
-        }
-    }
-
-    public void register(Listener<K, V> l)
-    {
-        listeners.add(l);
-    }
 
     private class FlusherCallbacks implements Flusher.Callbacks
     {
@@ -520,9 +488,7 @@ public class Journal<K, V> implements Shutdownable
             writer.write(dob, params.userVersion());
             ActiveSegment<K, V>.Allocation alloc = allocate(dob.getLength(), hosts);
             alloc.write(id, dob.unsafeGetBufferAndFlip(), hosts);
-            RecordPointer pointer = flusher.flush(alloc);
-            safeNotify(l -> l.onWrite(id, writer, hosts, pointer));
-            return pointer;
+            return flusher.flush(alloc);
         }
         catch (IOException e)
         {
@@ -768,7 +734,6 @@ public class Journal<K, V> implements Shutdownable
     void replaceCompactedSegments(Collection<StaticSegment<K, V>> oldSegments, Collection<StaticSegment<K, V>> compactedSegments)
     {
         swapSegments(current -> current.withCompactedSegments(oldSegments, compactedSegments));
-        safeNotify(l -> l.onCompact(oldSegments, compactedSegments));
     }
 
     void selectSegmentToFlush(Collection<ActiveSegment<K, V>> into)
