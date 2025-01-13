@@ -146,7 +146,7 @@ public class CommandsForRanges extends TreeMap<Timestamp, Summary> implements Co
 
             if (!manager.transitive.isEmpty())
             {
-                for (var e : manager.transitive.tailMap(minTxnId, true).entrySet())
+                for (Map.Entry<TxnId, Ranges> e : manager.transitive.tailMap(minTxnId, true).entrySet())
                 {
                     if (e.getValue().intersects(searchKeysOrRanges))
                         forEach.accept(e.getKey());
