@@ -1024,7 +1024,7 @@ public class AccordKeyspace
     @VisibleForTesting
     public static void unsafeClear()
     {
-        for (var store : Keyspace.open(SchemaConstants.ACCORD_KEYSPACE_NAME).getColumnFamilyStores())
+        for (ColumnFamilyStore store : Keyspace.open(SchemaConstants.ACCORD_KEYSPACE_NAME).getColumnFamilyStores())
             store.truncateBlockingWithoutSnapshot();
         TABLE_SERIALIZERS.clear();
         SchemaHolder.schema = Schema.instance;
