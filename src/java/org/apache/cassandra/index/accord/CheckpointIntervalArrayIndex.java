@@ -157,7 +157,7 @@ public class CheckpointIntervalArrayIndex
             // write values
             callback.preWalk(sortedIntervals);
             int count = 0;
-            for (var it : sortedIntervals)
+            for (Interval it : sortedIntervals)
             {
                 validate(count, it);
 
@@ -207,7 +207,7 @@ public class CheckpointIntervalArrayIndex
             this.fh = fh;
 
             try (RandomAccessReader reader = fh.createReader();
-                 var in = new ChecksumedRandomAccessReader(reader, CHECKSUM_SUPPLIER))
+                 ChecksumedRandomAccessReader in = new ChecksumedRandomAccessReader(reader, CHECKSUM_SUPPLIER))
             {
                 if (pos != -1)
                     in.seek(pos);
@@ -401,7 +401,7 @@ public class CheckpointIntervalArrayIndex
                     this.maxScanAndCheckpointMatches = maxScanAndCheckpointMatches;
                 }
             }
-            var c = new CheckpointIntervalArrayBuilder<>(LIST_INTERVAL_ACCESSOR, sortedIntervals, ACCURATE, LINKS).build((ignore, bounds, headers, lists, max) -> new Checkpoints(bounds, headers, lists, max));
+            Checkpoints c = new CheckpointIntervalArrayBuilder<>(LIST_INTERVAL_ACCESSOR, sortedIntervals, ACCURATE, LINKS).build((ignore, bounds, headers, lists, max) -> new Checkpoints(bounds, headers, lists, max));
             out.resetChecksum(); // reset checksum so it only covers this metadata
             out.writeUnsignedVInt32(c.maxScanAndCheckpointMatches);
             write(c.bounds);
