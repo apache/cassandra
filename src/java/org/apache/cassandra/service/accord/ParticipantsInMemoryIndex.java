@@ -156,7 +156,7 @@ public class ParticipantsInMemoryIndex<K extends JournalKey, V> implements Accor
 
     private static class ParticipantsInMemorySegmentIndex
     {
-        private final Int2ObjectHashMap<ParticipantsInMemoryStoreIndex> storeIndexes = new Int2ObjectHashMap<>();
+        private final Int2ObjectHashMap<StoreIndex> storeIndexes = new Int2ObjectHashMap<>();
 
         private ParticipantsInMemorySegmentIndex(long segment)
         {
@@ -164,29 +164,29 @@ public class ParticipantsInMemoryIndex<K extends JournalKey, V> implements Accor
 
         public void add(int commandStoreId, TxnId id, Route<?> route)
         {
-            storeIndexes.computeIfAbsent(commandStoreId, ParticipantsInMemoryStoreIndex::new).add(id, route);
+            storeIndexes.computeIfAbsent(commandStoreId, StoreIndex::new).add(id, route);
         }
 
         public void search(int storeId, TableId tableId, byte[] start, byte[] end, Consumer<Map.Entry<IndexRange, TxnId>> fn)
         {
-            ParticipantsInMemoryStoreIndex idx = storeIndexes.get(storeId);
+            StoreIndex idx = storeIndexes.get(storeId);
             if (idx == null) return;
             idx.search(tableId, start, end, fn);
         }
 
         public void search(int storeId, TableId tableId, byte[] key, Consumer<Map.Entry<IndexRange, TxnId>> fn)
         {
-            ParticipantsInMemoryStoreIndex idx = storeIndexes.get(storeId);
+            StoreIndex idx = storeIndexes.get(storeId);
             if (idx == null) return;
             idx.search(tableId, key, fn);
         }
     }
 
-    private static class ParticipantsInMemoryStoreIndex
+    private static class StoreIndex
     {
-        private final Map<TableId, ParticipantsInMemoryTableIndex> tableIndex = new HashMap<>();
+        private final Map<TableId, TableIndex> tableIndex = new HashMap<>();
 
-        private ParticipantsInMemoryStoreIndex(int commandStoreId)
+        private StoreIndex(int commandStoreId)
         {
         }
 
@@ -202,29 +202,29 @@ public class ParticipantsInMemoryIndex<K extends JournalKey, V> implements Accor
                 throw new IllegalArgumentException("Unexpected domain: " + keyOrRange.domain());
             TokenRange ts = (TokenRange) keyOrRange;
             TableId tableId = ts.table();
-            tableIndex.computeIfAbsent(tableId, ParticipantsInMemoryTableIndex::new).add(id, ts);
+            tableIndex.computeIfAbsent(tableId, TableIndex::new).add(id, ts);
         }
 
         public void search(TableId tableId, byte[] start, byte[] end, Consumer<Map.Entry<IndexRange, TxnId>> fn)
         {
-            ParticipantsInMemoryTableIndex index = tableIndex.get(tableId);
+            TableIndex index = tableIndex.get(tableId);
             if (index == null) return;
             index.search(start, end, fn);
         }
 
         public void search(TableId tableId, byte[] key, Consumer<Map.Entry<IndexRange, TxnId>> fn)
         {
-            ParticipantsInMemoryTableIndex index = tableIndex.get(tableId);
+            TableIndex index = tableIndex.get(tableId);
             if (index == null) return;
             index.search(key, fn);
         }
     }
 
-    private static class ParticipantsInMemoryTableIndex
+    private static class TableIndex
     {
         private final RangeTree<byte[], IndexRange, TxnId> index = createRangeTree();
 
-        private ParticipantsInMemoryTableIndex(TableId tableId)
+        private TableIndex(TableId tableId)
         {
         }
 
