@@ -436,7 +436,7 @@ public class SimulatedAccordCommandStore implements AutoCloseable
         commandStore.shutdown();
     }
 
-    private static class DefaultJournal extends InMemoryJournal
+    private static class DefaultJournal extends InMemoryJournal implements RangeSearcher.Supplier
     {
         private final ParticipantsInMemoryIndex<JournalKey, ?> index = new ParticipantsInMemoryIndex<>();
         private DefaultJournal(Node.Id id, Agent agent)
@@ -461,6 +461,12 @@ public class SimulatedAccordCommandStore implements AutoCloseable
         {
             super.purge(commandStores);
             index.truncateForTesting();
+        }
+
+        @Override
+        public RangeSearcher rangeSearcher()
+        {
+            return index;
         }
     }
 }
