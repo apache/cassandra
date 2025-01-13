@@ -84,7 +84,7 @@ public class ParticipantsInMemoryIndex<K extends JournalKey, V> implements Accor
     {
         if (!ParticipantsJournalIndex.allowed(id))
             return;
-        var participants = RouteIndexFormat.extract(id.id, buffer, userVersion).participants();
+        StoreParticipants participants = RouteIndexFormat.extract(id.id, buffer, userVersion).participants();
         if (participants == null || participants.route() == null)
             return;
         update(segment, id.commandStoreId, id.id, participants.route());
@@ -129,7 +129,7 @@ public class ParticipantsInMemoryIndex<K extends JournalKey, V> implements Accor
     @Override
     public void intersects(int commandStoreId, TokenRange range, TxnId minTxnId, Timestamp maxTxnId, Consumer<TxnId> forEach)
     {
-        var result = search(commandStoreId, range.start(), range.end());
+        NavigableMap<IndexRange, Set<TxnId>> result = search(commandStoreId, range.start(), range.end());
         TreeSet<TxnId> matches = new TreeSet<>();
         result.values().forEach(s -> matches.addAll(s));
         consume(matches.iterator(), minTxnId, maxTxnId, forEach);
@@ -138,7 +138,7 @@ public class ParticipantsInMemoryIndex<K extends JournalKey, V> implements Accor
     @Override
     public void intersects(int commandStoreId, AccordRoutingKey key, TxnId minTxnId, Timestamp maxTxnId, Consumer<TxnId> forEach)
     {
-        var result = search(commandStoreId, key);
+        NavigableMap<IndexRange, Set<TxnId>> result = search(commandStoreId, key);
         TreeSet<TxnId> matches = new TreeSet<>();
         result.values().forEach(s -> matches.addAll(s));
         consume(matches.iterator(), minTxnId, maxTxnId, forEach);
@@ -192,7 +192,7 @@ public class ParticipantsInMemoryIndex<K extends JournalKey, V> implements Accor
 
         public void add(TxnId id, Route<?> route)
         {
-            for (var keyOrRange : route)
+            for (Unseekable keyOrRange : route)
                 add(id, keyOrRange);
         }
 
@@ -207,14 +207,14 @@ public class ParticipantsInMemoryIndex<K extends JournalKey, V> implements Accor
 
         public void search(TableId tableId, byte[] start, byte[] end, Consumer<Map.Entry<IndexRange, TxnId>> fn)
         {
-            var index = tableIndex.get(tableId);
+            ParticipantsInMemoryTableIndex index = tableIndex.get(tableId);
             if (index == null) return;
             index.search(start, end, fn);
         }
 
         public void search(TableId tableId, byte[] key, Consumer<Map.Entry<IndexRange, TxnId>> fn)
         {
-            var index = tableIndex.get(tableId);
+            ParticipantsInMemoryTableIndex index = tableIndex.get(tableId);
             if (index == null) return;
             index.search(key, fn);
         }
@@ -230,9 +230,9 @@ public class ParticipantsInMemoryIndex<K extends JournalKey, V> implements Accor
 
         public void add(TxnId id, TokenRange ts)
         {
-            var start = OrderedRouteSerializer.serializeRoutingKeyNoTable(ts.start());
-            var end = OrderedRouteSerializer.serializeRoutingKeyNoTable(ts.end());
-            var range = new IndexRange(start, end);
+            byte[] start = OrderedRouteSerializer.serializeRoutingKeyNoTable(ts.start());
+            byte[] end = OrderedRouteSerializer.serializeRoutingKeyNoTable(ts.end());
+            IndexRange range = new IndexRange(start, end);
 
             index.add(range, id);
         }
