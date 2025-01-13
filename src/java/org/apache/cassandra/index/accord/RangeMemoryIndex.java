@@ -24,6 +24,7 @@ import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.EnumMap;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -122,7 +123,7 @@ public class RangeMemoryIndex
         if (route == null || route.domain() != Routable.Domain.Range)
             return 0;
         long sum = 0;
-        for (var keyOrRange : route)
+        for (Unseekable keyOrRange : route)
             sum += add(key, keyOrRange);
         return sum;
     }
@@ -133,12 +134,12 @@ public class RangeMemoryIndex
             throw new IllegalArgumentException("Unexpected domain: " + keyOrRange.domain());
         TokenRange ts = (TokenRange) keyOrRange;
 
-        var storeId = AccordKeyspace.JournalColumns.getStoreId(key);
-        var tableId = ts.table();
-        var group = new Group(storeId, tableId);
-        var start = OrderedRouteSerializer.serializeRoutingKeyNoTable(ts.start());
-        var end = OrderedRouteSerializer.serializeRoutingKeyNoTable(ts.end());
-        var range = new Range(start, end);
+        int storeId = AccordKeyspace.JournalColumns.getStoreId(key);
+        TableId tableId = ts.table();
+        Group group = new Group(storeId, tableId);
+        byte[] start = OrderedRouteSerializer.serializeRoutingKeyNoTable(ts.start());
+        byte[] end = OrderedRouteSerializer.serializeRoutingKeyNoTable(ts.end());
+        Range range = new Range(start, end);
         map.computeIfAbsent(group, ignore -> createRangeTree()).add(range, key);
         Metadata metadata = groupMetadata.computeIfAbsent(group, ignore -> new Metadata());
 
@@ -149,10 +150,10 @@ public class RangeMemoryIndex
 
     public synchronized NavigableSet<ByteBuffer> search(int storeId, TableId tableId, byte[] start, boolean startInclusive, byte[] end, boolean endInclusive)
     {
-        var rangesToPks = map.get(new Group(storeId, tableId));
+        RangeTree<byte[], Range, DecoratedKey> rangesToPks = map.get(new Group(storeId, tableId));
         if (rangesToPks == null || rangesToPks.isEmpty())
             return Collections.emptyNavigableSet();
-        var matches = search(rangesToPks, start, end);
+        TreeMap<Range, Set<DecoratedKey>> matches = search(rangesToPks, start, end);
         if (matches.isEmpty())
             return Collections.emptyNavigableSet();
         TreeSet<ByteBuffer> pks = new TreeSet<>();
@@ -196,9 +197,9 @@ public class RangeMemoryIndex
         List<Group> groups = new ArrayList<>(map.keySet());
         groups.sort(Comparator.naturalOrder());
 
-        for (var group : groups)
+        for (Group group : groups)
         {
-            var submap = map.get(group);
+            RangeTree<byte[], Range, DecoratedKey> submap = map.get(group);
             if (submap.isEmpty()) // is this possible?  put here for safty so list is never empty
                 continue;
             Metadata metadata = groupMetadata.get(group);
@@ -210,8 +211,8 @@ public class RangeMemoryIndex
                                                                      .sorted(Comparator.naturalOrder())
                                                                      .collect(Collectors.toList());
 
-            var writer = new CheckpointIntervalArrayIndex.SegmentWriter(id, list.get(0).start.length, list.get(0).value.length);
-            var meta = writer.write(list.toArray(CheckpointIntervalArrayIndex.Interval[]::new));
+            CheckpointIntervalArrayIndex.SegmentWriter writer = new CheckpointIntervalArrayIndex.SegmentWriter(id, list.get(0).start.length, list.get(0).value.length);
+            EnumMap<IndexDescriptor.IndexComponent, Segment.ComponentMetadata> meta = writer.write(list.toArray(CheckpointIntervalArrayIndex.Interval[]::new));
             if (meta.isEmpty()) // don't include empty segments
                 continue;
             output.put(group, new Segment.Metadata(meta, metadata.minTerm, metadata.maxTerm));
