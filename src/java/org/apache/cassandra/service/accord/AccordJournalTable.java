@@ -284,8 +284,8 @@ public class AccordJournalTable<K extends JournalKey, V> implements RangeSearche
     private CloseableIterator<Entry> search(int store, AccordRoutingKey start, AccordRoutingKey end)
     {
         Invariants.checkArgument(start.table().equals(end.table()), "Start %s has different table than end %s", start, end);
-        var inMemory = toIterator(store, index.search(store, start, end));
-        var table = tableSearch(store, start, end);
+        CloseableIterator<Entry> inMemory = toIterator(store, index.search(store, start, end));
+        CloseableIterator<Entry> table = tableSearch(store, start, end);
         return merge(inMemory, table);
     }
 
@@ -310,70 +310,15 @@ public class AccordJournalTable<K extends JournalKey, V> implements RangeSearche
         rowFilter.add(SyntheticColumn.participants.metadata, Operator.LTE, OrderedRouteSerializer.serializeRoutingKey(end));
         rowFilter.add(SyntheticColumn.store_id.metadata, Operator.EQ, Int32Type.instance.decompose(store));
 
-        var cmd = PartitionRangeReadCommand.create(cfs.metadata(),
-                                                   FBUtilities.nowInSeconds(),
-                                                   ColumnFilter.selectionBuilder()
-                                                               .add(SyntheticColumn.store_id.metadata)
-                                                               .add(SyntheticColumn.txn_id.metadata)
-                                                               .build(),
-                                                   rowFilter,
-                                                   DataLimits.NONE,
-                                                   DataRange.allData(cfs.getPartitioner()));
-        Index.Searcher s = tableIndex.searcherFor(cmd);
-        try (var controller = cmd.executionController())
-        {
-            UnfilteredPartitionIterator partitionIterator = s.search(controller);
-            return new CloseableIterator<Entry>()
-            {
-                private final Entry entry = new Entry();
-                @Override
-                public void close()
-                {
-                    partitionIterator.close();
-                }
-
-                @Override
-                public boolean hasNext()
-                {
-                    return partitionIterator.hasNext();
-                }
-
-                @Override
-                public Entry next()
-                {
-                    UnfilteredRowIterator next = partitionIterator.next();
-                    var partitionKeyComponents = AccordKeyspace.JournalColumns.getJournalKey(next.partitionKey());
-                    entry.store_id = partitionKeyComponents.commandStoreId;
-                    entry.txnId = partitionKeyComponents.id;
-                    return entry;
-                }
-            };
-        }
-    }
-
-    private CloseableIterator<Entry> search(int store, AccordRoutingKey key)
-    {
-        var inMemory = toIterator(store, index.search(store, key));
-        var table = tableSearch(store, key);
-        return merge(inMemory, table);
-    }
-
-    private CloseableIterator<Entry> tableSearch(int store, AccordRoutingKey key)
-    {
-        RowFilter rowFilter = RowFilter.create(false);
-        rowFilter.add(SyntheticColumn.participants.metadata, Operator.GTE, OrderedRouteSerializer.serializeRoutingKey(key));
-        rowFilter.add(SyntheticColumn.participants.metadata, Operator.LTE, OrderedRouteSerializer.serializeRoutingKey(key));
-        rowFilter.add(SyntheticColumn.store_id.metadata, Operator.EQ, Int32Type.instance.decompose(store));
-
-        var cmd = PartitionRangeReadCommand.create(cfs.metadata(),
-                                                   FBUtilities.nowInSeconds(),
-                                                   ColumnFilter.selectionBuilder()
-                                                               .add(SyntheticColumn.store_id.metadata)
-                                                               .add(SyntheticColumn.txn_id.metadata)
-                                                               .build(),
-                                                   rowFilter,
-                                                   DataLimits.NONE,
-                                                   DataRange.allData(cfs.getPartitioner()));
+        PartitionRangeReadCommand cmd = PartitionRangeReadCommand.create(cfs.metadata(),
+                                                                         FBUtilities.nowInSeconds(),
+                                                                         ColumnFilter.selectionBuilder()
+                                                                                     .add(SyntheticColumn.store_id.metadata)
+                                                                                     .add(SyntheticColumn.txn_id.metadata)
+                                                                                     .build(),
+                                                                         rowFilter,
+                                                                         DataLimits.NONE,
+                                                                         DataRange.allData(cfs.getPartitioner()));
         Index.Searcher s = tableIndex.searcherFor(cmd);
         try (ReadExecutionController controller = cmd.executionController())
         {
@@ -397,7 +342,62 @@ public class AccordJournalTable<K extends JournalKey, V> implements RangeSearche
                 public Entry next()
                 {
                     UnfilteredRowIterator next = partitionIterator.next();
-                    var partitionKeyComponents = AccordKeyspace.JournalColumns.getJournalKey(next.partitionKey());
+                    JournalKey partitionKeyComponents = AccordKeyspace.JournalColumns.getJournalKey(next.partitionKey());
+                    entry.store_id = partitionKeyComponents.commandStoreId;
+                    entry.txnId = partitionKeyComponents.id;
+                    return entry;
+                }
+            };
+        }
+    }
+
+    private CloseableIterator<Entry> search(int store, AccordRoutingKey key)
+    {
+        CloseableIterator<Entry> inMemory = toIterator(store, index.search(store, key));
+        CloseableIterator<Entry> table = tableSearch(store, key);
+        return merge(inMemory, table);
+    }
+
+    private CloseableIterator<Entry> tableSearch(int store, AccordRoutingKey key)
+    {
+        RowFilter rowFilter = RowFilter.create(false);
+        rowFilter.add(SyntheticColumn.participants.metadata, Operator.GTE, OrderedRouteSerializer.serializeRoutingKey(key));
+        rowFilter.add(SyntheticColumn.participants.metadata, Operator.LTE, OrderedRouteSerializer.serializeRoutingKey(key));
+        rowFilter.add(SyntheticColumn.store_id.metadata, Operator.EQ, Int32Type.instance.decompose(store));
+
+        PartitionRangeReadCommand cmd = PartitionRangeReadCommand.create(cfs.metadata(),
+                                                                         FBUtilities.nowInSeconds(),
+                                                                         ColumnFilter.selectionBuilder()
+                                                                                     .add(SyntheticColumn.store_id.metadata)
+                                                                                     .add(SyntheticColumn.txn_id.metadata)
+                                                                                     .build(),
+                                                                         rowFilter,
+                                                                         DataLimits.NONE,
+                                                                         DataRange.allData(cfs.getPartitioner()));
+        Index.Searcher s = tableIndex.searcherFor(cmd);
+        try (ReadExecutionController controller = cmd.executionController())
+        {
+            UnfilteredPartitionIterator partitionIterator = s.search(controller);
+            return new CloseableIterator<Entry>()
+            {
+                private final Entry entry = new Entry();
+                @Override
+                public void close()
+                {
+                    partitionIterator.close();
+                }
+
+                @Override
+                public boolean hasNext()
+                {
+                    return partitionIterator.hasNext();
+                }
+
+                @Override
+                public Entry next()
+                {
+                    UnfilteredRowIterator next = partitionIterator.next();
+                    JournalKey partitionKeyComponents = AccordKeyspace.JournalColumns.getJournalKey(next.partitionKey());
                     entry.store_id = partitionKeyComponents.commandStoreId;
                     entry.txnId = partitionKeyComponents.id;
                     return entry;
@@ -410,7 +410,7 @@ public class AccordJournalTable<K extends JournalKey, V> implements RangeSearche
     {
         TreeSet<TxnId> matches = new TreeSet<>();
         journalSearch.values().forEach(s -> matches.addAll(s));
-        var inMemory = new CloseableIterator<Entry>()
+        return new CloseableIterator<>()
         {
             private final Entry entry = new Entry();
             private final Iterator<TxnId> it = matches.iterator();
@@ -434,7 +434,6 @@ public class AccordJournalTable<K extends JournalKey, V> implements RangeSearche
                 return entry;
             }
         };
-        return inMemory;
     }
 
     private static CloseableIterator<Entry> merge(CloseableIterator<Entry> inMemory, CloseableIterator<Entry> disk)
