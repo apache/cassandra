@@ -321,10 +321,6 @@ public class ParticipantsJournalIndex implements Index, INotificationConsumer
         // only internal can write... so it must be valid no?
     }
 
-
-    //TODO (now): flesh this stuff out...
-
-
     @Override
     public SSTableFlushObserver getFlushObserver(Descriptor descriptor,
                                                  LifecycleNewTracker tracker)
