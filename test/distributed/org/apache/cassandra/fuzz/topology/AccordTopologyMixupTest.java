@@ -46,8 +46,15 @@ import accord.utils.Property.Command;
 import accord.utils.RandomSource;
 import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.config.Config;
+import org.apache.cassandra.cql3.ast.CQLFormatter;
 import org.apache.cassandra.cql3.ast.Mutation;
+import org.apache.cassandra.cql3.ast.Select;
+import org.apache.cassandra.cql3.ast.StandardVisitors;
 import org.apache.cassandra.cql3.ast.Statement;
+import org.apache.cassandra.cql3.ast.Txn;
+import org.apache.cassandra.db.marshal.AsciiType;
+import org.apache.cassandra.db.marshal.BytesType;
+import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
 import org.apache.cassandra.distributed.api.IInstanceConfig;
@@ -59,15 +66,26 @@ import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.accord.api.AccordAgent;
 import org.apache.cassandra.service.consensus.TransactionalMode;
 import org.apache.cassandra.utils.ASTGenerators;
+import org.apache.cassandra.utils.AbstractTypeGenerators;
 import org.apache.cassandra.utils.CassandraGenerators;
+import org.apache.cassandra.utils.FastByteOperations;
+import org.apache.cassandra.utils.Generators;
 import org.apache.cassandra.utils.Isolated;
 import org.apache.cassandra.utils.Shared;
+import org.quicktheories.generators.SourceDSL;
 
+import static org.apache.cassandra.utils.AbstractTypeGenerators.overridePrimitiveTypeSupport;
+import static org.apache.cassandra.utils.AbstractTypeGenerators.stringComparator;
 import static org.apache.cassandra.utils.AccordGenerators.fromQT;
 
 public class AccordTopologyMixupTest extends TopologyMixupTestBase<AccordTopologyMixupTest.Spec>
 {
     private static final Logger logger = LoggerFactory.getLogger(AccordTopologyMixupTest.class);
+
+    /**
+     * Should the history show the CQL?  By default, this is off as its very verbose, but when debugging this can be helpful.
+     */
+    private static boolean HISTORY_SHOWS_CQL = false;
 
     static
     {
@@ -76,6 +94,10 @@ public class AccordTopologyMixupTest extends TopologyMixupTestBase<AccordTopolog
         CassandraRelevantProperties.ACCORD_KEY_PARANOIA_CPU.setString(Invariants.Paranoia.QUADRATIC.name());
         CassandraRelevantProperties.ACCORD_KEY_PARANOIA_MEMORY.setString(Invariants.Paranoia.QUADRATIC.name());
         CassandraRelevantProperties.ACCORD_KEY_PARANOIA_COSTFACTOR.setString(Invariants.ParanoiaCostFactor.HIGH.name());
+
+        overridePrimitiveTypeSupport(AsciiType.instance, AbstractTypeGenerators.TypeSupport.of(AsciiType.instance, SourceDSL.strings().ascii().ofLengthBetween(1, 10), stringComparator(AsciiType.instance)));
+        overridePrimitiveTypeSupport(UTF8Type.instance, AbstractTypeGenerators.TypeSupport.of(UTF8Type.instance, Generators.utf8(1, 10), stringComparator(UTF8Type.instance)));
+        overridePrimitiveTypeSupport(BytesType.instance, AbstractTypeGenerators.TypeSupport.of(BytesType.instance, Generators.bytes(1, 10), FastByteOperations::compareUnsigned));
     }
 
     private static final List<TransactionalMode> TRANSACTIONAL_MODES = Stream.of(TransactionalMode.values()).filter(t -> t.accordIsEnabled).collect(Collectors.toList());
@@ -91,21 +113,27 @@ public class AccordTopologyMixupTest extends TopologyMixupTestBase<AccordTopolog
     {
         // if a failing seed is detected, populate here
         // Example: builder.withSeed(42L);
+        // HISTORY_SHOWS_CQL = true; // uncomment if the CQL done should be included in the history
     }
 
     private static Spec createSchemaSpec(RandomSource rs, Cluster cluster)
     {
         TransactionalMode mode = rs.pick(TRANSACTIONAL_MODES);
         boolean enableMigration = allowsMigration(mode) && rs.nextBoolean();
+        // This test puts a focus on topology / cluster operations, so schema "shouldn't matter"... limit the domain of the test to improve the ability to debug
+        AbstractTypeGenerators.TypeGenBuilder supportedTypes = AbstractTypeGenerators.withoutUnsafeEquality(AbstractTypeGenerators.builder()
+                                                                                                                                  .withTypeKinds(AbstractTypeGenerators.TypeKind.PRIMITIVE));
         TableMetadata metadata = fromQT(new CassandraGenerators.TableMetadataBuilder()
-                .withKeyspaceName(KEYSPACE)
-                .withTableKinds(TableMetadata.Kind.REGULAR)
-                .withKnownMemtables()
-                //TODO (coverage): include "fast_path = 'keyspace'" override
-                .withTransactionalMode(enableMigration ? TransactionalMode.off : mode)
-                .withoutEmpty()
-                .build())
-                .next(rs);
+                                        .withKeyspaceName(KEYSPACE)
+                                        .withTableName("tbl")
+                                        .withTableKinds(TableMetadata.Kind.REGULAR)
+                                        .withKnownMemtables()
+                                        .withSimpleColumnNames()
+                                        //TODO (coverage): include "fast_path = 'keyspace'" override
+                                        .withTransactionalMode(mode)
+                                        .withDefaultTypeGen(supportedTypes)
+                                        .build())
+                                 .next(rs);
         maybeCreateUDTs(cluster, metadata);
         String schemaCQL = metadata.toCqlString(false, false, false);
         logger.info("Creating test table:\n{}", schemaCQL);
@@ -133,14 +161,16 @@ public class AccordTopologyMixupTest extends TopologyMixupTestBase<AccordTopolog
 
     private static Command<State<Spec>, Void, ?> cqlOperation(RandomSource rs, State<Spec> state, Gen<Statement> statementGen)
     {
-        Statement stmt = statementGen.next(rs);
-        String cql;
-        //TODO (usability): are there any transaction_modes that actually need simple mutations/select to be wrapped in a BEGIN TRANSACTION?  If not then this logica can be simplified
-        if (stmt.kind() == Statement.Kind.TXN || stmt.kind() == Statement.Kind.MUTATION && ((Mutation) stmt).isCas())
-            cql = stmt.toCQL();
-        else cql = wrapInTxn(stmt.toCQL());
+        Statement stmt = statementGen.map(s -> {
+            if (s.kind() == Statement.Kind.TXN || s.kind() == Statement.Kind.MUTATION && ((Mutation) s).isCas())
+                return s;
+            return s instanceof Select ? Txn.wrap((Select) s) : Txn.wrap((Mutation) s);
+        }).next(rs);
         IInvokableInstance node = state.cluster.get(rs.pickInt(state.topologyHistory.up()));
-        return new Property.SimpleCommand<>(node + ": " + stmt.kind() + "; epoch=" + state.currentEpoch.get(), s2 -> executeTxn(s2.cluster, node, cql, stmt.bindsEncoded()));
+        String msg = HISTORY_SHOWS_CQL ?
+                "\n" + stmt.visit(StandardVisitors.DEBUG).toCQL(new CQLFormatter.PrettyPrint()) + "\n"
+                : stmt.kind() == Statement.Kind.MUTATION ? ((Mutation) stmt).mutationKind().name() : stmt.kind().name();
+        return new Property.SimpleCommand<>(node + ":" + msg + "; epoch=" + state.currentEpoch.get(), s2 -> executeTxn(s2.cluster, node, stmt.toCQL(), stmt.bindsEncoded()));
     }
 
     private static boolean allowsMigration(TransactionalMode mode)
@@ -198,6 +228,12 @@ public class AccordTopologyMixupTest extends TopologyMixupTestBase<AccordTopolog
         public String keyspace()
         {
             return metadata.keyspace;
+        }
+
+        @Override
+        public String createSchema()
+        {
+            return metadata.toCqlString(false, false, false);
         }
     }
 

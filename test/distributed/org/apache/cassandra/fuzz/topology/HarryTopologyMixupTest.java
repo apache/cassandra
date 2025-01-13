@@ -266,6 +266,12 @@ public class HarryTopologyMixupTest extends TopologyMixupTestBase<HarryTopologyM
         {
             return schema.keyspace;
         }
+
+        @Override
+        public String createSchema()
+        {
+            return schema.compile();
+        }
     }
 
     public class HarryState extends State<Spec>

@@ -170,11 +170,11 @@ FROM [keyspace_name.] table_name
     public Stream<? extends Element> stream()
     {
         List<Element> es = new ArrayList<>(selections.size()
-                + (source.isPresent() ? 1 : 0)
-                + (where.isPresent() ? 1 : 0)
-                + (orderBy.isPresent() ? 1 : 0)
-                + (perPartitionLimit.isPresent() ? 1 : 0)
-                + (limit.isPresent() ? 1 : 0));
+                                           + (source.isPresent() ? 1 : 0)
+                                           + (where.isPresent() ? 1 : 0)
+                                           + (orderBy.isPresent() ? 1 : 0)
+                                           + (perPartitionLimit.isPresent() ? 1 : 0)
+                                           + (limit.isPresent() ? 1 : 0));
         es.addAll(selections);
         if (source.isPresent())
             es.add(source.get());
@@ -445,11 +445,11 @@ FROM [keyspace_name.] table_name
         public Select build()
         {
             return new Select((selections == null || selections.isEmpty()) ? Collections.emptyList() : ImmutableList.copyOf(selections),
-                    source,
-                    where.isEmpty() ? Optional.empty() : Optional.of(where.build()),
-                    orderBy.isEmpty() ? Optional.empty() : Optional.of(orderBy.build()),
-                    perPartitionLimit, limit,
-                    allowFiltering);
+                              source,
+                              where.isEmpty() ? Optional.empty() : Optional.of(where.build()),
+                              orderBy.isEmpty() ? Optional.empty() : Optional.of(orderBy.build()),
+                              perPartitionLimit, limit,
+                              allowFiltering);
         }
     }
 

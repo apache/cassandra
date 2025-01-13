@@ -469,6 +469,7 @@ public abstract class TopologyMixupTestBase<S extends TopologyMixupTestBase.Sche
     {
         String table();
         String keyspace();
+        String createSchema();
     }
 
     protected interface CommandGen<S extends Schema>
@@ -733,6 +734,8 @@ public abstract class TopologyMixupTestBase<S extends TopologyMixupTestBase.Sche
         {
             StringBuilder sb = new StringBuilder();
             sb.append("Yaml Config:\n").append(YamlConfigurationLoader.toYaml(this.yamlConfigOverrides));
+            String cql = schema.createSchema();
+            sb.append("\n-- Setup Schema\n").append(cql);
             sb.append("\nTopology:\n").append(topologyHistory);
             sb.append("\nCMS Voting Group: ").append(Arrays.toString(cmsGroup));
             if (epochHistory != null)

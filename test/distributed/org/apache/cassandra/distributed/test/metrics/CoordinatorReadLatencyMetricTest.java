@@ -28,7 +28,6 @@ import org.assertj.core.api.Assertions;
 import org.junit.Test;
 
 import org.apache.cassandra.config.Config;
-import org.apache.cassandra.cql3.ast.Conditional;
 import org.apache.cassandra.cql3.ast.Select;
 import org.apache.cassandra.cql3.ast.Txn;
 import org.apache.cassandra.db.Keyspace;
@@ -40,6 +39,7 @@ import org.apache.cassandra.metrics.ClientRequestsMetricsHolder;
 import org.apache.cassandra.service.consensus.TransactionalMode;
 import org.apache.cassandra.service.paxos.Paxos;
 
+import static org.apache.cassandra.cql3.ast.Conditional.Where.Inequality.LESS_THAN;
 import static org.junit.Assert.assertTrue;
 
 public class CoordinatorReadLatencyMetricTest extends TestBaseImpl
@@ -58,7 +58,7 @@ public class CoordinatorReadLatencyMetricTest extends TestBaseImpl
 //                               .withSelection(FunctionCall.count("v"))
                                .table(KEYSPACE, "tbl")
                                .value("pk", 0)
-                               .where("ck", Conditional.Where.Inequality.LESS_THAN, 42)
+                               .where("ck", LESS_THAN, 42)
                                .limit(1)
                                .build();
 

@@ -18,14 +18,22 @@
 
 package org.apache.cassandra.cql3.statements;
 
-import org.apache.cassandra.cql3.ast.*;
+import java.util.Arrays;
+
+import org.assertj.core.api.Assertions;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.cql3.CQLStatement;
+import org.apache.cassandra.cql3.QueryOptions;
 import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.cql3.ast.Conditional.Is;
+import org.apache.cassandra.cql3.ast.FunctionCall;
+import org.apache.cassandra.cql3.ast.Literal;
+import org.apache.cassandra.cql3.ast.Mutation;
+import org.apache.cassandra.cql3.ast.Select;
+import org.apache.cassandra.cql3.ast.Txn;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.exceptions.SyntaxException;
@@ -36,7 +44,6 @@ import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.QueryState;
 import org.apache.cassandra.transport.Dispatcher;
 import org.apache.cassandra.transport.messages.ResultMessage;
-import org.assertj.core.api.Assertions;
 
 import static org.apache.cassandra.cql3.statements.TransactionStatement.DUPLICATE_TUPLE_NAME_MESSAGE;
 import static org.apache.cassandra.cql3.statements.TransactionStatement.EMPTY_TRANSACTION_MESSAGE;
@@ -396,9 +403,9 @@ public class TransactionStatementTest
 
             var txn = Txn.builder()
                          .addLet("a", Select.builder()
-                                 .table(tbl5())
-                                 .value("k", 1)
-                                 .build())
+                                            .table(tbl5())
+                                            .value("k", 1)
+                                            .build())
                          .addIf(new Is("a", Is.Kind.Null), mutation)
                          .build();
             Assertions.assertThatThrownBy(() -> prepare(txn.toCQL()))
@@ -476,10 +483,10 @@ public class TransactionStatementTest
         // this is blocked not because this isn't safe, but that the logic to handle this is currently in the read coordinator, which Accord doesn't call.
         // So rather than return bad results to users, IN w/ LIMIT is blocked... until we can fix
         Select select = Select.builder()
-                             .table(tbl(1))
-                             .in("k", 0, 1)
-                             .limit(Literal.of(1))
-                             .build();
+                              .table(tbl(1))
+                              .in("k", 0, 1)
+                              .limit(Literal.of(1))
+                              .build();
 
         Assertions.assertThatThrownBy(() -> prepare(Txn.wrap(select).toCQL()))
                   .isInstanceOf(InvalidRequestException.class)
@@ -490,6 +497,30 @@ public class TransactionStatementTest
                                                        .addReturnReferences("a.k")
                                                        .build().toCQL()))
                   .isInstanceOf(InvalidRequestException.class)
+                  .hasMessageContaining(String.format(NO_PARTITION_IN_CLAUSE_WITH_LIMIT, "SELECT", "at"));
+    }
+
+    @Test
+    public void shouldRejectInClauseInLetWithBind()
+    {
+        Select select = Select.builder()
+                              .table(tbl(1))
+                              .in("k", 0, 1)
+                              .limit(1)
+                              .build();
+
+        TransactionStatement stmt = (TransactionStatement) prepare(Txn.wrap(select).toCQL());
+        QueryState state = QueryState.forInternalCalls();
+        Dispatcher.RequestTime now = Dispatcher.RequestTime.forImmediateExecution();
+        Assertions.assertThatThrownBy(() -> stmt.execute(state, QueryOptions.forInternalCalls(Arrays.asList(select.bindsEncoded())), now)).isInstanceOf(InvalidRequestException.class)
+                  .hasMessageContaining(String.format(NO_PARTITION_IN_CLAUSE_WITH_LIMIT, "SELECT", "at"));
+
+        Txn txn = Txn.builder()
+                   .addLet("a", select)
+                   .addReturnReferences("a.v")
+                   .build();
+        TransactionStatement stmt2 = (TransactionStatement) prepare(txn.toCQL());
+        Assertions.assertThatThrownBy(() -> stmt2.execute(state, QueryOptions.forInternalCalls(Arrays.asList(txn.bindsEncoded())), now)).isInstanceOf(InvalidRequestException.class)
                   .hasMessageContaining(String.format(NO_PARTITION_IN_CLAUSE_WITH_LIMIT, "SELECT", "at"));
     }
 
