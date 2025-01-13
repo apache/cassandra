@@ -160,7 +160,7 @@ public class AccordRoutingKeyByteSource
                 throw new IOException("Unable to read prefix");
             ByteSource.Peekable component = progress(bs);
 
-            var prefix = ByteSourceInverse.getOptionalSignedFixedLength(ByteArrayAccessor.instance, component, 1);
+            byte[] prefix = ByteSourceInverse.getOptionalSignedFixedLength(ByteArrayAccessor.instance, component, 1);
             if (prefix == null)
                 throw new IOException("Unable to read prefix; prefix was null");
 
@@ -192,7 +192,7 @@ public class AccordRoutingKeyByteSource
 
         public ByteSource asComparableBytes(AccordRoutingKey key)
         {
-            var uuid = key.table().asUUID();
+            UUID uuid = key.table().asUUID();
             ByteSource[] srcs = { LongType.instance.asComparableBytes(LongType.instance.decompose(uuid.getMostSignificantBits()), ByteComparable.Version.OSS50),
                                   LongType.instance.asComparableBytes(LongType.instance.decompose(uuid.getLeastSignificantBits()), ByteComparable.Version.OSS50),
                                   asComparableBytesNoTable(key) };
@@ -235,7 +235,7 @@ public class AccordRoutingKeyByteSource
 
         public static <V> AccordRoutingKey fromComparableBytes(ValueAccessor<V> accessor, V data, ByteComparable.Version version, @Nullable IPartitioner partitioner)
         {
-            var bs = ByteSource.peekable(ByteSource.fixedLength(accessor, data));
+            ByteSource.Peekable bs = ByteSource.peekable(ByteSource.fixedLength(accessor, data));
             long[] uuidValues = new long[2];
             for (int i = 0; i < 2; i++)
             {
@@ -251,7 +251,7 @@ public class AccordRoutingKeyByteSource
 
         public static <V> AccordRoutingKey fromComparableBytes(ValueAccessor<V> accessor, V data, TableId tableId, ByteComparable.Version version, @Nullable IPartitioner partitioner)
         {
-            var bs = ByteSource.peekable(ByteSource.fixedLength(accessor, data));
+            ByteSource.Peekable bs = ByteSource.peekable(ByteSource.fixedLength(accessor, data));
             return fromComparableBytes(bs, tableId, version, partitioner);
         }
 
@@ -277,7 +277,7 @@ public class AccordRoutingKeyByteSource
                 throw new IllegalStateException("Unable to read prefix");
             ByteSource.Peekable component = progress(bs);
 
-            var prefix = ByteSourceInverse.getOptionalSignedFixedLength(ByteArrayAccessor.instance, component, 1);
+            byte[] prefix = ByteSourceInverse.getOptionalSignedFixedLength(ByteArrayAccessor.instance, component, 1);
             if (prefix == null)
                 throw new IllegalStateException("Unable to read prefix; prefix was null");
             switch (prefix[0])
