@@ -349,7 +349,7 @@ public class AccordConfigurationService extends AbstractConfigurationService<Acc
         Topology previous = getTopologyForEpoch(topology.epoch() - 1);
         // for all nodes removed, or pending removal, mark them as removed so we don't wait on their replies
         Sets.SetView<Node.Id> removedNodes = Sets.difference(previous.nodes(), topology.nodes());
-        // TODO: only notify for active epochs?
+        // TODO (desired, efficiency): there should be no need to notify every epoch for every removed node
         for (Node.Id removedNode : removedNodes)
         {
             if (topology.epoch() >= epochs.minEpoch())
