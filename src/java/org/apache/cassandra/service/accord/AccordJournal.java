@@ -241,28 +241,28 @@ public class AccordJournal implements accord.api.Journal, Shutdownable
     @Override
     public RedundantBefore loadRedundantBefore(int store)
     {
-        IdentityAccumulator<RedundantBefore> accumulator = readAll(new JournalKey(TxnId.NONE, JournalKey.Type.REDUNDANT_BEFORE, store));
+        IdentityAccumulator<RedundantBefore> accumulator = readAll(new JournalKey(TxnId.NONE, JournalKey.Type.REDUNDANT_BEFORE, store), false);
         return accumulator.get();
     }
 
     @Override
     public NavigableMap<TxnId, Ranges> loadBootstrapBeganAt(int store)
     {
-        IdentityAccumulator<NavigableMap<TxnId, Ranges>> accumulator = readAll(new JournalKey(TxnId.NONE, JournalKey.Type.BOOTSTRAP_BEGAN_AT, store));
+        IdentityAccumulator<NavigableMap<TxnId, Ranges>> accumulator = readAll(new JournalKey(TxnId.NONE, JournalKey.Type.BOOTSTRAP_BEGAN_AT, store), false);
         return accumulator.get();
     }
 
     @Override
     public NavigableMap<Timestamp, Ranges> loadSafeToRead(int store)
     {
-        IdentityAccumulator<NavigableMap<Timestamp, Ranges>> accumulator = readAll(new JournalKey(TxnId.NONE, JournalKey.Type.SAFE_TO_READ, store));
+        IdentityAccumulator<NavigableMap<Timestamp, Ranges>> accumulator = readAll(new JournalKey(TxnId.NONE, JournalKey.Type.SAFE_TO_READ, store), false);
         return accumulator.get();
     }
 
     @Override
     public CommandStores.RangesForEpoch loadRangesForEpoch(int store)
     {
-        IdentityAccumulator<RangesForEpoch> accumulator = readAll(new JournalKey(TxnId.NONE, JournalKey.Type.RANGES_FOR_EPOCH, store));
+        IdentityAccumulator<RangesForEpoch> accumulator = readAll(new JournalKey(TxnId.NONE, JournalKey.Type.RANGES_FOR_EPOCH, store), false);
         return accumulator.get();
     }
 
@@ -286,7 +286,7 @@ public class AccordJournal implements accord.api.Journal, Shutdownable
     @Override
     public Iterator<TopologyUpdate> replayTopologies()
     {
-        AccordJournalValueSerializers.MapAccumulator<Long, TopologyUpdate> accumulator = readAll(new JournalKey(TxnId.NONE, JournalKey.Type.TOPOLOGY_UPDATE, -1));
+        AccordJournalValueSerializers.MapAccumulator<Long, TopologyUpdate> accumulator = readAll(new JournalKey(TxnId.NONE, JournalKey.Type.TOPOLOGY_UPDATE, -1), false);
         return accumulator.get().values().iterator();
     }
 
@@ -317,7 +317,7 @@ public class AccordJournal implements accord.api.Journal, Shutdownable
             @Override
             public DurableBefore load()
             {
-                DurableBeforeAccumulator accumulator = readAll(new JournalKey(TxnId.NONE, JournalKey.Type.DURABLE_BEFORE, 0));
+                DurableBeforeAccumulator accumulator = readAll(new JournalKey(TxnId.NONE, JournalKey.Type.DURABLE_BEFORE, 0), false);
                 return accumulator.get();
             }
         };
@@ -350,7 +350,7 @@ public class AccordJournal implements accord.api.Journal, Shutdownable
     {
         JournalKey key = new JournalKey(txnId, JournalKey.Type.COMMAND_DIFF, commandStoreId);
         Builder builder = new Builder(txnId, load);
-        journalTable.readAll(key, builder::deserializeNext);
+        journalTable.readAll(key, builder::deserializeNext, true);
         return builder;
     }
 
@@ -360,13 +360,13 @@ public class AccordJournal implements accord.api.Journal, Shutdownable
         return loadDiffs(commandStoreId, txnId, Load.ALL);
     }
 
-    private <BUILDER> BUILDER readAll(JournalKey key)
+    private <BUILDER> BUILDER readAll(JournalKey key, boolean asc)
     {
         BUILDER builder = (BUILDER) key.type.serializer.mergerFor(key);
         // TODO: this can be further improved to avoid allocating lambdas
         AccordJournalValueSerializers.FlyweightSerializer<?, BUILDER> serializer = (AccordJournalValueSerializers.FlyweightSerializer<?, BUILDER>) key.type.serializer;
         // TODO (expected): for those where we store an image, read only the first entry we find in DESC order
-        journalTable.readAll(key, (in, userVersion) -> serializer.deserialize(key, builder, in, userVersion));
+        journalTable.readAll(key, (in, userVersion) -> serializer.deserialize(key, builder, in, userVersion), asc);
         return builder;
     }
 

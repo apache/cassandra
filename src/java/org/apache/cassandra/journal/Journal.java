@@ -335,12 +335,12 @@ public class Journal<K, V> implements Shutdownable
         return null;
     }
 
-    public void readAll(K id, RecordConsumer<K> consumer)
+    public void readAll(K id, RecordConsumer<K> consumer, boolean asc)
     {
         EntrySerializer.EntryHolder<K> holder = new EntrySerializer.EntryHolder<>();
         try (OpOrder.Group group = readOrder.start())
         {
-            for (Segment<K, V> segment : segments.get().allSorted(false))
+            for (Segment<K, V> segment : segments.get().allSorted(asc))
                 segment.readAll(id, holder, consumer);
         }
     }
@@ -359,7 +359,7 @@ public class Journal<K, V> implements Shutdownable
                 // can only throw if serializer is buggy
                 throw new RuntimeException(e);
             }
-        });
+        }, false);
         return res;
     }
 

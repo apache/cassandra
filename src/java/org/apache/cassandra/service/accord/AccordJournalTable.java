@@ -164,10 +164,10 @@ public class AccordJournalTable<K extends JournalKey, V>
      * <p>
      * When reading from journal segments, skip descriptors that were read from the table.
      */
-    public void readAll(K key, Reader reader)
+    public void readAll(K key, Reader reader, boolean asc)
     {
         JournalAndTableRecordConsumer consumer = new JournalAndTableRecordConsumer(key, reader);
-        journal.readAll(key, consumer);
+        journal.readAll(key, consumer, asc);
         consumer.readTable();
     }
 
