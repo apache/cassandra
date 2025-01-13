@@ -250,6 +250,9 @@ public class AccordService implements IAccordService, Shutdownable
             return;
         }
 
+        if (instance != null)
+            return;
+
         AccordService as = new AccordService(AccordTopology.tcmIdToAccord(tcmId));
         as.startup();
         instance = as;

@@ -114,6 +114,7 @@ public final class EntrySerializer
             return -1;
 
         int totalSize = from.getInt(start) - start;
+        Invariants.checkState(totalSize >= 0, "Offset %d. Total size should be non-negative: %d", start, totalSize);
         if (totalSize == 0)
             return -1;
 

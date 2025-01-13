@@ -340,7 +340,7 @@ public class AccordJournalValueSerializers
         }
     }
 
-    public static class MapAccumulator<K, V> extends Accumulator<NavigableMap<K, V>, V>
+    public static class MapAccumulator<K extends Comparable<K>, V> extends Accumulator<NavigableMap<K, V>, V>
     {
         private final Function<V, K> getKey;
 
@@ -401,24 +401,24 @@ public class AccordJournalValueSerializers
         public void deserialize(JournalKey key, MapAccumulator<Long, Journal.TopologyUpdate> into, DataInputPlus in, int userVersion) throws IOException
         {
             int size = in.readInt();
+            Accumulator<RangesForEpoch, RangesForEpoch> acc = new Accumulator<>(null)
+            {
+                @Override
+                protected RangesForEpoch accumulate(RangesForEpoch oldValue, RangesForEpoch newValue)
+                {
+                    return this.accumulated = newValue;
+                }
+            };
             for (int i = 0; i < size; i++)
             {
                 int commandStoresSize = in.readInt();
-                Accumulator<RangesForEpoch, RangesForEpoch> acc = new Accumulator<>(null)
-                {
-                    @Override
-                    protected RangesForEpoch accumulate(RangesForEpoch oldValue, RangesForEpoch newValue)
-                    {
-                        return this.accumulated = newValue;
-                    }
-                };
                 Int2ObjectHashMap<RangesForEpoch> commandStores = new Int2ObjectHashMap<>();
                 for (int j = 0; j < commandStoresSize; j++)
                 {
+                    acc.update(null);
                     int commandStoreId = in.readInt();
                     rangesForEpochSerializer.deserialize(key, acc, in, userVersion);
                     commandStores.put(commandStoreId, acc.accumulated);
-                    acc.update(null);
                 }
                 Topology local = TopologySerializers.topology.deserialize(in, userVersion);
                 Topology global = TopologySerializers.topology.deserialize(in, userVersion);
