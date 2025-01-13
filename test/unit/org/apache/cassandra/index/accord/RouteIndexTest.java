@@ -102,6 +102,7 @@ import org.mockito.Mockito;
 
 import static accord.utils.Property.commands;
 import static accord.utils.Property.stateful;
+import static org.apache.cassandra.schema.SchemaConstants.ACCORD_KEYSPACE_NAME;
 
 public class RouteIndexTest extends CQLTester.InMemory
 {
@@ -161,7 +162,6 @@ public class RouteIndexTest extends CQLTester.InMemory
 
     private Command<State, Sut, ?> insert(RandomSource rs, State state)
     {
-//        int storeId = rs.nextInt(0, state.numStores);
         Domain domain = state.domainGen.next(rs);
         TxnId txnId = state.nextTxnId(domain);
         Route<?> route = createRoute(state, rs, domain, rs.nextInt(1, 20));
@@ -211,8 +211,10 @@ public class RouteIndexTest extends CQLTester.InMemory
         stateful().withExamples(10).withSteps(500).check(commands(() -> State::new, Sut::new)
                                           .destroyState(State::close)
                                           .destroySut(Sut::close)
-                                          .addIf(State::mayFlush, FLUSH)
-                                          .add(COMPACT)
+                                          .addIf(State::mayFlush, CLOSE)
+                                          .add(COMPACTOR)
+                                          .addIf(State::mayCompact, COMPACT)
+                                          .add(PURGE)
                                           .add(RESTART)
                                           .add(this::insert)
                                           .add(RouteIndexTest::rangeSearch)
@@ -379,7 +381,7 @@ public class RouteIndexTest extends CQLTester.InMemory
         }
     }
 
-    private static final CassandraCommand FLUSH = new CassandraCommand("Flush")
+    private static final CassandraCommand CLOSE = new CassandraCommand("Close Current Segment")
     {
         @Override
         public void runUnit(Sut sut)
@@ -388,12 +390,20 @@ public class RouteIndexTest extends CQLTester.InMemory
         }
     };
 
-    private static final CassandraCommand COMPACT = new CassandraCommand("Compact")
+    private static final CassandraCommand COMPACTOR = new CassandraCommand("Compactor")
     {
         @Override
         public void runUnit(Sut sut)
         {
             sut.journal.get().runCompactorForTesting();
+        }
+    };
+
+    private static final CassandraCommand COMPACT = new CassandraCommand("Compact")
+    {
+        @Override
+        public void runUnit(Sut sut)
+        {
             try
             {
                 sut.cfs.enableAutoCompaction();
@@ -403,6 +413,15 @@ public class RouteIndexTest extends CQLTester.InMemory
             {
                 sut.cfs.disableAutoCompaction();
             }
+        }
+    };
+
+    private static final CassandraCommand PURGE = new CassandraCommand("Purge")
+    {
+        @Override
+        public void runUnit(Sut sut)
+        {
+            sut.journal.get().purge(sut.stores.get());
         }
     };
 
@@ -437,7 +456,8 @@ public class RouteIndexTest extends CQLTester.InMemory
         private final Gen.IntGen tokenGen;
         private final Gen<TokenRange> rangeGen;
         private final Gen<Domain> domainGen;
-//        private final AccordJournal journal;
+        private final ColumnFamilyStore journalTable;
+        //        private final AccordJournal journal;
         private AccordService accordService;
         private int hlc = 1000;
 
@@ -445,21 +465,14 @@ public class RouteIndexTest extends CQLTester.InMemory
         {
             numStores = NUM_STORES_GEN.nextInt(rs);
             DatabaseDescriptor.getAccord().command_store_shard_count = new OptionaldPositiveInt(numStores);
-
-//            tables = IntStream.range(0, NUM_TABLES_GEN.nextInt(rs))
-//                              .mapToObj(i -> TableId.fromUUID(new UUID(0, i)))
-//                              .collect(Collectors.toList());
             tables = Collections.singletonList(tableId);
             tokenGen = TOKEN_DISTRIBUTION.next(rs);
             rangeGen = rangeGen(rs, tables);
             domainGen = DOMAIN_DISTRIBUTION.next(rs);
 
-            accordService = startAccord();
-        }
+            this.journalTable = Keyspace.open(ACCORD_KEYSPACE_NAME).getColumnFamilyStore(AccordKeyspace.JOURNAL);
 
-        AccordService getAccordService()
-        {
-            return accordService;
+            accordService = startAccord();
         }
 
         AccordService startAccord()
@@ -519,6 +532,11 @@ public class RouteIndexTest extends CQLTester.InMemory
             return accordService.journal().inMemorySize() > 0;
         }
 
+        public boolean mayCompact()
+        {
+            return journalTable.getLiveSSTables().size() > 1;
+        }
+
         @Override
         public String toString()
         {
@@ -544,11 +562,13 @@ public class RouteIndexTest extends CQLTester.InMemory
     public static class Sut implements AutoCloseable
     {
         private final ColumnFamilyStore cfs;
+        private final Supplier<CommandStores> stores;
         private final Supplier<AccordJournal> journal;
 
         public Sut(State state)
         {
             cfs = cfs();
+            this.stores = () -> state.accordService.node().commandStores();
             this.journal = () -> state.accordService.journal();
         }
 
