@@ -134,9 +134,9 @@ public interface MessageDelivery
 
     interface RetryPredicate
     {
-        public static RetryPredicate times(int n) { return (attempt, from, failure) -> attempt < n; }
+        static RetryPredicate times(int n) { return (attempt, from, failure) -> attempt < n; }
         RetryPredicate ALWAYS_RETRY = (i1, i2, i3) -> true;
-        RetryPredicate ALWAYS_REJECT = (i1, i2, i3) -> false;
+        RetryPredicate NEVER_RETRY = (i1, i2, i3) -> false;
         boolean test(int attempt, InetAddressAndPort from, RequestFailure failure);
     }
 
@@ -177,9 +177,15 @@ public interface MessageDelivery
             public void onFailure(InetAddressAndPort from, RequestFailure failure)
             {
                 // TODO (required): we already have a separate retry predicate, backoff should not be taken into consideration when retrying
-                if (!backoff.mayRetry(attempt) || !shouldRetry.test(attempt, from, failure))
+                if (!backoff.mayRetry(attempt))
                 {
                     onResult.result(attempt, null, new MaxRetriesException(attempt, errorMessage.apply(attempt, ResponseFailureReason.MaxRetries, from, failure)));
+                    return;
+                }
+                System.out.println(shouldRetry.test(attempt, from, failure));
+                if (!shouldRetry.test(attempt, from, failure))
+                {
+                    onResult.result(attempt, null, new FailedResponseException(from, failure, errorMessage.apply(attempt, ResponseFailureReason.Rejected, from, failure)));
                     return;
                 }
                 try

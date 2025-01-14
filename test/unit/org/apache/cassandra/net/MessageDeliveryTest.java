@@ -24,6 +24,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import com.google.common.collect.Iterators;
@@ -35,7 +37,9 @@ import org.apache.cassandra.concurrent.ScheduledExecutorPlus;
 import org.apache.cassandra.concurrent.SimulatedExecutorFactory;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.dht.Murmur3Partitioner;
+import org.apache.cassandra.exceptions.RequestFailure;
 import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.net.MessageDelivery.FailedResponseException;
 import org.apache.cassandra.net.MessageDelivery.MaxRetriesException;
 import org.apache.cassandra.net.SimulatedMessageDelivery.Action;
 import org.apache.cassandra.net.SimulatedMessageDelivery.SimulatedMessageReceiver;
@@ -160,15 +164,38 @@ public class MessageDeliveryTest
                                                                      scheduler::schedule,
                                                                      Verb.ECHO_REQ, NoPayload.noPayload,
                                                                      Iterators.cycle(ID1),
-                                                                     RetryPredicate.times(3),
+                                                                     RetryPredicate.NEVER_RETRY,
                                                                      RetryErrorMessage.EMPTY);
             assertThat(result).isNotDone();
             factory.processAll();
             assertThat(result).isDone();
-            MaxRetriesException e = getMaxRetriesException(result);
-            assertThat(e.attempts).isEqualTo(3);
-            Mockito.verify(backoff, Mockito.times(4)).mayRetry(Mockito.anyInt());
+            FailedResponseException e = getFailedResponseException(result);
+            assertThat(e.from).isEqualTo(ID1);
+            assertThat(e.failure).isEqualTo(RequestFailure.TIMEOUT);
+            Mockito.verify(backoff, Mockito.times(1)).mayRetry(Mockito.anyInt());
+            Mockito.verify(backoff, Mockito.never()).computeWaitTime(Mockito.anyInt());
+            Mockito.verify(backoff, Mockito.never()).unit();
         });
+    }
+
+    private static FailedResponseException getFailedResponseException(Future<Message<Void>> result) throws InterruptedException
+    {
+        FailedResponseException ex;
+        try
+        {
+            result.get(1, TimeUnit.MINUTES);
+            Assert.fail("Should have failed");
+            throw new AssertionError("Not Reachable");
+        }
+        catch (ExecutionException e)
+        {
+            ex = (FailedResponseException) e.getCause();
+        }
+        catch (TimeoutException e)
+        {
+            throw new RuntimeException(e);
+        }
+        return ex;
     }
 
     private static MessageDelivery simulatedMessages(RandomSource rs, ScheduledExecutorPlus scheduler, List<Throwable> failures, SimulatedMessageDelivery.ActionSupplier actionSupplier)

@@ -148,7 +148,7 @@ public class FetchMinEpoch
     static Future<Long> fetch(SharedContext context, InetAddressAndPort to, Set<TokenRange> value)
     {
         FetchMinEpoch req = new FetchMinEpoch(value);
-        return context.messaging().<FetchMinEpoch, FetchMinEpoch.Response>sendWithRetries(Backoff.None.INSTANCE,
+        return context.messaging().<FetchMinEpoch, FetchMinEpoch.Response>sendWithRetries(Backoff.NO_OP.INSTANCE,
                                                                                           MessageDelivery.ImmediateRetryScheduler.instance,
                                                                                           Verb.ACCORD_FETCH_MIN_EPOCH_REQ, req,
                                                                                           Iterators.cycle(to),

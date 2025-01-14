@@ -70,6 +70,29 @@ public interface Backoff
         @Override
         public boolean mayRetry(int attempt)
         {
+            return false;
+        }
+
+        @Override
+        public long computeWaitTime(int retryCount)
+        {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public TimeUnit unit()
+        {
+            throw new UnsupportedOperationException();
+        }
+    }
+
+    enum NO_OP implements Backoff
+    {
+        INSTANCE;
+
+        @Override
+        public boolean mayRetry(int attempt)
+        {
             return true;
         }
 
