@@ -117,11 +117,9 @@
 *** xref:cassandra:troubleshooting/use_tools.adoc[Using external tools to deep-dive]
 
 ** xref:reference/index.adoc[]
-*** xref:reference/cql-commands/alter-table.adoc[]
-*** xref:reference/cql-commands/create-index.adoc[]
-*** xref:reference/cql-commands/create-custom-index.adoc[]
-*** xref:reference/cql-commands/create-table.adoc[]
-*** xref:reference/cql-commands/drop-index.adoc[]
-*** xref:reference/cql-commands/drop-table.adoc[]
+*** xref:reference/cql-commands/commands-toc.adoc[CQL commands]
+*** xref:reference/java17.adoc[Java 17]
+*** xref:reference/static.adoc[Static columns]
+*** xref:reference/sai-virtual-table-indexes.adoc[SAI virtual table]
 
 ** xref:integrating/plugins/index.adoc[]
