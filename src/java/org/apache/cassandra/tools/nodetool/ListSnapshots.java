@@ -71,9 +71,12 @@ public class ListSnapshots extends NodeToolCmd
             Map<String, String> options = new HashMap<>();
             options.put("no_ttl", Boolean.toString(noTTL));
             options.put("include_ephemeral", Boolean.toString(includeEphemeral));
-            options.put("keyspace", keyspace);
-            options.put("table", table);
-            options.put("snapshot", snapshotName);
+            if (keyspace != null)
+                options.put("keyspace", keyspace);
+            if (table != null)
+                options.put("table", table);
+            if (snapshotName != null)
+                options.put("snapshot", snapshotName);
 
             final Map<String, TabularData> snapshotDetails = probe.getSnapshotDetails(options);
             if (snapshotDetails.isEmpty())
