@@ -140,6 +140,7 @@ Merged from 4.1:
  * Enforce CQL message size limit on multiframe messages (CASSANDRA-20052)
  * Fix race condition in DecayingEstimatedHistogramReservoir during rescale (CASSANDRA-19365)
 Merged from 4.0:
+ * Allow hint delivery during schema mismatch (CASSANDRA-20188)
  * IndexOutOfBoundsException when accessing partition where the column was deleted (CASSANDRA-20108)
  * Enhance CQLSSTableWriter to notify clients on sstable production (CASSANDRA-19800)
  * Change the resolution of AbstractCommitLogService#lastSyncedAt to nanos to be aligned with later comparisons (CASSANDRA-20074)
