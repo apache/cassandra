@@ -5,6 +5,7 @@
  * Equality check for Paxos.Electorate should not depend on collection types (CASSANDRA-19935)
  * Fix race condition in DecayingEstimatedHistogramReservoir during rescale (CASSANDRA-19365)
 Merged from 4.0:
+ * Allow hint delivery during schema mismatch (CASSANDRA-20188)
  * IndexOutOfBoundsException when accessing partition where the column was deleted (CASSANDRA-20108)
  * Enhance CQLSSTableWriter to notify clients on sstable production (CASSANDRA-19800)
  * Fix gossip issue with gossip-only and bootstrapping nodes missing DC/Rack/Host ID endpoint state (CASSANDRA-19983)
