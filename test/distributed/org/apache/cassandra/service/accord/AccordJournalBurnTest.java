@@ -90,7 +90,8 @@ public class AccordJournalBurnTest extends BurnTestBase
                                     "shard");
     }
 
-    private AtomicInteger counter = new AtomicInteger();
+    private static final AtomicInteger counter = new AtomicInteger();
+
     @Before
     public void beforeTest() throws Throwable
     {
