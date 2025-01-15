@@ -31,7 +31,7 @@ import java.util.TreeMap;
 import java.util.TreeSet;
 import java.util.function.Consumer;
 
-import accord.impl.CommandChange;
+import accord.impl.CommandChange.Field;
 import accord.local.StoreParticipants;
 import accord.primitives.Routable;
 import accord.primitives.Route;
@@ -64,7 +64,7 @@ public class ParticipantsInMemoryIndex<K extends JournalKey, V> implements Accor
         if (!ParticipantsJournalIndex.allowed(id))
             return;
         AccordJournal.Writer saveCommandWriter = (AccordJournal.Writer) writer;
-        if (!saveCommandWriter.hasField(CommandChange.Fields.PARTICIPANTS))
+        if (!saveCommandWriter.hasField(Field.PARTICIPANTS))
             return;
         StoreParticipants participants = saveCommandWriter.after.participants();
         Route<?> route = participants.route();

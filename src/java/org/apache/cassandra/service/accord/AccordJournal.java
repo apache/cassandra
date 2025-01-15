@@ -623,7 +623,7 @@ public class AccordJournal implements accord.api.Journal, RangeSearcher.Supplier
             }
         }
 
-        public boolean hasField(CommandChange.Fields fields)
+        public boolean hasField(Field fields)
         {
             return !getFieldIsNull(fields, flags);
         }
