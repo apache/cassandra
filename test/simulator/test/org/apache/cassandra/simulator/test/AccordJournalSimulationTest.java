@@ -20,7 +20,6 @@ package org.apache.cassandra.simulator.test;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 import java.util.zip.Checksum;
 
@@ -96,7 +95,7 @@ public class AccordJournalSimulationTest extends SimulationTestBase
             {
                 int finalI = i;
                 State.executor.submit(() -> {
-                    RecordPointer ptr = State.journal.asyncWrite("test" + finalI, "test" + finalI, Collections.singleton(1));
+                    RecordPointer ptr = State.journal.asyncWrite("test" + finalI, "test" + finalI);
                     State.journal.onDurable(ptr, State.latch::decrement);
                 });
             }

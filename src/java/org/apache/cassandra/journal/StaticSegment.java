@@ -27,7 +27,6 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 
-import org.agrona.collections.IntHashSet;
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.utils.Closeable;
@@ -256,7 +255,7 @@ public final class StaticSegment<K, V> extends Segment<K, V>
         {
             while (reader.advance())
             {
-                consumer.accept(descriptor.timestamp, reader.offset(), reader.key(), reader.record(), reader.hosts(), descriptor.userVersion);
+                consumer.accept(descriptor.timestamp, reader.offset(), reader.key(), reader.record(), descriptor.userVersion);
             }
         }
     }
@@ -320,12 +319,6 @@ public final class StaticSegment<K, V> extends Segment<K, V>
         {
             ensureHasAdvanced();
             return holder.key;
-        }
-
-        public IntHashSet hosts()
-        {
-            ensureHasAdvanced();
-            return holder.hosts;
         }
 
         public ByteBuffer record()

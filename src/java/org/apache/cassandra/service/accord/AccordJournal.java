@@ -23,7 +23,6 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.NavigableMap;
-import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.function.BiConsumer;
@@ -99,8 +98,6 @@ public class AccordJournal implements accord.api.Journal, RangeSearcher.Supplier
         // make noise early if we forget to update our version mappings
         Invariants.checkState(MessagingService.current_version == MessagingService.VERSION_51, "Expected current version to be %d but given %d", MessagingService.VERSION_51, MessagingService.current_version);
     }
-
-    private static final Set<Integer> SENTINEL_HOSTS = Collections.singleton(0);
 
     static final ThreadLocal<byte[]> keyCRCBytes = ThreadLocal.withInitial(() -> new byte[JournalKeySupport.TOTAL_SIZE]);
 
@@ -295,7 +292,7 @@ public class AccordJournal implements accord.api.Journal, RangeSearcher.Supplier
         }
 
         JournalKey key = new JournalKey(update.txnId, JournalKey.Type.COMMAND_DIFF, store);
-        RecordPointer pointer = journal.asyncWrite(key, diff, SENTINEL_HOSTS);
+        RecordPointer pointer = journal.asyncWrite(key, diff);
         if (journalTable.shouldIndex(key)
             && diff.hasParticipants()
             && diff.after.route() != null)
@@ -396,7 +393,7 @@ public class AccordJournal implements accord.api.Journal, RangeSearcher.Supplier
     private RecordPointer appendInternal(JournalKey key, Object write)
     {
         AccordJournalValueSerializers.FlyweightSerializer<Object, ?> serializer = (AccordJournalValueSerializers.FlyweightSerializer<Object, ?>) key.type.serializer;
-        return journal.asyncWrite(key, (out, userVersion) -> serializer.serialize(key, write, out, userVersion), SENTINEL_HOSTS);
+        return journal.asyncWrite(key, (out, userVersion) -> serializer.serialize(key, write, out, userVersion));
     }
 
     @VisibleForTesting
@@ -454,12 +451,12 @@ public class AccordJournal implements accord.api.Journal, RangeSearcher.Supplier
                 if (key.type != JournalKey.Type.COMMAND_DIFF)
                 {
                     // TODO (required): add "skip" for the key to avoid getting stuck
-                    iter.readAllForKey(key, (segment, position, key1, buffer, hosts, userVersion) -> {});
+                    iter.readAllForKey(key, (segment, position, key1, buffer, userVersion) -> {});
                     continue;
                 }
 
                 JournalKey finalKey = key;
-                iter.readAllForKey(key, (segment, position, local, buffer, hosts, userVersion) -> {
+                iter.readAllForKey(key, (segment, position, local, buffer, userVersion) -> {
                     Invariants.checkState(finalKey.equals(local));
                     try (DataInputBuffer in = new DataInputBuffer(buffer, false))
                     {
