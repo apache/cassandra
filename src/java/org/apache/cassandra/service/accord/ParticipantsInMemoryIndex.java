@@ -56,7 +56,7 @@ import org.apache.cassandra.utils.RangeTree;
 
 public class ParticipantsInMemoryIndex<K extends JournalKey, V> implements AccordJournal.Listener<V>, RangeSearcher
 {
-    private final Long2ObjectHashMap<ParticipantsInMemorySegmentIndex> segmentIndexes = new Long2ObjectHashMap<>();
+    private final Long2ObjectHashMap<SegmentIndex> segmentIndexes = new Long2ObjectHashMap<>();
 
     @Override
     public void onWrite(JournalKey id, Journal.Writer writer, Set<Integer> hosts, RecordPointer pointer)
@@ -77,7 +77,7 @@ public class ParticipantsInMemoryIndex<K extends JournalKey, V> implements Accor
         if (!ParticipantsJournalIndex.allowed(id))
             return;
         Invariants.nonNull(route, "route");
-        segmentIndexes.computeIfAbsent(segment, ParticipantsInMemorySegmentIndex::new).add(commandStoreId, id, route);
+        segmentIndexes.computeIfAbsent(segment, SegmentIndex::new).add(commandStoreId, id, route);
     }
 
     public void update(long segment, K id, ByteBuffer buffer, int userVersion)
@@ -157,11 +157,11 @@ public class ParticipantsInMemoryIndex<K extends JournalKey, V> implements Accor
         }
     }
 
-    private static class ParticipantsInMemorySegmentIndex
+    private static class SegmentIndex
     {
         private final Int2ObjectHashMap<StoreIndex> storeIndexes = new Int2ObjectHashMap<>();
 
-        private ParticipantsInMemorySegmentIndex(long segment)
+        private SegmentIndex(long segment)
         {
         }
 
