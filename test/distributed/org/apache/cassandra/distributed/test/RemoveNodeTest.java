@@ -79,7 +79,7 @@ public class RemoveNodeTest extends TestBaseImpl
 
             // Now abort the removal. This should succeed in committing a cancellation of the removal sequence before
             // it can be completed, as non-CMS instance is still paused.
-            cmsInstance.nodetoolResult("removenode", "abort", nodeId).asserts().success();
+            cmsInstance.nodetoolResult("abortremovenode", "--node", nodeId).asserts().success();
 
             // Resume processing on the non-CMS instance. It will enact the MID_LEAVE step followed by the cancellation
             // of the removal process.

@@ -228,7 +228,7 @@ public interface SingleNodeSequences
         MultiStepOperation<?> sequence = metadata.inProgressSequences.get(toAbort);
         if (sequence == null || sequence.kind() != kind)
         {
-            String msg = String.format("No %s operation in progress for %s, can't abort", kind, toAbort);
+            String msg = String.format("No %s operation in progress for %s, can't abort (%s)", kind, toAbort, sequence);
             logger.info(msg);
             throw new IllegalStateException(msg);
         }
