@@ -94,6 +94,9 @@ public class ParticipantsInMemoryIndex<K extends JournalKey, V> implements Accor
     public synchronized void onCompact(Collection<StaticSegment<JournalKey, V>> oldSegments,
                                        Collection<StaticSegment<JournalKey, V>> compactedSegments)
     {
+        // As of this writing compact in accord journal takes StaticSegments, writes them to a SSTable, and pushes to a table;
+        // it then stops managing those segments... for this reason compactedSegments is normally empty and none of the
+        // oldSegments are expected to be tracked anymore, so this index should remove the reference (there is normal table 2i to pick up the job)
         oldSegments.forEach(s -> segmentIndexes.remove(s.id()));
     }
 
