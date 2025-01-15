@@ -636,6 +636,7 @@ public class AccordJournal implements accord.api.Journal, RangeSearcher.Supplier
         void onCompact(Collection<StaticSegment<JournalKey, V>> oldSegments,
                        Collection<StaticSegment<JournalKey, V>> compactedSegments);
     }
+
     public static class Listeners<V>
     {
         private final List<Listener<V>> listeners = new CopyOnWriteArrayList<>();

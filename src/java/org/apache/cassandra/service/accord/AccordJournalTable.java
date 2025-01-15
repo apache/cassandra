@@ -289,6 +289,12 @@ public class AccordJournalTable<K extends JournalKey, V> implements RangeSearche
         return merge(inMemory, table);
     }
 
+    /**
+     * When using {@link PartitionRangeReadCommand} we need to work with {@link RowFilter} which works with columns.
+     * But the index doesn't care about table based queries and needs to be queried using the fields in the index, to
+     * support that this enum exists.  This enum represents the fields present in the index and can be used to apply
+     * filters to the index.
+     */
     public enum SyntheticColumn
     {
         participants("participants", BytesType.instance),
