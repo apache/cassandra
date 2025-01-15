@@ -289,26 +289,6 @@ public class AccordJournalTable<K extends JournalKey, V> implements RangeSearche
         return merge(inMemory, table);
     }
 
-    /**
-     * When using {@link PartitionRangeReadCommand} we need to work with {@link RowFilter} which works with columns.
-     * But the index doesn't care about table based queries and needs to be queried using the fields in the index, to
-     * support that this enum exists.  This enum represents the fields present in the index and can be used to apply
-     * filters to the index.
-     */
-    public enum SyntheticColumn
-    {
-        participants("participants", BytesType.instance),
-        store_id("store_id", Int32Type.instance),
-        txn_id("txn_id", AccordKeyspace.TIMESTAMP_TYPE);
-
-        public final ColumnMetadata metadata;
-
-        SyntheticColumn(String name, AbstractType<?> type)
-        {
-            this.metadata = new ColumnMetadata("journal", "routes", new ColumnIdentifier(name, false), type, ColumnMetadata.NO_POSITION, ColumnMetadata.Kind.REGULAR, null);
-        }
-    }
-
     private CloseableIterator<Entry> tableSearch(int store, AccordRoutingKey start, AccordRoutingKey end)
     {
         RowFilter rowFilter = RowFilter.create(false);
@@ -325,36 +305,7 @@ public class AccordJournalTable<K extends JournalKey, V> implements RangeSearche
                                                                          rowFilter,
                                                                          DataLimits.NONE,
                                                                          DataRange.allData(cfs.getPartitioner()));
-        Index.Searcher s = tableIndex.searcherFor(cmd);
-        try (ReadExecutionController controller = cmd.executionController())
-        {
-            UnfilteredPartitionIterator partitionIterator = s.search(controller);
-            return new CloseableIterator<Entry>()
-            {
-                private final Entry entry = new Entry();
-                @Override
-                public void close()
-                {
-                    partitionIterator.close();
-                }
-
-                @Override
-                public boolean hasNext()
-                {
-                    return partitionIterator.hasNext();
-                }
-
-                @Override
-                public Entry next()
-                {
-                    UnfilteredRowIterator next = partitionIterator.next();
-                    JournalKey partitionKeyComponents = AccordKeyspace.JournalColumns.getJournalKey(next.partitionKey());
-                    entry.store_id = partitionKeyComponents.commandStoreId;
-                    entry.txnId = partitionKeyComponents.id;
-                    return entry;
-                }
-            };
-        }
+        return process(cmd);
     }
 
     private CloseableIterator<Entry> search(int store, AccordRoutingKey key)
@@ -380,6 +331,11 @@ public class AccordJournalTable<K extends JournalKey, V> implements RangeSearche
                                                                          rowFilter,
                                                                          DataLimits.NONE,
                                                                          DataRange.allData(cfs.getPartitioner()));
+        return process(cmd);
+    }
+
+    private CloseableIterator<Entry> process(PartitionRangeReadCommand cmd)
+    {
         Index.Searcher s = tableIndex.searcherFor(cmd);
         try (ReadExecutionController controller = cmd.executionController())
         {
@@ -387,6 +343,7 @@ public class AccordJournalTable<K extends JournalKey, V> implements RangeSearche
             return new CloseableIterator<Entry>()
             {
                 private final Entry entry = new Entry();
+
                 @Override
                 public void close()
                 {
@@ -470,6 +427,26 @@ public class AccordJournalTable<K extends JournalKey, V> implements RangeSearche
                 return first;
             }
         });
+    }
+
+    /**
+     * When using {@link PartitionRangeReadCommand} we need to work with {@link RowFilter} which works with columns.
+     * But the index doesn't care about table based queries and needs to be queried using the fields in the index, to
+     * support that this enum exists.  This enum represents the fields present in the index and can be used to apply
+     * filters to the index.
+     */
+    public enum SyntheticColumn
+    {
+        participants("participants", BytesType.instance),
+        store_id("store_id", Int32Type.instance),
+        txn_id("txn_id", AccordKeyspace.TIMESTAMP_TYPE);
+
+        public final ColumnMetadata metadata;
+
+        SyntheticColumn(String name, AbstractType<?> type)
+        {
+            this.metadata = new ColumnMetadata("journal", "routes", new ColumnIdentifier(name, false), type, ColumnMetadata.NO_POSITION, ColumnMetadata.Kind.REGULAR, null);
+        }
     }
 
     private static final class Entry
