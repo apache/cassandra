@@ -18,8 +18,10 @@
 
 package org.apache.cassandra.distributed.upgrade;
 
+import java.time.Duration;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 
 import com.google.common.util.concurrent.Uninterruptibles;
@@ -36,6 +38,7 @@ import org.apache.cassandra.harry.execution.InJvmDTestVisitExecutor;
 import org.apache.cassandra.harry.gen.Generator;
 import org.apache.cassandra.harry.gen.Generators;
 import org.apache.cassandra.schema.SchemaConstants;
+import org.apache.cassandra.utils.concurrent.UncheckedInterruptedException;
 
 import static java.util.Arrays.asList;
 import static org.apache.cassandra.concurrent.ExecutorFactory.Global.executorFactory;
@@ -56,7 +59,28 @@ public class ClusterMetadataUpgradeHarryTest extends UpgradeTestBase
     public void simpleUpgradeTest() throws Throwable
     {
         AtomicReference<Interruptible> executor = new AtomicReference<>();
+        AtomicLong loops = new AtomicLong(0);
         Listener listener = new Listener();
+        Runnable awaitHarryProgress = () -> {
+            long startingLoopCount = loops.get();
+            long deadline = startingLoopCount + 100;
+            long nowNanos = System.nanoTime();
+            boolean matched = false;
+            for (int i = 0; i < 20 && !(matched = loops.get() >= deadline); i++)
+            {
+                try
+                {
+                    TimeUnit.MILLISECONDS.sleep(500);
+                }
+                catch (InterruptedException e)
+                {
+                    Thread.currentThread().interrupt();
+                    throw new UncheckedInterruptedException(e);
+                }
+            }
+            if (!matched)
+                throw new AssertionError("Harry did not make enough progress within " + Duration.ofNanos(System.nanoTime() - nowNanos) + "; starting loops " + startingLoopCount + ", ending loops " + loops.get());
+        };
         withRandom(rng -> {
             new TestCase()
             .nodes(3)
@@ -73,6 +97,8 @@ public class ClusterMetadataUpgradeHarryTest extends UpgradeTestBase
                                                    asList(ck("ck1", asciiType, false), ck("ck2", int64Type, false)),
                                                    asList(regularColumn("regular1", asciiType), regularColumn("regular2", int64Type)),
                                                    asList(staticColumn("static1", asciiType), staticColumn("static2", int64Type)));
+                cluster.schemaChange(String.format("CREATE KEYSPACE IF NOT EXISTS %s WITH replication = {'class': 'SimpleStrategy', 'replication_factor': %d};", schema.keyspace, 3));
+                cluster.schemaChange(schema.compile());
 
                 HistoryBuilder history = new ReplayingHistoryBuilder(schema.valueGenerators,
                                                                      hb -> InJvmDTestVisitExecutor.builder()
@@ -81,7 +107,7 @@ public class ClusterMetadataUpgradeHarryTest extends UpgradeTestBase
                                                                                                       while (true)
                                                                                                       {
                                                                                                           int node = rng.nextInt(0, cluster.size()) + 1;
-                                                                                                          if (cluster.get(node).isShutdown())
+                                                                                                          if (listener.isDown(node))
                                                                                                               continue;
                                                                                                           return node;
                                                                                                       }
@@ -95,12 +121,13 @@ public class ClusterMetadataUpgradeHarryTest extends UpgradeTestBase
                                                             () -> {
                                                                 history.insert(pkIdxGen.generate(rng));
                                                                 history.selectPartition(pkIdxGen.generate(rng));
+                                                                loops.incrementAndGet();
                                                             }, UNSAFE));
 
-                Uninterruptibles.sleepUninterruptibly(10, TimeUnit.SECONDS);
+                awaitHarryProgress.run();
             })
             .runAfterNodeUpgrade((cluster, node) -> {
-                Uninterruptibles.sleepUninterruptibly(10, TimeUnit.SECONDS); // make sure harry executes in mixed mode
+                awaitHarryProgress.run();
             })
             .runAfterClusterUpgrade((cluster) -> {
 
@@ -134,6 +161,11 @@ public class ClusterMetadataUpgradeHarryTest extends UpgradeTestBase
         public void startup(int i)
         {
             downNode.set(0);
+        }
+
+        public boolean isDown(int i)
+        {
+            return downNode.get() == i;
         }
     }
 }
