@@ -287,14 +287,14 @@ public class AccordJournal implements accord.api.Journal, Shutdownable
     @Override
     public Iterator<TopologyUpdate> replayTopologies()
     {
-        AccordJournalValueSerializers.MapAccumulator<Long, TopologyUpdate> accumulator = readAll(new JournalKey(TxnId.NONE, JournalKey.Type.TOPOLOGY_UPDATE, -1), false);
+        AccordJournalValueSerializers.MapAccumulator<Long, TopologyUpdate> accumulator = readAll(new JournalKey(TxnId.NONE, JournalKey.Type.TOPOLOGY_UPDATE, 0), false);
         return accumulator.get().values().iterator();
     }
 
     @Override
     public void saveTopology(TopologyUpdate topologyUpdate, Runnable onFlush)
     {
-        RecordPointer pointer = appendInternal(new JournalKey(TxnId.NONE, JournalKey.Type.TOPOLOGY_UPDATE, -1), topologyUpdate);
+        RecordPointer pointer = appendInternal(new JournalKey(TxnId.NONE, JournalKey.Type.TOPOLOGY_UPDATE, 0), topologyUpdate);
         if (onFlush != null)
             journal.onDurable(pointer, onFlush);
     }
