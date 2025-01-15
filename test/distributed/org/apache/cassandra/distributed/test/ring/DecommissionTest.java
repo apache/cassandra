@@ -22,9 +22,12 @@ import java.io.IOException;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.concurrent.Callable;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import javax.annotation.Nullable;
 
+import com.google.common.util.concurrent.Uninterruptibles;
 import org.junit.Test;
 
 import net.bytebuddy.ByteBuddy;
@@ -37,9 +40,12 @@ import org.apache.cassandra.distributed.api.ConsistencyLevel;
 import org.apache.cassandra.distributed.api.NodeToolResult;
 import org.apache.cassandra.distributed.shared.ClusterUtils;
 import org.apache.cassandra.distributed.test.TestBaseImpl;
+import org.apache.cassandra.gms.Gossiper;
+import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.streaming.StreamSession;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.ClusterMetadataService;
+import org.apache.cassandra.tcm.membership.NodeId;
 import org.apache.cassandra.tcm.membership.NodeVersion;
 import org.apache.cassandra.tcm.serialization.Version;
 import org.apache.cassandra.tcm.transformations.Startup;
@@ -91,6 +97,56 @@ public class DecommissionTest extends TestBaseImpl
                 throw new RuntimeException("Triggering streaming error");
             }
             zuper.call();
+        }
+    }
+
+    @Test
+    public void testAbortDecom() throws IOException
+    {
+        try (Cluster cluster = builder().withNodes(3)
+                                        .withConfig(config -> config.with(NETWORK, GOSSIP))
+                                        .withInstanceInitializer(BB::install)
+                                        .start())
+        {
+            populate(cluster, 0, 100, 1, 2, ConsistencyLevel.QUORUM);
+            cluster.get(2).nodetoolResult("decommission", "--force").asserts().failure();
+            cluster.get(2).nodetoolResult("abortdecommission").asserts().success();
+            cluster.get(2).runOnInstance(() -> {
+                assertEquals(StorageService.Mode.NORMAL, StorageService.instance.operationMode());
+                assertTrue(ClusterMetadata.current().inProgressSequences.isEmpty());
+            });
+            cluster.get(2).nodetoolResult("decommission", "--force").asserts().success();
+        }
+    }
+
+    @Test
+    public void testAbortDecomRemote() throws IOException, ExecutionException, InterruptedException
+    {
+        try (Cluster cluster = builder().withNodes(3)
+                                        .withConfig(config -> config.with(NETWORK, GOSSIP))
+                                        .withInstanceInitializer(BB::install)
+                                        .start())
+        {
+            populate(cluster, 0, 100, 1, 2, ConsistencyLevel.QUORUM);
+            int nodeId = cluster.get(2).callOnInstance(() -> {
+                return ClusterMetadata.current().myNodeId().id();
+            });
+            cluster.get(2).nodetoolResult("decommission", "--force").asserts().failure();
+            cluster.get(2).shutdown().get();
+            cluster.get(3).runOnInstance(() -> {
+                while (Gossiper.instance.isAlive(ClusterMetadata.current().directory.endpoint(new NodeId(nodeId))))
+                    Uninterruptibles.sleepUninterruptibly(1, TimeUnit.SECONDS);
+            });
+            cluster.get(3).nodetoolResult("abortdecommission", "--node", String.valueOf(nodeId)).asserts().success();
+            cluster.get(2).startup();
+            cluster.get(2).runOnInstance(() -> {
+                assertEquals(StorageService.Mode.NORMAL, StorageService.instance.operationMode());
+                assertTrue(ClusterMetadata.current().inProgressSequences.isEmpty());
+            });
+            cluster.get(2).runOnInstance(() -> {
+                BB.first.set(true);
+            });
+            cluster.get(2).nodetoolResult("decommission", "--force").asserts().success();
         }
     }
 

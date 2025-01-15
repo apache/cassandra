@@ -106,6 +106,7 @@ public class NodeTool
                 CompactionStats.class,
                 DataPaths.class,
                 Decommission.class,
+                Decommission.Abort.class,
                 DescribeCluster.class,
                 DescribeRing.class,
                 DisableAuditLog.class,
