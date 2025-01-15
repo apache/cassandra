@@ -140,6 +140,6 @@ public class AccordJournalTest
     private Gen<JournalKey> keyGen()
     {
         Gen<TxnId> txnIdGen = AccordGens.txnIds();
-        return rs -> new JournalKey(txnIdGen.next(rs), JournalKey.Type.COMMAND_DIFF, -1);
+        return rs -> new JournalKey(txnIdGen.next(rs), JournalKey.Type.COMMAND_DIFF, 0);
     }
 }

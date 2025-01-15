@@ -27,6 +27,7 @@ import org.slf4j.LoggerFactory;
 
 import accord.utils.Invariants;
 import org.apache.cassandra.db.ColumnFamilyStore;
+import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.SerializationHeader;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
 import org.apache.cassandra.db.partitions.PartitionUpdate.SimpleBuilder;
@@ -144,11 +145,25 @@ public class AccordSegmentCompactor<V> implements SegmentCompactor<JournalKey, V
         }
     }
 
+    private JournalKey prevKey;
+    private DecoratedKey prevDecoratedKey;
+
     private void maybeWritePartition(SSTableTxnWriter writer, JournalKey key, Object builder, FlyweightSerializer<Object, Object> serializer, long descriptor, int offset) throws IOException
     {
         if (builder != null)
         {
-            SimpleBuilder partitionBuilder = PartitionUpdate.simpleBuilder(cfs.metadata(), AccordKeyspace.JournalColumns.decorate(key));
+            DecoratedKey decoratedKey = AccordKeyspace.JournalColumns.decorate(key);
+
+            if (prevKey != null)
+            {
+                Invariants.checkArgument((decoratedKey.compareTo(prevDecoratedKey) >= 0 ? 1 : -1) == (JournalKey.SUPPORT.compare(key, prevKey) >= 0 ? 1 : -1),
+                                         String.format("Partition key and JournalKey didn't have matching order, which may imply a serialization issue.\n%s (%s)\n%s (%s)",
+                                                       key, decoratedKey, prevKey, prevDecoratedKey));
+            }
+            prevKey = key;
+            prevDecoratedKey = decoratedKey;
+
+            SimpleBuilder partitionBuilder = PartitionUpdate.simpleBuilder(cfs.metadata(), decoratedKey);
             try (DataOutputBuffer out = DataOutputBuffer.scratchBuffer.get())
             {
                 serializer.reserialize(key, builder, out, userVersion);
