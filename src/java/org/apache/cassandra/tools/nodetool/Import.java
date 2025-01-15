@@ -76,7 +76,7 @@ public class Import extends NodeToolCmd
     private boolean extendedVerify = false;
 
     @Option(title = "copy_data",
-            name = {"-p", "--copy-data"},
+            name = {"-cd", "--copy-data"},
             description = "Copy data from source directories instead of moving them")
     private boolean copyData = false;
 
