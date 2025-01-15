@@ -204,7 +204,7 @@ public class AccordConfigurationService extends AbstractConfigurationService<Acc
         }
     }
 
-    final ChangeListener listener = new MetadataChangeListener();
+    public final ChangeListener listener = new MetadataChangeListener();
     private class MetadataChangeListener implements ChangeListener
     {
         @Override

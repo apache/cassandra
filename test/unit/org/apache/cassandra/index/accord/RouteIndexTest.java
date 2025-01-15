@@ -208,7 +208,7 @@ public class RouteIndexTest extends CQLTester.InMemory
     {
         cfs().disableAutoCompaction(); // let the test control compaction
         //TODO (coverage): include with the ability to mark ranges as durable for compaction cleanup
-        stateful().withExamples(10).withSteps(500).check(commands(() -> State::new, Sut::new)
+        stateful().withSeed(3447709127031075174L).withExamples(10).withSteps(500).check(commands(() -> State::new, Sut::new)
                                           .destroyState(State::close)
                                           .destroySut(Sut::close)
                                           .addIf(State::mayFlush, CLOSE)
@@ -473,6 +473,8 @@ public class RouteIndexTest extends CQLTester.InMemory
             this.journalTable = Keyspace.open(ACCORD_KEYSPACE_NAME).getColumnFamilyStore(AccordKeyspace.JOURNAL);
 
             accordService = startAccord();
+            accordService.configurationService().listener.notifyPostCommit(null, ClusterMetadata.current(), false);
+            accordService.epochReady(ClusterMetadata.current().epoch).awaitUninterruptibly();
         }
 
         AccordService startAccord()
