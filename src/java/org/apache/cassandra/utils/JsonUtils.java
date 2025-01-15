@@ -21,6 +21,9 @@ package org.apache.cassandra.utils;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.time.Instant;
+import java.time.ZoneOffset;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -29,8 +32,8 @@ import com.fasterxml.jackson.core.JsonFactory;
 import com.fasterxml.jackson.core.util.BufferRecyclers;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.ObjectWriter;
-import com.fasterxml.jackson.databind.SerializationFeature;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
+import com.fasterxml.jackson.datatype.jsr310.ser.InstantSerializer;
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.util.FileInputStreamPlus;
 import org.apache.cassandra.io.util.FileOutputStreamPlus;
@@ -44,10 +47,20 @@ public final class JsonUtils
     public static final ObjectMapper JSON_OBJECT_MAPPER = new ObjectMapper(new JsonFactory()); // checkstyle: permit this instantiation
     public static final ObjectWriter JSON_OBJECT_PRETTY_WRITER;
 
+    private static class GlobalInstantSerializer extends InstantSerializer
+    {
+        private GlobalInstantSerializer()
+        {
+            super(InstantSerializer.INSTANCE,
+                  false,
+                  false,
+                  DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'").withZone(ZoneOffset.UTC));
+        }
+    }
+
     static
     {
-        JSON_OBJECT_MAPPER.registerModule(new JavaTimeModule());
-        JSON_OBJECT_MAPPER.disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
+        JSON_OBJECT_MAPPER.registerModule(new JavaTimeModule().addSerializer(Instant.class, new GlobalInstantSerializer()));
         JSON_OBJECT_PRETTY_WRITER = JSON_OBJECT_MAPPER.writerWithDefaultPrettyPrinter();
     }
 

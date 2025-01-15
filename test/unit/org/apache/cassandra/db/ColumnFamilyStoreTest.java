@@ -449,9 +449,8 @@ public class ColumnFamilyStoreTest
         long anotherWithIndexSize = listedSnapshots.get("snapshot2_with_index").computeSizeOnDiskBytes();
         long anotherWithIndexTrueSize = listedSnapshots.get("snapshot2_with_index").computeTrueSizeBytes();
 
-        // TODO CASSANDRA-20209
-        assertTrue(withIndexSize == anotherWithIndexSize || (withIndexSize + 4 == anotherWithIndexSize) || (withIndexSize - 4 == anotherWithIndexSize));
-        assertTrue(withIndexTrueSize == anotherWithIndexTrueSize || (withIndexTrueSize + 4 == anotherWithIndexTrueSize) || (withIndexTrueSize - 4 == anotherWithIndexTrueSize));
+        assertEquals(withIndexSize, anotherWithIndexSize);
+        assertEquals(withIndexTrueSize, anotherWithIndexTrueSize);
     }
 
     private void rebuildIndices(ColumnFamilyStore cfs)
