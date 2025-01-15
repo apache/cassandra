@@ -58,10 +58,10 @@ public class Move extends NodeToolCmd
         }
     }
 
-    @Command(name = "abortmove", description = "Abort a move operation for this or a remote node")
+    @Command(name = "abortmove", description = "Abort a failed move operation for this or a remote node")
     public static class Abort extends NodeToolCmd
     {
-        @Option(title = "Abort an ongoing move operation for the given nodeId, if omitted use the local node", name = "--node")
+        @Option(title = "node id", name = "--node")
         private String nodeId;
 
         @Override

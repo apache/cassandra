@@ -21,6 +21,8 @@ package org.apache.cassandra.tcm.sequences;
 import java.util.Collections;
 import java.util.EnumSet;
 
+import javax.annotation.Nullable;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -38,6 +40,7 @@ import org.apache.cassandra.tcm.transformations.PrepareLeave;
 import org.apache.cassandra.tcm.transformations.PrepareMove;
 
 import static org.apache.cassandra.service.StorageService.Mode.LEAVING;
+import static org.apache.cassandra.service.StorageService.Mode.MOVE_FAILED;
 import static org.apache.cassandra.service.StorageService.Mode.NORMAL;
 import static org.apache.cassandra.service.StorageService.Mode.DECOMMISSION_FAILED;
 import static org.apache.cassandra.utils.FBUtilities.getBroadcastAddressAndPort;
@@ -96,6 +99,11 @@ public interface SingleNodeSequences
             StorageService.instance.shutdownNetworking();
     }
 
+    static void abortDecommission(String nodeId)
+    {
+        abortHelper(nodeId, MultiStepOperation.Kind.LEAVE, DECOMMISSION_FAILED);
+    }
+
     /**
      * Entrypoint to begin node removal process
      *
@@ -132,6 +140,11 @@ public interface SingleNodeSequences
                                                                   ClusterMetadataService.instance().placementProvider(),
                                                                   LeaveStreams.Kind.REMOVENODE));
         InProgressSequences.finishInProgressSequences(toRemove);
+    }
+
+    static void abortRemoveNode(String nodeId)
+    {
+        abortHelper(nodeId, MultiStepOperation.Kind.REMOVE, null);
     }
 
     /**
@@ -184,7 +197,7 @@ public interface SingleNodeSequences
             logger.info(msg);
             throw new IllegalStateException(msg);
         }
-        if (StorageService.instance.operationMode() != StorageService.Mode.MOVE_FAILED)
+        if (StorageService.instance.operationMode() != MOVE_FAILED)
         {
             String msg = "Can't resume a move operation unless it has failed";
             logger.info(msg);
@@ -196,23 +209,34 @@ public interface SingleNodeSequences
 
     static void abortMove(String nodeId)
     {
+        abortHelper(nodeId, MultiStepOperation.Kind.MOVE, MOVE_FAILED);
+    }
+
+    /**
+     *
+     * @param nodeId node id to abort the MSO for, null for local node
+     * @param kind the expected kind of the multi step operation to abolt
+     * @param ssMode the legacy mode we want storage service to be in, null for any
+     */
+    private static void abortHelper(@Nullable String nodeId, MultiStepOperation.Kind kind, @Nullable StorageService.Mode ssMode)
+    {
         if (ClusterMetadataService.instance().isMigrating() || ClusterMetadataService.state() == ClusterMetadataService.State.GOSSIP)
-            throw new IllegalStateException("This cluster is migrating to cluster metadata, can't move until that is done.");
+            throw new IllegalStateException(String.format("This cluster is migrating to cluster metadata, can't abort %s until that is done.", kind));
 
         ClusterMetadata metadata = ClusterMetadata.current();
         NodeId toAbort = nodeId == null ? metadata.myNodeId() : NodeId.fromString(nodeId);
         MultiStepOperation<?> sequence = metadata.inProgressSequences.get(toAbort);
-        if (sequence == null || sequence.kind() != MultiStepOperation.Kind.MOVE)
+        if (sequence == null || sequence.kind() != kind)
         {
-            String msg = String.format("No move operation in progress for %s, can't abort", toAbort);
+            String msg = String.format("No %s operation in progress for %s, can't abort", kind, toAbort);
             logger.info(msg);
             throw new IllegalStateException(msg);
         }
         if (toAbort.equals(metadata.myNodeId()))
         {
-            if (StorageService.instance.operationMode() != StorageService.Mode.MOVE_FAILED)
+            if (ssMode != null && StorageService.instance.operationMode() != ssMode)
             {
-                String msg = "Can't abort a move operation unless it has failed";
+                String msg = String.format("Can't abort a %s operation unless it has failed", kind);
                 logger.info(msg);
                 throw new IllegalStateException(msg);
             }
@@ -220,8 +244,8 @@ public interface SingleNodeSequences
         }
         else if (Gossiper.instance.isAlive(metadata.directory.endpoint(toAbort)))
         {
-            String msg = String.format("Can't abort a move operation for a node %s (%s) that is UP - run abortmove on that instance",
-                                       toAbort, metadata.directory.endpoint(toAbort));
+            String msg = String.format("Can't abort a %s operation for a node %s (%s) that is UP - run abortdecommission on that instance",
+                                       kind, toAbort, metadata.directory.endpoint(toAbort));
             logger.info(msg);
             throw new IllegalStateException(msg);
         }

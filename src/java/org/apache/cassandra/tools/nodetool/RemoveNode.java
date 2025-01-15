@@ -52,11 +52,12 @@ public class RemoveNode extends NodeToolCmd
     @Command(name = "abortremovenode", description = "Abort a removenode command")
     public static class Abort extends NodeToolCmd
     {
-        @Option(title = "node id", name="--node", description = "The node being removed", required = true)
+        @Option(title = "node id", name="--node", description = "The node being removed")
         private String nodeId;
+
         public void execute(NodeProbe probe)
         {
-            probe.getCMSOperationsProxy().cancelInProgressSequences(nodeId, "REMOVE");
+            probe.abortRemoveNode(nodeId);
         }
     }
 }

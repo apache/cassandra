@@ -1023,6 +1023,11 @@ public class NodeProbe implements AutoCloseable
         ssProxy.decommission(force);
     }
 
+    public void abortDecommission(String nodeId)
+    {
+        ssProxy.abortDecommission(nodeId);
+    }
+
     public void move(String newToken) throws IOException
     {
         ssProxy.move(newToken);
@@ -1046,6 +1051,11 @@ public class NodeProbe implements AutoCloseable
     public void removeNode(String token, boolean force)
     {
         ssProxy.removeNode(token, force);
+    }
+
+    public void abortRemoveNode(String nodeId)
+    {
+        ssProxy.abortRemoveNode(nodeId);
     }
 
     public String getRemovalStatus(boolean withPort)
