@@ -23,6 +23,7 @@ import java.io.IOException;
 import java.io.RandomAccessFile;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -32,8 +33,8 @@ import java.util.Set;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
 import org.apache.commons.lang3.StringUtils;
-import org.junit.After;
 import org.junit.Assert;
+import org.junit.BeforeClass;
 import org.junit.Test;
 
 import org.apache.cassandra.cache.RowCacheKey;
@@ -47,16 +48,28 @@ import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.TokenMetadata;
 import org.apache.cassandra.service.CacheService;
 import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.tools.ToolRunner;
 import org.apache.cassandra.utils.FBUtilities;
 
+import static org.assertj.core.api.AssertionsForClassTypes.assertThat;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotEquals;
 import static org.junit.Assert.assertTrue;
 
+/**
+ * @see org.apache.cassandra.tools.nodetool.Import
+ */
 public class ImportTest extends CQLTester
 {
-    @After
-    public void afterTest()
+    @BeforeClass
+    public static void setupClass() throws Throwable
+    {
+        startJMXServer();
+    }
+
+    @Override
+    public void afterTest() throws Throwable
     {
         SSTableReader.resetTidying();
     }
@@ -78,7 +91,7 @@ public class ImportTest extends CQLTester
         // copy is true - so importing will be done by copying
         importSSTables(SSTableImporter.Options.options(backupDir.toString()).copyData(true).build(), 10);
         // files are left there as they were just copied
-        Assert.assertNotEquals(0, countFiles(backupDir));
+        assertNotEquals(0, countFiles(backupDir));
     }
 
     private File prepareBasicImporting() throws Throwable
@@ -347,9 +360,9 @@ public class ImportTest extends CQLTester
         // then we moved out 1 sstable, a correct one (in backupdirCorrect).
         // now import should fail import on backupdir, but import the one in backupdirCorrect.
         SSTableImporter.Options options = SSTableImporter.Options.options(Sets.newHashSet(backupdir.toString(), backupdirCorrect.toString())).copyData(copy).verifySSTables(verify).build();
-        SSTableImporter importer = new SSTableImporter(getCurrentColumnFamilyStore());
-        List<String> failedDirectories = importer.importNewSSTables(options);
-        assertEquals(Collections.singletonList(backupdir.toString()), failedDirectories);
+        ToolRunner.ToolResult result = assertImportFailed(getCurrentColumnFamilyStore(), options);
+        assertThat(result.getStderr()).contains("Some directories failed to import, check server logs for details:");
+        assertThat(result.getStderr()).contains(backupdir.toString());
         UntypedResultSet res = execute("SELECT * FROM %s");
         for (UntypedResultSet.Row r : res)
         {
@@ -707,7 +720,7 @@ public class ImportTest extends CQLTester
                 assertEquals(10, execute(String.format("select * from %s.%s", KEYSPACE, table)).size());
 
                 // files are left there as they were just copied
-                Assert.assertNotEquals(0, countFiles(backupDir));
+                assertNotEquals(0, countFiles(backupDir));
             }
             finally
             {
@@ -751,12 +764,45 @@ public class ImportTest extends CQLTester
             assertEquals(10, execute(String.format("select * from %s.%s", KEYSPACE, table)).size());
 
             // files are left there as they were just copied
-            Assert.assertNotEquals(0, countFiles(backupDir));
+            assertNotEquals(0, countFiles(backupDir));
         }
         finally
         {
             execute(String.format("DROP TABLE IF EXISTS %s.%s", KEYSPACE, table));
         }
+    }
+
+    private static ToolRunner.ToolResult assertImportFailed(ColumnFamilyStore cfs, SSTableImporter.Options options)
+    {
+        ToolRunner.ToolResult result = doImportWithNodetool(cfs, options);
+        assertNotEquals(0, result.getExitCode());
+        return result;
+    }
+
+    private static ToolRunner.ToolResult doImportWithNodetool(ColumnFamilyStore cfs, SSTableImporter.Options options)
+    {
+        List<String> args = new ArrayList<>();
+        args.add("import");
+        if (!options.resetLevel)
+            args.add("--keep-level");
+        if (!options.clearRepaired)
+            args.add("--keep-repaired");
+        if (!options.verifySSTables)
+            args.add("--no-verify");
+        if (!options.verifyTokens)
+            args.add("--no-tokens");
+        if (!options.invalidateCaches)
+            args.add("--no-invalidate-caches");
+        if (options.extendedVerify)
+            args.add("--extended-verify");
+        if (options.copyData)
+            args.add("-cd");
+
+        args.add(cfs.keyspace.getName());
+        args.add(cfs.getTableName());
+        args.addAll(options.srcPaths);
+
+        return  ToolRunner.invokeNodetool(args.toArray(new String[0]));
     }
 
     private static class MockCFS extends ColumnFamilyStore
