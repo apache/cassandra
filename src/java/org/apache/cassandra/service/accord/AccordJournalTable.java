@@ -244,7 +244,7 @@ public class AccordJournalTable<K extends JournalKey, V> implements RangeSearche
         onEntry.accept(descriptor, position, into.key, into.value, into.hosts, into.userVersion);
     }
 
-    enum ReadAllIntent { Reply, CheckAll }
+    enum ReadAllIntent { Reply }
 
     @SuppressWarnings("resource") // Auto-closeable iterator will release related resources
     public KeyOrderIterator<K> readAll(ReadAllIntent intent)
