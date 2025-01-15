@@ -1,4 +1,5 @@
 5.1
+ * Make it possible to abort all kinds of multi step operations (CASSANDRA-20217)
  * Do not leak non-Java exceptions when calling snapshot operations via JMX (CASSANDRA-20335)
  * Implement NOT_NULL constraint (CASSANDRA-20276)
  * Improve error messages for constraints (CASSANDRA-20266)

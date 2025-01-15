@@ -36,9 +36,6 @@ public class Move extends NodeToolCmd
     @Option(title = "Resume an ongoing move operation", name = "--resume")
     private boolean resume;
 
-    @Option(title = "Abort an ongoing move operation", name = "--abort")
-    private boolean abort;
-
     @Override
     public void execute(NodeProbe probe)
     {
@@ -46,26 +43,31 @@ public class Move extends NodeToolCmd
         {
             if (!newToken.isEmpty())
             {
-                if (resume || abort)
-                    throw new IllegalArgumentException("Can't give both a token and --resume/--abort");
-
                 probe.move(newToken);
             }
             else
             {
-                if (abort && resume)
-                    throw new IllegalArgumentException("Can't both resume and abort");
-
                 if (resume)
                     probe.resumeMove();
-                else if (abort)
-                    probe.abortMove();
                 else
                     throw new IllegalArgumentException("Need to give either a token for a new move operation, or --resume/--abort for an existing one");
             }
         } catch (IOException e)
         {
             throw new RuntimeException("Error during moving node", e);
+        }
+    }
+
+    @Command(name = "abortmove", description = "Abort a failed move operation for this or a remote node")
+    public static class Abort extends NodeToolCmd
+    {
+        @Option(title = "node id", name = "--node")
+        private String nodeId;
+
+        @Override
+        public void execute(NodeProbe probe)
+        {
+            probe.abortMove(nodeId);
         }
     }
 }

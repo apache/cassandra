@@ -20,8 +20,11 @@ package org.apache.cassandra.distributed.test;
 
 import java.io.IOException;
 import java.util.concurrent.Callable;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
+import com.google.common.util.concurrent.Uninterruptibles;
 import org.junit.Test;
 
 import net.bytebuddy.ByteBuddy;
@@ -32,6 +35,7 @@ import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
 import org.apache.cassandra.distributed.api.Feature;
 import org.apache.cassandra.distributed.api.IInvokableInstance;
+import org.apache.cassandra.gms.Gossiper;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.streaming.StreamPlan;
 import org.apache.cassandra.streaming.StreamResultFuture;
@@ -41,6 +45,7 @@ import org.apache.cassandra.tcm.membership.NodeId;
 import static net.bytebuddy.matcher.ElementMatchers.named;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotEquals;
+import static org.junit.Assert.assertTrue;
 
 public class FailingMoveTest extends TestBaseImpl
 {
@@ -94,9 +99,46 @@ public class FailingMoveTest extends TestBaseImpl
                 BB.shouldFail.set(false);
             });
 
-            cluster.get(3).nodetoolResult("move", "--abort").asserts().success();
+            cluster.get(3).nodetoolResult("abortmove").asserts().success();
             cluster.get(3).runOnInstance(() -> assertEquals(StorageService.Mode.NORMAL, StorageService.instance.operationMode()));
             assertNotEquals(moveToToken, getToken(cluster.get(3)));
+        }
+    }
+
+    @Test
+    public void testAbortMoveRemote() throws IOException, ExecutionException, InterruptedException
+    {
+        try (Cluster cluster = init(Cluster.build(3)
+                                           .withoutVNodes()
+                                           .withConfig(c -> c.with(Feature.GOSSIP, Feature.NETWORK))
+                                           .withInstanceInitializer(BB::install)
+                                           .start()))
+        {
+            cluster.schemaChange(withKeyspace("CREATE TABLE %s.tbl(id int primary key);"));
+            for (int i=0; i<30; i++)
+                cluster.coordinator(1).execute(withKeyspace("INSERT INTO %s.tbl (id) VALUES (?)"),
+                                               ConsistencyLevel.ALL, i);
+            String oldToken = getToken(cluster.get(3));
+            String moveToToken = "2305843009213693949";
+            assertNotEquals(oldToken, moveToToken);
+            cluster.get(3).nodetoolResult("move", moveToToken).asserts().failure();
+            int nodeId = cluster.get(3).callOnInstance(() -> {
+                assertEquals(StorageService.Mode.MOVE_FAILED, StorageService.instance.operationMode());
+                BB.shouldFail.set(false);
+                return ClusterMetadata.current().myNodeId().id();
+            });
+            cluster.get(3).shutdown().get();
+            cluster.get(2).runOnInstance(() -> {
+                while (Gossiper.instance.isAlive(ClusterMetadata.current().directory.endpoint(new NodeId(nodeId))))
+                    Uninterruptibles.sleepUninterruptibly(1, TimeUnit.SECONDS);
+            });
+            cluster.get(2).nodetoolResult("abortmove", "--node", String.valueOf(nodeId)).asserts().success();
+            cluster.get(3).startup();
+            assertNotEquals(moveToToken, getToken(cluster.get(3)));
+            cluster.get(3).runOnInstance(() -> {
+                assertEquals(StorageService.Mode.NORMAL, StorageService.instance.operationMode());
+                assertTrue(ClusterMetadata.current().inProgressSequences.isEmpty());
+            });
         }
     }
 

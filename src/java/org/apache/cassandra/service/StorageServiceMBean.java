@@ -523,7 +523,7 @@ public interface StorageServiceMBean extends NotificationEmitter
      * @param force Decommission even if this will reduce N to be less than RF.
      */
     public void decommission(boolean force) throws InterruptedException;
-
+    public void abortDecommission(String nodeId);
     /**
      * Returns whether a node has failed to decommission.
      *
@@ -547,7 +547,7 @@ public interface StorageServiceMBean extends NotificationEmitter
      */
     public void move(String newToken) throws IOException;
     public void resumeMove();
-    public void abortMove();
+    public void abortMove(String nodeId);
 
     /**
      * removeToken removes token (and all data associated with
@@ -555,6 +555,7 @@ public interface StorageServiceMBean extends NotificationEmitter
      */
     public void removeNode(String token);
     public void removeNode(String token, boolean force);
+    public void abortRemoveNode(String nodeId);
 
     public void assassinateEndpoint(String addr);
 

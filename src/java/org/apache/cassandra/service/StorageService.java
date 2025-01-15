@@ -3381,6 +3381,11 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         SingleNodeSequences.decommission(true, force);
     }
 
+    public void abortDecommission(String nodeId)
+    {
+        SingleNodeSequences.abortDecommission(nodeId);
+    }
+
     public void shutdownNetworking()
     {
         shutdownClientServers();
@@ -3461,9 +3466,9 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     }
 
     @Override
-    public void abortMove()
+    public void abortMove(String nodeId)
     {
-        SingleNodeSequences.abortMove();
+        SingleNodeSequences.abortMove(nodeId);
     }
 
     public String getRemovalStatus()
@@ -3531,6 +3536,11 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     {
         NodeId toRemove = NodeId.fromString(hostIdString);
         SingleNodeSequences.removeNode(toRemove, force);
+    }
+
+    public void abortRemoveNode(String nodeId)
+    {
+        SingleNodeSequences.abortRemoveNode(nodeId);
     }
 
     public void assassinateEndpoint(String address)
