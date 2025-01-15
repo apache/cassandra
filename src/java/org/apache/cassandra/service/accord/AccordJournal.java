@@ -351,7 +351,7 @@ public class AccordJournal implements accord.api.Journal, Shutdownable
     {
         JournalKey key = new JournalKey(txnId, JournalKey.Type.COMMAND_DIFF, commandStoreId);
         Builder builder = new Builder(txnId, load);
-        journalTable.readAll(key, builder::deserializeNext, true);
+        journalTable.readAll(key, builder::deserializeNext, false);
         return builder;
     }
 
