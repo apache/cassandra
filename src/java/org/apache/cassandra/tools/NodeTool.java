@@ -188,6 +188,7 @@ public class NodeTool
                 ReloadTriggers.class,
                 RelocateSSTables.class,
                 RemoveNode.class,
+                RemoveNode.Abort.class,
                 Repair.class,
                 ReplayBatchlog.class,
                 ResetFullQueryLog.class,
