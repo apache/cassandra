@@ -33,7 +33,6 @@ import org.slf4j.LoggerFactory;
 import accord.primitives.Timestamp;
 import accord.primitives.TxnId;
 import accord.utils.Invariants;
-import org.agrona.collections.IntHashSet;
 import org.agrona.collections.LongHashSet;
 import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.cql3.Operator;
@@ -84,8 +83,6 @@ import static org.apache.cassandra.io.sstable.SSTableReadsListener.NOOP_LISTENER
 public class AccordJournalTable<K extends JournalKey, V> implements RangeSearcher.Supplier
 {
     private static final Logger logger = LoggerFactory.getLogger(AccordJournalTable.class);
-
-    private static final IntHashSet SENTINEL_HOSTS = new IntHashSet();
 
     private final Journal<K, V> journal;
     private final ColumnFamilyStore cfs;
@@ -166,7 +163,7 @@ public class AccordJournalTable<K extends JournalKey, V> implements RangeSearche
         }
 
         @Override
-        public void accept(long segment, int position, K key, ByteBuffer buffer, IntHashSet hosts, int userVersion)
+        public void accept(long segment, int position, K key, ByteBuffer buffer, int userVersion)
         {
             readBuffer(buffer, reader, userVersion);
         }
@@ -194,10 +191,10 @@ public class AccordJournalTable<K extends JournalKey, V> implements RangeSearche
         }
 
         @Override
-        public void accept(long segment, int position, K key, ByteBuffer buffer, IntHashSet hosts, int userVersion)
+        public void accept(long segment, int position, K key, ByteBuffer buffer, int userVersion)
         {
             visit(segment);
-            super.accept(segment, position, key, buffer, hosts, userVersion);
+            super.accept(segment, position, key, buffer, userVersion);
         }
     }
 
@@ -219,10 +216,10 @@ public class AccordJournalTable<K extends JournalKey, V> implements RangeSearche
         }
 
         @Override
-        public void accept(long segment, int position, K key, ByteBuffer buffer, IntHashSet hosts, int userVersion)
+        public void accept(long segment, int position, K key, ByteBuffer buffer, int userVersion)
         {
             if (!tableRecordConsumer.visited(segment))
-                super.accept(segment, position, key, buffer, hosts, userVersion);
+                super.accept(segment, position, key, buffer, userVersion);
         }
     }
 
@@ -383,10 +380,9 @@ public class AccordJournalTable<K extends JournalKey, V> implements RangeSearche
 
         into.key = key;
         into.value = row.getCell(recordColumn).buffer();
-        into.hosts = SENTINEL_HOSTS;
         into.userVersion = Int32Type.instance.compose(row.getCell(versionColumn).buffer());
 
-        onEntry.accept(descriptor, position, into.key, into.value, into.hosts, into.userVersion);
+        onEntry.accept(descriptor, position, into.key, into.value, into.userVersion);
     }
 
     @SuppressWarnings("resource") // Auto-closeable iterator will release related resources
@@ -434,9 +430,9 @@ public class AccordJournalTable<K extends JournalKey, V> implements RangeSearche
             {
                 EntryHolder<K> into = new EntryHolder<>();
                 // TODO: use flyweight to avoid allocating extra lambdas?
-                readRow(key, partition.next(), into, (segment, position, key1, buffer, hosts, userVersion) -> {
+                readRow(key, partition.next(), into, (segment, position, key1, buffer, userVersion) -> {
                     visit(segment);
-                    recordConsumer.accept(segment, position, key1, buffer, hosts, userVersion);
+                    recordConsumer.accept(segment, position, key1, buffer, userVersion);
                 });
             }
 
@@ -501,9 +497,9 @@ public class AccordJournalTable<K extends JournalKey, V> implements RangeSearche
             K tableKey = (K)tableIterator.key();
             K journalKey = staticSegmentIterator.key();
             if (journalKey != null && keySupport.compare(journalKey, key) == 0)
-                staticSegmentIterator.readAllForKey(key, (segment, position, key1, buffer, hosts, userVersion) -> {
+                staticSegmentIterator.readAllForKey(key, (segment, position, key1, buffer, userVersion) -> {
                     if (!tableIterator.visited(segment))
-                        reader.accept(segment, position, key1, buffer, hosts, userVersion);
+                        reader.accept(segment, position, key1, buffer, userVersion);
                 });
 
             if (tableKey != null && keySupport.compare(tableKey, key) == 0)
