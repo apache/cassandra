@@ -19,7 +19,6 @@ package org.apache.cassandra.journal;
 
 import java.io.IOException;
 import java.nio.file.Files;
-import java.util.Collections;
 
 import org.junit.BeforeClass;
 import org.junit.Test;
@@ -50,8 +49,7 @@ public class JournalTest
         directory.deleteRecursiveOnExit();
 
         Journal<TimeUUID, Long> journal =
-        new Journal<>("TestJournal", directory, TestParams.INSTANCE, TimeUUIDKeySupport.INSTANCE, LongSerializer.INSTANCE, SegmentCompactor.noop());
-
+            new Journal<>("TestJournal", directory, TestParams.INSTANCE, TimeUUIDKeySupport.INSTANCE, LongSerializer.INSTANCE, SegmentCompactor.noop());
 
         journal.start();
 
@@ -60,10 +58,10 @@ public class JournalTest
         TimeUUID id3 = nextTimeUUID();
         TimeUUID id4 = nextTimeUUID();
 
-        journal.blockingWrite(id1, 1L, Collections.singleton(1));
-        journal.blockingWrite(id2, 2L, Collections.singleton(1));
-        journal.blockingWrite(id3, 3L, Collections.singleton(1));
-        journal.blockingWrite(id4, 4L, Collections.singleton(1));
+        journal.blockingWrite(id1, 1L);
+        journal.blockingWrite(id2, 2L);
+        journal.blockingWrite(id3, 3L);
+        journal.blockingWrite(id4, 4L);
 
         assertEquals(1L, (long) journal.readLast(id1));
         assertEquals(2L, (long) journal.readLast(id2));

@@ -22,12 +22,12 @@ import java.nio.ByteBuffer;
 import java.nio.MappedByteBuffer;
 import java.nio.channels.FileChannel;
 import java.nio.file.StandardOpenOption;
-import java.util.*;
 import java.util.concurrent.atomic.AtomicIntegerFieldUpdater;
 import java.util.concurrent.atomic.AtomicLongFieldUpdater;
 import java.util.concurrent.locks.LockSupport;
 
 import com.codahale.metrics.Timer;
+import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.io.util.*;
 import org.apache.cassandra.utils.*;
 import org.apache.cassandra.utils.concurrent.OpOrder;
@@ -362,9 +362,9 @@ public final class ActiveSegment<K, V> extends Segment<K, V>
      */
 
     @SuppressWarnings({ "resource", "RedundantSuppression" }) // op group will be closed by Allocation#write()
-    Allocation allocate(int entrySize, Set<Integer> hosts)
+    Allocation allocate(int entrySize)
     {
-        int totalSize = totalEntrySize(hosts, entrySize);
+        int totalSize = totalEntrySize(entrySize);
         OpOrder.Group opGroup = appendOrder.start();
         try
         {
@@ -383,11 +383,12 @@ public final class ActiveSegment<K, V> extends Segment<K, V>
         }
     }
 
-    private int totalEntrySize(Set<Integer> hosts, int recordSize)
+    private int totalEntrySize(int recordSize)
     {
-        return EntrySerializer.fixedEntrySize(keySupport, descriptor.userVersion)
-             + EntrySerializer.variableEntrySize(hosts.size())
-               + recordSize;
+        return EntrySerializer.headerSize(keySupport, descriptor.userVersion)
+             + recordSize
+             + TypeSizes.INT_SIZE // CRC
+        ;
     }
 
     // allocate bytes in the segment, or return -1 if not enough space
@@ -437,12 +438,12 @@ public final class ActiveSegment<K, V> extends Segment<K, V>
             this.length = length;
         }
 
-        void write(K id, ByteBuffer record, Set<Integer> hosts)
+        void write(K id, ByteBuffer record)
         {
             try
             {
-                EntrySerializer.write(id, record, hosts, keySupport, buffer, descriptor.userVersion);
-                metadata.update(hosts);
+                EntrySerializer.write(id, record, keySupport, buffer, descriptor.userVersion);
+                metadata.update();
                 index.update(id, start, length);
             }
             catch (IOException e)
@@ -456,13 +457,13 @@ public final class ActiveSegment<K, V> extends Segment<K, V>
         }
 
         // Variant of write that does not allocate/return a record pointer
-        void writeInternal(K id, ByteBuffer record, Set<Integer> hosts)
+        void writeInternal(K id, ByteBuffer record)
         {
             try
             {
-                EntrySerializer.write(id, record, hosts, keySupport, buffer, descriptor.userVersion);
+                EntrySerializer.write(id, record, keySupport, buffer, descriptor.userVersion);
                 index.update(id, start, length);
-                metadata.update(hosts);
+                metadata.update();
             }
             catch (IOException e)
             {

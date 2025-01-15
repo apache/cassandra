@@ -20,7 +20,6 @@ package org.apache.cassandra.journal;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.file.Files;
-import java.util.*;
 
 import org.junit.Test;
 
@@ -51,18 +50,6 @@ public class SegmentTest
         ByteBuffer record3 = ByteBufferUtil.bytes("sample record 3");
         ByteBuffer record4 = ByteBufferUtil.bytes("sample record 4");
 
-        Random rng = new Random();
-
-        int host1 = rng.nextInt();
-        int host2 = rng.nextInt();
-        int host3 = rng.nextInt();
-        int host4 = rng.nextInt();
-
-        Set<Integer> hosts1 = set(host1);
-        Set<Integer> hosts2 = set(host1, host2);
-        Set<Integer> hosts3 = set(host1, host2, host3);
-        Set<Integer> hosts4 = set(host4);
-
         File directory = new File(Files.createTempDirectory(null));
         directory.deleteRecursiveOnExit();
 
@@ -70,32 +57,28 @@ public class SegmentTest
 
         ActiveSegment<TimeUUID, ByteBuffer> segment = ActiveSegment.create(descriptor, params(), TimeUUIDKeySupport.INSTANCE);
 
-        segment.allocate(record1.remaining(), hosts1).write(id1, record1, hosts1);
-        segment.allocate(record2.remaining(), hosts2).write(id2, record2, hosts2);
-        segment.allocate(record3.remaining(), hosts3).write(id3, record3, hosts3);
-        segment.allocate(record4.remaining(), hosts4).write(id4, record4, hosts4);
+        segment.allocate(record1.remaining()).write(id1, record1);
+        segment.allocate(record2.remaining()).write(id2, record2);
+        segment.allocate(record3.remaining()).write(id3, record3);
+        segment.allocate(record4.remaining()).write(id4, record4);
 
         // read all 4 entries by id and compare with originals
         EntrySerializer.EntryHolder<TimeUUID> holder = new EntrySerializer.EntryHolder<>();
 
         segment.readLast(id1, holder);
         assertEquals(id1, holder.key);
-        assertEquals(hosts1, holder.hosts);
         assertEquals(record1, holder.value);
 
         segment.readLast(id2, holder);
         assertEquals(id2, holder.key);
-        assertEquals(hosts2, holder.hosts);
         assertEquals(record2, holder.value);
 
         segment.readLast(id3, holder);
         assertEquals(id3, holder.key);
-        assertEquals(hosts3, holder.hosts);
         assertEquals(record3, holder.value);
 
         segment.readLast(id4, holder);
         assertEquals(id4, holder.key);
-        assertEquals(hosts4, holder.hosts);
         assertEquals(record4, holder.value);
     }
 
@@ -114,18 +97,6 @@ public class SegmentTest
         ByteBuffer record3 = ByteBufferUtil.bytes("sample record 3");
         ByteBuffer record4 = ByteBufferUtil.bytes("sample record 4");
 
-        Random rng = new Random();
-
-        int host1 = rng.nextInt();
-        int host2 = rng.nextInt();
-        int host3 = rng.nextInt();
-        int host4 = rng.nextInt();
-
-        Set<Integer> hosts1 = set(host1);
-        Set<Integer> hosts2 = set(host1, host2);
-        Set<Integer> hosts3 = set(host1, host2, host3);
-        Set<Integer> hosts4 = set(host4);
-
         File directory = new File(Files.createTempDirectory(null));
         directory.deleteRecursiveOnExit();
 
@@ -133,10 +104,10 @@ public class SegmentTest
 
         ActiveSegment<TimeUUID, ByteBuffer> activeSegment = ActiveSegment.create(descriptor, params(), TimeUUIDKeySupport.INSTANCE);
 
-        activeSegment.allocate(record1.remaining(), hosts1).write(id1, record1, hosts1);
-        activeSegment.allocate(record2.remaining(), hosts2).write(id2, record2, hosts2);
-        activeSegment.allocate(record3.remaining(), hosts3).write(id3, record3, hosts3);
-        activeSegment.allocate(record4.remaining(), hosts4).write(id4, record4, hosts4);
+        activeSegment.allocate(record1.remaining()).write(id1, record1);
+        activeSegment.allocate(record2.remaining()).write(id2, record2);
+        activeSegment.allocate(record3.remaining()).write(id3, record3);
+        activeSegment.allocate(record4.remaining()).write(id4, record4);
 
         activeSegment.close(null);
 
@@ -147,22 +118,18 @@ public class SegmentTest
 
         staticSegment.readLast(id1, holder);
         assertEquals(id1, holder.key);
-        assertEquals(hosts1, holder.hosts);
         assertEquals(record1, holder.value);
 
         staticSegment.readLast(id2, holder);
         assertEquals(id2, holder.key);
-        assertEquals(hosts2, holder.hosts);
         assertEquals(record2, holder.value);
 
         staticSegment.readLast(id3, holder);
         assertEquals(id3, holder.key);
-        assertEquals(hosts3, holder.hosts);
         assertEquals(record3, holder.value);
 
         staticSegment.readLast(id4, holder);
         assertEquals(id4, holder.key);
-        assertEquals(hosts4, holder.hosts);
         assertEquals(record4, holder.value);
     }
 
@@ -179,18 +146,6 @@ public class SegmentTest
         ByteBuffer record3 = ByteBufferUtil.bytes("sample record 3");
         ByteBuffer record4 = ByteBufferUtil.bytes("sample record 4");
 
-        Random rng = new Random();
-
-        int host1 = rng.nextInt();
-        int host2 = rng.nextInt();
-        int host3 = rng.nextInt();
-        int host4 = rng.nextInt();
-
-        Set<Integer> hosts1 = set(host1);
-        Set<Integer> hosts2 = set(host1, host2);
-        Set<Integer> hosts3 = set(host1, host2, host3);
-        Set<Integer> hosts4 = set(host4);
-
         File directory = new File(Files.createTempDirectory(null));
         directory.deleteRecursiveOnExit();
 
@@ -198,10 +153,10 @@ public class SegmentTest
 
         ActiveSegment<TimeUUID, ByteBuffer> activeSegment = ActiveSegment.create(descriptor, params(), TimeUUIDKeySupport.INSTANCE);
 
-        activeSegment.allocate(record1.remaining(), hosts1).write(id1, record1, hosts1);
-        activeSegment.allocate(record2.remaining(), hosts2).write(id2, record2, hosts2);
-        activeSegment.allocate(record3.remaining(), hosts3).write(id3, record3, hosts3);
-        activeSegment.allocate(record4.remaining(), hosts4).write(id4, record4, hosts4);
+        activeSegment.allocate(record1.remaining()).write(id1, record1);
+        activeSegment.allocate(record2.remaining()).write(id2, record2);
+        activeSegment.allocate(record3.remaining()).write(id3, record3);
+        activeSegment.allocate(record4.remaining()).write(id4, record4);
 
         Segment.Tidier tidier = (Segment.Tidier)activeSegment.selfRef().tidier();
         tidier.executor = ImmediateExecutor.INSTANCE;
@@ -215,30 +170,21 @@ public class SegmentTest
         // read all 4 entries sequentially and compare with originals
         assertTrue(reader.advance());
         assertEquals(id1, reader.key());
-        assertEquals(hosts1, reader.hosts());
         assertEquals(record1, reader.record());
 
         assertTrue(reader.advance());
         assertEquals(id2, reader.key());
-        assertEquals(hosts2, reader.hosts());
         assertEquals(record2, reader.record());
 
         assertTrue(reader.advance());
         assertEquals(id3, reader.key());
-        assertEquals(hosts3, reader.hosts());
         assertEquals(record3, reader.record());
 
         assertTrue(reader.advance());
         assertEquals(id4, reader.key());
-        assertEquals(hosts4, reader.hosts());
         assertEquals(record4, reader.record());
 
         assertFalse(reader.advance());
-    }
-
-    private static Set<Integer> set(Integer... ids)
-    {
-        return new HashSet<>(Arrays.asList(ids));
     }
 
     private static Params params()

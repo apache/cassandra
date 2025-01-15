@@ -19,10 +19,8 @@ package org.apache.cassandra.journal;
 
 import java.nio.ByteBuffer;
 
-import org.agrona.collections.IntHashSet;
-
 @FunctionalInterface
 public interface RecordConsumer<K>
 {
-    void accept(long segment, int position, K key, ByteBuffer buffer, IntHashSet hosts, int userVersion);
+    void accept(long segment, int position, K key, ByteBuffer buffer, int userVersion);
 }

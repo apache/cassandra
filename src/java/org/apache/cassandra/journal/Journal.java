@@ -25,7 +25,6 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.PriorityQueue;
-import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
@@ -74,9 +73,7 @@ import static org.apache.cassandra.utils.concurrent.WaitQueue.newWaitQueue;
  * A generic append-only journal with some special features:
  * <p><ul>
  * <li>Records can be looked up by key
- * <li>Records can be tagged with multiple owner node ids
- * <li>Records can be invalidated by their owner ids
- * <li>Fully invalidated records get purged during segment compaction
+ * <li>Invalidated records get purged during segment compaction
  * </ul><p>
  *
  * Type parameters:
@@ -349,7 +346,7 @@ public class Journal<K, V> implements Shutdownable
     public List<V> readAll(K id)
     {
         List<V> res = new ArrayList<>(2);
-        readAll(id, (segment, position, key, buffer, hosts, userVersion) -> {
+        readAll(id, (segment, position, key, buffer, userVersion) -> {
             try (DataInputBuffer in = new DataInputBuffer(buffer, false))
             {
                 res.add(valueSerializer.deserialize(key, in, userVersion));
@@ -448,15 +445,14 @@ public class Journal<K, V> implements Shutdownable
      *
      * @param id user-provided record id, expected to roughly correlate with time and go up
      * @param record the record to store
-     * @param hosts hosts expected to invalidate the record
      */
-    public void blockingWrite(K id, V record, Set<Integer> hosts)
+    public void blockingWrite(K id, V record)
     {
         try (DataOutputBuffer dob = DataOutputBuffer.scratchBuffer.get())
         {
             valueSerializer.serialize(id, record, dob, params.userVersion());
-            ActiveSegment<K, V>.Allocation alloc = allocate(dob.getLength(), hosts);
-            alloc.writeInternal(id, dob.unsafeGetBufferAndFlip(), hosts);
+            ActiveSegment<K, V>.Allocation alloc = allocate(dob.getLength());
+            alloc.writeInternal(id, dob.unsafeGetBufferAndFlip());
             flusher.flushAndAwaitDurable(alloc);
         }
         catch (IOException e)
@@ -474,20 +470,19 @@ public class Journal<K, V> implements Shutdownable
      *
      * @param id user-provided record id, expected to roughly correlate with time and go up
      * @param record the record to store
-     * @param hosts hosts expected to invalidate the record
      */
-    public RecordPointer asyncWrite(K id, V record, Set<Integer> hosts)
+    public RecordPointer asyncWrite(K id, V record)
     {
-        return asyncWrite(id, (out, userVersion) -> valueSerializer.serialize(id, record, out, userVersion), hosts);
+        return asyncWrite(id, (out, userVersion) -> valueSerializer.serialize(id, record, out, userVersion));
     }
 
-    public RecordPointer asyncWrite(K id, Writer writer, Set<Integer> hosts)
+    public RecordPointer asyncWrite(K id, Writer writer)
     {
         try (DataOutputBuffer dob = DataOutputBuffer.scratchBuffer.get())
         {
             writer.write(dob, params.userVersion());
-            ActiveSegment<K, V>.Allocation alloc = allocate(dob.getLength(), hosts);
-            alloc.write(id, dob.unsafeGetBufferAndFlip(), hosts);
+            ActiveSegment<K, V>.Allocation alloc = allocate(dob.getLength());
+            alloc.write(id, dob.unsafeGetBufferAndFlip());
             return flusher.flush(alloc);
         }
         catch (IOException e)
@@ -497,12 +492,12 @@ public class Journal<K, V> implements Shutdownable
         }
     }
 
-    private ActiveSegment<K, V>.Allocation allocate(int entrySize, Set<Integer> hosts)
+    private ActiveSegment<K, V>.Allocation allocate(int entrySize)
     {
         ActiveSegment<K, V> segment = currentSegment;
 
         ActiveSegment<K, V>.Allocation alloc;
-        while (null == (alloc = segment.allocate(entrySize, hosts)))
+        while (null == (alloc = segment.allocate(entrySize)))
         {
             if (entrySize >= (params.segmentSize() * 3) / 4)
                 throw new IllegalStateException("entrySize " + entrySize + " too large for a segmentSize of " + params.segmentSize());
@@ -972,7 +967,7 @@ public class Journal<K, V> implements Shutdownable
                     break;
                 Invariants.checkState(next == readers.poll());
 
-                reader.accept(next.descriptor.timestamp, next.offset, next.key(), next.record(), next.hosts(), next.descriptor.userVersion);
+                reader.accept(next.descriptor.timestamp, next.offset, next.key(), next.record(), next.descriptor.userVersion);
                 if (next.advance())
                     readers.add(next);
                 else
