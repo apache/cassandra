@@ -127,7 +127,7 @@ public class ClusterMetadataUpgradeHarryTest extends UpgradeTestBase
                 awaitHarryProgress.run();
             })
             .runAfterNodeUpgrade((cluster, node) -> {
-                awaitHarryProgress.run();
+                awaitHarryProgress.run(); // make sure harry executes in mixed mode
             })
             .runAfterClusterUpgrade((cluster) -> {
 
