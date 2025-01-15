@@ -547,7 +547,7 @@ public interface StorageServiceMBean extends NotificationEmitter
      */
     public void move(String newToken) throws IOException;
     public void resumeMove();
-    public void abortMove();
+    public void abortMove(String nodeId);
 
     /**
      * removeToken removes token (and all data associated with

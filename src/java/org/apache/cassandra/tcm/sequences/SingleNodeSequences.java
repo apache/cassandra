@@ -194,28 +194,37 @@ public interface SingleNodeSequences
         InProgressSequences.finishInProgressSequences(self);
     }
 
-    static void abortMove()
+    static void abortMove(String nodeId)
     {
         if (ClusterMetadataService.instance().isMigrating() || ClusterMetadataService.state() == ClusterMetadataService.State.GOSSIP)
             throw new IllegalStateException("This cluster is migrating to cluster metadata, can't move until that is done.");
 
         ClusterMetadata metadata = ClusterMetadata.current();
-        NodeId self = metadata.myNodeId();
-        MultiStepOperation<?> sequence = metadata.inProgressSequences.get(self);
+        NodeId toAbort = nodeId == null ? metadata.myNodeId() : NodeId.fromString(nodeId);
+        MultiStepOperation<?> sequence = metadata.inProgressSequences.get(toAbort);
         if (sequence == null || sequence.kind() != MultiStepOperation.Kind.MOVE)
         {
-            String msg = "No move operation in progress, can't abort";
+            String msg = String.format("No move operation in progress for %s, can't abort", toAbort);
             logger.info(msg);
             throw new IllegalStateException(msg);
         }
-        if (StorageService.instance.operationMode() != StorageService.Mode.MOVE_FAILED)
+        if (toAbort.equals(metadata.myNodeId()))
         {
-            String msg = "Can't abort a move operation unless it has failed";
+            if (StorageService.instance.operationMode() != StorageService.Mode.MOVE_FAILED)
+            {
+                String msg = "Can't abort a move operation unless it has failed";
+                logger.info(msg);
+                throw new IllegalStateException(msg);
+            }
+            StorageService.instance.clearTransientMode();
+        }
+        else if (Gossiper.instance.isAlive(metadata.directory.endpoint(toAbort)))
+        {
+            String msg = String.format("Can't abort a move operation for a node %s (%s) that is UP - run abortmove on that instance",
+                                       toAbort, metadata.directory.endpoint(toAbort));
             logger.info(msg);
             throw new IllegalStateException(msg);
         }
-        StorageService.instance.clearTransientMode();
-        ClusterMetadataService.instance().commit(new CancelInProgressSequence(self));
+        ClusterMetadataService.instance().commit(new CancelInProgressSequence(toAbort));
     }
-
 }

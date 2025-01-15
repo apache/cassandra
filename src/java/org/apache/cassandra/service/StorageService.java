@@ -3460,9 +3460,9 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     }
 
     @Override
-    public void abortMove()
+    public void abortMove(String nodeId)
     {
-        SingleNodeSequences.abortMove();
+        SingleNodeSequences.abortMove(nodeId);
     }
 
     public String getRemovalStatus()

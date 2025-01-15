@@ -172,6 +172,7 @@ public class NodeTool
                 ListPendingHints.class,
                 ListSnapshots.class,
                 Move.class,
+                Move.Abort.class,
                 NetStats.class,
                 PauseHandoff.class,
                 ProfileLoad.class,

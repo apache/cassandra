@@ -1033,9 +1033,9 @@ public class NodeProbe implements AutoCloseable
         ssProxy.resumeMove();
     }
 
-    public void abortMove()
+    public void abortMove(String nodeId)
     {
-        ssProxy.abortMove();
+        ssProxy.abortMove(nodeId);
     }
 
     public void removeNode(String token)
