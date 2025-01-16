@@ -22,15 +22,20 @@ import java.util.Set;
 
 import com.google.common.collect.ImmutableSet;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import org.apache.cassandra.auth.AuthenticatedUser;
 import org.apache.cassandra.auth.IResource;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.CQLStatement;
 import org.apache.cassandra.cql3.QueryOptions;
+import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.db.compaction.TimeWindowCompactionStrategy;
 import org.apache.cassandra.db.guardrails.Guardrails;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.schema.*;
+import org.apache.cassandra.exceptions.SyntaxException;
 import org.apache.cassandra.schema.Keyspaces.KeyspacesDiff;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.ClientWarn;
@@ -42,6 +47,8 @@ import org.apache.cassandra.transport.messages.ResultMessage;
 
 abstract public class AlterSchemaStatement implements CQLStatement.SingleKeyspaceCqlStatement, SchemaTransformation
 {
+    private static final Logger logger = LoggerFactory.getLogger(AlterSchemaStatement.class);
+
     protected final String keyspaceName; // name of the keyspace affected by the statement
     protected ClientState state;
     // TODO: not sure if this is going to stay the same, or will be replaced by more efficient serialization/sanitation means
@@ -226,6 +233,19 @@ abstract public class AlterSchemaStatement implements CQLStatement.SingleKeyspac
         catch (UnsupportedOperationException e)
         {
             // not a problem - grant is an optional method on IAuthorizer
+        }
+    }
+
+    protected void verifyExpandedCql(String expandedCql)
+    {
+        try
+        {
+            QueryProcessor.parseStatement(expandedCql);
+        }
+        catch (SyntaxException e)
+        {
+            logger.error("Expanded CQL [{}] is not parseable (original CQL: [{}]) - this is most likely due to a bug in the toCqlString method", expandedCql, cql());
+            throw e;
         }
     }
 
