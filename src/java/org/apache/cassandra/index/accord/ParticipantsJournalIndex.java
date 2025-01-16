@@ -519,11 +519,11 @@ public class ParticipantsJournalIndex implements Index, INotificationConsumer
         }
         else if (notification instanceof MemtableRenewedNotification)
         {
-            memtableIndexManager.renewMemtable(((MemtableRenewedNotification) notification).renewed);
+            throw new AssertionError("Journal's memtable was renewed, but it should never be touched...");
         }
         else if (notification instanceof MemtableDiscardedNotification)
         {
-            memtableIndexManager.discardMemtable(((MemtableDiscardedNotification) notification).memtable);
+            throw new AssertionError("Journal's memtable was discarded, but it should never be touched...");
         }
     }
 
