@@ -40,7 +40,7 @@ import accord.utils.Invariants;
 import org.agrona.collections.Int2ObjectHashMap;
 import org.agrona.collections.Long2ObjectHashMap;
 import org.apache.cassandra.index.accord.OrderedRouteSerializer;
-import org.apache.cassandra.index.accord.ParticipantsJournalIndex;
+import org.apache.cassandra.index.accord.RouteJournalIndex;
 import org.apache.cassandra.journal.Journal;
 import org.apache.cassandra.journal.RecordPointer;
 import org.apache.cassandra.journal.StaticSegment;
@@ -51,18 +51,18 @@ import org.apache.cassandra.utils.FastByteOperations;
 import org.apache.cassandra.utils.RTree;
 import org.apache.cassandra.utils.RangeTree;
 
-public class ParticipantsInMemoryIndex<K extends JournalKey, V> implements RangeSearcher
+public class RouteInMemoryIndex<K extends JournalKey, V> implements RangeSearcher
 {
     private final Long2ObjectHashMap<SegmentIndex> segmentIndexes = new Long2ObjectHashMap<>();
 
     public boolean isSupported(JournalKey id)
     {
-        return ParticipantsJournalIndex.allowed(id);
+        return RouteJournalIndex.allowed(id);
     }
 
     public void onWrite(JournalKey id, Journal.Writer writer, RecordPointer pointer)
     {
-        if (!ParticipantsJournalIndex.allowed(id))
+        if (!RouteJournalIndex.allowed(id))
             return;
         AccordJournal.Writer saveCommandWriter = (AccordJournal.Writer) writer;
         if (!saveCommandWriter.hasField(Field.PARTICIPANTS))
@@ -74,7 +74,7 @@ public class ParticipantsInMemoryIndex<K extends JournalKey, V> implements Range
 
     public synchronized void update(long segment, int commandStoreId, TxnId id, Route<?> route)
     {
-        if (!ParticipantsJournalIndex.allowed(id))
+        if (!RouteJournalIndex.allowed(id))
             return;
         Invariants.nonNull(route, "route");
         segmentIndexes.computeIfAbsent(segment, SegmentIndex::new).add(commandStoreId, id, route);

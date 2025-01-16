@@ -69,11 +69,11 @@ public class RouteIndexFormat
 
     public static class SSTableIndexWriter extends MemtableRouteIndexWriter
     {
-        private final ParticipantsJournalIndex index;
+        private final RouteJournalIndex index;
         private DecoratedKey current;
         private JournalKey journalKey;
 
-        public SSTableIndexWriter(ParticipantsJournalIndex index, IndexDescriptor id)
+        public SSTableIndexWriter(RouteJournalIndex index, IndexDescriptor id)
         {
             super(id, new MemtableIndex());
             this.index = index;
@@ -91,7 +91,7 @@ public class RouteIndexFormat
         {
             // there is some duplication from org.apache.cassandra.index.accord.RouteMemtableIndexManager.index
             // should this be cleaned up?
-            if (!unfiltered.isRow() || !ParticipantsJournalIndex.allowed(journalKey))
+            if (!unfiltered.isRow() || !RouteJournalIndex.allowed(journalKey))
                 return;
             Row row = (Row) unfiltered;
             ByteBuffer value = extractParticipants(index, journalKey.id, row);
@@ -99,7 +99,7 @@ public class RouteIndexFormat
         }
     }
 
-    public static ByteBuffer extractParticipants(ParticipantsJournalIndex index, TxnId txnId, Row row)
+    public static ByteBuffer extractParticipants(RouteJournalIndex index, TxnId txnId, Row row)
     {
         boolean recordNull = row.getCell(AccordKeyspace.JournalColumns.record) == null;
         boolean userVersionNull = row.getCell(AccordKeyspace.JournalColumns.user_version) == null;

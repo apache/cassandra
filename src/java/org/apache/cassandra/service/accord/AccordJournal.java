@@ -143,7 +143,7 @@ public class AccordJournal implements accord.api.Journal, RangeSearcher.Supplier
      * this property holds true.
      */
     @Nullable
-    private final ParticipantsInMemoryIndex<JournalKey, Object> index;
+    private final RouteInMemoryIndex<JournalKey, Object> index;
     private final ColumnFamilyStore cfs;
     Node node;
 
@@ -162,7 +162,7 @@ public class AccordJournal implements accord.api.Journal, RangeSearcher.Supplier
         this.cfs = cfs;
         if (cfs.indexManager.getIndexByName(AccordKeyspace.JOURNAL_INDEX_NAME) != null)
         {
-            this.index = new ParticipantsInMemoryIndex<>();
+            this.index = new RouteInMemoryIndex<>();
         }
         else
         {
@@ -464,7 +464,7 @@ public class AccordJournal implements accord.api.Journal, RangeSearcher.Supplier
     public void truncateForTesting()
     {
         journal.truncateForTesting();
-        safeNotify(ParticipantsInMemoryIndex::truncateForTesting);
+        safeNotify(RouteInMemoryIndex::truncateForTesting);
     }
 
     @VisibleForTesting
@@ -584,7 +584,7 @@ public class AccordJournal implements accord.api.Journal, RangeSearcher.Supplier
         return new Searcher(cfs, index);
     }
 
-    void safeNotify(Consumer<ParticipantsInMemoryIndex<JournalKey, Object>> fn)
+    void safeNotify(Consumer<RouteInMemoryIndex<JournalKey, Object>> fn)
     {
         if (index == null)
             return;
@@ -602,10 +602,10 @@ public class AccordJournal implements accord.api.Journal, RangeSearcher.Supplier
     private static class Searcher implements RangeSearcher
     {
         private final ColumnFamilyStore cfs;
-        private final ParticipantsInMemoryIndex<JournalKey, Object> index;
+        private final RouteInMemoryIndex<JournalKey, Object> index;
         private final Index tableIndex;
 
-        public Searcher(ColumnFamilyStore cfs, ParticipantsInMemoryIndex<JournalKey, Object> index)
+        public Searcher(ColumnFamilyStore cfs, RouteInMemoryIndex<JournalKey, Object> index)
         {
             this.cfs = cfs;
             this.index = index;

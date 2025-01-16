@@ -91,12 +91,12 @@ import org.apache.cassandra.utils.AbstractIterator;
 import org.apache.cassandra.utils.concurrent.Future;
 import org.apache.cassandra.utils.concurrent.FutureCombiner;
 
-public class ParticipantsJournalIndex implements Index, INotificationConsumer
+public class RouteJournalIndex implements Index, INotificationConsumer
 {
     public enum RegisterStatus
     {PENDING, REGISTERED, UNREGISTERED}
 
-    private static final Logger logger = LoggerFactory.getLogger(ParticipantsJournalIndex.class);
+    private static final Logger logger = LoggerFactory.getLogger(RouteJournalIndex.class);
 
     private static final Component.Type type = Component.Type.createSingleton("AccordRoute", "AccordRoute.*.db", true, null);
 
@@ -109,7 +109,7 @@ public class ParticipantsJournalIndex implements Index, INotificationConsumer
     private volatile boolean initBuildStarted = false;
     private volatile RegisterStatus registerStatus = RegisterStatus.PENDING;
 
-    public ParticipantsJournalIndex(ColumnFamilyStore baseCfs, IndexMetadata indexMetadata)
+    public RouteJournalIndex(ColumnFamilyStore baseCfs, IndexMetadata indexMetadata)
     {
         validateTargets(baseCfs, indexMetadata);
 

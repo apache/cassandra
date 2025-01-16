@@ -97,7 +97,7 @@ import org.apache.cassandra.dht.LocalCompositePrefixPartitioner;
 import org.apache.cassandra.dht.LocalPartitioner;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
-import org.apache.cassandra.index.accord.ParticipantsJournalIndex;
+import org.apache.cassandra.index.accord.RouteJournalIndex;
 import org.apache.cassandra.index.transactions.UpdateTransaction;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.LocalVersionedSerializer;
@@ -201,7 +201,7 @@ public class AccordKeyspace
                                                .partitioner(new LocalPartitioner(BytesType.instance));
         if (index)
             builder.indexes(Indexes.builder()
-                                   .add(IndexMetadata.fromSchemaMetadata(JOURNAL_INDEX_NAME, IndexMetadata.Kind.CUSTOM, ImmutableMap.of("class_name", ParticipantsJournalIndex.class.getCanonicalName(), "target", "record,user_version")))
+                                   .add(IndexMetadata.fromSchemaMetadata(JOURNAL_INDEX_NAME, IndexMetadata.Kind.CUSTOM, ImmutableMap.of("class_name", RouteJournalIndex.class.getCanonicalName(), "target", "record,user_version")))
                                    .build());
         return builder.build();
     }

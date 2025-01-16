@@ -38,9 +38,9 @@ import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 public class RouteMemtableIndexManager implements MemtableIndexManager
 {
     private final ConcurrentMap<Memtable, MemtableIndex> liveMemtableIndexMap = new ConcurrentHashMap<>();
-    private final ParticipantsJournalIndex index;
+    private final RouteJournalIndex index;
 
-    public RouteMemtableIndexManager(ParticipantsJournalIndex index)
+    public RouteMemtableIndexManager(RouteJournalIndex index)
     {
         this.index = index;
     }
@@ -51,7 +51,7 @@ public class RouteMemtableIndexManager implements MemtableIndexManager
         if (row.isStatic())
             return 0;
         JournalKey journalKey = AccordKeyspace.JournalColumns.getJournalKey(key);
-        if (!ParticipantsJournalIndex.allowed(journalKey))
+        if (!RouteJournalIndex.allowed(journalKey))
             return 0;
         //TODO (performance): we dropped jdk8 and this was fixed in jdk8... so do we need to do this still?
         MemtableIndex current = liveMemtableIndexMap.get(mt);
