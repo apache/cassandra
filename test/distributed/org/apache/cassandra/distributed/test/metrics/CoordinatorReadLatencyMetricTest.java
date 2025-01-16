@@ -62,20 +62,21 @@ public class CoordinatorReadLatencyMetricTest extends TestBaseImpl
                                .limit(1)
                                .build();
 
-            verifyTableLatency(cluster, 1, () -> verifyLatencyMetrics(cluster, select.toCQL(), ConsistencyLevel.QUORUM));
+            verifyTableLatency(cluster, 1, () -> verifyLatencyMetrics(cluster, select.toCQL(), ConsistencyLevel.QUORUM, select.binds()));
             cluster.get(1).runOnInstance(() -> Paxos.setPaxosVariant(Config.PaxosVariant.v1));
-            verifyTableLatency(cluster, 1, () -> verifyLatencyMetrics(cluster, select.toCQL(), ConsistencyLevel.SERIAL));
+            verifyTableLatency(cluster, 1, () -> verifyLatencyMetrics(cluster, select.toCQL(), ConsistencyLevel.SERIAL, select.binds()));
             cluster.get(1).runOnInstance(() -> Paxos.setPaxosVariant(Config.PaxosVariant.v2));
-            verifyTableLatency(cluster, 1, () -> verifyLatencyMetrics(cluster, select.toCQL(), ConsistencyLevel.SERIAL));
+            verifyTableLatency(cluster, 1, () -> verifyLatencyMetrics(cluster, select.toCQL(), ConsistencyLevel.SERIAL, select.binds()));
 
             cluster.schemaChange(withKeyspace("ALTER TABLE %s.tbl WITH " + TransactionalMode.full.asCqlParam()));
-            verifyTableLatency(cluster, 1, () -> verifyLatencyMetrics(cluster, Txn.wrap(select).toCQL(), ConsistencyLevel.QUORUM));
+            var txn = Txn.wrap(select);
+            verifyTableLatency(cluster, 1, () -> verifyLatencyMetrics(cluster, txn.toCQL(), ConsistencyLevel.QUORUM, txn.binds()));
 
             var let = Txn.builder()
                          .addLet("a", select)
                          .addReturnReferences("a.v")
                          .build();
-            verifyTableLatency(cluster, 1, () -> verifyLatencyMetrics(cluster, let.toCQL(), ConsistencyLevel.QUORUM));
+            verifyTableLatency(cluster, 1, () -> verifyLatencyMetrics(cluster, let.toCQL(), ConsistencyLevel.QUORUM, let.binds()));
         }
     }
 
@@ -144,9 +145,9 @@ public class CoordinatorReadLatencyMetricTest extends TestBaseImpl
         verifyLatencyMetrics(cluster, expectedQueries, () -> cluster.coordinator(1).executeWithPaging(query, consistencyLevel, pagesize));
     }
 
-    private static void verifyLatencyMetrics(Cluster cluster, String query, ConsistencyLevel consistencyLevel)
+    private static void verifyLatencyMetrics(Cluster cluster, String query, ConsistencyLevel consistencyLevel, Object[] bindings)
     {
-        verifyLatencyMetrics(cluster, 1, () -> cluster.coordinator(1).execute(query, consistencyLevel));
+        verifyLatencyMetrics(cluster, 1, () -> cluster.coordinator(1).execute(query, consistencyLevel, bindings));
     }
 
     private static void verifyLatencyMetrics(Cluster cluster, int expectedQueries, Runnable query)
