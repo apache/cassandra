@@ -33,6 +33,7 @@ import java.util.Collection;
 import java.util.concurrent.Callable;
 import java.util.concurrent.TimeoutException;
 
+import com.google.common.collect.ImmutableMap;
 import org.apache.cassandra.auth.jmx.AuthorizationProxy;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.CIDR;
@@ -183,16 +184,14 @@ public class AuthTestUtils
 
     public static class LocalCassandraCIDRAuthorizer extends CassandraCIDRAuthorizer
     {
-        CIDRAuthorizerMode cidrAuthorizerMode;
-
         public LocalCassandraCIDRAuthorizer()
         {
-            cidrAuthorizerMode = CIDRAuthorizerMode.ENFORCE;
+            this(CIDRAuthorizerMode.ENFORCE);
         }
 
         public LocalCassandraCIDRAuthorizer(CIDRAuthorizerMode mode)
         {
-            cidrAuthorizerMode = mode;
+            super(ImmutableMap.of(CIDR_AUTHORIZER_MODE_PARAM, mode.name()));
         }
 
         @Override
@@ -200,12 +199,6 @@ public class AuthTestUtils
         {
             cidrPermissionsManager = new LocalCIDRPermissionsManager();
             cidrGroupsMappingManager = new LocalCIDRGroupsMappingManager();
-        }
-
-        @Override
-        protected boolean isMonitorMode()
-        {
-            return cidrAuthorizerMode == CIDRAuthorizerMode.MONITOR;
         }
 
         CIDRPermissionsCache getCidrPermissionsCache()

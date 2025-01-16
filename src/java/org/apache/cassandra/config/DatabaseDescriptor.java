@@ -1731,20 +1731,6 @@ public class DatabaseDescriptor
         return Boolean.parseBoolean(value);
     }
 
-    public static ICIDRAuthorizer.CIDRAuthorizerMode getCidrAuthorizerMode()
-    {
-        ICIDRAuthorizer.CIDRAuthorizerMode defaultCidrAuthorizerMode = ICIDRAuthorizer.CIDRAuthorizerMode.MONITOR;
-
-        if (conf.cidr_authorizer == null || conf.cidr_authorizer.parameters == null)
-            return defaultCidrAuthorizerMode;
-
-        String cidrAuthorizerMode = conf.cidr_authorizer.parameters.get("cidr_authorizer_mode");
-        if (cidrAuthorizerMode == null || cidrAuthorizerMode.isEmpty())
-            return defaultCidrAuthorizerMode;
-
-        return ICIDRAuthorizer.CIDRAuthorizerMode.valueOf(cidrAuthorizerMode.toUpperCase());
-    }
-
     public static int getCidrGroupsCacheRefreshInterval()
     {
         int defaultCidrGroupsCacheRefreshInterval = 5; // mins
