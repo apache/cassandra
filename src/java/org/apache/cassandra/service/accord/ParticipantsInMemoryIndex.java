@@ -18,7 +18,6 @@
 
 package org.apache.cassandra.service.accord;
 
-import java.nio.ByteBuffer;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
@@ -32,7 +31,6 @@ import java.util.TreeSet;
 import java.util.function.Consumer;
 
 import accord.impl.CommandChange.Field;
-import accord.local.StoreParticipants;
 import accord.primitives.Routable;
 import accord.primitives.Route;
 import accord.primitives.Timestamp;
@@ -43,7 +41,6 @@ import org.agrona.collections.Int2ObjectHashMap;
 import org.agrona.collections.Long2ObjectHashMap;
 import org.apache.cassandra.index.accord.OrderedRouteSerializer;
 import org.apache.cassandra.index.accord.ParticipantsJournalIndex;
-import org.apache.cassandra.index.accord.RouteIndexFormat;
 import org.apache.cassandra.journal.Journal;
 import org.apache.cassandra.journal.RecordPointer;
 import org.apache.cassandra.journal.StaticSegment;
