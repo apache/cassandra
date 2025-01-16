@@ -144,7 +144,7 @@ public class AccordJournal implements accord.api.Journal, RangeSearcher.Supplier
      */
     @Nullable
     private final ParticipantsInMemoryIndex<JournalKey, Object> index;
-    private final RangeSearcher rangeSearcher;
+    private final ColumnFamilyStore cfs;
     Node node;
 
     enum Status { INITIALIZED, STARTING, REPLAY, STARTED, TERMINATING, TERMINATED }
@@ -159,15 +159,14 @@ public class AccordJournal implements accord.api.Journal, RangeSearcher.Supplier
     public AccordJournal(Params params, AccordAgent agent, File directory, ColumnFamilyStore cfs)
     {
         // this class relies on unsafe publishing of "this", so need to make sure the fields impacted are written to (they are final) before this leak happens
+        this.cfs = cfs;
         if (cfs.indexManager.getIndexByName(AccordKeyspace.JOURNAL_INDEX_NAME) != null)
         {
             this.index = new ParticipantsInMemoryIndex<>();
-            this.rangeSearcher = new Searcher(cfs, index);
         }
         else
         {
             this.index = null;
-            this.rangeSearcher = RangeSearcher.NoopRangeSearcher.instance;
         }
         this.agent = agent;
         AccordSegmentCompactor<Object> compactor = new AccordSegmentCompactor<>(params.userVersion(), cfs) {
@@ -580,7 +579,9 @@ public class AccordJournal implements accord.api.Journal, RangeSearcher.Supplier
     @Override
     public RangeSearcher rangeSearcher()
     {
-        return rangeSearcher;
+        if (index == null)
+            return RangeSearcher.NoopRangeSearcher.instance;
+        return new Searcher(cfs, index);
     }
 
     void safeNotify(Consumer<ParticipantsInMemoryIndex<JournalKey, Object>> fn)
@@ -609,6 +610,8 @@ public class AccordJournal implements accord.api.Journal, RangeSearcher.Supplier
             this.cfs = cfs;
             this.index = index;
             this.tableIndex = cfs.indexManager.getIndexByName("record");
+            if (!cfs.indexManager.isIndexQueryable(tableIndex))
+                throw new AssertionError("Journal record index is not queryable");
         }
 
         @Override
