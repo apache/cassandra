@@ -54,12 +54,16 @@ import org.apache.cassandra.utils.FastByteOperations;
 import org.apache.cassandra.utils.RTree;
 import org.apache.cassandra.utils.RangeTree;
 
-public class ParticipantsInMemoryIndex<K extends JournalKey, V> implements AccordJournal.Listener<V>, RangeSearcher
+public class ParticipantsInMemoryIndex<K extends JournalKey, V> implements RangeSearcher
 {
     private final Long2ObjectHashMap<SegmentIndex> segmentIndexes = new Long2ObjectHashMap<>();
 
-    @Override
-    public void onWrite(JournalKey id, Journal.Writer writer, Set<Integer> hosts, RecordPointer pointer)
+    public boolean isSupported(JournalKey id)
+    {
+        return ParticipantsJournalIndex.allowed(id);
+    }
+
+    public void onWrite(JournalKey id, Journal.Writer writer, RecordPointer pointer)
     {
         if (!ParticipantsJournalIndex.allowed(id))
             return;
@@ -90,9 +94,7 @@ public class ParticipantsInMemoryIndex<K extends JournalKey, V> implements Accor
         update(segment, id.commandStoreId, id.id, participants.route());
     }
 
-    @Override
-    public synchronized void onCompact(Collection<StaticSegment<JournalKey, V>> oldSegments,
-                                       Collection<StaticSegment<JournalKey, V>> compactedSegments)
+    public synchronized void onCompact(Collection<StaticSegment<JournalKey, V>> oldSegments)
     {
         // As of this writing compact in accord journal takes StaticSegments, writes them to a SSTable, and pushes to a table;
         // it then stops managing those segments... for this reason compactedSegments is normally empty and none of the

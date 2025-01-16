@@ -19,13 +19,13 @@ package org.apache.cassandra.service.accord;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Iterator;
-import java.util.List;
 import java.util.NavigableMap;
 import java.util.Set;
-import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.TreeSet;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.function.BiConsumer;
@@ -48,6 +48,7 @@ import accord.local.DurableBefore;
 import accord.local.Node;
 import accord.local.RedundantBefore;
 import accord.primitives.Ranges;
+import accord.primitives.Route;
 import accord.primitives.SaveStatus;
 import accord.primitives.Timestamp;
 import accord.primitives.TxnId;
@@ -57,8 +58,23 @@ import accord.utils.async.AsyncResult;
 import accord.utils.async.AsyncResults;
 import org.apache.cassandra.concurrent.Shutdownable;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.cql3.ColumnIdentifier;
+import org.apache.cassandra.cql3.Operator;
 import org.apache.cassandra.db.ColumnFamilyStore;
+import org.apache.cassandra.db.DataRange;
 import org.apache.cassandra.db.Keyspace;
+import org.apache.cassandra.db.PartitionRangeReadCommand;
+import org.apache.cassandra.db.ReadExecutionController;
+import org.apache.cassandra.db.filter.ColumnFilter;
+import org.apache.cassandra.db.filter.DataLimits;
+import org.apache.cassandra.db.filter.RowFilter;
+import org.apache.cassandra.db.marshal.AbstractType;
+import org.apache.cassandra.db.marshal.BytesType;
+import org.apache.cassandra.db.marshal.Int32Type;
+import org.apache.cassandra.db.partitions.UnfilteredPartitionIterator;
+import org.apache.cassandra.db.rows.UnfilteredRowIterator;
+import org.apache.cassandra.index.Index;
+import org.apache.cassandra.index.accord.OrderedRouteSerializer;
 import org.apache.cassandra.io.util.DataInputBuffer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputBuffer;
@@ -71,15 +87,20 @@ import org.apache.cassandra.journal.RecordPointer;
 import org.apache.cassandra.journal.StaticSegment;
 import org.apache.cassandra.journal.ValueSerializer;
 import org.apache.cassandra.net.MessagingService;
+import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.service.accord.AccordJournalValueSerializers.IdentityAccumulator;
 import org.apache.cassandra.service.accord.JournalKey.JournalKeySupport;
 import org.apache.cassandra.service.accord.api.AccordAgent;
+import org.apache.cassandra.service.accord.api.AccordRoutingKey;
 import org.apache.cassandra.service.accord.serializers.CommandSerializers;
 import org.apache.cassandra.service.accord.serializers.DepsSerializers;
 import org.apache.cassandra.service.accord.serializers.ResultSerializers;
 import org.apache.cassandra.service.accord.serializers.WaitingOnSerializer;
+import org.apache.cassandra.utils.CloseableIterator;
 import org.apache.cassandra.utils.ExecutorUtils;
+import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.JVMStabilityInspector;
+import org.apache.cassandra.utils.MergeIterator;
 import org.apache.cassandra.utils.Throwables;
 import org.apache.cassandra.utils.concurrent.AsyncPromise;
 
@@ -113,10 +134,17 @@ public class AccordJournal implements accord.api.Journal, RangeSearcher.Supplier
     static final ThreadLocal<byte[]> keyCRCBytes = ThreadLocal.withInitial(() -> new byte[JournalKeySupport.TOTAL_SIZE]);
 
     private final Journal<JournalKey, Object> journal;
-    private final Listeners<Object> listeners = new Listeners<>();
     private final AccordJournalTable<JournalKey, Object> journalTable;
     private final Params params;
     private final AccordAgent agent;
+    /**
+     * Access to this field should only ever be handled by {@link #safeNotify(Consumer)}.  There is an assumption that
+     * an error in the index should not cause the journal to crash, so {@link #safeNotify(Consumer)} exists to make sure
+     * this property holds true.
+     */
+    @Nullable
+    private final ParticipantsInMemoryIndex<JournalKey, Object> index;
+    private final RangeSearcher rangeSearcher;
     Node node;
 
     enum Status { INITIALIZED, STARTING, REPLAY, STARTED, TERMINATING, TERMINATED }
@@ -130,7 +158,29 @@ public class AccordJournal implements accord.api.Journal, RangeSearcher.Supplier
     @VisibleForTesting
     public AccordJournal(Params params, AccordAgent agent, File directory, ColumnFamilyStore cfs)
     {
+        // this class relies on unsafe publishing of "this", so need to make sure the fields impacted are written to (they are final) before this leak happens
+        if (cfs.indexManager.getIndexByName(AccordKeyspace.JOURNAL_INDEX_NAME) != null)
+        {
+            this.index = new ParticipantsInMemoryIndex<>();
+            this.rangeSearcher = new Searcher(cfs, index);
+        }
+        else
+        {
+            this.index = null;
+            this.rangeSearcher = RangeSearcher.NoopRangeSearcher.instance;
+        }
         this.agent = agent;
+        AccordSegmentCompactor<Object> compactor = new AccordSegmentCompactor<>(params.userVersion(), cfs) {
+            @Nullable
+            @Override
+            public Collection<StaticSegment<JournalKey, Object>> compact(Collection<StaticSegment<JournalKey, Object>> staticSegments)
+            {
+                Collection<StaticSegment<JournalKey, Object>> result = super.compact(staticSegments);
+                if (result != null)
+                    safeNotify(index -> index.onCompact(staticSegments));
+                return result;
+            }
+        };
         this.journal = new Journal<>("AccordJournal", directory, params, JournalKey.SUPPORT,
                                      // In Accord, we are using streaming serialization, i.e. Reader/Writer interfaces instead of materializing objects
                                      new ValueSerializer<>()
@@ -147,8 +197,8 @@ public class AccordJournal implements accord.api.Journal, RangeSearcher.Supplier
                                              throw new UnsupportedOperationException();
                                          }
                                      },
-                                     new AccordSegmentCompactor<>(params.userVersion(), cfs, listeners));
-        this.journalTable = new AccordJournalTable<>(journal, JournalKey.SUPPORT, cfs, params.userVersion(), listeners);
+                                     compactor);
+        this.journalTable = new AccordJournalTable<>(journal, JournalKey.SUPPORT, cfs, params.userVersion());
         this.params = params;
     }
 
@@ -281,7 +331,7 @@ public class AccordJournal implements accord.api.Journal, RangeSearcher.Supplier
     }
 
     @Override
-    public void saveCommand(int store, CommandUpdate update, Runnable onFlush)
+    public void saveCommand(int store, CommandUpdate update, @Nullable Runnable onFlush)
     {
         Writer diff = Writer.make(update.before, update.after);
         if (diff == null)
@@ -293,7 +343,8 @@ public class AccordJournal implements accord.api.Journal, RangeSearcher.Supplier
 
         JournalKey key = new JournalKey(update.txnId, JournalKey.Type.COMMAND_DIFF, store);
         RecordPointer pointer = journal.asyncWrite(key, diff, SENTINEL_HOSTS);
-        listeners.safeNotify(l -> l.onWrite(key, diff, SENTINEL_HOSTS, pointer));
+        if (index != null && index.isSupported(key))
+            journal.onDurable(pointer, () -> safeNotify(index -> index.onWrite(key, diff, pointer)));
         if (onFlush != null)
             journal.onDurable(pointer, onFlush);
     }
@@ -414,7 +465,7 @@ public class AccordJournal implements accord.api.Journal, RangeSearcher.Supplier
     public void truncateForTesting()
     {
         journal.truncateForTesting();
-        journalTable.truncateForTesting();
+        safeNotify(ParticipantsInMemoryIndex::truncateForTesting);
     }
 
     @VisibleForTesting
@@ -435,7 +486,7 @@ public class AccordJournal implements accord.api.Journal, RangeSearcher.Supplier
     public void replay(CommandStores commandStores)
     {
         journal.closeCurrentSegmentForTestingIfNonEmpty();
-        try (AccordJournalTable.KeyOrderIterator<JournalKey> iter = journalTable.readAll(AccordJournalTable.ReadAllIntent.Reply))
+        try (AccordJournalTable.KeyOrderIterator<JournalKey> iter = journalTable.readAll())
         {
             JournalKey key;
             Builder builder = new Builder();
@@ -456,6 +507,12 @@ public class AccordJournal implements accord.api.Journal, RangeSearcher.Supplier
                     try (DataInputBuffer in = new DataInputBuffer(buffer, false))
                     {
                         builder.deserializeNext(in, userVersion);
+                        safeNotify(index -> {
+                            if (!index.isSupported(finalKey)) return;
+                            Route<?> route = builder.participants().route();
+                            if (route != null)
+                                index.update(segment, finalKey.commandStoreId, finalKey.id, route);
+                        });
                     }
                     catch (IOException e)
                     {
@@ -523,7 +580,239 @@ public class AccordJournal implements accord.api.Journal, RangeSearcher.Supplier
     @Override
     public RangeSearcher rangeSearcher()
     {
-        return journalTable;
+        return rangeSearcher;
+    }
+
+    void safeNotify(Consumer<ParticipantsInMemoryIndex<JournalKey, Object>> fn)
+    {
+        if (index == null)
+            return;
+        try
+        {
+            fn.accept(index);
+        }
+        catch (Throwable t)
+        {
+            JVMStabilityInspector.inspectThrowable(t);
+            logger.warn("Failure updating index", t);
+        }
+    }
+
+    private static class Searcher implements RangeSearcher
+    {
+        private final ColumnFamilyStore cfs;
+        private final ParticipantsInMemoryIndex<JournalKey, Object> index;
+        private final Index tableIndex;
+
+        public Searcher(ColumnFamilyStore cfs, ParticipantsInMemoryIndex<JournalKey, Object> index)
+        {
+            this.cfs = cfs;
+            this.index = index;
+            this.tableIndex = cfs.indexManager.getIndexByName("record");
+        }
+
+        @Override
+        public void intersects(int storeId, TokenRange range, TxnId minTxnId, Timestamp maxTxnId, Consumer<TxnId> forEach)
+        {
+            try (CloseableIterator<Entry> it = search(storeId, range.start(), range.end()))
+            {
+                consume(it, storeId, minTxnId, maxTxnId, forEach);
+            }
+        }
+
+        @Override
+        public void intersects(int storeId, AccordRoutingKey key, TxnId minTxnId, Timestamp maxTxnId, Consumer<TxnId> forEach)
+        {
+            try (CloseableIterator<Entry> it = search(storeId, key))
+            {
+                consume(it, storeId, minTxnId, maxTxnId, forEach);
+            }
+        }
+
+        private void consume(Iterator<Entry> it, int storeId, TxnId minTxnId, Timestamp maxTxnId, Consumer<TxnId> forEach)
+        {
+            while (it.hasNext())
+            {
+                Entry next = it.next();
+                if (next.store_id != storeId) continue; // the index should filter out, but just in case...
+                if (next.txnId.compareTo(minTxnId) >= 0 && next.txnId.compareTo(maxTxnId) < 0)
+                    forEach.accept(next.txnId);
+            }
+        }
+
+        private CloseableIterator<Entry> search(int store, AccordRoutingKey start, AccordRoutingKey end)
+        {
+            Invariants.checkArgument(start.table().equals(end.table()), "Start %s has different table than end %s", start, end);
+            CloseableIterator<Entry> inMemory = toIterator(store, index.search(store, start, end));
+            CloseableIterator<Entry> table = tableSearch(store, start, end);
+            return merge(inMemory, table);
+        }
+
+        private CloseableIterator<Entry> tableSearch(int store, AccordRoutingKey start, AccordRoutingKey end)
+        {
+            RowFilter rowFilter = RowFilter.create(false);
+            rowFilter.add(SyntheticColumn.participants.metadata, Operator.GT, OrderedRouteSerializer.serializeRoutingKey(start));
+            rowFilter.add(SyntheticColumn.participants.metadata, Operator.LTE, OrderedRouteSerializer.serializeRoutingKey(end));
+            rowFilter.add(SyntheticColumn.store_id.metadata, Operator.EQ, Int32Type.instance.decompose(store));
+
+            PartitionRangeReadCommand cmd = PartitionRangeReadCommand.create(cfs.metadata(),
+                                                                             FBUtilities.nowInSeconds(),
+                                                                             ColumnFilter.selectionBuilder()
+                                                                                         .add(SyntheticColumn.store_id.metadata)
+                                                                                         .add(SyntheticColumn.txn_id.metadata)
+                                                                                         .build(),
+                                                                             rowFilter,
+                                                                             DataLimits.NONE,
+                                                                             DataRange.allData(cfs.getPartitioner()));
+            return process(cmd);
+        }
+
+        private CloseableIterator<Entry> search(int store, AccordRoutingKey key)
+        {
+            CloseableIterator<Entry> inMemory = toIterator(store, index.search(store, key));
+            CloseableIterator<Entry> table = tableSearch(store, key);
+            return merge(inMemory, table);
+        }
+
+        private CloseableIterator<Entry> tableSearch(int store, AccordRoutingKey key)
+        {
+            RowFilter rowFilter = RowFilter.create(false);
+            rowFilter.add(SyntheticColumn.participants.metadata, Operator.GTE, OrderedRouteSerializer.serializeRoutingKey(key));
+            rowFilter.add(SyntheticColumn.participants.metadata, Operator.LTE, OrderedRouteSerializer.serializeRoutingKey(key));
+            rowFilter.add(SyntheticColumn.store_id.metadata, Operator.EQ, Int32Type.instance.decompose(store));
+
+            PartitionRangeReadCommand cmd = PartitionRangeReadCommand.create(cfs.metadata(),
+                                                                             FBUtilities.nowInSeconds(),
+                                                                             ColumnFilter.selectionBuilder()
+                                                                                         .add(SyntheticColumn.store_id.metadata)
+                                                                                         .add(SyntheticColumn.txn_id.metadata)
+                                                                                         .build(),
+                                                                             rowFilter,
+                                                                             DataLimits.NONE,
+                                                                             DataRange.allData(cfs.getPartitioner()));
+            return process(cmd);
+        }
+
+        private CloseableIterator<Entry> process(PartitionRangeReadCommand cmd)
+        {
+            Index.Searcher s = tableIndex.searcherFor(cmd);
+            try (ReadExecutionController controller = cmd.executionController())
+            {
+                UnfilteredPartitionIterator partitionIterator = s.search(controller);
+                return new CloseableIterator<Entry>()
+                {
+                    private final Entry entry = new Entry();
+
+                    @Override
+                    public void close()
+                    {
+                        partitionIterator.close();
+                    }
+
+                    @Override
+                    public boolean hasNext()
+                    {
+                        return partitionIterator.hasNext();
+                    }
+
+                    @Override
+                    public Entry next()
+                    {
+                        UnfilteredRowIterator next = partitionIterator.next();
+                        JournalKey partitionKeyComponents = AccordKeyspace.JournalColumns.getJournalKey(next.partitionKey());
+                        entry.store_id = partitionKeyComponents.commandStoreId;
+                        entry.txnId = partitionKeyComponents.id;
+                        return entry;
+                    }
+                };
+            }
+        }
+
+        private static CloseableIterator<Entry> toIterator(int store, NavigableMap<IndexRange, Set<TxnId>> journalSearch)
+        {
+            TreeSet<TxnId> matches = new TreeSet<>();
+            journalSearch.values().forEach(s -> matches.addAll(s));
+            return new CloseableIterator<>()
+            {
+                private final Entry entry = new Entry();
+                private final Iterator<TxnId> it = matches.iterator();
+                @Override
+                public void close()
+                {
+                    matches.clear();
+                }
+
+                @Override
+                public boolean hasNext()
+                {
+                    return it.hasNext();
+                }
+
+                @Override
+                public Entry next()
+                {
+                    entry.store_id = store;
+                    entry.txnId = it.next();
+                    return entry;
+                }
+            };
+        }
+
+        private static CloseableIterator<Entry> merge(CloseableIterator<Entry> inMemory, CloseableIterator<Entry> disk)
+        {
+            return MergeIterator.get(Arrays.asList(inMemory, disk), (a, b) -> {
+                Invariants.checkArgument(a.store_id == b.store_id);
+                return a.txnId.compareTo(b.txnId);
+            }, new MergeIterator.Reducer<Entry, Entry>()
+            {
+                private Entry first = null;
+                @Override
+                protected void onKeyChange()
+                {
+                    first = null;
+                }
+
+                @Override
+                public void reduce(int idx, Entry current)
+                {
+                    if (first == null)
+                        first = current;
+                }
+
+                @Override
+                protected Entry getReduced()
+                {
+                    Invariants.checkState(first != null);
+                    return first;
+                }
+            });
+        }
+    }
+
+    /**
+     * When using {@link PartitionRangeReadCommand} we need to work with {@link RowFilter} which works with columns.
+     * But the index doesn't care about table based queries and needs to be queried using the fields in the index, to
+     * support that this enum exists.  This enum represents the fields present in the index and can be used to apply
+     * filters to the index.
+     */
+    public enum SyntheticColumn
+    {
+        participants("participants", BytesType.instance),
+        store_id("store_id", Int32Type.instance),
+        txn_id("txn_id", AccordKeyspace.TIMESTAMP_TYPE);
+
+        public final ColumnMetadata metadata;
+
+        SyntheticColumn(String name, AbstractType<?> type)
+        {
+            this.metadata = new ColumnMetadata("journal", "routes", new ColumnIdentifier(name, false), type, ColumnMetadata.NO_POSITION, ColumnMetadata.Kind.REGULAR, null);
+        }
+    }
+
+    private static final class Entry
+    {
+        public int store_id;
+        public TxnId txnId;
     }
 
     public static class Writer implements Journal.Writer
@@ -626,40 +915,6 @@ public class AccordJournal implements accord.api.Journal, RangeSearcher.Supplier
         public boolean hasField(Field fields)
         {
             return !getFieldIsNull(fields, flags);
-        }
-    }
-
-    public interface Listener<V>
-    {
-        void onWrite(JournalKey id, Journal.Writer writer, Set<Integer> hosts, RecordPointer pointer);
-
-        void onCompact(Collection<StaticSegment<JournalKey, V>> oldSegments,
-                       Collection<StaticSegment<JournalKey, V>> compactedSegments);
-    }
-
-    public static class Listeners<V>
-    {
-        private final List<Listener<V>> listeners = new CopyOnWriteArrayList<>();
-
-        public void register(Listener<V> l)
-        {
-            listeners.add(l);
-        }
-
-        void safeNotify(Consumer<Listener<V>> fn)
-        {
-            for (Listener<V> listener : listeners)
-            {
-                try
-                {
-                    fn.accept(listener);
-                }
-                catch (Throwable t)
-                {
-                    JVMStabilityInspector.inspectThrowable(t);
-                    logger.warn("Failure notifying listener {}", listener, t);
-                }
-            }
         }
     }
 
