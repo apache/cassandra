@@ -23,11 +23,12 @@ import java.util.function.Consumer;
 import accord.primitives.Timestamp;
 import accord.primitives.TxnId;
 import org.apache.cassandra.service.accord.api.AccordRoutingKey;
+import org.apache.cassandra.utils.CloseableIterator;
 
 public interface RangeSearcher
 {
-    void intersects(int commandStoreId, TokenRange range, TxnId minTxnId, Timestamp maxTxnId, Consumer<TxnId> forEach);
-    void intersects(int commandStoreId, AccordRoutingKey key, TxnId minTxnId, Timestamp maxTxnId, Consumer<TxnId> forEach);
+    Result intersects(int commandStoreId, TokenRange range, TxnId minTxnId, Timestamp maxTxnId);
+    Result intersects(int commandStoreId, AccordRoutingKey key, TxnId minTxnId, Timestamp maxTxnId);
 
     static RangeSearcher extractRangeSearcher(Object o)
     {
@@ -41,20 +42,68 @@ public interface RangeSearcher
         RangeSearcher rangeSearcher();
     }
 
+    interface Result
+    {
+        void consume(Consumer<TxnId> forEach);
+    }
+
+    class DefaultResult implements Result
+    {
+        private final TxnId minTxnId;
+        private final Timestamp maxTxnId;
+        private final CloseableIterator<TxnId> results;
+        private boolean consumed = false;
+
+        public DefaultResult(TxnId minTxnId, Timestamp maxTxnId, CloseableIterator<TxnId> results)
+        {
+            this.minTxnId = minTxnId;
+            this.maxTxnId = maxTxnId;
+            this.results = results;
+        }
+
+        @Override
+        public void consume(Consumer<TxnId> forEach)
+        {
+            if (consumed)
+                throw new IllegalStateException("Attempted to consume an already consumed result");
+            consumed = true;
+            try (results)
+            {
+                while (results.hasNext())
+                {
+                    TxnId next = results.next();
+                    if (next.compareTo(minTxnId) >= 0 && next.compareTo(maxTxnId) < 0)
+                        forEach.accept(next);
+                }
+            }
+        }
+    }
+
+    enum NoopResult implements Result
+    {
+        instance;
+
+        @Override
+        public void consume(Consumer<TxnId> forEach)
+        {
+
+        }
+    }
+
     enum NoopRangeSearcher implements RangeSearcher
     {
         instance;
 
         @Override
-        public void intersects(int commandStoreId, TokenRange range, TxnId minTxnId, Timestamp maxTxnId, Consumer<TxnId> forEach)
+        public Result intersects(int commandStoreId, TokenRange range, TxnId minTxnId, Timestamp maxTxnId)
         {
-
+            return NoopResult.instance;
         }
 
         @Override
-        public void intersects(int commandStoreId, AccordRoutingKey key, TxnId minTxnId, Timestamp maxTxnId, Consumer<TxnId> forEach)
+        public Result intersects(int commandStoreId, AccordRoutingKey key, TxnId minTxnId, Timestamp maxTxnId)
         {
-
+            return NoopResult.instance;
         }
     }
 }

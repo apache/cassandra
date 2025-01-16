@@ -290,7 +290,7 @@ public class RouteIndexTest extends CQLTester.InMemory
         public Set<TxnId> run(Sut sut) throws Throwable
         {
             Set<TxnId> result = new ObjectHashSet<>();
-            sut.journal.get().rangeSearcher().intersects(storeId, key, TxnId.NONE, Timestamp.MAX, result::add);
+            sut.journal.get().rangeSearcher().intersects(storeId, key, TxnId.NONE, Timestamp.MAX).consume(result::add);
             return result;
         }
 
@@ -338,7 +338,7 @@ public class RouteIndexTest extends CQLTester.InMemory
         public Set<TxnId> run(Sut sut) throws Throwable
         {
             Set<TxnId> result = new ObjectHashSet<>();
-            sut.journal.get().rangeSearcher().intersects(storeId, range, TxnId.NONE, Timestamp.MAX, result::add);
+            sut.journal.get().rangeSearcher().intersects(storeId, range, TxnId.NONE, Timestamp.MAX).consume(result::add);
             return result;
         }
 

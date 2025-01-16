@@ -47,6 +47,7 @@ import org.apache.cassandra.journal.StaticSegment;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.service.accord.api.AccordRoutingKey;
 import org.apache.cassandra.utils.ByteArrayUtil;
+import org.apache.cassandra.utils.CloseableIterator;
 import org.apache.cassandra.utils.FastByteOperations;
 import org.apache.cassandra.utils.RTree;
 import org.apache.cassandra.utils.RangeTree;
@@ -118,31 +119,21 @@ public class RouteInMemoryIndex<K extends JournalKey, V> implements RangeSearche
     }
 
     @Override
-    public void intersects(int commandStoreId, TokenRange range, TxnId minTxnId, Timestamp maxTxnId, Consumer<TxnId> forEach)
+    public RangeSearcher.Result intersects(int commandStoreId, TokenRange range, TxnId minTxnId, Timestamp maxTxnId)
     {
         NavigableMap<IndexRange, Set<TxnId>> result = search(commandStoreId, range.start(), range.end());
         TreeSet<TxnId> matches = new TreeSet<>();
         result.values().forEach(s -> matches.addAll(s));
-        consume(matches.iterator(), minTxnId, maxTxnId, forEach);
+        return new DefaultResult(minTxnId, maxTxnId, CloseableIterator.wrap(matches.iterator()));
     }
 
     @Override
-    public void intersects(int commandStoreId, AccordRoutingKey key, TxnId minTxnId, Timestamp maxTxnId, Consumer<TxnId> forEach)
+    public RangeSearcher.Result intersects(int commandStoreId, AccordRoutingKey key, TxnId minTxnId, Timestamp maxTxnId)
     {
         NavigableMap<IndexRange, Set<TxnId>> result = search(commandStoreId, key);
         TreeSet<TxnId> matches = new TreeSet<>();
         result.values().forEach(s -> matches.addAll(s));
-        consume(matches.iterator(), minTxnId, maxTxnId, forEach);
-    }
-
-    private void consume(Iterator<TxnId> it, TxnId minTxnId, Timestamp maxTxnId, Consumer<TxnId> forEach)
-    {
-        while (it.hasNext())
-        {
-            TxnId next = it.next();
-            if (next.compareTo(minTxnId) >= 0 && next.compareTo(maxTxnId) < 0)
-                forEach.accept(next);
-        }
+        return new DefaultResult(minTxnId, maxTxnId, CloseableIterator.wrap(matches.iterator()));
     }
 
     private static class SegmentIndex

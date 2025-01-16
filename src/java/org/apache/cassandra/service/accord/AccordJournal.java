@@ -616,31 +616,15 @@ public class AccordJournal implements accord.api.Journal, RangeSearcher.Supplier
         }
 
         @Override
-        public void intersects(int storeId, TokenRange range, TxnId minTxnId, Timestamp maxTxnId, Consumer<TxnId> forEach)
+        public RangeSearcher.Result intersects(int storeId, TokenRange range, TxnId minTxnId, Timestamp maxTxnId)
         {
-            try (CloseableIterator<TxnId> it = search(storeId, range.start(), range.end()))
-            {
-                consume(it, minTxnId, maxTxnId, forEach);
-            }
+            return new DefaultResult(minTxnId, maxTxnId, search(storeId, range.start(), range.end()));
         }
 
         @Override
-        public void intersects(int storeId, AccordRoutingKey key, TxnId minTxnId, Timestamp maxTxnId, Consumer<TxnId> forEach)
+        public RangeSearcher.Result intersects(int storeId, AccordRoutingKey key, TxnId minTxnId, Timestamp maxTxnId)
         {
-            try (CloseableIterator<TxnId> it = search(storeId, key))
-            {
-                consume(it, minTxnId, maxTxnId, forEach);
-            }
-        }
-
-        private void consume(Iterator<TxnId> it, TxnId minTxnId, Timestamp maxTxnId, Consumer<TxnId> forEach)
-        {
-            while (it.hasNext())
-            {
-                TxnId next = it.next();
-                if (next.compareTo(minTxnId) >= 0 && next.compareTo(maxTxnId) < 0)
-                    forEach.accept(next);
-            }
+            return new DefaultResult(minTxnId, maxTxnId, search(storeId, key));
         }
 
         private CloseableIterator<TxnId> search(int store, AccordRoutingKey start, AccordRoutingKey end)
