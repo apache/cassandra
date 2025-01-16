@@ -217,8 +217,6 @@ public class AccordJournalTable<K extends JournalKey, V>
         return new JournalAndTableKeyIterator();
     }
 
-
-
     private class TableIterator implements Closeable
     {
         private final UnfilteredPartitionIterator mergeIterator;
