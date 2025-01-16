@@ -370,6 +370,14 @@ public class UserType extends TupleType implements SchemaElement
             && isMultiCell == other.isMultiCell;
     }
 
+    public boolean equalsWithOutKs(UserType other)
+    {
+        return name.equals(other.name)
+            && fieldNames.equals(other.fieldNames)
+            && types.equals(other.types)
+            && isMultiCell == other.isMultiCell;
+    }
+
     public Optional<Difference> compare(UserType other)
     {
         if (!equalsWithoutTypes(other))

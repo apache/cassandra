@@ -18,12 +18,21 @@
 
 package org.apache.cassandra.cql3.statements.schema;
 
+import java.nio.ByteBuffer;
+import java.util.Optional;
+import java.util.Set;
+import java.util.stream.Collectors;
+
+import com.google.common.collect.Sets;
+
 import org.apache.cassandra.audit.AuditLogContext;
 import org.apache.cassandra.audit.AuditLogEntryType;
 import org.apache.cassandra.auth.Permission;
 import org.apache.cassandra.cql3.CQLStatement;
 import org.apache.cassandra.cql3.QualifiedName;
 import org.apache.cassandra.db.guardrails.Guardrails;
+import org.apache.cassandra.db.marshal.UTF8Type;
+import org.apache.cassandra.db.marshal.UserType;
 import org.apache.cassandra.db.marshal.VectorType;
 import org.apache.cassandra.exceptions.AlreadyExistsException;
 import org.apache.cassandra.schema.Indexes;
@@ -114,14 +123,39 @@ public final class CopyTableStatement extends AlterSchemaStatement
 
         if (targetKeyspaceMeta.hasTable(targetTableName))
         {
-            if(ifNotExists)
+            if (ifNotExists)
                 return schema;
 
             throw new AlreadyExistsException(targetKeyspace, targetTableName);
         }
-        // todo support udt for differenet ks latter
-        if (!sourceKeyspace.equalsIgnoreCase(targetKeyspace) && !sourceTableMeta.getReferencedUserTypes().isEmpty())
-            throw ire("Cannot use CREATE TABLE LIKE across different keyspace when source table have UDTs.");
+
+        if (!sourceKeyspace.equalsIgnoreCase(targetKeyspace))
+        {
+            Set<String> missingUserTypes = Sets.newHashSet();
+            // for different keyspace, if source table used some udts and the target table also need them
+            for (ByteBuffer sourceUserTypeName : sourceTableMeta.getReferencedUserTypes())
+            {
+                Optional<UserType> targetUserType = targetKeyspaceMeta.types.get(sourceUserTypeName);
+                Optional<UserType> sourceUserType = sourceKeyspaceMeta.types.get(sourceUserTypeName);
+                if (targetUserType.isPresent() && sourceUserType.isPresent())
+                {
+                    if (!sourceUserType.get().equalsWithOutKs(targetUserType.get()))
+                        throw ire("Target keyspace '%s' has same UDT name '%s' as source keyspace '%s' but with different structure.",
+                                  targetKeyspace,
+                                  UTF8Type.instance.getString(targetUserType.get().name),
+                                  sourceKeyspace);
+                }
+                else
+                {
+                    missingUserTypes.add(UTF8Type.instance.compose(sourceUserTypeName));
+                }
+            }
+
+            if (!missingUserTypes.isEmpty())
+                throw ire("UDTs %s do not exist in target keyspace '%s'.",
+                          missingUserTypes.stream().sorted().collect(Collectors.joining(", ")),
+                          targetKeyspace);
+        }
 
         // Guardrail on columns per table
         Guardrails.columnsPerTable.guard(sourceTableMeta.columns().size(), targetTableName, false, state);
@@ -130,7 +164,7 @@ public final class CopyTableStatement extends AlterSchemaStatement
             if (columnMetadata.type.isVector())
             {
                 Guardrails.vectorTypeEnabled.ensureEnabled(columnMetadata.name.toString(), state);
-                int dimensions = ((VectorType)columnMetadata.type).dimension;
+                int dimensions = ((VectorType) columnMetadata.type).dimension;
                 Guardrails.vectorDimensions.guard(dimensions, columnMetadata.name.toString(), false, state);
             }
         });
