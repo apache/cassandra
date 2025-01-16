@@ -70,8 +70,7 @@ public class ParticipantsInMemoryIndex<K extends JournalKey, V> implements Range
         AccordJournal.Writer saveCommandWriter = (AccordJournal.Writer) writer;
         if (!saveCommandWriter.hasField(Field.PARTICIPANTS))
             return;
-        StoreParticipants participants = saveCommandWriter.after.participants();
-        Route<?> route = participants.route();
+        Route<?> route = saveCommandWriter.after.participants().route();
         if (route != null)
             update(pointer.segment, id.commandStoreId, id.id, route);
     }
