@@ -22,6 +22,7 @@ import java.nio.ByteBuffer;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.Iterator;
 import java.util.NavigableMap;
 import java.util.Set;
@@ -617,41 +618,40 @@ public class AccordJournal implements accord.api.Journal, RangeSearcher.Supplier
         @Override
         public void intersects(int storeId, TokenRange range, TxnId minTxnId, Timestamp maxTxnId, Consumer<TxnId> forEach)
         {
-            try (CloseableIterator<Entry> it = search(storeId, range.start(), range.end()))
+            try (CloseableIterator<TxnId> it = search(storeId, range.start(), range.end()))
             {
-                consume(it, storeId, minTxnId, maxTxnId, forEach);
+                consume(it, minTxnId, maxTxnId, forEach);
             }
         }
 
         @Override
         public void intersects(int storeId, AccordRoutingKey key, TxnId minTxnId, Timestamp maxTxnId, Consumer<TxnId> forEach)
         {
-            try (CloseableIterator<Entry> it = search(storeId, key))
+            try (CloseableIterator<TxnId> it = search(storeId, key))
             {
-                consume(it, storeId, minTxnId, maxTxnId, forEach);
+                consume(it, minTxnId, maxTxnId, forEach);
             }
         }
 
-        private void consume(Iterator<Entry> it, int storeId, TxnId minTxnId, Timestamp maxTxnId, Consumer<TxnId> forEach)
+        private void consume(Iterator<TxnId> it, TxnId minTxnId, Timestamp maxTxnId, Consumer<TxnId> forEach)
         {
             while (it.hasNext())
             {
-                Entry next = it.next();
-                if (next.store_id != storeId) continue; // the index should filter out, but just in case...
-                if (next.txnId.compareTo(minTxnId) >= 0 && next.txnId.compareTo(maxTxnId) < 0)
-                    forEach.accept(next.txnId);
+                TxnId next = it.next();
+                if (next.compareTo(minTxnId) >= 0 && next.compareTo(maxTxnId) < 0)
+                    forEach.accept(next);
             }
         }
 
-        private CloseableIterator<Entry> search(int store, AccordRoutingKey start, AccordRoutingKey end)
+        private CloseableIterator<TxnId> search(int store, AccordRoutingKey start, AccordRoutingKey end)
         {
             Invariants.checkArgument(start.table().equals(end.table()), "Start %s has different table than end %s", start, end);
-            CloseableIterator<Entry> inMemory = toIterator(store, index.search(store, start, end));
-            CloseableIterator<Entry> table = tableSearch(store, start, end);
+            CloseableIterator<TxnId> inMemory = toIterator(index.search(store, start, end));
+            CloseableIterator<TxnId> table = tableSearch(store, start, end);
             return merge(inMemory, table);
         }
 
-        private CloseableIterator<Entry> tableSearch(int store, AccordRoutingKey start, AccordRoutingKey end)
+        private CloseableIterator<TxnId> tableSearch(int store, AccordRoutingKey start, AccordRoutingKey end)
         {
             RowFilter rowFilter = RowFilter.create(false);
             rowFilter.add(SyntheticColumn.participants.metadata, Operator.GT, OrderedRouteSerializer.serializeRoutingKey(start));
@@ -667,17 +667,17 @@ public class AccordJournal implements accord.api.Journal, RangeSearcher.Supplier
                                                                              rowFilter,
                                                                              DataLimits.NONE,
                                                                              DataRange.allData(cfs.getPartitioner()));
-            return process(cmd);
+            return process(store, cmd);
         }
 
-        private CloseableIterator<Entry> search(int store, AccordRoutingKey key)
+        private CloseableIterator<TxnId> search(int store, AccordRoutingKey key)
         {
-            CloseableIterator<Entry> inMemory = toIterator(store, index.search(store, key));
-            CloseableIterator<Entry> table = tableSearch(store, key);
+            CloseableIterator<TxnId> inMemory = toIterator(index.search(store, key));
+            CloseableIterator<TxnId> table = tableSearch(store, key);
             return merge(inMemory, table);
         }
 
-        private CloseableIterator<Entry> tableSearch(int store, AccordRoutingKey key)
+        private CloseableIterator<TxnId> tableSearch(int store, AccordRoutingKey key)
         {
             RowFilter rowFilter = RowFilter.create(false);
             rowFilter.add(SyntheticColumn.participants.metadata, Operator.GTE, OrderedRouteSerializer.serializeRoutingKey(key));
@@ -693,18 +693,17 @@ public class AccordJournal implements accord.api.Journal, RangeSearcher.Supplier
                                                                              rowFilter,
                                                                              DataLimits.NONE,
                                                                              DataRange.allData(cfs.getPartitioner()));
-            return process(cmd);
+            return process(store, cmd);
         }
 
-        private CloseableIterator<Entry> process(PartitionRangeReadCommand cmd)
+        private CloseableIterator<TxnId> process(int storeId, PartitionRangeReadCommand cmd)
         {
             Index.Searcher s = tableIndex.searcherFor(cmd);
             try (ReadExecutionController controller = cmd.executionController())
             {
                 UnfilteredPartitionIterator partitionIterator = s.search(controller);
-                return new CloseableIterator<Entry>()
+                return new CloseableIterator<>()
                 {
-                    private final Entry entry = new Entry();
 
                     @Override
                     public void close()
@@ -719,56 +718,30 @@ public class AccordJournal implements accord.api.Journal, RangeSearcher.Supplier
                     }
 
                     @Override
-                    public Entry next()
+                    public TxnId next()
                     {
                         UnfilteredRowIterator next = partitionIterator.next();
                         JournalKey partitionKeyComponents = AccordKeyspace.JournalColumns.getJournalKey(next.partitionKey());
-                        entry.store_id = partitionKeyComponents.commandStoreId;
-                        entry.txnId = partitionKeyComponents.id;
-                        return entry;
+                        Invariants.checkState(partitionKeyComponents.commandStoreId == storeId,
+                                              () -> String.format("table index returned a command store other than the exepcted one; expected %d != %d", storeId, partitionKeyComponents.commandStoreId));
+                        return partitionKeyComponents.id;
                     }
                 };
             }
         }
 
-        private static CloseableIterator<Entry> toIterator(int store, NavigableMap<IndexRange, Set<TxnId>> journalSearch)
+        private static CloseableIterator<TxnId> toIterator(NavigableMap<IndexRange, Set<TxnId>> journalSearch)
         {
             TreeSet<TxnId> matches = new TreeSet<>();
             journalSearch.values().forEach(s -> matches.addAll(s));
-            return new CloseableIterator<>()
-            {
-                private final Entry entry = new Entry();
-                private final Iterator<TxnId> it = matches.iterator();
-                @Override
-                public void close()
-                {
-                    matches.clear();
-                }
-
-                @Override
-                public boolean hasNext()
-                {
-                    return it.hasNext();
-                }
-
-                @Override
-                public Entry next()
-                {
-                    entry.store_id = store;
-                    entry.txnId = it.next();
-                    return entry;
-                }
-            };
+            return CloseableIterator.wrap(matches.iterator());
         }
 
-        private static CloseableIterator<Entry> merge(CloseableIterator<Entry> inMemory, CloseableIterator<Entry> disk)
+        private static CloseableIterator<TxnId> merge(CloseableIterator<TxnId> inMemory, CloseableIterator<TxnId> disk)
         {
-            return MergeIterator.get(Arrays.asList(inMemory, disk), (a, b) -> {
-                Invariants.checkArgument(a.store_id == b.store_id);
-                return a.txnId.compareTo(b.txnId);
-            }, new MergeIterator.Reducer<Entry, Entry>()
+            return MergeIterator.get(Arrays.asList(inMemory, disk), Comparator.naturalOrder(), new MergeIterator.Reducer<>()
             {
-                private Entry first = null;
+                private TxnId first = null;
                 @Override
                 protected void onKeyChange()
                 {
@@ -776,14 +749,14 @@ public class AccordJournal implements accord.api.Journal, RangeSearcher.Supplier
                 }
 
                 @Override
-                public void reduce(int idx, Entry current)
+                public void reduce(int idx, TxnId current)
                 {
                     if (first == null)
                         first = current;
                 }
 
                 @Override
-                protected Entry getReduced()
+                protected TxnId getReduced()
                 {
                     Invariants.checkState(first != null);
                     return first;
@@ -810,12 +783,6 @@ public class AccordJournal implements accord.api.Journal, RangeSearcher.Supplier
         {
             this.metadata = new ColumnMetadata("journal", "routes", new ColumnIdentifier(name, false), type, ColumnMetadata.NO_POSITION, ColumnMetadata.Kind.REGULAR, null);
         }
-    }
-
-    private static final class Entry
-    {
-        public int store_id;
-        public TxnId txnId;
     }
 
     public static class Writer implements Journal.Writer
