@@ -86,21 +86,13 @@ public class RouteInMemoryIndex<K extends JournalKey, V> implements RangeSearche
         oldSegments.forEach(s -> segmentIndexes.remove(s.id()));
     }
 
-    public NavigableSet<TxnId> search(int storeId, AccordRoutingKey key)
+    @Override
+    public RangeSearcher.Result intersects(int commandStoreId, TokenRange range, TxnId minTxnId, Timestamp maxTxnId)
     {
-        return search(storeId, key.table(), OrderedRouteSerializer.serializeRoutingKeyNoTable(key));
-    }
-
-    private synchronized NavigableSet<TxnId> search(int storeId, TableId tableId, byte[] key)
-    {
-        TreeSet<TxnId> matches = new TreeSet<>();
-        segmentIndexes.values().forEach(s -> s.search(storeId, tableId, key, e -> matches.add(e.getValue())));
-        return matches.isEmpty() ? Collections.emptyNavigableSet() : matches;
-    }
-
-    public NavigableSet<TxnId> search(int storeId, AccordRoutingKey start, AccordRoutingKey end)
-    {
-        return search(storeId, start.table(), OrderedRouteSerializer.serializeRoutingKeyNoTable(start), OrderedRouteSerializer.serializeRoutingKeyNoTable(end));
+        NavigableSet<TxnId> result = search(commandStoreId, range.table(),
+                                            OrderedRouteSerializer.serializeRoutingKeyNoTable(range.start()),
+                                            OrderedRouteSerializer.serializeRoutingKeyNoTable(range.end()));
+        return new DefaultResult(minTxnId, maxTxnId, CloseableIterator.wrap(result.iterator()));
     }
 
     private synchronized NavigableSet<TxnId> search(int storeId, TableId tableId, byte[] start, byte[] end)
@@ -110,23 +102,23 @@ public class RouteInMemoryIndex<K extends JournalKey, V> implements RangeSearche
         return matches.isEmpty() ? Collections.emptyNavigableSet() : matches;
     }
 
-    public synchronized void truncateForTesting()
-    {
-        segmentIndexes.clear();
-    }
-
-    @Override
-    public RangeSearcher.Result intersects(int commandStoreId, TokenRange range, TxnId minTxnId, Timestamp maxTxnId)
-    {
-        NavigableSet<TxnId> result = search(commandStoreId, range.start(), range.end());
-        return new DefaultResult(minTxnId, maxTxnId, CloseableIterator.wrap(result.iterator()));
-    }
-
     @Override
     public RangeSearcher.Result intersects(int commandStoreId, AccordRoutingKey key, TxnId minTxnId, Timestamp maxTxnId)
     {
-        NavigableSet<TxnId> result = search(commandStoreId, key);
+        NavigableSet<TxnId> result = search(commandStoreId, key.table(), OrderedRouteSerializer.serializeRoutingKeyNoTable(key));
         return new DefaultResult(minTxnId, maxTxnId, CloseableIterator.wrap(result.iterator()));
+    }
+
+    private synchronized NavigableSet<TxnId> search(int storeId, TableId tableId, byte[] key)
+    {
+        TreeSet<TxnId> matches = new TreeSet<>();
+        segmentIndexes.values().forEach(s -> s.search(storeId, tableId, key, e -> matches.add(e.getValue())));
+        return matches.isEmpty() ? Collections.emptyNavigableSet() : matches;
+    }
+
+    public synchronized void truncateForTesting()
+    {
+        segmentIndexes.clear();
     }
 
     private static class SegmentIndex
