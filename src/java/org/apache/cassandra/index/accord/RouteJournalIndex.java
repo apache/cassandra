@@ -82,7 +82,6 @@ import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.ClientState;
-import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.service.accord.AccordJournal;
 import org.apache.cassandra.service.accord.AccordKeyspace;
 import org.apache.cassandra.service.accord.JournalKey;
@@ -413,6 +412,10 @@ public class RouteJournalIndex implements Index, INotificationConsumer
             else if (e.column() == AccordJournal.SyntheticColumn.store_id.metadata && e.operator() == Operator.EQ)
             {
                 storeId = Int32Type.instance.compose(e.getIndexValue());
+            }
+            else
+            {
+                throw new IllegalArgumentException("Unexpected expression: " + e.toCQLString());
             }
         }
         if (start == null || end == null || storeId == null)
