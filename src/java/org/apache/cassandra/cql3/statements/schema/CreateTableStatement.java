@@ -124,7 +124,8 @@ public final class CreateTableStatement extends AlterSchemaStatement
         TableMetadata.Builder builder = builder(keyspace.types, ufBuilder.build()).epoch(metadata.nextEpoch());
 
         // We do not want to set table ID here just yet, since we are using CQL for serialising a fully expanded CREATE TABLE statement.
-        this.expandedCql = builder.build().toCqlString(false, attrs.hasProperty(TableAttributes.ID), ifNotExists);
+        expandedCql = builder.build().toCqlString(false, attrs.hasProperty(TableAttributes.ID), ifNotExists);
+        verifyExpandedCql(expandedCql);
 
         if (!attrs.hasProperty(TableAttributes.ID))
             builder.id(TableId.get(metadata));

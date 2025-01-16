@@ -202,7 +202,8 @@ public final class CreateIndexStatement extends AlterSchemaStatement
             throw ire(INDEX_DUPLICATE_OF_EXISTING, index.name, equalIndex.name);
         }
 
-        this.expandedCql = index.toCqlString(table, ifNotExists);
+        expandedCql = index.toCqlString(table, ifNotExists);
+        verifyExpandedCql(expandedCql);
 
         TableMetadata newTable = table.withSwapped(table.indexes.with(index));
         newTable.validate();
