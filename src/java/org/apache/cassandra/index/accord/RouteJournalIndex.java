@@ -196,8 +196,6 @@ public class RouteJournalIndex implements Index, INotificationConsumer
     @Override
     public Callable<?> getInitializationTask()
     {
-        //TODO (now): in SAI startup doesn't validate... what are the downstream issues this can face?  Corrupt indexes not being detected?
-        boolean starting = StorageService.instance.isStarting();
         return () -> {
             if (baseCfs.indexManager.isIndexQueryable(this))
             {
