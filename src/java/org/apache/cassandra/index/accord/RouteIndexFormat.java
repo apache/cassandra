@@ -101,16 +101,16 @@ public class RouteIndexFormat
 
     public static ByteBuffer extractParticipants(ParticipantsJournalIndex index, TxnId txnId, Row row)
     {
-        boolean recordNull = row.getCell(index.record) == null;
-        boolean userVersionNull = row.getCell(index.user_version) == null;
+        boolean recordNull = row.getCell(AccordKeyspace.JournalColumns.record) == null;
+        boolean userVersionNull = row.getCell(AccordKeyspace.JournalColumns.user_version) == null;
         if (recordNull != userVersionNull)
             throw new IllegalStateException(String.format("Record is %s, but user_version is %s",
                                                           (recordNull ? "null" : "defined"),
                                                           (userVersionNull ? "null" : "defined")));
         if (recordNull)
             return null;
-        Cell<?> recordCell = row.getCell(index.record);
-        Cell<?> user_versionCell = row.getCell(index.user_version);
+        Cell<?> recordCell = row.getCell(AccordKeyspace.JournalColumns.record);
+        Cell<?> user_versionCell = row.getCell(AccordKeyspace.JournalColumns.user_version);
         long nowInSec = nowInSeconds();
         boolean recordLive = recordCell.isLive(nowInSec);
         boolean user_versionLive = user_versionCell.isLive(nowInSec);

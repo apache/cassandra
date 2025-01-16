@@ -101,8 +101,6 @@ public class ParticipantsJournalIndex implements Index, INotificationConsumer
     private static final Component.Type type = Component.Type.createSingleton("AccordRoute", "AccordRoute.*.db", true, null);
 
     private final ColumnFamilyStore baseCfs;
-    public final ColumnMetadata record;
-    public final ColumnMetadata user_version;
     private final IndexMetadata indexMetadata;
     private final IndexMetrics indexMetrics;
     private final MemtableIndexManager memtableIndexManager;
@@ -117,8 +115,6 @@ public class ParticipantsJournalIndex implements Index, INotificationConsumer
 
         this.baseCfs = baseCfs;
         // type is only IndexTarget.Type.VALUES
-        this.record = AccordKeyspace.JournalColumns.record;
-        this.user_version = AccordKeyspace.JournalColumns.user_version;
         this.indexMetadata = indexMetadata;
 
         this.memtableIndexManager = new RouteMemtableIndexManager(this);
