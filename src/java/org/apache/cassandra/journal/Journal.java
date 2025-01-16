@@ -910,7 +910,7 @@ public class Journal<K, V> implements Shutdownable
         if (!discarding.isEmpty()) // if there is no data in the segement then ignore it
         {
             closeCurrentSegmentForTestingIfNonEmpty();
-            // wait for the ActiveSegment to get released, else can see weird race conditions;
+            //TODO (desired): wait for the ActiveSegment to get released, else can see weird race conditions;
             // this thread will see the static segmenet and will release it (which will delete the file),
             // and the sync thread will then try to release and will fail as the file no longer exists...
             while (discarding.selfRef().globalCount() > 0) {}
