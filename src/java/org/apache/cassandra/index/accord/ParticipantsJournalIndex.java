@@ -444,7 +444,7 @@ public class ParticipantsJournalIndex implements Index, INotificationConsumer
                 // find all partitions from memtable / sstable
                 NavigableSet<ByteBuffer> partitions = search(storeId, key);
                 // do SinglePartitionReadCommand per partition
-                return new SearchIterator(executionController, command, partitions);
+                return new SearchIterator(command, partitions);
             }
 
             NavigableSet<ByteBuffer> search(int storeId, ByteBuffer key)
@@ -480,7 +480,7 @@ public class ParticipantsJournalIndex implements Index, INotificationConsumer
                 // find all partitions from memtable / sstable
                 NavigableSet<ByteBuffer> partitions = search(storeId, start, startInclusive, end, endInclusive);
                 // do SinglePartitionReadCommand per partition
-                return new SearchIterator(executionController, command, partitions);
+                return new SearchIterator(command, partitions);
             }
 
             NavigableSet<ByteBuffer> search(int storeId,
@@ -549,15 +549,11 @@ public class ParticipantsJournalIndex implements Index, INotificationConsumer
 
     private class SearchIterator extends AbstractIterator<UnfilteredRowIterator> implements UnfilteredPartitionIterator
     {
-        private final ReadExecutionController executionController;
-        private final ReadCommand command;
         private final TableMetadata metadata;
         private final Iterator<ByteBuffer> partitions;
 
-        private SearchIterator(ReadExecutionController executionController, ReadCommand command, NavigableSet<ByteBuffer> partitions)
+        private SearchIterator(ReadCommand command, NavigableSet<ByteBuffer> partitions)
         {
-            this.executionController = executionController;
-            this.command = command;
             this.metadata = command.metadata();
             this.partitions = partitions.iterator();
         }
