@@ -21,12 +21,8 @@ package org.apache.cassandra.service.accord;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.HashSet;
-import java.util.Iterator;
 import java.util.Map;
-import java.util.NavigableMap;
-import java.util.Set;
-import java.util.TreeMap;
+import java.util.NavigableSet;
 import java.util.TreeSet;
 import java.util.function.Consumer;
 
@@ -52,6 +48,7 @@ import org.apache.cassandra.utils.FastByteOperations;
 import org.apache.cassandra.utils.RTree;
 import org.apache.cassandra.utils.RangeTree;
 
+//TODO (generics): remove K its dead code
 public class RouteInMemoryIndex<K extends JournalKey, V> implements RangeSearcher
 {
     private final Long2ObjectHashMap<SegmentIndex> segmentIndexes = new Long2ObjectHashMap<>();
@@ -89,28 +86,28 @@ public class RouteInMemoryIndex<K extends JournalKey, V> implements RangeSearche
         oldSegments.forEach(s -> segmentIndexes.remove(s.id()));
     }
 
-    public NavigableMap<IndexRange, Set<TxnId>> search(int storeId, AccordRoutingKey key)
+    public NavigableSet<TxnId> search(int storeId, AccordRoutingKey key)
     {
         return search(storeId, key.table(), OrderedRouteSerializer.serializeRoutingKeyNoTable(key));
     }
 
-    private synchronized NavigableMap<IndexRange, Set<TxnId>> search(int storeId, TableId tableId, byte[] key)
+    private synchronized NavigableSet<TxnId> search(int storeId, TableId tableId, byte[] key)
     {
-        TreeMap<IndexRange, Set<TxnId>> matches = new TreeMap<>();
-        segmentIndexes.values().forEach(s -> s.search(storeId, tableId, key, e -> matches.computeIfAbsent(e.getKey(), i -> new HashSet<>()).add(e.getValue())));
-        return matches.isEmpty() ? Collections.emptyNavigableMap() : matches;
+        TreeSet<TxnId> matches = new TreeSet<>();
+        segmentIndexes.values().forEach(s -> s.search(storeId, tableId, key, e -> matches.add(e.getValue())));
+        return matches.isEmpty() ? Collections.emptyNavigableSet() : matches;
     }
 
-    public NavigableMap<IndexRange, Set<TxnId>> search(int storeId, AccordRoutingKey start, AccordRoutingKey end)
+    public NavigableSet<TxnId> search(int storeId, AccordRoutingKey start, AccordRoutingKey end)
     {
         return search(storeId, start.table(), OrderedRouteSerializer.serializeRoutingKeyNoTable(start), OrderedRouteSerializer.serializeRoutingKeyNoTable(end));
     }
 
-    private synchronized NavigableMap<IndexRange, Set<TxnId>> search(int storeId, TableId tableId, byte[] start, byte[] end)
+    private synchronized NavigableSet<TxnId> search(int storeId, TableId tableId, byte[] start, byte[] end)
     {
-        TreeMap<IndexRange, Set<TxnId>> matches = new TreeMap<>();
-        segmentIndexes.values().forEach(s -> s.search(storeId, tableId, start, end, e -> matches.computeIfAbsent(e.getKey(), i -> new HashSet<>()).add(e.getValue())));
-        return matches.isEmpty() ? Collections.emptyNavigableMap() : matches;
+        TreeSet<TxnId> matches = new TreeSet<>();
+        segmentIndexes.values().forEach(s -> s.search(storeId, tableId, start, end, e -> matches.add(e.getValue())));
+        return matches.isEmpty() ? Collections.emptyNavigableSet() : matches;
     }
 
     public synchronized void truncateForTesting()
@@ -121,19 +118,15 @@ public class RouteInMemoryIndex<K extends JournalKey, V> implements RangeSearche
     @Override
     public RangeSearcher.Result intersects(int commandStoreId, TokenRange range, TxnId minTxnId, Timestamp maxTxnId)
     {
-        NavigableMap<IndexRange, Set<TxnId>> result = search(commandStoreId, range.start(), range.end());
-        TreeSet<TxnId> matches = new TreeSet<>();
-        result.values().forEach(s -> matches.addAll(s));
-        return new DefaultResult(minTxnId, maxTxnId, CloseableIterator.wrap(matches.iterator()));
+        NavigableSet<TxnId> result = search(commandStoreId, range.start(), range.end());
+        return new DefaultResult(minTxnId, maxTxnId, CloseableIterator.wrap(result.iterator()));
     }
 
     @Override
     public RangeSearcher.Result intersects(int commandStoreId, AccordRoutingKey key, TxnId minTxnId, Timestamp maxTxnId)
     {
-        NavigableMap<IndexRange, Set<TxnId>> result = search(commandStoreId, key);
-        TreeSet<TxnId> matches = new TreeSet<>();
-        result.values().forEach(s -> matches.addAll(s));
-        return new DefaultResult(minTxnId, maxTxnId, CloseableIterator.wrap(matches.iterator()));
+        NavigableSet<TxnId> result = search(commandStoreId, key);
+        return new DefaultResult(minTxnId, maxTxnId, CloseableIterator.wrap(result.iterator()));
     }
 
     private static class SegmentIndex

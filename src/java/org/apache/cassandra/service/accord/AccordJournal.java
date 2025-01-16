@@ -26,7 +26,6 @@ import java.util.Comparator;
 import java.util.Iterator;
 import java.util.NavigableMap;
 import java.util.Set;
-import java.util.TreeSet;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.function.BiConsumer;
@@ -618,21 +617,17 @@ public class AccordJournal implements accord.api.Journal, RangeSearcher.Supplier
         @Override
         public RangeSearcher.Result intersects(int storeId, TokenRange range, TxnId minTxnId, Timestamp maxTxnId)
         {
-            return new DefaultResult(minTxnId, maxTxnId, search(storeId, range.start(), range.end()));
+            CloseableIterator<TxnId> inMemory = toIterator(index.intersects(storeId, range, minTxnId, maxTxnId));
+            CloseableIterator<TxnId> table = tableSearch(storeId, range.start(), range.end());
+            return new DefaultResult(minTxnId, maxTxnId, merge(inMemory, table));
         }
 
         @Override
         public RangeSearcher.Result intersects(int storeId, AccordRoutingKey key, TxnId minTxnId, Timestamp maxTxnId)
         {
-            return new DefaultResult(minTxnId, maxTxnId, search(storeId, key));
-        }
-
-        private CloseableIterator<TxnId> search(int store, AccordRoutingKey start, AccordRoutingKey end)
-        {
-            Invariants.checkArgument(start.table().equals(end.table()), "Start %s has different table than end %s", start, end);
-            CloseableIterator<TxnId> inMemory = toIterator(index.search(store, start, end));
-            CloseableIterator<TxnId> table = tableSearch(store, start, end);
-            return merge(inMemory, table);
+            CloseableIterator<TxnId> inMemory = toIterator(index.intersects(storeId, key, minTxnId, maxTxnId));
+            CloseableIterator<TxnId> table = tableSearch(storeId, key);
+            return new DefaultResult(minTxnId, maxTxnId, merge(inMemory, table));
         }
 
         private CloseableIterator<TxnId> tableSearch(int store, AccordRoutingKey start, AccordRoutingKey end)
@@ -652,13 +647,6 @@ public class AccordJournal implements accord.api.Journal, RangeSearcher.Supplier
                                                                              DataLimits.NONE,
                                                                              DataRange.allData(cfs.getPartitioner()));
             return process(store, cmd);
-        }
-
-        private CloseableIterator<TxnId> search(int store, AccordRoutingKey key)
-        {
-            CloseableIterator<TxnId> inMemory = toIterator(index.search(store, key));
-            CloseableIterator<TxnId> table = tableSearch(store, key);
-            return merge(inMemory, table);
         }
 
         private CloseableIterator<TxnId> tableSearch(int store, AccordRoutingKey key)
@@ -714,11 +702,10 @@ public class AccordJournal implements accord.api.Journal, RangeSearcher.Supplier
             }
         }
 
-        private static CloseableIterator<TxnId> toIterator(NavigableMap<IndexRange, Set<TxnId>> journalSearch)
+        private static CloseableIterator<TxnId> toIterator(RangeSearcher.Result journalSearch)
         {
-            TreeSet<TxnId> matches = new TreeSet<>();
-            journalSearch.values().forEach(s -> matches.addAll(s));
-            return CloseableIterator.wrap(matches.iterator());
+            DefaultResult result = (DefaultResult) journalSearch;
+            return result.results();
         }
 
         private static CloseableIterator<TxnId> merge(CloseableIterator<TxnId> inMemory, CloseableIterator<TxnId> disk)

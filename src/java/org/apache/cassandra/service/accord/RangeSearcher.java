@@ -61,12 +61,16 @@ public interface RangeSearcher
             this.results = results;
         }
 
+        public CloseableIterator<TxnId> results()
+        {
+            consume();
+            return results;
+        }
+
         @Override
         public void consume(Consumer<TxnId> forEach)
         {
-            if (consumed)
-                throw new IllegalStateException("Attempted to consume an already consumed result");
-            consumed = true;
+            consume();
             try (results)
             {
                 while (results.hasNext())
@@ -76,6 +80,13 @@ public interface RangeSearcher
                         forEach.accept(next);
                 }
             }
+        }
+
+        private void consume()
+        {
+            if (consumed)
+                throw new IllegalStateException("Attempted to consume an already consumed result");
+            consumed = true;
         }
     }
 
