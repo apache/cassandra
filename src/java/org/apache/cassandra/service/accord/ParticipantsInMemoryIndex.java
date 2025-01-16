@@ -83,16 +83,6 @@ public class ParticipantsInMemoryIndex<K extends JournalKey, V> implements Range
         segmentIndexes.computeIfAbsent(segment, SegmentIndex::new).add(commandStoreId, id, route);
     }
 
-    public void update(long segment, K id, ByteBuffer buffer, int userVersion)
-    {
-        if (!ParticipantsJournalIndex.allowed(id))
-            return;
-        StoreParticipants participants = RouteIndexFormat.extract(id.id, buffer, userVersion).participants();
-        if (participants == null || participants.route() == null)
-            return;
-        update(segment, id.commandStoreId, id.id, participants.route());
-    }
-
     public synchronized void onCompact(Collection<StaticSegment<JournalKey, V>> oldSegments)
     {
         // As of this writing compact in accord journal takes StaticSegments, writes them to a SSTable, and pushes to a table;
