@@ -65,7 +65,7 @@ public class AccordJournalTable<K extends JournalKey, V>
 
     private final ColumnMetadata recordColumn;
     private final ColumnMetadata versionColumn;
-    
+
     private final KeySupport<K> keySupport;
     private final int accordJournalVersion;
 
