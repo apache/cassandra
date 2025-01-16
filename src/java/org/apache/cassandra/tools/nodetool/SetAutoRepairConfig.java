@@ -47,7 +47,7 @@ public class SetAutoRepairConfig extends NodeToolCmd
                   "[start_scheduler|number_of_repair_threads|min_repair_interval|sstable_upper_threshold" +
                   "|enabled|table_max_repair_time|priority_hosts|forcerepair_hosts|ignore_dcs" +
                   "|history_clear_delete_hosts_buffer_interval|repair_primary_token_range_only" +
-                  "|parallel_repair_count|parallel_repair_percentage|mv_repair_enabled|repair_max_retries" +
+                  "|parallel_repair_count|parallel_repair_percentage|materialized_view_repair_enabled|repair_max_retries" +
                   "|repair_retry_backoff|repair_session_timeout|min_repair_task_duration|token_range_splitter.<property>]",
     required = true)
     protected List<String> args = new ArrayList<>();
@@ -160,8 +160,8 @@ public class SetAutoRepairConfig extends NodeToolCmd
             case "parallel_repair_percentage":
                 probe.setParallelRepairPercentage(repairType, Integer.parseInt(paramVal));
                 break;
-            case "mv_repair_enabled":
-                probe.setMVRepairEnabled(repairType, Boolean.parseBoolean(paramVal));
+            case "materialized_view_repair_enabled":
+                probe.setMaterializedViewRepairEnabled(repairType, Boolean.parseBoolean(paramVal));
                 break;
             case "repair_session_timeout":
                 probe.setRepairSessionTimeout(repairType, paramVal);

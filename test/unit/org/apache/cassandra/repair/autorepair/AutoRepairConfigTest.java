@@ -18,6 +18,8 @@
 
 package org.apache.cassandra.repair.autorepair;
 
+import java.util.HashSet;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Collections;
 import java.util.Set;
@@ -39,6 +41,7 @@ import org.apache.cassandra.repair.autorepair.AutoRepairConfig.Options;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
 @RunWith(Parameterized.class)
@@ -305,11 +308,11 @@ public class AutoRepairConfigTest extends CQLTester
     }
 
     @Test
-    public void testGetMVRepairEnabled()
+    public void testGetMaterializedViewRepairEnabled()
     {
-        config.global_settings.mv_repair_enabled = true;
+        config.global_settings.materialized_view_repair_enabled = true;
 
-        boolean result = config.getMVRepairEnabled(repairType);
+        boolean result = config.getMaterializedViewRepairEnabled(repairType);
 
         assertTrue(result);
     }
@@ -317,9 +320,9 @@ public class AutoRepairConfigTest extends CQLTester
     @Test
     public void testSetMVRepairEnabled()
     {
-        config.setMVRepairEnabled(repairType, true);
+        config.setMaterializedViewRepairEnabled(repairType, true);
 
-        assertTrue(config.getOptions(repairType).mv_repair_enabled);
+        assertTrue(config.getOptions(repairType).materialized_view_repair_enabled);
     }
 
     @Test
@@ -363,7 +366,7 @@ public class AutoRepairConfigTest extends CQLTester
     {
         Options defaultOptions = Options.getDefaultOptions();
 
-        assertFalse(defaultOptions.mv_repair_enabled);
+        assertFalse(defaultOptions.materialized_view_repair_enabled);
     }
 
     @Test
@@ -409,4 +412,54 @@ public class AutoRepairConfigTest extends CQLTester
         assert config.getOptions(repairType).repair_session_timeout.toSeconds() == 3600;
     }
 
+    @Test
+    public void testDefaultOptions()
+    {
+        Map<AutoRepairConfig.RepairType, Options> defaultOptions = Options.getDefaultOptionsMap();
+        Options options = defaultOptions.get(repairType);
+        assertFalse(options.enabled);
+        assertFalse(options.repair_by_keyspace);
+        assertEquals(Integer.valueOf(1), options.number_of_repair_threads);
+        assertEquals(Integer.valueOf(3), options.parallel_repair_count);
+        assertEquals(Integer.valueOf(3), options.parallel_repair_percentage);
+        assertEquals(Integer.valueOf(10000), options.sstable_upper_threshold);
+        assertEquals(new HashSet<>(), options.ignore_dcs);
+        assertTrue(options.repair_primary_token_range_only);
+        assertFalse(options.force_repair_new_node);
+        assertEquals(new DurationSpec.IntSecondsBound("6h"), options.table_max_repair_time);
+        assertFalse(options.materialized_view_repair_enabled);
+        assertEquals(new ParameterizedClass(RepairTokenRangeSplitter.class.getName(), Collections.emptyMap()), options.token_range_splitter);
+        assertEquals(new DurationSpec.IntSecondsBound("5m"), options.initial_scheduler_delay);
+        assertEquals(new DurationSpec.IntSecondsBound("3h"), options.repair_session_timeout);
+
+        if (repairType == AutoRepairConfig.RepairType.INCREMENTAL)
+        {
+            assertEquals(new DurationSpec.IntSecondsBound("1h"), options.min_repair_interval);
+        }
+        else
+        {
+            assertEquals(new DurationSpec.IntSecondsBound("24h"), options.min_repair_interval);
+        }
+    }
+
+    @Test
+    public void testGlobalOptions()
+    {
+        AutoRepairConfig config = new AutoRepairConfig();
+        assertFalse(config.global_settings.enabled);
+        assertFalse(config.global_settings.repair_by_keyspace);
+        assertEquals(Integer.valueOf(1), config.global_settings.number_of_repair_threads);
+        assertEquals(Integer.valueOf(3), config.global_settings.parallel_repair_count);
+        assertEquals(Integer.valueOf(3), config.global_settings.parallel_repair_percentage);
+        assertEquals(Integer.valueOf(10000), config.global_settings.sstable_upper_threshold);
+        assertEquals(new HashSet<>(), config.global_settings.ignore_dcs);
+        assertTrue(config.global_settings.repair_primary_token_range_only);
+        assertFalse(config.global_settings.force_repair_new_node);
+        assertEquals(new DurationSpec.IntSecondsBound("6h"), config.global_settings.table_max_repair_time);
+        assertFalse(config.global_settings.materialized_view_repair_enabled);
+        assertEquals(new ParameterizedClass(RepairTokenRangeSplitter.class.getName(), Collections.emptyMap()), config.global_settings.token_range_splitter);
+        assertEquals(new DurationSpec.IntSecondsBound("5m"), config.global_settings.initial_scheduler_delay);
+        assertEquals(new DurationSpec.IntSecondsBound("3h"), config.global_settings.repair_session_timeout);
+        assertNull(config.global_settings.min_repair_interval);
+    }
 }

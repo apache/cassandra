@@ -73,7 +73,7 @@ public class AutoRepairServiceSetterTest<T> extends CQLTester {
                 forEachRepairType(true, AutoRepairService.instance::setPrimaryTokenRangeOnly, config::getRepairPrimaryTokenRangeOnly),
                 forEachRepairType(600, AutoRepairService.instance::setParallelRepairPercentage, config::getParallelRepairPercentage),
                 forEachRepairType(700, AutoRepairService.instance::setParallelRepairCount, config::getParallelRepairCount),
-                forEachRepairType(true, AutoRepairService.instance::setMVRepairEnabled, config::getMVRepairEnabled),
+                forEachRepairType(true, AutoRepairService.instance::setMVRepairEnabled, config::getMaterializedViewRepairEnabled),
                 forEachRepairType(ImmutableSet.of(InetAddressAndPort.getLocalHost()), AutoRepairService.instance::setRepairPriorityForHosts, AutoRepairUtils::getPriorityHosts),
                 forEachRepairType(ImmutableSet.of(InetAddressAndPort.getLocalHost()), AutoRepairService.instance::setForceRepairForHosts, AutoRepairServiceSetterTest::isLocalHostForceRepair)
         ).flatMap(Function.identity()).collect(Collectors.toList());

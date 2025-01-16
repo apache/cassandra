@@ -40,26 +40,24 @@ import org.apache.cassandra.utils.FBUtilities;
 
 public class AutoRepairConfig implements Serializable
 {
-    // Enable/Disable auto repair scheduler. If it is set to false, then the scheduler thread will not be spun up.
-    // If it is set to true, then the repair scheduler thread will be created. The thread will
-    // look for secondary config available for each repair type (full, incremental, and preview_repaired),
-    // and based on that, it will schedule repairs.
+    // Enable/Disable the auto-repair scheduler.
+    // If set to false, the scheduler thread will not be started.
+    // If set to true, the repair scheduler thread will be created. The thread will
+    // check for secondary configuration available for each repair type (full, incremental,
+    // and preview_repaired), and based on that, it will schedule repairs.
     public volatile Boolean enabled;
-    // Time interval between successive checks for repair scheduler to check if either the ongoing repair is completed or if
-    // none is going, then check if it's time to schedule or wait.
+    // Time interval between successive checks to see if ongoing repairs are complete or if it is time to schedule
+    // repairs.
     public final DurationSpec.IntSecondsBound repair_check_interval = new DurationSpec.IntSecondsBound("5m");
-    // When any nodes leave the ring then the repair schedule needs to adjust the order, etc.
-    // The AutoRepair scheduler keeps the deleted hosts information in its persisted metadata for the defined interval in this config.
-    // This information is useful so the scheduler is absolutely sure that the node is indeed removed from the ring, and then it can adjust the repair schedule accordingly.
-    // So, the duration in this config determinses for how long deleted host's information is kept in the scheduler's metadata.
+    // The scheduler needs to adjust its order when nodes leave the ring. Deleted hosts are tracked in metadata
+    // for a specified duration to ensure they are indeed removed before adjustments are made to the schedule.
     public volatile DurationSpec.IntSecondsBound history_clear_delete_hosts_buffer_interval = new DurationSpec.IntSecondsBound("2h");
     // Maximum number of retries for a repair session.
     public volatile Integer repair_max_retries = 3;
-    // Backoff time in seconds for retrying a repair session.
+    // Backoff time before retrying a repair session.
     public volatile DurationSpec.LongSecondsBound repair_retry_backoff = new DurationSpec.LongSecondsBound("30s");
-    // Minimum duration for the execution of a single repair task (i.e.: RepairRunnable).
-    // This helps prevent the auto-repair scheduler from overwhelming the node by scheduling a large number of
-    // repair tasks in a short period of time.
+    // Minimum duration for the execution of a single repair task. This prevents the scheduler from overwhelming
+    // the node by scheduling too many repair tasks in a short period of time.
     public volatile DurationSpec.LongSecondsBound repair_task_min_duration = new DurationSpec.LongSecondsBound("5s");
 
     // global_settings overides Options.defaultOptions for all repair types
@@ -279,14 +277,14 @@ public class AutoRepairConfig implements Serializable
         getOptions(repairType).parallel_repair_count = count;
     }
 
-    public boolean getMVRepairEnabled(RepairType repairType)
+    public boolean getMaterializedViewRepairEnabled(RepairType repairType)
     {
-        return applyOverrides(repairType, opt -> opt.mv_repair_enabled);
+        return applyOverrides(repairType, opt -> opt.materialized_view_repair_enabled);
     }
 
-    public void setMVRepairEnabled(RepairType repairType, boolean enabled)
+    public void setMaterializedViewRepairEnabled(RepairType repairType, boolean enabled)
     {
-        getOptions(repairType).mv_repair_enabled = enabled;
+        getOptions(repairType).materialized_view_repair_enabled = enabled;
     }
 
     public void setForceRepairNewNode(RepairType repairType, boolean forceRepairNewNode)
@@ -383,7 +381,38 @@ public class AutoRepairConfig implements Serializable
     {
         // defaultOptions defines the default auto-repair behavior when no overrides are defined
         @VisibleForTesting
-        protected static final Options defaultOptions = getDefaultOptions();
+        private static Map<AutoRepairConfig.RepairType, Options> defaultOptions;
+
+        private static Map<AutoRepairConfig.RepairType, Options> initializeDefaultOptions()
+        {
+            Map<AutoRepairConfig.RepairType, Options> options = new EnumMap<>(AutoRepairConfig.RepairType.class);
+            options.put(AutoRepairConfig.RepairType.FULL, getDefaultOptions());
+            options.put(RepairType.INCREMENTAL, getDefaultOptions());
+            options.put(RepairType.PREVIEW_REPAIRED, getDefaultOptions());
+
+
+            options.get(RepairType.FULL).min_repair_interval = new DurationSpec.IntSecondsBound("24h");
+            // Incremental repairs finish quickly, so they can be run more frequently. Hence, the default is 1 hour.
+            options.get(RepairType.INCREMENTAL).min_repair_interval = new DurationSpec.IntSecondsBound("1h");
+            options.get(RepairType.PREVIEW_REPAIRED).min_repair_interval = new DurationSpec.IntSecondsBound("24h");
+
+            return options;
+        }
+
+        public static Map<AutoRepairConfig.RepairType, Options> getDefaultOptionsMap()
+        {
+            if (defaultOptions == null)
+            {
+                synchronized (AutoRepairConfig.class)
+                {
+                    if (defaultOptions == null)
+                    {
+                        defaultOptions = initializeDefaultOptions();
+                    }
+                }
+            }
+            return defaultOptions;
+        }
 
         public Options()
         {
@@ -400,12 +429,11 @@ public class AutoRepairConfig implements Serializable
             opts.parallel_repair_count = 3;
             opts.parallel_repair_percentage = 3;
             opts.sstable_upper_threshold = 10000;
-            opts.min_repair_interval = new DurationSpec.IntSecondsBound("24h");
             opts.ignore_dcs = new HashSet<>();
             opts.repair_primary_token_range_only = true;
             opts.force_repair_new_node = false;
             opts.table_max_repair_time = new DurationSpec.IntSecondsBound("6h");
-            opts.mv_repair_enabled = false;
+            opts.materialized_view_repair_enabled = false;
             opts.token_range_splitter = new ParameterizedClass(DEFAULT_SPLITTER.getName(), Collections.emptyMap());
             opts.initial_scheduler_delay = new DurationSpec.IntSecondsBound("5m"); // 5 minutes
             opts.repair_session_timeout = new DurationSpec.IntSecondsBound("3h"); // 3 hours
@@ -413,50 +441,42 @@ public class AutoRepairConfig implements Serializable
             return opts;
         }
 
-        // Enable/Disable full auto repair
+        // Enable/Disable full or incremental or previewed_repair auto repair
         public volatile Boolean enabled;
-        // Repair table by table if this is set to 'false'. If it is 'true', then repair all the tables in a keyspace in one go.
+        // If true, attempts to group tables in the same keyspace into one repair; otherwise, each table is repaired
+        // individually.
         public volatile Boolean repair_by_keyspace;
-        // Number of repair threads to run for a given invoked Repair Job.
-        // Once the scheduler schedules one repair session, then howmany threads to use inside that job will be controlled through this parameter.
-        // This is similar to -j for repair options for the nodetool repair command.
+        // Number of threads to use for each repair job scheduled by the scheduler. Similar to the -j option in nodetool
+        // repair.
         public volatile Integer number_of_repair_threads;
-        // The number of nodes running repair parallelly. If parallel_repair_percentage is set, it will choose the larger value of the two.
-        // This configuration controls how many nodes would run repair in parallel.
-        // The value “3” means, at any given point in time, at most 3 nodes would be running repair in parallel. These selected nodes can be from any datacenters.
-        // If one or more node(s) finish repair, then the framework automatically picks up the next candidate(s) based on the least repair time.
-        // It will ensure the maximum number of nodes running repair do not exceed “3”.
+        // Number of nodes running repair in parallel. If parallel_repair_percentage is set, the larger value is used.
         public volatile Integer parallel_repair_count;
-        // The percentage of nodes in the cluster that run repair parallelly. If parallel_repair_count is set, it will choose the larger value of the two.
-        // The problem with a fixed number of nodes (parallel_repair_count property) is that in a large-scale environment,
-        // the nodes keep getting added/removed due to elasticity, so if we have a fixed number, then manual interventions would increase because, on a continuous basis,operators would have to adjust to meet the SLA.
-        // The default is 3%, which means that 3% of the nodes in the Cassandra cluster would be repaired in parallel.
-        // So now, if a fleet, an operator won't have to worry about changing the repair frequency, etc., as overall repair time will continue to remain the same even if nodes are added or removed due to elasticity.
-        // Extremely fewer manual interventions as it will rarely violate the repair SLA for customers.
+        // Percentage of nodes in the cluster running repair in parallel. If parallel_repair_count is set, the larger value
+        // is used. Recommendation is that the repair cycle on the cluster should finish within gc_grace_seconds.
         public volatile Integer parallel_repair_percentage;
-        // Threshold to skip a table if it has too many sstables. The default is 10000. This means, if a table on a node has 10000 or more SSTables, then that table will be skipped.
-        // This is to avoid penalizing good tables (neighbors) with an outlier.
+        // Threshold to skip repairing tables with too many SSTables. Defaults to 10,000 SSTables to avoid penalizing good
+        // tables.
         public volatile Integer sstable_upper_threshold;
-        // Minimum time in hours between repairing the same node again. This is useful for extremely tiny clusters, say 5 nodes, which finishes
-        // repair quicly. The default is 24 hours. This means that if the scheduler finishes one round on all the nodes in < 24 hours. On a given node it won’t start a new repair round
-        // until the last repair conducted on a given node is < 24 hours.
+        // Minimum duration between repairing the same node again. This is useful for tiny clusters, such as
+        // clusters with 5 nodes that finish repairs quickly. The default is 24 hours. This means that if the scheduler
+        // completes one round on all nodes in less than 24 hours, it will not start a new repair round on a given node
+        // until 24 hours have passed since the last repair.
         public volatile DurationSpec.IntSecondsBound min_repair_interval;
-        // This is useful if you want to completely avoid running repairs in one or more data centers. By default, it is empty, i.e., the framework will repair nodes in all the datacenters.
-        // If you want to avoid repairing nodes in one or more data centers, then you can specify the data centers in this list.
+        // Avoid running repairs in specific data centers. By default, repairs run in all data centers. Specify data
+        // centers to exclude in this list. Note that repair sessions will still consider all replicas from excluded
+        // data centers. Useful if you have keyspaces that are not replicated in certain data centers, and you want to
+        // not run repair schedule in certain data centers.
         public volatile Set<String> ignore_dcs;
-        // Set this 'true' if AutoRepair should repair only the primary ranges owned by this node; else, 'false'.
-        // It is the same as -pr in nodetool repair options.
+        // Repair only the primary ranges owned by a node. Equivalent to the -pr option in nodetool repair. Defaults
+        // to true. General advice is to keep this true.
         public volatile Boolean repair_primary_token_range_only;
-        // Whether to force immediate repair on new nodes. This is useful if you want to repair newly bootstrapped nodes immediately after they join the ring.
+        // Force immediate repair on new nodes after they join the ring.
         public volatile Boolean force_repair_new_node;
-        // Max time for repairing one table on a given node, if exceeded, skip the table.
-        // Let's say there is a Cassandra cluster in that there are 10 tables belonging to 10 different customers.
-        // Out of these 10 tables, 1 table is humongous. Repairing this 1 table, say, takes 5 days, in the worst case, but others could finish in just 1 hour.
-        // Then we would penalize 9 customers just because of one bad actor, and those 9 customers would ping an operator and would require a lot of back-and-forth manual interventions, etc.
-        // So, the idea here is to penalize the outliers instead of good candidates. This can easily be configured with a higher value if we want to disable the functionality.
+        // Maximum time allowed for repairing one table on a given node. If exceeded, the repair proceeds to the
+        // next table.
         public volatile DurationSpec.IntSecondsBound table_max_repair_time;
-        // If the scheduler should repair MV table or not.
-        public volatile Boolean mv_repair_enabled;
+        // Repairs materialized view if true.
+        public volatile Boolean materialized_view_repair_enabled;
         /**
          * Splitter implementation to use for generating repair assignments.
          * <p>
@@ -466,7 +486,7 @@ public class AutoRepairConfig implements Serializable
         public volatile ParameterizedClass token_range_splitter;
         // After a node restart, wait for this much delay before scheduler starts running repair; this is to avoid starting repair immediately after a node restart.
         public volatile DurationSpec.IntSecondsBound initial_scheduler_delay;
-        // The major issue with Repair is sometimes repair session hangs; so this timeout is useful to resume such stuck repair sessions.
+        // Timeout for resuming stuck repair sessions.
         public volatile DurationSpec.IntSecondsBound repair_session_timeout;
 
         public String toString()
@@ -483,7 +503,7 @@ public class AutoRepairConfig implements Serializable
                    ", repair_primary_token_range_only=" + repair_primary_token_range_only +
                    ", force_repair_new_node=" + force_repair_new_node +
                    ", table_max_repair_time=" + table_max_repair_time +
-                   ", mv_repair_enabled=" + mv_repair_enabled +
+                   ", materialized_view_repair_enabled=" + materialized_view_repair_enabled +
                    ", token_range_splitter=" + token_range_splitter +
                    ", intial_scheduler_delay=" + initial_scheduler_delay +
                    ", repair_session_timeout=" + repair_session_timeout +
@@ -522,6 +542,6 @@ public class AutoRepairConfig implements Serializable
         }
 
         // Otherwise check defaults
-        return getOverride(Options.defaultOptions, optionSupplier);
+        return getOverride(Options.getDefaultOptionsMap().get(repairType), optionSupplier);
     }
 }
