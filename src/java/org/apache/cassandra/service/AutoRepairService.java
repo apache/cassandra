@@ -182,7 +182,7 @@ public class AutoRepairService implements AutoRepairServiceMBean
 
     public void setMVRepairEnabled(RepairType repairType, boolean enabled)
     {
-        config.setMVRepairEnabled(repairType, enabled);
+        config.setMaterializedViewRepairEnabled(repairType, enabled);
     }
 
     public void setRepairSessionTimeout(RepairType repairType, String timeout)
