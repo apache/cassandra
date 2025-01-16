@@ -85,7 +85,7 @@ public class GetAutoRepairConfig extends NodeToolCmd
             appendConfig(sb , "repair_primary_token_range_only", config.getRepairPrimaryTokenRangeOnly(repairType));
             appendConfig(sb , "parallel_repair_count", config.getParallelRepairCount(repairType));
             appendConfig(sb , "parallel_repair_percentage", config.getParallelRepairPercentage(repairType));
-            appendConfig(sb , "mv_repair_enabled", config.getMVRepairEnabled(repairType));
+            appendConfig(sb , "materialized_view_repair_enabled", config.getMaterializedViewRepairEnabled(repairType));
             appendConfig(sb , "initial_scheduler_delay", config.getInitialSchedulerDelay(repairType));
             appendConfig(sb , "repair_session_timeout", config.getRepairSessionTimeout(repairType));
             appendConfig(sb , "force_repair_new_node", config.getForceRepairNewNode(repairType));

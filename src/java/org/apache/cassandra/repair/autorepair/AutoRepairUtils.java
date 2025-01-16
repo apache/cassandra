@@ -835,7 +835,7 @@ public class AutoRepairUtils
     public static List<String> getAllMVs(RepairType repairType, Keyspace keyspace, TableMetadata tableMetadata)
     {
         List<String> allMvs = new ArrayList<>();
-        if (AutoRepairService.instance.getAutoRepairConfig().getMVRepairEnabled(repairType) && keyspace.getMetadata().views != null)
+        if (AutoRepairService.instance.getAutoRepairConfig().getMaterializedViewRepairEnabled(repairType) && keyspace.getMetadata().views != null)
         {
             Iterator<ViewMetadata> views = keyspace.getMetadata().views.forTable(tableMetadata.id).iterator();
             while (views.hasNext())

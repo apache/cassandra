@@ -300,7 +300,7 @@ public class YamlConfigurationLoaderTest
         assertEquals(new DataStorageSpec.IntBytesBound("5B"), config.internode_socket_receive_buffer_size); // Check names backward compatibility (CASSANDRA-17141 and CASSANDRA-15234)
         assertEquals(true, config.auto_repair.enabled);
         assertEquals(new DurationSpec.IntSecondsBound("6h"), config.auto_repair.getAutoRepairTableMaxRepairTime(AutoRepairConfig.RepairType.INCREMENTAL));
-        config.auto_repair.setMVRepairEnabled(AutoRepairConfig.RepairType.INCREMENTAL, false);
+        config.auto_repair.setMaterializedViewRepairEnabled(AutoRepairConfig.RepairType.INCREMENTAL, false);
     }
 
     @Test
