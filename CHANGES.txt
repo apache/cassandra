@@ -1,4 +1,5 @@
 5.0.3
+ * Add selected SAI index state and query performance metrics to nodetool tablestats (CASSANDRA-20026)
  * Remove v30 and v3X from 5.x in-JVM upgrade tests (CASSANDRA-20103)
  * Avoid memory allocation in offheap_object's NativeCell.valueSize() and NativeClustering.dataSize() (CASSANDRA-20162)
  * Add flag to avoid invalidating key cache on sstable deletions (CASSANDRA-20068)

@@ -33,6 +33,7 @@ import org.apache.cassandra.db.compaction.TimeWindowCompactionStrategy;
 import org.apache.cassandra.db.compaction.TimeWindowCompactionStrategyOptions;
 import org.apache.cassandra.io.util.*;
 import org.apache.cassandra.metrics.*;
+import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.tools.*;
 
 public class TableStatsHolder implements StatsHolder
@@ -173,6 +174,16 @@ public class TableStatsHolder implements StatsHolder
         mpTable.put("top_tombstone_partitions", table.topTombstonePartitions);
         if (locationCheck)
             mpTable.put("sstables_in_correct_location", table.isInCorrectLocation);
+
+        mpTable.put("sai_local_query_latency_ms",String.format("%01.3f", table.saiQueryLatencyMs));
+        mpTable.put("sai_post_filtering_read_latency",String.format("%01.3f", table.saiPostFilteringReadLatencyMs));
+        mpTable.put("sai_disk_used_bytes",table.saiDiskUsedBytes);
+        mpTable.put("sai_sstable_indexes_hit",table.saiSSTableIndexesHit);
+        mpTable.put("sai_index_segments_hit",table.saiIndexSegmentsHit);
+        mpTable.put("sai_rows_filtered",table.saiRowsFiltered);
+        mpTable.put("sai_total_query_timeouts",table.saiTotalQueryTimeouts);
+        mpTable.put("sai_total_queryable_index_ratio", table.saiTotalQueryableIndexRatio);
+
         return mpTable;
     }
 
@@ -385,10 +396,58 @@ public class TableStatsHolder implements StatsHolder
                 if (table.getTopTombstonePartitionsLastUpdate() != null)
                     statsTable.topTombstonePartitionsLastUpdate = millisToDateString(table.getTopTombstonePartitionsLastUpdate());
 
+                if (!SchemaConstants.isSystemKeyspace(keyspaceName))
+                {
+                    Object totalIndexCount = probe.getSaiMetric(keyspaceName, tableName, "TotalIndexCount");
+                    statsTable.saiTotalIndexCount = (totalIndexCount != null) ? (int) totalIndexCount : 0;
+
+                    if (statsTable.saiTotalIndexCount > 0)
+                    {
+                        Object queryLatencyMetric = probe.getSaiMetric(keyspaceName, tableName, "QueryLatency");
+                        double queryLatency = getMetricMean(queryLatencyMetric);
+                        statsTable.saiQueryLatencyMs = queryLatency > 0 ? queryLatency : Double.NaN;
+
+                        Object PostFilteringReadLatency = probe.getSaiMetric(keyspaceName, tableName, "PostFilteringReadLatency");
+                        double postfilteringreadlatency = getMetricMean(PostFilteringReadLatency);
+                        statsTable.saiPostFilteringReadLatencyMs = postfilteringreadlatency > 0 ? postfilteringreadlatency : Double.NaN;
+
+                        Object diskUsedBytes = probe.getSaiMetric(keyspaceName, tableName, "DiskUsedBytes");
+                        long saidiskusedbytes = (diskUsedBytes != null) ? (long) diskUsedBytes : 0L;
+                        statsTable.saiDiskUsedBytes = format(saidiskusedbytes, humanReadable);
+
+                        Object SSTableIndexesHit = probe.getSaiMetric(keyspaceName, tableName, "SSTableIndexesHit");
+                        statsTable.saiSSTableIndexesHit = getMetricMean(SSTableIndexesHit);
+
+                        Object IndexSegmentsHit = probe.getSaiMetric(keyspaceName, tableName, "IndexSegmentsHit");
+                        statsTable.saiIndexSegmentsHit = getMetricMean(IndexSegmentsHit);
+
+                        Object RowsFiltered = probe.getSaiMetric(keyspaceName, tableName, "RowsFiltered");
+                        statsTable.saiRowsFiltered = getMetricMean(RowsFiltered);
+
+                        Object totalQueryTimeouts = probe.getSaiMetric(keyspaceName, tableName, "TotalQueryTimeouts");
+                        statsTable.saiTotalQueryTimeouts = (totalQueryTimeouts != null) ? (Long) totalQueryTimeouts : 0L;
+
+                        Object totalQueryableIndexCount = probe.getSaiMetric(keyspaceName, tableName, "TotalQueryableIndexCount");
+                        int saiTotalQueryableIndexCount = (totalQueryableIndexCount != null) ? (int) totalQueryableIndexCount : 0;
+
+                        statsTable.saiTotalQueryableIndexRatio = String.format("%d/%d", saiTotalQueryableIndexCount, statsTable.saiTotalIndexCount);
+                    }
+                }
+
                 statsKeyspace.tables.add(statsTable);
             }
             keyspaces.add(statsKeyspace);
         }
+    }
+
+    private double getMetricMean(Object metricObject) {
+        if (metricObject instanceof CassandraMetricsRegistry.JmxTimerMBean) {
+            return ((CassandraMetricsRegistry.JmxTimerMBean) metricObject).getMean() / 1000;
+        }
+        if (metricObject instanceof CassandraMetricsRegistry.JmxHistogramMBean) {
+            return Math.round(((CassandraMetricsRegistry.JmxHistogramMBean) metricObject).getMean() * 100.0) / 100.0;
+        }
+        throw new IllegalArgumentException("Unsupported metric object type: " + metricObject.getClass().getName());
     }
 
     private void maybeAddTWCSWindowWithMaxDuration(StatsTable statsTable, NodeProbe probe, String keyspaceName, String tableName)

@@ -22,6 +22,7 @@ import java.io.PrintStream;
 import java.util.List;
 import java.util.Map;
 
+import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.utils.FBUtilities;
 
 public class TableStatsPrinter<T extends StatsHolder>
@@ -163,6 +164,19 @@ public class TableStatsPrinter<T extends StatsHolder>
                 for (Map.Entry<String, Long> tombstonecnt : table.topTombstonePartitions.entrySet())
                     out.printf(indent + "  %-" + maxWidth + "s %s%n", tombstonecnt.getKey(), tombstonecnt.getValue());
             }
+
+            if (!SchemaConstants.isSystemKeyspace(table.keyspaceName) && table.saiTotalIndexCount > 0)
+            {
+                out.println(indent + "SAI local query latency (mean): " + String.format("%.3f ms", table.saiQueryLatencyMs));
+                out.println(indent + "SAI post-filtering latency (mean): " + String.format("%.3f ms",table.saiPostFilteringReadLatencyMs));
+                out.println(indent + "SAI space used (bytes): " + table.saiDiskUsedBytes);
+                out.println(indent + "SAI sstable indexes hit per query (mean): " + table.saiSSTableIndexesHit);
+                out.println(indent + "SAI index segments hit per query (mean): " + table.saiIndexSegmentsHit);
+                out.println(indent + "SAI rows filtered per query (mean): " + table.saiRowsFiltered);
+                out.println(indent + "SAI local query timeouts: " + table.saiTotalQueryTimeouts);
+                out.println(indent + "SAI queryable/total indexes: " + table.saiTotalQueryableIndexRatio);
+            }
+
             out.println("");
         }
     }

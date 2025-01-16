@@ -90,6 +90,9 @@ import org.apache.cassandra.gms.Gossiper;
 import org.apache.cassandra.gms.GossiperMBean;
 import org.apache.cassandra.hints.HintsService;
 import org.apache.cassandra.hints.HintsServiceMBean;
+import org.apache.cassandra.index.sai.metrics.IndexGroupMetrics;
+import org.apache.cassandra.index.sai.metrics.TableQueryMetrics;
+import org.apache.cassandra.index.sai.metrics.TableStateMetrics;
 import org.apache.cassandra.locator.DynamicEndpointSnitchMBean;
 import org.apache.cassandra.locator.EndpointSnitchInfoMBean;
 import org.apache.cassandra.metrics.CIDRAuthorizerMetrics;
@@ -1865,6 +1868,74 @@ public class NodeProbe implements AutoCloseable
       {
           throw new RuntimeException("Error reading: " + name, e);
       }
+    }
+
+    public Object getSaiMetric(String ks, String cf, String metricName)
+    {
+        try
+        {
+            String scope = getSaiMetricScope(metricName);
+            String objectNameStr = String.format("org.apache.cassandra.metrics:type=StorageAttachedIndex,keyspace=%s,table=%s,scope=%s,name=%s",ks, cf, scope, metricName);
+            ObjectName oName = new ObjectName(objectNameStr);
+
+            Set<ObjectName> matchingMBeans = mbeanServerConn.queryNames(oName, null);
+            if (matchingMBeans.isEmpty())
+                return null;
+
+            return getSaiMetricValue(metricName, oName);
+        }
+        catch (MalformedObjectNameException e)
+        {
+            throw new RuntimeException("Invalid ObjectName format: " + e.getMessage(), e);
+        }
+        catch (IOException e)
+        {
+            throw new RuntimeException("Error accessing MBean server: " + e.getMessage(), e);
+        }
+    }
+
+    private Object getSaiMetricValue(String metricName, ObjectName oName) throws IOException
+    {
+        switch (metricName)
+        {
+            case "QueryLatency":
+                return JMX.newMBeanProxy(mbeanServerConn, oName, CassandraMetricsRegistry.JmxTimerMBean.class);
+            case "PostFilteringReadLatency":
+            case "SSTableIndexesHit":
+            case "IndexSegmentsHit":
+            case "RowsFiltered":
+                return JMX.newMBeanProxy(mbeanServerConn, oName, CassandraMetricsRegistry.JmxHistogramMBean.class);
+            case "DiskUsedBytes":
+            case "TotalIndexCount":
+            case "TotalQueryableIndexCount":
+                return JMX.newMBeanProxy(mbeanServerConn, oName, CassandraMetricsRegistry.JmxGaugeMBean.class).getValue();
+            case "TotalQueryTimeouts":
+                return JMX.newMBeanProxy(mbeanServerConn, oName, CassandraMetricsRegistry.JmxCounterMBean.class).getCount();
+            default:
+                throw new IllegalArgumentException("Unknown metric name: " + metricName);
+        }
+    }
+
+    private String getSaiMetricScope(String metricName)
+    {
+        switch (metricName)
+        {
+            case "QueryLatency":
+            case "SSTableIndexesHit":
+            case "IndexSegmentsHit":
+            case "RowsFiltered":
+                return TableQueryMetrics.PerQueryMetrics.PER_QUERY_METRICS_TYPE;
+            case "PostFilteringReadLatency":
+            case "TotalQueryTimeouts":
+                return TableQueryMetrics.TABLE_QUERY_METRIC_TYPE;
+            case "DiskUsedBytes":
+                return IndexGroupMetrics.INDEX_GROUP_METRICS_TYPE;
+            case "TotalIndexCount":
+            case "TotalQueryableIndexCount":
+                return TableStateMetrics.TABLE_STATE_METRIC_TYPE;
+            default:
+                throw new IllegalArgumentException("Unknown metric name: " + metricName);
+        }
     }
 
     /**
