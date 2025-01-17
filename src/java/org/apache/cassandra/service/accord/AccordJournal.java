@@ -131,7 +131,7 @@ public class AccordJournal implements accord.api.Journal, RangeSearcher.Supplier
                     throw new IllegalStateException("Unsafe access to AccordJournal during <init>; journalTable was touched before it was published");
                 Collection<StaticSegment<JournalKey, Object>> result = super.compact(staticSegments);
                 if (result != null)
-                    journalTable.safeNotify(index -> index.onCompact(staticSegments));
+                    journalTable.safeNotify(index -> index.remove(staticSegments));
                 return result;
             }
         };
