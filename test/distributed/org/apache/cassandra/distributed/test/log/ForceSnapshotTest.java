@@ -28,6 +28,7 @@ import org.junit.Test;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
+import org.apache.cassandra.distributed.shared.ClusterUtils;
 import org.apache.cassandra.distributed.test.TestBaseImpl;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.tcm.ClusterMetadata;
@@ -147,6 +148,7 @@ public class ForceSnapshotTest extends TestBaseImpl
                     throw new RuntimeException(e);
                 }
             });
+            ClusterUtils.waitForCMSToQuiesce(cluster, 1);
             cluster.forEach(() -> assertEquals(10, Keyspace.open(KEYSPACE).getColumnFamilyStores().size()));
 
             // make sure we execute more transformations;
