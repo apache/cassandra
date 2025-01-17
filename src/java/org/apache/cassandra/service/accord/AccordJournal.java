@@ -43,7 +43,6 @@ import accord.local.DurableBefore;
 import accord.local.Node;
 import accord.local.RedundantBefore;
 import accord.primitives.Ranges;
-import accord.primitives.Route;
 import accord.primitives.SaveStatus;
 import accord.primitives.Timestamp;
 import accord.primitives.TxnId;
@@ -298,8 +297,12 @@ public class AccordJournal implements accord.api.Journal, RangeSearcher.Supplier
 
         JournalKey key = new JournalKey(update.txnId, JournalKey.Type.COMMAND_DIFF, store);
         RecordPointer pointer = journal.asyncWrite(key, diff, SENTINEL_HOSTS);
-        if (journalTable.isIndexSupported(key))
-            journal.onDurable(pointer, () -> journalTable.safeNotify(index -> index.onWrite(key, diff, pointer)));
+        if (journalTable.shouldIndex(key)
+            && diff.hasParticipants()
+            && diff.after.route() != null)
+            journal.onDurable(pointer, () ->
+                                       journalTable.safeNotify(index ->
+                                                               index.update(pointer.segment, key.commandStoreId, key.id, diff.after.route())));
         if (onFlush != null)
             journal.onDurable(pointer, onFlush);
     }
@@ -462,12 +465,11 @@ public class AccordJournal implements accord.api.Journal, RangeSearcher.Supplier
                     try (DataInputBuffer in = new DataInputBuffer(buffer, false))
                     {
                         builder.deserializeNext(in, userVersion);
-                        journalTable.safeNotify(index -> {
-                            if (!index.isSupported(finalKey)) return;
-                            Route<?> route = builder.participants().route();
-                            if (route != null)
-                                index.update(segment, finalKey.commandStoreId, finalKey.id, route);
-                        });
+                        if (journalTable.shouldIndex(finalKey)
+                            && builder.participants() != null
+                            && builder.participants().route() != null)
+                            journalTable.safeNotify(index ->
+                                                    index.update(segment, finalKey.commandStoreId, finalKey.id, builder.participants().route()));
                     }
                     catch (IOException e)
                     {
@@ -638,6 +640,11 @@ public class AccordJournal implements accord.api.Journal, RangeSearcher.Supplier
         public boolean hasField(Field fields)
         {
             return !getFieldIsNull(fields, flags);
+        }
+
+        public boolean hasParticipants()
+        {
+            return hasField(Field.PARTICIPANTS);
         }
     }
 

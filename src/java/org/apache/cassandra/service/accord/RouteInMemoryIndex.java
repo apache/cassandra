@@ -26,7 +26,6 @@ import java.util.NavigableSet;
 import java.util.TreeSet;
 import java.util.function.Consumer;
 
-import accord.impl.CommandChange.Field;
 import accord.primitives.Routable;
 import accord.primitives.Route;
 import accord.primitives.Timestamp;
@@ -37,8 +36,6 @@ import org.agrona.collections.Int2ObjectHashMap;
 import org.agrona.collections.Long2ObjectHashMap;
 import org.apache.cassandra.index.accord.OrderedRouteSerializer;
 import org.apache.cassandra.index.accord.RouteJournalIndex;
-import org.apache.cassandra.journal.Journal;
-import org.apache.cassandra.journal.RecordPointer;
 import org.apache.cassandra.journal.StaticSegment;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.service.accord.api.AccordRoutingKey;
@@ -56,18 +53,6 @@ public class RouteInMemoryIndex<K extends JournalKey, V> implements RangeSearche
     public boolean isSupported(JournalKey id)
     {
         return RouteJournalIndex.allowed(id);
-    }
-
-    public void onWrite(JournalKey id, Journal.Writer writer, RecordPointer pointer)
-    {
-        if (!RouteJournalIndex.allowed(id))
-            return;
-        AccordJournal.Writer saveCommandWriter = (AccordJournal.Writer) writer;
-        if (!saveCommandWriter.hasField(Field.PARTICIPANTS))
-            return;
-        Route<?> route = saveCommandWriter.after.participants().route();
-        if (route != null)
-            update(pointer.segment, id.commandStoreId, id.id, route);
     }
 
     public synchronized void update(long segment, int commandStoreId, TxnId id, Route<?> route)

@@ -63,6 +63,7 @@ import org.apache.cassandra.db.rows.UnfilteredRowIterator;
 import org.apache.cassandra.db.rows.UnfilteredRowIterators;
 import org.apache.cassandra.index.Index;
 import org.apache.cassandra.index.accord.OrderedRouteSerializer;
+import org.apache.cassandra.index.accord.RouteJournalIndex;
 import org.apache.cassandra.io.sstable.ISSTableScanner;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.util.DataInputBuffer;
@@ -121,10 +122,10 @@ public class AccordJournalTable<K extends JournalKey, V> implements RangeSearche
         }
     }
 
-    boolean isIndexSupported(JournalKey key)
+    boolean shouldIndex(JournalKey key)
     {
         if (index == null) return false;
-        return index.isSupported(key);
+        return RouteJournalIndex.allowed(key);
     }
 
     void safeNotify(Consumer<RouteInMemoryIndex<JournalKey, Object>> fn)
