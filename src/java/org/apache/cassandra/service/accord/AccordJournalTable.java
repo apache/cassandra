@@ -112,14 +112,9 @@ public class AccordJournalTable<K extends JournalKey, V> implements RangeSearche
         this.keySupport = keySupport;
         this.accordJournalVersion = accordJournalVersion;
 
-        if (cfs.indexManager.getIndexByName(AccordKeyspace.JOURNAL_INDEX_NAME) != null)
-        {
-            this.index = new RouteInMemoryIndex<>();
-        }
-        else
-        {
-            this.index = null;
-        }
+        this.index = cfs.indexManager.getIndexByName(AccordKeyspace.JOURNAL_INDEX_NAME) != null
+                     ? new RouteInMemoryIndex<>()
+                     : null;
     }
 
     boolean shouldIndex(JournalKey key)
