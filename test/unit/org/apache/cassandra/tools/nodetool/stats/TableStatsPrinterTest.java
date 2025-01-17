@@ -386,6 +386,14 @@ public class TableStatsPrinterTest extends TableStatsTestBase
         "\tAverage tombstones per slice (last five minutes): 4.01\n" +
         "\tMaximum tombstones per slice (last five minutes): 5\n" +
         "\tDroppable tombstone ratio: 0.556\n" +
+        "\tSAI local query latency (mean): 10.000 ms\n" +
+        "\tSAI post-filtering latency (mean): 1.000 ms\n" +
+        "\tSAI space used (bytes): 40 bytes\n" +
+        "\tSAI sstable indexes hit per query (mean): 3.5\n" +
+        "\tSAI index segments hit per query (mean): 4.0\n" +
+        "\tSAI rows filtered per query (mean): 55.0\n" +
+        "\tSAI local query timeouts: 4\n" +
+        "\tSAI queryable/total indexes: 5/5\n" +
         "\n";
 
     public static final String expectedDefaultHumanReadableTable5Output =
@@ -423,6 +431,14 @@ public class TableStatsPrinterTest extends TableStatsTestBase
         "\tAverage tombstones per slice (last five minutes): 4.01\n" +
         "\tMaximum tombstones per slice (last five minutes): 5\n" +
         "\tDroppable tombstone ratio: 0.556\n" +
+        "\tSAI local query latency (mean): 10.000 ms\n" +
+        "\tSAI post-filtering latency (mean): 1.000 ms\n" +
+        "\tSAI space used (bytes): 40 bytes\n" +
+        "\tSAI sstable indexes hit per query (mean): 3.5\n" +
+        "\tSAI index segments hit per query (mean): 4.0\n" +
+        "\tSAI rows filtered per query (mean): 55.0\n" +
+        "\tSAI local query timeouts: 4\n" +
+        "\tSAI queryable/total indexes: 5/5\n" +
         "\n";
 
     public static final String expectedDefaultTable6Output =
@@ -712,48 +728,56 @@ public class TableStatsPrinterTest extends TableStatsTestBase
                                  "    \"write_latency_ms\" : null,\n" +
                                  "    \"tables\" : {\n" +
                                  "      \"table6\" : {\n" +
-                                 "        \"average_tombstones_per_slice_last_five_minutes\" : 6.0,\n" +
-                                 "        \"top_tombstone_partitions\" : null,\n" +
-                                 "        \"bloom_filter_off_heap_memory_used\" : \"667408\",\n" +
                                  "        \"twcs\" : null,\n" +
-                                 "        \"bytes_pending_repair\" : 0,\n" +
+                                 "        \"sai_total_queryable_index_ratio\" : \"0/0\",\n" +
                                  "        \"memtable_switch_count\" : 6,\n" +
+                                 "        \"sai_post_filtering_read_latency\" : \"NaN\",\n" +
                                  "        \"speculative_retries\" : 0,\n" +
-                                 "        \"maximum_tombstones_per_slice_last_five_minutes\" : 6,\n" +
-                                 "        \"memtable_cell_count\" : 6666,\n" +
-                                 "        \"memtable_data_size\" : \"1000000\",\n" +
                                  "        \"average_live_cells_per_slice_last_five_minutes\" : 5.0,\n" +
                                  "        \"local_read_latency_ms\" : \"1.000\",\n" +
                                  "        \"sstable_count\" : 1000,\n" +
-                                 "        \"local_write_latency_ms\" : \"0.500\",\n" +
-                                 "        \"pending_flushes\" : 66,\n" +
                                  "        \"compacted_partition_minimum_bytes\" : 6,\n" +
-                                 "        \"local_read_count\" : 5,\n" +
                                  "        \"sstable_compression_ratio\" : 0.68,\n" +
                                  "        \"max_sstable_size\" : 0,\n" +
+                                 "        \"sai_index_segments_hit\" : \"NaN\",\n" +
+                                 "        \"memtable_off_heap_memory_used\" : \"161803398\",\n" +
+                                 "        \"bloom_filter_space_used\" : \"101112\",\n" +
+                                 "        \"compacted_partition_maximum_bytes\" : 20,\n" +
+                                 "        \"sai_rows_filtered\" : \"NaN\",\n" +
+                                 "        \"droppable_tombstone_ratio\" : \"0.66667\",\n" +
+                                 "        \"compression_metadata_off_heap_memory_used\" : \"1\",\n" +
+                                 "        \"bloom_filter_false_ratio\" : \"0.03000\",\n" +
+                                 "        \"percent_repaired\" : 0.0,\n" +
+                                 "        \"average_tombstones_per_slice_last_five_minutes\" : 6.0,\n" +
+                                 "        \"top_tombstone_partitions\" : null,\n" +
+                                 "        \"sai_total_query_timeouts\" : 0,\n" +
+                                 "        \"bloom_filter_off_heap_memory_used\" : \"667408\",\n" +
+                                 "        \"bytes_pending_repair\" : 0,\n" +
+                                 "        \"maximum_tombstones_per_slice_last_five_minutes\" : 6,\n" +
+                                 "        \"memtable_cell_count\" : 6666,\n" +
+                                 "        \"memtable_data_size\" : \"1000000\",\n" +
+                                 "        \"local_write_latency_ms\" : \"0.500\",\n" +
+                                 "        \"pending_flushes\" : 66,\n" +
+                                 "        \"local_read_count\" : 5,\n" +
                                  "        \"top_size_partitions\" : null,\n" +
                                  "        \"bloom_filter_false_positives\" : 400,\n" +
                                  "        \"off_heap_memory_used_total\" : \"162470810\",\n" +
-                                 "        \"memtable_off_heap_memory_used\" : \"161803398\",\n" +
                                  "        \"index_summary_off_heap_memory_used\" : \"3\",\n" +
-                                 "        \"bloom_filter_space_used\" : \"101112\",\n" +
+                                 "        \"sai_local_query_latency_ms\" : \"NaN\",\n" +
                                  "        \"sstables_in_each_level\" : [ ],\n" +
-                                 "        \"compacted_partition_maximum_bytes\" : 20,\n" +
                                  "        \"sstable_bytes_in_each_level\" : [ ],\n" +
                                  "        \"space_used_total\" : \"0\",\n" +
                                  "        \"local_write_count\" : 0,\n" +
-                                 "        \"droppable_tombstone_ratio\" : \"0.66667\",\n" +
-                                 "        \"compression_metadata_off_heap_memory_used\" : \"1\",\n" +
+                                 "        \"sai_sstable_indexes_hit\" : \"NaN\",\n" +
                                  "        \"local_read_write_ratio\" : \"0.00000\",\n" +
                                  "        \"number_of_partitions_estimate\" : 6,\n" +
+                                 "        \"sai_disk_used_bytes\" : \"NaN\",\n" +
                                  "        \"bytes_repaired\" : 0,\n" +
                                  "        \"maximum_live_cells_per_slice_last_five_minutes\" : 2,\n" +
                                  "        \"space_used_live\" : \"666666\",\n" +
                                  "        \"compacted_partition_mean_bytes\" : 3,\n" +
-                                 "        \"bloom_filter_false_ratio\" : \"0.03000\",\n" +
                                  "        \"old_sstable_count\" : 0,\n" +
                                  "        \"bytes_unrepaired\" : 0,\n" +
-                                 "        \"percent_repaired\" : 0.0,\n" +
                                  "        \"space_used_by_snapshots_total\" : \"0\"\n" +
                                  "      }\n" +
                                  "    },\n" +
@@ -783,48 +807,56 @@ public class TableStatsPrinterTest extends TableStatsTestBase
                                  "  write_latency_ms: .NaN\n" +
                                  "  tables:\n" +
                                  "    table6:\n" +
-                                 "      average_tombstones_per_slice_last_five_minutes: 6.0\n" +
-                                 "      top_tombstone_partitions: null\n" +
-                                 "      bloom_filter_off_heap_memory_used: '667408'\n" +
                                  "      twcs: null\n" +
-                                 "      bytes_pending_repair: 0\n" +
+                                 "      sai_total_queryable_index_ratio: 0/0\n" +
                                  "      memtable_switch_count: 6\n" +
+                                 "      sai_post_filtering_read_latency: NaN\n" +
                                  "      speculative_retries: 0\n" +
-                                 "      maximum_tombstones_per_slice_last_five_minutes: 6\n" +
-                                 "      memtable_cell_count: 6666\n" +
-                                 "      memtable_data_size: '1000000'\n" +
                                  "      average_live_cells_per_slice_last_five_minutes: 5.0\n" +
                                  "      local_read_latency_ms: '1.000'\n" +
                                  "      sstable_count: 1000\n" +
-                                 "      local_write_latency_ms: '0.500'\n" +
-                                 "      pending_flushes: 66\n" +
                                  "      compacted_partition_minimum_bytes: 6\n" +
-                                 "      local_read_count: 5\n" +
                                  "      sstable_compression_ratio: 0.68\n" +
                                  "      max_sstable_size: 0\n" +
+                                 "      sai_index_segments_hit: .NaN\n" +
+                                 "      memtable_off_heap_memory_used: '161803398'\n" +
+                                 "      bloom_filter_space_used: '101112'\n" +
+                                 "      compacted_partition_maximum_bytes: 20\n" +
+                                 "      sai_rows_filtered: .NaN\n" +
+                                 "      droppable_tombstone_ratio: '0.66667'\n" +
+                                 "      compression_metadata_off_heap_memory_used: '1'\n" +
+                                 "      bloom_filter_false_ratio: '0.03000'\n" +
+                                 "      percent_repaired: 0.0\n" +
+                                 "      average_tombstones_per_slice_last_five_minutes: 6.0\n" +
+                                 "      top_tombstone_partitions: null\n" +
+                                 "      sai_total_query_timeouts: 0\n" +
+                                 "      bloom_filter_off_heap_memory_used: '667408'\n" +
+                                 "      bytes_pending_repair: 0\n" +
+                                 "      maximum_tombstones_per_slice_last_five_minutes: 6\n" +
+                                 "      memtable_cell_count: 6666\n" +
+                                 "      memtable_data_size: '1000000'\n" +
+                                 "      local_write_latency_ms: '0.500'\n" +
+                                 "      pending_flushes: 66\n" +
+                                 "      local_read_count: 5\n" +
                                  "      top_size_partitions: null\n" +
                                  "      bloom_filter_false_positives: 400\n" +
                                  "      off_heap_memory_used_total: '162470810'\n" +
-                                 "      memtable_off_heap_memory_used: '161803398'\n" +
                                  "      index_summary_off_heap_memory_used: '3'\n" +
-                                 "      bloom_filter_space_used: '101112'\n" +
+                                 "      sai_local_query_latency_ms: NaN\n" +
                                  "      sstables_in_each_level: []\n" +
-                                 "      compacted_partition_maximum_bytes: 20\n" +
                                  "      sstable_bytes_in_each_level: []\n" +
                                  "      space_used_total: '0'\n" +
                                  "      local_write_count: 0\n" +
-                                 "      droppable_tombstone_ratio: '0.66667'\n" +
-                                 "      compression_metadata_off_heap_memory_used: '1'\n" +
+                                 "      sai_sstable_indexes_hit: .NaN\n" +
                                  "      local_read_write_ratio: '0.00000'\n" +
                                  "      number_of_partitions_estimate: 6\n" +
+                                 "      sai_disk_used_bytes: NaN\n" +
                                  "      bytes_repaired: 0\n" +
                                  "      maximum_live_cells_per_slice_last_five_minutes: 2\n" +
                                  "      space_used_live: '666666'\n" +
                                  "      compacted_partition_mean_bytes: 3\n" +
-                                 "      bloom_filter_false_ratio: '0.03000'\n" +
                                  "      old_sstable_count: 0\n" +
                                  "      bytes_unrepaired: 0\n" +
-                                 "      percent_repaired: 0.0\n" +
                                  "      space_used_by_snapshots_total: '0'\n" +
                                  "  read_latency_ms: 0.0\n" +
                                  "  space_used_live: '0'\n" +

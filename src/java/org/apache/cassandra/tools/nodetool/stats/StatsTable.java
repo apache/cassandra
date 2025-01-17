@@ -82,4 +82,14 @@ public class StatsTable
     public double localReadWriteRatio;
     public Long twcsDurationInMillis;
     public String twcs;
+
+    public double saiQueryLatencyMs;
+    public double saiPostFilteringReadLatencyMs;
+    public String saiDiskUsedBytes;
+    public double saiSSTableIndexesHit;
+    public double saiIndexSegmentsHit;
+    public double saiRowsFiltered;
+    public long saiTotalQueryTimeouts;
+    public int saiTotalIndexCount;
+    public String saiTotalQueryableIndexRatio;
 }

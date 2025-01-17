@@ -60,8 +60,10 @@ public class TableStats extends NodeToolCmd
                         + "memtable_off_heap_memory_used, memtable_switch_count, number_of_partitions_estimate, "
                         + "off_heap_memory_used_total, pending_flushes, percent_repaired, read_latency, reads, "
                         + "space_used_by_snapshots_total, space_used_live, space_used_total, "
-                        + "sstable_compression_ratio, sstable_count, table_name, write_latency, writes, " +
-                          "max_sstable_size, local_read_write_ratio, twcs_max_duration)")
+                        + "sstable_compression_ratio, sstable_count, table_name, write_latency, writes, "
+                        + "max_sstable_size, local_read_write_ratio, twcs_max_duration, sai_local_query_latency_ms, "
+                        + "sai_post_filtering_read_latency, sai_disk_used_bytes, sai_sstable_indexes_hit, sai_index_segments_hit "
+                        + "sai_rows_filtered, sai_total_query_timeouts, sai_total_queryable_index_ratio)")
     private String sortKey = "";
 
     @Option(title = "top",
