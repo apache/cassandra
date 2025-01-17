@@ -17,6 +17,11 @@
  */
 package org.apache.cassandra.auth;
 
+import java.util.Arrays;
+import java.util.HashSet;
+import java.util.Set;
+
+import com.google.common.collect.Iterables;
 import org.junit.After;
 import org.junit.BeforeClass;
 import org.junit.Test;
@@ -25,7 +30,19 @@ import com.datastax.driver.core.ResultSet;
 import org.apache.cassandra.Util;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.CQLTester;
+import org.apache.cassandra.db.ConsistencyLevel;
+import org.apache.cassandra.db.SystemKeyspace;
+import org.apache.cassandra.schema.Schema;
+import org.apache.cassandra.schema.SchemaConstants;
+import org.apache.cassandra.schema.TableMetadata;
+import org.apache.cassandra.transport.ProtocolVersion;
 
+import static java.lang.String.format;
+import static org.apache.cassandra.schema.SchemaConstants.LOCAL_SYSTEM_KEYSPACE_NAMES;
+import static org.apache.cassandra.schema.SchemaConstants.REPLICATED_SYSTEM_KEYSPACE_NAMES;
+import static org.apache.cassandra.schema.SchemaConstants.SCHEMA_KEYSPACE_NAME;
+import static org.apache.cassandra.schema.SchemaConstants.SYSTEM_KEYSPACE_NAME;
+import static org.apache.cassandra.schema.SchemaConstants.TRACE_KEYSPACE_NAME;
 import static org.junit.Assert.assertTrue;
 
 public class GrantAndRevokeTest extends CQLTester
@@ -202,7 +219,6 @@ public class GrantAndRevokeTest extends CQLTester
                                 "DROP MATERIALIZED VIEW " + mv);
         assertUnauthorizedQuery("User user has no ALTER permission on <table " + table + "> or any of its parents",
                                 "DROP INDEX " + index);
-
     }
 
     @Test
@@ -384,5 +400,112 @@ public class GrantAndRevokeTest extends CQLTester
 
         res = executeNet("REVOKE SELECT, MODIFY ON KEYSPACE revoke_yeah FROM " + user);
         assertWarningsContain(res.getExecutionInfo().getWarnings(), "Role '" + user + "' was not granted MODIFY on <keyspace revoke_yeah>");
+    }
+
+    @Test
+    public void testSpecificGrantsOnSystemKeyspaces() throws Throwable
+    {
+        // Granting specific permissions on system keyspaces should not be allowed if those permissions include any from
+        // the denylist Permission.INVALID_FOR_SYSTEM_KEYSPACES. By this definition, GRANT ALL on any system keyspace,
+        // or a table within one, should be rejected.
+        useSuperUser();
+        executeNet("CREATE ROLE '" + user + "'");
+        String responseMsg = "Granting permissions on system keyspaces is strictly limited, this operation is not permitted";
+        for (String keyspace : Iterables.concat(LOCAL_SYSTEM_KEYSPACE_NAMES, REPLICATED_SYSTEM_KEYSPACE_NAMES))
+        {
+            assertUnauthorizedQuery(responseMsg, format("GRANT ALL PERMISSIONS ON KEYSPACE %s TO %s", keyspace, user));
+            DataResource keyspaceResource = DataResource.keyspace(keyspace);
+            for (Permission p : keyspaceResource.applicablePermissions())
+                maybeRejectGrant(p, responseMsg, format("GRANT %s ON KEYSPACE %s TO %s", p.name(), keyspace, user));
+
+            assertUnauthorizedQuery(responseMsg, format("GRANT ALL PERMISSIONS ON ALL TABLES IN KEYSPACE %s TO %s", keyspace, user));
+            for (TableMetadata table : Schema.instance.getKeyspaceMetadata(keyspace).tables)
+            {
+                DataResource tableResource = DataResource.table(keyspace, table.name);
+                assertUnauthorizedQuery(responseMsg, format("GRANT ALL PERMISSIONS ON %s TO %s", table, user));
+                for (Permission p : tableResource.applicablePermissions())
+                    maybeRejectGrant(p, responseMsg, format("GRANT %s ON %s TO %s", p.name(), table, user));
+            }
+        }
+    }
+
+    @Test
+    public void testGrantOnAllKeyspaces() throws Throwable
+    {
+        // Granting either specific or ALL permissions on ALL KEYSPACES is allowed, however these permissions are
+        // effective for non-system keyspaces only. If for any reason it is necessary to modify permissions on
+        // on a system keyspace, it must be done using keyspace specific grant statements.
+        useSuperUser();
+        executeNet(String.format("CREATE ROLE %s WITH LOGIN = TRUE AND password='%s'", user, pass));
+        executeNet(String.format("ALTER KEYSPACE %s WITH replication = {'class': 'SimpleStrategy', 'replication_factor': '1'}", SchemaConstants.TRACE_KEYSPACE_NAME));
+        executeNet("CREATE KEYSPACE user_keyspace WITH replication = {'class': 'SimpleStrategy', 'replication_factor': '1'}");
+        executeNet("CREATE TABLE user_keyspace.t1 (k int PRIMARY KEY)");
+        useUser(user, pass);
+
+        assertUnauthorizedQuery("User user has no MODIFY permission on <table user_keyspace.t1> or any of its parents",
+                                "INSERT INTO user_keyspace.t1 (k) VALUES (0)");
+        assertUnauthorizedQuery("User user has no MODIFY permission on <table system.local> or any of its parents",
+                                "INSERT INTO system.local(key) VALUES ('invalid')");
+
+        useSuperUser();
+        executeNet(ProtocolVersion.CURRENT, format("GRANT MODIFY ON ALL KEYSPACES TO %s", user));
+
+        useUser(user, pass);
+        // User now has write permission on non-system keyspaces only
+        executeNet(ProtocolVersion.CURRENT, "INSERT INTO user_keyspace.t1 (k) VALUES (0)");
+        assertUnauthorizedQuery("User user has no MODIFY permission on <table system.local> or any of its parents",
+                                "INSERT INTO system.local(key) VALUES ('invalid')");
+
+        // A non-superuser only has read access to a pre-defined set of system tables and all system_schema/traces
+        // tables and granting ALL permissions on ALL keyspaces also does not affect this.
+        maybeReadSystemTables(false);
+        useSuperUser();
+        executeNet(ProtocolVersion.CURRENT, format("GRANT ALL PERMISSIONS ON ALL KEYSPACES TO %s", user));
+        maybeReadSystemTables(false);
+
+        // A superuser can still read system tables
+        useSuperUser();
+        maybeReadSystemTables(true);
+        // and also write to them, though this is still strongly discouraged
+        executeNet(ProtocolVersion.CURRENT, "INSERT INTO system.peers_v2(peer, peer_port, data_center) VALUES ('127.0.100.100', 7012, 'invalid_dc')");
+    }
+
+    private void maybeReadSystemTables(boolean superuser) throws Throwable
+    {
+        if (superuser)
+            useSuperUser();
+        else
+            useUser(user, pass);
+
+        Set<String> readableKeyspaces = new HashSet<>(Arrays.asList(SCHEMA_KEYSPACE_NAME, TRACE_KEYSPACE_NAME));
+        Set<String> readableSystemTables = new HashSet<>(Arrays.asList(SystemKeyspace.LOCAL,
+                                                                       SystemKeyspace.PEERS_V2,
+                                                                       SystemKeyspace.LEGACY_PEERS,
+                                                                       SystemKeyspace.LEGACY_SIZE_ESTIMATES,
+                                                                       SystemKeyspace.TABLE_ESTIMATES));
+
+        for (String keyspace : Iterables.concat(LOCAL_SYSTEM_KEYSPACE_NAMES, REPLICATED_SYSTEM_KEYSPACE_NAMES))
+        {
+            for (TableMetadata table : Schema.instance.getKeyspaceMetadata(keyspace).tables)
+            {
+                if (superuser || (readableKeyspaces.contains(keyspace) || (keyspace.equals(SYSTEM_KEYSPACE_NAME) && readableSystemTables.contains(table.name))))
+                {
+                    executeNet(ProtocolVersion.CURRENT, ConsistencyLevel.ONE, format("SELECT * FROM %s LIMIT 1", table));
+                }
+                else
+                {
+                    assertUnauthorizedQuery(format("User %s has no SELECT permission on %s or any of its parents", user, table.resource),
+                                            format("SELECT * FROM %s LIMIT 1", table));
+                }
+            }
+        }
+    }
+
+    private void maybeRejectGrant(Permission p, String errorResponse, String grant) throws Throwable
+    {
+        if (Permission.INVALID_FOR_SYSTEM_KEYSPACES.contains(p))
+            assertUnauthorizedQuery(errorResponse, grant);
+        else
+            executeNet(ProtocolVersion.CURRENT, grant);
     }
 }
