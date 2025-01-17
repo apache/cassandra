@@ -110,7 +110,7 @@ public class RouteInMemoryIndex<V> implements RangeSearcher
 
         public void add(int commandStoreId, TxnId id, Route<?> route)
         {
-            storeIndexes.computeIfAbsent(commandStoreId, StoreIndex::new).add(id, route);
+            storeIndexes.computeIfAbsent(commandStoreId, i -> new StoreIndex()).add(id, route);
         }
 
         public void search(int storeId, TableId tableId, byte[] start, byte[] end, Consumer<Map.Entry<IndexRange, TxnId>> fn)
@@ -132,7 +132,7 @@ public class RouteInMemoryIndex<V> implements RangeSearcher
     {
         private final Map<TableId, TableIndex> tableIndex = new HashMap<>();
 
-        private StoreIndex(int commandStoreId)
+        private StoreIndex()
         {
         }
 
