@@ -66,4 +66,11 @@ public enum Permission
     public static final Set<Permission> ALL =
             Sets.immutableEnumSet(EnumSet.range(Permission.CREATE, Permission.EXECUTE));
     public static final Set<Permission> NONE = ImmutableSet.of();
+
+    /**
+     * Set of Permissions which may never be granted on any system keyspace, or table in a system keyspace, to any role.
+     * (Only SELECT, DESCRIBE and ALTER may ever be granted).
+     */
+    public static final Set<Permission> INVALID_FOR_SYSTEM_KEYSPACES =
+            Sets.immutableEnumSet(EnumSet.complementOf(EnumSet.of(Permission.SELECT, Permission.DESCRIBE, Permission.ALTER)));
 }

@@ -20,10 +20,11 @@ package org.apache.cassandra.service;
 import java.net.InetSocketAddress;
 import java.net.SocketAddress;
 import java.util.Arrays;
-import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicLong;
 
+import com.google.common.collect.ImmutableSet;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -50,7 +51,7 @@ import org.apache.cassandra.exceptions.RequestExecutionException;
 import org.apache.cassandra.exceptions.UnauthorizedException;
 import org.apache.cassandra.schema.SchemaKeyspaceTables;
 import org.apache.cassandra.thrift.ThriftValidation;
-import org.apache.cassandra.utils.CassandraVersion;
+import org.apache.cassandra.tracing.TraceKeyspace;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.JVMStabilityInspector;
 import org.apache.cassandra.utils.CassandraVersion;
@@ -64,29 +65,40 @@ public class ClientState
     private static final Logger logger = LoggerFactory.getLogger(ClientState.class);
     public static final CassandraVersion DEFAULT_CQL_VERSION = org.apache.cassandra.cql3.QueryProcessor.CQL_VERSION;
 
-    private static final Set<IResource> READABLE_SYSTEM_RESOURCES = new HashSet<>();
-    private static final Set<IResource> PROTECTED_AUTH_RESOURCES = new HashSet<>();
-    private static final Set<IResource> DROPPABLE_SYSTEM_AUTH_TABLES = new HashSet<>();
+    public static final ImmutableSet<IResource> READABLE_SYSTEM_RESOURCES;
+    public static final ImmutableSet<IResource> PROTECTED_AUTH_RESOURCES;
+    public static final ImmutableSet<IResource> DROPPABLE_SYSTEM_AUTH_TABLES;
     static
     {
         // We want these system cfs to be always readable to authenticated users since many tools rely on them
         // (nodetool, cqlsh, bulkloader, etc.)
-        for (String cf : Arrays.asList(SystemKeyspace.LOCAL, SystemKeyspace.PEERS))
-            READABLE_SYSTEM_RESOURCES.add(DataResource.table(SchemaConstants.SYSTEM_KEYSPACE_NAME, cf));
+        ImmutableSet.Builder<IResource> readableBuilder = ImmutableSet.builder();
+        for (String cf : Arrays.asList(SystemKeyspace.LOCAL, SystemKeyspace.PEERS, SystemKeyspace.SIZE_ESTIMATES))
+            readableBuilder.add(DataResource.table(SchemaConstants.SYSTEM_KEYSPACE_NAME, cf));
 
-        SchemaKeyspaceTables.ALL.forEach(table -> READABLE_SYSTEM_RESOURCES.add(DataResource.table(SchemaConstants.SCHEMA_KEYSPACE_NAME, table)));
+        // make all schema tables readable by default (required by the drivers)
+        SchemaKeyspaceTables.ALL.forEach(table -> readableBuilder.add(DataResource.table(SchemaConstants.SCHEMA_KEYSPACE_NAME, table)));
 
+        // make system_traces readable by all or else tracing will require explicit grants
+        readableBuilder.add(DataResource.table(SchemaConstants.TRACE_KEYSPACE_NAME, TraceKeyspace.EVENTS));
+        readableBuilder.add(DataResource.table(SchemaConstants.TRACE_KEYSPACE_NAME, TraceKeyspace.SESSIONS));
+        READABLE_SYSTEM_RESOURCES = readableBuilder.build();
+
+        ImmutableSet.Builder<IResource> protectedBuilder = ImmutableSet.builder();
         // neither clients nor tools need authentication/authorization
         if (DatabaseDescriptor.isDaemonInitialized())
         {
-            PROTECTED_AUTH_RESOURCES.addAll(DatabaseDescriptor.getAuthenticator().protectedResources());
-            PROTECTED_AUTH_RESOURCES.addAll(DatabaseDescriptor.getAuthorizer().protectedResources());
-            PROTECTED_AUTH_RESOURCES.addAll(DatabaseDescriptor.getRoleManager().protectedResources());
+            protectedBuilder.addAll(DatabaseDescriptor.getAuthenticator().protectedResources());
+            protectedBuilder.addAll(DatabaseDescriptor.getAuthorizer().protectedResources());
+            protectedBuilder.addAll(DatabaseDescriptor.getRoleManager().protectedResources());
         }
-
-        DROPPABLE_SYSTEM_AUTH_TABLES.add(DataResource.table(SchemaConstants.AUTH_KEYSPACE_NAME, PasswordAuthenticator.LEGACY_CREDENTIALS_TABLE));
-        DROPPABLE_SYSTEM_AUTH_TABLES.add(DataResource.table(SchemaConstants.AUTH_KEYSPACE_NAME, CassandraRoleManager.LEGACY_USERS_TABLE));
-        DROPPABLE_SYSTEM_AUTH_TABLES.add(DataResource.table(SchemaConstants.AUTH_KEYSPACE_NAME, CassandraAuthorizer.USER_PERMISSIONS));
+        PROTECTED_AUTH_RESOURCES = protectedBuilder.build();
+        ImmutableSet.Builder<IResource> droppableBuilder = ImmutableSet.builder();
+        // allow users with sufficient privileges to drop legacy tables (users, credentials, permissions) from AUTH_KS
+        droppableBuilder.add(DataResource.table(SchemaConstants.AUTH_KEYSPACE_NAME, PasswordAuthenticator.LEGACY_CREDENTIALS_TABLE));
+        droppableBuilder.add(DataResource.table(SchemaConstants.AUTH_KEYSPACE_NAME, CassandraRoleManager.LEGACY_USERS_TABLE));
+        droppableBuilder.add(DataResource.table(SchemaConstants.AUTH_KEYSPACE_NAME, CassandraAuthorizer.USER_PERMISSIONS));
+        DROPPABLE_SYSTEM_AUTH_TABLES = droppableBuilder.build();
     }
 
     // Current user for the session
@@ -344,9 +356,12 @@ public class ClientState
 
         preventSystemKSSchemaModification(keyspace, resource, perm);
 
+        // Some system data is always readable
         if ((perm == Permission.SELECT) && READABLE_SYSTEM_RESOURCES.contains(resource))
             return;
 
+        // Modifications to any resource upon which the authenticator, authorizer or role manager depend should not be
+        // be performed by users
         if (PROTECTED_AUTH_RESOURCES.contains(resource))
             if ((perm == Permission.CREATE) || (perm == Permission.ALTER) || (perm == Permission.DROP))
                 throw new UnauthorizedException(String.format("%s schema is protected", resource));
@@ -364,7 +379,25 @@ public class ClientState
             if (((FunctionResource)resource).getKeyspace().equals(SchemaConstants.SYSTEM_KEYSPACE_NAME))
                 return;
 
-        checkPermissionOnResourceChain(perm, resource);
+        if (resource instanceof DataResource && !(user.isSuper() || user.isSystem()))
+        {
+            DataResource dataResource = (DataResource)resource;
+            if (!dataResource.isRootLevel())
+            {
+                String keyspace = dataResource.getKeyspace();
+                // A user may have permissions granted on ALL KEYSPACES, but this should exclude system keyspaces. Any
+                // permission on those keyspaces or their tables must be granted to the user either explicitly or
+                // transitively. The set of grantable permissions for system keyspaces is further limited,
+                // see the Permission enum for details.
+                if (SchemaConstants.isSystemKeyspace(keyspace))
+                {
+                    ensurePermissionOnResourceChain(perm, Resources.chain(dataResource, IResource::hasParent));
+                    return;
+                }
+            }
+        }
+
+        ensurePermissionOnResourceChain(perm, resource);
     }
 
     // Convenience method called from checkAccess method of CQLStatement
@@ -379,14 +412,20 @@ public class ClientState
         if (function.isNative())
             return;
 
-        checkPermissionOnResourceChain(permission, FunctionResource.function(function.name().keyspace,
-                                                                             function.name().name,
-                                                                             function.argTypes()));
+        ensurePermissionOnResourceChain(permission, FunctionResource.function(function.name().keyspace,
+                                                                              function.name().name,
+                                                                              function.argTypes()));
     }
 
-    private void checkPermissionOnResourceChain(Permission perm, IResource resource)
+    private void ensurePermissionOnResourceChain(Permission perm, IResource resource)
     {
-        for (IResource r : Resources.chain(resource))
+        ensurePermissionOnResourceChain(perm, Resources.chain(resource));
+    }
+
+    private void ensurePermissionOnResourceChain(Permission perm, List<? extends IResource> resources)
+    {
+        IResource resource = resources.get(0);
+        for (IResource r : resources)
             if (authorize(r).contains(perm))
                 return;
 
