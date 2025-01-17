@@ -76,9 +76,6 @@ public final class Compactor<K, V> implements Runnable, Shutdownable
         try
         {
             Collection<StaticSegment<K, V>> newSegments = segmentCompactor.compact(toCompact);
-            // No-op compaction
-            if (newSegments == null)
-                return;
 
             for (StaticSegment<K, V> segment : newSegments)
                 toCompact.remove(segment);

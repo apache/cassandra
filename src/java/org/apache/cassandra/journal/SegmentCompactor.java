@@ -19,7 +19,6 @@ package org.apache.cassandra.journal;
 
 import java.io.IOException;
 import java.util.Collection;
-import javax.annotation.Nullable;
 
 public interface SegmentCompactor<K, V>
 {
@@ -31,7 +30,5 @@ public interface SegmentCompactor<K, V>
         return (SegmentCompactor<K, V>) NOOP;
     }
 
-    //TODO (review): org.apache.cassandra.journal.Compactor.run documents that this is nullable but no implementation returns null.... If we want to keep nullable I put it in the interface so you have to check, but if we want to remove I can go clean that assumption up.
-    @Nullable
     Collection<StaticSegment<K, V>> compact(Collection<StaticSegment<K, V>> segments) throws IOException;
 }
