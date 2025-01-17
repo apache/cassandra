@@ -542,7 +542,7 @@ public class AccordJournal implements accord.api.Journal, RangeSearcher.Supplier
 
     public static class Writer implements Journal.Writer
     {
-        public final Command after;
+        private final Command after;
         private final int flags;
 
         private Writer(Command after, int flags)
@@ -637,7 +637,7 @@ public class AccordJournal implements accord.api.Journal, RangeSearcher.Supplier
             }
         }
 
-        public boolean hasField(Field fields)
+        private boolean hasField(Field fields)
         {
             return !getFieldIsNull(fields, flags);
         }
