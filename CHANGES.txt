@@ -22,6 +22,9 @@ Merged from 4.0:
  * Fix CQL in snapshot's schema which did not contained UDTs used as reverse clustering columns (CASSANDRA-20036)
  * Add configurable batchlog endpoint strategies: random_remote, prefer_local, dynamic_remote, and dynamic (CASSANDRA-18120)
  * Fix bash-completion for debian distro (CASSANDRA-19999)
+Merged from 3.0
+  * Tighten up permissions on system keyspaces (CASSANDRA-20090)
+  * Fix incorrect column identifier bytes problem when renaming a column (CASSANDRA-18956)
 
 
 5.0.2

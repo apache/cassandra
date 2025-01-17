@@ -110,6 +110,7 @@ import org.apache.cassandra.config.EncryptionOptions;
 import org.apache.cassandra.cql3.functions.FunctionName;
 import org.apache.cassandra.cql3.functions.types.ParseUtils;
 import org.apache.cassandra.db.ColumnFamilyStore;
+import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.db.Directories;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.SystemKeyspace;
@@ -1509,6 +1510,13 @@ public abstract class CQLTester
     protected TableMetadata currentTableMetadata()
     {
         return Schema.instance.getTableMetadata(KEYSPACE, currentTable());
+    }
+
+    protected com.datastax.driver.core.ResultSet executeNet(ProtocolVersion protocolVersion, ConsistencyLevel consistency, String query)
+    {
+        Statement statement = new SimpleStatement(formatQuery(query));
+        statement = statement.setConsistencyLevel(com.datastax.driver.core.ConsistencyLevel.valueOf(consistency.name()));
+        return sessionNet(protocolVersion).execute(statement);
     }
 
     protected com.datastax.driver.core.ResultSet executeNet(ProtocolVersion protocolVersion, String query, Object... values)
