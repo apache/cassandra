@@ -148,7 +148,7 @@ public class RouteInMemoryIndex<V> implements RangeSearcher
                 throw new IllegalArgumentException("Unexpected domain: " + keyOrRange.domain());
             TokenRange ts = (TokenRange) keyOrRange;
             TableId tableId = ts.table();
-            tableIndex.computeIfAbsent(tableId, TableIndex::new).add(id, ts);
+            tableIndex.computeIfAbsent(tableId, i -> new TableIndex()).add(id, ts);
         }
 
         public void search(TableId tableId, byte[] start, byte[] end, Consumer<Map.Entry<IndexRange, TxnId>> fn)
@@ -170,7 +170,7 @@ public class RouteInMemoryIndex<V> implements RangeSearcher
     {
         private final RangeTree<byte[], IndexRange, TxnId> index = createRangeTree();
 
-        private TableIndex(TableId tableId)
+        private TableIndex()
         {
         }
 
