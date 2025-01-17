@@ -45,6 +45,7 @@ public interface RangeSearcher
     interface Result
     {
         void consume(Consumer<TxnId> forEach);
+        CloseableIterator<TxnId> results();
     }
 
     class DefaultResult implements Result
@@ -61,6 +62,7 @@ public interface RangeSearcher
             this.results = results;
         }
 
+        @Override
         public CloseableIterator<TxnId> results()
         {
             consume();
@@ -98,6 +100,12 @@ public interface RangeSearcher
         public void consume(Consumer<TxnId> forEach)
         {
 
+        }
+
+        @Override
+        public CloseableIterator<TxnId> results()
+        {
+            return CloseableIterator.empty();
         }
     }
 

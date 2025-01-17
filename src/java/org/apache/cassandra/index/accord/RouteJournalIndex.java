@@ -82,7 +82,7 @@ import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.ClientState;
-import org.apache.cassandra.service.accord.AccordJournal;
+import org.apache.cassandra.service.accord.AccordJournalTable;
 import org.apache.cassandra.service.accord.AccordKeyspace;
 import org.apache.cassandra.service.accord.JournalKey;
 import org.apache.cassandra.service.accord.api.AccordRoutingKey;
@@ -385,7 +385,7 @@ public class RouteJournalIndex implements Index, INotificationConsumer
         Integer storeId = null;
         for (RowFilter.Expression e : expressions)
         {
-            if (e.column() == AccordJournal.SyntheticColumn.participants.metadata)
+            if (e.column() == AccordJournalTable.SyntheticColumn.participants.metadata)
             {
                 switch (e.operator())
                 {
@@ -409,7 +409,7 @@ public class RouteJournalIndex implements Index, INotificationConsumer
                         return null;
                 }
             }
-            else if (e.column() == AccordJournal.SyntheticColumn.store_id.metadata && e.operator() == Operator.EQ)
+            else if (e.column() == AccordJournalTable.SyntheticColumn.store_id.metadata && e.operator() == Operator.EQ)
             {
                 storeId = Int32Type.instance.compose(e.getIndexValue());
             }

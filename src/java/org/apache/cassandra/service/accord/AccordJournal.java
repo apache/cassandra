@@ -19,22 +19,17 @@ package org.apache.cassandra.service.accord;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.Comparator;
 import java.util.Iterator;
 import java.util.NavigableMap;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.function.BiConsumer;
-import java.util.function.Consumer;
 import javax.annotation.Nullable;
 
 import com.google.common.annotations.VisibleForTesting;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import accord.impl.CommandChange;
 import accord.impl.CommandChange.Field;
@@ -58,23 +53,8 @@ import accord.utils.async.AsyncResult;
 import accord.utils.async.AsyncResults;
 import org.apache.cassandra.concurrent.Shutdownable;
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.cql3.ColumnIdentifier;
-import org.apache.cassandra.cql3.Operator;
 import org.apache.cassandra.db.ColumnFamilyStore;
-import org.apache.cassandra.db.DataRange;
 import org.apache.cassandra.db.Keyspace;
-import org.apache.cassandra.db.PartitionRangeReadCommand;
-import org.apache.cassandra.db.ReadExecutionController;
-import org.apache.cassandra.db.filter.ColumnFilter;
-import org.apache.cassandra.db.filter.DataLimits;
-import org.apache.cassandra.db.filter.RowFilter;
-import org.apache.cassandra.db.marshal.AbstractType;
-import org.apache.cassandra.db.marshal.BytesType;
-import org.apache.cassandra.db.marshal.Int32Type;
-import org.apache.cassandra.db.partitions.UnfilteredPartitionIterator;
-import org.apache.cassandra.db.rows.UnfilteredRowIterator;
-import org.apache.cassandra.index.Index;
-import org.apache.cassandra.index.accord.OrderedRouteSerializer;
 import org.apache.cassandra.io.util.DataInputBuffer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputBuffer;
@@ -87,20 +67,14 @@ import org.apache.cassandra.journal.RecordPointer;
 import org.apache.cassandra.journal.StaticSegment;
 import org.apache.cassandra.journal.ValueSerializer;
 import org.apache.cassandra.net.MessagingService;
-import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.service.accord.AccordJournalValueSerializers.IdentityAccumulator;
 import org.apache.cassandra.service.accord.JournalKey.JournalKeySupport;
 import org.apache.cassandra.service.accord.api.AccordAgent;
-import org.apache.cassandra.service.accord.api.AccordRoutingKey;
 import org.apache.cassandra.service.accord.serializers.CommandSerializers;
 import org.apache.cassandra.service.accord.serializers.DepsSerializers;
 import org.apache.cassandra.service.accord.serializers.ResultSerializers;
 import org.apache.cassandra.service.accord.serializers.WaitingOnSerializer;
-import org.apache.cassandra.utils.CloseableIterator;
 import org.apache.cassandra.utils.ExecutorUtils;
-import org.apache.cassandra.utils.FBUtilities;
-import org.apache.cassandra.utils.JVMStabilityInspector;
-import org.apache.cassandra.utils.MergeIterator;
 import org.apache.cassandra.utils.Throwables;
 import org.apache.cassandra.utils.concurrent.AsyncPromise;
 
@@ -127,8 +101,6 @@ public class AccordJournal implements accord.api.Journal, RangeSearcher.Supplier
         Invariants.checkState(MessagingService.current_version == MessagingService.VERSION_51, "Expected current version to be %d but given %d", MessagingService.VERSION_51, MessagingService.current_version);
     }
 
-    private static final Logger logger = LoggerFactory.getLogger(AccordJournal.class);
-
     private static final Set<Integer> SENTINEL_HOSTS = Collections.singleton(0);
 
     static final ThreadLocal<byte[]> keyCRCBytes = ThreadLocal.withInitial(() -> new byte[JournalKeySupport.TOTAL_SIZE]);
@@ -137,14 +109,6 @@ public class AccordJournal implements accord.api.Journal, RangeSearcher.Supplier
     private final AccordJournalTable<JournalKey, Object> journalTable;
     private final Params params;
     private final AccordAgent agent;
-    /**
-     * Access to this field should only ever be handled by {@link #safeNotify(Consumer)}.  There is an assumption that
-     * an error in the index should not cause the journal to crash, so {@link #safeNotify(Consumer)} exists to make sure
-     * this property holds true.
-     */
-    @Nullable
-    private final RouteInMemoryIndex<JournalKey, Object> index;
-    private final ColumnFamilyStore cfs;
     Node node;
 
     enum Status { INITIALIZED, STARTING, REPLAY, STARTED, TERMINATING, TERMINATED }
@@ -158,25 +122,17 @@ public class AccordJournal implements accord.api.Journal, RangeSearcher.Supplier
     @VisibleForTesting
     public AccordJournal(Params params, AccordAgent agent, File directory, ColumnFamilyStore cfs)
     {
-        // this class relies on unsafe publishing of "this", so need to make sure the fields impacted are written to (they are final) before this leak happens
-        this.cfs = cfs;
-        if (cfs.indexManager.getIndexByName(AccordKeyspace.JOURNAL_INDEX_NAME) != null)
-        {
-            this.index = new RouteInMemoryIndex<>();
-        }
-        else
-        {
-            this.index = null;
-        }
         this.agent = agent;
         AccordSegmentCompactor<Object> compactor = new AccordSegmentCompactor<>(params.userVersion(), cfs) {
             @Nullable
             @Override
             public Collection<StaticSegment<JournalKey, Object>> compact(Collection<StaticSegment<JournalKey, Object>> staticSegments)
             {
+                if (journalTable == null)
+                    throw new IllegalStateException("Unsafe access to AccordJournal during <init>; journalTable was touched before it was published");
                 Collection<StaticSegment<JournalKey, Object>> result = super.compact(staticSegments);
                 if (result != null)
-                    safeNotify(index -> index.onCompact(staticSegments));
+                    journalTable.safeNotify(index -> index.onCompact(staticSegments));
                 return result;
             }
         };
@@ -342,8 +298,8 @@ public class AccordJournal implements accord.api.Journal, RangeSearcher.Supplier
 
         JournalKey key = new JournalKey(update.txnId, JournalKey.Type.COMMAND_DIFF, store);
         RecordPointer pointer = journal.asyncWrite(key, diff, SENTINEL_HOSTS);
-        if (index != null && index.isSupported(key))
-            journal.onDurable(pointer, () -> safeNotify(index -> index.onWrite(key, diff, pointer)));
+        if (journalTable.isIndexSupported(key))
+            journal.onDurable(pointer, () -> journalTable.safeNotify(index -> index.onWrite(key, diff, pointer)));
         if (onFlush != null)
             journal.onDurable(pointer, onFlush);
     }
@@ -464,7 +420,7 @@ public class AccordJournal implements accord.api.Journal, RangeSearcher.Supplier
     public void truncateForTesting()
     {
         journal.truncateForTesting();
-        safeNotify(RouteInMemoryIndex::truncateForTesting);
+        journalTable.safeNotify(RouteInMemoryIndex::truncateForTesting);
     }
 
     @VisibleForTesting
@@ -506,7 +462,7 @@ public class AccordJournal implements accord.api.Journal, RangeSearcher.Supplier
                     try (DataInputBuffer in = new DataInputBuffer(buffer, false))
                     {
                         builder.deserializeNext(in, userVersion);
-                        safeNotify(index -> {
+                        journalTable.safeNotify(index -> {
                             if (!index.isSupported(finalKey)) return;
                             Route<?> route = builder.participants().route();
                             if (route != null)
@@ -579,181 +535,7 @@ public class AccordJournal implements accord.api.Journal, RangeSearcher.Supplier
     @Override
     public RangeSearcher rangeSearcher()
     {
-        if (index == null)
-            return RangeSearcher.NoopRangeSearcher.instance;
-        return new Searcher(cfs, index);
-    }
-
-    void safeNotify(Consumer<RouteInMemoryIndex<JournalKey, Object>> fn)
-    {
-        if (index == null)
-            return;
-        try
-        {
-            fn.accept(index);
-        }
-        catch (Throwable t)
-        {
-            JVMStabilityInspector.inspectThrowable(t);
-            logger.warn("Failure updating index", t);
-        }
-    }
-
-    private static class Searcher implements RangeSearcher
-    {
-        private final ColumnFamilyStore cfs;
-        private final RouteInMemoryIndex<JournalKey, Object> index;
-        private final Index tableIndex;
-
-        public Searcher(ColumnFamilyStore cfs, RouteInMemoryIndex<JournalKey, Object> index)
-        {
-            this.cfs = cfs;
-            this.index = index;
-            this.tableIndex = cfs.indexManager.getIndexByName("record");
-            if (!cfs.indexManager.isIndexQueryable(tableIndex))
-                throw new AssertionError("Journal record index is not queryable");
-        }
-
-        @Override
-        public RangeSearcher.Result intersects(int storeId, TokenRange range, TxnId minTxnId, Timestamp maxTxnId)
-        {
-            CloseableIterator<TxnId> inMemory = toIterator(index.intersects(storeId, range, minTxnId, maxTxnId));
-            CloseableIterator<TxnId> table = tableSearch(storeId, range.start(), range.end());
-            return new DefaultResult(minTxnId, maxTxnId, merge(inMemory, table));
-        }
-
-        @Override
-        public RangeSearcher.Result intersects(int storeId, AccordRoutingKey key, TxnId minTxnId, Timestamp maxTxnId)
-        {
-            CloseableIterator<TxnId> inMemory = toIterator(index.intersects(storeId, key, minTxnId, maxTxnId));
-            CloseableIterator<TxnId> table = tableSearch(storeId, key);
-            return new DefaultResult(minTxnId, maxTxnId, merge(inMemory, table));
-        }
-
-        private CloseableIterator<TxnId> tableSearch(int store, AccordRoutingKey start, AccordRoutingKey end)
-        {
-            RowFilter rowFilter = RowFilter.create(false);
-            rowFilter.add(SyntheticColumn.participants.metadata, Operator.GT, OrderedRouteSerializer.serializeRoutingKey(start));
-            rowFilter.add(SyntheticColumn.participants.metadata, Operator.LTE, OrderedRouteSerializer.serializeRoutingKey(end));
-            rowFilter.add(SyntheticColumn.store_id.metadata, Operator.EQ, Int32Type.instance.decompose(store));
-
-            PartitionRangeReadCommand cmd = PartitionRangeReadCommand.create(cfs.metadata(),
-                                                                             FBUtilities.nowInSeconds(),
-                                                                             ColumnFilter.selectionBuilder()
-                                                                                         .add(SyntheticColumn.store_id.metadata)
-                                                                                         .add(SyntheticColumn.txn_id.metadata)
-                                                                                         .build(),
-                                                                             rowFilter,
-                                                                             DataLimits.NONE,
-                                                                             DataRange.allData(cfs.getPartitioner()));
-            return process(store, cmd);
-        }
-
-        private CloseableIterator<TxnId> tableSearch(int store, AccordRoutingKey key)
-        {
-            RowFilter rowFilter = RowFilter.create(false);
-            rowFilter.add(SyntheticColumn.participants.metadata, Operator.GTE, OrderedRouteSerializer.serializeRoutingKey(key));
-            rowFilter.add(SyntheticColumn.participants.metadata, Operator.LTE, OrderedRouteSerializer.serializeRoutingKey(key));
-            rowFilter.add(SyntheticColumn.store_id.metadata, Operator.EQ, Int32Type.instance.decompose(store));
-
-            PartitionRangeReadCommand cmd = PartitionRangeReadCommand.create(cfs.metadata(),
-                                                                             FBUtilities.nowInSeconds(),
-                                                                             ColumnFilter.selectionBuilder()
-                                                                                         .add(SyntheticColumn.store_id.metadata)
-                                                                                         .add(SyntheticColumn.txn_id.metadata)
-                                                                                         .build(),
-                                                                             rowFilter,
-                                                                             DataLimits.NONE,
-                                                                             DataRange.allData(cfs.getPartitioner()));
-            return process(store, cmd);
-        }
-
-        private CloseableIterator<TxnId> process(int storeId, PartitionRangeReadCommand cmd)
-        {
-            Index.Searcher s = tableIndex.searcherFor(cmd);
-            try (ReadExecutionController controller = cmd.executionController())
-            {
-                UnfilteredPartitionIterator partitionIterator = s.search(controller);
-                return new CloseableIterator<>()
-                {
-
-                    @Override
-                    public void close()
-                    {
-                        partitionIterator.close();
-                    }
-
-                    @Override
-                    public boolean hasNext()
-                    {
-                        return partitionIterator.hasNext();
-                    }
-
-                    @Override
-                    public TxnId next()
-                    {
-                        UnfilteredRowIterator next = partitionIterator.next();
-                        JournalKey partitionKeyComponents = AccordKeyspace.JournalColumns.getJournalKey(next.partitionKey());
-                        Invariants.checkState(partitionKeyComponents.commandStoreId == storeId,
-                                              () -> String.format("table index returned a command store other than the exepcted one; expected %d != %d", storeId, partitionKeyComponents.commandStoreId));
-                        return partitionKeyComponents.id;
-                    }
-                };
-            }
-        }
-
-        private static CloseableIterator<TxnId> toIterator(RangeSearcher.Result journalSearch)
-        {
-            DefaultResult result = (DefaultResult) journalSearch;
-            return result.results();
-        }
-
-        private static CloseableIterator<TxnId> merge(CloseableIterator<TxnId> inMemory, CloseableIterator<TxnId> disk)
-        {
-            return MergeIterator.get(Arrays.asList(inMemory, disk), Comparator.naturalOrder(), new MergeIterator.Reducer<>()
-            {
-                private TxnId first = null;
-                @Override
-                protected void onKeyChange()
-                {
-                    first = null;
-                }
-
-                @Override
-                public void reduce(int idx, TxnId current)
-                {
-                    if (first == null)
-                        first = current;
-                }
-
-                @Override
-                protected TxnId getReduced()
-                {
-                    Invariants.checkState(first != null);
-                    return first;
-                }
-            });
-        }
-    }
-
-    /**
-     * When using {@link PartitionRangeReadCommand} we need to work with {@link RowFilter} which works with columns.
-     * But the index doesn't care about table based queries and needs to be queried using the fields in the index, to
-     * support that this enum exists.  This enum represents the fields present in the index and can be used to apply
-     * filters to the index.
-     */
-    public enum SyntheticColumn
-    {
-        participants("participants", BytesType.instance),
-        store_id("store_id", Int32Type.instance),
-        txn_id("txn_id", AccordKeyspace.TIMESTAMP_TYPE);
-
-        public final ColumnMetadata metadata;
-
-        SyntheticColumn(String name, AbstractType<?> type)
-        {
-            this.metadata = new ColumnMetadata("journal", "routes", new ColumnIdentifier(name, false), type, ColumnMetadata.NO_POSITION, ColumnMetadata.Kind.REGULAR, null);
-        }
+        return journalTable.rangeSearcher();
     }
 
     public static class Writer implements Journal.Writer
