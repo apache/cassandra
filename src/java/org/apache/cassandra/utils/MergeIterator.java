@@ -19,7 +19,6 @@ package org.apache.cassandra.utils;
 
 import java.util.*;
 
-import accord.primitives.TxnId;
 import accord.utils.Invariants;
 
 /** Merges sorted input iterators which individually contain unique items. */
