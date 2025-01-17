@@ -50,11 +50,6 @@ public class RouteInMemoryIndex<K extends JournalKey, V> implements RangeSearche
 {
     private final Long2ObjectHashMap<SegmentIndex> segmentIndexes = new Long2ObjectHashMap<>();
 
-    public boolean isSupported(JournalKey id)
-    {
-        return RouteJournalIndex.allowed(id);
-    }
-
     public synchronized void update(long segment, int commandStoreId, TxnId id, Route<?> route)
     {
         if (!RouteJournalIndex.allowed(id))
