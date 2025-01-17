@@ -935,6 +935,9 @@ public class DatabaseDescriptor
                                                              conf.native_transport_min_backoff_on_queue_overload,
                                                              conf.native_transport_max_backoff_on_queue_overload));
 
+        // run audit logging options through sanitation and validation
+        if (conf.audit_logging_options != null)
+            setAuditLoggingOptions(conf.audit_logging_options);
     }
 
     @VisibleForTesting
