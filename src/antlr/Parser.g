@@ -355,7 +355,11 @@ letSelectors returns [List<RawSelector> expr]
     
 letSelector returns [RawSelector s]
     @init{ ColumnIdentifier alias = null; }
-    : us=unaliasedSelector { $s = new RawSelector(us, alias); }
+    : us=unaliasedSelector
+      (K_AS c=noncol_ident { alias = c; })?
+      {
+          $s = new RawSelector(us, alias);
+      }
     ;
 
 selectClause returns [boolean isDistinct, List<RawSelector> selectors]
