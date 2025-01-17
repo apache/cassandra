@@ -166,7 +166,7 @@ public class TlsTestUtils
             session.execute("CREATE ROLE cassandra_ssl_test WITH LOGIN = true");
             session.execute(String.format("ADD IDENTITY '%s' TO ROLE 'cassandra_ssl_test'", CLIENT_SPIFFE_IDENTITY));
             // GRANT select to cassandra_ssl_test to be able to query the system_views.clients virtual table
-            session.execute("GRANT SELECT ON ALL KEYSPACES to cassandra_ssl_test");
+            session.execute("GRANT SELECT ON system_views.clients to cassandra_ssl_test");
         }, sslOptions);
     }
 
