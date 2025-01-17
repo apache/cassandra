@@ -280,16 +280,7 @@ public class AccordJournalTable<K extends JournalKey, V> implements RangeSearche
             rowFilter.add(AccordJournalTable.SyntheticColumn.participants.metadata, Operator.LTE, OrderedRouteSerializer.serializeRoutingKey(end));
             rowFilter.add(AccordJournalTable.SyntheticColumn.store_id.metadata, Operator.EQ, Int32Type.instance.decompose(store));
 
-            PartitionRangeReadCommand cmd = PartitionRangeReadCommand.create(cfs.metadata(),
-                                                                             FBUtilities.nowInSeconds(),
-                                                                             ColumnFilter.selectionBuilder()
-                                                                                         .add(AccordJournalTable.SyntheticColumn.store_id.metadata)
-                                                                                         .add(AccordJournalTable.SyntheticColumn.txn_id.metadata)
-                                                                                         .build(),
-                                                                             rowFilter,
-                                                                             DataLimits.NONE,
-                                                                             DataRange.allData(cfs.getPartitioner()));
-            return process(store, cmd);
+            return process(store, rowFilter);
         }
 
         private CloseableIterator<TxnId> tableSearch(int store, AccordRoutingKey key)
@@ -299,6 +290,11 @@ public class AccordJournalTable<K extends JournalKey, V> implements RangeSearche
             rowFilter.add(AccordJournalTable.SyntheticColumn.participants.metadata, Operator.LTE, OrderedRouteSerializer.serializeRoutingKey(key));
             rowFilter.add(AccordJournalTable.SyntheticColumn.store_id.metadata, Operator.EQ, Int32Type.instance.decompose(store));
 
+            return process(store, rowFilter);
+        }
+
+        private CloseableIterator<TxnId> process(int storeId, RowFilter rowFilter)
+        {
             PartitionRangeReadCommand cmd = PartitionRangeReadCommand.create(cfs.metadata(),
                                                                              FBUtilities.nowInSeconds(),
                                                                              ColumnFilter.selectionBuilder()
@@ -308,11 +304,6 @@ public class AccordJournalTable<K extends JournalKey, V> implements RangeSearche
                                                                              rowFilter,
                                                                              DataLimits.NONE,
                                                                              DataRange.allData(cfs.getPartitioner()));
-            return process(store, cmd);
-        }
-
-        private CloseableIterator<TxnId> process(int storeId, PartitionRangeReadCommand cmd)
-        {
             Index.Searcher s = tableIndex.searcherFor(cmd);
             try (ReadExecutionController controller = cmd.executionController())
             {
