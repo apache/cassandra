@@ -137,11 +137,11 @@ public class CommandsForRanges extends TreeMap<Timestamp, Summary> implements Co
             {
                 case Range:
                     for (Unseekable range : searchKeysOrRanges)
-                        manager.searcher.intersects(manager.commandStore.id(), (TokenRange) range, minTxnId, maxTxnId).consume(forEach);
+                        manager.searcher.search(manager.commandStore.id(), (TokenRange) range, minTxnId, maxTxnId).consume(forEach);
                     break;
                 case Key:
                     for (Unseekable key : searchKeysOrRanges)
-                        manager.searcher.intersects(manager.commandStore.id(), (AccordRoutingKey) key, minTxnId, maxTxnId).consume(forEach);
+                        manager.searcher.search(manager.commandStore.id(), (AccordRoutingKey) key, minTxnId, maxTxnId).consume(forEach);
             }
 
             if (!manager.transitive.isEmpty())

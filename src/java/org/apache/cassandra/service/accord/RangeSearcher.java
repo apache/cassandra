@@ -27,8 +27,8 @@ import org.apache.cassandra.utils.CloseableIterator;
 
 public interface RangeSearcher
 {
-    Result intersects(int commandStoreId, TokenRange range, TxnId minTxnId, Timestamp maxTxnId);
-    Result intersects(int commandStoreId, AccordRoutingKey key, TxnId minTxnId, Timestamp maxTxnId);
+    Result search(int commandStoreId, TokenRange range, TxnId minTxnId, Timestamp maxTxnId);
+    Result search(int commandStoreId, AccordRoutingKey key, TxnId minTxnId, Timestamp maxTxnId);
 
     static RangeSearcher extractRangeSearcher(Object o)
     {
@@ -114,13 +114,13 @@ public interface RangeSearcher
         instance;
 
         @Override
-        public Result intersects(int commandStoreId, TokenRange range, TxnId minTxnId, Timestamp maxTxnId)
+        public Result search(int commandStoreId, TokenRange range, TxnId minTxnId, Timestamp maxTxnId)
         {
             return NoopResult.instance;
         }
 
         @Override
-        public Result intersects(int commandStoreId, AccordRoutingKey key, TxnId minTxnId, Timestamp maxTxnId)
+        public Result search(int commandStoreId, AccordRoutingKey key, TxnId minTxnId, Timestamp maxTxnId)
         {
             return NoopResult.instance;
         }

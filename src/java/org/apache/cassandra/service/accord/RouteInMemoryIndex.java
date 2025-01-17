@@ -87,7 +87,7 @@ public class RouteInMemoryIndex<K extends JournalKey, V> implements RangeSearche
     }
 
     @Override
-    public RangeSearcher.Result intersects(int commandStoreId, TokenRange range, TxnId minTxnId, Timestamp maxTxnId)
+    public RangeSearcher.Result search(int commandStoreId, TokenRange range, TxnId minTxnId, Timestamp maxTxnId)
     {
         NavigableSet<TxnId> result = search(commandStoreId, range.table(),
                                             OrderedRouteSerializer.serializeRoutingKeyNoTable(range.start()),
@@ -103,7 +103,7 @@ public class RouteInMemoryIndex<K extends JournalKey, V> implements RangeSearche
     }
 
     @Override
-    public RangeSearcher.Result intersects(int commandStoreId, AccordRoutingKey key, TxnId minTxnId, Timestamp maxTxnId)
+    public RangeSearcher.Result search(int commandStoreId, AccordRoutingKey key, TxnId minTxnId, Timestamp maxTxnId)
     {
         NavigableSet<TxnId> result = search(commandStoreId, key.table(), OrderedRouteSerializer.serializeRoutingKeyNoTable(key));
         return new DefaultResult(minTxnId, maxTxnId, CloseableIterator.wrap(result.iterator()));

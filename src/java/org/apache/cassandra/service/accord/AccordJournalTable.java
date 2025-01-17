@@ -262,17 +262,17 @@ public class AccordJournalTable<K extends JournalKey, V> implements RangeSearche
         }
 
         @Override
-        public Result intersects(int commandStoreId, TokenRange range, TxnId minTxnId, Timestamp maxTxnId)
+        public Result search(int commandStoreId, TokenRange range, TxnId minTxnId, Timestamp maxTxnId)
         {
-            CloseableIterator<TxnId> inMemory = index.intersects(commandStoreId, range, minTxnId, maxTxnId).results();
+            CloseableIterator<TxnId> inMemory = index.search(commandStoreId, range, minTxnId, maxTxnId).results();
             CloseableIterator<TxnId> table = tableSearch(commandStoreId, range.start(), range.end());
             return new DefaultResult(minTxnId, maxTxnId, MergeIterator.get(Arrays.asList(inMemory, table)));
         }
 
         @Override
-        public Result intersects(int commandStoreId, AccordRoutingKey key, TxnId minTxnId, Timestamp maxTxnId)
+        public Result search(int commandStoreId, AccordRoutingKey key, TxnId minTxnId, Timestamp maxTxnId)
         {
-            CloseableIterator<TxnId> inMemory = index.intersects(commandStoreId, key, minTxnId, maxTxnId).results();
+            CloseableIterator<TxnId> inMemory = index.search(commandStoreId, key, minTxnId, maxTxnId).results();
             CloseableIterator<TxnId> table = tableSearch(commandStoreId, key);
             return new DefaultResult(minTxnId, maxTxnId, MergeIterator.get(Arrays.asList(inMemory, table)));
         }
