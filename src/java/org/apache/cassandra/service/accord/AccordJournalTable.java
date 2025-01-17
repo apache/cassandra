@@ -100,7 +100,7 @@ public class AccordJournalTable<K extends JournalKey, V> implements RangeSearche
      * this property holds true.
      */
     @Nullable
-    private final RouteInMemoryIndex<JournalKey, Object> index;
+    private final RouteInMemoryIndex<Object> index;
     private final int accordJournalVersion;
 
     public AccordJournalTable(Journal<K, V> journal, KeySupport<K> keySupport, ColumnFamilyStore cfs, int accordJournalVersion)
@@ -128,7 +128,7 @@ public class AccordJournalTable<K extends JournalKey, V> implements RangeSearche
         return RouteJournalIndex.allowed(key);
     }
 
-    void safeNotify(Consumer<RouteInMemoryIndex<JournalKey, Object>> fn)
+    void safeNotify(Consumer<RouteInMemoryIndex<Object>> fn)
     {
         if (index == null)
             return;

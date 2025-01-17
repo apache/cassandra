@@ -45,8 +45,7 @@ import org.apache.cassandra.utils.FastByteOperations;
 import org.apache.cassandra.utils.RTree;
 import org.apache.cassandra.utils.RangeTree;
 
-//TODO (generics): remove K its dead code
-public class RouteInMemoryIndex<K extends JournalKey, V> implements RangeSearcher
+public class RouteInMemoryIndex<V> implements RangeSearcher
 {
     private final Long2ObjectHashMap<SegmentIndex> segmentIndexes = new Long2ObjectHashMap<>();
 

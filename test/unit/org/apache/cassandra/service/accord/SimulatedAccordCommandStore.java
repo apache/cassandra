@@ -438,7 +438,7 @@ public class SimulatedAccordCommandStore implements AutoCloseable
 
     private static class DefaultJournal extends InMemoryJournal implements RangeSearcher.Supplier
     {
-        private final RouteInMemoryIndex<JournalKey, ?> index = new RouteInMemoryIndex<>();
+        private final RouteInMemoryIndex<?> index = new RouteInMemoryIndex<>();
         private DefaultJournal(Node.Id id, Agent agent)
         {
             super(id, agent);
