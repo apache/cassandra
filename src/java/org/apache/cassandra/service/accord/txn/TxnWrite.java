@@ -389,27 +389,24 @@ public class TxnWrite extends AbstractKeySorted<TxnWrite.Update> implements Writ
         //  cfk into memory by retaining at all times in memory key ranges that are dirty and must use this logic;
         //  any that aren't can just use executeAt.hlc
         SafeCommandsForKey safeCfk = safeStore.get((RoutingKey) key.toUnseekable());
-
         long timestamp = safeCfk.current().uniqueHlc(safeStore, txnId, executeAt);
         // TODO (low priority - do we need to compute nowInSeconds, or can we just use executeAt?)
         int nowInSeconds = (int) TimeUnit.MICROSECONDS.toSeconds(executeAt.hlc());
 
+        // TODO (expected): optimise for the common single update case; lots of lists allocated
         List<AsyncChain<Void>> results = new ArrayList<>();
-
-        boolean preserveTimestamps = txnUpdate.preserveTimestamps();
-        // Apply updates not specified fully by the client but built from fragments completed by data from reads.
-        // This occurs, for example, when an UPDATE statement uses a value assigned by a LET statement.
-        Function<Cell, CellPath> accordListPathSuppler = accordListPathSupplier(timestamp);
-        forEachWithKey((PartitionKey) key, write -> results.add(write.write(preserveTimestamps, accordListPathSuppler, timestamp, nowInSeconds)));
-
         if (isConditionMet)
         {
+            boolean preserveTimestamps = txnUpdate.preserveTimestamps();
+            // Apply updates not specified fully by the client but built from fragments completed by data from reads.
+            // This occurs, for example, when an UPDATE statement uses a value assigned by a LET statement.
+            Function<Cell, CellPath> accordListPathSuppler = accordListPathSupplier(timestamp);
+            forEachWithKey((PartitionKey) key, write -> results.add(write.write(preserveTimestamps, accordListPathSuppler, timestamp, nowInSeconds)));
             // Apply updates that are fully specified by the client and not reliant on data from reads.
             // ex. INSERT INTO tbl (a, b, c) VALUES (1, 2, 3)
             // These updates are persisted only in TxnUpdate and not in TxnWrite to avoid duplication.
-            assert txnUpdate != null : "PartialTxn should contain an update if we're applying a write!";
             List<Update> updates = txnUpdate.completeUpdatesForKey((RoutableKey) key);
-            updates.forEach(update -> results.add(update.write(preserveTimestamps, accordListPathSuppler, timestamp, nowInSeconds)));
+            updates.forEach(write -> results.add(write.write(preserveTimestamps, accordListPathSuppler, timestamp, nowInSeconds)));
         }
 
         if (results.isEmpty())
