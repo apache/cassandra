@@ -38,6 +38,8 @@ import org.slf4j.LoggerFactory;
 import io.netty.util.concurrent.FastThreadLocal;
 import org.apache.cassandra.config.*;
 import org.apache.cassandra.db.filter.*;
+import org.apache.cassandra.db.transform.BasePartitions;
+import org.apache.cassandra.db.transform.BaseRows;
 import org.apache.cassandra.exceptions.CoordinatorBehindException;
 import org.apache.cassandra.exceptions.QueryCancelledException;
 import org.apache.cassandra.exceptions.UnknownTableException;
@@ -750,6 +752,22 @@ public abstract class ReadCommand extends AbstractReadQuery
     private class QueryCancellationChecker extends StoppingTransformation<UnfilteredRowIterator>
     {
         long lastCheckedAt = 0;
+
+        @Override
+        protected void attachTo(BasePartitions partitions)
+        {
+            Preconditions.checkArgument(this.partitions == null || this.partitions == partitions,
+                                        "Attempted to attach 2nd different BasePartitions in StoppingTransformation; this is a bug.");
+            this.partitions = partitions;
+        }
+
+        @Override
+        protected void attachTo(BaseRows rows)
+        {
+            Preconditions.checkArgument(this.rows == null || this.rows == rows,
+                                        "Attempted to attach 2nd different BaseRows in StoppingTransformation; this is a bug.");
+            this.rows = rows;
+        }
 
         @Override
         protected UnfilteredRowIterator applyToPartition(UnfilteredRowIterator partition)
