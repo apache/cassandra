@@ -45,6 +45,7 @@ import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
+import org.apache.cassandra.service.accord.serializers.CommandSerializers.ExecuteAtSerializer;
 
 import static accord.messages.CheckStatus.SerializationSupport.createOk;
 import static org.apache.cassandra.service.accord.serializers.CommandSerializers.known;
@@ -174,7 +175,7 @@ public class CheckStatusSerializers
             CommandSerializers.ballot.serialize(ok.maxPromised, out, version);
             CommandSerializers.ballot.serialize(ok.maxAcceptedOrCommitted, out, version);
             CommandSerializers.ballot.serialize(ok.acceptedOrCommitted, out, version);
-            CommandSerializers.nullableTimestamp.serialize(ok.executeAt, out, version);
+            ExecuteAtSerializer.serializeNullable(ok.executeAt, out);
             out.writeBoolean(ok.isCoordinating);
             CommandSerializers.durability.serialize(ok.durability, out, version);
             KeySerializers.nullableRoute.serialize(ok.route, out, version);
@@ -207,7 +208,7 @@ public class CheckStatusSerializers
                     Ballot maxPromised = CommandSerializers.ballot.deserialize(in, version);
                     Ballot maxAcceptedOrCommitted = CommandSerializers.ballot.deserialize(in, version);
                     Ballot acceptedOrCommitted = CommandSerializers.ballot.deserialize(in, version);
-                    Timestamp executeAt = CommandSerializers.nullableTimestamp.deserialize(in, version);
+                    Timestamp executeAt = ExecuteAtSerializer.deserializeNullable(in);
                     boolean isCoordinating = in.readBoolean();
                     Durability durability = CommandSerializers.durability.deserialize(in, version);
                     Route<?> route = KeySerializers.nullableRoute.deserialize(in, version);
@@ -246,7 +247,7 @@ public class CheckStatusSerializers
             size += CommandSerializers.ballot.serializedSize(ok.maxPromised, version);
             size += CommandSerializers.ballot.serializedSize(ok.maxAcceptedOrCommitted, version);
             size += CommandSerializers.ballot.serializedSize(ok.acceptedOrCommitted, version);
-            size += CommandSerializers.nullableTimestamp.serializedSize(ok.executeAt, version);
+            size += ExecuteAtSerializer.serializedNullableSize(ok.executeAt);
             size += TypeSizes.BOOL_SIZE;
             size += CommandSerializers.durability.serializedSize(ok.durability, version);
             size += KeySerializers.nullableRoute.serializedSize(ok.route, version);

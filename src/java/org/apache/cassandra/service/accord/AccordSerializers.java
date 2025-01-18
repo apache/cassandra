@@ -166,19 +166,19 @@ public class AccordSerializers
         @Override
         public void serialize(TableMetadata metadata, DataOutputPlus out, int version) throws IOException
         {
-            metadata.id.serialize(out);
+            metadata.id.serializeCompact(out);
         }
 
         @Override
         public TableMetadata deserialize(DataInputPlus in, int version) throws IOException
         {
-            return Schema.instance.getTableMetadata(TableId.deserialize(in));
+            return Schema.instance.getTableMetadata(TableId.deserializeCompact(in));
         }
 
         @Override
         public long serializedSize(TableMetadata metadata, int version)
         {
-            return metadata.id.serializedSize();
+            return metadata.id.serializedCompactSize();
         }
     };
 

@@ -298,7 +298,7 @@ public class SimulatedAccordCommandStore implements AutoCloseable
                 {
                     Command command = (Command) state.getExclusive();
                     if (command != null && command.known().isDefinitionKnown()
-                        && (command.partialTxn().keys().intersects(keys) || ranges.intersects(command.partialTxn().keys()))
+                        && (command.partialTxn().keys().intersects(keys) || command.partialTxn().keys().intersects(ranges))
                         && shouldEvict.getAsBoolean())
                         cache.tryEvict(state);
                 }

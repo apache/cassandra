@@ -34,6 +34,7 @@ import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
+import org.apache.cassandra.service.accord.serializers.CommandSerializers.ExecuteAtSerializer;
 
 public class LatestDepsSerializers
 {
@@ -118,20 +119,20 @@ public class LatestDepsSerializers
         @Override
         public void serializeBody(GetLatestDeps msg, DataOutputPlus out, int version) throws IOException
         {
-            CommandSerializers.timestamp.serialize(msg.executeAt, out, version);
+            ExecuteAtSerializer.serialize(msg.executeAt, out);
         }
 
         @Override
         public GetLatestDeps deserializeBody(DataInputPlus in, int version, TxnId txnId, Route<?> scope, long waitForEpoch, long minEpoch) throws IOException
         {
-            Timestamp executeAt = CommandSerializers.timestamp.deserialize(in, version);
+            Timestamp executeAt = ExecuteAtSerializer.deserialize(in);
             return GetLatestDeps.SerializationSupport.create(txnId, scope, waitForEpoch, minEpoch, executeAt);
         }
 
         @Override
         public long serializedBodySize(GetLatestDeps msg, int version)
         {
-            return CommandSerializers.timestamp.serializedSize(msg.executeAt, version);
+            return ExecuteAtSerializer.serializedSize(msg.executeAt);
         }
     };
 

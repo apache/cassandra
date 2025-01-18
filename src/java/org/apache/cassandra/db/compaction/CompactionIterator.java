@@ -98,6 +98,7 @@ import org.apache.cassandra.service.paxos.uncommitted.PaxosRows;
 import org.apache.cassandra.utils.TimeUUID;
 
 import static accord.local.Cleanup.ERASE;
+import static accord.local.Cleanup.Input.PARTIAL;
 import static com.google.common.base.Preconditions.checkState;
 import static java.util.concurrent.TimeUnit.MICROSECONDS;
 import static org.apache.cassandra.config.Config.PaxosStatePurging.legacy;
@@ -123,7 +124,7 @@ import static org.apache.cassandra.service.accord.AccordKeyspace.CommandsForKeys
 public class CompactionIterator extends CompactionInfo.Holder implements UnfilteredPartitionIterator
 {
     private static final Logger logger = LoggerFactory.getLogger(CompactionIterator.class);
-    private static final long UNFILTERED_TO_UPDATE_PROGRESS = 100;
+    private static final long UNFILTERED_TO_UPDATE_PROGRESS = 128;
 
     private final OperationType type;
     private final AbstractCompactionController controller;
@@ -834,7 +835,6 @@ public class CompactionIterator extends CompactionInfo.Holder implements Unfilte
         Object builder = null;
         FlyweightSerializer<Object, Object> serializer = null;
         Object[] firstClustering = null;
-        long maxSeenTimestamp = -1;
         final int userVersion;
         long lastDescriptor = -1;
         int lastOffset = -1;
@@ -861,7 +861,6 @@ public class CompactionIterator extends CompactionInfo.Holder implements Unfilte
             key = AccordKeyspace.JournalColumns.getJournalKey(partition.partitionKey());
             serializer = (AccordJournalValueSerializers.FlyweightSerializer<Object, Object>) key.type.serializer;
             builder = serializer.mergerFor(key);
-            maxSeenTimestamp = -1;
             lastDescriptor = -1;
             lastOffset = -1;
             firstClustering = null;
@@ -912,9 +911,9 @@ public class CompactionIterator extends CompactionInfo.Holder implements Unfilte
 
                 RedundantBefore redundantBefore = redundantBefores.get(key.commandStoreId);
                 DurableBefore durableBefore = durableBefores.get(key.commandStoreId);
-                Cleanup cleanup = commandBuilder.shouldCleanup(agent, redundantBefore, durableBefore, true);
+                Cleanup cleanup = commandBuilder.shouldCleanup(PARTIAL, agent, redundantBefore, durableBefore);
                 if (cleanup == ERASE)
-                    return PartitionUpdate.fullPartitionDelete(metadata(), partition.partitionKey(), maxSeenTimestamp, nowInSec).unfilteredIterator();
+                    return PartitionUpdate.fullPartitionDelete(metadata(), partition.partitionKey(), Long.MAX_VALUE, nowInSec).unfilteredIterator();
 
                 commandBuilder = commandBuilder.maybeCleanup(cleanup);
                 if (commandBuilder != builder)
@@ -949,7 +948,6 @@ public class CompactionIterator extends CompactionInfo.Holder implements Unfilte
         protected void collect(Row row)
         {
             updateProgress();
-            maxSeenTimestamp = row.primaryKeyLivenessInfo().timestamp();
             ByteBuffer record = row.getCell(recordColumn).buffer();
             long descriptor = LongType.instance.compose(row.clustering().getBufferArray()[0]);
             int offset = Int32Type.instance.compose(row.clustering().getBufferArray()[1]);

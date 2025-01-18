@@ -56,7 +56,6 @@ import accord.primitives.Participants;
 import accord.primitives.RangeDeps;
 import accord.primitives.Ranges;
 import accord.primitives.RoutableKey;
-import accord.primitives.Status;
 import accord.primitives.Timestamp;
 import accord.primitives.TxnId;
 import accord.utils.Invariants;
@@ -74,6 +73,8 @@ import static accord.api.Journal.Loader;
 import static accord.api.Journal.OnDone;
 import static accord.local.KeyHistory.SYNC;
 import static accord.primitives.Status.Committed;
+import static accord.primitives.Status.PreCommitted;
+import static accord.primitives.Status.Truncated;
 import static accord.utils.Invariants.checkState;
 
 public class AccordCommandStore extends CommandStore
@@ -494,7 +495,7 @@ public class AccordCommandStore extends CommandStore
             Participants<?> keys = null;
             if (CommandsForKey.manages(txnId))
                 keys = command.hasBeen(Committed) ? command.participants().hasTouched() : command.participants().touches();
-            else if (!CommandsForKey.managesExecution(txnId) && command.hasBeen(Status.Stable) && !command.hasBeen(Status.Truncated))
+            else if (!CommandsForKey.managesExecution(txnId) && command.hasBeen(PreCommitted) && !command.hasBeen(Truncated))
                 keys = command.asCommitted().waitingOn.keys;
 
             if (keys != null)
@@ -506,8 +507,7 @@ public class AccordCommandStore extends CommandStore
         @Override
         public void load(Command command, OnDone onDone)
         {
-            store.execute(context(command, SYNC),
-                          safeStore -> loadInternal(command, safeStore))
+            store.execute(context(command, SYNC), safeStore -> loadInternal(command, safeStore))
                  .begin((unused, throwable) -> {
                      if (throwable != null)
                          onDone.failure(throwable);

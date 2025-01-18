@@ -27,7 +27,6 @@ import accord.primitives.PartialDeps;
 import accord.primitives.PartialTxn;
 import accord.primitives.Route;
 import accord.primitives.Timestamp;
-import accord.primitives.Txn;
 import accord.primitives.TxnId;
 import accord.primitives.Writes;
 import accord.utils.Invariants;
@@ -35,6 +34,7 @@ import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
+import org.apache.cassandra.service.accord.serializers.CommandSerializers.ExecuteAtSerializer;
 
 import static accord.primitives.Txn.Kind.Write;
 
@@ -67,7 +67,7 @@ public class ApplySerializers
         {
             out.writeVInt(apply.minEpoch - apply.waitForEpoch);
             kind.serialize(apply.kind, out, version);
-            CommandSerializers.timestamp.serialize(apply.executeAt, out, version);
+            ExecuteAtSerializer.serialize(apply.txnId, apply.executeAt, out);
             DepsSerializers.partialDeps.serialize(apply.deps, out, version);
             CommandSerializers.nullablePartialTxn.serialize(apply.txn, out, version);
             KeySerializers.nullableFullRoute.serialize(apply.fullRoute, out, version);
@@ -83,7 +83,7 @@ public class ApplySerializers
         {
             return deserializeApply(txnId, scope, waitForEpoch + in.readVInt(), waitForEpoch,
                                     kind.deserialize(in, version),
-                                    CommandSerializers.timestamp.deserialize(in, version),
+                                    ExecuteAtSerializer.deserialize(txnId, in),
                                     DepsSerializers.partialDeps.deserialize(in, version),
                                     CommandSerializers.nullablePartialTxn.deserialize(in, version),
                                     KeySerializers.nullableFullRoute.deserialize(in, version),
@@ -96,7 +96,7 @@ public class ApplySerializers
         {
             return   TypeSizes.sizeofVInt(apply.minEpoch - apply.waitForEpoch)
                    + kind.serializedSize(apply.kind, version)
-                   + CommandSerializers.timestamp.serializedSize(apply.executeAt, version)
+                   + ExecuteAtSerializer.serializedSize(apply.txnId, apply.executeAt)
                    + DepsSerializers.partialDeps.serializedSize(apply.deps, version)
                    + CommandSerializers.nullablePartialTxn.serializedSize(apply.txn, version)
                    + KeySerializers.nullableFullRoute.serializedSize(apply.fullRoute, version)

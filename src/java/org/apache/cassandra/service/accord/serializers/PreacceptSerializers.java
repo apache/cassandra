@@ -33,7 +33,9 @@ import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
+import org.apache.cassandra.service.accord.serializers.CommandSerializers.ExecuteAtSerializer;
 import org.apache.cassandra.service.accord.serializers.TxnRequestSerializer.WithUnsyncedSerializer;
+
 
 public class PreacceptSerializers
 {
@@ -92,7 +94,7 @@ public class PreacceptSerializers
 
             PreAcceptOk preAcceptOk = (PreAcceptOk) reply;
             CommandSerializers.txnId.serialize(preAcceptOk.txnId, out, version);
-            CommandSerializers.timestamp.serialize(preAcceptOk.witnessedAt, out, version);
+            ExecuteAtSerializer.serialize(preAcceptOk.txnId, preAcceptOk.witnessedAt, out);
             DepsSerializers.deps.serialize(preAcceptOk.deps, out, version);
         }
 
@@ -102,8 +104,9 @@ public class PreacceptSerializers
             if (!in.readBoolean())
                 return PreAccept.PreAcceptNack.INSTANCE;
 
-            return new PreAcceptOk(CommandSerializers.txnId.deserialize(in, version),
-                                   CommandSerializers.timestamp.deserialize(in, version),
+            TxnId txnId = CommandSerializers.txnId.deserialize(in, version);
+            return new PreAcceptOk(txnId,
+                                   ExecuteAtSerializer.deserialize(txnId, in),
                                    DepsSerializers.deps.deserialize(in, version));
         }
 
@@ -116,7 +119,7 @@ public class PreacceptSerializers
 
             PreAcceptOk preAcceptOk = (PreAcceptOk) reply;
             size += CommandSerializers.txnId.serializedSize(preAcceptOk.txnId, version);
-            size += CommandSerializers.timestamp.serializedSize(preAcceptOk.witnessedAt, version);
+            size += ExecuteAtSerializer.serializedSize(preAcceptOk.txnId, preAcceptOk.witnessedAt);
             size += DepsSerializers.deps.serializedSize(preAcceptOk.deps, version);
 
             return size;

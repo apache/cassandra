@@ -152,9 +152,7 @@ public class AccordKeyspace
     public static final String EPOCH_METADATA = "epoch_metadata";
     public static final String JOURNAL_INDEX_NAME = "record";
 
-    public static final Set<String> TABLE_NAMES = ImmutableSet.of(COMMANDS_FOR_KEY,
-                                                                  TOPOLOGIES, EPOCH_METADATA,
-                                                                  JOURNAL);
+    public static final Set<String> TABLE_NAMES = ImmutableSet.of(COMMANDS_FOR_KEY, TOPOLOGIES, EPOCH_METADATA, JOURNAL);
 
     // TODO (desired): implement a custom type so we can get correct sort order
     public static final TupleType TIMESTAMP_TYPE = new TupleType(Lists.newArrayList(LongType.instance, LongType.instance, Int32Type.instance));
@@ -338,11 +336,11 @@ public class AccordKeyspace
             if (current == null)
                 return null;
 
-            CommandsForKey updated = current.withRedundantBeforeAtLeast(redundantBefore.shardRedundantBefore());
+            CommandsForKey updated = current.withRedundantBeforeAtLeast(redundantBefore.gcBefore());
             if (current == updated)
                 return row;
 
-            if (updated.size() == 0)
+            if (updated.isEmpty())
                 return null;
 
             ByteBuffer buffer = Serialize.toBytesWithoutKey(updated);
@@ -374,7 +372,7 @@ public class AccordKeyspace
               "pending_sync_notify set<int>, " + // nodes that need to be told we're synced
               "remote_sync_complete set<int>, " +  // nodes that have told us they're synced
               "closed map<blob, blob>, " +
-              "redundant map<blob, blob>" +
+              "retired map<blob, blob>" +
               ')').build();
 
     public static final TableMetadata EpochMetadata =
@@ -905,11 +903,11 @@ public class AccordKeyspace
     }
 
     // TODO (required): unused
-    public static EpochDiskState markRedundant(Ranges ranges, long epoch, EpochDiskState diskState)
+    public static EpochDiskState markRetired(Ranges ranges, long epoch, EpochDiskState diskState)
     {
         diskState = maybeUpdateMaxEpoch(diskState, epoch);
         String cql = "UPDATE " + ACCORD_KEYSPACE_NAME + '.' + TOPOLOGIES + ' ' +
-                     "SET redundant = redundant + ? WHERE epoch = ?";
+                     "SET retired = retired + ? WHERE epoch = ?";
         executeInternal(cql,
                         KeySerializers.rangesToBlobMap(ranges), epoch);
         flush(Topologies);

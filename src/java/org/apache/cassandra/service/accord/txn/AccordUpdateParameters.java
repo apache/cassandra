@@ -31,16 +31,19 @@ import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.ClientState;
 
 import static com.google.common.base.Preconditions.checkState;
+import static java.util.concurrent.TimeUnit.MICROSECONDS;
 
 public class AccordUpdateParameters
 {
     private final TxnData data;
     private final QueryOptions options;
+    private final long timestamp;
 
-    public AccordUpdateParameters(TxnData data, QueryOptions options)
+    public AccordUpdateParameters(TxnData data, QueryOptions options, long timestamp)
     {
         this.data = data;
         this.options = options;
+        this.timestamp = timestamp;
     }
 
     public TxnData getData()
@@ -55,38 +58,36 @@ public class AccordUpdateParameters
         // For the time being, guardrails are disabled for Accord queries.
         ClientState disabledGuardrails = null;
 
-        // What we use here doesn't matter as they get replaced before actually performing the write.
-        // see org.apache.cassandra.service.accord.txn.TxnWrite.Update.write
-        int nowInSeconds = 42;
-        long timestamp = nowInSeconds;
-
-        // TODO: How should Accord work with TTL?
+        // TODO : How should Accord work with TTL?
         int ttl = metadata.params.defaultTimeToLive;
         return new UpdateParameters(metadata,
                                     disabledGuardrails,
                                     options,
                                     timestamp,
-                                    nowInSeconds,
+                                    MICROSECONDS.toSeconds(timestamp),
                                     ttl,
                                     prefetchRow(metadata, dk, rowIndex));
     }
 
     private Map<DecoratedKey, Partition> prefetchRow(TableMetadata metadata, DecoratedKey dk, int index)
     {
-        for (Map.Entry<Integer, TxnDataValue> e : data.entrySet())
+        if (data != null)
         {
-            int name = e.getKey();
-            TxnDataKeyValue value = (TxnDataKeyValue)e.getValue();
-            switch (TxnData.txnDataNameKind(name))
+            for (Map.Entry<Integer, TxnDataValue> e : data.entrySet())
             {
-                case CAS_READ:
-                    checkState(data.entrySet().size() == 1, "CAS read should only have one entry");
-                    return ImmutableMap.of(dk, value);
-                case AUTO_READ:
-                    // TODO (review): Is this the right DK being passed into that matches what we used to store in TxnDataName
-                    if (TxnData.txnDataNameIndex(name) == index)
+                int name = e.getKey();
+                TxnDataKeyValue value = (TxnDataKeyValue)e.getValue();
+                switch (TxnData.txnDataNameKind(name))
+                {
+                    case CAS_READ:
+                        checkState(data.entrySet().size() == 1, "CAS read should only have one entry");
                         return ImmutableMap.of(dk, value);
-                default:
+                    case AUTO_READ:
+                        // TODO (review): Is this the right DK being passed into that matches what we used to store in TxnDataName
+                        if (TxnData.txnDataNameIndex(name) == index)
+                            return ImmutableMap.of(dk, value);
+                    default:
+                }
             }
         }
         return Collections.emptyMap();

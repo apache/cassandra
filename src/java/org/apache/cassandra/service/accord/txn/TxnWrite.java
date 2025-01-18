@@ -27,19 +27,15 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
-import javax.annotation.Nonnull;
 
-import com.google.common.base.Function;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.Iterables;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import accord.api.DataStore;
-import accord.api.RoutingKey;
 import accord.api.Write;
 import accord.local.SafeCommandStore;
-import accord.local.cfk.SafeCommandsForKey;
 import accord.primitives.PartialTxn;
 import accord.primitives.RoutableKey;
 import accord.primitives.Seekable;
@@ -57,8 +53,6 @@ import org.apache.cassandra.db.Mutation;
 import org.apache.cassandra.db.RegularAndStaticColumns;
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
-import org.apache.cassandra.db.rows.Cell;
-import org.apache.cassandra.db.rows.CellPath;
 import org.apache.cassandra.db.rows.Row;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
@@ -69,7 +63,6 @@ import org.apache.cassandra.utils.BooleanSerializer;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.ObjectSizes;
 
-import static org.apache.cassandra.cql3.terms.Lists.accordListPathSupplier;
 import static org.apache.cassandra.service.accord.AccordSerializers.partitionUpdateSerializer;
 import static org.apache.cassandra.utils.ArraySerializers.deserializeArray;
 import static org.apache.cassandra.utils.ArraySerializers.serializeArray;
@@ -137,11 +130,11 @@ public class TxnWrite extends AbstractKeySorted<TxnWrite.Update> implements Writ
                    '}';
         }
 
-        public AsyncChain<Void> write(boolean preserveTimestamps, @Nonnull Function<Cell, CellPath> cellToMaybeNewListPath, long timestamp, int nowInSeconds)
+        public AsyncChain<Void> write(boolean preserveTimestamps, long timestamp)
         {
             PartitionUpdate update = get();
             if (!preserveTimestamps)
-                update = new PartitionUpdate.Builder(get(), 0).updateTimesAndPathsForAccord(cellToMaybeNewListPath, timestamp, nowInSeconds).build();
+                update = new PartitionUpdate.Builder(get(), 0).updateAllTimestamp(timestamp).build();
             Mutation mutation = new Mutation(update, true);
             return AsyncChains.ofRunnable(Stage.MUTATION.executor(), mutation::applyUnsafe);
         }
@@ -304,13 +297,13 @@ public class TxnWrite extends AbstractKeySorted<TxnWrite.Update> implements Writ
             return up.buildRow();
         }
 
-        static final IVersionedSerializer<Fragment> serializer = new IVersionedSerializer<Fragment>()
+        static final IVersionedSerializer<Fragment> serializer = new IVersionedSerializer<>()
         {
             @Override
             public void serialize(Fragment fragment, DataOutputPlus out, int version) throws IOException
             {
                 PartitionKey.serializer.serialize(fragment.key, out, version);
-                out.writeInt(fragment.index);
+                out.writeUnsignedVInt32(fragment.index);
                 partitionUpdateSerializer.serialize(fragment.baseUpdate, out, version);
                 TxnReferenceOperations.serializer.serialize(fragment.referenceOps, out, version);
             }
@@ -319,7 +312,7 @@ public class TxnWrite extends AbstractKeySorted<TxnWrite.Update> implements Writ
             public Fragment deserialize(DataInputPlus in, int version) throws IOException
             {
                 PartitionKey key = PartitionKey.serializer.deserialize(in, version);
-                int idx = in.readInt();
+                int idx = in.readUnsignedVInt32();
                 PartitionUpdate baseUpdate = partitionUpdateSerializer.deserialize(in, version);
                 TxnReferenceOperations referenceOps = TxnReferenceOperations.serializer.deserialize(in, version);
                 return new Fragment(key, idx, baseUpdate, referenceOps);
@@ -330,7 +323,7 @@ public class TxnWrite extends AbstractKeySorted<TxnWrite.Update> implements Writ
             {
                 long size = 0;
                 size += PartitionKey.serializer.serializedSize(fragment.key, version);
-                size += TypeSizes.INT_SIZE;
+                size += TypeSizes.sizeofUnsignedVInt(fragment.index);
                 size += partitionUpdateSerializer.serializedSize(fragment.baseUpdate, version);
                 size += TxnReferenceOperations.serializer.serializedSize(fragment.referenceOps, version);
                 return size;
@@ -381,35 +374,26 @@ public class TxnWrite extends AbstractKeySorted<TxnWrite.Update> implements Writ
     {
         // UnrecoverableRepairUpdate will deserialize as null at other nodes
         // Accord should skip the Update for a read transaction, but handle it here anyways
-        if (txn.update() == null)
+        TxnUpdate txnUpdate = ((TxnUpdate)txn.update());
+        if (txnUpdate == null)
             return Writes.SUCCESS;
 
-        TxnUpdate txnUpdate = ((TxnUpdate)txn.update());
-        // TODO (expected, efficiency): 99.9999% of the time we can just use executeAt.hlc(), so can avoid bringing
-        //  cfk into memory by retaining at all times in memory key ranges that are dirty and must use this logic;
-        //  any that aren't can just use executeAt.hlc
-        SafeCommandsForKey safeCfk = safeStore.get((RoutingKey) key.toUnseekable());
+        long timestamp = executeAt.uniqueHlc();
+        int nowInSeconds = (int) TimeUnit.MICROSECONDS.toSeconds(timestamp);
 
-        long timestamp = safeCfk.current().uniqueHlc(safeStore, txnId, executeAt);
-        // TODO (low priority - do we need to compute nowInSeconds, or can we just use executeAt?)
-        int nowInSeconds = (int) TimeUnit.MICROSECONDS.toSeconds(executeAt.hlc());
-
+        // TODO (expected): optimise for the common single update case; lots of lists allocated
         List<AsyncChain<Void>> results = new ArrayList<>();
-
-        boolean preserveTimestamps = txnUpdate.preserveTimestamps();
-        // Apply updates not specified fully by the client but built from fragments completed by data from reads.
-        // This occurs, for example, when an UPDATE statement uses a value assigned by a LET statement.
-        Function<Cell, CellPath> accordListPathSuppler = accordListPathSupplier(timestamp);
-        forEachWithKey((PartitionKey) key, write -> results.add(write.write(preserveTimestamps, accordListPathSuppler, timestamp, nowInSeconds)));
-
         if (isConditionMet)
         {
+            boolean preserveTimestamps = txnUpdate.preserveTimestamps();
+            // Apply updates not specified fully by the client but built from fragments completed by data from reads.
+            // This occurs, for example, when an UPDATE statement uses a value assigned by a LET statement.
+            forEachWithKey((PartitionKey) key, write -> results.add(write.write(preserveTimestamps, timestamp)));
             // Apply updates that are fully specified by the client and not reliant on data from reads.
             // ex. INSERT INTO tbl (a, b, c) VALUES (1, 2, 3)
             // These updates are persisted only in TxnUpdate and not in TxnWrite to avoid duplication.
-            assert txnUpdate != null : "PartialTxn should contain an update if we're applying a write!";
             List<Update> updates = txnUpdate.completeUpdatesForKey((RoutableKey) key);
-            updates.forEach(update -> results.add(update.write(preserveTimestamps, accordListPathSuppler, timestamp, nowInSeconds)));
+            updates.forEach(write -> results.add(write.write(preserveTimestamps, timestamp)));
         }
 
         if (results.isEmpty())

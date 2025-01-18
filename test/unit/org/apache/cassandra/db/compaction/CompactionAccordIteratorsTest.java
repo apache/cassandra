@@ -57,6 +57,7 @@ import accord.primitives.Route;
 import accord.primitives.SaveStatus;
 import accord.primitives.Seekable;
 import accord.primitives.Status;
+import accord.primitives.Timestamp;
 import accord.primitives.Txn;
 import accord.primitives.Txn.Kind;
 import accord.primitives.TxnId;
@@ -93,6 +94,7 @@ import org.apache.cassandra.utils.Pair;
 import static accord.local.KeyHistory.SYNC;
 import static accord.local.PreLoadContext.contextFor;
 import static accord.primitives.Routable.Domain.Range;
+import static accord.primitives.Timestamp.Flag.HLC_BOUND;
 import static accord.utils.async.AsyncChains.getUninterruptibly;
 import static org.apache.cassandra.Util.spinAssertEquals;
 import static org.apache.cassandra.cql3.statements.schema.CreateTableStatement.parse;
@@ -117,10 +119,10 @@ public class CompactionAccordIteratorsTest
     private static final TxnId TXN_ID = AccordTestUtils.txnId(EPOCH, LT_TXN_ID.hlc() + 1, NODE);
     private static final TxnId SECOND_TXN_ID = AccordTestUtils.txnId(EPOCH, TXN_ID.hlc() + 1, NODE, Kind.Read);
     private static final TxnId RANGE_TXN_ID = AccordTestUtils.txnId(EPOCH, TXN_ID.hlc() + 2, NODE, Kind.Read, Range);
-    private static final TxnId GT_TXN_ID = SECOND_TXN_ID;
+    private static final TxnId GT_TXN_ID = SECOND_TXN_ID.addFlag(HLC_BOUND);
     // For CommandsForKey where we test with two commands
     private static final TxnId[] TXN_IDS = new TxnId[]{ TXN_ID, SECOND_TXN_ID };
-    private static final TxnId GT_SECOND_TXN_ID = AccordTestUtils.txnId(EPOCH, SECOND_TXN_ID.hlc() + 1, NODE);
+    private static final TxnId GT_SECOND_TXN_ID = AccordTestUtils.txnId(EPOCH, SECOND_TXN_ID.hlc() + 1, NODE).addFlag(HLC_BOUND);
 
     static ColumnFamilyStore commandsForKey;
     static TableMetadata table;

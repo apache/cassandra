@@ -672,7 +672,7 @@ public class EpochSyncTest
                 this.topology = new TopologyManager(SizeOfIntersectionSorter.SUPPLIER, new TestAgent.RethrowAgent(), id, Scheduler.NEVER_RUN_SCHEDULED, TimeService.ofNonMonotonic(globalExecutor::currentTimeMillis, TimeUnit.MILLISECONDS), LocalConfig.DEFAULT);
                 AccordConfigurationService.DiskStateManager instance = MockDiskStateManager.instance;
                 Journal journal = null; // TODO
-                config = new AccordConfigurationService(node, messagingService, failureDetector, instance, scheduler, journal);
+                config = new AccordConfigurationService(node, messagingService, failureDetector, instance, scheduler);
                 config.registerListener(new ConfigurationService.Listener()
                 {
                     @Override
@@ -718,7 +718,7 @@ public class EpochSyncTest
                     }
 
                     @Override
-                    public void onEpochRedundant(Ranges ranges, long epoch)
+                    public void onEpochRetired(Ranges ranges, long epoch)
                     {
                         topology.onEpochRedundant(ranges, epoch);
                     }

@@ -57,11 +57,12 @@ import accord.primitives.Txn.Kind;
 import accord.primitives.TxnId;
 import accord.primitives.Unseekables;
 import accord.primitives.Writes;
+import accord.utils.ImmutableBitSet;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.service.accord.api.AccordRoutingKey;
 import org.apache.cassandra.service.accord.api.AccordRoutingKey.TokenKey;
 import org.apache.cassandra.service.accord.api.PartitionKey;
-import org.apache.cassandra.service.accord.serializers.WaitingOnSerializer;
+import org.apache.cassandra.service.accord.serializers.ResultSerializers;
 import org.apache.cassandra.service.accord.txn.AccordUpdate;
 import org.apache.cassandra.service.accord.txn.TxnData;
 import org.apache.cassandra.service.accord.txn.TxnQuery;
@@ -265,6 +266,8 @@ public class AccordObjectSizes
 
     public static long results(Result result)
     {
+        if (result == ResultSerializers.APPLIED)
+            return 0;
         return ((TxnResult) result).estimatedSizeOnHeap();
     }
 
@@ -349,7 +352,7 @@ public class AccordObjectSizes
                 case TruncatedApply:
                 case TruncatedApplyWithDeps:
                 case TruncatedApplyWithOutcome:
-                case ErasedOrVestigial:
+                case Vestigial:
                 case Erased:
                     return TRUNCATED;
                 case Invalidated:
@@ -377,16 +380,19 @@ public class AccordObjectSizes
         size += sizeNullable(command.partialDeps(), AccordObjectSizes::dependencies);
         size += sizeNullable(command.acceptedOrCommitted(), AccordObjectSizes::timestamp);
         size += sizeNullable(command.writes(), AccordObjectSizes::writes);
+        size += sizeNullable(command.result(), AccordObjectSizes::results);
+        size += sizeNullable(command.waitingOn(), AccordObjectSizes::waitingOn);
+        return size;
+    }
 
-        if (command.result() instanceof TxnResult)
-            size += sizeNullable(command.result(), AccordObjectSizes::results);
-
-        if (!(command instanceof Command.Committed && command.saveStatus().hasBeen(Status.Stable)))
-            return size;
-
-        Command.Committed committed = command.asCommitted();
-        size += WaitingOnSerializer.serializedSize(committed.txnId(), committed.waitingOn);
-
+    private static long EMPTY_WAITING_ON_SIZE = measure(new WaitingOn(null, null, null, null, null));
+    private static long EMPTY_BIT_SET_SIZE = measure(new ImmutableBitSet(0));
+    private static long waitingOn(WaitingOn waitingOn)
+    {
+        // TODO (desired): this doesn't correctly account for object padding of bitset arrays
+        long size =  EMPTY_WAITING_ON_SIZE + EMPTY_BIT_SET_SIZE + (waitingOn.waitingOn.size() * 8L);
+        if (waitingOn.appliedOrInvalidated != null)
+            size += EMPTY_BIT_SET_SIZE + (waitingOn.appliedOrInvalidated.size() * 8L);
         return size;
     }
 

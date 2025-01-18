@@ -93,6 +93,16 @@ public abstract class Operation
         return false;
     }
 
+
+    /**
+     * @return whether the operation requires its timestamp to be known to be executed safely
+     */
+    public boolean requiresTimestamp()
+    {
+        return false;
+    }
+
+
     /**
      * Collects the column specification for the bind variables of this operation.
      *

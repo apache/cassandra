@@ -49,7 +49,6 @@ import accord.primitives.Seekables;
 import accord.primitives.Timestamp;
 import accord.primitives.Txn;
 import accord.primitives.TxnId;
-import accord.primitives.Writes;
 import accord.topology.Shard;
 import accord.topology.Topologies;
 import accord.topology.Topology;

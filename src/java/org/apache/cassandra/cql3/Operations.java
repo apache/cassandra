@@ -126,7 +126,7 @@ public final class Operations implements Iterable<Operation>
      */
     public void add(Operation operation)
     {
-        if (isForTxn && operation.requiresRead())
+        if (isForTxn && (operation.requiresRead() || operation.requiresTimestamp()))
         {
             add(operation.column, ReferenceOperation.create(operation));
             return;

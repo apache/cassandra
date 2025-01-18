@@ -220,7 +220,7 @@ public class TxnUpdate extends AccordUpdate
         List<TxnWrite.Fragment> fragments = deserialize(this.fragments, TxnWrite.Fragment.serializer);
         List<TxnWrite.Update> updates = new ArrayList<>(fragments.size());
         QueryOptions options = QueryOptions.forProtocolVersion(ProtocolVersion.CURRENT);
-        AccordUpdateParameters parameters = new AccordUpdateParameters((TxnData) data, options);
+        AccordUpdateParameters parameters = new AccordUpdateParameters((TxnData) data, options, executeAt.uniqueHlc());
 
         for (TxnWrite.Fragment fragment : fragments)
             // Filter out fragments that already constitute complete updates to avoid persisting them via TxnWrite:

@@ -208,7 +208,7 @@ public abstract class AccordRoutingKey extends AccordRoutableKey implements Rout
             @Override
             public void serialize(SentinelKey key, DataOutputPlus out, int version) throws IOException
             {
-                key.table.serialize(out);
+                key.table.serializeCompact(out);
                 out.writeBoolean(key.isMinSentinel);
                 out.writeBoolean(key.isMinMinSentinel);
             }
@@ -216,13 +216,14 @@ public abstract class AccordRoutingKey extends AccordRoutableKey implements Rout
             @Override
             public void skip(DataInputPlus in, int version) throws IOException
             {
-                in.skipBytesFully(TableId.staticSerializedSize() + 1);
+                TableId.skipCompact(in);
+                in.skipBytesFully(2);
             }
 
             @Override
             public SentinelKey deserialize(DataInputPlus in, int version) throws IOException
             {
-                TableId table = TableId.deserialize(in);
+                TableId table = TableId.deserializeCompact(in);
                 boolean isMin = in.readBoolean();
                 boolean isMinMin = in.readBoolean();
                 return new SentinelKey(table, isMin, isMinMin);
@@ -231,7 +232,7 @@ public abstract class AccordRoutingKey extends AccordRoutableKey implements Rout
             @Override
             public long serializedSize(SentinelKey key, int version)
             {
-                return key.table().serializedSize() + TypeSizes.BOOL_SIZE + TypeSizes.BOOL_SIZE;
+                return key.table().serializedCompactSize() + TypeSizes.BOOL_SIZE + TypeSizes.BOOL_SIZE;
             }
         };
 
@@ -255,14 +256,14 @@ public abstract class AccordRoutingKey extends AccordRoutableKey implements Rout
         @Override
         public void serialize(T key, DataOutputPlus out, int version) throws IOException
         {
-            key.table.serialize(out);
+            key.table.serializeCompact(out);
             Token.compactSerializer.serialize(key.token, out, version);
         }
 
         @Override
         public void skip(DataInputPlus in, int version) throws IOException
         {
-            in.skipBytesFully(TableId.staticSerializedSize());
+            TableId.skipCompact(in);
             // TODO (expected): should we be using the TableId partitioner here?
             Token.compactSerializer.skip(in, getPartitioner(), version);
         }
@@ -270,24 +271,24 @@ public abstract class AccordRoutingKey extends AccordRoutableKey implements Rout
         @Override
         public T deserialize(DataInputPlus in, int version) throws IOException
         {
-            TableId table = TableId.deserialize(in).intern();
+            TableId table = TableId.deserializeCompact(in).intern();
             Token token = Token.compactSerializer.deserialize(in, getPartitioner(), version);
             return factory.apply(table, token);
         }
 
         public T fromBytes(ByteBuffer bytes, IPartitioner partitioner)
         {
-            TableId tableId = TableId.deserialize(bytes, ByteBufferAccessor.instance, 0).intern();
-            bytes.position(tableId.serializedSize());
+            TableId tableId = TableId.deserializeCompact(bytes, ByteBufferAccessor.instance, 0).intern();
+            bytes.position(tableId.serializedCompactSize());
             Token token = Token.compactSerializer.deserialize(bytes, partitioner);
             return factory.apply(tableId, token);
         }
 
         public ByteBuffer toBytes(T tokenKey)
         {
-            int size = (int) (tokenKey.table.serializedSize() + Token.compactSerializer.serializedSize(tokenKey.token));
+            int size = (int) (tokenKey.table.serializedCompactSize() + Token.compactSerializer.serializedSize(tokenKey.token));
             ByteBuffer out = ByteBuffer.allocate(size);
-            int position = tokenKey.table.serialize(out, ByteBufferAccessor.instance, 0);
+            int position = tokenKey.table.serializeCompact(out, ByteBufferAccessor.instance, 0);
             out.position(position);
             Token.compactSerializer.serialize(tokenKey.token, out);
             out.flip();
@@ -297,7 +298,7 @@ public abstract class AccordRoutingKey extends AccordRoutableKey implements Rout
         @Override
         public long serializedSize(TokenKey key, int version)
         {
-            return key.table.serializedSize() + Token.compactSerializer.serializedSize(key.token(), version);
+            return key.table.serializedCompactSize() + Token.compactSerializer.serializedSize(key.token(), version);
         }
     }
 

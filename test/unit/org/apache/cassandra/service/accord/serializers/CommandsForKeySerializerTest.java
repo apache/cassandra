@@ -92,6 +92,7 @@ import static accord.primitives.Known.KnownExecuteAt.ExecuteAtErased;
 import static accord.primitives.Known.KnownExecuteAt.ExecuteAtUnknown;
 import static accord.primitives.Status.Durability.Majority;
 import static accord.primitives.Status.Durability.NotDurable;
+import static accord.primitives.Status.Durability.max;
 import static accord.utils.Property.qt;
 import static accord.utils.SortedArrays.Search.FAST;
 import static org.apache.cassandra.cql3.statements.schema.CreateTableStatement.parse;
@@ -305,7 +306,7 @@ public class CommandsForKeySerializerTest
         Arrays.sort(cmds, Comparator.comparing(o -> o.txnId));
         for (int i = 0 ; i < txnIdCount ; ++i)
         {
-            if (!cmds[i].saveStatus.known.deps().hasProposedOrDecidedDeps())
+            if (!cmds[i].saveStatus.known.deps().hasPreAcceptedOrProposedOrDecidedDeps())
                 continue;
 
             Timestamp knownBefore = cmds[i].saveStatus.known.deps().hasCommittedOrDecidedDeps() ? cmds[i].executeAt : cmds[i].txnId;
@@ -404,7 +405,7 @@ public class CommandsForKeySerializerTest
     @Test
     public void serde()
     {
-        testOne(3466420662549679178L);
+        testOne(629993588068216851L);
         Random random = new Random();
         for (int i = 0 ; i < 10000 ; ++i)
         {
@@ -530,6 +531,7 @@ public class CommandsForKeySerializerTest
                 ++i;
             }
 
+            cfk = cfk.updateUniqueHlc(source.nextLong(Long.MAX_VALUE));
             ByteBuffer buffer = Serialize.toBytesWithoutKey(cfk);
             CommandsForKey roundTrip = Serialize.fromBytes(key, buffer);
             Assert.assertEquals(cfk, roundTrip);
@@ -590,7 +592,8 @@ public class CommandsForKeySerializerTest
             }
             else unmanaged = CommandsForKey.NO_PENDING_UNMANAGED;
 
-            CommandsForKey expected = CommandsForKey.SerializerSupport.create(pk, info, 0, unmanaged, TxnId.NONE, NO_BOUNDS_INFO);
+            long maxUniqueHlc = rs.nextLong(0, Long.MAX_VALUE);
+            CommandsForKey expected = CommandsForKey.SerializerSupport.create(pk, info, maxUniqueHlc, unmanaged, TxnId.NONE, NO_BOUNDS_INFO);
 
             ByteBuffer buffer = Serialize.toBytesWithoutKey(expected);
             CommandsForKey roundTrip = Serialize.fromBytes(pk, buffer);

@@ -25,50 +25,66 @@ import accord.utils.Invariants;
 
 import java.util.Set;
 
-public enum MockDiskStateManager implements AccordConfigurationService.DiskStateManager {
+public enum MockDiskStateManager implements AccordConfigurationService.DiskStateManager
+{
     instance;
 
     @Override
-    public AccordKeyspace.EpochDiskState loadLocalTopologyState(AccordKeyspace.TopologyLoadConsumer consumer) {
+    public AccordKeyspace.EpochDiskState loadLocalTopologyState(AccordKeyspace.TopologyLoadConsumer consumer)
+    {
         return AccordKeyspace.EpochDiskState.EMPTY;
     }
 
     @Override
-    public AccordKeyspace.EpochDiskState setNotifyingLocalSync(long epoch, Set<Node.Id> pending, AccordKeyspace.EpochDiskState diskState) {
+    public AccordKeyspace.EpochDiskState setNotifyingLocalSync(long epoch, Set<Node.Id> pending, AccordKeyspace.EpochDiskState diskState)
+    {
         return maybeUpdateMaxEpoch(diskState, epoch);
     }
 
     @Override
-    public AccordKeyspace.EpochDiskState setCompletedLocalSync(long epoch, AccordKeyspace.EpochDiskState diskState) {
+    public AccordKeyspace.EpochDiskState setCompletedLocalSync(long epoch, AccordKeyspace.EpochDiskState diskState)
+    {
         return maybeUpdateMaxEpoch(diskState, epoch);
     }
 
     @Override
-    public AccordKeyspace.EpochDiskState markLocalSyncAck(Node.Id id, long epoch, AccordKeyspace.EpochDiskState diskState) {
+    public AccordKeyspace.EpochDiskState markLocalSyncAck(Node.Id id, long epoch, AccordKeyspace.EpochDiskState diskState)
+    {
         return maybeUpdateMaxEpoch(diskState, epoch);
     }
 
     @Override
-    public AccordKeyspace.EpochDiskState saveTopology(Topology topology, AccordKeyspace.EpochDiskState diskState) {
+    public AccordKeyspace.EpochDiskState saveTopology(Topology topology, AccordKeyspace.EpochDiskState diskState)
+    {
         return maybeUpdateMaxEpoch(diskState, topology.epoch());
     }
 
     @Override
-    public AccordKeyspace.EpochDiskState markRemoteTopologySync(Node.Id node, long epoch, AccordKeyspace.EpochDiskState diskState) {
+    public AccordKeyspace.EpochDiskState markRemoteTopologySync(Node.Id node, long epoch, AccordKeyspace.EpochDiskState diskState)
+    {
         return maybeUpdateMaxEpoch(diskState, epoch);
     }
 
     @Override
-    public AccordKeyspace.EpochDiskState markClosed(Ranges ranges, long epoch, AccordKeyspace.EpochDiskState diskState) {
+    public AccordKeyspace.EpochDiskState markClosed(Ranges ranges, long epoch, AccordKeyspace.EpochDiskState diskState)
+    {
         return maybeUpdateMaxEpoch(diskState, epoch);
     }
 
     @Override
-    public AccordKeyspace.EpochDiskState truncateTopologyUntil(long epoch, AccordKeyspace.EpochDiskState diskState) {
+    public AccordKeyspace.EpochDiskState markRetired(Ranges ranges, long epoch, AccordKeyspace.EpochDiskState diskState)
+    {
         return maybeUpdateMaxEpoch(diskState, epoch);
     }
 
-    private static AccordKeyspace.EpochDiskState maybeUpdateMaxEpoch(AccordKeyspace.EpochDiskState diskState, long epoch) {
+    @Override
+    public AccordKeyspace.EpochDiskState truncateTopologyUntil(long epoch, AccordKeyspace.EpochDiskState diskState)
+    {
+        return maybeUpdateMaxEpoch(diskState, epoch);
+    }
+
+    private static AccordKeyspace.EpochDiskState maybeUpdateMaxEpoch(AccordKeyspace.EpochDiskState diskState, long epoch)
+    {
         if (diskState.isEmpty())
             return AccordKeyspace.EpochDiskState.create(epoch);
         Invariants.checkArgument(epoch >= diskState.minEpoch, "Epoch %d < %d (min)", epoch, diskState.minEpoch);

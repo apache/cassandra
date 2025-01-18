@@ -45,7 +45,7 @@ import org.apache.cassandra.service.accord.api.AccordRoutingKey;
 import static accord.local.CommandSummaries.SummaryStatus.NOT_DIRECTLY_WITNESSED;
 
 // TODO (required): move to accord-core, merge with existing logic there
-public class CommandsForRanges extends TreeMap<Timestamp, Summary> implements CommandSummaries.Snapshot
+public class CommandsForRanges extends TreeMap<Timestamp, Summary> implements CommandSummaries.ByTxnIdSnapshot
 {
     public CommandsForRanges(Map<? extends Timestamp, ? extends Summary> m)
     {

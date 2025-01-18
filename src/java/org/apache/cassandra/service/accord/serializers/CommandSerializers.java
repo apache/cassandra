@@ -46,9 +46,11 @@ import accord.primitives.Seekables;
 import accord.primitives.Status;
 import accord.primitives.Status.Durability;
 import accord.primitives.Timestamp;
+import accord.primitives.TimestampWithUniqueHlc;
 import accord.primitives.Txn;
 import accord.primitives.TxnId;
 import accord.primitives.Writes;
+import accord.utils.Invariants;
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.db.marshal.ValueAccessor;
 import org.apache.cassandra.io.IVersionedSerializer;
@@ -77,6 +79,217 @@ public class CommandSerializers
     public static final IVersionedSerializer<Ballot> nullableBallot = NullableSerializer.wrap(ballot);
     public static final EnumSerializer<Txn.Kind> kind = new EnumSerializer<>(Txn.Kind.class);
     public static final StoreParticipantsSerializer participants = new StoreParticipantsSerializer();
+
+    public static class ExecuteAtSerializer
+    {
+        private static final int IS_TIMESTAMP = 1;
+        private static final int HAS_UNIQUE_HLC = 2;
+        private static final int HAS_EPOCH = 4;
+
+        public static Timestamp deserialize(TxnId txnId, DataInputPlus in) throws IOException
+        {
+            int flags = in.readUnsignedVInt32();
+            if ((flags & 1) == 0)
+                return txnId.addFlags(flags >>> 1);
+
+            long epoch = txnId.epoch();
+            if((flags & HAS_EPOCH) != 0)
+                epoch += in.readUnsignedVInt();
+
+            long hlc = txnId.hlc() + in.readUnsignedVInt();
+            Node.Id node = new Node.Id(in.readUnsignedVInt32());
+            if ((flags & HAS_UNIQUE_HLC) == 0)
+                return Timestamp.fromValues(epoch, hlc, flags >>> 3, node);
+            return new TimestampWithUniqueHlc(epoch, hlc, hlc + in.readUnsignedVInt(), flags >>> 3, node);
+        }
+
+        public static void skip(TxnId txnId, DataInputPlus in) throws IOException
+        {
+            int flags = in.readUnsignedVInt32();
+            if ((flags & 1) != 0)
+            {
+                if ((flags & HAS_EPOCH) != 0)
+                    in.readUnsignedVInt();
+                in.readUnsignedVInt();
+                in.readUnsignedVInt32();
+                if ((flags & HAS_UNIQUE_HLC) != 0)
+                    in.readUnsignedVInt();
+            }
+        }
+
+        public static void serialize(TxnId txnId, Timestamp executeAt, DataOutputPlus out) throws IOException
+        {
+            int flags = flags(txnId, executeAt);
+            out.writeUnsignedVInt32(flags);
+            if ((flags & 1) != 0)
+            {
+                if ((flags & HAS_EPOCH) != 0)
+                    out.writeUnsignedVInt(executeAt.epoch() - txnId.epoch());
+                out.writeUnsignedVInt(executeAt.hlc() - txnId.hlc());
+                out.writeUnsignedVInt32(executeAt.node.id);
+                if ((flags & HAS_UNIQUE_HLC) != 0)
+                    out.writeUnsignedVInt(executeAt.uniqueHlc() - executeAt.hlc());
+            }
+        }
+
+        private static int flags(TxnId txnId, Timestamp executeAt)
+        {
+            if (executeAt.getClass() == TxnId.class)
+                return (executeAt.flags() ^ txnId.flags()) << 1;
+
+            int flags = executeAt.flags() << 3;
+            if (executeAt.epoch() != txnId.epoch())
+                flags |= HAS_EPOCH;
+            if (executeAt.hasDistinctHlcAndUniqueHlc())
+                flags |= HAS_UNIQUE_HLC;
+            return flags | 1;
+        }
+
+        public static long serializedSize(TxnId txnId, Timestamp executeAt)
+        {
+            int flags = flags(txnId, executeAt);
+            long size = TypeSizes.sizeofUnsignedVInt(flags);
+            if ((flags & 1) != 0)
+            {
+                if ((flags & HAS_EPOCH) != 0)
+                    size += TypeSizes.sizeofUnsignedVInt(executeAt.epoch() - txnId.epoch());
+                size += TypeSizes.sizeofUnsignedVInt(executeAt.hlc() - txnId.hlc());
+                size += TypeSizes.sizeofUnsignedVInt(executeAt.node.id);
+                if ((flags & HAS_UNIQUE_HLC) != 0)
+                    size += TypeSizes.sizeofUnsignedVInt(executeAt.uniqueHlc() - executeAt.hlc());
+            }
+            return size;
+        }
+
+        public static Timestamp deserialize(DataInputPlus in) throws IOException
+        {
+            return deserialize(in, false);
+        }
+
+        public static Timestamp deserializeNullable(DataInputPlus in) throws IOException
+        {
+            return deserialize(in, true);
+        }
+
+        private static Timestamp deserialize(DataInputPlus in, boolean nullable) throws IOException
+        {
+            int flags = in.readUnsignedVInt32();
+            if (nullable)
+            {
+                if ((flags & 1) != 0) return null;
+                flags >>>= 1;
+            }
+            long epoch = in.readUnsignedVInt();
+            long hlc = in.readUnsignedVInt();
+            Node.Id node = new Node.Id(in.readUnsignedVInt32());
+            if ((flags & HAS_UNIQUE_HLC) == 0)
+            {
+                if ((flags & IS_TIMESTAMP) == 0)
+                    return TxnId.fromValues(epoch, hlc, flags >>> 2, node);
+                return Timestamp.fromValues(epoch, hlc, flags >>> 2, node);
+            }
+            return new TimestampWithUniqueHlc(epoch, hlc, hlc + in.readUnsignedVInt(), flags >>> 2, node);
+        }
+
+        public static void skip(DataInputPlus in) throws IOException
+        {
+            skip(in, false);
+        }
+
+        public static void skipNullable(DataInputPlus in) throws IOException
+        {
+            skip(in, true);
+        }
+
+        private static void skip(DataInputPlus in, boolean nullable) throws IOException
+        {
+            int flags = in.readUnsignedVInt32();
+            if (nullable)
+            {
+                if ((flags & 1) != 0)
+                    return;
+                flags >>= 1;
+            }
+            in.readUnsignedVInt();
+            in.readUnsignedVInt();
+            in.readUnsignedVInt32();
+            if ((flags & HAS_UNIQUE_HLC) != 0)
+                in.readUnsignedVInt();
+        }
+
+        public static void serialize(Timestamp executeAt, DataOutputPlus out) throws IOException
+        {
+            serialize(executeAt, out, false);
+        }
+
+        public static void serializeNullable(Timestamp executeAt, DataOutputPlus out) throws IOException
+        {
+            serialize(executeAt, out, true);
+        }
+
+        private static void serialize(Timestamp executeAt, DataOutputPlus out, boolean nullable) throws IOException
+        {
+            int flags = flags(executeAt, nullable);
+            out.writeUnsignedVInt32(flags);
+            if (executeAt == null)
+            {
+                Invariants.checkState(nullable);
+            }
+            else
+            {
+                out.writeUnsignedVInt(executeAt.epoch());
+                out.writeUnsignedVInt(executeAt.hlc());
+                out.writeUnsignedVInt32(executeAt.node.id);
+                if ((flags & HAS_UNIQUE_HLC) != 0)
+                    out.writeUnsignedVInt(executeAt.uniqueHlc() - executeAt.hlc());
+            }
+        }
+
+        public static long serializedSize(Timestamp executeAt)
+        {
+            return serializedSize(executeAt, false);
+        }
+
+        public static long serializedNullableSize(Timestamp executeAt)
+        {
+            return serializedSize(executeAt, true);
+        }
+
+        private static long serializedSize(Timestamp executeAt, boolean nullable)
+        {
+            int flags = flags(executeAt, nullable);
+            long size = TypeSizes.sizeofUnsignedVInt(flags);
+            if (executeAt == null)
+            {
+                Invariants.checkState(nullable);
+                return size;
+            }
+            size += TypeSizes.sizeofUnsignedVInt(executeAt.epoch());
+            size += TypeSizes.sizeofUnsignedVInt(executeAt.hlc());
+            size += TypeSizes.sizeofUnsignedVInt(executeAt.node.id);
+            if ((flags & HAS_UNIQUE_HLC) != 0)
+                size += TypeSizes.sizeofUnsignedVInt(executeAt.uniqueHlc() - executeAt.hlc());
+            return size;
+        }
+
+        private static int flags(Timestamp executeAt, boolean nullable)
+        {
+            if (executeAt == null)
+            {
+                Invariants.checkState(nullable);
+                return 1;
+            }
+
+            int flags = executeAt.flags() << 2;
+            // for compatibility with other serialized form
+            flags |= (executeAt.getClass() == TxnId.class) ? 0 : 1;
+            if (executeAt.hasDistinctHlcAndUniqueHlc())
+                flags |= HAS_UNIQUE_HLC;
+            if (nullable)
+                flags <<= 1;
+            return flags;
+        }
+    }
 
     // TODO (expected): optimise using subset serializers, or perhaps simply with some deduping key serializer
     public static class StoreParticipantsSerializer implements IVersionedSerializer<StoreParticipants>
@@ -390,7 +603,7 @@ public class CommandSerializers
         public void serialize(Writes writes, DataOutputPlus out, int version) throws IOException
         {
             txnId.serialize(writes.txnId, out, version);
-            timestamp.serialize(writes.executeAt, out, version);
+            ExecuteAtSerializer.serialize(writes.txnId, writes.executeAt, out);
             KeySerializers.seekables.serialize(writes.keys, out, version);
             boolean hasWrites = writes.write != null;
             out.writeBoolean(hasWrites);
@@ -402,7 +615,8 @@ public class CommandSerializers
         @Override
         public Writes deserialize(DataInputPlus in, int version) throws IOException
         {
-            return new Writes(txnId.deserialize(in, version), timestamp.deserialize(in, version),
+            TxnId id = txnId.deserialize(in, version);
+            return new Writes(id, ExecuteAtSerializer.deserialize(id, in),
                               KeySerializers.seekables.deserialize(in, version),
                               in.readBoolean() ? CommandSerializers.write.deserialize(in, version) : null);
         }
@@ -411,7 +625,7 @@ public class CommandSerializers
         public long serializedSize(Writes writes, int version)
         {
             long size = txnId.serializedSize(writes.txnId, version);
-            size += timestamp.serializedSize(writes.executeAt, version);
+            size += ExecuteAtSerializer.serializedSize(writes.txnId, writes.executeAt);
             size += KeySerializers.seekables.serializedSize(writes.keys, version);
             boolean hasWrites = writes.write != null;
             size += TypeSizes.sizeof(hasWrites);

@@ -333,6 +333,12 @@ public abstract class Lists
             super(column, t);
         }
 
+        @Override
+        public boolean requiresTimestamp()
+        {
+            return true;
+        }
+
         public void execute(DecoratedKey partitionKey, UpdateParameters params) throws InvalidRequestException
         {
             Term.Terminal value = t.bind(params.options);
@@ -424,6 +430,12 @@ public abstract class Lists
             doAppend(value, column, params);
         }
 
+        @Override
+        public boolean requiresTimestamp()
+        {
+            return true;
+        }
+
         static void doAppend(Term.Terminal value, ColumnMetadata column, UpdateParameters params) throws InvalidRequestException
         {
             ListType<?> type = (ListType<?>) column.type;
@@ -481,6 +493,12 @@ public abstract class Lists
         public Prepender(ColumnMetadata column, Term t)
         {
             super(column, t);
+        }
+
+        @Override
+        public boolean requiresTimestamp()
+        {
+            return true;
         }
 
         public void execute(DecoratedKey partitionKey, UpdateParameters params) throws InvalidRequestException

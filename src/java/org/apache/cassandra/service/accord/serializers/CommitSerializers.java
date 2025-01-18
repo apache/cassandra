@@ -33,6 +33,7 @@ import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
+import org.apache.cassandra.service.accord.serializers.CommandSerializers.ExecuteAtSerializer;
 
 import static org.apache.cassandra.utils.NullableSerializer.deserializeNullable;
 import static org.apache.cassandra.utils.NullableSerializer.serializeNullable;
@@ -50,7 +51,7 @@ public class CommitSerializers
         {
             kind.serialize(msg.kind, out, version);
             CommandSerializers.ballot.serialize(msg.ballot, out, version);
-            CommandSerializers.timestamp.serialize(msg.executeAt, out, version);
+            ExecuteAtSerializer.serialize(msg.txnId, msg.executeAt, out);
             CommandSerializers.nullablePartialTxn.serialize(msg.partialTxn, out, version);
             if (msg.kind.withDeps == Commit.WithDeps.HasDeps)
                 DepsSerializers.partialDeps.serialize(msg.scope, msg.partialDeps, out, version);
@@ -62,7 +63,7 @@ public class CommitSerializers
         {
             Commit.Kind kind = CommitSerializers.kind.deserialize(in, version);
             Ballot ballot = CommandSerializers.ballot.deserialize(in, version);
-            Timestamp executeAt = CommandSerializers.timestamp.deserialize(in, version);
+            Timestamp executeAt = ExecuteAtSerializer.deserialize(txnId, in);
             PartialTxn partialTxn = CommandSerializers.nullablePartialTxn.deserialize(in, version);
             PartialDeps partialDeps = null;
             if (kind.withDeps == Commit.WithDeps.HasDeps)
@@ -76,7 +77,7 @@ public class CommitSerializers
         {
             long size = kind.serializedSize(msg.kind, version)
                    + CommandSerializers.ballot.serializedSize(msg.ballot, version)
-                   + CommandSerializers.timestamp.serializedSize(msg.executeAt, version)
+                   + ExecuteAtSerializer.serializedSize(msg.txnId, msg.executeAt)
                    + CommandSerializers.nullablePartialTxn.serializedSize(msg.partialTxn, version);
 
             if (msg.kind.withDeps == Commit.WithDeps.HasDeps)
