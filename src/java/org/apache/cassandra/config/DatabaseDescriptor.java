@@ -1025,6 +1025,10 @@ public class DatabaseDescriptor
 
         if (conf.use_deterministic_table_id)
             logger.warn("use_deterministic_table_id is deprecated and will be ignored in a future release.");
+
+        // run audit logging options through sanitation and validation
+        if (conf.audit_logging_options != null)
+            setAuditLoggingOptions(conf.audit_logging_options);
     }
 
     @VisibleForTesting

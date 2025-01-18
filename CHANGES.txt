@@ -10,6 +10,7 @@
  * Ban the usage of "var" instead of full types in the production code (CASSANDRA-20038)
  * Suppress CVE-2024-45772 from lucene-core-9.7.0.jar (CASSANDRA-20024)
 Merged from 4.1:
+ * Run audit_logging_options through santiation and validation on startup (CASSANDRA-20208)
  * Enforce CQL message size limit on multiframe messages (CASSANDRA-20052)
  * Add nodetool checktokenmetadata command that checks TokenMetadata is insync with Gossip endpointState (CASSANDRA-18758)
  * Equality check for Paxos.Electorate should not depend on collection types (CASSANDRA-19935)
