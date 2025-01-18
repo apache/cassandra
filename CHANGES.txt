@@ -146,6 +146,7 @@ Merged from 5.0:
  * Prioritize built indexes in IndexStatusManager (CASSANDRA-19400)
  * Add java.base/java.lang.reflect among opens for jvm11-client.options (CASSANDRA-19780)
 Merged from 4.1:
+ * Run audit_logging_options through santiation and validation on startup (CASSANDRA-20208)
  * Enforce CQL message size limit on multiframe messages (CASSANDRA-20052)
  * Fix race condition in DecayingEstimatedHistogramReservoir during rescale (CASSANDRA-19365)
 Merged from 4.0:

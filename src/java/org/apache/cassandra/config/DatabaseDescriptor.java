@@ -1111,6 +1111,10 @@ public class DatabaseDescriptor
 
         if (conf.use_deterministic_table_id)
             logger.warn("use_deterministic_table_id is no longer supported and should be removed from cassandra.yaml.");
+
+        // run audit logging options through sanitation and validation
+        if (conf.audit_logging_options != null)
+            setAuditLoggingOptions(conf.audit_logging_options);
     }
 
     @VisibleForTesting
