@@ -25,7 +25,10 @@ import org.junit.Test;
 
 import accord.local.Command;
 import accord.primitives.Deps;
+import accord.primitives.KeyDeps;
+import accord.primitives.PartialDeps;
 import accord.primitives.Routable;
+import accord.primitives.RoutingKeys;
 import accord.primitives.TxnId;
 import accord.utils.Gen;
 import accord.utils.Gens;
@@ -33,6 +36,8 @@ import accord.utils.SimpleBitSet;
 import accord.utils.Utils;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.dht.Murmur3Partitioner;
+import org.apache.cassandra.io.util.DataInputBuffer;
+import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.utils.AccordGenerators;
 import org.apache.cassandra.utils.CassandraGenerators;
 import org.assertj.core.api.Assertions;
@@ -54,13 +59,24 @@ public class WaitingOnSerializerTest
         qt().forAll(waitingOnGen()).check(waitingOn -> {
             TxnId txnId = TxnId.NONE;
             if (waitingOn.appliedOrInvalidated != null) txnId = new TxnId(txnId.epoch(), txnId.hlc(), txnId.kind(), Routable.Domain.Range, txnId.node);
-            long expectedSize = WaitingOnSerializer.serializedSize(txnId, waitingOn);
-            ByteBuffer bb = WaitingOnSerializer.serialize(txnId, waitingOn);
-            Assertions.assertThat(bb.remaining()).isEqualTo(expectedSize);
-            Command.WaitingOn read = WaitingOnSerializer.deserialize(txnId, waitingOn.keys, waitingOn.directRangeDeps, waitingOn.directKeyDeps, bb);
-            Assertions.assertThat(read)
-                      .isEqualTo(waitingOn)
-                      .isEqualTo(WaitingOnSerializer.deserialize(txnId, waitingOn.keys, waitingOn.directRangeDeps, waitingOn.directKeyDeps, WaitingOnSerializer.serialize(txnId, waitingOn)));
+            ByteBuffer bb;
+            try (DataOutputBuffer buf = new DataOutputBuffer())
+            {
+                WaitingOnSerializer.serializeBitSetsOnly(txnId, waitingOn, buf);
+                bb = buf.asNewBuffer();
+            }
+            try (DataInputBuffer buf = new DataInputBuffer(bb, true))
+            {
+                PartialDeps deps = new PartialDeps(RoutingKeys.EMPTY, KeyDeps.none(waitingOn.keys), waitingOn.directRangeDeps, waitingOn.directKeyDeps);
+                Command.WaitingOn read = WaitingOnSerializer.deserializeProvider(txnId, buf).provide(txnId, deps, null, 0);
+                Assertions.assertThat(read).isEqualTo(waitingOn);
+                Assertions.assertThat(buf.available()).isEqualTo(0);
+            }
+            try (DataInputBuffer buf = new DataInputBuffer(bb, true))
+            {
+                WaitingOnSerializer.skip(txnId, buf);
+                Assertions.assertThat(buf.available()).isEqualTo(0);
+            }
         });
     }
 

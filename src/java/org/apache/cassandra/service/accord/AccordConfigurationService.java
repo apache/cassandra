@@ -30,7 +30,6 @@ import javax.annotation.concurrent.GuardedBy;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.Sets;
 
-import accord.api.Journal;
 import accord.impl.AbstractConfigurationService;
 import accord.local.Node;
 import accord.primitives.Ranges;
@@ -68,7 +67,6 @@ public class AccordConfigurationService extends AbstractConfigurationService<Acc
 {
     private final AccordSyncPropagator syncPropagator;
     private final DiskStateManager diskStateManager;
-    private final Journal journal;
 
     @GuardedBy("this")
     private EpochDiskState diskState = EpochDiskState.EMPTY;
@@ -148,6 +146,8 @@ public class AccordConfigurationService extends AbstractConfigurationService<Acc
 
         EpochDiskState markClosed(Ranges ranges, long epoch, EpochDiskState diskState);
 
+        EpochDiskState markRetired(Ranges ranges, long epoch, EpochDiskState diskState);
+
         EpochDiskState truncateTopologyUntil(long epoch, EpochDiskState diskState);
     }
 
@@ -198,6 +198,12 @@ public class AccordConfigurationService extends AbstractConfigurationService<Acc
         }
 
         @Override
+        public EpochDiskState markRetired(Ranges ranges, long epoch, EpochDiskState diskState)
+        {
+            return AccordKeyspace.markRetired(ranges, epoch, diskState);
+        }
+
+        @Override
         public EpochDiskState truncateTopologyUntil(long epoch, EpochDiskState diskState)
         {
             return AccordKeyspace.truncateTopologyUntil(epoch, diskState);
@@ -214,17 +220,16 @@ public class AccordConfigurationService extends AbstractConfigurationService<Acc
         }
     }
 
-    public AccordConfigurationService(Node.Id node, MessageDelivery messagingService, IFailureDetector failureDetector, DiskStateManager diskStateManager, ScheduledExecutorPlus scheduledTasks, Journal journal)
+    public AccordConfigurationService(Node.Id node, MessageDelivery messagingService, IFailureDetector failureDetector, DiskStateManager diskStateManager, ScheduledExecutorPlus scheduledTasks)
     {
         super(node);
         this.syncPropagator = new AccordSyncPropagator(localId, this, messagingService, failureDetector, scheduledTasks, this);
         this.diskStateManager = diskStateManager;
-        this.journal = journal;
     }
 
-    public AccordConfigurationService(Node.Id node, Journal journal)
+    public AccordConfigurationService(Node.Id node)
     {
-        this(node, MessagingService.instance(), FailureDetector.instance, SystemTableDiskStateManager.instance, ScheduledExecutors.scheduledTasks, journal);
+        this(node, MessagingService.instance(), FailureDetector.instance, SystemTableDiskStateManager.instance, ScheduledExecutors.scheduledTasks);
     }
 
     @Override
@@ -251,7 +256,7 @@ public class AccordConfigurationService extends AbstractConfigurationService<Acc
             remoteSyncComplete.forEach(id -> receiveRemoteSyncComplete(id, epoch));
             // TODO (required): disk doesn't get updated until we see our own notification, so there is an edge case where this instance notified others and fails in the middle, but Apply was already sent!  This could leave partial closed/redudant accross the cluster
             receiveClosed(closed, epoch);
-            receiveRedundant(redundant, epoch);
+            receiveRetired(redundant, epoch);
         });
         state = State.STARTED;
 
@@ -527,13 +532,13 @@ public class AccordConfigurationService extends AbstractConfigurationService<Acc
     }
 
     @Override
-    public void receiveRedundant(Ranges ranges, long epoch)
+    public void receiveRetired(Ranges ranges, long epoch)
     {
         synchronized (this)
         {
-            diskState = diskStateManager.markClosed(ranges, epoch, diskState);
+            diskState = diskStateManager.markRetired(ranges, epoch, diskState);
         }
-        super.receiveRedundant(ranges, epoch);
+        super.receiveRetired(ranges, epoch);
     }
 
     @Override

@@ -46,6 +46,7 @@ import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.service.accord.AccordMessageSink.AccordMessageType;
 import org.apache.cassandra.service.accord.serializers.CommandSerializers;
+import org.apache.cassandra.service.accord.serializers.CommandSerializers.ExecuteAtSerializer;
 import org.apache.cassandra.service.accord.serializers.CommitSerializers;
 import org.apache.cassandra.service.accord.serializers.DepsSerializers;
 import org.apache.cassandra.service.accord.serializers.KeySerializers;
@@ -70,7 +71,7 @@ public class AccordInteropStableThenRead extends AccordInteropRead
             KeySerializers.participants.serialize(read.scope, out, version);
             CommitSerializers.kind.serialize(read.kind, out, version);
             out.writeUnsignedVInt(read.minEpoch);
-            CommandSerializers.timestamp.serialize(read.executeAt, out, version);
+            ExecuteAtSerializer.serialize(read.txnId, read.executeAt, out);
             if (read.kind.withTxn != NoTxn)
                 CommandSerializers.nullablePartialTxn.serialize(read.partialTxn, out, version);
             if (read.kind.withDeps == HasDeps)
@@ -87,7 +88,7 @@ public class AccordInteropStableThenRead extends AccordInteropRead
             Participants<?> scope = KeySerializers.participants.deserialize(in, version);
             Commit.Kind kind = CommitSerializers.kind.deserialize(in, version);
             long minEpoch = in.readUnsignedVInt();
-            Timestamp executeAt = CommandSerializers.timestamp.deserialize(in, version);
+            Timestamp executeAt = ExecuteAtSerializer.deserialize(txnId, in);
             PartialTxn partialTxn = kind.withTxn == NoTxn ? null : CommandSerializers.nullablePartialTxn.deserialize(in, version);
             PartialDeps partialDeps = kind.withDeps == NoDeps ? null : DepsSerializers.partialDeps.deserialize(in, version);
             FullRoute < ?> route = kind.withTxn == HasTxn ? KeySerializers.fullRoute.deserialize(in, version) : null;
@@ -102,7 +103,7 @@ public class AccordInteropStableThenRead extends AccordInteropRead
                    + KeySerializers.participants.serializedSize(read.scope, version)
                    + CommitSerializers.kind.serializedSize(read.kind, version)
                    + TypeSizes.sizeofUnsignedVInt(read.minEpoch)
-                   + CommandSerializers.timestamp.serializedSize(read.executeAt, version)
+                   + ExecuteAtSerializer.serializedSize(read.txnId, read.executeAt)
                    + (read.kind.withTxn == NoTxn ? 0 : CommandSerializers.nullablePartialTxn.serializedSize(read.partialTxn, version))
                    + (read.kind.withDeps != HasDeps ? 0 : DepsSerializers.partialDeps.serializedSize(read.partialDeps, version))
                    + (read.kind.withTxn != HasTxn ? 0 : KeySerializers.fullRoute.serializedSize(read.route, version))

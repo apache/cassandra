@@ -122,10 +122,10 @@ public class CommandChangeTest
         SoftAssertions checks = new SoftAssertions();
         for (Field field : missing)
         {
-            checks.assertThat(CommandChange.getFieldChanged(field, flags))
+            checks.assertThat(CommandChange.isChanged(field, flags))
                   .describedAs("field %s changed", field).
                   isTrue();
-            checks.assertThat(CommandChange.getFieldIsNull(field, flags))
+            checks.assertThat(CommandChange.isNull(field, flags))
                   .describedAs("field %s not null", field)
                   .isFalse();
         }
@@ -138,11 +138,11 @@ public class CommandChangeTest
         for (Field field : missing)
         {
             if (field == Field.CLEANUP) continue;
-            checks.assertThat(CommandChange.getFieldChanged(field, flags))
+            checks.assertThat(CommandChange.isChanged(field, flags))
                   .describedAs("field %s changed", field)
                   .isFalse();
             // Is null flag can not be set on a field that has not changed
-            checks.assertThat(CommandChange.getFieldIsNull(field, flags))
+            checks.assertThat(CommandChange.isNull(field, flags))
                   .describedAs("field %s not null", field)
                   .isFalse();
         }

@@ -341,5 +341,5 @@ public abstract class AccordFastPathCoordinator implements ChangeListener, Confi
     @Override public void onRemoteSyncComplete(Node.Id node, long epoch) {}
     @Override public void truncateTopologyUntil(long epoch) {}
     @Override public void onEpochClosed(Ranges ranges, long epoch) {}
-    @Override public void onEpochRedundant(Ranges ranges, long epoch) {}
+    @Override public void onEpochRetired(Ranges ranges, long epoch) {}
 }

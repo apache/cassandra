@@ -43,6 +43,7 @@ import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
+import org.apache.cassandra.service.accord.serializers.CommandSerializers.ExecuteAtSerializer;
 import org.apache.cassandra.service.accord.serializers.TxnRequestSerializer.WithUnsyncedSerializer;
 
 import static accord.messages.BeginRecovery.RecoverReply.Kind.Ok;
@@ -96,7 +97,7 @@ public class RecoverySerializers
             CommandSerializers.txnId.serialize(recoverOk.txnId, out, version);
             CommandSerializers.status.serialize(recoverOk.status, out, version);
             CommandSerializers.ballot.serialize(recoverOk.accepted, out, version);
-            CommandSerializers.nullableTimestamp.serialize(recoverOk.executeAt, out, version);
+            ExecuteAtSerializer.serializeNullable(recoverOk.executeAt, out);
             latestDeps.serialize(recoverOk.deps, out, version);
             DepsSerializers.deps.serialize(recoverOk.earlierWait, out, version);
             DepsSerializers.deps.serialize(recoverOk.earlierNoWait, out, version);
@@ -142,7 +143,7 @@ public class RecoverySerializers
             return deserializeOk(id,
                                  status,
                                  CommandSerializers.ballot.deserialize(in, version),
-                                 CommandSerializers.nullableTimestamp.deserialize(in, version),
+                                 ExecuteAtSerializer.deserializeNullable(in),
                                  latestDeps.deserialize(in, version),
                                  DepsSerializers.deps.deserialize(in, version),
                                  DepsSerializers.deps.deserialize(in, version),
@@ -166,7 +167,7 @@ public class RecoverySerializers
             long size = CommandSerializers.txnId.serializedSize(recoverOk.txnId, version);
             size += CommandSerializers.status.serializedSize(recoverOk.status, version);
             size += CommandSerializers.ballot.serializedSize(recoverOk.accepted, version);
-            size += CommandSerializers.nullableTimestamp.serializedSize(recoverOk.executeAt, version);
+            size += ExecuteAtSerializer.serializedNullableSize(recoverOk.executeAt);
             size += latestDeps.serializedSize(recoverOk.deps, version);
             size += DepsSerializers.deps.serializedSize(recoverOk.earlierWait, version);
             size += DepsSerializers.deps.serializedSize(recoverOk.earlierNoWait, version);

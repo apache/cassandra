@@ -478,9 +478,9 @@ public class AccordSyncPropagatorTest
             }
 
             @Override
-            public synchronized void receiveRedundant(Ranges ranges, long epoch)
+            public synchronized void receiveRetired(Ranges ranges, long epoch)
             {
-                super.receiveRedundant(ranges, epoch);
+                super.receiveRetired(ranges, epoch);
                 redundant.merge(epoch, ranges, Ranges::with);
             }
         }

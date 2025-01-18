@@ -33,7 +33,8 @@ import java.util.Set;
  */
 @SuppressWarnings("unused")
 @VisibleForTesting
-public class LoggingDiskStateManager implements AccordConfigurationService.DiskStateManager {
+public class LoggingDiskStateManager implements AccordConfigurationService.DiskStateManager
+{
     private static final Logger logger = LoggerFactory.getLogger(LoggingDiskStateManager.class);
     private final Node.Id self;
     private final AccordConfigurationService.DiskStateManager delegate;
@@ -83,6 +84,13 @@ public class LoggingDiskStateManager implements AccordConfigurationService.DiskS
     public AccordKeyspace.EpochDiskState markClosed(Ranges ranges, long epoch, AccordKeyspace.EpochDiskState diskState) {
         logger.info("[node={}] Calling markClosed({}, {}, {})", self, ranges, epoch, diskState);
         return delegate.markClosed(ranges, epoch, diskState);
+    }
+
+    @Override
+    public AccordKeyspace.EpochDiskState markRetired(Ranges ranges, long epoch, AccordKeyspace.EpochDiskState diskState)
+    {
+        logger.info("[node={}] Calling markRetired({}, {}, {})", self, ranges, epoch, diskState);
+        return delegate.markRetired(ranges, epoch, diskState);
     }
 
     @Override

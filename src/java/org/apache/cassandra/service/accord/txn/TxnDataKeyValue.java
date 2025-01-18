@@ -73,7 +73,7 @@ public class TxnDataKeyValue extends FilteredPartition implements TxnDataValue
         @Override
         public void serialize(TxnDataKeyValue value, DataOutputPlus out, int version) throws IOException
         {
-            value.metadata().id.serialize(out);
+            value.metadata().id.serializeCompact(out);
             try (UnfilteredRowIterator iterator = value.unfilteredIterator())
             {
                 UnfilteredRowIteratorSerializer.serializer.serialize(iterator, ColumnFilter.all(value.metadata()), out, version, value.rowCount());
@@ -84,7 +84,7 @@ public class TxnDataKeyValue extends FilteredPartition implements TxnDataValue
         public TxnDataKeyValue deserialize(DataInputPlus in, int version) throws IOException
         {
             // TODO (required): This needs to use the correct cluster metadata for schema change
-            TableMetadata metadata = Schema.instance.getExistingTableMetadata(TableId.deserialize(in));
+            TableMetadata metadata = Schema.instance.getExistingTableMetadata(TableId.deserializeCompact(in));
             try (UnfilteredRowIterator partition = UnfilteredRowIteratorSerializer.serializer.deserialize(in, version, metadata, ColumnFilter.all(metadata), DeserializationHelper.Flag.FROM_REMOTE))
             {
                 return new TxnDataKeyValue(UnfilteredRowIterators.filter(partition, 0));
@@ -95,7 +95,7 @@ public class TxnDataKeyValue extends FilteredPartition implements TxnDataValue
         public long serializedSize(TxnDataKeyValue value, int version)
         {
             TableId tableId = value.metadata().id;
-            long size = tableId.serializedSize();
+            long size = tableId.serializedCompactSize();
             try (UnfilteredRowIterator iterator = value.unfilteredIterator())
             {
                 return size + UnfilteredRowIteratorSerializer.serializer.serializedSize(iterator, ColumnFilter.all(value.metadata()), version, value.rowCount());

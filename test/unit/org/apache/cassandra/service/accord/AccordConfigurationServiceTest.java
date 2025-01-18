@@ -181,7 +181,7 @@ public class AccordConfigurationServiceTest
         ValidatingClusterMetadataService cms = ValidatingClusterMetadataService.createAndRegister(Version.MIN_ACCORD_VERSION);
 
 
-        AccordConfigurationService service = new AccordConfigurationService(ID1, new Messaging(), new MockFailureDetector(), AccordConfigurationService.SystemTableDiskStateManager.instance, ScheduledExecutors.scheduledTasks, null);
+        AccordConfigurationService service = new AccordConfigurationService(ID1, new Messaging(), new MockFailureDetector(), AccordConfigurationService.SystemTableDiskStateManager.instance, ScheduledExecutors.scheduledTasks);
         Assert.assertEquals(null, AccordKeyspace.loadEpochDiskState());
         service.start();
         Assert.assertEquals(null, AccordKeyspace.loadEpochDiskState());
@@ -207,7 +207,7 @@ public class AccordConfigurationServiceTest
         ValidatingClusterMetadataService cms = ValidatingClusterMetadataService.createAndRegister(Version.MIN_ACCORD_VERSION);
 
         InMemoryJournal journal = new InMemoryJournal(ID1, new TestAgent());
-        AccordConfigurationService service = new AccordConfigurationService(ID1, new Messaging(), new MockFailureDetector(), AccordConfigurationService.SystemTableDiskStateManager.instance, ScheduledExecutors.scheduledTasks, journal);
+        AccordConfigurationService service = new AccordConfigurationService(ID1, new Messaging(), new MockFailureDetector(), AccordConfigurationService.SystemTableDiskStateManager.instance, ScheduledExecutors.scheduledTasks);
         TestListener listener = new TestListener(service, true) {
             @Override
             public AsyncResult<Void> onTopologyUpdate(Topology topology, boolean isLoad, boolean startSync)
@@ -234,7 +234,7 @@ public class AccordConfigurationServiceTest
         Topology topology3 = createTopology(cms);
         service.reportTopology(topology3);
 
-        AccordConfigurationService loaded = new AccordConfigurationService(ID1, new Messaging(), new MockFailureDetector(), AccordConfigurationService.SystemTableDiskStateManager.instance, ScheduledExecutors.scheduledTasks, journal);
+        AccordConfigurationService loaded = new AccordConfigurationService(ID1, new Messaging(), new MockFailureDetector(), AccordConfigurationService.SystemTableDiskStateManager.instance, ScheduledExecutors.scheduledTasks);
         loaded.updateMapping(mappingForEpoch(cms.metadata().epoch.getEpoch() + 1));
         listener = new AbstractConfigurationServiceTest.TestListener(loaded, true);
         loaded.registerListener(listener);
@@ -259,7 +259,7 @@ public class AccordConfigurationServiceTest
     {
         ValidatingClusterMetadataService cms = ValidatingClusterMetadataService.createAndRegister(Version.MIN_ACCORD_VERSION);
         InMemoryJournal journal = new InMemoryJournal(ID1, new TestAgent());
-        AccordConfigurationService service = new AccordConfigurationService(ID1, new Messaging(), new MockFailureDetector(), AccordConfigurationService.SystemTableDiskStateManager.instance, ScheduledExecutors.scheduledTasks, journal);
+        AccordConfigurationService service = new AccordConfigurationService(ID1, new Messaging(), new MockFailureDetector(), AccordConfigurationService.SystemTableDiskStateManager.instance, ScheduledExecutors.scheduledTasks);
         TestListener serviceListener = new TestListener(service, true) {
             @Override
             public AsyncResult<Void> onTopologyUpdate(Topology topology, boolean isLoad, boolean startSync)
@@ -286,7 +286,7 @@ public class AccordConfigurationServiceTest
         Assert.assertEquals(EpochDiskState.create(3), service.diskState());
         serviceListener.assertTruncates(3L);
 
-        AccordConfigurationService loaded = new AccordConfigurationService(ID1, new Messaging(), new MockFailureDetector(), AccordConfigurationService.SystemTableDiskStateManager.instance, ScheduledExecutors.scheduledTasks, journal);
+        AccordConfigurationService loaded = new AccordConfigurationService(ID1, new Messaging(), new MockFailureDetector(), AccordConfigurationService.SystemTableDiskStateManager.instance, ScheduledExecutors.scheduledTasks);
         loaded.updateMapping(mappingForEpoch(cms.metadata().epoch.getEpoch() + 1));
         TestListener loadListener = new TestListener(loaded, true);
         loaded.registerListener(loadListener);

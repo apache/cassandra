@@ -32,7 +32,7 @@ import com.google.common.annotations.VisibleForTesting;
 
 import accord.impl.CommandChange;
 import accord.impl.CommandChange.Field;
-import accord.impl.ErasedSafeCommand;
+import accord.impl.RetiredSafeCommand;
 import accord.local.Cleanup;
 import accord.local.Command;
 import accord.local.CommandStore;
@@ -43,6 +43,7 @@ import accord.local.Node;
 import accord.local.RedundantBefore;
 import accord.primitives.Ranges;
 import accord.primitives.SaveStatus;
+import accord.primitives.Status.Durability;
 import accord.primitives.Timestamp;
 import accord.primitives.TxnId;
 import accord.utils.Invariants;
@@ -69,25 +70,26 @@ import org.apache.cassandra.service.accord.AccordJournalValueSerializers.Identit
 import org.apache.cassandra.service.accord.JournalKey.JournalKeySupport;
 import org.apache.cassandra.service.accord.api.AccordAgent;
 import org.apache.cassandra.service.accord.serializers.CommandSerializers;
+import org.apache.cassandra.service.accord.serializers.CommandSerializers.ExecuteAtSerializer;
 import org.apache.cassandra.service.accord.serializers.DepsSerializers;
 import org.apache.cassandra.service.accord.serializers.ResultSerializers;
 import org.apache.cassandra.service.accord.serializers.WaitingOnSerializer;
 import org.apache.cassandra.utils.ExecutorUtils;
-import org.apache.cassandra.utils.Throwables;
 import org.apache.cassandra.utils.concurrent.AsyncPromise;
 
 import static accord.impl.CommandChange.anyFieldChanged;
-import static accord.impl.CommandChange.getFieldChanged;
-import static accord.impl.CommandChange.getFieldIsNull;
+import static accord.impl.CommandChange.isNull;
 import static accord.impl.CommandChange.getFlags;
-import static accord.impl.CommandChange.getWaitingOn;
+import static accord.impl.CommandChange.isChanged;
 import static accord.impl.CommandChange.nextSetField;
-import static accord.impl.CommandChange.setFieldChanged;
+import static accord.impl.CommandChange.setChanged;
 import static accord.impl.CommandChange.setFieldIsNull;
 import static accord.impl.CommandChange.toIterableSetFields;
-import static accord.impl.CommandChange.unsetIterableFields;
+import static accord.impl.CommandChange.unsetIterable;
 import static accord.impl.CommandChange.validateFlags;
-import static accord.primitives.SaveStatus.ErasedOrVestigial;
+import static accord.local.Cleanup.Input.FULL;
+import static accord.primitives.SaveStatus.Erased;
+import static accord.primitives.SaveStatus.Vestigial;
 import static accord.primitives.Status.Truncated;
 import static org.apache.cassandra.service.accord.AccordJournalValueSerializers.DurableBeforeAccumulator;
 
@@ -222,13 +224,14 @@ public class AccordJournal implements accord.api.Journal, RangeSearcher.Supplier
     public Command loadCommand(int commandStoreId, TxnId txnId, RedundantBefore redundantBefore, DurableBefore durableBefore)
     {
         Builder builder = load(commandStoreId, txnId);
-        Cleanup cleanup = builder.shouldCleanup(agent, redundantBefore, durableBefore, false);
+        Cleanup cleanup = builder.shouldCleanup(FULL, agent, redundantBefore, durableBefore);
         switch (cleanup)
         {
-            case EXPUNGE_PARTIAL:
+            case VESTIGIAL:
+                return RetiredSafeCommand.erased(txnId, Vestigial);
             case EXPUNGE:
             case ERASE:
-                return ErasedSafeCommand.erased(txnId, ErasedOrVestigial);
+                return RetiredSafeCommand.erased(txnId, Erased);
         }
         return builder.construct(redundantBefore);
     }
@@ -240,10 +243,10 @@ public class AccordJournal implements accord.api.Journal, RangeSearcher.Supplier
         if (builder.isEmpty())
             return null;
 
-        Cleanup cleanup = builder.shouldCleanup(node.agent(), redundantBefore, durableBefore, false);
+        Cleanup cleanup = builder.shouldCleanup(FULL, node.agent(), redundantBefore, durableBefore);
         switch (cleanup)
         {
-            case EXPUNGE_PARTIAL:
+            case VESTIGIAL:
             case EXPUNGE:
             case ERASE:
                 return null;
@@ -576,19 +579,22 @@ public class AccordJournal implements accord.api.Journal, RangeSearcher.Supplier
             while (iterable != 0)
             {
                 Field field = nextSetField(iterable);
-                if (getFieldIsNull(field, flags))
+                if (isNull(field, flags))
                 {
-                    iterable = unsetIterableFields(field, iterable);
+                    iterable = unsetIterable(field, iterable);
                     continue;
                 }
 
                 switch (field)
                 {
                     case EXECUTE_AT:
-                        CommandSerializers.timestamp.serialize(command.executeAt(), out, userVersion);
+                        ExecuteAtSerializer.serialize(command.txnId(), command.executeAt(), out);
                         break;
                     case EXECUTES_AT_LEAST:
-                        CommandSerializers.timestamp.serialize(command.executesAtLeast(), out, userVersion);
+                        ExecuteAtSerializer.serialize(command.executesAtLeast(), out);
+                        break;
+                    case MIN_UNIQUE_HLC:
+                        out.writeUnsignedVInt(command.waitingOn().minUniqueHlc());
                         break;
                     case SAVE_STATUS:
                         out.writeShort(command.saveStatus().ordinal());
@@ -612,12 +618,8 @@ public class AccordJournal implements accord.api.Journal, RangeSearcher.Supplier
                         DepsSerializers.partialDeps.serialize(command.partialDeps(), out, userVersion);
                         break;
                     case WAITING_ON:
-                        Command.WaitingOn waitingOn = getWaitingOn(command);
-                        long size = WaitingOnSerializer.serializedSize(command.txnId(), waitingOn);
-                        ByteBuffer serialized = WaitingOnSerializer.serialize(command.txnId(), waitingOn);
-                        Invariants.checkState(serialized.remaining() == size);
-                        out.writeInt((int) size);
-                        out.write(serialized);
+                        Command.WaitingOn waitingOn = command.waitingOn();
+                        WaitingOnSerializer.serializeBitSetsOnly(command.txnId(), waitingOn, out);
                         break;
                     case WRITES:
                         CommandSerializers.writes.serialize(command.writes(), out, userVersion);
@@ -629,13 +631,13 @@ public class AccordJournal implements accord.api.Journal, RangeSearcher.Supplier
                         throw new IllegalStateException();
                 }
 
-                iterable = unsetIterableFields(field, iterable);
+                iterable = unsetIterable(field, iterable);
             }
         }
 
         private boolean hasField(Field fields)
         {
-            return !getFieldIsNull(fields, flags);
+            return !isNull(fields, flags);
         }
 
         public boolean hasParticipants()
@@ -696,17 +698,17 @@ public class AccordJournal implements accord.api.Journal, RangeSearcher.Supplier
             while (iterable != 0)
             {
                 Field field = nextSetField(iterable);
-                if (getFieldChanged(field, this.flags) || getFieldIsNull(field, mask))
+                if (isChanged(field, this.flags) || isNull(field, mask))
                 {
-                    if (!getFieldIsNull(field, flags))
+                    if (!isNull(field, flags))
                         skip(field, in, userVersion);
 
-                    iterable = unsetIterableFields(field, iterable);
+                    iterable = unsetIterable(field, iterable);
                     continue;
                 }
-                this.flags = setFieldChanged(field, this.flags);
+                this.flags = setChanged(field, this.flags);
 
-                if (getFieldIsNull(field, flags))
+                if (isNull(field, flags))
                 {
                     this.flags = setFieldIsNull(field, this.flags);
                 }
@@ -715,7 +717,7 @@ public class AccordJournal implements accord.api.Journal, RangeSearcher.Supplier
                     deserialize(field, in, userVersion);
                 }
 
-                iterable = unsetIterableFields(field, iterable);
+                iterable = unsetIterable(field, iterable);
             }
         }
 
@@ -724,16 +726,19 @@ public class AccordJournal implements accord.api.Journal, RangeSearcher.Supplier
             switch (field)
             {
                 case EXECUTE_AT:
-                    executeAt = CommandSerializers.timestamp.deserialize(in, userVersion);
+                    executeAt = ExecuteAtSerializer.deserialize(txnId, in);
                     break;
                 case EXECUTES_AT_LEAST:
-                    executeAtLeast = CommandSerializers.timestamp.deserialize(in, userVersion);
+                    executeAtLeast = ExecuteAtSerializer.deserialize(in);
+                    break;
+                case MIN_UNIQUE_HLC:
+                    minUniqueHlc = in.readUnsignedVInt();
                     break;
                 case SAVE_STATUS:
                     saveStatus = SaveStatus.values()[in.readShort()];
                     break;
                 case DURABILITY:
-                    durability = accord.primitives.Status.Durability.values()[in.readByte()];
+                    durability = Durability.values()[in.readByte()];
                     break;
                 case ACCEPTED:
                     acceptedOrCommitted = CommandSerializers.ballot.deserialize(in, userVersion);
@@ -751,22 +756,7 @@ public class AccordJournal implements accord.api.Journal, RangeSearcher.Supplier
                     partialDeps = DepsSerializers.partialDeps.deserialize(in, userVersion);
                     break;
                 case WAITING_ON:
-                    int size = in.readInt();
-
-                    byte[] waitingOnBytes = new byte[size];
-                    in.readFully(waitingOnBytes);
-                    ByteBuffer buffer = ByteBuffer.wrap(waitingOnBytes);
-                    waitingOn = (localTxnId, deps) -> {
-                        try
-                        {
-                            Invariants.nonNull(deps);
-                            return WaitingOnSerializer.deserialize(localTxnId, deps.keyDeps.keys(), deps.rangeDeps, deps.directKeyDeps, buffer);
-                        }
-                        catch (IOException e)
-                        {
-                            throw Throwables.unchecked(e);
-                        }
-                    };
+                    waitingOn = WaitingOnSerializer.deserializeProvider(txnId, in);
                     break;
                 case WRITES:
                     writes = CommandSerializers.writes.deserialize(in, userVersion);
@@ -787,8 +777,13 @@ public class AccordJournal implements accord.api.Journal, RangeSearcher.Supplier
             switch (field)
             {
                 case EXECUTE_AT:
+                    ExecuteAtSerializer.skip(txnId, in);
+                    break;
                 case EXECUTES_AT_LEAST:
-                    CommandSerializers.timestamp.skip(in, userVersion);
+                    ExecuteAtSerializer.skip(in);
+                    break;
+                case MIN_UNIQUE_HLC:
+                    in.readUnsignedVInt();
                     break;
                 case SAVE_STATUS:
                     in.readShort();
@@ -812,8 +807,7 @@ public class AccordJournal implements accord.api.Journal, RangeSearcher.Supplier
                     DepsSerializers.partialDeps.deserialize(in, userVersion);
                     break;
                 case WAITING_ON:
-                    int size = in.readInt();
-                    in.skipBytesFully(size);
+                    WaitingOnSerializer.skip(txnId, in);
                     break;
                 case WRITES:
                     // TODO (expected): skip

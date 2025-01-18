@@ -334,7 +334,7 @@ public class AccordService implements IAccordService, Shutdownable
         this.dataStore = new AccordDataStore();
         this.configuration = new AccordConfiguration(DatabaseDescriptor.getRawConfig());
         this.journal = new AccordJournal(DatabaseDescriptor.getAccord().journal, agent);
-        this.configService = new AccordConfigurationService(localId, journal);
+        this.configService = new AccordConfigurationService(localId);
         this.fastPathCoordinator = AccordFastPathCoordinator.create(localId, configService);
         this.messageSink = new AccordMessageSink(agent, configService, callbacks);
         this.node = new Node(localId,
@@ -1172,7 +1172,7 @@ public class AccordService implements IAccordService, Shutdownable
             if (!notification.closed.isEmpty())
                 configService.receiveClosed(notification.closed, notification.epoch);
             if (!notification.redundant.isEmpty())
-                configService.receiveRedundant(notification.redundant, notification.epoch);
+                configService.receiveRetired(notification.redundant, notification.epoch);
         });
         sink.respond(Ok, message);
     }

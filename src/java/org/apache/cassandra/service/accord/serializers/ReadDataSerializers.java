@@ -26,6 +26,7 @@ import accord.messages.Commit;
 import accord.messages.ReadData;
 import accord.messages.ReadData.CommitOrReadNack;
 import accord.messages.ReadData.ReadOk;
+import accord.messages.ReadData.ReadOkWithFutureEpoch;
 import accord.messages.ReadData.ReadReply;
 import accord.messages.ReadData.ReadType;
 import accord.messages.ReadEphemeralTxnData;
@@ -43,6 +44,7 @@ import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
+import org.apache.cassandra.service.accord.serializers.CommandSerializers.ExecuteAtSerializer;
 import org.apache.cassandra.service.accord.txn.TxnData;
 
 import static accord.messages.Commit.WithDeps.HasDeps;
@@ -88,7 +90,7 @@ public class ReadDataSerializers
             CommandSerializers.txnId.serialize(msg.txnId, out, version);
             KeySerializers.participants.serialize(msg.scope, out, version);
             out.writeUnsignedVInt(msg.minEpoch());
-            CommandSerializers.timestamp.serialize(msg.executeAt, out, version);
+            ExecuteAtSerializer.serialize(msg.txnId, msg.executeAt, out);
             KeySerializers.fullRoute.serialize(msg.route, out, version);
             CommandSerializers.partialTxn.serialize(msg.txn, out, version);
             DepsSerializers.partialDeps.serialize(msg.deps, out, version);
@@ -98,11 +100,12 @@ public class ReadDataSerializers
         @Override
         public ApplyThenWaitUntilApplied deserialize(DataInputPlus in, int version) throws IOException
         {
+            TxnId txnId = CommandSerializers.txnId.deserialize(in, version);
             return ApplyThenWaitUntilApplied.SerializerSupport.create(
-            CommandSerializers.txnId.deserialize(in, version),
+            txnId,
             KeySerializers.participants.deserialize(in, version),
             in.readUnsignedVInt(),
-            CommandSerializers.timestamp.deserialize(in, version),
+            ExecuteAtSerializer.deserialize(txnId, in),
             KeySerializers.fullRoute.deserialize(in, version),
             CommandSerializers.partialTxn.deserialize(in, version),
             DepsSerializers.partialDeps.deserialize(in, version),
@@ -116,7 +119,7 @@ public class ReadDataSerializers
             return CommandSerializers.txnId.serializedSize(msg.txnId, version)
                    + KeySerializers.participants.serializedSize(msg.scope, version)
                    + TypeSizes.sizeofUnsignedVInt(msg.minEpoch())
-                   + CommandSerializers.timestamp.serializedSize(msg.executeAt, version)
+                   + ExecuteAtSerializer.serializedSize(msg.txnId, msg.executeAt)
                    + KeySerializers.fullRoute.serializedSize(msg.route, version)
                    + CommandSerializers.partialTxn.serializedSize(msg.txn, version)
                    + DepsSerializers.partialDeps.serializedSize(msg.deps, version)
@@ -234,33 +237,36 @@ public class ReadDataSerializers
         {
             if (!reply.isOk())
             {
-                out.writeByte(2 + ((CommitOrReadNack) reply).ordinal());
+                out.writeByte(3 + ((CommitOrReadNack) reply).ordinal());
                 return;
             }
 
-            boolean isFutureEpochOk = reply.getClass() == ReadData.ReadOkWithFutureEpoch.class;
-            out.writeByte(isFutureEpochOk ? 1 : 0);
             ReadOk readOk = (ReadOk) reply;
+            int flags = readOk.getClass() == ReadOkWithFutureEpoch.class ? 2 : readOk.uniqueHlc != 0 ? 1 : 0;
+            out.writeByte(flags);
             serializeNullable(readOk.unavailable, out, version, KeySerializers.ranges);
             dataSerializer.serialize((D) readOk.data, out, version);
-            if (isFutureEpochOk)
-                out.writeUnsignedVInt(((ReadData.ReadOkWithFutureEpoch) reply).futureEpoch);
+            switch (flags)
+            {
+                case 2: out.writeUnsignedVInt(((ReadOkWithFutureEpoch) reply).futureEpoch); break;
+                case 1: out.writeUnsignedVInt(readOk.uniqueHlc);
+            }
         }
 
         @Override
         public ReadReply deserialize(DataInputPlus in, int version) throws IOException
         {
-            int id = in.readByte();
-            if (id > 1)
-                return nacks[id - 2];
+            int flags = in.readByte();
+            if (flags > 2)
+                return nacks[flags - 3];
 
             Ranges unavailable = deserializeNullable(in, version, KeySerializers.ranges);
             D data = dataSerializer.deserialize(in, version);
-            if (id == 0)
-                return new ReadOk(unavailable, data);
 
-            long futureEpoch = in.readUnsignedVInt();
-            return new ReadData.ReadOkWithFutureEpoch(unavailable, data, futureEpoch);
+            long extraLong = flags == 0 ? 0 : in.readUnsignedVInt();
+            if (flags <= 1)
+                return new ReadOk(unavailable, data, extraLong);
+            return new ReadOkWithFutureEpoch(unavailable, data, extraLong);
         }
 
         @Override
@@ -273,8 +279,10 @@ public class ReadDataSerializers
             long size = TypeSizes.BYTE_SIZE
                         + serializedNullableSize(readOk.unavailable, version, KeySerializers.ranges)
                         + dataSerializer.serializedSize((D) readOk.data, version);
-            if (readOk instanceof ReadData.ReadOkWithFutureEpoch)
-                size += TypeSizes.sizeofUnsignedVInt(((ReadData.ReadOkWithFutureEpoch) readOk).futureEpoch);
+            if (readOk.uniqueHlc != 0)
+                size += TypeSizes.sizeofUnsignedVInt(readOk.uniqueHlc);
+            else if (readOk instanceof ReadOkWithFutureEpoch)
+                size += TypeSizes.sizeofUnsignedVInt(((ReadOkWithFutureEpoch) readOk).futureEpoch);
             return size;
         }
     }
@@ -323,7 +331,7 @@ public class ReadDataSerializers
             KeySerializers.participants.serialize(read.scope, out, version);
             CommitSerializers.kind.serialize(read.kind, out, version);
             out.writeUnsignedVInt(read.minEpoch);
-            CommandSerializers.timestamp.serialize(read.executeAt, out, version);
+            ExecuteAtSerializer.serialize(read.txnId, read.executeAt, out);
             if (read.kind.withTxn != NoTxn)
                 CommandSerializers.nullablePartialTxn.serialize(read.partialTxn, out, version);
             if (read.kind.withDeps == HasDeps)
@@ -339,7 +347,7 @@ public class ReadDataSerializers
             Participants<?> scope = KeySerializers.participants.deserialize(in, version);
             Commit.Kind kind = CommitSerializers.kind.deserialize(in, version);
             long minEpoch = in.readUnsignedVInt();
-            Timestamp executeAt = CommandSerializers.timestamp.deserialize(in, version);
+            Timestamp executeAt = ExecuteAtSerializer.deserialize(txnId, in);
             PartialTxn partialTxn = kind.withTxn == NoTxn ? null : CommandSerializers.nullablePartialTxn.deserialize(in, version);
             PartialDeps partialDeps = kind.withDeps == NoDeps ? null : DepsSerializers.partialDeps.deserialize(in, version);
             FullRoute < ?> route = kind.withTxn == HasTxn ? KeySerializers.fullRoute.deserialize(in, version) : null;
@@ -353,7 +361,7 @@ public class ReadDataSerializers
                    + KeySerializers.participants.serializedSize(read.scope, version)
                    + CommitSerializers.kind.serializedSize(read.kind, version)
                    + TypeSizes.sizeofUnsignedVInt(read.minEpoch)
-                   + CommandSerializers.timestamp.serializedSize(read.executeAt, version)
+                   + ExecuteAtSerializer.serializedSize(read.txnId, read.executeAt)
                    + (read.kind.withTxn == NoTxn ? 0 : CommandSerializers.nullablePartialTxn.serializedSize(read.partialTxn, version))
                    + (read.kind.withDeps != HasDeps ? 0 : DepsSerializers.partialDeps.serializedSize(read.partialDeps, version))
                    + (read.kind.withTxn != HasTxn ? 0 : KeySerializers.fullRoute.serializedSize(read.route, version));

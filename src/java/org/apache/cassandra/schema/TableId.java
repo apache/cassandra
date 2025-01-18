@@ -27,6 +27,7 @@ import java.util.concurrent.TimeUnit;
 
 import javax.annotation.Nullable;
 
+import accord.utils.Invariants;
 import org.agrona.collections.Hashing;
 import org.apache.cassandra.concurrent.ScheduledExecutors;
 import org.apache.cassandra.tcm.ClusterMetadata;
@@ -43,6 +44,7 @@ import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.ObjectSizes;
 import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.UUIDGen;
+import org.apache.cassandra.utils.vint.VIntCoding;
 
 import static java.nio.charset.StandardCharsets.UTF_8;
 import static org.apache.cassandra.utils.TimeUUID.Generator.nextTimeUUID;
@@ -206,9 +208,53 @@ public final class TableId implements Comparable<TableId>
         return 16;
     }
 
+    public void serializeCompact(DataOutputPlus out) throws IOException
+    {
+        if (msb == MAGIC && lsb < Long.MAX_VALUE - 1)
+        {
+            out.writeUnsignedVInt(1 + lsb);
+        }
+        else
+        {
+            out.writeByte(0);
+            out.writeLong(msb);
+            out.writeLong(lsb);
+        }
+    }
+
+    public <V> int serializeCompact(V dst, ValueAccessor<V> accessor, int offset)
+    {
+        if (msb == MAGIC && lsb < Long.MAX_VALUE - 1)
+        {
+            return accessor.putUnsignedVInt(dst, offset, 1 + lsb);
+        }
+        else
+        {
+            int position = offset;
+            position += accessor.putByte(dst, position, (byte)0);
+            position += accessor.putLong(dst, position, msb);
+            position += accessor.putLong(dst, position, lsb);
+            return position - offset;
+        }
+    }
+
+    public final int serializedCompactSize()
+    {
+        if (msb == MAGIC && lsb < Long.MAX_VALUE - 1)
+            return VIntCoding.computeUnsignedVIntSize(1 + lsb);
+        return 17;
+    }
+
     public static int staticSerializedSize()
     {
         return 16;
+    }
+
+    public static void skipCompact(DataInputPlus in) throws IOException
+    {
+        long compact = in.readUnsignedVInt();
+        if (compact == 0)
+            in.skipBytesFully(16);
     }
 
     public static TableId deserialize(DataInput in) throws IOException
@@ -219,6 +265,24 @@ public final class TableId implements Comparable<TableId>
     public static <V> TableId deserialize(V src, ValueAccessor<V> accessor, int offset)
     {
         return new TableId(accessor.getLong(src, offset), accessor.getLong(src, offset + TypeSizes.LONG_SIZE));
+    }
+
+    public static TableId deserializeCompact(DataInputPlus in) throws IOException
+    {
+        long compact = in.readUnsignedVInt();
+        if (compact > 0)
+            return fromLong(compact - 1);
+        Invariants.checkState(compact == 0);
+        return deserialize(in);
+    }
+
+    public static <V> TableId deserializeCompact(V src, ValueAccessor<V> accessor, int offset)
+    {
+        long compact = accessor.getUnsignedVInt(src, offset);
+        if (compact > 0)
+            return fromLong(compact - 1);
+        Invariants.checkState(compact == 0);
+        return deserialize(src, accessor, offset + 1);
     }
 
     public TableId intern()

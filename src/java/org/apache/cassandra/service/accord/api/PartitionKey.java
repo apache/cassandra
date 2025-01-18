@@ -126,14 +126,14 @@ public final class PartitionKey extends AccordRoutableKey implements Key
         @Override
         public void serialize(PartitionKey key, DataOutputPlus out, int version) throws IOException
         {
-            key.table().serialize(out);
+            key.table().serializeCompact(out);
             ByteBufferUtil.writeWithShortLength(key.partitionKey().getKey(), out);
         }
 
         public <V> int serialize(PartitionKey key, V dst, ValueAccessor<V> accessor, int offset)
         {
             int position = offset;
-            position += key.table().serialize(dst, accessor, position);
+            position += key.table().serializeCompact(dst, accessor, position);
             ByteBuffer bytes = key.partitionKey().getKey();
             int numBytes = ByteBufferAccessor.instance.size(bytes);
             Preconditions.checkState(numBytes <= Short.MAX_VALUE);
@@ -146,14 +146,14 @@ public final class PartitionKey extends AccordRoutableKey implements Key
         @Override
         public void skip(DataInputPlus in, int version) throws IOException
         {
-            in.skipBytesFully(TableId.staticSerializedSize());
+            TableId.skipCompact(in);
             ByteBufferUtil.skipShortLength(in);
         }
 
         @Override
         public PartitionKey deserialize(DataInputPlus in, int version) throws IOException
         {
-            TableId tableId = TableId.deserialize(in).intern();
+            TableId tableId = TableId.deserializeCompact(in).intern();
             IPartitioner partitioner = Schema.instance.getExistingTablePartitioner(tableId);
             DecoratedKey key = partitioner.decorateKey(ByteBufferUtil.readWithShortLength(in));
             return new PartitionKey(tableId, key);
@@ -161,8 +161,8 @@ public final class PartitionKey extends AccordRoutableKey implements Key
 
         public <V> PartitionKey deserialize(V src, ValueAccessor<V> accessor, int offset) throws IOException
         {
-            TableId tableId = TableId.deserialize(src, accessor, offset).intern();
-            offset += tableId.serializedSize();
+            TableId tableId = TableId.deserializeCompact(src, accessor, offset).intern();
+            offset += tableId.serializedCompactSize();
             TableMetadata metadata = Schema.instance.getTableMetadata(tableId);
             int numBytes = accessor.getShort(src, offset);
             offset += TypeSizes.SHORT_SIZE;
@@ -180,7 +180,7 @@ public final class PartitionKey extends AccordRoutableKey implements Key
 
         public long serializedSize(PartitionKey key)
         {
-            return key.table().serializedSize() + ByteBufferUtil.serializedSizeWithShortLength(key.partitionKey().getKey());
+            return key.table().serializedCompactSize() + ByteBufferUtil.serializedSizeWithShortLength(key.partitionKey().getKey());
         }
     }
 }

@@ -28,6 +28,7 @@ import accord.primitives.TxnId;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
+import org.apache.cassandra.service.accord.serializers.CommandSerializers.ExecuteAtSerializer;
 
 public class CalculateDepsSerializers
 {
@@ -36,20 +37,20 @@ public class CalculateDepsSerializers
         @Override
         public void serializeBody(CalculateDeps msg, DataOutputPlus out, int version) throws IOException
         {
-            CommandSerializers.timestamp.serialize(msg.executeAt, out, version);
+            ExecuteAtSerializer.serialize(msg.executeAt, out);
         }
 
         @Override
         public CalculateDeps deserializeBody(DataInputPlus in, int version, TxnId txnId, Route<?> scope, long waitForEpoch, long minEpoch) throws IOException
         {
-            Timestamp executeAt = CommandSerializers.timestamp.deserialize(in, version);
+            Timestamp executeAt = ExecuteAtSerializer.deserialize(in);
             return CalculateDeps.SerializationSupport.create(txnId, scope, waitForEpoch, minEpoch, executeAt);
         }
 
         @Override
         public long serializedBodySize(CalculateDeps msg, int version)
         {
-            return CommandSerializers.timestamp.serializedSize(msg.executeAt, version);
+            return ExecuteAtSerializer.serializedSize(msg.executeAt);
         }
     };
 

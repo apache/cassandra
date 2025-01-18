@@ -97,7 +97,7 @@ public class AccordMessageSinkTest
         TxnId txnId = nextTxnId(42, Txn.Kind.Read, Routable.Domain.Key);
         Request request = new ReadTxnData(node, topologies, txnId, topology.ranges(), txnId.epoch());
         checkRequestReplies(request,
-                            new ReadData.ReadOk(null, null),
+                            new ReadData.ReadOk(null, null, 0),
                             CommitOrReadNack.Insufficient);
     }
 

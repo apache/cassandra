@@ -301,7 +301,7 @@ public class AccordGenerators
                     else return Command.Truncated.truncatedApply(attributes(saveStatus), saveStatus, executeAt, txnId.is(Write) ? new Writes(txnId, executeAt, keysOrRanges, new TxnWrite(Collections.emptyList(), true)) : null, new TxnData());
 
                 case Erased:
-                case ErasedOrVestigial:
+                case Vestigial:
                 case Invalidated:
                     return Command.Truncated.invalidated(txnId, attributes(saveStatus).participants());
             }
