@@ -5194,4 +5194,15 @@ public class DatabaseDescriptor
     {
         conf.reject_out_of_token_range_requests = enabled;
     }
+
+    public static Config.TombstonesMetricGranularity getPurgeableTobmstonesMetricGranularity()
+    {
+        return conf.purgeable_tobmstones_metric_granularity;
+    }
+
+    @VisibleForTesting
+    public static void setPurgeableTobmstonesMetricGranularity(Config.TombstonesMetricGranularity granularity)
+    {
+        conf.purgeable_tobmstones_metric_granularity = granularity;
+    }
 }
