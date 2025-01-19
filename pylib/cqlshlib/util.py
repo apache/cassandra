@@ -30,28 +30,6 @@ try:
 except ImportError:
     HAS_LINE_PROFILER = False
 
-
-def split_list(items, pred):
-    """
-    Split up a list (or other iterable) on the elements which satisfy the
-    given predicate 'pred'. Elements for which 'pred' returns true start a new
-    sublist for subsequent elements, which will accumulate in the new sublist
-    until the next satisfying element.
-
-    >>> split_list([0, 1, 2, 5, 99, 8], lambda n: (n % 2) == 0)
-    [[0], [1, 2], [5, 99, 8], []]
-    """
-
-    thisresult = []
-    results = [thisresult]
-    for i in items:
-        thisresult.append(i)
-        if pred(i):
-            thisresult = []
-            results.append(thisresult)
-    return results
-
-
 def find_common_prefix(strs):
     """
     Given a list (iterable) of strings, return the longest common prefix.
