@@ -113,7 +113,9 @@ class CqlParsingRuleSet(pylexotron.ParsingRuleSet):
             curstmt.append(t)
             if t[0] == 'endtoken':
                 term_on_nl = False
-                output.extend(curstmt)
+                # skip empty statements
+                if len(curstmt) > 1:
+                    output.extend(curstmt)
                 curstmt = []
             else:
                 if len(curstmt) == 1:
@@ -135,7 +137,7 @@ class CqlParsingRuleSet(pylexotron.ParsingRuleSet):
     def cql_split_statements(self, text):
         tokens = self.lex(text)
         tokens = self.cql_massage_tokens(tokens)
-        stmts = util.split_list(tokens, lambda t: t[0] == 'endtoken')
+        stmts = self.group_tokens(tokens)
         output = []
         in_batch = False
         in_pg_string = len([st for st in tokens if len(st) > 0 and st[0] == 'unclosedPgString']) == 1
@@ -150,6 +152,29 @@ class CqlParsingRuleSet(pylexotron.ParsingRuleSet):
                 elif stmt[0][1].upper() == 'BEGIN':
                     in_batch = True
         return output, in_batch or in_pg_string
+
+    def group_tokens(self, items):
+        """
+        Split an iterable into sublists, using 'endtoken' to mark the end of each sublist.
+        Each sublist accumulates elements until an 'endtoken' is encountered. If the sublist
+        consists only of a single 'endtoken', it is excluded. An empty list is added to the
+        result after the last 'endtoken' for cases like autocompletion.
+
+        Parameters:
+        - items (iterable): An iterable of tokens, including 'endtoken' elements.
+
+        Returns:
+        - list: A list of sublists, with each sublist containing tokens split by 'endtoken'.
+        """
+
+        thisresult = []
+        results = [thisresult]
+        for i in items:
+            thisresult.append(i)
+            if i[0] == 'endtoken':
+                thisresult = []
+                results.append(thisresult)
+        return results
 
     def cql_complete_single(self, text, partial, init_bindings=None, ignore_case=True,
                             startsymbol='Start'):
