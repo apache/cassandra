@@ -466,7 +466,8 @@ public abstract class ReadCommand extends AbstractReadQuery
                 iterator = withQuerySizeTracking(iterator);
                 iterator = maybeSlowDownForTesting(iterator);
                 iterator = withQueryCancellation(iterator);
-                iterator = withPurgeableTombstonesMetricRecording(iterator, cfs);
+                if (DatabaseDescriptor.getPurgeableTobmstonesMetricGranularity() != Config.TombstonesMetricGranularity.disabled)
+                    iterator = withPurgeableTombstonesMetricRecording(iterator, cfs);
                 iterator = RTBoundValidator.validate(withoutPurgeableTombstones(iterator, cfs, executionController), Stage.PURGED, false);
                 iterator = withMetricsRecording(iterator, cfs.metric, startTimeNanos);
 
@@ -911,6 +912,8 @@ public abstract class ReadCommand extends AbstractReadQuery
             @Override
             public UnfilteredRowIterator applyToPartition(UnfilteredRowIterator iter)
             {
+                if (!iter.partitionLevelDeletion().isLive())
+                    purgeableTombstones++;
                 return Transformation.apply(iter, this);
             }
 
@@ -926,15 +929,17 @@ public abstract class ReadCommand extends AbstractReadQuery
                 final long nowInSec = nowInSec();
                 boolean hasTombstones = false;
 
-                for (Cell<?> cell : row.cells())
-                {
-                    if (!cell.isLive(nowInSec) && isPurgeable(cell.localDeletionTime(), nowInSec))
+                if (DatabaseDescriptor.getPurgeableTobmstonesMetricGranularity() == Config.TombstonesMetricGranularity.cell)
+                    for (Cell<?> cell : row.cells())
                     {
-                        purgeableTombstones++;
-                        hasTombstones = true; // allows to avoid counting an extra tombstone if the whole row expired
+                        if (!cell.isLive(nowInSec) && isPurgeable(cell.localDeletionTime(), nowInSec))
+                        {
+                            purgeableTombstones++;
+                            hasTombstones = true; // allows to avoid counting an extra tombstone if the whole row expired
+                        }
                     }
-                }
 
+                // we replicate the logic is used for non-purged tombstones metric here
                 if (!row.primaryKeyLivenessInfo().isLive(nowInSec)
                     && row.hasDeletion(nowInSec)
                     && isPurgeable(row.deletion().time(), nowInSec)
@@ -952,7 +957,7 @@ public abstract class ReadCommand extends AbstractReadQuery
             {
                 final long nowInSec = nowInSec();
 
-                // for boundary markers - increment metric only if both - close and open - markers are purgeable,
+                // for boundary markers - increment metric only if both - close and open - markers are purgeable
                 if (marker.isBoundary())
                 {
                     countIfBothPurgeable(marker.closeDeletionTime(false),

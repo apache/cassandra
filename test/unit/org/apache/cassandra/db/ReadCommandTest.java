@@ -35,6 +35,7 @@ import org.junit.Test;
 
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.Util;
+import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.filter.ClusteringIndexSliceFilter;
 import org.apache.cassandra.db.filter.ColumnFilter;
@@ -109,6 +110,9 @@ public class ReadCommandTest
     private static final String CF10 = "Standard10";
     private static final String CF11 = "Standard11";
     private static final String CF12 = "Standard12";
+    private static final String CF13 = "Standard13";
+    private static final String CF14 = "Standard14";
+
 
     private static final InetAddressAndPort REPAIR_COORDINATOR;
     static {
@@ -233,6 +237,28 @@ public class ReadCommandTest
                      .addRegularColumn("e", AsciiType.instance)
                      .addRegularColumn("f", AsciiType.instance);
 
+        TableMetadata.Builder metadata13 =
+        TableMetadata.builder(KEYSPACE, CF13)
+                     .addPartitionKeyColumn("key", BytesType.instance)
+                     .addClusteringColumn("col", AsciiType.instance)
+                     .addRegularColumn("a", AsciiType.instance)
+                     .addRegularColumn("b", AsciiType.instance)
+                     .addRegularColumn("c", AsciiType.instance)
+                     .addRegularColumn("d", AsciiType.instance)
+                     .addRegularColumn("e", AsciiType.instance)
+                     .addRegularColumn("f", AsciiType.instance);
+
+        TableMetadata.Builder metadata14 =
+        TableMetadata.builder(KEYSPACE, CF14)
+                     .addPartitionKeyColumn("key", BytesType.instance)
+                     .addClusteringColumn("col", AsciiType.instance)
+                     .addRegularColumn("a", AsciiType.instance)
+                     .addRegularColumn("b", AsciiType.instance)
+                     .addRegularColumn("c", AsciiType.instance)
+                     .addRegularColumn("d", AsciiType.instance)
+                     .addRegularColumn("e", AsciiType.instance)
+                     .addRegularColumn("f", AsciiType.instance);
+
         SchemaLoader.prepareServer();
         SchemaLoader.createKeyspace(KEYSPACE,
                                     KeyspaceParams.simple(1),
@@ -247,7 +273,9 @@ public class ReadCommandTest
                                     metadata9,
                                     metadata10,
                                     metadata11,
-                                    metadata12);
+                                    metadata12,
+                                    metadata13,
+                                    metadata14);
 
         LocalSessionAccessor.startup();
     }
@@ -692,97 +720,80 @@ public class ReadCommandTest
     }
 
     @Test
-    public void testCountPurgeableTombstones() throws Exception
+    public void testCountPurgeableRowTombstones() throws Exception
     {
         ColumnFamilyStore cfs = Keyspace.open(KEYSPACE).getColumnFamilyStore(CF10);
+        TestWriteOperation[] operations = new TestWriteOperation[]
+        {
+            TestWriteOperation.insert("key1", "aa", "a"),
+            TestWriteOperation.insert("key1", "ff", "f"),
 
-        String[][][] groups = new String[][][] {
-            new String[][] {
-                new String[] { CREATE, "key1", "aa", "a" },
-                new String[] { CREATE, "key2", "bb", "b" },
-                new String[] { CREATE, "key3", "cc", "c" }
-            },
-            new String[][] {
-                new String[] { CREATE, "key3", "dd", "d" },
-                new String[] { CREATE, "key2", "ee", "e" },
-                new String[] { CREATE, "key1", "ff", "f" }
-            },
-            new String[][] {
-                new String[] { CREATE, "key6", "aa", "a" },
-                new String[] { CREATE, "key5", "bb", "b" },
-                new String[] { CREATE, "key4", "cc", "c" }
-            },
-            new String[][] {
-                new String[] { CREATE, "key2", "aa", "a" },
-                new String[] { CREATE, "key2", "cc", "c" },
-                new String[] { CREATE, "key2", "dd", "d" }
-            },
-            new String[][] {
-                // last column for deletions contains localDeletionTime in seconds
-                new String[] { DELETE, "key6", "aa", String.valueOf(FBUtilities.nowInSeconds()) }, // <-- just to make sure counters separation for different partitions as in other tests
-                new String[] { DELETE, "key6", "bb", "42" },                                       // <-- just to make sure counters separation for different partitions as in other tests
-                new String[] { DELETE, "key2", "bb", String.valueOf(FBUtilities.nowInSeconds()) }, // <-- tombstone for this deletion is inside gc_grace_period range so isn't purgeable
-                new String[] { DELETE, "key2", "ee", String.valueOf(FBUtilities.nowInSeconds()) }, // <-- this one two, so TWO non-purgeable tombstones should be tracked at max
-                new String[] { DELETE, "key2", "aa", "42" },                                       // <-- this tombstone has very old localDeletionTime so should be treated as purgeable one
-                new String[] { DELETE, "key2", "cc", "42" },                                       // <-- this one too
-                new String[] { DELETE, "key2", "dd", "42" }                                        // <-- this one too, so THREE purgeable tombstones should be tracked at max
-            }
+            TestWriteOperation.insert("key2", "aa", "e"),
+            TestWriteOperation.deleteRow("key2", "aa", PURGEABLE_DELETION),
+            TestWriteOperation.deleteRow("key2", "bb", NEW_DELETION),
+            TestWriteOperation.deleteRow("key2", "cc", PURGEABLE_DELETION),
+            TestWriteOperation.deleteRow("key2", "dd", PURGEABLE_DELETION),
+            TestWriteOperation.deleteRow("key2", "ee", NEW_DELETION),
         };
 
-        List<ByteBuffer> buffers = new ArrayList<>(groups.length);
-        long nowInSeconds = FBUtilities.nowInSeconds();
-        ColumnFilter columnFilter = ColumnFilter.allRegularColumnsBuilder(cfs.metadata(), false).build();
-        RowFilter rowFilter = RowFilter.create(true);
-        Slice slice = Slice.make(BufferClusteringBound.BOTTOM, BufferClusteringBound.TOP);
-        ClusteringIndexSliceFilter sliceFilter = new ClusteringIndexSliceFilter(
-        Slices.with(cfs.metadata().comparator, slice), false);
+        runTestWriteOperationsAndReadResults(cfs, operations);
 
-        for (String[][] group : groups)
-        {
-            cfs.truncateBlocking();
-
-            List<SinglePartitionReadCommand> commands = new ArrayList<>(group.length);
-
-            for (String[] data : group)
-            {
-                if (data[0].equals(CREATE))
-                {
-                    new RowUpdateBuilder(cfs.metadata(), 0, ByteBufferUtil.bytes(data[1]))
-                    .clustering(data[2])
-                    .add(data[3], ByteBufferUtil.bytes("blah"))
-                    .build()
-                    .apply();
-                }
-                else
-                {
-                    RowUpdateBuilder.deleteRowAt(cfs.metadata(),
-                                                 FBUtilities.timestampMicros(), Long.parseLong(data[3]),
-                                                 ByteBufferUtil.bytes(data[1]), data[2])
-                                    .apply();
-                }
-                commands.add(SinglePartitionReadCommand.create(cfs.metadata(), nowInSeconds, columnFilter, rowFilter,
-                                                               DataLimits.NONE, Util.dk(data[1]), sliceFilter));
-            }
-
-            Util.flush(cfs);
-
-            ReadQuery query = SinglePartitionReadCommand.Group.create(commands, DataLimits.NONE);
-
-            try (ReadExecutionController executionController = query.executionController();
-                 UnfilteredPartitionIterator iter = query.executeLocally(executionController);
-                 DataOutputBuffer buffer = new DataOutputBuffer())
-            {
-                UnfilteredPartitionIterators.serializerForIntraNode().serialize(iter,
-                                                                                columnFilter,
-                                                                                buffer,
-                                                                                MessagingService.current_version);
-                buffers.add(buffer.buffer());
-            }
-        }
-
-
-        assertEquals(2, cfs.metric.tombstoneScannedHistogram.cf.getSnapshot().getMax());
+        assertEquals(2, cfs.metric.purgeableTombstoneScannedHistogram.cf.getCount());
+        assertEquals(0, cfs.metric.purgeableTombstoneScannedHistogram.cf.getSnapshot().getMin());
         assertEquals(3, cfs.metric.purgeableTombstoneScannedHistogram.cf.getSnapshot().getMax());
+    }
+    @Test
+    public void testCountPurgeablePartitionTombstones() throws Exception
+    {
+        ColumnFamilyStore cfs = Keyspace.open(KEYSPACE).getColumnFamilyStore(CF11);
+        TestWriteOperation[] operations = new TestWriteOperation[]
+        {
+          TestWriteOperation.insert("key1", "aa", "a"),
+          TestWriteOperation.insert("key1", "ff", "f"),
+
+          TestWriteOperation.insert("key2", "aa", "a"),
+          TestWriteOperation.insert("key2", "cc", "c"),
+          TestWriteOperation.insert("key2", "dd", "d"),
+
+          TestWriteOperation.deletePartition("key2", PURGEABLE_DELETION),
+          TestWriteOperation.deletePartition("key3", NEW_DELETION)
+        };
+        runTestWriteOperationsAndReadResults(cfs, operations);
+
+        assertEquals(3, cfs.metric.purgeableTombstoneScannedHistogram.cf.getCount());
+        assertEquals(0, cfs.metric.purgeableTombstoneScannedHistogram.cf.getSnapshot().getMin());
+        assertEquals(1, cfs.metric.purgeableTombstoneScannedHistogram.cf.getSnapshot().getMax());
+    }
+
+    @Test
+    public void testCountPurgeableCellTombstones() throws Exception
+    {
+        Config.TombstonesMetricGranularity original = DatabaseDescriptor.getPurgeableTobmstonesMetricGranularity();
+        try
+        {
+            DatabaseDescriptor.setPurgeableTobmstonesMetricGranularity(Config.TombstonesMetricGranularity.cell);
+            ColumnFamilyStore cfs = Keyspace.open(KEYSPACE).getColumnFamilyStore(CF12);
+            TestWriteOperation[] operations = new TestWriteOperation[]
+            {
+              TestWriteOperation.insert("key1", "aa", "a"),
+              TestWriteOperation.insert("key1", "ff", "f"),
+
+              TestWriteOperation.insert("key2", "aa", "a"),
+              TestWriteOperation.deleteCell("key2", "aa", "b", PURGEABLE_DELETION),
+              TestWriteOperation.deleteCell("key2", "aa", "f", NEW_DELETION),
+              TestWriteOperation.insert("key2", "cc", "c"),
+              TestWriteOperation.insert("key2", "dd", "d")
+            };
+            runTestWriteOperationsAndReadResults(cfs, operations);
+
+            assertEquals(2, cfs.metric.purgeableTombstoneScannedHistogram.cf.getCount());
+            assertEquals(0, cfs.metric.purgeableTombstoneScannedHistogram.cf.getSnapshot().getMin());
+            assertEquals(1, cfs.metric.purgeableTombstoneScannedHistogram.cf.getSnapshot().getMax());
+        }
+        finally
+        {
+            DatabaseDescriptor.setPurgeableTobmstonesMetricGranularity(original);
+        }
     }
 
     /**
@@ -792,181 +803,233 @@ public class ReadCommandTest
     @Test
     public void testCountPurgeableRangeTombstones_nonOverlappingRanges() throws Exception
     {
-        ColumnFamilyStore cfs = Keyspace.open(KEYSPACE).getColumnFamilyStore(CF11);
-
-        String[][][] groups = new String[][][] {
-            new String[][] {
-                new String[] { "key1", "aa", "a" },
-                new String[] { "key2", "bb", "b" },
-                new String[] { "key3", "cc", "c" }
-            },
-            new String[][] {
-                new String[] { "key3", "dd", "d" },
-                new String[] { "key2", "ee", "e" },
-                new String[] { "key1", "ff", "f" }
-            },
-            new String[][] {
-                new String[] { "key6", "aa", "a" },
-                new String[] { "key5", "bb", "b" },
-                new String[] { "key4", "cc", "c" }
-            },
-            new String[][] {
-                new String[] { "key2", "aa", "a" },
-                new String[] { "key2", "cc", "c" },
-                new String[] { "key2", "dd", "d" }
-            },
-        };
-
-        List<ByteBuffer> buffers = new ArrayList<>(groups.length);
-        long nowInSeconds = FBUtilities.nowInSeconds();
-        ColumnFilter columnFilter = ColumnFilter.allRegularColumnsBuilder(cfs.metadata(), false).build();
-        RowFilter rowFilter = RowFilter.create(true);
-        Slice slice = Slice.make(BufferClusteringBound.BOTTOM, BufferClusteringBound.TOP);
-        ClusteringIndexSliceFilter sliceFilter = new ClusteringIndexSliceFilter(
-        Slices.with(cfs.metadata().comparator, slice), false);
-
-        for (String[][] group : groups)
+        ColumnFamilyStore cfs = Keyspace.open(KEYSPACE).getColumnFamilyStore(CF13);
+        TestWriteOperation[] operations = new TestWriteOperation[]
         {
-            cfs.truncateBlocking();
+          TestWriteOperation.insert("key1", "aa", "a"),
+          TestWriteOperation.insert("key1", "ff", "f"),
 
-            List<SinglePartitionReadCommand> commands = new ArrayList<>(group.length);
+          TestWriteOperation.insert("key2", "aa", "a"),
+          TestWriteOperation.insert("key2", "cc", "c"),
+          TestWriteOperation.insert("key2", "dd", "d"),
 
-            for (String[] data : group)
-            {
-                new RowUpdateBuilder(cfs.metadata(), 0, ByteBufferUtil.bytes(data[0]))
-                .clustering(data[1])
-                .add(data[2], ByteBufferUtil.bytes("blah"))
-                .build()
-                .apply();
+          TestWriteOperation.deleteRange("key2", "aa", "bb", NEW_DELETION),
+          TestWriteOperation.deleteRange("key2", "dd", "ee", PURGEABLE_DELETION),
+          TestWriteOperation.deleteRange("key2", "ff", "ff", PURGEABLE_DELETION)
+        };
+        runTestWriteOperationsAndReadResults(cfs, operations);
 
-                commands.add(SinglePartitionReadCommand.create(cfs.metadata(), nowInSeconds, columnFilter, rowFilter,
-                                                               DataLimits.NONE, Util.dk(data[0]), sliceFilter));
-            }
-
-            new RowUpdateBuilder(cfs.metadata(), FBUtilities.nowInSeconds(), 0L, ByteBufferUtil.bytes("key2"))
-            .addRangeTombstone("aa", "bb").build().apply(); // <-- this range tombstone is non-purgeable and doesn't overlap with other ranges
-            // so it will create two markers which will be counted as TWO non-purgeable tombstones
-
-            new RowUpdateBuilder(cfs.metadata(), 42, 0L, ByteBufferUtil.bytes("key2"))
-            .addRangeTombstone("dd", "ee").build().apply(); // <-- this range tombstone is purgeable and doesn't overlap with other ranges
-            // so it will create two markers which will be counted as TWO purgeable tombstones
-
-            new RowUpdateBuilder(cfs.metadata(), 42, 0L, ByteBufferUtil.bytes("key2"))
-            .addRangeTombstone("ff", "ff").build().apply(); // <-- this one too so there would be FOUR purgeable tombstones in total
-
-            Util.flush(cfs);
-
-            ReadQuery query = SinglePartitionReadCommand.Group.create(commands, DataLimits.NONE);
-
-            try (ReadExecutionController executionController = query.executionController();
-                 UnfilteredPartitionIterator iter = query.executeLocally(executionController);
-                 DataOutputBuffer buffer = new DataOutputBuffer())
-            {
-                UnfilteredPartitionIterators.serializerForIntraNode().serialize(iter,
-                                                                                columnFilter,
-                                                                                buffer,
-                                                                                MessagingService.current_version);
-                buffers.add(buffer.buffer());
-            }
-        }
-
-        assertEquals(2, cfs.metric.tombstoneScannedHistogram.cf.getSnapshot().getMax());
+        assertEquals(2, cfs.metric.purgeableTombstoneScannedHistogram.cf.getCount());
+        assertEquals(0, cfs.metric.purgeableTombstoneScannedHistogram.cf.getSnapshot().getMin());
         assertEquals(4, cfs.metric.purgeableTombstoneScannedHistogram.cf.getSnapshot().getMax());
     }
 
     /**
-     * Test purgeable tombstones count for range tombstones with overlapping ranges,
-     * i.e. both Bound and Boundary Markers will be created and counted
+     * Test purgeable tombstones count for range tombstones with overlapping ranges
      */
     @Test
     public void testCountPurgeableRangeTombstones_overlappingRanges() throws Exception
     {
-        ColumnFamilyStore cfs = Keyspace.open(KEYSPACE).getColumnFamilyStore(CF12);
+        ColumnFamilyStore cfs = Keyspace.open(KEYSPACE).getColumnFamilyStore(CF14);
 
-        String[][][] groups = new String[][][] {
-        new String[][] {
-        new String[] { "key1", "aa", "a" },
-        new String[] { "key2", "bb", "b" },
-        new String[] { "key3", "cc", "c" }
-        },
-        new String[][] {
-        new String[] { "key3", "dd", "d" },
-        new String[] { "key2", "ee", "e" },
-        new String[] { "key1", "ff", "f" }
-        },
-        new String[][] {
-        new String[] { "key6", "aa", "a" },
-        new String[] { "key5", "bb", "b" },
-        new String[] { "key4", "cc", "c" }
-        },
-        new String[][] {
-        new String[] { "key2", "aa", "a" },
-        new String[] { "key2", "cc", "c" },
-        new String[] { "key2", "dd", "d" }
-        },
+        TestWriteOperation[] operations = new TestWriteOperation[]
+        {
+          TestWriteOperation.insert("key1", "aa", "a"),
+          TestWriteOperation.insert("key1", "ff", "f"),
+
+          TestWriteOperation.insert("key2", "aa", "a"),
+          TestWriteOperation.insert("key2", "bb", "b"),
+          TestWriteOperation.insert("key2", "cc", "c"),
+          TestWriteOperation.insert("key2", "dd", "d"),
+          TestWriteOperation.insert("key2", "ee", "e"),
+
+          // this range tombstone is non-purgeable and overlaps with the next one,
+          // so it will create one non-purgeable bound marker
+          // and one non-purgeable boundary marker so TWO NON-PURGEABLE tombstones
+          TestWriteOperation.deleteRange("key2", "aa", "bb", NEW_DELETION),
+
+          // this range tombstone is purgeable and overlaps with previous and next ones,
+          // so it will create one non-purgeable bound marker
+          // and one non-purgeable boundary marker so TWO non-purgeable tombstones will be counted
+          TestWriteOperation.deleteRange("key2", "bb", "ee", PURGEABLE_DELETION),
+
+          // this range tombstone is purgeable and overlaps with previous one,
+          // it has a different deletion time to not combine into a single range,
+          // so it will create one non-purgeable boundary marker (same as previous one)
+          // and one purgeable bound marker, so it will increment purgeable tombstones counter on one,
+          // we expect TWO purgeable tombstones in total
+          TestWriteOperation.deleteRange("key2", "ee", "ff", PURGEABLE_DELETION - 1)
         };
 
-        List<ByteBuffer> buffers = new ArrayList<>(groups.length);
+        runTestWriteOperationsAndReadResults(cfs, operations);
+
+        assertEquals(0, cfs.metric.purgeableTombstoneScannedHistogram.cf.getSnapshot().getMin());
+        assertEquals(2, cfs.metric.purgeableTombstoneScannedHistogram.cf.getSnapshot().getMax());
+    }
+
+
+    private static void runTestWriteOperationsAndReadResults(ColumnFamilyStore cfs, TestWriteOperation[] operations) throws IOException
+    {
+        try
+        {
+            Set<String> usedPartitionKeys = runWriteOperations(cfs, operations);
+            runPartitionReadCommands(cfs, usedPartitionKeys);
+        }
+        finally
+        {
+            cfs.truncateBlocking();
+        }
+    }
+
+    private static void runPartitionReadCommands(ColumnFamilyStore cfs, Set<String> partitionKeys) throws IOException
+    {
+        List<SinglePartitionReadCommand> commands = new ArrayList<>(partitionKeys.size());
+        for (String partitionKey : partitionKeys)
+        {
+            commands.add(getWholePartitionReadCommand(cfs, partitionKey));
+        }
+        executeReadCommands(commands);
+    }
+
+    private static Set<String> runWriteOperations(ColumnFamilyStore cfs, TestWriteOperation[] operations)
+    {
+        Set<String> usedPartitionKeys = new HashSet<>();
+        for (TestWriteOperation operation : operations)
+        {
+            if (operation.type == OperationType.CREATE)
+            {
+                new RowUpdateBuilder(cfs.metadata(), 0, ByteBufferUtil.bytes(operation.partitionKey))
+                .clustering(operation.clusteringKey)
+                .add(operation.columnName, ByteBufferUtil.bytes(operation.columnValue))
+                .build()
+                .apply();
+            }
+            else if (operation.type == OperationType.DELETE_PARTITION)
+            {
+                new Mutation(PartitionUpdate.simpleBuilder(cfs.metadata(), ByteBufferUtil.bytes(operation.partitionKey))
+                                            .nowInSec(operation.deletionTime)
+                                            .delete()
+                                            .build()).apply();
+            }
+            else if (operation.type == OperationType.DELETE_RANGE)
+            {
+                new RowUpdateBuilder(cfs.metadata(), operation.deletionTime, 0L, ByteBufferUtil.bytes(operation.partitionKey))
+                .addRangeTombstone(operation.clusteringRangeStart, operation.clusteringRangeEnd).build().apply();
+            }
+            else if (operation.type == OperationType.DELETE_ROW)
+            {
+                RowUpdateBuilder.deleteRowAt(cfs.metadata(), 0, operation.deletionTime,
+                                             ByteBufferUtil.bytes(operation.partitionKey), operation.clusteringKey
+                ).apply();
+            }
+            else if (operation.type == OperationType.DELETE_CELL)
+            {
+                new RowUpdateBuilder(cfs.metadata(), operation.deletionTime, 0L, ByteBufferUtil.bytes(operation.partitionKey))
+                .clustering(operation.clusteringKey)
+                .delete(operation.columnName)
+                .build().apply();
+            }
+
+            usedPartitionKeys.add(operation.partitionKey);
+        }
+        return usedPartitionKeys;
+    }
+
+    private static final long NEW_DELETION = FBUtilities.nowInSeconds();
+    private static final long PURGEABLE_DELETION = 42;
+
+    private enum OperationType
+    {
+        CREATE,
+        DELETE_PARTITION,
+        DELETE_RANGE,
+        DELETE_ROW,
+        DELETE_CELL
+    }
+
+    private static class TestWriteOperation
+    {
+        OperationType type;
+        String partitionKey;
+        String clusteringKey;
+
+        String clusteringRangeStart, clusteringRangeEnd;
+        String columnName;
+        String columnValue = "bla";
+
+        long deletionTime;
+
+        public TestWriteOperation(OperationType type, String partitionKey,
+                                  String clusteringKey, String clusteringRangeStart, String clusteringRangeEnd,
+                                  String columnName, long deletionTime)
+        {
+            this.type = type;
+            this.partitionKey = partitionKey;
+            this.clusteringKey = clusteringKey;
+            this.clusteringRangeStart = clusteringRangeStart;
+            this.clusteringRangeEnd = clusteringRangeEnd;
+            this.columnName = columnName;
+            this.deletionTime = deletionTime;
+        }
+
+        public static TestWriteOperation insert(String partitionKey, String clusteringKey,
+                                                String columnName)
+        {
+            return new TestWriteOperation(OperationType.CREATE, partitionKey, clusteringKey, null, null, columnName, 0);
+        }
+
+        public static TestWriteOperation deletePartition(String partitionKey, long deletionTime)
+        {
+            return new TestWriteOperation(OperationType.DELETE_PARTITION, partitionKey,
+                                          null, null, null, null, deletionTime);
+        }
+
+        public static TestWriteOperation deleteRange(String partitionKey, String clusteringRangeStart, String clusteringRangeEnd, long deletionTime)
+        {
+            return new TestWriteOperation(OperationType.DELETE_RANGE, partitionKey,
+                                          null, clusteringRangeStart, clusteringRangeEnd, null, deletionTime);
+        }
+
+        public static TestWriteOperation deleteRow(String partitionKey, String clusteringKey, long deletionTime)
+        {
+            return new TestWriteOperation(OperationType.DELETE_ROW, partitionKey, clusteringKey,
+                                          null, null, null, deletionTime);
+        }
+
+        public static TestWriteOperation deleteCell(String partitionKey, String clusteringKey, String columnName, long deletionTime)
+        {
+            return new TestWriteOperation(OperationType.DELETE_CELL, partitionKey, clusteringKey,
+                                          null, null, columnName, deletionTime);
+        }
+
+
+    }
+
+    private static void executeReadCommands(List<SinglePartitionReadCommand> commands) throws IOException
+    {
+        ReadQuery query = SinglePartitionReadCommand.Group.create(commands, DataLimits.NONE);
+
+        try (ReadExecutionController executionController = query.executionController();
+             UnfilteredPartitionIterator iter = query.executeLocally(executionController);
+             DataOutputBuffer buffer = new DataOutputBuffer())
+        {
+            UnfilteredPartitionIterators.serializerForIntraNode().serialize(iter,
+                                                                            query.columnFilter(),
+                                                                            buffer,
+                                                                            MessagingService.current_version);
+        }
+    }
+
+    private static SinglePartitionReadCommand getWholePartitionReadCommand(ColumnFamilyStore cfs, String partitionKey)
+    {
         long nowInSeconds = FBUtilities.nowInSeconds();
         ColumnFilter columnFilter = ColumnFilter.allRegularColumnsBuilder(cfs.metadata(), false).build();
         RowFilter rowFilter = RowFilter.create(true);
         Slice slice = Slice.make(BufferClusteringBound.BOTTOM, BufferClusteringBound.TOP);
-        ClusteringIndexSliceFilter sliceFilter = new ClusteringIndexSliceFilter(
-        Slices.with(cfs.metadata().comparator, slice), false);
-
-        for (String[][] group : groups)
-        {
-            cfs.truncateBlocking();
-
-            List<SinglePartitionReadCommand> commands = new ArrayList<>(group.length);
-
-            for (String[] data : group)
-            {
-                new RowUpdateBuilder(cfs.metadata(), 0, ByteBufferUtil.bytes(data[0]))
-                .clustering(data[1])
-                .add(data[2], ByteBufferUtil.bytes("blah"))
-                .build()
-                .apply();
-
-                commands.add(SinglePartitionReadCommand.create(cfs.metadata(), nowInSeconds, columnFilter, rowFilter,
-                                                               DataLimits.NONE, Util.dk(data[0]), sliceFilter));
-            }
-
-            new RowUpdateBuilder(cfs.metadata(), FBUtilities.nowInSeconds(), 0L, ByteBufferUtil.bytes("key2"))
-            .addRangeTombstone("aa", "bb").build().apply(); // <-- this range tombstone is non-purgeable and overlaps with the next one
-            // so it will create one non-purgeable bound marker
-            // and one non-purgeable boundary marker so TWO non-purgeable tombstones will be counted
-
-            new RowUpdateBuilder(cfs.metadata(), 42, 0L, ByteBufferUtil.bytes("key2"))
-            .addRangeTombstone("bb", "ee").build().apply(); // <-- this range tombstone is purgeable and overlaps with previous and next ones
-            // so it will create one non-purgeable boundary marker (same as previous one)
-            // and one purgeable boundary marker, so it will increment purgeable tombstones counter on one
-
-            new RowUpdateBuilder(cfs.metadata(), 52, 0L, ByteBufferUtil.bytes("key2"))
-            .addRangeTombstone("ee", "ff").build().apply(); // <-- this range tombstone is purgeable and overlaps with previous one
-            // so it will create one non-purgeable boundary marker (same as previous one)
-            // and one purgeable bound marker, so it will increment purgeable tombstones counter on one,
-            // so we expect TWO purgeable tombstones in total
-
-            Util.flush(cfs);
-
-            ReadQuery query = SinglePartitionReadCommand.Group.create(commands, DataLimits.NONE);
-
-            try (ReadExecutionController executionController = query.executionController();
-                 UnfilteredPartitionIterator iter = query.executeLocally(executionController);
-                 DataOutputBuffer buffer = new DataOutputBuffer())
-            {
-                UnfilteredPartitionIterators.serializerForIntraNode().serialize(iter,
-                                                                                columnFilter,
-                                                                                buffer,
-                                                                                MessagingService.current_version);
-                buffers.add(buffer.buffer());
-            }
-        }
-
-
-        assertEquals(2, cfs.metric.tombstoneScannedHistogram.cf.getSnapshot().getMax());
-        assertEquals(2, cfs.metric.purgeableTombstoneScannedHistogram.cf.getSnapshot().getMax());
+        ClusteringIndexSliceFilter sliceFilter = new ClusteringIndexSliceFilter(Slices.with(cfs.metadata().comparator, slice), false);
+        return SinglePartitionReadCommand.create(cfs.metadata(), nowInSeconds,
+                                                 columnFilter, rowFilter,
+                                                 DataLimits.NONE, Util.dk(partitionKey), sliceFilter);
     }
 
     @Test
