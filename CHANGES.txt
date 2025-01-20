@@ -27,7 +27,6 @@ Merged from 4.0:
  * Fix bash-completion for debian distro (CASSANDRA-19999)
 Merged from 3.0
   * Tighten up permissions on system keyspaces (CASSANDRA-20090)
-  * Fix incorrect column identifier bytes problem when renaming a column (CASSANDRA-18956)
 
 
 5.0.2
