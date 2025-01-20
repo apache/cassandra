@@ -23,7 +23,6 @@ Merged from 4.0:
  * Emit error when altering a table with non-frozen UDTs with nested non-frozen collections the same way as done upon table creation (CASSANDRA-19925)
 Merged from 3.0
   * Tighten up permissions on system keyspaces (CASSANDRA-20090)
-  * Fix incorrect column identifier bytes problem when renaming a column (CASSANDRA-18956)
 
 
 4.1.7
