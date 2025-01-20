@@ -19,9 +19,11 @@
 package org.apache.cassandra.simulator.paxos;
 
 import java.nio.ByteBuffer;
+import java.nio.channels.ClosedChannelException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.concurrent.CancellationException;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiFunction;
 import java.util.function.LongSupplier;
@@ -34,6 +36,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import accord.coordinate.CoordinationFailed;
+import accord.coordinate.Invalidated;
 import com.carrotsearch.hppc.IntArrayList;
 import com.carrotsearch.hppc.IntHashSet;
 import com.carrotsearch.hppc.cursors.IntCursor;
@@ -59,6 +62,7 @@ import org.apache.cassandra.simulator.RunnableActionScheduler;
 import org.apache.cassandra.simulator.cluster.ClusterActions;
 import org.apache.cassandra.simulator.systems.SimulatedSystems;
 import org.apache.cassandra.simulator.utils.IntRange;
+import org.apache.cassandra.streaming.StreamReceivedOutOfTokenRangeException;
 
 import static org.apache.cassandra.simulator.paxos.HistoryChecker.fail;
 
@@ -155,8 +159,13 @@ public class PairOfSequencesAccordSimulation extends AbstractPairOfSequencesPaxo
     @Override
     protected Class<? extends Throwable>[] expectedExceptions()
     {
-        return (Class<? extends Throwable>[]) new Class<?>[] { RequestExecutionException.class,
-                                                               CoordinationFailed.class };
+        return (Class<? extends Throwable>[]) new Class<?>[] { CancellationException.class,
+                                                               CoordinationFailed.class,
+                                                               ClosedChannelException.class,
+                                                               Invalidated.class,
+                                                               RequestExecutionException.class,
+                                                               StreamReceivedOutOfTokenRangeException.class // should always come in combination with closed channel exception
+        };
     }
 
     @Override
