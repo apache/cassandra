@@ -3,6 +3,8 @@
  * Allow hint delivery during schema mismatch (CASSANDRA-20188)
  * Fix gossip issue with gossip-only and bootstrapping nodes missing DC/Rack/Host ID endpoint state (CASSANDRA-19983)
  * IndexOutOfBoundsException when accessing partition where the column was deleted (CASSANDRA-20108)
+Merged from 3.0:
+ * Tighten up permissions on system keyspaces (CASSANDRA-20090)
 
 
 4.0.15
