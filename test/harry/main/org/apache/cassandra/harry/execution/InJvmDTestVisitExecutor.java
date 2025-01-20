@@ -297,6 +297,7 @@ public class InJvmDTestVisitExecutor extends CQLVisitExecutor
                     AssertionUtils.isInstanceof(RequestTimeoutException.class)
                                   .matches(Throwables.getRootCause(t)));
         };
+        RetryPolicy NO_RETRY = (t) -> false;
         boolean retry(Throwable t);
     }
 
