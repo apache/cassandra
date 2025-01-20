@@ -234,7 +234,8 @@ abstract class AccordExecutorAbstractLockLoop extends AccordExecutor
                     try { agent.onUncaughtException(t); }
                     catch (Throwable t2) { /* nothing we can sensibly do after already reporting */ }
                 }
-                pauseExclusive();
+                if (isHeldByExecutor)
+                    pauseExclusive();
                 exitLockExclusive();
                 throw t;
             }

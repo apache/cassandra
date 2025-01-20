@@ -22,6 +22,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CancellationException;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -76,9 +77,12 @@ public abstract class PaxosSimulation implements Simulation, ClusterActionListen
         return (primaryKeys.length == 1 ? Integer.toString(primaryKeys[0]) : Arrays.toString(primaryKeys)) + "/" + id + ": " + idString;
     }
 
+    @SuppressWarnings("unchecked")
     protected Class<? extends Throwable>[] expectedExceptions()
     {
-        return (Class<? extends Throwable>[]) new Class<?>[] { RequestExecutionException.class, Invalidated.class };
+        return (Class<? extends Throwable>[]) new Class<?>[] { RequestExecutionException.class,
+                                                               Invalidated.class,
+                                                               CancellationException.class };
     }
 
     abstract class Operation extends SimulatedActionCallable<SimpleQueryResult> implements BiConsumer<SimpleQueryResult, Throwable>

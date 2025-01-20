@@ -105,7 +105,7 @@ public class ExecutorUtils
             }
             catch (Throwable t)
             {
-                throw new IllegalStateException("Caught interrupt while shutting down " + executor);
+                throw new IllegalStateException("Caught interrupt while shutting down " + executor, t);
             }
         }
 

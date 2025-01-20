@@ -22,6 +22,7 @@ import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.concurrent.CancellationException;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiFunction;
 import java.util.function.LongSupplier;
@@ -34,6 +35,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import accord.coordinate.CoordinationFailed;
+import accord.coordinate.Invalidated;
 import com.carrotsearch.hppc.IntArrayList;
 import com.carrotsearch.hppc.IntHashSet;
 import com.carrotsearch.hppc.cursors.IntCursor;
@@ -156,7 +158,10 @@ public class PairOfSequencesAccordSimulation extends AbstractPairOfSequencesPaxo
     protected Class<? extends Throwable>[] expectedExceptions()
     {
         return (Class<? extends Throwable>[]) new Class<?>[] { RequestExecutionException.class,
-                                                               CoordinationFailed.class };
+                                                               CoordinationFailed.class,
+                                                               RequestExecutionException.class,
+                                                               Invalidated.class,
+                                                               CancellationException.class };
     }
 
     @Override

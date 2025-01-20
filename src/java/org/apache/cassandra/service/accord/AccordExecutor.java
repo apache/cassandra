@@ -39,6 +39,7 @@ import accord.utils.QuadFunction;
 import accord.utils.QuintConsumer;
 import accord.utils.TriConsumer;
 import accord.utils.TriFunction;
+import accord.utils.UnhandledEnum;
 import accord.utils.async.Cancellable;
 import org.agrona.collections.Object2ObjectHashMap;
 import org.apache.cassandra.cache.CacheSize;
@@ -482,7 +483,7 @@ public abstract class AccordExecutor implements CacheSize, AccordCacheEntry.OnLo
     {
         switch (task.state())
         {
-            default:
+            default: throw new UnhandledEnum(task.state());
             case INITIALIZED:
                 // we could be cancelled before we even reach the queue
                 task.cancelExclusive();
@@ -498,6 +499,7 @@ public abstract class AccordExecutor implements CacheSize, AccordCacheEntry.OnLo
                 task.cancelExclusive();
                 break;
 
+            case FAILING:
             case RUNNING:
             case PERSISTING:
             case FINISHED:
@@ -958,7 +960,7 @@ public abstract class AccordExecutor implements CacheSize, AccordCacheEntry.OnLo
     }
 
     class PlainRunnable extends Task implements Cancellable
-    {   // TODO (expected): support cancellation
+    {
         final AsyncPromise<Void> result;
         final Runnable run;
 

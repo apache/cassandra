@@ -245,8 +245,6 @@ public class AccordService implements IAccordService, Shutdownable
 
     public synchronized static void startup(NodeId tcmId)
     {
-        if (instance != null)
-            throw new IllegalStateException("Attempt to call startup multiple times");
         if (!DatabaseDescriptor.getAccordTransactionsEnabled())
         {
             instance = NOOP_SERVICE;

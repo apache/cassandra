@@ -93,7 +93,7 @@ class AccordExecutorInfiniteLoops implements Shutdownable
         for (Interruptible loop : loops)
         {
             long wait = deadline - nanoTime();
-            if (!loop.awaitTermination(wait, unit))
+            if (!loop.awaitTermination(wait, TimeUnit.NANOSECONDS))
                 return false;
         }
         return true;
