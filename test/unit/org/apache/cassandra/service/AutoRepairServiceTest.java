@@ -126,6 +126,7 @@ public class AutoRepairServiceTest
         public void testSetAutoRepairEnabledThrowsForIRWithMVReplay()
         {
             autoRepairService.config = new AutoRepairConfig(true);
+            autoRepairService.config.setMaterializedViewRepairEnabled(AutoRepairConfig.RepairType.INCREMENTAL, true);
             DatabaseDescriptor.setMaterializedViewsOnRepairEnabled(true);
 
             autoRepairService.setAutoRepairEnabled(AutoRepairConfig.RepairType.INCREMENTAL, true);
@@ -146,6 +147,7 @@ public class AutoRepairServiceTest
         public void testSetAutoRepairEnabledThrowsForIRWithCDCReplay()
         {
             autoRepairService.config = new AutoRepairConfig(true);
+            DatabaseDescriptor.setCDCEnabled(true);
             DatabaseDescriptor.setCDCOnRepairEnabled(true);
 
             autoRepairService.setAutoRepairEnabled(AutoRepairConfig.RepairType.INCREMENTAL, true);
@@ -236,7 +238,7 @@ public class AutoRepairServiceTest
             forEachRepairType(true, AutoRepairService.instance::setPrimaryTokenRangeOnly, config::getRepairPrimaryTokenRangeOnly),
             forEachRepairType(600, AutoRepairService.instance::setParallelRepairPercentage, config::getParallelRepairPercentage),
             forEachRepairType(700, AutoRepairService.instance::setParallelRepairCount, config::getParallelRepairCount),
-            forEachRepairType(true, AutoRepairService.instance::setMVRepairEnabled, config::getMVRepairEnabled),
+            forEachRepairType(true, AutoRepairService.instance::setMVRepairEnabled, config::getMaterializedViewRepairEnabled),
             forEachRepairType(ImmutableSet.of(InetAddressAndPort.getLocalHost()), AutoRepairService.instance::setRepairPriorityForHosts, AutoRepairUtils::getPriorityHosts),
             forEachRepairType(ImmutableSet.of(InetAddressAndPort.getLocalHost()), AutoRepairService.instance::setForceRepairForHosts, SetterTests::isLocalHostForceRepair)
             ).flatMap(Function.identity()).collect(Collectors.toList());

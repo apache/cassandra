@@ -65,10 +65,10 @@ public class AutoRepairService implements AutoRepairServiceMBean
         if (repairType != RepairType.INCREMENTAL)
             return;
 
-        if (DatabaseDescriptor.isMaterializedViewsOnRepairEnabled())
+        if (config.getMaterializedViewRepairEnabled(repairType) && DatabaseDescriptor.isMaterializedViewsOnRepairEnabled())
             throw new ConfigurationException("Cannot run incremental repair while materialized view replay is enabled. Set materialized_views_on_repair_enabled to false.");
 
-        if (DatabaseDescriptor.isCDCOnRepairEnabled())
+        if (DatabaseDescriptor.isCDCEnabled() && DatabaseDescriptor.isCDCOnRepairEnabled())
             throw new ConfigurationException("Cannot run incremental repair while CDC replay is enabled. Set cdc_on_repair_enabled to false.");
     }
 

@@ -131,6 +131,8 @@ import static org.apache.cassandra.repair.autorepair.AutoRepairUtils.split;
  *     <li>
  *         <b>full</b>:  Configured in a way that attempts to accomplish repairing all data in a schedule, with
  *         individual repairs targeting at most 200GiB of data and 1048576 partitions.
+ *         <b>max_bytes_per_schedule</b> is set to a large value for full repair to attempt to repair all data per
+ *         repair schedule.
  *         <ul>
  *             <li><b>bytes_per_assignment</b>: 200GiB</li>
  *             <li><b>partitions_per_assignment</b>: 2^repair_session_max_tree_depth (2^20 == 1048576 by default)</li>
