@@ -73,7 +73,7 @@ larger value is used.
 | parallel_repair_percentage | 3 | Percentage of nodes in the cluster running repair in parallel. If
 parallel_repair_count is set, the larger value is used. Recommendation is that the repair cycle on the cluster should
 finish within gc_grace_seconds.
-| materialized_view_repair_enabled | false | Repairs materialized view if true.
+| materialized_view_repair_enabled | false | Repairs materialized views if true.
 | initial_scheduler_delay | 5m | Delay before starting repairs after a node restarts to avoid repairs starting
 immediately after a restart.
 | repair_session_timeout | 3h | Timeout for resuming stuck repair sessions.
@@ -111,15 +111,19 @@ being repaired.
 | token_range_splitter.max_bytes_per_schedule | 100000GiB | The maximum number of bytes to cover in an individual
 schedule. This serves as a mechanism to throttle the work done in each repair cycle. You may reduce this value if the
 impact of repairs is causing too much load on the cluster or increase it if writes outpace the amount of data being
-repaired. Alternatively, adjust the min_repair_interval.
+repaired. Alternatively, adjust the min_repair_interval. This is set to a large value for full repair to attempt to
+repair all data per repair schedule.
 |===
 
 ==== Incremental repair level settings
 The following settings can be customized for each repair type.
 [cols=",,",options="header",]
 |===
-| min_repair_interval | 1h | Incremental repairs finish quickly, so they can be run more frequently. The default is
-1 hour.
+| min_repair_interval | 1h | Incremental repairs operate over unrepaired data and should finish quickly. Running them
+more frequently keeps the unrepaired set smaller and thus causes repairs to operate over a smaller set of data,
+so a more frequent schedule such as 1h is recommended. When turning on incremental repair for the first time with a
+decent amount of data it may be advisable to increase this interval to 24h or longer to reduce the impact of
+anticompaction caused by incremental repair.
 | token_range_splitter.bytes_per_assignment | 50GiB | Configured to attempt repairing 50GiB of data per repair.
 This throttles the amount of incremental repair and anticompaction done per schedule after incremental repairs are
 turned on.

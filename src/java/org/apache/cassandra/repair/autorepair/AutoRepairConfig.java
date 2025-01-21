@@ -392,7 +392,9 @@ public class AutoRepairConfig implements Serializable
 
 
             options.get(RepairType.FULL).min_repair_interval = new DurationSpec.IntSecondsBound("24h");
-            // Incremental repairs finish quickly, so they can be run more frequently. Hence, the default is 1 hour.
+            // Incremental repairs operate over unrepaired data and should finish quickly. Running them more frequently keeps
+            // the unrepaired set smaller and thus causes repairs to operate over a smaller set of data, so a more frequent
+            // increase this interval to 24h or longer to reduce the impact of anticompaction caused by incremental repair.
             options.get(RepairType.INCREMENTAL).min_repair_interval = new DurationSpec.IntSecondsBound("1h");
             options.get(RepairType.PREVIEW_REPAIRED).min_repair_interval = new DurationSpec.IntSecondsBound("24h");
 
@@ -475,7 +477,7 @@ public class AutoRepairConfig implements Serializable
         // Maximum time allowed for repairing one table on a given node. If exceeded, the repair proceeds to the
         // next table.
         public volatile DurationSpec.IntSecondsBound table_max_repair_time;
-        // Repairs materialized view if true.
+        // Repairs materialized views if true.
         public volatile Boolean materialized_view_repair_enabled;
         /**
          * Splitter implementation to use for generating repair assignments.

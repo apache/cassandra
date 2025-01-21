@@ -110,10 +110,22 @@ public class AutoRepairTest extends CQLTester
         instance.setup();
     }
 
+    @Test
+    public void testNoFailureIfMVRepairOnButConfigIsOff()
+    {
+        DatabaseDescriptor.getAutoRepairConfig().setAutoRepairEnabled(RepairType.INCREMENTAL, true);
+        DatabaseDescriptor.getAutoRepairConfig().setMaterializedViewRepairEnabled(RepairType.INCREMENTAL, false);
+        DatabaseDescriptor.setCDCOnRepairEnabled(false);
+        DatabaseDescriptor.setMaterializedViewsOnRepairEnabled(true);
+        AutoRepair instance = new AutoRepair();
+        instance.setup();
+    }
+
     @Test(expected = ConfigurationException.class)
     public void testSetupFailsWhenIREnabledWithMVReplay()
     {
         DatabaseDescriptor.getAutoRepairConfig().setAutoRepairEnabled(RepairType.INCREMENTAL, true);
+        DatabaseDescriptor.getAutoRepairConfig().setMaterializedViewRepairEnabled(RepairType.INCREMENTAL, true);
         DatabaseDescriptor.setCDCOnRepairEnabled(false);
         DatabaseDescriptor.setMaterializedViewsOnRepairEnabled(true);
         AutoRepair instance = new AutoRepair();

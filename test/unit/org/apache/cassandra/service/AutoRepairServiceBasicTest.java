@@ -87,9 +87,18 @@ public class AutoRepairServiceBasicTest extends CQLTester {
         autoRepairService.setAutoRepairEnabled(AutoRepairConfig.RepairType.INCREMENTAL, true);
     }
 
+    @Test
+    public void testSetAutoRepairEnabledDoesNotThrowForIRWithMVReplayButMVRepairDisabled() {
+        autoRepairService.config = new AutoRepairConfig(true);
+        autoRepairService.config.setMaterializedViewRepairEnabled(AutoRepairConfig.RepairType.INCREMENTAL, false);
+        DatabaseDescriptor.setMaterializedViewsOnRepairEnabled(true);
+        autoRepairService.setAutoRepairEnabled(AutoRepairConfig.RepairType.INCREMENTAL, true);
+    }
+
     @Test(expected = ConfigurationException.class)
     public void testSetAutoRepairEnabledThrowsForIRWithMVReplay() {
         autoRepairService.config = new AutoRepairConfig(true);
+        autoRepairService.config.setMaterializedViewRepairEnabled(AutoRepairConfig.RepairType.INCREMENTAL, true);
         DatabaseDescriptor.setMaterializedViewsOnRepairEnabled(true);
         autoRepairService.setAutoRepairEnabled(AutoRepairConfig.RepairType.INCREMENTAL, true);
     }
@@ -102,10 +111,19 @@ public class AutoRepairServiceBasicTest extends CQLTester {
         autoRepairService.setAutoRepairEnabled(AutoRepairConfig.RepairType.INCREMENTAL, true);
     }
 
+    @Test
+    public void testSetAutoRepairEnabledDoesNotThrowForIRWithCDCReplayButCDCDisabled() {
+        autoRepairService.config = new AutoRepairConfig(true);
+        DatabaseDescriptor.setCDCOnRepairEnabled(true);
+        DatabaseDescriptor.setCDCEnabled(false);
+        autoRepairService.setAutoRepairEnabled(AutoRepairConfig.RepairType.INCREMENTAL, true);
+    }
+
     @Test(expected = ConfigurationException.class)
     public void testSetAutoRepairEnabledThrowsForIRWithCDCReplay() {
         autoRepairService.config = new AutoRepairConfig(true);
         DatabaseDescriptor.setCDCOnRepairEnabled(true);
+        DatabaseDescriptor.setCDCEnabled(true);
         autoRepairService.setAutoRepairEnabled(AutoRepairConfig.RepairType.INCREMENTAL, true);
     }
 
