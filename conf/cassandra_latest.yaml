@@ -2362,10 +2362,15 @@ storage_compatibility_mode: NONE
 #           # value if the impact of repairs is causing too much load on the cluster or increase it
 #           # if writes outpace the amount of data being repaired. Alternatively, adjust the
 #           # min_repair_interval.
+#           # This is set to a large value for full repair to attempt to repair all data per repair schedule.
 #           max_bytes_per_schedule: 100000GiB
 #     incremental:
 #       enabled: true
-#       # Incremental repairs finish quickly, so they can be run more frequently. The default is 1 hour.
+#       # Incremental repairs operate over unrepaired data and should finish quickly. Running them more frequently keeps
+#       # the unrepaired set smaller and thus causes repairs to operate over a smaller set of data, so a more frequent
+#       # schedule such as 1h is recommended.
+#       # When turning on incremental repair for the first time with a decent amount of data it may be advisable to
+#       # increase this interval to 24h or longer to reduce the impact of anticompaction caused by incremental repair.
 #       min_repair_interval: 1h
 #       token_range_splitter:
 #         parameters:
@@ -2397,6 +2402,7 @@ storage_compatibility_mode: NONE
 #   # The scheduler needs to adjust its order when nodes leave the ring. Deleted hosts are tracked in metadata
 #   # for a specified duration to ensure they are indeed removed before adjustments are made to the schedule.
 #   history_clear_delete_hosts_buffer_interval: 2h
+#   # NOTE: Each of the below settings can be overridden per repair type under repair_type_overrides
 #   global_settings:
 #     # If true, attempts to group tables in the same keyspace into one repair; otherwise, each table is repaired
 #     # individually.
@@ -2409,7 +2415,7 @@ storage_compatibility_mode: NONE
 #     # Percentage of nodes in the cluster running repair in parallel. If parallel_repair_count is set, the larger value
 #     # is used. Recommendation is that the repair cycle on the cluster should finish within gc_grace_seconds.
 #     parallel_repair_percentage: 3
-#     # Repairs materialized view if true.
+#     # Repairs materialized views if true.
 #     materialized_view_repair_enabled: false
 #     # Delay before starting repairs after a node restarts to avoid repairs starting immediately after a restart.
 #     initial_scheduler_delay: 5m
@@ -2431,9 +2437,9 @@ storage_compatibility_mode: NONE
 #     # Repair only the primary ranges owned by a node. Equivalent to the -pr option in nodetool repair. Defaults
 #     # to true. General advice is to keep this true.
 #     repair_primary_token_range_only: true
-#     # Splitter implementation to generate repair assignments. Defaults to RepairTokenRangeSplitter.
-#     token_range_splitter: org.apache.cassandra.repair.autorepair.RepairTokenRangeSplitter
 #     token_range_splitter:
+#       # Splitter implementation to generate repair assignments. Defaults to RepairTokenRangeSplitter.
+#       class_name: org.apache.cassandra.repair.autorepair.RepairTokenRangeSplitter
 #       parameters:
 #         # Target number of partitions to include in a repair assignment to reduce excessive overstreaming.
 #         partitions_per_assignment: 1048576

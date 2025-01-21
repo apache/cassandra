@@ -676,10 +676,35 @@ public class AutoRepairParameterizedTest extends CQLTester
     }
 
     @Test
+    public void testRepairDoesNotThrowsForIRWithMVReplayButMVRepairDisabled()
+    {
+        AutoRepair.instance.setup();
+        DatabaseDescriptor.setMaterializedViewsOnRepairEnabled(true);
+        AutoRepairService.instance.getAutoRepairConfig().setMaterializedViewRepairEnabled(repairType, false);
+
+        if (repairType == AutoRepairConfig.RepairType.INCREMENTAL)
+        {
+            try
+            {
+                AutoRepair.instance.repair(repairType);
+            }
+            catch (ConfigurationException ignored)
+            {
+                fail("ConfigurationException not expected");
+            }
+        }
+        else
+        {
+            AutoRepair.instance.repair(repairType);
+        }
+    }
+
+    @Test
     public void testRepairThrowsForIRWithMVReplay()
     {
         AutoRepair.instance.setup();
         DatabaseDescriptor.setMaterializedViewsOnRepairEnabled(true);
+        AutoRepairService.instance.getAutoRepairConfig().setMaterializedViewRepairEnabled(repairType, true);
 
         if (repairType == AutoRepairConfig.RepairType.INCREMENTAL)
         {
@@ -703,6 +728,7 @@ public class AutoRepairParameterizedTest extends CQLTester
     public void testRepairThrowsForIRWithCDCReplay()
     {
         AutoRepair.instance.setup();
+        DatabaseDescriptor.setCDCEnabled(true);
         DatabaseDescriptor.setCDCOnRepairEnabled(true);
 
         if (repairType == AutoRepairConfig.RepairType.INCREMENTAL)
