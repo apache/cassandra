@@ -50,10 +50,10 @@ import org.apache.cassandra.metrics.AccordCacheMetrics;
 import org.apache.cassandra.utils.concurrent.AsyncPromise;
 import org.apache.cassandra.utils.concurrent.Future;
 
-import static org.apache.cassandra.service.accord.AccordCacheEntry.Status.EVICTED;
 import static org.apache.cassandra.service.accord.AccordCache.CommandAdapter.COMMAND_ADAPTER;
 import static org.apache.cassandra.service.accord.AccordCache.CommandsForKeyAdapter.CFK_ADAPTER;
 import static org.apache.cassandra.service.accord.AccordCache.registerJfrListener;
+import static org.apache.cassandra.service.accord.AccordCacheEntry.Status.EVICTED;
 import static org.apache.cassandra.service.accord.AccordTask.State.LOADING;
 import static org.apache.cassandra.service.accord.AccordTask.State.SCANNING_RANGES;
 import static org.apache.cassandra.service.accord.AccordTask.State.WAITING_TO_LOAD;
@@ -357,7 +357,7 @@ public abstract class AccordExecutor implements CacheSize, AccordCacheEntry.OnLo
             case WAITING_TO_RUN:
                 task.runQueuedAt = nanoTime();
                 commandStoreQueues.computeIfAbsent(task.commandStore, CommandStoreQueue::new)
-                                  .append(task);
+                                  .appendOrSetNext(task);
                 break;
         }
     }
@@ -371,7 +371,7 @@ public abstract class AccordExecutor implements CacheSize, AccordCacheEntry.OnLo
         else
         {
             commandStoreQueues.computeIfAbsent(task.commandStore, CommandStoreQueue::new)
-                              .append(task);
+                              .appendOrSetNext(task);
         }
     }
 
@@ -407,9 +407,12 @@ public abstract class AccordExecutor implements CacheSize, AccordCacheEntry.OnLo
         submit(AccordExecutor::loadExclusive, Function.identity(), operation);
     }
 
-    public <R> void cancel(AccordTask<R> operation)
+    public <R> void cancel(AccordTask<R> task)
     {
-        submit(AccordExecutor::cancelExclusive, OnCancel::new, operation);
+        Invariants.checkState(task.commandStore.executor() == this,
+                              "%s is a wrong command store for %s, should be %s",
+                              this, task, task);
+        submit(AccordExecutor::cancelExclusive, CancelAsync::new, task);
     }
 
     public void onScannedRanges(AccordTask<?> task, Throwable fail)
@@ -695,43 +698,61 @@ public abstract class AccordExecutor implements CacheSize, AccordCacheEntry.OnLo
         abstract protected void addToQueue(TaskQueue queue);
     }
 
-    class CommandStoreQueue extends Task
+    static class CommandStoreQueueTask extends Task
     {
-        final TaskQueue<Task> queue = new TaskQueue<>(WAITING_TO_RUN);
-        Task next;
+        private final CommandStoreQueue queue;
+        private Task task;
 
-        CommandStoreQueue(AccordCommandStore commandStore)
+        CommandStoreQueueTask(CommandStoreQueue queue, AccordCommandStore commandStore)
         {
             super(commandStore);
+            this.queue = queue;
+        }
+
+        public boolean isSet()
+        {
+            return this.task != null;
+        }
+
+        public void reset()
+        {
+            queuePosition = -1;
+            this.task = null;
+        }
+
+        public void setNext(Task task)
+        {
+            queuePosition = task.queuePosition;
+            this.task = task;
         }
 
         @Override
         protected void preRunExclusive()
         {
-            Invariants.checkState(next != null);
+            Invariants.checkState(task != null);
             Thread self = Thread.currentThread();
             commandStore.setOwner(self, self);
-            next.preRunExclusive();
+            task.preRunExclusive();
         }
 
         @Override
         protected void run()
         {
-            next.run();
+            task.run();
         }
 
         @Override
         protected void fail(Throwable t)
         {
-            next.fail(t);
+            task.fail(t);
         }
 
         @Override
         protected void cleanupExclusive()
         {
-            next.cleanupExclusive();
+            task.cleanupExclusive();
             commandStore.setOwner(null, Thread.currentThread());
-            updateNext(queue.poll());
+            queue.updateNext();
         }
 
         @Override
@@ -739,25 +760,80 @@ public abstract class AccordExecutor implements CacheSize, AccordCacheEntry.OnLo
         {
             throw new UnsupportedOperationException();
         }
+    }
 
-        void append(Task task)
-        {   // TODO (expected): if the new task is higher priority, replace next
-            if (next == null) updateNext(task);
-            else task.addToQueue(queue);
+    class CommandStoreQueue extends TaskQueue<Task>
+    {
+        final CommandStoreQueueTask next;
+
+        CommandStoreQueue(AccordCommandStore commandStore)
+        {
+            super(WAITING_TO_RUN);
+            this.next = new CommandStoreQueueTask(this, commandStore);
+        }
+
+        void updateNext()
+        {
+            updateNext(super.poll());
         }
 
         void updateNext(Task task)
         {
-            next = task;
+            next.reset();
             if (task != null)
+                task.addToQueue(this);
+        }
+
+        public void appendOrSetNext(Task task)
+        {
+            if (!next.isSet())
+                task.addToQueue(this);
+            else
+                super.append(task);
+        }
+
+        @Override
+        public void append(Task task)
+        {
+            Invariants.checkState(!next.isSet());
+            // TODO (expected): if the new task is higher priority, replace next
+            next.setNext(task);
+            waitingToRun.append(next);
+        }
+
+        @Override
+        public void remove(Task remove)
+        {
+            if (next.isSet() && next.task == remove)
             {
-                queuePosition = task.queuePosition;
-                waitingToRun.append(this);
+                next.reset();
+                waitingToRun.remove(next);
+                return;
             }
+
+            super.remove(remove);
+        }
+
+        @Override
+        public Task poll()
+        {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public Task peek()
+        {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public boolean contains(Task contains)
+        {
+            throw new UnsupportedOperationException();
         }
     }
 
-    static final class TaskQueue<T extends Task> extends IntrusivePriorityHeap<T>
+    static class TaskQueue<T extends Task> extends IntrusivePriorityHeap<T>
     {
         final AccordTask.State kind;
 
@@ -790,7 +866,9 @@ public abstract class AccordExecutor implements CacheSize, AccordCacheEntry.OnLo
 
         public void remove(T remove)
         {
+            Invariants.checkState(super.contains(remove));
             super.remove(remove);
+            Invariants.checkState(!super.contains(remove));
         }
 
         public boolean contains(T contains)
@@ -908,11 +986,11 @@ public abstract class AccordExecutor implements CacheSize, AccordCacheEntry.OnLo
         }
     }
 
-    private static class OnCancel<R> extends SubmitAsync
+    private static class CancelAsync<R> extends SubmitAsync
     {
         final AccordTask<R> cancel;
 
-        private OnCancel(AccordTask<R> cancel)
+        private CancelAsync(AccordTask<R> cancel)
         {
             this.cancel = cancel;
         }

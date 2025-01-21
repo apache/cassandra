@@ -895,6 +895,9 @@ public abstract class AccordTask<R> extends Task implements Runnable, Function<S
 
     protected void addToQueue(TaskQueue queue)
     {
+        if (state == CANCELLED)
+            return;
+
         Invariants.checkState(queue.kind == state || (queue.kind == State.WAITING_TO_LOAD && state == WAITING_TO_SCAN_RANGES), "Invalid queue type: %s vs %s", queue.kind, this, AccordTask::toDescription);
         Invariants.checkState(this.queued == null, "Already queued with state: %s", this, AccordTask::toDescription);
         queued = queue;
