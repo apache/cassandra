@@ -18,14 +18,23 @@
 
 package org.apache.cassandra.distributed.test.cql3;
 
+import java.io.IOException;
+import javax.annotation.Nullable;
+
 import accord.utils.Property;
+import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.service.consensus.TransactionalMode;
 
-public class AccordInteropTokenConflictTest extends TokenConflictTest
+public class MultiNodeTableWalkTest extends SingleNodeTableWalkTest
 {
-    public AccordInteropTokenConflictTest()
+
+    public MultiNodeTableWalkTest()
     {
-        super(TransactionalMode.full);
+    }
+
+    protected MultiNodeTableWalkTest(@Nullable TransactionalMode transactionalMode)
+    {
+        super(transactionalMode);
     }
 
     @Override
@@ -33,8 +42,21 @@ public class AccordInteropTokenConflictTest extends TokenConflictTest
     {
         // if a failing seed is detected, populate here
         // Example: builder.withSeed(42L);
-        //TODO (January): checkpoint a failing seed to debug later... accord returns incorrect data for the following SQL
-        // 97: SELECT * FROM ks1.tbl WHERE token(pk0) BETWEEN token([8473585318424753772, 1213177836815110536]) AND token([-7320550072265110851, 4691861474352962931]); -- token BETWEEN, rc=-1, start token=-9116738905031522785, end token=1077669339564852589, on node1, fetch size 1
-        builder.withSeed(3448341964809595261L);
+        // To show string/blobs
+         SHOW_REAL_VALUES = true;
+        builder.withSeed(159634037219554562L);
+    }
+
+    @Override
+    protected Cluster createCluster() throws IOException
+    {
+        return createCluster(3, c -> {
+            c.set("range_request_timeout", "180s")
+             .set("read_request_timeout", "180s")
+             .set("transaction_timeout", "180s")
+             .set("write_request_timeout", "180s")
+             .set("native_transport_timeout", "180s")
+             .set("slow_query_log_timeout", "180s");
+        });
     }
 }

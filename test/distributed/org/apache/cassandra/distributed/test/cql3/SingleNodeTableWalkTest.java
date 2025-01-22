@@ -301,10 +301,15 @@ public class SingleNodeTableWalkTest extends StatefulASTBase
         return new State(rs, cluster);
     }
 
+    protected Cluster createCluster() throws IOException
+    {
+        return createCluster(1, i -> {});
+    }
+
     @Test
     public void test() throws IOException
     {
-        try (Cluster cluster = createCluster(1))
+        try (Cluster cluster = createCluster())
         {
             Property.StatefulBuilder statefulBuilder = stateful().withExamples(10).withSteps(400);
             preCheck(statefulBuilder);

@@ -19,6 +19,7 @@
 package org.apache.cassandra.distributed.test.cql3;
 
 import java.io.IOException;
+import java.net.InetSocketAddress;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.EnumSet;
@@ -26,6 +27,7 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Consumer;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import javax.annotation.Nullable;
@@ -68,6 +70,7 @@ import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
 import org.apache.cassandra.distributed.api.Feature;
 import org.apache.cassandra.distributed.api.IInstance;
+import org.apache.cassandra.distributed.api.IInstanceConfig;
 import org.apache.cassandra.distributed.test.JavaDriverUtils;
 import org.apache.cassandra.distributed.test.TestBaseImpl;
 import org.apache.cassandra.harry.gen.BijectionCache;
@@ -97,7 +100,9 @@ public class StatefulASTBase extends TestBaseImpl
         SAI_REVERSE_OF_FIXED_LENGTH("https://issues.apache.org/jira/browse/CASSANDRA-20100",
                                     "Fixed length values have their bytes reversed when storing to disk, which leads to finding incorrect values when doing a normal index search"),
         CUSTOM_INDEX_MAX_COLUMN_48("https://issues.apache.org/jira/browse/CASSANDRA-19897",
-                                   "Columns can be up to 50 chars, but CREATE CUSTOM INDEX only allows up to 48")
+                                   "Columns can be up to 50 chars, but CREATE CUSTOM INDEX only allows up to 48"),
+        AF_MULTI_NODE_AND_NODE_LOCAL_WRITES("https://issues.apache.org/jira/browse/CASSANDRA-20243",
+                                            "When writes are done at NODE_LOCAL and the select is ALL, AF should be able to return the correct data but it doesn't")
         ;
 
         KnownIssue(String url, String description)
@@ -158,11 +163,14 @@ public class StatefulASTBase extends TestBaseImpl
         return "ks" + COUNTER.incrementAndGet();
     }
 
-    protected static Cluster createCluster(int nodeCount) throws IOException
+    protected static Cluster createCluster(int nodeCount, Consumer<IInstanceConfig> config) throws IOException
     {
         Cluster cluster = Cluster.build(nodeCount)
-                                             .withConfig(c -> c.with(Feature.NATIVE_PROTOCOL, Feature.GOSSIP)
-                                                               .set("incremental_backups", false))
+                                             .withConfig(c -> {
+                                                 c.with(Feature.NATIVE_PROTOCOL, Feature.GOSSIP)
+                                                  .set("incremental_backups", false);
+                                                 config.accept(c);
+                                             })
                                              .start();
         // we don't allow setting null in yaml... but these configs support null!
         cluster.forEach(i ->  i.runOnInstance(() -> {
@@ -374,10 +382,12 @@ public class StatefulASTBase extends TestBaseImpl
                     ss.setFetchSize(fetchSize);
                 ss.setConsistencyLevel(toDriverCL(cl));
 
+                InetSocketAddress broadcastAddress = instance.config().broadcastAddress();
                 var host = client.getMetadata().getAllHosts().stream()
-                        .filter(h -> h.getListenAddress().equals(instance.config().broadcastAddress().getAddress()))
-                        .findAny()
-                        .get();
+                                 .filter(h -> h.getBroadcastSocketAddress().getAddress().equals(broadcastAddress.getAddress()))
+                                 .filter(h -> h.getBroadcastSocketAddress().getPort() == broadcastAddress.getPort())
+                                 .findAny()
+                                 .get();
                 ss.setHost(host);
                 ResultSet result = session.execute(ss);
                 return getRowsAsByteBuffer(result);

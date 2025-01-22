@@ -71,9 +71,9 @@ import static accord.utils.Property.commands;
 import static accord.utils.Property.stateful;
 import static org.apache.cassandra.utils.Generators.toGen;
 
-public class TokenConflictTest extends StatefulASTBase
+public class SingleNodeTokenConflictTest extends StatefulASTBase
 {
-    private static final Logger logger = LoggerFactory.getLogger(TokenConflictTest.class);
+    private static final Logger logger = LoggerFactory.getLogger(SingleNodeTokenConflictTest.class);
 
     private static final Gen.IntGen NUM_TOKENS_GEN = Gens.pickInt(1, 10, 100);
     /**
@@ -89,12 +89,12 @@ public class TokenConflictTest extends StatefulASTBase
     @Nullable
     private final TransactionalMode transactionalMode;
 
-    protected TokenConflictTest(@Nullable TransactionalMode transactionalMode)
+    protected SingleNodeTokenConflictTest(@Nullable TransactionalMode transactionalMode)
     {
         this.transactionalMode = transactionalMode;
     }
 
-    public TokenConflictTest()
+    public SingleNodeTokenConflictTest()
     {
         this(null);
     }
@@ -257,25 +257,30 @@ public class TokenConflictTest extends StatefulASTBase
                                      + " AND " + rightIneq.value + " " + Murmur3Partitioner.instance.getToken(right));
     }
 
+    protected Cluster createCluster() throws IOException
+    {
+        return createCluster(1, i -> {});
+    }
+
     @Test
     public void test() throws IOException
     {
-        try (Cluster cluster = createCluster(1))
+        try (Cluster cluster = createCluster())
         {
             Property.StatefulBuilder statefulBuilder = stateful().withExamples(10);
             preCheck(statefulBuilder);
             statefulBuilder.check(commands(() -> rs -> new State(rs, cluster))
-                                  .add(TokenConflictTest::insert)
-                                  .add(TokenConflictTest::pkEq)
-                                  .add(TokenConflictTest::pkIn)
-                                  .add(TokenConflictTest::pkBetween)
-                                  .add(TokenConflictTest::pkRange)
-                                  .add(TokenConflictTest::pkBoundRange)
-                                  .add(TokenConflictTest::tokenEq)
+                                  .add(SingleNodeTokenConflictTest::insert)
+                                  .add(SingleNodeTokenConflictTest::pkEq)
+                                  .add(SingleNodeTokenConflictTest::pkIn)
+                                  .add(SingleNodeTokenConflictTest::pkBetween)
+                                  .add(SingleNodeTokenConflictTest::pkRange)
+                                  .add(SingleNodeTokenConflictTest::pkBoundRange)
+                                  .add(SingleNodeTokenConflictTest::tokenEq)
                                   // there is no tokenIn, as of this moment token in does not compile in CQL
-                                  .add(TokenConflictTest::tokenBetween)
-                                  .add(TokenConflictTest::tokenRange)
-                                  .add(TokenConflictTest::tokenBoundRange)
+                                  .add(SingleNodeTokenConflictTest::tokenBetween)
+                                  .add(SingleNodeTokenConflictTest::tokenRange)
+                                  .add(SingleNodeTokenConflictTest::tokenBoundRange)
                                   .addIf(State::hasEnoughMemtable, StatefulASTBase::flushTable)
                                   .addIf(State::hasEnoughSSTables, StatefulASTBase::compactTable)
                                   .destroyState(State::close)
@@ -324,7 +329,7 @@ public class TokenConflictTest extends StatefulASTBase
                 int numTokens = NUM_TOKENS_GEN.nextInt(rs);
                 var pkValues = Gens.lists(Generators.toGen(TYPE_SUPPORT.bytesGen())).unique().ofSize(numTokens).next(rs);
                 // now create conflicting values
-                var tokenValues = pkValues.stream().map(TokenConflictTest::toTokenValue).collect(Collectors.toList());
+                var tokenValues = pkValues.stream().map(SingleNodeTokenConflictTest::toTokenValue).collect(Collectors.toList());
                 // this is low probability... but just in case... if there are duplicates, drop them!
                 Set<ByteBuffer> seen = new HashSet<>();
                 for (int i = 0; i < pkValues.size(); i++)
