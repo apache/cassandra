@@ -248,15 +248,20 @@ public class MutationTrackingReadReconciliationTest extends TestBaseImpl
             assertIdsForTable(cluster.get(2), keyspaceName, tableName, allIds);
             assertIdsForTable(cluster.get(3), keyspaceName, tableName, firstIds);
 
-            // reverse the partition and do a read
+            // reverse the partition and do a read, read should include coordinator (1)'s ID and replica (3), even though (3) is missing the ID
             cluster.filters().reset();
-            cluster.filters().allVerbs().to(2).drop();
-            cluster.filters().allVerbs().from(2).drop();
+            // cluster.filters().allVerbs().to(2).drop();
+            // cluster.filters().allVerbs().from(2).drop();
+            cluster.get(2).shutdown().get();
+            // wait for node1 gossip to settle, shouldn't see any failures due to node1 coordinating to node2 replica
 
-
+            // No reconciliation has happened yet
             Assert.assertEquals(0, numLogReconciliations(cluster.get(1)));
             Object[][] result = cluster.coordinator(1).execute(format("SELECT * FROM %s.%s", keyspaceName, tableName), ConsistencyLevel.QUORUM);
             Assert.assertEquals(row(row(1, 0, 0), row(1, 1, 1), row(2, 2, 2)), result);
+
+            // Coordinator sends its missing mutations to 3 on read
+            Assert.assertEquals(1, numLogReconciliations(cluster.get(1)));
 
             // check that node3 has the new ids
             assertIdsForTable(cluster.get(3), keyspaceName, tableName, allIds);
