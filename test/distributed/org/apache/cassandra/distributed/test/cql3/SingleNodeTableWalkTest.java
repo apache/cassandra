@@ -99,8 +99,14 @@ public class SingleNodeTableWalkTest extends StatefulASTBase
     {
         // if a failing seed is detected, populate here
         // Example: builder.withSeed(42L);
-//        builder.withSeed(3448016866711841834L);
-        builder.withSeed(-6824473173421448866L);
+        // To show string/blobs
+        SHOW_REAL_VALUES = true;
+        // Reported to Caleb.  Missing row when 2 sai index queried with a non-sai column as well
+//        builder.withSeed(-6709165086006202361L);
+        // expected a partition without any rows... but looks like a model bug
+//        builder.withSeed(3883459919634936771L);
+        // Sent MTC: boolean/time index with AND missing 1 row
+//        builder.withSeed(-3028248151327841428L);
     }
 
     protected TypeGenBuilder supportedTypes()
