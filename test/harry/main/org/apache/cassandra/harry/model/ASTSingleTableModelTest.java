@@ -43,6 +43,9 @@ public class ASTSingleTableModelTest
 {
     public static final ByteBuffer ZERO = ByteBufferUtil.bytes(0);
     public static final ByteBuffer ONE = ByteBufferUtil.bytes(1);
+    public static final ByteBuffer TWO = ByteBufferUtil.bytes(2);
+    public static final ByteBuffer THREE = ByteBufferUtil.bytes(3);
+    public static final ByteBuffer[][] EMPTY = new ByteBuffer[0][];
 
     @Test
     public void singlePartition()
@@ -105,6 +108,40 @@ public class ASTSingleTableModelTest
                 builder.value(new Symbol(col), ZERO);
             Select select = builder.build();
             model.validate(new ByteBuffer[][] {expectedRow}, select);
+        }
+    }
+
+    @Test
+    public void eqNoMatches()
+    {
+        for (TableMetadata metadata : defaultTables())
+        {
+            // this test only works when there are regular/static columns
+            if (metadata.regularAndStaticColumns().isEmpty()) continue;
+            ASTSingleTableModel model = new ASTSingleTableModel(metadata);
+            insert(model, ZERO);
+            // insert row that shouldn't be returned
+            insert(model, (kind, offset) -> kind == ColumnMetadata.Kind.CLUSTERING ? ONE : ZERO);
+            // insert partition that shouldn't be returned
+            insert(model, ONE);
+
+            for (boolean includeClustering : Arrays.asList(true, false))
+            {
+                Select.Builder builder = Select.builder().table(metadata);
+                for (var col : metadata.partitionKeyColumns())
+                    builder.value(new Symbol(col), ZERO);
+                if (includeClustering)
+                {
+                    for (var col : metadata.clusteringColumns())
+                        builder.value(new Symbol(col), ONE);
+                }
+                for (var col : metadata.staticColumns())
+                    builder.value(new Symbol(col), TWO);
+                for (var col : metadata.regularColumns())
+                    builder.value(new Symbol(col), THREE);
+                Select select = builder.build();
+                model.validate(EMPTY, select);
+            }
         }
     }
 
