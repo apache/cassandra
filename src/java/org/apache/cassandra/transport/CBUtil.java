@@ -167,7 +167,7 @@ public abstract class CBUtil
     {
         int length = TypeSizes.encodedUTF8Length(str);
         Preconditions.checkArgument(length <= Short.MAX_VALUE,
-                                    LazyToString.lazy(() -> String.format("String too large; expected <= %d but was", Short.MAX_VALUE, length)));
+                                    LazyToString.lazy(() -> String.format("String too large; expected %d <= %d", length, Short.MAX_VALUE)));
         cb.writeShort(length);
         ByteBufUtil.reserveAndWriteUtf8(cb, str, length);
     }
