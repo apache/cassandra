@@ -57,6 +57,12 @@ public class ExpandCQLTest extends TestBaseImpl
         createHelper(IndexMetadata.class, withKeyspace("create index abc on %s.t (x)"));
     }
 
+    @Test
+    public void testCopyTable() throws IOException
+    {
+        createHelper(TableMetadata.class, String.format("create table %s.t2 like %s.t", KEYSPACE, KEYSPACE));
+    }
+
     private void createHelper(Class<?> clazz, String query) throws IOException
     {
         try (Cluster cluster = init(Cluster.build(1)

@@ -61,6 +61,7 @@ public final class CopyTableStatement extends AlterSchemaStatement
     private final String targetTableName;
     private final boolean ifNotExists;
     private final TableAttributes attrs;
+    private String expandedCql;
 
     public CopyTableStatement(String sourceKeyspace,
                               String targetKeyspace,
@@ -200,6 +201,10 @@ public final class CopyTableStatement extends AlterSchemaStatement
         TableMetadata table = targetBuilder.params(newTableParams)
                                            .id(TableId.get(metadata))
                                            .build();
+
+        expandedCql = table.toCqlString(false, false, ifNotExists);
+        verifyExpandedCql(expandedCql);
+
         table.validate();
 
         return schema.withAddedOrUpdated(targetKeyspaceMeta.withSwapped(targetKeyspaceMeta.tables.with(table)));
@@ -251,4 +256,13 @@ public final class CopyTableStatement extends AlterSchemaStatement
             return new CopyTableStatement(oldKeyspace, newKeyspace, oldName.getName(), newName.getName(), ifNotExists, attrs);
         }
     }
+
+    @Override
+    public String cql()
+    {
+        if (expandedCql != null)
+            return expandedCql;
+        return super.cql();
+    }
+
 }
