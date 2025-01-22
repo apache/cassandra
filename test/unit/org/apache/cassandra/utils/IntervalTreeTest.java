@@ -26,9 +26,12 @@ import java.lang.reflect.Constructor;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 import org.junit.BeforeClass;
+import com.google.common.base.Objects;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
@@ -43,6 +46,10 @@ import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.io.util.DataOutputPlus;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotSame;
+import static org.junit.Assert.assertSame;
+import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 
 @RunWith(Parameterized.class)
 public class IntervalTreeTest
@@ -219,5 +226,119 @@ public class IntervalTreeTest
             intervals2.add(i);
 
         assertEquals(intervals, intervals2);
+    }
+
+    @Test
+    public void testCopyAndReplace()
+    {
+        class DummyObj
+        {
+            final String data;
+            public DummyObj(String d)
+            {
+                data = d;
+            }
+            @Override
+            public final boolean equals(Object o)
+            {
+                if(!(o instanceof DummyObj))
+                    return false;
+
+                DummyObj that = (DummyObj)o;
+                return Objects.equal(data, that.data);
+            }
+        }
+        List<Interval<Integer, DummyObj>> intervals = new ArrayList<>();
+
+        DummyObj data1 = new DummyObj("c");
+        DummyObj data2 = new DummyObj("i");
+        DummyObj data3 = new DummyObj("cc");
+        DummyObj newData1 = new DummyObj("c");
+        DummyObj newData2 = new DummyObj("i");
+
+        Interval<Integer, DummyObj> target1 = Interval.create(1, 2, data1);
+        // same interval range with target1 but different data
+        Interval<Integer, DummyObj> target11 = Interval.create(1, 2, data3);
+        Interval<Integer, DummyObj> target2 = Interval.create(8, 9, data2);
+
+        // the two new intervals should replace the old ones in tree
+        Interval<Integer, DummyObj> newTarget1 = Interval.create(1, 2, newData1);
+        Interval<Integer, DummyObj> newTarget2 = Interval.create(8, 9, newData2);
+
+        intervals.add(Interval.create(-300, -200, new DummyObj("a")));
+        intervals.add(Interval.create(-3, -2, new DummyObj("b")));
+        intervals.add(target1);
+        intervals.add(target11);
+        intervals.add(Interval.create(1, 3, new DummyObj("d")));
+        intervals.add(Interval.create(2, 4, new DummyObj("e")));
+        intervals.add(Interval.create(3, 6, new DummyObj("f")));
+        intervals.add(Interval.create(4, 6, new DummyObj("g")));
+        intervals.add(Interval.create(5, 7, new DummyObj("h")));
+        intervals.add(target2);
+        intervals.add(Interval.create(15, 20, new DummyObj("j")));
+        intervals.add(Interval.create(40, 50, new DummyObj("k")));
+        intervals.add(Interval.create(49, 60, new DummyObj("l")));
+
+        IntervalTree<Integer, DummyObj, Interval<Integer, DummyObj>> it = IntervalTree.build(intervals);
+        assertEquals(3, it.search(Interval.create(4, 4)).size());
+        assertEquals(4, it.search(Interval.create(4, 5)).size());
+        assertEquals(8, it.search(Interval.create(-1, 10)).size());
+        assertEquals(0, it.search(Interval.create(-1, -1)).size());
+        assertEquals(6, it.search(Interval.create(1, 4)).size());
+        assertEquals(3, it.search(Interval.create(0, 1)).size());
+        assertEquals(0, it.search(Interval.create(10, 12)).size());
+
+        // should return 4 intervals: (1, 2, c), (1, 2, cc), (1, 3, d), (2, 4, e)
+        List<DummyObj> intersection1 = it.search(Interval.create(1, 2));
+        assertEquals(4, intersection1.size());
+        for (DummyObj ob : intersection1)
+        {
+            if (ob.data.equals("c"))
+            {
+                assertNotSame(newData1, ob);
+                assertSame(data1, ob);
+            }
+            else if (ob.data.equals("cc"))
+                assertSame(data3, ob);
+            else if (!ob.equals(new DummyObj("d")) && !ob.equals(new DummyObj("e")))
+                // fail if not matchinng
+                fail();
+        }
+
+        List<DummyObj> intersection2 = it.search(Interval.create(8, 9));
+        assertSame(intersection2.get(0), data2);
+
+        Map<Interval<Integer, DummyObj>, Interval<Integer, DummyObj>> toUpdate = new HashMap();
+        toUpdate.put(target1, newTarget1);
+        toUpdate.put(target2, newTarget2);
+        it = new IntervalTree<>(it.intervalCount(), it.copyAndReplace(toUpdate));
+        assertEquals(3, it.search(Interval.create(4, 4)).size());
+        assertEquals(4, it.search(Interval.create(4, 5)).size());
+        assertEquals(8, it.search(Interval.create(-1, 10)).size());
+        assertEquals(0, it.search(Interval.create(-1, -1)).size());
+        assertEquals(6, it.search(Interval.create(1, 4)).size());
+        assertEquals(3, it.search(Interval.create(0, 1)).size());
+        assertEquals(0, it.search(Interval.create(10, 12)).size());
+
+        // should return 4 intervals: (1, 2, c'), (1, 2, cc), (1, 3, d), (2, 4, e)
+        //                                   ^ replaced
+        intersection1 = it.search(Interval.create(1, 2));
+        assertEquals(4, intersection1.size());
+        for (DummyObj ob : intersection1)
+        {
+            if (ob.data.equals("c"))
+            {
+                assertNotSame(data1, ob);
+                assertSame(newData1, ob);
+            }
+            else if (ob.data.equals("cc"))
+                assertSame(data3, ob);
+            else if (!ob.equals(new DummyObj("d")) && !ob.equals(new DummyObj("e")))
+                // fail if not matchinng
+                fail();
+        }
+        intersection2 = it.search(Interval.create(8, 9));
+        assertNotSame(intersection1.get(0), data2);
+        assertSame(intersection2.get(0), newData2);
     }
 }

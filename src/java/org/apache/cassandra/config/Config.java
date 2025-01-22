@@ -750,6 +750,9 @@ public class Config
     // set this to be true to unmark SSTables from compacting in batch for index redistribution summary (CASSANDRA-20159)
     public boolean unmark_compacting_index_redistribution_in_batch_enabled = false;
 
+    // set this to be true to enable replace SSTableReader when doing checkpoint instead of rebuilding the interval tree when applicable (CASSANDRA-20158)
+    public boolean replace_sstable_reader_for_interval_tree_enabled = false;
+
     /** Cassandra maintains the Gossip info (Token, Status, etc.) in two caches 1) Gossip cache 2) Storage Service cache
      * The source of truth is the Gossip cache, which then updates the Storage service cache - but there exists no guarantee.
      * As a result, a wide variety of problems could occur, and one of the problems is a node could see different token ownership

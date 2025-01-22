@@ -22,7 +22,9 @@ package org.apache.cassandra.db.lifecycle;
 
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 import com.google.common.collect.Iterables;
 
@@ -40,6 +42,11 @@ public class SSTableIntervalTree extends IntervalTree<PartitionPosition, SSTable
         super(intervals);
     }
 
+    SSTableIntervalTree(int count, IntervalNode head)
+    {
+        super(count, head);
+    }
+
     public static SSTableIntervalTree empty()
     {
         return EMPTY;
@@ -48,6 +55,29 @@ public class SSTableIntervalTree extends IntervalTree<PartitionPosition, SSTable
     public static SSTableIntervalTree build(Iterable<SSTableReader> sstables)
     {
         return new SSTableIntervalTree(buildIntervals(sstables));
+    }
+
+    /**
+     * Creates a new SSTableIntervalTree where SSTableReaders within the replacementMap are updated from the map's
+     * key to its value. The new SSTableIntervalTree shares some {@code IntervalNode} instances with
+     * the original tree. Only the nodes along the paths to the replaced SSTableReaders are recreated, minimizing
+     * the extent of changes to the tree structure.
+     *
+     * Assumption: all SSTableReader keys of replacementMap are present within the current SSTableIntervalTree.
+     *
+     * @param replacementMap Map of SSTableReader(s) (toRemove, toAdd) that need to be replaced within the tree
+     * @return A new SSTableIntervalTree, partially sharing structure with the original tree, but with the specified
+     *         SSTableReaders replaced.
+     */
+    public SSTableIntervalTree copyAndReplaceSSTables(Map<SSTableReader, SSTableReader> replacementMap)
+    {
+        Map<Interval<PartitionPosition, SSTableReader>, Interval<PartitionPosition, SSTableReader>> replacementIntervalsMap = new HashMap<>();
+        for (Map.Entry<SSTableReader, SSTableReader> entry : replacementMap.entrySet())
+        {
+            replacementIntervalsMap.put(Interval.create(entry.getKey().first, entry.getKey().last, entry.getKey()),
+                                        Interval.create(entry.getValue().first, entry.getValue().last, entry.getValue()));
+        }
+        return new SSTableIntervalTree(intervalCount(), copyAndReplace(replacementIntervalsMap));
     }
 
     public static List<Interval<PartitionPosition, SSTableReader>> buildIntervals(Iterable<SSTableReader> sstables)
