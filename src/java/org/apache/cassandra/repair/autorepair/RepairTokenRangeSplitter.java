@@ -116,10 +116,10 @@ import static org.apache.cassandra.repair.autorepair.AutoRepairUtils.split;
  *         <b>max_tables_per_assignment</b>: The maximum number of tables that can be included in a repair assignment.
  *         This aims to reduce the number of repairs, especially in cases where a large amount of tables exists for
  *         a keyspace.  Note that the splitter will avoid batching tables together if they exceed the other
- *         configuration paramters such as <code>bytes_per_assignment</code> and <code>partitions_per_assignment</code>.
+ *         configuration parameters such as <code>bytes_per_assignment</code> and <code>partitions_per_assignment</code>.
  *     </li>
  *     <li>
- *         <b>max_bytes_per_schedule</b>: The maximum number of bytes to cover an individiual schedule.  This serves
+ *         <b>max_bytes_per_schedule</b>: The maximum number of bytes to cover an individual schedule.  This serves
  *         as a mechanism for throttling the amount of work that can be done on each repair cycle.  One may opt to
  *         reduce this value if the impact of repairs is causing too many load on the cluster, or increase it if
  *         writes outpace the amount of data being repaired.  Alternatively, one may want to choose tuning down or up
@@ -131,6 +131,8 @@ import static org.apache.cassandra.repair.autorepair.AutoRepairUtils.split;
  *     <li>
  *         <b>full</b>:  Configured in a way that attempts to accomplish repairing all data in a schedule, with
  *         individual repairs targeting at most 200GiB of data and 1048576 partitions.
+ *         <b>max_bytes_per_schedule</b> is set to a large value for full repair to attempt to repair all data per
+ *         repair schedule.
  *         <ul>
  *             <li><b>bytes_per_assignment</b>: 200GiB</li>
  *             <li><b>partitions_per_assignment</b>: 2^repair_session_max_tree_depth (2^20 == 1048576 by default)</li>
