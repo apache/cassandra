@@ -164,7 +164,6 @@ import static org.apache.cassandra.db.ConsistencyLevel.QUORUM;
 import static org.apache.cassandra.io.util.FileUtils.ONE_GIB;
 import static org.apache.cassandra.io.util.FileUtils.ONE_MIB;
 import static org.apache.cassandra.utils.Clock.Global.logInitializationOutcome;
-import static org.apache.cassandra.utils.LocalizeString.toUpperCaseLocalized;
 
 public class DatabaseDescriptor
 {
@@ -1882,20 +1881,6 @@ public class DatabaseDescriptor
             return defaultCidrChecksForSuperusers;
 
         return Boolean.parseBoolean(value);
-    }
-
-    public static ICIDRAuthorizer.CIDRAuthorizerMode getCidrAuthorizerMode()
-    {
-        ICIDRAuthorizer.CIDRAuthorizerMode defaultCidrAuthorizerMode = ICIDRAuthorizer.CIDRAuthorizerMode.MONITOR;
-
-        if (conf.cidr_authorizer == null || conf.cidr_authorizer.parameters == null)
-            return defaultCidrAuthorizerMode;
-
-        String cidrAuthorizerMode = conf.cidr_authorizer.parameters.get("cidr_authorizer_mode");
-        if (cidrAuthorizerMode == null || cidrAuthorizerMode.isEmpty())
-            return defaultCidrAuthorizerMode;
-
-        return ICIDRAuthorizer.CIDRAuthorizerMode.valueOf(toUpperCaseLocalized(cidrAuthorizerMode));
     }
 
     public static int getCidrGroupsCacheRefreshInterval()
