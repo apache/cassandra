@@ -369,7 +369,7 @@ public class LoggedReadReconciliation<E extends Endpoints<E>, P extends ReplicaP
         Preconditions.checkState(dataNode != null);
         Preconditions.checkState(dataResponse != null);
 
-        long expiresAt = requestTime.computeDeadline(DatabaseDescriptor.getReadRpcTimeout(TimeUnit.NANOSECONDS));
+        long expiresAt = requestTime.computeDeadline(command.getTimeout(TimeUnit.NANOSECONDS));
         long reconciliationId = MutationTrackingService.reconciliations().newReconciliation(this, expiresAt);
         logger.trace("New reconciliation {} with timeout {}", reconciliationId, command.timeoutNanos());
 
