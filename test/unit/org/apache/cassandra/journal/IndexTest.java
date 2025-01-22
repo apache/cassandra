@@ -238,10 +238,10 @@ public class IndexTest
 
             OnDiskIndex<TimeUUID>.IndexReader iter = onDisk.reader();
             Iterator<Pair<TimeUUID, Long>> expectedIter = sortedEntries.iterator();
-            while (iter.advance())
+            while (iter.hasNext())
             {
                 Pair<TimeUUID, Long> expected = expectedIter.next();
-                Assert.assertEquals(iter.key(), expected.left);
+                Assert.assertEquals(iter.next(), expected.left);
                 Assert.assertEquals(iter.recordSize(), Index.readSize(expected.right));
                 Assert.assertEquals(iter.offset(), Index.readOffset(expected.right));
             }

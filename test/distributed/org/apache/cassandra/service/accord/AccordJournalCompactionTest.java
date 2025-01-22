@@ -56,7 +56,6 @@ import static accord.api.Journal.FieldUpdates;
 import static accord.local.CommandStores.RangesForEpoch;
 import static org.apache.cassandra.service.accord.AccordJournalValueSerializers.DurableBeforeAccumulator;
 
-
 public class AccordJournalCompactionTest
 {
     @BeforeClass

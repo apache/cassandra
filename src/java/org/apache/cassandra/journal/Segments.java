@@ -206,6 +206,12 @@ class Segments<K, V>
             this.refs = refs;
         }
 
+        public int count()
+        {
+            if (refs == null) return 0;
+            else return refs.size();
+        }
+
         @Override
         public void close()
         {

@@ -48,6 +48,7 @@ import accord.primitives.Timestamp;
 import accord.primitives.TxnId;
 import accord.utils.Invariants;
 import accord.utils.PersistentField;
+import accord.utils.async.AsyncChains;
 import accord.utils.async.AsyncResult;
 import accord.utils.async.AsyncResults;
 import org.apache.cassandra.concurrent.Shutdownable;
@@ -74,13 +75,14 @@ import org.apache.cassandra.service.accord.serializers.CommandSerializers.Execut
 import org.apache.cassandra.service.accord.serializers.DepsSerializers;
 import org.apache.cassandra.service.accord.serializers.ResultSerializers;
 import org.apache.cassandra.service.accord.serializers.WaitingOnSerializer;
+import org.apache.cassandra.utils.CloseableIterator;
 import org.apache.cassandra.utils.ExecutorUtils;
 import org.apache.cassandra.utils.concurrent.AsyncPromise;
 
 import static accord.impl.CommandChange.anyFieldChanged;
-import static accord.impl.CommandChange.isNull;
 import static accord.impl.CommandChange.getFlags;
 import static accord.impl.CommandChange.isChanged;
+import static accord.impl.CommandChange.isNull;
 import static accord.impl.CommandChange.nextSetField;
 import static accord.impl.CommandChange.setChanged;
 import static accord.impl.CommandChange.setFieldIsNull;
@@ -90,7 +92,6 @@ import static accord.impl.CommandChange.validateFlags;
 import static accord.local.Cleanup.Input.FULL;
 import static accord.primitives.SaveStatus.Erased;
 import static accord.primitives.SaveStatus.Vestigial;
-import static accord.primitives.Status.Truncated;
 import static org.apache.cassandra.service.accord.AccordJournalValueSerializers.DurableBeforeAccumulator;
 
 public class AccordJournal implements accord.api.Journal, RangeSearcher.Supplier, Shutdownable
@@ -439,55 +440,50 @@ public class AccordJournal implements accord.api.Journal, RangeSearcher.Supplier
         journalTable.forceCompaction();
     }
 
-    @Override
+    @SuppressWarnings("unchecked") @Override
     public void replay(CommandStores commandStores)
     {
         journal.closeCurrentSegmentForTestingIfNonEmpty();
-        try (AccordJournalTable.KeyOrderIterator<JournalKey> iter = journalTable.readAll())
+        try (CloseableIterator<JournalKey> iter = journalTable.keyIterator())
         {
-            JournalKey key;
             Builder builder = new Builder();
 
-            while ((key = iter.key()) != null)
+            while (iter.hasNext())
             {
-                builder.reset(key.id);
+                JournalKey key = iter.next();
+
                 if (key.type != JournalKey.Type.COMMAND_DIFF)
-                {
-                    // TODO (required): add "skip" for the key to avoid getting stuck
-                    iter.readAllForKey(key, (segment, position, key1, buffer, userVersion) -> {});
                     continue;
-                }
 
-                JournalKey finalKey = key;
-                iter.readAllForKey(key, (segment, position, local, buffer, userVersion) -> {
-                    Invariants.require(finalKey.equals(local));
-                    try (DataInputBuffer in = new DataInputBuffer(buffer, false))
-                    {
-                        builder.deserializeNext(in, userVersion);
-                        if (journalTable.shouldIndex(finalKey)
-                            && builder.participants() != null
-                            && builder.participants().route() != null)
-                            journalTable.safeNotify(index ->
-                                                    index.update(segment, finalKey.commandStoreId, finalKey.id, builder.participants().route()));
-                    }
-                    catch (IOException e)
-                    {
-                        // can only throw if serializer is buggy
-                        throw new RuntimeException(e);
-                    }
-                });
+                CommandStore commandStore = commandStores.forId(key.commandStoreId);
+                Loader loader = commandStore.loader();
+                AsyncResult<Void> res = loader.load(key.id, () -> {
+                    builder.reset(key.id);
 
-                if (!builder.isEmpty())
-                {
-                    CommandStore commandStore = commandStores.forId(key.commandStoreId);
+                    // TODO (expected): for those where we store an image, read only the first entry we find in DESC order
+                    journalTable.readAll(key, (segment, position, local, buffer, userVersion) -> {
+                        Invariants.require(key.equals(local));
+                        try (DataInputBuffer in = new DataInputBuffer(buffer, false))
+                        {
+                            builder.deserializeNext(in, userVersion);
+                            if (journalTable.shouldIndex(key)
+                                && builder.participants() != null
+                                && builder.participants().route() != null)
+                                journalTable.safeNotify(index -> index.update(segment, key.commandStoreId, key.id, builder.participants().route()));
+                        }
+                        catch (IOException e)
+                        {
+                            // can only throw if serializer is buggy
+                            throw new RuntimeException(e);
+                        }
+                    }, true);
+
                     Command command = builder.construct(commandStore.unsafeGetRedundantBefore());
                     Invariants.require(command.saveStatus() != SaveStatus.Uninitialised,
-                                          "Found uninitialized command in the log: %s %s", command.toString(), builder.toString());
-                    Loader loader = commandStore.loader();
-                    async(loader::load, command).get();
-                    if (command.saveStatus().compareTo(SaveStatus.Stable) >= 0 && !command.hasBeen(Truncated))
-                        async(loader::apply, command).get();
-                }
+                                       "Found uninitialized command in the log: %s %s", command.toString(), builder.toString());
+                    return command;
+                }).beginAsResult();
+                AsyncChains.getUnchecked(res);
             }
         }
         catch (Throwable t)

@@ -29,6 +29,7 @@ import java.util.concurrent.locks.Lock;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.IntFunction;
+import java.util.function.Supplier;
 import javax.annotation.Nullable;
 
 import com.google.common.annotations.VisibleForTesting;
@@ -61,6 +62,8 @@ import accord.primitives.TxnId;
 import accord.utils.Invariants;
 import accord.utils.async.AsyncChain;
 import accord.utils.async.AsyncChains;
+import accord.utils.async.AsyncResult;
+import accord.utils.async.AsyncResults;
 import org.apache.cassandra.service.accord.api.AccordRoutingKey.TokenKey;
 import org.apache.cassandra.service.accord.txn.TxnRead;
 import org.apache.cassandra.utils.Clock;
@@ -70,7 +73,6 @@ import static accord.api.Journal.CommandUpdate;
 import static accord.api.Journal.FieldUpdates;
 import static accord.api.Journal.Load.MINIMAL;
 import static accord.api.Journal.Loader;
-import static accord.api.Journal.OnDone;
 import static accord.local.KeyHistory.SYNC;
 import static accord.primitives.Status.Committed;
 import static accord.primitives.Status.PreCommitted;
@@ -505,32 +507,27 @@ public class AccordCommandStore extends CommandStore
         }
 
         @Override
-        public void load(Command command, OnDone onDone)
+        public AsyncChain<Void> load(TxnId txnId, Supplier<Command> supplier)
         {
-            store.execute(context(command, SYNC), safeStore -> loadInternal(command, safeStore))
-                 .begin((unused, throwable) -> {
-                     if (throwable != null)
-                         onDone.failure(throwable);
-                     else
-                         onDone.success();
-                 });
+            if (store.caches.commands().isReferenced(txnId))
+                return AsyncResults.SUCCESS_NULL;
+
+            Command command = supplier.get();
+            return store.submit(context(command, SYNC),
+                                safeStore -> loadInternal(command, safeStore))
+                        .beginAsResult()
+                        .flatMap(this::apply);
         }
 
-        @Override
-        public void apply(Command command, OnDone onDone)
+        public AsyncResult<Void> apply(Command command)
         {
             PreLoadContext context = context(command, SYNC);
-            store.execute(context, safeStore -> {
+            return store.execute(context, safeStore -> {
                      applyWrites(command.txnId(), safeStore, (safeCommand, cmd) -> {
                          Commands.applyWrites(safeStore, context, cmd).begin(store.agent);
                      });
                  })
-                 .begin((unused, throwable) -> {
-                     if (throwable != null)
-                         onDone.failure(throwable);
-                     else
-                         onDone.success();
-                 });
+                 .beginAsResult();
         }
     }
 
