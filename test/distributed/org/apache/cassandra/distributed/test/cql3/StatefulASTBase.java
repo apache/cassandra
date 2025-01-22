@@ -28,11 +28,9 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
-
 import javax.annotation.Nullable;
 
 import com.google.common.collect.ImmutableSet;
-
 import org.slf4j.Logger;
 
 import accord.utils.Gen;
@@ -40,7 +38,6 @@ import accord.utils.Gens;
 import accord.utils.Property;
 import accord.utils.RandomSource;
 import com.datastax.driver.core.ColumnDefinitions;
-import com.datastax.driver.core.ConsistencyLevel;
 import com.datastax.driver.core.ResultSet;
 import com.datastax.driver.core.Row;
 import com.datastax.driver.core.Session;
@@ -68,6 +65,7 @@ import org.apache.cassandra.db.marshal.LongType;
 import org.apache.cassandra.db.marshal.StringType;
 import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.distributed.Cluster;
+import org.apache.cassandra.distributed.api.ConsistencyLevel;
 import org.apache.cassandra.distributed.api.Feature;
 import org.apache.cassandra.distributed.api.IInstance;
 import org.apache.cassandra.distributed.test.JavaDriverUtils;
@@ -224,7 +222,6 @@ public class StatefulASTBase extends TestBaseImpl
             this.rs = rs;
             this.cluster = cluster;
             this.client = JavaDriverUtils.create(cluster);
-            client.getConfiguration().getQueryOptions().setConsistencyLevel(ConsistencyLevel.QUORUM);
             this.session = client.connect();
 
             if (!SHOW_REAL_VALUES)
@@ -291,8 +288,18 @@ public class StatefulASTBase extends TestBaseImpl
             if (annotate == null) annotate = postfix;
             else                  annotate += ", " + postfix;
             return new Property.SimpleCommand<>(humanReadable(select, annotate), s -> {
-                s.model.validate(s.executeQuery(inst, fetchSize, select), select);
+                s.model.validate(s.executeQuery(inst, fetchSize, s.selectCl(), select), select);
             });
+        }
+
+        protected ConsistencyLevel selectCl()
+        {
+            return ConsistencyLevel.ALL;
+        }
+
+        protected ConsistencyLevel mutationCl()
+        {
+            return ConsistencyLevel.NODE_LOCAL;
         }
 
         protected <S extends BaseState> Property.Command<S, Void, ?> command(RandomSource rs, Mutation mutation)
@@ -307,7 +314,7 @@ public class StatefulASTBase extends TestBaseImpl
             if (annotate == null) annotate = postfix;
             else                  annotate += ", " + postfix;
             return new Property.SimpleCommand<>(humanReadable(mutation, annotate), s -> {
-                s.executeQuery(inst, Integer.MAX_VALUE, mutation);
+                s.executeQuery(inst, Integer.MAX_VALUE, s.mutationCl(), mutation);
                 s.model.update(mutation);
                 s.mutation();
             });
@@ -347,19 +354,56 @@ public class StatefulASTBase extends TestBaseImpl
             return bindOrLiteralGen.next(rs) ? new Bind(bb, type) : new Literal(bb, type);
         }
 
-        protected ByteBuffer[][] executeQuery(IInstance instance, int fetchSize, Statement stmt)
+        protected ByteBuffer[][] executeQuery(IInstance instance, int fetchSize, ConsistencyLevel cl, Statement stmt)
         {
-            SimpleStatement ss = new SimpleStatement(stmt.toCQL(), stmt.bindsEncoded());
-            if (fetchSize != Integer.MAX_VALUE)
-                ss.setFetchSize(fetchSize);
+            if (cl == ConsistencyLevel.NODE_LOCAL)
+            {
+                // This limitation is due to the fact the query column types are not known in the current QueryResult API.
+                // In order to fix this we need to alter the API, and backport to each branch else we break upgrade.
+                if (!(stmt instanceof Mutation))
+                    throw new IllegalArgumentException("Unable to execute Statement of type " + stmt.getClass() + " when ConsistencyLevel.NODE_LOCAL is used");
+                if (fetchSize != Integer.MAX_VALUE)
+                    throw new IllegalArgumentException("Fetch size is not allowed for Mutations");
+                instance.executeInternal(stmt.toCQL(), stmt.bindsEncoded());
+                return new ByteBuffer[0][];
+            }
+            else
+            {
+                SimpleStatement ss = new SimpleStatement(stmt.toCQL(), stmt.bindsEncoded());
+                if (fetchSize != Integer.MAX_VALUE)
+                    ss.setFetchSize(fetchSize);
+                ss.setConsistencyLevel(toDriverCL(cl));
 
-            var host = client.getMetadata().getAllHosts().stream()
-                             .filter(h -> h.getListenAddress().equals(instance.config().broadcastAddress().getAddress()))
-                             .findAny()
-                             .get();
-            ss.setHost(host);
-            ResultSet result = session.execute(ss);
-            return getRowsAsByteBuffer(result);
+                var host = client.getMetadata().getAllHosts().stream()
+                        .filter(h -> h.getListenAddress().equals(instance.config().broadcastAddress().getAddress()))
+                        .findAny()
+                        .get();
+                ss.setHost(host);
+                ResultSet result = session.execute(ss);
+                return getRowsAsByteBuffer(result);
+            }
+        }
+
+        private static com.datastax.driver.core.ConsistencyLevel toDriverCL(ConsistencyLevel cl)
+        {
+            switch (cl)
+            {
+                case QUORUM: return com.datastax.driver.core.ConsistencyLevel.QUORUM;
+                case EACH_QUORUM: return com.datastax.driver.core.ConsistencyLevel.EACH_QUORUM;
+                case ANY: return com.datastax.driver.core.ConsistencyLevel.ANY;
+                case ALL: return com.datastax.driver.core.ConsistencyLevel.ALL;
+                case SERIAL: return com.datastax.driver.core.ConsistencyLevel.SERIAL;
+                case LOCAL_SERIAL: return com.datastax.driver.core.ConsistencyLevel.LOCAL_SERIAL;
+                case LOCAL_QUORUM: return com.datastax.driver.core.ConsistencyLevel.LOCAL_QUORUM;
+                case LOCAL_ONE: return com.datastax.driver.core.ConsistencyLevel.LOCAL_ONE;
+                case ONE: return com.datastax.driver.core.ConsistencyLevel.ONE;
+                case TWO: return com.datastax.driver.core.ConsistencyLevel.TWO;
+                case THREE: return com.datastax.driver.core.ConsistencyLevel.THREE;
+                case NODE_LOCAL:
+                    throw new AssertionError("NODE_LOCAL is not supported by driver and should go directly through jvm-dtest api");
+                default:
+                    throw new UnsupportedOperationException("Unknown ConsistencyLevel: " + cl);
+            }
         }
 
         private static ByteBuffer[][] getRowsAsByteBuffer(ResultSet result)

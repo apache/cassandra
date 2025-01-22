@@ -32,6 +32,7 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.TreeSet;
+import java.util.function.IntFunction;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import javax.annotation.Nullable;
@@ -89,8 +90,6 @@ public class ASTSingleTableModel
 
     public TreeMap<ByteBuffer, List<BytesPartitionState.PrimaryKey>> index(Symbol symbol)
     {
-        if (factory.pkPositions.size() == 1 && factory.pkPositions.contains(symbol))
-            throw new IllegalArgumentException("Unable to index partition columns when there is only 1 column");
         if (factory.pkPositions.contains(symbol))
             return indexPartitionColumn(symbol);
         if (factory.staticPositions.contains(symbol))
@@ -905,6 +904,17 @@ public class ASTSingleTableModel
         return true;
     }
 
+    private static boolean matches(ByteBuffer value, List<? extends Expression> conditions)
+    {
+        for (Expression e : conditions)
+        {
+            ByteBuffer expected = eval(e);
+            if (!expected.equals(value))
+                return false;
+        }
+        return true;
+    }
+
     private Set<BytesPartitionState.PrimaryKey> searchEq(LookupContext ctx)
     {
         Set<BytesPartitionState.PrimaryKey> matches = null;
@@ -1055,7 +1065,7 @@ public class ASTSingleTableModel
             for (Clustering<ByteBuffer> cd : keys(values, factory.ckPositions))
             {
                 BytesPartitionState.Row row = partition.get(cd);
-                if (row != null)
+                if (row != null && ctx.include(row))
                     rows.add(row.ref());
             }
         }
@@ -1064,12 +1074,16 @@ public class ASTSingleTableModel
             // full partition
             if (partition.isEmpty())
             {
+                //TODO (now, correctness): if you query a non-partition column and this is empty, this condition isn't true...
                 rows.add(partition.partitionRowRef());
             }
             else
             {
                 for (BytesPartitionState.Row row : partition.rows())
-                    rows.add(row.ref());
+                {
+                    if (ctx.include(row))
+                        rows.add(row.ref());
+                }
             }
         }
         return rows;
@@ -1081,7 +1095,7 @@ public class ASTSingleTableModel
         for (Clustering<ByteBuffer> pd : keys(ctx.eq, factory.pkPositions))
         {
             BytesPartitionState partition = partitions.get(factory.createRef(pd));
-            if (partition == null) continue;
+            if (partition == null || !ctx.include(partition)) continue;
             matches.addAll(filter(ctx, partition));
         }
         return matches;
@@ -1180,7 +1194,7 @@ public class ASTSingleTableModel
         }
     }
 
-    private static class LookupContext
+    private class LookupContext
     {
         private final Select select;
         private Map<Symbol, List<? extends Expression>> eq = new HashMap<>();
@@ -1192,9 +1206,52 @@ public class ASTSingleTableModel
         private boolean unordered = false;
         private boolean unmatchable = false;
 
-        public LookupContext(Select select)
+        private LookupContext(Select select)
         {
             this.select = select;
+        }
+
+        boolean include(BytesPartitionState partition)
+        {
+            if (unmatchable) return false;
+            if (!include(factory.pkPositions, partition.key::bufferAt))
+                return false;
+            if (!factory.staticPositions.isEmpty()
+                && !include(factory.staticPositions, partition.staticRow()::get))
+                return false;
+            return true;
+        }
+
+        boolean include(BytesPartitionState.Row row)
+        {
+            if (unmatchable) return false;
+            if (!factory.ckPositions.isEmpty()
+                && !include(factory.ckPositions, row.clustering::bufferAt))
+                return false;
+            if (!factory.regularPositions.isEmpty()
+                && !include(factory.regularPositions, row::get))
+                return false;
+            return true;
+        }
+
+        private boolean include(ImmutableUniqueList<Symbol> columns, IntFunction<ByteBuffer> accessor)
+        {
+            for (Symbol col : columns)
+            {
+                if (eq.containsKey(col))
+                {
+                    ByteBuffer actual = accessor.apply(columns.indexOf(col));
+                    if (!matches(actual, eq.get(col)))
+                        return false;
+                }
+                if (ltOrGt.containsKey(col))
+                {
+                    ByteBuffer actual = accessor.apply(columns.indexOf(col));
+                    if (!matches(col.type(), actual, ltOrGt.get(col)))
+                        return false;
+                }
+            }
+            return true;
         }
     }
 

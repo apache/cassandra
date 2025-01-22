@@ -223,7 +223,6 @@ public class BytesPartitionState
         return navigableSet;
     }
 
-    @Nullable
     public Row staticRow()
     {
         return toRow(state.staticRow());

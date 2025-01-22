@@ -99,6 +99,8 @@ public class SingleNodeTableWalkTest extends StatefulASTBase
     {
         // if a failing seed is detected, populate here
         // Example: builder.withSeed(42L);
+//        builder.withSeed(3448016866711841834L);
+        builder.withSeed(-6824473173421448866L);
     }
 
     protected TypeGenBuilder supportedTypes()
@@ -247,6 +249,34 @@ public class SingleNodeTableWalkTest extends StatefulASTBase
         return eqSearch(rs, state, symbol, value, builder);
     }
 
+    public Property.Command<State, Void, ?> multiColumnQuery(RandomSource rs, State state)
+    {
+        if (state.metadata.columns().size() == 1)
+            throw new IllegalArgumentException("Unable to do multiple column query when there is only a single column");
+        int numColumns = rs.nextInt(1, state.metadata.columns().size()) + 1;
+        List<Symbol> cols = Gens.lists(Gens.pick(state.model.factory.selectOrder)).unique().ofSize(numColumns).next(rs);
+
+        Select.Builder builder = Select.builder().table(state.metadata).allowFiltering();
+
+        for (Symbol symbol : cols)
+        {
+            TreeMap<ByteBuffer, List<BytesPartitionState.PrimaryKey>> universe = state.model.index(symbol);
+            NavigableSet<ByteBuffer> allowed = Sets.filter(universe.navigableKeySet(), b -> !ByteBufferUtil.EMPTY_BYTE_BUFFER.equals(b));
+            //TODO (now): support
+            if (allowed.isEmpty())
+                return Property.ignoreCommand();
+            ByteBuffer value = rs.pickOrderedSet(allowed);
+            builder.value(symbol, value);
+        }
+
+        Select select = builder.build();
+        String annotate = cols.stream().map(symbol -> {
+            var indexed = state.indexes.get(symbol);
+            return symbol.detailedName() + (indexed == null ? "" : " (indexed with " + indexed.indexDDL.indexer.name() + ")");
+        }).collect(Collectors.joining(", "));
+        return state.command(rs, select, annotate);
+    }
+
     private Property.Command<State, Void, ?> simpleRangeSearch(RandomSource rs, State state, Symbol symbol, ByteBuffer value, Select.Builder builder)
     {
         // do a simple search, like > or <
@@ -286,6 +316,7 @@ public class SingleNodeTableWalkTest extends StatefulASTBase
                                                              .addIf(State::allowNonPartitionQuery, this::nonPartitionQuery)
                                                              .addIf(State::hasEnoughMemtable, StatefulASTBase::flushTable)
                                                              .addIf(State::hasEnoughSSTables, StatefulASTBase::compactTable)
+                                                             .addIf(s -> s.metadata.columns().size() > 1, this::multiColumnQuery)
                                                              .destroyState(State::close)
                                                              .onSuccess(onSuccess(logger))
                                                              .build());
