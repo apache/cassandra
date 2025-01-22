@@ -58,7 +58,7 @@ public class SelectMultiColumnRelationTest extends CQLTester
         createTable("CREATE TABLE %s (a int, b int, c int, d int, PRIMARY KEY (a, b, c, d))");
 
         assertInvalidSyntax("SELECT * FROM %s WHERE a = 0 AND (b, c) > ()");
-        assertInvalidMessage("Expected 2 elements in value for tuple (b, c), but got 3: (?, ?, ?)",
+        assertInvalidMessage("Invalid tuple literal for (b, c): too many elements. Type frozen<tuple<int, int>> expects 2 but got 3",
                              "SELECT * FROM %s WHERE a = 0 AND (b, c) > (?, ?, ?)", 1, 2, 3);
         assertInvalidMessage("Invalid null value for c in tuple (b, c)",
                              "SELECT * FROM %s WHERE a = 0 AND (b, c) > (?, ?)", 1, null);
@@ -72,7 +72,7 @@ public class SelectMultiColumnRelationTest extends CQLTester
         // Wrong number of values
         assertInvalidMessage("Expected 3 elements in value for tuple (b, c, d), but got 2: (?, ?)",
                              "SELECT * FROM %s WHERE a=0 AND (b, c, d) IN ((?, ?))", 0, 1);
-        assertInvalidMessage("Expected 3 elements in value for tuple (b, c, d), but got 5: (?, ?, ?, ?, ?)",
+        assertInvalidMessage("Invalid tuple literal for (b, c, d): too many elements. Type frozen<tuple<int, int, int>> expects 3 but got 5",
                              "SELECT * FROM %s WHERE a=0 AND (b, c, d) IN ((?, ?, ?, ?, ?))", 0, 1, 2, 3, 4);
 
         // Missing first clustering column
