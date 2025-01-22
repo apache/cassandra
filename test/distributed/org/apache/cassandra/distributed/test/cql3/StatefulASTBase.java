@@ -119,7 +119,7 @@ public class StatefulASTBase extends TestBaseImpl
      * to spot as text editors (such as Intellij) may show different strings!  This is the main this flag was added...
      * to avoid this confussion while debugging!
      */
-    private static final boolean SHOW_REAL_VALUES = false;
+    protected static boolean SHOW_REAL_VALUES = false;
 
     protected static final Gen<Gen<Boolean>> BIND_OR_LITERAL_DISTRO = Gens.bools().mixedDistribution();
     protected static final Gen<Gen<Boolean>> BETWEEN_EQ_DISTRO = Gens.bools().mixedDistribution();
@@ -425,7 +425,7 @@ public class StatefulASTBase extends TestBaseImpl
         {
             String cql = stmt.visit(debug).toCQL(CQLFormatter.None.instance);
             if (annotate != null)
-                cql += "; -- " + annotate;
+                cql += " -- " + annotate;
             return cql;
         }
 
