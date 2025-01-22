@@ -17,20 +17,21 @@
  */
 package org.apache.cassandra.journal;
 
-import java.io.Closeable;
 import java.io.IOException;
 import java.nio.channels.ClosedByInterruptException;
 import java.nio.file.FileStore;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
+import java.util.Iterator;
 import java.util.List;
-import java.util.PriorityQueue;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.locks.LockSupport;
 import java.util.function.BooleanSupplier;
 import java.util.function.Function;
+import java.util.function.LongConsumer;
 import java.util.function.Predicate;
 import java.util.zip.CRC32;
 
@@ -51,8 +52,11 @@ import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.util.PathUtils;
 import org.apache.cassandra.journal.Segments.ReferencedSegments;
 import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.utils.CloseableIterator;
 import org.apache.cassandra.utils.Crc;
 import org.apache.cassandra.utils.JVMStabilityInspector;
+import org.apache.cassandra.utils.LazyToString;
+import org.apache.cassandra.utils.MergeIterator;
 import org.apache.cassandra.utils.Simulate;
 import org.apache.cassandra.utils.concurrent.OpOrder;
 import org.apache.cassandra.utils.concurrent.WaitQueue;
@@ -262,11 +266,11 @@ public class Journal<K, V> implements Shutdownable
             compactor.shutdown();
             compactor.awaitTermination(1, TimeUnit.MINUTES);
             flusher.shutdown();
-            closer.shutdown();
+            closeAllSegments();
             releaser.shutdown();
+            closer.shutdown();
             closer.awaitTermination(1, TimeUnit.MINUTES);
             releaser.awaitTermination(1, TimeUnit.MINUTES);
-            closeAllSegments();
             metrics.deregister();
             Invariants.require(state.compareAndSet(State.SHUTDOWN, State.TERMINATED),
                                   "Unexpected journal state while trying to shut down", state);
@@ -921,63 +925,155 @@ public class Journal<K, V> implements Shutdownable
         void write(DataOutputPlus out, int userVersion) throws IOException;
     }
 
-    public StaticSegmentIterator staticSegmentIterator()
+    /**
+     * Static segment iterator iterates all keys in _static_ segments in order.
+     */
+    public StaticSegmentKeyIterator staticSegmentKeyIterator()
     {
-        return new StaticSegmentIterator();
+        return new StaticSegmentKeyIterator();
     }
 
     /**
-     * Static segment iterator iterates all _static_ segments in _key_ order.
+     * List of key and a list of segment descriptors referencing this key
      */
-    public class StaticSegmentIterator implements Closeable
+    public static class KeyRefs<K>
     {
-        // TODO (expected): use MergeIterator
-        private final PriorityQueue<StaticSegment.KeyOrderReader<K>> readers;
-        private final ReferencedSegments<K, V> segments;
+        long segments[];
+        K key;
+        int size;
 
-        private StaticSegmentIterator()
+        public KeyRefs(K key)
         {
-            this.segments = selectAndReference(Segment::isStatic);
-            this.readers = new PriorityQueue<>();
-            for (Segment<K, V> segment : this.segments.all())
-            {
-                StaticSegment<K, V> staticSegment = (StaticSegment<K, V>)segment;
-                StaticSegment.KeyOrderReader<K> reader = staticSegment.keyOrderReader();
-                if (reader.advance())
-                    this.readers.add(reader);
-                else
-                    reader.close();
-            }
+            this.key = key;
+        }
+
+        private KeyRefs(int maxSize)
+        {
+            this.segments = new long[maxSize];
+        }
+
+        public void segments(LongConsumer consumer)
+        {
+            for (int i = 0; i < size; i++)
+                consumer.accept(segments[i]);
         }
 
         public K key()
         {
-            StaticSegment.KeyOrderReader<K> reader = readers.peek();
-            if (reader == null)
-                return null;
-            return reader.key();
+            return key;
         }
 
-        public void readAllForKey(K key, RecordConsumer<K> reader)
+        private void add(K key, long segment)
         {
-            while (true)
-            {
-                StaticSegment.KeyOrderReader<K> next = readers.peek();
-                if (next == null || !next.key().equals(key))
-                    break;
-                Invariants.require(next == readers.poll());
-
-                reader.accept(next.descriptor.timestamp, next.offset, next.key(), next.record(), next.descriptor.userVersion);
-                if (next.advance())
-                    readers.add(next);
-                else
-                    next.close();
-            }
+            this.key = key;
+            if (size == 0 || segments[size - 1] < segment)
+                segments[size++] = segment;
+            else
+                Invariants.require(segments[size - 1] == segment,
+                                   "Tried to add an out-of-order segment: %d, %s", segment,
+                                   LazyToString.lazy(() -> Arrays.toString(Arrays.copyOf(segments, size))));
         }
 
+        private void reset()
+        {
+            key = null;
+            size = 0;
+            Arrays.fill(segments, 0);
+        }
+    }
+
+    public class StaticSegmentKeyIterator implements CloseableIterator<KeyRefs<K>>
+    {
+        private final ReferencedSegments<K, V> segments;
+        private final MergeIterator<Head, KeyRefs<K>> iterator;
+
+        public StaticSegmentKeyIterator()
+        {
+            this.segments = selectAndReference(Segment::isStatic);
+            List<Iterator<Head>> iterators = new ArrayList<>(segments.count());
+
+            for (Segment<K, V> segment : segments.allSorted(true))
+            {
+                StaticSegment<K, V> staticSegment = (StaticSegment<K, V>) segment;
+                Iterator<K> iter = staticSegment.index().reader();
+                Head head = new Head(staticSegment.descriptor.timestamp);
+                iterators.add(new Iterator<>()
+                {
+                    public boolean hasNext()
+                    {
+                        return iter.hasNext();
+                    }
+
+                    public Head next()
+                    {
+                        head.key = iter.next();
+                        return head;
+                    }
+                });
+            }
+
+            this.iterator = MergeIterator.get(iterators,
+                                              (r1, r2) -> {
+                                                  int keyCmp = keySupport.compare(r1.key, r2.key);
+                                                  if (keyCmp != 0)
+                                                      return keyCmp;
+                                                  return Long.compare(r1.segment, r2.segment);
+                                              },
+                                              new MergeIterator.Reducer<Head, KeyRefs<K>>()
+                                              {
+                                                  final KeyRefs<K> ret = new KeyRefs<>(segments.count());
+
+                                                  @Override
+                                                  public void reduce(int idx, Head head)
+                                                  {
+                                                      ret.add(head.key, head.segment);
+                                                  }
+
+                                                  @Override
+                                                  protected KeyRefs<K> getReduced()
+                                                  {
+                                                      return ret;
+                                                  }
+
+                                                  @Override
+                                                  protected void onKeyChange()
+                                                  {
+                                                      ret.reset();
+                                                      super.onKeyChange();
+                                                  }
+                                              });
+        }
+
+        @Override
         public void close()
         {
             segments.close();
+        }
+
+        public KeyRefs<K> peek()
+        {
+            if (iterator.hasNext())
+                return iterator.peek();
+            return null;
+        }
+
+        @Override
+        public boolean hasNext()
+        {
+            return iterator.hasNext();
+        }
+
+        @Override
+        public KeyRefs<K> next()
+        {
+            return iterator.next();
+        }
+
+        class Head
+        {
+            final long segment;
+            K key;
+            Head(long segment) { this.segment = segment; }
         }
     }
 

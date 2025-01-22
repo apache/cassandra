@@ -230,6 +230,8 @@ public class AccordGenerators
             builder.promised(promised);
             if (saveStatus.status.compareTo(Status.PreAccepted) > 0)
                 builder.acceptedOrCommitted(accepted);
+            else
+                builder.acceptedOrCommitted(Ballot.ZERO);
             if (saveStatus.compareTo(SaveStatus.Stable) >= 0 && !saveStatus.hasBeen(Status.Truncated))
                 builder.waitingOn(waitingOn);
             if (saveStatus.hasBeen(Status.PreApplied) && !saveStatus.hasBeen(Status.Truncated))

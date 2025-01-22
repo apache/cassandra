@@ -17,16 +17,16 @@
  */
 package org.apache.cassandra.service.accord;
 
-import java.io.Closeable;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.function.Consumer;
-
+import javax.annotation.CheckForNull;
 import javax.annotation.Nullable;
 
+import com.google.common.collect.AbstractIterator;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -153,11 +153,11 @@ public class AccordJournalTable<K extends JournalKey, V> implements RangeSearche
         void read(DataInputPlus input, int userVersion) throws IOException;
     }
 
-    private abstract class AbstractRecordConsumer implements RecordConsumer<K>
+    private class RecordConsumerAdapter implements RecordConsumer<K>
     {
         protected final Reader reader;
 
-        AbstractRecordConsumer(Reader reader)
+        RecordConsumerAdapter(Reader reader)
         {
             this.reader = reader;
         }
@@ -169,13 +169,13 @@ public class AccordJournalTable<K extends JournalKey, V> implements RangeSearche
         }
     }
 
-    private class TableRecordConsumer extends AbstractRecordConsumer
+    private class TableRecordConsumer implements RecordConsumer<K>
     {
         protected LongHashSet visited = null;
-
-        TableRecordConsumer(Reader reader)
+        protected RecordConsumer<K> delegate;
+        TableRecordConsumer(RecordConsumer<K> delegate)
         {
-            super(reader);
+            this.delegate = delegate;
         }
 
         void visit(long segment)
@@ -194,20 +194,20 @@ public class AccordJournalTable<K extends JournalKey, V> implements RangeSearche
         public void accept(long segment, int position, K key, ByteBuffer buffer, int userVersion)
         {
             visit(segment);
-            super.accept(segment, position, key, buffer, userVersion);
+            delegate.accept(segment, position, key, buffer, userVersion);
         }
     }
 
-    private class JournalAndTableRecordConsumer extends AbstractRecordConsumer
+    private class JournalAndTableRecordConsumer implements RecordConsumer<K>
     {
         private final K key;
         private final TableRecordConsumer tableRecordConsumer;
-
-        JournalAndTableRecordConsumer(K key, Reader reader)
+        private final RecordConsumer<K> delegate;
+        JournalAndTableRecordConsumer(K key, RecordConsumer<K> reader)
         {
-            super(reader);
             this.key = key;
             this.tableRecordConsumer = new TableRecordConsumer(reader);
+            this.delegate = reader;
         }
 
         void readTable()
@@ -219,7 +219,7 @@ public class AccordJournalTable<K extends JournalKey, V> implements RangeSearche
         public void accept(long segment, int position, K key, ByteBuffer buffer, int userVersion)
         {
             if (!tableRecordConsumer.visited(segment))
-                super.accept(segment, position, key, buffer, userVersion);
+                delegate.accept(segment, position, key, buffer, userVersion);
         }
     }
 
@@ -341,6 +341,11 @@ public class AccordJournalTable<K extends JournalKey, V> implements RangeSearche
      */
     public void readAll(K key, Reader reader, boolean asc)
     {
+        readAll(key, new RecordConsumerAdapter(reader), asc);
+    }
+
+    public void readAll(K key, RecordConsumer<K> reader, boolean asc)
+    {
         JournalAndTableRecordConsumer consumer = new JournalAndTableRecordConsumer(key, reader);
         journal.readAll(key, consumer, asc);
         consumer.readTable();
@@ -386,18 +391,15 @@ public class AccordJournalTable<K extends JournalKey, V> implements RangeSearche
     }
 
     @SuppressWarnings("resource") // Auto-closeable iterator will release related resources
-    public KeyOrderIterator<K> readAll()
+    public CloseableIterator<Journal.KeyRefs<K>> keyIterator()
     {
         return new JournalAndTableKeyIterator();
     }
 
-    private class TableIterator implements Closeable
+    private class TableIterator extends AbstractIterator<K> implements CloseableIterator<K>
     {
         private final UnfilteredPartitionIterator mergeIterator;
         private final RefViewFragment view;
-
-        private UnfilteredRowIterator partition;
-        private LongHashSet visited = null;
 
         private TableIterator()
         {
@@ -407,56 +409,23 @@ public class AccordJournalTable<K extends JournalKey, V> implements RangeSearche
                 scanners.add(sstable.getScanner());
 
             mergeIterator = view.sstables.isEmpty()
-                     ? EmptyIterators.unfilteredPartition(cfs.metadata())
-                     : UnfilteredPartitionIterators.merge(scanners, UnfilteredPartitionIterators.MergeListener.NOOP);
+                            ? EmptyIterators.unfilteredPartition(cfs.metadata())
+                            : UnfilteredPartitionIterators.merge(scanners, UnfilteredPartitionIterators.MergeListener.NOOP);
         }
 
-        public JournalKey key()
+        @CheckForNull
+        protected K computeNext()
         {
-            if (partition == null)
+            if (mergeIterator.hasNext())
             {
-                if (mergeIterator.hasNext())
-                    partition = mergeIterator.next();
-                else
-                    return null;
+                try (UnfilteredRowIterator partition = mergeIterator.next())
+                {
+                    return (K) AccordKeyspace.JournalColumns.getJournalKey(partition.partitionKey());
+                }
             }
-
-            return AccordKeyspace.JournalColumns.getJournalKey(partition.partitionKey());
+            else
+                return endOfData();
         }
-
-        protected void readAllForKey(K key, RecordConsumer<K> recordConsumer)
-        {
-            while (partition.hasNext())
-            {
-                EntryHolder<K> into = new EntryHolder<>();
-                // TODO: use flyweight to avoid allocating extra lambdas?
-                readRow(key, partition.next(), into, (segment, position, key1, buffer, userVersion) -> {
-                    visit(segment);
-                    recordConsumer.accept(segment, position, key1, buffer, userVersion);
-                });
-            }
-
-            partition = null;
-        }
-
-        void visit(long segment)
-        {
-            if (visited == null)
-                visited = new LongHashSet();
-            visited.add(segment);
-        }
-
-        boolean visited(long segment)
-        {
-            return visited != null && visited.contains(segment);
-        }
-
-
-        void clear()
-        {
-            visited = null;
-        }
-
 
         @Override
         public void close()
@@ -466,60 +435,43 @@ public class AccordJournalTable<K extends JournalKey, V> implements RangeSearche
         }
     }
 
-    private class JournalAndTableKeyIterator implements KeyOrderIterator<K>
+    private class JournalAndTableKeyIterator extends AbstractIterator<Journal.KeyRefs<K>> implements CloseableIterator<Journal.KeyRefs<K>>
     {
         final TableIterator tableIterator;
-        final Journal<K, V>.StaticSegmentIterator staticSegmentIterator;
+        final Journal<K, V>.StaticSegmentKeyIterator journalIterator;
 
         private JournalAndTableKeyIterator()
         {
             this.tableIterator = new TableIterator();
-            this.staticSegmentIterator = journal.staticSegmentIterator();
+            this.journalIterator = journal.staticSegmentKeyIterator();
         }
 
-        @Override
-        public K key()
+        protected Journal.KeyRefs<K> computeNext()
         {
-            // TODO (expected): fix generics mismatch here
-            K tableKey = (K)tableIterator.key();
-            K journalKey = staticSegmentIterator.key();
+            K tableKey = tableIterator.hasNext() ? tableIterator.peek() : null;
+            Journal.KeyRefs<K> journalKey = journalIterator.hasNext() ? journalIterator.peek() : null;
+
             if (tableKey == null)
-                return journalKey;
-            if (journalKey == null || keySupport.compare(tableKey, journalKey) > 0)
-                return journalKey;
+                return journalKey == null ? endOfData() : journalIterator.next();
 
-            return tableKey;
-        }
+            if (journalKey == null)
+                return new Journal.KeyRefs<>(tableIterator.next());
 
-        @Override
-        public void readAllForKey(K key, RecordConsumer<K> reader)
-        {
-            K tableKey = (K)tableIterator.key();
-            K journalKey = staticSegmentIterator.key();
-            if (journalKey != null && keySupport.compare(journalKey, key) == 0)
-                staticSegmentIterator.readAllForKey(key, (segment, position, key1, buffer, userVersion) -> {
-                    if (!tableIterator.visited(segment))
-                        reader.accept(segment, position, key1, buffer, userVersion);
-                });
+            int cmp = keySupport.compare(tableKey, journalKey.key());
+            if (cmp == 0)
+            {
+                tableIterator.next();
+                return journalIterator.next();
+            }
 
-            if (tableKey != null && keySupport.compare(tableKey, key) == 0)
-                tableIterator.readAllForKey(key, reader);
-
-            tableIterator.clear();
+            return cmp > 0 ? new Journal.KeyRefs<>(tableIterator.next()) : journalIterator.next();
         }
 
         public void close()
         {
             tableIterator.close();
-            staticSegmentIterator.close();
+            journalIterator.close();
         }
-    }
-
-    public interface KeyOrderIterator<K> extends Closeable
-    {
-        K key();
-        void readAllForKey(K key, RecordConsumer<K> reader);
-        void close();
     }
 
     public static void readBuffer(ByteBuffer buffer, Reader reader, int userVersion)
