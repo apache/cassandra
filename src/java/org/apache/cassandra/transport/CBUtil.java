@@ -32,6 +32,9 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+
+import com.google.common.base.Preconditions;
+
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufAllocator;
 import io.netty.buffer.ByteBufUtil;
@@ -41,6 +44,7 @@ import io.netty.util.concurrent.FastThreadLocal;
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.utils.LazyToString;
 import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.TimeUUID;
 import org.apache.cassandra.utils.UUIDGen;
@@ -162,6 +166,8 @@ public abstract class CBUtil
     public static void writeString(String str, ByteBuf cb)
     {
         int length = TypeSizes.encodedUTF8Length(str);
+        Preconditions.checkArgument(length <= Short.MAX_VALUE,
+                                    LazyToString.lazy(() -> String.format("String too large; expected <= %d but was", Short.MAX_VALUE, length)));
         cb.writeShort(length);
         ByteBufUtil.reserveAndWriteUtf8(cb, str, length);
     }

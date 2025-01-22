@@ -20,6 +20,7 @@ package org.apache.cassandra.db;
 import java.nio.ByteBuffer;
 import java.util.UUID;
 
+import io.netty.buffer.ByteBufUtil;
 import org.apache.cassandra.utils.vint.VIntCoding;
 
 public final class TypeSizes
@@ -47,19 +48,7 @@ public final class TypeSizes
 
     public static int encodedUTF8Length(String st)
     {
-        int strlen = st.length();
-        int utflen = 0;
-        for (int i = 0; i < strlen; i++)
-        {
-            int c = st.charAt(i);
-            if ((c >= 0x0001) && (c <= 0x007F))
-                utflen++;
-            else if (c > 0x07FF)
-                utflen += 3;
-            else
-                utflen += 2;
-        }
-        return utflen;
+        return ByteBufUtil.utf8Bytes(st);
     }
 
     public static int sizeofWithShortLength(ByteBuffer value)

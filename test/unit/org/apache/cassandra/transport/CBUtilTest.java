@@ -18,13 +18,23 @@
 
 package org.apache.cassandra.transport;
 
+import java.nio.charset.StandardCharsets;
+import java.util.Collections;
+import java.util.List;
+
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Test;
 
+import accord.utils.Gens;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufAllocator;
 import io.netty.buffer.PooledByteBufAllocator;
+import org.apache.cassandra.service.reads.thresholds.WarningsSnapshot;
+import org.assertj.core.api.Assertions;
+import org.bouncycastle.util.encoders.Base64;
+
+import static accord.utils.Property.qt;
 
 public class CBUtilTest
 {
@@ -36,6 +46,17 @@ public class CBUtilTest
     {
         if (buf != null && buf.refCnt() > 0)
             buf.release(buf.refCnt());
+    }
+
+    @Test
+    public void stringList()
+    {
+        qt().forAll(Gens.lists(Gens.strings().all().ofLengthBetween(0, 20)).ofSizeBetween(0, 10)).check(list -> {
+            int expectedSize = CBUtil.sizeOfStringList(list);
+            var body = CBUtil.allocator.buffer(expectedSize * 2);
+            CBUtil.writeStringList(list, body);
+            Assertions.assertThat(body.readableBytes()).isEqualTo(expectedSize);
+        });
     }
 
     @Test
