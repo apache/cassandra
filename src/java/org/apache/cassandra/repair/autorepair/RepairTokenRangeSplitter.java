@@ -93,9 +93,9 @@ import static org.apache.cassandra.repair.autorepair.AutoRepairUtils.split;
  * </li>
  * </ol>
  * To manage these issues, the strategy involves estimating the size and number of partitions within a range and
- * splitting it accordingly to bound the size of the range splits.  This is established by iterating over SSTable
+ * splitting it accordingly to bound the size of the range splits. This is established by iterating over SSTable
  * index files to estimate the amount of bytes and partitions involved in the ranges being repaired and by what
- * repair type is beinb invoked.
+ * repair type is being invoked.
  * <p/>
  * While this splitter has a lot of tuning parameters, the expectation is that the established default configuration
  * shall be sensible for all {@link org.apache.cassandra.repair.autorepair.AutoRepairConfig.RepairType}'s. The following
@@ -103,28 +103,28 @@ import static org.apache.cassandra.repair.autorepair.AutoRepairUtils.split;
  * <ul>
  *     <li>
  *         <b>bytes_per_assigment</b>: The target and maximum amount of bytes that should be included in a repair
- *         assignment. This is meant to scope the amount of work involved in a repair.  For incremental repair, this
+ *         assignment. This is meant to scope the amount of work involved in a repair. For incremental repair, this
  *         involves the total number of bytes in all SSTables containing unrepaired data involving the ranges being
- *         repaired, including data that doesn't cover the range.  This is to account for the amount of anticompaction
+ *         repaired, including data that doesn't cover the range. This is to account for the amount of anticompaction
  *         that is expected. For all other repair types, this involves the amount of data covering the range being
  *         repaired.
  *     </li>
  *     <li>
  *         <b>partitions_per_assignment</b>: The maximum number of partitions that should be included in a repair
- *         assignment.  This configuration exists to reduce excessive overstreaming by attempting to limit the number
+ *         assignment. This configuration exists to reduce excessive overstreaming by attempting to limit the number
  *         of partitions present in a merkle tree leaf node.
  *     </li>
  *     <li>
  *         <b>max_tables_per_assignment</b>: The maximum number of tables that can be included in a repair assignment.
  *         This aims to reduce the number of repairs, especially in cases where a large amount of tables exists for
- *         a keyspace.  Note that the splitter will avoid batching tables together if they exceed the other
+ *         a keyspace. Note that the splitter will avoid batching tables together if they exceed the other
  *         configuration parameters such as <code>bytes_per_assignment</code> and <code>partitions_per_assignment</code>.
  *     </li>
  *     <li>
- *         <b>max_bytes_per_schedule</b>: The maximum number of bytes to cover an individual schedule.  This serves
- *         as a mechanism for throttling the amount of work that can be done on each repair cycle.  One may opt to
+ *         <b>max_bytes_per_schedule</b>: The maximum number of bytes to cover an individual schedule. This serves
+ *         as a mechanism for throttling the amount of work that can be done on each repair cycle. One may opt to
  *         reduce this value if the impact of repairs is causing too many load on the cluster, or increase it if
- *         writes outpace the amount of data being repaired.  Alternatively, one may want to choose tuning down or up
+ *         writes outpace the amount of data being repaired. Alternatively, one may want to choose tuning down or up
  *         the <code>min_repair_interval</code>.
  *     </li>
  * </ul>
@@ -144,8 +144,8 @@ import static org.apache.cassandra.repair.autorepair.AutoRepairUtils.split;
  *     </li>
  *     <li>
  *         <b>incremental</b>: Configured in a way that attempts to repair 50GiB of data per repair, and 100GiB per
- *         schedule.  This attempts to throttle the amount of IR and anticompaction done per schedule after turning
- *         incremental on for the first time.   You may want to consider increasing <code>max_bytes_per_schedule</code>
+ *         schedule. This attempts to throttle the amount of IR and anticompaction done per schedule after turning
+ *         incremental on for the first time. You may want to consider increasing <code>max_bytes_per_schedule</code>
  *         more than this much data is written per <code>min_repair_interval</code>.
  *         <ul>
  *             <li><b>bytes_per_assignment</b>: 50GiB</li>
@@ -201,7 +201,7 @@ public class RepairTokenRangeSplitter implements IAutoRepairTokenRangeSplitter
      *     <ul><b>max_bytes_per_schedule</b>: 1000GiB</ul>
      * </li>
      * It's expected that these defaults should work well for everything except incremental, so we confine
-     * bytes_per_assignment to 50GiB and max_bytes_per_schedule to 100GiB.  This should strike a good balance
+     * bytes_per_assignment to 50GiB and max_bytes_per_schedule to 100GiB. This should strike a good balance
      * between the amount of data that will be repaired during an initial migration to incremental repair and should
      * move the entire repaired set from unrepaired to repaired at steady state, assuming not more the 100GiB of
      * data is written to a node per min_repair_interval.
@@ -288,7 +288,7 @@ public class RepairTokenRangeSplitter implements IAutoRepairTokenRangeSplitter
         protected KeyspaceRepairAssignments next(int priority, KeyspaceRepairPlan repairPlan)
         {
             // short circuit if we've accumulated too many bytes by returning a KeyspaceRepairAssignments with
-            // no assignments.  We do this rather than returning false in hasNext() because we want to signal
+            // no assignments. We do this rather than returning false in hasNext() because we want to signal
             // to AutoRepair that a keyspace generated no assignments.
             if (bytesSoFar >= maxBytesPerSchedule.toBytes())
             {
@@ -815,7 +815,7 @@ public class RepairTokenRangeSplitter implements IAutoRepairTokenRangeSplitter
         public final long sizeInRange;
         public final long totalSize;
         /**
-         * Size to consider in the repair.  For incremental repair, we want to consider the total size
+         * Size to consider in the repair. For incremental repair, we want to consider the total size
          * of the estimate as we have to factor in anticompacting the entire SSTable.
          * For full repair, just use the size containing the range.
          */
@@ -884,7 +884,7 @@ public class RepairTokenRangeSplitter implements IAutoRepairTokenRangeSplitter
         }
 
         /**
-         * Estimated bytes involved in the assignment.  Typically Derived from {@link SizeEstimate#sizeForRepair}.
+         * Estimated bytes involved in the assignment. Typically Derived from {@link SizeEstimate#sizeForRepair}.
          * @return estimated bytes involved in the assignment.
          */
         public long getEstimatedBytes()
