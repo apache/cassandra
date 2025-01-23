@@ -145,6 +145,22 @@ public class ASTSingleTableModelTest
         }
     }
 
+    @Test
+    public void selectWhereIn()
+    {
+        TableMetadata metadata = new Builder().pk(1).build();
+        ASTSingleTableModel model = new ASTSingleTableModel(metadata);
+        // insert in token order to keep the logic simple
+        ByteBuffer[][] expected = { insert(model, ONE),
+                                    insert(model, TWO),
+                                    insert(model, ZERO) };
+
+        model.validate(expected, Select.builder()
+                                       .table(metadata)
+                                       .in("pk", 0, 1, 2)
+                                       .build());
+    }
+
     private interface ColumnValue
     {
         ByteBuffer accept(ColumnMetadata.Kind kind, int offset);

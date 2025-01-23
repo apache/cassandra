@@ -22,6 +22,28 @@ import org.apache.cassandra.harry.MagicConstants;
 
 public class StringUtils
 {
+    /**
+     * When printing out UTF-8 Strings to humans there can be issues with utf-8 control chars, which leads to
+     * tools (such as Intellij) printing out things incorrectly.  The motivating case for this was the string {@code s\u000D^vf \u001F\u000CtU},
+     * this string caused Intellij to delete the content in front of the string, so the output only included the parts after this string!
+     *
+     * This method is only expected to be used when reporting to humans, and not for internal logic.
+     */
+    public static String escapeControlChars(String input)
+    {
+        StringBuilder result = new StringBuilder();
+        for (int i = 0; i < input.length(); i++)
+        {
+            char c = input.charAt(i);
+            if (Character.isISOControl(c))
+                result.append(String.format("\\u%04X", (int) c));
+            else
+                result.append(c);
+        }
+
+        return result.toString();
+    }
+
     public static String toString(long[] arr)
     {
         if (arr.length == 0)

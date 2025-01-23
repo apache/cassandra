@@ -75,6 +75,7 @@ import org.apache.cassandra.distributed.test.JavaDriverUtils;
 import org.apache.cassandra.distributed.test.TestBaseImpl;
 import org.apache.cassandra.harry.gen.BijectionCache;
 import org.apache.cassandra.harry.model.ASTSingleTableModel;
+import org.apache.cassandra.harry.util.StringUtils;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.utils.AbstractTypeGenerators;
 import org.apache.cassandra.utils.CassandraGenerators;
@@ -433,7 +434,9 @@ public class StatefulASTBase extends TestBaseImpl
 
         private String humanReadable(Statement stmt, @Nullable String annotate)
         {
-            String cql = stmt.visit(debug).toCQL(CQLFormatter.None.instance);
+            // With UTF-8 some chars can cause printing issues leading to error messages that don't reproduce the original issue.
+            // To avoid this problem, always escape the CQL so nothing gets lost
+            String cql = StringUtils.escapeControlChars(stmt.visit(debug).toCQL(CQLFormatter.None.instance));
             if (annotate != null)
                 cql += " -- " + annotate;
             return cql;

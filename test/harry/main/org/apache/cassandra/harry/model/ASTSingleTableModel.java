@@ -55,6 +55,7 @@ import org.apache.cassandra.db.Clustering;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.dht.Token;
+import org.apache.cassandra.harry.util.StringUtils;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.ImmutableUniqueList;
@@ -460,7 +461,10 @@ public class ASTSingleTableModel
     private static String table(ImmutableUniqueList<Symbol> columns, Collection<Row> rows)
     {
         return TableUtil.table(columns.stream().map(Symbol::toCQL).collect(Collectors.toList()),
-                               () -> rows.stream().map(Row::asCQL).iterator());
+                               // intellij or junit can be tripped up by utf control or invisible chars, so this logic tries to normalize to make things more safe
+                               () -> rows.stream()
+                                         .map(r -> r.asCQL().stream().map(StringUtils::escapeControlChars).collect(Collectors.toList()))
+                                         .iterator());
     }
 
     private static String table(ImmutableUniqueList<Symbol> columns, ByteBuffer[][] rows)
@@ -904,15 +908,19 @@ public class ASTSingleTableModel
         return true;
     }
 
+    /**
+     * The common case there can only be 1 value, but in the case of {@link Conditional.In} this can be multiple.  When
+     * multiple values are found then the semantic is OR rather than AND like the other matches function {@link #matches(AbstractType, ByteBuffer, List)}
+     */
     private static boolean matches(ByteBuffer value, List<? extends Expression> conditions)
     {
         for (Expression e : conditions)
         {
             ByteBuffer expected = eval(e);
-            if (!expected.equals(value))
-                return false;
+            if (expected.equals(value))
+                return true;
         }
-        return true;
+        return false;
     }
 
     private Set<BytesPartitionState.PrimaryKey> searchEq(LookupContext ctx)
