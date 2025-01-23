@@ -140,6 +140,11 @@ public class PipelineConfigurator
         if (workerGroup != null)
             bootstrap = bootstrap.group(workerGroup);
 
+        if (DatabaseDescriptor.isDSCPCodeEnabled())
+        {
+            bootstrap.childOption(ChannelOption.IP_TOS, DatabaseDescriptor.getNativeDSCPCode() << 2);
+        }
+
         ChannelInitializer<Channel> initializer = initializer(connectionFactory);
         bootstrap.childHandler(initializer);
 

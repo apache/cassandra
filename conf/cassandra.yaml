@@ -1948,6 +1948,16 @@ transparent_data_encryption_options:
   ## segment sizes.
   # segment_write_buffer_size: 1024MiB
 
+# Set dscp code in IP packages
+#
+# Dscp code can be used to separate traffic in a network into individual flows and queue, police and shape
+# them differently.
+# dscp_code:
+  # enabled: false
+  # native_dscp: 0
+  # internode_outbound_dscp: 0
+  # internode_inbound_dscp: 0
+
 #####################
 # SAFETY THRESHOLDS #
 #####################

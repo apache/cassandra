@@ -203,6 +203,11 @@ public class OutboundConnectionInitiator<SuccessType extends OutboundConnectionI
         if (settings.socketSendBufferSizeInBytes > 0)
             bootstrap.option(ChannelOption.SO_SNDBUF, settings.socketSendBufferSizeInBytes);
 
+        if (settings.dscpEnabled)
+        {
+            bootstrap.option(ChannelOption.IP_TOS, settings.dscpCode << 2);
+        }
+
         InetAddressAndPort remoteAddress = settings.connectTo;
         bootstrap.remoteAddress(new InetSocketAddress(remoteAddress.getAddress(), remoteAddress.getPort()));
         return bootstrap;

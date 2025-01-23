@@ -43,6 +43,8 @@ public class InboundConnectionSettings
     public final AcceptVersions acceptStreaming;
     public final SocketFactory socketFactory;
     public final Function<InetAddressAndPort, InboundMessageHandlers> handlers;
+    public final Boolean dscpEnabled;
+    public final Integer dscpCode;
 
     private InboundConnectionSettings(IInternodeAuthenticator authenticator,
                                       InetAddressAndPort bindAddress,
@@ -52,7 +54,9 @@ public class InboundConnectionSettings
                                       AcceptVersions acceptMessaging,
                                       AcceptVersions acceptStreaming,
                                       SocketFactory socketFactory,
-                                      Function<InetAddressAndPort, InboundMessageHandlers> handlers)
+                                      Function<InetAddressAndPort, InboundMessageHandlers> handlers,
+                                      Boolean dscpEnabled,
+                                      Integer dscpCode)
     {
         this.authenticator = authenticator;
         this.bindAddress = bindAddress;
@@ -63,11 +67,13 @@ public class InboundConnectionSettings
         this.acceptStreaming = acceptStreaming;
         this.socketFactory = socketFactory;
         this.handlers = handlers;
+        this.dscpEnabled = dscpEnabled;
+        this.dscpCode = dscpCode;
     }
 
     public InboundConnectionSettings()
     {
-        this(null, null, null, null, null, null, null, null, null);
+        this(null, null, null, null, null, null, null, null, null, null, null);
     }
 
     public String toString()
@@ -80,7 +86,7 @@ public class InboundConnectionSettings
     {
         return new InboundConnectionSettings(authenticator, bindAddress, encryption,
                                              socketReceiveBufferSizeInBytes, applicationReceiveQueueCapacityInBytes,
-                                             acceptMessaging, acceptStreaming, socketFactory, handlers);
+                                             acceptMessaging, acceptStreaming, socketFactory, handlers, dscpEnabled, dscpCode);
     }
 
     @SuppressWarnings("unused")
@@ -88,21 +94,21 @@ public class InboundConnectionSettings
     {
         return new InboundConnectionSettings(authenticator, bindAddress, encryption,
                                              socketReceiveBufferSizeInBytes, applicationReceiveQueueCapacityInBytes,
-                                             acceptMessaging, acceptStreaming, socketFactory, handlers);
+                                             acceptMessaging, acceptStreaming, socketFactory, handlers, dscpEnabled, dscpCode);
     }
 
     public InboundConnectionSettings withEncryption(ServerEncryptionOptions encryption)
     {
         return new InboundConnectionSettings(authenticator, bindAddress, encryption,
                                              socketReceiveBufferSizeInBytes, applicationReceiveQueueCapacityInBytes,
-                                             acceptMessaging, acceptStreaming, socketFactory, handlers);
+                                             acceptMessaging, acceptStreaming, socketFactory, handlers, dscpEnabled, dscpCode);
     }
 
     public InboundConnectionSettings withSocketReceiveBufferSizeInBytes(int socketReceiveBufferSizeInBytes)
     {
         return new InboundConnectionSettings(authenticator, bindAddress, encryption,
                                              socketReceiveBufferSizeInBytes, applicationReceiveQueueCapacityInBytes,
-                                             acceptMessaging, acceptStreaming, socketFactory, handlers);
+                                             acceptMessaging, acceptStreaming, socketFactory, handlers, dscpEnabled, dscpCode);
     }
 
     @SuppressWarnings("unused")
@@ -110,35 +116,35 @@ public class InboundConnectionSettings
     {
         return new InboundConnectionSettings(authenticator, bindAddress, encryption,
                                              socketReceiveBufferSizeInBytes, applicationReceiveQueueCapacityInBytes,
-                                             acceptMessaging, acceptStreaming, socketFactory, handlers);
+                                             acceptMessaging, acceptStreaming, socketFactory, handlers, dscpEnabled, dscpCode);
     }
 
     public InboundConnectionSettings withAcceptMessaging(AcceptVersions acceptMessaging)
     {
         return new InboundConnectionSettings(authenticator, bindAddress, encryption,
                                              socketReceiveBufferSizeInBytes, applicationReceiveQueueCapacityInBytes,
-                                             acceptMessaging, acceptStreaming, socketFactory, handlers);
+                                             acceptMessaging, acceptStreaming, socketFactory, handlers, dscpEnabled, dscpCode);
     }
 
     public InboundConnectionSettings withAcceptStreaming(AcceptVersions acceptMessaging)
     {
         return new InboundConnectionSettings(authenticator, bindAddress, encryption,
                                              socketReceiveBufferSizeInBytes, applicationReceiveQueueCapacityInBytes,
-                                             acceptMessaging, acceptStreaming, socketFactory, handlers);
+                                             acceptMessaging, acceptStreaming, socketFactory, handlers, dscpEnabled, dscpCode);
     }
 
     public InboundConnectionSettings withSocketFactory(SocketFactory socketFactory)
     {
         return new InboundConnectionSettings(authenticator, bindAddress, encryption,
                                              socketReceiveBufferSizeInBytes, applicationReceiveQueueCapacityInBytes,
-                                             acceptMessaging, acceptStreaming, socketFactory, handlers);
+                                             acceptMessaging, acceptStreaming, socketFactory, handlers, dscpEnabled, dscpCode);
     }
 
     public InboundConnectionSettings withHandlers(Function<InetAddressAndPort, InboundMessageHandlers> handlers)
     {
         return new InboundConnectionSettings(authenticator, bindAddress, encryption,
                                              socketReceiveBufferSizeInBytes, applicationReceiveQueueCapacityInBytes,
-                                             acceptMessaging, acceptStreaming, socketFactory, handlers);
+                                             acceptMessaging, acceptStreaming, socketFactory, handlers, dscpEnabled, dscpCode);
     }
 
     public InboundConnectionSettings withLegacySslStoragePortDefaults()
@@ -169,6 +175,8 @@ public class InboundConnectionSettings
         AcceptVersions acceptStreaming = this.acceptStreaming;
         SocketFactory socketFactory = this.socketFactory;
         Function<InetAddressAndPort, InboundMessageHandlers> handlersFactory = this.handlers;
+        Boolean dscpEnabled = this.dscpEnabled;
+        Integer dscpCode = this.dscpCode;
 
         if (authenticator == null)
             authenticator = DatabaseDescriptor.getInternodeAuthenticator();
@@ -194,9 +202,15 @@ public class InboundConnectionSettings
         if (handlersFactory == null)
             handlersFactory = instance()::getInbound;
 
+        if (dscpEnabled == null)
+            dscpEnabled = DatabaseDescriptor.isDSCPCodeEnabled();
+
+        if (dscpCode == null)
+            dscpCode = DatabaseDescriptor.getInternodeInboundDSCPCode();
+
         Preconditions.checkArgument(socketReceiveBufferSizeInBytes == 0 || socketReceiveBufferSizeInBytes >= 1 << 10, "illegal socket send buffer size: " + socketReceiveBufferSizeInBytes);
         Preconditions.checkArgument(applicationReceiveQueueCapacityInBytes >= 1 << 10, "illegal application receive queue capacity: " + applicationReceiveQueueCapacityInBytes);
 
-        return new InboundConnectionSettings(authenticator, bindAddress, encryption, socketReceiveBufferSizeInBytes, applicationReceiveQueueCapacityInBytes, acceptMessaging, acceptStreaming, socketFactory, handlersFactory);
+        return new InboundConnectionSettings(authenticator, bindAddress, encryption, socketReceiveBufferSizeInBytes, applicationReceiveQueueCapacityInBytes, acceptMessaging, acceptStreaming, socketFactory, handlersFactory, dscpEnabled, dscpCode);
     }
 }
