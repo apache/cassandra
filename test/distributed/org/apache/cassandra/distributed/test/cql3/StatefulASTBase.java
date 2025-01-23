@@ -302,12 +302,12 @@ public class StatefulASTBase extends TestBaseImpl
 
         protected ConsistencyLevel selectCl()
         {
-            return ConsistencyLevel.ALL;
+            return ConsistencyLevel.LOCAL_QUORUM;
         }
 
         protected ConsistencyLevel mutationCl()
         {
-            return ConsistencyLevel.NODE_LOCAL;
+            return ConsistencyLevel.LOCAL_QUORUM;
         }
 
         protected <S extends BaseState> Property.Command<S, Void, ?> command(RandomSource rs, Mutation mutation)

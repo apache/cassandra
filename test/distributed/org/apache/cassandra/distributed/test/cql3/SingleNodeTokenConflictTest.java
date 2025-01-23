@@ -269,7 +269,7 @@ public class SingleNodeTokenConflictTest extends StatefulASTBase
         {
             Property.StatefulBuilder statefulBuilder = stateful().withExamples(10);
             preCheck(statefulBuilder);
-            statefulBuilder.check(commands(() -> rs -> new State(rs, cluster))
+            statefulBuilder.check(commands(() -> rs -> createState(cluster, rs))
                                   .add(SingleNodeTokenConflictTest::insert)
                                   .add(SingleNodeTokenConflictTest::pkEq)
                                   .add(SingleNodeTokenConflictTest::pkIn)
@@ -287,6 +287,11 @@ public class SingleNodeTokenConflictTest extends StatefulASTBase
                                   .onSuccess(onSuccess(logger))
                                   .build());
         }
+    }
+
+    protected State createState(Cluster cluster, RandomSource rs)
+    {
+        return new State(rs, cluster);
     }
 
     protected TableMetadata defineTable(RandomSource rs, String ks)
@@ -313,7 +318,7 @@ public class SingleNodeTokenConflictTest extends StatefulASTBase
         return metadata;
     }
 
-    private class State extends BaseState
+    class State extends BaseState
     {
         private final List<ByteBuffer> pkValues;
         private final Gen<ByteBuffer> pkGen;
@@ -322,7 +327,7 @@ public class SingleNodeTokenConflictTest extends StatefulASTBase
 
         private final Gen<Mutation> mutationGen;
 
-        private State(RandomSource rs, Cluster cluster)
+        State(RandomSource rs, Cluster cluster)
         {
             super(rs, cluster, defineTable(rs, nextKeyspace()));
             {

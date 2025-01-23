@@ -18,9 +18,6 @@
 
 package org.apache.cassandra.distributed.test.cql3;
 
-import java.io.IOException;
-import javax.annotation.Nullable;
-
 import org.junit.Ignore;
 
 import accord.utils.Property;
@@ -30,16 +27,11 @@ import org.apache.cassandra.distributed.api.ConsistencyLevel;
 import org.apache.cassandra.service.consensus.TransactionalMode;
 
 @Ignore
-public class MultiNodeTableWalkTest extends SingleNodeTableWalkTest
+public class AccordInteropSingleNodeTableWalkTest extends SingleNodeTableWalkTest
 {
-
-    public MultiNodeTableWalkTest()
+    public AccordInteropSingleNodeTableWalkTest()
     {
-    }
-
-    protected MultiNodeTableWalkTest(@Nullable TransactionalMode transactionalMode)
-    {
-        super(transactionalMode);
+        super(TransactionalMode.full);
     }
 
     @Override
@@ -48,57 +40,32 @@ public class MultiNodeTableWalkTest extends SingleNodeTableWalkTest
         // if a failing seed is detected, populate here
         // Example: builder.withSeed(42L);
         // To show string/blobs
-         SHOW_REAL_VALUES = true;
-//        builder.withSeed(159634037219554562L); // see CASSANDRA-20243
-        builder.withSeed(7034963806046484005L);
-    }
-
-    @Override
-    protected Cluster createCluster() throws IOException
-    {
-        return createCluster(3, c -> {
-            c.set("range_request_timeout", "180s")
-             .set("read_request_timeout", "180s")
-             .set("transaction_timeout", "180s")
-             .set("write_request_timeout", "180s")
-             .set("native_transport_timeout", "180s")
-             .set("slow_query_log_timeout", "180s");
-        });
+        // SHOW_REAL_VALUES = true;
     }
 
     @Override
     protected State createState(RandomSource rs, Cluster cluster)
     {
-        return new MultiNodeState(rs, cluster);
+        return new AccordInteropState(rs, cluster);
     }
 
-    private class MultiNodeState extends State
+    private class AccordInteropState extends State
     {
-        public MultiNodeState(RandomSource rs, Cluster cluster)
+        public AccordInteropState(RandomSource rs, Cluster cluster)
         {
             super(rs, cluster);
         }
 
         @Override
-        public boolean allowNonPartitionQuery()
-        {
-            if (IGNORED_ISSUES.contains(KnownIssue.AF_MULTI_NODE_AND_NODE_LOCAL_WRITES))
-            {
-                return !indexes.isEmpty() && super.allowNonPartitionQuery();
-            }
-            return super.allowNonPartitionQuery();
-        }
-
-        @Override
         protected ConsistencyLevel selectCl()
         {
-            return ConsistencyLevel.ALL;
+            return ConsistencyLevel.QUORUM;
         }
 
         @Override
         protected ConsistencyLevel mutationCl()
         {
-            return ConsistencyLevel.NODE_LOCAL;
+            return ConsistencyLevel.QUORUM;
         }
     }
 }

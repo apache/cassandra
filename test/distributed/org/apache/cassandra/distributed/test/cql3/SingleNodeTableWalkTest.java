@@ -217,7 +217,16 @@ public class SingleNodeTableWalkTest extends StatefulASTBase
 
     public Property.Command<State, Void, ?> nonPartitionQuery(RandomSource rs, State state)
     {
-        Symbol symbol = selectColumn(rs, state);
+        Symbol symbol;
+        if (IGNORED_ISSUES.contains(KnownIssue.AF_MULTI_NODE_AND_NODE_LOCAL_WRITES)
+            && state.cluster.size() > 1)
+        {
+            symbol = rs.pickUnorderedSet(state.indexes.keySet());
+        }
+        else
+        {
+            symbol = selectColumn(rs, state);
+        }
         TreeMap<ByteBuffer, List<BytesPartitionState.PrimaryKey>> universe = state.model.index(symbol);
         // we need to index 'null' so LT works, but we can not directly query it... so filter out when selecting values
         NavigableSet<ByteBuffer> allowed = Sets.filter(universe.navigableKeySet(), b -> !ByteBufferUtil.EMPTY_BYTE_BUFFER.equals(b));
@@ -394,7 +403,7 @@ public class SingleNodeTableWalkTest extends StatefulASTBase
 
     public class State extends BaseState
     {
-        private final LinkedHashMap<Symbol, IndexedColumn> indexes;
+        protected final LinkedHashMap<Symbol, IndexedColumn> indexes;
         private final Gen<Mutation> mutationGen;
         private final EnumSet<ColumnKind> allowedToQuery = EnumSet.noneOf(ColumnKind.class);
 
