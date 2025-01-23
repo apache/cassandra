@@ -194,7 +194,7 @@ public class SingleNodeTableWalkTest extends StatefulASTBase
             break;
         }
         Select.Builder builder = Select.builder().table(state.metadata);
-        FunctionCall pkToken = FunctionCall.tokenByColumns(new ArrayList<>(state.model.factory.pkPositions));
+        FunctionCall pkToken = FunctionCall.tokenByColumns(state.model.factory.pkPositions);
         boolean startInclusive = rs.nextBoolean();
         boolean endInclusive = rs.nextBoolean();
         if (startInclusive && endInclusive && rs.nextBoolean())
