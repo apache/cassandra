@@ -19,6 +19,7 @@
 package org.apache.cassandra.simulator.paxos;
 
 import java.nio.ByteBuffer;
+import java.nio.channels.ClosedChannelException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -61,6 +62,7 @@ import org.apache.cassandra.simulator.RunnableActionScheduler;
 import org.apache.cassandra.simulator.cluster.ClusterActions;
 import org.apache.cassandra.simulator.systems.SimulatedSystems;
 import org.apache.cassandra.simulator.utils.IntRange;
+import org.apache.cassandra.streaming.StreamReceivedOutOfTokenRangeException;
 
 import static org.apache.cassandra.simulator.paxos.HistoryChecker.fail;
 
@@ -157,11 +159,13 @@ public class PairOfSequencesAccordSimulation extends AbstractPairOfSequencesPaxo
     @Override
     protected Class<? extends Throwable>[] expectedExceptions()
     {
-        return (Class<? extends Throwable>[]) new Class<?>[] { RequestExecutionException.class,
+        return (Class<? extends Throwable>[]) new Class<?>[] { CancellationException.class,
                                                                CoordinationFailed.class,
-                                                               RequestExecutionException.class,
+                                                               ClosedChannelException.class,
                                                                Invalidated.class,
-                                                               CancellationException.class };
+                                                               RequestExecutionException.class,
+                                                               StreamReceivedOutOfTokenRangeException.class // should always come in combination with closed channel exception
+        };
     }
 
     @Override
