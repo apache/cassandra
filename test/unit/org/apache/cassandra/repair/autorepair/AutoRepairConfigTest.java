@@ -130,9 +130,12 @@ public class AutoRepairConfigTest extends CQLTester
     @Test
     public void testSetRepairByKeyspace()
     {
-        config.setRepairByKeyspace(repairType, true);
+        // Should default to true.
+        assertTrue(config.getRepairByKeyspace(repairType));
 
-        assertTrue(config.getOptions(repairType).repair_by_keyspace);
+        config.setRepairByKeyspace(repairType, false);
+
+        assertFalse(config.getOptions(repairType).repair_by_keyspace);
     }
 
     @Test
@@ -418,7 +421,7 @@ public class AutoRepairConfigTest extends CQLTester
         Map<AutoRepairConfig.RepairType, Options> defaultOptions = Options.getDefaultOptionsMap();
         Options options = defaultOptions.get(repairType);
         assertFalse(options.enabled);
-        assertFalse(options.repair_by_keyspace);
+        assertTrue(options.repair_by_keyspace);
         assertEquals(Integer.valueOf(1), options.number_of_repair_threads);
         assertEquals(Integer.valueOf(3), options.parallel_repair_count);
         assertEquals(Integer.valueOf(3), options.parallel_repair_percentage);
@@ -447,7 +450,7 @@ public class AutoRepairConfigTest extends CQLTester
     {
         AutoRepairConfig config = new AutoRepairConfig();
         assertFalse(config.global_settings.enabled);
-        assertFalse(config.global_settings.repair_by_keyspace);
+        assertTrue(config.global_settings.repair_by_keyspace);
         assertEquals(Integer.valueOf(1), config.global_settings.number_of_repair_threads);
         assertEquals(Integer.valueOf(3), config.global_settings.parallel_repair_count);
         assertEquals(Integer.valueOf(3), config.global_settings.parallel_repair_percentage);
