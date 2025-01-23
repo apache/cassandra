@@ -42,7 +42,6 @@ import io.netty.buffer.PooledByteBufAllocator;
 import io.netty.buffer.UnpooledByteBufAllocator;
 import io.netty.util.concurrent.FastThreadLocal;
 import org.apache.cassandra.db.ConsistencyLevel;
-import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.LazyToString;
 import org.apache.cassandra.utils.Pair;
@@ -165,7 +164,7 @@ public abstract class CBUtil
 
     public static void writeString(String str, ByteBuf cb)
     {
-        int length = TypeSizes.encodedUTF8Length(str);
+        int length = ByteBufUtil.utf8Bytes(str);
         Preconditions.checkArgument(length <= Short.MAX_VALUE,
                                     LazyToString.lazy(() -> String.format("String too large; expected %d <= %d", length, Short.MAX_VALUE)));
         cb.writeShort(length);
@@ -174,7 +173,7 @@ public abstract class CBUtil
 
     public static int sizeOfString(String str)
     {
-        return 2 + TypeSizes.encodedUTF8Length(str);
+        return 2 + ByteBufUtil.utf8Bytes(str);
     }
 
     /**
@@ -202,14 +201,14 @@ public abstract class CBUtil
 
     public static void writeLongString(String str, ByteBuf cb)
     {
-        int length = TypeSizes.encodedUTF8Length(str);
+        int length = ByteBufUtil.utf8Bytes(str);
         cb.writeInt(length);
         ByteBufUtil.reserveAndWriteUtf8(cb, str, length);
     }
 
     public static int sizeOfLongString(String str)
     {
-        return 4 + TypeSizes.encodedUTF8Length(str);
+        return 4 + ByteBufUtil.utf8Bytes(str);
     }
 
     public static byte[] readBytes(ByteBuf cb)

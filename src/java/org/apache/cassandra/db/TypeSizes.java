@@ -48,7 +48,19 @@ public final class TypeSizes
 
     public static int encodedUTF8Length(String st)
     {
-        return ByteBufUtil.utf8Bytes(st);
+        int strlen = st.length();
+        int utflen = 0;
+        for (int i = 0; i < strlen; i++)
+        {
+            int c = st.charAt(i);
+            if ((c >= 0x0001) && (c <= 0x007F))
+                utflen++;
+            else if (c > 0x07FF)
+                utflen += 3;
+            else
+                utflen += 2;
+        }
+        return utflen;
     }
 
     public static int sizeofWithShortLength(ByteBuffer value)
