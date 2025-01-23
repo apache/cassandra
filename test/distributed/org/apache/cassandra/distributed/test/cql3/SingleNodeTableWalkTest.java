@@ -161,7 +161,7 @@ public class SingleNodeTableWalkTest extends StatefulASTBase
         BytesPartitionState.Ref ref = rs.pickOrderedSet(keys);
 
         Select.Builder builder = Select.builder().table(state.metadata);
-        builder.where(FunctionCall.tokenByColumns(new ArrayList<>(state.model.factory.pkPositions)),
+        builder.where(FunctionCall.tokenByColumns(state.model.factory.pkPositions),
                       Conditional.Where.Inequality.EQUAL,
                       token(state, ref));
 
