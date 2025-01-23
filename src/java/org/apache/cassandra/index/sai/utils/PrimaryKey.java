@@ -269,10 +269,9 @@ public interface PrimaryKey extends Comparable<PrimaryKey>, ByteComparable
                 // Otherwise, if the other key is token only we can only compare tokens
                 // This is used by the ResultRetriever to skip to the current key range start position
                 // during result retrieval.
-                if ((cmp != 0) || o.kind() == Kind.TOKEN)
+                if (cmp != 0 || o.kind() == Kind.TOKEN)
                     return cmp;
 
-                // Finally compare the partition keys
                 return partitionKey().compareTo(o.partitionKey());
             }
 
@@ -320,24 +319,25 @@ public interface PrimaryKey extends Comparable<PrimaryKey>, ByteComparable
             }
 
             @Override
-            public int compareTo(PrimaryKey o)
+            public int compareTo(PrimaryKey o, boolean strict)
             {
                 int cmp = super.compareTo(o);
                 if (cmp != 0 || o.kind() == Kind.TOKEN || o.kind() == Kind.SKINNY)
                     return cmp;
-                // At this point the other key is in the same partition as this static key so is equal to it. This
-                // has to be the case because otherwise, intersections between static column indexes and ordinary
-                // indexes will fail.
+
+                // If we're comparing strictly, order this STATIC key before a WIDE key, as this corresponds to the
+                // order of the corresponding row IDs in an on-disk postings list. If we're not being strict, treat
+                // the keys as being equal, given they are in the same partition.
+                if (strict && o.kind() == Kind.WIDE)
+                    return -1;
+
                 return 0;
             }
 
             @Override
-            public int compareToStrict(PrimaryKey o)
+            public int compareTo(PrimaryKey o)
             {
-                int cmp = compareTo(o);
-                // Always order this STATIC key before a WIDE key in the same partition, as this corresponds to the
-                // order of the corresponding row IDs in an on-disk postings list.
-                return o.kind() == Kind.WIDE && cmp == 0 ? -1 : cmp;
+                return compareTo(o, true);
             }
 
             @Override
@@ -395,25 +395,25 @@ public interface PrimaryKey extends Comparable<PrimaryKey>, ByteComparable
             }
 
             @Override
-            public int compareTo(PrimaryKey o)
+            public int compareTo(PrimaryKey o, boolean strict)
             {
                 int cmp = super.compareTo(o);
                 if (cmp != 0 || o.kind() == Kind.TOKEN || o.kind() == Kind.SKINNY)
                     return cmp;
-                // At this point this key is in the same partition as the other key so if the other key is a static
-                // key then it must be equal to it. See comment in the compareTo for static keys above.
+
                 if (o.kind() == Kind.STATIC)
-                    return 0;
+                    // If we're comparing strictly, order this WIDE key after the STATIC key, as this corresponds to the
+                    // order of the corresponding row IDs in an on-disk postings list. If we're not being strict, treat
+                    // the keys as being equal, given they are in the same partition.
+                    return strict ? 1 : 0;
+
                 return clusteringComparator.compare(clustering(), o.clustering());
             }
 
             @Override
-            public int compareToStrict(PrimaryKey o)
+            public int compareTo(PrimaryKey o)
             {
-                int cmp = compareTo(o);
-                // Always order this WIDE key before a STATIC key in the same partition, as this corresponds to the
-                // order of the corresponding row IDs in an on-disk postings list.
-                return o.kind() == Kind.STATIC && cmp == 0 ? 1 : cmp;
+                return compareTo(o, true);
             }
 
             @Override
@@ -490,8 +490,8 @@ public interface PrimaryKey extends Comparable<PrimaryKey>, ByteComparable
         throw new UnsupportedOperationException("Only STATIC and WIDE keys can be converted to STATIC");
     }
 
-    default int compareToStrict(PrimaryKey o)
+    default int compareTo(PrimaryKey key, boolean strict)
     {
-        return compareTo(o);
+        return compareTo(key);
     }
 }

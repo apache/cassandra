@@ -63,8 +63,8 @@ public class LongIterator extends KeyRangeIterator
     {
         for ( ; currentIdx < keys.size(); currentIdx++)
         {
-            PrimaryKey token = keys.get(currentIdx);
-            if (token.compareTo(nextKey) >= 0)
+            PrimaryKey key = keys.get(currentIdx);
+            if (key.compareTo(nextKey, false) >= 0)
                 break;
         }
     }
