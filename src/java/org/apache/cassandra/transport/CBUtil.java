@@ -164,7 +164,7 @@ public abstract class CBUtil
 
     public static void writeString(String str, ByteBuf cb)
     {
-        int length = ByteBufUtil.utf8Bytes(str);
+        int length = encodedUTF8Length(str);
         Preconditions.checkArgument(length <= Short.MAX_VALUE,
                                     LazyToString.lazy(() -> String.format("String too large; expected %d <= %d", length, Short.MAX_VALUE)));
         cb.writeShort(length);
@@ -173,7 +173,21 @@ public abstract class CBUtil
 
     public static int sizeOfString(String str)
     {
-        return 2 + ByteBufUtil.utf8Bytes(str);
+        return 2 + encodedUTF8Length(str);
+    }
+
+    /**
+     * Java uses a Modified UTF-8, whereas Netty uses UTF-8 proper... this means that the encoded UTF8 lengths
+     * do not match, and you must be careful to use the correct length method...
+     *
+     * When using {@link ByteBufUtil#reserveAndWriteUtf8(ByteBuf, CharSequence, int)} or similiar logic, you must use
+     * this method.  When using {@link java.io.DataOutput#writeUTF(String)} you must use {@link org.apache.cassandra.db.TypeSizes#encodedUTF8Length(String)}.
+     *
+     * @see <a href="https://docs.oracle.com/en/java/javase/23/docs/api/java.base/java/io/DataInput.html#modified-utf-8">Modified UTF 8</a>
+     */
+    public static int encodedUTF8Length(String str)
+    {
+        return ByteBufUtil.utf8Bytes(str);
     }
 
     /**
@@ -201,14 +215,14 @@ public abstract class CBUtil
 
     public static void writeLongString(String str, ByteBuf cb)
     {
-        int length = ByteBufUtil.utf8Bytes(str);
+        int length = encodedUTF8Length(str);
         cb.writeInt(length);
         ByteBufUtil.reserveAndWriteUtf8(cb, str, length);
     }
 
     public static int sizeOfLongString(String str)
     {
-        return 4 + ByteBufUtil.utf8Bytes(str);
+        return 4 + encodedUTF8Length(str);
     }
 
     public static byte[] readBytes(ByteBuf cb)
