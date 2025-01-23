@@ -2406,7 +2406,7 @@ storage_compatibility_mode: NONE
 #   global_settings:
 #     # If true, attempts to group tables in the same keyspace into one repair; otherwise, each table is repaired
 #     # individually.
-#     repair_by_keyspace: false
+#     repair_by_keyspace: true
 #     # Number of threads to use for each repair job scheduled by the scheduler. Similar to the -j option in nodetool
 #     # repair.
 #     number_of_repair_threads: 1

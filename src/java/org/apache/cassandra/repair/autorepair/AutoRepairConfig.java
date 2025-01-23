@@ -426,7 +426,7 @@ public class AutoRepairConfig implements Serializable
             Options opts = new Options();
 
             opts.enabled = false;
-            opts.repair_by_keyspace = false;
+            opts.repair_by_keyspace = true;
             opts.number_of_repair_threads = 1;
             opts.parallel_repair_count = 3;
             opts.parallel_repair_percentage = 3;
