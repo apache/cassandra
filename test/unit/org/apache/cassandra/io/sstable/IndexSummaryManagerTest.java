@@ -30,6 +30,8 @@ import org.junit.After;
 import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
+import org.junit.runner.RunWith;
+import org.junit.runners.Parameterized;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -68,6 +70,7 @@ import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
+@RunWith(Parameterized.class)
 public class IndexSummaryManagerTest
 {
     private static final Logger logger = LoggerFactory.getLogger(IndexSummaryManagerTest.class);
@@ -80,6 +83,18 @@ public class IndexSummaryManagerTest
     // index interval of 8, no key caching
     private static final String CF_STANDARDLOWiINTERVAL = "StandardLowIndexInterval";
     private static final String CF_STANDARDRACE = "StandardRace";
+
+    public IndexSummaryManagerTest(Boolean unmarkCompactingIndexRedistributionInBatchEnabled)
+    {
+        DatabaseDescriptor.setUnmarkCompactingIndexRedistributionInBatchEnabled(unmarkCompactingIndexRedistributionInBatchEnabled);
+    }
+
+    @Parameterized.Parameters()
+    public static List<Boolean> buildParameterizedVariants()
+    {
+        return Arrays.asList(true, false);
+    }
+
 
     @BeforeClass
     public static void defineSchema() throws ConfigurationException

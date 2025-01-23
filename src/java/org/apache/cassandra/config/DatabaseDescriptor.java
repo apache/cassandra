@@ -5120,6 +5120,16 @@ public class DatabaseDescriptor
         conf.use_new_behavior_for_interval_tree_build = isEnabled;
     }
 
+    public static boolean getUnmarkCompactingIndexRedistributionInBatchEnabled()
+    {
+        return conf.unmark_compacting_index_redistribution_in_batch_enabled;
+    }
+
+    public static void setUnmarkCompactingIndexRedistributionInBatchEnabled(boolean isEnabled)
+    {
+        conf.unmark_compacting_index_redistribution_in_batch_enabled = isEnabled;
+    }
+
     public static boolean getDirectMaterializedViewModificationEnabled() {
         return conf.direct_materialized_view_modification_enabled;
     }

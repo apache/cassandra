@@ -493,14 +493,19 @@ public class LifecycleTransaction extends Transactional.AbstractTransactional im
         return select(reader, container);
     }
 
+    private void verifySStableToBeCanceled(SSTableReader cancel)
+    {
+        assert originals.contains(cancel) : "may only cancel a reader in the 'original' set: " + cancel + " vs " + originals;
+        assert !(staged.contains(cancel) || logged.contains(cancel)) : "may only cancel a reader that has not been updated or obsoleted in this transaction: " + cancel;
+    }
+
     /**
      * remove the reader from the set we're modifying
      */
     public void cancel(SSTableReader cancel)
     {
         logger.trace("Cancelling {} from transaction", cancel);
-        assert originals.contains(cancel) : "may only cancel a reader in the 'original' set: " + cancel + " vs " + originals;
-        assert !(staged.contains(cancel) || logged.contains(cancel)) : "may only cancel a reader that has not been updated or obsoleted in this transaction: " + cancel;
+        verifySStableToBeCanceled(cancel);
         originals.remove(cancel);
         marked.remove(cancel);
         identities.remove(cancel.instanceId);
@@ -508,12 +513,30 @@ public class LifecycleTransaction extends Transactional.AbstractTransactional im
     }
 
     /**
-     * remove the readers from the set we're modifying
+     * remove the readers from the set we're modifying (one by one)
      */
     public void cancel(Iterable<SSTableReader> cancels)
     {
         for (SSTableReader cancel : cancels)
             cancel(cancel);
+    }
+
+    /**
+     * remove the readers from the set we're modifying (in batch)
+     */
+    public void cancelInBatch(Set<SSTableReader> cancels)
+    {
+        logger.trace("Cancelling {} from transaction", cancels);
+        Set<UniqueIdentifier> instanceIds = new HashSet<>();
+        for (SSTableReader cancel : cancels)
+        {
+            verifySStableToBeCanceled(cancel);
+            instanceIds.add(cancel.instanceId);
+        }
+        originals.removeAll(cancels);
+        marked.removeAll(cancels);
+        identities.removeAll(instanceIds);
+        maybeFail(unmarkCompacting(cancels, null));
     }
 
     /**
