@@ -150,6 +150,8 @@ public class FailingRepairTest extends TestBaseImpl implements Serializable
             if (throwable.getClass().toString().contains("InstanceShutdown") || // can't check instanceof as it is thrown by a different classloader
                 throwable.getMessage() != null && throwable.getMessage().contains("Parent repair session with id"))
                 return true;
+            if (throwable.getMessage().contains("Corrupted: Corrupted"))
+                return true;
             return false;
         });
     }
@@ -348,12 +350,12 @@ public class FailingRepairTest extends TestBaseImpl implements Serializable
 
         public boolean hasNext()
         {
-            throw new CorruptSSTableException(new IOException("Test commands it"), "mahahahaha!");
+            throw new CorruptSSTableException(new IOException("Test commands it"), "Corrupted");
         }
 
         public UnfilteredRowIterator next()
         {
-            throw new CorruptSSTableException(new IOException("Test commands it"), "mahahahaha!");
+            throw new CorruptSSTableException(new IOException("Test commands it"), "Corrupted");
         }
     }
 }
