@@ -19,6 +19,7 @@
 package org.apache.cassandra.tools;
 
 import java.lang.reflect.Field;
+import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
 
 public class FieldUtil
@@ -27,19 +28,44 @@ public class FieldUtil
     {
         try
         {
-            Field field = klass.getDeclaredField(fieldName);
-            field.setAccessible(true);
-
-            Field modifiersField = Field.class.getDeclaredField("modifiers");
-            modifiersField.setAccessible(true);
-            modifiersField.setInt(field, field.getModifiers() & ~Modifier.FINAL);
-
-            field.set(null, v);
+            setInstanceUnsafeThrowing(klass, v, fieldName);
         }
-        catch (NoSuchFieldException | IllegalAccessException t)
+        catch (Throwable e)
         {
-            throw new RuntimeException(t);
+            throw new RuntimeException(e);
         }
+    }
+
+    private static void setInstanceUnsafeThrowing(Class<?> klass, Object v, String fieldName) throws Throwable
+    {
+        Field field = klass.getDeclaredField(fieldName);
+        field.setAccessible(true);
+
+        try
+        {
+            Field modifiers = Field.class.getDeclaredField("modifiers");
+            modifiers.setAccessible(true);
+            modifiers.setInt(field, field.getModifiers() & ~Modifier.FINAL);
+        }
+        catch (NoSuchFieldException t)
+        {
+            // jdk17 fallback
+            Method getDeclaredFields0 = Class.class.getDeclaredMethod("getDeclaredFields0", boolean.class);
+            getDeclaredFields0.setAccessible(true);
+            Field[] fields = (Field[]) getDeclaredFields0.invoke(Field.class, false);
+
+            for (Field f : fields)
+            {
+                if ("modifiers".equals(f.getName()))
+                {
+                    f.setAccessible(true);
+                    f.setInt(field, field.getModifiers() & ~Modifier.FINAL);
+                    break;
+                }
+            }
+        }
+
+        field.set(null, v);
     }
 
     public static void transferFields(Object sourceInstance, Class<?> klass)
@@ -51,7 +77,7 @@ public class FieldUtil
             {
                 setInstanceUnsafe(klass, sourceField.get(sourceInstance), sourceField.getName());
             }
-            catch (IllegalAccessException e)
+            catch (Throwable e)
             {
                 throw new RuntimeException("Failed to transfer field: " + sourceField.getName(), e);
             }
