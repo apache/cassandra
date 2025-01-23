@@ -412,7 +412,10 @@ public class AccordKeyspace
     {
         Keyspace ks = Keyspace.open(ACCORD_KEYSPACE_NAME);
         for (String table : new String[]{ CommandsForKeys.name })
-            ks.getColumnFamilyStore(table).truncateBlocking();
+        {
+            if (!ks.getColumnFamilyStore(table).isEmpty())
+                ks.getColumnFamilyStore(table).truncateBlocking();
+        }
     }
 
     private static <T> ByteBuffer serialize(T obj, LocalVersionedSerializer<T> serializer) throws IOException
