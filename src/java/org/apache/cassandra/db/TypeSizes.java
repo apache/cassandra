@@ -20,8 +20,6 @@ package org.apache.cassandra.db;
 import java.nio.ByteBuffer;
 import java.util.UUID;
 
-import io.netty.buffer.ByteBuf;
-import io.netty.buffer.ByteBufUtil;
 import org.apache.cassandra.utils.vint.VIntCoding;
 
 public final class TypeSizes
