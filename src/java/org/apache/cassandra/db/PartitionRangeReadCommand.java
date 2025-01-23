@@ -400,6 +400,14 @@ public class PartitionRangeReadCommand extends ReadCommand implements PartitionR
 
 
     @Override
+    public boolean readsMutationContents(Mutation mutation)
+    {
+        if (!dataRange().contains(mutation.key()))
+            return false;
+        return mutation.getPartitionUpdate(metadata()) != null;
+    }
+
+    @Override
     public UnfilteredPartitionIterator augmentResultWithMutations(UnfilteredPartitionIterator result, Collection<Mutation> mutations)
     {
         if (mutations.isEmpty())
@@ -416,6 +424,7 @@ public class PartitionRangeReadCommand extends ReadCommand implements PartitionR
                 return;
             ClusteringIndexFilter filter = clusteringIndexFilter(mutation.key());
             Slices slices = filter.getSlices(metadata());
+            // FIXME: support index queries
             UnfilteredRowIterator rowIter = update.unfilteredIterator(columnFilter(), slices, filter.isReversed());
             if (rowIter != null)
                 partitions.add(new SingletonUnfilteredPartitionIterator(rowIter));

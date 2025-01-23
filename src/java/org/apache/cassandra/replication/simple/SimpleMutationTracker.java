@@ -23,18 +23,26 @@ import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.SortedSet;
 import java.util.TreeSet;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 import com.google.common.base.Preconditions;
+import com.google.common.collect.Sets;
+
+import org.slf4j.LoggerFactory;
+import org.slf4j.Logger;
 
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.Mutation;
 import org.apache.cassandra.db.MutationId;
 import org.apache.cassandra.db.PartitionPosition;
+import org.apache.cassandra.db.ReadCommand;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
+import org.apache.cassandra.db.partitions.UnfilteredPartitionIterator;
 import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.replication.MutationSummarizer;
@@ -45,6 +53,8 @@ import org.apache.cassandra.schema.TableId;
 
 public class SimpleMutationTracker implements MutationTracker
 {
+    private static final Logger logger = LoggerFactory.getLogger(SimpleMutationTracker.class);
+
     public static class KeyIds
     {
         private final SortedSet<MutationId> mutationIds = new TreeSet<MutationId>();
@@ -112,9 +122,81 @@ public class SimpleMutationTracker implements MutationTracker
         }
     }
 
+    public class SimplePendingRead implements PendingRead
+    {
+        private final ReadCommand command;
+        private final Map<MutationId, Mutation> pendingWrites = new ConcurrentHashMap<>();
+
+        public SimplePendingRead(ReadCommand command)
+        {
+            this.command = command;
+        }
+
+        public void onNewWrite(Mutation mutation)
+        {
+            if (command.readsMutationContents(mutation))
+                pendingWrites.put(mutation.id(), mutation);
+        }
+
+        @Override
+        public void close()
+        {
+            pendingReads.remove(this);
+        }
+
+        @Override
+        public UnfilteredPartitionIterator augmentResponseWithPendingWrites(UnfilteredPartitionIterator iterator, MutationSummary summary)
+        {
+            SimpleMutationSummary mutationSummary = (SimpleMutationSummary) summary;
+            if (pendingWrites.isEmpty() || mutationSummary.isEmpty())
+                return iterator;
+
+            List<Mutation> augmentingMutations = new ArrayList<>(pendingWrites.size());
+            for (Mutation mutation : pendingWrites.values())
+            {
+                if (mutationSummary.allIds.contains(mutation.id()))
+                    augmentingMutations.add(mutation);
+            }
+            return command.augmentResultWithMutations(iterator, augmentingMutations);
+        }
+    }
+
     private final ReadWriteLock lock = new ReentrantReadWriteLock();
     private final Map<MutationId, Mutation> mutations = new HashMap<>();
     private final Map<TableId, TableIds> tableIds = new HashMap<TableId, TableIds>();
+
+    private final Map<MutationId, Mutation> pendingMutations = new ConcurrentHashMap<MutationId, Mutation>();
+    private final Set<SimplePendingRead> pendingReads = Sets.newConcurrentHashSet();
+
+    @Override
+    public PendingWrite startWrite(Mutation mutation)
+    {
+        if (mutation.id().isNone())
+            return PendingWrite.NOOP;
+
+        pendingMutations.put(mutation.id(), mutation);
+
+        return new PendingWrite()
+        {
+            @Override
+            public void close()
+            {
+                pendingMutations.remove(mutation.id());
+            }
+        };
+    }
+
+    @Override
+    public PendingRead startRead(ReadCommand command)
+    {
+        if (!command.metadata().hasLoggedReplication())
+            return PendingRead.NOOP;
+
+        SimplePendingRead pendingRead = new SimplePendingRead(command);
+        pendingMutations.values().forEach(pendingRead::onNewWrite);
+
+        return pendingRead;
+    }
 
     @Override
     public void add(Mutation mutation)

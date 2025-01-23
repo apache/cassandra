@@ -847,6 +847,14 @@ public class SinglePartitionReadCommand extends ReadCommand implements SinglePar
     }
 
     @Override
+    public boolean readsMutationContents(Mutation mutation)
+    {
+        if (!partitionKey().equals(mutation.key()))
+            return false;
+        return mutation.getPartitionUpdate(metadata()) != null;
+    }
+
+    @Override
     public UnfilteredPartitionIterator augmentResultWithMutations(UnfilteredPartitionIterator result, Collection<Mutation> mutations)
     {
         if (mutations.isEmpty())
@@ -861,6 +869,7 @@ public class SinglePartitionReadCommand extends ReadCommand implements SinglePar
             PartitionUpdate update = mutation.getPartitionUpdate(metadata());
             if (update == null)
                 return;
+            // FIXME: support index queries
             UnfilteredRowIterator rowIter = update.unfilteredIterator(columnFilter(), slices, filter.isReversed());
             if (rowIter != null)
                 rows.add(rowIter);

@@ -27,6 +27,7 @@ import java.util.Set;
 import java.util.SortedSet;
 
 import com.google.common.base.Preconditions;
+import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.ImmutableSortedMap;
 import com.google.common.collect.ImmutableSortedSet;
 import com.google.common.collect.Maps;
@@ -49,37 +50,45 @@ public class SimpleMutationSummary implements MutationSummary
 {
     public final TableId tableId;
     public final ImmutableSortedMap<DecoratedKey, ImmutableSortedSet<MutationId>> ids;
+    public transient final ImmutableSet<MutationId> allIds;
 
-    private SimpleMutationSummary(TableId tableId, ImmutableSortedMap<DecoratedKey, ImmutableSortedSet<MutationId>> ids)
+    private SimpleMutationSummary(TableId tableId, ImmutableSortedMap<DecoratedKey, ImmutableSortedSet<MutationId>> ids, ImmutableSet<MutationId> allIds)
     {
         this.tableId = tableId;
         this.ids = ids;
+        this.allIds = allIds;
+    }
+
+    public boolean isEmpty()
+    {
+        return ids.isEmpty();
     }
 
     public static SimpleMutationSummary empty(TableId tableId)
     {
-        return new SimpleMutationSummary(tableId, ImmutableSortedMap.of());
+        return new SimpleMutationSummary(tableId, ImmutableSortedMap.of(), ImmutableSet.of());
     }
 
     public SimpleMutationSummary merge(SimpleMutationSummary that)
     {
         Preconditions.checkArgument(this.tableId.equals(that.tableId));
-        Map<DecoratedKey, ImmutableSortedSet<MutationId>> merged = new HashMap<>(ids);
+        Map<DecoratedKey, ImmutableSortedSet<MutationId>> mergedKeyIds = new HashMap<>(ids);
+        Set<MutationId> mergedIds = new HashSet<>(allIds);
         for (Map.Entry<DecoratedKey, ImmutableSortedSet<MutationId>> entry : that.ids.entrySet())
         {
-            if (merged.containsKey(entry.getKey()))
+            if (mergedKeyIds.containsKey(entry.getKey()))
             {
-                Set<MutationId> keyIds = new HashSet<>(merged.get(entry.getKey()));
+                Set<MutationId> keyIds = new HashSet<>(mergedKeyIds.get(entry.getKey()));
                 keyIds.addAll(entry.getValue());
-                merged.put(entry.getKey(), ImmutableSortedSet.copyOf(keyIds));
+                mergedKeyIds.put(entry.getKey(), ImmutableSortedSet.copyOf(keyIds));
             }
             else
             {
-                merged.put(entry.getKey(), entry.getValue());
+                mergedKeyIds.put(entry.getKey(), entry.getValue());
             }
         }
 
-        return new SimpleMutationSummary(tableId, ImmutableSortedMap.copyOf(merged));
+        return new SimpleMutationSummary(tableId, ImmutableSortedMap.copyOf(mergedKeyIds), ImmutableSet.copyOf(allIds));
     }
 
     @Override
@@ -110,12 +119,12 @@ public class SimpleMutationSummary implements MutationSummary
 
     public static SimpleMutationSummary of(TableId tableId, DecoratedKey key, SortedSet<MutationId> ids)
     {
-        return new SimpleMutationSummary(tableId, ImmutableSortedMap.of(key, ImmutableSortedSet.copyOf(ids)));
+        return new SimpleMutationSummary(tableId, ImmutableSortedMap.of(key, ImmutableSortedSet.copyOf(ids)), ImmutableSet.copyOf(ids));
     }
 
     public static SimpleMutationSummary of(TableId tableId, DecoratedKey key, MutationId... ids)
     {
-        return new SimpleMutationSummary(tableId, ImmutableSortedMap.of(key, ImmutableSortedSet.copyOf(ids)));
+        return new SimpleMutationSummary(tableId, ImmutableSortedMap.of(key, ImmutableSortedSet.copyOf(ids)), ImmutableSet.copyOf(ids));
     }
 
     public static final IVersionedSerializer<SimpleMutationSummary> serializer = new IVersionedSerializer<SimpleMutationSummary>()
@@ -146,18 +155,23 @@ public class SimpleMutationSummary implements MutationSummary
                 return empty(tableId);
 
             Map<DecoratedKey, ImmutableSortedSet<MutationId>> ids = Maps.newHashMapWithExpectedSize(numKeys);
+            Set<MutationId> allIds = Sets.newHashSetWithExpectedSize(numKeys);
             for (int i = 0; i < numKeys; i++)
             {
                 DecoratedKey key = partitioner.decorateKey(ByteBufferUtil.readWithVIntLength(in));
                 int numIds = in.readInt();
                 Set<MutationId> keyIds = Sets.newHashSetWithExpectedSize(numIds);
                 for (int j = 0; j < numIds; j++)
-                    keyIds.add(MutationId.serializer.deserialize(in, version));
+                {
+                    MutationId id = MutationId.serializer.deserialize(in, version);
+                    keyIds.add(id);
+                    allIds.add(id);
+                }
 
                 ids.put(key, ImmutableSortedSet.copyOf(keyIds));
             }
 
-            return new SimpleMutationSummary(tableId, ImmutableSortedMap.copyOf(ids));
+            return new SimpleMutationSummary(tableId, ImmutableSortedMap.copyOf(ids), ImmutableSet.copyOf(allIds));
         }
 
         @Override

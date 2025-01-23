@@ -26,6 +26,7 @@ import com.google.common.base.Preconditions;
 import org.apache.cassandra.db.filter.DataLimits;
 import org.apache.cassandra.index.Index;
 import org.apache.cassandra.replication.MutationSummarizer;
+import org.apache.cassandra.replication.MutationTracker;
 import org.apache.cassandra.replication.MutationTrackingService;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.utils.MonotonicClock;
@@ -52,6 +53,7 @@ public class ReadExecutionController implements AutoCloseable
     private final RepairedDataInfo repairedDataInfo;
     private long oldestUnrepairedTombstone = Long.MAX_VALUE;
     private final MutationSummarizer summarizer;
+    private final MutationTracker.PendingRead pendingRead;
 
     ReadExecutionController(ReadCommand command,
                             OpOrder.Group baseOp,
@@ -85,12 +87,18 @@ public class ReadExecutionController implements AutoCloseable
             repairedDataInfo = RepairedDataInfo.NO_OP_REPAIRED_DATA_INFO;
         }
 
+        pendingRead = MutationTrackingService.instance().startRead(command);
         summarizer = MutationTrackingService.summarizerForRead(command);
     }
 
     public MutationSummarizer summarizer()
     {
         return summarizer;
+    }
+
+    public MutationTracker.PendingRead pendingRead()
+    {
+        return pendingRead;
     }
 
     public boolean isRangeCommand()
@@ -212,15 +220,22 @@ public class ReadExecutionController implements AutoCloseable
             }
             finally
             {
-                if (indexController != null)
+                try
                 {
-                    try
+                    pendingRead.close();
+                }
+                finally
+                {
+                    if (indexController != null)
                     {
-                        indexController.close();
-                    }
-                    finally
-                    {
-                        writeContext.close();
+                        try
+                        {
+                            indexController.close();
+                        }
+                        finally
+                        {
+                            writeContext.close();
+                        }
                     }
                 }
             }

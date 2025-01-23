@@ -65,6 +65,7 @@ import org.apache.cassandra.locator.Replica;
 import org.apache.cassandra.metrics.TableMetrics;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.replication.MutationSummary;
+import org.apache.cassandra.replication.MutationTracker;
 import org.apache.cassandra.schema.IndexMetadata;
 import org.apache.cassandra.schema.ReplicationType;
 import org.apache.cassandra.schema.Schema;
@@ -456,6 +457,13 @@ public abstract class ReadCommand extends AbstractReadQuery
     protected abstract UnfilteredPartitionIterator queryStorage(ColumnFamilyStore cfs, ReadExecutionController executionController);
 
     /**
+     * Used by logged reads, determines if the contents of the given mutation would be read by this read command
+     * @param mutation
+     * @return
+     */
+    public abstract boolean readsMutationContents(Mutation mutation);
+
+    /**
      * Used by LoggedReadReconciliation, applies missing mutations to a read result
      */
     public abstract UnfilteredPartitionIterator augmentResultWithMutations(UnfilteredPartitionIterator result, Collection<Mutation> mutations);
@@ -467,11 +475,12 @@ public abstract class ReadCommand extends AbstractReadQuery
      */
     public abstract boolean isReversed();
 
-    public IReadResponse createResponse(UnfilteredPartitionIterator iterator, RepairedDataInfo rdi, MutationSummary summary)
+    public IReadResponse createResponse(UnfilteredPartitionIterator iterator, RepairedDataInfo rdi, MutationSummary summary, MutationTracker.PendingRead pendingRead)
     {
         // validate that the sequence of RT markers is correct: open is followed by close, deletion times for both
         // ends equal, and there are no dangling RT bound in any partition.
         iterator = RTBoundValidator.validate(iterator, Stage.PROCESSED, true);
+        iterator = pendingRead.augmentResponseWithPendingWrites(iterator, summary);
 
         switch (responseType())
         {

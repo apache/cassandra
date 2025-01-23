@@ -1108,7 +1108,7 @@ public class PaxosPrepare extends PaxosRequestCallback<PaxosPrepare.Response> im
                         try (ReadExecutionController executionController = request.read.executionController();
                              UnfilteredPartitionIterator iterator = request.read.executeLocally(executionController))
                         {
-                            readResponse = request.read.createResponse(iterator, executionController.getRepairedDataInfo(), executionController.summarizer().summary());
+                            readResponse = request.read.createResponse(iterator, executionController.getRepairedDataInfo(), executionController.summarizer().summary(), executionController.pendingRead());
                         }
 
                         if (hasProposalStability)
