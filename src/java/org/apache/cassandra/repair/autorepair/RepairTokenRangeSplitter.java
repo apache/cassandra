@@ -37,6 +37,8 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import com.google.common.annotations.VisibleForTesting;
+import org.apache.cassandra.tcm.compatibility.TokenRingUtils;
+import org.apache.cassandra.utils.FBUtilities;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -44,7 +46,6 @@ import com.clearspring.analytics.stream.cardinality.CardinalityMergeException;
 import com.clearspring.analytics.stream.cardinality.HyperLogLogPlus;
 import com.clearspring.analytics.stream.cardinality.ICardinality;
 import org.apache.cassandra.config.DataStorageSpec;
-import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.PartitionPosition;
 import org.apache.cassandra.db.lifecycle.SSTableIntervalTree;
@@ -109,8 +110,9 @@ import static org.apache.cassandra.repair.autorepair.AutoRepairUtils.split;
  *         repaired.
  *     </li>
  *     <li>
- *         <b>partitions_per_assignment</b>: The target number of partitions that should be included in a repair
- *         assignment.  This configuration exists to reduce excessive overstreaming.
+ *         <b>partitions_per_assignment</b>: The maximum number of partitions that should be included in a repair
+ *         assignment.  This configuration exists to reduce excessive overstreaming by attempting to limit the number
+ *         of partitions present in a merkle tree leaf node.
  *     </li>
  *     <li>
  *         <b>max_tables_per_assignment</b>: The maximum number of tables that can be included in a repair assignment.
@@ -135,7 +137,7 @@ import static org.apache.cassandra.repair.autorepair.AutoRepairUtils.split;
  *         repair schedule.
  *         <ul>
  *             <li><b>bytes_per_assignment</b>: 200GiB</li>
- *             <li><b>partitions_per_assignment</b>: 2^repair_session_max_tree_depth (2^20 == 1048576 by default)</li>
+ *             <li><b>partitions_per_assignment</b>: 1048576</li>
  *             <li><b>max_tables_per_assignment</b>: 64</li>
  *             <li><b>max_bytes_per_schedule</b>: 100TiB</li>
  *         </ul>
@@ -147,7 +149,7 @@ import static org.apache.cassandra.repair.autorepair.AutoRepairUtils.split;
  *         more than this much data is written per <code>min_repair_interval</code>.
  *         <ul>
  *             <li><b>bytes_per_assignment</b>: 50GiB</li>
- *             <li><b>partitions_per_assignment</b>: 2^repair_session_max_tree_depth (2^20 == 1048576 by default)</li>
+ *             <li><b>partitions_per_assignment</b>: 1048576</li>
  *             <li><b>max_tables_per_assignment</b>: 64</li>
  *             <li><b>max_bytes_per_schedule</b>: 100GiB</li>
  *         </ul>
@@ -157,7 +159,7 @@ import static org.apache.cassandra.repair.autorepair.AutoRepairUtils.split;
  *         with previews targeting at most 200GiB of data and 1048576 partitions.
  *         <ul>
  *             <li><b>bytes_per_assignment</b>: 200GiB</li>
- *             <li><b>partitions_per_assignment</b>: 2^repair_session_max_tree_depth (2^20 == 1048576 by default)</li>
+ *             <li><b>partitions_per_assignment</b>: 1048576</li>
  *             <li><b>max_tables_per_assignment</b>: 64</li>
  *             <li><b>max_bytes_per_schedule</b>: 100TiB</li>
  *         </ul>
@@ -204,7 +206,7 @@ public class RepairTokenRangeSplitter implements IAutoRepairTokenRangeSplitter
      * move the entire repaired set from unrepaired to repaired at steady state, assuming not more the 100GiB of
      * data is written to a node per min_repair_interval.
      */
-    private static final Map<AutoRepairConfig.RepairType, RepairTypeDefaults> DEFAULTS_BY_REPAIR_TYPE = new EnumMap<AutoRepairConfig.RepairType, RepairTypeDefaults>(AutoRepairConfig.RepairType.class) {{
+    private static final Map<AutoRepairConfig.RepairType, RepairTypeDefaults> DEFAULTS_BY_REPAIR_TYPE = new EnumMap<>(AutoRepairConfig.RepairType.class) {{
         put(AutoRepairConfig.RepairType.FULL, RepairTypeDefaults.builder(AutoRepairConfig.RepairType.FULL)
                                                                 .build());
         // Restrict incremental repair to 50GB bytes per assignment to confine the amount of possible autocompaction.
@@ -317,7 +319,7 @@ public class RepairTokenRangeSplitter implements IAutoRepairTokenRangeSplitter
             tableNames.sort((t1, t2) -> {
                 ColumnFamilyStore cfs1 = ColumnFamilyStore.getIfExists(keyspaceName, t1);
                 ColumnFamilyStore cfs2 = ColumnFamilyStore.getIfExists(keyspaceName, t2);
-                // If for whatever reason the CFS is not retrievable, we can assume its been deleted, so give the
+                // If for whatever reason the CFS is not retrievable, we can assume it has been deleted, so give the
                 // other cfs precedence.
                 if (cfs1 == null)
                 {
@@ -636,7 +638,7 @@ public class RepairTokenRangeSplitter implements IAutoRepairTokenRangeSplitter
         Collection<Range<Token>> wrappedRanges;
         if (primaryRangeOnly)
         {
-            wrappedRanges = StorageService.instance.getPrimaryRanges(keyspaceName);
+            wrappedRanges = TokenRingUtils.getPrimaryRangesForEndpoint(keyspaceName, FBUtilities.getBroadcastAddressAndPort());
         }
         else
         {
@@ -687,8 +689,6 @@ public class RepairTokenRangeSplitter implements IAutoRepairTokenRangeSplitter
 
                 long sstableSize = reader.bytesOnDisk();
                 totalBytes += sstableSize;
-                // TODO since reading the index file anyway may be able to get more accurate ratio for partition count,
-                // still better to use the cardinality estimator then the index since it wont count duplicates.
                 // get the bounds of the sstable for this range using the index file but do not actually read it.
                 List<AbstractBounds<PartitionPosition>> bounds = BigTableScanner.makeBounds(reader, Collections.singleton(tokenRange));
 
@@ -734,7 +734,7 @@ public class RepairTokenRangeSplitter implements IAutoRepairTokenRangeSplitter
         if (cfs == null)
         {
             logSkippingTable(keyspaceName, tableName);
-            return Refs.ref(Collections.<SSTableReader>emptyList());
+            return Refs.ref(Collections.emptyList());
         }
 
         Refs<SSTableReader> refs = null;
@@ -954,7 +954,8 @@ public class RepairTokenRangeSplitter implements IAutoRepairTokenRangeSplitter
         {
             private final AutoRepairConfig.RepairType repairType;
             private DataStorageSpec.LongBytesBound bytesPerAssignment = new DataStorageSpec.LongBytesBound("200GiB");
-            private long partitionsPerAssignment = (long) Math.pow(2, DatabaseDescriptor.getRepairSessionMaxTreeDepth());
+            // Aims to target at most 1 partitons per leaf assuming a merkle tree of depth 20  (2^20 = 1,048,576)
+            private long partitionsPerAssignment = 1_048_576;
             private int maxTablesPerAssignment = 64;
             private DataStorageSpec.LongBytesBound maxBytesPerSchedule = MAX_BYTES;
 
