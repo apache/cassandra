@@ -24,8 +24,10 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 
 import com.google.common.collect.Sets;
 import org.junit.After;
@@ -51,16 +53,22 @@ import org.apache.cassandra.gms.Gossiper;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.metrics.AutoRepairMetricsManager;
 import org.apache.cassandra.metrics.AutoRepairMetricsV2;
+import org.apache.cassandra.repair.messages.RepairOption;
 import org.apache.cassandra.repair.state.AutoRepairState;
 import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.AutoRepairService;
+import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.streaming.PreviewKind;
 import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.progress.ProgressEvent;
+import org.apache.cassandra.utils.progress.ProgressEventType;
+import org.apache.cassandra.utils.progress.ProgressListener;
 import org.mockito.Mock;
-import org.mockito.Mockito;
 import org.mockito.MockitoAnnotations;
+import org.mockito.invocation.InvocationOnMock;
 
 import static org.apache.cassandra.Util.setAutoRepairEnabled;
 import static org.apache.cassandra.metrics.CassandraMetricsRegistry.Metrics;
@@ -72,6 +80,8 @@ import static org.junit.Assert.fail;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -108,7 +118,6 @@ public class AutoRepairV2ParameterizedTest extends CQLTester
         setAutoRepairEnabled(true);
         requireNetwork();
         AutoRepairUtilsV2.setup();
-
 
         cfm = TableMetadata.builder(KEYSPACE, TABLE)
                            .addPartitionKeyColumn("k", UTF8Type.instance)
@@ -213,7 +222,7 @@ public class AutoRepairV2ParameterizedTest extends CQLTester
 
         AutoRepairV2.instance.repairAsync(repairType, 60);
 
-        verify(mockExecutor, Mockito.times(1)).submit(any(Runnable.class));
+        verify(mockExecutor, times(1)).submit(any(Runnable.class));
     }
 
     @Test
@@ -463,6 +472,10 @@ public class AutoRepairV2ParameterizedTest extends CQLTester
         AutoRepairV2.instance.repairStates.put(repairType, autoRepairState);
         when(autoRepairState.getRepairRunnable(any(), any(), any(), anyBoolean(), any()))
         .thenReturn(repairRunnable);
+        doAnswer(invocation -> {
+            invocation.getArgument(0, ProgressListener.class).progress("test", new ProgressEvent(ProgressEventType.COMPLETE, 0, 0));
+            return null;
+        }).when(repairRunnable).addProgressListener(any());
         when(autoRepairState.getFailedTokenRangesCount()).thenReturn(10);
         when(autoRepairState.getSucceededTokenRangesCount()).thenReturn(11);
         when(autoRepairState.getLongestUnrepairedSec()).thenReturn(10);
@@ -479,28 +492,31 @@ public class AutoRepairV2ParameterizedTest extends CQLTester
     {
         AutoRepairConfig config = AutoRepairService.instance.getAutoRepairConfig();
         config.setMVRepairEnabled(repairType, false);
-        when(autoRepairState.getRepairRunnable(any(), any(), any(), anyBoolean(), any()))
-        .thenReturn(repairRunnable);
         AutoRepairV2.instance.repairStates.put(repairType, autoRepairState);
         when(autoRepairState.getLastRepairTime()).thenReturn((long) 0);
-        AtomicInteger resetWaitConditionCalls = new AtomicInteger();
-        AtomicInteger waitForRepairCompletedCalls = new AtomicInteger();
+        AtomicInteger getRepairRunnableCalls = new AtomicInteger();
+        AtomicReference<AutoRepairV2.RepairProgressListener> prevListener = new AtomicReference<>();
         doAnswer(invocation -> {
-            resetWaitConditionCalls.getAndIncrement();
-            assertEquals("waitForRepairToComplete was called before resetWaitCondition",
-                         resetWaitConditionCalls.get(), waitForRepairCompletedCalls.get() + 1);
-            return null;
-        }).when(autoRepairState).resetWaitCondition();
+            if (getRepairRunnableCalls.getAndIncrement() > 0)
+            {
+                // progress listener from previous repair should be signalled before starting new repair
+                assertTrue(prevListener.get().condition.isSignalled());
+            }
+            getRepairRunnableCalls.incrementAndGet();
+            return repairRunnable;
+        }).when(autoRepairState).getRepairRunnable(any(), any(), any(), anyBoolean(), any());
         doAnswer(invocation -> {
-            waitForRepairCompletedCalls.getAndIncrement();
-            assertEquals("resetWaitCondition was not called before waitForRepairToComplete",
-                         resetWaitConditionCalls.get(), waitForRepairCompletedCalls.get());
+            // sending out a COMPLETE event with a 10ms delay
+            Executors.newScheduledThreadPool(1).schedule(() -> {
+                invocation.getArgument(0, AutoRepairV2.RepairProgressListener.class).progress("test", new ProgressEvent(ProgressEventType.COMPLETE, 0, 0));
+            }, 10, TimeUnit.MILLISECONDS);
             return null;
-        }).when(autoRepairState).waitForRepairToComplete();
+        }).when(repairRunnable).addProgressListener(any());
 
         AutoRepairV2.instance.repair(repairType, 0);
         AutoRepairV2.instance.repair(repairType, 0);
         AutoRepairV2.instance.repair(repairType, 0);
+
     }
 
     @Test
@@ -567,7 +583,10 @@ public class AutoRepairV2ParameterizedTest extends CQLTester
     public void testRepairMaxRetries()
     {
         when(autoRepairState.getRepairRunnable(any(), any(), any(), anyBoolean(), any())).thenReturn(repairRunnable);
-        when(autoRepairState.isSuccess()).thenReturn(false);
+        doAnswer(invocation -> {
+            invocation.getArgument(0, ProgressListener.class).progress("test", new ProgressEvent(ProgressEventType.ERROR, 0, 0));
+            return null;
+        }).when(repairRunnable).addProgressListener(any());
         AutoRepairConfig config = AutoRepairService.instance.getAutoRepairConfig();
         AtomicInteger sleepCalls = new AtomicInteger();
         AutoRepairV2.sleepFunc = (Long duration, TimeUnit unit) -> {
@@ -582,9 +601,9 @@ public class AutoRepairV2ParameterizedTest extends CQLTester
         AutoRepairV2.instance.repair(repairType, 0);
 
         assertEquals(config.getRepairMaxRetries(), sleepCalls.get());
-        verify(autoRepairState, Mockito.times(1)).setSucceededTokenRangesCount(0);
-        verify(autoRepairState, Mockito.times(1)).setSkippedTokenRangesCount(0);
-        verify(autoRepairState, Mockito.times(1)).setFailedTokenRangesCount(1);
+        verify(autoRepairState, times(1)).setSucceededTokenRangesCount(0);
+        verify(autoRepairState, times(1)).setSkippedTokenRangesCount(0);
+        verify(autoRepairState, times(1)).setFailedTokenRangesCount(1);
     }
 
     @Test
@@ -599,22 +618,27 @@ public class AutoRepairV2ParameterizedTest extends CQLTester
             assertEquals(TimeUnit.SECONDS, unit);
             assertEquals(config.getRepairRetryBackoffInSec(), (long) duration);
         };
-        when(autoRepairState.isSuccess()).then((invocationOnMock) -> {
+        doAnswer(invocation -> {
             if (sleepCalls.get() == 0) {
-                return false;
+                invocation.getArgument(0, ProgressListener.class).progress("test", new ProgressEvent(ProgressEventType.ERROR, 0, 0));
             }
-            return true;
-        });
+            else {
+                invocation.getArgument(0, ProgressListener.class).progress("test", new ProgressEvent(ProgressEventType.COMPLETE, 0, 0));
+            }
+
+            return null;
+        }).when(repairRunnable).addProgressListener(any());
         config.setRepairMinIntervalInHours(repairType, -1);
         config.setRepairOnlyKeyspaces(repairType, KEYSPACE);
+        config.setRepairMaxRetries(1);
         AutoRepairV2.instance.repairStates.put(repairType, autoRepairState);
 
         AutoRepairV2.instance.repair(repairType, 0);
 
         assertEquals(1, sleepCalls.get());
-        verify(autoRepairState, Mockito.times(1)).setSucceededTokenRangesCount(1);
-        verify(autoRepairState, Mockito.times(1)).setSkippedTokenRangesCount(0);
-        verify(autoRepairState, Mockito.times(1)).setFailedTokenRangesCount(0);
+        verify(autoRepairState, times(1)).setSucceededTokenRangesCount(1);
+        verify(autoRepairState, times(1)).setSkippedTokenRangesCount(0);
+        verify(autoRepairState, times(1)).setFailedTokenRangesCount(0);
     }
 
     @Test
@@ -639,7 +663,6 @@ public class AutoRepairV2ParameterizedTest extends CQLTester
             AutoRepairV2.instance.repair(repairType, 0);
         }
     }
-
 
     @Test
     public void testRepairThrowsForIRWithCDCReplay()
@@ -668,7 +691,10 @@ public class AutoRepairV2ParameterizedTest extends CQLTester
     public void testSoakAfterImmediateRepair()
     {
         when(autoRepairState.getRepairRunnable(any(), any(), any(), anyBoolean(), any())).thenReturn(repairRunnable);
-        when(autoRepairState.isSuccess()).thenReturn(true);
+        doAnswer(invocation -> {
+            invocation.getArgument(0, ProgressListener.class).progress("test", new ProgressEvent(ProgressEventType.COMPLETE, 0, 0));
+            return null;
+        }).when(repairRunnable).addProgressListener(any());
         AutoRepairConfig config = AutoRepairService.instance.getAutoRepairConfig();
         config.repair_task_min_duration = new DurationSpec.LongSecondsBound("1s");
         AtomicInteger sleepCalls = new AtomicInteger();
@@ -684,16 +710,19 @@ public class AutoRepairV2ParameterizedTest extends CQLTester
         AutoRepairV2.instance.repair(repairType, 0);
 
         assertEquals(1, sleepCalls.get());
-        verify(autoRepairState, Mockito.times(1)).setSucceededTokenRangesCount(1);
-        verify(autoRepairState, Mockito.times(1)).setSkippedTokenRangesCount(0);
-        verify(autoRepairState, Mockito.times(1)).setFailedTokenRangesCount(0);
+        verify(autoRepairState, times(1)).setSucceededTokenRangesCount(1);
+        verify(autoRepairState, times(1)).setSkippedTokenRangesCount(0);
+        verify(autoRepairState, times(1)).setFailedTokenRangesCount(0);
     }
 
     @Test
     public void testNoSoakAfterRepair()
     {
         when(autoRepairState.getRepairRunnable(any(), any(), any(), anyBoolean(), any())).thenReturn(repairRunnable);
-        when(autoRepairState.isSuccess()).thenReturn(true);
+        doAnswer(invocation -> {
+            invocation.getArgument(0, ProgressListener.class).progress("test", new ProgressEvent(ProgressEventType.COMPLETE, 0, 0));
+            return null;
+        }).when(repairRunnable).addProgressListener(any());
         AutoRepairConfig config = AutoRepairService.instance.getAutoRepairConfig();
         config.repair_task_min_duration = new DurationSpec.LongSecondsBound("0s");
         AutoRepairV2.sleepFunc = (Long duration, TimeUnit unit) -> {
@@ -705,8 +734,105 @@ public class AutoRepairV2ParameterizedTest extends CQLTester
 
         AutoRepairV2.instance.repair(repairType, 0);
 
-        verify(autoRepairState, Mockito.times(1)).setSucceededTokenRangesCount(1);
-        verify(autoRepairState, Mockito.times(1)).setSkippedTokenRangesCount(0);
-        verify(autoRepairState, Mockito.times(1)).setFailedTokenRangesCount(0);
+        verify(autoRepairState, times(1)).setSucceededTokenRangesCount(1);
+        verify(autoRepairState, times(1)).setSkippedTokenRangesCount(0);
+        verify(autoRepairState, times(1)).setFailedTokenRangesCount(0);
+    }
+
+    @Test
+    public void testSchedulerIgnoresErrorsFromUnrelatedRepairRunables()
+    {
+        RepairOption options = new RepairOption(RepairParallelism.PARALLEL, true, repairType == AutoRepairConfig.RepairType.incremental, false,
+                                               AutoRepairService.instance.getAutoRepairConfig().getRepairThreads(repairType), Set.of(),
+                                               false, false, false, PreviewKind.NONE, false, true, false, false);
+        AutoRepairState repairState = AutoRepairV2.instance.repairStates.get(repairType);
+        AutoRepairState spyState = spy(repairState);
+        AtomicReference<RepairRunnable> failingRepair = new AtomicReference<>(new RepairRunnable(StorageService.instance, StorageService.nextRepairCommand.incrementAndGet(), options, keyspace.getName()));
+        AtomicReference<AutoRepairV2.RepairProgressListener> failingListener = new AtomicReference<>();
+        AtomicReference<RepairRunnable> succeedingRepair = new AtomicReference<>(new RepairRunnable(StorageService.instance, StorageService.nextRepairCommand.incrementAndGet(), options, keyspace.getName()));
+        AtomicInteger repairRunableCalls = new AtomicInteger();
+        doAnswer((InvocationOnMock inv ) -> {
+            RepairRunnable runnable = spy(repairState.getRepairRunnable(inv.getArgument(0), inv.getArgument(1), inv.getArgument(2),
+                                                                    inv.getArgument(3), inv.getArgument(4)));
+            if (repairRunableCalls.getAndIncrement() == 0)
+            {
+                // this will be used for first repair job
+                doAnswer(invocation -> {
+                    // repair runnable for the first repair job will immediately fail
+                    failingListener.set(invocation.getArgument(0, AutoRepairV2.RepairProgressListener.class));
+                    invocation.getArgument(0, ProgressListener.class).progress("test", new ProgressEvent(ProgressEventType.ERROR, 0, 0));
+                    return null;
+                }).when(runnable).addProgressListener(any());
+                failingRepair.set(runnable);
+            }
+            else
+            {
+                // this will be used for subsequent repair jobs
+                doAnswer(invocation -> {
+                    if (repairRunableCalls.get() > 0)
+                    {
+                        // repair runnable for the subsequent repair jobs will immediately complete
+                        invocation.getArgument(0, ProgressListener.class).progress("test", new ProgressEvent(ProgressEventType.COMPLETE, 0, 0));
+
+                    }
+                    // repair runnable for the first repair job will continue firing ERROR events
+                    failingListener.get().progress("test", new ProgressEvent(ProgressEventType.ERROR, 0, 0));
+                    return null;
+                }).when(runnable).addProgressListener(any());
+                succeedingRepair.set(runnable);
+            }
+            return runnable;
+        }).when(spyState).getRepairRunnable(any(), any(), any(), anyBoolean(), any());
+        when(spyState.getLastRepairTime()).thenReturn((long) 0);
+        AutoRepairService.instance.getAutoRepairConfig().setRepairMaxRetries(0);
+        AutoRepairV2.instance.repairStates.put(repairType, spyState);
+
+        AutoRepairV2.instance.repair(repairType, 0);
+
+        assertEquals(1, (int) AutoRepairMetricsManager.getMetrics(repairType).failedTokenRangesCount.getValue());
+        // only the first repair job should have failed despite it continuously firing ERROR events
+        verify(spyState, times(1)).setFailedTokenRangesCount(1);
+    }
+
+    @Test
+    public void testProgressError()
+    {
+        AutoRepairV2.RepairProgressListener listener = new AutoRepairV2.RepairProgressListener(repairType);
+
+        listener.progress("test", new ProgressEvent(ProgressEventType.ERROR, 0, 0, "test"));
+
+        assertFalse(listener.success);
+        assertTrue(listener.condition.isSignalled());
+    }
+
+    @Test
+    public void testProgressProgress()
+    {
+        AutoRepairV2.RepairProgressListener listener = new AutoRepairV2.RepairProgressListener(repairType);
+
+        listener.progress("test", new ProgressEvent(ProgressEventType.PROGRESS, 0, 0, "test"));
+
+        assertFalse(listener.success);
+        assertFalse(listener.condition.isSignalled());
+    }
+
+    @Test
+    public void testProgresComplete()
+    {
+        AutoRepairV2.RepairProgressListener listener = new AutoRepairV2.RepairProgressListener(repairType);
+
+        listener.progress("test", new ProgressEvent(ProgressEventType.COMPLETE, 0, 0, "test"));
+
+        assertTrue(listener.success);
+        assertTrue(listener.condition.isSignalled());
+    }
+
+    @Test
+    public void testAwait() throws Exception
+    {
+        AutoRepairV2.RepairProgressListener listener = new AutoRepairV2.RepairProgressListener(repairType);
+        listener.progress("test", new ProgressEvent(ProgressEventType.COMPLETE, 0, 0, "test"));
+
+        listener.await();
     }
 }

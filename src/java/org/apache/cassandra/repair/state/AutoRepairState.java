@@ -18,7 +18,6 @@
 
 package org.apache.cassandra.repair.state;
 
-import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
@@ -46,18 +45,11 @@ import org.apache.cassandra.repair.messages.RepairOption;
 import org.apache.cassandra.service.AutoRepairService;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.streaming.PreviewKind;
-import org.apache.cassandra.utils.concurrent.Condition;
-import org.apache.cassandra.utils.progress.ProgressEvent;
-import org.apache.cassandra.utils.progress.ProgressEventType;
-import org.apache.cassandra.utils.progress.ProgressListener;
-
-import static org.apache.cassandra.utils.concurrent.Condition.newOneTimeCondition;
 
 // AutoRepairState represents the state of automated repair for a given repair type.
-public abstract class AutoRepairState implements ProgressListener
+public abstract class AutoRepairState
 {
     protected static final Logger logger = LoggerFactory.getLogger(AutoRepairState.class);
-    private final SimpleDateFormat format = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss,SSS");
     @VisibleForTesting
     protected static Supplier<Long> timeFunc = System::currentTimeMillis;
 
@@ -85,10 +77,6 @@ public abstract class AutoRepairState implements ProgressListener
     protected int skippedTokenRangesCount = 0;
     @VisibleForTesting
     protected AutoRepairUtilsV2.AutoRepairHistory longestUnrepairedNode;
-    @VisibleForTesting
-    protected Condition condition = newOneTimeCondition();
-    @VisibleForTesting
-    protected boolean success = true;
     protected final AutoRepairMetricsV2 metrics;
 
     protected AutoRepairState(RepairType repairType)
@@ -101,44 +89,9 @@ public abstract class AutoRepairState implements ProgressListener
 
     protected RepairRunnable getRepairRunnable(String keyspace, RepairOption options)
     {
-        RepairRunnable task = new RepairRunnable(StorageService.instance, StorageService.nextRepairCommand.incrementAndGet(),
+        return new RepairRunnable(StorageService.instance, StorageService.nextRepairCommand.incrementAndGet(),
                                                  options, keyspace);
 
-        task.addProgressListener(this);
-
-        return task;
-    }
-
-    @Override
-    public void progress(String tag, ProgressEvent event)
-    {
-        ProgressEventType type = event.getType();
-        String message = String.format("[%s] %s", format.format(System.currentTimeMillis()), event.getMessage());
-        if (type == ProgressEventType.ERROR)
-        {
-            logger.error("Repair failure for {} repair: {}", repairType.toString(), message);
-            success = false;
-            condition.signalAll();
-        }
-        if (type == ProgressEventType.PROGRESS)
-        {
-            message = message + " (progress: " + (int) event.getProgressPercentage() + "%)";
-            logger.debug("Repair progress for {} repair: {}", repairType.toString(), message);
-        }
-        if (type == ProgressEventType.COMPLETE)
-        {
-            success = true;
-            condition.signalAll();
-        }
-    }
-
-    public void waitForRepairToComplete() throws InterruptedException
-    {
-        //if for some reason we don't hear back on repair progress for sometime
-        if (!condition.await(12, TimeUnit.HOURS))
-        {
-            success = false;
-        }
     }
 
     public long getLastRepairTime()
@@ -257,19 +210,9 @@ public abstract class AutoRepairState implements ProgressListener
         return skippedTokenRangesCount;
     }
 
-    public boolean isSuccess()
-    {
-        return success;
-    }
-
     public void recordTurn(AutoRepairUtilsV2.RepairTurn turn)
     {
         metrics.recordTurn(turn);
-    }
-
-    public void resetWaitCondition()
-    {
-        condition = newOneTimeCondition();
     }
 }
 

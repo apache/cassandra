@@ -18,6 +18,7 @@
 
 package org.apache.cassandra.repair;
 
+import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.EnumMap;
@@ -58,23 +59,25 @@ import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.Clock;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.repair.AutoRepairUtilsV2.RepairTurn;
+import org.apache.cassandra.utils.concurrent.Condition;
+import org.apache.cassandra.utils.progress.ProgressEvent;
+import org.apache.cassandra.utils.progress.ProgressEventType;
+import org.apache.cassandra.utils.progress.ProgressListener;
 
 import static org.apache.cassandra.concurrent.ExecutorFactory.Global.executorFactory;
 import static org.apache.cassandra.repair.AutoRepairUtilsV2.RepairTurn.MY_TURN;
 import static org.apache.cassandra.repair.AutoRepairUtilsV2.RepairTurn.MY_TURN_DUE_TO_PRIORITY;
 import static org.apache.cassandra.repair.AutoRepairUtilsV2.RepairTurn.MY_TURN_FORCE_REPAIR;
+import static org.apache.cassandra.utils.concurrent.Condition.newOneTimeCondition;
 
 
 // TODO: add class documentation (SO-28898)
 public class AutoRepairV2
 {
     private static final Logger logger = LoggerFactory.getLogger(AutoRepairV2.class);
-
+    private static final SimpleDateFormat format = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss,SSS");
     @VisibleForTesting
     protected static Supplier<Long> timeFunc = Clock.Global::currentTimeMillis;
-
-    public static AutoRepairV2 instance = new AutoRepairV2();
-
     @VisibleForTesting
     protected final Map<AutoRepairConfig.RepairType, ScheduledExecutorPlus> repairExecutors;
     @VisibleForTesting
@@ -83,7 +86,7 @@ public class AutoRepairV2
     protected static Consumer<List<?>> shuffleFunc = java.util.Collections::shuffle;
     @VisibleForTesting
     protected static BiConsumer<Long, TimeUnit> sleepFunc = Uninterruptibles::sleepUninterruptibly;
-
+    public static AutoRepairV2 instance = new AutoRepairV2();
 
     @VisibleForTesting
     protected AutoRepairV2()
@@ -341,25 +344,29 @@ public class AutoRepairV2
                                     if ((totalProcessedSubRanges % config.getRepairThreads(repairType) == 0) ||
                                         (totalProcessedSubRanges == totalSubRanges))
                                     {
+                                        boolean success = false;
                                         int retryCount = 0;
                                         while(retryCount <= config.getRepairMaxRetries())
                                         {
                                             RepairRunnable task = repairState.getRepairRunnable(keyspaceName,
                                                                                                 config.getRepairByKeyspace(repairType) ? tablesToBeRepaired : ImmutableList.of(tableName),
                                                                                                 ranges, primaryRangeOnly, AutoRepairUtilsV2.getLocalDCGroup(repairType));
-                                            repairState.resetWaitCondition();
+
+                                            RepairProgressListener listener = new RepairProgressListener(repairType);
+                                            task.addProgressListener(listener);
                                             new Thread(NamedThreadFactory.createAnonymousThread(new FutureTask<>(task, null))).start();
                                             try
                                             {
                                                 long jobStartTime = timeFunc.get();
-                                                repairState.waitForRepairToComplete();
+                                                listener.await();
+                                                success = listener.isSuccess();
                                                 soakAfterRepair(jobStartTime, config.getRepairTaskMinDuration().toMilliseconds());
                                             }
                                             catch (InterruptedException e)
                                             {
                                                 logger.error("Exception in cond await:", e);
                                             }
-                                            if (repairState.isSuccess())
+                                            if (success)
                                             {
                                                 break;
                                             }
@@ -374,7 +381,7 @@ public class AutoRepairV2
                                             retryCount++;
                                         }
                                         //check repair outcome
-                                        if (repairState.isSuccess())
+                                        if (success)
                                         {
                                             logger.info("Repair completed for range {}-{} for {}.{}, total subranges: {}," +
                                                         "processed subranges: {}", childStartToken.toString(), childEndToken.toString(),
@@ -469,6 +476,59 @@ public class AutoRepairV2
             long timeToSoak = minDurationMilis - timeElapsed;
             logger.info("Soaking for {} ms after repair", timeToSoak);
             sleepFunc.accept(timeToSoak, TimeUnit.MILLISECONDS);
+        }
+    }
+
+    @VisibleForTesting
+    protected static class RepairProgressListener implements ProgressListener
+    {
+        private final AutoRepairConfig.RepairType repairType;
+        @VisibleForTesting
+        protected boolean success;
+        @VisibleForTesting
+        protected final Condition condition = newOneTimeCondition();
+
+        public RepairProgressListener(AutoRepairConfig.RepairType repairType)
+        {
+            this.repairType = repairType;
+        }
+
+        public void await() throws InterruptedException
+        {
+            //if for some reason we don't hear back on repair progress for sometime
+            if (!condition.await(12, TimeUnit.HOURS))
+            {
+                success = false;
+            }
+        }
+
+        public boolean isSuccess()
+        {
+            return success;
+        }
+
+        @Override
+        public void progress(String tag, ProgressEvent event)
+        {
+            ProgressEventType type = event.getType();
+            String message = String.format("[%s] %s", format.format(System.currentTimeMillis()), event.getMessage());
+            if (type == ProgressEventType.ERROR)
+            {
+                logger.error("Repair failure for repair {}: {}", repairType.toString(), message);
+                success = false;
+                condition.signalAll();
+            }
+            if (type == ProgressEventType.PROGRESS)
+            {
+                message = message + " (progress: " + (int) event.getProgressPercentage() + "%)";
+                logger.debug("Repair progress for repair {}: {}", repairType.toString(), message);
+            }
+            if (type == ProgressEventType.COMPLETE)
+            {
+                logger.debug("Repair completed for repair {}: {}", repairType.toString(), message);
+                success = true;
+                condition.signalAll();
+            }
         }
     }
 }
