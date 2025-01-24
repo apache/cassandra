@@ -16,6 +16,7 @@ Merged from 4.1:
  * Add nodetool checktokenmetadata command that checks TokenMetadata is insync with Gossip endpointState (CASSANDRA-18758)
  * Equality check for Paxos.Electorate should not depend on collection types (CASSANDRA-19935)
 Merged from 4.0:
+ * CBUtil serialization of UTF8 does not handle all UTF8 properly (CASSANDRA-20234)
  * Make hint expiry use request start time rather than timeout time for TTL (CASSANDRA-20014)
  * Do not attach rows and partitions to QueryCancellationChecker when already attached (CASSANDRA-20135)
  * Allow hint delivery during schema mismatch (CASSANDRA-20188)

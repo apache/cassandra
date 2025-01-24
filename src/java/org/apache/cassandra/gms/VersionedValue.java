@@ -22,6 +22,7 @@ import java.io.DataOutputStream;
 import java.io.IOException;
 import java.net.InetAddress;
 import java.util.Collection;
+import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
@@ -124,6 +125,21 @@ public class VersionedValue implements Comparable<VersionedValue>
     public String toString()
     {
         return "Value(" + value + ',' + version + ')';
+    }
+
+    @Override
+    public boolean equals(Object o)
+    {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        VersionedValue that = (VersionedValue) o;
+        return version == that.version && value.equals(that.value);
+    }
+
+    @Override
+    public int hashCode()
+    {
+        return Objects.hash(version, value);
     }
 
     public byte[] toBytes()
