@@ -64,7 +64,6 @@ public class RepairTokenRangeSplitterTest extends CQLTester
     {
         CQLTester.setUpClass();
         AutoRepairService.setup();
-        AutoRepairService.instance.getAutoRepairConfig().setRepairByKeyspace(RepairType.FULL, true);
         FULL_RANGE = new Range<>(DatabaseDescriptor.getPartitioner().getMinimumToken(), DatabaseDescriptor.getPartitioner().getMaximumToken());
     }
 

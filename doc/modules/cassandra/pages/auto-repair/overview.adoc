@@ -64,7 +64,7 @@ The following settings can be tailored individually for each repair type.
 |===
 | Name | Default | Description
 | enabled | false | Enable/Disable full/incremental/preview_repaired auto-repair
-| repair_by_keyspace | false | If true, attempts to group tables in the same keyspace into one repair; otherwise,
+| repair_by_keyspace | true | If true, attempts to group tables in the same keyspace into one repair; otherwise,
 each table is repaired individually.
 | number_of_repair_threads | 1 | Number of threads to use for each repair job scheduled by the scheduler. Similar to
 the -j option in nodetool repair.
@@ -146,7 +146,7 @@ repair scheduler configuration:
 configuration for repair_type: full
 	enabled: true
 	min_repair_interval: 24h
-	repair_by_keyspace: false
+	repair_by_keyspace: true
 	number_of_repair_threads: 1
 	sstable_upper_threshold: 10000
 	table_max_repair_time: 6h
@@ -166,7 +166,7 @@ configuration for repair_type: full
 configuration for repair_type: incremental
 	enabled: true
 	min_repair_interval: 1h
-	repair_by_keyspace: false
+	repair_by_keyspace: true
 	number_of_repair_threads: 1
 	sstable_upper_threshold: 10000
 	table_max_repair_time: 6h
