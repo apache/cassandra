@@ -796,9 +796,9 @@ class TestCqlshCompletion(CqlshCompletionCase):
                             choices=['<new_table_name>'])
         self.trycompletions('CREATE TABLE ' + quoted_keyspace + '.new_table L',
                             immediate='IKE ')
-        self.trycompletions('CREATE TABLE ' + 'new_table LIKE old_table W',
+        self.trycompletions('CREATE TABLE new_table LIKE old_table W',
                             immediate='ITH ')
-        self.trycompletions('CREATE TABLE ' + 'new_table LIKE old_table WITH ',
+        self.trycompletions('CREATE TABLE new_table LIKE old_table WITH ',
                             choices=['allow_auto_snapshot',
                                      'bloom_filter_fp_chance', 'compaction',
                                      'compression',
@@ -808,23 +808,16 @@ class TestCqlshCompletion(CqlshCompletionCase):
                                      'memtable',
                                      'memtable_flush_period_in_ms',
                                      'caching', 'comment',
-                                     'min_index_interval', 'speculative_retry', 'additional_write_policy', 'cdc', 'read_repair'])
-        self.trycompletions('CREATE TABLE ' + 'new_table LIKE old_table WITH ',
-                            choices=['allow_auto_snapshot',
-                                     'bloom_filter_fp_chance', 'compaction',
-                                     'compression',
-                                     'default_time_to_live', 'gc_grace_seconds',
-                                     'incremental_backups',
-                                     'max_index_interval',
-                                     'memtable',
-                                     'memtable_flush_period_in_ms',
-                                     'caching', 'comment',
-                                     'min_index_interval', 'speculative_retry', 'additional_write_policy', 'cdc', 'read_repair'])
+                                     'min_index_interval',
+                                     'speculative_retry', 'additional_write_policy',
+                                     'cdc', 'read_repair',
+                                     'INDEXES'])
+        self.trycompletions('CREATE TABLE new_table LIKE old_table WITH INDEXES ',
+                            choices=[';' , '=', 'AND'])
         self.trycompletions('CREATE TABLE ' + 'new_table LIKE old_table WITH bloom_filter_fp_chance ',
                             immediate='= ')
         self.trycompletions('CREATE TABLE ' + 'new_table LIKE old_table WITH bloom_filter_fp_chance = ',
                             choices=['<float_between_0_and_1>'])
-
         self.trycompletions('CREATE TABLE ' + 'new_table LIKE old_table WITH compaction ',
                             immediate="= {'class': '")
         self.trycompletions('CREATE TABLE ' + "new_table LIKE old_table WITH compaction = "
@@ -868,7 +861,10 @@ class TestCqlshCompletion(CqlshCompletionCase):
                                      'memtable',
                                      'memtable_flush_period_in_ms',
                                      'caching', 'comment',
-                                     'min_index_interval', 'speculative_retry', 'additional_write_policy', 'cdc', 'read_repair'])
+                                     'min_index_interval',
+                                     'speculative_retry', 'additional_write_policy',
+                                     'cdc', 'read_repair',
+                                     'INDEXES'])
         self.trycompletions('CREATE TABLE ' + "new_table LIKE old_table WITH compaction = "
                             + "{'class': 'TimeWindowCompactionStrategy', '",
                             choices=['compaction_window_unit', 'compaction_window_size',

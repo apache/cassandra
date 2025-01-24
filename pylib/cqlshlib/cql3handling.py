@@ -387,6 +387,9 @@ JUNK ::= /([ \t\r\f\v]+|(--|[/][/])[^\n\r]*([\n\r]|$)|[/][*].*?[*][/])/ ;
                             ( ender="," [propmapkey]=<term> ":" [propmapval]=<term> )*
                       ender="}"
                     ;
+<propertyOrOption> ::= <property>
+                     | "INDEXES"
+                     ;
 
 '''
 
@@ -1314,7 +1317,7 @@ syntax_rules += r'''
 <copyTableStatement> ::= "CREATE" wat=("COLUMNFAMILY" | "TABLE" ) ("IF" "NOT" "EXISTS")?
                                 ( tks=<nonSystemKeyspaceName> dot="." )? tcf=<cfOrKsName>
                                 "LIKE" ( sks=<nonSystemKeyspaceName> dot="." )? scf=<cfOrKsName>
-                                ( "WITH" <property> ( "AND" <property> )* )?
+                                ( "WITH" <propertyOrOption> ( "AND" <propertyOrOption> )* )?
                             ;
 '''
 

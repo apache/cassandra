@@ -1095,7 +1095,7 @@ public abstract class CQLTester
         }
 
         String currentTable = createTableName(targetTable);
-        String fullQuery = currentTable == null ? query : String.format(query, targetKeyspace + "." + currentTable, sourceKeyspace + "." + sourceTable);;
+        String fullQuery = currentTable == null ? query : String.format(query, targetKeyspace + "." + currentTable, sourceKeyspace + "." + sourceTable);
         logger.info(fullQuery);
         schemaChange(fullQuery);
         return currentTable;
@@ -1972,19 +1972,39 @@ public abstract class CQLTester
      * Determine whether the source and target TableMetadata is equal without compare the table name and dropped columns.
      * @param source the source TableMetadata
      * @param target the target TableMetadata
-     * @param compareParams wether compare table params
+     * @param compareParams wether compare table's params
      * @param compareIndexes wether compare table's indexes
-     * @param compareTrigger wether compare table's triggers
+     * @param compareIndexWithOutName wether ignore indexes' name when doing index comparison
+     *                                if true then compare the index without name
      * */
-    protected boolean equalsWithoutTableNameAndDropCns(TableMetadata source, TableMetadata target, boolean compareParams, boolean compareIndexes, boolean compareTrigger)
+    protected boolean equalsWithoutTableNameAndDropCns(TableMetadata source, TableMetadata target, boolean compareParams, boolean compareIndexes, boolean compareIndexWithOutName)
     {
         return source.partitioner.equals(target.partitioner)
                && source.kind == target.kind
                && source.flags.equals(target.flags)
                && (!compareParams || source.params.equals(target.params))
-               && (!compareIndexes || source.indexes.equals(target.indexes))
-               && (!compareTrigger || source.triggers.equals(target.triggers))
+               && (!compareIndexes || compareIndexes(source, target, compareIndexWithOutName))
                && columnsEqualWitoutKsTb(source, target);
+    }
+
+    private boolean compareIndexes(TableMetadata source, TableMetadata target, boolean compareIndexWithOutName)
+    {
+        if (compareIndexWithOutName)
+        {
+            if (source.indexes.size() != target.indexes.size())
+                return false;
+            Iterator<IndexMetadata> leftIter = source.indexes.stream().sorted(Comparator.comparing(idx -> idx.name)).iterator();
+            Iterator<IndexMetadata> rightIter = target.indexes.stream().sorted(Comparator.comparing(idx -> idx.name)).iterator();
+            boolean result = true;
+            while (leftIter.hasNext() && rightIter.hasNext())
+            {
+                IndexMetadata left = leftIter.next();
+                IndexMetadata right = rightIter.next();
+                result &= right.equalsWithoutName(left);
+            }
+            return result;
+        }
+        return source.indexes.equals(target.indexes);
     }
 
     // only compare columns

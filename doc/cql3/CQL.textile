@@ -414,16 +414,19 @@ bc(syntax)..
 <copy-table-stmt> ::= CREATE ( TABLE | COLUMNFAMILY ) ( IF NOT EXISTS )? <newtablename> LIKE <oldtablename>
                     ( WITH <option> ( AND <option>)* )?
 
-<option> ::= <property>
+<option> ::= <property> | INDEXES
 
-p. 
+p.
 __Sample:__
 
 bc(sample).. 
 CREATE TABLE newtb1 LIKE oldtb;
 
 CREATE TABLE newtb2 LIKE oldtb WITH compaction = { 'class' : 'LeveledCompactionStrategy' };
-p. 
+
+CREATE TABLE newtb4 LIKE oldtb WITH INDEXES AND compaction = { 'class' : 'LeveledCompactionStrategy' };
+
+p.
 The @COPY TABLE@ statement creates a new table which is a clone of old table. The new table have the same column numbers, column names, column data types, column data mask with the old table. The new table is defined by a "name":#copyNewTableName, and the name of the old table being cloned is defined by a "name":#copyOldTableName . The table options of the new table can be defined by setting "copyoptions":#copyTableOptions. Note that the @CREATE COLUMNFAMILY LIKE@ syntax is supported as an alias for @CREATE TABLE like@ (for historical reasons).
 
 Attempting to create an already existing table will return an error unless the @IF NOT EXISTS@ option is used. If it is used, the statement will be a no-op if the table already exists.
@@ -438,7 +441,7 @@ The old table name defines the already existed table.
 
 h4(#copyTableOptions). @<copyoptions>@
 
-The @COPY TABLE@ statement supports a number of options that controls the configuration of a new table. These options can be specified after the @WITH@ keyword, and all options are the same as those options when creating a table except for id .
+The @COPY TABLE@ statement supports a number of options that controls the configuration of a new table. These options can be specified after the @WITH@ keyword, and all options are the same as those options when creating a table except for id. Besides the options can also be specified with keyword INDEXES which means copy source table's indexes.
 
 h3(#alterTableStmt). ALTER TABLE
 
