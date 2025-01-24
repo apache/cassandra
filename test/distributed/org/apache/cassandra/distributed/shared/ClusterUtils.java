@@ -691,11 +691,6 @@ public class ClusterUtils
         waitForCMSToQuiesce(cluster, maxEpoch(cluster, cmsNodes));
     }
 
-    public static Epoch maxEpoch(ICluster<IInvokableInstance> cluster)
-    {
-        return maxEpoch(cluster, IntStream.range(1, cluster.size() + 1).toArray());
-    }
-
     public static Epoch maxEpoch(ICluster<IInvokableInstance> cluster, int[] cmsNodes)
     {
         Epoch max = null;
