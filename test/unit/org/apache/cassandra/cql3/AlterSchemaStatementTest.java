@@ -40,7 +40,8 @@ public class AlterSchemaStatementTest extends CQLTester
                      "CREATE TABLE ks.t1 (k int PRIMARY KEY)",
                      "ALTER MATERIALIZED VIEW ks.v1 WITH compaction = { 'class' : 'LeveledCompactionStrategy' }",
                      "ALTER TABLE ks.t1 ADD v int",
-                     "CREATE TABLE ks.tb like ks1.tb"
+                     "CREATE TABLE ks.tb like ks1.tb",
+                     "CREATE TABLE ks.tb like ks1.tb WITH indexes"
                      };
     private final ClientState clientState = ClientState.forExternalCalls(InetSocketAddress.createUnresolved("127.0.0.1", 1234));
 

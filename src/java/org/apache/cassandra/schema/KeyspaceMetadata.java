@@ -18,6 +18,8 @@
 package org.apache.cassandra.schema;
 
 import java.io.IOException;
+import java.util.Collection;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.Optional;
 import java.util.Set;
@@ -207,17 +209,47 @@ public final class KeyspaceMetadata implements SchemaElement
 
     public String findAvailableIndexName(String baseName)
     {
-        if (!hasIndex(baseName))
+        return findAvailableIndexName(baseName, Collections.emptySet(), this);
+    }
+
+    /**
+     * find an avaiable index name based on the indexes in target keyspace and indexes collections
+     * @param baseName the base name of index
+     * @param indexes find out whether there is any conflict with baseName in the indexes
+     * @param keyspaceMetadata find out whether there is any conflict with baseName in keyspaceMetadata
+     * */
+    public String findAvailableIndexName(String baseName, Collection<IndexMetadata> indexes, KeyspaceMetadata keyspaceMetadata)
+    {
+        if (!hasIndex(baseName, indexes, keyspaceMetadata))
             return baseName;
 
-        int i = 1;
         do
         {
-            String name = baseName + '_' + i++;
-            if (!hasIndex(name))
+            String name = generateIndexName(baseName);
+            if (!hasIndex(name, indexes, keyspaceMetadata))
                 return name;
+            baseName = name;
         }
         while (true);
+    }
+
+    private String generateIndexName(String baseName)
+    {
+        if (baseName.matches(".*_\\d+$"))
+        {
+            int lastUnderscoreIndex = baseName.lastIndexOf('_');
+            String numberStr = baseName.substring(lastUnderscoreIndex + 1);
+            int number = Integer.parseInt(numberStr) + 1;
+            return baseName.substring(0, lastUnderscoreIndex + 1) + number;
+        }
+
+        return baseName + "_1";
+    }
+
+    private boolean hasIndex(String baseName, Collection<IndexMetadata> indexes, KeyspaceMetadata keyspaceMetadata)
+    {
+        return any(indexes, t -> t.name.equals(baseName)) ||
+               any(keyspaceMetadata.tables, t -> t.indexes.has(baseName));
     }
 
     public Optional<TableMetadata> findIndexedTable(String indexName)

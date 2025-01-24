@@ -836,7 +836,16 @@ copyTableStatement returns  [CopyTableStatement.Raw stmt]
     : K_CREATE K_COLUMNFAMILY (K_IF K_NOT K_EXISTS { ifNotExists = true; } )?
       newCf=columnFamilyName K_LIKE oldCf=columnFamilyName
       { $stmt = new CopyTableStatement.Raw(newCf, oldCf, ifNotExists); }
-      ( K_WITH property[stmt.attrs] ( K_AND property[stmt.attrs] )*)?
+      ( K_WITH propertyOrOption[stmt] ( K_AND propertyOrOption[stmt] )*)?
+    ;
+
+propertyOrOption[CopyTableStatement.Raw stmt]
+    : tableLikeSingleOption[stmt]
+    | property[stmt.attrs]
+    ;
+
+tableLikeSingleOption[CopyTableStatement.Raw stmt]
+    : K_INDEXES {$stmt.withLikeOption(CopyTableStatement.CreateLikeOption.INDEXES);}
     ;
 
 /**
@@ -2084,5 +2093,6 @@ basic_unreserved_keyword returns [String str]
         | K_ANN
         | K_BETWEEN
         | K_CHECK
+        | K_INDEXES
         ) { $str = $k.text; }
     ;

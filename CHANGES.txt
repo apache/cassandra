@@ -1,4 +1,5 @@
 5.1
+ * Support CREATE TABLE LIKE WITH INDEXES (CASSANDRA-19965)
  * Invalidate relevant prepared statements on every change to TableMetadata (CASSANDRA-20318)
  * Add per type max size guardrails (CASSANDRA-19677)
  * Make it possible to abort all kinds of multi step operations (CASSANDRA-20217)

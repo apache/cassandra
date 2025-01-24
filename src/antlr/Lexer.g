@@ -98,6 +98,7 @@ K_TABLES:      ( C O L U M N F A M I L I E S
 K_MATERIALIZED:M A T E R I A L I Z E D;
 K_VIEW:        V I E W;
 K_INDEX:       I N D E X;
+K_INDEXES:     I N D E X E S;
 K_CUSTOM:      C U S T O M;
 K_ON:          O N;
 K_TO:          T O;
