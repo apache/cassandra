@@ -721,9 +721,13 @@ public final class CassandraGenerators
                         );
     }
 
-    private static Gen<VersionedValue> gossipStatusValue()
+    public static Gen<VersionedValue> gossipStatusValue()
     {
-        IPartitioner partitioner = DatabaseDescriptor.getPartitioner();
+        return gossipStatusValue(DatabaseDescriptor.getPartitioner());
+    }
+
+    public static Gen<VersionedValue> gossipStatusValue(IPartitioner partitioner)
+    {
         Gen<String> statusGen = gossipStatus();
         Gen<Token> tokenGen = token(partitioner);
         Gen<? extends Collection<Token>> tokensGen = tokens(partitioner);

@@ -155,6 +155,7 @@ Merged from 4.1:
  * Enforce CQL message size limit on multiframe messages (CASSANDRA-20052)
  * Fix race condition in DecayingEstimatedHistogramReservoir during rescale (CASSANDRA-19365)
 Merged from 4.0:
+ * CBUtil serialization of UTF8 does not handle all UTF8 properly (CASSANDRA-20234)
  * Make hint expiry use request start time rather than timeout time for TTL (CASSANDRA-20014)
  * Do not attach rows and partitions to QueryCancellationChecker when already attached (CASSANDRA-20135)
  * Allow hint delivery during schema mismatch (CASSANDRA-20188)
