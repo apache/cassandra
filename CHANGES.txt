@@ -1,4 +1,5 @@
 4.0.16
+ * CBUtil serialization of UTF8 does not handle all UTF8 properly (CASSANDRA-20234)
  * Make hint expiry use request start time rather than timeout time for TTL (CASSANDRA-20014)
  * Do not attach rows and partitions to CheckForAbort when already attached (CASSANDRA-20135)
  * Allow hint delivery during schema mismatch (CASSANDRA-20188)
