@@ -90,8 +90,8 @@ schedule in certain data centers.
 in nodetool repair. Defaults to true. General advice is to keep this true.
 | token_range_splitter | org.apache.cassandra.repair.autorepair.RepairTokenRangeSplitter | Splitter implementation to
 generate repair assignments. Defaults to RepairTokenRangeSplitter.
-| token_range_splitter.partitions_per_assignment | 1048576 | Target number of partitions to include in a repair
-assignment to reduce excessive overstreaming.
+| token_range_splitter.partitions_per_assignment | 1048576 | Maximum number of partitions to include in a repair
+assignment. Used to reduce number of partitions present in merkle tree leaf nodes to avoid overstreaming.
 | token_range_splitter.max_tables_per_assignment | 64 | Maximum number of tables to include in a repair assignment.
 This reduces the number of repairs, especially in keyspaces with many tables. The splitter avoids batching tables
 together if they exceed other configuration parameters like bytes_per_assignment or partitions_per_assignment.
