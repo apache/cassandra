@@ -421,8 +421,8 @@ public class AutoRepairV2ParameterizedTest extends CQLTester
         assertEquals(1, state.getTotalMVTablesConsideredForRepair());
         assertEquals(1, AutoRepairMetricsManager.getMetrics(repairType).totalMVTablesConsideredForRepair.getValue().intValue());
         // skipping one time for the base table and another time for MV table
-        assertEquals(2, state.getSkippedTokenRangesCount());
-        assertEquals(2, AutoRepairMetricsManager.getMetrics(repairType).skippedTokenRangesCount.getValue().intValue());
+        assertEquals(2 * DatabaseDescriptor.getAutoRepairConfig().getRepairSubRangeNum(repairType), state.getSkippedTokenRangesCount());
+        assertEquals(2 * DatabaseDescriptor.getAutoRepairConfig().getRepairSubRangeNum(repairType), AutoRepairMetricsManager.getMetrics(repairType).skippedTokenRangesCount.getValue().intValue());
 
         // set it to higher value, and this time, the tables should not be skipped
         config.setRepairSSTableCountHigherThreshold(repairType, 11);

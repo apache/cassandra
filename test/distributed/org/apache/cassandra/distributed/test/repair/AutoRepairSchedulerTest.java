@@ -72,7 +72,8 @@ public class AutoRepairSchedulerTest extends TestBaseImpl
                                                                                  "parallel_repair_percentage_in_group", "0",
                                                                                  "min_repair_interval_in_hours", "-1"))))
                                                         .set("auto_repair.enabled", "true")
-                                                        .set("auto_repair.repair_check_interval_in_sec", "10")).start();
+                                                        .set("auto_repair.repair_check_interval_in_sec", "10")
+                                                        .set("auto_repair.repair_task_min_duration", "0s")).start();
 
         cluster.schemaChange("CREATE KEYSPACE IF NOT EXISTS " + KEYSPACE + " WITH replication = {'class': 'SimpleStrategy', 'replication_factor': 3};");
         cluster.schemaChange(withKeyspace("CREATE TABLE %s.tbl (pk int, ck text, v1 int, v2 int, PRIMARY KEY (pk, ck)) WITH read_repair='NONE'"));

@@ -30,6 +30,7 @@ import java.util.function.Function;
 
 import com.google.common.annotations.VisibleForTesting;
 
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.DurationSpec;
 
 public class AutoRepairConfig implements Serializable
@@ -157,7 +158,13 @@ public class AutoRepairConfig implements Serializable
 
     public int getRepairSubRangeNum(RepairType repairType)
     {
-        return applyOverrides(repairType, opt -> opt.number_of_subranges);
+        Integer numSubranges =  applyOverrides(repairType, opt -> opt.number_of_subranges);
+        // number_of_subranges is not set
+        if (numSubranges == null)
+        {
+            return Math.min(16, Math.max(1, 256 / DatabaseDescriptor.getNumTokens()));
+        }
+        return numSubranges;
     }
 
     public void setRepairSubRangeNum(RepairType repairType, int repairSubRanges)
@@ -332,7 +339,7 @@ public class AutoRepairConfig implements Serializable
 
             opts.enabled = false;
             opts.repair_by_keyspace = false;
-            opts.number_of_subranges = 1;
+            opts.number_of_subranges = null;
             opts.number_of_repair_threads = 1;
             opts.parallel_repair_count_in_group = 1;
             opts.parallel_repair_percentage_in_group = 0;
