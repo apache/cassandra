@@ -357,7 +357,7 @@ public class SingleNodeTableWalkTest extends StatefulASTBase
         return metadata;
     }
 
-    private List<CreateIndexDDL.Indexer> allowed(TableMetadata metadata, ColumnMetadata col)
+    private List<CreateIndexDDL.Indexer> columnSupportsIndexing(TableMetadata metadata, ColumnMetadata col)
     {
         return supportedIndexers().stream()
                                   .filter(i -> i.supported(metadata, col))
@@ -457,7 +457,7 @@ public class SingleNodeTableWalkTest extends StatefulASTBase
 //                if (col.name.toString().length() >= 48) continue; // TODO (correctness): https://issues.apache.org/jira/browse/CASSANDRA-19897
 
                 if (type.isCollection() && !type.isFrozenCollection()) continue; //TODO (coverage): include non-frozen collections;  the index part works fine, its the select that fails... basic equality isn't allowed for map type... so how do you query?
-                List<CreateIndexDDL.Indexer> allowed = allowed(metadata, col);
+                List<CreateIndexDDL.Indexer> allowed = columnSupportsIndexing(metadata, col);
                 if (allowed.isEmpty()) continue;
                 CreateIndexDDL.Indexer indexer = rs.pick(allowed);
                 ReferenceExpression colExpression = Symbol.from(col);
