@@ -100,8 +100,6 @@ public class SingleNodeTableWalkTest extends StatefulASTBase
     {
         // if a failing seed is detected, populate here
         // Example: builder.withSeed(42L);
-        // To show string/blobs
-        // SHOW_REAL_VALUES = true;
     }
 
     protected TypeGenBuilder supportedTypes()

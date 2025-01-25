@@ -47,8 +47,6 @@ public class MultiNodeTableWalkTest extends SingleNodeTableWalkTest
     {
         // if a failing seed is detected, populate here
         // Example: builder.withSeed(42L);
-        // To show string/blobs
-         SHOW_REAL_VALUES = true;
 //        builder.withSeed(159634037219554562L); // see CASSANDRA-20243
         builder.withSeed(7034963806046484005L);
     }

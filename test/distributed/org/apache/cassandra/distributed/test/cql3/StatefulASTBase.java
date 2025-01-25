@@ -64,7 +64,6 @@ import org.apache.cassandra.db.marshal.DecimalType;
 import org.apache.cassandra.db.marshal.InetAddressType;
 import org.apache.cassandra.db.marshal.IntegerType;
 import org.apache.cassandra.db.marshal.LongType;
-import org.apache.cassandra.db.marshal.StringType;
 import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
@@ -73,7 +72,6 @@ import org.apache.cassandra.distributed.api.IInstance;
 import org.apache.cassandra.distributed.api.IInstanceConfig;
 import org.apache.cassandra.distributed.test.JavaDriverUtils;
 import org.apache.cassandra.distributed.test.TestBaseImpl;
-import org.apache.cassandra.harry.gen.BijectionCache;
 import org.apache.cassandra.harry.model.ASTSingleTableModel;
 import org.apache.cassandra.harry.util.StringUtils;
 import org.apache.cassandra.schema.TableMetadata;
@@ -117,15 +115,6 @@ public class StatefulASTBase extends TestBaseImpl
                                                                                                     IntegerType.instance,
                                                                                                     DecimalType.instance
     );
-    /**
-     * Sometimes only add noise and make the history hard to read, so by default a Harry descriptor is used for problamtic types (such as text/blob).
-     * If this behavior isn't desired while debugging flipping this to true will show the CQL literal.
-     *
-     * NOTE: Sometimes text literals may not look the same when comparing, but they actually are... this can get tricky
-     * to spot as text editors (such as Intellij) may show different strings!  This is the main this flag was added...
-     * to avoid this confusion while debugging!
-     */
-    protected static boolean SHOW_REAL_VALUES = false;
 
     protected static final Gen<Gen<Boolean>> BIND_OR_LITERAL_DISTRO = Gens.bools().mixedDistribution();
     protected static final Gen<Gen<Boolean>> BETWEEN_EQ_DISTRO = Gens.bools().mixedDistribution();
@@ -219,8 +208,7 @@ public class StatefulASTBase extends TestBaseImpl
         protected final TableMetadata metadata;
         protected final TableReference tableRef;
         protected final ASTSingleTableModel model;
-        private final @Nullable BijectionCache<ValueWithType> hardForHumans = SHOW_REAL_VALUES ? null : new BijectionCache<>(null);
-        private final Visitor debug;
+        private final Visitor debug = StandardVisitors.DEBUG;
         private final int enoughMemtables;
         private final int enoughSSTables;
         protected int numMutations, mutationsSinceLastFlush;
@@ -233,28 +221,6 @@ public class StatefulASTBase extends TestBaseImpl
             this.cluster = cluster;
             this.client = JavaDriverUtils.create(cluster);
             this.session = client.connect();
-
-            if (!SHOW_REAL_VALUES)
-            {
-                debug = StandardVisitors.DEBUG.append(new Visitor()
-                {
-                    @Override
-                    public Value visit(Value v)
-                    {
-                        if (v.type() instanceof StringType || v.type() == BytesType.instance)
-                        {
-                            ValueWithType vt = new ValueWithType(v.valueEncoded(), v.type());
-                            long d = hardForHumans.deflate(vt);
-                            return new Literal(v.type().asCQL3Type() + "(desc" + d + ")", UTF8Type.instance);
-                        }
-                        return v;
-                    }
-                });
-            }
-            else
-            {
-                debug = StandardVisitors.DEBUG;
-            }
 
             this.bindOrLiteralGen = BIND_OR_LITERAL_DISTRO.next(rs);
             this.betweenEqGen = BETWEEN_EQ_DISTRO.next(rs);
