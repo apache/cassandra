@@ -31,6 +31,8 @@ import java.util.Objects;
 import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 
+import com.google.common.collect.Iterables;
+
 /**
  * Build and print table.
  *
@@ -74,6 +76,24 @@ public class TableBuilder
         this(base.columnDelimiter);
         this.maximumColumnWidth = maximumColumnWidth;
         this.rows.addAll(base.rows);
+    }
+
+    public static String toString(String columnDelimiter, Iterable<List<String>> rows)
+    {
+        TableBuilder builder = new TableBuilder(columnDelimiter);
+        for (List<String> row : rows)
+            builder.add(row);
+        return builder.toString();
+    }
+
+    public static String toString(String columnDelimiter, List<String> columns, Iterable<List<String>> rows)
+    {
+        return toString(columnDelimiter, Iterables.concat(Collections.singleton(columns), rows));
+    }
+
+    public static String toStringPiped(List<String> columns, Iterable<List<String>> rows)
+    {
+        return toString(" | ", columns, rows);
     }
 
     public void add(@Nonnull List<String> row)

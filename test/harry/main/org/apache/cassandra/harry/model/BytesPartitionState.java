@@ -45,9 +45,9 @@ import org.apache.cassandra.harry.gen.ValueGenerators;
 import org.apache.cassandra.harry.util.BitSet;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.TableMetadata;
+import org.apache.cassandra.tools.nodetool.formatter.TableBuilder;
 import org.apache.cassandra.utils.FastByteOperations;
 import org.apache.cassandra.utils.ImmutableUniqueList;
-import org.apache.cassandra.utils.TableUtil;
 
 public class BytesPartitionState
 {
@@ -353,8 +353,8 @@ public class BytesPartitionState
             }
             else
             {
-                sb.append(TableUtil.table(factory.pkPositions.stream().map(Symbol::toCQL).collect(Collectors.toList()),
-                                          Collections.singletonList(asCQL(factory.pkPositions, key.getBufferArray()))));
+                sb.append(TableBuilder.toStringPiped(factory.pkPositions.stream().map(Symbol::toCQL).collect(Collectors.toList()),
+                                                     Collections.singletonList(asCQL(factory.pkPositions, key.getBufferArray()))));
             }
             sb.append("\ntoken:").append(token);
             return sb.toString();

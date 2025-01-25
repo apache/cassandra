@@ -57,6 +57,7 @@ import org.apache.cassandra.dht.Murmur3Partitioner.LongToken;
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.consensus.TransactionalMode;
+import org.apache.cassandra.tools.nodetool.formatter.TableBuilder;
 import org.apache.cassandra.utils.ASTGenerators;
 import org.apache.cassandra.utils.AbstractTypeGenerators;
 import org.apache.cassandra.utils.AbstractTypeGenerators.TypeGenBuilder;
@@ -64,7 +65,6 @@ import org.apache.cassandra.utils.AbstractTypeGenerators.TypeKind;
 import org.apache.cassandra.utils.AbstractTypeGenerators.TypeSupport;
 import org.apache.cassandra.utils.CassandraGenerators.TableMetadataBuilder;
 import org.apache.cassandra.utils.Generators;
-import org.apache.cassandra.utils.TableUtil;
 import org.quicktheories.generators.SourceDSL;
 
 import static accord.utils.Property.commands;
@@ -428,8 +428,8 @@ public class SingleNodeTokenConflictTest extends StatefulASTBase
             StringBuilder sb = new StringBuilder();
             toString(sb);
             sb.append("\n\n-- Value to Conflicting Token Map\n");
-            sb.append(TableUtil.table(Arrays.asList("Real", "Synthetic"),
-                                      realToSynthMap.entrySet().stream().map(e -> Arrays.asList(pkCQL(e.getKey()), pkCQL(e.getValue()))).collect(Collectors.toList())));
+            sb.append(TableBuilder.toStringPiped(Arrays.asList("Real", "Synthetic"),
+                                                 realToSynthMap.entrySet().stream().map(e -> Arrays.asList(pkCQL(e.getKey()), pkCQL(e.getValue()))).collect(Collectors.toList())));
             sb.append("\n\n-- Ordered values");
             order.forEach(e -> sb.append("\n\t").append(pkCQL(e)).append('\t'));
             return sb.toString();

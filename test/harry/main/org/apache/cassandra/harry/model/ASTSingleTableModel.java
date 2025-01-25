@@ -57,10 +57,10 @@ import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.harry.util.StringUtils;
 import org.apache.cassandra.schema.TableMetadata;
+import org.apache.cassandra.tools.nodetool.formatter.TableBuilder;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.ImmutableUniqueList;
 import org.apache.cassandra.utils.Pair;
-import org.apache.cassandra.utils.TableUtil;
 
 import static org.apache.cassandra.harry.model.BytesPartitionState.asCQL;
 
@@ -460,17 +460,17 @@ public class ASTSingleTableModel
 
     private static String table(ImmutableUniqueList<Symbol> columns, Collection<Row> rows)
     {
-        return TableUtil.table(columns.stream().map(Symbol::toCQL).collect(Collectors.toList()),
-                               // intellij or junit can be tripped up by utf control or invisible chars, so this logic tries to normalize to make things more safe
-                               () -> rows.stream()
+        return TableBuilder.toStringPiped(columns.stream().map(Symbol::toCQL).collect(Collectors.toList()),
+                                          // intellij or junit can be tripped up by utf control or invisible chars, so this logic tries to normalize to make things more safe
+                                          () -> rows.stream()
                                          .map(r -> r.asCQL().stream().map(StringUtils::escapeControlChars).collect(Collectors.toList()))
                                          .iterator());
     }
 
     private static String table(ImmutableUniqueList<Symbol> columns, ByteBuffer[][] rows)
     {
-        return TableUtil.table(columns.stream().map(Symbol::toCQL).collect(Collectors.toList()),
-                               () -> Stream.of(rows).map(row -> asCQL(columns, row)).iterator());
+        return TableBuilder.toStringPiped(columns.stream().map(Symbol::toCQL).collect(Collectors.toList()),
+                                          () -> Stream.of(rows).map(row -> asCQL(columns, row)).iterator());
     }
 
     private static void validateOrder(ImmutableUniqueList<Symbol> columns, ByteBuffer[][] actual, ByteBuffer[][] expected)
