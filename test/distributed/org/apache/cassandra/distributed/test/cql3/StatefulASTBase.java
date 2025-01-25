@@ -123,7 +123,7 @@ public class StatefulASTBase extends TestBaseImpl
      *
      * NOTE: Sometimes text literals may not look the same when comparing, but they actually are... this can get tricky
      * to spot as text editors (such as Intellij) may show different strings!  This is the main this flag was added...
-     * to avoid this confussion while debugging!
+     * to avoid this confusion while debugging!
      */
     protected static boolean SHOW_REAL_VALUES = false;
 
