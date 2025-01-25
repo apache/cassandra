@@ -393,32 +393,16 @@ public class SingleNodeTableWalkTest extends StatefulASTBase
             List<LinkedHashMap<Symbol, Object>> uniquePartitions;
             {
                 int unique = rs.nextInt(1, 10);
-                if (metadata.partitionKeyColumns().size() == 1)
-                {
-                    Symbol col = Symbol.from(metadata.partitionKeyColumns().get(0));
-                    List<Object> bbs = Gens.lists(toGen(getTypeSupport(col.type()).valueGen).map(v -> (Object) v))
-                                           .uniqueBestEffort()
-                                           .ofSize(unique)
-                                           .next(rs);
-                    uniquePartitions = bbs.stream().map(b -> {
-                        LinkedHashMap<Symbol, Object> map = new LinkedHashMap<>(1);
-                        map.put(col, b);
-                        return map;
-                    }).collect(Collectors.toList());
-                }
-                else
-                {
-                    List<Symbol> columns = metadata.partitionKeyColumns().stream().map(Symbol::from).collect(Collectors.toList());
-                    uniquePartitions = Gens.lists(r2 -> {
-                        LinkedHashMap<Symbol, Object> vs = new LinkedHashMap<>();
-                        for (Symbol column : columns)
-                        {
-                            Object value = toGen(getTypeSupport(column.type()).valueGen).next(r2);
-                            vs.put(column, value);
-                        }
-                        return vs;
-                    }).uniqueBestEffort().ofSize(unique).next(rs);
-                }
+                List<Symbol> columns = model.factory.pkPositions;
+                List<Gen<?>> gens = new ArrayList<>(columns.size());
+                for (int i = 0; i < columns.size(); i++)
+                    gens.add(toGen(getTypeSupport(columns.get(i).type()).valueGen));
+                uniquePartitions = Gens.lists(r2 -> {
+                    LinkedHashMap<Symbol, Object> vs = new LinkedHashMap<>();
+                    for (int i = 0; i < columns.size(); i++)
+                        vs.put(columns.get(i), gens.get(i).next(r2));
+                    return vs;
+                }).uniqueBestEffort().ofSize(unique).next(rs);
             }
 
             this.mutationGen = toGen(new ASTGenerators.MutationGenBuilder(metadata)
