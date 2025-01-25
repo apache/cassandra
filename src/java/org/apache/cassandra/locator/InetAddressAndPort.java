@@ -326,7 +326,7 @@ public final class InetAddressAndPort extends InetSocketAddress implements Compa
             {
                 if (failOnError)
                 {
-                    throw new IllegalArgumentException(e.getMessage());
+                    throw new IllegalArgumentException("Failed to parse host: " + host, e);
                 }
                 else
                 {

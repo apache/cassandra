@@ -192,7 +192,6 @@ public class SetAutoRepairConfigTest
         @Test
         public void testRepairTypeDisabled()
         {
-//            config.setAutoRepairEnabled(repairType, false);
             cmd.repairTypeStr = repairType.name();
             cmd.args = ImmutableList.of("number_of_repair_threads", "1");
 
