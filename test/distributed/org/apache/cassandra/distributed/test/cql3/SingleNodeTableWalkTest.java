@@ -32,6 +32,7 @@ import java.util.TreeMap;
 import java.util.stream.Collectors;
 import javax.annotation.Nullable;
 
+import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Sets;
 import org.junit.Test;
@@ -225,7 +226,7 @@ public class SingleNodeTableWalkTest extends StatefulASTBase
         }
         else
         {
-            symbol = selectColumn(rs, state);
+            symbol = rs.pick(state.searchableColumns);
         }
         TreeMap<ByteBuffer, List<BytesPartitionState.PrimaryKey>> universe = state.model.index(symbol);
         // we need to index 'null' so LT works, but we can not directly query it... so filter out when selecting values
@@ -375,37 +376,11 @@ public class SingleNodeTableWalkTest extends StatefulASTBase
         return FunctionCall.tokenByValue(values);
     }
 
-    private Symbol selectColumn(RandomSource rs, State state)
-    {
-        ColumnKind kind = rs.pickOrderedSet(state.allowedToQuery);
-        Symbol symbol;
-        switch (kind)
-        {
-            case Partition:
-                symbol = rs.pick(state.model.factory.pkPositions);
-                break;
-            case Clustering:
-                symbol = rs.pick(state.model.factory.ckPositions);
-                break;
-            case Static:
-                symbol = rs.pick(state.model.factory.staticPositions);
-                break;
-            case Regular:
-                symbol = rs.pick(state.model.factory.regularPositions);
-                break;
-            default:
-                throw new UnsupportedOperationException(kind.name());
-        }
-        return symbol;
-    }
-
-    private enum ColumnKind { Partition, Clustering, Static, Regular }
-
     public class State extends BaseState
     {
         protected final LinkedHashMap<Symbol, IndexedColumn> indexes;
         private final Gen<Mutation> mutationGen;
-        private final EnumSet<ColumnKind> allowedToQuery = EnumSet.noneOf(ColumnKind.class);
+        private final List<Symbol> searchableColumns;
 
         public State(RandomSource rs, Cluster cluster)
         {
@@ -454,13 +429,17 @@ public class SingleNodeTableWalkTest extends StatefulASTBase
                                      .build());
 
             if (metadata.partitionKeyColumns().size() > 1)
-                allowedToQuery.add(ColumnKind.Partition);
-            if (!metadata.clusteringColumns().isEmpty())
-                allowedToQuery.add(ColumnKind.Clustering);
-            if (!metadata.staticColumns().isEmpty())
-                allowedToQuery.add(ColumnKind.Static);
-            if (!metadata.regularColumns().isEmpty())
-                allowedToQuery.add(ColumnKind.Regular);
+            {
+                searchableColumns = model.factory.selectOrder;
+            }
+            else
+            {
+                searchableColumns = ImmutableList.<Symbol>builder()
+                                                 .addAll(model.factory.ckPositions)
+                                                 .addAll(model.factory.staticPositions)
+                                                 .addAll(model.factory.regularPositions)
+                                                 .build();
+            }
         }
 
         private LinkedHashMap<Symbol, IndexedColumn> createIndexes(RandomSource rs, TableMetadata metadata)
@@ -516,7 +495,7 @@ public class SingleNodeTableWalkTest extends StatefulASTBase
         public boolean allowNonPartitionQuery()
         {
             return !model.isEmpty()
-                   && !allowedToQuery.isEmpty();
+                   && !searchableColumns.isEmpty();
         }
 
         @Override
