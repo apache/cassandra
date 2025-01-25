@@ -100,6 +100,7 @@ public class SingleNodeTableWalkTest extends StatefulASTBase
     {
         // if a failing seed is detected, populate here
         // Example: builder.withSeed(42L);
+        builder.withSeed(-6974554530688518405L); //TODO (now): debug.  pk1 and s0 are both indexed and missing data came up... this might be related to another bug reported to Caleb, need to confirm
     }
 
     protected TypeGenBuilder supportedTypes()
