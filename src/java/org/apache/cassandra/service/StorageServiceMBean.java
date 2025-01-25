@@ -36,7 +36,6 @@ import javax.management.openmbean.TabularData;
 import org.apache.cassandra.db.ColumnFamilyStoreMBean;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.utils.BreaksJMX;
-import org.apache.cassandra.exceptions.InvalidRequestException;
 
 public interface StorageServiceMBean extends NotificationEmitter
 {
@@ -1075,5 +1074,5 @@ public interface StorageServiceMBean extends NotificationEmitter
     public List<String> getTablesForKeyspace(String keyspace);
 
     /** Mutates the repaired state of all SSTables for the given SSTables */
-    public List<String> mutateSSTableRepairedState(boolean repaired, boolean preview, String keyspace, List<String> tables) throws InvalidRequestException;
+    public List<String> mutateSSTableRepairedState(boolean repaired, boolean preview, String keyspace, List<String> tables);
 }

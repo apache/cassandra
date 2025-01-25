@@ -119,7 +119,7 @@ public class AutoRepairServiceTest
         {
             autoRepairService.config = new AutoRepairConfig(false);
 
-            autoRepairService.setAutoRepairEnabled(AutoRepairConfig.RepairType.INCREMENTAL, true);
+            autoRepairService.setAutoRepairEnabled(AutoRepairConfig.RepairType.INCREMENTAL.name(), true);
         }
 
         @Test(expected = ConfigurationException.class)
@@ -129,7 +129,7 @@ public class AutoRepairServiceTest
             autoRepairService.config.setMaterializedViewRepairEnabled(AutoRepairConfig.RepairType.INCREMENTAL, true);
             DatabaseDescriptor.setMaterializedViewsOnRepairEnabled(true);
 
-            autoRepairService.setAutoRepairEnabled(AutoRepairConfig.RepairType.INCREMENTAL, true);
+            autoRepairService.setAutoRepairEnabled(AutoRepairConfig.RepairType.INCREMENTAL.name(), true);
         }
 
         @Test
@@ -140,7 +140,7 @@ public class AutoRepairServiceTest
             DatabaseDescriptor.setCDCOnRepairEnabled(false);
             DatabaseDescriptor.setMaterializedViewsOnRepairEnabled(false);
 
-            autoRepairService.setAutoRepairEnabled(AutoRepairConfig.RepairType.INCREMENTAL, true);
+            autoRepairService.setAutoRepairEnabled(AutoRepairConfig.RepairType.INCREMENTAL.name(), true);
         }
 
         @Test(expected = ConfigurationException.class)
@@ -150,7 +150,7 @@ public class AutoRepairServiceTest
             DatabaseDescriptor.setCDCEnabled(true);
             DatabaseDescriptor.setCDCOnRepairEnabled(true);
 
-            autoRepairService.setAutoRepairEnabled(AutoRepairConfig.RepairType.INCREMENTAL, true);
+            autoRepairService.setAutoRepairEnabled(AutoRepairConfig.RepairType.INCREMENTAL.name(), true);
         }
 
         @Test
@@ -160,7 +160,7 @@ public class AutoRepairServiceTest
             DatabaseDescriptor.setCDCEnabled(true);
             DatabaseDescriptor.setCDCOnRepairEnabled(false);
 
-            autoRepairService.setAutoRepairEnabled(AutoRepairConfig.RepairType.INCREMENTAL, true);
+            autoRepairService.setAutoRepairEnabled(AutoRepairConfig.RepairType.INCREMENTAL.name(), true);
         }
     }
 
@@ -204,7 +204,7 @@ public class AutoRepairServiceTest
             AutoRepairUtils.insertNewRepairHistory(repairType, host1, now, now - 1000000);
             AutoRepairUtils.insertNewRepairHistory(repairType, host2, now, now - 1000000);
 
-            Set<String> hosts = instance.getOnGoingRepairHostIds(repairType);
+            Set<String> hosts = instance.getOnGoingRepairHostIds(repairType.name());
 
             assertEquals(ImmutableSet.of(host1.toString(), host2.toString()), hosts);
         }
@@ -239,8 +239,8 @@ public class AutoRepairServiceTest
             forEachRepairType(600, AutoRepairService.instance::setParallelRepairPercentage, config::getParallelRepairPercentage),
             forEachRepairType(700, AutoRepairService.instance::setParallelRepairCount, config::getParallelRepairCount),
             forEachRepairType(true, AutoRepairService.instance::setMVRepairEnabled, config::getMaterializedViewRepairEnabled),
-            forEachRepairType(ImmutableSet.of(InetAddressAndPort.getLocalHost()), AutoRepairService.instance::setRepairPriorityForHosts, AutoRepairUtils::getPriorityHosts),
-            forEachRepairType(ImmutableSet.of(InetAddressAndPort.getLocalHost()), AutoRepairService.instance::setForceRepairForHosts, SetterTests::isLocalHostForceRepair)
+            forEachRepairType(InetAddressAndPort.getLocalHost().getHostAddressAndPort(), (repairType, commaSeparatedHostSet) -> AutoRepairService.instance.setRepairPriorityForHosts(repairType, (String) commaSeparatedHostSet), AutoRepairUtils::getPriorityHosts),
+            forEachRepairType(InetAddressAndPort.getLocalHost().getHostAddressAndPort(), (repairType, commaSeparatedHostSet) -> AutoRepairService.instance.setForceRepairForHosts(repairType, (String) commaSeparatedHostSet), SetterTests::isLocalHostForceRepair)
             ).flatMap(Function.identity()).collect(Collectors.toList());
         }
 
@@ -258,7 +258,7 @@ public class AutoRepairServiceTest
             return ImmutableSet.of();
         }
 
-        private static <T> Stream<Object[]> forEachRepairType(T arg, BiConsumer<AutoRepairConfig.RepairType, T> setter, Function<AutoRepairConfig.RepairType, T> getter)
+        private static <T> Stream<Object[]> forEachRepairType(T arg, BiConsumer<String, T> setter, Function<AutoRepairConfig.RepairType, T> getter)
         {
             Object[][] testCases = new Object[AutoRepairConfig.RepairType.values().length][4];
             for (AutoRepairConfig.RepairType repairType : AutoRepairConfig.RepairType.values())
