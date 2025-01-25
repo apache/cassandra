@@ -21,6 +21,7 @@ package org.apache.cassandra.utils;
 import java.util.AbstractList;
 import java.util.AbstractSet;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Iterator;
 import java.util.List;
 import java.util.RandomAccess;
@@ -88,6 +89,11 @@ public class ImmutableUniqueList<T> extends AbstractList<T> implements RandomAcc
         private final Object2IntHashMap<T> indexLookup = new Object2IntHashMap<>(-1);
         private int idx;
 
+        public Builder<T> mayAddAll(Collection<? extends T> values)
+        {
+            addAll(values);
+            return this;
+        }
 
         @Override
         public boolean add(T t)

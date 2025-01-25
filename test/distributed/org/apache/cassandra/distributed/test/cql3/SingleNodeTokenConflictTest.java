@@ -22,6 +22,7 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashSet;
 import java.util.LinkedHashSet;
@@ -65,10 +66,12 @@ import org.apache.cassandra.utils.AbstractTypeGenerators.TypeKind;
 import org.apache.cassandra.utils.AbstractTypeGenerators.TypeSupport;
 import org.apache.cassandra.utils.CassandraGenerators.TableMetadataBuilder;
 import org.apache.cassandra.utils.Generators;
+import org.apache.cassandra.utils.ImmutableUniqueList;
 import org.quicktheories.generators.SourceDSL;
 
 import static accord.utils.Property.commands;
 import static accord.utils.Property.stateful;
+import static org.apache.cassandra.dht.Murmur3Partitioner.LongToken.keyForToken;
 import static org.apache.cassandra.utils.Generators.toGen;
 
 public class SingleNodeTokenConflictTest extends StatefulASTBase
@@ -322,6 +325,7 @@ public class SingleNodeTokenConflictTest extends StatefulASTBase
 
     class State extends BaseState
     {
+        private final List<ByteBuffer> neighbors;
         private final List<ByteBuffer> pkValues;
         private final Gen<ByteBuffer> pkGen;
         private final TreeMap<ByteBuffer, ByteBuffer> realToSynthMap;
@@ -353,9 +357,12 @@ public class SingleNodeTokenConflictTest extends StatefulASTBase
                 }
                 if (pkValues.isEmpty())
                     throw new AssertionError("There are no values after filtering duplicates...");
-                this.pkValues = ImmutableList.<ByteBuffer>builder()
-                                             .addAll(pkValues)
-                                             .addAll(tokenValues)
+                this.neighbors = rs.nextBoolean() ? Collections.emptyList() : extractNeighbors(pkValues);
+                // in case neighbors conflicts with pkValues or tokenValues, use ImmutableUniqueList which will ignore rather than fail
+                this.pkValues = ImmutableUniqueList.<ByteBuffer>builder()
+                                             .mayAddAll(pkValues)
+                                             .mayAddAll(tokenValues)
+                                             .mayAddAll(neighbors)
                                              .build();
                 this.pkGen = Gens.pick(pkValues);
                 this.order = new TreeSet<>(PK_TYPE);
@@ -386,6 +393,22 @@ public class SingleNodeTokenConflictTest extends StatefulASTBase
                                      .withoutTimestamp()
                                      .withPartitions(SourceDSL.arbitrary().pick(uniquePartitions))
                                      .build());
+        }
+
+        private List<ByteBuffer> extractNeighbors(List<ByteBuffer> values)
+        {
+            // if the same value is added multiple times this data structure will ignore the addition, making sure the
+            // returned list only has unique values
+            ImmutableUniqueList.Builder<ByteBuffer> neighbors = ImmutableUniqueList.builder();
+            for (ByteBuffer bb : values)
+            {
+                var token = Murmur3Partitioner.instance.getToken(bb);
+                if (token.token > Long.MIN_VALUE + 1)
+                    neighbors.add(keyForToken(token.token - 1));
+                if (token.token < Long.MAX_VALUE)
+                    neighbors.add(keyForToken(token.token + 1));
+            }
+            return neighbors.build();
         }
 
         private LinkedHashSet<ByteBuffer> randomPks(RandomSource rs)
@@ -432,12 +455,14 @@ public class SingleNodeTokenConflictTest extends StatefulASTBase
                                                  realToSynthMap.entrySet().stream().map(e -> Arrays.asList(pkCQL(e.getKey()), pkCQL(e.getValue()))).collect(Collectors.toList())));
             sb.append("\n\n-- Ordered values");
             order.forEach(e -> sb.append("\n\t").append(pkCQL(e)).append('\t'));
+            sb.append("\n\n-- Neighbors");
+            neighbors.forEach(bb -> sb.append("\n\t").append(pkCQL(bb)).append('\t'));
             return sb.toString();
         }
     }
 
     private static ByteBuffer toTokenValue(ByteBuffer buffer)
     {
-        return LongToken.keyForToken(Murmur3Partitioner.instance.getToken(buffer));
+        return keyForToken(Murmur3Partitioner.instance.getToken(buffer));
     }
 }
