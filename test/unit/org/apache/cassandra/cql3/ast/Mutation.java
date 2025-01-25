@@ -510,7 +510,7 @@ WHERE PK_column_conditions
             this.primaryColumns.addAll(clusteringColumns);
             this.regularAndStatic = new LinkedHashSet<>();
             this.regularAndStatic.addAll(toSet(table.regularAndStaticColumns()));
-            this.allColumns = toSet(ASTGenerators.safeColumns(table));
+            this.allColumns = toSet(ASTGenerators.allColumnsInFixedOrder(table));
             neededPks.addAll(partitionColumns);
         }
 

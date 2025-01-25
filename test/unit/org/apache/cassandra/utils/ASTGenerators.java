@@ -95,7 +95,11 @@ public class ASTGenerators
         throw new AssertionError("Unsupported map type: " + map.getClass());
     }
 
-    public static List<ColumnMetadata> safeColumns(TableMetadata metadata)
+    /**
+     * Returns a list of all columns in a deterministic order.  This method is similar to {@link TableMetadata#columns},
+     * but that method uses a hash order, so the values could be different from host to host or jvm to jvm...
+     */
+    public static List<ColumnMetadata> allColumnsInFixedOrder(TableMetadata metadata)
     {
         List<ColumnMetadata> columns = new ArrayList<>(metadata.columns().size());
         metadata.allColumnsInSelectOrder().forEachRemaining(columns::add);
@@ -300,7 +304,7 @@ public class ASTGenerators
 
         private static Gen<List<Expression>> selectColumns(TableMetadata metadata)
         {
-            List<ColumnMetadata> columns = safeColumns(metadata);
+            List<ColumnMetadata> columns = allColumnsInFixedOrder(metadata);
             Constraint between = Constraint.between(0, columns.size() - 1);
             Gen<int[]> indexGen = rnd -> {
                 int size = Math.toIntExact(rnd.next(between)) + 1;
@@ -320,7 +324,7 @@ public class ASTGenerators
         private static Gen<Map<Symbol, Expression>> partitionKeyGen(TableMetadata metadata)
         {
             Map<ColumnMetadata, Gen<?>> gens = new LinkedHashMap<>();
-            for (ColumnMetadata col : safeColumns(metadata))
+            for (ColumnMetadata col : allColumnsInFixedOrder(metadata))
                 gens.put(col, AbstractTypeGenerators.getTypeSupport(col.type).valueGen);
             return rnd -> {
                 Map<Symbol, Expression> output = new LinkedHashMap<>();
