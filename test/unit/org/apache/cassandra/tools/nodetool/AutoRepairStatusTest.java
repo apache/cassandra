@@ -72,7 +72,7 @@ public class AutoRepairStatusTest
         setAutoRepairEnabled(true);
         DatabaseDescriptor.getAutoRepairConfig().setAutoRepairEnabled(AutoRepairConfig.RepairType.FULL, true);
         DatabaseDescriptor.getAutoRepairConfig().setAutoRepairEnabled(AutoRepairConfig.RepairType.INCREMENTAL, true);
-        when(probe.getAutoRepairConfig()).thenReturn(DatabaseDescriptor.getAutoRepairConfig());
+//        when(probe.getAutoRepairConfig()).thenReturn(DatabaseDescriptor.getAutoRepairConfig());
     }
 
     @Test(expected = IllegalArgumentException.class)
@@ -85,7 +85,7 @@ public class AutoRepairStatusTest
     @Test
     public void testExecuteWithNoNodes()
     {
-        cmd.repairType = repairType;
+        cmd.repairType = repairType.name();
 
         cmd.execute(probe);
         assertEquals("Active Repairs\n" +
@@ -95,8 +95,8 @@ public class AutoRepairStatusTest
     @Test
     public void testExecute()
     {
-        when(probe.getOnGoingRepairHostIds(repairType)).thenReturn(ImmutableSet.of("host1", "host2", "host3", "host4"));
-        cmd.repairType = repairType;
+        when(probe.getOnGoingRepairHostIds(repairType.name())).thenReturn(ImmutableSet.of("host1", "host2", "host3", "host4"));
+        cmd.repairType = repairType.name();
 
         cmd.execute(probe);
 

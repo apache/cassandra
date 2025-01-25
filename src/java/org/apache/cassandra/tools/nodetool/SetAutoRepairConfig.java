@@ -23,17 +23,14 @@ import com.google.common.base.Splitter;
 import io.airlift.airline.Arguments;
 import io.airlift.airline.Command;
 import io.airlift.airline.Option;
-import org.apache.cassandra.locator.InetAddressAndPort;
-import org.apache.cassandra.repair.autorepair.AutoRepairConfig.RepairType;
 import org.apache.cassandra.tools.NodeProbe;
 import org.apache.cassandra.tools.NodeTool.NodeToolCmd;
-import org.apache.cassandra.utils.LocalizeString;
 
 import java.io.PrintStream;
-import java.net.UnknownHostException;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Objects;
 import java.util.Set;
 
 import static com.google.common.base.Preconditions.checkArgument;
@@ -68,7 +65,7 @@ public class SetAutoRepairConfig extends NodeToolCmd
         String paramType = args.get(0);
         String paramVal = args.get(1);
 
-        if (!probe.getAutoRepairConfig().isAutoRepairSchedulingEnabled() && !paramType.equalsIgnoreCase("start_scheduler"))
+        if (probe.isAutoRepairDisabled() && !paramType.equalsIgnoreCase("start_scheduler"))
         {
             out.println("Auto-repair is not enabled");
             return;
@@ -101,47 +98,40 @@ public class SetAutoRepairConfig extends NodeToolCmd
         }
 
         // options below require --repair-type option
-        checkArgument(repairTypeStr != null, "--repair-type is required for this parameter.");
-        final RepairType repairType = RepairType.valueOf(LocalizeString.toUpperCaseLocalized(repairTypeStr));
+        Objects.requireNonNull(repairTypeStr, "--repair-type is required for this parameter.");
 
         if(paramType.startsWith(TOKEN_RANGE_SPLITTER_PROPERTY_PREFIX))
         {
             final String key = paramType.replace(TOKEN_RANGE_SPLITTER_PROPERTY_PREFIX, "");
-            probe.setAutoRepairTokenRangeSplitterParameter(repairType, key, paramVal);
+            probe.setAutoRepairTokenRangeSplitterParameter(repairTypeStr, key, paramVal);
             return;
         }
 
-        Set<InetAddressAndPort> hosts;
         switch (paramType)
         {
             case "enabled":
-                probe.setAutoRepairEnabled(repairType, Boolean.parseBoolean(paramVal));
+                probe.setAutoRepairEnabled(repairTypeStr, Boolean.parseBoolean(paramVal));
                 break;
             case "number_of_repair_threads":
-                probe.setRepairThreads(repairType, Integer.parseInt(paramVal));
+                probe.setRepairThreads(repairTypeStr, Integer.parseInt(paramVal));
                 break;
             case "min_repair_interval":
-                probe.setRepairMinInterval(repairType, paramVal);
+                probe.setRepairMinInterval(repairTypeStr, paramVal);
                 break;
             case "sstable_upper_threshold":
-                probe.setRepairSSTableCountHigherThreshold(repairType, Integer.parseInt(paramVal));
+                probe.setRepairSSTableCountHigherThreshold(repairTypeStr, Integer.parseInt(paramVal));
                 break;
             case "table_max_repair_time":
-                probe.setAutoRepairTableMaxRepairTime(repairType, paramVal);
+                probe.setAutoRepairTableMaxRepairTime(repairTypeStr, paramVal);
                 break;
             case "priority_hosts":
-                hosts = retrieveHosts(paramVal);
-                if (!hosts.isEmpty())
+                if (paramVal!= null && !paramVal.isEmpty())
                 {
-                    probe.setRepairPriorityForHosts(repairType, hosts);
+                    probe.setRepairPriorityForHosts(repairTypeStr, paramVal);
                 }
                 break;
             case "forcerepair_hosts":
-                hosts = retrieveHosts(paramVal);
-                if (!hosts.isEmpty())
-                {
-                    probe.setForceRepairForHosts(repairType, hosts);
-                }
+                probe.setForceRepairForHosts(repairTypeStr, paramVal);
                 break;
             case "ignore_dcs":
                 Set<String> ignoreDCs = new HashSet<>();
@@ -149,43 +139,25 @@ public class SetAutoRepairConfig extends NodeToolCmd
                 {
                     ignoreDCs.add(dc);
                 }
-                probe.setAutoRepairIgnoreDCs(repairType, ignoreDCs);
+                probe.setAutoRepairIgnoreDCs(repairTypeStr, ignoreDCs);
                 break;
             case "repair_primary_token_range_only":
-                probe.setPrimaryTokenRangeOnly(repairType, Boolean.parseBoolean(paramVal));
+                probe.setPrimaryTokenRangeOnly(repairTypeStr, Boolean.parseBoolean(paramVal));
                 break;
             case "parallel_repair_count":
-                probe.setParallelRepairCount(repairType, Integer.parseInt(paramVal));
+                probe.setParallelRepairCount(repairTypeStr, Integer.parseInt(paramVal));
                 break;
             case "parallel_repair_percentage":
-                probe.setParallelRepairPercentage(repairType, Integer.parseInt(paramVal));
+                probe.setParallelRepairPercentage(repairTypeStr, Integer.parseInt(paramVal));
                 break;
             case "materialized_view_repair_enabled":
-                probe.setMaterializedViewRepairEnabled(repairType, Boolean.parseBoolean(paramVal));
+                probe.setMaterializedViewRepairEnabled(repairTypeStr, Boolean.parseBoolean(paramVal));
                 break;
             case "repair_session_timeout":
-                probe.setRepairSessionTimeout(repairType, paramVal);
+                probe.setRepairSessionTimeout(repairTypeStr, paramVal);
                 break;
             default:
                 throw new IllegalArgumentException("Unknown parameter: " + paramType);
         }
-    }
-
-    private Set<InetAddressAndPort> retrieveHosts(String paramVal)
-    {
-        Set<InetAddressAndPort> hosts = new HashSet<>();
-        for (String host : Splitter.on(',').split(paramVal))
-        {
-            try
-            {
-                hosts.add(InetAddressAndPort.getByName(host));
-            }
-            catch (UnknownHostException e)
-            {
-                out.println("invalid ip address: " + host);
-            }
-        }
-
-        return hosts;
     }
 }

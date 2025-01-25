@@ -51,13 +51,13 @@ public class AutoRepairServiceSetterTest<T> extends CQLTester {
     private static final AutoRepairConfig config = new AutoRepairConfig(true);
 
     @Parameterized.Parameter
-    public AutoRepairConfig.RepairType repairType;
+    public AutoRepairConfig.RepairType repairTypeStr;
 
     @Parameterized.Parameter(1)
     public T arg;
 
     @Parameterized.Parameter(2)
-    public BiConsumer<AutoRepairConfig.RepairType, T> setter;
+    public BiConsumer<String, T> setter;
 
     @Parameterized.Parameter(3)
     public Function<AutoRepairConfig.RepairType, T> getter;
@@ -74,8 +74,8 @@ public class AutoRepairServiceSetterTest<T> extends CQLTester {
                 forEachRepairType(600, AutoRepairService.instance::setParallelRepairPercentage, config::getParallelRepairPercentage),
                 forEachRepairType(700, AutoRepairService.instance::setParallelRepairCount, config::getParallelRepairCount),
                 forEachRepairType(true, AutoRepairService.instance::setMVRepairEnabled, config::getMaterializedViewRepairEnabled),
-                forEachRepairType(ImmutableSet.of(InetAddressAndPort.getLocalHost()), AutoRepairService.instance::setRepairPriorityForHosts, AutoRepairUtils::getPriorityHosts),
-                forEachRepairType(ImmutableSet.of(InetAddressAndPort.getLocalHost()), AutoRepairService.instance::setForceRepairForHosts, AutoRepairServiceSetterTest::isLocalHostForceRepair)
+                forEachRepairType(InetAddressAndPort.getLocalHost().getHostAddressAndPort(), (repairType, commaSeparatedHostSet) -> AutoRepairService.instance.setRepairPriorityForHosts(repairType, (String) commaSeparatedHostSet), AutoRepairUtils::getPriorityHosts),
+                forEachRepairType(InetAddressAndPort.getLocalHost().getHostAddressAndPort(), (repairType, commaSeparatedHostSet) -> AutoRepairService.instance.setForceRepairForHosts(repairType, (String) commaSeparatedHostSet), AutoRepairServiceSetterTest::isLocalHostForceRepair)
         ).flatMap(Function.identity()).collect(Collectors.toList());
     }
 
@@ -91,7 +91,7 @@ public class AutoRepairServiceSetterTest<T> extends CQLTester {
         return ImmutableSet.of();
     }
 
-    private static <T> Stream<Object[]> forEachRepairType(T arg, BiConsumer<AutoRepairConfig.RepairType, T> setter, Function<AutoRepairConfig.RepairType, T> getter) {
+    private static <T> Stream<Object[]> forEachRepairType(T arg, BiConsumer<String, T> setter, Function<AutoRepairConfig.RepairType, T> getter) {
         Object[][] testCases = new Object[AutoRepairConfig.RepairType.values().length][4];
         for (AutoRepairConfig.RepairType repairType : AutoRepairConfig.RepairType.values()) {
             testCases[repairType.ordinal()] = new Object[]{repairType, arg, setter, getter};
@@ -125,7 +125,7 @@ public class AutoRepairServiceSetterTest<T> extends CQLTester {
     public void testSettersTest() {
         DatabaseDescriptor.setMaterializedViewsOnRepairEnabled(false);
         DatabaseDescriptor.setCDCOnRepairEnabled(false);
-        setter.accept(repairType, arg);
-        assertEquals(arg, getter.apply(repairType));
+        setter.accept(repairTypeStr.name(), arg);
+        assertEquals(arg, getter.apply(repairTypeStr));
     }
 }
