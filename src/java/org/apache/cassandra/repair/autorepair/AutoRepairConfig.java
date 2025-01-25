@@ -23,6 +23,7 @@ import java.util.Collections;
 import java.util.EnumMap;
 import java.util.HashSet;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ConcurrentMap;
 import java.util.function.Function;
@@ -103,6 +104,18 @@ public class AutoRepairConfig implements Serializable
             }
 
             throw new IllegalArgumentException("Invalid repair type: " + repairType);
+        }
+
+        /**
+         * Case-insensitive parsing of the repair type string into {@link RepairType}
+         *
+         * @param repairTypeStr the repair type string
+         * @return the {@link RepairType} represented by the {@code repairTypeStr} string
+         * @throws IllegalArgumentException when the repair type string does not match any repair type
+         */
+        public static RepairType parse(String repairTypeStr)
+        {
+            return RepairType.valueOf(LocalizeString.toUpperCaseLocalized(Objects.requireNonNull(repairTypeStr, "repairTypeStr cannot be null")));
         }
     }
 

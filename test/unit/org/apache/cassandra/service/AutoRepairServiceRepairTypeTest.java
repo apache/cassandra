@@ -72,7 +72,7 @@ public class AutoRepairServiceRepairTypeTest extends CQLTester {
         AutoRepairUtils.insertNewRepairHistory(repairType, host1, now, now - 1000000);
         AutoRepairUtils.insertNewRepairHistory(repairType, host2, now, now - 1000000);
 
-        Set<String> hosts = instance.getOnGoingRepairHostIds(repairType);
+        Set<String> hosts = instance.getOnGoingRepairHostIds(repairType.name());
 
         assertEquals(ImmutableSet.of(host1.toString(), host2.toString()), hosts);
     }
