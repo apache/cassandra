@@ -93,7 +93,7 @@ public class BytesPartitionState
 
     private BitSet bitset(Set<Symbol> columns, boolean regular)
     {
-        ImmutableUniqueList<Symbol> positions = regular ? factory.regularPositions : factory.staticPositions;
+        ImmutableUniqueList<Symbol> positions = regular ? factory.regularColumns : factory.staticColumns;
         BitSet bitSet = new BitSet.BitSet64Bit(positions.size());
         for (int i = 0; i < positions.size(); i++)
         {
@@ -116,16 +116,16 @@ public class BytesPartitionState
 
     public void setStaticColumns(Map<Symbol, ByteBuffer> values)
     {
-        if (factory.staticPositions.isEmpty() || values.isEmpty())
+        if (factory.staticColumns.isEmpty() || values.isEmpty())
             throw new IllegalStateException("Attempt to write to static columns; but they do not exist");
-        long[] sds = toDescriptor(factory.staticPositions, values);
+        long[] sds = toDescriptor(factory.staticColumns, values);
         state.writeStatic(sds, MagicConstants.NO_TIMESTAMP);
     }
 
     public void setColumns(Clustering<ByteBuffer> clustering, Map<Symbol, ByteBuffer> values, boolean writePrimaryKeyLiveness)
     {
         long cd = factory.clusteringCache.deflate(clustering);
-        long[] vds = toDescriptor(factory.regularPositions, values);
+        long[] vds = toDescriptor(factory.regularColumns, values);
         state.writeRegular(cd, vds, MagicConstants.NO_TIMESTAMP, writePrimaryKeyLiveness);
     }
 
@@ -201,12 +201,12 @@ public class BytesPartitionState
         if (PartitionState.STATIC_CLUSTERING == rowState.cd)
         {
             clustering = Clustering.STATIC_CLUSTERING;
-            values = fromDescriptor(factory.staticPositions, rowState.vds);
+            values = fromDescriptor(factory.staticColumns, rowState.vds);
         }
         else
         {
             clustering = factory.clusteringCache.inflate(rowState.cd);
-            values = fromDescriptor(factory.regularPositions, rowState.vds);
+            values = fromDescriptor(factory.regularColumns, rowState.vds);
         }
         return new Row(clustering, values);
     }
@@ -353,8 +353,8 @@ public class BytesPartitionState
             }
             else
             {
-                sb.append(TableBuilder.toStringPiped(factory.pkPositions.stream().map(Symbol::toCQL).collect(Collectors.toList()),
-                                                     Collections.singletonList(asCQL(factory.pkPositions, key.getBufferArray()))));
+                sb.append(TableBuilder.toStringPiped(factory.partitionColumns.stream().map(Symbol::toCQL).collect(Collectors.toList()),
+                                                     Collections.singletonList(asCQL(factory.partitionColumns, key.getBufferArray()))));
             }
             sb.append("\ntoken:").append(token);
             return sb.toString();
@@ -370,7 +370,7 @@ public class BytesPartitionState
         private Row(Clustering<ByteBuffer> clustering, ByteBuffer[] columns)
         {
             this.clustering = clustering;
-            this.columnNames = clustering == Clustering.STATIC_CLUSTERING ? factory.staticPositions : factory.regularPositions;
+            this.columnNames = clustering == Clustering.STATIC_CLUSTERING ? factory.staticColumns : factory.regularColumns;
             this.columns = columns;
         }
 
@@ -398,11 +398,11 @@ public class BytesPartitionState
     public static class Factory
     {
         public final TableMetadata metadata;
-        public final ImmutableUniqueList<Symbol> pkPositions;
-        public final ImmutableUniqueList<Symbol> ckPositions;
-        public final ImmutableUniqueList<Symbol> staticPositions;
-        public final ImmutableUniqueList<Symbol> regularPositions;
-        public final ImmutableUniqueList<Symbol> selectOrder;
+        public final ImmutableUniqueList<Symbol> partitionColumns;
+        public final ImmutableUniqueList<Symbol> clusteringColumns;
+        public final ImmutableUniqueList<Symbol> staticColumns;
+        public final ImmutableUniqueList<Symbol> regularColumns;
+        public final ImmutableUniqueList<Symbol> selectionOrder;
         public final ClusteringComparator clusteringComparator;
 
 
@@ -418,37 +418,37 @@ public class BytesPartitionState
             ImmutableUniqueList.Builder<Symbol> symbolListBuilder = ImmutableUniqueList.builder();
             for (ColumnMetadata pk : metadata.partitionKeyColumns())
                 symbolListBuilder.add(Symbol.from(pk));
-            pkPositions = symbolListBuilder.buildAndClear();
+            partitionColumns = symbolListBuilder.buildAndClear();
             for (ColumnMetadata pk : metadata.clusteringColumns())
                 symbolListBuilder.add(Symbol.from(pk));
-            ckPositions = symbolListBuilder.buildAndClear();
+            clusteringColumns = symbolListBuilder.buildAndClear();
             for (ColumnMetadata pk : metadata.staticColumns())
                 symbolListBuilder.add(Symbol.from(pk));
-            staticPositions = symbolListBuilder.buildAndClear();
+            staticColumns = symbolListBuilder.buildAndClear();
             for (ColumnMetadata pk : metadata.regularColumns())
                 symbolListBuilder.add(Symbol.from(pk));
-            regularPositions = symbolListBuilder.buildAndClear();
+            regularColumns = symbolListBuilder.buildAndClear();
             metadata.allColumnsInSelectOrder().forEachRemaining(cm -> symbolListBuilder.add(Symbol.from(cm)));
-            selectOrder = symbolListBuilder.buildAndClear();
+            selectionOrder = symbolListBuilder.buildAndClear();
 
-            clusteringComparator = new ClusteringComparator(ckPositions.stream().map(Symbol::rawType).collect(Collectors.toList()));
+            clusteringComparator = new ClusteringComparator(clusteringColumns.stream().map(Symbol::rawType).collect(Collectors.toList()));
 
-            List<Comparator<Object>> pkComparators = new ArrayList<>(pkPositions.size());
-            for (var p : pkPositions)
+            List<Comparator<Object>> pkComparators = new ArrayList<>(partitionColumns.size());
+            for (var p : partitionColumns)
                 pkComparators.add(compareBytes(p.type()));
-            List<Comparator<Object>> ckComparators = new ArrayList<>(ckPositions.size());
-            for (var c : ckPositions)
+            List<Comparator<Object>> ckComparators = new ArrayList<>(clusteringColumns.size());
+            for (var c : clusteringColumns)
                 ckComparators.add(compareBytes(c.rawType()));
-            List<Bijections.Bijection<?>> regularColumnGens = new ArrayList<>(regularPositions.size());
-            List<Comparator<Object>> regularComparators = new ArrayList<>(regularPositions.size());
-            for (var r : regularPositions)
+            List<Bijections.Bijection<?>> regularColumnGens = new ArrayList<>(regularColumns.size());
+            List<Comparator<Object>> regularComparators = new ArrayList<>(regularColumns.size());
+            for (var r : regularColumns)
             {
                 regularColumnGens.add(valueCache);
                 regularComparators.add(compareValue(r.type()));
             }
-            List<Bijections.Bijection<?>> staticColumnGens = new ArrayList<>(staticPositions.size());
-            List<Comparator<Object>> staticComparators = new ArrayList<>(staticPositions.size());
-            for (var s : staticPositions)
+            List<Bijections.Bijection<?>> staticColumnGens = new ArrayList<>(staticColumns.size());
+            List<Comparator<Object>> staticComparators = new ArrayList<>(staticColumns.size());
+            for (var s : staticColumns)
             {
                 staticColumnGens.add(valueCache);
                 staticComparators.add(compareValue(s.type()));

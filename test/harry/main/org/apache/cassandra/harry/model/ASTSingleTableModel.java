@@ -91,16 +91,16 @@ public class ASTSingleTableModel
 
     public TreeMap<ByteBuffer, List<BytesPartitionState.PrimaryKey>> index(Symbol symbol)
     {
-        if (factory.pkPositions.contains(symbol))
+        if (factory.partitionColumns.contains(symbol))
             return indexPartitionColumn(symbol);
-        if (factory.staticPositions.contains(symbol))
+        if (factory.staticColumns.contains(symbol))
             return indexStaticColumn(symbol);
         return indexRowColumn(symbol);
     }
 
     private TreeMap<ByteBuffer, List<BytesPartitionState.PrimaryKey>> indexPartitionColumn(Symbol symbol)
     {
-        int offset = factory.pkPositions.indexOf(symbol);
+        int offset = factory.partitionColumns.indexOf(symbol);
         TreeMap<ByteBuffer, List<BytesPartitionState.PrimaryKey>> index = new TreeMap<>(symbol.type()::compare);
         for (BytesPartitionState partition : partitions.values())
         {
@@ -131,8 +131,8 @@ public class ASTSingleTableModel
 
     private TreeMap<ByteBuffer, List<BytesPartitionState.PrimaryKey>> indexRowColumn(Symbol symbol)
     {
-        boolean clustering = factory.ckPositions.contains(symbol);
-        int offset = clustering ? factory.ckPositions.indexOf(symbol) : factory.regularPositions.indexOf(symbol);
+        boolean clustering = factory.clusteringColumns.contains(symbol);
+        int offset = clustering ? factory.clusteringColumns.indexOf(symbol) : factory.regularColumns.indexOf(symbol);
         TreeMap<ByteBuffer, List<BytesPartitionState.PrimaryKey>> index = new TreeMap<>(symbol.type()::compare);
         for (BytesPartitionState partition : partitions.values())
         {
@@ -176,18 +176,18 @@ public class ASTSingleTableModel
             partitions.put(partition.ref(), partition);
         }
         Map<Symbol, Expression> values = insert.values;
-        if (!factory.staticPositions.isEmpty() && !Sets.intersection(factory.staticPositions.asSet(), values.keySet()).isEmpty())
+        if (!factory.staticColumns.isEmpty() && !Sets.intersection(factory.staticColumns.asSet(), values.keySet()).isEmpty())
         {
             // static columns to add in.  If we are doing something like += to a row that doesn't exist, we still update statics...
             Map<Symbol, ByteBuffer> write = new HashMap<>();
-            for (Symbol col : Sets.intersection(factory.staticPositions.asSet(), values.keySet()))
+            for (Symbol col : Sets.intersection(factory.staticColumns.asSet(), values.keySet()))
                 write.put(col, eval(values.get(col)));
             partition.setStaticColumns(write);
         }
         Map<Symbol, ByteBuffer> write = new HashMap<>();
-        for (Symbol col : Sets.intersection(factory.regularPositions.asSet(), values.keySet()))
+        for (Symbol col : Sets.intersection(factory.regularColumns.asSet(), values.keySet()))
             write.put(col, eval(values.get(col)));
-        partition.setColumns(key(insert.values, factory.ckPositions),
+        partition.setColumns(key(insert.values, factory.clusteringColumns),
                              write,
                              true);
     }
@@ -206,18 +206,18 @@ public class ASTSingleTableModel
                 partitions.put(partition.ref(), partition);
             }
             Map<Symbol, Expression> set = update.set;
-            if (!factory.staticPositions.isEmpty() && !Sets.intersection(factory.staticPositions.asSet(), set.keySet()).isEmpty())
+            if (!factory.staticColumns.isEmpty() && !Sets.intersection(factory.staticColumns.asSet(), set.keySet()).isEmpty())
             {
                 // static columns to add in.  If we are doing something like += to a row that doesn't exist, we still update statics...
                 Map<Symbol, ByteBuffer> write = new HashMap<>();
-                for (Symbol col : Sets.intersection(factory.staticPositions.asSet(), set.keySet()))
+                for (Symbol col : Sets.intersection(factory.staticColumns.asSet(), set.keySet()))
                     write.put(col, eval(set.get(col)));
                 partition.setStaticColumns(write);
             }
             for (Clustering<ByteBuffer> cd : clustering(remaining))
             {
                 Map<Symbol, ByteBuffer> write = new HashMap<>();
-                for (Symbol col : Sets.intersection(factory.regularPositions.asSet(), set.keySet()))
+                for (Symbol col : Sets.intersection(factory.regularColumns.asSet(), set.keySet()))
                     write.put(col, eval(set.get(col)));
 
                 partition.setColumns(cd, write, false);
@@ -286,8 +286,8 @@ public class ASTSingleTableModel
     {
         if (conditionals.isEmpty())
         {
-            if (factory.ckPositions.isEmpty()) return Collections.singletonList(Clustering.EMPTY);
-            throw new IllegalArgumentException("No clustering columns defined in the WHERE clause, but clustering columns exist; expected " + factory.ckPositions);
+            if (factory.clusteringColumns.isEmpty()) return Collections.singletonList(Clustering.EMPTY);
+            throw new IllegalArgumentException("No clustering columns defined in the WHERE clause, but clustering columns exist; expected " + factory.clusteringColumns);
         }
         var split = splitOnClustering(conditionals);
         var clusterings = split.left;
@@ -299,12 +299,12 @@ public class ASTSingleTableModel
 
     private Pair<List<Clustering<ByteBuffer>>, List<Conditional>> splitOnPartition(List<Conditional> conditionals)
     {
-        return splitOn(factory.pkPositions.asSet(), conditionals);
+        return splitOn(factory.partitionColumns.asSet(), conditionals);
     }
 
     private Pair<List<Clustering<ByteBuffer>>, List<Conditional>> splitOnClustering(List<Conditional> conditionals)
     {
-        return splitOn(factory.ckPositions.asSet(), conditionals);
+        return splitOn(factory.clusteringColumns.asSet(), conditionals);
     }
 
     private Pair<List<Clustering<ByteBuffer>>, List<Conditional>> splitOn(ImmutableUniqueList<Symbol>.AsSet columns, List<Conditional> conditionals)
@@ -378,7 +378,7 @@ public class ASTSingleTableModel
 
     private Clustering<ByteBuffer> pd(Mutation.Insert mutation)
     {
-        return key(mutation.values, factory.pkPositions);
+        return key(mutation.values, factory.partitionColumns);
     }
 
     public BytesPartitionState get(BytesPartitionState.Ref ref)
@@ -407,7 +407,7 @@ public class ASTSingleTableModel
         SelectResult results = getRowsAsByteBuffer(select);
         if (results.unordered)
         {
-            validateAnyOrder(factory.selectOrder, toRow(factory.selectOrder, actual), toRow(factory.selectOrder, results.rows));
+            validateAnyOrder(factory.selectionOrder, toRow(factory.selectionOrder, actual), toRow(factory.selectionOrder, results.rows));
         }
         else
         {
@@ -417,7 +417,7 @@ public class ASTSingleTableModel
 
     public void validate(ByteBuffer[][] actual, ByteBuffer[][] expected)
     {
-        validate(factory.selectOrder, actual, expected);
+        validate(factory.selectionOrder, actual, expected);
     }
 
     private static void validate(ImmutableUniqueList<Symbol> columns, ByteBuffer[][] actual, ByteBuffer[][] expected)
@@ -537,7 +537,7 @@ public class ASTSingleTableModel
         {
             primaryKeys = Collections.emptyList();
         }
-        else if (ctx.eq.keySet().containsAll(factory.pkPositions))
+        else if (ctx.eq.keySet().containsAll(factory.partitionColumns))
         {
             primaryKeys = findByPartitionEq(ctx);
         }
@@ -585,17 +585,17 @@ public class ASTSingleTableModel
     {
         Clustering<ByteBuffer> pd = partition.key;
         BytesPartitionState.Row staticRow = partition.staticRow();
-        ByteBuffer[] bbs = new ByteBuffer[factory.selectOrder.size()];
-        for (Symbol col : factory.pkPositions)
-            bbs[factory.selectOrder.indexOf(col)] = pd.bufferAt(factory.pkPositions.indexOf(col));
-        for (Symbol col : factory.staticPositions)
-            bbs[factory.selectOrder.indexOf(col)] = staticRow.get(col);
+        ByteBuffer[] bbs = new ByteBuffer[factory.selectionOrder.size()];
+        for (Symbol col : factory.partitionColumns)
+            bbs[factory.selectionOrder.indexOf(col)] = pd.bufferAt(factory.partitionColumns.indexOf(col));
+        for (Symbol col : factory.staticColumns)
+            bbs[factory.selectionOrder.indexOf(col)] = staticRow.get(col);
         if (row != null)
         {
-            for (Symbol col : factory.ckPositions)
-                bbs[factory.selectOrder.indexOf(col)] = row.clustering.bufferAt(factory.ckPositions.indexOf(col));
-            for (Symbol col : factory.regularPositions)
-                bbs[factory.selectOrder.indexOf(col)] = row.get(col);
+            for (Symbol col : factory.clusteringColumns)
+                bbs[factory.selectionOrder.indexOf(col)] = row.clustering.bufferAt(factory.clusteringColumns.indexOf(col));
+            for (Symbol col : factory.regularColumns)
+                bbs[factory.selectionOrder.indexOf(col)] = row.get(col);
         }
         return bbs;
     }
@@ -710,7 +710,7 @@ public class ASTSingleTableModel
                 if (override != null)
                     throw new IllegalStateException("Column " + col.detailedName() + " had 2 '=' statements...");
                 //TODO (correctness): can't find any documentation saying clustering is ordered by the data... it "could" but is it garanateed?
-                if (factory.pkPositions.contains(col) || factory.ckPositions.contains(col))
+                if (factory.partitionColumns.contains(col) || factory.clusteringColumns.contains(col))
                     ctx.unordered = true;
             }
             else
@@ -814,10 +814,10 @@ public class ASTSingleTableModel
     private List<BytesPartitionState.PrimaryKey> searchRange(Symbol symbol, List<ColumnCondition> conditions)
     {
         List<BytesPartitionState.PrimaryKey> matches = new ArrayList<>();
-        if (factory.pkPositions.contains(symbol) || factory.staticPositions.contains(symbol))
+        if (factory.partitionColumns.contains(symbol) || factory.staticColumns.contains(symbol))
         {
-            int pkOffset = factory.pkPositions.indexOf(symbol);
-            int sOffset = factory.staticPositions.indexOf(symbol);
+            int pkOffset = factory.partitionColumns.indexOf(symbol);
+            int sOffset = factory.staticColumns.indexOf(symbol);
             for (BytesPartitionState p : partitions.values())
             {
                 if (pkOffset != -1)
@@ -856,8 +856,8 @@ public class ASTSingleTableModel
         }
         else
         {
-            int ckOffset = factory.ckPositions.indexOf(symbol);
-            int rOffset = factory.regularPositions.indexOf(symbol);
+            int ckOffset = factory.clusteringColumns.indexOf(symbol);
+            int rOffset = factory.regularColumns.indexOf(symbol);
             for (BytesPartitionState p : partitions.values())
             {
                 for (BytesPartitionState.Row row : p.rows())
@@ -948,10 +948,10 @@ public class ASTSingleTableModel
     private List<BytesPartitionState.PrimaryKey> searchEq(Symbol symbol, ByteBuffer bb)
     {
         List<BytesPartitionState.PrimaryKey> matches = new ArrayList<>();
-        if (factory.pkPositions.contains(symbol) || factory.staticPositions.contains(symbol))
+        if (factory.partitionColumns.contains(symbol) || factory.staticColumns.contains(symbol))
         {
-            int pkOffset = factory.pkPositions.indexOf(symbol);
-            int sOffset = factory.staticPositions.indexOf(symbol);
+            int pkOffset = factory.partitionColumns.indexOf(symbol);
+            int sOffset = factory.staticColumns.indexOf(symbol);
             for (BytesPartitionState p : partitions.values())
             {
                 if (pkOffset != -1)
@@ -971,8 +971,8 @@ public class ASTSingleTableModel
         }
         else
         {
-            int ckOffset = factory.ckPositions.indexOf(symbol);
-            int rOffset = factory.regularPositions.indexOf(symbol);
+            int ckOffset = factory.clusteringColumns.indexOf(symbol);
+            int rOffset = factory.regularColumns.indexOf(symbol);
             for (BytesPartitionState p : partitions.values())
             {
                 for (BytesPartitionState.Row row : p.rows())
@@ -1067,10 +1067,10 @@ public class ASTSingleTableModel
     {
         Map<Symbol, List<? extends Expression>> values = ctx.eq;
         List<BytesPartitionState.PrimaryKey> rows = new ArrayList<>(partition.size());
-        if (!factory.ckPositions.isEmpty() && values.keySet().containsAll(factory.ckPositions))
+        if (!factory.clusteringColumns.isEmpty() && values.keySet().containsAll(factory.clusteringColumns))
         {
             // single row
-            for (Clustering<ByteBuffer> cd : keys(values, factory.ckPositions))
+            for (Clustering<ByteBuffer> cd : keys(values, factory.clusteringColumns))
             {
                 BytesPartitionState.Row row = partition.get(cd);
                 if (row != null && ctx.include(row))
@@ -1100,7 +1100,7 @@ public class ASTSingleTableModel
     private List<BytesPartitionState.PrimaryKey> findByPartitionEq(LookupContext ctx)
     {
         List<BytesPartitionState.PrimaryKey> matches = new ArrayList<>();
-        for (Clustering<ByteBuffer> pd : keys(ctx.eq, factory.pkPositions))
+        for (Clustering<ByteBuffer> pd : keys(ctx.eq, factory.partitionColumns))
         {
             BytesPartitionState partition = partitions.get(factory.createRef(pd));
             if (partition == null || !ctx.include(partition)) continue;
@@ -1222,10 +1222,10 @@ public class ASTSingleTableModel
         boolean include(BytesPartitionState partition)
         {
             if (unmatchable) return false;
-            if (!include(factory.pkPositions, partition.key::bufferAt))
+            if (!include(factory.partitionColumns, partition.key::bufferAt))
                 return false;
-            if (!factory.staticPositions.isEmpty()
-                && !include(factory.staticPositions, partition.staticRow()::get))
+            if (!factory.staticColumns.isEmpty()
+                && !include(factory.staticColumns, partition.staticRow()::get))
                 return false;
             return true;
         }
@@ -1233,11 +1233,11 @@ public class ASTSingleTableModel
         boolean include(BytesPartitionState.Row row)
         {
             if (unmatchable) return false;
-            if (!factory.ckPositions.isEmpty()
-                && !include(factory.ckPositions, row.clustering::bufferAt))
+            if (!factory.clusteringColumns.isEmpty()
+                && !include(factory.clusteringColumns, row.clustering::bufferAt))
                 return false;
-            if (!factory.regularPositions.isEmpty()
-                && !include(factory.regularPositions, row::get))
+            if (!factory.regularColumns.isEmpty()
+                && !include(factory.regularColumns, row::get))
                 return false;
             return true;
         }

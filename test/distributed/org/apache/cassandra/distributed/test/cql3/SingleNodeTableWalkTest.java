@@ -130,8 +130,8 @@ public class SingleNodeTableWalkTest extends StatefulASTBase
         Clustering<ByteBuffer> key = ref.key;
 
         Select.Builder builder = Select.builder().table(state.metadata);
-        ImmutableUniqueList<Symbol> pks = state.model.factory.pkPositions;
-        ImmutableUniqueList<Symbol> cks = state.model.factory.ckPositions;
+        ImmutableUniqueList<Symbol> pks = state.model.factory.partitionColumns;
+        ImmutableUniqueList<Symbol> cks = state.model.factory.clusteringColumns;
         for (Symbol pk : pks)
             builder.value(pk, key.bufferAt(pks.indexOf(pk)));
 
@@ -162,7 +162,7 @@ public class SingleNodeTableWalkTest extends StatefulASTBase
         BytesPartitionState.Ref ref = rs.pickOrderedSet(keys);
 
         Select.Builder builder = Select.builder().table(state.metadata);
-        builder.where(FunctionCall.tokenByColumns(state.model.factory.pkPositions),
+        builder.where(FunctionCall.tokenByColumns(state.model.factory.partitionColumns),
                       Conditional.Where.Inequality.EQUAL,
                       token(state, ref));
 
@@ -195,7 +195,7 @@ public class SingleNodeTableWalkTest extends StatefulASTBase
             break;
         }
         Select.Builder builder = Select.builder().table(state.metadata);
-        FunctionCall pkToken = FunctionCall.tokenByColumns(state.model.factory.pkPositions);
+        FunctionCall pkToken = FunctionCall.tokenByColumns(state.model.factory.partitionColumns);
         boolean startInclusive = rs.nextBoolean();
         boolean endInclusive = rs.nextBoolean();
         if (startInclusive && endInclusive && rs.nextBoolean())
@@ -264,7 +264,7 @@ public class SingleNodeTableWalkTest extends StatefulASTBase
         if (state.metadata.columns().size() == 1)
             throw new IllegalArgumentException("Unable to do multiple column query when there is only a single column");
         int numColumns = rs.nextInt(1, state.metadata.columns().size()) + 1;
-        List<Symbol> cols = Gens.lists(Gens.pick(state.model.factory.selectOrder)).unique().ofSize(numColumns).next(rs);
+        List<Symbol> cols = Gens.lists(Gens.pick(state.model.factory.selectionOrder)).unique().ofSize(numColumns).next(rs);
 
         Select.Builder builder = Select.builder().table(state.metadata).allowFiltering();
 
@@ -370,7 +370,7 @@ public class SingleNodeTableWalkTest extends StatefulASTBase
         for (int i = 0; i < ref.key.size(); i++)
         {
             ByteBuffer bb = ref.key.bufferAt(i);
-            Symbol type = state.model.factory.pkPositions.get(i);
+            Symbol type = state.model.factory.partitionColumns.get(i);
             values.add(new Bind(bb, type.type()));
         }
         return FunctionCall.tokenByValue(values);
@@ -393,7 +393,7 @@ public class SingleNodeTableWalkTest extends StatefulASTBase
             List<LinkedHashMap<Symbol, Object>> uniquePartitions;
             {
                 int unique = rs.nextInt(1, 10);
-                List<Symbol> columns = model.factory.pkPositions;
+                List<Symbol> columns = model.factory.partitionColumns;
                 List<Gen<?>> gens = new ArrayList<>(columns.size());
                 for (int i = 0; i < columns.size(); i++)
                     gens.add(toGen(getTypeSupport(columns.get(i).type()).valueGen));
@@ -414,14 +414,14 @@ public class SingleNodeTableWalkTest extends StatefulASTBase
 
             if (metadata.partitionKeyColumns().size() > 1)
             {
-                searchableColumns = model.factory.selectOrder;
+                searchableColumns = model.factory.selectionOrder;
             }
             else
             {
                 searchableColumns = ImmutableList.<Symbol>builder()
-                                                 .addAll(model.factory.ckPositions)
-                                                 .addAll(model.factory.staticPositions)
-                                                 .addAll(model.factory.regularPositions)
+                                                 .addAll(model.factory.clusteringColumns)
+                                                 .addAll(model.factory.staticColumns)
+                                                 .addAll(model.factory.regularColumns)
                                                  .build();
             }
         }
