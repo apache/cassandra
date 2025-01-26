@@ -2092,6 +2092,18 @@
 
   </target>
 
+    <target name="config-sync-check" depends="build, build-test"
+            description="Check consistency between Config.java and cassandra.yaml / cassandra_latest.yaml">
+        <taskdef name="configCheck" classname="org.apache.cassandra.anttasks.ConfigCheckTask" classpath="${test.classes}">
+            <classpath>
+                <path refid="cassandra.classpath"/>
+            </classpath>
+        </taskdef>
+        <configCheck configToCheck="${basedir}/conf/cassandra.yaml"/>
+        <configCheck configToCheck="${basedir}/conf/cassandra_latest.yaml"/>
+
+    </target>
+
   <import file="${build.helpers.dir}/build-resolver.xml"/>
   <import file="${build.helpers.dir}/build-rat.xml"/>
   <import file="${build.helpers.dir}/build-owasp.xml"/>
