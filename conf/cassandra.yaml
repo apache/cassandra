@@ -1976,7 +1976,7 @@ tombstone_failure_threshold: 100000
 #              but it has some performance overheads due to iteration over cells.
 #              For CPU-bound workload you may get about 5% of overhead for throughput.
 #              For IO-bound workload the overhead is almost negligible.
-# tombstone_read_purgeable_metric_granularity: row
+# tombstone_read_purgeable_metric_granularity: disabled
 
 # Filtering and secondary index queries at read consistency levels above ONE/LOCAL_ONE use a
 # mechanism called replica filtering protection to ensure that results from stale replicas do

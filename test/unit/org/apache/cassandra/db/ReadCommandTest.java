@@ -736,7 +736,7 @@ public class ReadCommandTest
             TestWriteOperation.deleteRow("key2", "ee", NEW_DELETION),
         };
 
-        runTestWriteOperationsAndReadResults(cfs, operations);
+        runTestWriteOperationsAndReadResults(cfs, operations, Config.TombstonesMetricGranularity.row);
 
         assertEquals(2, cfs.metric.purgeableTombstoneScannedHistogram.cf.getCount());
         assertEquals(0, cfs.metric.purgeableTombstoneScannedHistogram.cf.getSnapshot().getMin());
@@ -758,7 +758,7 @@ public class ReadCommandTest
           TestWriteOperation.deletePartition("key2", PURGEABLE_DELETION),
           TestWriteOperation.deletePartition("key3", NEW_DELETION)
         };
-        runTestWriteOperationsAndReadResults(cfs, operations);
+        runTestWriteOperationsAndReadResults(cfs, operations, Config.TombstonesMetricGranularity.row);
 
         assertEquals(3, cfs.metric.purgeableTombstoneScannedHistogram.cf.getCount());
         assertEquals(0, cfs.metric.purgeableTombstoneScannedHistogram.cf.getSnapshot().getMin());
@@ -768,32 +768,25 @@ public class ReadCommandTest
     @Test
     public void testCountPurgeableCellTombstones() throws Exception
     {
-        Config.TombstonesMetricGranularity original = DatabaseDescriptor.getPurgeableTobmstonesMetricGranularity();
-        try
+        DatabaseDescriptor.setPurgeableTobmstonesMetricGranularity(Config.TombstonesMetricGranularity.cell);
+        ColumnFamilyStore cfs = Keyspace.open(KEYSPACE).getColumnFamilyStore(CF12);
+        TestWriteOperation[] operations = new TestWriteOperation[]
         {
-            DatabaseDescriptor.setPurgeableTobmstonesMetricGranularity(Config.TombstonesMetricGranularity.cell);
-            ColumnFamilyStore cfs = Keyspace.open(KEYSPACE).getColumnFamilyStore(CF12);
-            TestWriteOperation[] operations = new TestWriteOperation[]
-            {
-              TestWriteOperation.insert("key1", "aa", "a"),
-              TestWriteOperation.insert("key1", "ff", "f"),
+          TestWriteOperation.insert("key1", "aa", "a"),
+          TestWriteOperation.insert("key1", "ff", "f"),
 
-              TestWriteOperation.insert("key2", "aa", "a"),
-              TestWriteOperation.deleteCell("key2", "aa", "b", PURGEABLE_DELETION),
-              TestWriteOperation.deleteCell("key2", "aa", "f", NEW_DELETION),
-              TestWriteOperation.insert("key2", "cc", "c"),
-              TestWriteOperation.insert("key2", "dd", "d")
-            };
-            runTestWriteOperationsAndReadResults(cfs, operations);
+          TestWriteOperation.insert("key2", "aa", "a"),
+          TestWriteOperation.deleteCell("key2", "aa", "b", PURGEABLE_DELETION),
+          TestWriteOperation.deleteCell("key2", "aa", "f", NEW_DELETION),
+          TestWriteOperation.insert("key2", "cc", "c"),
+          TestWriteOperation.insert("key2", "dd", "d")
+        };
+        runTestWriteOperationsAndReadResults(cfs, operations, Config.TombstonesMetricGranularity.cell);
 
-            assertEquals(2, cfs.metric.purgeableTombstoneScannedHistogram.cf.getCount());
-            assertEquals(0, cfs.metric.purgeableTombstoneScannedHistogram.cf.getSnapshot().getMin());
-            assertEquals(1, cfs.metric.purgeableTombstoneScannedHistogram.cf.getSnapshot().getMax());
-        }
-        finally
-        {
-            DatabaseDescriptor.setPurgeableTobmstonesMetricGranularity(original);
-        }
+        assertEquals(2, cfs.metric.purgeableTombstoneScannedHistogram.cf.getCount());
+        assertEquals(0, cfs.metric.purgeableTombstoneScannedHistogram.cf.getSnapshot().getMin());
+        assertEquals(1, cfs.metric.purgeableTombstoneScannedHistogram.cf.getSnapshot().getMax());
+
     }
 
     /**
@@ -817,7 +810,7 @@ public class ReadCommandTest
           TestWriteOperation.deleteRange("key2", "dd", "ee", PURGEABLE_DELETION),
           TestWriteOperation.deleteRange("key2", "ff", "ff", PURGEABLE_DELETION)
         };
-        runTestWriteOperationsAndReadResults(cfs, operations);
+        runTestWriteOperationsAndReadResults(cfs, operations, Config.TombstonesMetricGranularity.row);
 
         assertEquals(2, cfs.metric.purgeableTombstoneScannedHistogram.cf.getCount());
         assertEquals(0, cfs.metric.purgeableTombstoneScannedHistogram.cf.getSnapshot().getMin());
@@ -861,15 +854,17 @@ public class ReadCommandTest
           TestWriteOperation.deleteRange("key2", "ee", "ff", PURGEABLE_DELETION - 1)
         };
 
-        runTestWriteOperationsAndReadResults(cfs, operations);
+        runTestWriteOperationsAndReadResults(cfs, operations, Config.TombstonesMetricGranularity.row);
 
         assertEquals(0, cfs.metric.purgeableTombstoneScannedHistogram.cf.getSnapshot().getMin());
         assertEquals(2, cfs.metric.purgeableTombstoneScannedHistogram.cf.getSnapshot().getMax());
     }
 
 
-    private static void runTestWriteOperationsAndReadResults(ColumnFamilyStore cfs, TestWriteOperation[] operations) throws IOException
+    private static void runTestWriteOperationsAndReadResults(ColumnFamilyStore cfs, TestWriteOperation[] operations, Config.TombstonesMetricGranularity granularity) throws IOException
     {
+        Config.TombstonesMetricGranularity original = DatabaseDescriptor.getPurgeableTobmstonesMetricGranularity();
+        DatabaseDescriptor.setPurgeableTobmstonesMetricGranularity(granularity);
         try
         {
             Set<String> usedPartitionKeys = runWriteOperations(cfs, operations);
@@ -877,6 +872,7 @@ public class ReadCommandTest
         }
         finally
         {
+            DatabaseDescriptor.setPurgeableTobmstonesMetricGranularity(original);
             cfs.truncateBlocking();
         }
     }
