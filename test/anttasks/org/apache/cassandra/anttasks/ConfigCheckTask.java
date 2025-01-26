@@ -27,6 +27,7 @@ import java.util.List;
 import java.util.regex.Pattern;
 
 import org.apache.cassandra.config.Config;
+import org.apache.cassandra.config.HiddenInYaml;
 import org.apache.tools.ant.BuildException;
 import org.apache.tools.ant.Task;
 
@@ -54,7 +55,8 @@ public class ConfigCheckTask extends Task
             List<String> topLevelPropertyNames = new ArrayList<>();
             for (Field field : allFields)
             {
-                if (!Modifier.isStatic(field.getModifiers()))
+                if (!Modifier.isStatic(field.getModifiers())
+                    && field.getAnnotation(HiddenInYaml.class) == null)
                 {
                     topLevelPropertyNames.add(field.getName());
                 }
@@ -63,7 +65,7 @@ public class ConfigCheckTask extends Task
             List<String> lines = Files.readAllLines(Paths.get(configToCheck));
 
             int missedCount = 0;
-            log("The following Config.java properties are not described in " + configToCheck);
+            log("The following Config.java properties are not described in " + configToCheck + ':');
             for (String propertyName : topLevelPropertyNames)
             {
                 Pattern propertyRegexp = Pattern.compile("^#?\\s*" + propertyName + ":.*");
