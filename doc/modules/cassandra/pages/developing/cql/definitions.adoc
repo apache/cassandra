@@ -7,16 +7,15 @@ conventions in this document:
 
 * Language rules will be given in an informal
 http://en.wikipedia.org/wiki/Backus%E2%80%93Naur_Form#Variants[BNF
-variant] notation. In particular, we'll use square brakets (`[ item ]`)
-for optional items, `*` and `+` for repeated items (where `+` imply at
-least one).
+variant] notation. In particular, we'll use square brackets (`[ item ]`)
+for optional items, star (`*`) and plus(`+`) for repeated items where star matches zero or more, and a plus sign matches one or more.
 * The grammar will also use the following convention for convenience:
 non-terminal term will be lowercase (and link to their definition) while
 terminal keywords will be provided "all caps". Note however that
-keywords are `identifiers` and are thus case insensitive in practice. We
+keywords are `identifiers` and are thus case-insensitive in practice. We
 will also define some early construction using regexp, which we'll
 indicate with `re(<some regular expression>)`.
-* The grammar is provided for documentation purposes and leave some
+* The grammar is provided for documentation purposes and leaves some
 minor details out. For instance, the comma on the last column definition
 in a `CREATE TABLE` statement is optional but supported if present even
 though the grammar in this document suggests otherwise. Also, not
@@ -35,8 +34,8 @@ A number of such identifiers, like `SELECT` or `WITH`, are _keywords_.
 They have a fixed meaning for the language and most are reserved. The
 list of those keywords can be found in xref:cassandra:developing/cql/appendices.adoc#appendix-A[Appendix A].
 
-Identifiers and (unquoted) keywords are case insensitive. Thus `SELECT`
-is the same than `select` or `sElEcT`, and `myId` is the same than
+Identifiers and (unquoted) keywords are case-insensitive. Thus `SELECT`
+is the same as `select` or `sElEcT`, and `myId` is the same as
 `myid` or `MYID`. A convention often used (in particular by the samples
 of this documentation) is to use uppercase for keywords and lowercase
 for other identifiers.
@@ -47,7 +46,7 @@ double-quotes(`"`). Quoted identifiers are never keywords. Thus
 `"select"` is not a reserved keyword and can be used to refer to a
 column (note that using this is particularly ill-advised), while `select`
 would raise a parsing error. Also, unlike unquoted identifiers
-and keywords, quoted identifiers are case sensitive (`"My Quoted Id"` is
+and keywords, quoted identifiers are case-sensitive (`"My Quoted Id"` is
 _different_ from `"my quoted id"`). A fully lowercase quoted identifier
 that matches `[a-zA-Z][a-zA-Z0-9_]*` is however _equivalent_ to the
 unquoted identifier obtained by removing the double-quote (so `"myid"`
@@ -93,7 +92,7 @@ single-quote(`'`). A single-quote can be included by repeating it, e.g.
 `identifiers` that use double-quotes. Alternatively, a string can be
 defined by enclosing the arbitrary sequence of characters by two dollar
 characters, in which case single-quote can be used without escaping
-(`$$It's raining today$$`). That latter form is often used when defining
+(`+++$$It's raining today$$+++`). That latter form is often used when defining
 xref:cassandra:developing/cql/functions.adoc#udfs[user-defined functions] to avoid having to escape single-quote
 characters in function body (as they are more likely to occur than
 `$$`).
@@ -137,8 +136,8 @@ and should generally be preferred.
 A comment in CQL is a line beginning by either double dashes (`--`) or
 double slash (`//`).
 
-Multi-line comments are also supported through enclosure within `/*` and
-`*/` (but nesting is not supported).
+Multi-line comments are also supported through enclosure within `+++/*+++` and
+`+++*/+++` (but nesting is not supported).
 
 [source,cql]
 ----
@@ -181,6 +180,4 @@ multiple times with different concrete values.
 
 Any statement that uses at least one bind marker (see `bind_marker`)
 will need to be _prepared_. After which the statement can be _executed_
-by provided concrete values for each of its marker. The exact details of
-how a statement is prepared and then executed depends on the CQL driver
-used and you should refer to your driver documentation.
+by provided concrete values for each marker. The process of preparing and executing a statement varies depending on the CQL driver you are using. Be sure to consult the documentation for your specific driver.
