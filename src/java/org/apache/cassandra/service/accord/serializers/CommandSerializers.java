@@ -231,6 +231,8 @@ public class CommandSerializers
         {
             int flags = flags(executeAt, nullable);
             out.writeUnsignedVInt32(flags);
+            if (nullable)
+                flags >>>= 1;
             if (executeAt == null)
             {
                 Invariants.checkState(nullable);
@@ -259,6 +261,8 @@ public class CommandSerializers
         {
             int flags = flags(executeAt, nullable);
             long size = TypeSizes.sizeofUnsignedVInt(flags);
+            if (nullable)
+                flags >>>= 1;
             if (executeAt == null)
             {
                 Invariants.checkState(nullable);
