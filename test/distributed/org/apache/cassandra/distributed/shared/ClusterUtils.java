@@ -643,22 +643,6 @@ public class ClusterUtils
         return instance.callOnInstance(() -> ClusterMetadataService.instance().isMigrating());
     }
 
-    public static void awaitIndexReady(Cluster cluster, String ks, String table, String name)
-    {
-        cluster.forEach(i -> awaitIndexReady(i, ks, table, name));
-    }
-
-    public static void awaitIndexReady(IInvokableInstance instance, String ks, String table, String name)
-    {
-        instance.runOnInstance(() -> {
-            SecondaryIndexManager indexManager = Keyspace.open(ks).getColumnFamilyStore(table).indexManager;
-            Index index = indexManager.getIndexByName(name);
-            Awaitility.await("index " + name)
-                      .atMost(1, TimeUnit.MINUTES)
-                      .until(() -> indexManager.isIndexQueryable(index));
-        });
-    }
-
     public static interface SerializablePredicate<T> extends Predicate<T>, Serializable
     {}
 

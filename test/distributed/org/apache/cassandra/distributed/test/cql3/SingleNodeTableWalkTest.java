@@ -60,6 +60,7 @@ import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.shared.ClusterUtils;
+import org.apache.cassandra.distributed.test.sai.SAIUtil;
 import org.apache.cassandra.harry.model.BytesPartitionState;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.TableMetadata;
@@ -458,7 +459,7 @@ public class SingleNodeTableWalkTest extends StatefulASTBase
                 logger.info(stmt);
                 cluster.schemaChange(stmt);
 
-                ClusterUtils.awaitIndexReady(cluster, metadata.keyspace, metadata.name, ddl.name.get().name());
+                SAIUtil.assertIndexQueryable(cluster, metadata.keyspace, ddl.name.get().name());
 
                 indexed.put(symbol, new IndexedColumn(symbol, ddl));
             }
