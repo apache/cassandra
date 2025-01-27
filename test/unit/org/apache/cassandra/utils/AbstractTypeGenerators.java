@@ -280,7 +280,7 @@ public final class AbstractTypeGenerators
         private Function<Integer, Gen<AbstractType<?>>> defaultSetKeyFunc;
         private Predicate<AbstractType<?>> typeFilter = null;
         private Gen<String> udtName = null;
-        private Gen<Boolean> multiCellGen = BOOLEAN_GEN;;
+        private Gen<Boolean> multiCellGen = BOOLEAN_GEN;
 
         public TypeGenBuilder()
         {
