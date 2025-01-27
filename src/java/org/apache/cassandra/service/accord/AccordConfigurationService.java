@@ -213,6 +213,7 @@ public class AccordConfigurationService extends AbstractConfigurationService<Acc
         }
     }
 
+    //TODO (required): should not be public
     public final ChangeListener listener = new MetadataChangeListener();
     private class MetadataChangeListener implements ChangeListener
     {
@@ -267,8 +268,6 @@ public class AccordConfigurationService extends AbstractConfigurationService<Acc
         Map<Node.Id, Long> removedNodes = mapping.removedNodes();
         for (Map.Entry<Node.Id, Long> e : removedNodes.entrySet())
             onNodeRemoved(e.getValue(), currentTopology(), e.getKey());
-
-        ClusterMetadataService.instance().log().addListener(listener);
     }
 
     @Override
@@ -416,13 +415,36 @@ public class AccordConfigurationService extends AbstractConfigurationService<Acc
         long epoch = metadata.epoch.getEpoch();
         synchronized (epochs)
         {
-            if (epochs.maxEpoch() == 0)
+            // On first boot, we have 2 options:
+            //
+            //  - we can start listening to TCM _before_ we replay topologies
+            //  - we can start listening to TCM _after_ we replay topologies
+            //
+            // If we start listening to TCM _before_ we replay topologies from other nodes,
+            // we may end up in a situation where TCM reports metadata that would create an
+            // `epoch - 1` epoch state that is not associated with any topologies, and
+            // therefore should not be listened upon.
+            //
+            // If we start listening to TCM _after_ we replay topologies, we may end up in a
+            // situation where TCM reports metadata that is 1 (or more) epochs _ahead_ of the
+            // last known epoch. Previous implementations were using TCM peer catch up, which
+            // could have resulted in gaps.
+            //
+            // Current protocol solves both problems by _first_ replaying topologies form peers,
+            // then subscribing to TCM _and_, if there are still any gaps, filling them again.
+            // However, it still has a slight chance of creating an `epoch - 1` epoch state
+            // not associated with any topologies, which under "right" circumstances could
+            // have been waited upon with `epochReady`. This check precludes creation of this
+            // epoch: by the time this code can be called, remote topology replay is already
+            // done, so TCM listener will only report epochs that are _at least_ min epoch.
+            if (epochs.maxEpoch() == 0 || epochs.minEpoch() == metadata.epoch.getEpoch())
             {
                 getOrCreateEpochState(epoch);  // touch epoch state so subsequent calls see it
                 reportMetadata(metadata);
                 return;
             }
         }
+
         getOrCreateEpochState(epoch - 1).acknowledged().addCallback(() -> reportMetadata(metadata));
     }
 
@@ -433,16 +455,25 @@ public class AccordConfigurationService extends AbstractConfigurationService<Acc
         Stage.ACCORD_MIGRATION.execute(() -> {
             if (ClusterMetadata.current().epoch.getEpoch() < epoch)
                 ClusterMetadataService.instance().fetchLogFromCMS(Epoch.create(epoch));
+
+            // In most cases, after fetching log from CMS, we will be caught up to the required epoch.
+            // This TCM will also notify Accord via reportMetadata, so we do not need to fetch topologies.
+            // If metadata has reported has skipped one or more epochs, and is _ahead_ of the requested epoch,
+            // we need to fetch topologies from peers to fill in the gap.
+            ClusterMetadata metadata = ClusterMetadata.current();
+            if (metadata.epoch.getEpoch() == epoch)
+                return;
+
             try
             {
-                Set<InetAddressAndPort> peers = new HashSet<>(ClusterMetadata.current().directory.allJoinedEndpoints());
+                Set<InetAddressAndPort> peers = new HashSet<>(metadata.directory.allJoinedEndpoints());
                 peers.remove(FBUtilities.getBroadcastAddressAndPort());
                 if (peers.isEmpty())
                     return;
-                Topology topology;
-                while ((topology = FetchTopology.fetch(SharedContext.Global.instance, peers, epoch).get()) == null)
-                {
-                }
+
+                // TODO (required): fetch only _missing_ topologies.
+                Topology topology = FetchTopology.fetch(SharedContext.Global.instance, peers, epoch).get();
+                Invariants.require(topology.epoch() == epoch);
                 reportTopology(topology);
             }
             catch (InterruptedException e)
@@ -459,6 +490,13 @@ public class AccordConfigurationService extends AbstractConfigurationService<Acc
                 throw new RuntimeException(e.getCause());
             }
         });
+    }
+
+    @Override
+    public void reportTopology(Topology topology, boolean isLoad, boolean startSync)
+    {
+        Invariants.require(topology.epoch() <= ClusterMetadata.current().epoch.getEpoch());
+        super.reportTopology(topology, isLoad, startSync);
     }
 
     @Override

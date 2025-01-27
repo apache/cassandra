@@ -22,6 +22,9 @@ import java.io.IOException;
 import java.util.Collection;
 
 import accord.topology.Topology;
+import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.db.TypeSizes;
+import org.apache.cassandra.exceptions.RequestFailure;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
@@ -33,10 +36,18 @@ import org.apache.cassandra.net.MessagingUtils;
 import org.apache.cassandra.net.Verb;
 import org.apache.cassandra.repair.SharedContext;
 import org.apache.cassandra.service.accord.serializers.TopologySerializers;
+import org.apache.cassandra.utils.Backoff;
 import org.apache.cassandra.utils.concurrent.Future;
 
 public class FetchTopology
 {
+    public String toString()
+    {
+        return "FetchTopology{" +
+               "epoch=" + epoch +
+               '}';
+    }
+
     private final long epoch;
 
     public static final IVersionedSerializer<FetchTopology> serializer = new IVersionedSerializer<>()
@@ -67,34 +78,20 @@ public class FetchTopology
 
     public static class Response
     {
-        private static Response UNKNOWN = new Response(-1, null) {
-            public String toString()
-            {
-                return "UNKNOWN_TOPOLOGY{}";
-            }
-        };
-
         // TODO (required): messaging version after version patch
         public static final IVersionedSerializer<Response> serializer = new IVersionedSerializer<>()
         {
             @Override
             public void serialize(Response t, DataOutputPlus out, int version) throws IOException
             {
-                if (t == UNKNOWN)
-                {
-                    out.writeLong(-1);
-                    return;
-                }
-                out.writeLong(t.epoch);
+                out.writeUnsignedVInt(t.epoch);
                 TopologySerializers.topology.serialize(t.topology, out, version);
             }
 
             @Override
             public Response deserialize(DataInputPlus in, int version) throws IOException
             {
-                long epoch = in.readLong();
-                if (epoch == -1)
-                    return UNKNOWN;
+                long epoch = in.readUnsignedVInt();
                 Topology topology = TopologySerializers.topology.deserialize(in, version);
                 return new Response(epoch, topology);
             }
@@ -102,10 +99,8 @@ public class FetchTopology
             @Override
             public long serializedSize(Response t, int version)
             {
-                if (t == UNKNOWN)
-                    return Long.BYTES;
-
-                return Long.BYTES + TopologySerializers.topology.serializedSize(t.topology, version);
+                return TypeSizes.sizeofUnsignedVInt(t.epoch)
+                       + TopologySerializers.topology.serializedSize(t.topology, version);
             }
         };
 
@@ -121,20 +116,25 @@ public class FetchTopology
 
     public static final IVerbHandler<FetchTopology> handler = message -> {
         long epoch = message.payload.epoch;
-        Topology topology = AccordService.instance().topology().maybeGlobalForEpoch(epoch);
-        if (topology == null)
-            MessagingService.instance().respond(Response.UNKNOWN, message);
-        else
+
+        Topology topology;
+        if (AccordService.isSetup() && (topology = AccordService.instance().topology().maybeGlobalForEpoch(epoch)) != null)
             MessagingService.instance().respond(new Response(epoch, topology), message);
+        else
+            MessagingService.instance().respondWithFailure(RequestFailure.UNKNOWN_TOPOLOGY, message);
     };
 
     public static Future<Topology> fetch(SharedContext context, Collection<InetAddressAndPort> peers, long epoch)
     {
-        FetchTopology req = new FetchTopology(epoch);
-        return context.messaging().<FetchTopology, Response>sendWithRetries(Verb.ACCORD_FETCH_TOPOLOGY_REQ, req, MessagingUtils.tryAliveFirst(SharedContext.Global.instance, peers),
-                                                                                          // If the epoch is already discovered, no need to retry
-                                                                                          (attempt, from, failure) -> AccordService.instance().currentEpoch() < epoch,
-                                                                                          MessageDelivery.RetryErrorMessage.EMPTY)
+        FetchTopology request = new FetchTopology(epoch);
+        Backoff backoff = Backoff.fromConfig(context, DatabaseDescriptor.getAccord().fetchRetry);
+        return context.messaging().<FetchTopology, Response>sendWithRetries(backoff,
+                                                                            context.optionalTasks()::schedule,
+                                                                            Verb.ACCORD_FETCH_TOPOLOGY_REQ,
+                                                                            request,
+                                                                            MessagingUtils.tryAliveFirst(SharedContext.Global.instance, peers, Verb.ACCORD_FETCH_TOPOLOGY_REQ.name()),
+                                                                            (attempt, from, failure) -> true,
+                                                                            MessageDelivery.RetryErrorMessage.EMPTY)
                       .map(m -> m.payload.topology);
     }
 }

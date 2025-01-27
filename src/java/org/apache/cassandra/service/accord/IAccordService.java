@@ -18,7 +18,6 @@
 
 package org.apache.cassandra.service.accord;
 
-import java.util.Collection;
 import java.util.Collections;
 import java.util.EnumSet;
 import java.util.List;
@@ -180,7 +179,7 @@ public interface IAccordService
 
     List<CommandStoreTxnBlockedGraph> debugTxnBlockedGraph(TxnId txnId);
     @Nullable
-    Long minEpoch(Collection<TokenRange> ranges);
+    Long minEpoch();
 
     void tryMarkRemoved(Topology topology, Node.Id node);
     void awaitTableDrop(TableId id);
@@ -326,7 +325,7 @@ public interface IAccordService
 
         @Nullable
         @Override
-        public Long minEpoch(Collection<TokenRange> ranges)
+        public Long minEpoch()
         {
             return null;
         }
@@ -513,9 +512,9 @@ public interface IAccordService
 
         @Nullable
         @Override
-        public Long minEpoch(Collection<TokenRange> ranges)
+        public Long minEpoch()
         {
-            return delegate.minEpoch(ranges);
+            return delegate.minEpoch();
         }
 
         @Override

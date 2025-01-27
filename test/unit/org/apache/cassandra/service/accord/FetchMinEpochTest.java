@@ -18,7 +18,6 @@
 
 package org.apache.cassandra.service.accord;
 
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -28,6 +27,7 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.ImmutableSet;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -36,18 +36,13 @@ import accord.utils.Gens;
 import accord.utils.RandomSource;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.RetrySpec;
-import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Murmur3Partitioner;
-import org.apache.cassandra.exceptions.RequestFailure;
 import org.apache.cassandra.io.IVersionedSerializers;
 import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.net.MessageDelivery;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.net.SimulatedMessageDelivery.Action;
-import org.apache.cassandra.service.accord.api.AccordRoutingKey.RoutingKeyKind;
-import org.apache.cassandra.utils.AccordGenerators;
-import org.apache.cassandra.utils.CassandraGenerators;
 import org.apache.cassandra.utils.SimulatedMiniCluster;
 import org.apache.cassandra.utils.SimulatedMiniCluster.Node;
 import org.apache.cassandra.utils.concurrent.Future;
@@ -55,7 +50,6 @@ import org.assertj.core.api.Assertions;
 
 import static accord.utils.Property.qt;
 import static org.apache.cassandra.net.MessagingService.Version.VERSION_51;
-import static org.apache.cassandra.utils.AccordGenerators.fromQT;
 import static org.assertj.core.api.Assertions.assertThat;
 
 public class FetchMinEpochTest
@@ -72,24 +66,6 @@ public class FetchMinEpochTest
     private static void boundedRetries(int retries)
     {
         DatabaseDescriptor.getAccord().minEpochSyncRetry.maxAttempts = new RetrySpec.MaxAttempt(retries);
-    }
-
-    @Test
-    public void requestSerde()
-    {
-        DataOutputBuffer output = new DataOutputBuffer();
-        Gen<FetchMinEpoch> gen = fromQT(CassandraGenerators.partitioners())
-                                 .map(CassandraGenerators::simplify)
-                                 .flatMap(partitioner ->
-                                          Gens.lists(AccordGenerators.range(partitioner)
-                                                                     .map(r -> (TokenRange) r))
-                                              .ofSizeBetween(0, 10)
-                                              .map(FetchMinEpoch::new));
-        qt().forAll(gen).check(req -> {
-            maybeSetPartitioner(req);
-            for (MessagingService.Version version : SUPPORTED)
-                IVersionedSerializers.testSerde(output, FetchMinEpoch.serializer, req, version.value);
-        });
     }
 
     @Test
@@ -115,12 +91,12 @@ public class FetchMinEpochTest
             Node from = cluster.createNodeAndJoin();
             Node to = cluster.createNodeAndJoin();
 
-            Future<Long> f = FetchMinEpoch.fetch(from, to.broadcastAddressAndPort(), Collections.emptySet());
+            Future<Long> f = FetchMinEpoch.fetch(from, to.broadcastAddressAndPort());
             assertThat(f).isNotDone();
             cluster.processAll();
             assertThat(f).isDone();
-            MessageDelivery.FailedResponseException maxRetries = getFailedResponseException(f);
-            Assertions.assertThat(maxRetries.failure).isEqualTo(RequestFailure.TIMEOUT);
+            MessageDelivery.MaxRetriesException maxRetries = getMaxRetriesException(f);
+            Assertions.assertThat(maxRetries.attempts).isEqualTo(expectedMaxAttempts);
         });
     }
 
@@ -139,7 +115,7 @@ public class FetchMinEpochTest
             }
             Node to = cluster.createNodeAndJoin();
 
-            Future<Long> f = FetchMinEpoch.fetch(from, to.broadcastAddressAndPort(), Collections.emptySet());
+            Future<Long> f = FetchMinEpoch.fetch(from, to.broadcastAddressAndPort());
             assertThat(f).isNotDone();
             cluster.processAll();
             assertThat(f).isDone();
@@ -161,10 +137,10 @@ public class FetchMinEpochTest
             Node to3 = cluster.createNodeAndJoin();
             Node to4 = cluster.createNodeAndJoin();
 
-            Future<Long> f = FetchMinEpoch.fetch(from, ImmutableMap.of(to1.broadcastAddressAndPort(), Collections.emptySet(),
-                                                                       to2.broadcastAddressAndPort(), Collections.emptySet(),
-                                                                       to3.broadcastAddressAndPort(), Collections.emptySet(),
-                                                                       to4.broadcastAddressAndPort(), Collections.emptySet()));
+            Future<Long> f = FetchMinEpoch.fetch(from, ImmutableSet.of(to1.broadcastAddressAndPort(),
+                                                                       to2.broadcastAddressAndPort(),
+                                                                       to3.broadcastAddressAndPort(),
+                                                                       to4.broadcastAddressAndPort()));
             assertThat(f).isNotDone();
             cluster.processAll();
             assertThat(f).isDone();
@@ -201,10 +177,10 @@ public class FetchMinEpochTest
                                                                                       to4.broadcastAddressAndPort(), actionGen(rs, maxRetries));
             from.messagingActions((self, msg, to) -> nodeToActions.get(to).get());
 
-            Future<Long> f = FetchMinEpoch.fetch(from, ImmutableMap.of(to1.broadcastAddressAndPort(), Collections.emptySet(),
-                                                                       to2.broadcastAddressAndPort(), Collections.emptySet(),
-                                                                       to3.broadcastAddressAndPort(), Collections.emptySet(),
-                                                                       to4.broadcastAddressAndPort(), Collections.emptySet()));
+            Future<Long> f = FetchMinEpoch.fetch(from, ImmutableSet.of(to1.broadcastAddressAndPort(),
+                                                                       to2.broadcastAddressAndPort(),
+                                                                       to3.broadcastAddressAndPort(),
+                                                                       to4.broadcastAddressAndPort()));
             assertThat(f).isNotDone();
             cluster.processAll();
             assertThat(f).isDone();
@@ -235,53 +211,6 @@ public class FetchMinEpochTest
         return safeActionGen.asSupplier(actionSource);
     }
 
-    private static void maybeSetPartitioner(FetchMinEpoch req)
-    {
-        IPartitioner partitioner = null;
-        for (TokenRange r : req.ranges)
-        {
-            IPartitioner rangePartitioner = null;
-            if (r.start().kindOfRoutingKey() != RoutingKeyKind.SENTINEL)
-                rangePartitioner = r.start().token().getPartitioner();
-            if (rangePartitioner == null && r.end().kindOfRoutingKey() != RoutingKeyKind.SENTINEL)
-                rangePartitioner = r.end().token().getPartitioner();
-            if (rangePartitioner == null)
-                continue;
-            if (partitioner == null)
-            {
-                partitioner = rangePartitioner;
-            }
-            else
-            {
-                Assertions.assertThat(rangePartitioner).isEqualTo(partitioner);
-            }
-        }
-        if (partitioner != null)
-            DatabaseDescriptor.setPartitionerUnsafe(partitioner);
-    }
-
-    private static MessageDelivery.FailedResponseException getFailedResponseException(Future<Long> f) throws InterruptedException, ExecutionException
-    {
-        MessageDelivery.FailedResponseException exception;
-        try
-        {
-            f.get();
-            Assert.fail("Future should have failed");
-            throw new AssertionError("Unreachable");
-        }
-        catch (ExecutionException e)
-        {
-            if (e.getCause() instanceof MessageDelivery.FailedResponseException)
-            {
-                exception = (MessageDelivery.FailedResponseException) e.getCause();
-            }
-            else
-            {
-                throw e;
-            }
-        }
-        return exception;
-    }
 
     private static MessageDelivery.MaxRetriesException getMaxRetriesException(Future<Long> f) throws InterruptedException, ExecutionException
     {

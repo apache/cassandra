@@ -20,9 +20,7 @@ package org.apache.cassandra.service.accord;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.List;
-import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import javax.annotation.Nullable;
@@ -38,7 +36,6 @@ import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.net.IVerbHandler;
-import org.apache.cassandra.net.MessageDelivery;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.net.Verb;
 import org.apache.cassandra.repair.SharedContext;
@@ -53,40 +50,32 @@ import static org.apache.cassandra.net.MessageDelivery.logger;
 // TODO (required, efficiency): this can be simplified: we seem to always use "entire range"
 public class FetchMinEpoch
 {
+    private static final FetchMinEpoch instance = new FetchMinEpoch();
+
     public static final IVersionedSerializer<FetchMinEpoch> serializer = new IVersionedSerializer<>()
     {
         @Override
-        public void serialize(FetchMinEpoch t, DataOutputPlus out, int version) throws IOException
+        public void serialize(FetchMinEpoch t, DataOutputPlus out, int version)
         {
-            out.writeUnsignedVInt32(t.ranges.size());
-            for (TokenRange range : t.ranges)
-                TokenRange.serializer.serialize(range, out, version);
         }
 
         @Override
-        public FetchMinEpoch deserialize(DataInputPlus in, int version) throws IOException
+        public FetchMinEpoch deserialize(DataInputPlus in, int version)
         {
-            int size = in.readUnsignedVInt32();
-            List<TokenRange> ranges = new ArrayList<>(size);
-            for (int i = 0; i < size; i++)
-                ranges.add(TokenRange.serializer.deserialize(in, version));
-            return new FetchMinEpoch(ranges);
+            return FetchMinEpoch.instance;
         }
 
         @Override
         public long serializedSize(FetchMinEpoch t, int version)
         {
-            long size = TypeSizes.sizeofUnsignedVInt(t.ranges.size());
-            for (TokenRange range : t.ranges)
-                size += TokenRange.serializer.serializedSize(range, version);
-            return size;
+            return 0;
         }
     };
 
     public static final IVerbHandler<FetchMinEpoch> handler = message -> {
         if (AccordService.started())
         {
-            Long epoch = AccordService.instance().minEpoch(message.payload.ranges);
+            Long epoch = AccordService.instance().minEpoch();
             MessagingService.instance().respond(new Response(epoch), message);
         }
         else
@@ -96,41 +85,15 @@ public class FetchMinEpoch
         }
     };
 
-    public final Collection<TokenRange> ranges;
-
-    public FetchMinEpoch(Collection<TokenRange> ranges)
+    private FetchMinEpoch()
     {
-        this.ranges = ranges;
     }
 
-    @Override
-    public boolean equals(Object o)
-    {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        FetchMinEpoch that = (FetchMinEpoch) o;
-        return Objects.equals(ranges, that.ranges);
-    }
-
-    @Override
-    public int hashCode()
-    {
-        return Objects.hash(ranges);
-    }
-
-    @Override
-    public String toString()
-    {
-        return "FetchMinEpoch{" +
-               "ranges=" + ranges +
-               '}';
-    }
-
-    public static Future<Long> fetch(SharedContext context, Map<InetAddressAndPort, Set<TokenRange>> peers)
+    public static Future<Long> fetch(SharedContext context, Set<InetAddressAndPort> peers)
     {
         List<Future<Long>> accum = new ArrayList<>(peers.size());
-        for (Map.Entry<InetAddressAndPort, Set<TokenRange>> e : peers.entrySet())
-            accum.add(fetch(context, e.getKey(), e.getValue()));
+        for (InetAddressAndPort peer : peers)
+            accum.add(fetch(context, peer));
         // TODO (required): we are collecting only successes, but we need some threshold
         return FutureCombiner.successfulOf(accum).map(epochs -> {
             Long min = null;
@@ -145,21 +108,22 @@ public class FetchMinEpoch
     }
 
     @VisibleForTesting
-    static Future<Long> fetch(SharedContext context, InetAddressAndPort to, Set<TokenRange> value)
+    static Future<Long> fetch(SharedContext context, InetAddressAndPort to)
     {
-        FetchMinEpoch req = new FetchMinEpoch(value);
-        return context.messaging().<FetchMinEpoch, FetchMinEpoch.Response>sendWithRetries(Backoff.NO_OP.INSTANCE,
-                                                                                          MessageDelivery.ImmediateRetryScheduler.instance,
-                                                                                          Verb.ACCORD_FETCH_MIN_EPOCH_REQ, req,
-                                                                                          Iterators.cycle(to),
-                                                                                          RetryPredicate.times(DatabaseDescriptor.getAccord().minEpochSyncRetry.maxAttempts.value),
-                                                                                          RetryErrorMessage.EMPTY)
+        Backoff backoff = Backoff.fromConfig(context, DatabaseDescriptor.getAccord().minEpochSyncRetry);
+        return context.messaging().<FetchMinEpoch, Response>sendWithRetries(backoff,
+                                                                            context.optionalTasks()::schedule,
+                                                                            Verb.ACCORD_FETCH_MIN_EPOCH_REQ,
+                                                                            FetchMinEpoch.instance,
+                                                                            Iterators.cycle(to),
+                                                                            RetryPredicate.ALWAYS_RETRY,
+                                                                            RetryErrorMessage.EMPTY)
                       .map(m -> m.payload.minEpoch);
     }
 
     public static class Response
     {
-        public static final IVersionedSerializer<Response> serializer = new IVersionedSerializer<Response>()
+        public static final IVersionedSerializer<Response> serializer = new IVersionedSerializer<>()
         {
             @Override
             public void serialize(Response t, DataOutputPlus out, int version) throws IOException

@@ -22,13 +22,10 @@ import java.math.BigInteger;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collection;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
@@ -44,7 +41,6 @@ import javax.annotation.concurrent.GuardedBy;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Stopwatch;
 import com.google.common.base.Throwables;
-import com.google.common.collect.Sets;
 import com.google.common.primitives.Ints;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -138,7 +134,6 @@ import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessageDelivery;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.repair.SharedContext;
-import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.schema.TableMetadata;
@@ -165,7 +160,6 @@ import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.ClusterMetadataService;
 import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.tcm.membership.NodeId;
-import org.apache.cassandra.tcm.ownership.DataPlacement;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.transport.Dispatcher;
 import org.apache.cassandra.utils.Blocking;
@@ -379,24 +373,47 @@ public class AccordService implements IAccordService, Shutdownable
         node.commandStores().restoreShardStateUnsafe(topology -> configService.reportTopology(topology, true, true));
         configService.start();
 
-        long minEpoch = fetchMinEpoch();
-        if (minEpoch >= 0)
+        try
         {
-            for (long epoch = minEpoch; epoch <= metadata.epoch.getEpoch(); epoch++)
-                node.configService().fetchTopologyForEpoch(epoch);
+            // Fetch topologies up to current
+            List<Topology> topologies = fetchTopologies(null, metadata);
+            for (Topology topology : topologies)
+                configService.reportTopology(topology);
 
-            try
+            ClusterMetadataService.instance().log().addListener(configService.listener);
+            ClusterMetadata next = ClusterMetadata.current();
+
+            // if metadata was updated before we were able to add a listener, fetch remaining topologies
+            if (next.epoch.isAfter(metadata.epoch))
             {
-                epochReady(metadata.epoch).get(DatabaseDescriptor.getTransactionTimeout(MILLISECONDS), MILLISECONDS);
+                topologies = fetchTopologies(metadata.epoch.getEpoch() + 1, next);
+                for (Topology topology : topologies)
+                    configService.reportTopology(topology);
             }
-            catch (InterruptedException e)
+
+            int attempt = 0;
+            int waitSeconds = 5;
+            while (true)
             {
-                throw new UncheckedInterruptedException(e);
+                try
+                {
+                    epochReady(metadata.epoch).get(waitSeconds, SECONDS);
+                    break;
+                }
+                catch (TimeoutException e)
+                {
+                    logger.warn("Epoch {} is not ready after waiting for {} seconds", metadata.epoch, (++attempt) * waitSeconds);
+                }
             }
-            catch (ExecutionException | TimeoutException e)
-            {
-                throw new RuntimeException(e);
-            }
+        }
+        catch (InterruptedException e)
+        {
+            Thread.currentThread().interrupt();
+            throw new UncheckedInterruptedException(e);
+        }
+        catch (ExecutionException e)
+        {
+            throw new RuntimeException(e);
         }
 
         fastPathCoordinator.start();
@@ -412,44 +429,60 @@ public class AccordService implements IAccordService, Shutdownable
     }
 
     /**
-     * Queries peers to discover min epoch
+     * Queries peers to discover min epoch, and then fetches all topologies between min and current epochs
      */
-    private long fetchMinEpoch()
+    private List<Topology> fetchTopologies(Long minEpoch, ClusterMetadata metadata) throws ExecutionException, InterruptedException
     {
-        ClusterMetadata metadata = ClusterMetadata.current();
-        Map<InetAddressAndPort, Set<TokenRange>> peers = new HashMap<>();
-        for (KeyspaceMetadata keyspace : metadata.schema.getKeyspaces())
-        {
-            List<TableMetadata> tables = keyspace.tables.stream().filter(TableMetadata::requiresAccordSupport).collect(Collectors.toList());
-            if (tables.isEmpty())
-                continue;
-            DataPlacement current = metadata.placements.get(keyspace.params.replication);
-            DataPlacement settled = metadata.writePlacementAllSettled(keyspace);
-            Sets.SetView<InetAddressAndPort> alive = Sets.intersection(settled.writes.byEndpoint().keySet(), current.writes.byEndpoint().keySet());
-            InetAddressAndPort self = FBUtilities.getBroadcastAddressAndPort();
-            settled.writes.forEach((range, group) -> {
-                if (group.endpoints().contains(self))
-                {
-                    for (InetAddressAndPort peer : group.endpoints())
-                    {
-                        if (peer.equals(self) || !alive.contains(peer)) continue;
-                        for (TableMetadata table : tables)
-                            peers.computeIfAbsent(peer, i -> new HashSet<>()).add(AccordTopology.fullRange(table.id));
-                    }
-                }
-            });
-        }
-        if (peers.isEmpty())
-            return -1;
+        if (minEpoch != null && minEpoch == metadata.epoch.getEpoch())
+            return Collections.singletonList(AccordTopology.createAccordTopology(metadata));
 
-        Long minEpoch = findMinEpoch(SharedContext.Global.instance, peers);
+        Set<InetAddressAndPort> peers = new HashSet<>();
+        peers.addAll(metadata.directory.allAddresses());
+        peers.remove(FBUtilities.getBroadcastAddressAndPort());
+
+        // No peers: single node cluster or first node to boot
+        if (peers.isEmpty())
+            return Collections.singletonList(AccordTopology.createAccordTopology(metadata));
+
+        // Bootstrap, fetch min epoch
         if (minEpoch == null)
-            return -1;
-        return minEpoch;
+        {
+            Long fetched = findMinEpoch(SharedContext.Global.instance, peers);
+            if (fetched != null)
+                logger.info("Discovered min epoch of {} by querying {}", fetched, peers);
+
+            // No other node has advanced epoch just yet
+            if (fetched == null || fetched == metadata.epoch.getEpoch())
+                return Collections.singletonList(AccordTopology.createAccordTopology(metadata));
+
+            minEpoch = fetched;
+        }
+
+        long maxEpoch = metadata.epoch.getEpoch();
+
+        // If we are behind minEpoch, catch up to at least minEpoch
+        if (metadata.epoch.getEpoch() < minEpoch)
+        {
+            minEpoch = metadata.epoch.getEpoch();
+            maxEpoch = minEpoch;
+        }
+
+        List<Future<Topology>> futures = new ArrayList<>();
+        logger.info("Fetching topologies for epochs [{}, {}].", minEpoch, maxEpoch);
+
+        for (long epoch = minEpoch; epoch <= maxEpoch; epoch++)
+            futures.add(FetchTopology.fetch(SharedContext.Global.instance, peers, epoch));
+
+        FBUtilities.waitOnFutures(futures);
+        List<Topology> topologies = new ArrayList<>(futures.size());
+        for (Future<Topology> future : futures)
+            topologies.add(future.get());
+
+        return topologies;
     }
 
     @VisibleForTesting
-    static Long findMinEpoch(SharedContext context, Map<InetAddressAndPort, Set<TokenRange>> peers)
+    static Long findMinEpoch(SharedContext context, Set<InetAddressAndPort> peers)
     {
         try
         {
@@ -1152,7 +1185,7 @@ public class AccordService implements IAccordService, Shutdownable
 
     @Nullable
     @Override
-    public Long minEpoch(Collection<TokenRange> ranges)
+    public Long minEpoch()
     {
         return node.topology().minEpoch();
     }

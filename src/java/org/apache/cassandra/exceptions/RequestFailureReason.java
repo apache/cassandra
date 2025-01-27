@@ -51,6 +51,7 @@ public enum RequestFailureReason
     INDEX_BUILD_IN_PROGRESS                 (503),
     RETRY_ON_DIFFERENT_TRANSACTION_SYSTEM   (504),
     BOOTING                                 (505),
+    UNKNOWN_TOPOLOGY                        (506)
     ;
 
     static

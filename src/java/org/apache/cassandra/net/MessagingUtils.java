@@ -18,22 +18,31 @@
 
 package org.apache.cassandra.net;
 
+import java.util.Collection;
 import java.util.Iterator;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.repair.SharedContext;
 
 public class MessagingUtils
 {
+    private static final Logger logger = LoggerFactory.getLogger(MessagingUtils.class);
+
     /**
      * Candidate iterator that would try all endpoints known to be alive first, and then try all endpoints
      * in a round-robin manner.
+     * <p>
+     * Calls onIteration every time after exhausting the peers.
      */
-    public static Iterator<InetAddressAndPort> tryAliveFirst(SharedContext context, Iterable<InetAddressAndPort> peers)
+    public static Iterator<InetAddressAndPort> tryAliveFirst(SharedContext context, Collection<InetAddressAndPort> peers, String verb)
     {
         return new Iterator<>()
         {
             boolean firstRun = true;
+            int attempt = 0;
             Iterator<InetAddressAndPort> iter = peers.iterator();
             boolean isEmpty = !iter.hasNext();
 
@@ -58,7 +67,10 @@ public class MessagingUtils
 
                 // After that, cycle through all nodes
                 if (!iter.hasNext())
+                {
+                    logger.warn("Exhausted iterator on {} cycling through the set of peers: {} attempt #{}", verb, peers, attempt++);
                     iter = peers.iterator();
+                }
 
                 return iter.next();
             }
