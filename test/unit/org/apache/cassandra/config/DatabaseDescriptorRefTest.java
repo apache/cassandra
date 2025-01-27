@@ -103,6 +103,7 @@ public class DatabaseDescriptorRefTest
     "org.apache.cassandra.config.ConfigurationLoader",
     "org.apache.cassandra.config.Config$CorruptedTombstoneStrategy",
     "org.apache.cassandra.config.Config$BatchlogEndpointStrategy",
+    "org.apache.cassandra.config.Config$TombstonesMetricGranularity",
     "org.apache.cassandra.config.DatabaseDescriptor$ByteUnit",
     "org.apache.cassandra.config.DataRateSpec",
     "org.apache.cassandra.config.DataRateSpec$DataRateUnit",

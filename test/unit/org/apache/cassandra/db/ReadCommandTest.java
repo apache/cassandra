@@ -880,9 +880,10 @@ public class ReadCommandTest
     private static void runPartitionReadCommands(ColumnFamilyStore cfs, Set<String> partitionKeys) throws IOException
     {
         List<SinglePartitionReadCommand> commands = new ArrayList<>(partitionKeys.size());
+        long nowInSeconds = FBUtilities.nowInSeconds(); // all reads within a group must have the same nowInSec
         for (String partitionKey : partitionKeys)
         {
-            commands.add(getWholePartitionReadCommand(cfs, partitionKey));
+            commands.add(getWholePartitionReadCommand(cfs, partitionKey, nowInSeconds));
         }
         executeReadCommands(commands);
     }
@@ -1016,9 +1017,8 @@ public class ReadCommandTest
         }
     }
 
-    private static SinglePartitionReadCommand getWholePartitionReadCommand(ColumnFamilyStore cfs, String partitionKey)
+    private static SinglePartitionReadCommand getWholePartitionReadCommand(ColumnFamilyStore cfs, String partitionKey, long nowInSeconds)
     {
-        long nowInSeconds = FBUtilities.nowInSeconds();
         ColumnFilter columnFilter = ColumnFilter.allRegularColumnsBuilder(cfs.metadata(), false).build();
         RowFilter rowFilter = RowFilter.create(true);
         Slice slice = Slice.make(BufferClusteringBound.BOTTOM, BufferClusteringBound.TOP);
