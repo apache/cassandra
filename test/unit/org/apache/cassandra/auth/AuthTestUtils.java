@@ -309,14 +309,19 @@ public class AuthTestUtils
         return roleOptions;
     }
 
-    private static ClientState getClientState()
+    public static ClientState getClientState(String role)
     {
         ClientState state = ClientState.forInternalCalls();
-        state.login(new AuthenticatedUser(CassandraRoleManager.DEFAULT_SUPERUSER_NAME));
+        state.login(new AuthenticatedUser(role));
         return state;
     }
 
-    public static AuthenticationStatement authWithoutInvalidate(String query, Object... args)
+    public static ClientState getClientState()
+    {
+        return getClientState(CassandraRoleManager.DEFAULT_SUPERUSER_NAME);
+    }
+
+    public static AuthenticationStatement authWithoutInvalidate(String query, ClientState clientState, Object... args)
     {
         CQLStatement statement = QueryProcessor.parseStatement(String.format(query, args)).prepare(ClientState.forInternalCalls());
         assert statement instanceof CreateRoleStatement
@@ -324,14 +329,25 @@ public class AuthTestUtils
                || statement instanceof DropRoleStatement;
         AuthenticationStatement authStmt = (AuthenticationStatement) statement;
 
-        authStmt.execute(getClientState());
+        authStmt.authorize(clientState);
+        authStmt.execute(clientState);
 
         return authStmt;
     }
 
+    public static AuthenticationStatement authWithoutInvalidate(String query, Object... args)
+    {
+        return authWithoutInvalidate(query, getClientState(), args);
+    }
+
     public static AuthenticationStatement auth(String query, Object... args)
     {
-        AuthenticationStatement authStmt = authWithoutInvalidate(query, args);
+        return auth(query, getClientState(), args);
+    }
+
+    public static AuthenticationStatement auth(String query, ClientState clientState, Object... args)
+    {
+        AuthenticationStatement authStmt = authWithoutInvalidate(query, clientState, args);
 
         // invalidate roles cache so that any changes to the underlying roles are picked up
         Roles.cache.invalidate();
