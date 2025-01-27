@@ -213,6 +213,7 @@ public class AccordConfigurationService extends AbstractConfigurationService<Acc
         }
     }
 
+    // TODO: should not be public
     public final ChangeListener listener = new MetadataChangeListener();
     private class MetadataChangeListener implements ChangeListener
     {
@@ -267,8 +268,6 @@ public class AccordConfigurationService extends AbstractConfigurationService<Acc
         Map<Node.Id, Long> removedNodes = mapping.removedNodes();
         for (Map.Entry<Node.Id, Long> e : removedNodes.entrySet())
             onNodeRemoved(e.getValue(), currentTopology(), e.getKey());
-
-        ClusterMetadataService.instance().log().addListener(listener);
     }
 
     @Override
@@ -416,7 +415,11 @@ public class AccordConfigurationService extends AbstractConfigurationService<Acc
         long epoch = metadata.epoch.getEpoch();
         synchronized (epochs)
         {
-            if (epochs.maxEpoch() == 0)
+            long maxEpoch = epochs.maxEpoch();
+            if (maxEpoch >= epoch)
+                return;
+
+            if (maxEpoch == 0)
             {
                 getOrCreateEpochState(epoch);  // touch epoch state so subsequent calls see it
                 reportMetadata(metadata);
@@ -440,9 +443,7 @@ public class AccordConfigurationService extends AbstractConfigurationService<Acc
                 if (peers.isEmpty())
                     return;
                 Topology topology;
-                while ((topology = FetchTopology.fetch(SharedContext.Global.instance, peers, epoch).get()) == null)
-                {
-                }
+                while ((topology = FetchTopology.fetch(SharedContext.Global.instance, peers, epoch).get()) == null) {}
                 reportTopology(topology);
             }
             catch (InterruptedException e)
@@ -459,6 +460,13 @@ public class AccordConfigurationService extends AbstractConfigurationService<Acc
                 throw new RuntimeException(e.getCause());
             }
         });
+    }
+
+    @Override
+    public void reportTopology(Topology topology, boolean isLoad, boolean startSync)
+    {
+        Invariants.require(topology.epoch() <= ClusterMetadata.current().epoch.getEpoch());
+        super.reportTopology(topology, isLoad, startSync);
     }
 
     @Override

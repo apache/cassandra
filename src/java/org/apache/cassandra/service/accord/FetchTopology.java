@@ -21,7 +21,11 @@ package org.apache.cassandra.service.accord;
 import java.io.IOException;
 import java.util.Collection;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import accord.topology.Topology;
+import org.apache.cassandra.exceptions.RequestFailure;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
@@ -37,6 +41,7 @@ import org.apache.cassandra.utils.concurrent.Future;
 
 public class FetchTopology
 {
+    private static final Logger log = LoggerFactory.getLogger(FetchTopology.class);
     private final long epoch;
 
     public static final IVersionedSerializer<FetchTopology> serializer = new IVersionedSerializer<>()
@@ -67,12 +72,10 @@ public class FetchTopology
 
     public static class Response
     {
-        private static Response UNKNOWN = new Response(-1, null) {
-            public String toString()
-            {
-                return "UNKNOWN_TOPOLOGY{}";
-            }
-        };
+        private static Response unkonwn(long epoch)
+        {
+            throw new IllegalStateException("Unknown topology: " + epoch);
+        }
 
         // TODO (required): messaging version after version patch
         public static final IVersionedSerializer<Response> serializer = new IVersionedSerializer<>()
@@ -80,11 +83,6 @@ public class FetchTopology
             @Override
             public void serialize(Response t, DataOutputPlus out, int version) throws IOException
             {
-                if (t == UNKNOWN)
-                {
-                    out.writeLong(-1);
-                    return;
-                }
                 out.writeLong(t.epoch);
                 TopologySerializers.topology.serialize(t.topology, out, version);
             }
@@ -93,8 +91,6 @@ public class FetchTopology
             public Response deserialize(DataInputPlus in, int version) throws IOException
             {
                 long epoch = in.readLong();
-                if (epoch == -1)
-                    return UNKNOWN;
                 Topology topology = TopologySerializers.topology.deserialize(in, version);
                 return new Response(epoch, topology);
             }
@@ -102,9 +98,6 @@ public class FetchTopology
             @Override
             public long serializedSize(Response t, int version)
             {
-                if (t == UNKNOWN)
-                    return Long.BYTES;
-
                 return Long.BYTES + TopologySerializers.topology.serializedSize(t.topology, version);
             }
         };
@@ -123,18 +116,20 @@ public class FetchTopology
         long epoch = message.payload.epoch;
         Topology topology = AccordService.instance().topology().maybeGlobalForEpoch(epoch);
         if (topology == null)
-            MessagingService.instance().respond(Response.UNKNOWN, message);
+            MessagingService.instance().respond(Response.unkonwn(epoch), message);
         else
             MessagingService.instance().respond(new Response(epoch, topology), message);
     };
 
+    private static final Logger logger = LoggerFactory.getLogger(FetchTopology.class);
+
     public static Future<Topology> fetch(SharedContext context, Collection<InetAddressAndPort> peers, long epoch)
     {
         FetchTopology req = new FetchTopology(epoch);
-        return context.messaging().<FetchTopology, Response>sendWithRetries(Verb.ACCORD_FETCH_TOPOLOGY_REQ, req, MessagingUtils.tryAliveFirst(SharedContext.Global.instance, peers),
-                                                                                          // If the epoch is already discovered, no need to retry
-                                                                                          (attempt, from, failure) -> AccordService.instance().currentEpoch() < epoch,
-                                                                                          MessageDelivery.RetryErrorMessage.EMPTY)
+        return context.messaging().<FetchTopology, Response>sendWithRetries(Verb.ACCORD_FETCH_TOPOLOGY_REQ, req,
+                                                                            MessagingUtils.tryAliveFirst(SharedContext.Global.instance, peers),
+                                                                            (attempt, from, failure) -> true,
+                                                                            MessageDelivery.RetryErrorMessage.EMPTY)
                       .map(m -> m.payload.topology);
     }
 }
