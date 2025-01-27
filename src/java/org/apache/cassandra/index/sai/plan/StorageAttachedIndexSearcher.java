@@ -316,7 +316,7 @@ public class StorageAttachedIndexSearcher implements Index.Searcher
          */
         private boolean isWithinUpperBound(PrimaryKey key)
         {
-            return lastPrimaryKey.token().isMinimum() || lastPrimaryKey.compareTo(key) >= 0;
+            return lastPrimaryKey.token().isMinimum() || lastPrimaryKey.compareTo(key, false) >= 0;
         }
 
         /**

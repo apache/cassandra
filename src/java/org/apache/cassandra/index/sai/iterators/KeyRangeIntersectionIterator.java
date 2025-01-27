@@ -74,7 +74,7 @@ public class KeyRangeIntersectionIterator extends KeyRangeIterator
         // compare to other keys only by partition.) This loop continues until all iterators point to the same key,
         // or if we run out of keys on any of them, or if we exceed the maximum key.
         // There is no point in iterating after maximum, because no keys will match beyond that point.
-        while (highestKey != null && highestKey.compareTo(getMaximum()) <= 0)
+        while (highestKey != null && highestKey.compareTo(getMaximum(), false) <= 0)
         {
             // Try to advance all iterators to the highest key seen so far.
             // Once this inner loop finishes normally, all iterators are guaranteed to be at the same value.
@@ -83,7 +83,7 @@ public class KeyRangeIntersectionIterator extends KeyRangeIterator
                 if (!range.hasNext())
                     return endOfData();
 
-                if (range.peek().compareTo(highestKey) < 0)
+                if (range.peek().compareTo(highestKey, false) < 0)
                 {
                     // If we advance a STATIC key, then we must advance it to the same partition as the highestKey.
                     // Advancing a STATIC key to a WIDE key directly (without throwing away the clustering) would
@@ -95,7 +95,7 @@ public class KeyRangeIntersectionIterator extends KeyRangeIterator
                     // We use strict comparison here, since it orders WIDE primary keys after STATIC primary keys
                     // in the same partition. When WIDE keys are present, we want to return them rather than STATIC
                     // keys to avoid retrieving and post-filtering entire partitions.
-                    if (nextKey == null || nextKey.compareToStrict(highestKey) > 0)
+                    if (nextKey == null || nextKey.compareTo(highestKey, true) > 0)
                     {
                         // We jumped over the highest key seen so far, so make it the new highest key.
                         highestKey = nextKey;
@@ -105,7 +105,7 @@ public class KeyRangeIntersectionIterator extends KeyRangeIterator
                         // Therefore, restart the inner loop in order to advance the lagging iterators.
                         continue outer;
                     }
-                    assert nextKey.compareTo(highestKey) == 0 :
+                    assert nextKey.compareTo(highestKey, false) == 0 :
                         String.format("Skipped to a key smaller than the target! " +
                                       "iterator: %s, target key: %s, returned key: %s", range, highestKey, nextKey);
                 }
@@ -161,7 +161,7 @@ public class KeyRangeIntersectionIterator extends KeyRangeIterator
         {
             if (!range.hasNext())
                 return null;
-            if (range.peek().compareToStrict(max) > 0)
+            if (range.peek().compareTo(max, true) > 0)
                 max = range.peek();
         }
         return max;
@@ -394,6 +394,7 @@ public class KeyRangeIntersectionIterator extends KeyRangeIterator
      */
     private static boolean isDisjointInternal(PrimaryKey min, PrimaryKey max, KeyRangeIterator b)
     {
-        return min == null || max == null || b.getMaxKeys() == 0 || min.compareTo(b.getMaximum()) > 0 || (b.hasNext() && b.peek().compareTo(max) > 0);
+        return min == null || max == null || b.getMaxKeys() == 0
+               || min.compareTo(b.getMaximum(), false) > 0 || (b.hasNext() && b.peek().compareTo(max, false) > 0);
     }
 }

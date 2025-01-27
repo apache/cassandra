@@ -108,10 +108,10 @@ public abstract class KeyRangeIterator extends AbstractGuavaIterator<PrimaryKey>
         if (state == State.DONE)
             return;
 
-        if (state == State.READY && next.compareTo(nextKey) >= 0)
+        if (state == State.READY && next.compareTo(nextKey, false) >= 0)
             return;
 
-        if (max.compareTo(nextKey) < 0)
+        if (max.compareTo(nextKey, false) < 0)
         {
             endOfData();
             return;
@@ -229,7 +229,7 @@ public abstract class KeyRangeIterator extends AbstractGuavaIterator<PrimaryKey>
         if (a == null) return b;
         if (b == null) return a;
 
-        return a.compareToStrict(b) > 0 ? b : a;
+        return a.compareTo(b) > 0 ? b : a;
     }
 
     protected static PrimaryKey nullSafeMax(PrimaryKey a, PrimaryKey b)
@@ -237,6 +237,13 @@ public abstract class KeyRangeIterator extends AbstractGuavaIterator<PrimaryKey>
         if (a == null) return b;
         if (b == null) return a;
 
-        return a.compareToStrict(b) > 0 ? a : b;
+        // The STATIC key sorts before WIDE keys in its partition, but to avoid missing rows while 
+        // intersecting, the STATIC key must override any WIDE key.
+        if (a.kind() == PrimaryKey.Kind.STATIC && b.kind() == PrimaryKey.Kind.WIDE)
+            return a.compareTo(b, false) >= 0 ? a : b;
+        else if (b.kind() == PrimaryKey.Kind.STATIC && a.kind() == PrimaryKey.Kind.WIDE)
+            return b.compareTo(a, false) >= 0 ? b : a;
+
+        return a.compareTo(b) > 0 ? a : b;
     }
 }
