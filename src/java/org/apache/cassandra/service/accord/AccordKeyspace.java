@@ -897,20 +897,16 @@ public class AccordKeyspace
         diskState = maybeUpdateMaxEpoch(diskState, epoch);
         String cql = "UPDATE " + ACCORD_KEYSPACE_NAME + '.' + TOPOLOGIES + ' ' +
                      "SET closed = closed + ? WHERE epoch = ?";
-        executeInternal(cql,
-                        KeySerializers.rangesToBlobMap(ranges), epoch);
+        executeInternal(cql, KeySerializers.rangesToBlobMap(ranges), epoch);
         return diskState;
     }
 
-    // TODO (required): unused
     public static EpochDiskState markRetired(Ranges ranges, long epoch, EpochDiskState diskState)
     {
         diskState = maybeUpdateMaxEpoch(diskState, epoch);
         String cql = "UPDATE " + ACCORD_KEYSPACE_NAME + '.' + TOPOLOGIES + ' ' +
                      "SET retired = retired + ? WHERE epoch = ?";
-        executeInternal(cql,
-                        KeySerializers.rangesToBlobMap(ranges), epoch);
-        flush(Topologies);
+        executeInternal(cql, KeySerializers.rangesToBlobMap(ranges), epoch);
         return diskState;
     }
 

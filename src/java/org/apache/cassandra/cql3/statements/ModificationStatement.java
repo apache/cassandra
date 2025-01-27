@@ -924,8 +924,8 @@ public abstract class ModificationStatement implements CQLStatement.SingleKeyspa
                                                            local,
                                                            timestamp,
                                                            nowInSeconds,
-                                                           requestTime,
-                                                           constructingAccordBaseUpdate);
+                                                           requestTime
+            );
             for (ByteBuffer key : keys)
             {
                 Validation.validateKey(metadata(), key);
@@ -945,7 +945,7 @@ public abstract class ModificationStatement implements CQLStatement.SingleKeyspa
             if (restrictions.hasClusteringColumnsRestrictions() && clusterings.isEmpty())
                 return;
 
-            UpdateParameters params = makeUpdateParameters(keys, clusterings, state, options, local, timestamp, nowInSeconds, requestTime, constructingAccordBaseUpdate);
+            UpdateParameters params = makeUpdateParameters(keys, clusterings, state, options, local, timestamp, nowInSeconds, requestTime);
 
             for (ByteBuffer key : keys)
             {
@@ -982,8 +982,7 @@ public abstract class ModificationStatement implements CQLStatement.SingleKeyspa
                                                   boolean local,
                                                   long timestamp,
                                                   long nowInSeconds,
-                                                  Dispatcher.RequestTime requestTime,
-                                                  boolean constructingAccordBaseUpdate)
+                                                  Dispatcher.RequestTime requestTime)
     {
         if (clusterings.contains(Clustering.STATIC_CLUSTERING))
             return makeUpdateParameters(keys,
@@ -994,8 +993,8 @@ public abstract class ModificationStatement implements CQLStatement.SingleKeyspa
                                         local,
                                         timestamp,
                                         nowInSeconds,
-                                        requestTime,
-                                        constructingAccordBaseUpdate);
+                                        requestTime
+            );
 
         return makeUpdateParameters(keys,
                                     new ClusteringIndexNamesFilter(clusterings, false),
@@ -1005,8 +1004,8 @@ public abstract class ModificationStatement implements CQLStatement.SingleKeyspa
                                     local,
                                     timestamp,
                                     nowInSeconds,
-                                    requestTime,
-                                    constructingAccordBaseUpdate);
+                                    requestTime
+        );
     }
 
     private UpdateParameters makeUpdateParameters(Collection<ByteBuffer> keys,
@@ -1017,8 +1016,7 @@ public abstract class ModificationStatement implements CQLStatement.SingleKeyspa
                                                   boolean local,
                                                   long timestamp,
                                                   long nowInSeconds,
-                                                  Dispatcher.RequestTime requestTime,
-                                                  boolean constructingAccordBaseUpdate)
+                                                  Dispatcher.RequestTime requestTime)
     {
         // Some lists operation requires reading
         Map<DecoratedKey, Partition> lists =
@@ -1036,8 +1034,7 @@ public abstract class ModificationStatement implements CQLStatement.SingleKeyspa
                                     getTimestamp(timestamp, options),
                                     nowInSeconds,
                                     getTimeToLive(options),
-                                    lists,
-                                    constructingAccordBaseUpdate);
+                                    lists);
     }
 
     public static abstract class Parsed extends QualifiedStatement
