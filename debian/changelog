@@ -2,7 +2,7 @@ cassandra (5.0.3) unstable; urgency=medium
 
   * New release
 
- -- Brandon Williams <brandonwilliams@apache.org>  Wed, 13 Nov 2024 15:34:07 -0600
+ -- Stefan Miklosovic <smiklosovic@apache.org>  Mon, 27 Jan 2025 14:49:28 +0100
 
 cassandra (5.0.2) unstable; urgency=medium
 
