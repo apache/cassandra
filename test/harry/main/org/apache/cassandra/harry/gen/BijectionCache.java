@@ -73,15 +73,6 @@ public class BijectionCache<T> implements Bijections.Bijection<T>
         return valueToDescriptor.keySet();
     }
 
-    public void release(Set<Long> toGC)
-    {
-        if (toGC.isEmpty()) return;
-
-        var dToV = valueToDescriptor.inverse();
-        for (Long d : toGC)
-            dToV.remove(d);
-    }
-
     @Override
     public int population()
     {
