@@ -51,10 +51,9 @@ public class UpdateParameters
     public final TableMetadata metadata;
     public final ClientState clientState;
     public final QueryOptions options;
-    public final boolean constructingAccordBaseUpdate;
 
     private final long nowInSec;
-    private final long timestamp;
+    protected final long timestamp;
     private final int ttl;
 
     private final DeletionTime deletionTime;
@@ -76,18 +75,6 @@ public class UpdateParameters
                             int ttl,
                             Map<DecoratedKey, Partition> prefetchedRows) throws InvalidRequestException
     {
-        this(metadata, clientState, options, timestamp, nowInSec, ttl, prefetchedRows, false);
-    }
-
-    public UpdateParameters(TableMetadata metadata,
-                            ClientState clientState,
-                            QueryOptions options,
-                            long timestamp,
-                            long nowInSec,
-                            int ttl,
-                            Map<DecoratedKey, Partition> prefetchedRows,
-                            boolean constructingAccordBaseUpdate) throws InvalidRequestException
-    {
         this.metadata = metadata;
         this.clientState = clientState;
         this.options = options;
@@ -104,8 +91,6 @@ public class UpdateParameters
         // it to avoid potential confusion.
         if (timestamp == Long.MIN_VALUE)
             throw new InvalidRequestException(String.format("Out of bound timestamp, must be in [%d, %d]", Long.MIN_VALUE + 1, Long.MAX_VALUE));
-
-        this.constructingAccordBaseUpdate = constructingAccordBaseUpdate;
     }
 
     public <V> void newRow(Clustering<V> clustering) throws InvalidRequestException

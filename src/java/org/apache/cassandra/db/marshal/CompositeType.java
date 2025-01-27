@@ -312,9 +312,9 @@ public class CompositeType extends AbstractCompositeType
         byte[] result = Arrays.copyOf(bytes, c);
         if (bytes != tmpBytes) tmpFlattenBuffer.set(bytes);
         byte[] test = super.asFlatComparableBytes(accessor, data, version);
-        if (Invariants.isParanoid() && Invariants.testParanoia(LINEAR, CONSTANT, LOW)) Invariants.checkState(Arrays.equals(test, result));
+        if (Invariants.isParanoid() && Invariants.testParanoia(LINEAR, CONSTANT, LOW)) Invariants.require(Arrays.equals(test, result));
         V roundtrip = fromComparableBytes(accessor, ByteSource.peekable(ByteSource.of(result, version)), version);
-        Invariants.checkState(accessor.compare(data, roundtrip, accessor) == 0);
+        Invariants.require(accessor.compare(data, roundtrip, accessor) == 0);
         return result;
     }
 

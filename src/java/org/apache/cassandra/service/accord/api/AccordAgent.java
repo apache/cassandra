@@ -204,7 +204,7 @@ public class AccordAgent implements Agent
         startTime = nonClashingStartTime(startTime, shard == null ? null : shard.nodes, node.id(), oneSecond, random);
         long nowMicros = MILLISECONDS.toMicros(Clock.Global.currentTimeMillis());
         long delayMicros = Math.max(1, startTime - nowMicros);
-        Invariants.checkState(delayMicros < TimeUnit.HOURS.toMicros(1L));
+        Invariants.require(delayMicros < TimeUnit.HOURS.toMicros(1L));
         return units.convert(delayMicros, MICROSECONDS);
     }
 

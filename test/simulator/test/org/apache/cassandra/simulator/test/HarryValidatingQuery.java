@@ -79,8 +79,8 @@ public class HarryValidatingQuery extends SimulatedAction
                 try
                 {
                     TokenPlacementModel.ReplicatedRanges ring = rf.replicate(owernship);
-                    Invariants.checkState(visit.operations.length == 1);
-                    Invariants.checkState(visit.operations[0] instanceof Operations.SelectStatement);
+                    Invariants.require(visit.operations.length == 1);
+                    Invariants.require(visit.operations[0] instanceof Operations.SelectStatement);
                     Operations.SelectStatement select = (Operations.SelectStatement) visit.operations[0];
                     for (TokenPlacementModel.Replica replica : ring.replicasFor(token(select.pd)))
                     {

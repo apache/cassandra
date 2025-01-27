@@ -138,7 +138,7 @@ public class CommandStoreSerializers
         public void serialize(RedundantBefore.Entry t, DataOutputPlus out, int version) throws IOException
         {
             KeySerializers.range.serialize(t.range, out, version);
-            Invariants.checkState(t.startOwnershipEpoch <= t.endOwnershipEpoch);
+            Invariants.require(t.startOwnershipEpoch <= t.endOwnershipEpoch);
             out.writeUnsignedVInt(t.startOwnershipEpoch);
             if (t.endOwnershipEpoch == Long.MAX_VALUE) out.writeUnsignedVInt(0L);
             else out.writeUnsignedVInt(1 + t.endOwnershipEpoch - t.startOwnershipEpoch);

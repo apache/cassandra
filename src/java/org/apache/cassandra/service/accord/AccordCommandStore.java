@@ -75,7 +75,7 @@ import static accord.local.KeyHistory.SYNC;
 import static accord.primitives.Status.Committed;
 import static accord.primitives.Status.PreCommitted;
 import static accord.primitives.Status.Truncated;
-import static accord.utils.Invariants.checkState;
+import static accord.utils.Invariants.require;
 
 public class AccordCommandStore extends CommandStore
 {
@@ -247,7 +247,7 @@ public class AccordCommandStore extends CommandStore
 
     public Caches cachesExclusive()
     {
-        Invariants.checkState(executor.isOwningThread());
+        Invariants.require(executor.isOwningThread());
         return caches;
     }
 
@@ -360,14 +360,14 @@ public class AccordCommandStore extends CommandStore
     public AccordSafeCommandStore begin(AccordTask<?> operation,
                                         @Nullable CommandsForRanges commandsForRanges)
     {
-        checkState(current == null);
+        require(current == null);
         current = AccordSafeCommandStore.create(operation, commandsForRanges, this);
         return current;
     }
 
     void setOwner(Thread thread, Thread self)
     {
-        Invariants.checkState(thread == null ? currentThread == self : currentThread == null);
+        Invariants.require(thread == null ? currentThread == self : currentThread == null);
         currentThread = thread;
         if (thread != null) CommandStore.register(this);
 
@@ -380,7 +380,7 @@ public class AccordCommandStore extends CommandStore
 
     public void complete(AccordSafeCommandStore store)
     {
-        checkState(current == store);
+        require(current == store);
         current.postExecute();
         current = null;
     }
@@ -388,7 +388,7 @@ public class AccordCommandStore extends CommandStore
     public void abort(AccordSafeCommandStore store)
     {
         checkInStore();
-        Invariants.checkState(store == current);
+        Invariants.require(store == current);
         current = null;
     }
 

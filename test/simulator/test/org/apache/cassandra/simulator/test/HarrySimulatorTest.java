@@ -757,7 +757,7 @@ public class HarrySimulatorTest
 
             Visit visit = new Visit(lts, new Operations.Operation[]{ simulation.insertGen.generate(simulation.rng).toOp(lts) });
             Visit prev_ = simulation.log.put(lts, visit);
-            Invariants.checkState(prev_ == null);
+            Invariants.require(prev_ == null);
 
             actions[i] = new Actions.LambdaAction("", Action.Modifiers.RELIABLE_NO_TIMEOUTS, () -> {
                 CompiledStatement compiledStatement = simulation.queryBuilder.compile(visit);

@@ -98,7 +98,7 @@ public class AccordJournal implements accord.api.Journal, RangeSearcher.Supplier
     static
     {
         // make noise early if we forget to update our version mappings
-        Invariants.checkState(MessagingService.current_version == MessagingService.VERSION_51, "Expected current version to be %d but given %d", MessagingService.VERSION_51, MessagingService.current_version);
+        Invariants.require(MessagingService.current_version == MessagingService.VERSION_51, "Expected current version to be %d but given %d", MessagingService.VERSION_51, MessagingService.current_version);
     }
 
     static final ThreadLocal<byte[]> keyCRCBytes = ThreadLocal.withInitial(() -> new byte[JournalKeySupport.TOTAL_SIZE]);
@@ -162,7 +162,7 @@ public class AccordJournal implements accord.api.Journal, RangeSearcher.Supplier
 
     public AccordJournal start(Node node)
     {
-        Invariants.checkState(status == Status.INITIALIZED);
+        Invariants.require(status == Status.INITIALIZED);
         this.node = node;
         status = Status.STARTING;
         journal.start();
@@ -193,7 +193,7 @@ public class AccordJournal implements accord.api.Journal, RangeSearcher.Supplier
     @Override
     public void shutdown()
     {
-        Invariants.checkState(status == Status.REPLAY || status == Status.STARTED, "%s", status);
+        Invariants.require(status == Status.REPLAY || status == Status.STARTED, "%s", status);
         status = Status.TERMINATING;
         journal.shutdown();
         status = Status.TERMINATED;
@@ -251,7 +251,7 @@ public class AccordJournal implements accord.api.Journal, RangeSearcher.Supplier
             case ERASE:
                 return null;
         }
-        Invariants.checkState(builder.saveStatus() != null, "No saveSatus loaded, but next was called and cleanup was not: %s", builder);
+        Invariants.require(builder.saveStatus() != null, "No saveSatus loaded, but next was called and cleanup was not: %s", builder);
         return builder.asMinimal();
     }
 
@@ -411,7 +411,7 @@ public class AccordJournal implements accord.api.Journal, RangeSearcher.Supplier
         builder.forceResult(orig.result());
         // We can only use strict equality if we supply result.
         Command reconstructed = builder.construct(redundantBefore);
-        Invariants.checkState(orig.equals(reconstructed),
+        Invariants.require(orig.equals(reconstructed),
                               '\n' +
                               "Original:      %s\n" +
                               "Reconstructed: %s\n" +
@@ -460,7 +460,7 @@ public class AccordJournal implements accord.api.Journal, RangeSearcher.Supplier
 
                 JournalKey finalKey = key;
                 iter.readAllForKey(key, (segment, position, local, buffer, userVersion) -> {
-                    Invariants.checkState(finalKey.equals(local));
+                    Invariants.require(finalKey.equals(local));
                     try (DataInputBuffer in = new DataInputBuffer(buffer, false))
                     {
                         builder.deserializeNext(in, userVersion);
@@ -481,7 +481,7 @@ public class AccordJournal implements accord.api.Journal, RangeSearcher.Supplier
                 {
                     CommandStore commandStore = commandStores.forId(key.commandStoreId);
                     Command command = builder.construct(commandStore.unsafeGetRedundantBefore());
-                    Invariants.checkState(command.saveStatus() != SaveStatus.Uninitialised,
+                    Invariants.require(command.saveStatus() != SaveStatus.Uninitialised,
                                           "Found uninitialized command in the log: %s %s", command.toString(), builder.toString());
                     Loader loader = commandStore.loader();
                     async(loader::load, command).get();
@@ -572,7 +572,7 @@ public class AccordJournal implements accord.api.Journal, RangeSearcher.Supplier
 
         private static void serialize(Command command, int flags, DataOutputPlus out, int userVersion) throws IOException
         {
-            Invariants.checkState(flags != 0);
+            Invariants.require(flags != 0);
             out.writeInt(flags);
 
             int iterable = toIterableSetFields(flags);
@@ -679,8 +679,8 @@ public class AccordJournal implements accord.api.Journal, RangeSearcher.Supplier
 
         public void serialize(DataOutputPlus out, RedundantBefore redundantBefore, int userVersion) throws IOException
         {
-            Invariants.checkState(mask == 0);
-            Invariants.checkState(flags != 0);
+            Invariants.require(mask == 0);
+            Invariants.require(flags != 0);
 
             int flags = validateFlags(this.flags);
             Writer.serialize(construct(redundantBefore), flags, out, userVersion);
@@ -688,9 +688,9 @@ public class AccordJournal implements accord.api.Journal, RangeSearcher.Supplier
 
         public void deserializeNext(DataInputPlus in, int userVersion) throws IOException
         {
-            Invariants.checkState(txnId != null);
+            Invariants.require(txnId != null);
             int flags = in.readInt();
-            Invariants.checkState(flags != 0);
+            Invariants.require(flags != 0);
             nextCalled = true;
             count++;
 

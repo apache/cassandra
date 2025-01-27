@@ -208,7 +208,7 @@ public class CommandSerializers
             {
                 if ((flags & 1) != 0)
                     return;
-                flags >>= 1;
+                flags >>>= 1;
             }
             in.readUnsignedVInt();
             in.readUnsignedVInt();
@@ -233,14 +233,14 @@ public class CommandSerializers
             out.writeUnsignedVInt32(flags);
             if (executeAt == null)
             {
-                Invariants.checkState(nullable);
+                Invariants.require(nullable);
             }
             else
             {
                 out.writeUnsignedVInt(executeAt.epoch());
                 out.writeUnsignedVInt(executeAt.hlc());
                 out.writeUnsignedVInt32(executeAt.node.id);
-                if ((flags & HAS_UNIQUE_HLC) != 0)
+                if (executeAt.hasDistinctHlcAndUniqueHlc())
                     out.writeUnsignedVInt(executeAt.uniqueHlc() - executeAt.hlc());
             }
         }
@@ -261,13 +261,13 @@ public class CommandSerializers
             long size = TypeSizes.sizeofUnsignedVInt(flags);
             if (executeAt == null)
             {
-                Invariants.checkState(nullable);
+                Invariants.require(nullable);
                 return size;
             }
             size += TypeSizes.sizeofUnsignedVInt(executeAt.epoch());
             size += TypeSizes.sizeofUnsignedVInt(executeAt.hlc());
             size += TypeSizes.sizeofUnsignedVInt(executeAt.node.id);
-            if ((flags & HAS_UNIQUE_HLC) != 0)
+            if (executeAt.hasDistinctHlcAndUniqueHlc())
                 size += TypeSizes.sizeofUnsignedVInt(executeAt.uniqueHlc() - executeAt.hlc());
             return size;
         }
@@ -276,7 +276,7 @@ public class CommandSerializers
         {
             if (executeAt == null)
             {
-                Invariants.checkState(nullable);
+                Invariants.require(nullable);
                 return 1;
             }
 

@@ -199,7 +199,7 @@ public class ParameterizedFastPathStrategy implements FastPathStrategy
             cmp = this.sortPos - that.sortPos;
             if (cmp != 0) return cmp;
 
-            Invariants.checkState(this.id.equals(that.id));
+            Invariants.require(this.id.equals(that.id));
             return 0;
         }
     }
@@ -228,7 +228,7 @@ public class ParameterizedFastPathStrategy implements FastPathStrategy
 
         Arrays.sort(array);
         SortedArrayList<Node.Id> electorate = new SortedArrayList<>(array);
-        Invariants.checkState(electorate.size() >= slowQuorum);
+        Invariants.require(electorate.size() >= slowQuorum);
         return electorate;
     }
 

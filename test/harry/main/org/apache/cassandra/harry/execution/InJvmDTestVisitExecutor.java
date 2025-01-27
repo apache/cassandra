@@ -103,7 +103,7 @@ public class InJvmDTestVisitExecutor extends CQLVisitExecutor
 
     protected List<ResultSetRow> executeWithResult(Visit visit, int node, int pageSize, CompiledStatement statement, ConsistencyLevel consistencyLevel)
     {
-        Invariants.checkState(visit.operations.length == 1);
+        Invariants.require(visit.operations.length == 1);
         Object[][] rows;
         if (consistencyLevel == ConsistencyLevel.NODE_LOCAL)
             rows = cluster.get(node).executeInternal(statement.cql(), statement.bindings());
@@ -199,7 +199,7 @@ public class InJvmDTestVisitExecutor extends CQLVisitExecutor
                 {
                     for (int j = 0; j < schema.clusteringKeys.size(); j++)
                     {
-                        Invariants.checkState(result[selection.indexOf(schema.clusteringKeys.get(j))] == null,
+                        Invariants.require(result[selection.indexOf(schema.clusteringKeys.get(j))] == null,
                                               "All elements of clustering key should have been null");
                     }
                     clusteringKey = NIL_KEY;

@@ -67,7 +67,7 @@ public abstract class MergeIterator<In,Out> extends AbstractIterator<Out> implem
             @Override
             protected E getReduced()
             {
-                Invariants.checkState(first != null);
+                Invariants.require(first != null);
                 return first;
             }
         });

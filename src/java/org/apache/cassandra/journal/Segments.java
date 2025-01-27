@@ -58,7 +58,7 @@ class Segments<K, V>
     {
         Long2ObjectHashMap<Segment<K, V>> newSegments = new Long2ObjectHashMap<>(segments);
         Segment<K, V> oldValue = newSegments.put(activeSegment.descriptor.timestamp, activeSegment);
-        Invariants.checkState(oldValue == null);
+        Invariants.require(oldValue == null);
         return new Segments<>(newSegments);
     }
 
@@ -66,16 +66,16 @@ class Segments<K, V>
     {
         Long2ObjectHashMap<Segment<K, V>> newSegments = new Long2ObjectHashMap<>(segments);
         Segment<K, V> oldValue = segments.remove(activeSegment.descriptor.timestamp);
-        Invariants.checkState(oldValue.asActive().isEmpty());
+        Invariants.require(oldValue.asActive().isEmpty());
         return new Segments<>(newSegments);
     }
 
     Segments<K, V> withCompletedSegment(ActiveSegment<K, V> activeSegment, StaticSegment<K, V> staticSegment)
     {
-        Invariants.checkArgument(activeSegment.descriptor.equals(staticSegment.descriptor));
+        Invariants.requireArgument(activeSegment.descriptor.equals(staticSegment.descriptor));
         Long2ObjectHashMap<Segment<K, V>> newSegments = new Long2ObjectHashMap<>(segments);
         Segment<K, V> oldValue = newSegments.put(staticSegment.descriptor.timestamp, staticSegment);
-        Invariants.checkState(oldValue == activeSegment, () -> String.format("old value %s != new %s", oldValue, activeSegment));
+        Invariants.require(oldValue == activeSegment, () -> String.format("old value %s != new %s", oldValue, activeSegment));
         return new Segments<>(newSegments);
     }
 
@@ -85,13 +85,13 @@ class Segments<K, V>
         for (StaticSegment<K, V> oldSegment : oldSegments)
         {
             Segment<K, V> oldValue = newSegments.remove(oldSegment.descriptor.timestamp);
-            Invariants.checkState(oldValue == oldSegment);
+            Invariants.require(oldValue == oldSegment);
         }
 
         for (StaticSegment<K, V> compactedSegment : compactedSegments)
         {
             Segment<K, V> oldValue = newSegments.put(compactedSegment.descriptor.timestamp, compactedSegment);
-            Invariants.checkState(oldValue == null);
+            Invariants.require(oldValue == null);
         }
 
         return new Segments<>(newSegments);

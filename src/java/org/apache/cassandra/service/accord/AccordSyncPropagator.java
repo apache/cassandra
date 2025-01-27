@@ -316,7 +316,7 @@ public class AccordSyncPropagator
             @Override
             public void onResponse(Message<SimpleReply> msg)
             {
-                Invariants.checkState(msg.payload == SimpleReply.Ok, "Unexpected message: %s", msg);
+                Invariants.require(msg.payload == SimpleReply.Ok, "Unexpected message: %s", msg);
                 Set<Long> completedEpochs = new HashSet<>();
                 // TODO review is it a good idea to call the listener while not holding the `AccordSyncPropagator` lock?
                 synchronized (AccordSyncPropagator.this)

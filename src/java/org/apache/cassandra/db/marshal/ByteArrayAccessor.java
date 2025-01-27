@@ -108,7 +108,7 @@ public class ByteArrayAccessor implements ValueAccessor<byte[]>
     @Override
     public byte[] slice(byte[] input, int offset, int length)
     {
-        Invariants.checkArgument(offset + length <= input.length);
+        Invariants.requireArgument(offset + length <= input.length);
         return Arrays.copyOfRange(input, offset, offset + length);
     }
 

@@ -132,7 +132,7 @@ public interface Processor
         cms.add(acc);
         for (Entry entry : logState.entries)
         {
-            Invariants.checkState(entry.epoch.isDirectlyAfter(acc.epoch), "%s should have been directly after %s", entry.epoch, acc.epoch);
+            Invariants.require(entry.epoch.isDirectlyAfter(acc.epoch), "%s should have been directly after %s", entry.epoch, acc.epoch);
             Transformation.Result res = entry.transform.execute(acc);
             assert res.isSuccess() : res.toString();
             acc = res.success().metadata;

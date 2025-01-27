@@ -49,7 +49,7 @@ import org.apache.cassandra.service.accord.AccordMessageSink.AccordMessageType;
 import org.apache.cassandra.service.accord.serializers.ApplySerializers.ApplySerializer;
 import org.apache.cassandra.service.accord.txn.AccordUpdate;
 
-import static accord.utils.Invariants.checkState;
+import static accord.utils.Invariants.requireArgument;
 import static com.google.common.base.Preconditions.checkArgument;
 
 /**
@@ -101,7 +101,7 @@ public class AccordInteropApply extends Apply implements LocalListeners.ComplexL
     public ApplyReply apply(SafeCommandStore safeStore, StoreParticipants participants)
     {
         ApplyReply reply = super.apply(safeStore, participants);
-        checkState(reply == ApplyReply.Redundant || reply == ApplyReply.Applied || reply == ApplyReply.Insufficient, "Unexpected ApplyReply");
+        requireArgument(reply == ApplyReply.Redundant || reply == ApplyReply.Applied || reply == ApplyReply.Insufficient, "Unexpected ApplyReply");
 
         // Hasn't necessarily finished applying yet so need to check and maybe add a listener
         // Redundant means we are competing with a recovery coordinator which is fine

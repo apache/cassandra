@@ -48,7 +48,7 @@ public class AwaitSerializer
             out.writeUnsignedVInt(await.maxAwaitEpoch - await.txnId.epoch());
             out.writeUnsignedVInt(await.maxAwaitEpoch - await.minAwaitEpoch);
             out.writeUnsignedVInt32(await.callbackId + 1);
-            Invariants.checkState(await.callbackId >= -1);
+            Invariants.require(await.callbackId >= -1);
         }
 
         @Override
@@ -62,7 +62,7 @@ public class AwaitSerializer
             long maxAwaitEpoch = in.readUnsignedVInt() + txnId.epoch();
             long minAwaitEpoch = maxAwaitEpoch - in.readUnsignedVInt();
             int callbackId = in.readUnsignedVInt32() - 1;
-            Invariants.checkState(callbackId >= -1);
+            Invariants.require(callbackId >= -1);
             return Await.SerializerSupport.create(txnId, scope, blockedUntil, notifyProgressLog, minAwaitEpoch, maxAwaitEpoch, callbackId);
         }
 

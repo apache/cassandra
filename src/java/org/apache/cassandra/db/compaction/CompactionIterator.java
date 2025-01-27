@@ -905,7 +905,7 @@ public class CompactionIterator extends CompactionInfo.Holder implements Unfilte
                 AccordJournal.Builder commandBuilder = (AccordJournal.Builder) builder;
                 if (commandBuilder.isEmpty())
                 {
-                    Invariants.checkState(rows.isEmpty());
+                    Invariants.require(rows.isEmpty());
                     return partition;
                 }
 
@@ -954,9 +954,9 @@ public class CompactionIterator extends CompactionInfo.Holder implements Unfilte
 
             if (lastOffset != -1)
             {
-                Invariants.checkState(descriptor <= lastDescriptor,
+                Invariants.require(descriptor <= lastDescriptor,
                                       "Descriptors were accessed out of order: %d was accessed after %d", descriptor, lastDescriptor);
-                Invariants.checkState(descriptor != lastDescriptor ||
+                Invariants.require(descriptor != lastDescriptor ||
                                       offset < lastOffset,
                                       "Offsets within %s were accessed out of order: %d was accessed after %s", offset, lastOffset);
             }

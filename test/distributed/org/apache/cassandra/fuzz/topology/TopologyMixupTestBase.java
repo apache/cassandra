@@ -530,35 +530,35 @@ public abstract class TopologyMixupTestBase<S extends TopologyMixupTestBase.Sche
 
                 this.yamlConfigOverrides = CONF_GEN.next(rs);
                 cluster = Cluster.build(topologyHistory.minNodes)
-                        .withTokenSupplier(topologyHistory)
-                        .withConfig(c -> {
-                            c.with(Feature.values())
-                                    .set("write_request_timeout", "10s")
-                                    .set("read_request_timeout", "10s")
-                                    .set("range_request_timeout", "20s")
-                                    .set("request_timeout", "20s")
-                                    .set("transaction_timeout", "15s")
-                                    .set("native_transport_timeout", "30s")
-                                    // bound startup to some value larger than the task timeout, this is to allow the
-                                    // tests to stop blocking when a startup issue is detected.  The main reason for
-                                    // this is that startup blocks forever, waiting for accord and streaming to
-                                    // complete... but if there are bugs at these layers then the startup will never
-                                    // exit, blocking the JVM from giving the needed information (logs/seed) to debug.
-                                    .set(Constants.KEY_DTEST_STARTUP_TIMEOUT, "4m")
-                                    .set(Constants.KEY_DTEST_API_STARTUP_FAILURE_AS_SHUTDOWN, false);
-                            //TODO (maintenance): where to put this?  Anything touching ConfigGenBuilder with jvm-dtest needs this...
-                            ((InstanceConfig) c).remove("commitlog_sync_period_in_ms");
-                            for (Map.Entry<String, Object> e : yamlConfigOverrides.entrySet())
-                                c.set(e.getKey(), e.getValue());
-                            onConfigure(c);
-                        })
-                        //TODO (maintenance): should TopologyHistory also be a INodeProvisionStrategy.Factory so address information is stored in the Node?
-                        //TODO (maintenance): AbstractCluster's Map<Integer, NetworkTopology.DcAndRack> nodeIdTopology makes playing with dc/rack annoying, if this becomes an interface then TopologyHistory could own
-                        .withNodeProvisionStrategy((subnet, portMap) -> new INodeProvisionStrategy.AbstractNodeProvisionStrategy(portMap)
-                        {
-                            {
-                                Invariants.checkArgument(subnet == 0, "Unexpected subnet detected: %d", subnet);
-                            }
+                                 .withTokenSupplier(topologyHistory)
+                                 .withConfig(c -> {
+                                     c.with(Feature.values())
+                                      .set("write_request_timeout", "10s")
+                                      .set("read_request_timeout", "10s")
+                                      .set("range_request_timeout", "20s")
+                                      .set("request_timeout", "20s")
+                                      .set("transaction_timeout", "15s")
+                                      .set("native_transport_timeout", "30s")
+                                      // bound startup to some value larger than the task timeout, this is to allow the
+                                      // tests to stop blocking when a startup issue is detected.  The main reason for
+                                      // this is that startup blocks forever, waiting for accord and streaming to
+                                      // complete... but if there are bugs at these layers then the startup will never
+                                      // exit, blocking the JVM from giving the needed information (logs/seed) to debug.
+                                      .set(Constants.KEY_DTEST_STARTUP_TIMEOUT, "4m")
+                                      .set(Constants.KEY_DTEST_API_STARTUP_FAILURE_AS_SHUTDOWN, false);
+                                     //TODO (maintenance): where to put this?  Anything touching ConfigGenBuilder with jvm-dtest needs this...
+                                     ((InstanceConfig) c).remove("commitlog_sync_period_in_ms");
+                                     for (Map.Entry<String, Object> e : yamlConfigOverrides.entrySet())
+                                         c.set(e.getKey(), e.getValue());
+                                     onConfigure(c);
+                                 })
+                                 //TODO (maintenance): should TopologyHistory also be a INodeProvisionStrategy.Factory so address information is stored in the Node?
+                                 //TODO (maintenance): AbstractCluster's Map<Integer, NetworkTopology.DcAndRack> nodeIdTopology makes playing with dc/rack annoying, if this becomes an interface then TopologyHistory could own
+                                 .withNodeProvisionStrategy((subnet, portMap) -> new INodeProvisionStrategy.AbstractNodeProvisionStrategy(portMap)
+                                 {
+                                     {
+                                         Invariants.requireArgument(subnet == 0, "Unexpected subnet detected: %d", subnet);
+                                     }
 
                             private final String ipPrefix = "127.0." + subnet + '.';
 
@@ -982,7 +982,7 @@ public abstract class TopologyMixupTestBase<S extends TopologyMixupTestBase.Sche
         {
             String address = addressAndPort.getAddress().getHostAddress();
             String[] parts = address.split("\\.");
-            Invariants.checkState(parts.length == 4, "Unable to parse address %s", address);
+            Invariants.require(parts.length == 4, "Unable to parse address %s", address);
             return Integer.parseInt(parts[3]);
         }
     }

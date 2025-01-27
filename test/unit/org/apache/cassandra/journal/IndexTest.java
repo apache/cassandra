@@ -218,7 +218,7 @@ public class IndexTest
             for (long i : value)
                 inMemory.update(key, Index.readOffset(i), Index.readSize(i));
             for (int i = 1 ; i < value.length ; ++i)
-                Invariants.checkState(value[i - 1] > value[i]);
+                Invariants.require(value[i - 1] > value[i]);
         }
         assertIndex(map, inMemory);
 

@@ -197,7 +197,7 @@ public class Journal<K, V> implements Shutdownable
 
     public void start()
     {
-        Invariants.checkState(state.compareAndSet(State.UNINITIALIZED, State.INITIALIZING),
+        Invariants.require(state.compareAndSet(State.UNINITIALIZED, State.INITIALIZING),
                               "Unexpected journal state during initialization", state);
         metrics.register(flusher);
 
@@ -216,7 +216,7 @@ public class Journal<K, V> implements Shutdownable
         releaser = executorFactory().sequential(name + "-releaser");
         allocator = executorFactory().infiniteLoop(name + "-allocator", new AllocateRunnable(), SAFE, NON_DAEMON, SYNCHRONIZED);
         advanceSegment(null);
-        Invariants.checkState(state.compareAndSet(State.INITIALIZING, State.NORMAL),
+        Invariants.require(state.compareAndSet(State.INITIALIZING, State.NORMAL),
                               "Unexpected journal state after initialization", state);
         flusher.start();
         compactor.start();
@@ -252,7 +252,7 @@ public class Journal<K, V> implements Shutdownable
     {
         try
         {
-            Invariants.checkState(state.compareAndSet(State.NORMAL, State.SHUTDOWN),
+            Invariants.require(state.compareAndSet(State.NORMAL, State.SHUTDOWN),
                                   "Unexpected journal state while trying to shut down", state);
             allocator.shutdown();
             wakeAllocator(); // Wake allocator to force it into shutdown
@@ -268,7 +268,7 @@ public class Journal<K, V> implements Shutdownable
             releaser.awaitTermination(1, TimeUnit.MINUTES);
             closeAllSegments();
             metrics.deregister();
-            Invariants.checkState(state.compareAndSet(State.SHUTDOWN, State.TERMINATED),
+            Invariants.require(state.compareAndSet(State.SHUTDOWN, State.TERMINATED),
                                   "Unexpected journal state while trying to shut down", state);
         }
         catch (InterruptedException e)
@@ -774,7 +774,7 @@ public class Journal<K, V> implements Shutdownable
         else
         {
             Segment<K, V> segment = segments().get(timestamp);
-            Invariants.checkState(segment != null, "Segment %d expected to be found, but neither current segment %d nor in active segments", timestamp, currentSegmentTimestamp);
+            Invariants.require(segment != null, "Segment %d expected to be found, but neither current segment %d nor in active segments", timestamp, currentSegmentTimestamp);
             if (segment == null)
                 throw new IllegalArgumentException("Request the active segment " + timestamp + " but this segment does not exist");
             if (!segment.isActive())
@@ -965,7 +965,7 @@ public class Journal<K, V> implements Shutdownable
                 StaticSegment.KeyOrderReader<K> next = readers.peek();
                 if (next == null || !next.key().equals(key))
                     break;
-                Invariants.checkState(next == readers.poll());
+                Invariants.require(next == readers.poll());
 
                 reader.accept(next.descriptor.timestamp, next.offset, next.key(), next.record(), next.descriptor.userVersion);
                 if (next.advance())

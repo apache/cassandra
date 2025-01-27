@@ -155,7 +155,7 @@ public class AccordFetchCoordinator extends AbstractFetchCoordinator implements 
             if (that.streams.keySet().stream().anyMatch(this.streams::containsKey))
                 throw new IllegalStateException(String.format("Unable to merge: key found in multiple StreamData %s %s",
                                                               this.streams.keySet(), that.streams.keySet()));
-            Invariants.checkState(!that.streams.keySet().stream().anyMatch(this.streams::containsKey));
+            Invariants.require(!that.streams.keySet().stream().anyMatch(this.streams::containsKey));
             ImmutableMap.Builder<TokenRange, SessionInfo> builder = ImmutableMap.builder();
             builder.putAll(this.streams);
             builder.putAll(that.streams);
@@ -180,8 +180,8 @@ public class AccordFetchCoordinator extends AbstractFetchCoordinator implements 
         {
             Invariants.nonNull(range);
             Invariants.nonNull(from);
-            Invariants.checkState(this.range == null, "range was not null: %s", this.range);
-            Invariants.checkState(this.from == null, "from was not null: %s", this.from);
+            Invariants.require(this.range == null, "range was not null: %s", this.range);
+            Invariants.require(this.from == null, "from was not null: %s", this.from);
             this.range = range;
             this.from = from;
             maybeListen();
@@ -190,7 +190,7 @@ public class AccordFetchCoordinator extends AbstractFetchCoordinator implements 
         private void futureReceived(StreamResultFuture future)
         {
             Invariants.nonNull(future);
-            Invariants.checkState(this.future == null, "future was not null: %s", this.future);
+            Invariants.require(this.future == null, "future was not null: %s", this.future);
             this.future = future;
             maybeListen();
         }
@@ -254,7 +254,7 @@ public class AccordFetchCoordinator extends AbstractFetchCoordinator implements 
                 if (!session.peer.equals(to))
                     continue;
 
-                Invariants.checkState(session.getNumRequests() == 0, "Requested to send data: %s", session);
+                Invariants.require(session.getNumRequests() == 0, "Requested to send data: %s", session);
                 if (session.getNumTransfers() > 0)
                     return true;
             }
@@ -266,14 +266,14 @@ public class AccordFetchCoordinator extends AbstractFetchCoordinator implements 
         {
             try
             {
-                Invariants.checkArgument(key.domain() == Routable.Domain.Range, "Required Range but saw %s: %s", key.domain(), key);
+                Invariants.requireArgument(key.domain() == Routable.Domain.Range, "Required Range but saw %s: %s", key.domain(), key);
                 TokenRange range = (TokenRange) key;
 
                 // TODO (required): check epoch
                 // TODO (required): handle dropped tables
                 TableId tableId = range.table();
                 TableMetadata table = ClusterMetadata.current().schema.getKeyspaces().getTableOrViewNullable(tableId);
-                Invariants.checkState(table != null, "Table with id %s not found", tableId);
+                Invariants.require(table != null, "Table with id %s not found", tableId);
 
                 // TODO (required): may also be relocation
                 StreamPlan plan = new StreamPlan(StreamOperation.BOOTSTRAP, 1, false,
@@ -310,7 +310,7 @@ public class AccordFetchCoordinator extends AbstractFetchCoordinator implements 
             @Override
             public void serialize(Query t, DataOutputPlus out, int version)
             {
-                Invariants.checkArgument(t == noopQuery);
+                Invariants.requireArgument(t == noopQuery);
             }
 
             @Override
@@ -322,7 +322,7 @@ public class AccordFetchCoordinator extends AbstractFetchCoordinator implements 
             @Override
             public long serializedSize(Query t, int version)
             {
-                Invariants.checkArgument(t == noopQuery);
+                Invariants.requireArgument(t == noopQuery);
                 return 0;
             }
         };
@@ -332,7 +332,7 @@ public class AccordFetchCoordinator extends AbstractFetchCoordinator implements 
             @Override
             public void serialize(Update t, DataOutputPlus out, int version)
             {
-                Invariants.checkArgument(t == null);
+                Invariants.requireArgument(t == null);
             }
 
             @Override
@@ -344,7 +344,7 @@ public class AccordFetchCoordinator extends AbstractFetchCoordinator implements 
             @Override
             public long serializedSize(Update t, int version)
             {
-                Invariants.checkArgument(t == null);
+                Invariants.requireArgument(t == null);
                 return 0;
             }
         };

@@ -272,7 +272,7 @@ public final class TableId implements Comparable<TableId>
         long compact = in.readUnsignedVInt();
         if (compact > 0)
             return fromLong(compact - 1);
-        Invariants.checkState(compact == 0);
+        Invariants.require(compact == 0);
         return deserialize(in);
     }
 
@@ -281,7 +281,7 @@ public final class TableId implements Comparable<TableId>
         long compact = accessor.getUnsignedVInt(src, offset);
         if (compact > 0)
             return fromLong(compact - 1);
-        Invariants.checkState(compact == 0);
+        Invariants.require(compact == 0);
         return deserialize(src, accessor, offset + 1);
     }
 

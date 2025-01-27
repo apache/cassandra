@@ -461,7 +461,7 @@ class SingleOperationVisitBuilder implements SingleOperationBuilder
         Relations.Relation[] ckRelations = new Relations.Relation[ckIdxRelations.length];
         for (int i = 0; i < ckRelations.length; i++)
         {
-            Invariants.checkState(ckIdxRelations[i].column < valueGenerators.ckColumnCount());
+            Invariants.require(ckIdxRelations[i].column < valueGenerators.ckColumnCount());
             ckRelations[i] = new Relations.Relation(ckIdxRelations[i].kind,
                                                     valueGenerators.ckGen().descriptorAt(ckIdxRelations[i].idx),
                                                     ckIdxRelations[i].column);
@@ -470,7 +470,7 @@ class SingleOperationVisitBuilder implements SingleOperationBuilder
         Relations.Relation[] regularRelations = new Relations.Relation[regularIdxRelations.length];
         for (int i = 0; i < regularRelations.length; i++)
         {
-            Invariants.checkState(regularIdxRelations[i].column < valueGenerators.regularColumnCount());
+            Invariants.require(regularIdxRelations[i].column < valueGenerators.regularColumnCount());
             regularRelations[i] = new Relations.Relation(regularIdxRelations[i].kind,
                                                          valueGenerators.regularColumnGen(regularIdxRelations[i].column).descriptorAt(regularIdxRelations[i].idx),
                                                          regularIdxRelations[i].column);
@@ -479,7 +479,7 @@ class SingleOperationVisitBuilder implements SingleOperationBuilder
         Relations.Relation[] staticRelations = new Relations.Relation[staticIdxRelations.length];
         for (int i = 0; i < staticRelations.length; i++)
         {
-            Invariants.checkState(staticIdxRelations[i].column < valueGenerators.staticColumnCount());
+            Invariants.require(staticIdxRelations[i].column < valueGenerators.staticColumnCount());
             staticRelations[i] = new Relations.Relation(staticIdxRelations[i].kind,
                                                         valueGenerators.staticColumnGen(staticIdxRelations[i].column).descriptorAt(staticIdxRelations[i].idx),
                                                         staticIdxRelations[i].column);

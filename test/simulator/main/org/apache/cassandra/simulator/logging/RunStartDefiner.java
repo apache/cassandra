@@ -26,7 +26,7 @@ public class RunStartDefiner extends PropertyDefinerBase
 {
     static
     {
-        Invariants.checkState(CassandraRelevantProperties.SIMULATOR_STARTED.getString() != null);
+        Invariants.require(CassandraRelevantProperties.SIMULATOR_STARTED.getString() != null);
     }
 
     @Override

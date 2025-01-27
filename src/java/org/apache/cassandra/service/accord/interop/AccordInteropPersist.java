@@ -111,14 +111,14 @@ public class AccordInteropPersist extends Persist
     public AccordInteropPersist(Node node, Topologies topologies, TxnId txnId, Route<?> sendTo, Txn txn, Timestamp executeAt, Deps deps, Writes writes, Result result, FullRoute<?> fullRoute, ConsistencyLevel consistencyLevel, BiConsumer<? super Result, Throwable> clientCallback)
     {
         super(node, topologies, txnId, sendTo, txn, executeAt, deps, writes, result, fullRoute);
-        Invariants.checkArgument(consistencyLevel == ConsistencyLevel.QUORUM || consistencyLevel == ConsistencyLevel.ALL || consistencyLevel == ConsistencyLevel.SERIAL || consistencyLevel == ConsistencyLevel.ONE);
+        Invariants.requireArgument(consistencyLevel == ConsistencyLevel.QUORUM || consistencyLevel == ConsistencyLevel.ALL || consistencyLevel == ConsistencyLevel.SERIAL || consistencyLevel == ConsistencyLevel.ONE);
         this.consistencyLevel = consistencyLevel;
         registerClientCallback(result, clientCallback);
     }
 
     public void registerClientCallback(Result result, BiConsumer<? super Result, Throwable> clientCallback)
     {
-        Invariants.checkState(callback == null);
+        Invariants.require(callback == null);
         switch (consistencyLevel)
         {
             case ONE: // Can safely upgrade ONE to QUORUM/SERIAL to get a synchronous commit

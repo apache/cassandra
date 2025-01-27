@@ -336,7 +336,7 @@ public class EpochSyncTest
             if (cms.metadata().inProgressSequences.isEmpty())
                 throw new IllegalStateException("Attempted to bump epoch when nothing was pending");
             Iterator<MultiStepOperation<?>> it = cms.metadata().inProgressSequences.iterator();
-            Invariants.checkState(it.hasNext());
+            Invariants.require(it.hasNext());
             notify(process(it.next()).metadata);
         }
 
@@ -562,8 +562,8 @@ public class EpochSyncTest
 
         void registerNode(Node.Id id, long token)
         {
-            Invariants.checkState(!tokens.contains(token), "Attempted to add token %d for node %s but token is already taken", token, id);
-            Invariants.checkState(!instances.containsKey(id), "Attempted to add node %s; but already exists", id);
+            Invariants.require(!tokens.contains(token), "Attempted to add token %d for node %s but token is already taken", token, id);
+            Invariants.require(!instances.containsKey(id), "Attempted to add node %s; but already exists", id);
 
             ClusterMetadata.Transformer builder = cms.metadata().transformer();
 
@@ -598,7 +598,7 @@ public class EpochSyncTest
         void removeNode(Node.Id pick)
         {
             Instance inst = Objects.requireNonNull(instances.get(pick), "Unknown id " + pick);
-            Invariants.checkState(!removed.contains(pick), "Can not remove node twice; node " + pick);
+            Invariants.require(!removed.contains(pick), "Can not remove node twice; node " + pick);
             removed.add(pick);
             inst.status = Status.Leaving;
             PrepareLeave prepareLeave = new PrepareLeave(new NodeId(pick.id), false, new UniformRangePlacement(), LeaveStreams.Kind.REMOVENODE);
@@ -747,19 +747,19 @@ public class EpochSyncTest
                 switch (status)
                 {
                     case Init:
-                        Invariants.checkState(!t.nodes().contains(id), "Node was in Init state but present in the Topology!");
-                        Invariants.checkState(current.directory.peerId(address(id)) != null, "Node exists but not in TCM");
+                        Invariants.require(!t.nodes().contains(id), "Node was in Init state but present in the Topology!");
+                        Invariants.require(current.directory.peerId(address(id)) != null, "Node exists but not in TCM");
                         start();
                         status = Status.Registered;
                         break;
                     case Registered:
-                        Invariants.checkState(!t.nodes().contains(id), "Node was in Init state but present in the Topology!");
-                        Invariants.checkState(current.directory.peerId(address(id)) != null, "Node exists but not in TCM");
+                        Invariants.require(!t.nodes().contains(id), "Node was in Init state but present in the Topology!");
+                        Invariants.require(current.directory.peerId(address(id)) != null, "Node exists but not in TCM");
                         if (current.placements.get(replication_params).writes.byEndpoint().keySet().contains(address(id)))
                             status = Status.Joining;
                         break;
                     case Joining:
-                        Invariants.checkState(current.directory.peerId(address(id)) != null, "Node exists but not in TCM");
+                        Invariants.require(current.directory.peerId(address(id)) != null, "Node exists but not in TCM");
                         if (joined(current, id))
                             status = Status.Joined;
                     case Removed:

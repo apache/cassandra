@@ -52,7 +52,7 @@ public class SimpleBijectionTest
                         Object next = generator.inflate(generator.descriptorAt(i));
                         if (previous != null)
                         {
-                            Invariants.checkState(column.type.comparator().compare(next, previous) > 0,
+                            Invariants.require(column.type.comparator().compare(next, previous) > 0,
                                                   "%s should be > %s", next, previous);
                         }
                         previous = next;

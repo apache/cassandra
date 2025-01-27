@@ -578,7 +578,7 @@ public class AccordDebugKeyspace extends VirtualKeyspace
             CommandStoreTxnBlockedGraph.TxnState txn = shard.txns.get(txnId);
             if (txn == null)
             {
-                Invariants.checkState(reason == Reason.Self, "Txn %s unknown for reason %s", txnId, reason);
+                Invariants.require(reason == Reason.Self, "Txn %s unknown for reason %s", txnId, reason);
                 return;
             }
             // was it applied?  If so ignore it

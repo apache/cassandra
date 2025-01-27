@@ -177,7 +177,7 @@ import org.apache.cassandra.utils.concurrent.UncheckedInterruptedException;
 import static accord.messages.SimpleReply.Ok;
 import static accord.primitives.Routable.Domain.Key;
 import static accord.primitives.Routable.Domain.Range;
-import static accord.utils.Invariants.checkState;
+import static accord.utils.Invariants.require;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import static java.util.concurrent.TimeUnit.NANOSECONDS;
 import static java.util.concurrent.TimeUnit.SECONDS;
@@ -310,7 +310,7 @@ public class AccordService implements IAccordService, Shutdownable
         if (!DatabaseDescriptor.getAccordTransactionsEnabled())
             return NOOP_SERVICE;
         IAccordService i = instance;
-        Invariants.checkState(i != null, "AccordService was not started");
+        Invariants.require(i != null, "AccordService was not started");
         return i;
     }
 
@@ -324,7 +324,7 @@ public class AccordService implements IAccordService, Shutdownable
     @VisibleForTesting
     public AccordService(Id localId)
     {
-        Invariants.checkState(localId != null, "static localId must be set before instantiating AccordService");
+        Invariants.require(localId != null, "static localId must be set before instantiating AccordService");
         logger.info("Starting accord with nodeId {}", localId);
         AccordAgent agent = FBUtilities.construct(CassandraRelevantProperties.ACCORD_AGENT_CLASS.getString(AccordAgent.class.getName()), "AccordAgent");
         agent.setNodeId(localId);
@@ -702,7 +702,7 @@ public class AccordService implements IAccordService, Shutdownable
         if (success == null)
         {
             logger.error("Ran out of retries for barrier");
-            checkState(existingFailures != null, "Didn't have success, but also didn't have failures");
+            require(existingFailures != null, "Didn't have success, but also didn't have failures");
             Throwables.throwIfUnchecked(existingFailures);
             throw new RuntimeException(existingFailures);
         }
@@ -1260,7 +1260,7 @@ public class AccordService implements IAccordService, Shutdownable
         if (ranges.isEmpty()) return; // nothing to see here
 
         ColumnFamilyStore cfs = Schema.instance.getColumnFamilyStoreInstance(id);
-        Invariants.checkState(cfs != null, "Unable to find table %s", id);
+        Invariants.require(cfs != null, "Unable to find table %s", id);
         BigInteger targetSplitSize = BigInteger.valueOf(Math.max(1, cfs.estimateKeys() / 1_000_000));
 
         List<AsyncChain<?>> syncs = new ArrayList<>(ranges.size());

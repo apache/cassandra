@@ -26,9 +26,13 @@ import com.google.common.collect.ImmutableMap;
 import org.apache.cassandra.cql3.QueryOptions;
 import org.apache.cassandra.cql3.UpdateParameters;
 import org.apache.cassandra.db.DecoratedKey;
+import org.apache.cassandra.db.marshal.TimeUUIDType;
 import org.apache.cassandra.db.partitions.Partition;
+import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.ClientState;
+import org.apache.cassandra.service.paxos.Ballot;
+import org.apache.cassandra.utils.TimeUUID;
 
 import static com.google.common.base.Preconditions.checkState;
 import static java.util.concurrent.TimeUnit.MICROSECONDS;
@@ -46,6 +50,22 @@ public class AccordUpdateParameters
         this.timestamp = timestamp;
     }
 
+    static class RowUpdateParameters extends UpdateParameters
+    {
+        private long timeUuidNanos;
+
+        public RowUpdateParameters(TableMetadata metadata, ClientState clientState, QueryOptions options, long timestamp, long nowInSec, int ttl, Map<DecoratedKey, Partition> prefetchedRows) throws InvalidRequestException
+        {
+            super(metadata, clientState, options, timestamp, nowInSec, ttl, prefetchedRows);
+        }
+
+        @Override
+        public byte[] nextTimeUUIDAsBytes()
+        {
+            return TimeUUID.toBytes(Ballot.unixMicrosToMsb(timestamp), TimeUUIDType.signedBytesToNativeLong(timeUuidNanos++));
+        }
+    }
+
     public TxnData getData()
     {
         return data;
@@ -60,13 +80,13 @@ public class AccordUpdateParameters
 
         // TODO : How should Accord work with TTL?
         int ttl = metadata.params.defaultTimeToLive;
-        return new UpdateParameters(metadata,
-                                    disabledGuardrails,
-                                    options,
-                                    timestamp,
-                                    MICROSECONDS.toSeconds(timestamp),
-                                    ttl,
-                                    prefetchRow(metadata, dk, rowIndex));
+        return new RowUpdateParameters(metadata,
+                                       disabledGuardrails,
+                                       options,
+                                       timestamp,
+                                       MICROSECONDS.toSeconds(timestamp),
+                                       ttl,
+                                       prefetchRow(metadata, dk, rowIndex));
     }
 
     private Map<DecoratedKey, Partition> prefetchRow(TableMetadata metadata, DecoratedKey dk, int index)

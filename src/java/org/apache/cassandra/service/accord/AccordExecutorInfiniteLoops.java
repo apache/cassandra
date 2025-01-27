@@ -43,7 +43,7 @@ class AccordExecutorInfiniteLoops implements Shutdownable
 
     public AccordExecutorInfiniteLoops(Mode mode, int threads, IntFunction<String> name, Function<Mode, Interruptible.Task> tasks)
     {
-        Invariants.checkState(mode == RUN_WITH_LOCK ? threads == 1 : threads >= 1);
+        Invariants.require(mode == RUN_WITH_LOCK ? threads == 1 : threads >= 1);
         final LongHashSet threadIds = new LongHashSet(threads, 0.5f);
         this.loops = new Interruptible[threads];
         for (int i = 0; i < threads; ++i)

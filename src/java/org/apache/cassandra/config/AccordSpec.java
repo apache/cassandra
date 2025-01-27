@@ -272,7 +272,7 @@ public class AccordSpec
                 return units.convert(nanos, TimeUnit.NANOSECONDS);
 
             long flushPeriodNanos = flushPeriod(TimeUnit.NANOSECONDS);
-            Invariants.checkState(flushPeriodNanos > 0);
+            Invariants.require(flushPeriodNanos > 0);
             nanos = periodicFlushLagBlock.to(TimeUnit.NANOSECONDS) + flushPeriodNanos;
             // it is possible for this to race and cache the wrong value after an update
             flushCombinedBlockPeriod = nanos;

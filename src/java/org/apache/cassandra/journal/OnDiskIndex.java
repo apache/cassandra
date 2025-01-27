@@ -171,7 +171,7 @@ final class OnDiskIndex<K> extends Index<K>
                 if (prev != -1)
                 {
                     long tmp = prev;
-                    Invariants.checkState(readOffset(offsetAndSize) < readOffset(prev),
+                    Invariants.require(readOffset(offsetAndSize) < readOffset(prev),
                                           () -> String.format("Offsets should be strictly reverse monotonic, but found %d following %d",
                                                               readOffset(offsetAndSize), readOffset(tmp)));
                 }

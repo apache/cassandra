@@ -325,7 +325,7 @@ public class AccordJournalTable<K extends JournalKey, V> implements RangeSearche
                     {
                         UnfilteredRowIterator next = partitionIterator.next();
                         JournalKey partitionKeyComponents = AccordKeyspace.JournalColumns.getJournalKey(next.partitionKey());
-                        Invariants.checkState(partitionKeyComponents.commandStoreId == storeId,
+                        Invariants.require(partitionKeyComponents.commandStoreId == storeId,
                                               () -> String.format("table index returned a command store other than the exepcted one; expected %d != %d", storeId, partitionKeyComponents.commandStoreId));
                         return partitionKeyComponents.id;
                     }
@@ -372,7 +372,7 @@ public class AccordJournalTable<K extends JournalKey, V> implements RangeSearche
 
     private void readRow(K key, Unfiltered unfiltered, EntryHolder<K> into, RecordConsumer<K> onEntry)
     {
-        Invariants.checkState(unfiltered.isRow());
+        Invariants.require(unfiltered.isRow());
         Row row = (Row) unfiltered;
 
         long descriptor = LongType.instance.compose(ByteBuffer.wrap((byte[]) row.clustering().get(0)));
