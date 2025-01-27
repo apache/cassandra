@@ -529,7 +529,15 @@ public class AccordCache implements CacheSize
                 {
                     if (evict)
                     {
-                        evict(node, false);
+                        if (node.isNoEvict())
+                        {
+                            node.unlink();
+                            noEvictQueue.addLast(node);
+                        }
+                        else
+                        {
+                            evict(node, false);
+                        }
                         return;
                     }
 
