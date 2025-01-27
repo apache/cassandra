@@ -96,7 +96,7 @@ public class ASTGenerators
     }
 
     /**
-     * Returns a list of all columns in a deterministic order.  This method is similar to {@link TableMetadata#columns},
+     * Returns a list of all columns in a deterministic order.  This method is similar to {@link TableMetadata#columns()},
      * but that method uses a hash order, so the values could be different from host to host or jvm to jvm...
      */
     public static List<ColumnMetadata> allColumnsInFixedOrder(TableMetadata metadata)
