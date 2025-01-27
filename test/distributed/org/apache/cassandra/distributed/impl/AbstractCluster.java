@@ -1109,7 +1109,7 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster<I
         }
         catch (Throwable t)
         {
-            // missing ClassLoaders so can't use normal instanceOf check
+            // mixing ClassLoaders so can't use normal instanceOf check
             if (AssertionUtils.isInstanceof(InstanceKiller.InstanceShutdown.class).matches(Throwables.getRootCause(t)))
             {
                 // The exception was handled by JVMStabilityInspector
