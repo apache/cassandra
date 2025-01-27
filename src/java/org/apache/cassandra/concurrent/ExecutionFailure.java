@@ -69,6 +69,10 @@ public class ExecutionFailure
         }
         catch (Throwable shouldNeverHappen)
         {
+            // Testing note... jvm-dtest can throw a InstanceShutdown exception from JVMStabilityInspector; this is
+            // because System.exit(1) can't be called from a test (as it halts the test), so an exception is thrown to
+            // block the current thread, when this happens this block executes... even though the throwable is named
+            // "shouldNeverHappen", it is expected to happen when running in jvm-dtest.
             logger.error("Unexpected error while handling unexpected error", shouldNeverHappen);
         }
     }
