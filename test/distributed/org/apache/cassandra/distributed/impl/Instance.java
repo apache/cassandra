@@ -405,7 +405,6 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
         });
     }
 
-    // TODO (desired): remove this method; no longer needed
     public void uncaughtException(Thread thread, Throwable throwable)
     {
         sync(JVMStabilityInspector::uncaughtException).accept(thread, throwable);
