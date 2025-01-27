@@ -70,7 +70,7 @@ import org.quicktheories.core.RandomnessSource;
 import org.quicktheories.generators.SourceDSL;
 import org.quicktheories.impl.Constraint;
 
-import static org.apache.cassandra.utils.Generators.SYMBOL_NOT_RESERVED_KEYWORD_GEN;
+import static org.apache.cassandra.utils.Generators.SYMBOL_GEN;
 
 public class ASTGenerators
 {
@@ -845,7 +845,7 @@ public class ASTGenerators
                         // case... it is possible that a reserved word gets used, so make sure to use a generator that
                         // filters those out.
                         String name;
-                        while (builder.lets().containsKey(name = SYMBOL_NOT_RESERVED_KEYWORD_GEN.generate(rnd))) {}
+                        while (builder.lets().containsKey(name = SYMBOL_GEN.generate(rnd))) {}
                         builder.addLet(name, selectGen.generate(rnd));
                     }
                     Gen<Reference> refGen = SourceDSL.arbitrary().pick(new ArrayList<>(builder.allowedReferences()));

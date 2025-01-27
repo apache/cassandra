@@ -75,16 +75,7 @@ public final class Generators
     private static final Constraint DNS_DOMAIN_PART_CONSTRAINT = Constraint.between(0, DNS_DOMAIN_PART_DOMAIN.length - 1).withNoShrinkPoint();
 
     public static final Gen<String> IDENTIFIER_GEN = Generators.regexWord(SourceDSL.integers().between(1, 50));
-    public static final Gen<String> SYMBOL_GEN = filter(symbolGen(SourceDSL.integers().between(1, 48)), Generators::thisBugIsBroughtToYouByTheLetterP);
-    private static boolean thisBugIsBroughtToYouByTheLetterP(String value)
-    {
-        // In Lexer.g DURATION is before IDENT and Duration allows the following to parsse: P, and PT
-        // This causes an issue for cases that use IDENT as P and PT will not match as they matched DURATION already
-        // to avoid these cases, this function will be used to filter them out so only "valid" symbols are returned
-        // see CASSANDRA-17919
-        return !("P".equals(value) || "PT".equals(value));
-    }
-    public static final Gen<String> SYMBOL_NOT_RESERVED_KEYWORD_GEN = Generators.filter(SYMBOL_GEN, s -> !ReservedKeywords.isReserved(s));
+    public static final Gen<String> SYMBOL_GEN = Generators.filter(symbolGen(SourceDSL.integers().between(1, 48)), s -> !ReservedKeywords.isReserved(s));
 
     public static Gen<String> symbolGen(Gen<Integer> size)
     {
