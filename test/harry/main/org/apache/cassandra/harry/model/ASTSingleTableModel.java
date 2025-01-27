@@ -598,37 +598,7 @@ public class ASTSingleTableModel
     {
         if (select.where.isEmpty())
             throw new IllegalArgumentException("Select without a where clause is currently unsupported");
-        LookupContext ctx = new LookupContext(select);
-        ctx.addConditional(select.where.get());
-        maybeNormalizeTokenBounds(ctx);
-        return ctx;
-    }
-
-    private void maybeNormalizeTokenBounds(LookupContext ctx)
-    {
-        if (ctx.tokenLowerBound != null && ctx.tokenUpperBound != null)
-        {
-            int rc = ctx.tokenLowerBound.token.compareTo(ctx.tokenUpperBound.token);
-            if (rc > 0)
-            {
-                // where token > 10 and < 0.... nothing matches that!
-                ctx.unmatchable = true;
-                ctx.tokenLowerBound = null;
-                ctx.tokenUpperBound = null;
-            }
-            else if (rc == 0)
-            {
-                // tokens match... but is _EQ allowed for both cases?
-                if (!(ctx.tokenLowerBound.inequality == Conditional.Where.Inequality.GREATER_THAN_EQ
-                      && ctx.tokenUpperBound.inequality == Conditional.Where.Inequality.LESS_THAN_EQ))
-                {
-                    // token < 42 and >= 42... nothing matches that!
-                    ctx.unmatchable = true;
-                    ctx.tokenLowerBound = null;
-                    ctx.tokenUpperBound = null;
-                }
-            }
-        }
+        return new LookupContext(select);
     }
 
     private List<BytesPartitionState.PrimaryKey> search(LookupContext ctx)
@@ -1070,6 +1040,35 @@ public class ASTSingleTableModel
         private LookupContext(Select select)
         {
             this.select = select;
+            addConditional(select.where.get());
+            maybeNormalizeTokenBounds();
+        }
+
+        private void maybeNormalizeTokenBounds()
+        {
+            if (tokenLowerBound != null && tokenUpperBound != null)
+            {
+                int rc = tokenLowerBound.token.compareTo(tokenUpperBound.token);
+                if (rc > 0)
+                {
+                    // where token > 10 and < 0.... nothing matches that!
+                    unmatchable = true;
+                    tokenLowerBound = null;
+                    tokenUpperBound = null;
+                }
+                else if (rc == 0)
+                {
+                    // tokens match... but is _EQ allowed for both cases?
+                    if (!(tokenLowerBound.inequality == Conditional.Where.Inequality.GREATER_THAN_EQ
+                          && tokenUpperBound.inequality == Conditional.Where.Inequality.LESS_THAN_EQ))
+                    {
+                        // token < 42 and >= 42... nothing matches that!
+                        unmatchable = true;
+                        tokenLowerBound = null;
+                        tokenUpperBound = null;
+                    }
+                }
+            }
         }
 
         private void addConditional(Conditional conditional)
