@@ -554,7 +554,7 @@ public enum CassandraRelevantProperties
     TCM_USE_NO_OP_REPLICATOR("cassandra.test.use_no_op_replicator", "false"),
 
     TEST_BBFAILHELPER_ENABLED("test.bbfailhelper.enabled"),
-    TEST_BLOB_SHARED_SEED("cassandra.test.blob.shared.seed"),
+    TEST_BLOB_SHARED_SEED("cassandra.test.blob.shared.seed", "42"),
     TEST_BYTEMAN_TRANSFORMATIONS_DEBUG("cassandra.test.byteman.transformations.debug"),
     TEST_CASSANDRA_KEEPBRIEFBRIEF("cassandra.keepBriefBrief"),
     TEST_CASSANDRA_RELEVANT_PROPERTIES("org.apache.cassandra.conf.CassandraRelevantPropertiesTest"),

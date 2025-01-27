@@ -24,6 +24,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Random;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.primitives.Longs;
 
 import org.apache.cassandra.db.CachedHashDecoratedKey;
@@ -155,7 +156,8 @@ public class ReversedLongLocalPartitioner implements IPartitioner
         return LongType.instance;
     }
 
-    private static class ReversedLongLocalToken extends Token
+    @VisibleForTesting
+    public static class ReversedLongLocalToken extends Token
     {
         private final long token;
 

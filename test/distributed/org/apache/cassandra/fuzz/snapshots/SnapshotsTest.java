@@ -132,21 +132,21 @@ public class SnapshotsTest
                     case 1:
                         if (!state.truncatedSnapshots.isEmpty())
                         {
-                            keyspace = state.rs.pick(state.truncatedSnapshots.keySet()).split("\\.")[0];
+                            keyspace = state.rs.pickUnorderedSet(state.truncatedSnapshots.keySet()).split("\\.")[0];
                             picked = true;
                         }
                         break;
                     case 2:
                         if (!state.droppedSnapshots.isEmpty())
                         {
-                            keyspace = state.rs.pick(state.droppedSnapshots).split("\\.")[0];
+                            keyspace = state.rs.pickUnorderedSet(state.droppedSnapshots).split("\\.")[0];
                             picked = true;
                         }
                         break;
                     case 3:
                         if (!state.snapshots.isEmpty())
                         {
-                            keyspace = state.rs.pick(state.snapshots).getKeyspaceName();
+                            keyspace = state.rs.pickUnorderedSet(state.snapshots).getKeyspaceName();
                             picked = true;
                         }
                         break;
@@ -630,7 +630,7 @@ public class SnapshotsTest
                     case 1:
                         if (!state.truncatedSnapshots.isEmpty())
                         {
-                            String randomKsTb = state.rs.pick(state.truncatedSnapshots.keySet());
+                            String randomKsTb = state.rs.pickUnorderedSet(state.truncatedSnapshots.keySet());
                             Integer numberOfTruncatedSnapshots = state.truncatedSnapshots.get(randomKsTb);
                             if (numberOfTruncatedSnapshots == 1)
                                 state.truncatedSnapshots.remove(randomKsTb);
@@ -645,14 +645,14 @@ public class SnapshotsTest
                     case 2:
                         if (!state.droppedSnapshots.isEmpty())
                         {
-                            state.droppedSnapshots.remove(state.rs.pick(state.droppedSnapshots));
+                            state.droppedSnapshots.remove(state.rs.pickUnorderedSet(state.droppedSnapshots));
                             picked = true;
                         }
                         break;
                     case 3:
                         if (!state.snapshots.isEmpty())
                         {
-                            TestSnapshot pickedSnapshot = state.rs.pick(state.snapshots);
+                            TestSnapshot pickedSnapshot = state.rs.pickUnorderedSet(state.snapshots);
                             state.snapshots.remove(pickedSnapshot);
                             picked = true;
                         }
@@ -817,7 +817,7 @@ public class SnapshotsTest
             if (withoutInBuilt.isEmpty())
                 return Optional.empty();
             else
-                return Optional.of(rs.pick(withoutInBuilt));
+                return Optional.of(rs.pickUnorderedSet(withoutInBuilt));
         }
 
         public Optional<String> pickRandomKeyspace()
@@ -825,7 +825,7 @@ public class SnapshotsTest
             if (schema.keySet().isEmpty())
                 return Optional.empty();
             else
-                return Optional.of(rs.pick(schema.keySet()));
+                return Optional.of(rs.pickUnorderedSet(schema.keySet()));
         }
 
         public Optional<Pair<String, String>> pickRandomTable(boolean inBuiltIncluded)
@@ -864,7 +864,7 @@ public class SnapshotsTest
             if (keyspacesWithTables.isEmpty())
                 return Optional.empty();
 
-            String randomKeyspaceWithTables = rs.pick(keyspacesWithTables.keySet());
+            String randomKeyspaceWithTables = rs.pickUnorderedSet(keyspacesWithTables.keySet());
             List<String> tables = keyspacesWithTables.get(randomKeyspaceWithTables);
             String randomTable = rs.pick(tables);
 

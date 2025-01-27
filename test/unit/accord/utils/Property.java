@@ -555,7 +555,7 @@ public class Property
         default void process(State state, SystemUnderTest sut) throws Throwable
         {
             checkPostconditions(state, apply(state),
-                    sut, run(sut));
+                                sut, run(sut));
         }
     }
 
@@ -894,6 +894,11 @@ public class Property
         public CommandsBuilder<State, SystemUnderTest> addIf(Predicate<State> predicate, Gen<Command<State, SystemUnderTest, ?>> cmd)
         {
             return addIf(predicate, (rs, state) -> cmd.next(rs));
+        }
+
+        public CommandsBuilder<State, SystemUnderTest> addIf(Predicate<State> predicate, Command<State, SystemUnderTest, ?> cmd)
+        {
+            return addIf(predicate, (rs, state) -> cmd);
         }
 
         public CommandsBuilder<State, SystemUnderTest> addIf(Predicate<State> predicate, Setup<State, SystemUnderTest> cmd)
