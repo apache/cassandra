@@ -1027,7 +1027,6 @@ public class ASTSingleTableModel
 
     private class LookupContext
     {
-        private final Select select;
         private Map<Symbol, List<? extends Expression>> eq = new HashMap<>();
         private final Map<Symbol, List<ColumnCondition>> ltOrGt = new HashMap<>();
         @Nullable
@@ -1039,7 +1038,6 @@ public class ASTSingleTableModel
 
         private LookupContext(Select select)
         {
-            this.select = select;
             addConditional(select.where.get());
             maybeNormalizeTokenBounds();
         }
