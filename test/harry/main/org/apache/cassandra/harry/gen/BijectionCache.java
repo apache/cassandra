@@ -21,6 +21,7 @@ package org.apache.cassandra.harry.gen;
 import java.util.Comparator;
 import java.util.Set;
 
+import com.google.common.base.Preconditions;
 import com.google.common.collect.BiMap;
 import com.google.common.collect.HashBiMap;
 
@@ -49,8 +50,7 @@ public class BijectionCache<T> implements Bijections.Bijection<T>
     @Override
     public long deflate(T value)
     {
-        if (value == null)
-            throw new NullPointerException("Attempted to deflate 'null'");
+        Preconditions.checkNotNull(value, "Attempted to deflate 'null'");
         if (valueToDescriptor.containsKey(value))
             return valueToDescriptor.get(value);
         long d = counter++;
