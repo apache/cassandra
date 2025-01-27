@@ -89,20 +89,6 @@ public class InvalidConfiguration extends BadQueryTypes
         return problemText;
     }
 
-    static void checkForInvalidCompaction(TableMetadata tableMetadata,
-                                          Attributes attrs)
-    {
-        if ((tableMetadata.params.compaction.klass() == SizeTieredCompactionStrategy.class) && attrs.isTimeToLiveSet())
-        {
-            if (!visitedTablesInvalidCompactionType.containsKey(tableMetadata.name))
-            {
-                visitedTablesInvalidCompactionType.put(tableMetadata.name, 0);
-                BadQuery.report(BadQuery.BadQueryCategory.INCORRECT_COMPACTION_STRATEBY,
-                        new InvalidConfiguration(tableMetadata.keyspace, tableMetadata.name, "found STCS for ttl data, it should have been TWCS for ttl data"));
-            }
-        }
-    }
-
     static void checkForInvalidConsistency(TableMetadata tableMetadata, ConsistencyLevel cl, boolean isWritePath)
     {
         Keyspace ks = Schema.instance.getKeyspaceInstance(tableMetadata.keyspace);

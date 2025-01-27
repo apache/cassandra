@@ -38,7 +38,6 @@ public class BadQueryMetrics
     public static Gauge<Integer> slowCoordWriteCount;
     public static Gauge<Integer> largePartitionReadCount;
     public static Gauge<Integer> largePartitionWriteCount;
-    public static Gauge<Integer> incorrectCompactionCount;
     public static Gauge<Integer> incorrectCLCount;
     public static Gauge<Integer> tooManyTombstoneCount;
     public static Gauge<Integer> mvInUse;
@@ -86,13 +85,6 @@ public class BadQueryMetrics
             public Integer getValue()
             {
                 return DatabaseDescriptor.getBadQueryReporter().getStats(BadQuery.BadQueryCategory.LARGE_PARTITION_WRITE);
-            }
-        });
-        incorrectCompactionCount = Metrics.register(factory.createMetricName("incorrectCompactionCount"), new Gauge<Integer>()
-        {
-            public Integer getValue()
-            {
-                return DatabaseDescriptor.getBadQueryReporter().getStats(BadQuery.BadQueryCategory.INCORRECT_COMPACTION_STRATEBY);
             }
         });
         incorrectCLCount = Metrics.register(factory.createMetricName("incorrectCLCount"), new Gauge<Integer>()

@@ -44,7 +44,7 @@ public class BadQuery
         SLOW_WRITE_COORINATOR("slow coordinator write"),
         LARGE_PARTITION_READ("large partition read"),
         LARGE_PARTITION_WRITE("large partition write"),
-        INCORRECT_COMPACTION_STRATEBY("incorrect compaction strategy"),
+        INCORRECT_COMPACTION_STRATEBY("incorrect compaction strategy"), // DEPRECATED, keeping for the id
         INCORRECT_CONSISTENCY_LEVEL("incorrect consistency level"),
         TOO_MANY_TOMBSTONES("too many tombstones"),
         MV_IN_USE("mv is in use"),
@@ -240,21 +240,6 @@ public class BadQuery
         if (shouldTrace(command.metadata().keyspace))
         {
             ToomanyTombstones.checkForTooManyTombstones(command, tombstones);
-        }
-    }
-
-    /**
-     * Check if table compaction strategy is correct or not.
-     *
-     * @param tableMetadata   table metadata.
-     * @param attrs query attributes.
-     */
-    public static void checkForCompactionStrategySettings(TableMetadata tableMetadata,
-                                                          Attributes attrs)
-    {
-        if (shouldTrace(tableMetadata.keyspace))
-        {
-            InvalidConfiguration.checkForInvalidCompaction(tableMetadata, attrs);
         }
     }
 

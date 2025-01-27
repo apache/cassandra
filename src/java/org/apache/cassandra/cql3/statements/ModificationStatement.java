@@ -497,7 +497,6 @@ public abstract class ModificationStatement implements CQLStatement.SingleKeyspa
     public ResultMessage execute(QueryState queryState, QueryOptions options, Dispatcher.RequestTime requestTime)
     throws RequestExecutionException, RequestValidationException
     {
-        BadQuery.checkForCompactionStrategySettings(this.metadata(), this.attrs);
         BadQuery.checkForCLSettings(this.metadata(), options.getConsistency(), true);
 
         if (options.getConsistency() == null)
