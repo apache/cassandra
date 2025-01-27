@@ -564,17 +564,6 @@ public class ASTSingleTableModel
         return rows;
     }
 
-    public ByteBuffer[][] getRowsAsByteBufferFromPartitions(List<BytesPartitionState> ps)
-    {
-        List<ByteBuffer[]> rows = new ArrayList<>();
-        for (BytesPartitionState p : ps)
-        {
-            for (BytesPartitionState.Row row : p.rows())
-                rows.add(getRowAsByteBuffer(p, row));
-        }
-        return rows.toArray(ByteBuffer[][]::new);
-    }
-
     private ByteBuffer[] getRowAsByteBuffer(BytesPartitionState partition, @Nullable BytesPartitionState.Row row)
     {
         Clustering<ByteBuffer> pd = partition.key;
