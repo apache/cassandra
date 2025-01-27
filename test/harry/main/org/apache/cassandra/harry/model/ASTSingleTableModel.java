@@ -53,7 +53,6 @@ import org.apache.cassandra.cql3.ast.Symbol;
 import org.apache.cassandra.db.BufferClustering;
 import org.apache.cassandra.db.Clustering;
 import org.apache.cassandra.db.marshal.AbstractType;
-import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.harry.util.StringUtils;
 import org.apache.cassandra.schema.TableMetadata;
@@ -384,11 +383,6 @@ public class ASTSingleTableModel
     public BytesPartitionState get(BytesPartitionState.Ref ref)
     {
         return partitions.get(ref);
-    }
-
-    public List<BytesPartitionState> getByToken(long token)
-    {
-        return getByToken(new Murmur3Partitioner.LongToken(token));
     }
 
     public List<BytesPartitionState> getByToken(Token token)
