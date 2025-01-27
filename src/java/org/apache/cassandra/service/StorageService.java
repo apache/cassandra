@@ -104,6 +104,8 @@ import org.apache.cassandra.repair.AutoRepairConfig.RepairType;
 import org.apache.cassandra.repair.AutoRepairUtilsV2;
 import org.apache.cassandra.repair.AutoRepairV2;
 import org.apache.cassandra.service.throttler.dynamic.CassandraResourceUtilization;
+import org.apache.cassandra.sqel.SampledQueryEventLogger;
+import org.apache.cassandra.sqel.SampledQueryEventLoggerOptions;
 import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -6844,6 +6846,40 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         daemon.clearConnectionHistory();
         logger.info("Cleared connection history");
     }
+
+    public void enableSimpleQueryEventLogger(double querySuccessRate, double queryFailureRate, double batchSuccessRate, double batchFailureRate, 
+                                             double executeSuccessRate, double executeFailureRate, double prepareSuccessRate, double prepareFailureRate) throws IllegalStateException {
+        SampledQueryEventLoggerOptions options = new SampledQueryEventLoggerOptions.Builder()
+            .withQuerySuccessSampleRate(querySuccessRate)
+            .withQueryFailureSampleRate(queryFailureRate)
+            .withBatchSuccessSampleRate(batchSuccessRate)
+            .withBatchFailureSampleRate(batchFailureRate)
+            .withExecuteSuccessSampleRate(executeSuccessRate)
+            .withExecuteFailureSampleRate(executeFailureRate)
+            .withPrepareSuccessSampleRate(prepareSuccessRate)
+            .withPrepareFailureSampleRate(prepareFailureRate)
+            .build();
+
+        SampledQueryEventLogger.instance.enable(options);
+        logger.info("SampledQueryEventLogger is enabled with configuration: {}", options);
+    }
+
+    public void disableSimpleQueryEventLogger() {
+        SampledQueryEventLoggerOptions options = new SampledQueryEventLoggerOptions.Builder()
+            .withQuerySuccessSampleRate(0.0)
+            .withQueryFailureSampleRate(0.0)
+            .withBatchSuccessSampleRate(0.0)
+            .withBatchFailureSampleRate(0.0)
+            .withExecuteSuccessSampleRate(0.0)
+            .withExecuteFailureSampleRate(0.0)
+            .withPrepareSuccessSampleRate(0.0)
+            .withPrepareFailureSampleRate(0.0)
+            .build();
+
+        SampledQueryEventLogger.instance.stop();
+        logger.info("SampledQueryEventLogger is disabled");
+    }
+
     public void disableAuditLog()
     {
         AuditLogManager.instance.disableAuditLog();

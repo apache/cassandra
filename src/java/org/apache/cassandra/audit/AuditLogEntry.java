@@ -74,7 +74,7 @@ public class AuditLogEntry
         this.state = state;
     }
 
-    String getLogString()
+    public String getLogString()
     {
         StringBuilder builder = new StringBuilder(100);
         builder.append("user:").append(user)

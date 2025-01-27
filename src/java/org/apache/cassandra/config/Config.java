@@ -40,6 +40,7 @@ import org.slf4j.LoggerFactory;
 import org.apache.cassandra.audit.AuditLogOptions;
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.fql.FullQueryLoggerOptions;
+import org.apache.cassandra.sqel.SampledQueryEventLoggerOptions;
 import org.apache.cassandra.service.QueryAnalyticsConfig;
 import org.apache.cassandra.service.StartupChecks.StartupCheckType;
 import org.apache.cassandra.repair.AutoRepairConfig;
@@ -815,6 +816,7 @@ public class Config
     public boolean audit_user_cache_enabled = true;  // set to false to disable audit user cache to audit all actions.
     public volatile AuditLogOptions audit_logging_options = new AuditLogOptions();
     public volatile FullQueryLoggerOptions full_query_logging_options = new FullQueryLoggerOptions();
+    public volatile SampledQueryEventLoggerOptions sampled_query_event_logging_options = new SampledQueryEventLoggerOptions();
 
     public CorruptedTombstoneStrategy corrupted_tombstone_strategy = CorruptedTombstoneStrategy.disabled;
 

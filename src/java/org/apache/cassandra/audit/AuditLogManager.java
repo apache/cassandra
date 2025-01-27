@@ -142,7 +142,7 @@ public class AuditLogManager implements QueryEvents.Listener, AuthEvents.Listene
     }
 
     /**
-     * Logs AudigLogEntry to standard audit logger
+     * Logs AuditLogEntry to standard audit logger
      * @param logEntry AuditLogEntry to be logged
      */
     public void log(AuditLogEntry logEntry)

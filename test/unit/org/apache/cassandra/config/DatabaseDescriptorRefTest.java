@@ -213,6 +213,7 @@ public class DatabaseDescriptorRefTest
     "org.apache.cassandra.transport.ProtocolException",
     "org.apache.cassandra.service.throttler.dynamic.ThrottlingOptions",
     "org.apache.cassandra.service.throttler.IRequestThrottler",
+    "org.apache.cassandra.sqel.SampledQueryEventLoggerOptions",
     "org.apache.cassandra.utils.binlog.BinLogOptions",
     "org.apache.cassandra.utils.FBUtilities",
     "org.apache.cassandra.utils.FBUtilities$1",

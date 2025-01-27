@@ -175,6 +175,7 @@ Merged from 3.0:
  * Fix CQLSH online help topic link (CASSANDRA-17534)
  * Remove unused suppressions (CASSANDRA-18724)
 Unreleased
+ * [SO-38465] Adds SampledQueryEventLogger to assist in debugging cassandra instances
  * [SO-39602] Auto repair subranges count should be relate to the number of tokens
  * [SO-39173] Fix race condition in AutoRepairState
  * [SO-38480] IntervalTree should support copyAndReplace when ranges are unchanged (CASSANDRA-20158)

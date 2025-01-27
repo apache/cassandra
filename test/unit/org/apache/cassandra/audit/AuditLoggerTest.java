@@ -814,7 +814,7 @@ public class AuditLoggerTest extends CQLTester
         return rs;
     }
 
-    private ResultSet executeAndAssertDisableAuditLog(String cql, Object... bindValues)
+    public ResultSet executeAndAssertDisableAuditLog(String cql, Object... bindValues)
     {
         Session session = sessionNet();
 

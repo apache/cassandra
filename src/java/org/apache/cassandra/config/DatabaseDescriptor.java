@@ -79,6 +79,7 @@ import org.apache.cassandra.db.commitlog.CommitLogSegmentManagerStandard;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.fql.FullQueryLoggerOptions;
+import org.apache.cassandra.sqel.SampledQueryEventLoggerOptions;
 import org.apache.cassandra.gms.IFailureDetector;
 import org.apache.cassandra.io.FSWriteError;
 import org.apache.cassandra.io.util.DiskOptimizationStrategy;
@@ -4198,6 +4199,15 @@ public class DatabaseDescriptor
     public static void setAuditLoggingOptions(AuditLogOptions auditLoggingOptions)
     {
         conf.audit_logging_options = new AuditLogOptions.Builder(auditLoggingOptions).build();
+    }
+
+    public static SampledQueryEventLoggerOptions getSampledQueryEventLoggingOptions()
+    {
+        return conf.sampled_query_event_logging_options;
+    }
+
+    public static void setSampledQueryEventLoggingOptions(SampledQueryEventLoggerOptions sampledQueryEventLoggingOptions) {
+        conf.sampled_query_event_logging_options = new SampledQueryEventLoggerOptions.Builder(sampledQueryEventLoggingOptions).build();
     }
 
     public static Config.CorruptedTombstoneStrategy getCorruptedTombstoneStrategy()
