@@ -599,7 +599,7 @@ public class ASTSingleTableModel
         if (select.where.isEmpty())
             throw new IllegalArgumentException("Select without a where clause is currently unsupported");
         LookupContext ctx = new LookupContext(select);
-        context(ctx, select.where.get());
+        ctx.addConditional(select.where.get());
         maybeNormalizeTokenBounds(ctx);
         return ctx;
     }
@@ -628,147 +628,6 @@ public class ASTSingleTableModel
                     ctx.tokenUpperBound = null;
                 }
             }
-        }
-    }
-
-    private void context(LookupContext ctx, Conditional conditional)
-    {
-        if (conditional instanceof Conditional.Where)
-        {
-            Conditional.Where w = (Conditional.Where) conditional;
-            if (w.kind == Conditional.Where.Inequality.NOT_EQUAL)
-                throw new UnsupportedOperationException("!= is currently not supported");
-            if (w.lhs instanceof Symbol)
-            {
-                Symbol col = (Symbol) w.lhs;
-                switch (w.kind)
-                {
-                    case EQUAL:
-                        var override = ctx.eq.put(col, Collections.singletonList(w.rhs));
-                        if (override != null)
-                            throw new IllegalStateException("Column " + col.detailedName() + " had 2 '=' statements...");
-                        break;
-                    case LESS_THAN:
-                    case LESS_THAN_EQ:
-                    case GREATER_THAN:
-                    case GREATER_THAN_EQ:
-                        ctx.ltOrGt.computeIfAbsent(col, i -> new ArrayList<>()).add(new ColumnCondition(w.kind, eval(w.rhs)));
-                        break;
-                    //TODO (coverage): NOT_EQUAL
-                    default:
-                        throw new UnsupportedOperationException(w.kind.name());
-                }
-            }
-            else if (w.lhs instanceof FunctionCall)
-            {
-                FunctionCall fn = (FunctionCall) w.lhs;
-                switch (fn.name())
-                {
-                    case "token":
-                        FunctionCall rhs = (FunctionCall) w.rhs;
-                        List<ByteBuffer> pkValues = rhs.arguments.stream().map(ASTSingleTableModel::eval).collect(Collectors.toList());
-                        BytesPartitionState.Ref ref = factory.createRef(new BufferClustering(pkValues.toArray(ByteBuffer[]::new)));
-                        switch (w.kind)
-                        {
-                            case EQUAL:
-                                ctx.token = ref.token;
-                                break;
-                            case LESS_THAN:
-                            case LESS_THAN_EQ:
-                                ctx.tokenUpperBound = new TokenCondition(w.kind, ref.token);
-                                break;
-                            case GREATER_THAN:
-                            case GREATER_THAN_EQ:
-                                ctx.tokenLowerBound = new TokenCondition(w.kind, ref.token);
-                                break;
-                            default:
-                                throw new UnsupportedOperationException(w.kind.name());
-                        }
-                        break;
-                    default:
-                        throw new UnsupportedOperationException(fn.toCQL());
-                }
-            }
-            else
-            {
-                throw new UnsupportedOperationException(w.lhs.getClass().getCanonicalName());
-            }
-        }
-        else if (conditional instanceof Conditional.In)
-        {
-            Conditional.In in = (Conditional.In) conditional;
-            if (in.ref instanceof Symbol)
-            {
-                Symbol col = (Symbol) in.ref;
-                var override = ctx.eq.put(col, in.expressions);
-                if (override != null)
-                    throw new IllegalStateException("Column " + col.detailedName() + " had 2 '=' statements...");
-                //TODO (correctness): can't find any documentation saying clustering is ordered by the data... it "could" but is it garanateed?
-                if (factory.partitionColumns.contains(col) || factory.clusteringColumns.contains(col))
-                    ctx.unordered = true;
-            }
-            else
-            {
-                throw new UnsupportedOperationException(in.ref.getClass().getCanonicalName());
-            }
-        }
-        else if (conditional instanceof Conditional.Between)
-        {
-            Conditional.Between between = (Conditional.Between) conditional;
-            if (between.ref instanceof Symbol)
-            {
-                Symbol col = (Symbol) between.ref;
-                List<ColumnCondition> list = ctx.ltOrGt.computeIfAbsent(col, i -> new ArrayList<>());
-                list.add(new ColumnCondition(Conditional.Where.Inequality.GREATER_THAN_EQ, eval(between.start)));
-                list.add(new ColumnCondition(Conditional.Where.Inequality.LESS_THAN_EQ, eval(between.end)));
-            }
-            else if (between.ref instanceof FunctionCall)
-            {
-                FunctionCall fn = (FunctionCall) between.ref;
-                switch (fn.name())
-                {
-                    case "token":
-                        // if the ref is a token, the only valid start/end are also token
-                        List<ByteBuffer> start = ((FunctionCall) between.start).arguments.stream().map(ASTSingleTableModel::eval).collect(Collectors.toList());
-                        Token startToken = factory.createRef(new BufferClustering(start.toArray(ByteBuffer[]::new))).token;
-
-                        List<ByteBuffer> end = ((FunctionCall) between.end).arguments.stream().map(ASTSingleTableModel::eval).collect(Collectors.toList());
-                        Token endToken = factory.createRef(new BufferClustering(end.toArray(ByteBuffer[]::new))).token;
-
-                        if (startToken.equals(endToken))
-                        {
-                            ctx.token = startToken;
-                        }
-                        else if (startToken.compareTo(endToken) > 0)
-                        {
-                            // start is larger than end... no matches
-                            ctx.unmatchable = true;
-                        }
-                        else
-                        {
-                            ctx.tokenLowerBound = new TokenCondition(Conditional.Where.Inequality.GREATER_THAN_EQ, startToken);
-                            ctx.tokenUpperBound = new TokenCondition(Conditional.Where.Inequality.LESS_THAN_EQ, endToken);
-                        }
-                        break;
-                    default:
-                        throw new UnsupportedOperationException(fn.toCQL());
-                }
-            }
-            else
-            {
-                throw new UnsupportedOperationException(between.ref.getClass().getCanonicalName());
-            }
-        }
-        else if (conditional instanceof Conditional.And)
-        {
-            Conditional.And and = (Conditional.And) conditional;
-            context(ctx, and.left);
-            context(ctx, and.right);
-        }
-        else
-        {
-            //TODO (coverage): IS
-            throw new UnsupportedOperationException(conditional.getClass().getCanonicalName());
         }
     }
 
@@ -1211,6 +1070,147 @@ public class ASTSingleTableModel
         private LookupContext(Select select)
         {
             this.select = select;
+        }
+
+        private void addConditional(Conditional conditional)
+        {
+            if (conditional instanceof Conditional.Where)
+            {
+                Conditional.Where w = (Conditional.Where) conditional;
+                if (w.kind == Conditional.Where.Inequality.NOT_EQUAL)
+                    throw new UnsupportedOperationException("!= is currently not supported");
+                if (w.lhs instanceof Symbol)
+                {
+                    Symbol col = (Symbol) w.lhs;
+                    switch (w.kind)
+                    {
+                        case EQUAL:
+                            var override = eq.put(col, Collections.singletonList(w.rhs));
+                            if (override != null)
+                                throw new IllegalStateException("Column " + col.detailedName() + " had 2 '=' statements...");
+                            break;
+                        case LESS_THAN:
+                        case LESS_THAN_EQ:
+                        case GREATER_THAN:
+                        case GREATER_THAN_EQ:
+                            ltOrGt.computeIfAbsent(col, i -> new ArrayList<>()).add(new ColumnCondition(w.kind, eval(w.rhs)));
+                            break;
+                        //TODO (coverage): NOT_EQUAL
+                        default:
+                            throw new UnsupportedOperationException(w.kind.name());
+                    }
+                }
+                else if (w.lhs instanceof FunctionCall)
+                {
+                    FunctionCall fn = (FunctionCall) w.lhs;
+                    switch (fn.name())
+                    {
+                        case "token":
+                            FunctionCall rhs = (FunctionCall) w.rhs;
+                            List<ByteBuffer> pkValues = rhs.arguments.stream().map(ASTSingleTableModel::eval).collect(Collectors.toList());
+                            BytesPartitionState.Ref ref = factory.createRef(new BufferClustering(pkValues.toArray(ByteBuffer[]::new)));
+                            switch (w.kind)
+                            {
+                                case EQUAL:
+                                    token = ref.token;
+                                    break;
+                                case LESS_THAN:
+                                case LESS_THAN_EQ:
+                                    tokenUpperBound = new TokenCondition(w.kind, ref.token);
+                                    break;
+                                case GREATER_THAN:
+                                case GREATER_THAN_EQ:
+                                    tokenLowerBound = new TokenCondition(w.kind, ref.token);
+                                    break;
+                                default:
+                                    throw new UnsupportedOperationException(w.kind.name());
+                            }
+                            break;
+                        default:
+                            throw new UnsupportedOperationException(fn.toCQL());
+                    }
+                }
+                else
+                {
+                    throw new UnsupportedOperationException(w.lhs.getClass().getCanonicalName());
+                }
+            }
+            else if (conditional instanceof Conditional.In)
+            {
+                Conditional.In in = (Conditional.In) conditional;
+                if (in.ref instanceof Symbol)
+                {
+                    Symbol col = (Symbol) in.ref;
+                    var override = eq.put(col, in.expressions);
+                    if (override != null)
+                        throw new IllegalStateException("Column " + col.detailedName() + " had 2 '=' statements...");
+                    //TODO (correctness): can't find any documentation saying clustering is ordered by the data... it "could" but is it garanateed?
+                    if (factory.partitionColumns.contains(col) || factory.clusteringColumns.contains(col))
+                        unordered = true;
+                }
+                else
+                {
+                    throw new UnsupportedOperationException(in.ref.getClass().getCanonicalName());
+                }
+            }
+            else if (conditional instanceof Conditional.Between)
+            {
+                Conditional.Between between = (Conditional.Between) conditional;
+                if (between.ref instanceof Symbol)
+                {
+                    Symbol col = (Symbol) between.ref;
+                    List<ColumnCondition> list = ltOrGt.computeIfAbsent(col, i -> new ArrayList<>());
+                    list.add(new ColumnCondition(Conditional.Where.Inequality.GREATER_THAN_EQ, eval(between.start)));
+                    list.add(new ColumnCondition(Conditional.Where.Inequality.LESS_THAN_EQ, eval(between.end)));
+                }
+                else if (between.ref instanceof FunctionCall)
+                {
+                    FunctionCall fn = (FunctionCall) between.ref;
+                    switch (fn.name())
+                    {
+                        case "token":
+                            // if the ref is a token, the only valid start/end are also token
+                            List<ByteBuffer> start = ((FunctionCall) between.start).arguments.stream().map(ASTSingleTableModel::eval).collect(Collectors.toList());
+                            Token startToken = factory.createRef(new BufferClustering(start.toArray(ByteBuffer[]::new))).token;
+
+                            List<ByteBuffer> end = ((FunctionCall) between.end).arguments.stream().map(ASTSingleTableModel::eval).collect(Collectors.toList());
+                            Token endToken = factory.createRef(new BufferClustering(end.toArray(ByteBuffer[]::new))).token;
+
+                            if (startToken.equals(endToken))
+                            {
+                                token = startToken;
+                            }
+                            else if (startToken.compareTo(endToken) > 0)
+                            {
+                                // start is larger than end... no matches
+                                unmatchable = true;
+                            }
+                            else
+                            {
+                                tokenLowerBound = new TokenCondition(Conditional.Where.Inequality.GREATER_THAN_EQ, startToken);
+                                tokenUpperBound = new TokenCondition(Conditional.Where.Inequality.LESS_THAN_EQ, endToken);
+                            }
+                            break;
+                        default:
+                            throw new UnsupportedOperationException(fn.toCQL());
+                    }
+                }
+                else
+                {
+                    throw new UnsupportedOperationException(between.ref.getClass().getCanonicalName());
+                }
+            }
+            else if (conditional instanceof Conditional.And)
+            {
+                Conditional.And and = (Conditional.And) conditional;
+                addConditional(and.left);
+                addConditional(and.right);
+            }
+            else
+            {
+                //TODO (coverage): IS
+                throw new UnsupportedOperationException(conditional.getClass().getCanonicalName());
+            }
         }
 
         boolean include(BytesPartitionState partition)
