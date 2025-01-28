@@ -421,7 +421,7 @@ public final class CassandraGenerators
                 String name = nameGen.generate(rs);
                 KeyspaceMetadata.Kind kind = kindGen.generate(rs);
                 AbstractReplicationStrategy replication = replicationGen.generate(rs).withKeyspace(nameGen).build().generate(rs);
-                ReplicationParams replicationParams = ReplicationParams.copy(replication);
+                ReplicationParams replicationParams = ReplicationParams.fromStrategy(replication);
                 boolean durableWrites = durableWritesGen.generate(rs);
                 KeyspaceParams params = new KeyspaceParams(durableWrites, replicationParams, FastPathStrategy.simple());
                 Tables tables = Tables.none();
