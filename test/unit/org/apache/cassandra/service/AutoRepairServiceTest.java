@@ -50,6 +50,7 @@ import org.apache.cassandra.schema.SystemDistributedKeyspace;
 import static org.apache.cassandra.Util.setAutoRepairEnabled;
 import static org.apache.cassandra.config.CassandraRelevantProperties.SYSTEM_DISTRIBUTED_DEFAULT_RF;
 import static org.junit.Assert.assertEquals;
+import static org.assertj.core.api.Assertions.assertThat;
 
 @RunWith(Suite.class)
 @Suite.SuiteClasses({ AutoRepairServiceTest.BasicTests.class, AutoRepairServiceTest.SetterTests.class })
@@ -222,7 +223,7 @@ public class AutoRepairServiceTest
         public T arg;
 
         @Parameterized.Parameter(2)
-        public BiConsumer<AutoRepairConfig.RepairType, T> setter;
+        public BiConsumer<String, T> setter;
 
         @Parameterized.Parameter(3)
         public Function<AutoRepairConfig.RepairType, T> getter;
@@ -296,8 +297,16 @@ public class AutoRepairServiceTest
         {
             DatabaseDescriptor.setCDCOnRepairEnabled(false);
             DatabaseDescriptor.setMaterializedViewsOnRepairEnabled(false);
-            setter.accept(repairType, arg);
-            assertEquals(arg, getter.apply(repairType));
+            setter.accept(repairType.name(), arg);
+            T actualConfig = getter.apply(repairType);
+            if (actualConfig instanceof Set)
+                // When performing a setRepairPriorityForHosts or setForceRepairForHosts, a comma-separated list of
+                // ip addresses is provided as input. The configuration is expected to return a Set of Strings that
+                // represent the configured IP addresses. This especial handling allows verification of this special
+                // case where one of the entries in the Set must match the configured input.
+                assertThat(actualConfig).satisfiesAnyOf(entry -> assertThat(entry.toString()).contains(arg.toString()));
+            else
+                assertThat(actualConfig).isEqualTo(arg);
         }
     }
 }

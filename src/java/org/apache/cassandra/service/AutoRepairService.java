@@ -92,7 +92,7 @@ public class AutoRepairService implements AutoRepairServiceMBean
     }
 
     @Override
-    public String autoRepairConfiguration()
+    public String getAutoRepairConfiguration()
     {
         StringBuilder sb = new StringBuilder();
         sb.append("repair scheduler configuration:");
