@@ -1,4 +1,5 @@
 5.0.4
+ * Fix unparseable YAML in default cassandra.yaml when uncommented for downstream tooling (CASSANDRA-20359)
  * Avoid fetching entire partitions on unresolved static rows in RFP when no static column predicates exist (CASSANDRA-20243)
  * Avoid indexing empty values for non-literals and types that do not allow them (CASSANDRA-20313)
  * Fix incorrect results of min / max in-built functions on clustering columns in descending order (CASSANDRA-20295)
