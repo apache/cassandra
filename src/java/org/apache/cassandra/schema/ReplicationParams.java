@@ -65,7 +65,7 @@ public final class ReplicationParams
     }
 
     @VisibleForTesting
-    public static ReplicationParams copy(AbstractReplicationStrategy strategy)
+    public static ReplicationParams fromStrategy(AbstractReplicationStrategy strategy)
     {
         return new ReplicationParams(strategy.getClass(), strategy.configOptions);
     }
