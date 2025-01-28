@@ -119,7 +119,7 @@ public class RingAwareInJvmDTestVisitExecutor extends InJvmDTestVisitExecutor
     {
         try
         {
-            Invariants.checkState(visit.visitedPartitions.size() == 1,
+            Invariants.require(visit.visitedPartitions.size() == 1,
                                   "Ring aware executor can only read and write one partition at a time");
             for (TokenPlacementModel.Replica replica : getReplicasFor(visit.visitedPartitions.iterator().next().longValue()))
             {

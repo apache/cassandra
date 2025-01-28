@@ -39,7 +39,7 @@ public class SmallEnumSerializer<E extends Enum<E>> implements IVersionedSeriali
     public SmallEnumSerializer(Class<E> clazz)
     {
         this.values = clazz.getEnumConstants();
-        Invariants.checkArgument(values.length < 255); // allow an extra 1 for nullable variant to ensure consistency
+        Invariants.requireArgument(values.length < 255); // allow an extra 1 for nullable variant to ensure consistency
     }
 
     public E forOrdinal(int ordinal)

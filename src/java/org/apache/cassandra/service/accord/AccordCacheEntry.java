@@ -84,8 +84,8 @@ public class AccordCacheEntry<K, V> extends IntrusiveLinkedListNode
             LOADED.permittedFrom |= 1 << MODIFIED.ordinal();
             for (Status status : VALUES)
             {
-                Invariants.checkState((status.ordinal() & IS_LOADED) != 0 == status.loaded);
-                Invariants.checkState(((status.ordinal() & IS_LOADED) != 0 && (status.ordinal() & IS_NESTED) != 0) == status.nested);
+                Invariants.require((status.ordinal() & IS_LOADED) != 0 == status.loaded);
+                Invariants.require(((status.ordinal() & IS_LOADED) != 0 && (status.ordinal() & IS_NESTED) != 0) == status.nested);
             }
         }
 
@@ -168,7 +168,7 @@ public class AccordCacheEntry<K, V> extends IntrusiveLinkedListNode
 
     boolean isNested()
     {
-        Invariants.checkState(isLoaded());
+        Invariants.require(isLoaded());
         return (status & IS_NESTED) != 0;
     }
 
@@ -194,13 +194,13 @@ public class AccordCacheEntry<K, V> extends IntrusiveLinkedListNode
 
     int noEvictGeneration()
     {
-        Invariants.checkState(isNoEvict());
+        Invariants.require(isNoEvict());
         return (status >>> 8) & 0xffff;
     }
 
     int noEvictMaxAge()
     {
-        Invariants.checkState(isNoEvict());
+        Invariants.require(isNoEvict());
         return status >>> 24;
     }
 
@@ -245,7 +245,7 @@ public class AccordCacheEntry<K, V> extends IntrusiveLinkedListNode
 
     private void setStatus(Status newStatus)
     {
-        Invariants.checkState((newStatus.permittedFrom & (1 << (status & STATUS_MASK))) != 0, "%s not permitted from %s", newStatus, status());
+        Invariants.require((newStatus.permittedFrom & (1 << (status & STATUS_MASK))) != 0, "%s not permitted from %s", newStatus, status());
         setStatusUnsafe(newStatus);
     }
 
@@ -257,22 +257,22 @@ public class AccordCacheEntry<K, V> extends IntrusiveLinkedListNode
 
     public void initialize(V value)
     {
-        Invariants.checkState(state == null);
+        Invariants.require(state == null);
         setStatus(LOADED);
         state = value;
     }
 
     public void readyToLoad()
     {
-        Invariants.checkState(state == null);
+        Invariants.require(state == null);
         setStatus(WAITING_TO_LOAD);
         state = new WaitingToLoad();
     }
 
     public void markNoEvict(int generation, int maxAge)
     {
-        Invariants.checkState((maxAge & ~0xff) == 0);
-        Invariants.checkState((generation & ~0xffff) == 0);
+        Invariants.require((maxAge & ~0xff) == 0);
+        Invariants.require((generation & ~0xffff) == 0);
         status |= NO_EVICT;
         status |= generation << 8;
         status |= maxAge << 24;
@@ -325,7 +325,7 @@ public class AccordCacheEntry<K, V> extends IntrusiveLinkedListNode
 
     public <P> Loading load(BiFunction<P, Runnable, Cancellable> loadExecutor, P param, Adapter<K, V, ?> adapter, OnLoaded onLoaded)
     {
-        Invariants.checkState(is(WAITING_TO_LOAD), "%s", this);
+        Invariants.require(is(WAITING_TO_LOAD), "%s", this);
         Loading loading = ((WaitingToLoad)state).load(loadExecutor.apply(param, () -> {
             V result;
             try
@@ -346,7 +346,7 @@ public class AccordCacheEntry<K, V> extends IntrusiveLinkedListNode
 
     public Loading testLoad()
     {
-        Invariants.checkState(is(WAITING_TO_LOAD));
+        Invariants.require(is(WAITING_TO_LOAD));
         Loading loading = ((WaitingToLoad)state).load(() -> {});
         setStatus(LOADING);
         state = loading;
@@ -355,7 +355,7 @@ public class AccordCacheEntry<K, V> extends IntrusiveLinkedListNode
 
     public Loading loading()
     {
-        Invariants.checkState(is(LOADING), "%s", this);
+        Invariants.require(is(LOADING), "%s", this);
         return (Loading) state;
     }
 
@@ -363,8 +363,8 @@ public class AccordCacheEntry<K, V> extends IntrusiveLinkedListNode
     // but this one is less obvious so named as to draw attention
     public V getExclusive()
     {
-        Invariants.checkState(owner == null || owner.commandStore == null || owner.commandStore.executor().isOwningThread());
-        Invariants.checkState(isLoaded(), "%s", this);
+        Invariants.require(owner == null || owner.commandStore == null || owner.commandStore.executor().isOwningThread());
+        Invariants.require(isLoaded(), "%s", this);
         if (isShrunk())
         {
             AccordCache.Type<K, V, ?> parent = owner.parent();
@@ -500,7 +500,7 @@ public class AccordCacheEntry<K, V> extends IntrusiveLinkedListNode
 
     protected void saved()
     {
-        Invariants.checkState(is(MODIFIED));
+        Invariants.require(is(MODIFIED));
         setStatus(LOADED);
     }
 
@@ -525,7 +525,7 @@ public class AccordCacheEntry<K, V> extends IntrusiveLinkedListNode
 
     private boolean tryShrink(K key, Adapter<K, V, ?> adapter)
     {
-        Invariants.checkState(!isNested());
+        Invariants.require(!isNested());
         if (isShrunk() || state == null)
             return false;
 
@@ -540,7 +540,7 @@ public class AccordCacheEntry<K, V> extends IntrusiveLinkedListNode
 
     private void inflate(AccordCommandStore commandStore, K key, Adapter<K, V, ?> adapter)
     {
-        Invariants.checkState(isShrunk());
+        Invariants.require(isShrunk());
         if (isNested())
         {
             Nested nested = (Nested) state;

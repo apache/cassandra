@@ -26,7 +26,7 @@ import accord.utils.Invariants;
 import org.apache.cassandra.service.accord.api.AccordRoutingKey;
 import org.apache.cassandra.service.accord.api.AccordRoutingKey.SentinelKey;
 
-import static accord.utils.Invariants.checkArgument;
+import static accord.utils.Invariants.requireArgument;
 import static java.math.BigInteger.ONE;
 import static java.math.BigInteger.ZERO;
 
@@ -50,9 +50,9 @@ public class AccordBytesSplitter extends AccordSplitter
         // Since BOP is already not working/supported I think it's fine to punt on this.
         if (bytesLength == 0)
         {
-            checkArgument(ranges.size() <= 1);
-            checkArgument(ranges.isEmpty() || ranges.get(0).start().getClass() == SentinelKey.class);
-            checkArgument(ranges.isEmpty() || ranges.get(0).end().getClass() == SentinelKey.class);
+            requireArgument(ranges.size() <= 1);
+            requireArgument(ranges.isEmpty() || ranges.get(0).start().getClass() == SentinelKey.class);
+            requireArgument(ranges.isEmpty() || ranges.get(0).end().getClass() == SentinelKey.class);
             // Intentionally does not match 16 that is used by ServerTestUtils.getRandomToken to elicit breakage
             bytesLength = 8;
         }
@@ -75,7 +75,7 @@ public class AccordBytesSplitter extends AccordSplitter
     BigInteger valueForToken(Token token)
     {
         byte[] bytes = ((ByteOrderedPartitioner.BytesToken) token).token;
-        checkArgument(bytes.length <= byteLength);
+        requireArgument(bytes.length <= byteLength);
         BigInteger value = ZERO;
         for (int i = 0 ; i < bytes.length ; ++i)
             value = value.add(BigInteger.valueOf(bytes[i] & 0xffL).shiftLeft((byteLength - 1 - i) * 8));
@@ -85,7 +85,7 @@ public class AccordBytesSplitter extends AccordSplitter
     @Override
     Token tokenForValue(BigInteger value)
     {
-        Invariants.checkArgument(value.compareTo(ZERO) >= 0);
+        Invariants.requireArgument(value.compareTo(ZERO) >= 0);
         byte[] bytes = new byte[byteLength];
         for (int i = 0 ; i < bytes.length ; ++i)
             bytes[i] = value.shiftRight((byteLength - 1 - i) * 8).byteValue();

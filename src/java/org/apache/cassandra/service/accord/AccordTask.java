@@ -287,12 +287,12 @@ public abstract class AccordTask<R> extends Task implements Runnable, Function<S
 
     private void state(State state)
     {
-        Invariants.checkState(state.isPermittedFrom(this.state), "%s forbidden from %s", state, this, AccordTask::toDescription);
+        Invariants.require(state.isPermittedFrom(this.state), "%s forbidden from %s", state, this, AccordTask::toDescription);
         this.state = state;
         if (state == WAITING_TO_RUN)
         {
-            Invariants.checkState(rangeScanner == null || rangeScanner.scanned);
-            Invariants.checkState(loading == null && waitingToLoad == null, "WAITING_TO_RUN => no loading or waiting; found %s", this, AccordTask::toDescription);
+            Invariants.require(rangeScanner == null || rangeScanner.scanned);
+            Invariants.require(loading == null && waitingToLoad == null, "WAITING_TO_RUN => no loading or waiting; found %s", this, AccordTask::toDescription);
             loadedAt = nanoTime();
         }
         else if (state == RUNNING)
@@ -317,7 +317,7 @@ public abstract class AccordTask<R> extends Task implements Runnable, Function<S
             @Override
             protected Cancellable start(BiConsumer<? super R, Throwable> callback)
             {
-                Invariants.checkState(AccordTask.this.callback == null);
+                Invariants.require(AccordTask.this.callback == null);
                 AccordTask.this.callback = callback;
                 commandStore.tryPreSetup(AccordTask.this);
                 commandStore.executor().submit(AccordTask.this);
@@ -396,7 +396,7 @@ public abstract class AccordTask<R> extends Task implements Runnable, Function<S
             case RECOVER:
                 if (!isToCompleteRangeScan)
                 {
-                    Invariants.checkState(rangeScanner == null);
+                    Invariants.require(rangeScanner == null);
                     rangeScanner = new RangeTxnScanner();
                 }
 
@@ -443,7 +443,7 @@ public abstract class AccordTask<R> extends Task implements Runnable, Function<S
 
         AccordCacheEntry<K, V> node = ref.global();
         int refs = node.increment();
-        Invariants.checkState(refs > 1);
+        Invariants.require(refs > 1);
         loaded.apply(this).put(k, cache.parent().adapter().safeRef(node));
     }
 
@@ -498,7 +498,7 @@ public abstract class AccordTask<R> extends Task implements Runnable, Function<S
     public boolean onLoad(AccordCacheEntry<?, ?> state)
     {
         AccordSafeState<?, ?> safeRef = loading == null ? null : loading.remove(state.key());
-        Invariants.checkState(safeRef != null && safeRef.global() == state, "Expected to find %s loading; found %s", state, this, AccordTask::toDescription);
+        Invariants.require(safeRef != null && safeRef.global() == state, "Expected to find %s loading; found %s", state, this, AccordTask::toDescription);
         if (safeRef.getClass() == AccordSafeCommand.class)
             ensureCommands().put((TxnId)state.key(), (AccordSafeCommand) safeRef);
         else
@@ -511,7 +511,7 @@ public abstract class AccordTask<R> extends Task implements Runnable, Function<S
         if (this.state.compareTo(State.WAITING_TO_LOAD) < 0)
             return false;
 
-        Invariants.checkState(waitingToLoad == null, "Invalid state: %s", this, AccordTask::toDescription);
+        Invariants.require(waitingToLoad == null, "Invalid state: %s", this, AccordTask::toDescription);
         state(WAITING_TO_RUN);
         return true;
     }
@@ -520,7 +520,7 @@ public abstract class AccordTask<R> extends Task implements Runnable, Function<S
     public boolean onLoading(AccordCacheEntry<?, ?> state)
     {
         boolean removed = waitingToLoad != null && waitingToLoad.remove(state);
-        Invariants.checkState(removed, "%s not found in waitingToLoad %s", state, this, AccordTask::toDescription);
+        Invariants.require(removed, "%s not found in waitingToLoad %s", state, this, AccordTask::toDescription);
         if (!waitingToLoad.isEmpty())
             return false;
 
@@ -575,7 +575,7 @@ public abstract class AccordTask<R> extends Task implements Runnable, Function<S
 
     private ArrayDeque<AccordCacheEntry<?, ?>> ensureWaitingToLoad()
     {
-        Invariants.checkState(state.compareTo(WAITING_TO_LOAD) <= 0, "Expected status to be on or before WAITING_TO_LOAD; found %s", this, AccordTask::toDescription);
+        Invariants.require(state.compareTo(WAITING_TO_LOAD) <= 0, "Expected status to be on or before WAITING_TO_LOAD; found %s", this, AccordTask::toDescription);
         if (waitingToLoad == null)
             waitingToLoad = new ArrayDeque<>();
         return waitingToLoad;
@@ -583,7 +583,7 @@ public abstract class AccordTask<R> extends Task implements Runnable, Function<S
 
     public AccordCacheEntry<?, ?> pollWaitingToLoad()
     {
-        Invariants.checkState(state == State.WAITING_TO_LOAD, "Expected status to be WAITING_TO_LOAD; found %s", this, AccordTask::toDescription);
+        Invariants.require(state == State.WAITING_TO_LOAD, "Expected status to be WAITING_TO_LOAD; found %s", this, AccordTask::toDescription);
         if (waitingToLoad == null)
             return null;
 
@@ -612,7 +612,7 @@ public abstract class AccordTask<R> extends Task implements Runnable, Function<S
     {
         if (sanityCheck != null)
         {
-            Invariants.checkState(SANITY_CHECK);
+            Invariants.require(SANITY_CHECK);
             Condition condition = Condition.newOneTimeCondition();
             this.commandStore.appendCommands(diffs, condition::signal);
             condition.awaitUninterruptibly();
@@ -898,8 +898,8 @@ public abstract class AccordTask<R> extends Task implements Runnable, Function<S
         if (state == CANCELLED)
             return;
 
-        Invariants.checkState(queue.kind == state || (queue.kind == State.WAITING_TO_LOAD && state == WAITING_TO_SCAN_RANGES), "Invalid queue type: %s vs %s", queue.kind, this, AccordTask::toDescription);
-        Invariants.checkState(this.queued == null, "Already queued with state: %s", this, AccordTask::toDescription);
+        Invariants.require(queue.kind == state || (queue.kind == State.WAITING_TO_LOAD && state == WAITING_TO_SCAN_RANGES), "Invalid queue type: %s vs %s", queue.kind, this, AccordTask::toDescription);
+        Invariants.require(this.queued == null, "Already queued with state: %s", this, AccordTask::toDescription);
         queued = queue;
         queue.append(this);
     }
@@ -1089,7 +1089,7 @@ public abstract class AccordTask<R> extends Task implements Runnable, Function<S
 
         public void scannedExclusive()
         {
-            Invariants.checkState(state == SCANNING_RANGES, "Expected SCANNING_RANGES; found %s", AccordTask.this, AccordTask::toDescription);
+            Invariants.require(state == SCANNING_RANGES, "Expected SCANNING_RANGES; found %s", AccordTask.this, AccordTask::toDescription);
             scanned = true;
             scannedInternal();
             if (loading == null) state(WAITING_TO_RUN);

@@ -40,8 +40,8 @@ public final class EntrySerializer
     {
         int start = out.position();
         int totalSize = out.getInt() - start;
-        Invariants.checkState(totalSize == TypeSizes.INT_SIZE + out.remaining());
-        Invariants.checkState(totalSize == headerSize(keySupport, userVersion) + record.remaining() + TypeSizes.INT_SIZE);
+        Invariants.require(totalSize == TypeSizes.INT_SIZE + out.remaining());
+        Invariants.require(totalSize == headerSize(keySupport, userVersion) + record.remaining() + TypeSizes.INT_SIZE);
 
         keySupport.serialize(key, out, userVersion);
 
@@ -50,7 +50,7 @@ public final class EntrySerializer
 
         int recordSize = record.remaining();
         int recordEnd = out.position() + recordSize;
-        Invariants.checkState(out.limit() == recordEnd + TypeSizes.INT_SIZE);
+        Invariants.require(out.limit() == recordEnd + TypeSizes.INT_SIZE);
         ByteBufferUtil.copyBytes(record, record.position(), out, out.position(), recordSize);
 
         // update and write crcs
@@ -77,7 +77,7 @@ public final class EntrySerializer
         int start = from.position();
         {
             int totalSize = from.getInt(start) - start;
-            Invariants.checkState(totalSize == from.remaining());
+            Invariants.require(totalSize == from.remaining());
 
             CRC32 crc = Crc.crc32();
             int headerSize = EntrySerializer.headerSize(keySupport, userVersion);

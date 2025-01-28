@@ -81,7 +81,7 @@ public class LocalCompositePrefixPartitioner extends LocalPartitioner
         @Override
         public int compareTo(Token o)
         {
-            Invariants.checkArgument(o instanceof AbstractCompositePrefixToken);
+            Invariants.requireArgument(o instanceof AbstractCompositePrefixToken);
             AbstractCompositePrefixToken that = (AbstractCompositePrefixToken) o;
             CompositeType comparator = comparatorForPrefixLength(Math.min(this.prefixSize(), that.prefixSize()));
             return comparator.compare(this.token, that.token);
@@ -136,7 +136,7 @@ public class LocalCompositePrefixPartitioner extends LocalPartitioner
         public PrefixToken(ByteBuffer token, int prefixSize)
         {
             super(token);
-            Invariants.checkArgument(prefixSize > 0);
+            Invariants.requireArgument(prefixSize > 0);
             this.prefixSize = prefixSize;
         }
 
@@ -231,7 +231,7 @@ public class LocalCompositePrefixPartitioner extends LocalPartitioner
 
     public DecoratedKey decoratedKey(Object... values)
     {
-        Invariants.checkArgument(values.length == prefixComparators.size());
+        Invariants.requireArgument(values.length == prefixComparators.size());
         ByteBuffer key = createPrefixKey(values);
         return decorateKey(key);
     }

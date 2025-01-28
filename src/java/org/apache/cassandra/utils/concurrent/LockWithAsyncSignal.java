@@ -107,7 +107,7 @@ public class LockWithAsyncSignal implements Lock
     {
         Thread thread = Thread.currentThread();
         int restoreDepth = depth;
-        Invariants.checkState(owner == thread);
+        Invariants.require(owner == thread);
 
         depth = 0;
         owner = null;
@@ -117,7 +117,7 @@ public class LockWithAsyncSignal implements Lock
 
     public void unlock()
     {
-        Invariants.checkState(owner == Thread.currentThread());
+        Invariants.require(owner == Thread.currentThread());
         if (--depth > 0)
             return;
 

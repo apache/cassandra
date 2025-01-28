@@ -274,7 +274,7 @@ final class Flusher<K, V>
 
             if (flushPeriodNanos <= 0)
             {
-                Invariants.checkState(params.flushMode() != PERIODIC);
+                Invariants.require(params.flushMode() != PERIODIC);
                 haveWork.acquire(1);
             }
             else
@@ -516,7 +516,7 @@ final class Flusher<K, V>
                 signal.awaitThrowUncheckedOnInterrupt();
 
                 Journal.State state = journal.state.get();
-                Invariants.checkState(state == Journal.State.NORMAL,
+                Invariants.require(state == Journal.State.NORMAL,
                                       "Thread %s outlived journal, which is in %s state", Thread.currentThread(), state);
             }
             else

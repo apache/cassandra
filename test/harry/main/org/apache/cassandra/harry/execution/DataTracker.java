@@ -69,7 +69,7 @@ public interface DataTracker
         public void begin(Visit visit)
         {
             long prev = started.get();
-            Invariants.checkState(prev == 0 || visit.lts == (prev + 1));
+            Invariants.require(prev == 0 || visit.lts == (prev + 1));
             started.set(visit.lts);
             for (int i = 0; i < visit.operations.length; i++)
             {
@@ -88,7 +88,7 @@ public interface DataTracker
         public void end(Visit visit)
         {
             long current = started.get();
-            Invariants.checkState(current == visit.lts,
+            Invariants.require(current == visit.lts,
                                   "Current stated %d, current visit: %d", current, visit.lts);
             finished.set(visit.lts);
         }

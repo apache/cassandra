@@ -45,7 +45,7 @@ public class ApplySerializers
     {
         public void serialize(Apply.Kind kind, DataOutputPlus out, int version) throws IOException
         {
-            Invariants.checkArgument(kind == Apply.Kind.Maximal || kind == Apply.Kind.Minimal);
+            Invariants.requireArgument(kind == Apply.Kind.Maximal || kind == Apply.Kind.Minimal);
             out.writeBoolean(kind == Apply.Kind.Maximal);
         }
 

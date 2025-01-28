@@ -48,7 +48,7 @@ import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.ObjectSizes;
 import org.apache.cassandra.utils.Pair;
 
-import static accord.utils.Invariants.checkArgument;
+import static accord.utils.Invariants.requireArgument;
 import static java.lang.Integer.max;
 import static java.math.BigInteger.ONE;
 import static java.math.BigInteger.ZERO;
@@ -330,7 +330,7 @@ public class OrderPreservingPartitioner implements IPartitioner
             BigInteger valueForToken(Token token)
             {
                 String chars = ((StringToken) token).token;
-                checkArgument(chars.length() <= charLength);
+                requireArgument(chars.length() <= charLength);
                 BigInteger value = ZERO;
                 for (int i = 0 ; i < chars.length() ; ++i)
                     value = value.add(BigInteger.valueOf(chars.charAt(i) & 0xffffL).shiftLeft((charLength - 1 - i) * 16));
@@ -341,7 +341,7 @@ public class OrderPreservingPartitioner implements IPartitioner
             Token tokenForValue(BigInteger value)
             {
                 // TODO (required): test
-                checkArgument(value.compareTo(ZERO) >= 0);
+                requireArgument(value.compareTo(ZERO) >= 0);
                 char[] chars = new char[charLength];
                 for (int i = 0 ; i < chars.length ; ++i)
                     chars[i] = (char) value.shiftRight((charLength - 1 - i) * 16).shortValue();

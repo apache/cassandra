@@ -66,8 +66,8 @@ import org.apache.cassandra.utils.NoSpamLogger;
 import org.apache.cassandra.utils.NoSpamLogger.NoSpamLogStatement;
 import org.apache.cassandra.utils.ObjectSizes;
 
-import static accord.utils.Invariants.checkState;
 import static accord.utils.Invariants.illegalState;
+import static accord.utils.Invariants.require;
 import static org.apache.cassandra.net.MessagingService.current_version;
 import static org.apache.cassandra.service.accord.AccordCacheEntry.Status.EVICTED;
 import static org.apache.cassandra.service.accord.AccordCacheEntry.Status.LOADED;
@@ -225,7 +225,7 @@ public class AccordCache implements CacheSize
     @VisibleForTesting
     private <K, V> void shrinkOrEvict(AccordCacheEntry<K, V> node)
     {
-        checkState(node.references() == 0);
+        require(node.references() == 0);
 
         if (shrinkingOn && node.tryShrink())
         {
@@ -243,7 +243,7 @@ public class AccordCache implements CacheSize
     @VisibleForTesting
     public <K, V> void tryEvict(AccordCacheEntry<K, V> node)
     {
-        checkState(node.references() == 0);
+        require(node.references() == 0);
 
         if (node.isNoEvict())
         {
@@ -278,7 +278,7 @@ public class AccordCache implements CacheSize
         if (logger.isTraceEnabled())
             logger.trace("Evicting {}", node);
 
-        checkState(node.isUnqueued());
+        require(node.isUnqueued());
 
         if (updateUnreferenced)
         {
@@ -296,8 +296,8 @@ public class AccordCache implements CacheSize
             owner.validateLoadEvicted(node);
 
         AccordCacheEntry<?, ?> self = node.owner.cache.remove(node.key());
-        Invariants.checkState(self.references() == 0);
-        checkState(self == node, "Leaked node detected; was attempting to remove %s but cache had %s", node, self);
+        Invariants.require(self.references() == 0);
+        require(self == node, "Leaked node detected; was attempting to remove %s but cache had %s", node, self);
         node.notifyListeners(Listener::onEvict);
         node.evicted();
     }
@@ -316,10 +316,10 @@ public class AccordCache implements CacheSize
 
     <K, V> void failedToLoad(AccordCacheEntry<K, V> node)
     {
-        Invariants.checkState(node.references() == 0);
+        Invariants.require(node.references() == 0);
         if (node.isUnqueued())
         {
-            Invariants.checkState(node.status() == EVICTED);
+            Invariants.require(node.status() == EVICTED);
             return;
         }
         node.unlink();
@@ -422,14 +422,14 @@ public class AccordCache implements CacheSize
 
             public S acquire(AccordCacheEntry<K, V> node)
             {
-                Invariants.checkState(node.owner == this);
+                Invariants.require(node.owner == this);
                 acquireExisting(node, false);
                 return adapter.safeRef(node);
             }
 
             public void recordPreAcquired(AccordSafeState<K, V> ref)
             {
-                Invariants.checkState(ref.global().owner == this);
+                Invariants.require(ref.global().owner == this);
                 incrementCacheHits();
             }
 
@@ -456,7 +456,7 @@ public class AccordCache implements CacheSize
 
                 Object prev = cache.put(key, node);
                 node.initSize(parent());
-                Invariants.checkState(prev == null, "%s not absent from cache: %s already present", key, node);
+                Invariants.require(prev == null, "%s not absent from cache: %s already present", key, node);
                 ++size;
                 node.notifyListeners(Listener::onAdd);
                 maybeShrinkOrEvictSomeNodes();
@@ -494,11 +494,11 @@ public class AccordCache implements CacheSize
 
                 AccordCacheEntry<K, V> node = cache.get(key);
 
-                checkState(!safeRef.invalidated());
-                checkState(safeRef.global() != null, "safeRef node is null for %s", key);
-                checkState(safeRef.global() == node, "safeRef node not in map: %s != %s", safeRef.global(), node);
-                checkState(node.references() > 0, "references (%d) are zero for %s (%s)", node.references(), key, node);
-                checkState(node.isUnqueued());
+                require(!safeRef.invalidated());
+                require(safeRef.global() != null, "safeRef node is null for %s", key);
+                require(safeRef.global() == node, "safeRef node not in map: %s != %s", safeRef.global(), node);
+                require(node.references() > 0, "references (%d) are zero for %s (%s)", node.references(), key, node);
+                require(node.isUnqueued());
 
                 boolean evict = false;
                 if (safeRef.hasUpdate())
@@ -1174,7 +1174,7 @@ public class AccordCache implements CacheSize
         @Override
         public Command load(AccordCommandStore commandStore, TxnId txnId)
         {
-            Invariants.checkState(!txnId.is(Txn.Kind.EphemeralRead));
+            Invariants.require(!txnId.is(Txn.Kind.EphemeralRead));
             return commandStore.loadCommand(txnId);
         }
 
@@ -1208,7 +1208,7 @@ public class AccordCache implements CacheSize
         public Object fullShrink(TxnId txnId, Command value)
         {
             if (txnId.is(Txn.Kind.EphemeralRead))
-                Invariants.checkState(value.saveStatus().compareTo(SaveStatus.ReadyToExecute) < 0);
+                Invariants.require(value.saveStatus().compareTo(SaveStatus.ReadyToExecute) < 0);
 
             try
             {

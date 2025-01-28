@@ -87,7 +87,7 @@ public interface Visitor
 
         public static CompositeVisitor of(List<Visitor> visitors)
         {
-            Invariants.checkArgument(!visitors.isEmpty(), "Visitors may not be empty");
+            Invariants.requireArgument(!visitors.isEmpty(), "Visitors may not be empty");
 
             if (Stream.of(visitors).noneMatch(v -> v instanceof CompositeVisitor))
                 return new CompositeVisitor(visitors);

@@ -72,7 +72,7 @@ public class QueryBuildingVisitExecutor extends VisitExecutor
             return query;
         }
 
-        Invariants.checkState(bindings.isEmpty() && visitedPds.isEmpty() && selects.isEmpty());
+        Invariants.require(bindings.isEmpty() && visitedPds.isEmpty() && selects.isEmpty());
         return null;
     }
 
@@ -107,7 +107,7 @@ public class QueryBuildingVisitExecutor extends VisitExecutor
     {
         if (statements.isEmpty())
         {
-            Invariants.checkState(bindings.isEmpty() && visitedPds.isEmpty() && selects.isEmpty());
+            Invariants.require(bindings.isEmpty() && visitedPds.isEmpty() && selects.isEmpty());
             return;
         }
 

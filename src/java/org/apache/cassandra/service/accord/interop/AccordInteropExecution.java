@@ -99,7 +99,7 @@ import org.apache.cassandra.transport.Dispatcher;
 
 import static accord.coordinate.CoordinationAdapter.Factory.Kind.Standard;
 import static accord.primitives.Txn.Kind.Write;
-import static accord.utils.Invariants.checkArgument;
+import static accord.utils.Invariants.requireArgument;
 import static org.apache.cassandra.metrics.ClientRequestsMetricsHolder.accordReadMetrics;
 import static org.apache.cassandra.metrics.ClientRequestsMetricsHolder.accordWriteMetrics;
 
@@ -172,7 +172,7 @@ public class AccordInteropExecution implements ReadCoordinator, MaximalCommitSen
     public AccordInteropExecution(Node node, TxnId txnId, Txn txn, AccordUpdate.Kind updateKind, FullRoute<?> route, Participants<?> readScope, Timestamp executeAt, Deps deps, BiConsumer<? super Result, Throwable> callback,
                                   AgentExecutor executor, ConsistencyLevel consistencyLevel, AccordEndpointMapper endpointMapper)
     {
-        checkArgument(!txn.read().keys().isEmpty() || updateKind == AccordUpdate.Kind.UNRECOVERABLE_REPAIR);
+        requireArgument(!txn.read().keys().isEmpty() || updateKind == AccordUpdate.Kind.UNRECOVERABLE_REPAIR);
         this.node = node;
         this.txnId = txnId;
         this.txn = txn;
@@ -183,7 +183,7 @@ public class AccordInteropExecution implements ReadCoordinator, MaximalCommitSen
         this.callback = callback;
         this.executor = executor;
 
-        checkArgument(updateKind == AccordUpdate.Kind.UNRECOVERABLE_REPAIR || consistencyLevel == ConsistencyLevel.QUORUM || consistencyLevel == ConsistencyLevel.ALL || consistencyLevel == ConsistencyLevel.SERIAL);
+        requireArgument(updateKind == AccordUpdate.Kind.UNRECOVERABLE_REPAIR || consistencyLevel == ConsistencyLevel.QUORUM || consistencyLevel == ConsistencyLevel.ALL || consistencyLevel == ConsistencyLevel.SERIAL);
         this.consistencyLevel = consistencyLevel;
         this.endpointMapper = endpointMapper;
 
@@ -242,7 +242,7 @@ public class AccordInteropExecution implements ReadCoordinator, MaximalCommitSen
     @Override
     public void sendReadRepairMutation(Message<Mutation> message, InetAddressAndPort to, RequestCallback<Object> callback)
     {
-        checkArgument(message.payload.allowsPotentialTransactionConflicts());
+        requireArgument(message.payload.allowsPotentialTransactionConflicts());
         Node.Id id = endpointMapper.mappedId(to);
         AccordInteropReadRepair readRepair = new AccordInteropReadRepair(id, executes, txnId, readScope, executeAt.epoch(), message.payload);
         node.send(id, readRepair, executor, new AccordInteropReadRepair.ReadRepairCallback(id, to, message, callback, this));

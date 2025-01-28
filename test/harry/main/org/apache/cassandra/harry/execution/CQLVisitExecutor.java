@@ -139,7 +139,7 @@ public abstract class CQLVisitExecutor
         // All operations are not touching any data
         if (compiledStatement == null)
         {
-            Invariants.checkArgument(Arrays.stream(visit.operations).allMatch(op -> op.kind() == Operations.Kind.CUSTOM));
+            Invariants.requireArgument(Arrays.stream(visit.operations).allMatch(op -> op.kind() == Operations.Kind.CUSTOM));
             return;
         }
 
@@ -150,7 +150,7 @@ public abstract class CQLVisitExecutor
         }
         else
         {
-            Invariants.checkState(selects.size() == 1);
+            Invariants.require(selects.size() == 1);
             executeValidatingVisit(visit, selects, compiledStatement);
         }
         dataTracker.end(visit);

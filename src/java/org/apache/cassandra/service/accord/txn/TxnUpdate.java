@@ -53,7 +53,7 @@ import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.ObjectSizes;
 
-import static accord.utils.Invariants.checkArgument;
+import static accord.utils.Invariants.requireArgument;
 import static accord.utils.SortedArrays.Search.CEIL;
 import static org.apache.cassandra.service.accord.AccordSerializers.consistencyLevelSerializer;
 import static org.apache.cassandra.service.accord.AccordSerializers.serialize;
@@ -89,7 +89,7 @@ public class TxnUpdate extends AccordUpdate
 
     public TxnUpdate(List<TxnWrite.Fragment> fragments, TxnCondition condition, @Nullable ConsistencyLevel cassandraCommitCL, boolean preserveTimestamps)
     {
-        checkArgument(cassandraCommitCL == null || IAccordService.SUPPORTED_COMMIT_CONSISTENCY_LEVELS.contains(cassandraCommitCL));
+        requireArgument(cassandraCommitCL == null || IAccordService.SUPPORTED_COMMIT_CONSISTENCY_LEVELS.contains(cassandraCommitCL));
         // TODO: Figure out a way to shove keys into TxnCondition, and have it implement slice/merge.
         this.keys = Keys.of(fragments, fragment -> fragment.key);
         fragments.sort(TxnWrite.Fragment::compareKeys);

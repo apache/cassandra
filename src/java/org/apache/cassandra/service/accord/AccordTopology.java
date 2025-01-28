@@ -102,7 +102,7 @@ public class AccordTopology
             FastPathStrategy tableStrategy = metadata.params.fastPath;
             FastPathStrategy strategy = tableStrategy.kind() != FastPathStrategy.Kind.INHERIT_KEYSPACE
                                         ? tableStrategy : keyspace.params.fastPath;
-            Invariants.checkState(strategy.kind() != FastPathStrategy.Kind.INHERIT_KEYSPACE);
+            Invariants.require(strategy.kind() != FastPathStrategy.Kind.INHERIT_KEYSPACE);
             return strategy;
         }
 
@@ -125,11 +125,11 @@ public class AccordTopology
         {
             // TCM doesn't create wrap around ranges
             for (Range<Token> range : ranges)
-                Invariants.checkArgument(!range.isWrapAround() || range.right.equals(range.right.minValue()),
+                Invariants.requireArgument(!range.isWrapAround() || range.right.equals(range.right.minValue()),
                                          "wrap around range %s found", range);
 
             Sets.SetView<InetAddressAndPort> readOnly = Sets.difference(readEndpoints, writeEndpoints);
-            Invariants.checkState(readOnly.isEmpty(), "Read only replicas detected: %s", readOnly);
+            Invariants.require(readOnly.isEmpty(), "Read only replicas detected: %s", readOnly);
 
             SortedArrayList<Id> nodes = new SortedArrayList<>(writeEndpoints.stream()
                                                                     .map(directory::peerId)

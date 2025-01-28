@@ -142,8 +142,8 @@ public class BTree
 
     public static Object[] unsafeAllocateNonEmptyLeaf(int size)
     {
-        Invariants.checkArgument(size > 0, "size should be non-zero");
-        Invariants.checkArgument(size <= MAX_KEYS, "size (%s) should be no more than %s", size, MAX_KEYS);
+        Invariants.requireArgument(size > 0, "size should be non-zero");
+        Invariants.requireArgument(size <= MAX_KEYS, "size (%s) should be no more than %s", size, MAX_KEYS);
         return new Object[size | 1];
     }
 

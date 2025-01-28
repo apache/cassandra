@@ -243,7 +243,7 @@ public class AccordConfigurationService extends AbstractConfigurationService<Acc
      */
     public synchronized void start()
     {
-        Invariants.checkState(state == State.INITIALIZED, "Expected state to be INITIALIZED but was %s", state);
+        Invariants.require(state == State.INITIALIZED, "Expected state to be INITIALIZED but was %s", state);
         state = State.LOADING;
 
         EndpointMapping snapshot = mapping;
@@ -557,7 +557,7 @@ public class AccordConfigurationService extends AbstractConfigurationService<Acc
     private synchronized void checkStarted()
     {
         State state = this.state;
-        Invariants.checkState(state == State.STARTED, "Expected state to be STARTED but was %s", state);
+        Invariants.require(state == State.STARTED, "Expected state to be STARTED but was %s", state);
     }
 
     @VisibleForTesting

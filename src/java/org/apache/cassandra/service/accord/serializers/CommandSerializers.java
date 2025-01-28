@@ -233,7 +233,7 @@ public class CommandSerializers
             out.writeUnsignedVInt32(flags);
             if (executeAt == null)
             {
-                Invariants.checkState(nullable);
+                Invariants.require(nullable);
             }
             else
             {
@@ -261,7 +261,7 @@ public class CommandSerializers
             long size = TypeSizes.sizeofUnsignedVInt(flags);
             if (executeAt == null)
             {
-                Invariants.checkState(nullable);
+                Invariants.require(nullable);
                 return size;
             }
             size += TypeSizes.sizeofUnsignedVInt(executeAt.epoch());
@@ -276,7 +276,7 @@ public class CommandSerializers
         {
             if (executeAt == null)
             {
-                Invariants.checkState(nullable);
+                Invariants.require(nullable);
                 return 1;
             }
 

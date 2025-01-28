@@ -77,7 +77,7 @@ import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 import org.github.jamm.Unmetered;
 
-import static accord.utils.Invariants.checkState;
+import static accord.utils.Invariants.require;
 import static com.google.common.collect.Iterables.any;
 import static com.google.common.collect.Iterables.transform;
 import static java.lang.String.format;
@@ -556,7 +556,7 @@ public class TableMetadata implements SchemaElement
 
         indexes.validate(this);
 
-        checkState((params.transactionalMode == TransactionalMode.off && params.transactionalMigrationFrom == TransactionalMigrationFromMode.none) || !isCounter(), "Counters are not supported with Accord for table " + this);
+        require((params.transactionalMode == TransactionalMode.off && params.transactionalMigrationFrom == TransactionalMigrationFromMode.none) || !isCounter(), "Counters are not supported with Accord for table " + this);
     }
 
     /**

@@ -122,7 +122,7 @@ public class AcceptSerializers
                     }
                     else
                     {
-                        Invariants.checkState(reply == AcceptReply.SUCCESS);
+                        Invariants.require(reply == AcceptReply.SUCCESS);
                         out.writeByte(2);
                     }
                     break;

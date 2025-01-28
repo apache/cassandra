@@ -273,7 +273,7 @@ public class Directory implements MetadataValue<Directory>
 
     public Directory removed(Epoch removedIn, NodeId id, InetAddressAndPort addr)
     {
-        Invariants.checkState(!peers.containsKey(id));
+        Invariants.require(!peers.containsKey(id));
         return new Directory(nextId,
                              lastModified,
                              peers,

@@ -71,7 +71,7 @@ public class LogState
     // Uses Replication rather than an just a list of entries primarily to avoid duplicating the existing serializer
     public LogState(ClusterMetadata baseState, ImmutableList<Entry> entries)
     {
-        Invariants.checkState(baseState == null ||
+        Invariants.require(baseState == null ||
                               entries.isEmpty() ||
                               entries.get(0).epoch.isDirectlyAfter(baseState.epoch),
                               "Base state: %s, first entry: %s", baseState == null ? null : baseState.epoch, entries.isEmpty() ? null : entries.get(0).epoch);

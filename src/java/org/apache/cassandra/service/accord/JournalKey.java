@@ -52,8 +52,8 @@ public final class JournalKey
 
     public JournalKey(TxnId id, Type type, int commandStoreId)
     {
-        Invariants.checkArgument(commandStoreId >= 0);
-        Invariants.checkState((id.lsb & (0xffff & ~TxnId.IDENTITY_FLAGS)) == 0);
+        Invariants.requireArgument(commandStoreId >= 0);
+        Invariants.require((id.lsb & (0xffff & ~TxnId.IDENTITY_FLAGS)) == 0);
         Invariants.nonNull(type);
         Invariants.nonNull(id);
         this.type = type;

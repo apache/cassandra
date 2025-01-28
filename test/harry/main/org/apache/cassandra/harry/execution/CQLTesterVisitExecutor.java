@@ -54,7 +54,7 @@ public class CQLTesterVisitExecutor extends CQLVisitExecutor
     {
         List<ResultSetRow> actual = new ArrayList<>();
         // TODO: Have never tested with multiple
-        Invariants.checkState(visit.operations.length == 1);
+        Invariants.require(visit.operations.length == 1);
         for (UntypedResultSet.Row row : execute.apply(statement))
             actual.add(resultSetToRow(schema, (Operations.SelectStatement) visit.operations[0], row));
         return actual;
@@ -99,7 +99,7 @@ public class CQLTesterVisitExecutor extends CQLVisitExecutor
                 {
                     for (int j = 0; j < schema.clusteringKeys.size(); j++)
                     {
-                        Invariants.checkState(!row.has(schema.clusteringKeys.get(j).name),
+                        Invariants.require(!row.has(schema.clusteringKeys.get(j).name),
                                               "All elements of clustering key should have been null");
                     }
                     clusteringKey = NIL_KEY;

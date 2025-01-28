@@ -117,7 +117,7 @@ public abstract class AccordFastPathCoordinator implements ChangeListener, Confi
 
         public PeerStatus onUpdate(Node.Id node, Status status)
         {
-            Invariants.checkArgument(contains(node));
+            Invariants.requireArgument(contains(node));
             PeerStatus peerStatus = new PeerStatus(node, status);
             statusMap.put(node, peerStatus);
             return peerStatus;

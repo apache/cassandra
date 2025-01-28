@@ -51,7 +51,7 @@ import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.utils.concurrent.Future;
 import org.apache.cassandra.utils.concurrent.FutureCombiner;
 
-import static accord.utils.Invariants.checkState;
+import static accord.utils.Invariants.require;
 import static org.apache.cassandra.db.ColumnFamilyStore.FlushReason.ACCORD_TXN_GC;
 
 public class AccordDataStore implements DataStore
@@ -142,7 +142,7 @@ public class AccordDataStore implements DataStore
 
             if (firstToken != null)
             {
-                checkState(lastToken != null);
+                require(lastToken != null);
                 if (firstToken.equals(lastToken))
                 {
                     for (org.apache.cassandra.dht.Range<Token> tableRange : tableRanges)
@@ -156,7 +156,7 @@ public class AccordDataStore implements DataStore
                 }
                 else
                 {
-                    checkState(firstToken.compareTo(lastToken) < 0);
+                    require(firstToken.compareTo(lastToken) < 0);
                     org.apache.cassandra.dht.Range<Token> memtableRange = new org.apache.cassandra.dht.Range<>(firstToken, lastToken);
                     for (org.apache.cassandra.dht.Range<Token> tableRange : tableRanges)
                     {

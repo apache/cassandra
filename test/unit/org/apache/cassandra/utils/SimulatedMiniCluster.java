@@ -253,7 +253,7 @@ public class SimulatedMiniCluster
         if (current.inProgressSequences.isEmpty())
             throw new IllegalStateException("Attempted to bump epoch when nothing was pending");
         Iterator<MultiStepOperation<?>> it = current.inProgressSequences.iterator();
-        Invariants.checkState(it.hasNext());
+        Invariants.require(it.hasNext());
         notifyMetadataChange(process(it.next()).metadata);
     }
 

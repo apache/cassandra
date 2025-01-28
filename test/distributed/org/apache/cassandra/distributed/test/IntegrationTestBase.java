@@ -44,7 +44,7 @@ public class IntegrationTestBase extends TestBaseImpl
 
     protected static void init(int nodes, Consumer<IInstanceConfig> cfg) throws Throwable
     {
-        Invariants.checkState(!initialized);
+        Invariants.require(!initialized);
         cluster = Cluster.build()
                          .withNodes(nodes)
                          .withConfig(cfg)

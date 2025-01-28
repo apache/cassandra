@@ -35,7 +35,7 @@ import org.apache.cassandra.utils.Int32Serializer;
 import org.apache.cassandra.utils.NullableSerializer;
 import org.apache.cassandra.utils.ObjectSizes;
 
-import static accord.utils.Invariants.checkArgument;
+import static accord.utils.Invariants.requireArgument;
 import static org.apache.cassandra.service.accord.txn.TxnResult.Kind.txn_data;
 
 /**
@@ -84,7 +84,7 @@ public class TxnData extends Int2ObjectHashMap<TxnDataValue> implements TxnResul
 
     public static int txnDataName(TxnDataNameKind kind, int index)
     {
-        checkArgument(index >= 0 && index <= TXN_DATA_NAME_INDEX_MAX);
+        requireArgument(index >= 0 && index <= TXN_DATA_NAME_INDEX_MAX);
         int kindInt = (int)(((long)kind.value) << TXN_DATA_NAME_INDEX_BITS);
         return kindInt | index;
     }
@@ -121,7 +121,7 @@ public class TxnData extends Int2ObjectHashMap<TxnDataValue> implements TxnResul
 
     public static TxnData newWithExpectedSize(int size)
     {
-        checkArgument(size >= 0, "size can't be negative");
+        requireArgument(size >= 0, "size can't be negative");
         size = Math.max(4, size);
         return new TxnData(size < 1073741824 ? (int)((float)size / 0.75F + 1.0F) : Integer.MAX_VALUE);
     }

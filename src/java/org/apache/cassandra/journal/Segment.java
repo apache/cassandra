@@ -91,7 +91,7 @@ public abstract class Segment<K, V> implements SelfRefCounted<Segment<K, V>>, Co
         int size = Index.readSize(offsetAndSize);
         if (read(offset, size, into))
         {
-            Invariants.checkState(id.equals(into.key), "Index for %s read incorrect key: expected %s but read %s", descriptor, id, into.key);
+            Invariants.require(id.equals(into.key), "Index for %s read incorrect key: expected %s but read %s", descriptor, id, into.key);
             consumer.accept(descriptor.timestamp, offset, id, into.value, descriptor.userVersion);
             return true;
         }
@@ -103,7 +103,7 @@ public abstract class Segment<K, V> implements SelfRefCounted<Segment<K, V>>, Co
         long offsetAndSize = index().lookUpLast(id);
         if (offsetAndSize == -1 || !read(Index.readOffset(offsetAndSize), Index.readSize(offsetAndSize), into))
             return false;
-        Invariants.checkState(id.equals(into.key), "Index for %s read incorrect key: expected %s but read %s", descriptor, id, into.key);
+        Invariants.require(id.equals(into.key), "Index for %s read incorrect key: expected %s but read %s", descriptor, id, into.key);
         return true;
     }
 
@@ -115,9 +115,9 @@ public abstract class Segment<K, V> implements SelfRefCounted<Segment<K, V>>, Co
         {
             int offset = Index.readOffset(all[i]);
             int size = Index.readSize(all[i]);
-            Invariants.checkState(offset < prevOffset);
-            Invariants.checkState(read(offset, size, into), "Read should always return true");
-            Invariants.checkState(id.equals(into.key), "Index for %s read incorrect key: expected %s but read %s", descriptor, id, into.key);
+            Invariants.require(offset < prevOffset);
+            Invariants.require(read(offset, size, into), "Read should always return true");
+            Invariants.require(id.equals(into.key), "Index for %s read incorrect key: expected %s but read %s", descriptor, id, into.key);
             onEntry.accept(descriptor.timestamp, offset, into.key, into.value, into.userVersion);
         }
     }

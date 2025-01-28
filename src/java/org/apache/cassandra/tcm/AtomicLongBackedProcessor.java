@@ -188,7 +188,7 @@ public class AtomicLongBackedProcessor extends AbstractLocalProcessor
                     break;
                 if (current.epoch.isEqualOrBefore(start))
                 {
-                    Invariants.checkState(current.epoch.isDirectlyAfter(metadata.epoch));
+                    Invariants.require(current.epoch.isDirectlyAfter(metadata.epoch));
                     metadata = current.transform.execute(metadata).success().metadata;
                 }
                 else if (current.epoch.isAfter(start))

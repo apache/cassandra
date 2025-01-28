@@ -110,7 +110,7 @@ public class ManualExecutor implements ExecutorPlus
 
         Task(Runnable runnable, Callable<?> callable, WithResources withResources, Object result, FutureImpl<?> future)
         {
-            Invariants.checkArgument(runnable != null ^ callable != null);
+            Invariants.requireArgument(runnable != null ^ callable != null);
 
             this.runnable = runnable;
             this.callable = callable;

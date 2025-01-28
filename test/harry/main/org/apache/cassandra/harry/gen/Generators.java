@@ -282,7 +282,7 @@ public class Generators
             {
                 T v = delegate.generate(rng);
                 int hashCode = v.hashCode();
-                Invariants.checkState(hashCode != System.identityHashCode(v), "hashCode was not overridden for type %s", v.getClass());
+                Invariants.require(hashCode != System.identityHashCode(v), "hashCode was not overridden for type %s", v.getClass());
                 if (hashCodes.contains(hashCode))
                     continue;
                 hashCodes.add(hashCode);

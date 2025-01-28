@@ -161,7 +161,7 @@ public interface LogReader
             }
             else
             {
-                Invariants.checkState(closestSnapshot.epoch.isEqualOrAfter(start),
+                Invariants.require(closestSnapshot.epoch.isEqualOrAfter(start),
                                       "Got %s, but requested snapshot of %s", closestSnapshot.epoch, start);
                 EntryHolder entryHolder = getEntries(closestSnapshot.epoch, end);
                 return new LogState(closestSnapshot, ImmutableList.copyOf(entryHolder.entries));

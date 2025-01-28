@@ -67,7 +67,7 @@ class AccordExecutorSimple extends AccordExecutor
     public AccordExecutorSimple(ReentrantLock lock, int executorId, Mode mode, int threads, IntFunction<String> name, AccordCacheMetrics metrics, ExecutorFunctionFactory loadExecutor, ExecutorFunctionFactory saveExecutor, ExecutorFunctionFactory rangeLoadExecutor, Agent agent)
     {
         super(lock, executorId, metrics, loadExecutor, saveExecutor, rangeLoadExecutor, agent);
-        Invariants.checkArgument(threads == 1);
+        Invariants.requireArgument(threads == 1);
         this.lock = lock;
         this.executor = executorFactory().sequential(name.apply(0));
 

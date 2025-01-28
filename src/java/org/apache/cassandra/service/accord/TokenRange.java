@@ -44,7 +44,7 @@ public class TokenRange extends Range.EndInclusive
 
     public static TokenRange create(AccordRoutingKey start, AccordRoutingKey end)
     {
-        Invariants.checkArgument(start.table().equals(end.table()),
+        Invariants.requireArgument(start.table().equals(end.table()),
                                  "Token ranges cannot cover more than one keyspace start:%s, end:%s",
                                  start, end);
         return new TokenRange(start, end);

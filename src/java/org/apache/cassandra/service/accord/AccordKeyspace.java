@@ -131,7 +131,7 @@ import org.apache.cassandra.utils.CloseableIterator;
 import org.apache.cassandra.utils.btree.BTreeSet;
 import org.apache.cassandra.utils.concurrent.OpOrder;
 
-import static accord.utils.Invariants.checkState;
+import static accord.utils.Invariants.require;
 import static java.lang.String.format;
 import static java.util.Collections.emptyMap;
 import static org.apache.cassandra.cql3.QueryProcessor.executeInternal;
@@ -327,7 +327,7 @@ public class AccordKeyspace
         // TODO (expected): garbage-free filtering, reusing encoding
         public Row withoutRedundantCommands(TokenKey key, Row row, RedundantBefore.Entry redundantBefore)
         {
-            Invariants.checkState(row.columnCount() == 1);
+            Invariants.require(row.columnCount() == 1);
             Cell<?> cell = row.getCell(data);
             if (cell == null)
                 return row;
@@ -688,7 +688,7 @@ public class AccordKeyspace
 
             try (RowIterator partition = partitions.next())
             {
-                Invariants.checkState(partition.hasNext());
+                Invariants.require(partition.hasNext());
                 Row row = partition.next();
                 ByteBuffer data = cellValue(row, accessor.data);
                 return Serialize.fromBytes(key, data);
@@ -714,8 +714,8 @@ public class AccordKeyspace
 
         private EpochDiskState(long minEpoch, long maxEpoch)
         {
-            Invariants.checkArgument(minEpoch >= 0, "Min Epoch %d < 0", minEpoch);
-            Invariants.checkArgument(maxEpoch >= minEpoch, "Max epoch %d < min %d", maxEpoch, minEpoch);
+            Invariants.requireArgument(minEpoch >= 0, "Min Epoch %d < 0", minEpoch);
+            Invariants.requireArgument(maxEpoch >= minEpoch, "Max epoch %d < min %d", maxEpoch, minEpoch);
             this.minEpoch = minEpoch;
             this.maxEpoch = maxEpoch;
         }
@@ -740,14 +740,14 @@ public class AccordKeyspace
         @VisibleForTesting
         EpochDiskState withNewMaxEpoch(long epoch)
         {
-            Invariants.checkArgument(epoch > maxEpoch, "Epoch %d <= %d (max)", epoch, maxEpoch);
+            Invariants.requireArgument(epoch > maxEpoch, "Epoch %d <= %d (max)", epoch, maxEpoch);
             return EpochDiskState.create(Math.max(1, minEpoch), epoch);
         }
 
         private EpochDiskState withNewMinEpoch(long epoch)
         {
-            Invariants.checkArgument(epoch > minEpoch, "epoch %d <= %d (min)", epoch, minEpoch);
-            Invariants.checkArgument(epoch <= maxEpoch, "epoch %d > %d (max)", epoch, maxEpoch);
+            Invariants.requireArgument(epoch > minEpoch, "epoch %d <= %d (min)", epoch, minEpoch);
+            Invariants.requireArgument(epoch <= maxEpoch, "epoch %d > %d (max)", epoch, maxEpoch);
             return EpochDiskState.create(epoch, maxEpoch);
         }
 
@@ -792,7 +792,7 @@ public class AccordKeyspace
             CommandSerializers.txnId.serialize(key.id, id);
             id.flip();
             ByteBuffer pk = keyComparator.make(key.commandStoreId, (byte)key.type.id, id).serializeAsPartitionKey();
-            Invariants.checkState(getTxnId(splitPartitionKey(pk)).equals(key.id));
+            Invariants.require(getTxnId(splitPartitionKey(pk)).equals(key.id));
             return Journal.partitioner.decorateKey(pk);
         }
 
@@ -871,7 +871,7 @@ public class AccordKeyspace
     {
         if (diskState.isEmpty())
             return saveEpochDiskState(EpochDiskState.create(epoch));
-        Invariants.checkArgument(epoch >= diskState.minEpoch, "Epoch %d < %d (min)", epoch, diskState.minEpoch);
+        Invariants.requireArgument(epoch >= diskState.minEpoch, "Epoch %d < %d (min)", epoch, diskState.minEpoch);
         if (epoch > diskState.maxEpoch)
         {
             diskState = diskState.withNewMaxEpoch(epoch);
@@ -975,7 +975,7 @@ public class AccordKeyspace
             consumer.load(epoch, SyncStatus.NOT_STARTED, Collections.emptySet(), Collections.emptySet(), Ranges.EMPTY, Ranges.EMPTY);
             return;
         }
-        checkState(!result.isEmpty(), "Nothing found for epoch %d", epoch);
+        require(!result.isEmpty(), "Nothing found for epoch %d", epoch);
         UntypedResultSet.Row row = result.one();
 
         SyncStatus syncStatus = row.has("sync_state")

@@ -60,7 +60,7 @@ public abstract class AccordInteropReadCallback<T> implements Callback<ReadReply
 
     public void onSuccess(Node.Id from, ReadReply reply)
     {
-        Invariants.checkArgument(from.equals(id));
+        Invariants.requireArgument(from.equals(id));
         if (reply.isOk())
         {
             wrapped.onResponse(message.responseWith(convertResponse((ReadOk) reply)).withFrom(endpoint));

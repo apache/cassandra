@@ -59,7 +59,7 @@ public class AccordSegmentCompactor<V> implements SegmentCompactor<JournalKey, V
     @Override
     public Collection<StaticSegment<JournalKey, V>> compact(Collection<StaticSegment<JournalKey, V>> segments)
     {
-        Invariants.checkState(segments.size() >= 2, () -> String.format("Can only compact 2 or more segments, but got %d", segments.size()));
+        Invariants.require(segments.size() >= 2, () -> String.format("Can only compact 2 or more segments, but got %d", segments.size()));
         logger.info("Compacting {} static segments: {}", segments.size(), segments);
 
         PriorityQueue<KeyOrderReader<JournalKey>> readers = new PriorityQueue<>();
@@ -110,9 +110,9 @@ public class AccordSegmentCompactor<V> implements SegmentCompactor<JournalKey, V
                         {
                             if (lastDescriptor != -1)
                             {
-                                Invariants.checkState(reader.descriptor.timestamp <= lastDescriptor,
+                                Invariants.require(reader.descriptor.timestamp <= lastDescriptor,
                                                       "Descriptors were accessed out of order: %d was accessed after %d", reader.descriptor.timestamp, lastDescriptor);
-                                Invariants.checkState(reader.descriptor.timestamp != lastDescriptor ||
+                                Invariants.require(reader.descriptor.timestamp != lastDescriptor ||
                                                       reader.offset() < lastOffset,
                                                       "Offsets were accessed out of order: %d was accessed after %s", reader.offset(), lastOffset);
                             }
@@ -156,7 +156,7 @@ public class AccordSegmentCompactor<V> implements SegmentCompactor<JournalKey, V
 
             if (prevKey != null)
             {
-                Invariants.checkArgument((decoratedKey.compareTo(prevDecoratedKey) >= 0 ? 1 : -1) == (JournalKey.SUPPORT.compare(key, prevKey) >= 0 ? 1 : -1),
+                Invariants.requireArgument((decoratedKey.compareTo(prevDecoratedKey) >= 0 ? 1 : -1) == (JournalKey.SUPPORT.compare(key, prevKey) >= 0 ? 1 : -1),
                                          String.format("Partition key and JournalKey didn't have matching order, which may imply a serialization issue.\n%s (%s)\n%s (%s)",
                                                        key, decoratedKey, prevKey, prevDecoratedKey));
             }

@@ -158,7 +158,7 @@ public class Coordinator implements ICoordinator
                 boundBBValues.add(ByteBufferUtil.objectToBytes(boundValue));
 
             prepared.validate(clientState);
-            Invariants.checkState(prepared instanceof SelectStatement,
+            Invariants.require(prepared instanceof SelectStatement,
                                   "Only SELECT statements can be executed with paging %s", prepared);
 
             Dispatcher.RequestTime requestTime = Dispatcher.RequestTime.forImmediateExecution();

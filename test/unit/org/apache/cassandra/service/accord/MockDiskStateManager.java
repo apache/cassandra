@@ -87,7 +87,7 @@ public enum MockDiskStateManager implements AccordConfigurationService.DiskState
     {
         if (diskState.isEmpty())
             return AccordKeyspace.EpochDiskState.create(epoch);
-        Invariants.checkArgument(epoch >= diskState.minEpoch, "Epoch %d < %d (min)", epoch, diskState.minEpoch);
+        Invariants.requireArgument(epoch >= diskState.minEpoch, "Epoch %d < %d (min)", epoch, diskState.minEpoch);
         if (epoch > diskState.maxEpoch)
             diskState = diskState.withNewMaxEpoch(epoch);
         return diskState;

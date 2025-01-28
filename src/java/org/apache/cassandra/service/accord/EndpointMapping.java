@@ -85,16 +85,16 @@ class EndpointMapping implements AccordEndpointMapper
 
         public Builder add(InetAddressAndPort endpoint, Node.Id id)
         {
-            Invariants.checkArgument(!mapping.containsKey(id), "Mapping already exists for Node.Id %s", id);
-            Invariants.checkArgument(!mapping.containsValue(endpoint), "Mapping already exists for %s", endpoint);
+            Invariants.requireArgument(!mapping.containsKey(id), "Mapping already exists for Node.Id %s", id);
+            Invariants.requireArgument(!mapping.containsValue(endpoint), "Mapping already exists for %s", endpoint);
             mapping.put(id, endpoint);
             return this;
         }
 
         public Builder removed(InetAddressAndPort endpoint, Node.Id id, long epoch)
         {
-            Invariants.checkArgument(!mapping.containsKey(id), "Mapping already exists for Node.Id %s", id);
-            Invariants.checkArgument(!mapping.containsValue(endpoint), "Mapping already exists for %s", endpoint);
+            Invariants.requireArgument(!mapping.containsKey(id), "Mapping already exists for Node.Id %s", id);
+            Invariants.requireArgument(!mapping.containsValue(endpoint), "Mapping already exists for %s", endpoint);
             mapping.put(id, endpoint);
             removed.put(id, epoch);
             return this;

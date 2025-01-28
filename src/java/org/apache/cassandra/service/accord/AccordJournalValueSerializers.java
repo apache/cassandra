@@ -335,7 +335,7 @@ public class AccordJournalValueSerializers
                 epochs[i] = in.readLong();
                 ranges[i] = KeySerializers.ranges.deserialize(in, messagingVersion);
             }
-            Invariants.checkState(ranges.length == epochs.length);
+            Invariants.require(ranges.length == epochs.length);
             into.update(new RangesForEpoch(epochs, ranges));
         }
     }
@@ -354,7 +354,7 @@ public class AccordJournalValueSerializers
         protected NavigableMap<K, V> accumulate(NavigableMap<K, V> accumulator, V newValue)
         {
             V prev = accumulator.put(getKey.apply(newValue), newValue);
-            Invariants.checkState(prev == null || prev.equals(newValue));
+            Invariants.require(prev == null || prev.equals(newValue));
             return accumulator;
         }
     }

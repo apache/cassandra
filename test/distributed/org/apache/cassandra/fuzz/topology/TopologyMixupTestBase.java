@@ -557,7 +557,7 @@ public abstract class TopologyMixupTestBase<S extends TopologyMixupTestBase.Sche
                                  .withNodeProvisionStrategy((subnet, portMap) -> new INodeProvisionStrategy.AbstractNodeProvisionStrategy(portMap)
                                  {
                                      {
-                                         Invariants.checkArgument(subnet == 0, "Unexpected subnet detected: %d", subnet);
+                                         Invariants.requireArgument(subnet == 0, "Unexpected subnet detected: %d", subnet);
                                      }
 
                                      private final String ipPrefix = "127.0." + subnet + '.';
@@ -982,7 +982,7 @@ public abstract class TopologyMixupTestBase<S extends TopologyMixupTestBase.Sche
         {
             String address = addressAndPort.getAddress().getHostAddress();
             String[] parts = address.split("\\.");
-            Invariants.checkState(parts.length == 4, "Unable to parse address %s", address);
+            Invariants.require(parts.length == 4, "Unable to parse address %s", address);
             return Integer.parseInt(parts[3]);
         }
     }

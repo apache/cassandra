@@ -160,7 +160,7 @@ public interface Conditional extends Expression
 
         public In(ReferenceExpression ref, List<? extends Expression> expressions)
         {
-            Invariants.checkArgument(!expressions.isEmpty());
+            Invariants.requireArgument(!expressions.isEmpty());
             this.ref = ref;
             this.expressions = expressions;
         }

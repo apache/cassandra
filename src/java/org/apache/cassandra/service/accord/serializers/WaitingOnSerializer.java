@@ -41,7 +41,7 @@ public class WaitingOnSerializer
 {
     public static void serializeBitSetsOnly(TxnId txnId, WaitingOn waitingOn, DataOutputPlus out) throws IOException
     {
-        Invariants.checkState(txnId.is(Key) == (waitingOn.appliedOrInvalidated == null));
+        Invariants.require(txnId.is(Key) == (waitingOn.appliedOrInvalidated == null));
         int keyCount = waitingOn.keys.size();
         int txnIdCount = waitingOn.txnIdCount();
         int waitingOnLength = (txnIdCount + keyCount + 63) / 64;
@@ -78,8 +78,8 @@ public class WaitingOnSerializer
             RangeDeps directRangeDeps = deps.rangeDeps;
             KeyDeps directKeyDeps = deps.directKeyDeps;
             int txnIdCount = directRangeDeps.txnIdCount() + directKeyDeps.txnIdCount();
-            Invariants.checkState(waitingOn.size()/64 == (txnIdCount + keys.size() + 63) / 64);
-            Invariants.checkState(appliedOrInvalidated == null || (appliedOrInvalidated.size()/64 == (txnIdCount + 63)/64));
+            Invariants.require(waitingOn.size()/64 == (txnIdCount + keys.size() + 63) / 64);
+            Invariants.require(appliedOrInvalidated == null || (appliedOrInvalidated.size()/64 == (txnIdCount + 63)/64));
 
             WaitingOn result = new WaitingOn(keys, directRangeDeps, directKeyDeps, waitingOn, appliedOrInvalidated);
             if (executeAtLeast != null) return new Command.WaitingOnWithExecuteAt(result, executeAtLeast);
@@ -102,7 +102,7 @@ public class WaitingOnSerializer
     private static void serialize(int length, SimpleBitSet write, DataOutputPlus out) throws IOException
     {
         long[] bits = SimpleBitSet.SerializationSupport.getArray(write);
-        Invariants.checkState(length == bits.length);
+        Invariants.require(length == bits.length);
         for (int i = 0; i < length; i++)
             out.writeLong(bits[i]);
     }
@@ -118,7 +118,7 @@ public class WaitingOnSerializer
     public static long serializedSize(int length, SimpleBitSet write)
     {
         long[] bits = SimpleBitSet.SerializationSupport.getArray(write);
-        Invariants.checkState(length == bits.length, "Expected length %d != %d", length, bits.length);
+        Invariants.require(length == bits.length, "Expected length %d != %d", length, bits.length);
         return (long) TypeSizes.LONG_SIZE * length;
     }
 }

@@ -191,7 +191,7 @@ public class QuiescentChecker implements Model
 
     public static boolean vdsEqual(long[] expected, long[] actual)
     {
-        Invariants.checkState(expected.length == actual.length);
+        Invariants.require(expected.length == actual.length);
         for (int i = 0; i < actual.length; i++)
         {
             long expectedD = expected[i];

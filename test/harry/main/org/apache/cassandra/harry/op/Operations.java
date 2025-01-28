@@ -471,7 +471,7 @@ public class Operations
             }
             else
             {
-                Invariants.checkState(schema.allColumnInSelectOrder.size() == bitSet.size());
+                Invariants.require(schema.allColumnInSelectOrder.size() == bitSet.size());
                 Map<ColumnSpec<?>, Integer> columns = new HashMap<>();
                 for (int i = 0; i < schema.allColumnInSelectOrder.size(); i++)
                 {

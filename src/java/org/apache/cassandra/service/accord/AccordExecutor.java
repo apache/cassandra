@@ -178,7 +178,7 @@ public abstract class AccordExecutor implements CacheSize, AccordCacheEntry.OnLo
 
     public AccordCache cacheExclusive()
     {
-        Invariants.checkState(isOwningThread());
+        Invariants.require(isOwningThread());
         return cache;
     }
 
@@ -270,7 +270,7 @@ public abstract class AccordExecutor implements CacheSize, AccordCacheEntry.OnLo
                             continue outer;
                         }
 
-                        Invariants.checkState(load != null);
+                        Invariants.require(load != null);
                         AccordCacheEntry.OnLoaded onLoaded = this;
                         ++activeLoads;
                         if (isForRange)
@@ -286,15 +286,15 @@ public abstract class AccordExecutor implements CacheSize, AccordCacheEntry.OnLo
                                 updateQueue(task);
                         }
                         Object prev = next.pollWaitingToLoad();
-                        Invariants.checkState(prev == load);
+                        Invariants.require(prev == load);
                         if (next.peekWaitingToLoad() == null)
                             break;
 
-                        Invariants.checkState(next.state() == WAITING_TO_LOAD, "Invalid state: %s", next);
+                        Invariants.require(next.state() == WAITING_TO_LOAD, "Invalid state: %s", next);
                         if (activeLoads >= maxQueuedLoads)
                             return;
                     }
-                    Invariants.checkState(next.state().compareTo(LOADING) >= 0, "Invalid state: %s", next);
+                    Invariants.require(next.state().compareTo(LOADING) >= 0, "Invalid state: %s", next);
                     updateQueue(next);
             }
         }
@@ -377,7 +377,7 @@ public abstract class AccordExecutor implements CacheSize, AccordCacheEntry.OnLo
 
     private Cancellable submitIOExclusive(Task parent, Runnable run)
     {
-        Invariants.checkState(isOwningThread());
+        Invariants.require(isOwningThread());
         ++tasks;
         PlainRunnable task = new PlainRunnable(null, run, null);
         // TODO (expected): adopt queue position of the submitting task
@@ -409,7 +409,7 @@ public abstract class AccordExecutor implements CacheSize, AccordCacheEntry.OnLo
 
     public <R> void cancel(AccordTask<R> task)
     {
-        Invariants.checkState(task.commandStore.executor() == this,
+        Invariants.require(task.commandStore.executor() == this,
                               "%s is a wrong command store for %s, should be %s",
                               this, task, task);
         submit(AccordExecutor::cancelExclusive, CancelAsync::new, task);
@@ -575,7 +575,7 @@ public abstract class AccordExecutor implements CacheSize, AccordCacheEntry.OnLo
                     {
                         if (task.onLoad(loaded))
                         {
-                            Invariants.checkState(task.queued() == loading);
+                            Invariants.require(task.queued() == loading);
                             task.unqueue();
                             waitingToRun(task);
                         }
@@ -627,14 +627,14 @@ public abstract class AccordExecutor implements CacheSize, AccordCacheEntry.OnLo
     @Override
     public void setCapacity(long bytes)
     {
-        Invariants.checkState(isOwningThread());
+        Invariants.require(isOwningThread());
         cache.setCapacity(bytes);
         maxWorkingCapacityInBytes = cache.capacity() + maxWorkingSetSizeInBytes;
     }
 
     public void setWorkingSetSize(long bytes)
     {
-        Invariants.checkState(isOwningThread());
+        Invariants.require(isOwningThread());
         maxWorkingSetSizeInBytes = bytes;
         maxWorkingCapacityInBytes = cache.capacity() + maxWorkingSetSizeInBytes;
         if (maxWorkingCapacityInBytes < maxWorkingSetSizeInBytes)
@@ -643,7 +643,7 @@ public abstract class AccordExecutor implements CacheSize, AccordCacheEntry.OnLo
 
     public void setMaxQueuedLoads(int total, int range)
     {
-        Invariants.checkState(isOwningThread());
+        Invariants.require(isOwningThread());
         maxQueuedLoads = total;
         maxQueuedRangeLoads = range;
     }
@@ -729,7 +729,7 @@ public abstract class AccordExecutor implements CacheSize, AccordCacheEntry.OnLo
         @Override
         protected void preRunExclusive()
         {
-            Invariants.checkState(task != null);
+            Invariants.require(task != null);
             Thread self = Thread.currentThread();
             commandStore.setOwner(self, self);
             task.preRunExclusive();
@@ -795,7 +795,7 @@ public abstract class AccordExecutor implements CacheSize, AccordCacheEntry.OnLo
         @Override
         public void append(Task task)
         {
-            Invariants.checkState(!next.isSet());
+            Invariants.require(!next.isSet());
             // TODO (expected): if the new task is higher priority, replace next
             next.setNext(task);
             waitingToRun.append(next);
@@ -866,9 +866,9 @@ public abstract class AccordExecutor implements CacheSize, AccordCacheEntry.OnLo
 
         public void remove(T remove)
         {
-            Invariants.checkState(super.contains(remove));
+            Invariants.require(super.contains(remove));
             super.remove(remove);
-            Invariants.checkState(!super.contains(remove));
+            Invariants.require(!super.contains(remove));
         }
 
         public boolean contains(T contains)
@@ -1074,7 +1074,7 @@ public abstract class AccordExecutor implements CacheSize, AccordCacheEntry.OnLo
         @Override
         protected void addToQueue(TaskQueue queue)
         {
-            Invariants.checkState(queue.kind == WAITING_TO_RUN);
+            Invariants.require(queue.kind == WAITING_TO_RUN);
             queue.append(this);
         }
 
