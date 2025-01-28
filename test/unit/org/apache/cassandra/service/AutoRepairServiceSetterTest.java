@@ -44,7 +44,7 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static org.apache.cassandra.Util.setAutoRepairEnabled;
-import static org.junit.Assert.assertEquals;
+import static org.assertj.core.api.Assertions.assertThat;
 
 @RunWith(Parameterized.class)
 public class AutoRepairServiceSetterTest<T> extends CQLTester {
@@ -122,10 +122,19 @@ public class AutoRepairServiceSetterTest<T> extends CQLTester {
     }
 
     @Test
-    public void testSettersTest() {
+    public void testSettersTest()
+    {
         DatabaseDescriptor.setMaterializedViewsOnRepairEnabled(false);
         DatabaseDescriptor.setCDCOnRepairEnabled(false);
         setter.accept(repairTypeStr.name(), arg);
-        assertEquals(arg, getter.apply(repairTypeStr));
+        T actualConfig = getter.apply(repairTypeStr);
+        if (actualConfig instanceof Set)
+            // When performing a setRepairPriorityForHosts or setForceRepairForHosts, a comma-separated list of
+            // ip addresses is provided as input. The configuration is expected to return a Set of Strings that
+            // represent the configured IP addresses. This especial handling allows verification of this special
+            // case where one of the entries in the Set must match the configured input.
+            assertThat(actualConfig).satisfiesAnyOf(entry -> assertThat(entry.toString()).contains(arg.toString()));
+        else
+            assertThat(actualConfig).isEqualTo(arg);
     }
 }

@@ -61,7 +61,7 @@ public interface AutoRepairServiceMBean
 
     public boolean isAutoRepairDisabled();
 
-    public String autoRepairConfiguration();
+    public String getAutoRepairConfiguration();
 
     public void setRepairSessionTimeout(String repairType, String timeout);
 

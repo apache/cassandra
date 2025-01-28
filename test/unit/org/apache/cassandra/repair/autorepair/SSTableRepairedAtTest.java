@@ -104,11 +104,12 @@ public class SSTableRepairedAtTest extends CQLTester
     {
         try
         {
-            StorageService.instance.mutateSSTableRepairedState(true, false, TEST_KEYSPACE, Arrays.asList("MISSING_TABLE"));
+            StorageService.instance.mutateSSTableRepairedState(true, false, TEST_KEYSPACE, List.of("MISSING_TABLE"));
             fail("Expected an InvalidRequestException to be thrown");
         }
-        catch (InvalidRequestException e)
+        catch (RuntimeException e)
         {
+            assertEquals("Table MISSING_TABLE does not exist in keyspace " + TEST_KEYSPACE, e.getMessage());
             // Test passed
         }
     }
