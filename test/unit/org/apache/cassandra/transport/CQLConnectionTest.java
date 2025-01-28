@@ -524,7 +524,7 @@ public class CQLConnectionTest
         return Envelope.create(type,
                                streamId,
                                ProtocolVersion.V5,
-                               EnumSet.of(Envelope.Header.Flag.USE_BETA),
+                               Envelope.Header.Flag.add(Envelope.Header.Flag.none(), Envelope.Header.Flag.USE_BETA),
                                Unpooled.wrappedBuffer(bytes));
     }
 

@@ -20,7 +20,6 @@ package org.apache.cassandra.transport;
 import java.lang.reflect.Field;
 import java.lang.reflect.Modifier;
 import java.nio.ByteBuffer;
-import java.util.EnumSet;
 import java.util.List;
 import java.util.Map;
 
@@ -35,6 +34,7 @@ import org.slf4j.LoggerFactory;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.transport.messages.*;
+import org.apache.cassandra.transport.Envelope.Header.Flag;
 import org.apache.cassandra.service.QueryState;
 import org.apache.cassandra.utils.MonotonicClock;
 import org.apache.cassandra.utils.ReflectionUtils;
@@ -328,7 +328,7 @@ public abstract class Message
 
     public Envelope encode(ProtocolVersion version)
     {
-        EnumSet<Envelope.Header.Flag> flags = EnumSet.noneOf(Envelope.Header.Flag.class);
+        int flags = Flag.none();
         @SuppressWarnings("unchecked")
         Codec<Message> codec = (Codec<Message>)this.type.codec;
         try
@@ -366,24 +366,24 @@ public abstract class Message
                 if (tracingId != null)
                 {
                     CBUtil.writeUUID(tracingId, body);
-                    flags.add(Envelope.Header.Flag.TRACING);
+                    flags = Flag.add(flags, Flag.TRACING);
                 }
                 if (warnings != null)
                 {
                     CBUtil.writeStringList(warnings, body);
-                    flags.add(Envelope.Header.Flag.WARNING);
+                    flags = Flag.add(flags, Flag.WARNING);
                 }
                 if (customPayload != null)
                 {
                     CBUtil.writeBytesMap(customPayload, body);
-                    flags.add(Envelope.Header.Flag.CUSTOM_PAYLOAD);
+                    flags = Flag.add(flags, Flag.CUSTOM_PAYLOAD);
                 }
             }
             else
             {
                 assert this instanceof Request;
                 if (((Request)this).isTracingRequested())
-                    flags.add(Envelope.Header.Flag.TRACING);
+                    flags = Flag.add(flags, Flag.TRACING);
                 Map<String, ByteBuffer> payload = getCustomPayload();
                 if (payload != null)
                     messageSize += CBUtil.sizeOfBytesMap(payload);
@@ -391,7 +391,7 @@ public abstract class Message
                 if (payload != null)
                 {
                     CBUtil.writeBytesMap(payload, body);
-                    flags.add(Envelope.Header.Flag.CUSTOM_PAYLOAD);
+                    flags = Flag.add(flags, Flag.CUSTOM_PAYLOAD);
                 }
             }
 
@@ -412,7 +412,7 @@ public abstract class Message
                                               : forcedProtocolVersion;
 
             if (responseVersion.isBeta())
-                flags.add(Envelope.Header.Flag.USE_BETA);
+                flags = Flag.add(flags, Flag.USE_BETA);
 
             return Envelope.create(type, getStreamId(), responseVersion, flags, body);
         }
@@ -427,9 +427,9 @@ public abstract class Message
         static Message decodeMessage(Channel channel, Envelope inbound)
         {
             boolean isRequest = inbound.header.type.direction == Direction.REQUEST;
-            boolean isTracing = inbound.header.flags.contains(Envelope.Header.Flag.TRACING);
-            boolean isCustomPayload = inbound.header.flags.contains(Envelope.Header.Flag.CUSTOM_PAYLOAD);
-            boolean hasWarning = inbound.header.flags.contains(Envelope.Header.Flag.WARNING);
+            boolean isTracing = inbound.header.hasFlag(Flag.TRACING);
+            boolean isCustomPayload = inbound.header.hasFlag(Flag.CUSTOM_PAYLOAD);
+            boolean hasWarning = inbound.header.hasFlag(Flag.WARNING);
 
             TimeUUID tracingId = isRequest || !isTracing ? null : CBUtil.readTimeUUID(inbound.body);
             List<String> warnings = isRequest || !hasWarning ? null : CBUtil.readStringList(inbound.body);

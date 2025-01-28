@@ -23,7 +23,6 @@ import java.util.*;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.function.Consumer;
 
 import com.google.common.annotations.VisibleForTesting;
 import org.slf4j.Logger;
@@ -49,6 +48,9 @@ abstract class Flusher implements Runnable
         Math.min(BufferPool.NORMAL_CHUNK_SIZE,
                  FrameEncoder.Payload.MAX_SIZE - Math.max(FrameEncoderCrc.HEADER_AND_TRAILER_LENGTH, FrameEncoderLZ4.HEADER_AND_TRAILER_LENGTH));
 
+    interface OnFlushCleanup<T> {
+        void cleanup(FlushItem<T> item);
+    }
     static class FlushItem<T>
     {
         enum Kind {FRAMED, UNFRAMED}
@@ -57,9 +59,9 @@ abstract class Flusher implements Runnable
         final Channel channel;
         final T response;
         final Envelope request;
-        final Consumer<FlushItem<T>> tidy;
+        final OnFlushCleanup<T> tidy;
 
-        FlushItem(Kind kind, Channel channel, T response, Envelope request, Consumer<FlushItem<T>> tidy)
+        FlushItem(Kind kind, Channel channel, T response, Envelope request, OnFlushCleanup<T> tidy)
         {
             this.kind = kind;
             this.channel = channel;
@@ -70,7 +72,7 @@ abstract class Flusher implements Runnable
 
         void release()
         {
-            tidy.accept(this);
+            tidy.cleanup(this);
         }
 
         static class Framed extends FlushItem<Envelope>
@@ -80,7 +82,7 @@ abstract class Flusher implements Runnable
                    Envelope response,
                    Envelope request,
                    FrameEncoder.PayloadAllocator allocator,
-                   Consumer<FlushItem<Envelope>> tidy)
+                   OnFlushCleanup<Envelope> tidy)
             {
                 super(Kind.FRAMED, channel, response, request, tidy);
                 this.allocator = allocator;
@@ -89,7 +91,7 @@ abstract class Flusher implements Runnable
 
         static class Unframed extends FlushItem<Response>
         {
-            Unframed(Channel channel, Response response, Envelope request, Consumer<FlushItem<Response>> tidy)
+            Unframed(Channel channel, Response response, Envelope request, OnFlushCleanup<Response> tidy)
             {
                 super(Kind.UNFRAMED, channel, response, request, tidy);
             }
