@@ -157,7 +157,7 @@ public class StatefulASTBase extends TestBaseImpl
     {
         Cluster cluster = Cluster.build(nodeCount)
                                              .withConfig(c -> {
-                                                 c.with(Feature.NATIVE_PROTOCOL, Feature.GOSSIP)
+                                                 c.with(Feature.NATIVE_PROTOCOL, Feature.NETWORK, Feature.GOSSIP)
                                                   // When drop tables or truncate are performed, we attempt to take snapshots.  This can be costly and isn't needed by these tests
                                                   .set("incremental_backups", false);
                                                  config.accept(c);
