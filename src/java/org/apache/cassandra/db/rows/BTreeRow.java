@@ -58,6 +58,7 @@ import org.apache.cassandra.utils.ObjectSizes;
 import org.apache.cassandra.utils.btree.BTree;
 import org.apache.cassandra.utils.btree.BTreeSearchIterator;
 import org.apache.cassandra.utils.btree.UpdateFunction;
+import org.apache.cassandra.utils.caching.TinyThreadLocalPool;
 import org.apache.cassandra.utils.memory.Cloner;
 
 /**
@@ -560,6 +561,17 @@ public class BTreeRow extends AbstractRow
         return new Builder(false);
     }
 
+    private static final TinyThreadLocalPool<Builder> POOL = new TinyThreadLocalPool<>();
+
+    public static Row.Builder pooledUnsortedBuilder() {
+        TinyThreadLocalPool.TinyPool<Builder> pool = POOL.get();
+        Builder builder = pool.poll();
+        if (builder == null)
+            builder = new Builder(false);
+        builder.pool = pool;
+        return builder;
+    }
+
     // This is only used by PartitionUpdate.CounterMark but other uses should be avoided as much as possible as it breaks our general
     // assumption that Row objects are immutable. This method should go away post-#6506 in particular.
     // This method is in particular not exposed by the Row API on purpose.
@@ -818,6 +830,8 @@ public class BTreeRow extends AbstractRow
 
         // For complex column at index i of 'columns', we store at complexDeletions[i] its complex deletion.
 
+        private TinyThreadLocalPool.TinyPool<Builder> pool;
+
         protected Builder(boolean isSorted)
         {
             cells_ = null;
@@ -873,6 +887,11 @@ public class BTreeRow extends AbstractRow
             this.deletion = Deletion.LIVE;
             this.cells_.reuse();
             this.hasComplex = false;
+            if (pool != null)
+            {
+                pool.offer(this);
+                pool = null;
+            }
         }
 
         public void addPrimaryKeyLivenessInfo(LivenessInfo info)
