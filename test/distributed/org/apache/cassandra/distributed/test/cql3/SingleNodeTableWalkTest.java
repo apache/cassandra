@@ -459,7 +459,7 @@ public class SingleNodeTableWalkTest extends StatefulASTBase
                 logger.info(stmt);
                 cluster.schemaChange(stmt);
 
-                SAIUtil.assertIndexQueryable(cluster, metadata.keyspace, ddl.name.get().name());
+                SAIUtil.waitForIndexQueryable(cluster, metadata.keyspace, ddl.name.get().name());
 
                 indexed.put(symbol, new IndexedColumn(symbol, ddl));
             }
