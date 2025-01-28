@@ -85,6 +85,8 @@ public class SingleNodeTableWalkTest extends StatefulASTBase
     {
         // if a failing seed is detected, populate here
         // Example: builder.withSeed(42L);
+//        builder.withExamples(100); // use more examples to see how stable this is
+//        builder.withSeed(-4969287775097183740L); // see CASSANDRA-20258
     }
 
     protected TypeGenBuilder supportedTypes()
@@ -439,7 +441,7 @@ public class SingleNodeTableWalkTest extends StatefulASTBase
                 logger.info(stmt);
                 cluster.schemaChange(stmt);
 
-                SAIUtil.assertIndexQueryable(cluster, metadata.keyspace, ddl.name.get().name());
+                SAIUtil.waitForIndexQueryable(cluster, metadata.keyspace, ddl.name.get().name());
 
                 indexed.put(symbol, new IndexedColumn(symbol, ddl));
             }
