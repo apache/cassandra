@@ -973,6 +973,9 @@ public interface StorageServiceMBean extends NotificationEmitter
                                Long maxLogSize, Integer maxQueueWeight, String archiveCommand) throws IllegalStateException;
 
     public boolean isAuditLogEnabled();
+    public void disableSimpleQueryEventLogger();
+    public void enableSimpleQueryEventLogger(double querySuccessRate, double queryFailureRate, double batchSuccessRate, double batchFailureRate,
+                                             double executeSuccessRate, double executeFailureRate, double prepareSuccessRate, double prepareFailureRate) throws IllegalStateException;
     public String getCorruptedTombstoneStrategy();
     public void setCorruptedTombstoneStrategy(String strategy);
 
