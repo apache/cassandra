@@ -21,6 +21,7 @@ import java.nio.ByteBuffer;
 import java.util.*;
 
 import com.google.common.collect.HashMultiset;
+import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Iterables;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -161,9 +162,9 @@ public abstract class ModificationStatement implements CQLStatement.SingleKeyspa
     }
 
     @Override
-    public List<ColumnSpecification> getBindVariables()
+    public ImmutableList<ColumnSpecification> getBindVariables()
     {
-        return bindVariables.getBindVariables();
+        return bindVariables.getImmutableBindVariables();
     }
 
     @Override

@@ -106,9 +106,9 @@ public abstract class DescribeStatement<T> extends CQLStatement.Raw implements C
         return this;
     }
 
-    public final List<ColumnSpecification> getBindVariables()
+    public final ImmutableList<ColumnSpecification> getBindVariables()
     {
-        return Collections.emptyList();
+        return ImmutableList.of();
     }
 
     @Override

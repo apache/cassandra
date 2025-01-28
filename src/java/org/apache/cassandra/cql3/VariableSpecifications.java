@@ -21,6 +21,8 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 
+import com.google.common.collect.ImmutableList;
+
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.TableMetadata;
 
@@ -28,6 +30,7 @@ public class VariableSpecifications
 {
     private final List<ColumnIdentifier> variableNames;
     private final List<ColumnSpecification> specs;
+    private volatile ImmutableList<ColumnSpecification> immutableSpecs;
     private final ColumnMetadata[] targetColumns;
 
     public VariableSpecifications(List<ColumnIdentifier> variableNames)
@@ -54,6 +57,17 @@ public class VariableSpecifications
     public List<ColumnSpecification> getBindVariables()
     {
         return specs;
+    }
+
+    public ImmutableList<ColumnSpecification> getImmutableBindVariables()
+    {
+        ImmutableList<ColumnSpecification> result = immutableSpecs;
+        if (result == null) // strong syncrhronization is not needed, it is ok if sometimes we create several immutable lists
+        {
+            result = ImmutableList.copyOf(specs);
+            immutableSpecs = result;
+        }
+        return result;
     }
 
     /**
@@ -87,6 +101,7 @@ public class VariableSpecifications
 
     public void add(int bindIndex, ColumnSpecification spec)
     {
+        assert immutableSpecs == null : "bind variable specs cannot be modified once we started to use them";
         if (spec instanceof ColumnMetadata)
             targetColumns[bindIndex] = (ColumnMetadata) spec;
 
