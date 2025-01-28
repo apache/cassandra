@@ -181,6 +181,15 @@ public abstract class ColumnFilter
     }
 
     /**
+     * A filter for a PartitionUpdate entity
+     *  which we've just constructed and there no a real need to filter it
+     */
+    public static ColumnFilter all(RegularAndStaticColumns columns)
+    {
+        return new WildCardColumnFilter(columns);
+    }
+
+    /**
      * A filter that only fetches/queries the provided columns.
      * <p>
      * Note that this shouldn't be used for CQL queries in general as all columns should be queried to

@@ -223,6 +223,18 @@ public class PartitionUpdate extends AbstractBTreePartition
         return new PartitionUpdate(iterator.metadata(), iterator.metadata().epoch, iterator.partitionKey(), holder, deletionInfo, false);
     }
 
+    /**
+     * An override of default AbstractBTreePartition iterator
+     * It is added as a performance optimization to avoid full-functional filtering
+     * using org.apache.cassandra.db.Columns.inOrderInclusionTester() predicate
+     * when we iterate over row within a PartitionUpdate
+     */
+    @Override
+    public UnfilteredRowIterator unfilteredIterator()
+    {
+        return unfilteredIterator(ColumnFilter.SelectionColumnFilter.all(columns()), Slices.ALL, false);
+    }
+
 
     public PartitionUpdate withOnlyPresentColumns()
     {
