@@ -47,7 +47,6 @@ import org.apache.cassandra.dht.OrderPreservingPartitioner.StringToken;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.exceptions.ConfigurationException;
-import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.gms.ApplicationState;
 import org.apache.cassandra.gms.Gossiper;
@@ -721,8 +720,9 @@ public class StorageServiceServerTest
             StorageService.instance.mutateSSTableRepairedState(true, false, keyspace, Arrays.asList("MISSING_TABLE"));
             fail("Expected an InvalidRequestException to be thrown");
         }
-        catch (InvalidRequestException e)
+        catch (RuntimeException e)
         {
+            assertEquals("Table MISSING_TABLE does not exist in keyspace " + keyspace, e.getMessage());
             // Test passed
         }
     }

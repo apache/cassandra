@@ -243,6 +243,7 @@ import static org.apache.cassandra.index.SecondaryIndexManager.getIndexName;
 import static org.apache.cassandra.index.SecondaryIndexManager.isIndexColumnFamily;
 import static org.apache.cassandra.net.NoPayload.noPayload;
 import static org.apache.cassandra.net.Verb.REPLICATION_DONE_REQ;
+import static org.apache.cassandra.locator.InetAddressAndPort.stringify;
 import static org.apache.cassandra.service.ActiveRepairService.ParentRepairStatus;
 import static org.apache.cassandra.service.ActiveRepairService.repairCommandExecutor;
 import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
@@ -3906,16 +3907,6 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         return FileUtils.getCanonicalPath(DatabaseDescriptor.getSavedCachesLocation());
     }
 
-    private List<String> stringify(Iterable<InetAddressAndPort> endpoints, boolean withPort)
-    {
-        List<String> stringEndpoints = new ArrayList<>();
-        for (InetAddressAndPort ep : endpoints)
-        {
-            stringEndpoints.add(ep.getHostAddress(withPort));
-        }
-        return stringEndpoints;
-    }
-
     public int getCurrentGenerationNumber()
     {
         return Gossiper.instance.getCurrentGenerationNumber(FBUtilities.getBroadcastAddressAndPort());
@@ -7072,19 +7063,21 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         DatabaseDescriptor.setEnforceNativeDeadlineForHints(value);
     }
 
+    @Override
     public List<String> getTablesForKeyspace(String keyspace)
     {
         return Keyspace.open(keyspace).getColumnFamilyStores().stream().map(cfs -> cfs.name).collect(Collectors.toList());
     }
 
-    public List<String> mutateSSTableRepairedState(boolean repaired, boolean preview, String keyspace, List<String> tableNames) throws InvalidRequestException
+    @Override
+    public List<String> mutateSSTableRepairedState(boolean repaired, boolean preview, String keyspace, List<String> tableNames)
     {
         Map<String, ColumnFamilyStore> tables =  Keyspace.open(keyspace).getColumnFamilyStores()
                                                          .stream().collect(Collectors.toMap(c -> c.name, c -> c));
         for (String tableName : tableNames)
         {
             if (!tables.containsKey(tableName))
-                throw new InvalidRequestException("Table " + tableName + " does not exist in keyspace " + keyspace);
+                throw new RuntimeException("Table " + tableName + " does not exist in keyspace " + keyspace);
         }
 
         // only select SSTables that are unrepaired when repaired is true and vice versa
