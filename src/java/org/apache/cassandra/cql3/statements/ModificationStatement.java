@@ -758,10 +758,18 @@ public abstract class ModificationStatement implements CQLStatement.SingleKeyspa
                                                    Dispatcher.RequestTime requestTime)
     {
         List<ByteBuffer> keys = buildPartitionKeyNames(options, state);
-        HashMultiset<ByteBuffer> perPartitionKeyCounts = HashMultiset.create(keys);
-        SingleTableUpdatesCollector collector = new SingleTableUpdatesCollector(metadata, updatedColumns, perPartitionKeyCounts);
-        addUpdates(collector, keys, state, options, local, timestamp, nowInSeconds, requestTime);
-        return collector.toMutations(state);
+        if(keys.size() == 1)
+        {
+            SingleTableSinglePartitionUpdatesCollector collector = new SingleTableSinglePartitionUpdatesCollector(metadata, updatedColumns);
+            addUpdates(collector, keys, state, options, local, timestamp, nowInSeconds, requestTime);
+            return collector.toMutations(state);
+        } else
+        {
+            HashMultiset<ByteBuffer> perPartitionKeyCounts = HashMultiset.create(keys);
+            SingleTableUpdatesCollector collector = new SingleTableUpdatesCollector(metadata, updatedColumns, perPartitionKeyCounts);
+            addUpdates(collector, keys, state, options, local, timestamp, nowInSeconds, requestTime);
+            return collector.toMutations(state);
+        }
     }
 
     final void addUpdates(UpdatesCollector collector,
@@ -797,8 +805,12 @@ public abstract class ModificationStatement implements CQLStatement.SingleKeyspa
 
                 PartitionUpdate.Builder updateBuilder = collector.getPartitionUpdateBuilder(metadata(), dk, options.getConsistency());
 
-                for (Slice slice : slices)
-                    addUpdateForKey(updateBuilder, slice, params);
+                if (slices == Slices.ALL) // to avoid Slices iterator allocation for a common case
+                    addUpdateForKey(updateBuilder, Slice.ALL, params);
+                else
+                    for (Slice slice : slices)
+                        addUpdateForKey(updateBuilder, slice, params);
+
             }
         }
         else

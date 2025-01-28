@@ -17,14 +17,8 @@
  */
 package org.apache.cassandra.cql3.statements;
 
-import java.nio.ByteBuffer;
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
-import java.util.Map;
-
-import com.google.common.collect.HashMultiset;
-import com.google.common.collect.Maps;
 
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.db.CounterMutation;
@@ -42,7 +36,7 @@ import org.apache.cassandra.service.ClientState;
 /**
  * Utility class to collect updates.
  */
-final class SingleTableUpdatesCollector implements UpdatesCollector
+final class SingleTableSinglePartitionUpdatesCollector implements UpdatesCollector
 {
     /**
      * the table to be updated
@@ -53,63 +47,44 @@ final class SingleTableUpdatesCollector implements UpdatesCollector
      * the columns to update
      */
     private final RegularAndStaticColumns updatedColumns;
-
-    /**
-     * The number of updated rows per key.
-     */
-    private final HashMultiset<ByteBuffer> perPartitionKeyCounts;
-
     /**
      * the partition update builders per key
      */
-    private final Map<ByteBuffer, PartitionUpdate.Builder> puBuilders;
+    private PartitionUpdate.Builder builder;
 
     /**
      * if it is a counter table, we will set this
      */
     private ConsistencyLevel counterConsistencyLevel = null;
 
-    SingleTableUpdatesCollector(TableMetadata metadata, RegularAndStaticColumns updatedColumns, HashMultiset<ByteBuffer> perPartitionKeyCounts)
+    SingleTableSinglePartitionUpdatesCollector(TableMetadata metadata, RegularAndStaticColumns updatedColumns)
     {
         this.metadata = metadata;
         this.updatedColumns = updatedColumns;
-        this.perPartitionKeyCounts = perPartitionKeyCounts;
-        this.puBuilders = Maps.newHashMapWithExpectedSize(perPartitionKeyCounts.size());
     }
 
     public PartitionUpdate.Builder getPartitionUpdateBuilder(TableMetadata metadata, DecoratedKey dk, ConsistencyLevel consistency)
     {
         if (metadata.isCounter())
             counterConsistencyLevel = consistency;
-        PartitionUpdate.Builder builder = puBuilders.get(dk.getKey());
         if (builder == null)
         {
-            builder = new PartitionUpdate.Builder(metadata, dk, updatedColumns, perPartitionKeyCounts.count(dk.getKey()));
-            puBuilders.put(dk.getKey(), builder);
+            builder = new PartitionUpdate.Builder(metadata, dk, updatedColumns, 1);
         }
         return builder;
     }
 
     /**
      * Returns a collection containing all the mutations.
-     * @return a collection containing all the mutations.
      */
     @Override
     public List<IMutation> toMutations(ClientState state)
     {
-        if (puBuilders.size() == 1)
-        {
-            PartitionUpdate.Builder builder = puBuilders.values().iterator().next();
-            return Collections.singletonList(createMutation(state, builder));
-        }
-        List<IMutation> ms = new ArrayList<>(puBuilders.size());
-        for (PartitionUpdate.Builder builder : puBuilders.values())
-        {
-            IMutation mutation = createMutation(state, builder);
-            ms.add(mutation);
-        }
-
-        return ms;
+        // it is possible that a modification statement does not create any mutations
+        // for example: DELETE FROM some_table WHERE part_key = 1 AND clust_key < 3 AND clust_key > 5
+        if (builder == null)
+            return Collections.emptyList();
+        return Collections.singletonList(createMutation(state, builder));
     }
 
     private IMutation createMutation(ClientState state, PartitionUpdate.Builder builder)
