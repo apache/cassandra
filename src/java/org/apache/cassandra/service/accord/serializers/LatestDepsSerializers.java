@@ -44,6 +44,9 @@ public class LatestDepsSerializers
         public void serialize(LatestDeps t, DataOutputPlus out, int version) throws IOException
         {
             out.writeUnsignedVInt32(t.size());
+            if (t.size() == 0)
+                return;
+
             for (int i = 0 ; i < t.size() ; ++i)
             {
                 RoutingKey start = t.startAt(i);
@@ -68,6 +71,9 @@ public class LatestDepsSerializers
         public LatestDeps deserialize(DataInputPlus in, int version) throws IOException
         {
             int size = in.readUnsignedVInt32();
+            if (size == 0)
+                return LatestDeps.EMPTY;
+
             RoutingKey[] starts = new RoutingKey[size + 1];
             LatestDeps.LatestEntry[] values = new LatestDeps.LatestEntry[size];
             for (int i = 0 ; i < size ; ++i)
@@ -92,6 +98,8 @@ public class LatestDepsSerializers
         {
             long size = 0;
             size += TypeSizes.sizeofUnsignedVInt(t.size());
+            if (t.size() == 0)
+                return size;
             for (int i = 0 ; i < t.size() ; ++i)
             {
                 RoutingKey start = t.startAt(i);
