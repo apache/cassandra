@@ -301,6 +301,8 @@ public abstract class ReplicaLayout<E extends Endpoints<E>>
      */
     static <E extends Endpoints<E>> boolean haveWriteConflicts(E natural, E pending)
     {
+        if (pending.isEmpty())
+            return false;
         Set<InetAddressAndPort> naturalEndpoints = natural.endpoints();
         for (InetAddressAndPort pendingEndpoint : pending.endpoints())
         {

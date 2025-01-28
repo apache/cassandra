@@ -102,6 +102,8 @@ public abstract class ModificationStatement implements CQLStatement.SingleKeyspa
 
     private final RegularAndStaticColumns requiresRead;
 
+    private final List<Function> functions;
+
     public ModificationStatement(StatementType type,
                                  VariableSpecifications bindVariables,
                                  TableMetadata metadata,
@@ -155,6 +157,7 @@ public abstract class ModificationStatement implements CQLStatement.SingleKeyspa
         this.updatedColumns = modifiedColumns;
         this.conditionColumns = conditionColumnsBuilder.build();
         this.requiresRead = requiresReadBuilder.build();
+        this.functions = findAllFunctions();
     }
 
     @Override
@@ -172,8 +175,18 @@ public abstract class ModificationStatement implements CQLStatement.SingleKeyspa
     @Override
     public Iterable<Function> getFunctions()
     {
+        return functions;
+    }
+
+    private List<Function> findAllFunctions()
+    {
         List<Function> functions = new ArrayList<>();
         addFunctionsTo(functions);
+        if (functions.isEmpty())
+        {
+            functions = Collections.emptyList(); // to avoid a new Iterator object creation during each authorization
+        }
+
         return functions;
     }
 
@@ -494,8 +507,9 @@ public abstract class ModificationStatement implements CQLStatement.SingleKeyspa
         if (options.getConsistency() == null)
             throw new InvalidRequestException("Invalid empty consistency level");
 
-        Guardrails.writeConsistencyLevels.guard(EnumSet.of(options.getConsistency(), options.getSerialConsistency()),
-                                                queryState.getClientState());
+        if (Guardrails.writeConsistencyLevels.enabled(queryState.getClientState())) // to avoid EnumSet allocation
+            Guardrails.writeConsistencyLevels.guard(EnumSet.of(options.getConsistency(), options.getSerialConsistency()),
+                                                    queryState.getClientState());
 
         return hasConditions()
              ? executeWithCondition(queryState, options, requestTime)

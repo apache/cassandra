@@ -238,6 +238,8 @@ public class View
     public static Iterable<ViewMetadata> findAll(String keyspace, String baseTable)
     {
         KeyspaceMetadata ksm = Schema.instance.getKeyspaceMetadata(keyspace);
+        if (ksm.views.isEmpty()) // memory optimization, to avoid a capturing lambda allocation
+            return Collections.emptyList();
         return Iterables.filter(ksm.views, view -> view.baseTableName.equals(baseTable));
     }
 

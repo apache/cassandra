@@ -419,8 +419,10 @@ public class BatchStatement implements CQLStatement
             throw new InvalidRequestException("Invalid empty serial consistency level");
 
         ClientState clientState = queryState.getClientState();
-        Guardrails.writeConsistencyLevels.guard(EnumSet.of(options.getConsistency(), options.getSerialConsistency()),
-                                                clientState);
+        if (Guardrails.writeConsistencyLevels.enabled(clientState)) // to avoid EnumSet allocation
+            Guardrails.writeConsistencyLevels.guard(EnumSet.of(options.getConsistency(),
+                                                               options.getSerialConsistency()),
+                                                    clientState);
 
         for (int i = 0; i < statements.size(); i++ )
             statements.get(i).validateDiskUsage(options.forStatement(i), clientState);

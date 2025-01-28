@@ -47,12 +47,14 @@ public class Attributes
      */
     public static final int MAX_TTL = 20 * 365 * 24 * 60 * 60; // 20 years in seconds
 
+    private static final Attributes NONE = new Attributes(null, null);
+
     private final Term timestamp;
     private final Term timeToLive;
 
     public static Attributes none()
     {
-        return new Attributes(null, null);
+        return NONE;
     }
 
     private Attributes(Term timestamp, Term timeToLive)

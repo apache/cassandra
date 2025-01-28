@@ -259,7 +259,8 @@ public abstract class SortedTableWriter<P extends SortedTablePartitionWriter, I 
 
     protected void onStartPartition(DecoratedKey key)
     {
-        notifyObservers(o -> o.startPartition(key, partitionWriter.getInitialPosition(), partitionWriter.getInitialPosition()));
+        if (hasObservers())
+            notifyObservers(o -> o.startPartition(key, partitionWriter.getInitialPosition(), partitionWriter.getInitialPosition()));
     }
 
     protected void onStaticRow(Row row)
@@ -269,20 +270,27 @@ public abstract class SortedTableWriter<P extends SortedTablePartitionWriter, I 
 
     protected void onRow(Row row)
     {
-        notifyObservers(o -> o.nextUnfilteredCluster(row));
+        if (hasObservers())
+            notifyObservers(o -> o.nextUnfilteredCluster(row));
     }
 
     protected void onRangeTombstoneMarker(RangeTombstoneMarker marker)
     {
-        notifyObservers(o -> o.nextUnfilteredCluster(marker));
+        if (hasObservers())
+            notifyObservers(o -> o.nextUnfilteredCluster(marker));
     }
 
     protected abstract AbstractRowIndexEntry createRowIndexEntry(DecoratedKey key, DeletionTime partitionLevelDeletion, long finishResult) throws IOException;
 
     protected final void notifyObservers(Consumer<SSTableFlushObserver> action)
     {
-        if (observers != null && !observers.isEmpty())
+        if (hasObservers())
             observers.forEach(action);
+    }
+
+    private boolean hasObservers()
+    {
+        return observers != null && !observers.isEmpty();
     }
 
     @Override
