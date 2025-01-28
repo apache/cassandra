@@ -325,7 +325,7 @@ public abstract class FuzzTestBase extends CQLTester.InMemory
             TableId id = ids.get(i);
             TableMetadata tableMetadata = new CassandraGenerators.TableMetadataBuilder().withKeyspaceName(ks).withTableName(name).withTableId(id).withTableKinds(TableMetadata.Kind.REGULAR)
                                                                                         // shouldn't matter, just wanted to avoid UDT as that needs more setup
-                                                                                        .withDefaultTypeGen(AbstractTypeGenerators.builder().withTypeKinds(AbstractTypeGenerators.TypeKind.PRIMITIVE).withoutPrimitive(EmptyType.instance).build()).build().generate(qt);
+                                                                                        .withDefaultTypeGen(AbstractTypeGenerators.builder().withTypeKinds(AbstractTypeGenerators.TypeKind.PRIMITIVE).withoutPrimitive(EmptyType.instance)).build().generate(qt);
             tableBuilder.add(tableMetadata);
         }
         KeyspaceParams params = KeyspaceParams.simple(3);

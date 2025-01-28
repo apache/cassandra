@@ -26,8 +26,11 @@ import java.nio.charset.StandardCharsets;
 import java.sql.Timestamp;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
+import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.Date;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Random;
 import java.util.Set;
 import java.util.UUID;
@@ -39,6 +42,7 @@ import org.apache.commons.lang3.ArrayUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.cql3.ReservedKeywords;
 import org.quicktheories.core.Gen;
 import org.quicktheories.core.RandomnessSource;
 import org.quicktheories.generators.SourceDSL;
@@ -58,9 +62,12 @@ public final class Generators
 
     private static final Constraint DNS_DOMAIN_PARTS_CONSTRAINT = Constraint.between(1, 127);
 
+    private static final char CHAR_UNDERSCORE = 95;
+
     private static final char[] LETTER_DOMAIN = createLetterDomain();
     private static final Constraint LETTER_CONSTRAINT = Constraint.between(0, LETTER_DOMAIN.length - 1).withNoShrinkPoint();
     private static final char[] LETTER_OR_DIGIT_DOMAIN = createLetterOrDigitDomain();
+    private static final char[] LETTER_OR_DIGIT_DOMAIN_WITH_UNDERSCORE = createLetterOrDigitDomainWithUnderscore();
     private static final Constraint LETTER_OR_DIGIT_CONSTRAINT = Constraint.between(0, LETTER_OR_DIGIT_DOMAIN.length - 1).withNoShrinkPoint();
     private static final char[] REGEX_WORD_DOMAIN = createRegexWordDomain();
     private static final Constraint REGEX_WORD_CONSTRAINT = Constraint.between(0, REGEX_WORD_DOMAIN.length - 1).withNoShrinkPoint();
@@ -68,6 +75,12 @@ public final class Generators
     private static final Constraint DNS_DOMAIN_PART_CONSTRAINT = Constraint.between(0, DNS_DOMAIN_PART_DOMAIN.length - 1).withNoShrinkPoint();
 
     public static final Gen<String> IDENTIFIER_GEN = Generators.regexWord(SourceDSL.integers().between(1, 50));
+    public static final Gen<String> SYMBOL_GEN = Generators.filter(symbolGen(SourceDSL.integers().between(1, 48)), s -> !ReservedKeywords.isReserved(s));
+
+    public static Gen<String> symbolGen(Gen<Integer> size)
+    {
+        return string(size, LETTER_OR_DIGIT_DOMAIN_WITH_UNDERSCORE, (index, c) -> !(index == 0 && !Character.isLetter(c)));
+    }
 
     public static Gen<Character> letterOrDigit()
     {
@@ -259,7 +272,23 @@ public final class Generators
         return charArray(sizes, domain).map(c -> new String(c));
     }
 
+    public static Gen<String> string(Gen<Integer> sizes, char[] domain, IntCharBiPredicate fn)
+    {
+        // note, map is overloaded so String::new is ambugious to javac, so need a lambda here
+        return charArray(sizes, domain, fn).map(c -> new String(c));
+    }
+
+    public interface IntCharBiPredicate
+    {
+        boolean test(int a, char b);
+    }
+
     public static Gen<char[]> charArray(Gen<Integer> sizes, char[] domain)
+    {
+        return charArray(sizes, domain, (a, b) -> true);
+    }
+
+    public static Gen<char[]> charArray(Gen<Integer> sizes, char[] domain, IntCharBiPredicate fn)
     {
         Constraint constraints = Constraint.between(0, domain.length - 1).withNoShrinkPoint();
         Gen<char[]> gen = td -> {
@@ -267,8 +296,13 @@ public final class Generators
             char[] is = new char[size];
             for (int i = 0; i != size; i++)
             {
-                int idx = (int) td.next(constraints);
-                is[i] = domain[idx];
+                char c;
+                do
+                {
+                    int idx = (int) td.next(constraints);
+                    c = domain[idx];
+                } while (!fn.test(i, c));
+                is[i] = c;
             }
             return is;
         };
@@ -309,6 +343,14 @@ public final class Generators
         return domain;
     }
 
+    private static char[] createLetterOrDigitDomainWithUnderscore()
+    {
+        char[] domain = new char[LETTER_OR_DIGIT_DOMAIN.length + 1];
+        System.arraycopy(LETTER_OR_DIGIT_DOMAIN, 0, domain, 0, LETTER_OR_DIGIT_DOMAIN.length);
+        domain[domain.length - 1] = CHAR_UNDERSCORE;
+        return domain;
+    }
+
     private static char[] createRegexWordDomain()
     {
         // \w == [a-zA-Z_0-9] the only difference with letterOrDigit is the addition of _
@@ -324,6 +366,11 @@ public final class Generators
     public static Gen<ByteBuffer> bytes(int min, int max)
     {
         return bytes(min, max, SourceDSL.arbitrary().constant(BBCases.HEAP));
+    }
+
+    public static Gen<ByteBuffer> directBytes(int min, int max)
+    {
+        return bytes(min, max, SourceDSL.arbitrary().pick(BBCases.DIRECT, BBCases.READ_ONLY_DIRECT));
     }
 
     public static Gen<ByteBuffer> bytesAnyType(int min, int max)
@@ -371,7 +418,7 @@ public final class Generators
         return bb;
     }
 
-     /**
+    /**
      * Implements a valid utf-8 generator.
      *
      * Implementation note, currently relies on getBytes to strip out non-valid utf-8 chars, so is slow
@@ -379,9 +426,9 @@ public final class Generators
     public static Gen<String> utf8(int min, int max)
     {
         return SourceDSL.strings()
-                 .basicMultilingualPlaneAlphabet()
-                 .ofLengthBetween(min, max)
-                 .map(s -> new String(s.getBytes(StandardCharsets.UTF_8), StandardCharsets.UTF_8));
+                        .basicMultilingualPlaneAlphabet()
+                        .ofLengthBetween(min, max)
+                        .map(s -> new String(s.getBytes(StandardCharsets.UTF_8), StandardCharsets.UTF_8));
     }
 
     public static Gen<BigInteger> bigInt()
@@ -432,6 +479,28 @@ public final class Generators
         return filter(gen, dedup::add);
     }
 
+    public static <T> Gen<Set<T>> set(Gen<T> gen, Gen<Integer> sizeGen)
+    {
+        return rnd -> {
+            Set<T> set = new HashSet<>();
+            int size = sizeGen.generate(rnd);
+            for (int i = 0; i < size; i++)
+            {
+                while (!set.add(gen.generate(rnd))) {}
+            }
+            return set;
+        };
+    }
+
+    public static <T extends Comparable<? super T>> Gen<List<T>> uniqueList(Gen<T> gen, Gen<Integer> sizeGen)
+    {
+        return set(gen, sizeGen).map(t -> {
+            List<T> list = new ArrayList<>(t);
+            list.sort(Comparator.naturalOrder());
+            return list;
+        });
+    }
+
     public static <T> Gen<T> cached(Gen<T> gen)
     {
         Object cacheMissed = new Object();
@@ -466,7 +535,7 @@ public final class Generators
 
         static
         {
-            long blobSeed = TEST_BLOB_SHARED_SEED.getLong(System.currentTimeMillis());
+            long blobSeed = TEST_BLOB_SHARED_SEED.getLong();
             logger.info("Shared blob Gen used seed {}", blobSeed);
 
             Random random = new Random(blobSeed);
@@ -541,5 +610,24 @@ public final class Generators
             JavaRandom r = new JavaRandom(rs.asJdkRandom());
             return qt.generate(r);
         };
+    }
+
+    public static Gen<TimeUUID> timeUUID()
+    {
+        ZonedDateTime now = ZonedDateTime.of(2020, 8, 20,
+                                             0, 0, 0, 0, ZoneOffset.UTC);
+        ZonedDateTime startOfTime = now.minusYears(50);
+        ZonedDateTime endOfDays = now.plusYears(50);
+        Constraint micros = Constraint.between(toMicros(startOfTime), toMicros(endOfDays));
+        return rs -> {
+            long nowMicro = rs.next(micros);
+            long lsb = rs.next(Constraint.none());
+            return new TimeUUID(TimeUUID.unixMicrosToRawTimestamp(nowMicro), lsb);
+        };
+    }
+
+    private static long toMicros(ZonedDateTime zdt)
+    {
+        return zdt.toInstant().toEpochMilli() * 1000 + zdt.getNano() / 1000;
     }
 }

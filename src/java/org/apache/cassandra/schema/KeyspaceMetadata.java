@@ -25,6 +25,7 @@ import java.util.stream.Stream;
 
 import javax.annotation.Nullable;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.MoreObjects;
 import com.google.common.base.Objects;
 import com.google.common.collect.Iterables;
@@ -82,6 +83,12 @@ public final class KeyspaceMetadata implements SchemaElement
         this.types = types;
         this.userFunctions = functions;
         this.replicationStrategy = AbstractReplicationStrategy.createReplicationStrategy(keyspaceName, params.replication);
+    }
+
+    @VisibleForTesting
+    public static KeyspaceMetadata createUnsafe(String keyspaceName, Kind kind, KeyspaceParams params, Tables tables, Views views, Types types, UserFunctions functions)
+    {
+        return new KeyspaceMetadata(keyspaceName, kind, params, tables, views, types, functions);
     }
 
     public static KeyspaceMetadata create(String name, KeyspaceParams params)
