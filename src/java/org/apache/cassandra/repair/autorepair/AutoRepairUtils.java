@@ -418,7 +418,7 @@ public class AutoRepairUtils
         TreeSet<UUID> hostIdsInCurrentRing = new TreeSet<>();
         for (NodeAddresses node : allNodesInRing)
         {
-            String nodeDC = DatabaseDescriptor.getEndpointSnitch().getDatacenter(node.broadcastAddress);
+            String nodeDC = DatabaseDescriptor.getLocator().location(node.broadcastAddress).datacenter;
             if (AutoRepairService.instance.getAutoRepairConfig().getIgnoreDCs(repairType).contains(nodeDC))
             {
                 logger.info("Ignore node {} because its datacenter is {}", node, nodeDC);
@@ -797,7 +797,7 @@ public class AutoRepairUtils
         if (replicationStrategy instanceof NetworkTopologyStrategy)
         {
             Set<String> datacenters = ((NetworkTopologyStrategy) replicationStrategy).getDatacenters();
-            String localDC = DatabaseDescriptor.getEndpointSnitch().getDatacenter(FBUtilities.getBroadcastAddressAndPort());
+            String localDC = DatabaseDescriptor.getLocator().local().datacenter;
             if (!datacenters.contains(localDC))
             {
                 repair = false;
