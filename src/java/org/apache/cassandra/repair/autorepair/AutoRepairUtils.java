@@ -797,7 +797,7 @@ public class AutoRepairUtils
         if (replicationStrategy instanceof NetworkTopologyStrategy)
         {
             Set<String> datacenters = ((NetworkTopologyStrategy) replicationStrategy).getDatacenters();
-            String localDC = DatabaseDescriptor.getLocator().location(FBUtilities.getBroadcastAddressAndPort()).datacenter;
+            String localDC = DatabaseDescriptor.getLocator().local().datacenter;
             if (!datacenters.contains(localDC))
             {
                 repair = false;

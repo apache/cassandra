@@ -311,8 +311,7 @@ class PreviewRepairedState extends AutoRepairState
     public RepairCoordinator getRepairRunnable(String keyspace, List<String> tables, Set<Range<Token>> ranges, boolean primaryRangeOnly)
     {
         RepairOption option = new RepairOption(RepairParallelism.PARALLEL, primaryRangeOnly, false, false,
-                AutoRepairService.instance.getAutoRepairConfig().getRepairThreads(repairType), ranges,
-                !ranges.isEmpty(), false, false, PreviewKind.REPAIRED, false, true, false, false);
+                AutoRepairService.instance.getAutoRepairConfig().getRepairThreads(repairType), ranges, false, false, PreviewKind.REPAIRED, false, true, false, false, false, false);
 
         option.getColumnFamilies().addAll(tables);
 
@@ -378,7 +377,6 @@ class FullRepairState extends AutoRepairState
         RepairOption option = new RepairOption(RepairParallelism.PARALLEL, primaryRangeOnly, false, false,
                                                AutoRepairService.instance.getAutoRepairConfig().getRepairThreads(repairType), ranges,
                                                false, false, PreviewKind.NONE, true, true, false, false, false, false);
-
 
         option.getColumnFamilies().addAll(tables);
 
