@@ -37,6 +37,11 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import com.google.common.annotations.VisibleForTesting;
+
+import org.apache.cassandra.db.DataRange;
+import org.apache.cassandra.db.filter.ColumnFilter;
+import org.apache.cassandra.io.sstable.SSTableReadsListener;
+import org.apache.cassandra.io.sstable.format.big.BigTableReader;
 import org.apache.cassandra.tcm.compatibility.TokenRingUtils;
 import org.apache.cassandra.utils.FBUtilities;
 import org.slf4j.Logger;
@@ -54,7 +59,6 @@ import org.apache.cassandra.db.lifecycle.View;
 import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
-import org.apache.cassandra.io.sstable.ISSTableScanner;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.sstable.format.big.BigTableScanner;
 import org.apache.cassandra.io.sstable.metadata.CompactionMetadata;
@@ -692,12 +696,11 @@ public class RepairTokenRangeSplitter implements IAutoRepairTokenRangeSplitter
                 // get the bounds of the sstable for this range using the index file but do not actually read it.
                 List<AbstractBounds<PartitionPosition>> bounds = BigTableScanner.makeBounds(reader, Collections.singleton(tokenRange));
 
-                ISSTableScanner rangeScanner = reader.getScanner(Collections.singleton(tokenRange));
-                // Type check scanner returned as it may be an EmptySSTableScanner if the range is not covered in the
+                // Type check bounds to check if the range is not covered in the
                 // SSTable, in this case we will avoid incrementing approxBytesInRange.
-                if (rangeScanner instanceof BigTableScanner)
+                if (!bounds.isEmpty() && reader instanceof BigTableReader)
                 {
-                    try (BigTableScanner scanner = (BigTableScanner) rangeScanner)
+                    try (BigTableScanner scanner = (BigTableScanner) BigTableScanner.getScanner((BigTableReader) reader, ColumnFilter.all(reader.metadata()), DataRange.forTokenRange(tokenRange), SSTableReadsListener.NOOP_LISTENER))
                     {
                         assert bounds.size() == 1;
 
@@ -714,7 +717,6 @@ public class RepairTokenRangeSplitter implements IAutoRepairTokenRangeSplitter
                         approxBytesInRange += Math.min(approximateRangeBytesInSSTable, sstableSize);
                     }
                 }
-
             }
             catch (IOException | CardinalityMergeException e)
             {
