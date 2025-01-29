@@ -925,7 +925,7 @@ public class ASTSingleTableModel
     {
         // same as keys, but only one possible value can happen
         List<Clustering<ByteBuffer>> keys = keys(Maps.transformValues(values, e -> Collections.singletonList(e)), columns);
-        Invariants.checkState(keys.size() == 1, "Expected 1 key, but found %d", keys.size());
+        Invariants.require(keys.size() == 1, "Expected 1 key, but found %d", keys.size());
         return keys.get(0);
     }
 
