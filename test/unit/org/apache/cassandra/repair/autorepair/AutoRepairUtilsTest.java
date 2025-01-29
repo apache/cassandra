@@ -34,7 +34,6 @@ import org.apache.cassandra.config.DurationSpec;
 import org.apache.cassandra.cql3.UntypedResultSet;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.marshal.UUIDType;
-import org.apache.cassandra.locator.IEndpointSnitch;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.Locator;
 import org.apache.cassandra.repair.autorepair.AutoRepairConfig.RepairType;
@@ -48,8 +47,6 @@ import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.tcm.membership.Location;
 import org.apache.cassandra.tcm.membership.NodeAddresses;
 import org.apache.cassandra.utils.FBUtilities;
-import org.mockito.Mock;
-import org.mockito.MockitoAnnotations;
 
 import static org.apache.cassandra.Util.setAutoRepairEnabled;
 import static org.apache.cassandra.config.CassandraRelevantProperties.SYSTEM_DISTRIBUTED_DEFAULT_RF;
@@ -64,7 +61,6 @@ import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
-import static org.mockito.Mockito.when;
 
 public class AutoRepairUtilsTest extends CQLTester
 {
@@ -73,18 +69,12 @@ public class AutoRepairUtilsTest extends CQLTester
 
     static InetAddressAndPort localEndpoint;
 
-    @Mock
-    static Locator snitchMock;
-
-    static Locator defaultSnitch;
-
     @BeforeClass
     public static void setupClass() throws Exception
     {
         SYSTEM_DISTRIBUTED_DEFAULT_RF.setInt(1);
         setAutoRepairEnabled(true);
         requireNetwork();
-        defaultSnitch = DatabaseDescriptor.getLocator();
         localEndpoint = FBUtilities.getBroadcastAddressAndPort();
         hostId = StorageService.instance.getHostIdForEndpoint(localEndpoint);
         StorageService.instance.doAutoRepairSetup();
@@ -98,7 +88,6 @@ public class AutoRepairUtilsTest extends CQLTester
         QueryProcessor.executeInternal(String.format("CREATE TABLE %s.%s (k text, s text static, i int, v text, primary key(k,i))", "ks", "tbl"));
 
         AutoRepair.SLEEP_IF_REPAIR_FINISHES_QUICKLY = new DurationSpec.IntSecondsBound("0s");
-        MockitoAnnotations.initMocks(this);
         QueryProcessor.executeInternal(String.format(
         "TRUNCATE %s.%s",
         SchemaConstants.DISTRIBUTED_KEYSPACE_NAME, SystemDistributedKeyspace.AUTO_REPAIR_HISTORY));
@@ -234,10 +223,6 @@ public class AutoRepairUtilsTest extends CQLTester
         InetAddressAndPort ignoredEndpoint = localEndpoint.withPort(localEndpoint.getPort() + 1);
         InetAddressAndPort deadEndpoint = localEndpoint.withPort(localEndpoint.getPort() + 2);
         DatabaseDescriptor.getAutoRepairConfig().setIgnoreDCs(repairType, ImmutableSet.of("dc2"));
-        //DatabaseDescriptor.setEndpointSnitch(snitchMock);
-        when(snitchMock.location(localEndpoint)).thenReturn(new Location("dc1", "rac1"));
-        when(snitchMock.location(ignoredEndpoint)).thenReturn(new Location("dc2", "rac1"));
-        when(snitchMock.location(deadEndpoint)).thenReturn(new Location("dc1", "rac1"));
 
         TreeSet<UUID> hosts = AutoRepairUtils.getHostIdsInCurrentRing(repairType, ImmutableSet.of(new NodeAddresses(localEndpoint), new NodeAddresses(ignoredEndpoint), new NodeAddresses(deadEndpoint)));
 

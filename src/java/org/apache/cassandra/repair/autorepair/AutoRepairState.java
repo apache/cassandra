@@ -312,7 +312,7 @@ class PreviewRepairedState extends AutoRepairState
     {
         RepairOption option = new RepairOption(RepairParallelism.PARALLEL, primaryRangeOnly, false, false,
                 AutoRepairService.instance.getAutoRepairConfig().getRepairThreads(repairType), ranges,
-                !ranges.isEmpty(), false, false, PreviewKind.REPAIRED, false, true, false, false);
+                !ranges.isEmpty(), false, false, PreviewKind.REPAIRED, false, true, false, false, false);
 
         option.getColumnFamilies().addAll(tables);
 
@@ -332,7 +332,11 @@ class IncrementalRepairState extends AutoRepairState
     {
         RepairOption option = new RepairOption(RepairParallelism.PARALLEL, primaryRangeOnly, true, false,
                                                AutoRepairService.instance.getAutoRepairConfig().getRepairThreads(repairType), ranges,
+<<<<<<< HEAD
                                                false, false, PreviewKind.NONE, true, true, false, false, false, false);
+=======
+                                               !ranges.isEmpty(), false, false, PreviewKind.NONE, true, true, false, false, false);
+>>>>>>> ed19d4c2b1 (Adjust based on the latest trunk)
 
         option.getColumnFamilies().addAll(filterOutUnsafeTables(keyspace, tables));
 
@@ -378,7 +382,6 @@ class FullRepairState extends AutoRepairState
         RepairOption option = new RepairOption(RepairParallelism.PARALLEL, primaryRangeOnly, false, false,
                                                AutoRepairService.instance.getAutoRepairConfig().getRepairThreads(repairType), ranges,
                                                false, false, PreviewKind.NONE, true, true, false, false, false, false);
-
 
         option.getColumnFamilies().addAll(tables);
 
