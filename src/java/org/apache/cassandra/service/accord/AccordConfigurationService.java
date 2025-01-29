@@ -416,9 +416,6 @@ public class AccordConfigurationService extends AbstractConfigurationService<Acc
         synchronized (epochs)
         {
             long maxEpoch = epochs.maxEpoch();
-            if (maxEpoch >= epoch)
-                return;
-
             if (maxEpoch == 0)
             {
                 getOrCreateEpochState(epoch);  // touch epoch state so subsequent calls see it
@@ -426,7 +423,10 @@ public class AccordConfigurationService extends AbstractConfigurationService<Acc
                 return;
             }
         }
-        getOrCreateEpochState(epoch - 1).acknowledged().addCallback(() -> reportMetadata(metadata));
+
+        // Create a -1 epoch iif we know this epoch may actually exist
+        if (metadata.epoch.getEpoch() > minEpoch())
+            getOrCreateEpochState(epoch - 1).acknowledged().addCallback(() -> reportMetadata(metadata));
     }
 
     @Override
@@ -436,14 +436,25 @@ public class AccordConfigurationService extends AbstractConfigurationService<Acc
         Stage.ACCORD_MIGRATION.execute(() -> {
             if (ClusterMetadata.current().epoch.getEpoch() < epoch)
                 ClusterMetadataService.instance().fetchLogFromCMS(Epoch.create(epoch));
+
+            // In most cases, after fetching log from CMS, we will be caught up to the required epoch.
+            // This TCM will also notify Accord via reportMetadata, so we do not need to fetch topologies.
+            // If metadata has reported has skipped one or more eopchs, and is _ahead_ of the requested epoch,
+            // we need to fetch topologies from peers to fill in the gap.
+            ClusterMetadata metadata = ClusterMetadata.current();
+            if (metadata.epoch.getEpoch() == epoch)
+                return;
+
             try
             {
-                Set<InetAddressAndPort> peers = new HashSet<>(ClusterMetadata.current().directory.allJoinedEndpoints());
+                Set<InetAddressAndPort> peers = new HashSet<>(metadata.directory.allJoinedEndpoints());
                 peers.remove(FBUtilities.getBroadcastAddressAndPort());
                 if (peers.isEmpty())
                     return;
-                Topology topology;
-                while ((topology = FetchTopology.fetch(SharedContext.Global.instance, peers, epoch).get()) == null) {}
+
+                // TODO (required): fetch only _missing_ topologies.
+                Topology topology = FetchTopology.fetch(SharedContext.Global.instance, peers, epoch).get();
+                Invariants.require(topology.epoch() == epoch);
                 reportTopology(topology);
             }
             catch (InterruptedException e)

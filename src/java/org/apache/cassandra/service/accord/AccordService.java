@@ -376,7 +376,7 @@ public class AccordService implements IAccordService, Shutdownable
         try
         {
             // Fetch topologies up to current
-            List<Topology> topologies = fetchTopologies(0, metadata);
+            List<Topology> topologies = fetchTopologies(null, metadata);
             for (Topology topology : topologies)
                 configService.reportTopology(topology);
 
@@ -384,17 +384,31 @@ public class AccordService implements IAccordService, Shutdownable
             ClusterMetadata next = ClusterMetadata.current();
 
             // if metadata was updated before we were able to add a listener, fetch remaining topologies
-            if (metadata != next)
+            if (next.epoch.isAfter(metadata.epoch))
             {
-                topologies = fetchTopologies(metadata.epoch.getEpoch(), next);
+                topologies = fetchTopologies(metadata.epoch.getEpoch() + 1, next);
                 for (Topology topology : topologies)
                     configService.reportTopology(topology);
             }
 
-            epochReady(metadata.epoch).get();
+            int attempt = 0;
+            int waitSeconds = 5;
+            while (true)
+            {
+                try
+                {
+                    epochReady(metadata.epoch).get(5, SECONDS);
+                    break;
+                }
+                catch (TimeoutException e)
+                {
+                    logger.warn("Epoch {} is not ready after waiting for {} seconds", metadata.epoch, (++attempt) * waitSeconds);
+                }
+            }
         }
         catch (InterruptedException e)
         {
+            Thread.currentThread().interrupt();
             throw new UncheckedInterruptedException(e);
         }
         catch (ExecutionException e)
@@ -417,13 +431,10 @@ public class AccordService implements IAccordService, Shutdownable
     /**
      * Queries peers to discover min epoch, and then fetches all topologies between min and current epochs
      */
-    private List<Topology> fetchTopologies(long minEpoch, ClusterMetadata metadata) throws ExecutionException, InterruptedException
+    private List<Topology> fetchTopologies(Long minEpoch, ClusterMetadata metadata) throws ExecutionException, InterruptedException
     {
-        if (configService.maxEpoch() >= metadata.epoch.getEpoch())
-        {
-            logger.info("Accord epoch {} matches TCM. All topologies are known locally", metadata.epoch);
+        if (minEpoch != null && minEpoch == metadata.epoch.getEpoch())
             return Collections.singletonList(AccordTopology.createAccordTopology(metadata));
-        }
 
         Set<InetAddressAndPort> peers = new HashSet<>();
         peers.addAll(metadata.directory.allAddresses());
@@ -431,14 +442,17 @@ public class AccordService implements IAccordService, Shutdownable
 
         // No peers: single node cluster or first node to boot
         if (peers.isEmpty())
-            return Collections.singletonList(AccordTopology.createAccordTopology(metadata));;
+            return Collections.singletonList(AccordTopology.createAccordTopology(metadata));
 
         // Bootstrap, fetch min epoch
-        if (minEpoch == 0)
+        if (minEpoch == null)
         {
-            long fetched = findMinEpoch(SharedContext.Global.instance, peers);
+            Long fetched = findMinEpoch(SharedContext.Global.instance, peers);
+            if (fetched != null)
+                logger.info("Discovered min epoch of {} by querying {}", fetched, peers);
+
             // No other node has advanced epoch just yet
-            if (fetched == 0)
+            if (fetched == null || fetched == metadata.epoch.getEpoch())
                 return Collections.singletonList(AccordTopology.createAccordTopology(metadata));
 
             minEpoch = fetched;
@@ -454,7 +468,7 @@ public class AccordService implements IAccordService, Shutdownable
         }
 
         List<Future<Topology>> futures = new ArrayList<>();
-        logger.info("Discovered min epoch of {}. Proceeding to fetch epochs up to {}.", minEpoch, maxEpoch);
+        logger.info("Fetching topologies for epochs [{}, {}].", minEpoch, maxEpoch);
 
         for (long epoch = minEpoch; epoch <= maxEpoch; epoch++)
             futures.add(FetchTopology.fetch(SharedContext.Global.instance, peers, epoch));
@@ -468,14 +482,11 @@ public class AccordService implements IAccordService, Shutdownable
     }
 
     @VisibleForTesting
-    static long findMinEpoch(SharedContext context, Set<InetAddressAndPort> peers)
+    static Long findMinEpoch(SharedContext context, Set<InetAddressAndPort> peers)
     {
         try
         {
-            Long result = FetchMinEpoch.fetch(context, peers).get();
-            if (result == null)
-                return 0L;
-            return result.longValue();
+            return FetchMinEpoch.fetch(context, peers).get();
         }
         catch (InterruptedException e)
         {

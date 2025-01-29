@@ -99,14 +99,6 @@ public interface MessageDelivery
         return promise;
     }
 
-    public default <REQ, RSP> Future<Message<RSP>> sendWithRetries(Verb verb, REQ request,
-                                                                   Iterator<InetAddressAndPort> candidates,
-                                                                   RetryPredicate shouldRetry,
-                                                                   RetryErrorMessage errorMessage)
-    {
-        return sendWithRetries(Backoff.NO_OP.INSTANCE, ImmediateRetryScheduler.instance, verb, request, candidates, shouldRetry, errorMessage);
-    }
-
     public default <REQ, RSP> void sendWithRetries(Backoff backoff, RetryScheduler retryThreads,
                                                    Verb verb, REQ request,
                                                    Iterator<InetAddressAndPort> candidates,

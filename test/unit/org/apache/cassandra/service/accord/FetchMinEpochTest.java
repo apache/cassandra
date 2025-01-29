@@ -234,27 +234,4 @@ public class FetchMinEpochTest
         }
         return maxRetries;
     }
-
-    private static MessageDelivery.FailedResponseException getFailedResponseException(Future<Long> f) throws InterruptedException, ExecutionException
-    {
-        MessageDelivery.FailedResponseException exception;
-        try
-        {
-            f.get();
-            Assert.fail("Future should have failed");
-            throw new AssertionError("Unreachable");
-        }
-        catch (ExecutionException e)
-        {
-            if (e.getCause() instanceof MessageDelivery.FailedResponseException)
-            {
-                exception = (MessageDelivery.FailedResponseException) e.getCause();
-            }
-            else
-            {
-                throw e;
-            }
-        }
-        return exception;
-    }
 }

@@ -194,15 +194,17 @@ public class AccordSpec
     public boolean ephemeralReadEnabled = true;
     public boolean state_cache_listener_jfr_enabled = true;
     public final JournalSpec journal = new JournalSpec();
-    public final MinEpochRetrySpec minEpochSyncRetry = new MinEpochRetrySpec();
-
-    public static class MinEpochRetrySpec extends RetrySpec
-    {
-        public MinEpochRetrySpec()
+    public final RetrySpec minEpochSyncRetry = new RetrySpec() {
         {
             maxAttempts = new MaxAttempt(3);
         }
-    }
+    };
+
+    public final RetrySpec fetchRetry = new RetrySpec() {
+        {
+            maxAttempts = new MaxAttempt(100);
+        }
+    };
 
     public static class JournalSpec implements Params
     {
