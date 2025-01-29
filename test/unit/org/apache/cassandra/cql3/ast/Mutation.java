@@ -30,6 +30,7 @@ import java.util.Set;
 import java.util.stream.Stream;
 import javax.annotation.Nullable;
 
+import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.db.marshal.Int32Type;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.TableMetadata;
@@ -488,10 +489,10 @@ WHERE PK_column_conditions
         }
     }
 
-    public static abstract class BaseBuilder<T, B extends BaseBuilder<T, B>>
+    public static abstract class BaseBuilder<T, B extends BaseBuilder<T, B>> implements Conditional.EqBuilderPlus<B>
     {
         private final Kind kind;
-        private final TableMetadata metadata;
+        protected final TableMetadata metadata;
         protected final LinkedHashSet<Symbol> partitionColumns, clusteringColumns, primaryColumns, regularAndStatic, allColumns;
         private boolean includeKeyspace = true;
         private final Set<Symbol> neededPks = new HashSet<>();
@@ -521,6 +522,12 @@ WHERE PK_column_conditions
         }
 
         public abstract T build();
+
+        @Override
+        public TableMetadata metadata()
+        {
+            return metadata;
+        }
 
         protected void assertAllPksHaveEq()
         {
@@ -562,7 +569,7 @@ WHERE PK_column_conditions
         }
     }
 
-    public static class InsertBuilder extends BaseBuilder<Insert, InsertBuilder> implements Conditional.EqBuilder<InsertBuilder>
+    public static class InsertBuilder extends BaseBuilder<Insert, InsertBuilder>
     {
         private final LinkedHashMap<Symbol, Expression> values = new LinkedHashMap<>();
         private boolean ifNotExists = false;
@@ -616,7 +623,7 @@ WHERE PK_column_conditions
         }
     }
 
-    public static class UpdateBuilder extends BaseBuilder<Update, UpdateBuilder> implements Conditional.ConditionalBuilder<UpdateBuilder>
+    public static class UpdateBuilder extends BaseBuilder<Update, UpdateBuilder> implements Conditional.ConditionalBuilderPlus<UpdateBuilder>
     {
         private @Nullable TTL ttl;
         private @Nullable Timestamp timestamp;
@@ -671,6 +678,12 @@ WHERE PK_column_conditions
             return set(new Symbol(column, Int32Type.instance), Bind.of(value));
         }
 
+        public UpdateBuilder set(String column, String value)
+        {
+            Symbol symbol = new Symbol(metadata.getColumn(new ColumnIdentifier(column, true)));
+            return set(symbol, new Bind(symbol.type().asCQL3Type().fromCQLLiteral(value), symbol.type()));
+        }
+
         @Override
         public UpdateBuilder where(Expression ref, Conditional.Where.Inequality kind, Expression expression)
         {
@@ -717,7 +730,7 @@ WHERE PK_column_conditions
         }
     }
 
-    public static class DeleteBuilder extends BaseBuilder<Delete, DeleteBuilder> implements Conditional.ConditionalBuilder<DeleteBuilder>
+    public static class DeleteBuilder extends BaseBuilder<Delete, DeleteBuilder> implements Conditional.ConditionalBuilderPlus<DeleteBuilder>
     {
         private final List<Symbol> columns = new ArrayList<>();
         private @Nullable Timestamp timestamp = null;
