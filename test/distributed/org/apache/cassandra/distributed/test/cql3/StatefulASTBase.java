@@ -32,6 +32,7 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import javax.annotation.Nullable;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableSet;
 import org.slf4j.Logger;
 
@@ -340,12 +341,12 @@ public class StatefulASTBase extends TestBaseImpl
                     throw new IllegalArgumentException("Unable to execute Statement of type " + stmt.getClass() + " when ConsistencyLevel.NODE_LOCAL is used");
                 if (fetchSize != Integer.MAX_VALUE)
                     throw new IllegalArgumentException("Fetch size is not allowed for Mutations");
-                instance.executeInternal(stmt.toCQL(), stmt.bindsEncoded());
+                instance.executeInternal(stmt.toCQL(), (Object[]) stmt.bindsEncoded());
                 return new ByteBuffer[0][];
             }
             else
             {
-                SimpleStatement ss = new SimpleStatement(stmt.toCQL(), stmt.bindsEncoded());
+                SimpleStatement ss = new SimpleStatement(stmt.toCQL(), (Object[]) stmt.bindsEncoded());
                 if (fetchSize != Integer.MAX_VALUE)
                     ss.setFetchSize(fetchSize);
                 ss.setConsistencyLevel(toDriverCL(cl));
@@ -384,7 +385,8 @@ public class StatefulASTBase extends TestBaseImpl
             }
         }
 
-        private static ByteBuffer[][] getRowsAsByteBuffer(ResultSet result)
+        @VisibleForTesting
+        static ByteBuffer[][] getRowsAsByteBuffer(ResultSet result)
         {
             ColumnDefinitions columns = result.getColumnDefinitions();
             List<ByteBuffer[]> ret = new ArrayList<>();
