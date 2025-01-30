@@ -227,8 +227,8 @@ public class SingleNodeTokenConflictTest extends StatefulASTBase
                                        FunctionCall.tokenByValue(state.pkValue(rs, right)))
                               .build();
         return state.command(rs, select, "token BETWEEN, rc=" + rc
-                                     + ", start token=" + start
-                                     + ", end token=" + end);
+                                         + ", start token=" + start
+                                         + ", end token=" + end);
     }
 
     public static Property.Command<State, Void, ?> tokenRange(RandomSource rs, State state)
@@ -257,7 +257,7 @@ public class SingleNodeTokenConflictTest extends StatefulASTBase
                               .allowFiltering()
                               .build();
         return state.command(rs, select, "token " + lefIneq.value + " " + Murmur3Partitioner.instance.getToken(left)
-                                     + " AND " + rightIneq.value + " " + Murmur3Partitioner.instance.getToken(right));
+                                         + " AND " + rightIneq.value + " " + Murmur3Partitioner.instance.getToken(right));
     }
 
     protected Cluster createCluster() throws IOException
@@ -358,10 +358,10 @@ public class SingleNodeTokenConflictTest extends StatefulASTBase
                 this.neighbors = rs.nextBoolean() ? Collections.emptyList() : extractNeighbors(pkValues);
                 // in case neighbors conflicts with pkValues or tokenValues, use ImmutableUniqueList which will ignore rather than fail
                 this.pkValues = ImmutableUniqueList.<ByteBuffer>builder()
-                                             .mayAddAll(pkValues)
-                                             .mayAddAll(tokenValues)
-                                             .mayAddAll(neighbors)
-                                             .build();
+                                                   .mayAddAll(pkValues)
+                                                   .mayAddAll(tokenValues)
+                                                   .mayAddAll(neighbors)
+                                                   .build();
                 this.pkGen = Gens.pick(pkValues);
                 this.order = new TreeSet<>(PK_TYPE);
                 realToSynthMap = new TreeMap<>(Comparator.comparing(Murmur3Partitioner.instance::getToken));
