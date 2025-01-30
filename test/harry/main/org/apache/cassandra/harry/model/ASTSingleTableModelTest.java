@@ -24,6 +24,7 @@ import java.util.Arrays;
 import java.util.EnumSet;
 import java.util.List;
 import java.util.TreeMap;
+import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
@@ -495,49 +496,24 @@ public class ASTSingleTableModelTest
 
         private static boolean include(AbstractType<?> type, ByteBuffer actual, Inequality inequality, ByteBuffer value)
         {
-            int rc = type.compare(actual, value);
-            switch (inequality)
-            {
-                case EQUAL:
-                    if (actual.equals(value))
-                        return true;
-                    break;
-                case NOT_EQUAL:
-                    if (!actual.equals(value))
-                        return true;
-                    break;
-                case LESS_THAN_EQ:
-                    if (rc == 0)
-                        return true;
-                case LESS_THAN:
-                    if (rc < 0)
-                        return true;
-                    break;
-                case GREATER_THAN_EQ:
-                    if (rc == 0)
-                        return true;
-                case GREATER_THAN:
-                    if (rc > 0)
-                        return true;
-                    break;
-                default:
-                    throw new UnsupportedOperationException(inequality.name());
-            }
-            return false;
+            return include(inequality, type.compare(actual, value), () -> actual.equals(value));
         }
 
         private static boolean include(BytesPartitionState.Ref ref, Inequality inequality, Token token)
         {
-            //TODO (copy/paste): this is the same as the include above, but with different call sites
-            int rc = ref.token.compareTo(token);
+            return include(inequality, ref.token.compareTo(token), () -> ref.token.equals(token));
+        }
+
+        private static boolean include(Inequality inequality, int rc, BooleanSupplier eq)
+        {
             switch (inequality)
             {
                 case EQUAL:
-                    if (ref.token.equals(token))
+                    if (eq.getAsBoolean())
                         return true;
                     break;
                 case NOT_EQUAL:
-                    if (!ref.token.equals(token))
+                    if (!eq.getAsBoolean())
                         return true;
                     break;
                 case LESS_THAN_EQ:
