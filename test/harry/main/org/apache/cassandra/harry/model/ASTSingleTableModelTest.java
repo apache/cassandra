@@ -140,26 +140,27 @@ public class ASTSingleTableModelTest
                                          .build());
                 }
             }
-//            // bound range: < and >, > and <
-//            for (ByteBuffer leftValue : allValues)
-//            {
-//                for (Inequality left : RANGE_INEQUALITY)
-//                {
-//                    for (ByteBuffer rightValue : allValues)
-//                    {
-//                        for (Inequality right : RANGE_INEQUALITY)
-//                        {
-//                            model.validate(modelModel.allWhere(column,
-//                                                               left, leftValue,
-//                                                               right, rightValue),
-//                                           Select.builder(metadata)
-//                                                 .where(column, left, leftValue)
-//                                                 .where(column, right, rightValue)
-//                                                 .build());
-//                        }
-//                    }
-//                }
-//            }
+            // bound range: < and >, > and <
+            for (BytesPartitionState.Ref leftValue : modelModel.refs())
+            {
+                FunctionCall leftTokenFunction = tokenFunction(leftValue);
+                for (Inequality left : RANGE_INEQUALITY)
+                {
+                    for (BytesPartitionState.Ref rightValue : modelModel.refs())
+                    {
+                        FunctionCall rightTokenFunction = tokenFunction(rightValue);
+                        for (Inequality right : RANGE_INEQUALITY)
+                        {
+                            model.validate(modelModel.allWhere(left, leftValue.token,
+                                                               right, rightValue.token),
+                                           Select.builder(metadata)
+                                                 .where(tokenByColumns, left, leftTokenFunction)
+                                                 .where(tokenByColumns, right, rightTokenFunction)
+                                                 .build());
+                        }
+                    }
+                }
+            }
 //            // between (same as bound range, but different syntax)
 //            for (ByteBuffer left : allValues)
 //            {
@@ -468,6 +469,12 @@ public class ASTSingleTableModelTest
         private ByteBuffer[][] allWhere(Inequality inequality, Token token)
         {
             return allWhere(ref -> include(ref, inequality, token), i -> true);
+        }
+
+        private ByteBuffer[][] allWhere(Inequality left, Token leftToken,
+                                        Inequality right, Token rightToken)
+        {
+            return allWhere(ref -> include(ref, left, leftToken) && include(ref, right, rightToken), i -> true);
         }
 
         private ByteBuffer[][] allWhere(Predicate<ByteBuffer[]> predicate)
