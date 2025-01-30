@@ -37,6 +37,8 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import javax.annotation.Nullable;
 
+import com.google.common.base.Preconditions;
+import com.google.common.base.Predicates;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
@@ -88,19 +90,31 @@ public class ASTSingleTableModel
         return partitions.isEmpty();
     }
 
-    public TreeMap<ByteBuffer, List<BytesPartitionState.PrimaryKey>> index(Symbol symbol)
+    public TreeMap<ByteBuffer, List<BytesPartitionState.PrimaryKey>> index(BytesPartitionState.Ref ref, Symbol symbol)
     {
         if (factory.partitionColumns.contains(symbol))
-            return indexPartitionColumn(symbol);
+            throw new AssertionError("When indexing based off a single partition, unable to index partition columns; given " + symbol.detailedName());
+        BytesPartitionState partition = get(ref);
+        Invariants.nonNull(partition, "Unable to index %s; null partition %s", symbol, ref);
+        TreeMap<ByteBuffer, List<BytesPartitionState.PrimaryKey>> index = new TreeMap<>(symbol.type()::compare);
         if (factory.staticColumns.contains(symbol))
-            return indexStaticColumn(symbol);
-        return indexRowColumn(symbol);
+            return indexStaticColumn(index, symbol, partition);
+        return indexRowColumn(index, symbol, partition);
     }
 
-    private TreeMap<ByteBuffer, List<BytesPartitionState.PrimaryKey>> indexPartitionColumn(Symbol symbol)
+    public TreeMap<ByteBuffer, List<BytesPartitionState.PrimaryKey>> index(Symbol symbol)
+    {
+        TreeMap<ByteBuffer, List<BytesPartitionState.PrimaryKey>> index = new TreeMap<>(symbol.type()::compare);
+        if (factory.partitionColumns.contains(symbol))
+            return indexPartitionColumn(index, symbol);
+        if (factory.staticColumns.contains(symbol))
+            return indexStaticColumn(index, symbol);
+        return indexRowColumn(index, symbol);
+    }
+
+    private TreeMap<ByteBuffer, List<BytesPartitionState.PrimaryKey>> indexPartitionColumn(TreeMap<ByteBuffer, List<BytesPartitionState.PrimaryKey>> index, Symbol symbol)
     {
         int offset = factory.partitionColumns.indexOf(symbol);
-        TreeMap<ByteBuffer, List<BytesPartitionState.PrimaryKey>> index = new TreeMap<>(symbol.type()::compare);
         for (BytesPartitionState partition : partitions.values())
         {
             if (partition.isEmpty()) continue;
@@ -112,39 +126,52 @@ public class ASTSingleTableModel
         return index;
     }
 
-    private TreeMap<ByteBuffer, List<BytesPartitionState.PrimaryKey>> indexStaticColumn(Symbol symbol)
+    private TreeMap<ByteBuffer, List<BytesPartitionState.PrimaryKey>> indexStaticColumn(TreeMap<ByteBuffer, List<BytesPartitionState.PrimaryKey>> index, Symbol symbol)
     {
-        TreeMap<ByteBuffer, List<BytesPartitionState.PrimaryKey>> index = new TreeMap<>(symbol.type()::compare);
         for (BytesPartitionState partition : partitions.values())
-        {
-            if (partition.isEmpty()) continue;
-            ByteBuffer bb = partition.staticRow().get(symbol);
-            if (bb == null)
-                continue;
-            List<BytesPartitionState.PrimaryKey> list = index.computeIfAbsent(bb, i -> new ArrayList<>());
-            for (BytesPartitionState.Row row : partition.rows())
-                list.add(row.ref());
-        }
+            indexStaticColumn(index, symbol, partition);
         return index;
     }
 
-    private TreeMap<ByteBuffer, List<BytesPartitionState.PrimaryKey>> indexRowColumn(Symbol symbol)
+    private TreeMap<ByteBuffer, List<BytesPartitionState.PrimaryKey>> indexStaticColumn(TreeMap<ByteBuffer, List<BytesPartitionState.PrimaryKey>> index, Symbol symbol, BytesPartitionState partition)
+    {
+        if (partition.isEmpty()) return index;
+        ByteBuffer bb = partition.staticRow().get(symbol);
+        if (bb == null)
+            return index;
+        List<BytesPartitionState.PrimaryKey> list = index.computeIfAbsent(bb, i -> new ArrayList<>());
+        for (BytesPartitionState.Row row : partition.rows())
+            list.add(row.ref());
+        return index;
+    }
+
+    private TreeMap<ByteBuffer, List<BytesPartitionState.PrimaryKey>> indexRowColumn(TreeMap<ByteBuffer, List<BytesPartitionState.PrimaryKey>> index, Symbol symbol)
     {
         boolean clustering = factory.clusteringColumns.contains(symbol);
         int offset = clustering ? factory.clusteringColumns.indexOf(symbol) : factory.regularColumns.indexOf(symbol);
-        TreeMap<ByteBuffer, List<BytesPartitionState.PrimaryKey>> index = new TreeMap<>(symbol.type()::compare);
         for (BytesPartitionState partition : partitions.values())
-        {
-            if (partition.isEmpty()) continue;
-            for (BytesPartitionState.Row row : partition.rows())
-            {
-                ByteBuffer bb = clustering ? row.clustering.bufferAt(offset) : row.get(offset);
-                if (bb == null)
-                    continue;
-                index.computeIfAbsent(bb, i -> new ArrayList<>()).add(row.ref());
-            }
-        }
+            indexRowColumn(index, clustering, offset, partition);
         return index;
+    }
+
+    private TreeMap<ByteBuffer, List<BytesPartitionState.PrimaryKey>> indexRowColumn(TreeMap<ByteBuffer, List<BytesPartitionState.PrimaryKey>> index, Symbol symbol, BytesPartitionState partition)
+    {
+        boolean clustering = factory.clusteringColumns.contains(symbol);
+        int offset = clustering ? factory.clusteringColumns.indexOf(symbol) : factory.regularColumns.indexOf(symbol);
+        indexRowColumn(index, clustering, offset, partition);
+        return index;
+    }
+
+    private void indexRowColumn(TreeMap<ByteBuffer, List<BytesPartitionState.PrimaryKey>> index, boolean clustering, int offset, BytesPartitionState partition)
+    {
+        if (partition.isEmpty()) return;
+        for (BytesPartitionState.Row row : partition.rows())
+        {
+            ByteBuffer bb = clustering ? row.clustering.bufferAt(offset) : row.get(offset);
+            if (bb == null)
+                continue;
+            index.computeIfAbsent(bb, i -> new ArrayList<>()).add(row.ref());
+        }
     }
 
     public void update(Mutation mutation)
@@ -457,8 +484,8 @@ public class ASTSingleTableModel
         return TableBuilder.toStringPiped(columns.stream().map(Symbol::toCQL).collect(Collectors.toList()),
                                           // intellij or junit can be tripped up by utf control or invisible chars, so this logic tries to normalize to make things more safe
                                           () -> rows.stream()
-                                         .map(r -> r.asCQL().stream().map(StringUtils::escapeControlChars).collect(Collectors.toList()))
-                                         .iterator());
+                                                    .map(r -> r.asCQL().stream().map(StringUtils::escapeControlChars).collect(Collectors.toList()))
+                                                    .iterator());
     }
 
     private static String table(ImmutableUniqueList<Symbol> columns, ByteBuffer[][] rows)
@@ -925,7 +952,7 @@ public class ASTSingleTableModel
     {
         // same as keys, but only one possible value can happen
         List<Clustering<ByteBuffer>> keys = keys(Maps.transformValues(values, e -> Collections.singletonList(e)), columns);
-        Invariants.require(keys.size() == 1, "Expected 1 key, but found %d", keys.size());
+        Invariants.checkState(keys.size() == 1, "Expected 1 key, but found %d", keys.size());
         return keys.get(0);
     }
 
@@ -1229,12 +1256,16 @@ public class ASTSingleTableModel
                 if (eq.containsKey(col))
                 {
                     ByteBuffer actual = accessor.apply(columns.indexOf(col));
+                    if (actual == null)
+                        return false;
                     if (!matches(actual, eq.get(col)))
                         return false;
                 }
                 if (ltOrGt.containsKey(col))
                 {
                     ByteBuffer actual = accessor.apply(columns.indexOf(col));
+                    if (actual == null)
+                        return false;
                     if (!matches(col.type(), actual, ltOrGt.get(col)))
                         return false;
                 }
