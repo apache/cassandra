@@ -33,7 +33,12 @@ import org.apache.cassandra.cql3.ast.FunctionCall;
 import org.apache.cassandra.cql3.ast.Mutation;
 import org.apache.cassandra.cql3.ast.Select;
 import org.apache.cassandra.cql3.ast.Symbol;
+import org.apache.cassandra.db.marshal.InetAddressType;
 import org.apache.cassandra.db.marshal.Int32Type;
+import org.apache.cassandra.db.marshal.LexicalUUIDType;
+import org.apache.cassandra.db.marshal.ReversedType;
+import org.apache.cassandra.db.marshal.ShortType;
+import org.apache.cassandra.db.marshal.TimestampType;
 import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.TableMetadata;
@@ -159,6 +164,67 @@ public class ASTSingleTableModelTest
                                        .table(metadata)
                                        .in("pk", 0, 1, 2)
                                        .build());
+    }
+
+    @Test
+    public void nullColumnSelect()
+    {
+        TableMetadata metadata = TableMetadata.builder("ks", "tbl")
+                                              .partitioner(Murmur3Partitioner.instance)
+                                              .addPartitionKeyColumn("pk0", InetAddressType.instance)
+                                              .addClusteringColumn("ck0", ReversedType.getInstance(ShortType.instance))
+                                              .addRegularColumn("v0", TimestampType.instance)
+                                              .addRegularColumn("v1", LexicalUUIDType.instance)
+                                              .build();
+        ASTSingleTableModel model = new ASTSingleTableModel(metadata);
+
+        String pk0 = "'e44b:bdaf:aeb:f68b:1cff:ecbd:8b54:2295'";
+        ByteBuffer pk0BB = InetAddressType.instance.asCQL3Type().fromCQLLiteral(pk0);
+
+        Short row1 = Short.valueOf((short) -14407);
+        ByteBuffer row1BB = ShortType.instance.decompose(row1);
+        String row1V1 = "0x00000000000049008a00000000000000";
+        ByteBuffer row1V1BB = LexicalUUIDType.instance.asCQL3Type().fromCQLLiteral(row1V1);
+
+        Short row2 = Short.valueOf((short) ((short) 18175 - (short) 23847));
+        ByteBuffer row2BB = ShortType.instance.decompose(row2);
+        String row2V0 = "'1989-01-11T15:00:30.950Z'";
+        ByteBuffer row2V0BB = TimestampType.instance.asCQL3Type().fromCQLLiteral(row2V0);
+        String row2V1 = "0x0000000000001f00a700000000000000";
+        ByteBuffer row2V1BB = LexicalUUIDType.instance.asCQL3Type().fromCQLLiteral(row2V1);
+
+        Select selectPk = Select.builder(metadata)
+                                .value("pk0", pk0)
+                                .build();
+
+        Select selectColumn = Select.builder(metadata)
+                                    .value("pk0", pk0)
+                                    .where("v0", Conditional.Where.Inequality.GREATER_THAN, row2V0)
+                                    .build();
+
+        model.update(Mutation.update(metadata)
+                             .set("v1", row1V1)
+                             .value("pk0", pk0)
+                             .value("ck0", row1)
+                             .build());
+
+        model.validate(new ByteBuffer[][]{ new ByteBuffer[]{ pk0BB, row1BB, null, row1V1BB } }, selectPk);
+        model.validate(new ByteBuffer[0][], selectColumn);
+
+
+        model.update(Mutation.insert(metadata)
+                             .value("pk0", pk0)
+                             .value("ck0", row2)
+                             .value("v0", row2V0)
+                             .value("v1", row2V1)
+                             .build());
+
+        model.validate(new ByteBuffer[][]{
+        new ByteBuffer[]{ pk0BB, row2BB, row2V0BB, row2V1BB },
+        new ByteBuffer[]{ pk0BB, row1BB, null, row1V1BB },
+        }, selectPk);
+
+        model.validate(new ByteBuffer[0][], selectColumn);
     }
 
     private interface ColumnValue

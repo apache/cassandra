@@ -89,6 +89,11 @@ FROM [keyspace_name.] table_name
         return new Builder();
     }
 
+    public static TableBasedBuilder builder(TableMetadata metadata)
+    {
+        return new TableBasedBuilder(metadata);
+    }
+
     public Select withAllowFiltering()
     {
         return new Select(selections, source, where, orderBy, limit, true);
@@ -281,7 +286,7 @@ FROM [keyspace_name.] table_name
 
         public static class Builder
         {
-            private final List<OrderBy.Ordered> ordered = new ArrayList<>();
+            private final List<Ordered> ordered = new ArrayList<>();
 
             public boolean isEmpty()
             {
@@ -301,43 +306,101 @@ FROM [keyspace_name.] table_name
         }
     }
 
-    public static class Builder implements Conditional.ConditionalBuilder<Builder>
+    public static class BaseBuilder<T extends BaseBuilder<T>> implements Conditional.ConditionalBuilder<T>
     {
         @Nullable // null means wildcard
         private List<Expression> selections = new ArrayList<>();
-        private Optional<TableReference> source = Optional.empty();
+        protected Optional<TableReference> source = Optional.empty();
         private Conditional.Builder where = new Conditional.Builder();
         private OrderBy.Builder orderBy = new OrderBy.Builder();
         private Optional<Value> limit = Optional.empty();
         private boolean allowFiltering = false;
 
-        public Builder wildcard()
+        public T wildcard()
         {
             if (selections != null && !selections.isEmpty())
                 throw new IllegalStateException("Attempted to use * for selection but existing selections exist: " + selections);
             selections = null;
-            return this;
+            return (T) this;
         }
 
-        public Builder columnSelection(String name, AbstractType<?> type)
+        public T columnSelection(String name, AbstractType<?> type)
         {
             return selection(new Symbol(name, type));
         }
 
-        public Builder allowFiltering()
+        public T allowFiltering()
         {
             allowFiltering = true;
-            return this;
+            return (T) this;
         }
 
-        public Builder selection(Expression e)
+        public T selection(Expression e)
         {
             if (selections == null)
                 throw new IllegalStateException("Unable to add '" + e.name() + "' as a selection as * was already requested");
             selections.add(e);
-            return this;
+            return (T) this;
         }
 
+        @Override
+        public T where(Expression ref, Conditional.Where.Inequality kind, Expression expression)
+        {
+            where.where(ref, kind, expression);
+            return (T) this;
+        }
+
+        @Override
+        public T between(Expression ref, Expression start, Expression end)
+        {
+            where.between(ref, start, end);
+            return (T) this;
+        }
+
+        @Override
+        public T in(ReferenceExpression ref, List<? extends Expression> expressions)
+        {
+            where.in(ref, expressions);
+            return (T) this;
+        }
+
+        @Override
+        public T is(Symbol ref, Conditional.Is.Kind kind)
+        {
+            where.is(ref, kind);
+            return (T) this;
+        }
+
+        public T orderByColumn(String name, AbstractType<?> type, OrderBy.Ordering ordering)
+        {
+            orderBy.add(new Symbol(name, type), ordering);
+            return (T) this;
+        }
+
+        public T limit(Value limit)
+        {
+            this.limit = Optional.of(limit);
+            return (T) this;
+        }
+
+        public T limit(int limit)
+        {
+            return limit(Bind.of(limit));
+        }
+
+        public Select build()
+        {
+            return new Select((selections == null || selections.isEmpty()) ? Collections.emptyList() : ImmutableList.copyOf(selections),
+                              source,
+                              where.isEmpty() ? Optional.empty() : Optional.of(where.build()),
+                              orderBy.isEmpty() ? Optional.empty() : Optional.of(orderBy.build()),
+                              limit,
+                              allowFiltering);
+        }
+    }
+
+    public static class Builder extends BaseBuilder<Builder>
+    {
         public Builder table(TableReference ref)
         {
             source = Optional.of(ref);
@@ -358,60 +421,22 @@ FROM [keyspace_name.] table_name
         {
             return table(TableReference.from(table));
         }
+    }
 
-        @Override
-        public Builder where(Expression ref, Conditional.Where.Inequality kind, Expression expression)
+    public static class TableBasedBuilder extends BaseBuilder<TableBasedBuilder> implements Conditional.ConditionalBuilderPlus<TableBasedBuilder>
+    {
+        private final TableMetadata metadata;
+
+        public TableBasedBuilder(TableMetadata metadata)
         {
-            where.where(ref, kind, expression);
-            return this;
+            this.metadata = metadata;
+            source = Optional.of(TableReference.from(metadata));
         }
 
         @Override
-        public Builder between(Expression ref, Expression start, Expression end)
+        public TableMetadata metadata()
         {
-            where.between(ref, start, end);
-            return this;
-        }
-
-        @Override
-        public Builder in(ReferenceExpression ref, List<? extends Expression> expressions)
-        {
-            where.in(ref, expressions);
-            return this;
-        }
-
-        @Override
-        public Builder is(Symbol ref, Conditional.Is.Kind kind)
-        {
-            where.is(ref, kind);
-            return this;
-        }
-
-        public Builder orderByColumn(String name, AbstractType<?> type, OrderBy.Ordering ordering)
-        {
-            orderBy.add(new Symbol(name, type), ordering);
-            return this;
-        }
-
-        public Builder limit(Value limit)
-        {
-            this.limit = Optional.of(limit);
-            return this;
-        }
-
-        public Builder limit(int limit)
-        {
-            return limit(Bind.of(limit));
-        }
-
-        public Select build()
-        {
-            return new Select((selections == null || selections.isEmpty()) ? Collections.emptyList() : ImmutableList.copyOf(selections),
-                              source,
-                              where.isEmpty() ? Optional.empty() : Optional.of(where.build()),
-                              orderBy.isEmpty() ? Optional.empty() : Optional.of(orderBy.build()),
-                              limit,
-                              allowFiltering);
+            return metadata;
         }
     }
 }

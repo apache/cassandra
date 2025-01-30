@@ -58,6 +58,7 @@ import org.apache.cassandra.cql3.ast.Statement;
 import org.apache.cassandra.cql3.ast.TableReference;
 import org.apache.cassandra.cql3.ast.Value;
 import org.apache.cassandra.cql3.ast.Visitor;
+import org.apache.cassandra.cql3.ast.Visitor.CompositeVisitor;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.AsciiType;
 import org.apache.cassandra.db.marshal.BytesType;

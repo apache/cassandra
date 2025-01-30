@@ -44,6 +44,16 @@ public class StandardVisitors
         }
     };
 
+    public static final Visitor APPLY_OPERATOR = new Visitor()
+    {
+        @Override
+        public Expression visit(Expression e)
+        {
+            if (!(e instanceof Operator)) return e;
+            return new Bind(ExpressionEvaluator.tryEval((Operator) e).get(), e.type());
+        }
+    };
+
     public static final Visitor.CompositeVisitor DEBUG = Visitor.CompositeVisitor.of(UNWRAP_TYPE_HINT, BIND_TO_LITERAL);
 
     private StandardVisitors() {}

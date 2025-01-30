@@ -27,11 +27,14 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
-import accord.utils.Invariants;
+import com.google.common.base.Preconditions;
+
+import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.BooleanType;
 import org.apache.cassandra.db.marshal.BytesType;
 import org.apache.cassandra.db.marshal.Int32Type;
+import org.apache.cassandra.schema.TableMetadata;
 
 public interface Conditional extends Expression
 {
@@ -85,6 +88,12 @@ public interface Conditional extends Expression
         public static Where create(Inequality kind, Expression ref, Expression expression)
         {
             return new Where(kind, ref, expression);
+        }
+
+        @Override
+        public String toString()
+        {
+            return toCQL();
         }
 
         @Override
@@ -160,7 +169,7 @@ public interface Conditional extends Expression
 
         public In(ReferenceExpression ref, List<? extends Expression> expressions)
         {
-            Invariants.requireArgument(!expressions.isEmpty());
+            Preconditions.checkArgument(!expressions.isEmpty());
             this.ref = ref;
             this.expressions = expressions;
         }
@@ -304,6 +313,23 @@ public interface Conditional extends Expression
         }
     }
 
+    interface EqBuilderPlus<T extends EqBuilderPlus<T>> extends EqBuilder<T>
+    {
+        TableMetadata metadata();
+
+        default T value(String name, String value)
+        {
+            Symbol symbol = new Symbol(metadata().getColumn(new ColumnIdentifier(name, true)));
+            return value(symbol, new Bind(symbol.type().asCQL3Type().fromCQLLiteral(value), symbol.type()));
+        }
+
+        default T value(String name, Object value)
+        {
+            Symbol symbol = new Symbol(metadata().getColumn(new ColumnIdentifier(name, true)));
+            return value(symbol, new Bind(value, symbol.type()));
+        }
+    }
+
     interface ConditionalBuilder<T extends ConditionalBuilder<T>> extends EqBuilder<T>
     {
 
@@ -359,7 +385,7 @@ public interface Conditional extends Expression
             return in(new Symbol(name, type), values.stream().map(v -> new Bind(v, type)).collect(Collectors.toList()));
         }
 
-        T is(Symbol ref, Conditional.Is.Kind kind);
+        T is(Symbol ref, Is.Kind kind);
 
         @Override
         default T value(Symbol symbol, Expression e)
@@ -380,6 +406,21 @@ public interface Conditional extends Expression
         default <Type> T value(String symbol, Type value, AbstractType<Type> type)
         {
             return value(new Symbol(symbol, type), new Bind(value, type));
+        }
+    }
+
+    interface ConditionalBuilderPlus<T extends ConditionalBuilderPlus<T>> extends ConditionalBuilder<T>, EqBuilderPlus<T>
+    {
+        default T where(String name, Where.Inequality kind, String value)
+        {
+            Symbol symbol = new Symbol(metadata().getColumn(new ColumnIdentifier(name, true)));
+            return where(symbol, kind, new Bind(symbol.type().asCQL3Type().fromCQLLiteral(value), symbol.type()));
+        }
+
+        default T where(String name, Where.Inequality kind, Object value)
+        {
+            Symbol symbol = new Symbol(metadata().getColumn(new ColumnIdentifier(name, true)));
+            return where(symbol, kind, new Bind(value, symbol.type()));
         }
     }
 
@@ -419,7 +460,7 @@ public interface Conditional extends Expression
         @Override
         public Builder is(Symbol ref, Is.Kind kind)
         {
-            return add(new Conditional.Is(ref, kind));
+            return add(new Is(ref, kind));
         }
 
         public Conditional build()
