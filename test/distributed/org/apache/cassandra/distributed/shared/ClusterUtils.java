@@ -54,7 +54,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import accord.primitives.TxnId;
-import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.virtual.AccordDebugKeyspace;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.distributed.Cluster;
@@ -74,8 +73,6 @@ import org.apache.cassandra.distributed.impl.TestChangeListener;
 import org.apache.cassandra.distributed.test.log.TestProcessor;
 import org.apache.cassandra.gms.ApplicationState;
 import org.apache.cassandra.gms.VersionedValue;
-import org.apache.cassandra.index.Index;
-import org.apache.cassandra.index.SecondaryIndexManager;
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.net.Message;
@@ -99,7 +96,6 @@ import org.apache.cassandra.utils.Isolated;
 import org.apache.cassandra.utils.concurrent.AsyncPromise;
 import org.apache.cassandra.utils.concurrent.CountDownLatch;
 import org.assertj.core.api.Assertions;
-import org.awaitility.Awaitility;
 
 import static com.google.common.util.concurrent.Uninterruptibles.sleepUninterruptibly;
 import static org.apache.cassandra.config.CassandraRelevantProperties.BOOTSTRAP_SCHEMA_DELAY_MS;
