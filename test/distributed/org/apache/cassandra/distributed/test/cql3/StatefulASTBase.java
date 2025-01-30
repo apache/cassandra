@@ -109,6 +109,7 @@ public class StatefulASTBase extends TestBaseImpl
         }
     }
     protected static final EnumSet<KnownIssue> IGNORED_ISSUES = EnumSet.allOf(KnownIssue.class);
+    protected static boolean CQL_DEBUG_APPLY_OPERATOR = false;
     protected static final Set<AbstractType<?>> SAI_REVERSE_OF_FIXED_LENGTH_TYPES = ImmutableSet.of(InetAddressType.instance,
                                                                                                     LongType.instance,
                                                                                                     IntegerType.instance,
@@ -118,14 +119,14 @@ public class StatefulASTBase extends TestBaseImpl
     protected static final Gen<Gen<Boolean>> BIND_OR_LITERAL_DISTRO = Gens.bools().mixedDistribution();
     protected static final Gen<Gen<Boolean>> BETWEEN_EQ_DISTRO = Gens.bools().mixedDistribution();
     protected static final Gen<Gen<Conditional.Where.Inequality>> LESS_THAN_DISTRO = Gens.mixedDistribution(Stream.of(Conditional.Where.Inequality.values())
-                                                                                                                .filter(i -> i == Conditional.Where.Inequality.LESS_THAN || i == Conditional.Where.Inequality.LESS_THAN_EQ)
-                                                                                                                .collect(Collectors.toList()));
+                                                                                                                  .filter(i -> i == Conditional.Where.Inequality.LESS_THAN || i == Conditional.Where.Inequality.LESS_THAN_EQ)
+                                                                                                                  .collect(Collectors.toList()));
     protected static final Gen<Gen<Conditional.Where.Inequality>> GREATER_THAN_DISTRO = Gens.mixedDistribution(Stream.of(Conditional.Where.Inequality.values())
-                                                                                                                   .filter(i -> i == Conditional.Where.Inequality.GREATER_THAN || i == Conditional.Where.Inequality.GREATER_THAN_EQ)
-                                                                                                                   .collect(Collectors.toList()));
+                                                                                                                     .filter(i -> i == Conditional.Where.Inequality.GREATER_THAN || i == Conditional.Where.Inequality.GREATER_THAN_EQ)
+                                                                                                                     .collect(Collectors.toList()));
     protected static final Gen<Gen<Conditional.Where.Inequality>> RANGE_INEQUALITY_DISTRO = Gens.mixedDistribution(Stream.of(Conditional.Where.Inequality.values())
-                                                                                                                       .filter(i -> i != Conditional.Where.Inequality.EQUAL && i != Conditional.Where.Inequality.NOT_EQUAL)
-                                                                                                                       .collect(Collectors.toList()));
+                                                                                                                         .filter(i -> i != Conditional.Where.Inequality.EQUAL && i != Conditional.Where.Inequality.NOT_EQUAL)
+                                                                                                                         .collect(Collectors.toList()));
     protected static final Gen<Gen.IntGen> FETCH_SIZE_DISTRO = Gens.mixedDistribution(new int[] {1, 10, 100, 1000, 5000});
 
     static
@@ -155,13 +156,13 @@ public class StatefulASTBase extends TestBaseImpl
     protected static Cluster createCluster(int nodeCount, Consumer<IInstanceConfig> config) throws IOException
     {
         Cluster cluster = Cluster.build(nodeCount)
-                                             .withConfig(c -> {
-                                                 c.with(Feature.NATIVE_PROTOCOL, Feature.NETWORK, Feature.GOSSIP)
-                                                  // When drop tables or truncate are performed, we attempt to take snapshots.  This can be costly and isn't needed by these tests
-                                                  .set("incremental_backups", false);
-                                                 config.accept(c);
-                                             })
-                                             .start();
+                                 .withConfig(c -> {
+                                     c.with(Feature.NATIVE_PROTOCOL, Feature.NETWORK, Feature.GOSSIP)
+                                      // When drop tables or truncate are performed, we attempt to take snapshots.  This can be costly and isn't needed by these tests
+                                      .set("incremental_backups", false);
+                                     config.accept(c);
+                                 })
+                                 .start();
         // we don't allow setting null in yaml... but these configs support null!
         cluster.forEach(i ->  i.runOnInstance(() -> {
             // When values are large SAI will drop them... soooo... disable that... this test does not care about perf but correctness
@@ -207,7 +208,7 @@ public class StatefulASTBase extends TestBaseImpl
         protected final TableMetadata metadata;
         protected final TableReference tableRef;
         protected final ASTSingleTableModel model;
-        private final Visitor debug = StandardVisitors.DEBUG;
+        private final Visitor debug;
         private final int enoughMemtables;
         private final int enoughSSTables;
         protected int numMutations, mutationsSinceLastFlush;
@@ -220,6 +221,8 @@ public class StatefulASTBase extends TestBaseImpl
             this.cluster = cluster;
             this.client = JavaDriverUtils.create(cluster);
             this.session = client.connect();
+            this.debug = CQL_DEBUG_APPLY_OPERATOR ? CompositeVisitor.of(StandardVisitors.APPLY_OPERATOR, StandardVisitors.DEBUG)
+                                                  : StandardVisitors.DEBUG;
 
             this.bindOrLiteralGen = BIND_OR_LITERAL_DISTRO.next(rs);
             this.betweenEqGen = BETWEEN_EQ_DISTRO.next(rs);
