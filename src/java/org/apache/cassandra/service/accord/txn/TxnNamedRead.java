@@ -105,10 +105,11 @@ public class TxnNamedRead extends AbstractSerialized<ReadCommand>
         PartitionPosition startPP = range.left;
         boolean startIsMinKeyBound = startPP.getClass() == KeyBound.class ? ((KeyBound)startPP).isMinimumBound : false;
         Token startToken = startPP.getToken();
+        Token stopToken = range.right.getToken();
         AccordRoutingKey startAccordRoutingKey;
         if (startToken.isMinimum() && inclusiveLeft)
             startAccordRoutingKey = SentinelKey.min(tableId);
-        else if (inclusiveLeft || startIsMinKeyBound)
+        else if (inclusiveLeft || startIsMinKeyBound || startToken.equals(stopToken))
             startAccordRoutingKey = new MinTokenKey(tableId, startToken);
         else
             startAccordRoutingKey = new TokenKey(tableId, startToken);
@@ -116,7 +117,6 @@ public class TxnNamedRead extends AbstractSerialized<ReadCommand>
         boolean inclusiveRight = range.inclusiveRight();
         PartitionPosition endPP = range.right;
         boolean endIsMinKeyBound = endPP.getClass() == KeyBound.class ? ((KeyBound)endPP).isMinimumBound : false;
-        Token stopToken = range.right.getToken();
         AccordRoutingKey stopAccordRoutingKey;
         if (stopToken.isMinimum())
             stopAccordRoutingKey = SentinelKey.max(tableId);

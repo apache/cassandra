@@ -40,7 +40,7 @@ import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.ICoordinator;
-import org.apache.cassandra.distributed.api.SimpleQueryResult;
+import org.apache.cassandra.distributed.api.QueryResult;
 import org.apache.cassandra.distributed.test.TestBaseImpl;
 import org.apache.cassandra.service.consensus.TransactionalMode;
 import org.assertj.core.api.Assertions;
@@ -93,6 +93,10 @@ public class InteropTokenRangeTest extends TestBaseImpl
                     Assertions.assertThat(tokens(node.executeWithResult(withKeyspace("SELECT * FROM %s.tbl WHERE " + op.condition), QUORUM, pk)))
                               .describedAs("Token %d with operator %s", token, op.condition)
                               .isEqualTo(op.expected(token, tokens));
+
+                    Assertions.assertThat(tokens(node.executeWithPagingWithResult(withKeyspace("SELECT * FROM %s.tbl WHERE " + op.condition), QUORUM, 1, pk)))
+                              .describedAs("Token %d with operator %s", token, op.condition)
+                              .isEqualTo(op.expected(token, tokens));
                 }
 
                 for (TokenOperator lt : Arrays.asList(TokenOperator.lt, TokenOperator.lte))
@@ -112,7 +116,7 @@ public class InteropTokenRangeTest extends TestBaseImpl
         }
     }
 
-    public static NavigableSet<Long> tokens(SimpleQueryResult result)
+    public static NavigableSet<Long> tokens(QueryResult result)
     {
         NavigableSet<Long> set = new TreeSet<>();
         while (result.hasNext())
