@@ -74,7 +74,7 @@ import static org.apache.cassandra.utils.Shared.Scope.SIMULATION;
  * to be met that we no longer need.
  * <p>5. This scheme is not fair</p>
  * <p>6. Only the thread that calls register() may call await()</p>
- * <p>6. A signal can be cancelled while it is within await() if the invoking thread is interrupted</p>
+ * <p>7. A signal can be cancelled while it is within await() if the invoking thread is interrupted</p>
  * TODO: this class should not be backed by CLQ (should use an intrusive linked-list with lower overhead)
  */
 @Shared(scope = SIMULATION, inner = INTERFACES)
