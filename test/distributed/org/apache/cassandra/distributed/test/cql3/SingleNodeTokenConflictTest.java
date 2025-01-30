@@ -255,7 +255,7 @@ public class SingleNodeTokenConflictTest extends StatefulASTBase
         {
             Property.StatefulBuilder statefulBuilder = stateful().withExamples(10);
             preCheck(statefulBuilder);
-            statefulBuilder.check(commands(() -> rs -> createState(cluster, rs))
+            statefulBuilder.check(commands(() -> rs -> createState(rs, cluster))
                                   .add(SingleNodeTokenConflictTest::insert)
                                   .add(SingleNodeTokenConflictTest::pkEq)
                                   .add(SingleNodeTokenConflictTest::pkIn)
@@ -275,7 +275,7 @@ public class SingleNodeTokenConflictTest extends StatefulASTBase
         }
     }
 
-    protected State createState(Cluster cluster, RandomSource rs)
+    protected State createState(RandomSource rs, Cluster cluster)
     {
         return new State(rs, cluster);
     }
