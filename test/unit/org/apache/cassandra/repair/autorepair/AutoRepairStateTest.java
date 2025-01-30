@@ -21,8 +21,6 @@ package org.apache.cassandra.repair.autorepair;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.UUID;
-import java.util.concurrent.Callable;
-import java.util.concurrent.TimeUnit;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableSet;
@@ -36,17 +34,13 @@ import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.repair.autorepair.AutoRepairConfig.RepairType;
 import org.apache.cassandra.repair.autorepair.AutoRepairUtils.AutoRepairHistory;
 import org.apache.cassandra.service.AutoRepairService;
-import org.apache.cassandra.utils.concurrent.Condition;
 import org.apache.cassandra.utils.progress.ProgressEvent;
-import org.apache.cassandra.utils.progress.ProgressEventType;
 import org.mockito.Mock;
 
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
-import static org.mockito.Mockito.when;
 import static org.mockito.MockitoAnnotations.initMocks;
 
 /**
@@ -89,62 +83,7 @@ public class AutoRepairStateTest extends CQLTester
     }
 
     @Test
-    public void testProgressError() throws InterruptedException
-    {
-        AutoRepairState state = RepairType.getAutoRepairState(repairType);
-        when(progressEvent.getType()).thenReturn(ProgressEventType.ERROR);
-
-        state.progress("test", progressEvent);
-
-        assertFalse(state.success);
-        assertTrue(state.condition.await(0, TimeUnit.MILLISECONDS));
-    }
-
-    @Test
-    public void testProgress_progress() throws InterruptedException
-    {
-        AutoRepairState state = RepairType.getAutoRepairState(repairType);
-        when(progressEvent.getType()).thenReturn(ProgressEventType.PROGRESS);
-
-        state.progress("test", progressEvent);
-
-        assertTrue(state.success);
-        assertFalse(state.condition.await(0, TimeUnit.MILLISECONDS));
-    }
-
-
-    @Test
-    public void testProgress_complete() throws InterruptedException
-    {
-        AutoRepairState state = RepairType.getAutoRepairState(repairType);
-        when(progressEvent.getType()).thenReturn(ProgressEventType.COMPLETE);
-
-        state.progress("test", progressEvent);
-
-        assertTrue(state.success);
-        assertTrue(state.condition.await(1, TimeUnit.MILLISECONDS));
-    }
-
-    @Test
-    public void testWaitForRepairToComplete() throws Exception
-    {
-        AutoRepairState state = RepairType.getAutoRepairState(repairType);
-        state.condition.signalAll();
-        Condition finishedCondition = Condition.newOneTimeCondition();
-        Callable<Void> waitForRepairToComplete = () -> {
-            state.waitForRepairToComplete(new DurationSpec.IntSecondsBound("12h"));
-            finishedCondition.signalAll();
-            return null;
-        };
-
-        waitForRepairToComplete.call();
-
-        assertTrue(finishedCondition.await(1, TimeUnit.MILLISECONDS));
-    }
-
-    @Test
-    public void testGetLastRepairTime()
-    {
+    public void testGetLastRepairTime() {
         AutoRepairState state = RepairType.getAutoRepairState(repairType);
         state.lastRepairTimeInMs = 1;
 
@@ -371,43 +310,5 @@ public class AutoRepairStateTest extends CQLTester
         state.failedTokenRangesCount = 1;
 
         assertEquals(1, state.getFailedTokenRangesCount());
-    }
-
-    @Test
-    public void isSuccess()
-    {
-        AutoRepairState state = RepairType.getAutoRepairState(repairType);
-        state.success = true;
-
-        assertTrue(state.isSuccess());
-
-        state.success = false;
-
-        assertFalse(state.isSuccess());
-    }
-
-    @Test
-    public void testWaitForRepairToCompleteDoesNotSetSuccessWhenProgressReceivesError() throws InterruptedException
-    {
-        AutoRepairState state = RepairType.getAutoRepairState(repairType);
-        when(progressEvent.getType()).thenReturn(ProgressEventType.ERROR);
-
-        state.progress("test", progressEvent);
-        assertFalse(state.success);
-
-        state.waitForRepairToComplete(new DurationSpec.IntSecondsBound("12h"));
-        assertFalse(state.success);
-    }
-
-    @Test
-    public void testResetWaitCondition()
-    {
-        AutoRepairState state = RepairType.getAutoRepairState(repairType);
-        state.condition.signalAll();
-        assertTrue(state.condition.isSignalled());
-
-        state.resetWaitCondition();
-
-        assertFalse(state.condition.isSignalled());
     }
 }

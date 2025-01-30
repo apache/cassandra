@@ -20,7 +20,6 @@ package org.apache.cassandra.repair.autorepair;
 
 import com.google.common.annotations.VisibleForTesting;
 
-import org.apache.cassandra.config.DurationSpec;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.view.TableViews;
@@ -37,10 +36,6 @@ import org.apache.cassandra.service.AutoRepairService;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.streaming.PreviewKind;
 import org.apache.cassandra.utils.Clock;
-import org.apache.cassandra.utils.concurrent.Condition;
-import org.apache.cassandra.utils.progress.ProgressEvent;
-import org.apache.cassandra.utils.progress.ProgressEventType;
-import org.apache.cassandra.utils.progress.ProgressListener;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -52,13 +47,10 @@ import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
-import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
-import static org.apache.cassandra.utils.concurrent.Condition.newOneTimeCondition;
-
 /**
  * AutoRepairState represents the state of automated repair for a given repair type.
  */
-public abstract class AutoRepairState implements ProgressListener
+public abstract class AutoRepairState
 {
     protected static final Logger logger = LoggerFactory.getLogger(AutoRepairState.class);
     private final SimpleDateFormat format = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss,SSS");
@@ -93,10 +85,6 @@ public abstract class AutoRepairState implements ProgressListener
     protected int skippedTablesCount = 0;
     @VisibleForTesting
     protected AutoRepairHistory longestUnrepairedNode;
-    @VisibleForTesting
-    protected Condition condition = newOneTimeCondition();
-    @VisibleForTesting
-    protected boolean success = true;
     protected final AutoRepairMetrics metrics;
 
     protected AutoRepairState(RepairType repairType)
@@ -109,43 +97,8 @@ public abstract class AutoRepairState implements ProgressListener
 
     protected RepairCoordinator getRepairRunnable(String keyspace, RepairOption options)
     {
-        RepairCoordinator task = new RepairCoordinator(StorageService.instance, StorageService.nextRepairCommand.incrementAndGet(),
-                                                    options, keyspace);
-        task.addProgressListener(this);
-
-        return task;
-    }
-
-    @Override
-    public void progress(String tag, ProgressEvent event)
-    {
-        ProgressEventType type = event.getType();
-        String message = String.format("[%s] %s", format.format(currentTimeMillis()), event.getMessage());
-        if (type == ProgressEventType.ERROR)
-        {
-            logger.error("Repair failure for {} repair: {}", repairType.toString(), message);
-            success = false;
-            condition.signalAll();
-        }
-        if (type == ProgressEventType.PROGRESS)
-        {
-            message = message + " (progress: " + (int) event.getProgressPercentage() + "%)";
-            logger.debug("Repair progress for {} repair: {}", repairType.toString(), message);
-        }
-        if (type == ProgressEventType.COMPLETE)
-        {
-            success = true;
-            condition.signalAll();
-        }
-    }
-
-    public void waitForRepairToComplete(DurationSpec.IntSecondsBound repairSessionTimeout) throws InterruptedException
-    {
-        //if for some reason we don't hear back on repair progress for sometime
-        if (!condition.await(repairSessionTimeout.toSeconds(), TimeUnit.SECONDS))
-        {
-            success = false;
-        }
+        return new RepairCoordinator(StorageService.instance, StorageService.nextRepairCommand.incrementAndGet(),
+                                                 options, keyspace);
     }
 
     public long getLastRepairTime()
@@ -272,11 +225,6 @@ public abstract class AutoRepairState implements ProgressListener
         return skippedTablesCount;
     }
 
-    public boolean isSuccess()
-    {
-        return success;
-    }
-
     public void recordTurn(AutoRepairUtils.RepairTurn turn)
     {
         metrics.recordTurn(turn);
@@ -290,11 +238,6 @@ public abstract class AutoRepairState implements ProgressListener
     public int getTotalDisabledTablesRepairCount()
     {
         return totalDisabledTablesRepairCount;
-    }
-
-    public void resetWaitCondition()
-    {
-        condition = newOneTimeCondition();
     }
 }
 
