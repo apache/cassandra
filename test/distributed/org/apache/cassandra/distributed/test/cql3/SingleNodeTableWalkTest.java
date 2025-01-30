@@ -28,13 +28,11 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.NavigableSet;
 import java.util.Optional;
-import java.util.TreeMap;
 import java.util.stream.Collectors;
 import javax.annotation.Nullable;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Iterables;
-import com.google.common.collect.Sets;
 import org.junit.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -55,11 +53,9 @@ import org.apache.cassandra.cql3.ast.TableReference;
 import org.apache.cassandra.cql3.ast.Value;
 import org.apache.cassandra.db.Clustering;
 import org.apache.cassandra.db.marshal.AbstractType;
-import org.apache.cassandra.db.marshal.InetAddressType;
 import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.distributed.Cluster;
-import org.apache.cassandra.distributed.shared.ClusterUtils;
 import org.apache.cassandra.distributed.test.sai.SAIUtil;
 import org.apache.cassandra.harry.model.BytesPartitionState;
 import org.apache.cassandra.schema.ColumnMetadata;
@@ -68,7 +64,6 @@ import org.apache.cassandra.service.consensus.TransactionalMode;
 import org.apache.cassandra.utils.ASTGenerators;
 import org.apache.cassandra.utils.AbstractTypeGenerators;
 import org.apache.cassandra.utils.AbstractTypeGenerators.TypeGenBuilder;
-import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.CassandraGenerators.TableMetadataBuilder;
 import org.apache.cassandra.utils.Generators;
 import org.apache.cassandra.utils.ImmutableUniqueList;
@@ -101,7 +96,6 @@ public class SingleNodeTableWalkTest extends StatefulASTBase
     {
         // if a failing seed is detected, populate here
         // Example: builder.withSeed(42L);
-        builder.withSeed(-6974554530688518405L); //TODO (now): debug.  pk1 and s0 are both indexed and missing data came up... this might be related to another bug reported to Caleb, need to confirm
     }
 
     protected TypeGenBuilder supportedTypes()
@@ -216,77 +210,6 @@ public class SingleNodeTableWalkTest extends StatefulASTBase
         return state.command(rs, select, "by token range");
     }
 
-    public Property.Command<State, Void, ?> nonPartitionQuery(RandomSource rs, State state)
-    {
-        Symbol symbol;
-        if (IGNORED_ISSUES.contains(KnownIssue.AF_MULTI_NODE_AND_NODE_LOCAL_WRITES)
-            && state.cluster.size() > 1)
-        {
-            symbol = rs.pickUnorderedSet(state.indexes.keySet());
-        }
-        else
-        {
-            symbol = rs.pick(state.searchableColumns);
-        }
-        TreeMap<ByteBuffer, List<BytesPartitionState.PrimaryKey>> universe = state.model.index(symbol);
-        // we need to index 'null' so LT works, but we can not directly query it... so filter out when selecting values
-        NavigableSet<ByteBuffer> allowed = Sets.filter(universe.navigableKeySet(), b -> !ByteBufferUtil.EMPTY_BYTE_BUFFER.equals(b));
-        if (allowed.isEmpty())
-            return Property.ignoreCommand();
-        ByteBuffer value = rs.pickOrderedSet(allowed);
-        Select.Builder builder = Select.builder().table(state.metadata);
-
-        EnumSet<CreateIndexDDL.QueryType> supported = !state.indexes.containsKey(symbol) ? EnumSet.noneOf(CreateIndexDDL.QueryType.class) : state.indexes.get(symbol).supportedQueries();
-        if (supported.isEmpty() || !supported.contains(CreateIndexDDL.QueryType.Range))
-            builder.allowFiltering();
-
-        // there are known SAI bugs, so need to avoid them to stay stable...
-        if (state.indexes.containsKey(symbol) && state.indexes.get(symbol).indexDDL.indexer == CreateIndexDDL.SAI)
-        {
-            if (symbol.type() == InetAddressType.instance
-                && IGNORED_ISSUES.contains(KnownIssue.SAI_INET_MIXED))
-                return eqSearch(rs, state, symbol, value, builder);
-
-            if (symbol.reversed
-                && SAI_REVERSE_OF_FIXED_LENGTH_TYPES.contains(symbol.type())
-                && IGNORED_ISSUES.contains(KnownIssue.SAI_REVERSE_OF_FIXED_LENGTH))
-                return eqSearch(rs, state, symbol, value, builder);
-        }
-
-        if (rs.nextBoolean())
-            return simpleRangeSearch(rs, state, symbol, value, builder);
-        //TODO (coverage): define search that has a upper and lower bound: a > and a < | a beteeen ? and ?
-        return eqSearch(rs, state, symbol, value, builder);
-    }
-
-    public Property.Command<State, Void, ?> multiColumnQuery(RandomSource rs, State state)
-    {
-        if (state.metadata.columns().size() == 1)
-            throw new IllegalArgumentException("Unable to do multiple column query when there is only a single column");
-        int numColumns = rs.nextInt(1, state.metadata.columns().size()) + 1;
-        List<Symbol> cols = Gens.lists(Gens.pick(state.model.factory.selectionOrder)).unique().ofSize(numColumns).next(rs);
-
-        Select.Builder builder = Select.builder().table(state.metadata).allowFiltering();
-
-        for (Symbol symbol : cols)
-        {
-            TreeMap<ByteBuffer, List<BytesPartitionState.PrimaryKey>> universe = state.model.index(symbol);
-            NavigableSet<ByteBuffer> allowed = Sets.filter(universe.navigableKeySet(), b -> !ByteBufferUtil.EMPTY_BYTE_BUFFER.equals(b));
-            //TODO (now): support
-            if (allowed.isEmpty())
-                return Property.ignoreCommand();
-            ByteBuffer value = rs.pickOrderedSet(allowed);
-            builder.value(symbol, value);
-        }
-
-        Select select = builder.build();
-        String annotate = cols.stream().map(symbol -> {
-            var indexed = state.indexes.get(symbol);
-            return symbol.detailedName() + (indexed == null ? "" : " (indexed with " + indexed.indexDDL.indexer.name() + ")");
-        }).collect(Collectors.joining(", "));
-        return state.command(rs, select, annotate);
-    }
-
     private Property.Command<State, Void, ?> simpleRangeSearch(RandomSource rs, State state, Symbol symbol, ByteBuffer value, Select.Builder builder)
     {
         // do a simple search, like > or <
@@ -328,10 +251,8 @@ public class SingleNodeTableWalkTest extends StatefulASTBase
                                                              .addIf(State::hasPartitions, this::selectExisting)
                                                              .addAllIf(State::supportTokens, b -> b.add(this::selectToken)
                                                                                                    .add(this::selectTokenRange))
-                                                             .addIf(State::allowNonPartitionQuery, this::nonPartitionQuery)
                                                              .addIf(State::hasEnoughMemtable, StatefulASTBase::flushTable)
                                                              .addIf(State::hasEnoughSSTables, StatefulASTBase::compactTable)
-                                                             .addIf(s -> s.metadata.columns().size() > 1, this::multiColumnQuery)
                                                              .destroyState(State::close)
                                                              .onSuccess(onSuccess(logger))
                                                              .build());
@@ -474,12 +395,6 @@ public class SingleNodeTableWalkTest extends StatefulASTBase
         public boolean supportTokens()
         {
             return hasPartitions();
-        }
-
-        public boolean allowNonPartitionQuery()
-        {
-            return !model.isEmpty()
-                   && !searchableColumns.isEmpty();
         }
 
         @Override

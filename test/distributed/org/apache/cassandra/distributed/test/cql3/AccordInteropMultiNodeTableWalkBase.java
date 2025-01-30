@@ -18,23 +18,16 @@
 
 package org.apache.cassandra.distributed.test.cql3;
 
-import java.io.IOException;
-import javax.annotation.Nullable;
-
 import accord.utils.Property;
 import accord.utils.RandomSource;
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
 import org.apache.cassandra.service.consensus.TransactionalMode;
 
-public class MultiNodeTableWalkTest extends SingleNodeTableWalkTest
+
+public abstract class AccordInteropMultiNodeTableWalkBase extends MultiNodeTableWalkTest
 {
-
-    public MultiNodeTableWalkTest()
-    {
-    }
-
-    protected MultiNodeTableWalkTest(@Nullable TransactionalMode transactionalMode)
+    public AccordInteropMultiNodeTableWalkBase(TransactionalMode transactionalMode)
     {
         super(transactionalMode);
     }
@@ -47,51 +40,28 @@ public class MultiNodeTableWalkTest extends SingleNodeTableWalkTest
     }
 
     @Override
-    protected Cluster createCluster() throws IOException
-    {
-        return createCluster(3, c -> {
-            c.set("range_request_timeout", "180s")
-             .set("read_request_timeout", "180s")
-             .set("transaction_timeout", "180s")
-             .set("write_request_timeout", "180s")
-             .set("native_transport_timeout", "180s")
-             .set("slow_query_log_timeout", "180s");
-        });
-    }
-
-    @Override
     protected State createState(RandomSource rs, Cluster cluster)
     {
-        return new MultiNodeState(rs, cluster);
+        return new AccordInteropMultiNodeState(rs, cluster);
     }
 
-    public class MultiNodeState extends State
+    public class AccordInteropMultiNodeState extends MultiNodeState
     {
-        public MultiNodeState(RandomSource rs, Cluster cluster)
+        public AccordInteropMultiNodeState(RandomSource rs, Cluster cluster)
         {
             super(rs, cluster);
         }
 
         @Override
-        public boolean allowNonPartitionQuery()
-        {
-            if (IGNORED_ISSUES.contains(KnownIssue.AF_MULTI_NODE_AND_NODE_LOCAL_WRITES))
-            {
-                return !indexes.isEmpty() && super.allowNonPartitionQuery();
-            }
-            return super.allowNonPartitionQuery();
-        }
-
-        @Override
         protected ConsistencyLevel selectCl()
         {
-            return ConsistencyLevel.ALL;
+            return ConsistencyLevel.QUORUM;
         }
 
         @Override
         protected ConsistencyLevel mutationCl()
         {
-            return ConsistencyLevel.NODE_LOCAL;
+            return ConsistencyLevel.QUORUM;
         }
     }
 }

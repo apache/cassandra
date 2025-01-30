@@ -18,20 +18,14 @@
 
 package org.apache.cassandra.distributed.test.cql3;
 
-import org.junit.Ignore;
-
 import accord.utils.Property;
-import accord.utils.RandomSource;
-import org.apache.cassandra.distributed.Cluster;
-import org.apache.cassandra.distributed.api.ConsistencyLevel;
 import org.apache.cassandra.service.consensus.TransactionalMode;
 
-@Ignore
-public class AccordInteropSingleNodeTableWalkTest extends SingleNodeTableWalkTest
+public class MixedReadsAccordInteropMultiNodeTableWalkTest extends AccordInteropMultiNodeTableWalkBase
 {
-    public AccordInteropSingleNodeTableWalkTest()
+    public MixedReadsAccordInteropMultiNodeTableWalkTest()
     {
-        super(TransactionalMode.full);
+        super(TransactionalMode.mixed_reads);
     }
 
     @Override
@@ -39,31 +33,5 @@ public class AccordInteropSingleNodeTableWalkTest extends SingleNodeTableWalkTes
     {
         // if a failing seed is detected, populate here
         // Example: builder.withSeed(42L);
-    }
-
-    @Override
-    protected State createState(RandomSource rs, Cluster cluster)
-    {
-        return new AccordInteropState(rs, cluster);
-    }
-
-    private class AccordInteropState extends State
-    {
-        public AccordInteropState(RandomSource rs, Cluster cluster)
-        {
-            super(rs, cluster);
-        }
-
-        @Override
-        protected ConsistencyLevel selectCl()
-        {
-            return ConsistencyLevel.QUORUM;
-        }
-
-        @Override
-        protected ConsistencyLevel mutationCl()
-        {
-            return ConsistencyLevel.QUORUM;
-        }
     }
 }
