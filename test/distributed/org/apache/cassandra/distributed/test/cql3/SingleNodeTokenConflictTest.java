@@ -91,12 +91,6 @@ public class SingleNodeTokenConflictTest extends StatefulASTBase
         // Example: builder.withSeed(42L);
     }
 
-    public static Property.Command<State, Void, ?> insert(RandomSource rs, State state)
-    {
-        Mutation mutation = state.mutationGen.next(rs);
-        return state.command(rs, mutation);
-    }
-
     public static Property.Command<State, Void, ?> pkEq(RandomSource rs, State state)
     {
         ByteBuffer value = state.pkGen.next(rs);
@@ -256,7 +250,8 @@ public class SingleNodeTokenConflictTest extends StatefulASTBase
             Property.StatefulBuilder statefulBuilder = stateful().withExamples(10);
             preCheck(statefulBuilder);
             statefulBuilder.check(commands(() -> rs -> createState(rs, cluster))
-                                  .add(SingleNodeTokenConflictTest::insert)
+                                  .add(StatefulASTBase::insert)
+                                  .add(StatefulASTBase::fullTableScan)
                                   .add(SingleNodeTokenConflictTest::pkEq)
                                   .add(SingleNodeTokenConflictTest::pkIn)
                                   .add(SingleNodeTokenConflictTest::pkBetween)
@@ -301,7 +296,7 @@ public class SingleNodeTokenConflictTest extends StatefulASTBase
                .next(rs);
     }
 
-    class State extends BaseState
+    class State extends CommonState
     {
         private final List<ByteBuffer> neighbors;
         private final List<ByteBuffer> pkValues;
@@ -371,6 +366,12 @@ public class SingleNodeTokenConflictTest extends StatefulASTBase
                                      .withoutTimestamp()
                                      .withPartitions(SourceDSL.arbitrary().pick(uniquePartitions))
                                      .build());
+        }
+
+        @Override
+        protected Gen<Mutation> mutationGen()
+        {
+            return mutationGen;
         }
 
         private List<ByteBuffer> extractNeighbors(List<ByteBuffer> values)

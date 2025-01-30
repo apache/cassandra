@@ -104,13 +104,6 @@ public class SingleNodeTableWalkTest extends StatefulASTBase
         return Collections.singletonList(CreateIndexDDL.SAI);
     }
 
-    public Property.Command<State, Void, ?> insert(RandomSource rs, State state)
-    {
-        //TODO (maintaince): can this become reusable?  its the same as token conflict test...
-        Mutation mutation = state.mutationGen.next(rs);
-        return state.command(rs, mutation);
-    }
-
     public Property.Command<State, Void, ?> selectExisting(RandomSource rs, State state)
     {
         NavigableSet<BytesPartitionState.Ref> keys = state.model.partitionKeys();
@@ -368,7 +361,8 @@ public class SingleNodeTableWalkTest extends StatefulASTBase
             Property.StatefulBuilder statefulBuilder = stateful().withExamples(10).withSteps(400);
             preCheck(statefulBuilder);
             statefulBuilder.check(commands(() -> rs -> createState(rs, cluster))
-                                  .add(this::insert)
+                                  .add(StatefulASTBase::insert)
+                                  .add(StatefulASTBase::fullTableScan)
                                   .addIf(State::hasPartitions, this::selectExisting)
                                   .addAllIf(State::supportTokens, b -> b.add(this::selectToken)
                                                                         .add(this::selectTokenRange))
@@ -419,7 +413,7 @@ public class SingleNodeTableWalkTest extends StatefulASTBase
         return FunctionCall.tokenByValue(values);
     }
 
-    public class State extends BaseState
+    public class State extends CommonState
     {
         protected final LinkedHashMap<Symbol, IndexedColumn> indexes;
         private final Gen<Mutation> mutationGen;
@@ -463,6 +457,12 @@ public class SingleNodeTableWalkTest extends StatefulASTBase
                                                .build();
 
             searchableColumns = metadata.partitionKeyColumns().size() > 1 ?  model.factory.selectionOrder : nonPartitionColumns;
+        }
+
+        @Override
+        protected Gen<Mutation> mutationGen()
+        {
+            return mutationGen;
         }
 
         private LinkedHashMap<Symbol, IndexedColumn> createIndexes(RandomSource rs, TableMetadata metadata)

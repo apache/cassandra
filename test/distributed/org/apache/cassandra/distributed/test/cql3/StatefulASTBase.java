@@ -196,6 +196,17 @@ public class StatefulASTBase extends TestBaseImpl
         });
     }
 
+    protected static <S extends CommonState> Property.Command<S, Void, ?> insert(RandomSource rs, S state)
+    {
+        return state.command(rs, state.mutationGen().next(rs));
+    }
+
+    protected static <S extends BaseState> Property.Command<S, Void, ?> fullTableScan(RandomSource rs, S state)
+    {
+        Select select = Select.builder(state.metadata).build();
+        return state.command(rs, select, "full table scan");
+    }
+
     protected static abstract class BaseState implements AutoCloseable
     {
         protected final RandomSource rs;
@@ -471,5 +482,15 @@ public class StatefulASTBase extends TestBaseImpl
                 return type.toCQLString(value);
             }
         }
+    }
+
+    protected static abstract class CommonState extends BaseState
+    {
+        protected CommonState(RandomSource rs, Cluster cluster, TableMetadata metadata)
+        {
+            super(rs, cluster, metadata);
+        }
+
+        protected abstract Gen<Mutation> mutationGen();
     }
 }
