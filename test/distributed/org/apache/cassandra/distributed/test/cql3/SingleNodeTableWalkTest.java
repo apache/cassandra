@@ -94,6 +94,8 @@ public class SingleNodeTableWalkTest extends StatefulASTBase
     {
         // if a failing seed is detected, populate here
         // Example: builder.withSeed(42L);
+        // CQL operations may have opertors such as +, -, and / (example 4 + 4), to "apply" them to get a constant value
+        // CQL_DEBUG_APPLY_OPERATOR = true;
     }
 
     protected TypeGenBuilder supportedTypes()
@@ -226,15 +228,15 @@ public class SingleNodeTableWalkTest extends StatefulASTBase
             Property.StatefulBuilder statefulBuilder = stateful().withExamples(10).withSteps(400);
             preCheck(statefulBuilder);
             statefulBuilder.check(commands(() -> rs -> createState(rs, cluster))
-                                                             .add(this::insert)
-                                                             .addIf(State::hasPartitions, this::selectExisting)
-                                                             .addAllIf(State::supportTokens, b -> b.add(this::selectToken)
-                                                                                                   .add(this::selectTokenRange))
-                                                             .addIf(State::hasEnoughMemtable, StatefulASTBase::flushTable)
-                                                             .addIf(State::hasEnoughSSTables, StatefulASTBase::compactTable)
-                                                             .destroyState(State::close)
-                                                             .onSuccess(onSuccess(logger))
-                                                             .build());
+                                  .add(this::insert)
+                                  .addIf(State::hasPartitions, this::selectExisting)
+                                  .addAllIf(State::supportTokens, b -> b.add(this::selectToken)
+                                                                        .add(this::selectTokenRange))
+                                  .addIf(State::hasEnoughMemtable, StatefulASTBase::flushTable)
+                                  .addIf(State::hasEnoughSSTables, StatefulASTBase::compactTable)
+                                  .destroyState(State::close)
+                                  .onSuccess(onSuccess(logger))
+                                  .build());
         }
     }
 
