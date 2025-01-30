@@ -73,16 +73,6 @@ public class MultiNodeTableWalkTest extends SingleNodeTableWalkTest
         }
 
         @Override
-        public boolean allowNonPartitionQuery()
-        {
-            if (IGNORED_ISSUES.contains(KnownIssue.AF_MULTI_NODE_AND_NODE_LOCAL_WRITES))
-            {
-                return !indexes.isEmpty() && super.allowNonPartitionQuery();
-            }
-            return super.allowNonPartitionQuery();
-        }
-
-        @Override
         protected ConsistencyLevel selectCl()
         {
             return ConsistencyLevel.ALL;

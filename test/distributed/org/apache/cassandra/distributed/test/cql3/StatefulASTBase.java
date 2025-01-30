@@ -101,8 +101,6 @@ public class StatefulASTBase extends TestBaseImpl
                                     "Fixed length values have their bytes reversed when storing to disk, which leads to finding incorrect values when doing a normal index search"),
         CUSTOM_INDEX_MAX_COLUMN_48("https://issues.apache.org/jira/browse/CASSANDRA-19897",
                                    "Columns can be up to 50 chars, but CREATE CUSTOM INDEX only allows up to 48"),
-        AF_MULTI_NODE_AND_NODE_LOCAL_WRITES("https://issues.apache.org/jira/browse/CASSANDRA-20243",
-                                            "When writes are done at NODE_LOCAL and the select is ALL, AF should be able to return the correct data but it doesn't")
         ;
 
         KnownIssue(String url, String description)
