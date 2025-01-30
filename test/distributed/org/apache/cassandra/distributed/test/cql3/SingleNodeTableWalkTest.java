@@ -21,9 +21,7 @@ package org.apache.cassandra.distributed.test.cql3;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
-import java.util.EnumSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.NavigableSet;
@@ -31,7 +29,7 @@ import java.util.Optional;
 import java.util.stream.Collectors;
 import javax.annotation.Nullable;
 
-import com.google.common.collect.ImmutableList;
+import com.google.common.base.Preconditions;
 import com.google.common.collect.Iterables;
 import org.junit.Test;
 import org.slf4j.Logger;
@@ -107,7 +105,7 @@ public class SingleNodeTableWalkTest extends StatefulASTBase
     protected List<CreateIndexDDL.Indexer> supportedIndexers()
     {
         // since legacy is async it's not clear how the test can wait for the background write to complete...
-        return Arrays.asList(CreateIndexDDL.SAI);
+        return Collections.singletonList(CreateIndexDDL.SAI);
     }
 
     public Property.Command<State, Void, ?> insert(RandomSource rs, State state)
@@ -129,7 +127,7 @@ public class SingleNodeTableWalkTest extends StatefulASTBase
         for (Symbol pk : pks)
             builder.value(pk, key.bufferAt(pks.indexOf(pk)));
 
-        boolean wholePartition = cks.isEmpty() ? true : rs.nextBoolean();
+        boolean wholePartition = cks.isEmpty() || rs.nextBoolean();
         if (!wholePartition)
         {
             // find a row to select
@@ -210,25 +208,6 @@ public class SingleNodeTableWalkTest extends StatefulASTBase
         return state.command(rs, select, "by token range");
     }
 
-    private Property.Command<State, Void, ?> simpleRangeSearch(RandomSource rs, State state, Symbol symbol, ByteBuffer value, Select.Builder builder)
-    {
-        // do a simple search, like > or <
-        Conditional.Where.Inequality kind = state.rangeInequalityGen.next(rs);
-        builder.where(symbol, kind, value);
-        Select select = builder.build();
-        var indexed = state.indexes.get(symbol);
-        return state.command(rs, select, symbol.detailedName() + (indexed == null ? "" : ", indexed with " + indexed.indexDDL.indexer.name()));
-    }
-
-    private Property.Command<State, Void, ?> eqSearch(RandomSource rs, State state, Symbol symbol, ByteBuffer value, Select.Builder builder)
-    {
-        builder.value(symbol, value);
-
-        Select select = builder.build();
-        var indexed = state.indexes.get(symbol);
-        return state.command(rs, select, symbol.detailedName() + (indexed == null ? "" : ", indexed with " + indexed.indexDDL.indexer.name()));
-    }
-
     protected State createState(RandomSource rs, Cluster cluster)
     {
         return new State(rs, cluster);
@@ -287,6 +266,7 @@ public class SingleNodeTableWalkTest extends StatefulASTBase
 
     private static FunctionCall token(State state, BytesPartitionState.Ref ref)
     {
+        Preconditions.checkNotNull(ref.key);
         List<Value> values = new ArrayList<>(ref.key.size());
         for (int i = 0; i < ref.key.size(); i++)
         {
@@ -301,7 +281,6 @@ public class SingleNodeTableWalkTest extends StatefulASTBase
     {
         protected final LinkedHashMap<Symbol, IndexedColumn> indexes;
         private final Gen<Mutation> mutationGen;
-        private final List<Symbol> searchableColumns;
 
         public State(RandomSource rs, Cluster cluster)
         {
@@ -332,19 +311,6 @@ public class SingleNodeTableWalkTest extends StatefulASTBase
                                      .withoutTimestamp()
                                      .withPartitions(SourceDSL.arbitrary().pick(uniquePartitions))
                                      .build());
-
-            if (metadata.partitionKeyColumns().size() > 1)
-            {
-                searchableColumns = model.factory.selectionOrder;
-            }
-            else
-            {
-                searchableColumns = ImmutableList.<Symbol>builder()
-                                                 .addAll(model.factory.clusteringColumns)
-                                                 .addAll(model.factory.staticColumns)
-                                                 .addAll(model.factory.regularColumns)
-                                                 .build();
-            }
         }
 
         private LinkedHashMap<Symbol, IndexedColumn> createIndexes(RandomSource rs, TableMetadata metadata)
@@ -358,7 +324,6 @@ public class SingleNodeTableWalkTest extends StatefulASTBase
                 Symbol symbol = Symbol.from(col);
                 AbstractType<?> type = symbol.type();
 
-//                if (col.type.isReversed()) continue; //TODO (correctness): see https://issues.apache.org/jira/browse/CASSANDRA-19889
 //                if (col.name.toString().length() >= 48) continue; // TODO (correctness): https://issues.apache.org/jira/browse/CASSANDRA-19897
 
                 if (type.isCollection() && !type.isFrozenCollection()) continue; //TODO (coverage): include non-frozen collections;  the index part works fine, its the select that fails... basic equality isn't allowed for map type... so how do you query?
@@ -380,6 +345,7 @@ public class SingleNodeTableWalkTest extends StatefulASTBase
                 logger.info(stmt);
                 cluster.schemaChange(stmt);
 
+                //noinspection OptionalGetWithoutIsPresent
                 SAIUtil.waitForIndexQueryable(cluster, metadata.keyspace, ddl.name.get().name());
 
                 indexed.put(symbol, new IndexedColumn(symbol, ddl));
@@ -417,11 +383,6 @@ public class SingleNodeTableWalkTest extends StatefulASTBase
         {
             this.symbol = symbol;
             this.indexDDL = indexDDL;
-        }
-
-        public EnumSet<CreateIndexDDL.QueryType> supportedQueries()
-        {
-            return indexDDL.indexer.supportedQueries(symbol.type());
         }
     }
 }
