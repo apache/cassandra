@@ -161,19 +161,20 @@ public class ASTSingleTableModelTest
                     }
                 }
             }
-//            // between (same as bound range, but different syntax)
-//            for (ByteBuffer left : allValues)
-//            {
-//                for (ByteBuffer right : allValues)
-//                {
-//                    model.validate(modelModel.allWhere(column,
-//                                                       Inequality.GREATER_THAN_EQ, left,
-//                                                       Inequality.LESS_THAN_EQ, right),
-//                                   Select.builder(metadata)
-//                                         .between(column, new Bind(left, column.type()), new Bind(right, column.type()))
-//                                         .build());
-//                }
-//            }
+            // between (same as bound range, but different syntax)
+            for (BytesPartitionState.Ref left : modelModel.refs())
+            {
+                FunctionCall leftTokenFunction = tokenFunction(left);
+                for (BytesPartitionState.Ref right : modelModel.refs())
+                {
+                    FunctionCall rightTokenFunction = tokenFunction(right);
+                    model.validate(modelModel.allWhere(Inequality.GREATER_THAN_EQ, left.token,
+                                                       Inequality.LESS_THAN_EQ, right.token),
+                                   Select.builder(metadata)
+                                         .between(tokenByColumns, leftTokenFunction, rightTokenFunction)
+                                         .build());
+                }
+            }
         }
     }
 
