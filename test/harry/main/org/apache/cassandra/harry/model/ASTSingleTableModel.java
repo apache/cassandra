@@ -562,10 +562,12 @@ public class ASTSingleTableModel
         }
         else if (ctx.eq.keySet().containsAll(factory.partitionColumns))
         {
+            // tested
             primaryKeys = findByPartitionEq(ctx);
         }
         else if (ctx.token != null)
         {
+            // tested
             primaryKeys = findKeysByToken(ctx);
         }
         else if (ctx.tokenLowerBound != null || ctx.tokenUpperBound != null)
@@ -574,6 +576,7 @@ public class ASTSingleTableModel
         }
         else
         {
+            // partial tested (handles many columns, tests are single column)
             primaryKeys = search(ctx);
         }
         //TODO (correctness): now that we have the rows we need to handle the selections/aggregation/limit/group-by/etc.

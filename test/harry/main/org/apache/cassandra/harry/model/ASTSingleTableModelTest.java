@@ -25,7 +25,9 @@ import java.util.EnumSet;
 import java.util.List;
 import java.util.TreeMap;
 import java.util.function.Consumer;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import com.google.common.collect.ImmutableList;
 import org.junit.Test;
@@ -38,6 +40,7 @@ import org.apache.cassandra.cql3.ast.Select;
 import org.apache.cassandra.cql3.ast.Symbol;
 import org.apache.cassandra.db.BufferClustering;
 import org.apache.cassandra.db.marshal.AbstractType;
+import org.apache.cassandra.db.marshal.BytesType;
 import org.apache.cassandra.db.marshal.InetAddressType;
 import org.apache.cassandra.db.marshal.Int32Type;
 import org.apache.cassandra.db.marshal.LexicalUUIDType;
@@ -96,12 +99,79 @@ public class ASTSingleTableModelTest
             insert(model, ONE);
 
             Select.Builder builder = Select.builder().table(metadata);
-            builder.where(FunctionCall.tokenByColumns(metadata.partitionKeyColumns().stream().map(Symbol::new).collect(Collectors.toList())),
+            builder.where(FunctionCall.tokenByColumns(model.factory.partitionColumns),
                           Inequality.EQUAL,
-                          FunctionCall.tokenByValue(metadata.partitionKeyColumns().stream().map(i -> new Bind(ZERO, Int32Type.instance)).collect(Collectors.toList())));
+                          FunctionCall.tokenByValue(model.factory.partitionColumns.stream().map(i -> new Bind(ZERO, Int32Type.instance)).collect(Collectors.toList())));
 
             Select select = builder.build();
             model.validate(expected, select);
+        }
+    }
+
+    @Test
+    public void tokenSearch()
+    {
+        for (TableMetadata metadata : defaultTables())
+        {
+            ASTSingleTableModel model = new ASTSingleTableModel(metadata);
+            ModelModel modelModel = new ModelModel(model);
+            boolean hasClustering = !model.factory.clusteringColumns.isEmpty();
+            List<ByteBuffer> partitionValues = Arrays.asList(ONE, TWO, THREE);
+
+            for (ByteBuffer value : partitionValues)
+            {
+                if (hasClustering)
+                    modelModel.add(insert(model, (kind, offset) -> kind == ColumnMetadata.Kind.CLUSTERING ? ZERO : value));
+                modelModel.add(insert(model, value));
+            }
+
+            FunctionCall tokenByColumns = FunctionCall.tokenByColumns(model.factory.partitionColumns);
+
+            // unbound range: < / >
+            for (BytesPartitionState.Ref ref : modelModel.refs())
+            {
+                FunctionCall tokenByValue = tokenFunction(ref);
+                for (Inequality inequality : RANGE_INEQUALITY)
+                {
+                    model.validate(modelModel.allWhere(inequality, ref.token),
+                                   Select.builder(metadata)
+                                         .where(tokenByColumns, inequality, tokenByValue)
+                                         .build());
+                }
+            }
+//            // bound range: < and >, > and <
+//            for (ByteBuffer leftValue : allValues)
+//            {
+//                for (Inequality left : RANGE_INEQUALITY)
+//                {
+//                    for (ByteBuffer rightValue : allValues)
+//                    {
+//                        for (Inequality right : RANGE_INEQUALITY)
+//                        {
+//                            model.validate(modelModel.allWhere(column,
+//                                                               left, leftValue,
+//                                                               right, rightValue),
+//                                           Select.builder(metadata)
+//                                                 .where(column, left, leftValue)
+//                                                 .where(column, right, rightValue)
+//                                                 .build());
+//                        }
+//                    }
+//                }
+//            }
+//            // between (same as bound range, but different syntax)
+//            for (ByteBuffer left : allValues)
+//            {
+//                for (ByteBuffer right : allValues)
+//                {
+//                    model.validate(modelModel.allWhere(column,
+//                                                       Inequality.GREATER_THAN_EQ, left,
+//                                                       Inequality.LESS_THAN_EQ, right),
+//                                   Select.builder(metadata)
+//                                         .between(column, new Bind(left, column.type()), new Bind(right, column.type()))
+//                                         .build());
+//                }
+//            }
         }
     }
 
@@ -336,32 +406,34 @@ public class ASTSingleTableModelTest
     private static class ModelModel
     {
         private final ASTSingleTableModel model;
-        private final TreeMap<Token, List<ByteBuffer[]>> partitions = new TreeMap<>();
+        private final TreeMap<BytesPartitionState.Ref, List<ByteBuffer[]>> partitions = new TreeMap<>();
 
         private ModelModel(ASTSingleTableModel model)
         {
             this.model = model;
         }
 
+        Iterable<BytesPartitionState.Ref> refs()
+        {
+            return partitions.keySet();
+        }
+
         ByteBuffer[] add(ByteBuffer[] row)
         {
-            Token token = createToken(row);
-            partitions.computeIfAbsent(token, i -> new ArrayList<>()).add(row);
+            BytesPartitionState.Ref ref = createRef(row);
+            partitions.computeIfAbsent(ref, i -> new ArrayList<>()).add(row);
             return row;
         }
 
-        private Token createToken(ByteBuffer[] row)
+        private BytesPartitionState.Ref createRef(ByteBuffer[] row)
         {
             ByteBuffer[] pks = Arrays.copyOf(row, model.factory.partitionColumns.size());
-            return model.factory.createRef(new BufferClustering(pks)).token;
+            return model.factory.createRef(new BufferClustering(pks));
         }
 
         public ByteBuffer[][] all()
         {
-            List<ByteBuffer[]> rows = new ArrayList<>();
-            for (List<ByteBuffer[]> partition : partitions.values())
-                rows.addAll(partition);
-            return rows.toArray(ByteBuffer[][]::new);
+            return allWhere(i -> true);
         }
 
         public ByteBuffer[][] allEq(Symbol column, ByteBuffer value)
@@ -372,35 +444,49 @@ public class ASTSingleTableModelTest
         public ByteBuffer[][] allWhere(Symbol column, Inequality inequality, ByteBuffer value)
         {
             int idx = model.factory.selectionOrder.indexOf(column);
-            List<ByteBuffer[]> rows = new ArrayList<>();
-            for (List<ByteBuffer[]> partition : partitions.values())
-            {
-                for (ByteBuffer[] row : partition)
-                {
-                    ByteBuffer actual = row[idx];
-                    if (actual == null) continue;
-                    if (include(column.type(), actual, inequality, value))
-                        rows.add(row);
-                }
-            }
-            return rows.toArray(ByteBuffer[][]::new);
+            return allWhere(row -> {
+                ByteBuffer actual = row[idx];
+                if (actual == null) return false;
+                return include(column.type(), actual, inequality, value);
+            });
         }
 
         public ByteBuffer[][] allWhere(Symbol column,
                                        Inequality left, ByteBuffer leftValue,
                                        Inequality right, ByteBuffer rightValue)
         {
-            //TODO (copy/paste): the main loop is copy/paste
             int idx = model.factory.selectionOrder.indexOf(column);
+            return allWhere(row -> {
+                ByteBuffer actual = row[idx];
+                if (actual == null) return false;
+                return include(column.type(), actual, left, leftValue) &&
+                       include(column.type(), actual, right, rightValue);
+            });
+        }
+
+        private ByteBuffer[][] allWhere(Inequality inequality, Token token)
+        {
+            return allWhere(ref -> include(ref, inequality, token), i -> true);
+        }
+
+        private ByteBuffer[][] allWhere(Predicate<ByteBuffer[]> predicate)
+        {
+            return allWhere(i -> true, predicate);
+        }
+
+        private ByteBuffer[][] allWhere(Predicate<BytesPartitionState.Ref> partitionPredicate,
+                                        Predicate<ByteBuffer[]> rowPredicate)
+        {
             List<ByteBuffer[]> rows = new ArrayList<>();
-            for (List<ByteBuffer[]> partition : partitions.values())
+            for (var e : partitions.entrySet())
             {
+                BytesPartitionState.Ref ref = e.getKey();
+                if (!partitionPredicate.test(ref))
+                    continue;
+                List<ByteBuffer[]> partition = e.getValue();
                 for (ByteBuffer[] row : partition)
                 {
-                    ByteBuffer actual = row[idx];
-                    if (actual == null) continue;
-                    if (include(column.type(), actual, left, leftValue) &&
-                        include(column.type(), actual, right, rightValue))
+                    if (rowPredicate.test(row))
                         rows.add(row);
                 }
             }
@@ -439,11 +525,50 @@ public class ASTSingleTableModelTest
             }
             return false;
         }
+
+        private static boolean include(BytesPartitionState.Ref ref, Inequality inequality, Token token)
+        {
+            //TODO (copy/paste): this is the same as the include above, but with different call sites
+            int rc = ref.token.compareTo(token);
+            switch (inequality)
+            {
+                case EQUAL:
+                    if (ref.token.equals(token))
+                        return true;
+                    break;
+                case NOT_EQUAL:
+                    if (!ref.token.equals(token))
+                        return true;
+                    break;
+                case LESS_THAN_EQ:
+                    if (rc == 0)
+                        return true;
+                case LESS_THAN:
+                    if (rc < 0)
+                        return true;
+                    break;
+                case GREATER_THAN_EQ:
+                    if (rc == 0)
+                        return true;
+                case GREATER_THAN:
+                    if (rc > 0)
+                        return true;
+                    break;
+                default:
+                    throw new UnsupportedOperationException(inequality.name());
+            }
+            return false;
+        }
     }
 
     private interface ColumnValue
     {
         ByteBuffer accept(ColumnMetadata.Kind kind, int offset);
+    }
+
+    private static FunctionCall tokenFunction(BytesPartitionState.Ref ref)
+    {
+        return FunctionCall.tokenByValue(Stream.of(ref.key.getBufferArray()).map(bb -> new Bind(bb, BytesType.instance)).collect(Collectors.toList()));
     }
 
     private static ByteBuffer[] insert(ASTSingleTableModel model, ByteBuffer value)
