@@ -21,7 +21,6 @@ package org.apache.cassandra.distributed.test.cql3;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.EnumSet;
 import java.util.LinkedHashMap;
@@ -31,6 +30,7 @@ import java.util.Optional;
 import java.util.TreeMap;
 import java.util.stream.Collectors;
 
+import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Sets;
@@ -77,6 +77,7 @@ import static org.apache.cassandra.utils.ASTGenerators.allColumnsInFixedOrder;
 import static org.apache.cassandra.utils.AbstractTypeGenerators.getTypeSupport;
 import static org.apache.cassandra.utils.Generators.toGen;
 
+//TODO (coverage): add partition restricted clustering range queries: eg. WHERE pk=? and ck BETWEEN ? AND ?
 public class SingleNodeTableWalkTest extends StatefulASTBase
 {
     private static final Logger logger = LoggerFactory.getLogger(SingleNodeTableWalkTest.class);
