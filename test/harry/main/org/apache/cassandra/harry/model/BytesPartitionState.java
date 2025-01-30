@@ -360,7 +360,7 @@ public class BytesPartitionState
             return sb.toString();
         }
     }
-    
+
     public class Row
     {
         public final Clustering<ByteBuffer> clustering;
@@ -394,7 +394,7 @@ public class BytesPartitionState
             return Stream.of(columns).allMatch(b -> b == null );
         }
     }
-    
+
     public static class Factory
     {
         public final TableMetadata metadata;
@@ -466,13 +466,13 @@ public class BytesPartitionState
         private Comparator<Object> compareValue(AbstractType<?> type)
         {
             return (a, b) -> {
-              Value av = (Value) a;
-              Value bv = (Value) b;
-              if (!av.type.equals(type))
-                  throw new IllegalArgumentException(String.format("Attempted to compare values of the wrong type; expected %s, actual %s", type.asCQL3Type(), av.type.asCQL3Type()));
-              if (!bv.type.equals(type))
-                  throw new IllegalArgumentException(String.format("Attempted to compare values of the wrong type; expected %s, actual %s", type.asCQL3Type(), bv.type.asCQL3Type()));
-              return type.compare(av.value, bv.value);
+                Value av = (Value) a;
+                Value bv = (Value) b;
+                if (!av.type.equals(type))
+                    throw new IllegalArgumentException(String.format("Attempted to compare values of the wrong type; expected %s, actual %s", type.asCQL3Type(), av.type.asCQL3Type()));
+                if (!bv.type.equals(type))
+                    throw new IllegalArgumentException(String.format("Attempted to compare values of the wrong type; expected %s, actual %s", type.asCQL3Type(), bv.type.asCQL3Type()));
+                return type.compare(av.value, bv.value);
             };
         }
 
