@@ -21,18 +21,27 @@ package org.apache.cassandra.harry.model;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.EnumSet;
 import java.util.List;
+import java.util.TreeMap;
+import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
+import com.google.common.collect.ImmutableList;
 import org.junit.Test;
 
 import org.apache.cassandra.cql3.ast.Bind;
-import org.apache.cassandra.cql3.ast.Conditional;
+import org.apache.cassandra.cql3.ast.Conditional.Where.Inequality;
 import org.apache.cassandra.cql3.ast.FunctionCall;
 import org.apache.cassandra.cql3.ast.Mutation;
 import org.apache.cassandra.cql3.ast.Select;
 import org.apache.cassandra.cql3.ast.Symbol;
+import org.apache.cassandra.db.BufferClustering;
+import org.apache.cassandra.db.marshal.AbstractType;
+import org.apache.cassandra.db.marshal.BytesType;
 import org.apache.cassandra.db.marshal.InetAddressType;
 import org.apache.cassandra.db.marshal.Int32Type;
 import org.apache.cassandra.db.marshal.LexicalUUIDType;
@@ -40,6 +49,7 @@ import org.apache.cassandra.db.marshal.ReversedType;
 import org.apache.cassandra.db.marshal.ShortType;
 import org.apache.cassandra.db.marshal.TimestampType;
 import org.apache.cassandra.dht.Murmur3Partitioner;
+import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.utils.ByteBufferUtil;
@@ -51,6 +61,9 @@ public class ASTSingleTableModelTest
     public static final ByteBuffer TWO = ByteBufferUtil.bytes(2);
     public static final ByteBuffer THREE = ByteBufferUtil.bytes(3);
     public static final ByteBuffer[][] EMPTY = new ByteBuffer[0][];
+
+    private static final EnumSet<Inequality> RANGE_INEQUALITY = EnumSet.of(Inequality.LESS_THAN, Inequality.LESS_THAN_EQ,
+                                                                           Inequality.GREATER_THAN, Inequality.GREATER_THAN_EQ);
 
     @Test
     public void singlePartition()
@@ -87,12 +100,81 @@ public class ASTSingleTableModelTest
             insert(model, ONE);
 
             Select.Builder builder = Select.builder().table(metadata);
-            builder.where(FunctionCall.tokenByColumns(metadata.partitionKeyColumns().stream().map(Symbol::new).collect(Collectors.toList())),
-                          Conditional.Where.Inequality.EQUAL,
-                          FunctionCall.tokenByValue(metadata.partitionKeyColumns().stream().map(i -> new Bind(ZERO, Int32Type.instance)).collect(Collectors.toList())));
+            builder.where(FunctionCall.tokenByColumns(model.factory.partitionColumns),
+                          Inequality.EQUAL,
+                          FunctionCall.tokenByValue(model.factory.partitionColumns.stream().map(i -> new Bind(ZERO, Int32Type.instance)).collect(Collectors.toList())));
 
             Select select = builder.build();
             model.validate(expected, select);
+        }
+    }
+
+    @Test
+    public void tokenSearch()
+    {
+        for (TableMetadata metadata : defaultTables())
+        {
+            ASTSingleTableModel model = new ASTSingleTableModel(metadata);
+            ModelModel modelModel = new ModelModel(model);
+            boolean hasClustering = !model.factory.clusteringColumns.isEmpty();
+            List<ByteBuffer> partitionValues = Arrays.asList(ONE, TWO, THREE);
+
+            for (ByteBuffer value : partitionValues)
+            {
+                if (hasClustering)
+                    modelModel.add(insert(model, (kind, offset) -> kind == ColumnMetadata.Kind.CLUSTERING ? ZERO : value));
+                modelModel.add(insert(model, value));
+            }
+
+            FunctionCall tokenByColumns = FunctionCall.tokenByColumns(model.factory.partitionColumns);
+
+            // unbound range: < / >
+            for (BytesPartitionState.Ref ref : modelModel.refs())
+            {
+                FunctionCall tokenByValue = tokenFunction(ref);
+                for (Inequality inequality : RANGE_INEQUALITY)
+                {
+                    model.validate(modelModel.allWhere(inequality, ref.token),
+                                   Select.builder(metadata)
+                                         .where(tokenByColumns, inequality, tokenByValue)
+                                         .build());
+                }
+            }
+            // bound range: < and >, > and <
+            for (BytesPartitionState.Ref leftValue : modelModel.refs())
+            {
+                FunctionCall leftTokenFunction = tokenFunction(leftValue);
+                for (Inequality left : RANGE_INEQUALITY)
+                {
+                    for (BytesPartitionState.Ref rightValue : modelModel.refs())
+                    {
+                        FunctionCall rightTokenFunction = tokenFunction(rightValue);
+                        for (Inequality right : RANGE_INEQUALITY)
+                        {
+                            model.validate(modelModel.allWhere(left, leftValue.token,
+                                                               right, rightValue.token),
+                                           Select.builder(metadata)
+                                                 .where(tokenByColumns, left, leftTokenFunction)
+                                                 .where(tokenByColumns, right, rightTokenFunction)
+                                                 .build());
+                        }
+                    }
+                }
+            }
+            // between (same as bound range, but different syntax)
+            for (BytesPartitionState.Ref left : modelModel.refs())
+            {
+                FunctionCall leftTokenFunction = tokenFunction(left);
+                for (BytesPartitionState.Ref right : modelModel.refs())
+                {
+                    FunctionCall rightTokenFunction = tokenFunction(right);
+                    model.validate(modelModel.allWhere(Inequality.GREATER_THAN_EQ, left.token,
+                                                       Inequality.LESS_THAN_EQ, right.token),
+                                   Select.builder(metadata)
+                                         .between(tokenByColumns, leftTokenFunction, rightTokenFunction)
+                                         .build());
+                }
+            }
         }
     }
 
@@ -169,6 +251,9 @@ public class ASTSingleTableModelTest
     @Test
     public void nullColumnSelect()
     {
+        // This example was found from a test, hence why more complex types are used.
+        // This test didn't end up depending on these complexities as the issue was null (delete or undefined column)
+        // handle, which is type agnostic.
         TableMetadata metadata = TableMetadata.builder("ks", "tbl")
                                               .partitioner(Murmur3Partitioner.instance)
                                               .addPartitionKeyColumn("pk0", InetAddressType.instance)
@@ -199,7 +284,7 @@ public class ASTSingleTableModelTest
 
         Select selectColumn = Select.builder(metadata)
                                     .value("pk0", pk0)
-                                    .where("v0", Conditional.Where.Inequality.GREATER_THAN, row2V0)
+                                    .where("v0", Inequality.GREATER_THAN, row2V0)
                                     .build();
 
         model.update(Mutation.update(metadata)
@@ -227,9 +312,247 @@ public class ASTSingleTableModelTest
         model.validate(new ByteBuffer[0][], selectColumn);
     }
 
+    @Test
+    public void selectStar()
+    {
+        for (TableMetadata metadata : defaultTables())
+        {
+            ASTSingleTableModel model = new ASTSingleTableModel(metadata);
+            ModelModel modelModel = new ModelModel(model);
+            boolean hasClustering = !model.factory.clusteringColumns.isEmpty();
+            for (ByteBuffer value : Arrays.asList(ONE, TWO, THREE))
+            {
+                if (hasClustering)
+                    modelModel.add(insert(model, (kind, offset) -> kind == ColumnMetadata.Kind.CLUSTERING ? ZERO : value));
+                modelModel.add(insert(model, value));
+            }
+
+            model.validate(modelModel.all(), Select.builder(metadata).build());
+        }
+    }
+
+    @Test
+    public void simpleSearch()
+    {
+        for (TableMetadata metadata : defaultTables())
+        {
+            ASTSingleTableModel model = new ASTSingleTableModel(metadata);
+            ModelModel modelModel = new ModelModel(model);
+            boolean hasClustering = !model.factory.clusteringColumns.isEmpty();
+            List<ByteBuffer> partitionValues = Arrays.asList(ONE, TWO, THREE);
+            List<ByteBuffer> allValues = ImmutableList.<ByteBuffer>builder()
+                                                      .add(ZERO)
+                                                      .addAll(partitionValues)
+                                                      .build();
+
+            for (ByteBuffer value : partitionValues)
+            {
+                if (hasClustering)
+                    modelModel.add(insert(model, (kind, offset) -> kind == ColumnMetadata.Kind.CLUSTERING ? ZERO : value));
+                modelModel.add(insert(model, value));
+            }
+
+            for (Symbol column : model.factory.selectionOrder)
+            {
+                // test eq
+                for (ByteBuffer value : allValues)
+                {
+                    model.validate(modelModel.allEq(column, value),
+                                   Select.builder(metadata).value(column, value).build());
+                }
+                // unbound range: < / >
+                for (ByteBuffer value : allValues)
+                {
+                    for (Inequality inequality : RANGE_INEQUALITY)
+                    {
+                        model.validate(modelModel.allWhere(column, inequality, value),
+                                       Select.builder(metadata).where(column, inequality, value).build());
+                    }
+                }
+                // bound range: < and >, > and <
+                for (ByteBuffer leftValue : allValues)
+                {
+                    for (Inequality left : RANGE_INEQUALITY)
+                    {
+                        for (ByteBuffer rightValue : allValues)
+                        {
+                            for (Inequality right : RANGE_INEQUALITY)
+                            {
+                                model.validate(modelModel.allWhere(column,
+                                                                   left, leftValue,
+                                                                   right, rightValue),
+                                               Select.builder(metadata)
+                                                     .where(column, left, leftValue)
+                                                     .where(column, right, rightValue)
+                                                     .build());
+                            }
+                        }
+                    }
+                }
+                // between (same as bound range, but different syntax)
+                for (ByteBuffer left : allValues)
+                {
+                    for (ByteBuffer right : allValues)
+                    {
+                        model.validate(modelModel.allWhere(column,
+                                                           Inequality.GREATER_THAN_EQ, left,
+                                                           Inequality.LESS_THAN_EQ, right),
+                                       Select.builder(metadata)
+                                             .between(column, new Bind(left, column.type()), new Bind(right, column.type()))
+                                             .build());
+                    }
+                }
+            }
+        }
+    }
+
+    private static class ModelModel
+    {
+        private final ASTSingleTableModel model;
+        private final TreeMap<BytesPartitionState.Ref, List<ByteBuffer[]>> partitions = new TreeMap<>();
+
+        private ModelModel(ASTSingleTableModel model)
+        {
+            this.model = model;
+        }
+
+        Iterable<BytesPartitionState.Ref> refs()
+        {
+            return partitions.keySet();
+        }
+
+        ByteBuffer[] add(ByteBuffer[] row)
+        {
+            BytesPartitionState.Ref ref = createRef(row);
+            partitions.computeIfAbsent(ref, i -> new ArrayList<>()).add(row);
+            return row;
+        }
+
+        private BytesPartitionState.Ref createRef(ByteBuffer[] row)
+        {
+            ByteBuffer[] pks = Arrays.copyOf(row, model.factory.partitionColumns.size());
+            return model.factory.createRef(new BufferClustering(pks));
+        }
+
+        public ByteBuffer[][] all()
+        {
+            return allWhere(i -> true);
+        }
+
+        public ByteBuffer[][] allEq(Symbol column, ByteBuffer value)
+        {
+            return allWhere(column, Inequality.EQUAL, value);
+        }
+
+        public ByteBuffer[][] allWhere(Symbol column, Inequality inequality, ByteBuffer value)
+        {
+            int idx = model.factory.selectionOrder.indexOf(column);
+            return allWhere(row -> {
+                ByteBuffer actual = row[idx];
+                if (actual == null) return false;
+                return include(column.type(), actual, inequality, value);
+            });
+        }
+
+        public ByteBuffer[][] allWhere(Symbol column,
+                                       Inequality left, ByteBuffer leftValue,
+                                       Inequality right, ByteBuffer rightValue)
+        {
+            int idx = model.factory.selectionOrder.indexOf(column);
+            return allWhere(row -> {
+                ByteBuffer actual = row[idx];
+                if (actual == null) return false;
+                return include(column.type(), actual, left, leftValue) &&
+                       include(column.type(), actual, right, rightValue);
+            });
+        }
+
+        private ByteBuffer[][] allWhere(Inequality inequality, Token token)
+        {
+            return allWhere(ref -> include(ref, inequality, token), i -> true);
+        }
+
+        private ByteBuffer[][] allWhere(Inequality left, Token leftToken,
+                                        Inequality right, Token rightToken)
+        {
+            return allWhere(ref -> include(ref, left, leftToken) && include(ref, right, rightToken), i -> true);
+        }
+
+        private ByteBuffer[][] allWhere(Predicate<ByteBuffer[]> predicate)
+        {
+            return allWhere(i -> true, predicate);
+        }
+
+        private ByteBuffer[][] allWhere(Predicate<BytesPartitionState.Ref> partitionPredicate,
+                                        Predicate<ByteBuffer[]> rowPredicate)
+        {
+            List<ByteBuffer[]> rows = new ArrayList<>();
+            for (var e : partitions.entrySet())
+            {
+                BytesPartitionState.Ref ref = e.getKey();
+                if (!partitionPredicate.test(ref))
+                    continue;
+                List<ByteBuffer[]> partition = e.getValue();
+                for (ByteBuffer[] row : partition)
+                {
+                    if (rowPredicate.test(row))
+                        rows.add(row);
+                }
+            }
+            return rows.toArray(ByteBuffer[][]::new);
+        }
+
+        private static boolean include(AbstractType<?> type, ByteBuffer actual, Inequality inequality, ByteBuffer value)
+        {
+            return include(inequality, type.compare(actual, value), () -> actual.equals(value));
+        }
+
+        private static boolean include(BytesPartitionState.Ref ref, Inequality inequality, Token token)
+        {
+            return include(inequality, ref.token.compareTo(token), () -> ref.token.equals(token));
+        }
+
+        private static boolean include(Inequality inequality, int rc, BooleanSupplier eq)
+        {
+            switch (inequality)
+            {
+                case EQUAL:
+                    if (eq.getAsBoolean())
+                        return true;
+                    break;
+                case NOT_EQUAL:
+                    if (!eq.getAsBoolean())
+                        return true;
+                    break;
+                case LESS_THAN_EQ:
+                    if (rc == 0)
+                        return true;
+                case LESS_THAN:
+                    if (rc < 0)
+                        return true;
+                    break;
+                case GREATER_THAN_EQ:
+                    if (rc == 0)
+                        return true;
+                case GREATER_THAN:
+                    if (rc > 0)
+                        return true;
+                    break;
+                default:
+                    throw new UnsupportedOperationException(inequality.name());
+            }
+            return false;
+        }
+    }
+
     private interface ColumnValue
     {
         ByteBuffer accept(ColumnMetadata.Kind kind, int offset);
+    }
+
+    private static FunctionCall tokenFunction(BytesPartitionState.Ref ref)
+    {
+        return FunctionCall.tokenByValue(Stream.of(ref.key.getBufferArray()).map(bb -> new Bind(bb, BytesType.instance)).collect(Collectors.toList()));
     }
 
     private static ByteBuffer[] insert(ASTSingleTableModel model, ByteBuffer value)

@@ -44,17 +44,20 @@ import com.google.common.collect.Sets;
 
 import accord.utils.Invariants;
 import org.apache.cassandra.cql3.ast.Conditional;
+import org.apache.cassandra.cql3.ast.Conditional.Where.Inequality;
 import org.apache.cassandra.cql3.ast.Element;
 import org.apache.cassandra.cql3.ast.Expression;
 import org.apache.cassandra.cql3.ast.ExpressionEvaluator;
 import org.apache.cassandra.cql3.ast.FunctionCall;
 import org.apache.cassandra.cql3.ast.Mutation;
 import org.apache.cassandra.cql3.ast.Select;
+import org.apache.cassandra.cql3.ast.StandardVisitors;
 import org.apache.cassandra.cql3.ast.Symbol;
 import org.apache.cassandra.db.BufferClustering;
 import org.apache.cassandra.db.Clustering;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.dht.Token;
+import org.apache.cassandra.harry.model.BytesPartitionState.PrimaryKey;
 import org.apache.cassandra.harry.util.StringUtils;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.tools.nodetool.formatter.TableBuilder;
@@ -89,21 +92,21 @@ public class ASTSingleTableModel
         return partitions.isEmpty();
     }
 
-    public TreeMap<ByteBuffer, List<BytesPartitionState.PrimaryKey>> index(BytesPartitionState.Ref ref, Symbol symbol)
+    public TreeMap<ByteBuffer, List<PrimaryKey>> index(BytesPartitionState.Ref ref, Symbol symbol)
     {
         if (factory.partitionColumns.contains(symbol))
             throw new AssertionError("When indexing based off a single partition, unable to index partition columns; given " + symbol.detailedName());
         BytesPartitionState partition = get(ref);
         Invariants.nonNull(partition, "Unable to index %s; null partition %s", symbol, ref);
-        TreeMap<ByteBuffer, List<BytesPartitionState.PrimaryKey>> index = new TreeMap<>(symbol.type()::compare);
+        TreeMap<ByteBuffer, List<PrimaryKey>> index = new TreeMap<>(symbol.type()::compare);
         if (factory.staticColumns.contains(symbol))
             return indexStaticColumn(index, symbol, partition);
         return indexRowColumn(index, symbol, partition);
     }
 
-    public TreeMap<ByteBuffer, List<BytesPartitionState.PrimaryKey>> index(Symbol symbol)
+    public TreeMap<ByteBuffer, List<PrimaryKey>> index(Symbol symbol)
     {
-        TreeMap<ByteBuffer, List<BytesPartitionState.PrimaryKey>> index = new TreeMap<>(symbol.type()::compare);
+        TreeMap<ByteBuffer, List<PrimaryKey>> index = new TreeMap<>(symbol.type()::compare);
         if (factory.partitionColumns.contains(symbol))
             return indexPartitionColumn(index, symbol);
         if (factory.staticColumns.contains(symbol))
@@ -111,40 +114,40 @@ public class ASTSingleTableModel
         return indexRowColumn(index, symbol);
     }
 
-    private TreeMap<ByteBuffer, List<BytesPartitionState.PrimaryKey>> indexPartitionColumn(TreeMap<ByteBuffer, List<BytesPartitionState.PrimaryKey>> index, Symbol symbol)
+    private TreeMap<ByteBuffer, List<PrimaryKey>> indexPartitionColumn(TreeMap<ByteBuffer, List<PrimaryKey>> index, Symbol symbol)
     {
         int offset = factory.partitionColumns.indexOf(symbol);
         for (BytesPartitionState partition : partitions.values())
         {
             if (partition.isEmpty()) continue;
             ByteBuffer bb = partition.key.bufferAt(offset);
-            List<BytesPartitionState.PrimaryKey> list = index.computeIfAbsent(bb, i -> new ArrayList<>());
+            List<PrimaryKey> list = index.computeIfAbsent(bb, i -> new ArrayList<>());
             for (BytesPartitionState.Row row : partition.rows())
                 list.add(row.ref());
         }
         return index;
     }
 
-    private TreeMap<ByteBuffer, List<BytesPartitionState.PrimaryKey>> indexStaticColumn(TreeMap<ByteBuffer, List<BytesPartitionState.PrimaryKey>> index, Symbol symbol)
+    private TreeMap<ByteBuffer, List<PrimaryKey>> indexStaticColumn(TreeMap<ByteBuffer, List<PrimaryKey>> index, Symbol symbol)
     {
         for (BytesPartitionState partition : partitions.values())
             indexStaticColumn(index, symbol, partition);
         return index;
     }
 
-    private TreeMap<ByteBuffer, List<BytesPartitionState.PrimaryKey>> indexStaticColumn(TreeMap<ByteBuffer, List<BytesPartitionState.PrimaryKey>> index, Symbol symbol, BytesPartitionState partition)
+    private TreeMap<ByteBuffer, List<PrimaryKey>> indexStaticColumn(TreeMap<ByteBuffer, List<PrimaryKey>> index, Symbol symbol, BytesPartitionState partition)
     {
         if (partition.isEmpty()) return index;
         ByteBuffer bb = partition.staticRow().get(symbol);
         if (bb == null)
             return index;
-        List<BytesPartitionState.PrimaryKey> list = index.computeIfAbsent(bb, i -> new ArrayList<>());
+        List<PrimaryKey> list = index.computeIfAbsent(bb, i -> new ArrayList<>());
         for (BytesPartitionState.Row row : partition.rows())
             list.add(row.ref());
         return index;
     }
 
-    private TreeMap<ByteBuffer, List<BytesPartitionState.PrimaryKey>> indexRowColumn(TreeMap<ByteBuffer, List<BytesPartitionState.PrimaryKey>> index, Symbol symbol)
+    private TreeMap<ByteBuffer, List<PrimaryKey>> indexRowColumn(TreeMap<ByteBuffer, List<PrimaryKey>> index, Symbol symbol)
     {
         boolean clustering = factory.clusteringColumns.contains(symbol);
         int offset = clustering ? factory.clusteringColumns.indexOf(symbol) : factory.regularColumns.indexOf(symbol);
@@ -153,7 +156,7 @@ public class ASTSingleTableModel
         return index;
     }
 
-    private TreeMap<ByteBuffer, List<BytesPartitionState.PrimaryKey>> indexRowColumn(TreeMap<ByteBuffer, List<BytesPartitionState.PrimaryKey>> index, Symbol symbol, BytesPartitionState partition)
+    private TreeMap<ByteBuffer, List<PrimaryKey>> indexRowColumn(TreeMap<ByteBuffer, List<PrimaryKey>> index, Symbol symbol, BytesPartitionState partition)
     {
         boolean clustering = factory.clusteringColumns.contains(symbol);
         int offset = clustering ? factory.clusteringColumns.indexOf(symbol) : factory.regularColumns.indexOf(symbol);
@@ -161,7 +164,7 @@ public class ASTSingleTableModel
         return index;
     }
 
-    private void indexRowColumn(TreeMap<ByteBuffer, List<BytesPartitionState.PrimaryKey>> index, boolean clustering, int offset, BytesPartitionState partition)
+    private void indexRowColumn(TreeMap<ByteBuffer, List<PrimaryKey>> index, boolean clustering, int offset, BytesPartitionState partition)
     {
         if (partition.isEmpty()) return;
         for (BytesPartitionState.Row row : partition.rows())
@@ -342,7 +345,7 @@ public class ASTSingleTableModel
             if (c instanceof Conditional.Where)
             {
                 Conditional.Where w = (Conditional.Where) c;
-                if (w.kind == Conditional.Where.Inequality.EQUAL && columns.contains(w.lhs))
+                if (w.kind == Inequality.EQUAL && columns.contains(w.lhs))
                 {
                     Symbol col = (Symbol) w.lhs;
                     ByteBuffer bb = eval(w.rhs);
@@ -425,13 +428,20 @@ public class ASTSingleTableModel
     public void validate(ByteBuffer[][] actual, Select select)
     {
         SelectResult results = getRowsAsByteBuffer(select);
-        if (results.unordered)
+        try
         {
-            validateAnyOrder(factory.selectionOrder, toRow(factory.selectionOrder, actual), toRow(factory.selectionOrder, results.rows));
+            if (results.unordered)
+            {
+                validateAnyOrder(factory.selectionOrder, toRow(factory.selectionOrder, actual), toRow(factory.selectionOrder, results.rows));
+            }
+            else
+            {
+                validate(actual, results.rows);
+            }
         }
-        else
+        catch (AssertionError e)
         {
-            validate(actual, results.rows);
+            throw new AssertionError("Unexpected results for query: " + StringUtils.escapeControlChars(select.visit(StandardVisitors.DEBUG).toCQL()), e);
         }
     }
 
@@ -551,18 +561,22 @@ public class ASTSingleTableModel
 
     private SelectResult getRowsAsByteBuffer(Select select)
     {
+        if (select.where.isEmpty())
+            return all();
         LookupContext ctx = context(select);
-        List<BytesPartitionState.PrimaryKey> primaryKeys;
+        List<PrimaryKey> primaryKeys;
         if (ctx.unmatchable)
         {
             primaryKeys = Collections.emptyList();
         }
         else if (ctx.eq.keySet().containsAll(factory.partitionColumns))
         {
+            // tested
             primaryKeys = findByPartitionEq(ctx);
         }
         else if (ctx.token != null)
         {
+            // tested
             primaryKeys = findKeysByToken(ctx);
         }
         else if (ctx.tokenLowerBound != null || ctx.tokenUpperBound != null)
@@ -571,17 +585,26 @@ public class ASTSingleTableModel
         }
         else
         {
+            // partial tested (handles many columns, tests are single column)
             primaryKeys = search(ctx);
         }
         //TODO (correctness): now that we have the rows we need to handle the selections/aggregation/limit/group-by/etc.
         return new SelectResult(getRowsAsByteBuffer(primaryKeys), ctx.unordered);
     }
 
-    public ByteBuffer[][] getRowsAsByteBuffer(List<BytesPartitionState.PrimaryKey> primaryKeys)
+    private SelectResult all()
+    {
+        List<PrimaryKey> primaryKeys = new ArrayList<>();
+        for (var partition : partitions.values())
+            partition.rows().stream().map(BytesPartitionState.Row::ref).forEach(primaryKeys::add);
+        return new SelectResult(getRowsAsByteBuffer(primaryKeys), false);
+    }
+
+    public ByteBuffer[][] getRowsAsByteBuffer(List<PrimaryKey> primaryKeys)
     {
         ByteBuffer[][] rows = new ByteBuffer[primaryKeys.size()][];
         int idx = 0;
-        for (BytesPartitionState.PrimaryKey pk : primaryKeys)
+        for (PrimaryKey pk : primaryKeys)
         {
             BytesPartitionState partition = partitions.get(pk.partition);
             BytesPartitionState.Row row = partition.get(pk.clustering);
@@ -612,15 +635,15 @@ public class ASTSingleTableModel
     private LookupContext context(Select select)
     {
         if (select.where.isEmpty())
-            throw new IllegalArgumentException("Select without a where clause is currently unsupported");
+            throw new IllegalArgumentException("Select without a where clause was expected to be handled before this point");
         return new LookupContext(select);
     }
 
-    private List<BytesPartitionState.PrimaryKey> search(LookupContext ctx)
+    private List<PrimaryKey> search(LookupContext ctx)
     {
         // find by eq first
-        Set<BytesPartitionState.PrimaryKey> eqMatches = searchEq(ctx);
-        Set<BytesPartitionState.PrimaryKey> rangeMatches = searchRange(ctx);
+        Set<PrimaryKey> eqMatches = searchEq(ctx);
+        Set<PrimaryKey> rangeMatches = searchRange(ctx);
         return new ArrayList<>(new TreeSet<>(intersectionEmptySafe(eqMatches, rangeMatches)));
     }
 
@@ -631,9 +654,9 @@ public class ASTSingleTableModel
         return new HashSet<>(Sets.intersection(a, b));
     }
 
-    private Set<BytesPartitionState.PrimaryKey> searchRange(LookupContext ctx)
+    private Set<PrimaryKey> searchRange(LookupContext ctx)
     {
-        Set<BytesPartitionState.PrimaryKey> matches = null;
+        Set<PrimaryKey> matches = null;
         for (Map.Entry<Symbol, List<ColumnCondition>> e : ctx.ltOrGt.entrySet())
         {
             if (matches == null)
@@ -649,9 +672,9 @@ public class ASTSingleTableModel
         return matches == null ? Collections.emptySet() : matches;
     }
 
-    private List<BytesPartitionState.PrimaryKey> searchRange(Symbol symbol, List<ColumnCondition> conditions)
+    private List<PrimaryKey> searchRange(Symbol symbol, List<ColumnCondition> conditions)
     {
-        List<BytesPartitionState.PrimaryKey> matches = new ArrayList<>();
+        List<PrimaryKey> matches = new ArrayList<>();
         if (factory.partitionColumns.contains(symbol) || factory.staticColumns.contains(symbol))
         {
             int pkOffset = factory.partitionColumns.indexOf(symbol);
@@ -761,9 +784,9 @@ public class ASTSingleTableModel
         return false;
     }
 
-    private Set<BytesPartitionState.PrimaryKey> searchEq(LookupContext ctx)
+    private Set<PrimaryKey> searchEq(LookupContext ctx)
     {
-        Set<BytesPartitionState.PrimaryKey> matches = null;
+        Set<PrimaryKey> matches = null;
         for (Map.Entry<Symbol, List<? extends Expression>> e : ctx.eq.entrySet())
         {
             for (Expression e2 : e.getValue())
@@ -783,9 +806,9 @@ public class ASTSingleTableModel
         return matches == null ? Collections.emptySet() : matches;
     }
 
-    private List<BytesPartitionState.PrimaryKey> searchEq(Symbol symbol, ByteBuffer bb)
+    private List<PrimaryKey> searchEq(Symbol symbol, ByteBuffer bb)
     {
-        List<BytesPartitionState.PrimaryKey> matches = new ArrayList<>();
+        List<PrimaryKey> matches = new ArrayList<>();
         if (factory.partitionColumns.contains(symbol) || factory.staticColumns.contains(symbol))
         {
             int pkOffset = factory.partitionColumns.indexOf(symbol);
@@ -834,12 +857,12 @@ public class ASTSingleTableModel
         return matches;
     }
 
-    private List<BytesPartitionState.PrimaryKey> findKeysByToken(LookupContext ctx)
+    private List<PrimaryKey> findKeysByToken(LookupContext ctx)
     {
         return filter(ctx, getByToken(ctx.token));
     }
 
-    private List<BytesPartitionState.PrimaryKey> findKeysByTokenSearch(LookupContext ctx)
+    private List<PrimaryKey> findKeysByTokenSearch(LookupContext ctx)
     {
         return filter(ctx, getByTokenSearch(ctx.tokenLowerBound, ctx.tokenUpperBound));
     }
@@ -892,19 +915,19 @@ public class ASTSingleTableModel
         return keys.stream().map(partitions::get).collect(Collectors.toList());
     }
 
-    private List<BytesPartitionState.PrimaryKey> filter(LookupContext ctx, List<BytesPartitionState> partitions)
+    private List<PrimaryKey> filter(LookupContext ctx, List<BytesPartitionState> partitions)
     {
         if (partitions.isEmpty()) return Collections.emptyList();
-        List<BytesPartitionState.PrimaryKey> matches = new ArrayList<>();
+        List<PrimaryKey> matches = new ArrayList<>();
         for (BytesPartitionState p : partitions)
             matches.addAll(filter(ctx, p));
         return matches;
     }
 
-    private List<BytesPartitionState.PrimaryKey> filter(LookupContext ctx, BytesPartitionState partition)
+    private List<PrimaryKey> filter(LookupContext ctx, BytesPartitionState partition)
     {
         Map<Symbol, List<? extends Expression>> values = ctx.eq;
-        List<BytesPartitionState.PrimaryKey> rows = new ArrayList<>(partition.size());
+        List<PrimaryKey> rows = new ArrayList<>(partition.size());
         if (!factory.clusteringColumns.isEmpty() && values.keySet().containsAll(factory.clusteringColumns))
         {
             // single row
@@ -935,9 +958,9 @@ public class ASTSingleTableModel
         return rows;
     }
 
-    private List<BytesPartitionState.PrimaryKey> findByPartitionEq(LookupContext ctx)
+    private List<PrimaryKey> findByPartitionEq(LookupContext ctx)
     {
-        List<BytesPartitionState.PrimaryKey> matches = new ArrayList<>();
+        List<PrimaryKey> matches = new ArrayList<>();
         for (Clustering<ByteBuffer> pd : keys(ctx.eq, factory.partitionColumns))
         {
             BytesPartitionState partition = partitions.get(factory.createRef(pd));
@@ -1072,8 +1095,8 @@ public class ASTSingleTableModel
                 else if (rc == 0)
                 {
                     // tokens match... but is _EQ allowed for both cases?
-                    if (!(tokenLowerBound.inequality == Conditional.Where.Inequality.GREATER_THAN_EQ
-                          && tokenUpperBound.inequality == Conditional.Where.Inequality.LESS_THAN_EQ))
+                    if (!(tokenLowerBound.inequality == Inequality.GREATER_THAN_EQ
+                          && tokenUpperBound.inequality == Inequality.LESS_THAN_EQ))
                     {
                         // token < 42 and >= 42... nothing matches that!
                         unmatchable = true;
@@ -1089,7 +1112,7 @@ public class ASTSingleTableModel
             if (conditional instanceof Conditional.Where)
             {
                 Conditional.Where w = (Conditional.Where) conditional;
-                if (w.kind == Conditional.Where.Inequality.NOT_EQUAL)
+                if (w.kind == Inequality.NOT_EQUAL)
                     throw new UnsupportedOperationException("!= is currently not supported");
                 if (w.lhs instanceof Symbol)
                 {
@@ -1128,11 +1151,45 @@ public class ASTSingleTableModel
                                     break;
                                 case LESS_THAN:
                                 case LESS_THAN_EQ:
-                                    tokenUpperBound = new TokenCondition(w.kind, ref.token);
+                                    if (tokenUpperBound == null)
+                                    {
+                                        tokenUpperBound = new TokenCondition(w.kind, ref.token);
+                                    }
+                                    else if (tokenUpperBound.token.equals(ref.token))
+                                    {
+                                        // 2 cases
+                                        // a < ? AND a < ? - nothing to see here
+                                        // a < ? AND a <= ? - in this case we need the most restrictive option of <
+                                        if (!tokenUpperBound.inequality.equals(w.kind))
+                                            tokenUpperBound = new TokenCondition(Inequality.LESS_THAN, ref.token);
+                                    }
+                                    else
+                                    {
+                                        // given this is < semantic, the smallest token wins
+                                        if (ref.token.compareTo(tokenUpperBound.token) < 0)
+                                            tokenUpperBound = new TokenCondition(w.kind, ref.token);
+                                    }
                                     break;
                                 case GREATER_THAN:
                                 case GREATER_THAN_EQ:
-                                    tokenLowerBound = new TokenCondition(w.kind, ref.token);
+                                    if (tokenLowerBound == null)
+                                    {
+                                        tokenLowerBound = new TokenCondition(w.kind, ref.token);
+                                    }
+                                    else if (tokenLowerBound.token.equals(ref.token))
+                                    {
+                                        // 2 cases
+                                        // a > ? AND a > ? - nothing to see here
+                                        // a > ? AND a >= ? - in this case we need the most restrictive option of >
+                                        if (!tokenLowerBound.inequality.equals(w.kind))
+                                            tokenLowerBound = new TokenCondition(Inequality.GREATER_THAN, ref.token);
+                                    }
+                                    else
+                                    {
+                                        // given this is > semantic, the latest token wins
+                                        if (ref.token.compareTo(tokenLowerBound.token) > 0)
+                                            tokenLowerBound = new TokenCondition(w.kind, ref.token);
+                                    }
                                     break;
                                 default:
                                     throw new UnsupportedOperationException(w.kind.name());
@@ -1172,8 +1229,8 @@ public class ASTSingleTableModel
                 {
                     Symbol col = (Symbol) between.ref;
                     List<ColumnCondition> list = ltOrGt.computeIfAbsent(col, i -> new ArrayList<>());
-                    list.add(new ColumnCondition(Conditional.Where.Inequality.GREATER_THAN_EQ, eval(between.start)));
-                    list.add(new ColumnCondition(Conditional.Where.Inequality.LESS_THAN_EQ, eval(between.end)));
+                    list.add(new ColumnCondition(Inequality.GREATER_THAN_EQ, eval(between.start)));
+                    list.add(new ColumnCondition(Inequality.LESS_THAN_EQ, eval(between.end)));
                 }
                 else if (between.ref instanceof FunctionCall)
                 {
@@ -1199,8 +1256,8 @@ public class ASTSingleTableModel
                             }
                             else
                             {
-                                tokenLowerBound = new TokenCondition(Conditional.Where.Inequality.GREATER_THAN_EQ, startToken);
-                                tokenUpperBound = new TokenCondition(Conditional.Where.Inequality.LESS_THAN_EQ, endToken);
+                                tokenLowerBound = new TokenCondition(Inequality.GREATER_THAN_EQ, startToken);
+                                tokenUpperBound = new TokenCondition(Inequality.LESS_THAN_EQ, endToken);
                             }
                             break;
                         default:
@@ -1275,10 +1332,10 @@ public class ASTSingleTableModel
 
     private static class ColumnCondition
     {
-        private final Conditional.Where.Inequality inequality;
+        private final Inequality inequality;
         private final ByteBuffer value;
 
-        private ColumnCondition(Conditional.Where.Inequality inequality, ByteBuffer value)
+        private ColumnCondition(Inequality inequality, ByteBuffer value)
         {
             this.inequality = inequality;
             this.value = value;
@@ -1287,10 +1344,10 @@ public class ASTSingleTableModel
 
     private static class TokenCondition
     {
-        private final Conditional.Where.Inequality inequality;
+        private final Inequality inequality;
         private final Token token;
 
-        private TokenCondition(Conditional.Where.Inequality inequality, Token token)
+        private TokenCondition(Inequality inequality, Token token)
         {
             this.inequality = inequality;
             this.token = token;
