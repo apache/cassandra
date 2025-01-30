@@ -85,12 +85,7 @@ public class KeyRangeIntersectionIterator extends KeyRangeIterator
 
                 if (range.peek().compareTo(highestKey, false) < 0)
                 {
-                    // If we advance a STATIC key, then we must advance it to the same partition as the highestKey.
-                    // Advancing a STATIC key to a WIDE key directly (without throwing away the clustering) would
-                    // go too far, as WIDE keys are stored after STATIC in the posting list.
-                    PrimaryKey nextKey = range.peek().kind() == Kind.STATIC
-                                         ? skipAndPeek(range, highestKey.toStatic())
-                                         : skipAndPeek(range, highestKey);
+                    PrimaryKey nextKey = skipToHighestKey(range);
 
                     // We use strict comparison here, since it orders WIDE primary keys after STATIC primary keys
                     // in the same partition. When WIDE keys are present, we want to return them rather than STATIC
@@ -127,6 +122,29 @@ public class KeyRangeIntersectionIterator extends KeyRangeIterator
         }
 
         return endOfData();
+    }
+
+    private PrimaryKey skipToHighestKey(KeyRangeIterator range)
+    {
+        if (range.peek().kind() == highestKey.kind())
+            return skipAndPeek(range, highestKey);
+
+        if (range.peek().kind() == Kind.STATIC)
+        {
+            // If we advance a STATIC key, then we must advance it to the same partition as the highestKey.
+            // Advancing a STATIC key to a WIDE key directly (without throwing away the clustering) would
+            // go too far, as WIDE keys are stored after STATIC in the posting list.
+            PrimaryKey nextKey = skipAndPeek(range, highestKey.toStatic());
+
+            if (nextKey != null && nextKey.compareTo(highestKey, true) < 0 && nextKey.kind() == Kind.WIDE)
+                // This iterator may have mixed STATIC and non-STATIC postings. Advance again if we've 
+                // landed on a WIDE key that sorts lower in the same partition. 
+                nextKey = skipAndPeek(range, highestKey);
+
+            return nextKey;
+        }
+
+        return skipAndPeek(range, highestKey);
     }
 
     /**
