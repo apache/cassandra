@@ -345,12 +345,12 @@ public class StatefulASTBase extends TestBaseImpl
                     throw new IllegalArgumentException("Unable to execute Statement of type " + stmt.getClass() + " when ConsistencyLevel.NODE_LOCAL is used");
                 if (fetchSize != Integer.MAX_VALUE)
                     throw new IllegalArgumentException("Fetch size is not allowed for Mutations");
-                instance.executeInternal(stmt.toCQL(), stmt.bindsEncoded());
+                instance.executeInternal(stmt.toCQL(), (Object[]) stmt.bindsEncoded());
                 return new ByteBuffer[0][];
             }
             else
             {
-                SimpleStatement ss = new SimpleStatement(stmt.toCQL(), stmt.bindsEncoded());
+                SimpleStatement ss = new SimpleStatement(stmt.toCQL(), (Object[]) stmt.bindsEncoded());
                 if (fetchSize != Integer.MAX_VALUE)
                     ss.setFetchSize(fetchSize);
                 ss.setConsistencyLevel(toDriverCL(cl));
