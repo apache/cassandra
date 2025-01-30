@@ -288,6 +288,7 @@ public class BytesPartitionState
         @Nullable
         public final Clustering<ByteBuffer> key;
         public final Token token;
+        // when true (null, token) > (key, token).  When false (null, token) < (key, token)
         private final boolean nullKeyGtMatchingToken;
 
         private Ref(Factory factory, Clustering<ByteBuffer> key, Token token)
@@ -492,6 +493,12 @@ public class BytesPartitionState
             return new Ref(this, key, token);
         }
 
+        /**
+         * Define a ref where the {@link Ref#key} is {@code null}, and the ordering of this ref is that (null, token) is either before (key, token) or after; depending on {@code nullKeyGtMatchingToken}
+         *
+         * @param token for the ref
+         * @param nullKeyGtMatchingToken when true (null, token) > (key, token).  When false (null, token) < (key, token)
+         */
         public BytesPartitionState.Ref createRef(Token token, boolean nullKeyGtMatchingToken)
         {
             return new BytesPartitionState.Ref(this, token, nullKeyGtMatchingToken);
