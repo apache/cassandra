@@ -22,12 +22,54 @@ import java.math.BigInteger;
 import org.junit.Test;
 
 import org.apache.cassandra.cql3.restrictions.StatementRestrictions;
+import org.apache.cassandra.db.marshal.FloatType;
 import org.apache.cassandra.db.marshal.SimpleDateType;
 import org.apache.cassandra.db.marshal.TimeType;
+import org.apache.cassandra.db.marshal.UUIDType;
 import org.apache.cassandra.index.sai.SAITester;
 
 public class CompositePartitionKeyIndexTest extends SAITester
 {
+    @Test
+    public void testIntersectionOnMixedPostingsOnDelete() throws Throwable
+    {
+        createTable("CREATE TABLE %s (pk0 boolean, pk1 uuid, ck0 date, ck1 smallint, s0 timeuuid static, v0 bigint, v1 float, PRIMARY KEY ((pk0, pk1), ck0, ck1)) WITH CLUSTERING ORDER BY (ck0 DESC, ck1 ASC)");
+
+        createIndex("CREATE INDEX tbl_pk0 ON %s(pk0) USING 'sai'");
+        createIndex("CREATE INDEX tbl_ck0 ON %s(ck0) USING 'sai'");
+
+        execute("INSERT INTO %s (pk0, pk1, ck0, ck1, s0) VALUES (true, 00000000-0000-4700-8d00-000000000000, '-3038243-10-30', -12906, 00000000-0000-1900-aa00-000000000000)");        
+        execute("INSERT INTO %s (pk0, pk1, ck0, ck1, v0, v1) VALUES (false, 00000000-0000-4f00-a200-000000000000, '-1225324-10-07', -3223, -7318794006633168842, 8.0350916E-32 + 6.127658E28)");
+        execute("DELETE FROM %s WHERE  pk0 = false AND  pk1 = 00000000-0000-4f00-a200-000000000000 AND  ck0 = '-1111567-10-09' AND  ck1 = 25967");
+        execute("DELETE s0 FROM %s WHERE  pk0 = false AND  pk1 = 00000000-0000-4500-9200-000000000000");
+
+        beforeAndAfterFlush(() ->
+                            assertRows(execute("SELECT * FROM %s WHERE pk0 = false AND ck0 = '-1225324-10-07'"),
+                                       row(false, UUIDType.instance.fromString("00000000-0000-4f00-a200-000000000000"), 
+                                           SimpleDateType.instance.fromString("-1225324-10-07"), (short) -3223, null,
+                                           -7318794006633168842L, FloatType.instance.fromString("6.127658E28"))));
+    }
+
+    @Test
+    public void testIntersectionOnMixedPostingsOnUpdate() throws Throwable
+    {
+        createTable("CREATE TABLE %s (pk0 boolean, pk1 uuid, ck0 date, ck1 smallint, s0 timeuuid static, v0 bigint, v1 float, PRIMARY KEY ((pk0, pk1), ck0, ck1)) WITH CLUSTERING ORDER BY (ck0 DESC, ck1 ASC)");
+
+        createIndex("CREATE INDEX tbl_pk0 ON %s(pk0) USING 'sai'");
+        createIndex("CREATE INDEX tbl_ck0 ON %s(ck0) USING 'sai'");
+
+        execute("INSERT INTO %s (pk0, pk1, ck0, ck1, s0) VALUES (true, 00000000-0000-4700-8d00-000000000000, '-3038243-10-30', -12906, 00000000-0000-1900-aa00-000000000000)");
+        execute("INSERT INTO %s (pk0, pk1, ck0, ck1, v0, v1) VALUES (false, 00000000-0000-4f00-a200-000000000000, '-1225324-10-07', -3223, -7318794006633168842, 8.0350916E-32 + 6.127658E28)");
+        execute("UPDATE %s SET v1 = 2.1 WHERE pk0 = false AND  pk1 = 00000000-0000-4f00-a200-000000000000 AND  ck0 = '-1111567-10-09' AND  ck1 = 25967");
+        execute("UPDATE %s SET s0 = 00000000-0000-1900-aa00-000000000000 WHERE pk0 = false AND  pk1 = 00000000-0000-4500-9200-000000000000");
+
+        beforeAndAfterFlush(() ->
+                            assertRows(execute("SELECT * FROM %s WHERE pk0 = false AND ck0 = '-1225324-10-07'"),
+                                       row(false, UUIDType.instance.fromString("00000000-0000-4f00-a200-000000000000"),
+                                           SimpleDateType.instance.fromString("-1225324-10-07"), (short) -3223, null,
+                                           -7318794006633168842L, FloatType.instance.fromString("6.127658E28"))));
+    }
+
     @Test
     public void testIntersectionWithStaticOverlap() throws Throwable
     {
