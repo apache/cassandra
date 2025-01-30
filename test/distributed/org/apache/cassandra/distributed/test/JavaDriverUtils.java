@@ -94,8 +94,10 @@ public final class JavaDriverUtils
             case EACH_QUORUM: return ConsistencyLevel.EACH_QUORUM;
             case ANY: return ConsistencyLevel.ANY;
             case ALL: return ConsistencyLevel.ALL;
+            case NODE_LOCAL:
+                throw new AssertionError("NODE_LOCAL is not supported by driver and should go directly through jvm-dtest api");
             default:
-                throw new UnsupportedOperationException(cl.name());
+                throw new UnsupportedOperationException("Unknown ConsistencyLevel: " + cl);
         }
     }
 }

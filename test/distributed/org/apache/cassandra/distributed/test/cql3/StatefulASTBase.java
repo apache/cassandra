@@ -83,6 +83,7 @@ import org.apache.cassandra.utils.FastByteOperations;
 import org.apache.cassandra.utils.Generators;
 import org.quicktheories.generators.SourceDSL;
 
+import static org.apache.cassandra.distributed.test.JavaDriverUtils.toDriverCL;
 import static org.apache.cassandra.utils.AbstractTypeGenerators.overridePrimitiveTypeSupport;
 import static org.apache.cassandra.utils.AbstractTypeGenerators.stringComparator;
 
@@ -375,28 +376,6 @@ public class StatefulASTBase extends TestBaseImpl
                 ss.setHost(host);
                 ResultSet result = session.execute(ss);
                 return getRowsAsByteBuffer(result);
-            }
-        }
-
-        private static com.datastax.driver.core.ConsistencyLevel toDriverCL(ConsistencyLevel cl)
-        {
-            switch (cl)
-            {
-                case QUORUM: return com.datastax.driver.core.ConsistencyLevel.QUORUM;
-                case EACH_QUORUM: return com.datastax.driver.core.ConsistencyLevel.EACH_QUORUM;
-                case ANY: return com.datastax.driver.core.ConsistencyLevel.ANY;
-                case ALL: return com.datastax.driver.core.ConsistencyLevel.ALL;
-                case SERIAL: return com.datastax.driver.core.ConsistencyLevel.SERIAL;
-                case LOCAL_SERIAL: return com.datastax.driver.core.ConsistencyLevel.LOCAL_SERIAL;
-                case LOCAL_QUORUM: return com.datastax.driver.core.ConsistencyLevel.LOCAL_QUORUM;
-                case LOCAL_ONE: return com.datastax.driver.core.ConsistencyLevel.LOCAL_ONE;
-                case ONE: return com.datastax.driver.core.ConsistencyLevel.ONE;
-                case TWO: return com.datastax.driver.core.ConsistencyLevel.TWO;
-                case THREE: return com.datastax.driver.core.ConsistencyLevel.THREE;
-                case NODE_LOCAL:
-                    throw new AssertionError("NODE_LOCAL is not supported by driver and should go directly through jvm-dtest api");
-                default:
-                    throw new UnsupportedOperationException("Unknown ConsistencyLevel: " + cl);
             }
         }
 
