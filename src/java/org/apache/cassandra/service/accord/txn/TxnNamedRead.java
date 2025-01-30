@@ -298,7 +298,6 @@ public class TxnNamedRead extends AbstractSerialized<ReadCommand>
         AbstractBounds<PartitionPosition> bounds = command.dataRange().keyRange();
         PartitionPosition startPP = bounds.left;
         PartitionPosition endPP = bounds.right;
-        TokenKey startTokenKey = new TokenKey(command.metadata().id, startPP.getToken());
         AccordRoutingKey startRoutingKey = ((AccordRoutingKey)r.start());
         AccordRoutingKey endRoutingKey = ((AccordRoutingKey)r.end());
         Token subRangeStartToken = startRoutingKey.getClass() == SentinelKey.class ? startPP.getToken() : ((AccordRoutingKey)r.start()).asTokenKey().token();
@@ -331,7 +330,8 @@ public class TxnNamedRead extends AbstractSerialized<ReadCommand>
         PartitionPosition subRangeEndPP = endPP.getToken().equals(subRangeEndToken) ? endPP : subRangeEndToken.maxKeyBound();
         // Need to preserve the fact it is a bounds for paging to work, a range is not left inclusive and will not start from where we left off
         AbstractBounds<PartitionPosition> subRange = isFirstSubrange ? bounds.withNewRight(subRangeEndPP) : new org.apache.cassandra.dht.Range(subRangeStartPP, subRangeEndPP);
-        return command.withTransactionalSettings(nowInSeconds, subRange, startTokenKey.equals(r.start()), readsWithoutReconciliation(consistencyLevel));
+        boolean isRangeContinuation = startPP.getToken().equals(subRangeStartToken);
+        return command.withTransactionalSettings(nowInSeconds, subRange, isRangeContinuation, readsWithoutReconciliation(consistencyLevel));
     }
 
     private AsyncChain<Data> performLocalRangeRead(PartitionRangeReadCommand command, Range r, ConsistencyLevel consistencyLevel, long nowInSeconds)
@@ -345,7 +345,7 @@ public class TxnNamedRead extends AbstractSerialized<ReadCommand>
             {
                 TxnData result = new TxnData();
                 TxnDataRangeValue value = new TxnDataRangeValue();
-                while(iterator.hasNext())
+                while (iterator.hasNext())
                 {
                     try (RowIterator rows = iterator.next())
                     {

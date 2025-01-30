@@ -729,11 +729,13 @@ public class ConsensusRequestRouter
             {
                 if (rightCmp <= 0)
                     return ImmutableList.of(new RangeReadWithTarget(read, migrationFromTarget));
-                result = new ArrayList<>();
                 AbstractBounds<PartitionPosition> precedingRange = keyRange.withNewRight(rightCmp <= 0 ? keyRange.right : firstMigratingToken.maxKeyBound());
                 // Could be an empty bound, it's fine to let a min KeyBound and max KeyBound through as that isn't empty
                 if (!precedingRange.left.equals(precedingRange.right))
-                    result.add(new RangeReadWithTarget(read.forSubRange(precedingRange, false), migrationFromTarget));
+                {
+                    result = new ArrayList<>();
+                    result.add(new RangeReadWithTarget(read.forSubRange(precedingRange, true), migrationFromTarget));
+                }
             }
         }
 
@@ -757,9 +759,9 @@ public class ConsensusRequestRouter
         if (remainder != null)
         {
             if (result != null)
-                result.add(new RangeReadWithTarget(read.forSubRange(remainder, true), migrationFromTarget));
+                result.add(new RangeReadWithTarget(read.forSubRange(remainder, false), migrationFromTarget));
             else
-                return ImmutableList.of(new RangeReadWithTarget(read.forSubRange(remainder, false), migrationFromTarget));
+                return ImmutableList.of(new RangeReadWithTarget(read.forSubRange(remainder, true), migrationFromTarget));
         }
 
         checkState(result != null && !result.isEmpty(), "Shouldn't have null or empty result");
