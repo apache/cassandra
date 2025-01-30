@@ -38,7 +38,6 @@ import java.util.stream.Stream;
 import javax.annotation.Nullable;
 
 import com.google.common.base.Preconditions;
-import com.google.common.base.Predicates;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
@@ -952,7 +951,7 @@ public class ASTSingleTableModel
     {
         // same as keys, but only one possible value can happen
         List<Clustering<ByteBuffer>> keys = keys(Maps.transformValues(values, e -> Collections.singletonList(e)), columns);
-        Invariants.checkState(keys.size() == 1, "Expected 1 key, but found %d", keys.size());
+        Preconditions.checkState(keys.size() == 1, "Expected 1 key, but found %d", keys.size());
         return keys.get(0);
     }
 
