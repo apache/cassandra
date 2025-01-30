@@ -35,6 +35,8 @@ public class MultiNodeTableWalkTest extends SingleNodeTableWalkTest
     {
         // if a failing seed is detected, populate here
         // Example: builder.withSeed(42L);
+        // CQL operations may have opertors such as +, -, and / (example 4 + 4), to "apply" them to get a constant value
+         CQL_DEBUG_APPLY_OPERATOR = true;
 //        builder.withSeed(159634037219554562L); // see CASSANDRA-20243
         builder.withSeed(7034963806046484005L);
     }

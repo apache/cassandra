@@ -32,6 +32,7 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import javax.annotation.Nullable;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableSet;
 import org.slf4j.Logger;
 
@@ -57,6 +58,7 @@ import org.apache.cassandra.cql3.ast.Statement;
 import org.apache.cassandra.cql3.ast.TableReference;
 import org.apache.cassandra.cql3.ast.Value;
 import org.apache.cassandra.cql3.ast.Visitor;
+import org.apache.cassandra.cql3.ast.Visitor.CompositeVisitor;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.AsciiType;
 import org.apache.cassandra.db.marshal.BytesType;
@@ -110,6 +112,7 @@ public class StatefulASTBase extends TestBaseImpl
         }
     }
     protected static final EnumSet<KnownIssue> IGNORED_ISSUES = EnumSet.allOf(KnownIssue.class);
+    protected static boolean CQL_DEBUG_APPLY_OPERATOR = false;
     protected static final Set<AbstractType<?>> SAI_REVERSE_OF_FIXED_LENGTH_TYPES = ImmutableSet.of(InetAddressType.instance,
                                                                                                     LongType.instance,
                                                                                                     IntegerType.instance,
@@ -208,7 +211,7 @@ public class StatefulASTBase extends TestBaseImpl
         protected final TableMetadata metadata;
         protected final TableReference tableRef;
         protected final ASTSingleTableModel model;
-        private final Visitor debug = StandardVisitors.DEBUG;
+        private final Visitor debug;
         private final int enoughMemtables;
         private final int enoughSSTables;
         protected int numMutations, mutationsSinceLastFlush;
@@ -221,6 +224,8 @@ public class StatefulASTBase extends TestBaseImpl
             this.cluster = cluster;
             this.client = JavaDriverUtils.create(cluster);
             this.session = client.connect();
+            this.debug = CQL_DEBUG_APPLY_OPERATOR ? CompositeVisitor.of(StandardVisitors.APPLY_OPERATOR, StandardVisitors.DEBUG)
+                                                  : StandardVisitors.DEBUG;
 
             this.bindOrLiteralGen = BIND_OR_LITERAL_DISTRO.next(rs);
             this.betweenEqGen = BETWEEN_EQ_DISTRO.next(rs);
@@ -384,7 +389,8 @@ public class StatefulASTBase extends TestBaseImpl
             }
         }
 
-        private static ByteBuffer[][] getRowsAsByteBuffer(ResultSet result)
+        @VisibleForTesting
+        static ByteBuffer[][] getRowsAsByteBuffer(ResultSet result)
         {
             ColumnDefinitions columns = result.getColumnDefinitions();
             List<ByteBuffer[]> ret = new ArrayList<>();

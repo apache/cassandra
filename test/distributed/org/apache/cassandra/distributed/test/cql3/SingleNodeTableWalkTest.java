@@ -85,8 +85,10 @@ public class SingleNodeTableWalkTest extends StatefulASTBase
     {
         // if a failing seed is detected, populate here
         // Example: builder.withSeed(42L);
+        // CQL operations may have opertors such as +, -, and / (example 4 + 4), to "apply" them to get a constant value
+        // CQL_DEBUG_APPLY_OPERATOR = true;
 //        builder.withExamples(100); // use more examples to see how stable this is
-//        builder.withSeed(-4969287775097183740L); // see CASSANDRA-20258
+//        builder.withSeed(-4969287775097183740L); // see CASSANDRA-20258 NOTE, this was before partitionRestrictedQuery, so must disable that for this seed to happen
     }
 
     protected TypeGenBuilder supportedTypes()
@@ -98,7 +100,7 @@ public class SingleNodeTableWalkTest extends StatefulASTBase
     protected List<CreateIndexDDL.Indexer> supportedIndexers()
     {
         // since legacy is async it's not clear how the test can wait for the background write to complete...
-        return Arrays.asList(CreateIndexDDL.SAI);
+        return Collections.singletonList(CreateIndexDDL.SAI);
     }
 
     public Property.Command<State, Void, ?> insert(RandomSource rs, State state)
@@ -120,7 +122,7 @@ public class SingleNodeTableWalkTest extends StatefulASTBase
         for (Symbol pk : pks)
             builder.value(pk, key.bufferAt(pks.indexOf(pk)));
 
-        boolean wholePartition = cks.isEmpty() ? true : rs.nextBoolean();
+        boolean wholePartition = cks.isEmpty() || rs.nextBoolean();
         if (!wholePartition)
         {
             // find a row to select
@@ -199,6 +201,62 @@ public class SingleNodeTableWalkTest extends StatefulASTBase
         }
         Select select = builder.build();
         return state.command(rs, select, "by token range");
+    }
+
+    public Property.Command<State, Void, ?> partitionRestrictedQuery(RandomSource rs, State state)
+    {
+        //TODO (now): remove duplicate logic
+        NavigableSet<BytesPartitionState.Ref> keys = state.model.partitionKeys();
+        BytesPartitionState.Ref ref = rs.pickOrderedSet(keys);
+        Clustering<ByteBuffer> key = ref.key;
+
+        Select.Builder builder = Select.builder().table(state.metadata);
+        ImmutableUniqueList<Symbol> pks = state.model.factory.partitionColumns;
+        for (Symbol pk : pks)
+            builder.value(pk, key.bufferAt(pks.indexOf(pk)));
+
+
+        Symbol symbol;
+        List<Symbol> searchableColumns = state.nonPartitionColumns;
+        if (state.hasAllowFilteringMultiNodeLocalWriteIssue())
+        {
+            if (state.nonPkIndexedColumns.isEmpty())
+                throw new AssertionError("Ignoring AF_MULTI_NODE_AND_NODE_LOCAL_WRITES is defined, but no non-partition columns are indexed");
+            symbol = rs.pick(state.nonPkIndexedColumns);
+        }
+        else
+        {
+            symbol = rs.pick(searchableColumns);
+        }
+
+        TreeMap<ByteBuffer, List<BytesPartitionState.PrimaryKey>> universe = state.model.index(ref, symbol);
+        // we need to index 'null' so LT works, but we can not directly query it... so filter out when selecting values
+        NavigableSet<ByteBuffer> allowed = Sets.filter(universe.navigableKeySet(), b -> !ByteBufferUtil.EMPTY_BYTE_BUFFER.equals(b));
+        if (allowed.isEmpty())
+            return Property.ignoreCommand();
+        ByteBuffer value = rs.pickOrderedSet(allowed);
+
+        EnumSet<CreateIndexDDL.QueryType> supported = !state.indexes.containsKey(symbol) ? EnumSet.noneOf(CreateIndexDDL.QueryType.class) : state.indexes.get(symbol).supportedQueries();
+        if (supported.isEmpty() || !supported.contains(CreateIndexDDL.QueryType.Range))
+            builder.allowFiltering();
+
+        // there are known SAI bugs, so need to avoid them to stay stable...
+        if (state.indexes.containsKey(symbol) && state.indexes.get(symbol).indexDDL.indexer == CreateIndexDDL.SAI)
+        {
+            if (symbol.type() == InetAddressType.instance
+                && IGNORED_ISSUES.contains(KnownIssue.SAI_INET_MIXED))
+                return eqSearch(rs, state, symbol, value, builder);
+
+            if (symbol.reversed
+                && SAI_REVERSE_OF_FIXED_LENGTH_TYPES.contains(symbol.type())
+                && IGNORED_ISSUES.contains(KnownIssue.SAI_REVERSE_OF_FIXED_LENGTH))
+                return eqSearch(rs, state, symbol, value, builder);
+        }
+
+        if (rs.nextBoolean())
+            return simpleRangeSearch(rs, state, symbol, value, builder);
+        //TODO (coverage): define search that has a upper and lower bound: a > and a < | a beteeen ? and ?
+        return eqSearch(rs, state, symbol, value, builder);
     }
 
     public Property.Command<State, Void, ?> nonPartitionQuery(RandomSource rs, State state)
@@ -313,9 +371,10 @@ public class SingleNodeTableWalkTest extends StatefulASTBase
                                   .addIf(State::hasPartitions, this::selectExisting)
                                   .addAllIf(State::supportTokens, b -> b.add(this::selectToken)
                                                                         .add(this::selectTokenRange))
-                                  .addIf(State::allowNonPartitionQuery, this::nonPartitionQuery)
                                   .addIf(State::hasEnoughMemtable, StatefulASTBase::flushTable)
                                   .addIf(State::hasEnoughSSTables, StatefulASTBase::compactTable)
+                                  .addIf(State::allowNonPartitionQuery, this::nonPartitionQuery)
+                                  .addIf(State::allowPartitionQuery, this::partitionRestrictedQuery)
                                   .addIf(s -> s.metadata.columns().size() > 1, this::multiColumnQuery)
                                   .destroyState(State::close)
                                   .onSuccess(onSuccess(logger))
@@ -348,6 +407,7 @@ public class SingleNodeTableWalkTest extends StatefulASTBase
 
     private static FunctionCall token(State state, BytesPartitionState.Ref ref)
     {
+        Preconditions.checkNotNull(ref.key);
         List<Value> values = new ArrayList<>(ref.key.size());
         for (int i = 0; i < ref.key.size(); i++)
         {
@@ -362,6 +422,7 @@ public class SingleNodeTableWalkTest extends StatefulASTBase
     {
         protected final LinkedHashMap<Symbol, IndexedColumn> indexes;
         private final Gen<Mutation> mutationGen;
+        private final List<Symbol> nonPartitionColumns;
         private final List<Symbol> searchableColumns;
 
         public State(RandomSource rs, Cluster cluster)
@@ -394,18 +455,13 @@ public class SingleNodeTableWalkTest extends StatefulASTBase
                                      .withPartitions(SourceDSL.arbitrary().pick(uniquePartitions))
                                      .build());
 
-            if (metadata.partitionKeyColumns().size() > 1)
-            {
-                searchableColumns = model.factory.selectionOrder;
-            }
-            else
-            {
-                searchableColumns = ImmutableList.<Symbol>builder()
-                                                 .addAll(model.factory.clusteringColumns)
-                                                 .addAll(model.factory.staticColumns)
-                                                 .addAll(model.factory.regularColumns)
-                                                 .build();
-            }
+            nonPartitionColumns = ImmutableList.<Symbol>builder()
+                                               .addAll(model.factory.clusteringColumns)
+                                               .addAll(model.factory.staticColumns)
+                                               .addAll(model.factory.regularColumns)
+                                               .build();
+
+            searchableColumns = metadata.partitionKeyColumns().size() > 1 ?  model.factory.selectionOrder : nonPartitionColumns;
         }
 
         private LinkedHashMap<Symbol, IndexedColumn> createIndexes(RandomSource rs, TableMetadata metadata)
@@ -419,7 +475,6 @@ public class SingleNodeTableWalkTest extends StatefulASTBase
                 Symbol symbol = Symbol.from(col);
                 AbstractType<?> type = symbol.type();
 
-//                if (col.type.isReversed()) continue; //TODO (correctness): see https://issues.apache.org/jira/browse/CASSANDRA-19889
 //                if (col.name.toString().length() >= 48) continue; // TODO (correctness): https://issues.apache.org/jira/browse/CASSANDRA-19897
 
                 if (type.isCollection() && !type.isFrozenCollection()) continue; //TODO (coverage): include non-frozen collections;  the index part works fine, its the select that fails... basic equality isn't allowed for map type... so how do you query?
@@ -441,6 +496,7 @@ public class SingleNodeTableWalkTest extends StatefulASTBase
                 logger.info(stmt);
                 cluster.schemaChange(stmt);
 
+                //noinspection OptionalGetWithoutIsPresent
                 SAIUtil.waitForIndexQueryable(cluster, metadata.keyspace, ddl.name.get().name());
 
                 indexed.put(symbol, new IndexedColumn(symbol, ddl));
@@ -460,8 +516,28 @@ public class SingleNodeTableWalkTest extends StatefulASTBase
 
         public boolean allowNonPartitionQuery()
         {
-            return !model.isEmpty()
-                   && !searchableColumns.isEmpty();
+            //TODO (now): should the multi node conditions be added here?
+            return !model.isEmpty() && !searchableColumns.isEmpty();
+        }
+
+        public List<Symbol> nonPkIndexedColumns;
+        public boolean allowPartitionQuery()
+        {
+            if (model.isEmpty() || nonPartitionColumns.isEmpty()) return false;
+            if (hasAllowFilteringMultiNodeLocalWriteIssue())
+            {
+                nonPkIndexedColumns = nonPartitionColumns.stream()
+                                                         .filter(indexes::containsKey)
+                                                         .collect(Collectors.toList());
+                return !nonPkIndexedColumns.isEmpty();
+            }
+            return true;
+        }
+
+        private boolean hasAllowFilteringMultiNodeLocalWriteIssue()
+        {
+            return IGNORED_ISSUES.contains(KnownIssue.AF_MULTI_NODE_AND_NODE_LOCAL_WRITES)
+                   && cluster.size() > 1;
         }
 
         @Override
