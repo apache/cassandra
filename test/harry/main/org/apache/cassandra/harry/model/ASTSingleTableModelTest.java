@@ -21,6 +21,7 @@ package org.apache.cassandra.harry.model;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.EnumSet;
 import java.util.List;
 import java.util.TreeMap;
 import java.util.function.Consumer;
@@ -30,12 +31,13 @@ import com.google.common.collect.ImmutableList;
 import org.junit.Test;
 
 import org.apache.cassandra.cql3.ast.Bind;
-import org.apache.cassandra.cql3.ast.Conditional;
+import org.apache.cassandra.cql3.ast.Conditional.Where.Inequality;
 import org.apache.cassandra.cql3.ast.FunctionCall;
 import org.apache.cassandra.cql3.ast.Mutation;
 import org.apache.cassandra.cql3.ast.Select;
 import org.apache.cassandra.cql3.ast.Symbol;
 import org.apache.cassandra.db.BufferClustering;
+import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.InetAddressType;
 import org.apache.cassandra.db.marshal.Int32Type;
 import org.apache.cassandra.db.marshal.LexicalUUIDType;
@@ -55,6 +57,9 @@ public class ASTSingleTableModelTest
     public static final ByteBuffer TWO = ByteBufferUtil.bytes(2);
     public static final ByteBuffer THREE = ByteBufferUtil.bytes(3);
     public static final ByteBuffer[][] EMPTY = new ByteBuffer[0][];
+
+    private static final EnumSet<Inequality> RANGE_INEQUALITY = EnumSet.of(Inequality.LESS_THAN, Inequality.LESS_THAN_EQ,
+                                                                           Inequality.GREATER_THAN, Inequality.GREATER_THAN_EQ);
 
     @Test
     public void singlePartition()
@@ -92,7 +97,7 @@ public class ASTSingleTableModelTest
 
             Select.Builder builder = Select.builder().table(metadata);
             builder.where(FunctionCall.tokenByColumns(metadata.partitionKeyColumns().stream().map(Symbol::new).collect(Collectors.toList())),
-                          Conditional.Where.Inequality.EQUAL,
+                          Inequality.EQUAL,
                           FunctionCall.tokenByValue(metadata.partitionKeyColumns().stream().map(i -> new Bind(ZERO, Int32Type.instance)).collect(Collectors.toList())));
 
             Select select = builder.build();
@@ -206,7 +211,7 @@ public class ASTSingleTableModelTest
 
         Select selectColumn = Select.builder(metadata)
                                     .value("pk0", pk0)
-                                    .where("v0", Conditional.Where.Inequality.GREATER_THAN, row2V0)
+                                    .where("v0", Inequality.GREATER_THAN, row2V0)
                                     .build();
 
         model.update(Mutation.update(metadata)
@@ -254,7 +259,7 @@ public class ASTSingleTableModelTest
     }
 
     @Test
-    public void simpleSearchEquality()
+    public void simpleSearch()
     {
         for (TableMetadata metadata : defaultTables())
         {
@@ -276,10 +281,53 @@ public class ASTSingleTableModelTest
 
             for (Symbol column : model.factory.selectionOrder)
             {
+                // test eq
                 for (ByteBuffer value : allValues)
                 {
                     model.validate(modelModel.allEq(column, value),
                                    Select.builder(metadata).value(column, value).build());
+                }
+                // unbound range: < / >
+                for (ByteBuffer value : allValues)
+                {
+                    for (Inequality inequality : RANGE_INEQUALITY)
+                    {
+                        model.validate(modelModel.allWhere(column, inequality, value),
+                                       Select.builder(metadata).where(column, inequality, value).build());
+                    }
+                }
+                // bound range: < and >, > and <
+                for (ByteBuffer leftValue : allValues)
+                {
+                    for (Inequality left : RANGE_INEQUALITY)
+                    {
+                        for (ByteBuffer rightValue : allValues)
+                        {
+                            for (Inequality right : RANGE_INEQUALITY)
+                            {
+                                model.validate(modelModel.allWhere(column,
+                                                                   left, leftValue,
+                                                                   right, rightValue),
+                                               Select.builder(metadata)
+                                                     .where(column, left, leftValue)
+                                                     .where(column, right, rightValue)
+                                                     .build());
+                            }
+                        }
+                    }
+                }
+                // between (same as bound range, but different syntax)
+                for (ByteBuffer left : allValues)
+                {
+                    for (ByteBuffer right : allValues)
+                    {
+                        model.validate(modelModel.allWhere(column,
+                                                           Inequality.GREATER_THAN_EQ, left,
+                                                           Inequality.LESS_THAN_EQ, right),
+                                       Select.builder(metadata)
+                                             .between(column, new Bind(left, column.type()), new Bind(right, column.type()))
+                                             .build());
+                    }
                 }
             }
         }
@@ -318,6 +366,11 @@ public class ASTSingleTableModelTest
 
         public ByteBuffer[][] allEq(Symbol column, ByteBuffer value)
         {
+            return allWhere(column, Inequality.EQUAL, value);
+        }
+
+        public ByteBuffer[][] allWhere(Symbol column, Inequality inequality, ByteBuffer value)
+        {
             int idx = model.factory.selectionOrder.indexOf(column);
             List<ByteBuffer[]> rows = new ArrayList<>();
             for (List<ByteBuffer[]> partition : partitions.values())
@@ -326,11 +379,65 @@ public class ASTSingleTableModelTest
                 {
                     ByteBuffer actual = row[idx];
                     if (actual == null) continue;
-                    if (actual.equals(value))
+                    if (include(column.type(), actual, inequality, value))
                         rows.add(row);
                 }
             }
             return rows.toArray(ByteBuffer[][]::new);
+        }
+
+        public ByteBuffer[][] allWhere(Symbol column,
+                                       Inequality left, ByteBuffer leftValue,
+                                       Inequality right, ByteBuffer rightValue)
+        {
+            //TODO (copy/paste): the main loop is copy/paste
+            int idx = model.factory.selectionOrder.indexOf(column);
+            List<ByteBuffer[]> rows = new ArrayList<>();
+            for (List<ByteBuffer[]> partition : partitions.values())
+            {
+                for (ByteBuffer[] row : partition)
+                {
+                    ByteBuffer actual = row[idx];
+                    if (actual == null) continue;
+                    if (include(column.type(), actual, left, leftValue) &&
+                        include(column.type(), actual, right, rightValue))
+                        rows.add(row);
+                }
+            }
+            return rows.toArray(ByteBuffer[][]::new);
+        }
+
+        private static boolean include(AbstractType<?> type, ByteBuffer actual, Inequality inequality, ByteBuffer value)
+        {
+            int rc = type.compare(actual, value);
+            switch (inequality)
+            {
+                case EQUAL:
+                    if (actual.equals(value))
+                        return true;
+                    break;
+                case NOT_EQUAL:
+                    if (!actual.equals(value))
+                        return true;
+                    break;
+                case LESS_THAN_EQ:
+                    if (rc == 0)
+                        return true;
+                case LESS_THAN:
+                    if (rc < 0)
+                        return true;
+                    break;
+                case GREATER_THAN_EQ:
+                    if (rc == 0)
+                        return true;
+                case GREATER_THAN:
+                    if (rc > 0)
+                        return true;
+                    break;
+                default:
+                    throw new UnsupportedOperationException(inequality.name());
+            }
+            return false;
         }
     }
 
