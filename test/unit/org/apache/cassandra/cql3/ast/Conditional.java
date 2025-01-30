@@ -27,7 +27,8 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
-import accord.utils.Invariants;
+import com.google.common.base.Preconditions;
+
 import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.BooleanType;
@@ -168,7 +169,7 @@ public interface Conditional extends Expression
 
         public In(ReferenceExpression ref, List<? extends Expression> expressions)
         {
-            Invariants.checkArgument(!expressions.isEmpty());
+            Preconditions.checkArgument(!expressions.isEmpty());
             this.ref = ref;
             this.expressions = expressions;
         }
