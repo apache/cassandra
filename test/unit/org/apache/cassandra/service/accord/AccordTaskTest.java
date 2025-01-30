@@ -126,7 +126,7 @@ public class AccordTaskTest
         AccordCommandStore commandStore = createAccordCommandStore(clock::incrementAndGet, "ks", "tbl");
         TxnId txnId = txnId(1, clock.incrementAndGet(), 1);
 
-        getUninterruptibly(commandStore.execute(contextFor(txnId), instance -> {
+        getUninterruptibly(commandStore.execute(txnId, instance -> {
             // TODO review: This change to `ifInitialized` was done in a lot of places and it doesn't preserve this property
             // I fixed this reference to point to `ifLoadedAndInitialised` and but didn't update other places
             Assert.assertNull(instance.ifInitialised(txnId));
@@ -140,7 +140,7 @@ public class AccordTaskTest
         AccordCommandStore commandStore = createAccordCommandStore(clock::incrementAndGet, "ks", "tbl");
         TxnId txnId = txnId(1, clock.incrementAndGet(), 1);
 
-        getUninterruptibly(commandStore.execute(contextFor(txnId), safe -> {
+        getUninterruptibly(commandStore.execute(txnId, safe -> {
             StoreParticipants participants = StoreParticipants.empty(txnId);
             SafeCommand command = safe.get(txnId, participants);
             Assert.assertNotNull(command);

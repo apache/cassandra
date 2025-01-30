@@ -254,14 +254,6 @@ public class AccordGenerators
                 case PreAcceptedWithVote:
                 case PreAcceptedWithDeps:
                     return Command.PreAccepted.preaccepted(attributes(saveStatus), saveStatus);
-                case PreNotAccepted:
-                case PreNotAcceptedWithDefinition:
-                case PreNotAcceptedWithDefAndDeps:
-                case PreNotAcceptedWithDefAndVote:
-                case NotAccepted:
-                case NotAcceptedWithDefinition:
-                case NotAcceptedWithDefAndDeps:
-                case NotAcceptedWithDefAndVote:
                 case AcceptedInvalidate:
                     return Command.NotAcceptedWithoutDefinition.acceptedInvalidate(attributes(saveStatus));
 

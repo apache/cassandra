@@ -133,8 +133,8 @@ public class AccordMessageSink implements MessageSink
             builder.put(MessageType.ACCEPT_REQ,                               Verb.ACCORD_ACCEPT_REQ);
             builder.put(MessageType.ACCEPT_RSP,                               Verb.ACCORD_ACCEPT_RSP);
             builder.put(MessageType.NOT_ACCEPT_REQ,                           Verb.ACCORD_NOT_ACCEPT_REQ);
-            builder.put(MessageType.CALCULATE_DEPS_REQ,                       Verb.ACCORD_CALCULATE_DEPS_REQ);
-            builder.put(MessageType.CALCULATE_DEPS_RSP,                       Verb.ACCORD_CALCULATE_DEPS_RSP);
+            builder.put(MessageType.RECOVER_AWAIT_REQ,                        Verb.ACCORD_RECOVER_AWAIT_REQ);
+            builder.put(MessageType.RECOVER_AWAIT_RSP,                        Verb.ACCORD_RECOVER_AWAIT_RSP);
             builder.put(MessageType.GET_LATEST_DEPS_REQ,                      Verb.ACCORD_GET_LATEST_DEPS_REQ);
             builder.put(MessageType.GET_LATEST_DEPS_RSP,                      Verb.ACCORD_GET_LATEST_DEPS_RSP);
             builder.put(MessageType.GET_EPHEMERAL_READ_DEPS_REQ,              Verb.ACCORD_GET_EPHMRL_READ_DEPS_REQ);

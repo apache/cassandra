@@ -1051,7 +1051,7 @@ public class AccordService implements IAccordService, Shutdownable
 
     private static AsyncChain<Void> populate(CommandStoreTxnBlockedGraph.Builder state, CommandStore store, TxnId txnId)
     {
-        AsyncChain<AsyncChain<Void>> submit = store.submit(PreLoadContext.contextFor(txnId), in -> {
+        AsyncChain<AsyncChain<Void>> submit = store.submit(txnId, in -> {
             AsyncChain<Void> chain = populate(state, (AccordSafeCommandStore) in, txnId);
             return chain == null ? AsyncChains.success(null) : chain;
         });

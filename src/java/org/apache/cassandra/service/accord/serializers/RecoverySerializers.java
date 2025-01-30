@@ -34,6 +34,7 @@ import accord.primitives.FullRoute;
 import accord.primitives.Known.KnownDeps;
 import accord.primitives.LatestDeps;
 import accord.primitives.PartialTxn;
+import accord.primitives.Participants;
 import accord.primitives.Route;
 import accord.primitives.Status;
 import accord.primitives.Timestamp;
@@ -101,9 +102,9 @@ public class RecoverySerializers
             latestDeps.serialize(recoverOk.deps, out, version);
             DepsSerializers.deps.serialize(recoverOk.earlierWait, out, version);
             DepsSerializers.deps.serialize(recoverOk.earlierNoWait, out, version);
-            DepsSerializers.deps.serialize(recoverOk.laterWait, out, version);
-            DepsSerializers.deps.serialize(recoverOk.laterNoWait, out, version);
+            DepsSerializers.deps.serialize(recoverOk.laterCoordRejects, out, version);
             out.writeBoolean(recoverOk.selfAcceptsFastPath);
+            KeySerializers.nullableParticipants.serialize(recoverOk.coordinatorAcceptsFastPath, out, version);
             out.writeBoolean(recoverOk.supersedingRejects);
             CommandSerializers.nullableWrites.serialize(recoverOk.writes, out, version);
         }
@@ -121,9 +122,9 @@ public class RecoverySerializers
             return new RecoverNack(kind, supersededBy);
         }
 
-        RecoverOk deserializeOk(TxnId txnId, Status status, Ballot accepted, Timestamp executeAt, @Nonnull LatestDeps deps, Deps earlierWait, Deps earlierNoWait, Deps laterWait, Deps laterNoWait, boolean acceptsFastPath, boolean rejectsFastPath, Writes writes, Result result, DataInputPlus in, int version)
+        RecoverOk deserializeOk(TxnId txnId, Status status, Ballot accepted, Timestamp executeAt, @Nonnull LatestDeps deps, Deps earlierWait, Deps earlierNoWait, Deps laterCoordRejects, boolean acceptsFastPath, @Nullable Participants<?> coordinatorAcceptsFastPath, boolean rejectsFastPath, Writes writes, Result result, DataInputPlus in, int version)
         {
-            return new RecoverOk(txnId, status, accepted, executeAt, deps, earlierWait, earlierNoWait, laterWait, laterNoWait, acceptsFastPath, rejectsFastPath, writes, result);
+            return new RecoverOk(txnId, status, accepted, executeAt, deps, earlierWait, earlierNoWait, laterCoordRejects, acceptsFastPath, coordinatorAcceptsFastPath, rejectsFastPath, writes, result);
         }
 
         @Override
@@ -148,8 +149,8 @@ public class RecoverySerializers
                                  DepsSerializers.deps.deserialize(in, version),
                                  DepsSerializers.deps.deserialize(in, version),
                                  DepsSerializers.deps.deserialize(in, version),
-                                 DepsSerializers.deps.deserialize(in, version),
                                  in.readBoolean(),
+                                 KeySerializers.nullableParticipants.deserialize(in, version),
                                  in.readBoolean(),
                                  CommandSerializers.nullableWrites.deserialize(in, version),
                                  result,
@@ -171,9 +172,9 @@ public class RecoverySerializers
             size += latestDeps.serializedSize(recoverOk.deps, version);
             size += DepsSerializers.deps.serializedSize(recoverOk.earlierWait, version);
             size += DepsSerializers.deps.serializedSize(recoverOk.earlierNoWait, version);
-            size += DepsSerializers.deps.serializedSize(recoverOk.laterWait, version);
-            size += DepsSerializers.deps.serializedSize(recoverOk.laterNoWait, version);
+            size += DepsSerializers.deps.serializedSize(recoverOk.laterCoordRejects, version);
             size += TypeSizes.sizeof(recoverOk.selfAcceptsFastPath);
+            size += KeySerializers.nullableParticipants.serializedSize(recoverOk.coordinatorAcceptsFastPath, version);
             size += TypeSizes.sizeof(recoverOk.supersedingRejects);
             size += CommandSerializers.nullableWrites.serializedSize(recoverOk.writes, version);
             return size;

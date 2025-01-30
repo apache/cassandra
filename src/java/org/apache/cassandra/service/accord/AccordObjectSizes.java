@@ -312,7 +312,7 @@ public class AccordObjectSizes
 
         final static long NOT_DEFINED = measure(Command.NotDefined.notDefined(attrs(false, false, false)));
         final static long PREACCEPTED = measure(Command.PreAccepted.preaccepted(attrs(false, true, false), SaveStatus.PreAccepted));
-        final static long NOTACCEPTED = measure(Command.NotAcceptedWithoutDefinition.notAccepted(attrs(false, false, false), SaveStatus.NotAccepted));
+        final static long NOTACCEPTED = measure(Command.NotAcceptedWithoutDefinition.notAccepted(attrs(false, false, false), SaveStatus.AcceptedInvalidate));
         final static long ACCEPTED = measure(Command.Accepted.accepted(attrs(true, false, false), SaveStatus.AcceptedMedium));
         final static long COMMITTED = measure(Command.Committed.committed(attrs(true, true, false), SaveStatus.Committed));
         final static long EXECUTED = measure(Command.Executed.executed(attrs(true, true, true), SaveStatus.Applied));
@@ -330,16 +330,8 @@ public class AccordObjectSizes
                 case PreAcceptedWithDeps:
                 case PreAcceptedWithVote:
                     return PREACCEPTED;
-                case NotAccepted:
-                case PreNotAccepted:
                 case AcceptedInvalidate:
                     return NOTACCEPTED;
-                case NotAcceptedWithDefinition:
-                case NotAcceptedWithDefAndVote:
-                case NotAcceptedWithDefAndDeps:
-                case PreNotAcceptedWithDefinition:
-                case PreNotAcceptedWithDefAndVote:
-                case PreNotAcceptedWithDefAndDeps:
                 case AcceptedInvalidateWithDefinition:
                 case AcceptedMedium:
                 case AcceptedMediumWithDefinition:

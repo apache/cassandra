@@ -501,7 +501,7 @@ public class AccordCommandStore extends CommandStore
             if (keys != null)
                 return PreLoadContext.contextFor(txnId, keys, keyHistory);
 
-            return PreLoadContext.contextFor(txnId);
+            return txnId;
         }
 
         @Override

@@ -24,6 +24,8 @@ import accord.api.ProgressLog.BlockedUntil;
 import accord.messages.Await;
 import accord.messages.Await.AsyncAwaitComplete;
 import accord.messages.Await.AwaitOk;
+import accord.messages.RecoverAwait;
+import accord.messages.RecoverAwait.RecoverAwaitOk;
 import accord.primitives.Participants;
 import accord.primitives.Route;
 import accord.primitives.SaveStatus;
@@ -35,12 +37,46 @@ import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.utils.vint.VIntCoding;
 
-public class AwaitSerializer
+public class AwaitSerializers
 {
-    public static final IVersionedSerializer<Await> request = new IVersionedSerializer<>()
+    public static final IVersionedSerializer<Await> request = new RequestSerializer<>()
     {
         @Override
-        public void serialize(Await await, DataOutputPlus out, int version) throws IOException
+        public Await deserialize(TxnId txnId, Participants<?> scope, BlockedUntil blockedUntil, boolean notifyProgressLog, long minAwaitEpoch, long maxAwaitEpoch, int callbackId, DataInputPlus in, int version)
+        {
+            return Await.SerializerSupport.create(txnId, scope, blockedUntil, notifyProgressLog, minAwaitEpoch, maxAwaitEpoch, callbackId);
+        }
+    };
+
+    public static final IVersionedSerializer<RecoverAwait> recoverRequest = new RequestSerializer<>()
+    {
+        @Override
+        public RecoverAwait deserialize(TxnId txnId, Participants<?> scope, BlockedUntil blockedUntil, boolean notifyProgressLog, long minAwaitEpoch, long maxAwaitEpoch, int callbackId, DataInputPlus in, int version) throws IOException
+        {
+            TxnId recoverId = CommandSerializers.txnId.deserialize(in, version);
+            return RecoverAwait.SerializerSupport.create(txnId, scope, blockedUntil, notifyProgressLog, minAwaitEpoch, maxAwaitEpoch, callbackId, recoverId);
+        }
+
+        @Override
+        public void serialize(RecoverAwait await, DataOutputPlus out, int version) throws IOException
+        {
+            super.serialize(await, out, version);
+            CommandSerializers.txnId.serialize(await.recoverId, out, version);
+        }
+
+        @Override
+        public long serializedSize(RecoverAwait await, int version)
+        {
+            return super.serializedSize(await, version) + CommandSerializers.txnId.serializedSize(await.recoverId, version);
+        }
+    };
+
+    static abstract class RequestSerializer<A extends Await> implements IVersionedSerializer<A>
+    {
+        abstract A deserialize(TxnId txnId, Participants<?> scope, BlockedUntil blockedUntil, boolean notifyProgressLog, long minAwaitEpoch, long maxAwaitEpoch, int callbackId, DataInputPlus in, int version) throws IOException;
+
+        @Override
+        public void serialize(A await, DataOutputPlus out, int version) throws IOException
         {
             CommandSerializers.txnId.serialize(await.txnId, out, version);
             KeySerializers.participants.serialize(await.scope, out, version);
@@ -52,7 +88,7 @@ public class AwaitSerializer
         }
 
         @Override
-        public Await deserialize(DataInputPlus in, int version) throws IOException
+        public A deserialize(DataInputPlus in, int version) throws IOException
         {
             TxnId txnId = CommandSerializers.txnId.deserialize(in, version);
             Participants<?> scope = KeySerializers.participants.deserialize(in, version);
@@ -63,11 +99,11 @@ public class AwaitSerializer
             long minAwaitEpoch = maxAwaitEpoch - in.readUnsignedVInt();
             int callbackId = in.readUnsignedVInt32() - 1;
             Invariants.require(callbackId >= -1);
-            return Await.SerializerSupport.create(txnId, scope, blockedUntil, notifyProgressLog, minAwaitEpoch, maxAwaitEpoch, callbackId);
+            return deserialize(txnId, scope, blockedUntil, notifyProgressLog, minAwaitEpoch, maxAwaitEpoch, callbackId, in, version);
         }
 
         @Override
-        public long serializedSize(Await await, int version)
+        public long serializedSize(A await, int version)
         {
             return CommandSerializers.txnId.serializedSize(await.txnId, version)
                    + KeySerializers.participants.serializedSize(await.scope, version)
@@ -79,6 +115,7 @@ public class AwaitSerializer
     };
 
     public static final IVersionedSerializer<AwaitOk> syncReply = new EnumSerializer<>(AwaitOk.class);
+    public static final IVersionedSerializer<RecoverAwaitOk> recoverReply = new EnumSerializer<>(RecoverAwaitOk.class);
 
     public static final IVersionedSerializer<AsyncAwaitComplete> asyncReply = new IVersionedSerializer<>()
     {

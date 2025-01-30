@@ -243,7 +243,7 @@ public class AccordIncrementalRepairTest extends AccordTestBase
             long now = Clock.Global.currentTimeMillis();
             if (now - start > TimeUnit.MINUTES.toMillis(1))
                 throw new AssertionError("Timeout");
-            AsyncChains.awaitUninterruptibly(node.commandStores().ifLocal(PreLoadContext.contextFor(txnId), key.toUnseekable(), 0, Long.MAX_VALUE, safeStore -> {
+            AsyncChains.awaitUninterruptibly(node.commandStores().ifLocal(txnId, key.toUnseekable(), 0, Long.MAX_VALUE, safeStore -> {
                 SafeCommand command = safeStore.get(txnId, StoreParticipants.empty(txnId));
                 Assert.assertNotNull(command.current());
                 if (command.current().status().hasBeen(Status.Applied))

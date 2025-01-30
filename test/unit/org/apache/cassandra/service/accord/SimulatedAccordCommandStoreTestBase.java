@@ -321,7 +321,7 @@ public abstract class SimulatedAccordCommandStoreTestBase extends CQLTester
                 {
                     var range = deps.rangeDeps.range(i);
                     Assertions.assertThat(rangeConflicts).describedAs("Txn %s had an unexpected range", txnId).containsKey(range);
-                    var conflict = deps.rangeDeps.txnIdsForRangeIndex(i);
+                    var conflict = deps.rangeDeps.txnIdsWithFlagsForRangeIndex(i);
                     List<TxnId> expectedConflict = rangeConflicts.get(range);
                     Assertions.assertThat(conflict).describedAs("Txn %s Expected range %s to have different conflicting txns", txnId, range).isEqualTo(expectedConflict);
                 }
@@ -344,7 +344,7 @@ public abstract class SimulatedAccordCommandStoreTestBase extends CQLTester
         {
             Assertions.assertThat(deps.keyDeps.keys()).describedAs("Txn %s Keys", txnId).isEqualTo(RoutingKeys.of(keyConflicts.keySet()));
             for (var key : keyConflicts.keySet())
-                Assertions.assertThat(deps.keyDeps.txnIds(key)).describedAs("Txn %s for key %s", txnId, key).isEqualTo(keyConflicts.get(key));
+                Assertions.assertThat(deps.keyDeps.txnIdsWithFlags(key)).describedAs("Txn %s for key %s", txnId, key).isEqualTo(keyConflicts.get(key));
         }
     }
 

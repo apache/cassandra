@@ -94,7 +94,6 @@ import org.apache.cassandra.service.accord.serializers.CheckStatusSerializers;
 import org.apache.cassandra.service.accord.serializers.CommitSerializers;
 import org.apache.cassandra.service.accord.serializers.EnumSerializer;
 import org.apache.cassandra.service.accord.serializers.FetchSerializers;
-import org.apache.cassandra.service.accord.serializers.CalculateDepsSerializers;
 import org.apache.cassandra.service.accord.serializers.GetEphmrlReadDepsSerializers;
 import org.apache.cassandra.service.accord.serializers.InformDurableSerializers;
 import org.apache.cassandra.service.accord.serializers.LatestDepsSerializers;
@@ -103,7 +102,7 @@ import org.apache.cassandra.service.accord.serializers.QueryDurableBeforeSeriali
 import org.apache.cassandra.service.accord.serializers.ReadDataSerializers;
 import org.apache.cassandra.service.accord.serializers.RecoverySerializers;
 import org.apache.cassandra.service.accord.serializers.SetDurableSerializers;
-import org.apache.cassandra.service.accord.serializers.AwaitSerializer;
+import org.apache.cassandra.service.accord.serializers.AwaitSerializers;
 import org.apache.cassandra.service.consensus.migration.ConsensusKeyMigrationState;
 import org.apache.cassandra.service.consensus.migration.ConsensusKeyMigrationState.ConsensusKeyMigrationFinished;
 import org.apache.cassandra.service.paxos.Commit;
@@ -327,16 +326,16 @@ public enum Verb
     ACCORD_BEGIN_RECOVER_REQ        (132, P2, writeTimeout, IMMEDIATE,          () -> RecoverySerializers.request,          AccordService::requestHandlerOrNoop, ACCORD_BEGIN_RECOVER_RSP                  ),
     ACCORD_BEGIN_INVALIDATE_RSP     (133, P2, writeTimeout, IMMEDIATE,          () -> BeginInvalidationSerializers.reply,   AccordService::responseHandlerOrNoop                                           ),
     ACCORD_BEGIN_INVALIDATE_REQ     (134, P2, writeTimeout, IMMEDIATE,          () -> BeginInvalidationSerializers.request, AccordService::requestHandlerOrNoop, ACCORD_BEGIN_INVALIDATE_RSP               ),
-    ACCORD_AWAIT_RSP                (136, P2, writeTimeout, IMMEDIATE,          () -> AwaitSerializer.syncReply,            AccordService::responseHandlerOrNoop                                           ),
-    ACCORD_AWAIT_REQ                (135, P2, writeTimeout, IMMEDIATE,          () -> AwaitSerializer.request,              AccordService::requestHandlerOrNoop, ACCORD_AWAIT_RSP                          ),
-    ACCORD_AWAIT_ASYNC_RSP_REQ      (137, P2, writeTimeout, IMMEDIATE,          () -> AwaitSerializer.asyncReply,           AccordService::requestHandlerOrNoop                                            ),
+    ACCORD_AWAIT_RSP                (136, P2, writeTimeout, IMMEDIATE,          () -> AwaitSerializers.syncReply,           AccordService::responseHandlerOrNoop                                           ),
+    ACCORD_AWAIT_REQ                (135, P2, writeTimeout, IMMEDIATE,          () -> AwaitSerializers.request,             AccordService::requestHandlerOrNoop, ACCORD_AWAIT_RSP                          ),
+    ACCORD_AWAIT_ASYNC_RSP_REQ      (137, P2, writeTimeout, IMMEDIATE,          () -> AwaitSerializers.asyncReply,          AccordService::requestHandlerOrNoop                                            ),
     ACCORD_WAIT_UNTIL_APPLIED_REQ   (138, P2, writeTimeout, IMMEDIATE,          () -> ReadDataSerializers.waitUntilApplied, AccordService::requestHandlerOrNoop, ACCORD_READ_RSP                           ),
     ACCORD_STABLE_THEN_READ_REQ     (139, P2, writeTimeout, IMMEDIATE,          () -> ReadDataSerializers.stableThenRead,   AccordService::requestHandlerOrNoop, ACCORD_READ_RSP                           ),
     ACCORD_INFORM_DURABLE_REQ       (140, P2, writeTimeout, IMMEDIATE,          () -> InformDurableSerializers.request,     AccordService::requestHandlerOrNoop, ACCORD_SIMPLE_RSP                         ),
     ACCORD_CHECK_STATUS_RSP         (141, P2, writeTimeout, IMMEDIATE,          () -> CheckStatusSerializers.reply,         AccordService::responseHandlerOrNoop                                           ),
     ACCORD_CHECK_STATUS_REQ         (142, P2, writeTimeout, IMMEDIATE,          () -> CheckStatusSerializers.request,       AccordService::requestHandlerOrNoop, ACCORD_CHECK_STATUS_RSP                   ),
-    ACCORD_CALCULATE_DEPS_RSP       (143, P2, writeTimeout, IMMEDIATE,          () -> CalculateDepsSerializers.reply,       AccordService::responseHandlerOrNoop                                           ),
-    ACCORD_CALCULATE_DEPS_REQ       (144, P2, longTimeout,  IMMEDIATE,          () -> CalculateDepsSerializers.request,     AccordService::requestHandlerOrNoop, ACCORD_CALCULATE_DEPS_RSP),
+    ACCORD_RECOVER_AWAIT_RSP        (143, P2, writeTimeout, IMMEDIATE,          () -> AwaitSerializers.recoverReply,        AccordService::responseHandlerOrNoop                                           ),
+    ACCORD_RECOVER_AWAIT_REQ        (144, P2, writeTimeout,  IMMEDIATE,         () -> AwaitSerializers.recoverRequest,      AccordService::requestHandlerOrNoop, ACCORD_RECOVER_AWAIT_RSP),
     ACCORD_GET_LATEST_DEPS_RSP      (167, P2, writeTimeout, IMMEDIATE,          () -> LatestDepsSerializers.reply,          AccordService::responseHandlerOrNoop                                           ),
     ACCORD_GET_LATEST_DEPS_REQ      (168, P2, writeTimeout, IMMEDIATE,          () -> LatestDepsSerializers.request,        AccordService::requestHandlerOrNoop, ACCORD_GET_LATEST_DEPS_RSP),
     ACCORD_GET_EPHMRL_READ_DEPS_RSP (161, P2, writeTimeout, IMMEDIATE,          () -> GetEphmrlReadDepsSerializers.reply,   AccordService::responseHandlerOrNoop                                           ),

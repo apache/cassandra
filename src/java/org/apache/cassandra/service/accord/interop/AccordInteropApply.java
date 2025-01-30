@@ -120,8 +120,6 @@ public class AccordInteropApply extends Apply implements LocalListeners.ComplexL
             default: throw new AssertionError();
             case NotDefined:
             case PreAccepted:
-            case PreNotAccepted:
-            case NotAccepted:
             case AcceptedInvalidate:
             case AcceptedMedium:
             case AcceptedSlow:
@@ -247,8 +245,6 @@ public class AccordInteropApply extends Apply implements LocalListeners.ComplexL
             default: throw new UnhandledEnum(command.status());
             case NotDefined:
             case PreAccepted:
-            case PreNotAccepted:
-            case NotAccepted:
             case AcceptedInvalidate:
             case AcceptedMedium:
             case AcceptedSlow:

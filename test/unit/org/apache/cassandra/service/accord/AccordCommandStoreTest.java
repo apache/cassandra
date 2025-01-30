@@ -61,6 +61,7 @@ import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.service.accord.api.AccordRoutingKey.TokenKey;
 import org.apache.cassandra.service.accord.api.PartitionKey;
+import org.apache.cassandra.service.accord.serializers.CommandsForKeySerializerTest.TestSafeCommandStore;
 import org.apache.cassandra.service.accord.serializers.ResultSerializers;
 import org.apache.cassandra.service.consensus.TransactionalMode;
 import org.apache.cassandra.utils.Pair;
@@ -162,8 +163,8 @@ public class AccordCommandStoreTest
         AccordSafeCommandsForKey cfk = new AccordSafeCommandsForKey(loaded(key, null));
         cfk.initialize();
 
-        cfk.set(cfk.current().update(command1).cfk());
-        cfk.set(cfk.current().update(command2).cfk());
+        cfk.set(cfk.current().update(new TestSafeCommandStore(command1.txnId()), command1).cfk());
+        cfk.set(cfk.current().update(new TestSafeCommandStore(command1.txnId()), command2).cfk());
 
         AccordKeyspace.getCommandsForKeyUpdater(commandStore.id(), (TokenKey)cfk.key(), cfk.current(), null, commandStore.nextSystemTimestampMicros()).run();
         logger.info("E: {}", cfk);
