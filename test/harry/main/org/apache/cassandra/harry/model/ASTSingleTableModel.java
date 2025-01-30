@@ -55,6 +55,7 @@ import org.apache.cassandra.db.BufferClustering;
 import org.apache.cassandra.db.Clustering;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.dht.Token;
+import org.apache.cassandra.harry.model.BytesPartitionState.PrimaryKey;
 import org.apache.cassandra.harry.util.StringUtils;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.tools.nodetool.formatter.TableBuilder;
@@ -89,21 +90,21 @@ public class ASTSingleTableModel
         return partitions.isEmpty();
     }
 
-    public TreeMap<ByteBuffer, List<BytesPartitionState.PrimaryKey>> index(BytesPartitionState.Ref ref, Symbol symbol)
+    public TreeMap<ByteBuffer, List<PrimaryKey>> index(BytesPartitionState.Ref ref, Symbol symbol)
     {
         if (factory.partitionColumns.contains(symbol))
             throw new AssertionError("When indexing based off a single partition, unable to index partition columns; given " + symbol.detailedName());
         BytesPartitionState partition = get(ref);
         Invariants.nonNull(partition, "Unable to index %s; null partition %s", symbol, ref);
-        TreeMap<ByteBuffer, List<BytesPartitionState.PrimaryKey>> index = new TreeMap<>(symbol.type()::compare);
+        TreeMap<ByteBuffer, List<PrimaryKey>> index = new TreeMap<>(symbol.type()::compare);
         if (factory.staticColumns.contains(symbol))
             return indexStaticColumn(index, symbol, partition);
         return indexRowColumn(index, symbol, partition);
     }
 
-    public TreeMap<ByteBuffer, List<BytesPartitionState.PrimaryKey>> index(Symbol symbol)
+    public TreeMap<ByteBuffer, List<PrimaryKey>> index(Symbol symbol)
     {
-        TreeMap<ByteBuffer, List<BytesPartitionState.PrimaryKey>> index = new TreeMap<>(symbol.type()::compare);
+        TreeMap<ByteBuffer, List<PrimaryKey>> index = new TreeMap<>(symbol.type()::compare);
         if (factory.partitionColumns.contains(symbol))
             return indexPartitionColumn(index, symbol);
         if (factory.staticColumns.contains(symbol))
@@ -111,40 +112,40 @@ public class ASTSingleTableModel
         return indexRowColumn(index, symbol);
     }
 
-    private TreeMap<ByteBuffer, List<BytesPartitionState.PrimaryKey>> indexPartitionColumn(TreeMap<ByteBuffer, List<BytesPartitionState.PrimaryKey>> index, Symbol symbol)
+    private TreeMap<ByteBuffer, List<PrimaryKey>> indexPartitionColumn(TreeMap<ByteBuffer, List<PrimaryKey>> index, Symbol symbol)
     {
         int offset = factory.partitionColumns.indexOf(symbol);
         for (BytesPartitionState partition : partitions.values())
         {
             if (partition.isEmpty()) continue;
             ByteBuffer bb = partition.key.bufferAt(offset);
-            List<BytesPartitionState.PrimaryKey> list = index.computeIfAbsent(bb, i -> new ArrayList<>());
+            List<PrimaryKey> list = index.computeIfAbsent(bb, i -> new ArrayList<>());
             for (BytesPartitionState.Row row : partition.rows())
                 list.add(row.ref());
         }
         return index;
     }
 
-    private TreeMap<ByteBuffer, List<BytesPartitionState.PrimaryKey>> indexStaticColumn(TreeMap<ByteBuffer, List<BytesPartitionState.PrimaryKey>> index, Symbol symbol)
+    private TreeMap<ByteBuffer, List<PrimaryKey>> indexStaticColumn(TreeMap<ByteBuffer, List<PrimaryKey>> index, Symbol symbol)
     {
         for (BytesPartitionState partition : partitions.values())
             indexStaticColumn(index, symbol, partition);
         return index;
     }
 
-    private TreeMap<ByteBuffer, List<BytesPartitionState.PrimaryKey>> indexStaticColumn(TreeMap<ByteBuffer, List<BytesPartitionState.PrimaryKey>> index, Symbol symbol, BytesPartitionState partition)
+    private TreeMap<ByteBuffer, List<PrimaryKey>> indexStaticColumn(TreeMap<ByteBuffer, List<PrimaryKey>> index, Symbol symbol, BytesPartitionState partition)
     {
         if (partition.isEmpty()) return index;
         ByteBuffer bb = partition.staticRow().get(symbol);
         if (bb == null)
             return index;
-        List<BytesPartitionState.PrimaryKey> list = index.computeIfAbsent(bb, i -> new ArrayList<>());
+        List<PrimaryKey> list = index.computeIfAbsent(bb, i -> new ArrayList<>());
         for (BytesPartitionState.Row row : partition.rows())
             list.add(row.ref());
         return index;
     }
 
-    private TreeMap<ByteBuffer, List<BytesPartitionState.PrimaryKey>> indexRowColumn(TreeMap<ByteBuffer, List<BytesPartitionState.PrimaryKey>> index, Symbol symbol)
+    private TreeMap<ByteBuffer, List<PrimaryKey>> indexRowColumn(TreeMap<ByteBuffer, List<PrimaryKey>> index, Symbol symbol)
     {
         boolean clustering = factory.clusteringColumns.contains(symbol);
         int offset = clustering ? factory.clusteringColumns.indexOf(symbol) : factory.regularColumns.indexOf(symbol);
@@ -153,7 +154,7 @@ public class ASTSingleTableModel
         return index;
     }
 
-    private TreeMap<ByteBuffer, List<BytesPartitionState.PrimaryKey>> indexRowColumn(TreeMap<ByteBuffer, List<BytesPartitionState.PrimaryKey>> index, Symbol symbol, BytesPartitionState partition)
+    private TreeMap<ByteBuffer, List<PrimaryKey>> indexRowColumn(TreeMap<ByteBuffer, List<PrimaryKey>> index, Symbol symbol, BytesPartitionState partition)
     {
         boolean clustering = factory.clusteringColumns.contains(symbol);
         int offset = clustering ? factory.clusteringColumns.indexOf(symbol) : factory.regularColumns.indexOf(symbol);
@@ -161,7 +162,7 @@ public class ASTSingleTableModel
         return index;
     }
 
-    private void indexRowColumn(TreeMap<ByteBuffer, List<BytesPartitionState.PrimaryKey>> index, boolean clustering, int offset, BytesPartitionState partition)
+    private void indexRowColumn(TreeMap<ByteBuffer, List<PrimaryKey>> index, boolean clustering, int offset, BytesPartitionState partition)
     {
         if (partition.isEmpty()) return;
         for (BytesPartitionState.Row row : partition.rows())
@@ -551,8 +552,10 @@ public class ASTSingleTableModel
 
     private SelectResult getRowsAsByteBuffer(Select select)
     {
+        if (select.where.isEmpty())
+            return all();
         LookupContext ctx = context(select);
-        List<BytesPartitionState.PrimaryKey> primaryKeys;
+        List<PrimaryKey> primaryKeys;
         if (ctx.unmatchable)
         {
             primaryKeys = Collections.emptyList();
@@ -577,11 +580,19 @@ public class ASTSingleTableModel
         return new SelectResult(getRowsAsByteBuffer(primaryKeys), ctx.unordered);
     }
 
-    public ByteBuffer[][] getRowsAsByteBuffer(List<BytesPartitionState.PrimaryKey> primaryKeys)
+    private SelectResult all()
+    {
+        List<PrimaryKey> primaryKeys = new ArrayList<>();
+        for (var partition : partitions.values())
+            partition.rows().stream().map(BytesPartitionState.Row::ref).forEach(primaryKeys::add);
+        return new SelectResult(getRowsAsByteBuffer(primaryKeys), false);
+    }
+
+    public ByteBuffer[][] getRowsAsByteBuffer(List<PrimaryKey> primaryKeys)
     {
         ByteBuffer[][] rows = new ByteBuffer[primaryKeys.size()][];
         int idx = 0;
-        for (BytesPartitionState.PrimaryKey pk : primaryKeys)
+        for (PrimaryKey pk : primaryKeys)
         {
             BytesPartitionState partition = partitions.get(pk.partition);
             BytesPartitionState.Row row = partition.get(pk.clustering);
@@ -612,15 +623,15 @@ public class ASTSingleTableModel
     private LookupContext context(Select select)
     {
         if (select.where.isEmpty())
-            throw new IllegalArgumentException("Select without a where clause is currently unsupported");
+            throw new IllegalArgumentException("Select without a where clause was expected to be handled before this point");
         return new LookupContext(select);
     }
 
-    private List<BytesPartitionState.PrimaryKey> search(LookupContext ctx)
+    private List<PrimaryKey> search(LookupContext ctx)
     {
         // find by eq first
-        Set<BytesPartitionState.PrimaryKey> eqMatches = searchEq(ctx);
-        Set<BytesPartitionState.PrimaryKey> rangeMatches = searchRange(ctx);
+        Set<PrimaryKey> eqMatches = searchEq(ctx);
+        Set<PrimaryKey> rangeMatches = searchRange(ctx);
         return new ArrayList<>(new TreeSet<>(intersectionEmptySafe(eqMatches, rangeMatches)));
     }
 
@@ -631,9 +642,9 @@ public class ASTSingleTableModel
         return new HashSet<>(Sets.intersection(a, b));
     }
 
-    private Set<BytesPartitionState.PrimaryKey> searchRange(LookupContext ctx)
+    private Set<PrimaryKey> searchRange(LookupContext ctx)
     {
-        Set<BytesPartitionState.PrimaryKey> matches = null;
+        Set<PrimaryKey> matches = null;
         for (Map.Entry<Symbol, List<ColumnCondition>> e : ctx.ltOrGt.entrySet())
         {
             if (matches == null)
@@ -649,9 +660,9 @@ public class ASTSingleTableModel
         return matches == null ? Collections.emptySet() : matches;
     }
 
-    private List<BytesPartitionState.PrimaryKey> searchRange(Symbol symbol, List<ColumnCondition> conditions)
+    private List<PrimaryKey> searchRange(Symbol symbol, List<ColumnCondition> conditions)
     {
-        List<BytesPartitionState.PrimaryKey> matches = new ArrayList<>();
+        List<PrimaryKey> matches = new ArrayList<>();
         if (factory.partitionColumns.contains(symbol) || factory.staticColumns.contains(symbol))
         {
             int pkOffset = factory.partitionColumns.indexOf(symbol);
@@ -761,9 +772,9 @@ public class ASTSingleTableModel
         return false;
     }
 
-    private Set<BytesPartitionState.PrimaryKey> searchEq(LookupContext ctx)
+    private Set<PrimaryKey> searchEq(LookupContext ctx)
     {
-        Set<BytesPartitionState.PrimaryKey> matches = null;
+        Set<PrimaryKey> matches = null;
         for (Map.Entry<Symbol, List<? extends Expression>> e : ctx.eq.entrySet())
         {
             for (Expression e2 : e.getValue())
@@ -783,9 +794,9 @@ public class ASTSingleTableModel
         return matches == null ? Collections.emptySet() : matches;
     }
 
-    private List<BytesPartitionState.PrimaryKey> searchEq(Symbol symbol, ByteBuffer bb)
+    private List<PrimaryKey> searchEq(Symbol symbol, ByteBuffer bb)
     {
-        List<BytesPartitionState.PrimaryKey> matches = new ArrayList<>();
+        List<PrimaryKey> matches = new ArrayList<>();
         if (factory.partitionColumns.contains(symbol) || factory.staticColumns.contains(symbol))
         {
             int pkOffset = factory.partitionColumns.indexOf(symbol);
@@ -834,12 +845,12 @@ public class ASTSingleTableModel
         return matches;
     }
 
-    private List<BytesPartitionState.PrimaryKey> findKeysByToken(LookupContext ctx)
+    private List<PrimaryKey> findKeysByToken(LookupContext ctx)
     {
         return filter(ctx, getByToken(ctx.token));
     }
 
-    private List<BytesPartitionState.PrimaryKey> findKeysByTokenSearch(LookupContext ctx)
+    private List<PrimaryKey> findKeysByTokenSearch(LookupContext ctx)
     {
         return filter(ctx, getByTokenSearch(ctx.tokenLowerBound, ctx.tokenUpperBound));
     }
@@ -892,19 +903,19 @@ public class ASTSingleTableModel
         return keys.stream().map(partitions::get).collect(Collectors.toList());
     }
 
-    private List<BytesPartitionState.PrimaryKey> filter(LookupContext ctx, List<BytesPartitionState> partitions)
+    private List<PrimaryKey> filter(LookupContext ctx, List<BytesPartitionState> partitions)
     {
         if (partitions.isEmpty()) return Collections.emptyList();
-        List<BytesPartitionState.PrimaryKey> matches = new ArrayList<>();
+        List<PrimaryKey> matches = new ArrayList<>();
         for (BytesPartitionState p : partitions)
             matches.addAll(filter(ctx, p));
         return matches;
     }
 
-    private List<BytesPartitionState.PrimaryKey> filter(LookupContext ctx, BytesPartitionState partition)
+    private List<PrimaryKey> filter(LookupContext ctx, BytesPartitionState partition)
     {
         Map<Symbol, List<? extends Expression>> values = ctx.eq;
-        List<BytesPartitionState.PrimaryKey> rows = new ArrayList<>(partition.size());
+        List<PrimaryKey> rows = new ArrayList<>(partition.size());
         if (!factory.clusteringColumns.isEmpty() && values.keySet().containsAll(factory.clusteringColumns))
         {
             // single row
@@ -935,9 +946,9 @@ public class ASTSingleTableModel
         return rows;
     }
 
-    private List<BytesPartitionState.PrimaryKey> findByPartitionEq(LookupContext ctx)
+    private List<PrimaryKey> findByPartitionEq(LookupContext ctx)
     {
-        List<BytesPartitionState.PrimaryKey> matches = new ArrayList<>();
+        List<PrimaryKey> matches = new ArrayList<>();
         for (Clustering<ByteBuffer> pd : keys(ctx.eq, factory.partitionColumns))
         {
             BytesPartitionState partition = partitions.get(factory.createRef(pd));

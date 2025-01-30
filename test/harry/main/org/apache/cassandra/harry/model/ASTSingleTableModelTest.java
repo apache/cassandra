@@ -22,9 +22,11 @@ import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.TreeMap;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
+import com.google.common.collect.ImmutableList;
 import org.junit.Test;
 
 import org.apache.cassandra.cql3.ast.Bind;
@@ -33,6 +35,7 @@ import org.apache.cassandra.cql3.ast.FunctionCall;
 import org.apache.cassandra.cql3.ast.Mutation;
 import org.apache.cassandra.cql3.ast.Select;
 import org.apache.cassandra.cql3.ast.Symbol;
+import org.apache.cassandra.db.BufferClustering;
 import org.apache.cassandra.db.marshal.InetAddressType;
 import org.apache.cassandra.db.marshal.Int32Type;
 import org.apache.cassandra.db.marshal.LexicalUUIDType;
@@ -40,6 +43,7 @@ import org.apache.cassandra.db.marshal.ReversedType;
 import org.apache.cassandra.db.marshal.ShortType;
 import org.apache.cassandra.db.marshal.TimestampType;
 import org.apache.cassandra.dht.Murmur3Partitioner;
+import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.utils.ByteBufferUtil;
@@ -169,6 +173,9 @@ public class ASTSingleTableModelTest
     @Test
     public void nullColumnSelect()
     {
+        // This example was found from a test, hence why more complex types are used.
+        // This test didn't end up depending on these complexities as the issue was null (delete or undefined column)
+        // handle, which is type agnostic.
         TableMetadata metadata = TableMetadata.builder("ks", "tbl")
                                               .partitioner(Murmur3Partitioner.instance)
                                               .addPartitionKeyColumn("pk0", InetAddressType.instance)
@@ -225,6 +232,106 @@ public class ASTSingleTableModelTest
         }, selectPk);
 
         model.validate(new ByteBuffer[0][], selectColumn);
+    }
+
+    @Test
+    public void selectStar()
+    {
+        for (TableMetadata metadata : defaultTables())
+        {
+            ASTSingleTableModel model = new ASTSingleTableModel(metadata);
+            ModelModel modelModel = new ModelModel(model);
+            boolean hasClustering = !model.factory.clusteringColumns.isEmpty();
+            for (ByteBuffer value : Arrays.asList(ONE, TWO, THREE))
+            {
+                if (hasClustering)
+                    modelModel.add(insert(model, (kind, offset) -> kind == ColumnMetadata.Kind.CLUSTERING ? ZERO : value));
+                modelModel.add(insert(model, value));
+            }
+
+            model.validate(modelModel.all(), Select.builder(metadata).build());
+        }
+    }
+
+    @Test
+    public void simpleSearchEquality()
+    {
+        for (TableMetadata metadata : defaultTables())
+        {
+            ASTSingleTableModel model = new ASTSingleTableModel(metadata);
+            ModelModel modelModel = new ModelModel(model);
+            boolean hasClustering = !model.factory.clusteringColumns.isEmpty();
+            List<ByteBuffer> partitionValues = Arrays.asList(ONE, TWO, THREE);
+            List<ByteBuffer> allValues = ImmutableList.<ByteBuffer>builder()
+                                                      .add(ZERO)
+                                                      .addAll(partitionValues)
+                                                      .build();
+
+            for (ByteBuffer value : partitionValues)
+            {
+                if (hasClustering)
+                    modelModel.add(insert(model, (kind, offset) -> kind == ColumnMetadata.Kind.CLUSTERING ? ZERO : value));
+                modelModel.add(insert(model, value));
+            }
+
+            for (Symbol column : model.factory.selectionOrder)
+            {
+                for (ByteBuffer value : allValues)
+                {
+                    model.validate(modelModel.allEq(column, value),
+                                   Select.builder(metadata).value(column, value).build());
+                }
+            }
+        }
+    }
+
+    private static class ModelModel
+    {
+        private final ASTSingleTableModel model;
+        private final TreeMap<Token, List<ByteBuffer[]>> partitions = new TreeMap<>();
+
+        private ModelModel(ASTSingleTableModel model)
+        {
+            this.model = model;
+        }
+
+        ByteBuffer[] add(ByteBuffer[] row)
+        {
+            Token token = createToken(row);
+            partitions.computeIfAbsent(token, i -> new ArrayList<>()).add(row);
+            return row;
+        }
+
+        private Token createToken(ByteBuffer[] row)
+        {
+            ByteBuffer[] pks = Arrays.copyOf(row, model.factory.partitionColumns.size());
+            return model.factory.createRef(new BufferClustering(pks)).token;
+        }
+
+        public ByteBuffer[][] all()
+        {
+            List<ByteBuffer[]> rows = new ArrayList<>();
+            for (List<ByteBuffer[]> partition : partitions.values())
+                rows.addAll(partition);
+            return rows.toArray(ByteBuffer[][]::new);
+        }
+
+        public ByteBuffer[][] allEq(Symbol column, ByteBuffer value)
+        {
+            int idx = model.factory.selectionOrder.indexOf(column);
+            List<ByteBuffer[]> rows = new ArrayList<>();
+            for (List<ByteBuffer[]> partition : partitions.values())
+            {
+                for (ByteBuffer[] row : partition)
+                {
+                    ByteBuffer actual = row[idx];
+                    if (actual == null) continue;
+                    if (actual.equals(value))
+                        rows.add(row);
+                }
+            }
+            return rows.toArray(ByteBuffer[][]::new);
+        }
     }
 
     private interface ColumnValue

@@ -21,7 +21,6 @@ package org.apache.cassandra.harry.model;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
@@ -45,7 +44,6 @@ import org.apache.cassandra.harry.gen.ValueGenerators;
 import org.apache.cassandra.harry.util.BitSet;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.TableMetadata;
-import org.apache.cassandra.tools.nodetool.formatter.TableBuilder;
 import org.apache.cassandra.utils.FastByteOperations;
 import org.apache.cassandra.utils.ImmutableUniqueList;
 
@@ -233,15 +231,30 @@ public class BytesPartitionState
         return state.shouldDelete();
     }
 
-    static List<String> asCQL(ImmutableUniqueList<Symbol> columns, ByteBuffer[] row)
+    static List<String> asCQL(List<Symbol> columns, ByteBuffer[] row)
     {
         List<String> cql = new ArrayList<>(row.length);
         for (int i = 0; i < row.length; i++)
-        {
-            AbstractType type = columns.get(i).type();
-            cql.add(type.toCQLString(row[i]));
-        }
+            cql.add(columns.get(i).type().toCQLString(row[i]));
         return cql;
+    }
+
+    private static void appendValues(StringBuilder sb, List<Symbol> columns, Clustering<ByteBuffer> key)
+    {
+        if (columns.isEmpty())
+        {
+            sb.append(key == Clustering.STATIC_CLUSTERING ? "STATIC" : "EMPTY");
+            return;
+        }
+        List<String> names = columns.stream().map(Symbol::toCQL).collect(Collectors.toList());
+        List<String> values = asCQL(columns, key.getBufferArray());
+        if (names.size() > 1)
+            sb.append('(');
+        for (int i = 0; i < names.size(); i++)
+            sb.append(names.get(i)).append('=').append(values.get(i)).append(", ");
+        sb.setLength(sb.length() - 2); // ", " = 2 chars
+        if (names.size() > 1)
+            sb.append(')');
     }
 
     public class PrimaryKey implements Comparable<PrimaryKey>
@@ -279,6 +292,17 @@ public class BytesPartitionState
         public int hashCode()
         {
             return Objects.hash(partition, clustering);
+        }
+
+        @Override
+        public String toString()
+        {
+            StringBuilder sb = new StringBuilder("(partition=");
+            sb.append(partition);
+            sb.append(", clustering=");
+            appendValues(sb, factory.clusteringColumns, clustering);
+            sb.append(')');
+            return sb.toString();
         }
     }
 
@@ -347,17 +371,17 @@ public class BytesPartitionState
         public String toString()
         {
             StringBuilder sb = new StringBuilder();
-            sb.append("key:\n");
+            sb.append('(');
             if (key == null)
             {
                 sb.append("null");
             }
             else
             {
-                sb.append(TableBuilder.toStringPiped(factory.partitionColumns.stream().map(Symbol::toCQL).collect(Collectors.toList()),
-                                                     Collections.singletonList(asCQL(factory.partitionColumns, key.getBufferArray()))));
+                appendValues(sb, factory.partitionColumns, key);
             }
-            sb.append("\ntoken:").append(token);
+            sb.append(", token=").append(token);
+            sb.append(')');
             return sb.toString();
         }
     }
