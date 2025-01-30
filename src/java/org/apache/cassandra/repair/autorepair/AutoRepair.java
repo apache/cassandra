@@ -18,6 +18,7 @@
 
 package org.apache.cassandra.repair.autorepair;
 
+import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.EnumMap;
 import java.util.HashSet;
@@ -56,12 +57,17 @@ import org.apache.cassandra.schema.Tables;
 import org.apache.cassandra.service.AutoRepairService;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.repair.autorepair.AutoRepairUtils.RepairTurn;
+import org.apache.cassandra.utils.concurrent.Condition;
 import org.apache.cassandra.utils.concurrent.Future;
+import org.apache.cassandra.utils.progress.ProgressEvent;
+import org.apache.cassandra.utils.progress.ProgressEventType;
+import org.apache.cassandra.utils.progress.ProgressListener;
 
 import static org.apache.cassandra.concurrent.ExecutorFactory.Global.executorFactory;
 import static org.apache.cassandra.repair.autorepair.AutoRepairUtils.RepairTurn.MY_TURN;
 import static org.apache.cassandra.repair.autorepair.AutoRepairUtils.RepairTurn.MY_TURN_DUE_TO_PRIORITY;
 import static org.apache.cassandra.repair.autorepair.AutoRepairUtils.RepairTurn.MY_TURN_FORCE_REPAIR;
+import static org.apache.cassandra.utils.concurrent.Condition.newOneTimeCondition;
 
 /**
  * AutoRepair scheduler responsible for running different types of repairs.
@@ -69,11 +75,10 @@ import static org.apache.cassandra.repair.autorepair.AutoRepairUtils.RepairTurn.
 public class AutoRepair
 {
     private static final Logger logger = LoggerFactory.getLogger(AutoRepair.class);
+    private static final SimpleDateFormat format = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss,SSS");
 
     @VisibleForTesting
     protected static Supplier<Long> timeFunc = Clock.Global::currentTimeMillis;
-
-    public static AutoRepair instance = new AutoRepair();
 
     // Sleep for 5 seconds if repair finishes quickly to flush JMX metrics; it happens only for Cassandra nodes with tiny amount of data.
     public static DurationSpec.IntSecondsBound SLEEP_IF_REPAIR_FINISHES_QUICKLY = new DurationSpec.IntSecondsBound("5s");
@@ -95,6 +100,7 @@ public class AutoRepair
     protected static BiConsumer<Long, TimeUnit> sleepFunc = Uninterruptibles::sleepUninterruptibly;
 
     private boolean isSetupDone = false;
+    public static AutoRepair instance = new AutoRepair();
 
     @VisibleForTesting
     protected AutoRepair()
@@ -304,26 +310,29 @@ public class AutoRepair
                 if ((totalProcessedAssignments % config.getRepairThreads(repairType) == 0) ||
                     (totalProcessedAssignments == totalRepairAssignments))
                 {
+                    boolean success = false;
                     int retryCount = 0;
                     Future<?> f = null;
                     while (retryCount <= config.getRepairMaxRetries())
                     {
                         RepairCoordinator task = repairState.getRepairRunnable(keyspaceName,
-                                                                               Lists.newArrayList(curRepairAssignment.getTableNames()),
-                                                                               ranges, primaryRangeOnly);
-                        repairState.resetWaitCondition();
+                                                                            Lists.newArrayList(curRepairAssignment.getTableNames()),
+                                                                            ranges, primaryRangeOnly);
+                        RepairProgressListener listener = new RepairProgressListener(repairType);
+                        task.addProgressListener(listener);
                         f = repairRunnableExecutors.get(repairType).submit(task);
                         try
                         {
                             long jobStartTime = timeFunc.get();
-                            repairState.waitForRepairToComplete(config.getRepairSessionTimeout(repairType));
+                            listener.await();
+                            success = listener.isSuccess();
                             soakAfterRepair(jobStartTime, config.getRepairTaskMinDuration().toMilliseconds());
                         }
                         catch (InterruptedException e)
                         {
                             logger.error("Exception in cond await:", e);
                         }
-                        if (repairState.isSuccess())
+                        if (success)
                         {
                             break;
                         }
@@ -339,7 +348,7 @@ public class AutoRepair
                         retryCount++;
                     }
                     //check repair status
-                    if (repairState.isSuccess())
+                    if (success)
                     {
                         logger.info("Repair completed for range {}-{} for {} tables {}, total assignments: {}," +
                                     "processed assignments: {}", tokenRange.left, tokenRange.right,
@@ -499,5 +508,58 @@ public class AutoRepair
         int succeededTokenRanges = 0;
         int skippedTokenRanges = 0;
         int skippedTables = 0;
+    }
+
+    @VisibleForTesting
+    protected static class RepairProgressListener implements ProgressListener
+    {
+        private final AutoRepairConfig.RepairType repairType;
+        @VisibleForTesting
+        protected boolean success;
+        @VisibleForTesting
+        protected final Condition condition = newOneTimeCondition();
+
+        public RepairProgressListener(AutoRepairConfig.RepairType repairType)
+        {
+            this.repairType = repairType;
+        }
+
+        public void await() throws InterruptedException
+        {
+            //if for some reason we don't hear back on repair progress for sometime
+            if (!condition.await(12, TimeUnit.HOURS))
+            {
+                success = false;
+            }
+        }
+
+        public boolean isSuccess()
+        {
+            return success;
+        }
+
+        @Override
+        public void progress(String tag, ProgressEvent event)
+        {
+            ProgressEventType type = event.getType();
+            String message = String.format("[%s] %s", format.format(System.currentTimeMillis()), event.getMessage());
+            if (type == ProgressEventType.ERROR)
+            {
+                logger.error("Repair failure for repair {}: {}", repairType.toString(), message);
+                success = false;
+                condition.signalAll();
+            }
+            if (type == ProgressEventType.PROGRESS)
+            {
+                message = message + " (progress: " + (int) event.getProgressPercentage() + "%)";
+                logger.debug("Repair progress for repair {}: {}", repairType.toString(), message);
+            }
+            if (type == ProgressEventType.COMPLETE)
+            {
+                logger.debug("Repair completed for repair {}: {}", repairType.toString(), message);
+                success = true;
+                condition.signalAll();
+            }
+        }
     }
 }
