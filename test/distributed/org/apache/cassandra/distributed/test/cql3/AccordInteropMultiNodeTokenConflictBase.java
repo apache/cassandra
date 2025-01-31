@@ -18,58 +18,34 @@
 
 package org.apache.cassandra.distributed.test.cql3;
 
-import java.io.IOException;
-
-import javax.annotation.Nullable;
-
 import accord.utils.Property;
 import accord.utils.RandomSource;
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
 import org.apache.cassandra.service.consensus.TransactionalMode;
 
-public class MultiNodeTokenConflictTest extends SingleNodeTokenConflictTest
+public class AccordInteropMultiNodeTokenConflictBase extends MultiNodeTokenConflictTest
 {
-    protected MultiNodeTokenConflictTest(@Nullable TransactionalMode transactionalMode)
+    protected AccordInteropMultiNodeTokenConflictBase(TransactionalMode transactionalMode)
     {
         super(transactionalMode);
-    }
-
-    public MultiNodeTokenConflictTest()
-    {
-        super();
     }
 
     @Override
     protected void preCheck(Cluster cluster, Property.StatefulBuilder builder)
     {
-        // if a failing seed is detected, populate here
-        // Example: builder.withSeed(42L);
-        // CQL operations may have opertors such as +, -, and / (example 4 + 4), to "apply" them to get a constant value
-        // CQL_DEBUG_APPLY_OPERATOR = true;
-    }
-
-    @Override
-    protected Cluster createCluster() throws IOException
-    {
-        return createCluster(3, c -> {
-            c.set("range_request_timeout", "180s")
-             .set("read_request_timeout", "180s")
-             .set("write_request_timeout", "180s")
-             .set("native_transport_timeout", "180s")
-             .set("slow_query_log_timeout", "180s");
-        });
+        AccordInteropSingleNodeTableWalkBase.addUncaughtExceptionsFilter(cluster);
     }
 
     @Override
     protected State createState(RandomSource rs, Cluster cluster)
     {
-        return new MultiNodeState(rs, cluster);
+        return new AccordInteropState(rs, cluster);
     }
 
-    private class MultiNodeState extends State
+    private class AccordInteropState extends State
     {
-        MultiNodeState(RandomSource rs, Cluster cluster)
+        AccordInteropState(RandomSource rs, Cluster cluster)
         {
             super(rs, cluster);
         }
@@ -77,13 +53,13 @@ public class MultiNodeTokenConflictTest extends SingleNodeTokenConflictTest
         @Override
         protected ConsistencyLevel selectCl()
         {
-            return ConsistencyLevel.ALL;
+            return ConsistencyLevel.QUORUM;
         }
 
         @Override
         protected ConsistencyLevel mutationCl()
         {
-            return ConsistencyLevel.NODE_LOCAL;
+            return ConsistencyLevel.QUORUM;
         }
     }
 }
