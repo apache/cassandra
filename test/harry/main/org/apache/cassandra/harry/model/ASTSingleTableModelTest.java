@@ -279,8 +279,8 @@ public class ASTSingleTableModelTest
         ByteBuffer row2V1BB = LexicalUUIDType.instance.asCQL3Type().fromCQLLiteral(row2V1);
 
         Select selectPk = Select.builder(metadata)
-                              .value("pk0", pk0)
-                              .build();
+                                .value("pk0", pk0)
+                                .build();
 
         Select selectColumn = Select.builder(metadata)
                                     .value("pk0", pk0)
