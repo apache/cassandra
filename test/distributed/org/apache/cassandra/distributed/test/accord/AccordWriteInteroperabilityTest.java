@@ -47,7 +47,7 @@ import org.apache.cassandra.service.consensus.TransactionalMode;
 
 import static com.google.common.base.Throwables.getStackTraceAsString;
 import static org.apache.cassandra.Util.dk;
-import static org.apache.cassandra.Util.spinUntilTrue;
+import static org.apache.cassandra.Util.spinAssertEquals;
 import static org.apache.commons.collections.ListUtils.synchronizedList;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -146,7 +146,7 @@ public class AccordWriteInteroperabilityTest extends AccordTestBase
     {
         test("CREATE TABLE " + qualifiedAccordTableName + " (k int, c int, v int, PRIMARY KEY(k, c))" + (migrated ? " WITH " + transactionalMode.asCqlParam() : ""),
              cluster -> {
-                 MessageCountingSink messageCountingSink = new MessageCountingSink(SHARED_CLUSTER);
+                 MessageCountingSink messageCountingSink = new MessageCountingSink(SHARED_CLUSTER, MessageCountingSink.EXCLUDE_SYNC_POINT_MESSAGES);
                  List<String> failures = synchronizedList(new ArrayList<>());
                  // Verify that the apply response is only sent after the row has been inserted
                  // TODO (required): Need to delay mutation stage/mutation to ensure this has time to catch it
@@ -207,12 +207,10 @@ public class AccordWriteInteroperabilityTest extends AccordTestBase
                      finalQuery = query + " IF NOT EXISTS";
                      consistencyLevel = org.apache.cassandra.distributed.api.ConsistencyLevel.SERIAL;
                  }
-                 long startingRegularApplyCount = messageCount(Verb.ACCORD_APPLY_REQ);
                  cluster.coordinator(1).execute(finalQuery, consistencyLevel);
                  if (transactionalMode.ignoresSuppliedCommitCL() && migrated)
                  {
-                     // Apply is async and there can be a lot of sources of regular APPLY
-                     spinUntilTrue(() -> messageCount(Verb.ACCORD_APPLY_REQ) > startingRegularApplyCount);
+                     spinAssertEquals(3, () -> messageCount(Verb.ACCORD_APPLY_REQ));
                      assertEquals(0, messageCount(Verb.ACCORD_INTEROP_APPLY_REQ));
                  }
                  else

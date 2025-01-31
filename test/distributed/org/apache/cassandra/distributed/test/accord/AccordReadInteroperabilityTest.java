@@ -141,7 +141,7 @@ public class AccordReadInteroperabilityTest extends AccordTestBase
             return;
         test("CREATE TABLE " + qualifiedAccordTableName + " (k int, c int, v int, PRIMARY KEY(k, c))" + (migrated ? " WITH " + transactionalMode.asCqlParam() : ""),
              cluster -> {
-                 SHARED_CLUSTER.setMessageSink(new MessageCountingSink(SHARED_CLUSTER));
+                 SHARED_CLUSTER.setMessageSink(new MessageCountingSink(SHARED_CLUSTER, MessageCountingSink.EXCLUDE_SYNC_POINT_MESSAGES));
                  if (!migrated)
                  {
                      String alterCQL = "ALTER TABLE " + qualifiedAccordTableName + " WITH " + transactionalMode.asCqlParam();
