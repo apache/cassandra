@@ -24,7 +24,7 @@ import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
 import org.apache.cassandra.service.consensus.TransactionalMode;
 
-public class AccordInteropMultiNodeTokenConflictBase extends MultiNodeTokenConflictTest
+public abstract class AccordInteropMultiNodeTokenConflictBase extends MultiNodeTokenConflictTest
 {
     protected AccordInteropMultiNodeTokenConflictBase(TransactionalMode transactionalMode)
     {
