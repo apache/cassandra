@@ -18,6 +18,7 @@
 
 package org.apache.cassandra.distributed.test.cql3;
 
+import accord.utils.Property;
 import accord.utils.RandomSource;
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
@@ -29,6 +30,12 @@ public abstract class AccordInteropMultiNodeTableWalkBase extends MultiNodeTable
     public AccordInteropMultiNodeTableWalkBase(TransactionalMode transactionalMode)
     {
         super(transactionalMode);
+    }
+
+    @Override
+    protected void preCheck(Cluster cluster, Property.StatefulBuilder builder)
+    {
+        AccordInteropSingleNodeTableWalkBase.addUncaughtExceptionsFilter(cluster);
     }
 
     @Override

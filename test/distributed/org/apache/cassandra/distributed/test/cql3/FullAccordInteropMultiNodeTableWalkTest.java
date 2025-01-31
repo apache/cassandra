@@ -32,23 +32,7 @@ public class FullAccordInteropMultiNodeTableWalkTest extends AccordInteropMultiN
     @Override
     protected void preCheck(Cluster cluster, Property.StatefulBuilder builder)
     {
-        cluster.setUncaughtExceptionsFilter(t -> {
-            // There is a known issue with drop table and journal snapshots where the journal can't find the given table...
-            // To make these tests stable need to ignore this error as it's unrelated to the test and is target to be fixed
-            // directly.
-            /*
-Suppressed: java.lang.AssertionError: Unknown keyspace ks12
-		at org.apache.cassandra.db.Keyspace.open(Keyspace.java:149)
-		at org.apache.cassandra.db.Keyspace.openAndGetStoreIfExists(Keyspace.java:172)
-		at org.apache.cassandra.service.accord.AccordDataStore.lambda$snapshot$2(AccordDataStore.java:104)
-             */
-
-            if (t instanceof AssertionError
-                && t.getMessage() != null
-                && t.getMessage().startsWith("Unknown keyspace ks"))
-                return true;
-            return false;
-        });
+        super.preCheck(cluster, builder);
         // if a failing seed is detected, populate here
         // Example: builder.withSeed(42L);
         // CQL operations may have opertors such as +, -, and / (example 4 + 4), to "apply" them to get a constant value

@@ -32,6 +32,7 @@ public class MixedReadsAccordInteropSingleNodeTableWalkTest extends AccordIntero
     @Override
     protected void preCheck(Cluster cluster, Property.StatefulBuilder builder)
     {
+        super.preCheck(cluster, builder);
         // if a failing seed is detected, populate here
         // Example: builder.withSeed(42L);
         // CQL operations may have opertors such as +, -, and / (example 4 + 4), to "apply" them to get a constant value
