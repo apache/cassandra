@@ -114,6 +114,15 @@ public class StatefulASTBase extends TestBaseImpl
         }
     }
     protected static final EnumSet<KnownIssue> IGNORED_ISSUES = EnumSet.allOf(KnownIssue.class);
+    /**
+     * mutations and selects will use operators (eg. {@code 4 + 4}, the + operator), and this will be reflected in the history output.
+     *
+     * When an issue is found its common to filter out insertions to different partitions/rows but this can become a problem
+     * as the issue is for {@code pk=8} but the insert is to {@code 4 + 4}!
+     *
+     * Setting this to {@code true} will cause all operators to be "applied" or "executored" and the CQL in the history
+     * will be the output (eg. {@code 4 + 4 } is replaced with {@code 8}).
+     */
     protected static boolean CQL_DEBUG_APPLY_OPERATOR = false;
     protected static final Set<AbstractType<?>> SAI_REVERSE_OF_FIXED_LENGTH_TYPES = ImmutableSet.of(InetAddressType.instance,
                                                                                                     LongType.instance,
