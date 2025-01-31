@@ -42,7 +42,7 @@ public class AccordInteropSingleNodeTokenConflictTest extends SingleNodeTokenCon
     }
 
     @Override
-    protected State createState(Cluster cluster, RandomSource rs)
+    protected State createState(RandomSource rs, Cluster cluster)
     {
         return new AccordInteropState(rs, cluster);
     }

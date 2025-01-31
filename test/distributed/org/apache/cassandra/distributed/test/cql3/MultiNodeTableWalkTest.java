@@ -25,10 +25,16 @@ import accord.utils.Property;
 import accord.utils.RandomSource;
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
+import org.apache.cassandra.distributed.api.IInvokableInstance;
 import org.apache.cassandra.service.consensus.TransactionalMode;
 
 public class MultiNodeTableWalkTest extends SingleNodeTableWalkTest
 {
+    /**
+     * This field lets the test run as if it was multiple nodes, but actually runs against a single node.
+     * This behavior is desirable when this test fails to see if the issue can be reproduced on single node as well.
+     */
+    private boolean mockMultiNode = true;
 
     public MultiNodeTableWalkTest()
     {
@@ -40,16 +46,21 @@ public class MultiNodeTableWalkTest extends SingleNodeTableWalkTest
     }
 
     @Override
-    protected void preCheck(Property.StatefulBuilder builder)
+    protected void preCheck(Cluster cluster, Property.StatefulBuilder builder)
     {
         // if a failing seed is detected, populate here
         // Example: builder.withSeed(42L);
+        // CQL operations may have opertors such as +, -, and / (example 4 + 4), to "apply" them to get a constant value
+        // CQL_DEBUG_APPLY_OPERATOR = true;
+        // Sometimes It's useful to validate that the error is localized to mutliple nodes rather than single node,
+        // so uncomment the below to allow running the test as a single node
+        // mockMultiNode = true;
     }
 
     @Override
     protected Cluster createCluster() throws IOException
     {
-        return createCluster(3, c -> {
+        return createCluster(mockMultiNode ? 1 : 3, c -> {
             c.set("range_request_timeout", "180s")
              .set("read_request_timeout", "180s")
              .set("transaction_timeout", "180s")
@@ -70,6 +81,25 @@ public class MultiNodeTableWalkTest extends SingleNodeTableWalkTest
         public MultiNodeState(RandomSource rs, Cluster cluster)
         {
             super(rs, cluster);
+        }
+
+        @Override
+        protected boolean isMultiNode()
+        {
+            // When a seed fails its useful to rerun the test as a single node to see if the issue persists... but doing so corrupts the random history!
+            // To avoid that, this method hard codes that the test is multi node...
+            return true;
+        }
+
+        @Override
+        protected IInvokableInstance selectInstance(RandomSource rs)
+        {
+            if (mockMultiNode)
+            {
+                rs.nextInt(0, 3); // needed to avoid breaking random history
+                return cluster.get(1);
+            }
+            return super.selectInstance(rs);
         }
 
         @Override

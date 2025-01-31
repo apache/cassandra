@@ -91,7 +91,7 @@ public class SingleNodeTableWalkTest extends StatefulASTBase
         this.transactionalMode = transactionalMode;
     }
 
-    protected void preCheck(Property.StatefulBuilder builder)
+    protected void preCheck(Cluster cluster, Property.StatefulBuilder builder)
     {
         // if a failing seed is detected, populate here
         // Example: builder.withSeed(42L);
@@ -109,13 +109,6 @@ public class SingleNodeTableWalkTest extends StatefulASTBase
     {
         // since legacy is async it's not clear how the test can wait for the background write to complete...
         return Collections.singletonList(CreateIndexDDL.SAI);
-    }
-
-    public Property.Command<State, Void, ?> insert(RandomSource rs, State state)
-    {
-        //TODO (maintaince): can this become reusable?  its the same as token conflict test...
-        Mutation mutation = state.mutationGen.next(rs);
-        return state.command(rs, mutation);
     }
 
     public Property.Command<State, Void, ?> selectExisting(RandomSource rs, State state)
@@ -227,9 +220,9 @@ public class SingleNodeTableWalkTest extends StatefulASTBase
         try (Cluster cluster = createCluster())
         {
             Property.StatefulBuilder statefulBuilder = stateful().withExamples(10).withSteps(400);
-            preCheck(statefulBuilder);
+            preCheck(cluster, statefulBuilder);
             statefulBuilder.check(commands(() -> rs -> createState(rs, cluster))
-                                  .add(this::insert)
+                                  .add(StatefulASTBase::insert)
                                   .addIf(State::hasPartitions, this::selectExisting)
                                   .addAllIf(State::supportTokens, b -> b.add(this::selectToken)
                                                                         .add(this::selectTokenRange))
@@ -280,7 +273,7 @@ public class SingleNodeTableWalkTest extends StatefulASTBase
         return FunctionCall.tokenByValue(values);
     }
 
-    public class State extends BaseState
+    public class State extends CommonState
     {
         protected final LinkedHashMap<Symbol, IndexedColumn> indexes;
         private final Gen<Mutation> mutationGen;
@@ -314,6 +307,12 @@ public class SingleNodeTableWalkTest extends StatefulASTBase
                                      .withoutTimestamp()
                                      .withPartitions(SourceDSL.arbitrary().pick(uniquePartitions))
                                      .build());
+        }
+
+        @Override
+        protected Gen<Mutation> mutationGen()
+        {
+            return mutationGen;
         }
 
         private LinkedHashMap<Symbol, IndexedColumn> createIndexes(RandomSource rs, TableMetadata metadata)

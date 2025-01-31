@@ -35,7 +35,6 @@ import java.util.stream.Collectors;
 
 import javax.annotation.Nullable;
 
-import com.google.common.collect.ImmutableList;
 import org.junit.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -106,12 +105,6 @@ public class SingleNodeTokenConflictTest extends StatefulASTBase
     {
         // if a failing seed is detected, populate here
         // Example: builder.withSeed(42L);
-    }
-
-    public static Property.Command<State, Void, ?> insert(RandomSource rs, State state)
-    {
-        Mutation mutation = state.mutationGen.next(rs);
-        return state.command(rs, mutation);
     }
 
     public static Property.Command<State, Void, ?> pkEq(RandomSource rs, State state)
@@ -272,8 +265,8 @@ public class SingleNodeTokenConflictTest extends StatefulASTBase
         {
             Property.StatefulBuilder statefulBuilder = stateful().withExamples(10);
             preCheck(statefulBuilder);
-            statefulBuilder.check(commands(() -> rs -> createState(cluster, rs))
-                                  .add(SingleNodeTokenConflictTest::insert)
+            statefulBuilder.check(commands(() -> rs -> createState(rs, cluster))
+                                  .add(StatefulASTBase::insert)
                                   .add(SingleNodeTokenConflictTest::pkEq)
                                   .add(SingleNodeTokenConflictTest::pkIn)
                                   .add(SingleNodeTokenConflictTest::pkBetween)
@@ -292,7 +285,7 @@ public class SingleNodeTokenConflictTest extends StatefulASTBase
         }
     }
 
-    protected State createState(Cluster cluster, RandomSource rs)
+    protected State createState(RandomSource rs, Cluster cluster)
     {
         return new State(rs, cluster);
     }
@@ -321,7 +314,7 @@ public class SingleNodeTokenConflictTest extends StatefulASTBase
         return metadata;
     }
 
-    class State extends BaseState
+    class State extends CommonState
     {
         private final List<ByteBuffer> neighbors;
         private final List<ByteBuffer> pkValues;
@@ -391,6 +384,12 @@ public class SingleNodeTokenConflictTest extends StatefulASTBase
                                      .withoutTimestamp()
                                      .withPartitions(SourceDSL.arbitrary().pick(uniquePartitions))
                                      .build());
+        }
+
+        @Override
+        protected Gen<Mutation> mutationGen()
+        {
+            return mutationGen;
         }
 
         private List<ByteBuffer> extractNeighbors(List<ByteBuffer> values)

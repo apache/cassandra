@@ -441,7 +441,10 @@ public class ASTSingleTableModel
         }
         catch (AssertionError e)
         {
-            throw new AssertionError("Unexpected results for query: " + StringUtils.escapeControlChars(select.visit(StandardVisitors.DEBUG).toCQL()), e);
+            AssertionError error = new AssertionError("Unexpected results for query: " + StringUtils.escapeControlChars(select.visit(StandardVisitors.DEBUG).toCQL()), e);
+            // This stack trace is not helpful, this error message is trying to improve the error returned to know what query failed, so the stack trace only adds noise
+            error.setStackTrace(new StackTraceElement[0]);
+            throw error;
         }
     }
 
@@ -454,6 +457,9 @@ public class ASTSingleTableModel
     {
         // check any order
         validateAnyOrder(columns, toRow(columns, actual), toRow(columns, expected));
+        // order matched, but are there duplicates?
+        validateNoDuplicates(columns, actual, expected);
+        // all rows match, and there are no duplicates... but are they in the right order?
         validateOrder(columns, actual, expected);
     }
 
@@ -488,19 +494,40 @@ public class ASTSingleTableModel
         }
     }
 
-    private static String table(ImmutableUniqueList<Symbol> columns, Collection<Row> rows)
+    private static void validateNoDuplicates(ImmutableUniqueList<Symbol> columns, ByteBuffer[][] actual, ByteBuffer[][] expected)
     {
-        return TableBuilder.toStringPiped(columns.stream().map(Symbol::toCQL).collect(Collectors.toList()),
-                                          // intellij or junit can be tripped up by utf control or invisible chars, so this logic tries to normalize to make things more safe
-                                          () -> rows.stream()
-                                                    .map(r -> r.asCQL().stream().map(StringUtils::escapeControlChars).collect(Collectors.toList()))
-                                                    .iterator());
-    }
-
-    private static String table(ImmutableUniqueList<Symbol> columns, ByteBuffer[][] rows)
-    {
-        return TableBuilder.toStringPiped(columns.stream().map(Symbol::toCQL).collect(Collectors.toList()),
-                                          () -> Stream.of(rows).map(row -> asCQL(columns, row)).iterator());
+        // validateAnyOrder was run first, which made sure that all rows match, but that used sets which avoids duplicates
+        // this means that duplicates can only happen if-and-only-if the lengths do not match...
+        //TODO (correctness): what edge cases actually allow duplicates?  aggregates would make sense...
+        if (actual.length == expected.length) return;
+        StringBuilder sb = null;
+        if (actual.length > expected.length)
+        {
+            // the response had a duplicate
+            Set<Row> set = new HashSet<>();
+            int rowId = 0;
+            for (ByteBuffer[] bbs : actual)
+            {
+                Row row = new Row(columns, bbs);
+                if (!set.add(row))
+                {
+                    if (sb == null)
+                        sb = new StringBuilder();
+                    sb.append("Duplicate row in response at row ").append(rowId).append(": ").append(row).append('\n');
+                }
+                rowId++;
+            }
+        }
+        else if (expected.length > actual.length)
+        {
+            //TODO (correctness): the model expected a duplicate, but was not found in the response
+        }
+        if (sb != null)
+        {
+            sb.append("\nExpected:\n").append(table(columns, expected));
+            sb.append("\nActual:\n").append(table(columns, actual));
+            throw new AssertionError(sb.toString());
+        }
     }
 
     private static void validateOrder(ImmutableUniqueList<Symbol> columns, ByteBuffer[][] actual, ByteBuffer[][] expected)
@@ -535,8 +562,24 @@ public class ASTSingleTableModel
         if (sb != null)
         {
             sb.append("\nExpected:\n").append(table(columns, expected));
+            sb.append("\nActual:\n").append(table(columns, actual));
             throw new AssertionError(sb.toString());
         }
+    }
+
+    private static String table(ImmutableUniqueList<Symbol> columns, Collection<Row> rows)
+    {
+        return TableBuilder.toStringPiped(columns.stream().map(Symbol::toCQL).collect(Collectors.toList()),
+                                          // intellij or junit can be tripped up by utf control or invisible chars, so this logic tries to normalize to make things more safe
+                                          () -> rows.stream()
+                                                    .map(r -> r.asCQL().stream().map(StringUtils::escapeControlChars).collect(Collectors.toList()))
+                                                    .iterator());
+    }
+
+    private static String table(ImmutableUniqueList<Symbol> columns, ByteBuffer[][] rows)
+    {
+        return TableBuilder.toStringPiped(columns.stream().map(Symbol::toCQL).collect(Collectors.toList()),
+                                          () -> Stream.of(rows).map(row -> asCQL(columns, row)).iterator());
     }
 
     private static Set<Row> toRow(ImmutableUniqueList<Symbol> columns, ByteBuffer[][] rows)

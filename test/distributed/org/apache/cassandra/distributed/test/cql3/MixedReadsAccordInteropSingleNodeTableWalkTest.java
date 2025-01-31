@@ -19,6 +19,7 @@
 package org.apache.cassandra.distributed.test.cql3;
 
 import accord.utils.Property;
+import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.service.consensus.TransactionalMode;
 
 public class MixedReadsAccordInteropSingleNodeTableWalkTest extends AccordInteropSingleNodeTableWalkBase
@@ -29,9 +30,11 @@ public class MixedReadsAccordInteropSingleNodeTableWalkTest extends AccordIntero
     }
 
     @Override
-    protected void preCheck(Property.StatefulBuilder builder)
+    protected void preCheck(Cluster cluster, Property.StatefulBuilder builder)
     {
         // if a failing seed is detected, populate here
         // Example: builder.withSeed(42L);
+        // CQL operations may have opertors such as +, -, and / (example 4 + 4), to "apply" them to get a constant value
+        // CQL_DEBUG_APPLY_OPERATOR = true;
     }
 }
