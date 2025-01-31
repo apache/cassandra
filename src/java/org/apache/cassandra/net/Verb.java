@@ -94,7 +94,9 @@ import org.apache.cassandra.tcm.Discovery;
 import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.tcm.FetchCMSLog;
 import org.apache.cassandra.tcm.FetchPeerLog;
+import org.apache.cassandra.tcm.migration.CMSInitializationResponse;
 import org.apache.cassandra.tcm.migration.Election;
+import org.apache.cassandra.tcm.migration.CMSInitializationRequest;
 import org.apache.cassandra.tcm.sequences.DataMovements;
 import org.apache.cassandra.tcm.serialization.MessageSerializers;
 import org.apache.cassandra.utils.BooleanSerializer;
@@ -232,9 +234,9 @@ public enum Verb
     TCM_NOTIFY_RSP         (806, P0, rpcTimeout,      INTERNAL_METADATA,    () -> Epoch.messageSerializer,                      () -> ResponseVerbHandler.instance                                 ),
     TCM_NOTIFY_REQ         (807, P0, rpcTimeout,      INTERNAL_METADATA,    MessageSerializers::logStateSerializer,             () -> logNotifyHandler(),                   TCM_NOTIFY_RSP         ),
     TCM_CURRENT_EPOCH_REQ  (808, P0, rpcTimeout,      INTERNAL_METADATA,    () -> Epoch.messageSerializer,                      () -> currentEpochRequestHandler(),         TCM_NOTIFY_RSP         ),
-    TCM_INIT_MIG_RSP       (809, P0, rpcTimeout,      INTERNAL_METADATA,    MessageSerializers::metadataHolderSerializer,       () -> ResponseVerbHandler.instance                                 ),
-    TCM_INIT_MIG_REQ       (810, P0, rpcTimeout,      INTERNAL_METADATA,    () -> Election.Initiator.serializer,                () -> Election.instance.prepareHandler,     TCM_INIT_MIG_RSP       ),
-    TCM_ABORT_MIG          (811, P0, rpcTimeout,      INTERNAL_METADATA,    () -> Election.Initiator.serializer,                () -> Election.instance.abortHandler,       TCM_INIT_MIG_RSP       ),
+    TCM_INIT_MIG_RSP       (809, P0, rpcTimeout,      INTERNAL_METADATA,    () -> CMSInitializationResponse.serializer,         () -> ResponseVerbHandler.instance                                 ),
+    TCM_INIT_MIG_REQ       (810, P0, rpcTimeout,      INTERNAL_METADATA,    MessageSerializers::initRequestSerializer,          () -> Election.instance.prepareHandler,     TCM_INIT_MIG_RSP       ),
+    TCM_ABORT_MIG          (811, P0, rpcTimeout,      INTERNAL_METADATA,    () -> CMSInitializationRequest.Initiator.serializer,() -> Election.instance.abortHandler,       TCM_INIT_MIG_RSP       ),
     TCM_DISCOVER_RSP       (812, P0, rpcTimeout,      INTERNAL_METADATA,    () -> Discovery.serializer,                         () -> ResponseVerbHandler.instance                                 ),
     TCM_DISCOVER_REQ       (813, P0, rpcTimeout,      INTERNAL_METADATA,    () -> NoPayload.serializer,                         () -> Discovery.instance.requestHandler,    TCM_DISCOVER_RSP       ),
     TCM_FETCH_PEER_LOG_RSP (818, P0, rpcTimeout,      FETCH_LOG,            MessageSerializers::logStateSerializer,             () -> ResponseVerbHandler.instance                                 ),

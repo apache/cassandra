@@ -362,7 +362,7 @@ public class ClusterMetadataService
                                                                !ignored.contains(ep))
                                                  .collect(toImmutableSet());
 
-            Election.instance.nominateSelf(candidates, ignored, metadata::equals, metadata);
+            Election.instance.nominateSelf(candidates, ignored, metadata, true);
             ClusterMetadataService.instance().triggerSnapshot();
         }
         else

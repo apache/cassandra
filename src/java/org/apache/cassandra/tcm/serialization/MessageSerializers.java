@@ -23,7 +23,7 @@ import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.Commit;
 import org.apache.cassandra.tcm.log.LogState;
 import org.apache.cassandra.tcm.membership.NodeVersion;
-import org.apache.cassandra.tcm.migration.ClusterMetadataHolder;
+import org.apache.cassandra.tcm.migration.CMSInitializationRequest;
 
 /**
  * Provides IVersionedSerializers for internode messages where the payload includes
@@ -69,13 +69,13 @@ public class MessageSerializers
         return Commit.messageSerializer(metadata.directory.clusterMinVersion.serializationVersion());
     }
 
-    public static IVersionedSerializer<ClusterMetadataHolder> metadataHolderSerializer()
+    public static IVersionedSerializer<CMSInitializationRequest> initRequestSerializer()
     {
         ClusterMetadata metadata = ClusterMetadata.currentNullable();
         if (metadata == null || metadata.directory.clusterMinVersion.serializationVersion == NodeVersion.CURRENT.serializationVersion)
-            return ClusterMetadataHolder.defaultMessageSerializer;
+            return CMSInitializationRequest.defaultMessageSerializer;
 
         assert !metadata.directory.clusterMinVersion.serializationVersion().equals(NodeVersion.CURRENT.serializationVersion());
-        return ClusterMetadataHolder.messageSerializer(metadata.directory.clusterMinVersion.serializationVersion());
+        return CMSInitializationRequest.messageSerializer(metadata.directory.clusterMinVersion.serializationVersion());
     }
 }
