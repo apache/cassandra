@@ -102,3 +102,13 @@
 9. Cassandra container's data, etc., can be found at: `cd ~/.ccm/test1/`
 
 Type `ccm` to get more help on various commands. More details here: https://github.com/riptano/ccm#installation
+
+### How to do CPU profiling against Cassandra node locally
+
+1. Make sure you have the JVM option `-XX:+PreserveFramePointer` added
+   - If you spin up the nodes with ccm, you should be able to add this config in `~/.ccm/<your_cluster_name>/node/conf/jvm11-server.options` (assuming you're using Java11)
+   - you can check the JVM options in `ccm jconsole` -> VM Summary -> VM arguments
+2. Download async-profiler-3.0-macos.zip from [Github Repo: async-profiler](https://github.com/async-profiler/async-profiler)
+3. unzip
+4. Look for the pid the for your Cassandra process by `ps aux | grep CassandraDaemon`, you should see it shows up at second column
+5. For example to save the graph in tmp/graph.html, run `bin/asprof -d <duration_seconds> -f /tmp/graph.html <cassandra_pid>`
