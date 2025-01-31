@@ -113,6 +113,7 @@ public class PrimaryIdTable implements VirtualTable
     private static final String TABLE_NOT_EXIST_ERROR = "The table '%s' does not exist in the keyspace '%s'.";
     private static final String KEY_ONLY_EQUALS_ERROR = "The 'key' column can only be used in an equality query for this virtual table.";
     private static final String KEY_NOT_WITHIN_BOUNDS_ERROR = "The specified 'key' is not within the provided token value bounds.";
+    private static final String PARTITIONER_NOT_SUPPORTED = "Partitioner '%s' for table '%s' in keyspace '%s' is not supported.";
 
     private static final String COLUMN_KEYSPACE_NAME = "keyspace_name";
     private static final String COLUMN_TABLE_NAME = "table_name";
@@ -161,6 +162,9 @@ public class PrimaryIdTable implements VirtualTable
         TableMetadata metadata = ksm.getTableOrViewNullable(table);
         if (metadata == null)
             throw invalidRequest(TABLE_NOT_EXIST_ERROR, table, keyspace);
+
+        if (!metadata.partitioner.supportsSplitting())
+            throw invalidRequest(PARTITIONER_NOT_SUPPORTED, metadata.partitioner.getClass().getName(), table, keyspace);
 
         AbstractBounds<PartitionPosition> range = getBounds(metadata, clusteringIndexFilter, rowFilter);
         return new SingletonUnfilteredPartitionIterator(select(partitionKey, metadata, clusteringIndexFilter, range));

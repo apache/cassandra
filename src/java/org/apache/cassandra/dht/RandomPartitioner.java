@@ -135,6 +135,11 @@ public class RandomPartitioner implements IPartitioner
         return new BigIntegerToken(newToken);
     }
 
+    public boolean supportsSplitting()
+    {
+        return true;
+    }
+
     public BigIntegerToken getMinimumToken()
     {
         return MINIMUM;
