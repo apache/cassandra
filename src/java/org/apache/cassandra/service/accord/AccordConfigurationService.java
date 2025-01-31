@@ -415,8 +415,29 @@ public class AccordConfigurationService extends AbstractConfigurationService<Acc
         long epoch = metadata.epoch.getEpoch();
         synchronized (epochs)
         {
-            long maxEpoch = epochs.maxEpoch();
-            if (maxEpoch == 0)
+            // On first boot, we have 2 options:
+            //
+            //  - we can start listening to TCM _before_ we replay topologies
+            //  - we can start listening to TCM _after_ we replay topologies
+            //
+            // If we start listening to TCM _before_ we replay topologies from other nodes,
+            // we may end up in a situation where TCM reports metadata that would create an
+            // `epoch - 1` epoch state that is not associated with any topologies, and
+            // therefore should not be listened upon.
+            //
+            // If we start listening to TCM _after_ we replay topologies, we may end up in a
+            // situation where TCM reports metadata that is 1 (or more) epochs _ahead_ of the
+            // last known epoch. Previous implementations were using TCM peer catch up, which
+            // could have resulted in gaps.
+            //
+            // Current protocol solves both problems by _first_ replaying topologies form peers,
+            // then subscribing to TCM _and_, if there are still any gaps, filling them again.
+            // However, it still has a slight chance of creating an `epoch - 1` epoch state
+            // not associated with any topologies, which under "right" circumstances could
+            // have been waited upon with `epochReady`. This check precludes creation of this
+            // epoch: by the time this code can be called, remote topology replay is already
+            // done, so TCM listener will only report epochs that are _at least_ min epoch.
+            if (epochs.maxEpoch() == 0 || epochs.minEpoch() == metadata.epoch.getEpoch())
             {
                 getOrCreateEpochState(epoch);  // touch epoch state so subsequent calls see it
                 reportMetadata(metadata);
@@ -424,9 +445,7 @@ public class AccordConfigurationService extends AbstractConfigurationService<Acc
             }
         }
 
-        // Create a -1 epoch iif we know this epoch may actually exist
-        if (metadata.epoch.getEpoch() > minEpoch())
-            getOrCreateEpochState(epoch - 1).acknowledged().addCallback(() -> reportMetadata(metadata));
+        getOrCreateEpochState(epoch - 1).acknowledged().addCallback(() -> reportMetadata(metadata));
     }
 
     @Override
