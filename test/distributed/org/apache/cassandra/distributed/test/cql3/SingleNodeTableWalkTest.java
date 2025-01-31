@@ -534,7 +534,7 @@ public class SingleNodeTableWalkTest extends StatefulASTBase
 
         private List<Symbol> multiColumnQueryColumns()
         {
-            List<Symbol> allowedColumns = model.factory.selectionOrder;
+            List<Symbol> allowedColumns = searchableColumns;
             if (hasMultiNodeAllowFilteringWithLocalWritesIssue())
                 allowedColumns = nonPkIndexedColumns;
             return allowedColumns;
