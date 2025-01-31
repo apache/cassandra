@@ -24,7 +24,7 @@ import org.apache.cassandra.service.consensus.TransactionalMode;
 
 public class MixedReadsAccordInteropMultiNodeTokenConflictTest extends AccordInteropMultiNodeTokenConflictBase
 {
-    protected MixedReadsAccordInteropMultiNodeTokenConflictTest()
+    public MixedReadsAccordInteropMultiNodeTokenConflictTest()
     {
         super(TransactionalMode.mixed_reads);
     }
