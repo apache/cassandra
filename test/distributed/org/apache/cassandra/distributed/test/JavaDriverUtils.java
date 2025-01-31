@@ -36,6 +36,11 @@ public final class JavaDriverUtils
     {
     }
 
+    public static com.datastax.driver.core.Cluster create(ICluster<? extends IInstance> dtest, Consumer<com.datastax.driver.core.Cluster.Builder> overrideBuilder)
+    {
+        return create(dtest, null, overrideBuilder);
+    }
+
     public static com.datastax.driver.core.Cluster create(ICluster<? extends IInstance> dtest)
     {
         return create(dtest, null, null);

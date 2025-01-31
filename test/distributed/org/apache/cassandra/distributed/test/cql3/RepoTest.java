@@ -147,23 +147,19 @@ public class RepoTest extends TestBaseImpl
             }
 
             //  -- ck1 float, indexed with SAI, on node1, fetch size 10
-            SimpleStatement stmt = new SimpleStatement("SELECT * FROM ks1.tbl WHERE pk0 = 00000000-0000-1a00-9a00-000000000000 AND pk1 = 0x43c4 AND ck1 = -4662398.5");
+            SimpleStatement stmt = new SimpleStatement("SELECT * FROM ks1.tbl WHERE s1 = 5.086192563173748E143 AND pk1 = 0 AND ck0 = 0xd9a5349bfa3f8b AND ck1 = 374196101 AND s0 = 1.001963606543411E-147 ALLOW FILTERING");
             stmt.setConsistencyLevel(JavaDriverUtils.toDriverCL(selectCL));
             stmt.setFetchSize(10);
             var result = StatefulASTBase.BaseState.getRowsAsByteBuffer(session.execute(stmt));
 
             // test error
-//        Caused by: java.lang.AssertionError: Unexpected rows found:
-//        pk0                                  | pk1    | ck0           | ck1           | s0                                   | v0                                        | v1                                       | v2                   | v3
-//            00000000-0000-1a00-9a00-000000000000 | 0x43c4 | 4.429273E27   | 1.079069E-27  | 00000000-0000-1e00-a800-000000000000 | 'c94d:711c:637a:b57d:871:63ed:eccf:b326'  | 'BC4<=[A*;q'                             | null                 | 00000000-0000-4100-b200-000000000000
-//            00000000-0000-1a00-9a00-000000000000 | 0x43c4 | -8.426509E26  | -7.034981E-18 | 00000000-0000-1e00-a800-000000000000 | '63b4:2e9b:8a42:52f6:6f96:ba1:a154:5f47'  | '|Vp'                                    | '13:50:58.890279934' | 00000000-0000-4200-a900-000000000000
-//            00000000-0000-1a00-9a00-000000000000 | 0x43c4 | 1.4277632E-17 | 1.4851762E-14 | 00000000-0000-1e00-a800-000000000000 | '1f4a:9b86:63e6:4cb4:41ec:8a5a:35a5:c2d1' | null                                     | '19:02:44.792645046' | 00000000-0000-4c00-b900-000000000000
-//            00000000-0000-1a00-9a00-000000000000 | 0x43c4 | 2.800979E-6   | -4.773874E-16 | 00000000-0000-1e00-a800-000000000000 | '404c:4877:5f2f:1862:b0f7:ef78:b77b:8ed0' | 'l|#8Q\u000C:5\u0011a_e\u0002_1S\u0005a' | '07:24:14.125849387' | 00000000-0000-4000-9e00-000000000000
-//
-//            Expected:
-//            pk0                                  | pk1    | ck0            | ck1        | s0                                   | v0   | v1   | v2   | v3
-//            00000000-0000-1a00-9a00-000000000000 | 0x43c4 | -1.9557544E-23 | -4662398.5 | 00000000-0000-1e00-a800-000000000000 | null | null | null | null
-            Assertions.assertThat(result).hasDimensions(1, 9);
+            /*
+Caused by: java.lang.AssertionError: No rows returned
+Expected:
+pk0  | pk1 | ck0              | ck1       | s0                     | s1                    | v0
+'じ' | 0   | 0xd9a5349bfa3f8b | 374196101 | 1.001963606543411E-147 | 5.086192563173748E143 | -3.504167388172892E97
+             */
+            Assertions.assertThat(result).hasDimensions(1, 7);
         }
     }
 }

@@ -67,7 +67,6 @@ import org.apache.cassandra.utils.AbstractTypeGenerators;
 import org.apache.cassandra.utils.AbstractTypeGenerators.TypeGenBuilder;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.CassandraGenerators.TableMetadataBuilder;
-import org.apache.cassandra.utils.Generators;
 import org.apache.cassandra.utils.ImmutableUniqueList;
 import org.quicktheories.generators.SourceDSL;
 
@@ -257,7 +256,7 @@ public class SingleNodeTableWalkTest extends StatefulASTBase
     {
         Symbol symbol;
         if (IGNORED_ISSUES.contains(KnownIssue.AF_MULTI_NODE_AND_NODE_LOCAL_WRITES)
-            && state.cluster.size() > 1)
+            && state.isMultiNode())
         {
             symbol = rs.pickUnorderedSet(state.indexes.keySet());
         }
@@ -382,15 +381,15 @@ public class SingleNodeTableWalkTest extends StatefulASTBase
         //TODO (correctness): the id isn't correct... this is what we use to create the table, so would miss the actual ID
         // Defaults may also be incorrect, but given this is the same version it "shouldn't"
         //TODO (coverage): partition is defined at the cluster level, so have to hard code in this model as the table is changed rather than cluster being recreated... this limits coverage
-        return Generators.toGen(new TableMetadataBuilder()
-                                .withTableKinds(TableMetadata.Kind.REGULAR)
-                                .withKnownMemtables()
-                                .withKeyspaceName(ks).withTableName("tbl")
-                                .withSimpleColumnNames()
-                                .withDefaultTypeGen(supportedTypes())
-                                .withPartitioner(Murmur3Partitioner.instance)
-                                .build())
-                         .next(rs);
+        return toGen(new TableMetadataBuilder()
+                     .withTableKinds(TableMetadata.Kind.REGULAR)
+                     .withKnownMemtables()
+                     .withKeyspaceName(ks).withTableName("tbl")
+                     .withSimpleColumnNames()
+                     .withDefaultTypeGen(supportedTypes())
+                     .withPartitioner(Murmur3Partitioner.instance)
+                     .build())
+               .next(rs);
     }
 
     private List<CreateIndexDDL.Indexer> columnSupportsIndexing(TableMetadata metadata, ColumnMetadata col)
@@ -517,8 +516,17 @@ public class SingleNodeTableWalkTest extends StatefulASTBase
 
         public boolean allowNonPartitionQuery()
         {
-            //TODO (now): should the multi node conditions be added here?
-            return !model.isEmpty() && !searchableColumns.isEmpty();
+            boolean result = !model.isEmpty() && !searchableColumns.isEmpty();
+            if (hasMultiNodeAllowFilteringWithLocalWritesIssue())
+            {
+                return !indexes.isEmpty() && result;
+            }
+            return result;
+        }
+
+        private boolean hasMultiNodeAllowFilteringWithLocalWritesIssue()
+        {
+            return isMultiNode() && IGNORED_ISSUES.contains(KnownIssue.AF_MULTI_NODE_AND_NODE_LOCAL_WRITES);
         }
 
         public List<Symbol> nonPkIndexedColumns;
@@ -538,7 +546,7 @@ public class SingleNodeTableWalkTest extends StatefulASTBase
         private boolean hasAllowFilteringMultiNodeLocalWriteIssue()
         {
             return IGNORED_ISSUES.contains(KnownIssue.AF_MULTI_NODE_AND_NODE_LOCAL_WRITES)
-                   && cluster.size() > 1;
+                   && isMultiNode();
         }
 
         @Override

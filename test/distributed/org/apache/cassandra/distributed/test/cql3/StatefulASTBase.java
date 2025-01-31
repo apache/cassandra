@@ -26,6 +26,7 @@ import java.util.EnumSet;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
@@ -45,6 +46,7 @@ import com.datastax.driver.core.ResultSet;
 import com.datastax.driver.core.Row;
 import com.datastax.driver.core.Session;
 import com.datastax.driver.core.SimpleStatement;
+import com.datastax.driver.core.SocketOptions;
 import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.ast.Bind;
@@ -72,6 +74,7 @@ import org.apache.cassandra.distributed.api.ConsistencyLevel;
 import org.apache.cassandra.distributed.api.Feature;
 import org.apache.cassandra.distributed.api.IInstance;
 import org.apache.cassandra.distributed.api.IInstanceConfig;
+import org.apache.cassandra.distributed.api.IInvokableInstance;
 import org.apache.cassandra.distributed.test.JavaDriverUtils;
 import org.apache.cassandra.distributed.test.TestBaseImpl;
 import org.apache.cassandra.harry.model.ASTSingleTableModel;
@@ -234,7 +237,8 @@ public class StatefulASTBase extends TestBaseImpl
         {
             this.rs = rs;
             this.cluster = cluster;
-            this.client = JavaDriverUtils.create(cluster);
+            int javaDriverTimeout = Math.toIntExact(TimeUnit.MINUTES.toMillis(1));
+            this.client = JavaDriverUtils.create(cluster, b -> b.withSocketOptions(new SocketOptions().setReadTimeoutMillis(javaDriverTimeout).setConnectTimeoutMillis(javaDriverTimeout)));
             this.session = client.connect();
             this.debug = CQL_DEBUG_APPLY_OPERATOR ? CompositeVisitor.of(StandardVisitors.APPLY_OPERATOR, StandardVisitors.DEBUG)
                                                   : StandardVisitors.DEBUG;
@@ -253,6 +257,11 @@ public class StatefulASTBase extends TestBaseImpl
             this.tableRef = TableReference.from(metadata);
             this.model = new ASTSingleTableModel(metadata);
             createTable(metadata);
+        }
+
+        protected boolean isMultiNode()
+        {
+            return cluster.size() > 1;
         }
 
         protected void createTable(TableMetadata metadata)
@@ -275,7 +284,7 @@ public class StatefulASTBase extends TestBaseImpl
 
         protected <S extends BaseState> Property.Command<S, Void, ?> command(RandomSource rs, Select select, @Nullable String annotate)
         {
-            var inst = cluster.get(rs.nextInt(0, cluster.size()) + 1);
+            var inst = selectInstance(rs);
             int fetchSize = fetchSizeGen.nextInt(rs);
             String postfix = "on " + inst + ", fetch size " + fetchSize;
             if (annotate == null) annotate = postfix;
@@ -302,7 +311,7 @@ public class StatefulASTBase extends TestBaseImpl
 
         protected <S extends BaseState> Property.Command<S, Void, ?> command(RandomSource rs, Mutation mutation, @Nullable String annotate)
         {
-            var inst = cluster.get(rs.nextInt(0, cluster.size()) + 1);
+            var inst = selectInstance(rs);
             String postfix = "on " + inst;
             if (annotate == null) annotate = postfix;
             else                  annotate += ", " + postfix;
@@ -311,6 +320,11 @@ public class StatefulASTBase extends TestBaseImpl
                 s.model.update(mutation);
                 s.mutation();
             });
+        }
+
+        protected IInvokableInstance selectInstance(RandomSource rs)
+        {
+            return cluster.get(rs.nextInt(0, cluster.size()) + 1);
         }
 
         protected boolean hasEnoughMemtable()
