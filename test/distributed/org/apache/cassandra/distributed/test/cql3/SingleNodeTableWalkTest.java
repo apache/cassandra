@@ -69,7 +69,6 @@ import org.quicktheories.generators.SourceDSL;
 
 import static accord.utils.Property.commands;
 import static accord.utils.Property.stateful;
-import static org.apache.cassandra.utils.ASTGenerators.allColumnsInFixedOrder;
 import static org.apache.cassandra.utils.AbstractTypeGenerators.getTypeSupport;
 import static org.apache.cassandra.utils.Generators.toGen;
 
@@ -321,7 +320,7 @@ public class SingleNodeTableWalkTest extends StatefulASTBase
             // for some test runs, avoid using indexes
             if (rs.nextBoolean())
                 return indexed;
-            for (ColumnMetadata col : allColumnsInFixedOrder(metadata))
+            for (ColumnMetadata col : metadata.columnsInFixedOrder())
             {
                 Symbol symbol = Symbol.from(col);
                 AbstractType<?> type = symbol.type();

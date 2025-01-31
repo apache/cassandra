@@ -354,6 +354,19 @@ public class TableMetadata implements SchemaElement
         return columns.values();
     }
 
+    /**
+     * Same as {@link #columns} but the list returned is in {@link #allColumnsInSelectOrder()}.
+     *
+     * This method is needed by tests that need deterministic ordering; {@link #columns()} returns in hash order
+     * so isn't consistent cross different jvms or hosts.
+     */
+    public List<ColumnMetadata> columnsInFixedOrder()
+    {
+        List<ColumnMetadata> columnMetadata = new ArrayList<>(columns.size());
+        allColumnsInSelectOrder().forEachRemaining(columnMetadata::add);
+        return columnMetadata;
+    }
+
     public Iterable<ColumnMetadata> primaryKeyColumns()
     {
         return Iterables.concat(partitionKeyColumns, clusteringColumns);

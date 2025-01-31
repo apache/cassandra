@@ -510,15 +510,8 @@ WHERE PK_column_conditions
             this.primaryColumns.addAll(clusteringColumns);
             this.regularAndStatic = new LinkedHashSet<>();
             this.regularAndStatic.addAll(toSet(table.regularAndStaticColumns()));
-            this.allColumns = toSet(safeColumns(table));
+            this.allColumns = toSet(table.columnsInFixedOrder());
             neededPks.addAll(partitionColumns);
-        }
-
-        public static List<ColumnMetadata> safeColumns(TableMetadata metadata)
-        {
-            List<ColumnMetadata> columns = new ArrayList<>(metadata.columns().size());
-            metadata.allColumnsInSelectOrder().forEachRemaining(columns::add);
-            return columns;
         }
 
         public abstract T build();
