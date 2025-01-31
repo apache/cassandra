@@ -282,7 +282,7 @@ public class PrimaryIdTable implements VirtualTable
      */
     private AbstractBounds<PartitionPosition> getBounds(TableMetadata target, ClusteringIndexFilter clusteringIndexFilter, RowFilter rowFilter)
     {
-        Slices s = clusteringIndexFilter.getSlices(metadata);
+        Slices s = clusteringIndexFilter.getSlices(target);
         Token startToken = target.partitioner.getMinimumToken();
         Token endToken = target.partitioner.getMaximumToken();
         BigInteger startTokenValue = new BigInteger(endToken.getTokenValue().toString(), 10);
