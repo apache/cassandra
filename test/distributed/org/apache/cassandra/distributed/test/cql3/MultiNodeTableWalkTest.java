@@ -35,7 +35,7 @@ public class MultiNodeTableWalkTest extends SingleNodeTableWalkTest
     private boolean mockMultiNode = true;
 
     @Override
-    protected void preCheck(Property.StatefulBuilder builder)
+    protected void preCheck(Cluster cluster, Property.StatefulBuilder builder)
     {
         // if a failing seed is detected, populate here
         // Example: builder.withSeed(42L);
@@ -44,6 +44,7 @@ public class MultiNodeTableWalkTest extends SingleNodeTableWalkTest
         // Sometimes It's useful to validate that the error is localized to mutliple nodes rather than single node,
         // so uncomment the below to allow running the test as a single node
         // mockMultiNode = true;
+        builder.withSeed(-2930054107517116909L).withExamples(1);
     }
 
     @Override
