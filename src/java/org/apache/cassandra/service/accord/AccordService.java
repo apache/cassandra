@@ -397,7 +397,7 @@ public class AccordService implements IAccordService, Shutdownable
             {
                 try
                 {
-                    epochReady(metadata.epoch).get(5, SECONDS);
+                    epochReady(metadata.epoch).get(waitSeconds, SECONDS);
                     break;
                 }
                 catch (TimeoutException e)

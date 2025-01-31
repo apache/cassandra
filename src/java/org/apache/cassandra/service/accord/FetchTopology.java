@@ -23,6 +23,8 @@ import java.util.Collection;
 
 import accord.topology.Topology;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.db.TypeSizes;
+import org.apache.cassandra.exceptions.RequestFailure;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
@@ -82,14 +84,14 @@ public class FetchTopology
             @Override
             public void serialize(Response t, DataOutputPlus out, int version) throws IOException
             {
-                out.writeLong(t.epoch);
+                out.writeUnsignedVInt(t.epoch);
                 TopologySerializers.topology.serialize(t.topology, out, version);
             }
 
             @Override
             public Response deserialize(DataInputPlus in, int version) throws IOException
             {
-                long epoch = in.readLong();
+                long epoch = in.readUnsignedVInt();
                 Topology topology = TopologySerializers.topology.deserialize(in, version);
                 return new Response(epoch, topology);
             }
@@ -97,7 +99,8 @@ public class FetchTopology
             @Override
             public long serializedSize(Response t, int version)
             {
-                return Long.BYTES + TopologySerializers.topology.serializedSize(t.topology, version);
+                return TypeSizes.sizeofUnsignedVInt(t.epoch)
+                       + TopologySerializers.topology.serializedSize(t.topology, version);
             }
         };
 
@@ -117,7 +120,7 @@ public class FetchTopology
         if (topology != null)
             MessagingService.instance().respond(new Response(epoch, topology), message);
         else
-            throw new IllegalStateException("Unknown topology: " + epoch);
+            MessagingService.instance().respondWithFailure(RequestFailure.UNKNOWN_TOPOLOGY, message);
     };
 
     public static Future<Topology> fetch(SharedContext context, Collection<InetAddressAndPort> peers, long epoch)
@@ -129,10 +132,7 @@ public class FetchTopology
                                                                             Verb.ACCORD_FETCH_TOPOLOGY_REQ,
                                                                             request,
                                                                             MessagingUtils.tryAliveFirst(SharedContext.Global.instance, peers, Verb.ACCORD_FETCH_TOPOLOGY_REQ.name()),
-                                                                            (attempt, from, failure) -> {
-                                                                                System.out.println("Got " + failure + " from " + from + " while fetching " + request);
-                                                                                return true;
-                                                                            },
+                                                                            (attempt, from, failure) -> true,
                                                                             MessageDelivery.RetryErrorMessage.EMPTY)
                       .map(m -> m.payload.topology);
     }

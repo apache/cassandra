@@ -213,7 +213,7 @@ public class AccordConfigurationService extends AbstractConfigurationService<Acc
         }
     }
 
-    // TODO: should not be public
+    //TODO (required): should not be public
     public final ChangeListener listener = new MetadataChangeListener();
     private class MetadataChangeListener implements ChangeListener
     {
@@ -439,7 +439,7 @@ public class AccordConfigurationService extends AbstractConfigurationService<Acc
 
             // In most cases, after fetching log from CMS, we will be caught up to the required epoch.
             // This TCM will also notify Accord via reportMetadata, so we do not need to fetch topologies.
-            // If metadata has reported has skipped one or more eopchs, and is _ahead_ of the requested epoch,
+            // If metadata has reported has skipped one or more epochs, and is _ahead_ of the requested epoch,
             // we need to fetch topologies from peers to fill in the gap.
             ClusterMetadata metadata = ClusterMetadata.current();
             if (metadata.epoch.getEpoch() == epoch)

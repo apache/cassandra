@@ -80,6 +80,7 @@ public class DatabaseDescriptorRefTest
     "org.apache.cassandra.config.AccordSpec",
     "org.apache.cassandra.config.AccordSpec$JournalSpec",
     "org.apache.cassandra.config.AccordSpec$MinEpochRetrySpec",
+    "org.apache.cassandra.config.AccordSpec$FetchRetrySpec",
     "org.apache.cassandra.config.AccordSpec$TransactionalRangeMigration",
     "org.apache.cassandra.config.AccordSpec$QueueShardModel",
     "org.apache.cassandra.config.AccordSpec$QueueSubmissionModel",

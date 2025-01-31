@@ -111,13 +111,13 @@ public class FetchMinEpoch
     static Future<Long> fetch(SharedContext context, InetAddressAndPort to)
     {
         Backoff backoff = Backoff.fromConfig(context, DatabaseDescriptor.getAccord().minEpochSyncRetry);
-        return context.messaging().<FetchMinEpoch, FetchMinEpoch.Response>sendWithRetries(backoff,
-                                                                                          context.optionalTasks()::schedule,
-                                                                                          Verb.ACCORD_FETCH_MIN_EPOCH_REQ,
-                                                                                          FetchMinEpoch.instance,
-                                                                                          Iterators.cycle(to),
-                                                                                          RetryPredicate.ALWAYS_RETRY,
-                                                                                          RetryErrorMessage.EMPTY)
+        return context.messaging().<FetchMinEpoch, Response>sendWithRetries(backoff,
+                                                                            context.optionalTasks()::schedule,
+                                                                            Verb.ACCORD_FETCH_MIN_EPOCH_REQ,
+                                                                            FetchMinEpoch.instance,
+                                                                            Iterators.cycle(to),
+                                                                            RetryPredicate.ALWAYS_RETRY,
+                                                                            RetryErrorMessage.EMPTY)
                       .map(m -> m.payload.minEpoch);
     }
 
