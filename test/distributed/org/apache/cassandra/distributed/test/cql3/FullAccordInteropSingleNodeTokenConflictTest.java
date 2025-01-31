@@ -19,48 +19,23 @@
 package org.apache.cassandra.distributed.test.cql3;
 
 import accord.utils.Property;
-import accord.utils.RandomSource;
 import org.apache.cassandra.distributed.Cluster;
-import org.apache.cassandra.distributed.api.ConsistencyLevel;
 import org.apache.cassandra.service.consensus.TransactionalMode;
 
-public class AccordInteropSingleNodeTokenConflictTest extends SingleNodeTokenConflictTest
+public class FullAccordInteropSingleNodeTokenConflictTest extends AccordInteropSingleNodeTokenConflictBase
 {
-    public AccordInteropSingleNodeTokenConflictTest()
+    public FullAccordInteropSingleNodeTokenConflictTest()
     {
         super(TransactionalMode.full);
     }
 
     @Override
-    protected void preCheck(Property.StatefulBuilder builder)
+    protected void preCheck(Cluster cluster, Property.StatefulBuilder builder)
     {
+        super.preCheck(cluster, builder);
         // if a failing seed is detected, populate here
         // Example: builder.withSeed(42L);
-    }
-
-    @Override
-    protected State createState(RandomSource rs, Cluster cluster)
-    {
-        return new AccordInteropState(rs, cluster);
-    }
-
-    private class AccordInteropState extends State
-    {
-        public AccordInteropState(RandomSource rs, Cluster cluster)
-        {
-            super(rs, cluster);
-        }
-
-        @Override
-        protected ConsistencyLevel selectCl()
-        {
-            return ConsistencyLevel.QUORUM;
-        }
-
-        @Override
-        protected ConsistencyLevel mutationCl()
-        {
-            return ConsistencyLevel.QUORUM;
-        }
+        // CQL operations may have opertors such as +, -, and / (example 4 + 4), to "apply" them to get a constant value
+        // CQL_DEBUG_APPLY_OPERATOR = true;
     }
 }

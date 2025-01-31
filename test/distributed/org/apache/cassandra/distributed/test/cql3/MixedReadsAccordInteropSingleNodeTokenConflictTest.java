@@ -18,59 +18,24 @@
 
 package org.apache.cassandra.distributed.test.cql3;
 
-import java.io.IOException;
-
 import accord.utils.Property;
-import accord.utils.RandomSource;
 import org.apache.cassandra.distributed.Cluster;
-import org.apache.cassandra.distributed.api.ConsistencyLevel;
+import org.apache.cassandra.service.consensus.TransactionalMode;
 
-public class MultiNodeTokenConflictTest extends SingleNodeTokenConflictTest
+public class MixedReadsAccordInteropSingleNodeTokenConflictTest extends AccordInteropSingleNodeTokenConflictBase
 {
+    public MixedReadsAccordInteropSingleNodeTokenConflictTest()
+    {
+        super(TransactionalMode.mixed_reads);
+    }
+
     @Override
     protected void preCheck(Cluster cluster, Property.StatefulBuilder builder)
     {
+        super.preCheck(cluster, builder);
         // if a failing seed is detected, populate here
         // Example: builder.withSeed(42L);
         // CQL operations may have opertors such as +, -, and / (example 4 + 4), to "apply" them to get a constant value
         // CQL_DEBUG_APPLY_OPERATOR = true;
-    }
-
-    @Override
-    protected Cluster createCluster() throws IOException
-    {
-        return createCluster(3, c -> {
-            c.set("range_request_timeout", "180s")
-             .set("read_request_timeout", "180s")
-             .set("write_request_timeout", "180s")
-             .set("native_transport_timeout", "180s")
-             .set("slow_query_log_timeout", "180s");
-        });
-    }
-
-    @Override
-    protected State createState(RandomSource rs, Cluster cluster)
-    {
-        return new MultiNodeState(rs, cluster);
-    }
-
-    private class MultiNodeState extends State
-    {
-        MultiNodeState(RandomSource rs, Cluster cluster)
-        {
-            super(rs, cluster);
-        }
-
-        @Override
-        protected ConsistencyLevel selectCl()
-        {
-            return ConsistencyLevel.ALL;
-        }
-
-        @Override
-        protected ConsistencyLevel mutationCl()
-        {
-            return ConsistencyLevel.NODE_LOCAL;
-        }
     }
 }

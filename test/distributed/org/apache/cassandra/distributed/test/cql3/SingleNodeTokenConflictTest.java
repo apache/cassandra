@@ -101,7 +101,7 @@ public class SingleNodeTokenConflictTest extends StatefulASTBase
         this(null);
     }
 
-    protected void preCheck(Property.StatefulBuilder builder)
+    protected void preCheck(Cluster cluster, Property.StatefulBuilder builder)
     {
         // if a failing seed is detected, populate here
         // Example: builder.withSeed(42L);
@@ -264,7 +264,7 @@ public class SingleNodeTokenConflictTest extends StatefulASTBase
         try (Cluster cluster = createCluster())
         {
             Property.StatefulBuilder statefulBuilder = stateful().withExamples(10);
-            preCheck(statefulBuilder);
+            preCheck(cluster, statefulBuilder);
             statefulBuilder.check(commands(() -> rs -> createState(rs, cluster))
                                   .add(StatefulASTBase::insert)
                                   .add(SingleNodeTokenConflictTest::pkEq)
