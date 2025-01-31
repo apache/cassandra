@@ -59,6 +59,7 @@ import org.apache.cassandra.tcm.log.SystemKeyspaceStorage;
 import org.apache.cassandra.tcm.membership.NodeId;
 import org.apache.cassandra.tcm.membership.NodeState;
 import org.apache.cassandra.tcm.migration.Election;
+import org.apache.cassandra.tcm.migration.CMSInitializationRequest;
 import org.apache.cassandra.tcm.ownership.UniformRangePlacement;
 import org.apache.cassandra.tcm.sequences.InProgressSequences;
 import org.apache.cassandra.tcm.sequences.ReconfigureCMS;
@@ -229,8 +230,8 @@ import static org.apache.cassandra.utils.FBUtilities.getBroadcastAddressAndPort;
             {
                 Election.instance.nominateSelf(candidates.nodes(),
                                                Collections.singleton(FBUtilities.getBroadcastAddressAndPort()),
-                                               (cm) -> true,
-                                               null);
+                                               ClusterMetadata.current(),
+                                               false);
             }
         }
 
@@ -243,7 +244,7 @@ import static org.apache.cassandra.utils.FBUtilities.getBroadcastAddressAndPort;
             }
             else
             {
-                Election.Initiator initiator = Election.instance.initiator();
+                CMSInitializationRequest.Initiator initiator = Election.instance.initiator();
                 candidates = Discovery.instance.discoverOnce(initiator == null ? null : initiator.initiator);
             }
             Uninterruptibles.sleepUninterruptibly(1, TimeUnit.SECONDS);

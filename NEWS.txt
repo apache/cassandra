@@ -149,7 +149,8 @@ Upgrading
     However, nodes still UP and running the old version will. This will eventually cause the migration to fail, as the
     cluster will not be in agreement.
       - > nodetool cms initialize
-        Got mismatching cluster metadatas from [/x.x.x.x:7000] aborting migration
+        Got mismatching cluster metadatas. Check logs on peers ([/x.x.x.x:7000]) for details of mismatches.
+        Aborting migration.
         See 'nodetool help' or 'nodetool help <command>'.
     If the cms initialize command fails, it will indicate which nodes’ current metadata does not agree with the node
     where the command was executed. To mitigate this situation, bring any mismatching nodes DOWN and rerun the
