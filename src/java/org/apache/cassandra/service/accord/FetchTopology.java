@@ -116,8 +116,9 @@ public class FetchTopology
 
     public static final IVerbHandler<FetchTopology> handler = message -> {
         long epoch = message.payload.epoch;
-        Topology topology = AccordService.instance().topology().maybeGlobalForEpoch(epoch);
-        if (topology != null)
+
+        Topology topology;
+        if (AccordService.isSetup() && (topology = AccordService.instance().topology().maybeGlobalForEpoch(epoch)) != null)
             MessagingService.instance().respond(new Response(epoch, topology), message);
         else
             MessagingService.instance().respondWithFailure(RequestFailure.UNKNOWN_TOPOLOGY, message);
