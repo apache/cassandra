@@ -86,8 +86,8 @@ public class SingleNodeTableWalkTest extends StatefulASTBase
         // Example: builder.withSeed(42L);
         // CQL operations may have opertors such as +, -, and / (example 4 + 4), to "apply" them to get a constant value
         // CQL_DEBUG_APPLY_OPERATOR = true;
-//        builder.withExamples(100); // use more examples to see how stable this is
-//        builder.withSeed(-4969287775097183740L); // see CASSANDRA-20258 NOTE, this was before partitionRestrictedQuery, so must disable that for this seed to happen
+
+        builder.withExamples(100);
     }
 
     protected TypeGenBuilder supportedTypes()
