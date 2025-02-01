@@ -467,7 +467,9 @@ public class SingleNodeTableWalkTest extends StatefulASTBase
                 Symbol symbol = Symbol.from(col);
                 AbstractType<?> type = symbol.type();
 
-//                if (col.name.toString().length() >= 48) continue; // TODO (correctness): https://issues.apache.org/jira/browse/CASSANDRA-19897
+                if (col.name.toString().length() >= 48
+                    && IGNORED_ISSUES.contains(KnownIssue.CUSTOM_INDEX_MAX_COLUMN_48))
+                    continue;
 
                 if (type.isCollection() && !type.isFrozenCollection()) continue; //TODO (coverage): include non-frozen collections;  the index part works fine, its the select that fails... basic equality isn't allowed for map type... so how do you query?
                 List<CreateIndexDDL.Indexer> allowed = columnSupportsIndexing(metadata, col);
