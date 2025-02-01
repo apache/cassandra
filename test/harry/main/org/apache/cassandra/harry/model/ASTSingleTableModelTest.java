@@ -444,12 +444,13 @@ public class ASTSingleTableModelTest
                              .value("pk", 0)
                              .value("ck", 0)
                              .build());
-        /*
-        1: INSERT INTO ks1.tbl (pk0, ck0, s0, s1, v0, v2, v3) VALUES (8.417087E-19, false, '\u001B\u0018\u0018', 'c259:dc07:53db:6c31:284:1e41:6271:a39b', -2.4144005494962955E-93 * 8.160591082056636E191, 1.6358435336165474E130, '-4305792-09-27') -- on node1
-		155: DELETE FROM ks1.tbl WHERE  pk0 = 8.417087E-19 AND  ck0 = false -- on node1
-		194: SELECT * FROM ks1.tbl WHERE v0 = -2.666848559209129E-68 ALLOW FILTERING -- v0 double, on node1, fetch size 1
-         */
+
         model.validate(EMPTY, Select.builder(metadata)
+                                    .value("v", 0)
+                                    .build());
+
+        model.validate(EMPTY, Select.builder(metadata)
+                                    .value("pk", 0)
                                     .value("v", 0)
                                     .build());
     }
