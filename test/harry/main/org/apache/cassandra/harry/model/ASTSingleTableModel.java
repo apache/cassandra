@@ -788,7 +788,8 @@ public class ASTSingleTableModel
             // full partition
             if (partition.isEmpty())
             {
-                //TODO (now, correctness): if you query a non-partition column and this is empty, this condition isn't true...
+                if (ctx.testsRow())
+                    return Collections.emptyList();
                 rows.add(partition.partitionRowRef());
             }
             else
@@ -1172,6 +1173,23 @@ public class ASTSingleTableModel
                 }
             }
             return true;
+        }
+
+        private boolean testsClustering()
+        {
+            return factory.clusteringColumns.stream().anyMatch(eq::containsKey)
+                   || factory.clusteringColumns.stream().anyMatch(ltOrGt::containsKey);
+        }
+
+        private boolean testsRegular()
+        {
+            return factory.regularColumns.stream().anyMatch(eq::containsKey)
+                   || factory.regularColumns.stream().anyMatch(ltOrGt::containsKey);
+        }
+
+        private boolean testsRow()
+        {
+            return testsClustering() || testsRegular();
         }
     }
 
