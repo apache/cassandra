@@ -634,8 +634,8 @@ public class RouteIndexTest extends CQLTester.InMemory
         Int2ObjectHashMap<DurableBefore> durableBefores = new Int2ObjectHashMap<>();
         Int2ObjectHashMap<CommandStores.RangesForEpoch> ranges = new Int2ObjectHashMap<>();
         RedundantBefore redundantBefore = Mockito.spy(RedundantBefore.EMPTY);
-        Mockito.doReturn(RedundantStatus.LIVE).when(redundantBefore).status(Mockito.any(), Mockito.any(), (Participants<?>) Mockito.any());
-        Mockito.doReturn(RedundantStatus.LIVE).when(redundantBefore).status(Mockito.any(), Mockito.any(), (RoutingKey) Mockito.any());
+        Mockito.doReturn(RedundantStatus.NONE).when(redundantBefore).status(Mockito.any(), Mockito.any(), (Participants<?>) Mockito.any());
+        Mockito.doReturn(RedundantStatus.NONE).when(redundantBefore).status(Mockito.any(), Mockito.any(), (RoutingKey) Mockito.any());
         for (int i = 0; i < MAX_STORES; i++)
         {
             redundantBefores.put(i, redundantBefore);

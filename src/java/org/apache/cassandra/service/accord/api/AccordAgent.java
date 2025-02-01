@@ -20,6 +20,8 @@ package org.apache.cassandra.service.accord.api;
 
 import java.util.concurrent.TimeUnit;
 
+import javax.annotation.Nullable;
+
 import com.google.common.annotations.VisibleForTesting;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -35,6 +37,7 @@ import accord.local.SafeCommand;
 import accord.local.SafeCommandStore;
 import accord.messages.ReplyContext;
 import accord.primitives.Keys;
+import accord.primitives.Participants;
 import accord.primitives.Ranges;
 import accord.primitives.Routable;
 import accord.primitives.Seekables;
@@ -59,7 +62,6 @@ import org.apache.cassandra.utils.JVMStabilityInspector;
 
 import static accord.primitives.Routable.Domain.Key;
 import static accord.primitives.Txn.Kind.Write;
-import static accord.utils.Invariants.illegalState;
 import static java.util.concurrent.TimeUnit.MICROSECONDS;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import static java.util.concurrent.TimeUnit.NANOSECONDS;
@@ -259,9 +261,8 @@ public class AccordAgent implements Agent
     }
 
     @Override
-    public void onViolation(String message)
+    public void onViolation(String message, Participants<?> participants, @Nullable TxnId notWitnessed, @Nullable Timestamp notWitnessedExecuteAt, @Nullable TxnId by, @Nullable Timestamp byEexecuteAt)
     {
-        try { throw illegalState(message); }
-        catch (Throwable t) { logger.error("Consistency violation", t); }
+        logger.error(message);
     }
 }

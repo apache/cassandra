@@ -173,6 +173,7 @@ import org.apache.cassandra.utils.concurrent.UncheckedInterruptedException;
 import static accord.messages.SimpleReply.Ok;
 import static accord.primitives.Routable.Domain.Key;
 import static accord.primitives.Routable.Domain.Range;
+import static accord.primitives.TxnId.Cardinality.cardinality;
 import static accord.utils.Invariants.require;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import static java.util.concurrent.TimeUnit.NANOSECONDS;
@@ -818,7 +819,7 @@ public class AccordService implements IAccordService, Shutdownable
     @Override
     public @Nonnull AsyncTxnResult coordinateAsync(long minEpoch, @Nonnull Txn txn, @Nonnull ConsistencyLevel consistencyLevel, @Nonnull Dispatcher.RequestTime requestTime)
     {
-        TxnId txnId = node.nextTxnId(txn.kind(), txn.keys().domain());
+        TxnId txnId = node.nextTxnId(txn.kind(), txn.keys().domain(), cardinality(txn.keys()));
         ClientRequestMetrics sharedMetrics;
         AccordClientRequestMetrics metrics;
         if (txn.isWrite())

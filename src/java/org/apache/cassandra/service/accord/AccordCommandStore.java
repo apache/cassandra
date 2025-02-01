@@ -309,7 +309,7 @@ public class AccordCommandStore extends CommandStore
         return lastSystemTimestampMicros;
     }
     @Override
-    public <T> AsyncChain<T> submit(PreLoadContext loadCtx, Function<? super SafeCommandStore, T> function)
+    public <T> AsyncChain<T> build(PreLoadContext loadCtx, Function<? super SafeCommandStore, T> function)
     {
         return AccordTask.create(this, loadCtx, function).chain();
     }
@@ -336,7 +336,7 @@ public class AccordCommandStore extends CommandStore
     }
 
     @Override
-    public AsyncChain<Void> execute(PreLoadContext preLoadContext, Consumer<? super SafeCommandStore> consumer)
+    public AsyncChain<Void> build(PreLoadContext preLoadContext, Consumer<? super SafeCommandStore> consumer)
     {
         return AccordTask.create(this, preLoadContext, consumer).chain();
     }

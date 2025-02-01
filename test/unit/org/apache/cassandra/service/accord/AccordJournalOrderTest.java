@@ -30,6 +30,8 @@ import accord.api.Journal;
 import accord.local.Command;
 import accord.local.StoreParticipants;
 import accord.primitives.Ballot;
+import accord.primitives.Participants;
+import accord.primitives.RoutingKeys;
 import accord.primitives.SaveStatus;
 import accord.primitives.Status;
 import accord.primitives.TxnId;
@@ -39,13 +41,16 @@ import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.ServerTestUtils;
 import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.journal.TestParams;
 import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.schema.Schema;
+import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.service.accord.api.AccordAgent;
+import org.apache.cassandra.service.accord.api.AccordRoutingKey;
 import org.apache.cassandra.service.consensus.TransactionalMode;
 import org.apache.cassandra.utils.StorageCompatibilityMode;
 
@@ -82,7 +87,8 @@ public class AccordJournalOrderTest
             TxnId txnId = randomSource.nextBoolean() ? id1 : id2;
             JournalKey key = new JournalKey(txnId, JournalKey.Type.COMMAND_DIFF, randomSource.nextInt(5));
             res.compute(key, (k, prev) -> prev == null ? 1 : prev + 1);
-            Command command = Command.NotDefined.notDefined(txnId, SaveStatus.NotDefined, Status.Durability.NotDurable, StoreParticipants.empty(txnId), Ballot.ZERO);
+            Participants<?> participants = RoutingKeys.of(new AccordRoutingKey.TokenKey(TableId.generate(), new Murmur3Partitioner.LongToken(1)));
+            Command command = Command.NotDefined.notDefined(txnId, SaveStatus.NotDefined, Status.Durability.NotDurable, StoreParticipants.create(null, participants, null, participants, participants), Ballot.ZERO);
             accordJournal.saveCommand(key.commandStoreId,
                                       new Journal.CommandUpdate(null, command),
                                       () -> {});

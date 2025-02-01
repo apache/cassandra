@@ -53,7 +53,7 @@ import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.concurrent.Condition;
 import org.awaitility.Awaitility;
 
-import static accord.primitives.TxnId.FastPath.UNOPTIMISED;
+import static accord.primitives.TxnId.FastPath.Unoptimised;
 import static org.apache.cassandra.Util.spinUntilSuccess;
 import static org.apache.cassandra.service.accord.AccordTestUtils.createTxn;
 
@@ -136,7 +136,7 @@ public class AccordDebugKeyspaceTest extends CQLTester
     public void blocked() throws ExecutionException, InterruptedException
     {
         ProtocolModifiers.Toggles.setPermitLocalExecution(false);
-        ProtocolModifiers.Toggles.setPermittedFastPaths(new TxnId.FastPaths(UNOPTIMISED));
+        ProtocolModifiers.Toggles.setPermittedFastPaths(new TxnId.FastPaths(Unoptimised));
         AccordMsgFilter filter = new AccordMsgFilter();
         MessagingService.instance().outboundSink.add(filter);
         try

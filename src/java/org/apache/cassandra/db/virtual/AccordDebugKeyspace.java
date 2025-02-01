@@ -472,11 +472,11 @@ public class AccordDebugKeyspace extends VirtualKeyspace
                         ds.row(storeId, decompose(start), decompose(end))
                           .column("start_ownership_epoch", entry.startOwnershipEpoch)
                           .column("end_ownership_epoch", entry.endOwnershipEpoch)
-                          .column("locally_applied_or_invalidated_before", entry.locallyAppliedOrInvalidatedBefore.toString())
-                          .column("locally_decided_and_applied_or_invalidated_before", entry.locallyDecidedAndAppliedOrInvalidatedBefore.toString())
-                          .column("shard_applied_or_invalidated_before", entry.shardAppliedOrInvalidatedBefore.toString())
+                          .column("locally_applied_before", entry.locallyAppliedBefore.toString())
+                          .column("locally_decided_and_applied_before", entry.locallyDecidedAndAppliedBefore.toString())
+                          .column("shard_applied_before", entry.shardAppliedBefore.toString())
                           .column("gc_before", entry.gcBefore.toString())
-                          .column("shard_only_applied_or_invalidated_before", entry.shardOnlyAppliedOrInvalidatedBefore.toString())
+                          .column("shard_only_applied_before", entry.shardOnlyAppliedBefore.toString())
                           .column("bootstrapped_at", entry.bootstrappedAt.toString())
                           .column("stale_until_at_least", entry.staleUntilAtLeast != null ? entry.staleUntilAtLeast.toString() : null);
                         return ds;

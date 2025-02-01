@@ -476,7 +476,7 @@ public class CommandsForKeySerializerTest
             }
 
             // TODO (expected): we currently don't explore TruncatedApply statuses because we don't transition through all phases and therefore don't adopt the Applied status
-            Choices<SaveStatus> saveStatusChoices = Choices.uniform(EnumSet.complementOf(EnumSet.of(SaveStatus.TruncatedApply, SaveStatus.TruncatedApplyWithOutcome, SaveStatus.TruncatedApplyWithDeps)).toArray(SaveStatus[]::new));
+            Choices<SaveStatus> saveStatusChoices = Choices.uniform(EnumSet.complementOf(EnumSet.of(SaveStatus.TruncatedApply, SaveStatus.TruncatedUnapplied, SaveStatus.TruncatedApplyWithOutcome)).toArray(SaveStatus[]::new));
             Supplier<SaveStatus> saveStatusSupplier = () -> {
                 SaveStatus result = saveStatusChoices.choose(source);
                 while (result.is(Status.Truncated)) // we don't currently process truncations
@@ -559,7 +559,7 @@ public class CommandsForKeySerializerTest
     public void test()
     {
         var tableGen = AccordGenerators.fromQT(CassandraGenerators.TABLE_ID_GEN);
-        var txnIdGen = AccordGens.txnIds(rs -> rs.nextLong(0, 100), rs -> rs.nextLong(100), rs -> rs.nextInt(10));
+        var txnIdGen = AccordGens.txnIds((Gen.LongGen) rs -> rs.nextLong(0, 100), rs -> rs.nextLong(100), rs -> rs.nextInt(10));
         qt().check(rs -> {
             TableId table = tableGen.next(rs);
             TokenKey pk = new TokenKey(table, new Murmur3Partitioner.LongToken(rs.nextLong()));
@@ -647,8 +647,8 @@ public class CommandsForKeySerializerTest
         @Override public boolean inStore() { return true; }
         @Override public Journal.Loader loader() { throw new UnsupportedOperationException(); }
         @Override public Agent agent() { return this; }
-        @Override public AsyncChain<Void> execute(PreLoadContext context, Consumer<? super SafeCommandStore> consumer) { return null; }
-        @Override public <T> AsyncChain<T> submit(PreLoadContext context, Function<? super SafeCommandStore, T> apply) { throw new UnsupportedOperationException(); }
+        @Override public AsyncChain<Void> build(PreLoadContext context, Consumer<? super SafeCommandStore> consumer) { return null; }
+        @Override public <T> AsyncChain<T> build(PreLoadContext context, Function<? super SafeCommandStore, T> apply) { throw new UnsupportedOperationException(); }
         @Override public void shutdown() { }
         @Override protected void registerTransitive(SafeCommandStore safeStore, RangeDeps deps){ }
         @Override public <T> AsyncChain<T> submit(Callable<T> task) { throw new UnsupportedOperationException(); }

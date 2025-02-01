@@ -44,6 +44,7 @@ import accord.primitives.PartialDeps;
 import accord.primitives.PartialKeyRoute;
 import accord.primitives.PartialRangeRoute;
 import accord.primitives.PartialTxn;
+import accord.primitives.Participants;
 import accord.primitives.Range;
 import accord.primitives.RangeDeps;
 import accord.primitives.Ranges;
@@ -290,8 +291,9 @@ public class AccordObjectSizes
         private static ICommand attrs(boolean hasDeps, boolean hasTxn, boolean executes)
         {
             FullKeyRoute route = new FullKeyRoute(EMPTY_KEY, new RoutingKey[]{ EMPTY_KEY });
+            Participants<?> empty = route.slice(0, 0);
             ICommand.Builder builder = new ICommand.Builder(EMPTY_TXNID)
-                                       .setParticipants(StoreParticipants.empty(EMPTY_TXNID, route, !executes))
+                                       .setParticipants(StoreParticipants.create(route, empty, executes ? empty : null, empty, route))
                                        .durability(Status.Durability.NotDurable)
                                        .executeAt(EMPTY_TXNID)
                                        .promised(Ballot.ZERO);
@@ -316,8 +318,8 @@ public class AccordObjectSizes
         final static long ACCEPTED = measure(Command.Accepted.accepted(attrs(true, false, false), SaveStatus.AcceptedMedium));
         final static long COMMITTED = measure(Command.Committed.committed(attrs(true, true, false), SaveStatus.Committed));
         final static long EXECUTED = measure(Command.Executed.executed(attrs(true, true, true), SaveStatus.Applied));
-        final static long TRUNCATED = measure(Command.Truncated.truncatedApply(attrs(false, false, false), SaveStatus.TruncatedApply,  EMPTY_TXNID, null, null));
-        final static long INVALIDATED = measure(Command.Truncated.invalidated(EMPTY_TXNID, StoreParticipants.empty(EMPTY_TXNID)));
+        final static long TRUNCATED = measure(Command.Truncated.truncated(attrs(false, false, false), SaveStatus.TruncatedApply,  EMPTY_TXNID, null, null));
+        final static long INVALIDATED = measure(Command.Truncated.invalidated(EMPTY_TXNID, attrs(false, false, false).participants()));
 
         private static long emptySize(Command command)
         {
@@ -353,7 +355,7 @@ public class AccordObjectSizes
                 case Applied:
                     return EXECUTED;
                 case TruncatedApply:
-                case TruncatedApplyWithDeps:
+                case TruncatedUnapplied:
                 case TruncatedApplyWithOutcome:
                 case Vestigial:
                 case Erased:
