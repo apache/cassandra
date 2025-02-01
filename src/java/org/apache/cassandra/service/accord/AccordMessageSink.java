@@ -71,13 +71,13 @@ public class AccordMessageSink implements MessageSink
 
     public static final class AccordMessageType extends MessageType
     {
-        public static final AccordMessageType INTEROP_READ_REQ             = remote("INTEROP_READ_REQ",           false);
-        public static final AccordMessageType INTEROP_READ_RSP             = remote("INTEROP_READ_RSP",           false);
-        public static final AccordMessageType INTEROP_STABLE_THEN_READ_REQ = remote("INTEROP_STABLE_THEN_READ_REQ", false);
-        public static final AccordMessageType INTEROP_READ_REPAIR_REQ      = remote("INTEROP_READ_REPAIR_REQ",    false);
-        public static final AccordMessageType INTEROP_READ_REPAIR_RSP      = remote("INTEROP_READ_REPAIR_RSP",    false);
-        public static final AccordMessageType INTEROP_APPLY_MINIMAL_REQ    = remote("INTEROP_APPLY_MINIMAL_REQ",  true );
-        public static final AccordMessageType INTEROP_APPLY_MAXIMAL_REQ    = remote("INTEROP_APPLY_MAXIMAL_REQ",  true );
+        public static final AccordMessageType INTEROP_READ_REQ             = remote("INTEROP_READ_REQ");
+        public static final AccordMessageType INTEROP_READ_RSP             = remote("INTEROP_READ_RSP");
+        public static final AccordMessageType INTEROP_STABLE_THEN_READ_REQ = remote("INTEROP_STABLE_THEN_READ_REQ");
+        public static final AccordMessageType INTEROP_READ_REPAIR_REQ      = remote("INTEROP_READ_REPAIR_REQ");
+        public static final AccordMessageType INTEROP_READ_REPAIR_RSP      = remote("INTEROP_READ_REPAIR_RSP");
+        public static final AccordMessageType INTEROP_APPLY_MINIMAL_REQ    = remote("INTEROP_APPLY_MINIMAL_REQ");
+        public static final AccordMessageType INTEROP_APPLY_MAXIMAL_REQ    = remote("INTEROP_APPLY_MAXIMAL_REQ");
 
         public static final List<MessageType> values;
 
@@ -101,14 +101,14 @@ public class AccordMessageSink implements MessageSink
             values = builder.build();
         }
 
-        protected static AccordMessageType remote(String name, boolean hasSideEffects)
+        protected static AccordMessageType remote(String name)
         {
-            return new AccordMessageType(name, REMOTE, hasSideEffects);
+            return new AccordMessageType(name, REMOTE);
         }
 
-        private AccordMessageType(String name, MessageType.Kind kind, boolean hasSideEffects)
+        private AccordMessageType(String name, MessageType.Kind kind)
         {
-            super(name, kind, hasSideEffects);
+            super(name, kind);
         }
     }
 

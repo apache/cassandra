@@ -94,7 +94,12 @@ public class CommandSerializers
 
             long epoch = txnId.epoch();
             if((flags & HAS_EPOCH) != 0)
-                epoch += in.readUnsignedVInt();
+            {
+                long delta = in.readUnsignedVInt();
+                if (delta == 0)
+                    return Timestamp.NONE;
+                epoch += delta - 1;
+            }
 
             long hlc = txnId.hlc() + in.readUnsignedVInt();
             Node.Id node = new Node.Id(in.readUnsignedVInt32());
@@ -108,8 +113,8 @@ public class CommandSerializers
             int flags = in.readUnsignedVInt32();
             if ((flags & 1) != 0)
             {
-                if ((flags & HAS_EPOCH) != 0)
-                    in.readUnsignedVInt();
+                if ((flags & HAS_EPOCH) != 0 && in.readUnsignedVInt() == 0)
+                    return;
                 in.readUnsignedVInt();
                 in.readUnsignedVInt32();
                 if ((flags & HAS_UNIQUE_HLC) != 0)
@@ -124,7 +129,14 @@ public class CommandSerializers
             if ((flags & 1) != 0)
             {
                 if ((flags & HAS_EPOCH) != 0)
-                    out.writeUnsignedVInt(executeAt.epoch() - txnId.epoch());
+                {
+                    if (executeAt.equals(Timestamp.NONE))
+                    {
+                        out.writeUnsignedVInt(0L);
+                        return;
+                    }
+                    out.writeUnsignedVInt(1 + executeAt.epoch() - txnId.epoch());
+                }
                 out.writeUnsignedVInt(executeAt.hlc() - txnId.hlc());
                 out.writeUnsignedVInt32(executeAt.node.id);
                 if ((flags & HAS_UNIQUE_HLC) != 0)
@@ -152,7 +164,12 @@ public class CommandSerializers
             if ((flags & 1) != 0)
             {
                 if ((flags & HAS_EPOCH) != 0)
+                {
+                    if (executeAt.equals(Timestamp.NONE))
+                        return size + TypeSizes.sizeofUnsignedVInt(0L);
+
                     size += TypeSizes.sizeofUnsignedVInt(executeAt.epoch() - txnId.epoch());
+                }
                 size += TypeSizes.sizeofUnsignedVInt(executeAt.hlc() - txnId.hlc());
                 size += TypeSizes.sizeofUnsignedVInt(executeAt.node.id);
                 if ((flags & HAS_UNIQUE_HLC) != 0)
@@ -176,10 +193,13 @@ public class CommandSerializers
             int flags = in.readUnsignedVInt32();
             if (nullable)
             {
-                if ((flags & 1) != 0) return null;
-                flags >>>= 1;
+                if (flags == 0) return null;
+                flags--;
             }
             long epoch = in.readUnsignedVInt();
+            if (epoch-- == 0)
+                return Timestamp.NONE;
+
             long hlc = in.readUnsignedVInt();
             Node.Id node = new Node.Id(in.readUnsignedVInt32());
             if ((flags & HAS_UNIQUE_HLC) == 0)
@@ -206,11 +226,12 @@ public class CommandSerializers
             int flags = in.readUnsignedVInt32();
             if (nullable)
             {
-                if ((flags & 1) != 0)
+                if (flags == 0)
                     return;
-                flags >>>= 1;
+                flags--;
             }
-            in.readUnsignedVInt();
+            if (0 == in.readUnsignedVInt())
+                return;
             in.readUnsignedVInt();
             in.readUnsignedVInt32();
             if ((flags & HAS_UNIQUE_HLC) != 0)
@@ -235,9 +256,13 @@ public class CommandSerializers
             {
                 Invariants.require(nullable);
             }
+            else if (executeAt.equals(Timestamp.NONE))
+            {
+                out.writeUnsignedVInt(0L);
+            }
             else
             {
-                out.writeUnsignedVInt(executeAt.epoch());
+                out.writeUnsignedVInt(1 + executeAt.epoch());
                 out.writeUnsignedVInt(executeAt.hlc());
                 out.writeUnsignedVInt32(executeAt.node.id);
                 if (executeAt.hasDistinctHlcAndUniqueHlc())
@@ -264,11 +289,15 @@ public class CommandSerializers
                 Invariants.require(nullable);
                 return size;
             }
-            size += TypeSizes.sizeofUnsignedVInt(executeAt.epoch());
-            size += TypeSizes.sizeofUnsignedVInt(executeAt.hlc());
-            size += TypeSizes.sizeofUnsignedVInt(executeAt.node.id);
-            if (executeAt.hasDistinctHlcAndUniqueHlc())
-                size += TypeSizes.sizeofUnsignedVInt(executeAt.uniqueHlc() - executeAt.hlc());
+            if (executeAt.equals(Timestamp.NONE)) size += TypeSizes.sizeofUnsignedVInt(0);
+            else
+            {
+                size += TypeSizes.sizeofUnsignedVInt(1 + executeAt.epoch());
+                size += TypeSizes.sizeofUnsignedVInt(executeAt.hlc());
+                size += TypeSizes.sizeofUnsignedVInt(executeAt.node.id);
+                if (executeAt.hasDistinctHlcAndUniqueHlc())
+                    size += TypeSizes.sizeofUnsignedVInt(executeAt.uniqueHlc() - executeAt.hlc());
+            }
             return size;
         }
 
@@ -277,7 +306,7 @@ public class CommandSerializers
             if (executeAt == null)
             {
                 Invariants.require(nullable);
-                return 1;
+                return 0;
             }
 
             int flags = executeAt.flags() << 2;
@@ -286,7 +315,7 @@ public class CommandSerializers
             if (executeAt.hasDistinctHlcAndUniqueHlc())
                 flags |= HAS_UNIQUE_HLC;
             if (nullable)
-                flags <<= 1;
+                flags++;
             return flags;
         }
     }

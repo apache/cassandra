@@ -95,7 +95,6 @@ public class CommandChangeTest
                 SoftAssertions checks = new SoftAssertions();
                 for (SaveStatus saveStatus : SaveStatus.values())
                 {
-                    if (saveStatus == SaveStatus.TruncatedApplyWithDeps) continue;
                     out.clear();
                     Command orig = cmdBuilder.build(saveStatus);
 

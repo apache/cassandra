@@ -33,6 +33,7 @@ import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSortedMap;
 
 import accord.local.Command;
+import accord.local.Command.Truncated;
 import accord.local.ICommand;
 import accord.local.DurableBefore;
 import accord.local.RedundantBefore;
@@ -245,8 +246,6 @@ public class AccordGenerators
             switch (saveStatus)
             {
                 default: throw new AssertionError("Unhandled saveStatus: " + saveStatus);
-                case TruncatedApplyWithDeps:
-                    throw new IllegalArgumentException("TruncatedApplyWithDeps is not a valid state for a Command to be in, its for FetchData");
                 case Uninitialised:
                 case NotDefined:
                     return Command.NotDefined.notDefined(attributes(saveStatus), Ballot.ZERO);
@@ -285,17 +284,18 @@ public class AccordGenerators
                     return Command.Executed.executed(attributes(saveStatus), saveStatus);
 
                 case TruncatedApply:
-                    if (txnId.kind().awaitsOnlyDeps()) return Command.Truncated.truncatedApply(attributes(saveStatus), saveStatus, executeAt, null, null, txnId);
-                    else return Command.Truncated.truncatedApply(attributes(saveStatus), saveStatus, executeAt, null, null);
+                case TruncatedUnapplied:
+                    if (txnId.kind().awaitsOnlyDeps()) return Truncated.truncated(attributes(saveStatus), saveStatus, executeAt, null, null, txnId);
+                    else return Truncated.truncated(attributes(saveStatus), saveStatus, executeAt, null, null);
 
                 case TruncatedApplyWithOutcome:
-                    if (txnId.kind().awaitsOnlyDeps()) return Command.Truncated.truncatedApply(attributes(saveStatus), saveStatus, executeAt, txnId.is(Write) ? new Writes(txnId, executeAt, keysOrRanges,new TxnWrite(Collections.emptyList(), true)) : null, new TxnData(), txnId);
-                    else return Command.Truncated.truncatedApply(attributes(saveStatus), saveStatus, executeAt, txnId.is(Write) ? new Writes(txnId, executeAt, keysOrRanges, new TxnWrite(Collections.emptyList(), true)) : null, new TxnData());
+                    if (txnId.kind().awaitsOnlyDeps()) return Truncated.truncated(attributes(saveStatus), saveStatus, executeAt, txnId.is(Write) ? new Writes(txnId, executeAt, keysOrRanges,new TxnWrite(Collections.emptyList(), true)) : null, new TxnData(), txnId);
+                    else return Truncated.truncated(attributes(saveStatus), saveStatus, executeAt, txnId.is(Write) ? new Writes(txnId, executeAt, keysOrRanges, new TxnWrite(Collections.emptyList(), true)) : null, new TxnData());
 
                 case Erased:
                 case Vestigial:
                 case Invalidated:
-                    return Command.Truncated.invalidated(txnId, attributes(saveStatus).participants());
+                    return Truncated.invalidated(txnId, attributes(saveStatus).participants());
             }
         }
     }
