@@ -20,18 +20,31 @@ package org.apache.cassandra.distributed.test.cql3;
 
 import java.io.IOException;
 
+import javax.annotation.Nullable;
+
 import accord.utils.Property;
 import accord.utils.RandomSource;
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
 import org.apache.cassandra.distributed.api.IInstanceConfig;
 import org.apache.cassandra.schema.TableMetadata;
+import org.apache.cassandra.service.consensus.TransactionalMode;
 import org.apache.cassandra.service.reads.repair.ReadRepairStrategy;
 
 public class MultiNodeTokenConflictTest extends SingleNodeTokenConflictTest
 {
+    protected MultiNodeTokenConflictTest(@Nullable TransactionalMode transactionalMode)
+    {
+        super(transactionalMode);
+    }
+
+    public MultiNodeTokenConflictTest()
+    {
+        super();
+    }
+
     @Override
-    protected void preCheck(Property.StatefulBuilder builder)
+    protected void preCheck(Cluster cluster, Property.StatefulBuilder builder)
     {
         // if a failing seed is detected, populate here
         // Example: builder.withSeed(42L);

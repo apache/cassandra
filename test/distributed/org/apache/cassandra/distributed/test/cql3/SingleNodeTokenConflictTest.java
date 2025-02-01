@@ -33,6 +33,8 @@ import java.util.TreeMap;
 import java.util.TreeSet;
 import java.util.stream.Collectors;
 
+import javax.annotation.Nullable;
+
 import org.junit.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -55,6 +57,7 @@ import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.dht.Murmur3Partitioner.LongToken;
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.schema.TableMetadata;
+import org.apache.cassandra.service.consensus.TransactionalMode;
 import org.apache.cassandra.tools.nodetool.formatter.TableBuilder;
 import org.apache.cassandra.utils.ASTGenerators;
 import org.apache.cassandra.utils.AbstractTypeGenerators;
@@ -86,7 +89,20 @@ public class SingleNodeTokenConflictTest extends StatefulASTBase
     AbstractTypeGenerators.withoutUnsafeEquality(AbstractTypeGenerators.builder()
                                                                        .withTypeKinds(TypeKind.PRIMITIVE));
 
-    protected void preCheck(Property.StatefulBuilder builder)
+    @Nullable
+    private final TransactionalMode transactionalMode;
+
+    protected SingleNodeTokenConflictTest(@Nullable TransactionalMode transactionalMode)
+    {
+        this.transactionalMode = transactionalMode;
+    }
+
+    public SingleNodeTokenConflictTest()
+    {
+        this(null);
+    }
+
+    protected void preCheck(Cluster cluster, Property.StatefulBuilder builder)
     {
         // if a failing seed is detected, populate here
         // Example: builder.withSeed(42L);
@@ -249,7 +265,7 @@ public class SingleNodeTokenConflictTest extends StatefulASTBase
         try (Cluster cluster = createCluster())
         {
             Property.StatefulBuilder statefulBuilder = stateful().withExamples(10);
-            preCheck(statefulBuilder);
+            preCheck(cluster, statefulBuilder);
             statefulBuilder.check(commands(() -> rs -> createState(rs, cluster))
                                   .add(StatefulASTBase::insert)
                                   //TODO (now, coverage): this is flakey and non-deterministic.  When this fails (gives bad response) rerunning the seed yields a passing test!
@@ -279,23 +295,26 @@ public class SingleNodeTokenConflictTest extends StatefulASTBase
 
     protected TableMetadata defineTable(RandomSource rs, String ks)
     {
-        return toGen(new TableMetadataBuilder()
-                     .withTableKinds(TableMetadata.Kind.REGULAR)
-                     .withKnownMemtables()
-                     .withKeyspaceName(ks).withTableName("tbl")
-                     .withSimpleColumnNames()
-                     .withDefaultTypeGen(SUPPORTED_TYPES)
-                     .withPartitioner(Murmur3Partitioner.instance)
-                     .withPartitionColumnsCount(1)
-                     // this should produce vector<bigint, 2>... should make this easier...
-                     .withPartitionColumnTypeGen(new TypeGenBuilder()
-                                                 .withMaxDepth(0)
-                                                 .withTypeKinds(TypeKind.VECTOR)
-                                                 .withPrimitives(LongType.instance)
-                                                 .withVectorSizeGen(i -> 2)
-                                                 .withDefaultSizeGen(1))
-                     .build())
-               .next(rs);
+        TableMetadata metadata = toGen(new TableMetadataBuilder()
+                                       .withTableKinds(TableMetadata.Kind.REGULAR)
+                                       .withKnownMemtables()
+                                       .withKeyspaceName(ks).withTableName("tbl")
+                                       .withSimpleColumnNames()
+                                       .withDefaultTypeGen(SUPPORTED_TYPES)
+                                       .withPartitioner(Murmur3Partitioner.instance)
+                                       .withPartitionColumnsCount(1)
+                                       // this should produce vector<bigint, 2>... should make this easier...
+                                       .withPartitionColumnTypeGen(new TypeGenBuilder()
+                                                                   .withMaxDepth(0)
+                                                                   .withTypeKinds(TypeKind.VECTOR)
+                                                                   .withPrimitives(LongType.instance)
+                                                                   .withVectorSizeGen(i -> 2)
+                                                                   .withDefaultSizeGen(1))
+                                       .build())
+                                 .next(rs);
+        if (transactionalMode != null)
+            metadata = metadata.withSwapped(metadata.params.unbuild().transactionalMode(transactionalMode).build());
+        return metadata;
     }
 
     class State extends CommonState
@@ -402,8 +421,7 @@ public class SingleNodeTokenConflictTest extends StatefulASTBase
             LinkedHashSet<ByteBuffer> pks = new LinkedHashSet<>();
             for (int i = 0; i < numPks; i++)
             {
-                // TODO: add back when accord-core Property supports it
-                ByteBuffer value = null;//rs.pickOrderedSet(available);
+                ByteBuffer value = rs.pickOrderedSet(available);
                 pks.add(value);
                 available.remove(value);
             }

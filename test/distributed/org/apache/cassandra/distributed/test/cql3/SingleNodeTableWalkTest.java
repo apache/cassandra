@@ -94,6 +94,10 @@ public class SingleNodeTableWalkTest extends StatefulASTBase
 
     protected static boolean READ_AFTER_WRITE = false;
 
+    public SingleNodeTableWalkTest()
+    {
+    }
+
     protected void preCheck(Cluster cluster, Property.StatefulBuilder builder)
     {
         // if a failing seed is detected, populate here
