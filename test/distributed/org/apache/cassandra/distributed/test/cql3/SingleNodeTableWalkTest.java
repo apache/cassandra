@@ -88,6 +88,7 @@ public class SingleNodeTableWalkTest extends StatefulASTBase
         // CQL_DEBUG_APPLY_OPERATOR = true;
 
         builder.withExamples(100);
+        builder.withSeed(-81083820427764850L).withExamples(1); // think this is a model bug... have a partition with only statics yet model doesn't include with SELECT *
     }
 
     protected TypeGenBuilder supportedTypes()
