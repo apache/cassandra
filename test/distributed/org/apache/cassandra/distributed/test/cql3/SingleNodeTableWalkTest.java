@@ -80,7 +80,7 @@ public class SingleNodeTableWalkTest extends StatefulASTBase
 {
     private static final Logger logger = LoggerFactory.getLogger(SingleNodeTableWalkTest.class);
 
-    protected void preCheck(Property.StatefulBuilder builder)
+    protected void preCheck(Cluster cluster, Property.StatefulBuilder builder)
     {
         // if a failing seed is detected, populate here
         // Example: builder.withSeed(42L);
