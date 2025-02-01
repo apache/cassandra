@@ -406,6 +406,29 @@ public class ASTSingleTableModelTest
         }
     }
 
+    @Test
+    public void staticOnlyWrite()
+    {
+        TableMetadata metadata = new Builder().pk(1).ck(1).statics(1).regular(1).build();
+        ASTSingleTableModel model = new ASTSingleTableModel(metadata);
+        model.update(Mutation.insert(metadata)
+                             .value("pk", 0)
+                             .value("s", 0)
+                             .build());
+        model.update(Mutation.update(metadata)
+                             .set("s", 1)
+                             .value("pk", 1)
+                             .build());
+        ByteBuffer[] rowZero = { ZERO, null, ZERO, null };
+        ByteBuffer[] rowOne = { ONE, null, ONE, null };
+        ByteBuffer[][] allExpected = { rowOne, rowZero, };
+        model.validate(allExpected, Select.builder(metadata).build());
+        model.validate(new ByteBuffer[][] {rowZero}, Select.builder(metadata).value("pk", 0).build());
+        model.validate(new ByteBuffer[][] {rowZero}, Select.builder(metadata).value("s", 0).build());
+        model.validate(new ByteBuffer[][] {rowOne}, Select.builder(metadata).value("pk", 1).build());
+        model.validate(new ByteBuffer[][] {rowOne}, Select.builder(metadata).value("s", 1).build());
+    }
+
     private static class ModelModel
     {
         private final ASTSingleTableModel model;

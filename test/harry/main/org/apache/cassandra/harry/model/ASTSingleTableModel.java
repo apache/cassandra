@@ -31,7 +31,6 @@ import java.util.NavigableSet;
 import java.util.Objects;
 import java.util.Set;
 import java.util.TreeMap;
-import java.util.TreeSet;
 import java.util.function.IntFunction;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -98,7 +97,7 @@ public class ASTSingleTableModel
             throw new AssertionError("When indexing based off a single partition, unable to index partition columns; given " + symbol.detailedName());
         BytesPartitionState partition = get(ref);
         Invariants.nonNull(partition, "Unable to index %s; null partition %s", symbol, ref);
-        TreeMap<ByteBuffer, List<PrimaryKey>> index = new TreeMap<>(symbol.type()::compare);
+        TreeMap<ByteBuffer, List<PrimaryKey>> index = new TreeMap<>(symbol.type());
         if (factory.staticColumns.contains(symbol))
             return indexStaticColumn(index, symbol, partition);
         return indexRowColumn(index, symbol, partition);
@@ -106,7 +105,7 @@ public class ASTSingleTableModel
 
     public TreeMap<ByteBuffer, List<PrimaryKey>> index(Symbol symbol)
     {
-        TreeMap<ByteBuffer, List<PrimaryKey>> index = new TreeMap<>(symbol.type()::compare);
+        TreeMap<ByteBuffer, List<PrimaryKey>> index = new TreeMap<>(symbol.type());
         if (factory.partitionColumns.contains(symbol))
             return indexPartitionColumn(index, symbol);
         if (factory.staticColumns.contains(symbol))
@@ -212,6 +211,9 @@ public class ASTSingleTableModel
                 write.put(col, eval(values.get(col)));
             partition.setStaticColumns(write);
         }
+        // table has clustering but non are in the write, so only pk/static can be updated
+        if (!factory.clusteringColumns.isEmpty() && Sets.intersection(factory.clusteringColumns.asSet(), values.keySet()).isEmpty())
+            return;
         Map<Symbol, ByteBuffer> write = new HashMap<>();
         for (Symbol col : Sets.intersection(factory.regularColumns.asSet(), values.keySet()))
             write.put(col, eval(values.get(col)));
@@ -242,6 +244,9 @@ public class ASTSingleTableModel
                     write.put(col, eval(set.get(col)));
                 partition.setStaticColumns(write);
             }
+            // table has clustering but non are in the write, so only pk/static can be updated
+            if (!factory.clusteringColumns.isEmpty() && remaining.isEmpty())
+                return;
             for (Clustering<ByteBuffer> cd : clustering(remaining))
             {
                 Map<Symbol, ByteBuffer> write = new HashMap<>();
@@ -302,8 +307,6 @@ public class ASTSingleTableModel
                         }
                     }
                     break;
-//                case SLICE:
-//                case RANGE:
                 default:
                     throw new UnsupportedOperationException();
             }
@@ -457,9 +460,7 @@ public class ASTSingleTableModel
     {
         // check any order
         validateAnyOrder(columns, toRow(columns, actual), toRow(columns, expected));
-        // order matched, but are there duplicates?
-        validateNoDuplicates(columns, actual, expected);
-        // all rows match, and there are no duplicates... but are they in the right order?
+        // all rows match, but are they in the right order?
         validateOrder(columns, actual, expected);
     }
 
@@ -490,42 +491,6 @@ public class ASTSingleTableModel
         if (sb != null)
         {
             sb.append("\nExpected:\n").append(table(columns, expected));
-            throw new AssertionError(sb.toString());
-        }
-    }
-
-    private static void validateNoDuplicates(ImmutableUniqueList<Symbol> columns, ByteBuffer[][] actual, ByteBuffer[][] expected)
-    {
-        // validateAnyOrder was run first, which made sure that all rows match, but that used sets which avoids duplicates
-        // this means that duplicates can only happen if-and-only-if the lengths do not match...
-        //TODO (correctness): what edge cases actually allow duplicates?  aggregates would make sense...
-        if (actual.length == expected.length) return;
-        StringBuilder sb = null;
-        if (actual.length > expected.length)
-        {
-            // the response had a duplicate
-            Set<Row> set = new HashSet<>();
-            int rowId = 0;
-            for (ByteBuffer[] bbs : actual)
-            {
-                Row row = new Row(columns, bbs);
-                if (!set.add(row))
-                {
-                    if (sb == null)
-                        sb = new StringBuilder();
-                    sb.append("Duplicate row in response at row ").append(rowId).append(": ").append(row).append('\n');
-                }
-                rowId++;
-            }
-        }
-        else if (expected.length > actual.length)
-        {
-            //TODO (correctness): the model expected a duplicate, but was not found in the response
-        }
-        if (sb != null)
-        {
-            sb.append("\nExpected:\n").append(table(columns, expected));
-            sb.append("\nActual:\n").append(table(columns, actual));
             throw new AssertionError(sb.toString());
         }
     }
@@ -639,7 +604,10 @@ public class ASTSingleTableModel
     {
         List<PrimaryKey> primaryKeys = new ArrayList<>();
         for (var partition : partitions.values())
-            partition.rows().stream().map(BytesPartitionState.Row::ref).forEach(primaryKeys::add);
+        {
+            if (partition.staticOnly()) primaryKeys.add(partition.partitionRowRef());
+            else partition.rows().stream().map(BytesPartitionState.Row::ref).forEach(primaryKeys::add);
+        }
         return new SelectResult(getRowsAsByteBuffer(primaryKeys), false);
     }
 
@@ -684,104 +652,11 @@ public class ASTSingleTableModel
 
     private List<PrimaryKey> search(LookupContext ctx)
     {
-        // find by eq first
-        Set<PrimaryKey> eqMatches = searchEq(ctx);
-        Set<PrimaryKey> rangeMatches = searchRange(ctx);
-        return new ArrayList<>(new TreeSet<>(intersectionEmptySafe(eqMatches, rangeMatches)));
-    }
-
-    private static <T> Set<T> intersectionEmptySafe(Set<T> a, Set<T> b)
-    {
-        if (a.isEmpty()) return b;
-        if (b.isEmpty()) return a;
-        return new HashSet<>(Sets.intersection(a, b));
-    }
-
-    private Set<PrimaryKey> searchRange(LookupContext ctx)
-    {
-        Set<PrimaryKey> matches = null;
-        for (Map.Entry<Symbol, List<ColumnCondition>> e : ctx.ltOrGt.entrySet())
-        {
-            if (matches == null)
-                matches = new HashSet<>(searchRange(e.getKey(), e.getValue()));
-            else
-            {
-                boolean hadMatches = !matches.isEmpty();
-                matches = new HashSet<>(intersectionEmptySafe(matches, new HashSet<>(searchRange(e.getKey(), e.getValue()))));
-                if (hadMatches && matches.isEmpty())
-                    return Collections.emptySet();
-            }
-        }
-        return matches == null ? Collections.emptySet() : matches;
-    }
-
-    private List<PrimaryKey> searchRange(Symbol symbol, List<ColumnCondition> conditions)
-    {
         List<PrimaryKey> matches = new ArrayList<>();
-        if (factory.partitionColumns.contains(symbol) || factory.staticColumns.contains(symbol))
+        for (BytesPartitionState partition : partitions.values())
         {
-            int pkOffset = factory.partitionColumns.indexOf(symbol);
-            int sOffset = factory.staticColumns.indexOf(symbol);
-            for (BytesPartitionState p : partitions.values())
-            {
-                if (pkOffset != -1)
-                {
-                    ByteBuffer value = p.key.bufferAt(pkOffset);
-                    if (matches(symbol.type(), value, conditions))
-                    {
-                        if (p.isEmpty())
-                        {
-                            matches.add(p.partitionRowRef());
-                        }
-                        else
-                        {
-                            p.rows().forEach(r -> matches.add(r.ref()));
-                        }
-                    }
-                }
-                else
-                {
-                    // mutable columns, so may be null
-                    ByteBuffer value = p.staticRow().get(sOffset);
-                    if (value == null) continue;
-                    if (matches(symbol.type(), value, conditions))
-                    {
-                        if (p.isEmpty())
-                        {
-                            matches.add(p.partitionRowRef());
-                        }
-                        else
-                        {
-                            p.rows().forEach(r -> matches.add(r.ref()));
-                        }
-                    }
-                }
-            }
-        }
-        else
-        {
-            int ckOffset = factory.clusteringColumns.indexOf(symbol);
-            int rOffset = factory.regularColumns.indexOf(symbol);
-            for (BytesPartitionState p : partitions.values())
-            {
-                for (BytesPartitionState.Row row : p.rows())
-                {
-                    if (ckOffset != -1)
-                    {
-                        ByteBuffer value = row.clustering.bufferAt(ckOffset);
-                        if (matches(symbol.type(), value, conditions))
-                            matches.add(row.ref());
-                    }
-                    else
-                    {
-                        // mutable columns, so may be null
-                        var value = row.get(rOffset);
-                        if (value == null) continue;
-                        if (matches(symbol.type(), value, conditions))
-                            matches.add(row.ref());
-                    }
-                }
-            }
+            if (!ctx.include(partition)) continue;
+            matches.addAll(filter(ctx, partition));
         }
         return matches;
     }
@@ -825,79 +700,6 @@ public class ASTSingleTableModel
                 return true;
         }
         return false;
-    }
-
-    private Set<PrimaryKey> searchEq(LookupContext ctx)
-    {
-        Set<PrimaryKey> matches = null;
-        for (Map.Entry<Symbol, List<? extends Expression>> e : ctx.eq.entrySet())
-        {
-            for (Expression e2 : e.getValue())
-            {
-                ByteBuffer bb = eval(e2);
-                if (matches == null)
-                    matches = new HashSet<>(searchEq(e.getKey(), bb));
-                else
-                {
-                    boolean hadMatches = !matches.isEmpty();
-                    matches = new HashSet<>(intersectionEmptySafe(matches, new HashSet<>(searchEq(e.getKey(), bb))));
-                    if (hadMatches && matches.isEmpty())
-                        return Collections.emptySet();
-                }
-            }
-        }
-        return matches == null ? Collections.emptySet() : matches;
-    }
-
-    private List<PrimaryKey> searchEq(Symbol symbol, ByteBuffer bb)
-    {
-        List<PrimaryKey> matches = new ArrayList<>();
-        if (factory.partitionColumns.contains(symbol) || factory.staticColumns.contains(symbol))
-        {
-            int pkOffset = factory.partitionColumns.indexOf(symbol);
-            int sOffset = factory.staticColumns.indexOf(symbol);
-            for (BytesPartitionState p : partitions.values())
-            {
-                if (pkOffset != -1)
-                {
-                    if (p.key.bufferAt(pkOffset).equals(bb))
-                        p.rows().forEach(r -> matches.add(r.ref()));
-                }
-                else
-                {
-                    // mutable columns, so may be null
-                    ByteBuffer value = p.staticRow().get(sOffset);
-                    if (value == null) continue;
-                    if (value.equals(bb))
-                        p.rows().forEach(r -> matches.add(r.ref()));
-                }
-            }
-        }
-        else
-        {
-            int ckOffset = factory.clusteringColumns.indexOf(symbol);
-            int rOffset = factory.regularColumns.indexOf(symbol);
-            for (BytesPartitionState p : partitions.values())
-            {
-                for (BytesPartitionState.Row row : p.rows())
-                {
-                    if (ckOffset != -1)
-                    {
-                        if (row.clustering.bufferAt(ckOffset).equals(bb))
-                            matches.add(row.ref());
-                    }
-                    else
-                    {
-                        // mutable columns, so may be null
-                        var value = row.get(rOffset);
-                        if (value == null) continue;
-                        if (value.equals(bb))
-                            matches.add(row.ref());
-                    }
-                }
-            }
-        }
-        return matches;
     }
 
     private List<PrimaryKey> findKeysByToken(LookupContext ctx)
@@ -1016,7 +818,7 @@ public class ASTSingleTableModel
     private Clustering<ByteBuffer> key(Map<Symbol, Expression> values, ImmutableUniqueList<Symbol> columns)
     {
         // same as keys, but only one possible value can happen
-        List<Clustering<ByteBuffer>> keys = keys(Maps.transformValues(values, e -> Collections.singletonList(e)), columns);
+        List<Clustering<ByteBuffer>> keys = keys(Maps.transformValues(values, Collections::singletonList), columns);
         Preconditions.checkState(keys.size() == 1, "Expected 1 key, but found %d", keys.size());
         return keys.get(0);
     }
@@ -1108,7 +910,7 @@ public class ASTSingleTableModel
 
     private class LookupContext
     {
-        private Map<Symbol, List<? extends Expression>> eq = new HashMap<>();
+        private final Map<Symbol, List<? extends Expression>> eq = new HashMap<>();
         private final Map<Symbol, List<ColumnCondition>> ltOrGt = new HashMap<>();
         @Nullable
         private Token token = null;
@@ -1203,7 +1005,7 @@ public class ASTSingleTableModel
                                         // 2 cases
                                         // a < ? AND a < ? - nothing to see here
                                         // a < ? AND a <= ? - in this case we need the most restrictive option of <
-                                        if (!tokenUpperBound.inequality.equals(w.kind))
+                                        if (tokenUpperBound.inequality != w.kind)
                                             tokenUpperBound = new TokenCondition(Inequality.LESS_THAN, ref.token);
                                     }
                                     else
@@ -1224,7 +1026,7 @@ public class ASTSingleTableModel
                                         // 2 cases
                                         // a > ? AND a > ? - nothing to see here
                                         // a > ? AND a >= ? - in this case we need the most restrictive option of >
-                                        if (!tokenLowerBound.inequality.equals(w.kind))
+                                        if (tokenLowerBound.inequality != w.kind)
                                             tokenLowerBound = new TokenCondition(Inequality.GREATER_THAN, ref.token);
                                     }
                                     else

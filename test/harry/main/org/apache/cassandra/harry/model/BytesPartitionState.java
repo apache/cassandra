@@ -180,6 +180,11 @@ public class BytesPartitionState
         return state.rows().isEmpty();
     }
 
+    public boolean staticOnly()
+    {
+        return isEmpty() && !factory.staticColumns.isEmpty() && !staticRow().isEmpty();
+    }
+
     @Nullable
     public Row get(Clustering<ByteBuffer> clustering)
     {
