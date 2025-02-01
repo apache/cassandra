@@ -96,14 +96,8 @@ public class StatefulASTBase extends TestBaseImpl
     {
         BETWEEN_START_LARGER_THAN_END("https://issues.apache.org/jira/browse/CASSANDRA-20154",
                                       "BETWEEN is matching values when start > end, which should never return anything"),
-        VECTOR_AND_UDT_LITERAL("https://issues.apache.org/jira/browse/CASSANDRA-19889",
-                               "UDT and Vector type don't unwrap the type, which leads to literal validation failing as it thinks the type isn't a UDT... its a reverse UDT!"),
-        ALLOW_FILTER_WITH_DELETED_COLUMNS("https://issues.apache.org/jira/browse/CASSANDRA-20108",
-                                          "When doing an ALLOW FILTER query, if column deletes or TTL are found this will lead to a failure to take an empty buffer and return the data from the expected type"),
         SAI_INET_MIXED("https://issues.apache.org/jira/browse/CASSANDRA-19492",
                        "SAI converts ipv4 to ipv6 to simplify the index, this causes issues with range search as it starts to mix the values, which isn't always desirable or intuative"),
-        SAI_REVERSE_OF_FIXED_LENGTH("https://issues.apache.org/jira/browse/CASSANDRA-20100",
-                                    "Fixed length values have their bytes reversed when storing to disk, which leads to finding incorrect values when doing a normal index search"),
         CUSTOM_INDEX_MAX_COLUMN_48("https://issues.apache.org/jira/browse/CASSANDRA-19897",
                                    "Columns can be up to 50 chars, but CREATE CUSTOM INDEX only allows up to 48"),
         AF_MULTI_NODE_AND_NODE_LOCAL_WRITES("https://issues.apache.org/jira/browse/CASSANDRA-20243",
@@ -126,11 +120,6 @@ public class StatefulASTBase extends TestBaseImpl
      * will be the output (eg. {@code 4 + 4 } is replaced with {@code 8}).
      */
     protected static boolean CQL_DEBUG_APPLY_OPERATOR = false;
-    protected static final Set<AbstractType<?>> SAI_REVERSE_OF_FIXED_LENGTH_TYPES = ImmutableSet.of(InetAddressType.instance,
-                                                                                                    LongType.instance,
-                                                                                                    IntegerType.instance,
-                                                                                                    DecimalType.instance
-    );
 
     protected static final Gen<Gen<Boolean>> BIND_OR_LITERAL_DISTRO = Gens.bools().mixedDistribution();
     protected static final Gen<Gen<Boolean>> BETWEEN_EQ_DISTRO = Gens.bools().mixedDistribution();

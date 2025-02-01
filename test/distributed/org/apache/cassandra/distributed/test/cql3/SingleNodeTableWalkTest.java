@@ -238,11 +238,6 @@ public class SingleNodeTableWalkTest extends StatefulASTBase
             if (symbol.type() == InetAddressType.instance
                 && IGNORED_ISSUES.contains(KnownIssue.SAI_INET_MIXED))
                 return eqSearch(rs, state, symbol, value, builder);
-
-            if (symbol.reversed
-                && SAI_REVERSE_OF_FIXED_LENGTH_TYPES.contains(symbol.type())
-                && IGNORED_ISSUES.contains(KnownIssue.SAI_REVERSE_OF_FIXED_LENGTH))
-                return eqSearch(rs, state, symbol, value, builder);
         }
 
         if (rs.nextBoolean())
@@ -279,11 +274,6 @@ public class SingleNodeTableWalkTest extends StatefulASTBase
         {
             if (symbol.type() == InetAddressType.instance
                 && IGNORED_ISSUES.contains(KnownIssue.SAI_INET_MIXED))
-                return eqSearch(rs, state, symbol, value, builder);
-
-            if (symbol.reversed
-                && SAI_REVERSE_OF_FIXED_LENGTH_TYPES.contains(symbol.type())
-                && IGNORED_ISSUES.contains(KnownIssue.SAI_REVERSE_OF_FIXED_LENGTH))
                 return eqSearch(rs, state, symbol, value, builder);
         }
 
