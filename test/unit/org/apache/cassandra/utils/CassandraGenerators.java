@@ -84,7 +84,6 @@ import org.apache.cassandra.db.marshal.ByteBufferAccessor;
 import org.apache.cassandra.db.marshal.CompositeType;
 import org.apache.cassandra.db.marshal.CounterColumnType;
 import org.apache.cassandra.db.marshal.EmptyType;
-import org.apache.cassandra.db.marshal.Int32Type;
 import org.apache.cassandra.db.rows.Cell;
 import org.apache.cassandra.db.marshal.UserType;
 import org.apache.cassandra.dht.ByteOrderedPartitioner;
@@ -1492,24 +1491,6 @@ public final class CassandraGenerators
         return SourceDSL.arbitrary().enumValues(SupportedPartitioners.class)
                         .assuming(p -> p != SupportedPartitioners.Local)
                         .flatMap(SupportedPartitioners::partitioner);
-    }
-
-    /**
-     * For {@link LocalPartitioner} it can have a very complex type which can lead to generating data larger than
-     * allowed in a primary key.  If a test needs to filter out those cases, can just
-     * {@code .map(CassandraGenerators::simplify)} to resolve.
-     */
-    public static IPartitioner simplify(IPartitioner partitioner)
-    {
-        // serializers require tokens to fit within 1 << 16, but that makes the test flakey when LocalPartitioner with a nested type is found...
-        if (!(partitioner instanceof LocalPartitioner)) return partitioner;
-        if (!shouldSimplify(partitioner.getTokenValidator())) return partitioner;
-        return new LocalPartitioner(Int32Type.instance);
-    }
-
-    private static boolean shouldSimplify(AbstractType<?> type)
-    {
-        return AbstractTypeGenerators.contains(type, t -> t.isCollection());
     }
 
     public static Gen<Token> token()
