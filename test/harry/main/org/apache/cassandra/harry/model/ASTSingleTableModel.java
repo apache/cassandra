@@ -296,6 +296,8 @@ public class ASTSingleTableModel
                     if (clusterings.isEmpty())
                     {
                         partition.deleteStaticColumns(columns);
+                        if (partition.shouldDelete())
+                            partitions.remove(partition.ref());
                     }
                     else
                     {
@@ -765,7 +767,10 @@ public class ASTSingleTableModel
         if (partitions.isEmpty()) return Collections.emptyList();
         List<PrimaryKey> matches = new ArrayList<>();
         for (BytesPartitionState p : partitions)
+        {
+            if (!ctx.include(p)) continue;
             matches.addAll(filter(ctx, p));
+        }
         return matches;
     }
 
@@ -1131,6 +1136,8 @@ public class ASTSingleTableModel
         boolean include(BytesPartitionState partition)
         {
             if (unmatchable) return false;
+            // did we include a bad partition?
+            if (partition.shouldDelete()) return false;
             if (!include(factory.partitionColumns, partition.key::bufferAt))
                 return false;
             if (!factory.staticColumns.isEmpty()
