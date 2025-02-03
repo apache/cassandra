@@ -41,11 +41,13 @@ import javax.annotation.concurrent.GuardedBy;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Stopwatch;
 import com.google.common.base.Throwables;
+import com.google.common.collect.Streams;
 import com.google.common.primitives.Ints;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import accord.api.BarrierType;
+import accord.api.Journal;
 import accord.api.LocalConfig;
 import accord.api.Result;
 import accord.api.RoutingKey;
@@ -370,16 +372,29 @@ public class AccordService implements IAccordService, Shutdownable
         ClusterMetadata metadata = ClusterMetadata.current();
         configService.updateMapping(metadata);
 
-        // Load all active topologies, wihout writing them to journal again. No-op on bootstrap.
-        node.commandStores().restoreShardStateUnsafe(topology -> configService.reportTopology(topology, true, true));
-        configService.start();
+        Long minEpoch = null;
+        List<Topology> local = new ArrayList<>();
+        Iterator<Journal.TopologyUpdate> iter = journal.replayTopologies();
+        Journal.TopologyUpdate lastSeen = null;
+        while (iter.hasNext())
+        {
+            Journal.TopologyUpdate update = iter.next();
+            local.add(update.global);
+            lastSeen = update;
+        }
+
+        if (lastSeen != null)
+        {
+            node.commandStores().initializeTopologyUnsafe(lastSeen);
+            minEpoch = lastSeen.global.epoch();
+        }
 
         try
         {
             // Fetch topologies up to current
-            List<Topology> topologies = fetchTopologies(null, metadata);
-            for (Topology topology : topologies)
-                configService.reportTopology(topology);
+            List<Topology> remote = fetchTopologies(minEpoch, metadata);
+            Streams.concat(local.stream(), remote.stream())
+                   .forEach(configService::reportTopology);
 
             ClusterMetadataService.instance().log().addListener(configService.listener);
             ClusterMetadata next = ClusterMetadata.current();
@@ -387,8 +402,8 @@ public class AccordService implements IAccordService, Shutdownable
             // if metadata was updated before we were able to add a listener, fetch remaining topologies
             if (next.epoch.isAfter(metadata.epoch))
             {
-                topologies = fetchTopologies(metadata.epoch.getEpoch() + 1, next);
-                for (Topology topology : topologies)
+                remote = fetchTopologies(metadata.epoch.getEpoch(), next);
+                for (Topology topology : remote)
                     configService.reportTopology(topology);
             }
 
@@ -417,6 +432,7 @@ public class AccordService implements IAccordService, Shutdownable
             throw new RuntimeException(e);
         }
 
+        configService.start();
         fastPathCoordinator.start();
         ClusterMetadataService.instance().log().addListener(fastPathCoordinator);
         node.durabilityScheduling().setDefaultRetryDelay(Ints.checkedCast(DatabaseDescriptor.getAccordDefaultDurabilityRetryDelay(SECONDS)), SECONDS);
@@ -432,9 +448,16 @@ public class AccordService implements IAccordService, Shutdownable
     /**
      * Queries peers to discover min epoch, and then fetches all topologies between min and current epochs
      */
-    private List<Topology> fetchTopologies(Long minEpoch, ClusterMetadata metadata) throws ExecutionException, InterruptedException
+    private List<Topology> fetchTopologies(Long highestKnown, ClusterMetadata metadata) throws ExecutionException, InterruptedException
     {
-        if (minEpoch != null && minEpoch == metadata.epoch.getEpoch())
+        Invariants.require(highestKnown == null || highestKnown <= metadata.epoch.getEpoch(),
+                           "Accord epochs should never be ahead of TCM ones, but %s was ahead of %s", (Object) highestKnown, metadata.epoch.getEpoch());
+
+        // All epochs are known and reported
+        if (highestKnown != null && highestKnown == metadata.epoch.getEpoch())
+            return Collections.emptyList();
+        // All epochs except current one are reported, no need to fetch from peers
+        if (highestKnown != null && highestKnown + 1 == metadata.epoch.getEpoch())
             return Collections.singletonList(AccordTopology.createAccordTopology(metadata));
 
         Set<InetAddressAndPort> peers = new HashSet<>();
@@ -446,7 +469,7 @@ public class AccordService implements IAccordService, Shutdownable
             return Collections.singletonList(AccordTopology.createAccordTopology(metadata));
 
         // Bootstrap, fetch min epoch
-        if (minEpoch == null)
+        if (highestKnown == null)
         {
             Long fetched = findMinEpoch(SharedContext.Global.instance, peers);
             if (fetched != null)
@@ -456,22 +479,22 @@ public class AccordService implements IAccordService, Shutdownable
             if (fetched == null || fetched == metadata.epoch.getEpoch())
                 return Collections.singletonList(AccordTopology.createAccordTopology(metadata));
 
-            minEpoch = fetched;
+            highestKnown = fetched;
         }
 
         long maxEpoch = metadata.epoch.getEpoch();
 
         // If we are behind minEpoch, catch up to at least minEpoch
-        if (metadata.epoch.getEpoch() < minEpoch)
+        if (metadata.epoch.getEpoch() < highestKnown)
         {
-            minEpoch = metadata.epoch.getEpoch();
-            maxEpoch = minEpoch;
+            highestKnown = metadata.epoch.getEpoch();
+            maxEpoch = highestKnown;
         }
 
         List<Future<Topology>> futures = new ArrayList<>();
-        logger.info("Fetching topologies for epochs [{}, {}].", minEpoch, maxEpoch);
+        logger.info("Fetching topologies for epochs [{}, {}].", highestKnown, maxEpoch);
 
-        for (long epoch = minEpoch; epoch <= maxEpoch; epoch++)
+        for (long epoch = highestKnown; epoch <= maxEpoch; epoch++)
             futures.add(FetchTopology.fetch(SharedContext.Global.instance, peers, epoch));
 
         FBUtilities.waitOnFutures(futures);
