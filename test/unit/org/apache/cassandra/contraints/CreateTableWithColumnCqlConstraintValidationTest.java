@@ -124,12 +124,13 @@ public class CreateTableWithColumnCqlConstraintValidationTest extends CqlConstra
         qt().forAll(Generators.toGen(integers().between(0, 3)))
             .check(d -> execute("INSERT INTO %s (pk, ck1, ck2, v) VALUES (1, " + d + ", 3, 4)"));
 
+        final String expectedErrorMessage = "Column value does not satisfy value constraint for column 'ck1'. It should be ck1 < 4";
         // Invalid
         qt().forAll(Generators.toGen(integers().between(4, 100)))
             .check(d -> {
                 try
                 {
-                    assertInvalidThrow(InvalidRequestException.class, "INSERT INTO %s (pk, ck1, ck2, v) VALUES (1, " + d + ", 3, 4)");
+                    assertInvalidThrowMessage(expectedErrorMessage, InvalidRequestException.class, "INSERT INTO %s (pk, ck1, ck2, v) VALUES (1, " + d + ", 3, 4)");
                 }
                 catch (Throwable e)
                 {
@@ -147,12 +148,13 @@ public class CreateTableWithColumnCqlConstraintValidationTest extends CqlConstra
         qt().forAll(Generators.toGen(integers().between(5, 100)))
             .check(d -> execute("INSERT INTO %s (pk, ck1, ck2, v) VALUES (1, " + d + ", 3, 4)"));
 
+        final String expectedErrorMessage = "Column value does not satisfy value constraint for column 'ck1'. It should be ck1 > 4";
         // Invalid
         qt().forAll(Generators.toGen(integers().between(0, 4)))
             .check(d -> {
                 try
                 {
-                    assertInvalidThrow(InvalidRequestException.class, "INSERT INTO %s (pk, ck1, ck2, v) VALUES (1, " + d + ", 3, 4)");
+                    assertInvalidThrowMessage(expectedErrorMessage, InvalidRequestException.class, "INSERT INTO %s (pk, ck1, ck2, v) VALUES (1, " + d + ", 3, 4)");
                 }
                 catch (Throwable e)
                 {
@@ -170,12 +172,13 @@ public class CreateTableWithColumnCqlConstraintValidationTest extends CqlConstra
         qt().forAll(Generators.toGen(integers().between(4, 100)))
             .check(d -> execute("INSERT INTO %s (pk, ck1, ck2, v) VALUES (1, " + d + ", 3, 4)"));
 
+        final String expectedErrorMessage = "Column value does not satisfy value constraint for column 'ck1'. It should be ck1 >= 4";
         // Invalid
         qt().forAll(Generators.toGen(integers().between(0, 3)))
             .check(d -> {
                 try
                 {
-                    assertInvalidThrow(InvalidRequestException.class, "INSERT INTO %s (pk, ck1, ck2, v) VALUES (1, " + d + ", 3, 4)");
+                    assertInvalidThrowMessage(expectedErrorMessage, InvalidRequestException.class, "INSERT INTO %s (pk, ck1, ck2, v) VALUES (1, " + d + ", 3, 4)");
                 }
                 catch (Throwable e)
                 {
@@ -193,12 +196,13 @@ public class CreateTableWithColumnCqlConstraintValidationTest extends CqlConstra
         qt().forAll(Generators.toGen(integers().between(0, 4)))
             .check(d -> execute("INSERT INTO %s (pk, ck1, ck2, v) VALUES (1, " + d + ", 3, 4)"));
 
+        final String expectedErrorMessage = "Column value does not satisfy value constraint for column 'ck1'. It should be ck1 <= 4";
         // Invalid
         qt().forAll(Generators.toGen(integers().between(5, 100)))
             .check(d -> {
                 try
                 {
-                    assertInvalidThrow(InvalidRequestException.class, "INSERT INTO %s (pk, ck1, ck2, v) VALUES (1, " + d + ", 3, 4)");
+                    assertInvalidThrowMessage(expectedErrorMessage, InvalidRequestException.class, "INSERT INTO %s (pk, ck1, ck2, v) VALUES (1, " + d + ", 3, 4)");
                 }
                 catch (Throwable e)
                 {
@@ -218,8 +222,9 @@ public class CreateTableWithColumnCqlConstraintValidationTest extends CqlConstra
         qt().forAll(Generators.toGen(integers().between(5, 100)))
             .check(d -> execute("INSERT INTO %s (pk, ck1, ck2, v) VALUES (1, " + d + ", 3, 4)"));
 
+        final String expectedErrorMessage = "Column value does not satisfy value constraint for column 'ck1'. It should be ck1 != 4";
         // Invalid
-        assertInvalidThrow(InvalidRequestException.class, "INSERT INTO %s (pk, ck1, ck2, v) VALUES (1, 4, 2, 3)");
+        assertInvalidThrowMessage(expectedErrorMessage, InvalidRequestException.class, "INSERT INTO %s (pk, ck1, ck2, v) VALUES (1, 4, 2, 3)");
     }
 
     @Test
@@ -231,23 +236,26 @@ public class CreateTableWithColumnCqlConstraintValidationTest extends CqlConstra
         qt().forAll(Generators.toGen(integers().between(2, 3)))
             .check(d -> execute("INSERT INTO %s (pk, ck1, ck2, v) VALUES (1, " + d + ", 3, 4)"));
 
+        final String expectedErrorMessage = "Column value does not satisfy value constraint for column 'ck1'. It should be ck1 >= 2";
         // Invalid
         qt().forAll(Generators.toGen(integers().between(-100, 1)))
             .check(d -> {
                 try
                 {
-                    assertInvalidThrow(InvalidRequestException.class, "INSERT INTO %s (pk, ck1, ck2, v) VALUES (1, " + d + ", 3, 4)");
+                    assertInvalidThrowMessage(expectedErrorMessage, InvalidRequestException.class, "INSERT INTO %s (pk, ck1, ck2, v) VALUES (1, " + d + ", 3, 4)");
                 }
                 catch (Throwable e)
                 {
                     throw new RuntimeException(e);
                 }
             });
+
+        final String expectedErrorMessage2 = "Column value does not satisfy value constraint for column 'ck1'. It should be ck1 < 4";
         qt().forAll(Generators.toGen(integers().between(4, 100)))
             .check(d -> {
                 try
                 {
-                    assertInvalidThrow(InvalidRequestException.class, "INSERT INTO %s (pk, ck1, ck2, v) VALUES (1, " + d + ", 3, 4)");
+                    assertInvalidThrowMessage(expectedErrorMessage2, InvalidRequestException.class, "INSERT INTO %s (pk, ck1, ck2, v) VALUES (1, " + d + ", 3, 4)");
                 }
                 catch (Throwable e)
                 {
@@ -265,12 +273,13 @@ public class CreateTableWithColumnCqlConstraintValidationTest extends CqlConstra
         qt().forAll(Generators.toGen(integers().between(0, 3)))
             .check(d -> execute("INSERT INTO %s (pk, ck1, ck2, v) VALUES (1, " + d + ", 3, 4)"));
 
+        final String expectedErrorMessage = "Column value does not satisfy value constraint for column 'ck1'. It should be ck1 < 4";
         // Invalid
         qt().forAll(Generators.toGen(integers().between(4, 100)))
             .check(d -> {
                 try
                 {
-                    assertInvalidThrow(InvalidRequestException.class, "INSERT INTO %s (pk, ck1, ck2, v) VALUES (1, " + d + ", 3, 4)");
+                    assertInvalidThrowMessage(expectedErrorMessage, InvalidRequestException.class, "INSERT INTO %s (pk, ck1, ck2, v) VALUES (1, " + d + ", 3, 4)");
                 }
                 catch (Throwable e)
                 {
@@ -288,12 +297,14 @@ public class CreateTableWithColumnCqlConstraintValidationTest extends CqlConstra
         qt().forAll(Generators.toGen(integers().between(5, 100)))
             .check(d -> execute("INSERT INTO %s (pk, ck1, ck2, v) VALUES (1, " + d + ", 3, 4)"));
 
+
+        final String expectedErrorMessage = "Column value does not satisfy value constraint for column 'ck1'. It should be ck1 > 4";
         // Invalid
         qt().forAll(Generators.toGen(integers().between(0, 4)))
             .check(d -> {
                 try
                 {
-                    assertInvalidThrow(InvalidRequestException.class, "INSERT INTO %s (pk, ck1, ck2, v) VALUES (1, " + d + ", 3, 4)");
+                    assertInvalidThrowMessage(expectedErrorMessage, InvalidRequestException.class, "INSERT INTO %s (pk, ck1, ck2, v) VALUES (1, " + d + ", 3, 4)");
                 }
                 catch (Throwable e)
                 {
@@ -311,12 +322,13 @@ public class CreateTableWithColumnCqlConstraintValidationTest extends CqlConstra
         qt().forAll(Generators.toGen(integers().between(4, 100)))
             .check(d -> execute("INSERT INTO %s (pk, ck1, ck2, v) VALUES (1, " + d + ", 3, 4)"));
 
+        final String expectedErrorMessage = "Column value does not satisfy value constraint for column 'ck1'. It should be ck1 >= 4";
         // Invalid
         qt().forAll(Generators.toGen(integers().between(0, 3)))
             .check(d -> {
                 try
                 {
-                    assertInvalidThrow(InvalidRequestException.class, "INSERT INTO %s (pk, ck1, ck2, v) VALUES (1, " + d + ", 3, 4)");
+                    assertInvalidThrowMessage(expectedErrorMessage, InvalidRequestException.class, "INSERT INTO %s (pk, ck1, ck2, v) VALUES (1, " + d + ", 3, 4)");
                 }
                 catch (Throwable e)
                 {
@@ -334,12 +346,13 @@ public class CreateTableWithColumnCqlConstraintValidationTest extends CqlConstra
         qt().forAll(Generators.toGen(integers().between(0, 4)))
             .check(d -> execute("INSERT INTO %s (pk, ck1, ck2, v) VALUES (1, " + d + ", 3, 4)"));
 
+        final String expectedErrorMessage = "Column value does not satisfy value constraint for column 'ck1'. It should be ck1 <= 4";
         // Invalid
         qt().forAll(Generators.toGen(integers().between(5, 100)))
             .check(d -> {
                 try
                 {
-                    assertInvalidThrow(InvalidRequestException.class, "INSERT INTO %s (pk, ck1, ck2, v) VALUES (1, " + d + ", 3, 4)");
+                    assertInvalidThrowMessage(expectedErrorMessage, InvalidRequestException.class, "INSERT INTO %s (pk, ck1, ck2, v) VALUES (1, " + d + ", 3, 4)");
                 }
                 catch (Throwable e)
                 {
@@ -359,8 +372,9 @@ public class CreateTableWithColumnCqlConstraintValidationTest extends CqlConstra
         qt().forAll(Generators.toGen(integers().between(5, 100)))
             .check(d -> execute("INSERT INTO %s (pk, ck1, ck2, v) VALUES (1, " + d + ", 3, 4)"));
 
+        final String expectedErrorMessage = "Column value does not satisfy value constraint for column 'ck1'. It should be ck1 != 4";
         // Invalid
-        assertInvalidThrow(InvalidRequestException.class, "INSERT INTO %s (pk, ck1, ck2, v) VALUES (1, 4, 2, 3)");
+        assertInvalidThrowMessage(expectedErrorMessage, InvalidRequestException.class, "INSERT INTO %s (pk, ck1, ck2, v) VALUES (1, 4, 2, 3)");
     }
 
     @Test
@@ -372,23 +386,26 @@ public class CreateTableWithColumnCqlConstraintValidationTest extends CqlConstra
         qt().forAll(Generators.toGen(integers().between(2, 3)))
             .check(d -> execute("INSERT INTO %s (pk, ck1, ck2, v) VALUES (1, " + d + ", 3, 4)"));
 
+        final String expectedErrorMessage = "Column value does not satisfy value constraint for column 'ck1'. It should be ck1 >= 2";
         // Invalid
         qt().forAll(Generators.toGen(integers().between(-100, 1)))
             .check(d -> {
                 try
                 {
-                    assertInvalidThrow(InvalidRequestException.class, "INSERT INTO %s (pk, ck1, ck2, v) VALUES (1, " + d + ", 3, 4)");
+                    assertInvalidThrowMessage(expectedErrorMessage, InvalidRequestException.class, "INSERT INTO %s (pk, ck1, ck2, v) VALUES (1, " + d + ", 3, 4)");
                 }
                 catch (Throwable e)
                 {
                     throw new RuntimeException(e);
                 }
             });
+
+        final String expectedErrorMessage2 = "Column value does not satisfy value constraint for column 'ck1'. It should be ck1 < 4";
         qt().forAll(Generators.toGen(integers().between(4, 100)))
             .check(d -> {
                 try
                 {
-                    assertInvalidThrow(InvalidRequestException.class, "INSERT INTO %s (pk, ck1, ck2, v) VALUES (1, " + d + ", 3, 4)");
+                    assertInvalidThrowMessage(expectedErrorMessage2, InvalidRequestException.class, "INSERT INTO %s (pk, ck1, ck2, v) VALUES (1, " + d + ", 3, 4)");
                 }
                 catch (Throwable e)
                 {
@@ -407,12 +424,14 @@ public class CreateTableWithColumnCqlConstraintValidationTest extends CqlConstra
         qt().forAll(Generators.toGen(doubles().between(0, 4.1)))
             .check(d -> execute("INSERT INTO %s (pk, ck1, ck2, v) VALUES (1, " + d + ", 3, 4)"));
 
+
+        final String expectedErrorMessage = "Column value does not satisfy value constraint for column 'ck1'. It should be ck1 < 4.2";
         // Invalid
         qt().forAll(Generators.toGen(doubles().between(4.3, 100)))
             .check(d -> {
                 try
                 {
-                    assertInvalidThrow(InvalidRequestException.class, "INSERT INTO %s (pk, ck1, ck2, v) VALUES (1, " + d + ", 3, 4)");
+                    assertInvalidThrowMessage(expectedErrorMessage, InvalidRequestException.class, "INSERT INTO %s (pk, ck1, ck2, v) VALUES (1, " + d + ", 3, 4)");
                 }
                 catch (Throwable e)
                 {
@@ -430,12 +449,13 @@ public class CreateTableWithColumnCqlConstraintValidationTest extends CqlConstra
         qt().forAll(Generators.toGen(doubles().between(4.3, 100)))
             .check(d -> execute("INSERT INTO %s (pk, ck1, ck2, v) VALUES (1, " + d + ", 3, 4)"));
 
+        final String expectedErrorMessage = "Column value does not satisfy value constraint for column 'ck1'. It should be ck1 > 4.2";
         // Invalid
         qt().forAll(Generators.toGen(doubles().between(0, 4.2)))
             .check(d -> {
                 try
                 {
-                    assertInvalidThrow(InvalidRequestException.class, "INSERT INTO %s (pk, ck1, ck2, v) VALUES (1, " + d + ", 3, 4)");
+                    assertInvalidThrowMessage(expectedErrorMessage, InvalidRequestException.class, "INSERT INTO %s (pk, ck1, ck2, v) VALUES (1, " + d + ", 3, 4)");
                 }
                 catch (Throwable e)
                 {
@@ -453,12 +473,13 @@ public class CreateTableWithColumnCqlConstraintValidationTest extends CqlConstra
         qt().forAll(Generators.toGen(doubles().between(4.2, 100)))
             .check(d -> execute("INSERT INTO %s (pk, ck1, ck2, v) VALUES (1, " + d + ", 3, 4)"));
 
+        final String expectedErrorMessage = "Column value does not satisfy value constraint for column 'ck1'. It should be ck1 >= 4.2";
         // Invalid
         qt().forAll(Generators.toGen(doubles().between(0, 4.1)))
             .check(d -> {
                 try
                 {
-                    assertInvalidThrow(InvalidRequestException.class, "INSERT INTO %s (pk, ck1, ck2, v) VALUES (1, " + d + ", 3, 4)");
+                    assertInvalidThrowMessage(expectedErrorMessage, InvalidRequestException.class, "INSERT INTO %s (pk, ck1, ck2, v) VALUES (1, " + d + ", 3, 4)");
                 }
                 catch (Throwable e)
                 {
@@ -476,12 +497,13 @@ public class CreateTableWithColumnCqlConstraintValidationTest extends CqlConstra
         qt().forAll(Generators.toGen(doubles().between(0, 4.2)))
             .check(d -> execute("INSERT INTO %s (pk, ck1, ck2, v) VALUES (1, " + d + ", 3, 4)"));
 
+        final String expectedErrorMessage = "Column value does not satisfy value constraint for column 'ck1'. It should be ck1 <= 4.2";
         // Invalid
         qt().forAll(Generators.toGen(doubles().between(4.3, 100)))
             .check(d -> {
                 try
                 {
-                    assertInvalidThrow(InvalidRequestException.class, "INSERT INTO %s (pk, ck1, ck2, v) VALUES (1, " + d + ", 3, 4)");
+                    assertInvalidThrowMessage(expectedErrorMessage, InvalidRequestException.class, "INSERT INTO %s (pk, ck1, ck2, v) VALUES (1, " + d + ", 3, 4)");
                 }
                 catch (Throwable e)
                 {
@@ -501,8 +523,9 @@ public class CreateTableWithColumnCqlConstraintValidationTest extends CqlConstra
         qt().forAll(Generators.toGen(doubles().between(4.3, 100)))
             .check(d -> execute("INSERT INTO %s (pk, ck1, ck2, v) VALUES (1, " + d + ", 3, 4)"));
 
+        final String expectedErrorMessage = "Column value does not satisfy value constraint for column 'ck1'. It should be ck1 != 4.2";
         // Invalid
-        assertInvalidThrow(InvalidRequestException.class, "INSERT INTO %s (pk, ck1, ck2, v) VALUES (1, 4.2, 2, 3)");
+        assertInvalidThrowMessage(expectedErrorMessage, InvalidRequestException.class, "INSERT INTO %s (pk, ck1, ck2, v) VALUES (1, 4.2, 2, 3)");
     }
 
     @Test
@@ -514,23 +537,26 @@ public class CreateTableWithColumnCqlConstraintValidationTest extends CqlConstra
         qt().forAll(Generators.toGen(doubles().between(2.1, 4.1)))
             .check(d -> execute("INSERT INTO %s (pk, ck1, ck2, v) VALUES (1, " + d + ", 3, 4)"));
 
+        final String expectedErrorMessage = "Column value does not satisfy value constraint for column 'ck1'. It should be ck1 >= 2.1";
         // Invalid
         qt().forAll(Generators.toGen(doubles().between(-100, 2)))
             .check(d -> {
                 try
                 {
-                    assertInvalidThrow(InvalidRequestException.class, "INSERT INTO %s (pk, ck1, ck2, v) VALUES (1, " + d + ", 3, 4)");
+                    assertInvalidThrowMessage(expectedErrorMessage, InvalidRequestException.class, "INSERT INTO %s (pk, ck1, ck2, v) VALUES (1, " + d + ", 3, 4)");
                 }
                 catch (Throwable e)
                 {
                     throw new RuntimeException(e);
                 }
             });
+
+        final String expectedErrorMessage2 = "Column value does not satisfy value constraint for column 'ck1'. It should be ck1 < 4.2";
         qt().forAll(Generators.toGen(doubles().between(4.2, 100)))
             .check(d -> {
                 try
                 {
-                    assertInvalidThrow(InvalidRequestException.class, "INSERT INTO %s (pk, ck1, ck2, v) VALUES (1, " + d + ", 3, 4)");
+                    assertInvalidThrowMessage(expectedErrorMessage2, InvalidRequestException.class, "INSERT INTO %s (pk, ck1, ck2, v) VALUES (1, " + d + ", 3, 4)");
                 }
                 catch (Throwable e)
                 {
@@ -549,12 +575,13 @@ public class CreateTableWithColumnCqlConstraintValidationTest extends CqlConstra
         qt().forAll(Generators.toGen(doubles().between(0, 4.1)))
             .check(d -> execute("INSERT INTO %s (pk, ck1, ck2, v) VALUES (1, " + d + ", 3, 4)"));
 
+        final String expectedErrorMessage = "Column value does not satisfy value constraint for column 'ck1'. It should be ck1 < 4.2";
         // Invalid
         qt().forAll(Generators.toGen(doubles().between(4.3, 100)))
             .check(d -> {
                 try
                 {
-                    assertInvalidThrow(InvalidRequestException.class, "INSERT INTO %s (pk, ck1, ck2, v) VALUES (1, " + d + ", 3, 4)");
+                    assertInvalidThrowMessage(expectedErrorMessage, InvalidRequestException.class, "INSERT INTO %s (pk, ck1, ck2, v) VALUES (1, " + d + ", 3, 4)");
                 }
                 catch (Throwable e)
                 {
@@ -572,12 +599,13 @@ public class CreateTableWithColumnCqlConstraintValidationTest extends CqlConstra
         qt().forAll(Generators.toGen(doubles().between(4.3, 100)))
             .check(d -> execute("INSERT INTO %s (pk, ck1, ck2, v) VALUES (1, " + d + ", 3, 4)"));
 
+        final String expectedErrorMessage = "Column value does not satisfy value constraint for column 'ck1'. It should be ck1 > 4.2";
         // Invalid
         qt().forAll(Generators.toGen(doubles().between(0, 4.2)))
             .check(d -> {
                 try
                 {
-                    assertInvalidThrow(InvalidRequestException.class, "INSERT INTO %s (pk, ck1, ck2, v) VALUES (1, " + d + ", 3, 4)");
+                    assertInvalidThrowMessage(expectedErrorMessage, InvalidRequestException.class, "INSERT INTO %s (pk, ck1, ck2, v) VALUES (1, " + d + ", 3, 4)");
                 }
                 catch (Throwable e)
                 {
@@ -595,12 +623,13 @@ public class CreateTableWithColumnCqlConstraintValidationTest extends CqlConstra
         qt().forAll(Generators.toGen(doubles().between(4.2, 100)))
             .check(d -> execute("INSERT INTO %s (pk, ck1, ck2, v) VALUES (1, " + d + ", 3, 4)"));
 
+        final String expectedErrorMessage = "Column value does not satisfy value constraint for column 'ck1'. It should be ck1 >= 4.2";
         // Invalid
         qt().forAll(Generators.toGen(doubles().between(0, 4.1)))
             .check(d -> {
                 try
                 {
-                    assertInvalidThrow(InvalidRequestException.class, "INSERT INTO %s (pk, ck1, ck2, v) VALUES (1, " + d + ", 3, 4)");
+                    assertInvalidThrowMessage(expectedErrorMessage, InvalidRequestException.class, "INSERT INTO %s (pk, ck1, ck2, v) VALUES (1, " + d + ", 3, 4)");
                 }
                 catch (Throwable e)
                 {
@@ -618,12 +647,13 @@ public class CreateTableWithColumnCqlConstraintValidationTest extends CqlConstra
         qt().forAll(Generators.toGen(doubles().between(0, 4.2)))
             .check(d -> execute("INSERT INTO %s (pk, ck1, ck2, v) VALUES (1, " + d + ", 3, 4)"));
 
+        final String expectedErrorMessage = "Column value does not satisfy value constraint for column 'ck1'. It should be ck1 <= 4.2";
         // Invalid
         qt().forAll(Generators.toGen(doubles().between(4.3, 100)))
             .check(d -> {
                 try
                 {
-                    assertInvalidThrow(InvalidRequestException.class, "INSERT INTO %s (pk, ck1, ck2, v) VALUES (1, " + d + ", 3, 4)");
+                    assertInvalidThrowMessage(expectedErrorMessage, InvalidRequestException.class, "INSERT INTO %s (pk, ck1, ck2, v) VALUES (1, " + d + ", 3, 4)");
                 }
                 catch (Throwable e)
                 {
@@ -643,8 +673,9 @@ public class CreateTableWithColumnCqlConstraintValidationTest extends CqlConstra
         qt().forAll(Generators.toGen(doubles().between(4.3, 100)))
             .check(d -> execute("INSERT INTO %s (pk, ck1, ck2, v) VALUES (1, " + d + ", 3, 4)"));
 
+        final String expectedErrorMessage = "Column value does not satisfy value constraint for column 'ck1'. It should be ck1 != 4.2";
         // Invalid
-        assertInvalidThrow(InvalidRequestException.class, "INSERT INTO %s (pk, ck1, ck2, v) VALUES (1, 4.2, 2, 3)");
+        assertInvalidThrowMessage(expectedErrorMessage, InvalidRequestException.class, "INSERT INTO %s (pk, ck1, ck2, v) VALUES (1, 4.2, 2, 3)");
     }
 
     @Test
@@ -656,23 +687,26 @@ public class CreateTableWithColumnCqlConstraintValidationTest extends CqlConstra
         qt().forAll(Generators.toGen(doubles().between(2.1, 4.1)))
             .check(d -> execute("INSERT INTO %s (pk, ck1, ck2, v) VALUES (1, " + d + ", 3, 4)"));
 
+        final String expectedErrorMessage = "Column value does not satisfy value constraint for column 'ck1'. It should be ck1 >= 2.1";
         // Invalid
         qt().forAll(Generators.toGen(doubles().between(-100, 2)))
             .check(d -> {
                 try
                 {
-                    assertInvalidThrow(InvalidRequestException.class, "INSERT INTO %s (pk, ck1, ck2, v) VALUES (1, " + d + ", 3, 4)");
+                    assertInvalidThrowMessage(expectedErrorMessage, InvalidRequestException.class, "INSERT INTO %s (pk, ck1, ck2, v) VALUES (1, " + d + ", 3, 4)");
                 }
                 catch (Throwable e)
                 {
                     throw new RuntimeException(e);
                 }
             });
+
+        final String expectedErrorMessage2 = "Column value does not satisfy value constraint for column 'ck1'. It should be ck1 < 4.2";
         qt().forAll(Generators.toGen(doubles().between(4.2, 100)))
             .check(d -> {
                 try
                 {
-                    assertInvalidThrow(InvalidRequestException.class, "INSERT INTO %s (pk, ck1, ck2, v) VALUES (1, " + d + ", 3, 4)");
+                    assertInvalidThrowMessage(expectedErrorMessage2, InvalidRequestException.class, "INSERT INTO %s (pk, ck1, ck2, v) VALUES (1, " + d + ", 3, 4)");
                 }
                 catch (Throwable e)
                 {
@@ -691,12 +725,13 @@ public class CreateTableWithColumnCqlConstraintValidationTest extends CqlConstra
         qt().forAll(Generators.toGen(doubles().between(0, 4.1)))
             .check(d -> execute("INSERT INTO %s (pk, ck1, ck2, v) VALUES (1, " + d + ", 3, 4)"));
 
+        final String expectedErrorMessage = "Column value does not satisfy value constraint for column 'ck1'. It should be ck1 < 4.2";
         // Invalid
         qt().forAll(Generators.toGen(doubles().between(4.3, 100)))
             .check(d -> {
                 try
                 {
-                    assertInvalidThrow(InvalidRequestException.class, "INSERT INTO %s (pk, ck1, ck2, v) VALUES (1, " + d + ", 3, 4)");
+                    assertInvalidThrowMessage(expectedErrorMessage, InvalidRequestException.class, "INSERT INTO %s (pk, ck1, ck2, v) VALUES (1, " + d + ", 3, 4)");
                 }
                 catch (Throwable e)
                 {
@@ -714,12 +749,13 @@ public class CreateTableWithColumnCqlConstraintValidationTest extends CqlConstra
         qt().forAll(Generators.toGen(doubles().between(4.3, 100)))
             .check(d -> execute("INSERT INTO %s (pk, ck1, ck2, v) VALUES (1, " + d + ", 3, 4)"));
 
+        final String expectedErrorMessage = "Column value does not satisfy value constraint for column 'ck1'. It should be ck1 > 4.2";
         // Invalid
         qt().forAll(Generators.toGen(doubles().between(0, 4.2)))
             .check(d -> {
                 try
                 {
-                    assertInvalidThrow(InvalidRequestException.class, "INSERT INTO %s (pk, ck1, ck2, v) VALUES (1, " + d + ", 3, 4)");
+                    assertInvalidThrowMessage(expectedErrorMessage, InvalidRequestException.class, "INSERT INTO %s (pk, ck1, ck2, v) VALUES (1, " + d + ", 3, 4)");
                 }
                 catch (Throwable e)
                 {
@@ -737,12 +773,13 @@ public class CreateTableWithColumnCqlConstraintValidationTest extends CqlConstra
         qt().forAll(Generators.toGen(doubles().between(4.2, 100)))
             .check(d -> execute("INSERT INTO %s (pk, ck1, ck2, v) VALUES (1, " + d + ", 3, 4)"));
 
+        final String expectedErrorMessage = "Column value does not satisfy value constraint for column 'ck1'. It should be ck1 >= 4.2";
         // Invalid
         qt().forAll(Generators.toGen(doubles().between(0, 4.1)))
             .check(d -> {
                 try
                 {
-                    assertInvalidThrow(InvalidRequestException.class, "INSERT INTO %s (pk, ck1, ck2, v) VALUES (1, " + d + ", 3, 4)");
+                    assertInvalidThrowMessage(expectedErrorMessage, InvalidRequestException.class, "INSERT INTO %s (pk, ck1, ck2, v) VALUES (1, " + d + ", 3, 4)");
                 }
                 catch (Throwable e)
                 {
@@ -760,12 +797,13 @@ public class CreateTableWithColumnCqlConstraintValidationTest extends CqlConstra
         qt().forAll(Generators.toGen(doubles().between(0, 4.2)))
             .check(d -> execute("INSERT INTO %s (pk, ck1, ck2, v) VALUES (1, " + d + ", 3, 4)"));
 
+        final String expectedErrorMessage = "Column value does not satisfy value constraint for column 'ck1'. It should be ck1 <= 4.2";
         // Invalid
         qt().forAll(Generators.toGen(doubles().between(4.3, 100)))
             .check(d -> {
                 try
                 {
-                    assertInvalidThrow(InvalidRequestException.class, "INSERT INTO %s (pk, ck1, ck2, v) VALUES (1, " + d + ", 3, 4)");
+                    assertInvalidThrowMessage(expectedErrorMessage, InvalidRequestException.class, "INSERT INTO %s (pk, ck1, ck2, v) VALUES (1, " + d + ", 3, 4)");
                 }
                 catch (Throwable e)
                 {
@@ -785,8 +823,9 @@ public class CreateTableWithColumnCqlConstraintValidationTest extends CqlConstra
         qt().forAll(Generators.toGen(doubles().between(4.3, 100)))
             .check(d -> execute("INSERT INTO %s (pk, ck1, ck2, v) VALUES (1, " + d + ", 3, 4)"));
 
+        final String expectedErrorMessage = "Column value does not satisfy value constraint for column 'ck1'. It should be ck1 != 4.2";
         // Invalid
-        assertInvalidThrow(InvalidRequestException.class, "INSERT INTO %s (pk, ck1, ck2, v) VALUES (1, 4.2, 2, 3)");
+        assertInvalidThrowMessage(expectedErrorMessage, InvalidRequestException.class, "INSERT INTO %s (pk, ck1, ck2, v) VALUES (1, 4.2, 2, 3)");
     }
 
     @Test
@@ -798,23 +837,26 @@ public class CreateTableWithColumnCqlConstraintValidationTest extends CqlConstra
         qt().forAll(Generators.toGen(doubles().between(2.1, 4.1)))
             .check(d -> execute("INSERT INTO %s (pk, ck1, ck2, v) VALUES (1, " + d + ", 3, 4)"));
 
+        final String expectedErrorMessage = "Column value does not satisfy value constraint for column 'ck1'. It should be ck1 >= 2.1";
         // Invalid
         qt().forAll(Generators.toGen(doubles().between(-100, 2)))
             .check(d -> {
                 try
                 {
-                    assertInvalidThrow(InvalidRequestException.class, "INSERT INTO %s (pk, ck1, ck2, v) VALUES (1, " + d + ", 3, 4)");
+                    assertInvalidThrowMessage(expectedErrorMessage, InvalidRequestException.class, "INSERT INTO %s (pk, ck1, ck2, v) VALUES (1, " + d + ", 3, 4)");
                 }
                 catch (Throwable e)
                 {
                     throw new RuntimeException(e);
                 }
             });
+
+        final String expectedErrorMessage2 = "Column value does not satisfy value constraint for column 'ck1'. It should be ck1 < 4.2";
         qt().forAll(Generators.toGen(doubles().between(4.2, 100)))
             .check(d -> {
                 try
                 {
-                    assertInvalidThrow(InvalidRequestException.class, "INSERT INTO %s (pk, ck1, ck2, v) VALUES (1, " + d + ", 3, 4)");
+                    assertInvalidThrowMessage(expectedErrorMessage2, InvalidRequestException.class, "INSERT INTO %s (pk, ck1, ck2, v) VALUES (1, " + d + ", 3, 4)");
                 }
                 catch (Throwable e)
                 {
@@ -832,9 +874,10 @@ public class CreateTableWithColumnCqlConstraintValidationTest extends CqlConstra
         // Valid
         execute("INSERT INTO %s (pk, ck1, ck2, v) VALUES (1, 'fooo', 2, 3)");
 
+        final String expectedErrorMessage = "Column value does not satisfy value constraint for column 'ck1'. It has a length of";
         // Invalid
-        assertInvalidThrow(InvalidRequestException.class, "INSERT INTO %s (pk, ck1, ck2, v) VALUES (1, 'foo', 2, 3)");
-        assertInvalidThrow(InvalidRequestException.class, "INSERT INTO %s (pk, ck1, ck2, v) VALUES (1, 'foooo', 2, 3)");
+        assertInvalidThrowMessage(expectedErrorMessage, InvalidRequestException.class, "INSERT INTO %s (pk, ck1, ck2, v) VALUES (1, 'foo', 2, 3)");
+        assertInvalidThrowMessage(expectedErrorMessage, InvalidRequestException.class, "INSERT INTO %s (pk, ck1, ck2, v) VALUES (1, 'foooo', 2, 3)");
     }
 
     @Test
@@ -842,12 +885,13 @@ public class CreateTableWithColumnCqlConstraintValidationTest extends CqlConstra
     {
         createTable("CREATE TABLE %s (pk int, ck1 text CHECK LENGTH(ck1) != 4, ck2 int, v int, PRIMARY KEY ((pk),ck1, ck2)) WITH CLUSTERING ORDER BY (ck1 ASC);");
 
+        final String expectedErrorMessage = "Column value does not satisfy value constraint for column 'ck1'. It has a length of";
         // Valid
         execute("INSERT INTO %s (pk, ck1, ck2, v) VALUES (1, 'foo', 2, 3)");
         execute("INSERT INTO %s (pk, ck1, ck2, v) VALUES (1, 'foooo', 2, 3)");
 
         // Invalid
-        assertInvalidThrow(InvalidRequestException.class, "INSERT INTO %s (pk, ck1, ck2, v) VALUES (1, 'fooo', 2, 3)");
+        assertInvalidThrowMessage(expectedErrorMessage, InvalidRequestException.class, "INSERT INTO %s (pk, ck1, ck2, v) VALUES (1, 'fooo', 2, 3)");
     }
 
     @Test
@@ -858,9 +902,10 @@ public class CreateTableWithColumnCqlConstraintValidationTest extends CqlConstra
         // Valid
         execute("INSERT INTO %s (pk, ck1, ck2, v) VALUES (1, 'foooo', 2, 3)");
 
+        final String expectedErrorMessage = "Column value does not satisfy value constraint for column 'ck1'. It has a length of";
         // Invalid
-        assertInvalidThrow(InvalidRequestException.class, "INSERT INTO %s (pk, ck1, ck2, v) VALUES (1, 'foo', 2, 3)");
-        assertInvalidThrow(InvalidRequestException.class, "INSERT INTO %s (pk, ck1, ck2, v) VALUES (1, 'fooo', 2, 3)");
+        assertInvalidThrowMessage(expectedErrorMessage, InvalidRequestException.class, "INSERT INTO %s (pk, ck1, ck2, v) VALUES (1, 'foo', 2, 3)");
+        assertInvalidThrowMessage(expectedErrorMessage, InvalidRequestException.class, "INSERT INTO %s (pk, ck1, ck2, v) VALUES (1, 'fooo', 2, 3)");
     }
 
     @Test
@@ -872,8 +917,9 @@ public class CreateTableWithColumnCqlConstraintValidationTest extends CqlConstra
         execute("INSERT INTO %s (pk, ck1, ck2, v) VALUES (1, 'foooo', 2, 3)");
         execute("INSERT INTO %s (pk, ck1, ck2, v) VALUES (1, 'fooo', 2, 3)");
 
+        final String expectedErrorMessage = "Column value does not satisfy value constraint for column 'ck1'. It has a length of";
         // Invalid
-        assertInvalidThrow(InvalidRequestException.class, "INSERT INTO %s (pk, ck1, ck2, v) VALUES (1, 'foo', 2, 3)");
+        assertInvalidThrowMessage(expectedErrorMessage, InvalidRequestException.class, "INSERT INTO %s (pk, ck1, ck2, v) VALUES (1, 'foo', 2, 3)");
     }
 
     @Test
@@ -884,9 +930,10 @@ public class CreateTableWithColumnCqlConstraintValidationTest extends CqlConstra
         // Valid
         execute("INSERT INTO %s (pk, ck1, ck2, v) VALUES (1, 'foo', 2, 3)");
 
+        final String expectedErrorMessage = "Column value does not satisfy value constraint for column 'ck1'. It has a length of";
         // Invalid
-        assertInvalidThrow(InvalidRequestException.class, "INSERT INTO %s (pk, ck1, ck2, v) VALUES (1, 'fooo', 2, 3)");
-        assertInvalidThrow(InvalidRequestException.class, "INSERT INTO %s (pk, ck1, ck2, v) VALUES (1, 'foooo', 2, 3)");
+        assertInvalidThrowMessage(expectedErrorMessage, InvalidRequestException.class, "INSERT INTO %s (pk, ck1, ck2, v) VALUES (1, 'fooo', 2, 3)");
+        assertInvalidThrowMessage(expectedErrorMessage, InvalidRequestException.class, "INSERT INTO %s (pk, ck1, ck2, v) VALUES (1, 'foooo', 2, 3)");
     }
 
     @Test
@@ -898,8 +945,9 @@ public class CreateTableWithColumnCqlConstraintValidationTest extends CqlConstra
         execute("INSERT INTO %s (pk, ck1, ck2, v) VALUES (1, 'foo', 2, 3)");
         execute("INSERT INTO %s (pk, ck1, ck2, v) VALUES (1, 'fooo', 2, 3)");
 
+        final String expectedErrorMessage = "Column value does not satisfy value constraint for column 'ck1'. It has a length of";
         // Invalid
-        assertInvalidThrow(InvalidRequestException.class, "INSERT INTO %s (pk, ck1, ck2, v) VALUES (1, 'foooo', 2, 3)");
+        assertInvalidThrowMessage(expectedErrorMessage, InvalidRequestException.class, "INSERT INTO %s (pk, ck1, ck2, v) VALUES (1, 'foooo', 2, 3)");
     }
 
     @Test
@@ -910,9 +958,10 @@ public class CreateTableWithColumnCqlConstraintValidationTest extends CqlConstra
         // Valid
         execute("INSERT INTO %s (pk, ck1, ck2, v) VALUES (1, textAsBlob('fooo'), 2, 3)");
 
+        final String expectedErrorMessage = "Column value does not satisfy value constraint for column 'ck1'. It has a length of";
         // Invalid
-        assertInvalidThrow(InvalidRequestException.class, "INSERT INTO %s (pk, ck1, ck2, v) VALUES (1, textAsBlob('foo'), 2, 3)");
-        assertInvalidThrow(InvalidRequestException.class, "INSERT INTO %s (pk, ck1, ck2, v) VALUES (1, textAsBlob('foooo'), 2, 3)");
+        assertInvalidThrowMessage(expectedErrorMessage, InvalidRequestException.class, "INSERT INTO %s (pk, ck1, ck2, v) VALUES (1, textAsBlob('foo'), 2, 3)");
+        assertInvalidThrowMessage(expectedErrorMessage, InvalidRequestException.class, "INSERT INTO %s (pk, ck1, ck2, v) VALUES (1, textAsBlob('foooo'), 2, 3)");
     }
 
     @Test
@@ -924,8 +973,9 @@ public class CreateTableWithColumnCqlConstraintValidationTest extends CqlConstra
         execute("INSERT INTO %s (pk, ck1, ck2, v) VALUES (1, textAsBlob('foo'), 2, 3)");
         execute("INSERT INTO %s (pk, ck1, ck2, v) VALUES (1, textAsBlob('foooo'), 2, 3)");
 
+        final String expectedErrorMessage = "Column value does not satisfy value constraint for column 'ck1'. It has a length of";
         // Invalid
-        assertInvalidThrow(InvalidRequestException.class, "INSERT INTO %s (pk, ck1, ck2, v) VALUES (1, textAsBlob('fooo'), 2, 3)");
+        assertInvalidThrowMessage(expectedErrorMessage, InvalidRequestException.class, "INSERT INTO %s (pk, ck1, ck2, v) VALUES (1, textAsBlob('fooo'), 2, 3)");
     }
 
     @Test
@@ -936,9 +986,10 @@ public class CreateTableWithColumnCqlConstraintValidationTest extends CqlConstra
         // Valid
         execute("INSERT INTO %s (pk, ck1, ck2, v) VALUES (1, textAsBlob('foooo'), 2, 3)");
 
+        final String expectedErrorMessage = "Column value does not satisfy value constraint for column 'ck1'. It has a length of";
         // Invalid
-        assertInvalidThrow(InvalidRequestException.class, "INSERT INTO %s (pk, ck1, ck2, v) VALUES (1, textAsBlob('foo'), 2, 3)");
-        assertInvalidThrow(InvalidRequestException.class, "INSERT INTO %s (pk, ck1, ck2, v) VALUES (1, textAsBlob('fooo'), 2, 3)");
+        assertInvalidThrowMessage(expectedErrorMessage, InvalidRequestException.class, "INSERT INTO %s (pk, ck1, ck2, v) VALUES (1, textAsBlob('foo'), 2, 3)");
+        assertInvalidThrowMessage(expectedErrorMessage, InvalidRequestException.class, "INSERT INTO %s (pk, ck1, ck2, v) VALUES (1, textAsBlob('fooo'), 2, 3)");
     }
 
     @Test
@@ -950,8 +1001,9 @@ public class CreateTableWithColumnCqlConstraintValidationTest extends CqlConstra
         execute("INSERT INTO %s (pk, ck1, ck2, v) VALUES (1, textAsBlob('foooo'), 2, 3)");
         execute("INSERT INTO %s (pk, ck1, ck2, v) VALUES (1, textAsBlob('fooo'), 2, 3)");
 
+        final String expectedErrorMessage = "Column value does not satisfy value constraint for column 'ck1'. It has a length of";
         // Invalid
-        assertInvalidThrow(InvalidRequestException.class, "INSERT INTO %s (pk, ck1, ck2, v) VALUES (1, textAsBlob('foo'), 2, 3)");
+        assertInvalidThrowMessage(expectedErrorMessage, InvalidRequestException.class, "INSERT INTO %s (pk, ck1, ck2, v) VALUES (1, textAsBlob('foo'), 2, 3)");
     }
 
     @Test
@@ -962,9 +1014,10 @@ public class CreateTableWithColumnCqlConstraintValidationTest extends CqlConstra
         // Valid
         execute("INSERT INTO %s (pk, ck1, ck2, v) VALUES (1, textAsBlob('foo'), 2, 3)");
 
+        final String expectedErrorMessage = "Column value does not satisfy value constraint for column 'ck1'. It has a length of";
         // Invalid
-        assertInvalidThrow(InvalidRequestException.class, "INSERT INTO %s (pk, ck1, ck2, v) VALUES (1, textAsBlob('fooo'), 2, 3)");
-        assertInvalidThrow(InvalidRequestException.class, "INSERT INTO %s (pk, ck1, ck2, v) VALUES (1, textAsBlob('foooo'), 2, 3)");
+        assertInvalidThrowMessage(expectedErrorMessage, InvalidRequestException.class, "INSERT INTO %s (pk, ck1, ck2, v) VALUES (1, textAsBlob('fooo'), 2, 3)");
+        assertInvalidThrowMessage(expectedErrorMessage, InvalidRequestException.class, "INSERT INTO %s (pk, ck1, ck2, v) VALUES (1, textAsBlob('foooo'), 2, 3)");
     }
 
     @Test
@@ -976,8 +1029,9 @@ public class CreateTableWithColumnCqlConstraintValidationTest extends CqlConstra
         execute("INSERT INTO %s (pk, ck1, ck2, v) VALUES (1, textAsBlob('foo'), 2, 3)");
         execute("INSERT INTO %s (pk, ck1, ck2, v) VALUES (1, textAsBlob('fooo'), 2, 3)");
 
+        final String expectedErrorMessage = "Column value does not satisfy value constraint for column 'ck1'. It has a length of";
         // Invalid
-        assertInvalidThrow(InvalidRequestException.class, "INSERT INTO %s (pk, ck1, ck2, v) VALUES (1, 'foooo', 2, 3)");
+        assertInvalidThrowMessage(expectedErrorMessage, InvalidRequestException.class, "INSERT INTO %s (pk, ck1, ck2, v) VALUES (1, textAsBlob('foooo'), 2, 3)");
     }
 
 
@@ -989,9 +1043,10 @@ public class CreateTableWithColumnCqlConstraintValidationTest extends CqlConstra
         // Valid
         execute("INSERT INTO %s (pk, ck1, ck2, v) VALUES ('fooo', 1, 2, 3)");
 
+        final String expectedErrorMessage = "Column value does not satisfy value constraint for column 'pk'. It has a length of";
         // Invalid
-        assertInvalidThrow(InvalidRequestException.class, "INSERT INTO %s (pk, ck1, ck2, v) VALUES ('foo', 1, 2, 3)");
-        assertInvalidThrow(InvalidRequestException.class, "INSERT INTO %s (pk, ck1, ck2, v) VALUES ('foooo', 1, 2, 3)");
+        assertInvalidThrowMessage(expectedErrorMessage, InvalidRequestException.class, "INSERT INTO %s (pk, ck1, ck2, v) VALUES ('foo', 1, 2, 3)");
+        assertInvalidThrowMessage(expectedErrorMessage, InvalidRequestException.class, "INSERT INTO %s (pk, ck1, ck2, v) VALUES ('foooo', 1, 2, 3)");
     }
 
     @Test
@@ -1003,8 +1058,9 @@ public class CreateTableWithColumnCqlConstraintValidationTest extends CqlConstra
         execute("INSERT INTO %s (pk, ck1, ck2, v) VALUES ('foo', 1, 2, 3)");
         execute("INSERT INTO %s (pk, ck1, ck2, v) VALUES ('foooo', 1, 2, 3)");
 
+        final String expectedErrorMessage = "Column value does not satisfy value constraint for column 'pk'. It has a length of";
         // Invalid
-        assertInvalidThrow(InvalidRequestException.class, "INSERT INTO %s (pk, ck1, ck2, v) VALUES ('fooo', 1, 2, 3)");
+        assertInvalidThrowMessage(expectedErrorMessage, InvalidRequestException.class, "INSERT INTO %s (pk, ck1, ck2, v) VALUES ('fooo', 1, 2, 3)");
     }
 
     @Test
@@ -1015,9 +1071,10 @@ public class CreateTableWithColumnCqlConstraintValidationTest extends CqlConstra
         // Valid
         execute("INSERT INTO %s (pk, ck1, ck2, v) VALUES ('foooo', 1, 2, 3)");
 
+        final String expectedErrorMessage = "Column value does not satisfy value constraint for column 'pk'. It has a length of";
         // Invalid
-        assertInvalidThrow(InvalidRequestException.class, "INSERT INTO %s (pk, ck1, ck2, v) VALUES ('foo', 1, 2, 3)");
-        assertInvalidThrow(InvalidRequestException.class, "INSERT INTO %s (pk, ck1, ck2, v) VALUES ('fooo', 1, 2, 3)");
+        assertInvalidThrowMessage(expectedErrorMessage, InvalidRequestException.class, "INSERT INTO %s (pk, ck1, ck2, v) VALUES ('foo', 1, 2, 3)");
+        assertInvalidThrowMessage(expectedErrorMessage, InvalidRequestException.class, "INSERT INTO %s (pk, ck1, ck2, v) VALUES ('fooo', 1, 2, 3)");
     }
 
     @Test
@@ -1029,8 +1086,9 @@ public class CreateTableWithColumnCqlConstraintValidationTest extends CqlConstra
         execute("INSERT INTO %s (pk, ck1, ck2, v) VALUES ('foooo', 1, 2, 3)");
         execute("INSERT INTO %s (pk, ck1, ck2, v) VALUES ('fooo', 1, 2, 3)");
 
+        final String expectedErrorMessage = "Column value does not satisfy value constraint for column 'pk'. It has a length of";
         // Invalid
-        assertInvalidThrow(InvalidRequestException.class, "INSERT INTO %s (pk, ck1, ck2, v) VALUES ('foo', 1, 2, 3)");
+        assertInvalidThrowMessage(expectedErrorMessage, InvalidRequestException.class, "INSERT INTO %s (pk, ck1, ck2, v) VALUES ('foo', 1, 2, 3)");
     }
 
     @Test
@@ -1041,9 +1099,10 @@ public class CreateTableWithColumnCqlConstraintValidationTest extends CqlConstra
         // Valid
         execute("INSERT INTO %s (pk, ck1, ck2, v) VALUES ('foo', 1, 2, 3)");
 
+        final String expectedErrorMessage = "Column value does not satisfy value constraint for column 'pk'. It has a length of";
         // Invalid
-        assertInvalidThrow(InvalidRequestException.class, "INSERT INTO %s (pk, ck1, ck2, v) VALUES ('fooo', 1, 2, 3)");
-        assertInvalidThrow(InvalidRequestException.class, "INSERT INTO %s (pk, ck1, ck2, v) VALUES ('foooo', 1, 2, 3)");
+        assertInvalidThrowMessage(expectedErrorMessage, InvalidRequestException.class, "INSERT INTO %s (pk, ck1, ck2, v) VALUES ('fooo', 1, 2, 3)");
+        assertInvalidThrowMessage(expectedErrorMessage, InvalidRequestException.class, "INSERT INTO %s (pk, ck1, ck2, v) VALUES ('foooo', 1, 2, 3)");
     }
 
     @Test
@@ -1055,8 +1114,9 @@ public class CreateTableWithColumnCqlConstraintValidationTest extends CqlConstra
         execute("INSERT INTO %s (pk, ck1, ck2, v) VALUES ('foo', 1, 2, 3)");
         execute("INSERT INTO %s (pk, ck1, ck2, v) VALUES ('fooo', 1, 2, 3)");
 
+        final String expectedErrorMessage = "Column value does not satisfy value constraint for column 'pk'. It has a length of";
         // Invalid
-        assertInvalidThrow(InvalidRequestException.class, "INSERT INTO %s (pk, ck1, ck2, v) VALUES ('foooo', 1, 2, 3)");
+        assertInvalidThrowMessage(expectedErrorMessage, InvalidRequestException.class, "INSERT INTO %s (pk, ck1, ck2, v) VALUES ('foooo', 1, 2, 3)");
     }
 
 
@@ -1068,9 +1128,10 @@ public class CreateTableWithColumnCqlConstraintValidationTest extends CqlConstra
         // Valid
         execute("INSERT INTO %s (pk, ck1, ck2, v) VALUES (1, 2, 3, 'fooo')");
 
+        final String expectedErrorMessage = "Column value does not satisfy value constraint for column 'v'. It has a length of";
         // Invalid
-        assertInvalidThrow(InvalidRequestException.class, "INSERT INTO %s (pk, ck1, ck2, v) VALUES (1, 2, 3, 'foo')");
-        assertInvalidThrow(InvalidRequestException.class, "INSERT INTO %s (pk, ck1, ck2, v) VALUES (1, 2, 3, 'foooo')");
+        assertInvalidThrowMessage(expectedErrorMessage, InvalidRequestException.class, "INSERT INTO %s (pk, ck1, ck2, v) VALUES (1, 2, 3, 'foo')");
+        assertInvalidThrowMessage(expectedErrorMessage, InvalidRequestException.class, "INSERT INTO %s (pk, ck1, ck2, v) VALUES (1, 2, 3, 'foooo')");
     }
 
     @Test
@@ -1082,8 +1143,9 @@ public class CreateTableWithColumnCqlConstraintValidationTest extends CqlConstra
         execute("INSERT INTO %s (pk, ck1, ck2, v) VALUES (1, 2, 3, 'foo')");
         execute("INSERT INTO %s (pk, ck1, ck2, v) VALUES (1, 2, 3, 'foooo')");
 
+        final String expectedErrorMessage = "Column value does not satisfy value constraint for column 'v'. It has a length of";
         // Invalid
-        assertInvalidThrow(InvalidRequestException.class, "INSERT INTO %s (pk, ck1, ck2, v) VALUES (1, 2, 3, 'fooo')");
+        assertInvalidThrowMessage(expectedErrorMessage, InvalidRequestException.class, "INSERT INTO %s (pk, ck1, ck2, v) VALUES (1, 2, 3, 'fooo')");
     }
 
     @Test
@@ -1094,9 +1156,10 @@ public class CreateTableWithColumnCqlConstraintValidationTest extends CqlConstra
         // Valid
         execute("INSERT INTO %s (pk, ck1, ck2, v) VALUES (1, 2, 3, 'foooo')");
 
+        final String expectedErrorMessage = "Column value does not satisfy value constraint for column 'v'. It has a length of";
         // Invalid
-        assertInvalidThrow(InvalidRequestException.class, "INSERT INTO %s (pk, ck1, ck2, v) VALUES (1, 2, 3, 'foo')");
-        assertInvalidThrow(InvalidRequestException.class, "INSERT INTO %s (pk, ck1, ck2, v) VALUES (1, 2, 3, 'fooo')");
+        assertInvalidThrowMessage(expectedErrorMessage, InvalidRequestException.class, "INSERT INTO %s (pk, ck1, ck2, v) VALUES (1, 2, 3, 'foo')");
+        assertInvalidThrowMessage(expectedErrorMessage, InvalidRequestException.class, "INSERT INTO %s (pk, ck1, ck2, v) VALUES (1, 2, 3, 'fooo')");
     }
 
     @Test
@@ -1108,8 +1171,9 @@ public class CreateTableWithColumnCqlConstraintValidationTest extends CqlConstra
         execute("INSERT INTO %s (pk, ck1, ck2, v) VALUES (1, 2, 3, 'foooo')");
         execute("INSERT INTO %s (pk, ck1, ck2, v) VALUES (1, 2, 3, 'fooo')");
 
+        final String expectedErrorMessage = "Column value does not satisfy value constraint for column 'v'. It has a length of";
         // Invalid
-        assertInvalidThrow(InvalidRequestException.class, "INSERT INTO %s (pk, ck1, ck2, v) VALUES (1, 2, 3, 'foo')");
+        assertInvalidThrowMessage(expectedErrorMessage, InvalidRequestException.class, "INSERT INTO %s (pk, ck1, ck2, v) VALUES (1, 2, 3, 'foo')");
     }
 
     @Test
@@ -1120,9 +1184,10 @@ public class CreateTableWithColumnCqlConstraintValidationTest extends CqlConstra
         // Valid
         execute("INSERT INTO %s (pk, ck1, ck2, v) VALUES (1, 2, 3, 'foo')");
 
+        final String expectedErrorMessage = "Column value does not satisfy value constraint for column 'v'. It has a length of";
         // Invalid
-        assertInvalidThrow(InvalidRequestException.class, "INSERT INTO %s (pk, ck1, ck2, v) VALUES (1, 2, 3, 'fooo')");
-        assertInvalidThrow(InvalidRequestException.class, "INSERT INTO %s (pk, ck1, ck2, v) VALUES (1, 2, 3, 'foooo')");
+        assertInvalidThrowMessage(expectedErrorMessage, InvalidRequestException.class, "INSERT INTO %s (pk, ck1, ck2, v) VALUES (1, 2, 3, 'fooo')");
+        assertInvalidThrowMessage(expectedErrorMessage, InvalidRequestException.class, "INSERT INTO %s (pk, ck1, ck2, v) VALUES (1, 2, 3, 'foooo')");
     }
 
     @Test
@@ -1134,8 +1199,9 @@ public class CreateTableWithColumnCqlConstraintValidationTest extends CqlConstra
         execute("INSERT INTO %s (pk, ck1, ck2, v) VALUES (1, 2, 3, 'foo')");
         execute("INSERT INTO %s (pk, ck1, ck2, v) VALUES (1, 2, 3, 'fooo')");
 
+        final String expectedErrorMessage = "Column value does not satisfy value constraint for column 'v'. It has a length of";
         // Invalid
-        assertInvalidThrow(InvalidRequestException.class, "INSERT INTO %s (pk, ck1, ck2, v) VALUES (1, 2, 3, 'foooo')");
+        assertInvalidThrowMessage(expectedErrorMessage, InvalidRequestException.class, "INSERT INTO %s (pk, ck1, ck2, v) VALUES (1, 2, 3, 'foooo')");
     }
 
     @Test
@@ -1146,13 +1212,15 @@ public class CreateTableWithColumnCqlConstraintValidationTest extends CqlConstra
         // Valid
         execute("INSERT INTO %s (pk, ck1, ck2, v) VALUES ('fooo', 2, 3, 'fooo')");
 
+        final String expectedErrorMessage = "Column value does not satisfy value constraint for column 'pk'. It has a length of";
+        final String expectedErrorMessage2 = "Column value does not satisfy value constraint for column 'v'. It has a length of";
         // Invalid
-        assertInvalidThrow(InvalidRequestException.class, "INSERT INTO %s (pk, ck1, ck2, v) VALUES ('foo', 2, 3, 'foo')");
-        assertInvalidThrow(InvalidRequestException.class, "INSERT INTO %s (pk, ck1, ck2, v) VALUES ('fooo', 2, 3, 'foo')");
-        assertInvalidThrow(InvalidRequestException.class, "INSERT INTO %s (pk, ck1, ck2, v) VALUES ('foo', 2, 3, 'fooo')");
-        assertInvalidThrow(InvalidRequestException.class, "INSERT INTO %s (pk, ck1, ck2, v) VALUES ('foooo', 2, 3, 'fooo')");
-        assertInvalidThrow(InvalidRequestException.class, "INSERT INTO %s (pk, ck1, ck2, v) VALUES ('fooo', 2, 3, 'foooo')");
-        assertInvalidThrow(InvalidRequestException.class, "INSERT INTO %s (pk, ck1, ck2, v) VALUES ('foooo', 2, 3, 'foooo')");
+        assertInvalidThrowMessage(expectedErrorMessage, InvalidRequestException.class, "INSERT INTO %s (pk, ck1, ck2, v) VALUES ('foo', 2, 3, 'foo')");
+        assertInvalidThrowMessage(expectedErrorMessage2, InvalidRequestException.class, "INSERT INTO %s (pk, ck1, ck2, v) VALUES ('fooo', 2, 3, 'foo')");
+        assertInvalidThrowMessage(expectedErrorMessage, InvalidRequestException.class, "INSERT INTO %s (pk, ck1, ck2, v) VALUES ('foo', 2, 3, 'fooo')");
+        assertInvalidThrowMessage(expectedErrorMessage, InvalidRequestException.class, "INSERT INTO %s (pk, ck1, ck2, v) VALUES ('foooo', 2, 3, 'fooo')");
+        assertInvalidThrowMessage(expectedErrorMessage2, InvalidRequestException.class, "INSERT INTO %s (pk, ck1, ck2, v) VALUES ('fooo', 2, 3, 'foooo')");
+        assertInvalidThrowMessage(expectedErrorMessage, InvalidRequestException.class, "INSERT INTO %s (pk, ck1, ck2, v) VALUES ('foooo', 2, 3, 'foooo')");
     }
 
     @Test
@@ -1196,6 +1264,22 @@ public class CreateTableWithColumnCqlConstraintValidationTest extends CqlConstra
         catch (InvalidRequestException e)
         {
             assertTrue(e.getCause() instanceof InvalidRequestException);
+            assertTrue(e.getMessage().contains("Error setting schema for test"));
+        }
+    }
+
+    @Test
+    public void testCreateTableWithColumnWithClusteringColumnInvalidScalarTypeConstraint() throws Throwable
+    {
+        try
+        {
+            createTable("CREATE TABLE %s (pk text CHECK pk = 4, ck1 int, ck2 int, v int, PRIMARY KEY ((pk),ck1, ck2)) WITH CLUSTERING ORDER BY (ck1 " + order + ");");
+            fail();
+        }
+        catch (InvalidRequestException e)
+        {
+            assertTrue(e.getCause() instanceof InvalidRequestException);
+            assertTrue(e.getCause().getMessage().equals("pk is not a number"));
             assertTrue(e.getMessage().contains("Error setting schema for test"));
         }
     }

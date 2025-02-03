@@ -1,4 +1,5 @@
 5.1
+ * Improve error messages for constraints (CASSANDRA-20266)
  * Add system_views.partition_key_statistics for querying SSTable metadata (CASSANDRA-20161)
  * CEP-42 - Add Constraints Framework (CASSANDRA-19947)
  * Add table metric PurgeableTombstoneScannedHistogram and a tracing event for scanned purgeable tombstones (CASSANDRA-20132)

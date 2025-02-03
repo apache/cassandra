@@ -80,8 +80,8 @@ public class ScalarColumnConstraint implements ColumnConstraint<ScalarColumnCons
         }
 
         if (!relationType.isSatisfiedBy(valueType, columnValue, value))
-            throw new ConstraintViolationException("Column value does not satisfy value constraint. "
-                                                   + " It should be " + relationType + " " + term);
+            throw new ConstraintViolationException("Column value does not satisfy value constraint for column '" + param + "'. "
+                                                   + "It should be " + param + " " + relationType + " " + term);
     }
 
     @Override

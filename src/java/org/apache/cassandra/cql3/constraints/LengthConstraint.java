@@ -59,8 +59,9 @@ public class LengthConstraint implements ConstraintFunction
         ByteBuffer rightOperand = ByteBufferUtil.bytes(sizeConstraint);
 
         if (!relationType.isSatisfiedBy(Int32Type.instance, leftOperand, rightOperand))
-            throw new ConstraintViolationException(columnName + " does not satisfy length constraint. "
-                                                   + valueLength + " should be " + relationType + ' ' + term);
+            throw new ConstraintViolationException("Column value does not satisfy value constraint for column '" + columnName + "'. "
+                                                   + "It has a length of " + valueLength + " and it should be should be "
+                                                   + relationType + ' ' + term);
     }
 
     @Override
