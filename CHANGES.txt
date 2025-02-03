@@ -128,6 +128,7 @@
  * Add the ability to disable bulk loading of SSTables (CASSANDRA-18781)
  * Clean up obsolete functions and simplify cql_version handling in cqlsh (CASSANDRA-18787)
 Merged from 5.0:
+ * Avoid under-skipping during intersections when an iterator has mixed STATIC and WIDE keys (CASSANDRA-20258)
  * Correct the default behavior of compareTo() when comparing WIDE and STATIC PrimaryKeys (CASSANDRA-20238)
  * Make sure we can set parameters when configuring CassandraCIDRAuthorizer (CASSANDRA-20220)
  * Add selected SAI index state and query performance metrics to nodetool tablestats (CASSANDRA-20026)
