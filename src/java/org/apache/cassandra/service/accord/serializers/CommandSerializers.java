@@ -262,7 +262,7 @@ public class CommandSerializers
             }
             else
             {
-                out.writeUnsignedVInt(1 + executeAt.epoch());
+                out.writeUnsignedVInt(1L + executeAt.epoch());
                 out.writeUnsignedVInt(executeAt.hlc());
                 out.writeUnsignedVInt32(executeAt.node.id);
                 if (executeAt.hasDistinctHlcAndUniqueHlc())

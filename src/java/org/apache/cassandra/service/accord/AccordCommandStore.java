@@ -29,7 +29,6 @@ import java.util.concurrent.locks.Lock;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.IntFunction;
-import java.util.function.Supplier;
 import javax.annotation.Nullable;
 
 import com.google.common.annotations.VisibleForTesting;
@@ -46,14 +45,12 @@ import accord.local.Command;
 import accord.local.CommandStore;
 import accord.local.CommandStores;
 import accord.local.Commands;
-import accord.local.KeyHistory;
 import accord.local.NodeCommandStoreService;
 import accord.local.PreLoadContext;
 import accord.local.RedundantBefore;
 import accord.local.SafeCommandStore;
 import accord.local.cfk.CommandsForKey;
 import accord.primitives.PartialTxn;
-import accord.primitives.Participants;
 import accord.primitives.RangeDeps;
 import accord.primitives.Ranges;
 import accord.primitives.RoutableKey;
@@ -62,7 +59,6 @@ import accord.primitives.TxnId;
 import accord.utils.Invariants;
 import accord.utils.async.AsyncChain;
 import accord.utils.async.AsyncChains;
-import accord.utils.async.AsyncResult;
 import accord.utils.async.AsyncResults;
 import org.apache.cassandra.service.accord.api.AccordRoutingKey.TokenKey;
 import org.apache.cassandra.service.accord.txn.TxnRead;
@@ -73,10 +69,6 @@ import static accord.api.Journal.CommandUpdate;
 import static accord.api.Journal.FieldUpdates;
 import static accord.api.Journal.Load.MINIMAL;
 import static accord.api.Journal.Loader;
-import static accord.local.KeyHistory.SYNC;
-import static accord.primitives.Status.Committed;
-import static accord.primitives.Status.PreCommitted;
-import static accord.primitives.Status.Truncated;
 import static accord.utils.Invariants.require;
 
 public class AccordCommandStore extends CommandStore
@@ -190,9 +182,9 @@ public class AccordCommandStore extends CommandStore
         maybeLoadRangesForEpoch(journal.loadRangesForEpoch(id()));
     }
 
-    static Factory factory(Journal journal, IntFunction<AccordExecutor> executorFactory)
+    static Factory factory(IntFunction<AccordExecutor> executorFactory)
     {
-        return (id, node, agent, dataStore, progressLogFactory, listenerFactory, rangesForEpoch) ->
+        return (id, node, agent, dataStore, progressLogFactory, listenerFactory, rangesForEpoch, journal) ->
                new AccordCommandStore(id, node, agent, dataStore, progressLogFactory, listenerFactory, rangesForEpoch, journal, executorFactory.apply(id));
     }
 
@@ -491,43 +483,18 @@ public class AccordCommandStore extends CommandStore
             this.store = store;
         }
 
-        private PreLoadContext context(Command command, KeyHistory keyHistory)
-        {
-            TxnId txnId = command.txnId();
-            Participants<?> keys = null;
-            if (CommandsForKey.manages(txnId))
-                keys = command.hasBeen(Committed) ? command.participants().hasTouched() : command.participants().touches();
-            else if (!CommandsForKey.managesExecution(txnId) && command.hasBeen(PreCommitted) && !command.hasBeen(Truncated))
-                keys = command.asCommitted().waitingOn.keys;
-
-            if (keys != null)
-                return PreLoadContext.contextFor(txnId, keys, keyHistory);
-
-            return txnId;
-        }
-
         @Override
-        public AsyncChain<Void> load(TxnId txnId, Supplier<Command> supplier)
+        public AsyncChain<Void> load(TxnId txnId)
         {
             if (store.caches.commands().isReferenced(txnId))
                 return AsyncResults.SUCCESS_NULL;
 
-            Command command = supplier.get();
-            return store.submit(context(command, SYNC),
-                                safeStore -> loadInternal(command, safeStore))
-                        .beginAsResult()
-                        .flatMap(this::apply);
-        }
-
-        public AsyncResult<Void> apply(Command command)
-        {
-            PreLoadContext context = context(command, SYNC);
-            return store.execute(context, safeStore -> {
-                     applyWrites(command.txnId(), safeStore, (safeCommand, cmd) -> {
-                         Commands.applyWrites(safeStore, context, cmd).begin(store.agent);
-                     });
-                 })
-                 .beginAsResult();
+            return store.submit(txnId, safeStore -> {
+                applyWrites(txnId, safeStore, (safeCommand, cmd) -> {
+                    Commands.applyWrites(safeStore, txnId, cmd).begin(store.agent);
+                });
+                return null;
+            });
         }
     }
 

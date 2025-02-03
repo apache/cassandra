@@ -55,7 +55,6 @@ import org.apache.cassandra.concurrent.Shutdownable;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
-import org.apache.cassandra.io.util.DataInputBuffer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.io.util.DataOutputPlus;
@@ -446,8 +445,6 @@ public class AccordJournal implements accord.api.Journal, RangeSearcher.Supplier
         journal.closeCurrentSegmentForTestingIfNonEmpty();
         try (CloseableIterator<JournalKey> iter = journalTable.keyIterator())
         {
-            Builder builder = new Builder();
-
             while (iter.hasNext())
             {
                 JournalKey key = iter.next();
@@ -457,33 +454,7 @@ public class AccordJournal implements accord.api.Journal, RangeSearcher.Supplier
 
                 CommandStore commandStore = commandStores.forId(key.commandStoreId);
                 Loader loader = commandStore.loader();
-                AsyncResult<Void> res = loader.load(key.id, () -> {
-                    builder.reset(key.id);
-
-                    // TODO (expected): for those where we store an image, read only the first entry we find in DESC order
-                    journalTable.readAll(key, (segment, position, local, buffer, userVersion) -> {
-                        Invariants.require(key.equals(local));
-                        try (DataInputBuffer in = new DataInputBuffer(buffer, false))
-                        {
-                            builder.deserializeNext(in, userVersion);
-                            if (journalTable.shouldIndex(key)
-                                && builder.participants() != null
-                                && builder.participants().route() != null)
-                                journalTable.safeNotify(index -> index.update(segment, key.commandStoreId, key.id, builder.participants().route()));
-                        }
-                        catch (IOException e)
-                        {
-                            // can only throw if serializer is buggy
-                            throw new RuntimeException(e);
-                        }
-                    }, true);
-
-                    Command command = builder.construct(commandStore.unsafeGetRedundantBefore());
-                    Invariants.require(command.saveStatus() != SaveStatus.Uninitialised,
-                                       "Found uninitialized command in the log: %s %s", command.toString(), builder.toString());
-                    return command;
-                }).beginAsResult();
-                AsyncChains.getUnchecked(res);
+                AsyncChains.getUnchecked(loader.load(key.id).beginAsResult());
             }
         }
         catch (Throwable t)

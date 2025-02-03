@@ -71,7 +71,7 @@ public class AccordCommandStores extends CommandStores implements CacheSize
                         Journal journal, AccordExecutor[] executors)
     {
         super(node, agent, store, random, journal, shardDistributor, progressLogFactory, listenerFactory,
-              AccordCommandStore.factory(journal, id -> executors[id % executors.length]));
+              AccordCommandStore.factory(id -> executors[id % executors.length]));
         this.executors = executors;
         this.cacheSizeMetrics = new CacheSizeMetrics(ACCORD_STATE_CACHE, this);
         cacheSize = DatabaseDescriptor.getAccordCacheSizeInMiB() << 20;
