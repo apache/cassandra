@@ -482,7 +482,12 @@ public final class CassandraGenerators
                         int size = SourceDSL.integers().between(1, Integer.MAX_VALUE).generate(rnd);
                         map.put(ParameterizedFastPathStrategy.SIZE, Integer.toString(size));
                         Set<String> names = new HashSet<>();
-                        Gen<String> nameGen = SourceDSL.strings().allPossible().ofLengthBetween(1, 10).assuming(s -> !s.trim().isEmpty());
+                        Gen<String> nameGen = SourceDSL.strings().allPossible().ofLengthBetween(1, 10)
+                                                       // If : is in the name then the parser will fail; we have validation to disalow this
+                                                       .map(s -> s.replace(":", "_"))
+                                                       // Names are used for DCs and those are seperated by ,
+                                                       .map(s -> s.replace(",", "_"))
+                                                       .assuming(s -> !s.trim().isEmpty());
                         int numNames = SourceDSL.integers().between(1, 10).generate(rnd);
                         for (int i = 0; i < numNames; i++)
                         {
