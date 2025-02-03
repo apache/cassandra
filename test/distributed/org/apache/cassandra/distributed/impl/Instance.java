@@ -405,9 +405,10 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
         });
     }
 
+    @Override
     public void uncaughtException(Thread thread, Throwable throwable)
     {
-        sync(JVMStabilityInspector::uncaughtException).accept(thread, throwable);
+        JVMStabilityInspector.uncaughtException(thread, throwable);
     }
 
     public static IMessage serializeMessage(InetAddressAndPort from, InetAddressAndPort to, Message<?> messageOut)
