@@ -338,7 +338,7 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster<I
                 @Override
                 public void uncaughtException(Thread t, Throwable e)
                 {
-                    AbstractCluster.this.uncaughtException(t, e);
+                    AbstractCluster.this.uncaughtException(get(config.num()), t, e);
                 }
             };
             if (instanceInitializer != null)
@@ -1096,13 +1096,12 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster<I
         }
     }
 
-    private void uncaughtException(Thread thread, Throwable error)
+    private void uncaughtException(I instance, Thread thread, Throwable error)
     {
+        // should no longer be possible given this is called from a ThreadGroup, but just in case
         if (!(thread.getContextClassLoader() instanceof InstanceClassLoader))
             return;
 
-        InstanceClassLoader cl = (InstanceClassLoader) thread.getContextClassLoader();
-        I instance = get(cl.getInstanceId());
         try
         {
             instance.uncaughtException(thread, error);
