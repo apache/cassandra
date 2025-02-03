@@ -1148,9 +1148,8 @@ public final class CassandraGenerators
 
     public static Gen<IPartitioner> partitioners()
     {
-        return (Gen<IPartitioner>) SupportedPartitioners.Local.partitioner();
-//        return SourceDSL.arbitrary().enumValues(SupportedPartitioners.class)
-//                        .flatMap(SupportedPartitioners::partitioner);
+        return SourceDSL.arbitrary().enumValues(SupportedPartitioners.class)
+                        .flatMap(SupportedPartitioners::partitioner);
     }
 
 
