@@ -21,6 +21,7 @@ import java.util.EnumMap;
 import java.util.Map;
 
 import org.apache.cassandra.db.ConsistencyLevel;
+import org.apache.cassandra.service.accord.ClientRequestBookkeeping;
 
 public final class ClientRequestsMetricsHolder
 {
@@ -29,8 +30,10 @@ public final class ClientRequestsMetricsHolder
     public static final CASClientWriteRequestMetrics casWriteMetrics = new CASClientWriteRequestMetrics("CASWrite");
     public static final CASClientRequestMetrics casReadMetrics = new CASClientRequestMetrics("CASRead");
     public static final ViewWriteMetrics viewWriteMetrics = new ViewWriteMetrics("ViewWrite");
-    public static final AccordClientRequestMetrics accordReadMetrics = new AccordClientRequestMetrics("AccordRead");
-    public static final AccordClientRequestMetrics accordWriteMetrics = new AccordClientRequestMetrics("AccordWrite");
+    public static final AccordClientRequestMetrics accordReadMetrics = new AccordClientRequestMetrics("AccordRead", readMetrics, false);
+    public static final AccordClientRequestMetrics accordWriteMetrics = new AccordClientRequestMetrics("AccordWrite", writeMetrics, true);
+    public static final ClientRequestBookkeeping accordReadBookkeeping = new ClientRequestBookkeeping(false, accordReadMetrics);
+    public static final ClientRequestBookkeeping accordWriteBookkeeping = new ClientRequestBookkeeping(true, accordWriteMetrics);
 
     public static final Map<ConsistencyLevel, ClientRequestMetrics> readMetricsMap = new EnumMap<>(ConsistencyLevel.class);
     public static final Map<ConsistencyLevel, ClientWriteRequestMetrics> writeMetricsMap = new EnumMap<>(ConsistencyLevel.class);

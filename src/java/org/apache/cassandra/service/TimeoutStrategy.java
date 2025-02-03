@@ -24,25 +24,26 @@ import java.util.function.Supplier;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-import com.google.common.annotations.VisibleForTesting;
-import com.google.common.base.Preconditions;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import javax.annotation.Nullable;
 
+import com.google.common.annotations.VisibleForTesting;
+
+import accord.utils.Invariants;
 import com.codahale.metrics.Snapshot;
-import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.metrics.ClientRequestMetrics;
-import org.apache.cassandra.utils.NoSpamLogger;
+import org.apache.cassandra.service.TimeoutStrategy.LatencySupplier.Constant;
+import org.apache.cassandra.service.TimeoutStrategy.LatencySupplier.Percentile;
 
 import static java.lang.Double.parseDouble;
 import static java.lang.Integer.parseInt;
 import static java.lang.Math.max;
-import static java.lang.Math.min;
 import static java.lang.Math.pow;
 import static java.util.concurrent.TimeUnit.MICROSECONDS;
-import static java.util.concurrent.TimeUnit.MINUTES;
 import static java.util.concurrent.TimeUnit.NANOSECONDS;
 import static java.util.concurrent.TimeUnit.SECONDS;
+import static org.apache.cassandra.config.DatabaseDescriptor.getCasContentionTimeout;
+import static org.apache.cassandra.config.DatabaseDescriptor.getReadRpcTimeout;
+import static org.apache.cassandra.config.DatabaseDescriptor.getWriteRpcTimeout;
 import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 
 /**
@@ -74,21 +75,21 @@ import static org.apache.cassandra.utils.Clock.Global.nanoTime;
  * TODO (expected): permit simple constant addition (e.g. p50+5ms)
  * TODO (required): track separate stats per-DC as inputs to these decisions
  */
-public class TimeoutStrategy
+public class TimeoutStrategy implements WaitStrategy
 {
-    private static final Logger logger = LoggerFactory.getLogger(TimeoutStrategy.class);
+    static final Pattern PARSE = Pattern.compile(
+                "(\\s*(?<min>0|[0-9]+[mu]?s)\\s*<=)?" +
+                "(\\s*(?<wait>[^=]+))" +
+                "(\\s*<=\\s*(?<max>0|[0-9]+[mu]?s))?");
 
-    static final Pattern BOUND = Pattern.compile(
-                "(?<const>0|[0-9]+[mu]s)" +
-                "|((?<min>0|[0-9]+[mu]s) *<= *)?" +
-                    "(p(?<perc>[0-9]+)(\\((?<rw>r|w|rw|wr)\\))?|(?<constbase>0|[0-9]+[mu]s))" +
-                    "\\s*([*]\\s*(?<mod>[0-9.]+)?\\s*(?<modkind>[*^]\\s*attempts)?)?" +
-                "( *<= *(?<max>0|[0-9]+[mu]s))?");
+    static final Pattern WAIT = Pattern.compile(
+                "\\s*(?<const>0|[0-9]+[mu]?s)" +
+                "|\\s*((p(?<perc>[0-9]+)(\\((?<rw>r|w|rw|wr)\\))?)?|(?<constbase>0|[0-9]+[mu]?s))" +
+                    "\\s*(([*]\\s*(?<mod>[0-9.]+))?\\s*(?<modkind>[*^]\\s*attempts)?)?\\s*");
     static final Pattern TIME = Pattern.compile(
-                "0|([0-9]+)ms|([0-9]+)us");
+                "0|[0-9]+[mu]?s");
 
     // Factories can be useful for testing purposes, to supply custom implementations of selectors and modifiers.
-    final static LatencySupplierFactory selectors = new LatencySupplierFactory(){};
     final static LatencyModifierFactory modifiers = new LatencyModifierFactory(){};
 
     interface LatencyModifierFactory
@@ -99,20 +100,69 @@ public class TimeoutStrategy
         default LatencyModifier multiplyByAttemptsExp(double base) { return (l, a) -> saturatedCast(l * pow(base, a)); }
     }
 
-    interface LatencySupplier
+    public interface Wait
     {
-        long get();
+        long getMicros(int attempts);
+
+        class Constant implements Wait
+        {
+            final long micros;
+            public Constant(long micros) { this.micros = micros; }
+            @Override public long getMicros(int attempts) { return micros; }
+        }
+
+        class Modifying implements Wait
+        {
+            final LatencySupplier supplier;
+            final LatencyModifier modifier;
+
+            Modifying(LatencySupplier supplier, LatencyModifier modifier)
+            {
+                this.supplier = supplier;
+                this.modifier = modifier;
+            }
+
+            @Override
+            public long getMicros(int attempts)
+            {
+                return modifier.modify(supplier.getMicros(), attempts);
+            }
+        }
+    }
+
+    public interface LatencySupplier
+    {
+        long getMicros();
+
+        class Constant implements LatencySupplier
+        {
+            final long micros;
+            public Constant(long micros) {this.micros = micros; }
+            @Override public long getMicros() { return micros; }
+        }
+
+        class Percentile implements LatencySupplier
+        {
+            final LatencySource latencies;
+            final double percentile;
+
+            public Percentile(LatencySource latencies, double percentile)
+            {
+                this.latencies = latencies;
+                this.percentile = percentile;
+            }
+
+            @Override
+            public long getMicros()
+            {
+                return latencies.get(percentile);
+            }
+        }
     }
 
     public interface LatencySource
     {
         long get(double percentile);
-    }
-
-    interface LatencySupplierFactory
-    {
-        default LatencySupplier constant(long latency) { return () -> latency; }
-        default LatencySupplier percentile(double percentile, LatencySource latencies) { return () -> latencies.get(percentile); }
     }
 
     public interface LatencySourceFactory
@@ -128,6 +178,11 @@ public class TimeoutStrategy
         {
             LatencySource source = new TimeLimitedLatencySupplier(latencies.latency::getSnapshot, 10, SECONDS);
             return ignore -> source;
+        }
+
+        static LatencySourceFactory none()
+        {
+            return ignore -> ignore2 -> { throw new UnsupportedOperationException(); };
         }
     }
 
@@ -209,58 +264,22 @@ public class TimeoutStrategy
         }
     }
 
-    public static class Wait
-    {
-        final long min, max, onFailure;
-        final LatencyModifier modifier;
-        final LatencySupplier supplier;
-
-        Wait(long min, long max, long onFailure, LatencyModifier modifier, LatencySupplier supplier)
-        {
-            Preconditions.checkArgument(min<=max, "min (%s) must be less than or equal to max (%s)", min, max);
-            this.min = min;
-            this.max = max;
-            this.onFailure = onFailure;
-            this.modifier = modifier;
-            this.supplier = supplier;
-        }
-
-        long get(int attempts)
-        {
-            try
-            {
-                long base = supplier.get();
-                return max(min, min(max, modifier.modify(base, attempts)));
-            }
-            catch (Throwable t)
-            {
-                NoSpamLogger.getLogger(logger, 1L, MINUTES).info("", t);
-                return onFailure;
-            }
-        }
-
-        public String toString()
-        {
-            return "Bound{" +
-                   "min=" + min +
-                   ", max=" + max +
-                   ", onFailure=" + onFailure +
-                   ", modifier=" + modifier +
-                   ", supplier=" + supplier +
-                   '}';
-        }
-    }
-
     final Wait wait;
+    final long minMicros, maxMicros;
 
-    public TimeoutStrategy(String spec, LatencySourceFactory latencies)
+    public TimeoutStrategy(Wait wait, long minMicros, long maxMicros)
     {
-        this.wait = parseWait(spec, latencies);
+        this.minMicros = minMicros;
+        this.maxMicros = maxMicros;
+        this.wait = wait;
     }
 
     public long computeWait(int attempts, TimeUnit units)
     {
-        return units.convert(wait.get(attempts), MICROSECONDS);
+        long wait = this.wait.getMicros(attempts);
+        if (wait < minMicros) wait = minMicros;
+        else if (wait > maxMicros) wait = maxMicros;
+        return units.convert(wait, MICROSECONDS);
     }
 
     public long computeWaitUntil(int attempts)
@@ -269,32 +288,29 @@ public class TimeoutStrategy
         return nanoTime() + nanos;
     }
 
-    protected Wait parseWait(String spec, LatencySourceFactory latencies)
-    {
-        long defaultMicros = DatabaseDescriptor.getRpcTimeout(MICROSECONDS);
-        return parseWait(spec, 0, defaultMicros, defaultMicros, latencies);
-    }
-
-    private static LatencySupplier parseLatencySupplier(Matcher m, LatencySupplierFactory selectors, LatencySourceFactory latenciesFactory)
+    private static LatencySupplier parseLatencySupplier(Matcher m, LatencySourceFactory latenciesFactory)
     {
         String perc = m.group("perc");
         if (perc == null)
-            return selectors.constant(parseInMicros(m.group("constbase")));
+            return new Constant(parseInMicros(m.group("constbase")));
 
-        LatencySource latencies = latenciesFactory.source(m.group("rw"));
+        String rw = m.group("rw");
+        if (rw == null) rw = "rw";
+        LatencySource latencies = latenciesFactory.source(rw);
         double percentile = parseDouble("0." + perc);
-        return selectors.percentile(percentile, latencies);
+        return new Percentile(latencies, percentile);
     }
 
-    private static LatencyModifier parseLatencyModifier(Matcher m, LatencyModifierFactory modifiers)
+    private static @Nullable LatencyModifier parseLatencyModifier(String spec, Matcher m, LatencyModifierFactory modifiers)
     {
         String mod = m.group("mod");
-        if (mod == null)
-            return modifiers.identity();
-
-        double modifier = parseDouble(mod);
-
         String modkind = m.group("modkind");
+        double modifier = 1.0;
+        if (mod != null) modifier = Double.parseDouble(mod);
+        else if (modkind == null) return null;
+        else if (!modkind.startsWith("*"))
+            throw new IllegalArgumentException("Invalid latency modifier specification: " + spec + ". Expect constant factor as base for exponent.");
+
         if (modkind == null)
             return modifiers.multiply(modifier);
 
@@ -313,31 +329,46 @@ public class TimeoutStrategy
         return (long) v;
     }
 
-    public static Wait parseWait(String input, long defaultMin, long defaultMax, long onFailure, LatencySourceFactory latencies)
+    public static TimeoutStrategy parse(String input, LatencySourceFactory latencies)
     {
-        return parseWait(input, defaultMin, defaultMax, onFailure, latencies, selectors, modifiers);
+        Matcher m = PARSE.matcher(input);
+        if (!m.matches())
+            throw new IllegalArgumentException("Invalid specification: '" + input + "'; does not match " + PARSE);
+        long min = parseInMicros(m.group("min"), 0);
+        long max = parseInMicros(m.group("max"), Long.MAX_VALUE);
+        Wait wait = TimeoutStrategy.parseWait(m.group("wait"), latencies);
+        return new TimeoutStrategy(wait, min, max);
+    }
+
+    public static Wait parseWait(String input, LatencySourceFactory latencies)
+    {
+        return parseWait(input, latencies, modifiers);
     }
 
     @VisibleForTesting
-    public static Wait parseWait(String input, long defaultMinMicros, long defaultMaxMicros, long onFailure, LatencySourceFactory latencies, LatencySupplierFactory selectors, LatencyModifierFactory modifiers)
+    static Wait parseWait(String input, LatencySourceFactory latencies, LatencyModifierFactory modifiers)
     {
-        Matcher m = BOUND.matcher(input);
+        Matcher m = WAIT.matcher(input);
         if (!m.matches())
-            throw new IllegalArgumentException(input + " does not match " + BOUND);
+            throw new IllegalArgumentException(input + " does not match " + WAIT);
 
         String maybeConst = m.group("const");
         if (maybeConst != null)
         {
             long v = parseInMicros(maybeConst);
-            return new Wait(v, v, v, modifiers.identity(), selectors.constant(v));
+            return new Wait.Constant(v);
         }
 
-        long min = parseInMicros(m.group("min"), defaultMinMicros);
-        long max = parseInMicros(m.group("max"), defaultMaxMicros);
-        return new Wait(min, max, onFailure, parseLatencyModifier(m, modifiers), parseLatencySupplier(m, selectors, latencies));
+        LatencySupplier supplier = parseLatencySupplier(m, latencies);
+        LatencyModifier modifier = parseLatencyModifier(input, m, modifiers);
+        if (modifier == null && supplier instanceof LatencySupplier.Constant)
+            return new Wait.Constant(((Constant) supplier).micros);
+        if (modifier == null)
+            modifier = modifiers.identity();
+        return new Wait.Modifying(supplier, modifier);
     }
 
-    private static long parseInMicros(String input, long orElse)
+    public static long parseInMicros(String input, long orElse)
     {
         if (input == null)
             return orElse;
@@ -345,24 +376,36 @@ public class TimeoutStrategy
         return parseInMicros(input);
     }
 
-    private static long parseInMicros(String input)
+    public static long parseInMicros(String text)
     {
-        Matcher m = TIME.matcher(input);
+        Matcher m = TIME.matcher(text);
         if (!m.matches())
-            throw new IllegalArgumentException(input + " does not match " + TIME);
+            throw new IllegalArgumentException(text + " does not match " + TIME);
 
-        String text;
-        if (null != (text = m.group(1)))
-            return parseInt(text) * 1000;
-        else if (null != (text = m.group(2)))
-            return parseInt(text);
-        else
+        if (text.length() == 1)
+        {
+            Invariants.require(text.charAt(0) == '0');
             return 0;
+        }
+
+        char penultimate = text.charAt(text.length() - 2);
+        switch (penultimate)
+        {
+            default:  return parseInt(text.substring(0, text.length() - 1)) * 1000_000L;
+            case 'm': return parseInt(text.substring(0, text.length() - 2)) * 1000L;
+            case 'u': return parseInt(text.substring(0, text.length() - 2));
+        }
     }
 
     private static String orElse(Supplier<String> get, String orElse)
     {
         String result = get.get();
         return result != null ? result : orElse;
+    }
+
+    @VisibleForTesting
+    public static long maxQueryTimeoutMicros()
+    {
+        return max(max(getCasContentionTimeout(MICROSECONDS), getWriteRpcTimeout(MICROSECONDS)), getReadRpcTimeout(MICROSECONDS));
     }
 }

@@ -35,7 +35,6 @@ import accord.utils.Gen;
 import accord.utils.Gens;
 import accord.utils.RandomSource;
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.config.RetrySpec;
 import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.io.IVersionedSerializers;
 import org.apache.cassandra.io.util.DataOutputBuffer;
@@ -43,6 +42,7 @@ import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.net.MessageDelivery;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.net.SimulatedMessageDelivery.Action;
+import org.apache.cassandra.service.accord.api.AccordWaitStrategies;
 import org.apache.cassandra.utils.SimulatedMiniCluster;
 import org.apache.cassandra.utils.SimulatedMiniCluster.Node;
 import org.apache.cassandra.utils.concurrent.Future;
@@ -65,7 +65,7 @@ public class FetchMinEpochTest
 
     private static void boundedRetries(int retries)
     {
-        DatabaseDescriptor.getAccord().minEpochSyncRetry.maxAttempts = new RetrySpec.MaxAttempt(retries);
+        AccordWaitStrategies.setRetryFetchMinEpoch("0<=200ms*2^attempts<=60s,retries=" + retries);
     }
 
     @Test
@@ -85,7 +85,8 @@ public class FetchMinEpochTest
     public void fetchOneNodeAlwaysFails()
     {
         int expectedMaxAttempts = 3;
-        boundedRetries(expectedMaxAttempts);
+        int expectedMaxRetries = expectedMaxAttempts - 1;
+        boundedRetries(expectedMaxRetries);
         qt().check(rs -> {
             SimulatedMiniCluster cluster = new SimulatedMiniCluster.Builder(rs, node -> msg -> {throw new IllegalStateException();}).build();
             Node from = cluster.createNodeAndJoin();
@@ -95,7 +96,7 @@ public class FetchMinEpochTest
             assertThat(f).isNotDone();
             cluster.processAll();
             assertThat(f).isDone();
-            MessageDelivery.MaxRetriesException maxRetries = getMaxRetriesException(f);
+            MessageDelivery.GivingUpException maxRetries = getMaxRetriesException(f);
             Assertions.assertThat(maxRetries.attempts).isEqualTo(expectedMaxAttempts);
         });
     }
@@ -212,9 +213,9 @@ public class FetchMinEpochTest
     }
 
 
-    private static MessageDelivery.MaxRetriesException getMaxRetriesException(Future<Long> f) throws InterruptedException, ExecutionException
+    private static MessageDelivery.GivingUpException getMaxRetriesException(Future<Long> f) throws InterruptedException, ExecutionException
     {
-        MessageDelivery.MaxRetriesException maxRetries;
+        MessageDelivery.GivingUpException maxRetries;
         try
         {
             f.get();
@@ -223,9 +224,9 @@ public class FetchMinEpochTest
         }
         catch (ExecutionException e)
         {
-            if (e.getCause() instanceof MessageDelivery.MaxRetriesException)
+            if (e.getCause() instanceof MessageDelivery.GivingUpException)
             {
-                maxRetries = (MessageDelivery.MaxRetriesException) e.getCause();
+                maxRetries = (MessageDelivery.GivingUpException) e.getCause();
             }
             else
             {

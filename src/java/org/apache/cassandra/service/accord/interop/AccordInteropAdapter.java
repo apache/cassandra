@@ -53,7 +53,7 @@ import static accord.messages.Apply.Kind.Minimal;
 public class AccordInteropAdapter extends TxnAdapter
 {
     private static final Logger logger = LoggerFactory.getLogger(AccordInteropAdapter.class);
-    public static final class AccordInteropFactory implements CoordinationAdapter.Factory
+    public static final class AccordInteropFactory extends DefaultFactory
     {
         final AccordInteropAdapter standard, recovery;
 
@@ -67,6 +67,8 @@ public class AccordInteropAdapter extends TxnAdapter
         @Override
         public <R> CoordinationAdapter<R> get(TxnId txnId, Kind step)
         {
+            if (txnId.isSyncPoint())
+                return super.get(txnId, step);
             return (CoordinationAdapter<R>) (step == Kind.Recovery ? recovery : standard);
         }
     };

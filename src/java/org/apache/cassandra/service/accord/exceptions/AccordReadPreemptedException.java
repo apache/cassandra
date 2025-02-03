@@ -16,18 +16,22 @@
  * limitations under the License.
  */
 
-package org.apache.cassandra.service.accord;
+package org.apache.cassandra.service.accord.exceptions;
 
-import accord.api.LocalConfig;
-import org.apache.cassandra.config.Config;
+import org.apache.cassandra.exceptions.ReadTimeoutException;
 
-// TODO (expected): should this be merged with AccordSpec?
-public class AccordConfiguration implements LocalConfig
+import static org.apache.cassandra.db.ConsistencyLevel.SERIAL;
+
+// shim to allow tests to tell the difference between preemption and other protocol timeouts
+public class AccordReadPreemptedException extends ReadTimeoutException
 {
-    private final Config config;
-
-    public AccordConfiguration(Config config)
+    public AccordReadPreemptedException(int received, int blockFor, boolean dataPresent)
     {
-        this.config = config;
+        super(SERIAL, received, blockFor, dataPresent);
+    }
+
+    public AccordReadPreemptedException(int received, int blockFor, boolean dataPresent, String msg)
+    {
+        super(SERIAL, received, blockFor, dataPresent, msg);
     }
 }

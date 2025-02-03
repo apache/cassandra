@@ -18,13 +18,13 @@
 
 package org.apache.cassandra.distributed.test.accord;
 
-import java.util.List;
+import java.util.Collection;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
-import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
 import com.google.common.collect.Iterables;
 import org.junit.After;
@@ -35,7 +35,6 @@ import org.junit.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import accord.api.BarrierType;
 import accord.impl.progresslog.DefaultProgressLogs;
 import accord.local.Node;
 import accord.local.PreLoadContext;
@@ -43,10 +42,14 @@ import accord.local.SafeCommand;
 import accord.local.StoreParticipants;
 import accord.local.cfk.CommandsForKey;
 import accord.local.cfk.SafeCommandsForKey;
-import accord.primitives.Seekables;
+import accord.local.durability.DurabilityService;
+import accord.primitives.Keys;
+import accord.primitives.Ranges;
 import accord.primitives.Status;
+import accord.primitives.Timestamp;
 import accord.primitives.TxnId;
 import accord.utils.async.AsyncChains;
+import accord.utils.async.AsyncResult;
 import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.cql3.UntypedResultSet;
 import org.apache.cassandra.db.ColumnFamilyStore;
@@ -64,7 +67,6 @@ import org.apache.cassandra.service.accord.IAccordService;
 import org.apache.cassandra.service.accord.IAccordService.DelegatingAccordService;
 import org.apache.cassandra.service.accord.api.TokenKey;
 import org.apache.cassandra.service.consensus.TransactionalMode;
-import org.apache.cassandra.transport.Dispatcher;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.Clock;
 import org.apache.cassandra.utils.concurrent.Future;
@@ -87,35 +89,21 @@ public class AccordIncrementalRepairTest extends AccordTestBase
         }
 
         @Override
-        public Seekables<?, ?> barrierWithRetries(Seekables<?, ?> keysOrRanges, long minEpoch, BarrierType barrierType, boolean isForWrite) throws InterruptedException
+        public AsyncResult<Void> sync(Object requestedBy, @Nullable Timestamp onOrAfter, Ranges ranges, @Nullable Collection<Node.Id> include, DurabilityService.SyncLocal syncLocal, DurabilityService.SyncRemote syncRemote)
         {
-            Seekables<?, ?> retval = delegate.barrierWithRetries(keysOrRanges, minEpoch, barrierType, isForWrite);
-            executedBarriers = true;
-            return retval;
+            return delegate.sync(requestedBy, onOrAfter, ranges, include, syncLocal, syncRemote).map(v -> {
+                executedBarriers = true;
+                return v;
+            }).beginAsResult();
         }
 
         @Override
-        public Seekables<?, ?> barrier(@Nonnull Seekables<?, ?> keysOrRanges, long minEpoch, Dispatcher.RequestTime requestTime, long timeoutNanos, BarrierType barrierType, boolean isForWrite)
+        public AsyncResult<Void> sync(@Nullable Timestamp onOrAfter, Keys keys, DurabilityService.SyncLocal syncLocal, DurabilityService.SyncRemote syncRemote)
         {
-            Seekables<?, ?> retval = delegate.barrier(keysOrRanges, minEpoch, requestTime, timeoutNanos, barrierType, isForWrite);
-            executedBarriers = true;
-            return retval;
-        }
-
-        @Override
-        public Seekables<?, ?> repairWithRetries(Seekables<?, ?> keysOrRanges, long minEpoch, BarrierType barrierType, boolean isForWrite, List<InetAddressAndPort> allEndpoints) throws InterruptedException
-        {
-            Seekables<?, ?> retval = delegate.repairWithRetries(keysOrRanges, minEpoch, barrierType, isForWrite, allEndpoints);
-            executedBarriers = true;
-            return retval;
-        }
-
-        @Override
-        public Seekables<?, ?> repair(@Nonnull Seekables<?, ?> keysOrRanges, long epoch, Dispatcher.RequestTime requestTime, long timeoutNanos, BarrierType barrierType, boolean isForWrite, List<InetAddressAndPort> allEndpoints)
-        {
-            Seekables<?, ?> retval = delegate.repair(keysOrRanges, epoch, requestTime, timeoutNanos, barrierType, isForWrite, allEndpoints);
-            executedBarriers = true;
-            return retval;
+            return delegate.sync(onOrAfter, keys, syncLocal, syncRemote).map(v -> {
+                executedBarriers = true;
+                return v;
+            }).beginAsResult();
         }
 
         public void reset()
@@ -143,7 +131,10 @@ public class AccordIncrementalRepairTest extends AccordTestBase
     @BeforeClass
     public static void setupClass() throws Throwable
     {
-        setupCluster(opt -> opt.withConfig(conf -> conf.with(Feature.NETWORK, Feature.GOSSIP).set("accord.recover_delay", "1s")), 3);
+        setupCluster(opt -> opt.withConfig(conf -> conf.with(Feature.NETWORK, Feature.GOSSIP)
+                                                       .set("accord.recover_txn", "1s")
+                                                       .set("accord.shard_durability_target_splits", 16)
+        ), 3);
         for (IInvokableInstance instance : SHARED_CLUSTER)
             instance.runOnInstance(() -> AccordService.unsafeSetNewAccordService(new BarrierRecordingService(AccordService.instance())));
 //        setupCluster(opt -> opt, 3);

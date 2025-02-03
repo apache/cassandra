@@ -18,6 +18,7 @@
 
 package org.apache.cassandra.service.accord;
 
+import java.util.concurrent.Callable;
 import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.Lock;
@@ -28,6 +29,7 @@ import java.util.function.IntFunction;
 
 import accord.api.Agent;
 import accord.api.RoutingKey;
+import accord.local.AgentExecutor;
 import accord.local.Command;
 import accord.local.cfk.CommandsForKey;
 import accord.primitives.TxnId;
@@ -40,6 +42,8 @@ import accord.utils.QuintConsumer;
 import accord.utils.TriConsumer;
 import accord.utils.TriFunction;
 import accord.utils.UnhandledEnum;
+import accord.utils.async.AsyncChain;
+import accord.utils.async.AsyncChains;
 import accord.utils.async.Cancellable;
 import org.agrona.collections.Object2ObjectHashMap;
 import org.apache.cassandra.cache.CacheSize;
@@ -60,7 +64,7 @@ import static org.apache.cassandra.service.accord.AccordTask.State.WAITING_TO_LO
 import static org.apache.cassandra.service.accord.AccordTask.State.WAITING_TO_RUN;
 import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 
-public abstract class AccordExecutor implements CacheSize, AccordCacheEntry.OnLoaded, AccordCacheEntry.OnSaved, Shutdownable
+public abstract class AccordExecutor implements CacheSize, AccordCacheEntry.OnLoaded, AccordCacheEntry.OnSaved, Shutdownable, AgentExecutor
 {
     public interface AccordExecutorFactory
     {
@@ -312,6 +316,18 @@ public abstract class AccordExecutor implements CacheSize, AccordCacheEntry.OnLo
                 return false;
         }
         return true;
+    }
+
+    @Override
+    public Agent agent()
+    {
+        return agent;
+    }
+
+    @Override
+    public <T> AsyncChain<T> build(Callable<T> task)
+    {
+        return AsyncChains.ofCallable(this, task);
     }
 
     private void parkRangeLoad(AccordTask<?> task)

@@ -85,11 +85,15 @@ public class AccordDataStore implements DataStore
 
         for (Map.Entry<TableId, SnapshotBounds> e : tables.entrySet())
         {
+            // TODO (required): is it safe to ignore null table metadata / cfs?
             TableMetadata tableMetadata = metadata.schema.getTableMetadata(e.getKey());
-            if (!tableMetadata.isAccordEnabled())
+            if (tableMetadata == null || !tableMetadata.isAccordEnabled())
                 continue;
 
             ColumnFamilyStore cfs = Keyspace.openAndGetStoreIfExists(tableMetadata);
+            if (cfs == null)
+                continue;
+
             // TODO (required): when we can safely map TxnId.hlc() -> local timestamp, consult Memtable timestamps
             Memtable memtable = cfs.getCurrentMemtable();
             e.getValue().id = memtable.getMemtableId();
@@ -102,6 +106,10 @@ public class AccordDataStore implements DataStore
                 TableMetadata tableMetadata = metadata.schema.getTableMetadata(e.getKey());
                 SnapshotBounds bounds = e.getValue();
                 ColumnFamilyStore cfs = Keyspace.openAndGetStoreIfExists(tableMetadata);
+
+                // TODO (required): is it safe to ignore null cfs?
+                if (cfs == null) continue;
+
                 View view = cfs.getTracker().getView();
                 for (Memtable memtable : view.getAllMemtables())
                 {

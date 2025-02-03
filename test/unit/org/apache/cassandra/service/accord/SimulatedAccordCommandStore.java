@@ -55,6 +55,7 @@ import accord.local.PreLoadContext;
 import accord.local.SafeCommand;
 import accord.local.SafeCommandStore;
 import accord.local.TimeService;
+import accord.local.durability.DurabilityService;
 import accord.messages.BeginRecovery;
 import accord.messages.PreAccept;
 import accord.messages.Reply;
@@ -67,7 +68,6 @@ import accord.primitives.Routable;
 import accord.primitives.RoutableKey;
 import accord.primitives.Route;
 import accord.primitives.RoutingKeys;
-import accord.primitives.Timestamp;
 import accord.primitives.Txn;
 import accord.primitives.TxnId;
 import accord.primitives.Unseekables;
@@ -173,9 +173,9 @@ public class SimulatedAccordCommandStore implements AutoCloseable
             @Override public DurableBefore durableBefore() { return DurableBefore.EMPTY; }
 
             @Override
-            public Timestamp uniqueNow()
+            public DurabilityService durability()
             {
-                return uniqueNow(Timestamp.NONE);
+                return null;
             }
 
             @Override
@@ -203,10 +203,10 @@ public class SimulatedAccordCommandStore implements AutoCloseable
             }
 
             @Override
-            public Timestamp uniqueNow(Timestamp atLeast)
+            public long uniqueNow(long atLeast)
             {
-                var now = Timestamp.fromValues(epoch(), now(), nodeId);
-                if (now.compareTo(atLeast) < 0)
+                long now = now();
+                if (now <= atLeast)
                     throw new UnsupportedOperationException();
                 return now;
             }
@@ -221,9 +221,9 @@ public class SimulatedAccordCommandStore implements AutoCloseable
         TestAgent.RethrowAgent agent = new TestAgent.RethrowAgent()
         {
             @Override
-            public long preAcceptTimeout()
+            public boolean rejectPreAccept(TimeService time, TxnId txnId)
             {
-                return Long.MAX_VALUE;
+                return false;
             }
 
             @Override

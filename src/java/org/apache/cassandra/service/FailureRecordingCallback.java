@@ -66,7 +66,7 @@ public abstract class FailureRecordingCallback<T> implements RequestCallbackWith
 
         public static <O> void push(AtomicReferenceFieldUpdater<O, FailureResponses> headUpdater, O owner, InetAddressAndPort from, RequestFailureReason reason)
         {
-            push(headUpdater, owner, new FailureResponses(from, reason));
+            getAndPush(headUpdater, owner, new FailureResponses(from, reason));
         }
 
         public static <O> void pushExclusive(AtomicReferenceFieldUpdater<O, FailureResponses> headUpdater, O owner, InetAddressAndPort from, RequestFailureReason reason)

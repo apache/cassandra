@@ -46,7 +46,7 @@ public class AccordProgressLogTest extends TestBaseImpl
                                            .withoutVNodes()
                                            .withConfig(c -> c.with(Feature.NETWORK)
                                                              .set("accord.enabled", "true")
-                                                             .set("accord.recover_delay", "1s"))
+                                                             .set("accord.recover_txn", "1s"))
                                            .start()))
         {
             cluster.schemaChange("CREATE KEYSPACE ks WITH replication={'class':'SimpleStrategy', 'replication_factor': 3}");
@@ -85,7 +85,8 @@ public class AccordProgressLogTest extends TestBaseImpl
     {
         try (Cluster cluster = init(Cluster.build(2)
                                            .withoutVNodes()
-                                           .withConfig(c -> c.with(Feature.NETWORK).set("accord.enabled", "true"))
+                                           .withConfig(c -> c.with(Feature.NETWORK)
+                                                             .set("accord.enabled", "true"))
                                            .start()))
         {
             cluster.schemaChange("CREATE KEYSPACE ks WITH replication={'class':'SimpleStrategy', 'replication_factor': 3}");

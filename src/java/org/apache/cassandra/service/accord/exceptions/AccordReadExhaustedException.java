@@ -18,19 +18,19 @@
 
 package org.apache.cassandra.service.accord.exceptions;
 
-import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.exceptions.ReadTimeoutException;
 
-// shim to allow tests to tell the difference between preemption and other protocol timeouts
-public class ReadPreemptedException extends ReadTimeoutException
+import static org.apache.cassandra.db.ConsistencyLevel.SERIAL;
+
+public class AccordReadExhaustedException extends ReadTimeoutException
 {
-    public ReadPreemptedException(ConsistencyLevel consistency, int received, int blockFor, boolean dataPresent)
+    public AccordReadExhaustedException(int received, int blockFor, boolean dataPresent)
     {
-        super(consistency, received, blockFor, dataPresent);
+        super(SERIAL, received, blockFor, dataPresent);
     }
 
-    public ReadPreemptedException(ConsistencyLevel consistency, int received, int blockFor, boolean dataPresent, String msg)
+    public AccordReadExhaustedException(int received, int blockFor, boolean dataPresent, String msg)
     {
-        super(consistency, received, blockFor, dataPresent, msg);
+        super(SERIAL, received, blockFor, dataPresent, msg);
     }
 }

@@ -175,7 +175,7 @@ public class DropAccordTable extends MultiStepOperation<Epoch>
         // There are retries baked into this call, but trying to handle timeouts more broadly is put on hold as there is active work to define a EpochSyncPoint that should be far cheaper
         // which would avoid the timeout issues
         // NOTE: ExclusiveSyncPoint must find all keys in the range, then make sure nothing is blocking them... this causes a lot of IO.  EpochSyncPoint just needs to validate that the last txn processed is in the newer epoch, this can work with in-memory state.
-        AccordService.instance().awaitTableDrop(table.id);
+        AccordService.instance().awaitDone(table.id, metadata.epoch.getEpoch());
         long awaitEndNanos = nanoTime();
         logger.info("Wait for Accord to see the drop table was success.  " +
                     "Took {} to wait for Accord to learn about the change, then {} to process everything",

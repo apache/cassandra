@@ -28,7 +28,6 @@ import javax.annotation.Nullable;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.Iterators;
 
-import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.exceptions.RequestFailure;
 import org.apache.cassandra.io.IVersionedSerializer;
@@ -39,13 +38,14 @@ import org.apache.cassandra.net.IVerbHandler;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.net.Verb;
 import org.apache.cassandra.repair.SharedContext;
-import org.apache.cassandra.utils.Backoff;
+import org.apache.cassandra.service.WaitStrategy;
 import org.apache.cassandra.utils.concurrent.Future;
 import org.apache.cassandra.utils.concurrent.FutureCombiner;
 
 import static org.apache.cassandra.net.MessageDelivery.RetryErrorMessage;
 import static org.apache.cassandra.net.MessageDelivery.RetryPredicate;
 import static org.apache.cassandra.net.MessageDelivery.logger;
+import static org.apache.cassandra.service.accord.api.AccordWaitStrategies.retryFetchMinEpoch;
 
 // TODO (required, efficiency): this can be simplified: we seem to always use "entire range"
 public class FetchMinEpoch
@@ -80,7 +80,7 @@ public class FetchMinEpoch
         }
         else
         {
-            logger.error("Accord service is not started, resopnding with error to {}", message);
+            logger.error("Accord service is not started, responding with error to {}", message);
             MessagingService.instance().respondWithFailure(RequestFailure.BOOTING, message);
         }
     };
@@ -110,7 +110,7 @@ public class FetchMinEpoch
     @VisibleForTesting
     static Future<Long> fetch(SharedContext context, InetAddressAndPort to)
     {
-        Backoff backoff = Backoff.fromConfig(context, DatabaseDescriptor.getAccord().minEpochSyncRetry);
+        WaitStrategy backoff = retryFetchMinEpoch();
         return context.messaging().<FetchMinEpoch, Response>sendWithRetries(backoff,
                                                                             context.optionalTasks()::schedule,
                                                                             Verb.ACCORD_FETCH_MIN_EPOCH_REQ,

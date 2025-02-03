@@ -130,7 +130,7 @@ public class PaxosRepairState
         private static void add(SharedContext ctx, AtomicReference<PendingCleanup> pendingCleanup, Message<PaxosCleanupHistory> message)
         {
             PendingCleanup next = new PendingCleanup(message);
-            PendingCleanup prev = IntrusiveStack.push(AtomicReference::get, AtomicReference::compareAndSet, pendingCleanup, next);
+            PendingCleanup prev = IntrusiveStack.getAndPush(AtomicReference::get, AtomicReference::compareAndSet, pendingCleanup, next);
             if (prev == null)
                 Stage.MISC.execute(() -> cleanup(ctx, pendingCleanup));
         }

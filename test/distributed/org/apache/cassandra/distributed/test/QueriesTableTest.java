@@ -66,8 +66,7 @@ public class QueriesTableTest extends TestBaseImpl
     {
         SHARED_CLUSTER = init(Cluster.build(1).withInstanceInitializer(QueryDelayHelper::install)
                                               .withConfig(c -> c.with(Feature.NATIVE_PROTOCOL, Feature.GOSSIP)
-                                                                .set("write_request_timeout", "10s")
-                                                                .set("transaction_timeout", "15s")).start());
+                                                                .set("write_request_timeout", "10s")).start());
 
         DRIVER_CLUSTER = JavaDriverUtils.create(SHARED_CLUSTER);
         SESSION = DRIVER_CLUSTER.connect();

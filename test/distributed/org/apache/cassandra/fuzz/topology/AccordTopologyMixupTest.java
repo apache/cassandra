@@ -29,7 +29,6 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import javax.annotation.Nullable;
 
-import org.junit.Ignore;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -38,7 +37,6 @@ import accord.coordinate.Preempted;
 import accord.coordinate.Timeout;
 import accord.local.Node;
 import accord.primitives.Ranges;
-import accord.primitives.Seekables;
 import accord.primitives.TxnId;
 import accord.utils.Gen;
 import accord.utils.Gens;
@@ -85,7 +83,6 @@ import static org.apache.cassandra.utils.AbstractTypeGenerators.overridePrimitiv
 import static org.apache.cassandra.utils.AbstractTypeGenerators.stringComparator;
 import static org.apache.cassandra.utils.AccordGenerators.fromQT;
 
-@Ignore
 public class AccordTopologyMixupTest extends TopologyMixupTestBase<AccordTopologyMixupTest.Spec>
 {
     private static final Logger logger = LoggerFactory.getLogger(AccordTopologyMixupTest.class);
@@ -272,6 +269,7 @@ public class AccordTopologyMixupTest extends TopologyMixupTestBase<AccordTopolog
         {
             c.set("accord.command_store_shard_count", 1)
              .set("accord.queue_shard_count", 1)
+             .set("accord.shard_durability_target_splits", 4)
              .set("concurrent_accord_operations", 1)
              .set("paxos_variant", Config.PaxosVariant.v2.name());
         }
@@ -371,24 +369,28 @@ public class AccordTopologyMixupTest extends TopologyMixupTestBase<AccordTopolog
     @Isolated
     public static class InterceptAgent extends AccordAgent
     {
-        @Override
-        public void onFailedBarrier(TxnId id, Seekables<?, ?> keysOrRanges, Throwable cause)
+        public InterceptAgent()
         {
-            if (cause instanceof Timeout || cause instanceof Preempted)
-            {
-                SharedState.debugTxn(null, "Repair Barrier", id.toString());
-            }
+            super();
         }
 
+        {
+            AccordAgent.setOnFailedBarrier((id, cause) -> {
+                if (cause instanceof Timeout || cause instanceof Preempted)
+                {
+                    SharedState.debugTxn(null, "Repair Barrier", id.toString());
+                }
+            });
+        }
         @Override
-        public void onFailedBootstrap(String phase, Ranges ranges, Runnable retry, Throwable failure)
+        public void onFailedBootstrap(int attempts, String phase, Ranges ranges, Runnable retry, Throwable failure)
         {
             if (failure instanceof Exhausted)
             {
                 Exhausted e = (Exhausted) failure;
                 SharedState.debugTxn(self.id, "Bootstrap#" + phase, e.txnId().toString());
             }
-            super.onFailedBootstrap(phase, ranges, retry, failure);
+            super.onFailedBootstrap(attempts, phase, ranges, retry, failure);
         }
     }
 }

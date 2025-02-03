@@ -19,33 +19,31 @@ package org.apache.cassandra.service.accord.serializers;
 
 import java.io.IOException;
 
-import accord.messages.QueryDurableBefore;
-import accord.messages.QueryDurableBefore.DurableBeforeReply;
-import org.apache.cassandra.db.TypeSizes;
+import accord.messages.GetDurableBefore;
+import accord.messages.GetDurableBefore.DurableBeforeReply;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 
-public class QueryDurableBeforeSerializers
+public class GetDurableBeforeSerializers
 {
-    public static final IVersionedSerializer<QueryDurableBefore> request = new IVersionedSerializer<QueryDurableBefore>()
+    public static final IVersionedSerializer<GetDurableBefore> request = new IVersionedSerializer<GetDurableBefore>()
     {
         @Override
-        public void serialize(QueryDurableBefore msg, DataOutputPlus out, int version) throws IOException
+        public void serialize(GetDurableBefore msg, DataOutputPlus out, int version) throws IOException
         {
-            out.writeLong(msg.waitForEpoch());
         }
 
         @Override
-        public QueryDurableBefore deserialize(DataInputPlus in, int version) throws IOException
+        public GetDurableBefore deserialize(DataInputPlus in, int version) throws IOException
         {
-            return new QueryDurableBefore(in.readLong());
+            return new GetDurableBefore();
         }
 
         @Override
-        public long serializedSize(QueryDurableBefore msg, int version)
+        public long serializedSize(GetDurableBefore msg, int version)
         {
-            return TypeSizes.LONG_SIZE;
+            return 0;
         }
     };
 

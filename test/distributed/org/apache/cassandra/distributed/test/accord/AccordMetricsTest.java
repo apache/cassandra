@@ -46,8 +46,8 @@ import org.apache.cassandra.metrics.RatioGaugeSet;
 import org.apache.cassandra.net.Verb;
 import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.service.accord.AccordService;
-import org.apache.cassandra.service.accord.exceptions.ReadPreemptedException;
-import org.apache.cassandra.service.accord.exceptions.WritePreemptedException;
+import org.apache.cassandra.service.accord.exceptions.AccordReadPreemptedException;
+import org.apache.cassandra.service.accord.exceptions.AccordWritePreemptedException;
 import org.apache.cassandra.service.consensus.TransactionalMode;
 import org.apache.cassandra.utils.AssertionUtils;
 import org.assertj.core.api.Assertions;
@@ -130,19 +130,23 @@ public class AccordMetricsTest extends AccordTestBase
     {
         ScheduledExecutorService exec = Executors.newScheduledThreadPool(1);
         IMessageFilters.Matcher delay = (from, to, m) -> {
-            exec.schedule(() -> SHARED_CLUSTER.get(to).receiveMessageWithInvokingThread(m), 10L, TimeUnit.SECONDS);
+            exec.schedule(() -> {
+                System.err.println("Receiving...");
+                SHARED_CLUSTER.get(to).receiveMessageWithInvokingThread(m);
+            }, 10L, TimeUnit.SECONDS);
             return true;
         };
         IMessageFilters.Filter preacceptDelay = SHARED_CLUSTER.filters().outbound().verbs(Verb.ACCORD_PRE_ACCEPT_REQ.id).from(1).to(1)
                                                             .messagesMatching(delay)
                                                             .drop();
 
-        long originalAccordRecoverDelay = SHARED_CLUSTER.get(1).callOnInstance(() -> DatabaseDescriptor.getAccordRecoverDelay(TimeUnit.MILLISECONDS));
-        SHARED_CLUSTER.forEach(() -> DatabaseDescriptor.setAccordRecoverDelay(100L, TimeUnit.MILLISECONDS));
-        long  originalTransactionTimeoutMillis = SHARED_CLUSTER.get(1).callOnInstance(() -> DatabaseDescriptor.getTransactionTimeout(TimeUnit.MILLISECONDS));
-        SHARED_CLUSTER.forEach(() -> DatabaseDescriptor.setTransactionTimeout(12_000));
+        String originalAccordRetryTxnDelay = SHARED_CLUSTER.get(1).callOnInstance(DatabaseDescriptor::getAccordRecoverTxnDelay);
+        SHARED_CLUSTER.forEach(() -> DatabaseDescriptor.setAccordRecoverTxnDelay("100ms"));
+        String originalAccordExpireTxnDelay = SHARED_CLUSTER.get(1).callOnInstance(DatabaseDescriptor::getAccordExpireTxnDelay);
+        SHARED_CLUSTER.forEach(() -> DatabaseDescriptor.setAccordExpireTxnDelay("12s"));
         long originalWriteRpcTimeoutMillis = SHARED_CLUSTER.get(1).callOnInstance(() -> DatabaseDescriptor.getWriteRpcTimeout(TimeUnit.MILLISECONDS));
         SHARED_CLUSTER.forEach(() -> DatabaseDescriptor.setWriteRpcTimeout(12_000));
+        SHARED_CLUSTER.forEach(() -> DatabaseDescriptor.setReadRpcTimeout(12_000));
 
         try
         {
@@ -154,7 +158,7 @@ public class AccordMetricsTest extends AccordTestBase
             }
             catch (RuntimeException ex)
             {
-                Assertions.assertThat(ex).is(AssertionUtils.rootCauseIs(WritePreemptedException.class));
+                Assertions.assertThat(ex).is(AssertionUtils.rootCauseIs(AccordWritePreemptedException.class));
             }
 
             assertCoordinatorMetrics(0, "rw", 0, 0, 1, 0, 0);
@@ -172,7 +176,7 @@ public class AccordMetricsTest extends AccordTestBase
             }
             catch (RuntimeException ex)
             {
-                Assertions.assertThat(ex).is(AssertionUtils.rootCauseIs(ReadPreemptedException.class));
+                Assertions.assertThat(ex).is(AssertionUtils.rootCauseIs(AccordReadPreemptedException.class));
             }
 
             assertCoordinatorMetrics(0, "ro", 0, 0, 1, 0, 0);
@@ -184,9 +188,9 @@ public class AccordMetricsTest extends AccordTestBase
         }
         finally
         {
-            SHARED_CLUSTER.forEach(() -> DatabaseDescriptor.setAccordRecoverDelay(originalAccordRecoverDelay, TimeUnit.SECONDS));
+            SHARED_CLUSTER.forEach(() -> DatabaseDescriptor.setAccordExpireTxnDelay(originalAccordExpireTxnDelay));
+            SHARED_CLUSTER.forEach(() -> DatabaseDescriptor.setAccordRecoverTxnDelay(originalAccordRetryTxnDelay));
             SHARED_CLUSTER.forEach(() -> DatabaseDescriptor.setWriteRpcTimeout(originalWriteRpcTimeoutMillis));
-            SHARED_CLUSTER.forEach(() -> DatabaseDescriptor.setTransactionTimeout(originalTransactionTimeoutMillis));
             preacceptDelay.off();
             exec.shutdown();
         }

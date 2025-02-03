@@ -31,6 +31,8 @@ import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
+import accord.primitives.Keys;
+import accord.primitives.TxnId;
 import com.datastax.driver.core.utils.MoreFutures;
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.config.DatabaseDescriptor;
@@ -47,9 +49,12 @@ import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.service.accord.AccordResult;
 import org.apache.cassandra.service.accord.AccordTestUtils;
-import org.apache.cassandra.service.accord.IAccordService.AsyncTxnResult;
+import org.apache.cassandra.service.accord.IAccordService.IAccordResult;
+import org.apache.cassandra.service.accord.TimeOnlyRequestBookkeeping.LatencyRequestBookkeeping;
 import org.apache.cassandra.service.accord.txn.TxnData;
+import org.apache.cassandra.service.accord.txn.TxnResult;
 import org.apache.cassandra.service.consensus.migration.ConsensusMigrationMutationHelper;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.transport.Dispatcher;
@@ -229,12 +234,13 @@ public class HintsServiceTest
                     }
 
                     @Override
-                    public AsyncTxnResult mutateWithAccordAsync(ClusterMetadata cm, Mutation mutation, @Nullable ConsistencyLevel consistencyLevel, Dispatcher.RequestTime requestTime)
+                    public IAccordResult<TxnResult> mutateWithAccordAsync(ClusterMetadata cm, Mutation mutation, @Nullable ConsistencyLevel consistencyLevel, Dispatcher.RequestTime requestTime)
                     {
                         accordTxnCount.incrementAndGet();
-                        AsyncTxnResult asyncTxnResult = new AsyncTxnResult(AccordTestUtils.txnId(42, 43, 44), 42, consistencyLevel, true, requestTime);
-                        asyncTxnResult.setSuccess(new TxnData());
-                        return asyncTxnResult;
+                        TxnId txnId = AccordTestUtils.txnId(42, 43, 44);
+                        AccordResult<TxnResult> result = new AccordResult<>(txnId, Keys.EMPTY, new LatencyRequestBookkeeping(null), requestTime.startedAtNanos(), requestTime.startedAtNanos(), true);
+                        result.accept(new TxnData(), null);
+                        return result;
                     }
                 });
         sendHintsWithRetryDifferentSystemUUID(metadata);

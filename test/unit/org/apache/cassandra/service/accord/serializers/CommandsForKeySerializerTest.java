@@ -66,12 +66,14 @@ import accord.local.PreLoadContext;
 import accord.local.SafeCommand;
 import accord.local.SafeCommandStore;
 import accord.local.StoreParticipants;
+import accord.local.TimeService;
 import accord.local.cfk.CommandsForKey;
 import accord.local.cfk.CommandsForKey.InternalStatus;
 import accord.local.cfk.CommandsForKey.TxnInfo;
 import accord.local.cfk.CommandsForKey.Unmanaged;
 import accord.local.cfk.SafeCommandsForKey;
 import accord.local.cfk.Serialize;
+import accord.local.durability.DurabilityService;
 import accord.messages.ReplyContext;
 import accord.primitives.Ballot;
 import accord.primitives.KeyDeps;
@@ -185,7 +187,7 @@ public class CommandsForKeySerializerTest
                 {
                     for (TxnId id : deps)
                         keyBuilder.add(((Key)txn.keys().get(0)).toUnseekable(), id);
-                    builder.partialDeps(new PartialDeps(AccordTestUtils.fullRange(txn), keyBuilder.build(), RangeDeps.NONE, KeyDeps.NONE));
+                    builder.partialDeps(new PartialDeps(AccordTestUtils.fullRange(txn), keyBuilder.build(), RangeDeps.NONE));
                 }
             }
 
@@ -455,8 +457,7 @@ public class CommandsForKeySerializerTest
             final Supplier<Kind> kindSupplier = () -> {
                 float v = source.nextFloat();
                 if (v < 0.5) return Kind.Read;
-                if (v < 0.95) return Kind.Write;
-                if (v < 0.97) return Kind.SyncPoint;
+                if (v < 0.97) return Kind.Write;
                 return Kind.ExclusiveSyncPoint;
             };
 
@@ -657,22 +658,27 @@ public class CommandsForKeySerializerTest
         @Override public <T> AsyncChain<T> build(Callable<T> task) { throw new UnsupportedOperationException(); }
         @Override public void onRecover(Node node, Result success, Throwable fail) { throw new UnsupportedOperationException(); }
         @Override public void onInconsistentTimestamp(Command command, Timestamp prev, Timestamp next) { throw new UnsupportedOperationException(); }
-        @Override public void onFailedBootstrap(String phase, Ranges ranges, Runnable retry, Throwable failure) { throw new UnsupportedOperationException(); }
+        @Override public void onFailedBootstrap(int attempts, String phase, Ranges ranges, Runnable retry, Throwable failure) { throw new UnsupportedOperationException(); }
         @Override public void onStale(Timestamp staleSince, Ranges ranges) { throw new UnsupportedOperationException(); }
         @Override public void onUncaughtException(Throwable t) { throw new UnsupportedOperationException(); }
         @Override public void onCaughtException(Throwable t, String context) { throw new UnsupportedOperationException(); }
-        @Override public long preAcceptTimeout() { throw new UnsupportedOperationException(); }
+        @Override public boolean rejectPreAccept(TimeService time, TxnId txnId) { throw new UnsupportedOperationException(); }
         @Override public long cfkHlcPruneDelta() { return 0; }
         @Override public int cfkPruneInterval() { return 0; }
         @Override public long maxConflictsHlcPruneDelta() { return 0; }
         @Override public long maxConflictsPruneInterval() { return 0; }
         @Override public Txn emptySystemTxn(Kind kind, Routable.Domain domain) { throw new UnsupportedOperationException(); }
-        @Override public long attemptCoordinationDelay(Node node, SafeCommandStore safeStore, TxnId txnId, TimeUnit units, int retryCount) { return 0; }
-        @Override public long seekProgressDelay(Node node, SafeCommandStore safeStore, TxnId txnId, int retryCount, ProgressLog.BlockedUntil blockedUntil, TimeUnit units) { return 0; }
-        @Override public long retryAwaitTimeout(Node node, SafeCommandStore safeStore, TxnId txnId, int retryCount, ProgressLog.BlockedUntil retrying, TimeUnit units) { return 0; }
-        @Override public long localSlowAt(TxnId txnId, Status.Phase phase, TimeUnit unit) { return 0; }
-        @Override public long localExpiresAt(TxnId txnId, Status.Phase phase, TimeUnit unit) { return 0; }
+        @Override public long slowCoordinatorDelay(Node node, SafeCommandStore safeStore, TxnId txnId, TimeUnit units, int retryCount) { return 0; }
+        @Override public long slowReplicaDelay(Node node, SafeCommandStore safeStore, TxnId txnId, int retryCount, ProgressLog.BlockedUntil blockedUntil, TimeUnit units) { return 0; }
+        @Override public long slowAwaitDelay(Node node, SafeCommandStore safeStore, TxnId txnId, int retryCount, ProgressLog.BlockedUntil retrying, TimeUnit units) { return 0; }
+        @Override public long retrySyncPointDelay(Node node, int attempt, TimeUnit units) { return 0; }
+        @Override public long retryDurabilityDelay(Node node, int attempt, TimeUnit units) { return 0; }
+        @Override public long expireEpochWait(TimeUnit units) { return 0; }
         @Override public long expiresAt(ReplyContext replyContext, TimeUnit unit) { return 0; }
+        @Override public long selfSlowAt(TxnId txnId, Status.Phase phase, TimeUnit unit) { return 0; }
+        @Override public long selfExpiresAt(TxnId txnId, Status.Phase phase, TimeUnit unit) { return 0; }
+        @Override public AsyncChain<TxnId> awaitStaleId(Node node, TxnId staleId, boolean isRequested) { return null; }
+        @Override public long minStaleHlc(Node node, boolean requested) { return 0; }
     }
 
     public static class TestSafeCommandStore extends AbstractSafeCommandStore
@@ -696,8 +702,8 @@ public class CommandsForKeySerializerTest
             @Override public Node.Id id() { return Node.Id.NONE; }
             @Override public Timeouts timeouts() { return null; }
             @Override public DurableBefore durableBefore() { return null;}
-            @Override public Timestamp uniqueNow() { return null; }
-            @Override public Timestamp uniqueNow(Timestamp atLeast) { return null; }
+            @Override public DurabilityService durability() { return null; }
+            @Override public long uniqueNow(long atLeast) { return 0; }
             @Override public TopologyManager topology() { return null; }
             @Override public long now() { return 0; }
             @Override public long elapsed(TimeUnit unit) { return 0; }

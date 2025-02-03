@@ -52,6 +52,7 @@ import accord.primitives.Seekable;
 import accord.primitives.Seekables;
 import accord.primitives.Unseekables;
 import accord.primitives.Unseekables.UnseekablesKind;
+import accord.utils.Invariants;
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
@@ -382,8 +383,7 @@ public class KeySerializers
                 case 5: kind = UnseekablesKind.PartialRangeRoute; result = (RS)partialRangeRoute.deserialize(in, version); break;
                 case 6: kind = UnseekablesKind.FullRangeRoute; result = (RS)fullRangeRoute.deserialize(in, version); break;
             }
-            if (!permitted.contains(kind))
-                throw new IllegalStateException();
+            Invariants.require(permitted.contains(kind));
             return result;
         }
 

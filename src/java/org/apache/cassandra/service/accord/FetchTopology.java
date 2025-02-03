@@ -22,7 +22,6 @@ import java.io.IOException;
 import java.util.Collection;
 
 import accord.topology.Topology;
-import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.exceptions.RequestFailure;
 import org.apache.cassandra.io.IVersionedSerializer;
@@ -35,9 +34,11 @@ import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.net.MessagingUtils;
 import org.apache.cassandra.net.Verb;
 import org.apache.cassandra.repair.SharedContext;
+import org.apache.cassandra.service.WaitStrategy;
 import org.apache.cassandra.service.accord.serializers.TopologySerializers;
-import org.apache.cassandra.utils.Backoff;
 import org.apache.cassandra.utils.concurrent.Future;
+
+import static org.apache.cassandra.service.accord.api.AccordWaitStrategies.retryFetchTopology;
 
 public class FetchTopology
 {
@@ -127,7 +128,7 @@ public class FetchTopology
     public static Future<Topology> fetch(SharedContext context, Collection<InetAddressAndPort> peers, long epoch)
     {
         FetchTopology request = new FetchTopology(epoch);
-        Backoff backoff = Backoff.fromConfig(context, DatabaseDescriptor.getAccord().fetchRetry);
+        WaitStrategy backoff = retryFetchTopology();
         return context.messaging().<FetchTopology, Response>sendWithRetries(backoff,
                                                                             context.optionalTasks()::schedule,
                                                                             Verb.ACCORD_FETCH_TOPOLOGY_REQ,

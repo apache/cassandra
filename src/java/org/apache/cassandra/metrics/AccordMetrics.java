@@ -21,7 +21,7 @@ package org.apache.cassandra.metrics;
 import java.lang.reflect.Field;
 import java.util.concurrent.TimeUnit;
 
-import accord.api.EventsListener;
+import accord.api.EventListener;
 import accord.local.Command;
 import accord.primitives.Deps;
 import accord.primitives.PartialDeps;
@@ -181,7 +181,7 @@ public class AccordMetrics
         return builder.toString();
     }
 
-    public static class Listener implements EventsListener
+    public static class Listener implements EventListener
     {
         public final static Listener instance = new Listener(AccordMetrics.readMetrics, AccordMetrics.writeMetrics);
 
@@ -198,7 +198,7 @@ public class AccordMetrics
         {
             if (txnId.isWrite())
                 return writeMetrics;
-            else if (txnId.isRead())
+            else if (txnId.isSomeRead())
                 return readMetrics;
             else
                 return null;
@@ -289,6 +289,8 @@ public class AccordMetrics
         @Override
         public void onTimeout(TxnId txnId)
         {
+            // TODO (required): we appear to be marking this twice, once in AccordResult and once here.
+            //   why does AccordMetricsTest only see this one? remove duplication.
             AccordMetrics metrics = forTransaction(txnId);
             if (metrics != null)
                 metrics.timeouts.mark();

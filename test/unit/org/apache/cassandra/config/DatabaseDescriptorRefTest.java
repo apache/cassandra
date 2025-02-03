@@ -304,6 +304,7 @@ public class DatabaseDescriptorRefTest
     "org.apache.cassandra.security.AbstractCryptoProvider",
     "org.apache.cassandra.tcm.RegistrationStateCallbacks",
     "org.apache.cassandra.service.consensus.TransactionalMode",
+    "org.apache.cassandra.service.WaitStrategy",
     "org.apache.cassandra.transport.ProtocolException",
     "org.apache.cassandra.utils.Closeable",
     "org.apache.cassandra.utils.CloseableIterator",

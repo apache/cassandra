@@ -343,13 +343,13 @@ public class ReconfigureCMS extends MultiStepOperation<AdvanceCMSReconfiguration
         // paxos repair at the beginning of each step, before streaming where applicable, will ensure that the
         // overlapping quorums invariant holds.
 
-        Retry.Backoff retry = new Retry.Backoff(TCMMetrics.instance.repairPaxosTopologyRetries);
+        Retry retry = Retry.withNoTimeLimit(TCMMetrics.instance.repairPaxosTopologyRetries);
         List<Supplier<Future<?>>> remaining = ActiveRepairService.instance()
                                                                  .repairPaxosForTopologyChangeAsync(SchemaConstants.METADATA_KEYSPACE_NAME,
                                                                                                     Collections.singletonList(entireRange),
                                                                                                     "CMS reconfiguration");
 
-        while (!retry.reachedMax())
+        while (true)
         {
             Map<Supplier<Future<?>>, Future<?>> tasks = new HashMap<>();
             for (Supplier<Future<?>> supplier : remaining)
@@ -377,7 +377,8 @@ public class ReconfigureCMS extends MultiStepOperation<AdvanceCMSReconfiguration
             if (remaining.isEmpty())
                 return;
 
-            retry.maybeSleep();
+            if (!retry.maybeSleep())
+                break;
         }
         logger.error("Added node as a CMS, but failed to repair paxos topology after this operation.");
     }

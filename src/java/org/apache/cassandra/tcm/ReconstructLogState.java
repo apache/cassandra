@@ -22,7 +22,6 @@ import java.io.IOException;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
 
-import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
@@ -33,6 +32,8 @@ import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.tcm.log.LogState;
 import org.apache.cassandra.utils.FBUtilities;
+
+import static org.apache.cassandra.config.DatabaseDescriptor.getCmsAwaitTimeout;
 
 public class ReconstructLogState
 {
@@ -97,8 +98,7 @@ public class ReconstructLogState
                 throw new NotCMSException("This node is not in the CMS, can't generate a consistent log fetch response to " + message.from());
 
             LogState result = processor.get().getLogState(request.lowerBound, request.higherBound, request.includeSnapshot,
-                                                          Retry.Deadline.after(DatabaseDescriptor.getCmsAwaitTimeout().to(TimeUnit.NANOSECONDS),
-                                                                               new Retry.Jitter(TCMMetrics.instance.fetchLogRetries)));
+                                                          Retry.untilElapsed(getCmsAwaitTimeout().to(TimeUnit.NANOSECONDS), TCMMetrics.instance.fetchLogRetries));
 
             MessagingService.instance().send(message.responseWith(result), message.from());
         }

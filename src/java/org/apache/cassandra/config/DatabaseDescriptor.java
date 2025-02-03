@@ -119,6 +119,7 @@ import org.apache.cassandra.security.JREProvider;
 import org.apache.cassandra.security.SSLFactory;
 import org.apache.cassandra.service.CacheService.CacheType;
 import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.service.accord.api.AccordWaitStrategies;
 import org.apache.cassandra.service.consensus.TransactionalMode;
 import org.apache.cassandra.service.paxos.Paxos;
 import org.apache.cassandra.tcm.RegistrationStatus;
@@ -1564,10 +1565,10 @@ public class DatabaseDescriptor
             conf.truncate_request_timeout = LOWEST_ACCEPTED_TIMEOUT;
         }
 
-        if (conf.transaction_timeout.toMilliseconds() < LOWEST_ACCEPTED_TIMEOUT.toMilliseconds())
+        if (conf.accord_preaccept_timeout.toMilliseconds() < LOWEST_ACCEPTED_TIMEOUT.toMilliseconds())
         {
-            logInfo("transaction_timeout", conf.transaction_timeout, LOWEST_ACCEPTED_TIMEOUT);
-            conf.transaction_timeout = LOWEST_ACCEPTED_TIMEOUT;
+            logInfo("accord_preaccept_timeout", conf.accord_preaccept_timeout, LOWEST_ACCEPTED_TIMEOUT);
+            conf.accord_preaccept_timeout = LOWEST_ACCEPTED_TIMEOUT;
         }
     }
 
@@ -2530,16 +2531,6 @@ public class DatabaseDescriptor
     public static long getCasContentionTimeout(TimeUnit unit)
     {
         return conf.cas_contention_timeout.to(unit);
-    }
-
-    public static long getTransactionTimeout(TimeUnit unit)
-    {
-        return conf.transaction_timeout.to(unit);
-    }
-
-    public static void setTransactionTimeout(long timeOutInMillis)
-    {
-        conf.transaction_timeout = new DurationSpec.LongMillisecondsBound(timeOutInMillis);
     }
 
     public static void setCasContentionTimeout(long timeOutInMillis)
@@ -5330,24 +5321,14 @@ public class DatabaseDescriptor
         conf.accord.range_migration = Preconditions.checkNotNull(val);
     }
 
-    public static int getAccordBarrierRetryAttempts()
-    {
-        return conf.accord.barrier_retry_attempts;
-    }
-
-    public static long getAccordBarrierRetryInitialBackoffMillis()
-    {
-        return conf.accord.barrier_retry_inital_backoff_millis.toMilliseconds();
-    }
-
-    public static long getAccordBarrierRetryMaxBackoffMillis()
-    {
-        return conf.accord.barrier_max_backoff.toMilliseconds();
-    }
-
     public static long getAccordRangeSyncPointTimeoutNanos()
     {
         return conf.accord.range_syncpoint_timeout.to(TimeUnit.NANOSECONDS);
+    }
+
+    public static long getAccordRepairTimeoutNanos()
+    {
+        return conf.accord.repair_timeout.to(TimeUnit.NANOSECONDS);
     }
 
     public static boolean getAccordTransactionsEnabled()
@@ -5405,29 +5386,43 @@ public class DatabaseDescriptor
         return conf.accord.shrink_cache_entries_before_eviction;
     }
 
-    public static long getAccordRecoverDelay(TimeUnit units)
+    public static String getAccordRecoverTxnDelay()
     {
-        return conf.accord.recover_delay.to(units);
+        return conf.accord.recover_txn;
     }
 
-    public static void setAccordRecoverDelay(long time, TimeUnit units)
+    public static void setAccordRecoverTxnDelay(String recoverTxnDelay)
     {
-        conf.accord.recover_delay = new IntMillisecondsBound(time, units);
+        AccordWaitStrategies.setRecoverTxn(recoverTxnDelay);
+        conf.accord.recover_txn = recoverTxnDelay;
     }
 
-    public static long getAccordRangeSyncPointRecoverDelay(TimeUnit units)
+    public static String getAccordExpireTxnDelay()
     {
-        return conf.accord.range_syncpoint_recover_delay.to(units);
+        return conf.accord.expire_txn;
     }
 
-    public static void setAccordRangeSyncPointRecoverDelay(long time, TimeUnit units)
+    public static void setAccordExpireTxnDelay(String expireTxnDelay)
     {
-        conf.accord.range_syncpoint_recover_delay = new IntMillisecondsBound(time, units);
+        AccordWaitStrategies.setExpireTxn(expireTxnDelay);
+        conf.accord.expire_txn = expireTxnDelay;
+    }
+
+    public static String getAccordRecoverSyncPointDelay()
+    {
+        return conf.accord.recover_syncpoint;
+    }
+
+    public static void setAccordRecoverSyncPointDelay(String recoverSyncPointDelay)
+    {
+        AccordWaitStrategies.setRecoverSyncPoint(recoverSyncPointDelay);
+        conf.accord.recover_syncpoint = recoverSyncPointDelay;
     }
 
     public static long getAccordFastPathUpdateDelayMillis()
     {
-        return conf.accord.fast_path_update_delay.to(TimeUnit.MILLISECONDS);
+        DurationSpec.IntSecondsBound bound = conf.accord.fast_path_update_delay;
+        return bound == null ? -1 : bound.to(TimeUnit.MILLISECONDS);
     }
 
     public static void setAccordFastPathUpdateDelaySeconds(long seconds)
@@ -5468,26 +5463,6 @@ public class DatabaseDescriptor
     public static void setAccordGlobalDurabilityCycleSeconds(long seconds)
     {
         conf.accord.global_durability_cycle = new DurationSpec.IntSecondsBound(seconds);
-    }
-
-    public static long getAccordDefaultDurabilityRetryDelay(TimeUnit unit)
-    {
-        return conf.accord.default_durability_retry_delay.to(unit);
-    }
-
-    public static void setAccordDefaultDurabilityRetryDelaySeconds(long seconds)
-    {
-        conf.accord.default_durability_retry_delay = new DurationSpec.IntSecondsBound(seconds);
-    }
-
-    public static long getAccordMaxDurabilityRetryDelay(TimeUnit unit)
-    {
-        return conf.accord.max_durability_retry_delay.to(unit);
-    }
-
-    public static void setAccordMaxDurabilityRetryDelaySeconds(long seconds)
-    {
-        conf.accord.max_durability_retry_delay = new DurationSpec.IntSecondsBound(seconds);
     }
 
     public static long getAccordShardDurabilityCycle(TimeUnit unit)
@@ -5835,6 +5810,11 @@ public class DatabaseDescriptor
     public static DurationSpec.IntMillisecondsBound getDefaultMaxRetryBackoff()
     {
         return conf.cms_default_max_retry_backoff;
+    }
+
+    public static String getCMSRetryDelay()
+    {
+        return conf.cms_retry_delay;
     }
 
     public static DurationSpec getCmsAwaitTimeout()

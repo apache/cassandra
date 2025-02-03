@@ -78,6 +78,7 @@ import org.apache.cassandra.utils.concurrent.ImmediateFuture;
 import static java.util.concurrent.TimeUnit.NANOSECONDS;
 import static java.util.stream.Collectors.toSet;
 import static org.apache.cassandra.config.CassandraRelevantProperties.TCM_SKIP_CMS_RECONFIGURATION_AFTER_TOPOLOGY_CHANGE;
+import static org.apache.cassandra.config.DatabaseDescriptor.getCmsAwaitTimeout;
 import static org.apache.cassandra.tcm.ClusterMetadataService.State.GOSSIP;
 import static org.apache.cassandra.tcm.ClusterMetadataService.State.LOCAL;
 import static org.apache.cassandra.tcm.ClusterMetadataService.State.REMOTE;
@@ -667,8 +668,7 @@ public class ClusterMetadataService
         if (ourEpoch.isEqualOrAfter(awaitAtLeast))
             return metadata;
 
-        Retry.Deadline deadline = Retry.Deadline.after(DatabaseDescriptor.getCmsAwaitTimeout().to(TimeUnit.NANOSECONDS),
-                                                       new Retry.Jitter(TCMMetrics.instance.fetchLogRetries));
+        Retry deadline = Retry.untilElapsed(getCmsAwaitTimeout().to(TimeUnit.NANOSECONDS), TCMMetrics.instance.fetchLogRetries);
         // responses for ALL withhout knowing we have pending
         metadata = processor.fetchLogAndWait(awaitAtLeast, deadline);
         if (metadata.epoch.isBefore(awaitAtLeast))
@@ -876,9 +876,9 @@ public class ClusterMetadataService
         }
 
         @Override
-        public Commit.Result commit(Entry.Id entryId, Transformation transform, Epoch lastKnown, Retry.Deadline retryPolicy)
+        public Commit.Result commit(Entry.Id entryId, Transformation transform, Epoch lastKnown, Retry retryPolicy)
         {
-            while (!retryPolicy.reachedMax())
+            while (true)
             {
                 try
                 {
@@ -891,14 +891,15 @@ public class ClusterMetadataService
                 }
                 catch (NotCMSException e)
                 {
-                    retryPolicy.maybeSleep();
+                    if (!retryPolicy.maybeSleep())
+                        break;
                 }
             }
             return Commit.Result.failed(ExceptionCode.SERVER_ERROR, "Could not commit " + transform.kind() + " at epoch " + lastKnown);
         }
 
         @Override
-        public ClusterMetadata fetchLogAndWait(Epoch waitFor, Retry.Deadline retryPolicy)
+        public ClusterMetadata fetchLogAndWait(Epoch waitFor, Retry retryPolicy)
         {
             return delegate().fetchLogAndWait(waitFor, retryPolicy);
         }
@@ -910,7 +911,7 @@ public class ClusterMetadataService
         }
 
         @Override
-        public LogState getLogState(Epoch start, Epoch end, boolean includeSnapshot, Retry.Deadline retryPolicy)
+        public LogState getLogState(Epoch start, Epoch end, boolean includeSnapshot, Retry retryPolicy)
         {
             return delegate().getLogState(start, end, includeSnapshot, retryPolicy);
         }

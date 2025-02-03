@@ -537,7 +537,6 @@ public abstract class TopologyMixupTestBase<S extends TopologyMixupTestBase.Sche
                                       .set("read_request_timeout", "10s")
                                       .set("range_request_timeout", "20s")
                                       .set("request_timeout", "20s")
-                                      .set("transaction_timeout", "15s")
                                       .set("native_transport_timeout", "30s")
                                       // bound startup to some value larger than the task timeout, this is to allow the
                                       // tests to stop blocking when a startup issue is detected.  The main reason for

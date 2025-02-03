@@ -49,6 +49,7 @@ import org.apache.cassandra.service.consensus.migration.ConsensusRequestRouter;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.utils.ObjectSizes;
 
+import static accord.api.Data.NOOP_DATA;
 import static com.google.common.base.Preconditions.checkNotNull;
 import static com.google.common.base.Preconditions.checkState;
 import static org.apache.cassandra.service.accord.txn.TxnData.TxnDataNameKind.CAS_READ;
@@ -210,7 +211,7 @@ public abstract class TxnQuery implements Query
         ClusterMetadata clusterMetadata = ClusterMetadata.current();
         checkState(clusterMetadata.epoch.getEpoch() >= executeAt.epoch(), "TCM epoch %d is < executeAt epoch %d", clusterMetadata.epoch.getEpoch(), executeAt.epoch());
         boolean reads = read != null && !read.keys().isEmpty();
-        if (transactionShouldBeBlocked(clusterMetadata, reads, keys))
+        if (transactionShouldBeBlocked(clusterMetadata, reads, keys, data, update))
         {
             if (txnId.isWrite())
                 ClientRequestsMetricsHolder.accordWriteMetrics.accordMigrationRejects.mark();
@@ -258,8 +259,11 @@ public abstract class TxnQuery implements Query
         }
     };
 
-    private static boolean transactionShouldBeBlocked(ClusterMetadata clusterMetadata, boolean reads, Seekables<?, ?> keys)
+    private static boolean transactionShouldBeBlocked(ClusterMetadata clusterMetadata, boolean reads, Seekables<?, ?> keys, Data data, Update update)
     {
+        if (data == NOOP_DATA && (update == null || update.keys().isEmpty()))
+            return false;
+
         // TxnQuery needs to be smart enough to allow blind writes through for the non-transactional use cases during migration
         // This also allows blind write TransactionStatement to run before TransactionStatemetns with reads can run,
         // but this is harmless since we only promise that TransactionStatement works when migrated to Accord.

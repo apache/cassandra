@@ -221,12 +221,7 @@ public class AccordInteropApply extends Apply implements LocalListeners.ComplexL
     @Override
     public MessageType type()
     {
-        switch (kind)
-        {
-            case Minimal: return AccordMessageType.INTEROP_APPLY_MINIMAL_REQ;
-            case Maximal: return AccordMessageType.INTEROP_APPLY_MAXIMAL_REQ;
-            default: throw new IllegalStateException();
-        }
+        return AccordMessageType.INTEROP_APPLY_REQ;
     }
 
     @Override

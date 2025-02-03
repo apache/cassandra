@@ -42,7 +42,6 @@ import accord.topology.Topology;
 import accord.utils.Invariants;
 import accord.utils.SortedArrays.SortedArrayList;
 import accord.utils.TinyEnumSet;
-import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Range;
@@ -393,7 +392,8 @@ public class AccordTopology
         try
         {
             ClusterMetadataService.instance().fetchLogFromCMS(epoch);
-            AccordService.instance().epochReady(epoch).get(DatabaseDescriptor.getTransactionTimeout(MILLISECONDS), MILLISECONDS);
+            IAccordService service = AccordService.instance();
+            service.epochReady(epoch).get(service.agent().expireEpochWait(MILLISECONDS), MILLISECONDS);
         }
         catch (InterruptedException e)
         {

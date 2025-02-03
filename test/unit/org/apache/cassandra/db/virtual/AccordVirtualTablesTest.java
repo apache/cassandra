@@ -167,7 +167,7 @@ public class AccordVirtualTablesTest extends CQLTester
                 return sorter;
             }
         };
-        TopologyManager tm = new TopologyManager(supplier, null, N1, null, null, null);
+        TopologyManager tm = new TopologyManager(supplier, null, N1, null, null);
 
         var mock = Mockito.mock(IAccordService.class);
         Mockito.when(mock.topology()).thenReturn(tm);

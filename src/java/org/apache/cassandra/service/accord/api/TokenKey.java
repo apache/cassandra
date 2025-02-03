@@ -296,6 +296,7 @@ public final class TokenKey extends AccordRoutableKey implements RoutingKey, Ran
             return result;
         }
 
+        // WARNING: consumes buffer!
         public TokenKey deserialize(ByteBuffer buffer)
         {
             return deserialize(buffer, getPartitioner());
@@ -303,8 +304,16 @@ public final class TokenKey extends AccordRoutableKey implements RoutingKey, Ran
 
         public TokenKey deserialize(ByteBuffer buffer, IPartitioner partitioner)
         {
+            TableId tableId = TableId.deserializeCompactComparable(buffer, ByteBufferAccessor.instance, 0);
+            int offset = tableId.serializedCompactComparableSize();
+            return deserializeWithPrefix(tableId, buffer.remaining() - offset, buffer, ByteBufferAccessor.instance, offset, partitioner);
+        }
+
+        // WARNING: consumes buffer!
+        public TokenKey deserializeAndConsume(ByteBuffer buffer, IPartitioner partitioner)
+        {
+            TableId tableId = TableId.deserializeCompactComparable(buffer, ByteBufferAccessor.instance, 0);
             int offset = buffer.position();
-            TableId tableId = TableId.deserializeCompactComparable(buffer, ByteBufferAccessor.instance, offset);
             buffer.position(offset + tableId.serializedCompactComparableSize());
             return deserializeWithPrefix(tableId, buffer.remaining(), buffer, partitioner);
         }
@@ -403,21 +412,13 @@ public final class TokenKey extends AccordRoutableKey implements RoutingKey, Ran
             return new TokenKey((TableId) tableId, sentinel, token);
         }
 
-        public <V> TokenKey deserializeWithPrefixAndImpliedLength(Object tableId, ByteBuffer buffer)
-        {
-            return deserializeWithPrefixAndImpliedLength(tableId, buffer, getPartitioner());
-        }
-
-        public <V> TokenKey deserializeWithPrefixAndImpliedLength(Object tableId, ByteBuffer buffer, IPartitioner partitioner)
+        // WARNING: consumes buffer!
+        public TokenKey deserializeWithPrefixAndImpliedLength(Object tableId, ByteBuffer buffer, IPartitioner partitioner)
         {
             return deserializeWithPrefix(tableId, buffer.remaining(), buffer, partitioner);
         }
 
-        public TokenKey deserializeWithPrefix(Object tableId, int length, ByteBuffer buffer)
-        {
-            return deserializeWithPrefix(tableId, length, buffer, getPartitioner());
-        }
-
+        // WARNING: consumes buffer!
         public TokenKey deserializeWithPrefix(Object tableId, int length, ByteBuffer buffer, IPartitioner partitioner)
         {
             byte sentinel = buffer.get();
@@ -588,6 +589,12 @@ public final class TokenKey extends AccordRoutableKey implements RoutingKey, Ran
         public Range splitRange(Range range, int from, int to, int numSplits)
         {
             return subSplitter.splitRange(range, from, to, numSplits);
+        }
+
+        @Override
+        public Ranges selectFirstSubRanges(Range range, Ranges subRanges, int totalSplits)
+        {
+            return subSplitter.selectFirstSubRanges(range, subRanges, totalSplits);
         }
 
         @Override

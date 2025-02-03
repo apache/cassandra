@@ -18,10 +18,9 @@
 
 package org.apache.cassandra.service.accord;
 
-import java.math.BigInteger;
-import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -32,43 +31,25 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.function.BiFunction;
 import java.util.function.Function;
-import java.util.function.Supplier;
-import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import javax.annotation.concurrent.GuardedBy;
 
 import com.google.common.annotations.VisibleForTesting;
-import com.google.common.base.Stopwatch;
-import com.google.common.base.Throwables;
 import com.google.common.collect.Streams;
 import com.google.common.primitives.Ints;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import accord.api.BarrierType;
 import accord.api.Journal;
-import accord.api.LocalConfig;
-import accord.api.Result;
-import accord.api.RoutingKey;
-import accord.coordinate.Barrier;
-import accord.coordinate.Barrier.AsyncSyncPoint;
-import accord.coordinate.CoordinateSyncPoint;
-import accord.coordinate.CoordinationAdapter.Adapters.SyncPointAdapter;
-import accord.coordinate.CoordinationFailed;
-import accord.coordinate.ExecuteSyncPoint;
-import accord.coordinate.Exhausted;
-import accord.coordinate.FailureAccumulator;
-import accord.coordinate.Invalidated;
-import accord.coordinate.Preempted;
-import accord.coordinate.Timeout;
-import accord.coordinate.TopologyMismatch;
-import accord.coordinate.tracking.AllTracker;
-import accord.coordinate.tracking.RequestStatus;
+import accord.coordinate.CoordinateMaxConflict;
+import accord.coordinate.CoordinateTransaction;
+import accord.coordinate.KeyBarriers;
 import accord.impl.AbstractConfigurationService;
 import accord.impl.DefaultLocalListeners;
 import accord.impl.DefaultRemoteListeners;
-import accord.impl.DurabilityScheduling;
+import accord.local.UniqueTimeService.AtomicUniqueTimeWithStaleReservation;
+import accord.local.durability.DurabilityService;
 import accord.impl.RequestCallbacks;
 import accord.impl.SizeOfIntersectionSorter;
 import accord.impl.progresslog.DefaultProgressLogs;
@@ -83,11 +64,9 @@ import accord.local.SafeCommand;
 import accord.local.ShardDistributor.EvenSplit;
 import accord.local.cfk.CommandsForKey;
 import accord.local.cfk.SafeCommandsForKey;
-import accord.messages.Callback;
-import accord.messages.ReadData;
+import accord.local.durability.ShardDurability;
 import accord.messages.Reply;
 import accord.messages.Request;
-import accord.messages.WaitUntilApplied;
 import accord.primitives.FullRoute;
 import accord.primitives.Keys;
 import accord.primitives.Ranges;
@@ -96,12 +75,9 @@ import accord.primitives.SaveStatus;
 import accord.primitives.Seekable;
 import accord.primitives.Seekables;
 import accord.primitives.Status;
-import accord.primitives.SyncPoint;
 import accord.primitives.Timestamp;
 import accord.primitives.Txn;
-import accord.primitives.Txn.Kind;
 import accord.primitives.TxnId;
-import accord.topology.Topologies;
 import accord.topology.Topology;
 import accord.topology.TopologyManager;
 import accord.utils.DefaultRandom;
@@ -109,79 +85,64 @@ import accord.utils.Invariants;
 import accord.utils.async.AsyncChain;
 import accord.utils.async.AsyncChains;
 import accord.utils.async.AsyncResult;
-import accord.utils.async.AsyncResults;
 import org.apache.cassandra.concurrent.Shutdownable;
 import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.ConsistencyLevel;
-import org.apache.cassandra.db.WriteType;
-import org.apache.cassandra.dht.AccordSplitter;
-import org.apache.cassandra.exceptions.InvalidRequestException;
-import org.apache.cassandra.exceptions.ReadTimeoutException;
 import org.apache.cassandra.exceptions.RequestExecutionException;
-import org.apache.cassandra.exceptions.RequestTimeoutException;
-import org.apache.cassandra.exceptions.WriteTimeoutException;
 import org.apache.cassandra.journal.Params;
 import org.apache.cassandra.locator.InetAddressAndPort;
-import org.apache.cassandra.metrics.AccordClientRequestMetrics;
-import org.apache.cassandra.metrics.ClientRequestMetrics;
-import org.apache.cassandra.metrics.ClientRequestsMetricsHolder;
 import org.apache.cassandra.net.IVerbHandler;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessageDelivery;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.repair.SharedContext;
-import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.service.accord.AccordSyncPropagator.Notification;
+import org.apache.cassandra.service.accord.TimeOnlyRequestBookkeeping.LatencyRequestBookkeeping;
 import org.apache.cassandra.service.accord.api.AccordAgent;
+import org.apache.cassandra.service.accord.api.AccordRoutableKey;
 import org.apache.cassandra.service.accord.api.TokenKey.KeyspaceSplitter;
 import org.apache.cassandra.service.accord.api.TokenKey;
 import org.apache.cassandra.service.accord.api.AccordScheduler;
 import org.apache.cassandra.service.accord.api.AccordTimeService;
 import org.apache.cassandra.service.accord.api.AccordTopologySorter;
 import org.apache.cassandra.service.accord.api.CompositeTopologySorter;
-import org.apache.cassandra.service.accord.api.PartitionKey;
-import org.apache.cassandra.service.accord.exceptions.ReadExhaustedException;
-import org.apache.cassandra.service.accord.exceptions.ReadPreemptedException;
-import org.apache.cassandra.service.accord.exceptions.WritePreemptedException;
 import org.apache.cassandra.service.accord.interop.AccordInteropAdapter.AccordInteropFactory;
-import org.apache.cassandra.service.accord.repair.RepairSyncPointAdapter;
-import org.apache.cassandra.service.accord.txn.RetryWithNewProtocolResult;
+import org.apache.cassandra.service.accord.txn.TxnQuery;
+import org.apache.cassandra.service.accord.txn.TxnRead;
 import org.apache.cassandra.service.accord.txn.TxnResult;
+import org.apache.cassandra.service.accord.txn.TxnUpdate;
 import org.apache.cassandra.service.consensus.TransactionalMode;
 import org.apache.cassandra.service.consensus.migration.TableMigrationState;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.ClusterMetadataService;
 import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.tcm.membership.NodeId;
-import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.transport.Dispatcher;
-import org.apache.cassandra.utils.Blocking;
-import org.apache.cassandra.utils.Clock;
 import org.apache.cassandra.utils.ExecutorUtils;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.concurrent.AsyncPromise;
 import org.apache.cassandra.utils.concurrent.Future;
 import org.apache.cassandra.utils.concurrent.UncheckedInterruptedException;
 
+import static accord.local.durability.DurabilityService.SyncLocal.Self;
+import static accord.local.durability.DurabilityService.SyncRemote.All;
 import static accord.messages.SimpleReply.Ok;
 import static accord.primitives.Routable.Domain.Key;
-import static accord.primitives.Routable.Domain.Range;
+import static accord.primitives.Txn.Kind.Write;
 import static accord.primitives.TxnId.Cardinality.cardinality;
-import static accord.topology.Topologies.SelectNodeOwnership.SHARE;
-import static accord.utils.Invariants.require;
-import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import static java.util.concurrent.TimeUnit.NANOSECONDS;
 import static java.util.concurrent.TimeUnit.SECONDS;
 import static org.apache.cassandra.config.DatabaseDescriptor.getAccordCommandStoreShardCount;
+import static org.apache.cassandra.config.DatabaseDescriptor.getAccordGlobalDurabilityCycle;
+import static org.apache.cassandra.config.DatabaseDescriptor.getAccordShardDurabilityCycle;
+import static org.apache.cassandra.config.DatabaseDescriptor.getAccordShardDurabilityTargetSplits;
 import static org.apache.cassandra.config.DatabaseDescriptor.getPartitioner;
-import static org.apache.cassandra.metrics.ClientRequestsMetricsHolder.accordReadMetrics;
-import static org.apache.cassandra.metrics.ClientRequestsMetricsHolder.accordWriteMetrics;
-import static org.apache.cassandra.service.consensus.migration.ConsensusKeyMigrationState.maybeSaveAccordKeyMigrationLocally;
+import static org.apache.cassandra.metrics.ClientRequestsMetricsHolder.accordReadBookkeeping;
+import static org.apache.cassandra.metrics.ClientRequestsMetricsHolder.accordWriteBookkeeping;
 import static org.apache.cassandra.service.consensus.migration.ConsensusRequestRouter.getTableMetadata;
 import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 
@@ -201,7 +162,6 @@ public class AccordService implements IAccordService, Shutdownable
     private final AccordJournal journal;
     private final AccordVerbHandler<? extends Request> requestHandler;
     private final AccordResponseVerbHandler<? extends Reply> responseHandler;
-    private final LocalConfig configuration;
 
     @GuardedBy("this")
     private State state = State.INIT;
@@ -257,8 +217,8 @@ public class AccordService implements IAccordService, Shutdownable
             // when replacing another node but using the same ip the hostId will also match, this causes no TCM transactions
             // to be committed...
             // In order to bootup correctly, need to pull in the current epoch
-            ClusterMetadata metadata = ClusterMetadata.current();
-            as.configurationService().listener.notifyPostCommit(metadata, metadata, false);
+            ClusterMetadata current = ClusterMetadata.current();
+            as.configService().listener.notifyPostCommit(current, current, false);
         }
         instance = as;
 
@@ -328,7 +288,6 @@ public class AccordService implements IAccordService, Shutdownable
         final RequestCallbacks callbacks = new RequestCallbacks(time);
         this.scheduler = new AccordScheduler();
         this.dataStore = new AccordDataStore();
-        this.configuration = new AccordConfiguration(DatabaseDescriptor.getRawConfig());
         this.journal = new AccordJournal(DatabaseDescriptor.getAccord().journal, agent);
         this.configService = new AccordConfigurationService(localId);
         this.fastPathCoordinator = AccordFastPathCoordinator.create(localId, configService);
@@ -336,7 +295,7 @@ public class AccordService implements IAccordService, Shutdownable
         this.node = new Node(localId,
                              messageSink,
                              configService,
-                             time,
+                             time, new AtomicUniqueTimeWithStaleReservation(time),
                              () -> dataStore,
                              new KeyspaceSplitter(new EvenSplit<>(getAccordCommandStoreShardCount(), getPartitioner().accordSplitter())),
                              agent,
@@ -351,7 +310,6 @@ public class AccordService implements IAccordService, Shutdownable
                              AccordCommandStores.factory(),
                              new AccordInteropFactory(agent, configService),
                              journal.durableBeforePersister(),
-                             configuration,
                              journal);
         this.nodeShutdown = toShutdownable(node);
         this.requestHandler = new AccordVerbHandler<>(node, configService);
@@ -440,13 +398,10 @@ public class AccordService implements IAccordService, Shutdownable
         configService.start();
         fastPathCoordinator.start();
         ClusterMetadataService.instance().log().addListener(fastPathCoordinator);
-        node.durabilityScheduling().setDefaultRetryDelay(Ints.checkedCast(DatabaseDescriptor.getAccordDefaultDurabilityRetryDelay(SECONDS)), SECONDS);
-        node.durabilityScheduling().setMaxRetryDelay(Ints.checkedCast(DatabaseDescriptor.getAccordMaxDurabilityRetryDelay(SECONDS)), SECONDS);
-        node.durabilityScheduling().setTargetShardSplits(Ints.checkedCast(DatabaseDescriptor.getAccordShardDurabilityTargetSplits()));
-        node.durabilityScheduling().setGlobalCycleTime(Ints.checkedCast(DatabaseDescriptor.getAccordGlobalDurabilityCycle(SECONDS)), SECONDS);
-        node.durabilityScheduling().setShardCycleTime(Ints.checkedCast(DatabaseDescriptor.getAccordShardDurabilityCycle(SECONDS)), SECONDS);
-        node.durabilityScheduling().setTxnIdLag(Ints.checkedCast(DatabaseDescriptor.getAccordScheduleDurabilityTxnIdLag(SECONDS)), TimeUnit.SECONDS);
-        node.durabilityScheduling().start();
+        node.durability().shards().setTargetShardSplits(Ints.checkedCast(getAccordShardDurabilityTargetSplits()));
+        node.durability().shards().setShardCycleTime(Ints.checkedCast(getAccordShardDurabilityCycle(SECONDS)), SECONDS);
+        node.durability().global().setGlobalCycleTime(Ints.checkedCast(getAccordGlobalDurabilityCycle(SECONDS)), SECONDS);
+        node.durability().start();
         state = State.STARTED;
     }
 
@@ -540,133 +495,84 @@ public class AccordService implements IAccordService, Shutdownable
         return responseHandler;
     }
 
-    public DurabilityScheduling.ImmutableView durabilityScheduling()
+    public ShardDurability.ImmutableView shardDurability()
     {
-        return node.durabilityScheduling().immutableView();
-    }
-
-    private Seekables<?, ?> barrier(@Nonnull Seekables<?, ?> keysOrRanges, long epoch, Dispatcher.RequestTime requestTime, long timeoutNanos, BarrierType barrierType, boolean isForWrite, BiFunction<Node, FullRoute<?>, AsyncSyncPoint> syncPoint)
-    {
-        Stopwatch sw = Stopwatch.createStarted();
-        keysOrRanges = intersectionWithAccordManagedRanges(keysOrRanges);
-        // It's possible none of them were Accord managed and we aren't going to treat that as an error
-        if (keysOrRanges.isEmpty())
-        {
-            logger.info("Skipping barrier because there are no ranges managed by Accord");
-            return keysOrRanges;
-        }
-
-        FullRoute<?> route = node.computeRoute(epoch, keysOrRanges);
-        AccordClientRequestMetrics metrics = isForWrite ? accordWriteMetrics : accordReadMetrics;
-        try
-        {
-            logger.debug("Starting barrier key: {} epoch: {} barrierType: {} isForWrite {}", keysOrRanges, epoch, barrierType, isForWrite);
-            AsyncResult<TxnId> asyncResult = syncPoint == null
-                                                 ? Barrier.barrier(node, keysOrRanges, route, epoch, barrierType)
-                                                 : Barrier.barrier(node, keysOrRanges, route, epoch, barrierType, syncPoint);
-            long deadlineNanos = requestTime.startedAtNanos() + timeoutNanos;
-            TxnId txnId = AsyncChains.getBlocking(asyncResult, deadlineNanos - nanoTime(), NANOSECONDS);
-            if (keysOrRanges.domain() == Key)
-            {
-                PartitionKey key = (PartitionKey)keysOrRanges.get(0);
-                maybeSaveAccordKeyMigrationLocally(key, Epoch.create(txnId.epoch()));
-            }
-            logger.debug("Completed barrier attempt in {}ms, {}ms since attempts start, barrier key: {} epoch: {} barrierType: {} isForWrite {}",
-                         sw.elapsed(MILLISECONDS),
-                         NANOSECONDS.toMillis(nanoTime() - requestTime.startedAtNanos()),
-                         keysOrRanges, epoch, barrierType, isForWrite);
-            return keysOrRanges;
-        }
-        catch (ExecutionException e)
-        {
-            Throwable cause = Throwables.getRootCause(e);
-            if (cause instanceof Timeout)
-            {
-                TxnId txnId = ((Timeout) cause).txnId();
-                ((AccordAgent) node.agent()).onFailedBarrier(txnId, keysOrRanges, cause);
-                metrics.timeouts.mark();
-                throw newBarrierTimeout(((CoordinationFailed)cause).txnId(), barrierType, isForWrite, keysOrRanges);
-            }
-            if (cause instanceof Preempted)
-            {
-                TxnId txnId = ((Preempted) cause).txnId();
-                ((AccordAgent) node.agent()).onFailedBarrier(txnId, keysOrRanges, cause);
-                //TODO need to improve
-                // Coordinator "could" query the accord state to see whats going on but that doesn't exist yet.
-                // Protocol also doesn't have a way to denote "unknown" outcome, so using a timeout as the closest match
-                throw newBarrierPreempted(((CoordinationFailed)cause).txnId(), barrierType, isForWrite, keysOrRanges);
-            }
-            if (cause instanceof Exhausted)
-            {
-                TxnId txnId = ((Exhausted) cause).txnId();
-                ((AccordAgent) node.agent()).onFailedBarrier(txnId, keysOrRanges, cause);
-                // this case happens when a non-timeout exception is seen, and we are unable to move forward
-                metrics.failures.mark();
-                throw newBarrierExhausted(((CoordinationFailed)cause).txnId(), barrierType, isForWrite, keysOrRanges);
-            }
-            // unknown error
-            metrics.failures.mark();
-            throw new RuntimeException(cause);
-        }
-        catch (InterruptedException e)
-        {
-            metrics.failures.mark();
-            throw new UncheckedInterruptedException(e);
-        }
-        catch (TimeoutException e)
-        {
-            metrics.timeouts.mark();
-            throw newBarrierTimeout(null, barrierType, isForWrite, keysOrRanges);
-        }
-        finally
-        {
-            // TODO Should barriers have a dedicated latency metric? Should it be a read/write metric?
-            // What about counts for timeouts/failures/preempts?
-            metrics.addNano(nanoTime() - requestTime.startedAtNanos());
-        }
+        return node.durability().shards().immutableView();
     }
 
     @Override
-    public Seekables<?, ?> barrier(@Nonnull Seekables<?, ?> keysOrRanges, long epoch, Dispatcher.RequestTime requestTime, long timeoutNanos, BarrierType barrierType, boolean isForWrite)
+    public AsyncChain<Void> sync(Object requestedBy, Timestamp minBound, Ranges ranges, @Nullable Collection<Id> include, DurabilityService.SyncLocal syncLocal, DurabilityService.SyncRemote syncRemote)
     {
-        return barrier(keysOrRanges, epoch, requestTime, timeoutNanos, barrierType, isForWrite, null);
-    }
-
-    public static BiFunction<Node, FullRoute<?>, AsyncSyncPoint> repairSyncPoint(Set<Node.Id> allNodes)
-    {
-        return (node, route) -> {
-            TxnId txnId = node.nextTxnId(Kind.SyncPoint, route.domain());
-            AsyncResult<SyncPoint<?>> async = CoordinateSyncPoint.coordinate(node, Kind.SyncPoint, route, (SyncPointAdapter)RepairSyncPointAdapter.create(allNodes));
-            return new AsyncSyncPoint(txnId, async);
-        };
+        return node.durability().sync(requestedBy, minBound, ranges, include, syncLocal, syncRemote);
     }
 
     @Override
-    public Seekables<?, ?> repair(@Nonnull Seekables<?, ?> keysOrRanges, long epoch, Dispatcher.RequestTime requestTime, long timeoutNanos, BarrierType barrierType, boolean isForWrite, List<InetAddressAndPort> allEndpoints)
+    public AsyncChain<Void> sync(Timestamp minBound, Keys keys, DurabilityService.SyncLocal syncLocal, DurabilityService.SyncRemote syncRemote)
     {
-        Set<Node.Id> allNodes = allEndpoints.stream().map(configService::mappedId).collect(Collectors.toUnmodifiableSet());
-        return barrier(keysOrRanges, epoch, requestTime, timeoutNanos, barrierType, isForWrite, repairSyncPoint(allNodes));
+        if (keys.size() != 1)
+            return syncInternal(minBound, keys, syncLocal, syncRemote);
+
+        return KeyBarriers.find(node, minBound, keys.get(0).toUnseekable(), syncLocal, syncRemote)
+                          .flatMap(found -> KeyBarriers.await(node, found, syncLocal, syncRemote))
+                          .flatMap(success -> {
+                              if (success)
+                                  return null;
+                              return syncInternal(minBound, keys, syncLocal, syncRemote);
+                          });
     }
 
-    private static Seekables<?, ?> intersectionWithAccordManagedRanges(Seekables<?, ?> keysOrRanges)
+    private AsyncChain<Void> syncInternal(Timestamp minBound, Keys keys, DurabilityService.SyncLocal syncLocal, DurabilityService.SyncRemote syncRemote)
     {
-        TableId tableId = null;
-        for (Seekable keyOrRange : keysOrRanges)
-        {
-            TableId newTableId;
-            if (keysOrRanges.domain() == Key)
-                newTableId = ((PartitionKey)keyOrRange).table();
-            else if (keysOrRanges.domain() == Range)
-                newTableId = ((TokenRange) keyOrRange).table();
-            else
-                throw new IllegalStateException("Unexpected domain " + keysOrRanges.domain());
+        TxnId txnId = node.nextTxnId(minBound, Write, Key, cardinality(keys));
+        FullRoute<?> route = node.computeRoute(txnId, keys);
+        Txn txn = new Txn.InMemory(Write, keys, TxnRead.createNoOpRead(keys), TxnQuery.NONE, TxnUpdate.empty());
+        return CoordinateTransaction.coordinate(node, route, txnId, txn)
+                                    .map(ignore -> (Void)null).beginAsResult();
+    }
 
-            if (tableId == null)
-                tableId = newTableId;
-            else if (!tableId.equals(newTableId))
-                throw new IllegalArgumentException("Currently only one table is handled here.");
-        }
+    @Override
+    public AsyncChain<Timestamp> maxConflict(Ranges ranges)
+    {
+        return node.commandStores().any().build(() -> CoordinateMaxConflict.maxConflict(node, ranges)).flatMap(i -> i);
+    }
 
+    public static <V> V getBlocking(AsyncChain<V> async, Seekables<?, ?> keysOrRanges, RequestBookkeeping bookkeeping, long startedAt, long deadline, boolean isTxnRequest)
+    {
+        return getBlocking(async, null, keysOrRanges, bookkeeping, startedAt, deadline, isTxnRequest);
+    }
+
+    public static <V> V getBlocking(AsyncChain<V> async, @Nullable TxnId txnId, Seekables<?, ?> keysOrRanges, RequestBookkeeping bookkeeping, long startedAt, long deadline, boolean isTxnRequest)
+    {
+        AccordResult<V> result = new AccordResult<>(txnId, keysOrRanges, bookkeeping, startedAt, deadline, isTxnRequest);
+        async.begin(result);
+        return result.awaitAndGet();
+    }
+
+    public static void getBlocking(AsyncChain<Void> async, Seekables<?, ?> keysOrRanges, RequestBookkeeping bookkeeping, long startedAt, long deadline)
+    {
+        getBlocking(async, keysOrRanges, bookkeeping, startedAt, deadline, false);
+    }
+
+    public static Keys intersecting(Keys keys)
+    {
+        if (keys.isEmpty())
+            return keys;
+
+        TableId tableId = tableId(keys, r -> ((AccordRoutableKey)r).table());
+        return sliceToAccord(tableId, keys, Keys::slice);
+    }
+
+    public static Ranges intersecting(Ranges ranges)
+    {
+        if (ranges.isEmpty())
+            return ranges;
+
+        TableId tableId = tableId(ranges, r -> ((TokenRange)r).table());
+        return sliceToAccord(tableId, ranges, Ranges::slice);
+    }
+
+    private static <C extends Seekables<?, ?>> C sliceToAccord(TableId tableId, C collection, BiFunction<C, Ranges, C> slice)
+    {
         ClusterMetadata cm = ClusterMetadata.current();
         TableMetadata tm = getTableMetadata(cm, tableId);
 
@@ -678,119 +584,26 @@ public class AccordService implements IAccordService, Shutdownable
             TableMigrationState tms = cm.consensusMigrationState.tableStates.get(tm.id);
             // null is fine could be completely migrated or was always an Accord table on creation
             if (tms == null)
-                return keysOrRanges;
+                return collection;
             // Use migratingAndMigratedRanges (not accordSafeToReadRanges) because barriers are allowed even if Accord can't perform
             // a read because they are only finishing/recovering existing Accord transactions
             Ranges migratingAndMigratedRanges = AccordTopology.toAccordRanges(tms.tableId, tms.migratingAndMigratedRanges);
-            return keysOrRanges.slice(migratingAndMigratedRanges);
+            return slice.apply(collection, migratingAndMigratedRanges);
         }
 
-        switch (keysOrRanges.domain())
+        return slice.apply(collection, Ranges.EMPTY);
+    }
+
+
+    private static <S extends Seekable, C extends Seekables<S, ?>> TableId tableId(C collection, Function<S, TableId> getTableId)
+    {
+        TableId tableId = getTableId.apply(collection.get(0));
+        for (int i = 1, maxi = collection.size() ; i < maxi ; ++i)
         {
-            case Key:
-                return Keys.EMPTY;
-            case Range:
-                return Ranges.EMPTY;
-            default:
-                throw new IllegalStateException("Only keys and ranges are supported");
+            TableId check = getTableId.apply(collection.get(i));
+            Invariants.require(tableId.equals(check), "Currently only one table is handled here.");
         }
-    }
-
-    @VisibleForTesting
-    static ReadTimeoutException newBarrierTimeout(@Nonnull TxnId txnId, BarrierType barrierType, boolean isForWrite, Seekables<?, ?> keysOrRanges)
-    {
-        return new ReadTimeoutException(barrierType.global ? ConsistencyLevel.ANY : ConsistencyLevel.QUORUM, 0, 0, false, String.format("Timeout waiting on barrier %s / %s / %s; impacted ranges %s", txnId, barrierType, isForWrite ? "write" : "not write", keysOrRanges));
-    }
-
-    @VisibleForTesting
-    static ReadTimeoutException newBarrierPreempted(@Nullable TxnId txnId, BarrierType barrierType, boolean isForWrite, Seekables<?, ?> keysOrRanges)
-    {
-        return new ReadPreemptedException(barrierType.global ? ConsistencyLevel.ANY : ConsistencyLevel.QUORUM, 0, 0, false, String.format("Preempted waiting on barrier %s / %s / %s; impacted ranges %s", txnId, barrierType, isForWrite ? "write" : "not write", keysOrRanges));
-    }
-
-    @VisibleForTesting
-    static ReadExhaustedException newBarrierExhausted(@Nullable TxnId txnId, BarrierType barrierType, boolean isForWrite, Seekables<?, ?> keysOrRanges)
-    {
-        return new ReadExhaustedException(barrierType.global ? ConsistencyLevel.ANY : ConsistencyLevel.QUORUM, 0, 0, false, String.format("Exhausted (too many failures from peers) waiting on barrier %s / %s / %s; impacted ranges %s", txnId, barrierType, isForWrite ? "write" : "not write", keysOrRanges));
-    }
-
-    @VisibleForTesting
-    static boolean isTimeout(Throwable t)
-    {
-        return t instanceof Timeout || t instanceof ReadTimeoutException || t instanceof Preempted || t instanceof ReadPreemptedException;
-    }
-
-    @VisibleForTesting
-    static Seekables doWithRetries(Blocking blocking, Supplier<Seekables> action, int retryAttempts, long initialBackoffMillis, long maxBackoffMillis) throws InterruptedException
-    {
-        // Since we could end up having the barrier transaction or the transaction it listens to invalidated
-        Throwable existingFailures = null;
-        Seekables success = null;
-        long backoffMillis = initialBackoffMillis;
-        for (int attempt = 0; attempt < retryAttempts; attempt++)
-        {
-            try
-            {
-                success = action.get();
-                break;
-            }
-            catch (TopologyMismatch topologyMismatch)
-            {
-                // Retry topology mismatch immediately because we should be able calculate the correct ranges immediately
-                backoffMillis = 0;
-            }
-            catch (RequestExecutionException | CoordinationFailed newFailures)
-            {
-                logger.error("Had failure on barrier", newFailures);
-                existingFailures = FailureAccumulator.append(existingFailures, newFailures, AccordService::isTimeout);
-
-                try
-                {
-                    blocking.sleep(backoffMillis);
-                }
-                catch (InterruptedException e)
-                {
-                    if (existingFailures != null)
-                        e.addSuppressed(existingFailures);
-                    throw e;
-                }
-                backoffMillis = Math.min(backoffMillis * 2, maxBackoffMillis);
-            }
-            catch (Throwable t)
-            {
-                // if an unknown/unexpected error happens retry stops right away
-                if (existingFailures != null)
-                    t.addSuppressed(existingFailures);
-                existingFailures = t;
-                break;
-            }
-        }
-        if (success == null)
-        {
-            logger.error("Ran out of retries for barrier");
-            require(existingFailures != null, "Didn't have success, but also didn't have failures");
-            Throwables.throwIfUnchecked(existingFailures);
-            throw new RuntimeException(existingFailures);
-        }
-        return success;
-    }
-
-    @Override
-    public Seekables barrierWithRetries(Seekables keysOrRanges, long minEpoch, BarrierType barrierType, boolean isForWrite) throws InterruptedException
-    {
-        return doWithRetries(Blocking.Default.instance, () -> AccordService.instance().barrier(keysOrRanges, minEpoch, Dispatcher.RequestTime.forImmediateExecution(), DatabaseDescriptor.getAccordRangeSyncPointTimeoutNanos(), barrierType, isForWrite),
-                             DatabaseDescriptor.getAccordBarrierRetryAttempts(),
-                             DatabaseDescriptor.getAccordBarrierRetryInitialBackoffMillis(),
-                             DatabaseDescriptor.getAccordBarrierRetryMaxBackoffMillis());
-    }
-
-    @Override
-    public Seekables<?, ?> repairWithRetries(Seekables<?, ?> keysOrRanges, long minEpoch, BarrierType barrierType, boolean isForWrite, List<InetAddressAndPort> allEndpoints) throws InterruptedException
-    {
-        return doWithRetries(Blocking.Default.instance, () -> AccordService.instance().repair(keysOrRanges, minEpoch, Dispatcher.RequestTime.forImmediateExecution(), DatabaseDescriptor.getAccordRangeSyncPointTimeoutNanos(), barrierType, isForWrite, allEndpoints),
-                             DatabaseDescriptor.getAccordBarrierRetryAttempts(),
-                             DatabaseDescriptor.getAccordBarrierRetryInitialBackoffMillis(),
-                             DatabaseDescriptor.getAccordBarrierRetryMaxBackoffMillis());
+        return tableId;
     }
 
     @Override
@@ -805,195 +618,27 @@ public class AccordService implements IAccordService, Shutdownable
         return node.topology();
     }
 
-    private static Set<TableId> txnDroppedTables(Seekables<?,?> keys)
-    {
-        Set<TableId> tables = new HashSet<>();
-        for (Seekable seekable : keys)
-        {
-            switch (seekable.domain())
-            {
-                default:
-                    throw new IllegalStateException("Unhandled domain " + seekable.domain());
-                case Key:
-                    tables.add(((PartitionKey) seekable).table());
-                    break;
-                case Range:
-                    tables.add(((TokenRange) seekable).table());
-                    break;
-            }
-        }
-
-        Iterator<TableId> tablesIterator = tables.iterator();
-        while (tablesIterator.hasNext())
-        {
-            TableId table = tablesIterator.next();
-            if (Schema.instance.getTableMetadata(table) != null)
-                tablesIterator.remove();
-        }
-        return tables;
-    }
-
     /**
      * Consistency level is just echoed back in timeouts, in the future it may be used for interoperability
      * with non-Accord operations.
      */
     @Override
-    public @Nonnull TxnResult coordinate(long minEpoch, @Nonnull Txn txn, @Nonnull ConsistencyLevel consistencyLevel, @Nonnull Dispatcher.RequestTime requestTime)
+    public @Nonnull TxnResult coordinate(long minEpoch, @Nonnull Txn txn, @Nonnull ConsistencyLevel consistencyLevel, @Nonnull Dispatcher.RequestTime requestTime) throws RequestExecutionException
     {
-        AsyncTxnResult asyncTxnResult = coordinateAsync(minEpoch, txn, consistencyLevel, requestTime);
-        return getTxnResult(asyncTxnResult);
+        return coordinateAsync(minEpoch, txn, consistencyLevel, requestTime).awaitAndGet();
     }
 
     @Override
-    public @Nonnull AsyncTxnResult coordinateAsync(long minEpoch, @Nonnull Txn txn, @Nonnull ConsistencyLevel consistencyLevel, @Nonnull Dispatcher.RequestTime requestTime)
+    public @Nonnull IAccordResult<TxnResult> coordinateAsync(long minEpoch, @Nonnull Txn txn, @Nonnull ConsistencyLevel consistencyLevel, @Nonnull Dispatcher.RequestTime requestTime)
     {
         TxnId txnId = node.nextTxnId(txn.kind(), txn.keys().domain(), cardinality(txn.keys()));
-        ClientRequestMetrics sharedMetrics;
-        AccordClientRequestMetrics metrics;
-        if (txn.isWrite())
-        {
-            sharedMetrics = ClientRequestsMetricsHolder.writeMetrics;
-            metrics = accordWriteMetrics;
-        }
-        else
-        {
-            sharedMetrics = ClientRequestsMetricsHolder.readMetrics;
-            metrics = accordReadMetrics;
-        }
-        metrics.keySize.update(txn.keys().size());
-        long deadlineNanos = requestTime.computeDeadline(DatabaseDescriptor.getTransactionTimeout(NANOSECONDS));
-        AsyncResult<Result> asyncResult = node.coordinate(txnId, txn, minEpoch, deadlineNanos);
-        Seekables<?, ?> keys = txn.keys();
-        AsyncTxnResult asyncTxnResult = new AsyncTxnResult(txnId, minEpoch, consistencyLevel, txn.isWrite(), requestTime);
-        asyncResult.addCallback((success, failure) -> {
-            long durationNanos = nanoTime() - requestTime.startedAtNanos();
-            sharedMetrics.addNano(durationNanos);
-            metrics.addNano(durationNanos);
-            Throwable cause = failure != null ? Throwables.getRootCause(failure) : null;
-            if (success != null)
-            {
-                if (((TxnResult) success).kind() == TxnResult.Kind.retry_new_protocol)
-                {
-                    metrics.retryDifferentSystem.mark();
-                    Tracing.trace("Got retry different system error from Accord, will retry");
-                }
-                asyncTxnResult.trySuccess((TxnResult) success);
-                return;
-            }
-
-            sharedMetrics.failures.mark();
-            metrics.failures.mark();
-
-            if (cause instanceof Timeout)
-            {
-                // Don't mark the metric here, should be done in getTxnResult to ensure it only happens once
-                // since both Accord and the thread blocked on the result can trigger a timeout
-                asyncTxnResult.tryFailure(newTimeout(txnId, txn.isWrite(), consistencyLevel));
-                return;
-            }
-            if (cause instanceof Preempted || cause instanceof Invalidated)
-            {
-                metrics.preempted.mark();
-                //TODO need to improve
-                // Coordinator "could" query the accord state to see whats going on but that doesn't exist yet.
-                // Protocol also doesn't have a way to denote "unknown" outcome, so using a timeout as the closest match
-                asyncTxnResult.tryFailure(newPreempted(txnId, txn.isWrite(), consistencyLevel));
-                return;
-            }
-            // TODO (desired): It would be better to check if the topology mismatch is due to Accord ownership changes
-            // or the txn accessing tables that don't exist or something.
-            if (cause instanceof TopologyMismatch)
-            {
-                // Excluding bugs topology mismatch can occur because a table was dropped in between creating the txn
-                // and executing it.
-                // It could also race with the table stopping/starting being managed by Accord.
-                // The caller can retry if the table indeed exists and is managed by Accord.
-                Set<TableId> txnDroppedTables = txnDroppedTables(keys);
-                Tracing.trace("Accord returned topology mismatch: " + cause.getMessage());
-                logger.debug("Accord returned topology mismatch", cause);
-                metrics.topologyMismatches.mark();
-                // Throw IRE in case the caller fails to check if the table still exists
-                if (!txnDroppedTables.isEmpty())
-                {
-                    Tracing.trace("Accord txn uses dropped tables {}", txnDroppedTables);
-                    logger.debug("Accord txn uses dropped tables {}", txnDroppedTables);
-                    asyncTxnResult.setFailure(new InvalidRequestException("Accord transaction uses dropped tables"));
-                }
-                asyncTxnResult.setSuccess(RetryWithNewProtocolResult.instance);
-                return;
-            }
-            asyncTxnResult.tryFailure(new RuntimeException(cause));
-        });
-        return asyncTxnResult;
-    }
-
-    @Override
-    public TxnResult getTxnResult(AsyncTxnResult asyncTxnResult)
-    {
-        ClientRequestMetrics sharedMetrics;
-        AccordClientRequestMetrics metrics;
-        if (asyncTxnResult.isWrite)
-        {
-            sharedMetrics = ClientRequestsMetricsHolder.writeMetrics;
-            metrics = accordWriteMetrics;
-        }
-        else
-        {
-            sharedMetrics = ClientRequestsMetricsHolder.readMetrics;
-            metrics = accordReadMetrics;
-        }
-        try
-        {
-            long deadlineNanos = asyncTxnResult.requestTime.computeDeadline(DatabaseDescriptor.getTransactionTimeout(NANOSECONDS));
-            TxnResult result = asyncTxnResult.get(deadlineNanos - nanoTime(), NANOSECONDS);
-            return result;
-        }
-        catch (ExecutionException e)
-        {
-            // Metrics except timeout have already been handled
-            Throwable cause = e.getCause();
-            if (cause instanceof RequestTimeoutException)
-            {
-                // Mark here instead of in coordinate async since this is where the request timeout actually occurs
-                metrics.timeouts.mark();
-                sharedMetrics.timeouts.mark();
-                cause.addSuppressed(e);
-                throw (RequestTimeoutException) cause;
-            }
-            else if (cause instanceof RuntimeException)
-                throw (RuntimeException) cause;
-            else
-                throw new RuntimeException(cause);
-        }
-        catch (InterruptedException e)
-        {
-            metrics.failures.mark();
-            sharedMetrics.failures.mark();
-            throw new UncheckedInterruptedException(e);
-        }
-        catch (TimeoutException e)
-        {
-            metrics.timeouts.mark();
-            sharedMetrics.timeouts.mark();
-            throw newTimeout(asyncTxnResult.txnId, asyncTxnResult.isWrite, asyncTxnResult.consistencyLevel);
-        }
-    }
-
-    private static RequestTimeoutException newTimeout(TxnId txnId, boolean isWrite, ConsistencyLevel consistencyLevel)
-    {
-        // Client protocol doesn't handle null consistency level so use ANY
-        if (consistencyLevel == null)
-            consistencyLevel = ConsistencyLevel.ANY;
-        return isWrite ? new WriteTimeoutException(WriteType.CAS, consistencyLevel, 0, 0, txnId.toString())
-                       : new ReadTimeoutException(consistencyLevel, 0, 0, false, txnId.toString());
-    }
-
-    private static RuntimeException newPreempted(TxnId txnId, boolean isWrite, ConsistencyLevel consistencyLevel)
-    {
-        if (consistencyLevel == null)
-            consistencyLevel = ConsistencyLevel.ANY;
-        return isWrite ? new WritePreemptedException(WriteType.CAS, consistencyLevel, 0, 0, txnId.toString())
-                       : new ReadPreemptedException(consistencyLevel, 0, 0, false, txnId.toString());
+        long timeout = txnId.isWrite() ? DatabaseDescriptor.getWriteRpcTimeout(NANOSECONDS) : DatabaseDescriptor.getReadRpcTimeout(NANOSECONDS);
+        ClientRequestBookkeeping bookkeeping = txn.isWrite() ? accordWriteBookkeeping : accordReadBookkeeping;
+        bookkeeping.metrics.keySize.update(txn.keys().size());
+        long deadlineNanos = requestTime.computeDeadline(timeout);
+        AccordResult<TxnResult> result = new AccordResult<>(txnId, txn.keys(), bookkeeping, requestTime.startedAtNanos(), deadlineNanos, true);
+        ((AsyncResult)node.coordinate(txnId, txn, minEpoch, deadlineNanos)).begin(result);
+        return result;
     }
 
     @Override
@@ -1217,35 +862,6 @@ public class AccordService implements IAccordService, Shutdownable
         return node.topology().minEpoch();
     }
 
-    @Override
-    public void tryMarkRemoved(Topology topology, Id target)
-    {
-        if (node.commandStores().count() == 0) return; // when starting up stores can be empty, so ignore
-        Ranges ranges = topology.rangesForNode(target);
-        if (ranges.isEmpty()) return;
-        long startNanos = Clock.Global.nanoTime();
-        exclusiveSyncPointWithRetries(ranges, 0)
-        .begin((s, f) -> {
-            if (f != null)
-            {
-                logger.warn("Unable to mark the ranges for {} as durable after node left; took {}", target, Duration.ofNanos(Clock.Global.nanoTime() - startNanos), f);
-                node.agent().onUncaughtException(f);
-            }
-            else
-            {
-                logger.info("Marked {} ranges as durable after node left; took {}", target, Duration.ofNanos(Clock.Global.nanoTime() - startNanos));
-            }
-        });
-    }
-
-    private AsyncChain<SyncPoint<accord.primitives.Range>> exclusiveSyncPointWithRetries(Ranges ranges, int attempt)
-    {
-        return CoordinateSyncPoint.exclusiveSyncPoint(node, ranges)
-                                  .recover(t ->
-                                           //TODO (operability): make this configurable / monitorable?
-                                           attempt <= 3 && t instanceof Invalidated || t instanceof Preempted || t instanceof Timeout ? exclusiveSyncPointWithRetries(ranges, attempt + 1) : null);
-    }
-
     public Node node()
     {
         return node;
@@ -1326,7 +942,7 @@ public class AccordService implements IAccordService, Shutdownable
     }
 
     @VisibleForTesting
-    public AccordConfigurationService configurationService()
+    public AccordConfigurationService configService()
     {
         return configService;
     }
@@ -1348,225 +964,27 @@ public class AccordService implements IAccordService, Shutdownable
     }
 
     @Override
-    public void awaitTableDrop(TableId id)
+    public void awaitDone(TableId id, long epoch)
     {
         // Need to make sure no existing txn are still being processed for this table... this is only used by DROP TABLE so NEW txn are expected to be blocked, so just need to "wait" for existing ones to complete
         Topology topology = node.topology().current();
-        List<TokenRange> ranges = topology.reduce(new ArrayList<>(),
+        List<TokenRange> rangeList = topology.reduce(new ArrayList<>(),
                                                   s -> ((TokenRange) s.range).table().equals(id),
                                                   (accum, s) -> {
                                                       accum.add((TokenRange) s.range);
                                                       return accum;
                                                   });
-        if (ranges.isEmpty()) return; // nothing to see here
+        if (rangeList.isEmpty()) return; // nothing to see here
 
-        ColumnFamilyStore cfs = Schema.instance.getColumnFamilyStoreInstance(id);
-        Invariants.require(cfs != null, "Unable to find table %s", id);
-        BigInteger targetSplitSize = BigInteger.valueOf(Math.max(1, cfs.estimateKeys() / 1_000_000));
-
-        List<AsyncChain<?>> syncs = new ArrayList<>(ranges.size());
-        for (TokenRange range : ranges)
-            syncs.add(awaitTableDrop(cfs, range, targetSplitSize));
-        AsyncChain<Object[]> all = AsyncChains.allOf(syncs);
-        try
-        {
-            AsyncChains.getBlocking(all);
-        }
-        catch (InterruptedException e)
-        {
-            Thread.currentThread().interrupt();
-            throw new UncheckedInterruptedException(e);
-        }
-        catch (ExecutionException e)
-        {
-            throw new RuntimeException(e);
-        }
+        Ranges ranges = Ranges.of(rangeList.toArray(accord.primitives.Range[]::new));
+        long startedAt = nanoTime();
+        long deadline = startedAt + DatabaseDescriptor.getAccordRangeSyncPointTimeoutNanos();
+        // TODO (required): relax this requirement - too expensive
+        getBlocking(node.durability().sync("Drop Keyspace/Table (Epoch " + epoch + ')', TxnId.minForEpoch(epoch), ranges, Self, All), ranges, new LatencyRequestBookkeeping(null), startedAt, deadline, false);
     }
 
     public Params journalConfiguration()
     {
         return journal.configuration();
-    }
-
-    private AsyncChain<?> awaitTableDrop(ColumnFamilyStore cfs, TokenRange range, BigInteger targetSplitSize)
-    {
-        List<TokenRange> splits = split(cfs, range, targetSplitSize);
-        List<AsyncChain<?>> syncs = new ArrayList<>(splits.size());
-        for (TokenRange tr : splits)
-            syncs.add(awaitTableDropSubRange(tr));
-        return AsyncChains.allOf(syncs);
-    }
-
-    private List<TokenRange> split(ColumnFamilyStore cfs, TokenRange range, BigInteger targetSplitSize)
-    {
-        if (targetSplitSize.equals(BigInteger.ONE)) return Collections.singletonList(range);
-
-        AccordSplitter splitter = cfs.getPartitioner().accordSplitter().apply(Ranges.single(range));
-        RoutingKey remainingStart = range.start();
-
-        BigInteger rangeSize = splitter.sizeOf(range);
-        BigInteger divide = splitter.divide(rangeSize, targetSplitSize);
-        BigInteger rangeStep = divide.equals(BigInteger.ZERO) ? rangeSize : BigInteger.ONE.max(divide);
-        BigInteger offset = BigInteger.ZERO;
-        List<TokenRange> result = new ArrayList<>();
-
-        while (splitter.compare(offset, rangeSize) < 0)
-        {
-            BigInteger remaining = rangeSize.subtract(offset);
-            BigInteger length = remaining.min(rangeStep);
-
-            TokenRange next = splitter.subRange(range, offset, splitter.add(offset, length));
-            result.add(next);
-            remainingStart = next.end();
-            offset = offset.add(length);
-        }
-
-        if (!remainingStart.equals(range.end()))
-            result.add(range.newRange(remainingStart, range.end()));
-        assert result.get(0).start().equals(range.start()) : String.format("Starting range %s does not have the same start as %s", result.get(0), range);
-        assert result.get(result.size() - 1).end().equals(range.end()) : String.format("Ending range %s does not have the same end as %s", result.get(result.size() - 1), range);
-        return result;
-    }
-
-    private AsyncChain<?> awaitTableDropSubRange(TokenRange range)
-    {
-        return awaitTableDropSubRange(Ranges.single(range), 0);
-    }
-
-    private AsyncChain<Void> awaitTableDropSubRange(Ranges ranges, int attempt)
-    {
-        return exclusiveSyncPoint(ranges, attempt)
-               .flatMap(s -> s == null ? AsyncChains.success(null) : Await.coordinate(node, s));
-    }
-
-    private AsyncChain<SyncPoint<accord.primitives.Range>> exclusiveSyncPoint(Ranges ranges, int attempt)
-    {
-        //TODO (on merge): CASSANDRA-19769 has the same logic... should this be refactored?  Would make it nice so we could split the range on retries?
-        return CoordinateSyncPoint.exclusiveSyncPoint(node, ranges)
-                                  .recover(t -> {
-                                      //TODO (operability): make this configurable / monitorable?
-                                      if (attempt > 3) return null;
-                                      switch (shouldRetry(t))
-                                      {
-                                          case SUCCESS:
-                                              return AsyncChains.success(null);
-                                          case RETRY:
-                                              return exclusiveSyncPoint(ranges, attempt + 1);
-                                          case FAIL:
-                                              return null;
-                                          default:
-                                              throw new UnsupportedOperationException();
-                                      }
-                                  });
-    }
-
-    private enum RetryDecission { SUCCESS, RETRY, FAIL }
-    private static RetryDecission shouldRetry(Throwable t)
-    {
-        if (t.getClass() == ExecuteSyncPoint.SyncPointErased.class)
-            return RetryDecission.SUCCESS;
-        if (t instanceof Invalidated || t instanceof Preempted || t instanceof Timeout)
-            return RetryDecission.RETRY;
-        return RetryDecission.FAIL;
-    }
-
-    // TODO (required): this should use ExecuteSyncPoint.ExecuteExclusive, or perhaps should not exist at all (should have some mechanism to request and await durability)
-    private static class Await extends AsyncResults.SettableResult<SyncPoint<?>> implements Callback<ReadData.ReadReply>
-    {
-        private final Node node;
-        private final AllTracker tracker;
-        private final SyncPoint<?> exclusiveSyncPoint;
-
-        private Await(Node node, SyncPoint<?> exclusiveSyncPoint)
-        {
-            Topologies topologies = node.topology().forEpoch(exclusiveSyncPoint.route, exclusiveSyncPoint.syncId.epoch(), SHARE);
-            this.node = node;
-            this.tracker = new AllTracker(topologies);
-            this.exclusiveSyncPoint = exclusiveSyncPoint;
-        }
-
-        public static AsyncChain<Void> coordinate(Node node, SyncPoint<?> sp)
-        {
-            return node.withEpoch(sp.syncId.epoch(), () -> {
-                Await coordinate = new Await(node, sp);
-                coordinate.start();
-                AsyncChain<Void> chain = coordinate.map(i -> null);
-                return chain.recover(t -> {
-                    switch (shouldRetry(t))
-                    {
-                        case SUCCESS: return AsyncChains.success(null);
-                        case RETRY: return coordinate(node, sp);
-                        case FAIL: return null;
-                        default: throw new UnsupportedOperationException();
-                    }
-                });
-            });
-        }
-
-        private void start()
-        {
-            node.send(tracker.nodes(), to -> new WaitUntilApplied(to, tracker.topologies(), exclusiveSyncPoint.syncId, exclusiveSyncPoint.route, exclusiveSyncPoint.syncId.epoch()), this);
-        }
-        @Override
-        public void onSuccess(Node.Id from, ReadData.ReadReply reply)
-        {
-            if (!reply.isOk())
-            {
-                ReadData.CommitOrReadNack nack = (ReadData.CommitOrReadNack) reply;
-                switch (nack)
-                {
-                    default: throw new AssertionError("Unhandled: " + reply);
-
-                    case Insufficient:
-                        CoordinateSyncPoint.sendApply(node, from, exclusiveSyncPoint);
-                        return;
-                    case Rejected:
-                        tryFailure(new RuntimeException(nack.name()));
-                    case Redundant:
-                        tryFailure(new ExecuteSyncPoint.SyncPointErased());
-                        return;
-                }
-            }
-            else
-            {
-                if (tracker.recordSuccess(from) == RequestStatus.Success)
-                {
-                    node.configService().reportEpochRedundant(exclusiveSyncPoint.route.toRanges(), exclusiveSyncPoint.syncId.epoch() - 1);
-                    trySuccess(exclusiveSyncPoint);
-                }
-            }
-        }
-
-        private Throwable cause;
-
-        @Override
-        public void onFailure(Node.Id from, Throwable failure)
-        {
-            synchronized (this)
-            {
-                if (cause == null) cause = failure;
-                else
-                {
-                    try
-                    {
-                        cause.addSuppressed(failure);
-                    }
-                    catch (Throwable t)
-                    {
-                        // can not always add suppress
-                        node.agent().onUncaughtException(failure);
-                    }
-                }
-                failure = cause;
-            }
-            if (tracker.recordFailure(from) == RequestStatus.Failed)
-                tryFailure(failure);
-        }
-
-        @Override
-        public boolean onCallbackFailure(Node.Id from, Throwable failure)
-        {
-            return tryFailure(failure);
-        }
     }
 }

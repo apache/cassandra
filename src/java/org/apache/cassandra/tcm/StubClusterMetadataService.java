@@ -142,13 +142,13 @@ public class StubClusterMetadataService extends ClusterMetadataService
         private StubProcessor() {}
 
         @Override
-        public Commit.Result commit(Entry.Id entryId, Transformation transform, Epoch lastKnown, Retry.Deadline retryPolicy)
+        public Commit.Result commit(Entry.Id entryId, Transformation transform, Epoch lastKnown, Retry retryPolicy)
         {
             throw new UnsupportedOperationException();
         }
 
         @Override
-        public ClusterMetadata fetchLogAndWait(Epoch waitFor, Retry.Deadline retryPolicy)
+        public ClusterMetadata fetchLogAndWait(Epoch waitFor, Retry retryPolicy)
         {
             throw new UnsupportedOperationException();
         }
@@ -160,7 +160,7 @@ public class StubClusterMetadataService extends ClusterMetadataService
         }
 
         @Override
-        public LogState getLogState(Epoch start, Epoch end, boolean includeSnapshot, Retry.Deadline retryPolicy)
+        public LogState getLogState(Epoch start, Epoch end, boolean includeSnapshot, Retry retryPolicy)
         {
             throw new UnsupportedOperationException();
         }

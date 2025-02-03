@@ -20,13 +20,11 @@ package org.apache.cassandra.config;
 
 import java.util.concurrent.TimeUnit;
 
-import accord.primitives.TxnId;
 import accord.utils.Invariants;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import org.apache.cassandra.journal.Params;
 import org.apache.cassandra.service.consensus.TransactionalMode;
 
-import static accord.primitives.Routable.Domain.Range;
 import static org.apache.cassandra.config.AccordSpec.QueueShardModel.THREAD_POOL_PER_SHARD;
 import static org.apache.cassandra.config.AccordSpec.QueueSubmissionModel.SYNC;
 
@@ -136,43 +134,32 @@ public class AccordSpec
     public DataStorageSpec.LongMebibytesBound working_set_size = null;
     public boolean shrink_cache_entries_before_eviction = true;
 
-    // TODO (expected): we should be able to support lower recover delays, at least for txns
-    public volatile DurationSpec.IntMillisecondsBound recover_delay = new DurationSpec.IntMillisecondsBound(5000);
-    public volatile DurationSpec.IntMillisecondsBound range_syncpoint_recover_delay = new DurationSpec.IntMillisecondsBound("5m");
-    public String slowPreAccept = "30ms <= p50*2 <= 100ms";
-    public String slowRead = "30ms <= p50*2 <= 100ms";
+    public DurationSpec.IntMillisecondsBound range_syncpoint_timeout = new DurationSpec.IntMillisecondsBound("3m");
+    public DurationSpec.IntMillisecondsBound repair_timeout = new DurationSpec.IntMillisecondsBound("10m");
+    public String recover_txn = "5s*attempts <= 60s";
+    public String recover_syncpoint = "60s <= 30s*attempts...60s*attempts <= 600s";
+    public String fetch_txn = "1s*attempts";
+    public String fetch_syncpoint = "5s*attempts";
+    public String expire_txn = "5s*attempts";
+    public String expire_syncpoint = "60s*attempts<=300s";
+    public String expire_epoch_wait = "10s";
+    // we don't want to wait ages for durability as it blocks other durability progress; even this might be too long, as we can always retry
+    public String expire_durability = "10s*attempts <= 30s";
+    public String slow_syncpoint_preaccept = "10s";
+    public String slow_txn_preaccept = "30ms <= p50*2 <= 100ms";
+    public String slow_read = "30ms <= p50*2 <= 100ms";
+    public String retry_syncpoint = "10s*attempts <= 600s";
+    public String retry_durability = "10s*attempts <= 600s";
+    public String retry_fetch_min_epoch = "200ms...1s*attempts <= 1s,retries=3";
+    public String retry_fetch_topology = "200ms...1s*attempts <= 1s,retries=100";
 
-    public long recoveryDelayFor(TxnId txnId, TimeUnit unit)
-    {
-        if (txnId.isSyncPoint() && txnId.is(Range))
-            return range_syncpoint_recover_delay.to(unit);
-        return recover_delay.to(unit);
-    }
-
-    /**
-     * When a barrier transaction is requested how many times to repeat attempting the barrier before giving up
-     */
-    public int barrier_retry_attempts = 5;
-
-    /**
-     * When a barrier transaction fails how long the initial backoff should be before being increased
-     * as part of exponential backoff on each attempt
-     */
-    public DurationSpec.IntMillisecondsBound barrier_retry_inital_backoff_millis = new DurationSpec.IntMillisecondsBound("1s");
-
-    public DurationSpec.IntMillisecondsBound barrier_max_backoff = new DurationSpec.IntMillisecondsBound("10m");
-
-    public DurationSpec.IntMillisecondsBound range_syncpoint_timeout = new DurationSpec.IntMillisecondsBound("2m");
-
-    public volatile DurationSpec.IntSecondsBound fast_path_update_delay = new DurationSpec.IntSecondsBound("60m");
+    public volatile DurationSpec.IntSecondsBound fast_path_update_delay = null;
 
     public volatile DurationSpec.IntSecondsBound gc_delay = new DurationSpec.IntSecondsBound("5m");
     public volatile int shard_durability_target_splits = 128;
     public volatile DurationSpec.IntSecondsBound durability_txnid_lag = new DurationSpec.IntSecondsBound(5);
     public volatile DurationSpec.IntSecondsBound shard_durability_cycle = new DurationSpec.IntSecondsBound(15, TimeUnit.MINUTES);
     public volatile DurationSpec.IntSecondsBound global_durability_cycle = new DurationSpec.IntSecondsBound(10, TimeUnit.MINUTES);
-    public volatile DurationSpec.IntSecondsBound default_durability_retry_delay = new DurationSpec.IntSecondsBound(10, TimeUnit.SECONDS);
-    public volatile DurationSpec.IntSecondsBound max_durability_retry_delay = new DurationSpec.IntSecondsBound(10, TimeUnit.MINUTES);
 
     public enum TransactionalRangeMigration
     {
@@ -194,24 +181,6 @@ public class AccordSpec
     public boolean ephemeralReadEnabled = true;
     public boolean state_cache_listener_jfr_enabled = true;
     public final JournalSpec journal = new JournalSpec();
-    public final RetrySpec minEpochSyncRetry = new MinEpochRetrySpec();
-    public final RetrySpec fetchRetry = new FetchRetrySpec();
-
-    public static class MinEpochRetrySpec extends RetrySpec
-    {
-        public MinEpochRetrySpec()
-        {
-            maxAttempts = new MaxAttempt(3);
-        }
-    }
-
-    public static class FetchRetrySpec extends RetrySpec
-    {
-        public FetchRetrySpec()
-        {
-            maxAttempts = new MaxAttempt(100);
-        }
-    }
 
     public static class JournalSpec implements Params
     {

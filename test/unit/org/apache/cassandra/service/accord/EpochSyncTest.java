@@ -50,8 +50,7 @@ import org.slf4j.LoggerFactory;
 import accord.api.ConfigurationService;
 import accord.api.ConfigurationService.EpochReady;
 import accord.api.Journal;
-import accord.api.LocalConfig;
-import accord.api.Scheduler;
+import accord.impl.DefaultTimeouts;
 import accord.impl.SizeOfIntersectionSorter;
 import accord.impl.TestAgent;
 import accord.local.Node;
@@ -669,7 +668,8 @@ public class EpochSyncTest
                 this.token = token;
                 this.epoch = epoch;
                 // TODO (review): Should there be a real scheduler here? Is it possible to adapt the Scheduler interface to scheduler used in this test?
-                this.topology = new TopologyManager(SizeOfIntersectionSorter.SUPPLIER, new TestAgent.RethrowAgent(), id, Scheduler.NEVER_RUN_SCHEDULED, TimeService.ofNonMonotonic(globalExecutor::currentTimeMillis, TimeUnit.MILLISECONDS), LocalConfig.DEFAULT);
+                TimeService time = TimeService.ofNonMonotonic(globalExecutor::currentTimeMillis, TimeUnit.MILLISECONDS);
+                this.topology = new TopologyManager(SizeOfIntersectionSorter.SUPPLIER, new TestAgent.RethrowAgent(), id, time, new DefaultTimeouts(time));
                 AccordConfigurationService.DiskStateManager instance = MockDiskStateManager.instance;
                 Journal journal = null; // TODO
                 config = new AccordConfigurationService(node, messagingService, failureDetector, instance, scheduler);
@@ -697,12 +697,6 @@ public class EpochSyncTest
                     public void onRemoteSyncComplete(Node.Id node, long epoch)
                     {
                         topology.onEpochSyncComplete(node, epoch);
-                    }
-
-                    @Override
-                    public void onRemoveNode(long epoch, Node.Id removed)
-                    {
-                        topology.onRemoveNode(epoch, removed);
                     }
 
                     @Override

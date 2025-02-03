@@ -24,8 +24,6 @@ import java.util.concurrent.TimeUnit;
 import org.junit.Assert;
 import org.junit.Test;
 
-import com.codahale.metrics.Meter;
-import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.test.TestBaseImpl;
 import org.apache.cassandra.metrics.TCMMetrics;
@@ -35,7 +33,8 @@ import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.tcm.Retry;
 import org.apache.cassandra.tcm.log.Entry;
 import org.apache.cassandra.tcm.log.LogState;
-import org.apache.cassandra.utils.Clock;
+
+import static org.apache.cassandra.config.DatabaseDescriptor.getCmsAwaitTimeout;
 
 public class ReconstructEpochTest extends TestBaseImpl
 {
@@ -82,7 +81,7 @@ public class ReconstructEpochTest extends TestBaseImpl
                                                               .getLogState(Epoch.create(start),
                                                                            Epoch.create(end),
                                                                            true,
-                                                                           unsafeRetryIndefinitely());
+                                                                           Retry.untilElapsed(getCmsAwaitTimeout().to(TimeUnit.NANOSECONDS), TCMMetrics.instance.commitRetries));
 
                     Assert.assertEquals(start, logState.baseState.epoch.getEpoch());
                     Iterator<Entry> iter = logState.entries.iterator();
@@ -92,31 +91,4 @@ public class ReconstructEpochTest extends TestBaseImpl
             });
         }
     }
-
-    private static Retry.Deadline unsafeRetryIndefinitely()
-    {
-        long timeoutNanos = DatabaseDescriptor.getCmsAwaitTimeout().to(TimeUnit.NANOSECONDS);
-        Meter retryMeter = TCMMetrics.instance.commitRetries;
-        return new Retry.Deadline(Clock.Global.nanoTime() + timeoutNanos,
-                                  new Retry.Jitter(retryMeter))
-        {
-            @Override
-            public boolean reachedMax()
-            {
-                return false;
-            }
-
-            @Override
-            public long remainingNanos()
-            {
-                return timeoutNanos;
-            }
-
-            public String toString()
-            {
-                return String.format("RetryIndefinitely{tries=%d}", currentTries());
-            }
-        };
-    }
-
 }

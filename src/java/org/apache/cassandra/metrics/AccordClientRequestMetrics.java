@@ -18,6 +18,8 @@
 
 package org.apache.cassandra.metrics;
 
+import javax.annotation.Nullable;
+
 import com.codahale.metrics.Histogram;
 import com.codahale.metrics.Meter;
 
@@ -25,6 +27,8 @@ import static org.apache.cassandra.metrics.CassandraMetricsRegistry.Metrics;
 
 public class AccordClientRequestMetrics extends ClientRequestMetrics
 {
+    public final @Nullable ClientRequestMetrics shared;
+
     public final Histogram keySize;
 
     // During migration back to Paxos it's possible a transaction runs
@@ -41,10 +45,13 @@ public class AccordClientRequestMetrics extends ClientRequestMetrics
     public final Meter accordMigrationRejects;
     public final Meter preempted;
     public final Meter topologyMismatches;
+    public final boolean isWrite;
 
-    public AccordClientRequestMetrics(String scope)
+    public AccordClientRequestMetrics(String scope, ClientRequestMetrics shared, boolean isWrite)
     {
         super(scope);
+        this.shared = shared;
+        this.isWrite = isWrite;
 
         keySize = Metrics.histogram(factory.createMetricName("KeySizeHistogram"), false);
         migrationSkippedReads = Metrics.meter(factory.createMetricName("MigrationSkippedReads"));
@@ -64,6 +71,6 @@ public class AccordClientRequestMetrics extends ClientRequestMetrics
         Metrics.remove(factory.createMetricName("AccordMigrationRejects"));
         Metrics.remove(factory.createMetricName("Preempted"));
         Metrics.remove(factory.createMetricName("TopologyMismatches"));
-
     }
+
 }

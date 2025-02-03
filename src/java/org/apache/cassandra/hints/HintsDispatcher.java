@@ -27,6 +27,7 @@ import java.util.List;
 import java.util.Queue;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
+import java.util.function.BiConsumer;
 import java.util.function.BooleanSupplier;
 import java.util.function.Function;
 import javax.annotation.Nonnull;
@@ -37,14 +38,12 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.concurrent.DebuggableTask.RunnableDebuggableTask;
-import org.apache.cassandra.concurrent.ImmediateExecutor;
 import org.apache.cassandra.concurrent.Stage;
 import org.apache.cassandra.db.Mutation;
+import org.apache.cassandra.exceptions.RequestExecutionException;
 import org.apache.cassandra.exceptions.RequestFailure;
 import org.apache.cassandra.exceptions.RequestFailureReason;
 import org.apache.cassandra.exceptions.RetryOnDifferentSystemException;
-import org.apache.cassandra.exceptions.WriteFailureException;
-import org.apache.cassandra.exceptions.WriteTimeoutException;
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.Replica;
@@ -52,9 +51,7 @@ import org.apache.cassandra.metrics.HintsServiceMetrics;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.net.RequestCallback;
-import org.apache.cassandra.service.accord.AccordService;
-import org.apache.cassandra.service.accord.IAccordService;
-import org.apache.cassandra.service.accord.IAccordService.AsyncTxnResult;
+import org.apache.cassandra.service.accord.IAccordService.IAccordResult;
 import org.apache.cassandra.service.accord.txn.TxnResult;
 import org.apache.cassandra.service.consensus.migration.ConsensusMigrationMutationHelper;
 import org.apache.cassandra.service.consensus.migration.ConsensusMigrationMutationHelper.SplitMutation;
@@ -353,8 +350,8 @@ final class HintsDispatcher implements AutoCloseable
         ClusterMetadata cm = ClusterMetadata.current();
         SplitHint splitHint = splitHintIntoAccordAndNormal(cm, hint);
         Mutation accordHintMutation = splitHint.accordMutation;
-        Dispatcher.RequestTime requestTime = null;
-        AsyncTxnResult accordTxnResult = null;
+        Dispatcher.RequestTime requestTime;
+        IAccordResult<TxnResult> accordTxnResult = null;
         if (accordHintMutation != null)
         {
             requestTime = Dispatcher.RequestTime.forImmediateExecution();
@@ -362,7 +359,7 @@ final class HintsDispatcher implements AutoCloseable
         }
 
         Hint normalHint = splitHint.normalHint;
-        Callback callback = new Callback(address, hint.creationTime, requestTime, accordTxnResult);
+        Callback callback = new Callback(address, hint.creationTime, accordTxnResult);
         if (normalHint != null)
         {
             // We had a hint that was supposed to be done on Accord for the batch log (otherwise address would be non-null),
@@ -438,7 +435,7 @@ final class HintsDispatcher implements AutoCloseable
         return callback;
     }
 
-    static final class Callback implements RequestCallback, Runnable
+    static final class Callback implements RequestCallback, BiConsumer<TxnResult, Throwable>
     {
         enum Outcome { SUCCESS, TIMEOUT, FAILURE, INTERRUPTED, RETRY_DIFFERENT_SYSTEM }
 
@@ -449,23 +446,18 @@ final class HintsDispatcher implements AutoCloseable
         @Nullable
         private final InetAddressAndPort to;
         private final long hintCreationNanoTime;
-        @Nullable
-        private final Dispatcher.RequestTime requestTime;
-        private final AsyncTxnResult accordTxnResult;
 
         private Callback(@Nonnull InetAddressAndPort to, long hintCreationTimeMillisSinceEpoch)
         {
-            this(to, hintCreationTimeMillisSinceEpoch, null, null);
+            this(to, hintCreationTimeMillisSinceEpoch, null);
         }
 
-        private Callback(@Nullable InetAddressAndPort to, long hintCreationTimeMillisSinceEpoch, Dispatcher.RequestTime requestTime, @Nullable AsyncTxnResult accordTxnResult)
+        private Callback(@Nullable InetAddressAndPort to, long hintCreationTimeMillisSinceEpoch, @Nullable IAccordResult<TxnResult> accordTxnResult)
         {
             this.to = to != null ? to : ACCORD_HINT_ENDPOINT;
             this.hintCreationNanoTime = approxTime.translate().fromMillisSinceEpoch(hintCreationTimeMillisSinceEpoch);
-            this.requestTime = requestTime;
-            this.accordTxnResult = accordTxnResult;
             if (accordTxnResult != null)
-                accordTxnResult.addListener(this, ImmediateExecutor.INSTANCE);
+                accordTxnResult.addCallback(this);
             else
                 accordOutcome = SUCCESS;
         }
@@ -533,33 +525,34 @@ final class HintsDispatcher implements AutoCloseable
         }
 
         @Override
-        public void run()
+        public void accept(TxnResult success, Throwable fail)
         {
-            try
+            if (fail != null)
             {
-                IAccordService accord = AccordService.instance();
-                TxnResult.Kind kind = accord.getTxnResult(accordTxnResult).kind();
-                if (kind == retry_new_protocol)
+                if (fail instanceof RequestExecutionException || fail instanceof RetryOnDifferentSystemException)
+                {
+                    if (fail instanceof RetryOnDifferentSystemException)
+                        accordOutcome = RETRY_DIFFERENT_SYSTEM;
+                    else
+                        accordOutcome = TIMEOUT;
+                    String msg = "Accord hint delivery transaction failed retriably";
+                    if (noSpamLogger.getStatement(msg).shouldLog(Clock.Global.nanoTime()))
+                        logger.error(msg, fail);
+                }
+                else
+                {
+                    accordOutcome = FAILURE;
+                    String msg = "Accord hint delivery transaction failed permanently";
+                    if (noSpamLogger.getStatement(msg).shouldLog(Clock.Global.nanoTime()))
+                        logger.error(msg, fail);
+                }
+            }
+            else
+            {
+                if (success.kind() == retry_new_protocol)
                     accordOutcome = RETRY_DIFFERENT_SYSTEM;
                 else
                     accordOutcome = SUCCESS;
-            }
-            catch (WriteTimeoutException | WriteFailureException | RetryOnDifferentSystemException e)
-            {
-                if (e instanceof RetryOnDifferentSystemException)
-                    accordOutcome = RETRY_DIFFERENT_SYSTEM;
-                else
-                    accordOutcome = TIMEOUT;
-                String msg = "Accord hint delivery transaction failed retriably";
-                if (noSpamLogger.getStatement(msg).shouldLog(Clock.Global.nanoTime()))
-                    logger.error(msg, e);
-            }
-            catch (Exception e)
-            {
-                accordOutcome = FAILURE;
-                String msg = "Accord hint delivery transaction failed permanently";
-                if (noSpamLogger.getStatement(msg).shouldLog(Clock.Global.nanoTime()))
-                    logger.error(msg, e);
             }
             maybeSignal();
         }

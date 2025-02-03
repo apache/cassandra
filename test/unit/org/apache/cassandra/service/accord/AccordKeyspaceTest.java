@@ -111,7 +111,7 @@ public class AccordKeyspaceTest extends CQLTester.InMemory
         RoutingKey routingKey = partialTxn.keys().get(0).asKey().toUnseekable();
         FullRoute<?> route = partialTxn.keys().toRoute(routingKey);
         StoreParticipants participants = StoreParticipants.all(route);
-        Deps deps = new Deps(KeyDeps.none(((Keys) txn.keys()).toParticipants()), RangeDeps.NONE, KeyDeps.NONE);
+        Deps deps = new Deps(KeyDeps.none(((Keys) txn.keys()).toParticipants()), RangeDeps.NONE);
 
         Command.WaitingOn waitingOn = null;
 

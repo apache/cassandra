@@ -88,7 +88,7 @@ public class AccordSyncPropagator
     {
         final long epoch;
         ImmutableSet<Node.Id> syncComplete = ImmutableSet.of(); // TODO (desired): propagate ack's for other nodes
-        Ranges closed = Ranges.EMPTY, redundant = Ranges.EMPTY;
+        Ranges closed = Ranges.EMPTY, retired = Ranges.EMPTY;
 
         PendingEpoch(long epoch)
         {
@@ -118,19 +118,19 @@ public class AccordSyncPropagator
             return new Notification(epoch, Collections.emptySet(), addClosed, Ranges.EMPTY);
         }
 
-        Notification redundant(Ranges addRedundant)
+        Notification retired(Ranges addRetired)
         {
-            if (redundant.containsAll(addRedundant))
+            if (retired.containsAll(addRetired))
                 return null;
 
-            addRedundant = addRedundant.without(redundant);
-            redundant = redundant.with(addRedundant);
-            return new Notification(epoch, Collections.emptySet(), Ranges.EMPTY, addRedundant);
+            addRetired = addRetired.without(retired);
+            retired = retired.with(addRetired);
+            return new Notification(epoch, Collections.emptySet(), Ranges.EMPTY, addRetired);
         }
 
         boolean isEmpty()
         {
-            return syncComplete.isEmpty() && closed.isEmpty() && redundant.isEmpty();
+            return syncComplete.isEmpty() && closed.isEmpty() && retired.isEmpty();
         }
 
         boolean ack(Notification notification)
@@ -141,8 +141,8 @@ public class AccordSyncPropagator
                 else syncComplete = ImmutableSet.copyOf(Iterables.filter(syncComplete, v -> !notification.syncComplete.contains(v)));
             }
             closed = closed.without(notification.closed);
-            redundant = redundant.without(notification.redundant);
-            return syncComplete.isEmpty() && closed.isEmpty() && redundant.isEmpty();
+            retired = retired.without(notification.redundant);
+            return syncComplete.isEmpty() && closed.isEmpty() && retired.isEmpty();
         }
 
         @Override
@@ -152,7 +152,7 @@ public class AccordSyncPropagator
                    "epoch=" + epoch +
                    ", syncComplete=" + syncComplete +
                    ", closed=" + closed +
-                   ", redundant=" + redundant +
+                   ", redundant=" + retired +
                    '}';
         }
     }
@@ -277,9 +277,9 @@ public class AccordSyncPropagator
         report(epoch, notify, PendingEpoch::closed, closed);
     }
 
-    public void reportRedundant(long epoch, Collection<Node.Id> notify, Ranges redundant)
+    public void reportRetired(long epoch, Collection<Node.Id> notify, Ranges redundant)
     {
-        report(epoch, notify, PendingEpoch::redundant, redundant);
+        report(epoch, notify, PendingEpoch::retired, redundant);
     }
 
     private synchronized <T> void report(long epoch, Collection<Node.Id> notify, ReportPending<T> report, T param)

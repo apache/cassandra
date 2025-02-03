@@ -482,7 +482,7 @@ public class RouteIndexTest extends CQLTester.InMemory
                 storeRangesForEpochs.put(i, new RangesForEpoch(1, Ranges.of(TokenRange.fullRange(tableId, getPartitioner()))));
 
             accordService = startAccord();
-            accordService.configurationService().listener.notifyPostCommit(null, ClusterMetadata.current(), false);
+            accordService.configService().listener.notifyPostCommit(null, ClusterMetadata.current(), false);
             accordService.epochReady(ClusterMetadata.current().epoch).awaitUninterruptibly();
         }
 

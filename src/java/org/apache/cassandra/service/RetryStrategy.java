@@ -20,32 +20,38 @@ package org.apache.cassandra.service;
 
 import com.google.common.annotations.VisibleForTesting;
 
-import org.apache.cassandra.config.DatabaseDescriptor;
+import accord.utils.Invariants;
+import accord.utils.RandomSource;
 import org.apache.cassandra.service.TimeoutStrategy.LatencySourceFactory;
 import org.apache.cassandra.service.TimeoutStrategy.Wait;
 
 import java.util.concurrent.ThreadLocalRandom;
+import java.util.concurrent.TimeUnit;
 import java.util.function.DoubleSupplier;
 import java.util.function.LongBinaryOperator;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-import static java.lang.Math.*;
-import static java.util.Arrays.stream;
+import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
+
 import static java.util.concurrent.TimeUnit.*;
-import static org.apache.cassandra.service.TimeoutStrategy.parseWait;
+import static org.apache.cassandra.service.TimeoutStrategy.parseInMicros;
 import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 
 /**
  * <p>A strategy for making retry timing decisions for operations.
- * The strategy is defined by four factors: <ul>
+ * The strategy is defined by six factors: <ul>
+ * <li> {@link #minMinMicros}
+ * <li> {@link #maxMaxMicros}
  * <li> {@link #min}
  * <li> {@link #max}
- * <li> {@link #spread}
  * <li> {@link #waitRandomizer}
+ * <li> {@link #maxAttempts}
  * </ul>
  *
- * <p>The first three represent time periods, and may be defined dynamically based on a simple calculation over: <ul>
+ * <p>The first two represent the absolute upper and lower bound times we are permitted to produce as constants</p>
+ * <p>The next two represent time periods, and may be defined dynamically based on a simple calculation over: <ul>
  * <li> {@code pX()} recent experienced latency distribution for successful operations,
  *                 e.g. {@code p50(rw)} the maximum of read and write median latencies,
  *                      {@code p999(r)} the 99.9th percentile of read latencies
@@ -59,16 +65,13 @@ import static org.apache.cassandra.utils.Clock.Global.nanoTime;
  * <li> dynamic linear      {@code pX() * constant * attempts}
  * <li> dynamic exponential {@code pX() * constant ^ attempts}
  *
- * <p>Furthermore, the dynamic calculations can be bounded with a min/max, like so:
- *  {@code min[mu]s <= dynamic expr <= max[mu]s}
- *
  * e.g.
- * <li> {@code 10ms <= p50(rw)*0.66}
+ * <li> {@code 10ms <= p50(rw)*0.66...p99(rw)}
  * <li> {@code 10ms <= p95(rw)*1.8^attempts <= 100ms}
  * <li> {@code 5ms <= p50(rw)*0.5}
  *
  * <p>These calculations are put together to construct a range from which we draw a random number.
- * The period we wait for {@code X} will be drawn so that {@code min <= X < max}.
+ * The period we wait for {@code X} will be drawn so that {@code minMin <= min <= max <= maxMax}.
  *
  * <p>With the constraint that {@code max} must be {@code spread} greater than {@code min},
  * but no greater than its expression-defined maximum. {@code max} will be increased up until
@@ -87,19 +90,34 @@ import static org.apache.cassandra.utils.Clock.Global.nanoTime;
  * The quantized exponential specifier partitions the range into {@code attempts} buckets, then applies the pure
  * exponential approach to draw values from [0..attempts), before drawing a uniform value from the corresponding bucket
  */
-public class RetryStrategy
+public class RetryStrategy implements WaitStrategy
 {
     private static final Pattern RANDOMIZER = Pattern.compile(
                 "uniform|exp(onential)?[(](?<exp>[0-9.]+)[)]|q(uantized)?exp(onential)?[(](?<qexp>[0-9.]+)[)]");
 
-    final static WaitRandomizerFactory randomizers = new WaitRandomizerFactory(){};
+    static final Pattern PARSE = Pattern.compile(
+          "(\\s*(?<minmin>0|[0-9]+[mu]?s)\\s*<=)?" +
+                "(\\s*(?<min>[^=]+)\\s*[.]{3})?" +
+                "(\\s*(?<max>[^=]+))" +
+                "(\\s*<=\\s*(?<maxmax>0|[0-9]+[mu]?s))?");
 
-    protected interface WaitRandomizer
+    public static final WaitRandomizerFactory randomizers = new WaitRandomizerFactory(){};
+
+    public interface WaitRandomizer
     {
         long wait(long min, long max, int attempts);
     }
 
-    interface WaitRandomizerFactory
+    public static WaitRandomizerFactory randomizers(RandomSource random)
+    {
+        return new WaitRandomizerFactory()
+        {
+            @Override public LongBinaryOperator uniformLongSupplier() { return random::nextLong; }
+            @Override public DoubleSupplier uniformDoubleSupplier() { return random::nextDouble; }
+        };
+    }
+
+    public interface WaitRandomizerFactory
     {
         default LongBinaryOperator uniformLongSupplier() { return (min, max) -> ThreadLocalRandom.current().nextLong(min, max); } // DO NOT USE METHOD HANDLES (want to fetch afresh each time)
         default DoubleSupplier uniformDoubleSupplier() { return () -> ThreadLocalRandom.current().nextDouble(); }
@@ -108,7 +126,7 @@ public class RetryStrategy
         default WaitRandomizer exponential(double power) { return new Exponential(uniformLongSupplier(), uniformDoubleSupplier(), power); }
         default WaitRandomizer quantizedExponential(double power) { return new QuantizedExponential(uniformLongSupplier(), uniformDoubleSupplier(), power); }
 
-        static class Uniform implements WaitRandomizer
+        class Uniform implements WaitRandomizer
         {
             final LongBinaryOperator uniformLong;
 
@@ -124,7 +142,7 @@ public class RetryStrategy
             }
         }
 
-        static abstract class AbstractExponential implements WaitRandomizer
+        abstract class AbstractExponential implements WaitRandomizer
         {
             final LongBinaryOperator uniformLong;
             final DoubleSupplier uniformDouble;
@@ -138,7 +156,7 @@ public class RetryStrategy
             }
         }
 
-        static class Exponential extends AbstractExponential
+        class Exponential extends AbstractExponential
         {
             public Exponential(LongBinaryOperator uniformLong, DoubleSupplier uniformDouble, double power)
             {
@@ -158,7 +176,7 @@ public class RetryStrategy
             }
         }
 
-        static class QuantizedExponential extends AbstractExponential
+        class QuantizedExponential extends AbstractExponential
         {
             public QuantizedExponential(LongBinaryOperator uniformLong, DoubleSupplier uniformDouble, double power)
             {
@@ -180,108 +198,111 @@ public class RetryStrategy
     }
 
     public final WaitRandomizer waitRandomizer;
-    public final Wait min, max, spread;
+    public final long minMinMicros, maxMaxMicros;
+    public final @Nullable Wait min;
+    public final @Nonnull Wait max;
+    public final int maxAttempts;
 
-    public RetryStrategy(String waitRandomizer, String min, String max, String spread, LatencySourceFactory latencies)
-    {
-        this.waitRandomizer = parseWaitRandomizer(waitRandomizer);
-        this.min = parseBound(min, true, latencies);
-        this.max = parseBound(max, false, latencies);
-        this.spread = parseBound(spread, true, latencies);
-    }
-
-    protected RetryStrategy(WaitRandomizer waitRandomizer, Wait min, Wait max, Wait spread)
+    protected RetryStrategy(WaitRandomizer waitRandomizer, long minMinMicros, Wait min, Wait max, long maxMaxMicros, int retries)
     {
         this.waitRandomizer = waitRandomizer;
+        this.minMinMicros = minMinMicros;
         this.min = min;
         this.max = max;
-        this.spread = spread;
+        this.maxMaxMicros = maxMaxMicros;
+        this.maxAttempts = retries == Integer.MAX_VALUE ? Integer.MAX_VALUE : retries + 1;
+        Invariants.require(maxAttempts >= 1);
     }
 
-    protected Wait parseBound(String spec, boolean isMin, LatencySourceFactory latencies)
+    public long computeWaitUntil(int attempts)
     {
-        long defaultMaxMicros = DatabaseDescriptor.getRpcTimeout(MICROSECONDS);
-        return parseWait(spec, 0, defaultMaxMicros, isMin ? 0 : defaultMaxMicros, latencies);
+        long wait = computeWait(attempts, NANOSECONDS);
+        if (wait < 0)
+            return -1;
+        return nanoTime() + wait;
     }
 
-    protected long computeWaitUntil(int attempts)
+    public long computeWait(int attempt, TimeUnit units)
     {
-        long wait = computeWait(attempts);
-        return nanoTime() + MICROSECONDS.toNanos(wait);
-    }
+        if (attempt > maxAttempts)
+            return -1;
 
-    protected long computeWait(int attempts)
-    {
-        long minWaitMicros = min.get(attempts);
-        long maxWaitMicros = max.get(attempts);
-        long spreadMicros = spread.get(attempts);
-
-        if (minWaitMicros + spreadMicros > maxWaitMicros)
+        long result;
+        if (min == null)
         {
-            maxWaitMicros = minWaitMicros + spreadMicros;
-            if (maxWaitMicros > this.max.max)
+             result = max.getMicros(attempt);
+        }
+        else
+        {
+            long min = this.min.getMicros(attempt);
+            long max = this.max.getMicros(attempt);
+            result = min >= max ? min : waitRandomizer.wait(min, max, attempt);
+        }
+
+        if (result > maxMaxMicros) result = maxMaxMicros;
+        if (result < minMinMicros) result = minMinMicros;
+        return units.convert(result, MICROSECONDS);
+    }
+
+    public static RetryStrategy parse(String spec, LatencySourceFactory latencies)
+    {
+        return parse(spec, latencies, null);
+    }
+
+    public static RetryStrategy parse(String spec, LatencySourceFactory latencies, WaitRandomizer randomizer)
+    {
+        String original = spec;
+        int retries = Integer.MAX_VALUE;
+        int end = spec.length();
+        {
+            int next;
+            while ((next = spec.lastIndexOf(',', end - 1)) >= 0)
             {
-                maxWaitMicros = this.max.max;
-                minWaitMicros = max(this.min.min, min(this.min.max, maxWaitMicros - spreadMicros));
+                int mid = spec.indexOf('=', next + 1);
+                if (mid <= next || mid >= end)
+                    throw new IllegalArgumentException("Invalid modifier specification: '" + spec.substring(next, end) + "'; expecting '=' for value assignment");
+                String key = spec.substring(next + 1, mid).trim();
+                String value = spec.substring(mid + 1, end).trim();
+                switch (key)
+                {
+                    default: throw new IllegalArgumentException("Invalid modifier specification: unrecognised property '" + key + '\'');
+                    case "retries":
+                        retries = Integer.parseInt(value);
+                        break;
+                    case "rnd":
+                        if (randomizer != null)
+                            throw new IllegalArgumentException("Randomizer already specified, cannot re-specify: " + value);
+                        randomizer = parseWaitRandomizer(value);
+                        break;
+                }
+                end = next;
             }
+            if (end != spec.length())
+                spec = spec.substring(0, end);
         }
 
-        return waitRandomizer.wait(minWaitMicros, maxWaitMicros, attempts);
-    }
+        Matcher m = PARSE.matcher(spec);
+        if (!m.matches())
+            throw new IllegalArgumentException("Invalid specification: '" + spec + "'; does not match " + PARSE);
 
-    public static class ParsedStrategy
-    {
-        public final String waitRandomizer, min, max, spread;
-        public final RetryStrategy strategy;
-
-        protected ParsedStrategy(String waitRandomizer, String min, String max, String spread, RetryStrategy strategy)
-        {
-            this.waitRandomizer = waitRandomizer;
-            this.min = min;
-            this.max = max;
-            this.spread = spread;
-            this.strategy = strategy;
-        }
-
-        public String toString()
-        {
-            return "min=" + min + ",max=" + max + ",spread=" + spread + ",random=" + waitRandomizer;
-        }
+        long minMin = parseInMicros(m.group("minmin"), 0);
+        long maxMax = parseInMicros(m.group("maxmax"), Long.MAX_VALUE);
+        Wait max = TimeoutStrategy.parseWait(m.group("max"), latencies);
+        String minSpec = m.group("min");
+        Wait min = minSpec == null ? null : TimeoutStrategy.parseWait(minSpec, latencies);
+        if (min == null && randomizer != null)
+            throw new IllegalArgumentException("Invalid to specify randomiser when no range specified: '" + original + '\'');
+        if (min instanceof Wait.Constant && minMin != 0)
+            throw new IllegalArgumentException("Invalid to specify an absolute minimum constant when the min bound is itself a constant: '" + original + '\'');
+        if (max instanceof Wait.Constant && maxMax != Long.MAX_VALUE)
+            throw new IllegalArgumentException("Invalid to specify an absolute maximum constant when the max bound is itself a constant: '" + original + '\'');
+        if (randomizer == null)
+            randomizer = randomizers.uniform();
+        return new RetryStrategy(randomizer, minMin, min, max, maxMax, retries);
     }
 
     @VisibleForTesting
-    public static ParsedStrategy parseStrategy(String spec, LatencySourceFactory latencies, ParsedStrategy defaultStrategy)
-    {
-        String[] args = spec.split(",");
-        String waitRandomizer = find(args, "random");
-        String min = find(args, "min");
-        String max = find(args, "max");
-        String spread = find(args, "spread");
-        if (spread == null)
-            spread = find(args, "delta");
-
-        if (waitRandomizer == null) waitRandomizer = defaultStrategy.waitRandomizer;
-        if (min == null) min = defaultStrategy.min;
-        if (max == null) max = defaultStrategy.max;
-        if (spread == null) spread = defaultStrategy.spread;
-
-        RetryStrategy strategy = new RetryStrategy(waitRandomizer, min, max, spread, latencies);
-        return new ParsedStrategy(waitRandomizer, min, max, spread, strategy);
-    }
-
-    protected static String find(String[] args, String param)
-    {
-        return stream(args).filter(s -> s.startsWith(param + '='))
-                .map(s -> s.substring(param.length() + 1))
-                .findFirst().orElse(null);
-    }
-
-    static WaitRandomizer parseWaitRandomizer(String input)
-    {
-        return parseWaitRandomizer(input, randomizers);
-    }
-
-    static WaitRandomizer parseWaitRandomizer(String input, WaitRandomizerFactory randomizers)
+    protected static WaitRandomizer parseWaitRandomizer(String input)
     {
         Matcher m = RANDOMIZER.matcher(input);
         if (!m.matches())

@@ -39,6 +39,7 @@ public class AccordDropTableTest extends AccordDropTableBase
         try (Cluster cluster = Cluster.build(3)
                                       .withoutVNodes()
                                       .withConfig(c -> c.with(GOSSIP, NETWORK, NATIVE_PROTOCOL)
+                                                       .set("accord.shard_durability_target_splits", 4)
                                                        .set("auto_snapshot", false))
                                       .start())
         {

@@ -45,8 +45,8 @@ import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.RequestCallback;
 import org.apache.cassandra.net.Verb;
 import org.apache.cassandra.repair.RepairJobDesc;
+import org.apache.cassandra.service.WaitStrategy;
 import org.apache.cassandra.streaming.PreviewKind;
-import org.apache.cassandra.utils.Backoff;
 import org.apache.cassandra.utils.CassandraVersion;
 import org.apache.cassandra.utils.NoSpamLogger;
 import org.apache.cassandra.utils.TimeUUID;
@@ -134,11 +134,11 @@ public abstract class RepairMessage
         void onFailure(Exception e);
     }
 
-    private static Backoff backoff(SharedContext ctx, Verb verb)
+    private static WaitStrategy backoff(SharedContext ctx, Verb verb)
     {
         RepairRetrySpec retrySpec = DatabaseDescriptor.getRepairRetrySpec();
         RetrySpec spec = verb == Verb.VALIDATION_RSP ? retrySpec.getMerkleTreeResponseSpec() : retrySpec;
-        return Backoff.fromConfig(ctx, spec);
+        return RetrySpec.toStrategy(ctx, spec);
     }
 
     public static Supplier<Boolean> notDone(Future<?> f)
@@ -172,12 +172,12 @@ public abstract class RepairMessage
     }
 
     @VisibleForTesting
-    static <T> void sendMessageWithRetries(SharedContext ctx, Backoff backoff, Supplier<Boolean> allowRetry, RepairMessage request, Verb verb, InetAddressAndPort endpoint, RequestCallback<T> finalCallback)
+    static <T> void sendMessageWithRetries(SharedContext ctx, WaitStrategy backoff, Supplier<Boolean> allowRetry, RepairMessage request, Verb verb, InetAddressAndPort endpoint, RequestCallback<T> finalCallback)
     {
         if (!ALLOWS_RETRY.contains(verb))
             throw new AssertionError("Repair verb " + verb + " does not support retry, but a request to send with retry was given!");
         BiConsumer<Integer, RequestFailureReason > maybeRecordRetry = (attempt, reason) -> {
-            if (attempt <= 0)
+            if (attempt <= 1)
                 return;
             // we don't know what the prefix kind is... so use NONE... this impacts logPrefix as it will cause us to use "repair" rather than "preview repair" which may not be correct... but close enough...
             String prefix = PreviewKind.NONE.logPrefix(request.parentRepairSession());
@@ -229,7 +229,7 @@ public abstract class RepairMessage
                                         (attempt, retryReason, from, failure) -> {
                                             switch (retryReason)
                                             {
-                                                case MaxRetries:
+                                                case GiveUp:
                                                     maybeRecordRetry.accept(attempt, failure.reason);
                                                     finalCallback.onFailure(from, failure);
                                                     return null;

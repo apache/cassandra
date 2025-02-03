@@ -23,7 +23,6 @@ import java.io.IOException;
 import accord.impl.CommandChange.WaitingOnProvider;
 import accord.local.Command;
 import accord.local.Command.WaitingOn;
-import accord.primitives.KeyDeps;
 import accord.primitives.PartialDeps;
 import accord.primitives.RangeDeps;
 import accord.primitives.RoutingKeys;
@@ -76,12 +75,11 @@ public class WaitingOnSerializer
         {
             RoutingKeys keys = deps.keyDeps.keys();
             RangeDeps directRangeDeps = deps.rangeDeps;
-            KeyDeps directKeyDeps = deps.directKeyDeps;
-            int txnIdCount = directRangeDeps.txnIdCount() + directKeyDeps.txnIdCount();
+            int txnIdCount = directRangeDeps.txnIdCount();
             Invariants.require(waitingOn.size()/64 == (txnIdCount + keys.size() + 63) / 64);
             Invariants.require(appliedOrInvalidated == null || (appliedOrInvalidated.size()/64 == (txnIdCount + 63)/64));
 
-            WaitingOn result = new WaitingOn(keys, directRangeDeps, directKeyDeps, waitingOn, appliedOrInvalidated);
+            WaitingOn result = new WaitingOn(keys, directRangeDeps, waitingOn, appliedOrInvalidated);
             if (executeAtLeast != null) return new Command.WaitingOnWithExecuteAt(result, executeAtLeast);
             else if (uniqueHlc != 0) return new Command.WaitingOnWithMinUniqueHlc(result, uniqueHlc);
             return result;

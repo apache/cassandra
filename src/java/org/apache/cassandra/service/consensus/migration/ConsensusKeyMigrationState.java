@@ -21,7 +21,6 @@ package org.apache.cassandra.service.consensus.migration;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.List;
-import java.util.SortedSet;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 import javax.annotation.Nonnull;
@@ -33,9 +32,8 @@ import com.google.common.primitives.Ints;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import accord.api.BarrierType;
 import accord.primitives.Keys;
-import accord.primitives.Seekables;
+import accord.primitives.Timestamp;
 import com.github.benmanes.caffeine.cache.CacheLoader;
 import com.github.benmanes.caffeine.cache.Caffeine;
 import com.github.benmanes.caffeine.cache.LoadingCache;
@@ -62,6 +60,9 @@ import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.accord.AccordService;
+import org.apache.cassandra.service.accord.IAccordService;
+import org.apache.cassandra.service.accord.RequestBookkeeping;
+import org.apache.cassandra.service.accord.TimeOnlyRequestBookkeeping.LatencyRequestBookkeeping;
 import org.apache.cassandra.service.accord.api.PartitionKey;
 import org.apache.cassandra.service.paxos.AbstractPaxosRepair.Failure;
 import org.apache.cassandra.service.paxos.AbstractPaxosRepair.Result;
@@ -70,11 +71,15 @@ import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.transport.Dispatcher;
 import org.apache.cassandra.utils.ByteBufferUtil;
-import org.apache.cassandra.utils.Collectors3;
 import org.apache.cassandra.utils.ObjectSizes;
 import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.UUIDSerializer;
 
+import static accord.local.durability.DurabilityService.SyncLocal.Self;
+import static accord.local.durability.DurabilityService.SyncRemote.NoRemote;
+import static accord.local.durability.DurabilityService.SyncRemote.Quorum;
+import static org.apache.cassandra.config.DatabaseDescriptor.getReadRpcTimeout;
+import static org.apache.cassandra.config.DatabaseDescriptor.getWriteRpcTimeout;
 import static org.apache.cassandra.net.Verb.CONSENSUS_KEY_MIGRATION;
 import static org.apache.cassandra.service.consensus.migration.ConsensusMigrationTarget.paxos;
 import static org.apache.cassandra.utils.Clock.Global.nanoTime;
@@ -290,27 +295,23 @@ public abstract class ConsensusKeyMigrationState
                                  boolean isForWrite)
     {
         ColumnFamilyStore cfs = ColumnFamilyStore.getIfExists(tableId);
-        if (isForWrite)
-            ClientRequestsMetricsHolder.casWriteMetrics.accordKeyMigrations.mark();
-        else
-            ClientRequestsMetricsHolder.casReadMetrics.accordKeyMigrations.mark();
+        if (isForWrite) ClientRequestsMetricsHolder.casWriteMetrics.accordKeyMigrations.mark();
+        else ClientRequestsMetricsHolder.casReadMetrics.accordKeyMigrations.mark();
+        // Global will always create a transaction to effect the barrier so all replicas
+        // will soon be ready to execute, but only waits for the local replica to be ready
+        // Local will only create a transaction if it can't find an existing one to wait on
+        Keys partitionKeys = AccordService.intersecting(Keys.of(keys, k -> new PartitionKey(tableId, k)));
+        if (partitionKeys.isEmpty())
+            throw new RetryOnDifferentSystemException();
+
+        IAccordService accord = AccordService.instance();
+
         long start = nanoTime();
-        try
-        {
-            // Global will always create a transaction to effect the barrier so all replicas
-            // will soon be ready to execute, but only waits for the local replica to be ready
-            // Local will only create a transaction if it can't find an existing one to wait on
-            BarrierType barrierType = global ? BarrierType.global_async : BarrierType.local;
-            SortedSet<PartitionKey> partitionKeys = keys.stream().map(key -> new PartitionKey(tableId, key)).collect(Collectors3.toSortedSet());
-            Seekables keysOrRanges = AccordService.instance().barrier(new Keys(partitionKeys), minEpoch, requestTime, DatabaseDescriptor.getTransactionTimeout(TimeUnit.NANOSECONDS), barrierType, isForWrite);
-            if (keysOrRanges.isEmpty())
-                throw new RetryOnDifferentSystemException();
-            // We don't save the state to the cache here. Accord will notify the agent every time a barrier happens.
-        }
-        finally
-        {
-            cfs.metric.keyMigration.addNano(nanoTime() - start);
-        }
+        long deadline = requestTime.computeDeadline(isForWrite ? getWriteRpcTimeout(TimeUnit.NANOSECONDS) : getReadRpcTimeout(TimeUnit.NANOSECONDS));
+        RequestBookkeeping bookkeeping = new LatencyRequestBookkeeping(cfs == null ? null : cfs.metric.keyMigration);
+        AccordService.getBlocking(accord.sync(Timestamp.minForEpoch(minEpoch), partitionKeys, Self, global ? Quorum : NoRemote),
+              partitionKeys, bookkeeping, start, deadline);
+        maybeSaveAccordKeyMigrationLocally((PartitionKey) partitionKeys.get(0), Epoch.create(minEpoch));
     }
 
     static void repairKeyPaxos(EndpointsForToken naturalReplicas,

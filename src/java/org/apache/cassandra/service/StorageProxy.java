@@ -137,7 +137,7 @@ import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.schema.TableParams;
 import org.apache.cassandra.service.accord.AccordService;
 import org.apache.cassandra.service.accord.IAccordService;
-import org.apache.cassandra.service.accord.IAccordService.AsyncTxnResult;
+import org.apache.cassandra.service.accord.IAccordService.IAccordResult;
 import org.apache.cassandra.service.accord.txn.TxnData;
 import org.apache.cassandra.service.accord.txn.TxnDataKeyValue;
 import org.apache.cassandra.service.accord.txn.TxnDataValue;
@@ -1258,7 +1258,7 @@ public class StorageProxy implements StorageProxyMBean
             {
                 SplitMutations splitMutations = splitMutationsIntoAccordAndNormal(cm, (List<IMutation>)mutations);
                 List<? extends IMutation> accordMutations = splitMutations.accordMutations();
-                AsyncTxnResult accordResult = accordMutations != null ? mutateWithAccordAsync(cm, accordMutations, consistencyLevel, requestTime) : null;
+                IAccordResult<TxnResult> accordResult = accordMutations != null ? mutateWithAccordAsync(cm, accordMutations, consistencyLevel, requestTime) : null;
                 List<? extends IMutation> normalMutations = splitMutations.normalMutations();
                 Tracing.trace("Split mutations into Accord {} and normal {}", accordMutations, normalMutations);
 
@@ -1298,8 +1298,7 @@ public class StorageProxy implements StorageProxyMBean
                 {
                     if (accordResult != null)
                     {
-                        IAccordService accord = AccordService.instance();
-                        TxnResult.Kind kind = accord.getTxnResult(accordResult).kind();
+                        TxnResult.Kind kind = accordResult.awaitAndGet().kind();
                         if (kind == retry_new_protocol && failure == null)
                         {
                             Tracing.trace("Accord returned retry new protocol");
@@ -1464,7 +1463,7 @@ public class StorageProxy implements StorageProxyMBean
                 }
 
                 // Start Accord executing so it executes while the mutations are synchronously applied
-                AsyncTxnResult accordResult = !accordMutations.isEmpty() ? mutateWithAccordAsync(cm, accordMutations, consistencyLevel, requestTime) : null;
+                IAccordResult<TxnResult> accordResult = !accordMutations.isEmpty() ? mutateWithAccordAsync(cm, accordMutations, consistencyLevel, requestTime) : null;
 
                 Throwable failure = null;
                 try
@@ -1512,8 +1511,7 @@ public class StorageProxy implements StorageProxyMBean
                     // the batch log.
                     if (accordResult != null)
                     {
-                        IAccordService accord = AccordService.instance();
-                        TxnResult.Kind kind = accord.getTxnResult(accordResult).kind();
+                        TxnResult.Kind kind = accordResult.awaitAndGet().kind();
                         if (kind == retry_new_protocol && failure == null)
                             continue;
                         Tracing.trace("Successfully wrote Accord mutations");
@@ -2205,7 +2203,7 @@ public class StorageProxy implements StorageProxyMBean
         return null;
     }
 
-    public static AsyncTxnResult readWithAccord(ClusterMetadata cm, PartitionRangeReadCommand command, AbstractBounds<PartitionPosition> range, ConsistencyLevel consistencyLevel, Dispatcher.RequestTime requestTime)
+    public static IAccordResult<TxnResult> readWithAccord(ClusterMetadata cm, PartitionRangeReadCommand command, AbstractBounds<PartitionPosition> range, ConsistencyLevel consistencyLevel, Dispatcher.RequestTime requestTime)
     {
         if (consistencyLevel != null && !IAccordService.SUPPORTED_READ_CONSISTENCY_LEVELS.contains(consistencyLevel))
             throw new InvalidRequestException(consistencyLevel + " is not supported by Accord");
@@ -2220,7 +2218,7 @@ public class StorageProxy implements StorageProxyMBean
         return accordService.coordinateAsync(tableMetadata.epoch.getEpoch(), txn, consistencyLevel, requestTime);
     }
 
-    private static AsyncTxnResult readWithAccordAsync(ClusterMetadata cm, SinglePartitionReadCommand.Group group, ConsistencyLevel consistencyLevel, Dispatcher.RequestTime requestTime)
+    private static IAccordResult<TxnResult> readWithAccordAsync(ClusterMetadata cm, SinglePartitionReadCommand.Group group, ConsistencyLevel consistencyLevel, Dispatcher.RequestTime requestTime)
     {
         if (consistencyLevel != null && !IAccordService.SUPPORTED_READ_CONSISTENCY_LEVELS.contains(consistencyLevel))
             throw new InvalidRequestException(consistencyLevel + " is not supported by Accord");
@@ -2238,16 +2236,16 @@ public class StorageProxy implements StorageProxyMBean
 
     private static ConsensusAttemptResult readWithAccord(ClusterMetadata cm, SinglePartitionReadCommand.Group group, ConsistencyLevel consistencyLevel, Dispatcher.RequestTime requestTime)
     {
-        AsyncTxnResult asyncTxnResult = readWithAccordAsync(cm, group, consistencyLevel, requestTime);
-        return getConsensusAttemptResultFromAsyncTxnResult(asyncTxnResult, group.queries.size(), index -> group.queries.get(index).isReversed());
+        IAccordResult<TxnResult> accordResult = readWithAccordAsync(cm, group, consistencyLevel, requestTime);
+        return getConsensusAttemptResultFromAsyncTxnResult(accordResult, group.queries.size(), index -> group.queries.get(index).isReversed());
     }
 
     /*
      * Used for both the SERIAL and non-SERIAL read path into Accord
      */
-    public static ConsensusAttemptResult getConsensusAttemptResultFromAsyncTxnResult(AsyncTxnResult asyncTxnResult, int numQueries, IntPredicate isQueryReversed)
+    public static ConsensusAttemptResult getConsensusAttemptResultFromAsyncTxnResult(IAccordResult<TxnResult> accordResult, int numQueries, IntPredicate isQueryReversed)
     {
-        TxnResult txnResult = AccordService.instance().getTxnResult(asyncTxnResult);
+        TxnResult txnResult = accordResult.awaitAndGet();
         // TODO (required): Converge on a single approach to RETRY_NEW_PROTOCOL, this works for now because reads don't support it anyways
         if (txnResult.kind() == retry_new_protocol)
             return RETRY_NEW_PROTOCOL;
@@ -2385,7 +2383,7 @@ public class StorageProxy implements StorageProxyMBean
             {
                 SplitReads splitReads = splitReadsIntoAccordAndNormal(cm, group, coordinator, requestTime);
                 SinglePartitionReadCommand.Group accordReads = splitReads.accordReads;
-                AsyncTxnResult accordResult = accordReads != null ? readWithAccordAsync(cm, accordReads, consistencyLevel, requestTime) : null;
+                IAccordResult<TxnResult> accordResult = accordReads != null ? readWithAccordAsync(cm, accordReads, consistencyLevel, requestTime) : null;
                 SinglePartitionReadCommand.Group normalReads = splitReads.normalReads;
                 Tracing.trace("Split reads into Accord {} and normal {}", accordReads, normalReads);
 
@@ -3347,9 +3345,6 @@ public class StorageProxy implements StorageProxyMBean
     public Long getTruncateRpcTimeout() { return DatabaseDescriptor.getTruncateRpcTimeout(MILLISECONDS); }
     public void setTruncateRpcTimeout(Long timeoutInMillis) { DatabaseDescriptor.setTruncateRpcTimeout(timeoutInMillis); }
 
-    public Long getTransactionTimeout() { return DatabaseDescriptor.getTransactionTimeout(MILLISECONDS); }
-    public void setTransactionTimeout(Long value) { DatabaseDescriptor.setTransactionTimeout(value); }
-    
     public Long getNativeTransportMaxConcurrentConnections() { return DatabaseDescriptor.getNativeTransportMaxConcurrentConnections(); }
     public void setNativeTransportMaxConcurrentConnections(Long nativeTransportMaxConcurrentConnections) { DatabaseDescriptor.setNativeTransportMaxConcurrentConnections(nativeTransportMaxConcurrentConnections); }
 

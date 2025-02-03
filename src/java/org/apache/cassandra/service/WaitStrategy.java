@@ -16,22 +16,32 @@
  * limitations under the License.
  */
 
-package org.apache.cassandra.service.accord.exceptions;
+package org.apache.cassandra.service;
 
-import org.apache.cassandra.db.ConsistencyLevel;
-import org.apache.cassandra.db.WriteType;
-import org.apache.cassandra.exceptions.WriteTimeoutException;
+import java.util.concurrent.TimeUnit;
 
-// quick hack to allow tests to tell the difference between preemption and other protocol timeouts
-public class WritePreemptedException extends WriteTimeoutException
+public interface WaitStrategy
 {
-    public WritePreemptedException(WriteType writeType, ConsistencyLevel consistency, int received, int blockFor)
+    // a value of below 0 means give up
+    long computeWaitUntil(int attempts);
+    // a value of below 0 means give up
+    long computeWait(int attempts, TimeUnit units);
+
+    enum None implements WaitStrategy
     {
-        super(writeType, consistency, received, blockFor);
+        INSTANCE;
+
+        @Override
+        public long computeWait(int attempts, TimeUnit units)
+        {
+            return -1;
+        }
+
+        @Override
+        public long computeWaitUntil(int attempts)
+        {
+            return -1;
+        }
     }
 
-    public WritePreemptedException(WriteType writeType, ConsistencyLevel consistency, int received, int blockFor, String msg)
-    {
-        super(writeType, consistency, received, blockFor, msg);
-    }
 }

@@ -50,7 +50,7 @@ public abstract class AbstractTestPromise
                 }
                 catch (Throwable t)
                 {
-                    throw new AssertionError("" + i, t);
+                    throw new AssertionError(i + ": " + waitingOn.get(i), t);
                 }
             }
         }

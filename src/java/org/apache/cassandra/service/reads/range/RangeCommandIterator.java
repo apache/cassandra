@@ -51,7 +51,8 @@ import org.apache.cassandra.locator.ReplicaPlan;
 import org.apache.cassandra.metrics.ClientRangeRequestMetrics;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.service.StorageProxy;
-import org.apache.cassandra.service.accord.IAccordService.AsyncTxnResult;
+import org.apache.cassandra.service.accord.IAccordService;
+import org.apache.cassandra.service.accord.txn.TxnResult;
 import org.apache.cassandra.service.consensus.migration.ConsensusRequestRouter;
 import org.apache.cassandra.service.consensus.migration.ConsensusRequestRouter.RangeReadTarget;
 import org.apache.cassandra.service.consensus.migration.ConsensusRequestRouter.RangeReadWithTarget;
@@ -195,9 +196,9 @@ public class RangeCommandIterator extends AbstractIterator<RowIterator> implemen
 
     private PartitionIterator executeAccord(ClusterMetadata cm, PartitionRangeReadCommand rangeCommand, ConsistencyLevel cl)
     {
-        //TODO (nicetohave): https://issues.apache.org/jira/browse/CASSANDRA-20210 More efficient reads across command stores
-        AsyncTxnResult result = StorageProxy.readWithAccord(cm, rangeCommand, rangeCommand.dataRange().keyRange(), cl, requestTime);
-        return new AccordRangeResponse(result, rangeCommand.isReversed(), cl, requestTime);
+        //TODO (expected): https://issues.apache.org/jira/browse/CASSANDRA-20210 More efficient reads across command stores
+        IAccordService.IAccordResult<TxnResult> result = StorageProxy.readWithAccord(cm, rangeCommand, rangeCommand.dataRange().keyRange(), cl, requestTime);
+        return new AccordRangeResponse(result, rangeCommand.isReversed());
     }
 
     private SingleRangeResponse executeNormal(ReplicaPlan.ForRangeRead replicaPlan, PartitionRangeReadCommand rangeCommand, ReadCoordinator readCoordinator)

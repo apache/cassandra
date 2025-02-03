@@ -106,7 +106,10 @@ public class ShortReadProtectionTest extends TestBaseImpl
         // but maybe that is out of scope and is covered by the dedicated BRR tests?
         cluster = init(Cluster.build()
                               .withNodes(NUM_NODES)
-                              .withConfig(config -> config.set("hinted_handoff_enabled", false))
+                              .withConfig(config ->
+                                          config.set("hinted_handoff_enabled", false)
+                                                .set("accord.shard_durability_target_splits", 4)
+                              )
                               .start());
     }
 
