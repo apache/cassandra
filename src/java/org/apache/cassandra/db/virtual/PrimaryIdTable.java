@@ -254,7 +254,7 @@ public class PrimaryIdTable implements VirtualTable
                     long current = reader.dataPosition() == -1 ? sstable.uncompressedLength() : reader.dataPosition();
                     long size = current - lastPosition;
 
-                    String keyString = target.partitionKeyType.asCQL3Type().toCQLLiteral(key.getKey());
+                    String keyString = target.partitionKeyType.getString(key.getKey());
 
                     // Check if the current key is outside the queried range; if so, stop
                     if (range.right.compareTo(key) < 0)
@@ -313,13 +313,15 @@ public class PrimaryIdTable implements VirtualTable
                     throw new InvalidRequestException(KEY_ONLY_EQUALS_ERROR);
 
                 String keyString = UTF8Type.instance.compose(expression.getIndexValue());
-                ByteBuffer keyAsBB = target.partitionKeyType.asCQL3Type().fromCQLLiteral(keyString);
-                Token keyToken = target.partitioner.decorateKey(keyAsBB).getToken();
+                ByteBuffer keyAsBB;
 
-                if (!DataRange.forKeyRange(new Range<>(startToken.minKeyBound(), endToken.maxKeyBound())).contains(keyToken.minKeyBound()))
+                keyAsBB = target.partitionKeyType.fromString(keyString);
+                DecoratedKey decoratedKey = target.partitioner.decorateKey(keyAsBB);
+
+                if (!DataRange.forKeyRange(new Range<>(startToken.minKeyBound(), endToken.maxKeyBound())).contains(decoratedKey.getToken().minKeyBound()))
                     throw new InvalidRequestException(KEY_NOT_WITHIN_BOUNDS_ERROR);
 
-                return Bounds.bounds(target.partitioner.decorateKey(keyAsBB), true, target.partitioner.decorateKey(keyAsBB), true);
+                return Bounds.bounds(decoratedKey, true, decoratedKey, true);
             }
         }
         return Bounds.bounds(startToken.minKeyBound(), true, endToken.maxKeyBound(), true);

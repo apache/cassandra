@@ -19,6 +19,8 @@
 package org.apache.cassandra.db.virtual;
 
 import java.math.BigInteger;
+import java.net.InetAddress;
+import java.net.UnknownHostException;
 import java.nio.ByteBuffer;
 import java.util.Arrays;
 import java.util.Collection;
@@ -50,7 +52,6 @@ import static org.junit.Assert.assertTrue;
 public class PrimaryIdTableTest extends CQLTester
 {
     private static final String KS_NAME = "vts";
-    private PrimaryIdTable primaryIdTable;
     private String table;
     private AtomicInteger scanned;
 
@@ -187,9 +188,8 @@ public class PrimaryIdTableTest extends CQLTester
     public void testTokenValueBoundsWithKey()
     {
         ByteBuffer ten = Murmur3Partitioner.LongToken.keyForToken(10);
-        String key = "0x" + Hex.toHexString(ten.array());
         ResultSet rs = executeNetWithPaging("SELECT * FROM vts.primary_ids WHERE keyspace_name = ? AND table_name = ? AND token_value > 0 AND token_value < 15 AND key = ?",
-                                            10, KEYSPACE, table, key);
+                                            10, KEYSPACE, table, Hex.toHexString(ten.array()));
         List<Row> all = rs.all();
         assertEquals(1, all.size());
         Row row = all.get(0);
@@ -201,9 +201,8 @@ public class PrimaryIdTableTest extends CQLTester
     public void testByKey()
     {
         ByteBuffer ten = Murmur3Partitioner.LongToken.keyForToken(10);
-        String key = "0x" + Hex.toHexString(ten.array());
         ResultSet rs = executeNetWithPaging("SELECT * FROM vts.primary_ids WHERE keyspace_name = ? AND table_name = ? AND key = ?",
-                                            10, KEYSPACE, table, key);
+                                            10, KEYSPACE, table, Hex.toHexString(ten.array()));
         List<Row> all = rs.all();
         assertEquals(1, all.size());
         Row row = all.get(0);
@@ -282,12 +281,40 @@ public class PrimaryIdTableTest extends CQLTester
         assertEquals(2, all.size());
         assertEquals(BigInteger.valueOf(1563004846366L), all.get(0).get("token_value", BigInteger.class));
         assertEquals(BigInteger.valueOf(1563004846366L), all.get(1).get("token_value", BigInteger.class));
-        assertEquals("0xc25f118f072d6ba5cab7fb1468ace617", all.get(0).getString("key"));
-        assertEquals("0xed44c3", all.get(1).getString("key"));
+        assertEquals("c25f118f072d6ba5cab7fb1468ace617", all.get(0).getString("key"));
+        assertEquals("ed44c3", all.get(1).getString("key"));
         assertEquals(2, scanned.get());
     }
 
     @Test
+    public void testCompositeType() throws UnknownHostException
+    {
+        String table = createTable("CREATE TABLE %s (key text, keytwo inet, value text, primary key ((key, keytwo)))");
+
+        execute("INSERT INTO %s (key, keytwo, value) VALUES (?, ?, ?)", "testkey", InetAddress.getByName("127.0.0.1"), "value");
+        Util.flushTable(KEYSPACE, table);
+
+        ResultSet rs = executeNetWithPaging("SELECT * FROM vts.primary_ids WHERE keyspace_name = ? AND table_name = ? AND key = 'testkey:127.0.0.1'",
+                                            10, KEYSPACE, table);
+        List<Row> all = rs.all();
+        assertEquals(1, all.size());
+    }
+
+    @Test
+    public void testTextType()
+    {
+        String table = createTable("CREATE TABLE %s (key text PRIMARY KEY, value text)");
+
+        execute("INSERT INTO %s (key, value) VALUES (?, ?)", "testkey", "value");
+        Util.flushTable(KEYSPACE, table);
+
+        ResultSet rs = executeNetWithPaging("SELECT * FROM vts.primary_ids WHERE keyspace_name = ? AND table_name = ? AND key = 'testkey'",
+                                            10, KEYSPACE, table);
+        List<Row> all = rs.all();
+        assertEquals(1, all.size());
+    }
+
+        @Test
     public void testSameKeyInMultipleSSTables()
     {
         String table = createTable("CREATE TABLE %s (key blob PRIMARY KEY, value blob)");
