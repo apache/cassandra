@@ -753,6 +753,11 @@ WHERE PK_column_conditions
             return Collections.unmodifiableList(columns);
         }
 
+        public DeleteBuilder column(String columnName)
+        {
+            return column(Symbol.from(metadata.getColumn(new ColumnIdentifier(columnName, true))));
+        }
+
         public DeleteBuilder column(Symbol symbol)
         {
             if (!regularAndStatic.contains(symbol))

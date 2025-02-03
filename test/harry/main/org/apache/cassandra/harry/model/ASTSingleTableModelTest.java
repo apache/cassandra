@@ -41,6 +41,8 @@ import org.apache.cassandra.cql3.ast.Select;
 import org.apache.cassandra.cql3.ast.Symbol;
 import org.apache.cassandra.db.BufferClustering;
 import org.apache.cassandra.db.marshal.AbstractType;
+import org.apache.cassandra.db.marshal.AsciiType;
+import org.apache.cassandra.db.marshal.BooleanType;
 import org.apache.cassandra.db.marshal.BytesType;
 import org.apache.cassandra.db.marshal.InetAddressType;
 import org.apache.cassandra.db.marshal.Int32Type;
@@ -254,13 +256,12 @@ public class ASTSingleTableModelTest
         // This example was found from a test, hence why more complex types are used.
         // This test didn't end up depending on these complexities as the issue was null (delete or undefined column)
         // handle, which is type agnostic.
-        TableMetadata metadata = TableMetadata.builder("ks", "tbl")
-                                              .partitioner(Murmur3Partitioner.instance)
-                                              .addPartitionKeyColumn("pk0", InetAddressType.instance)
-                                              .addClusteringColumn("ck0", ReversedType.getInstance(ShortType.instance))
-                                              .addRegularColumn("v0", TimestampType.instance)
-                                              .addRegularColumn("v1", LexicalUUIDType.instance)
-                                              .build();
+        TableMetadata metadata = defaultTable()
+                                 .addPartitionKeyColumn("pk0", InetAddressType.instance)
+                                 .addClusteringColumn("ck0", ReversedType.getInstance(ShortType.instance))
+                                 .addRegularColumn("v0", TimestampType.instance)
+                                 .addRegularColumn("v1", LexicalUUIDType.instance)
+                                 .build();
         ASTSingleTableModel model = new ASTSingleTableModel(metadata);
 
         String pk0 = "'e44b:bdaf:aeb:f68b:1cff:ecbd:8b54:2295'";
@@ -455,6 +456,134 @@ public class ASTSingleTableModelTest
                                     .build());
     }
 
+    @Test
+    public void tokenEqIncludesEmptyPartition()
+    {
+        // regression test; history
+        /*
+        History:
+		1: INSERT INTO ks1.tbl (pk0, ck0, s0, v0, v1, v2, v3) VALUES (false, false, 'S' + '#', 0x7b, '21:54:38.042512095', -1220695853 + 487670685, 00000000-0000-1a00-b300-000000000000) -- on node1
+		10: UPDATE ks1.tbl SET s0='\u001C{c|\u001Dz' + '\u0006rO\u0007``', v0=0xfffa8e324eb60d5510, v1='05:09:16.823129832', v2=519617565, v3=00000000-0000-1e00-b100-000000000000 WHERE  pk0 = true AND  ck0 = true -- on node1
+		27: DELETE FROM ks1.tbl WHERE  pk0 = false AND  ck0 = false -- on node1
+		69: DELETE s0 FROM ks1.tbl WHERE  pk0 = false -- on node1
+		72: SELECT * FROM ks1.tbl WHERE token(pk0) = token(false) -- by token, on node1, fetch size 1
+         */
+        TableMetadata metadata = defaultTable()
+                                 .addPartitionKeyColumn("pk", BooleanType.instance)
+                                 .addClusteringColumn("ck", BooleanType.instance)
+                                 .addStaticColumn("s", AsciiType.instance)
+                                 .addRegularColumn("v0", BytesType.instance)
+                                 .build();
+        ASTSingleTableModel model = new ASTSingleTableModel(metadata);
+        model.update(Mutation.insert(metadata)
+                             .value("pk", false)
+                             .value("ck", false)
+                             .value("s", "'first'")
+                             .value("v0", "0x7b")
+                             .build());
+        model.update(Mutation.update(metadata)
+                             .set("s", "'second'")
+                             .set("v0", "0xfffa8e324eb60d5510")
+                             .value("pk", true)
+                             .value("ck", true)
+                             .build());
+        model.update(Mutation.delete(metadata)
+                             .value("pk", false)
+                             .value("ck", false)
+                             .build());
+        // when deleting static columns the check if the partition should be deleted didn't happen, and the filtering
+        // logic never excluded shouldDelete partitions
+        model.update(Mutation.delete(metadata)
+                             .column("s")
+                             .value("pk", false)
+                             .build());
+
+        model.validate(EMPTY, Select.builder(metadata)
+                                    .where(FunctionCall.tokenByColumns(new Symbol("pk", BooleanType.instance)),
+                                           Inequality.EQUAL,
+                                           FunctionCall.tokenByValue(new Bind(false, BooleanType.instance)))
+                                    .build());
+    }
+
+    private static TableMetadata.Builder defaultTable()
+    {
+        return TableMetadata.builder("ks", "tbl")
+                            .kind(TableMetadata.Kind.REGULAR)
+                            .partitioner(Murmur3Partitioner.instance);
+    }
+
+    private static FunctionCall tokenFunction(BytesPartitionState.Ref ref)
+    {
+        return FunctionCall.tokenByValue(Stream.of(ref.key.getBufferArray()).map(bb -> new Bind(bb, BytesType.instance)).collect(Collectors.toList()));
+    }
+
+    private static ByteBuffer[] insert(ASTSingleTableModel model, ByteBuffer value)
+    {
+        return insert(model, (i1, i2) -> value);
+    }
+
+    private static ByteBuffer[] insert(ASTSingleTableModel model, ColumnValue fn)
+    {
+        TableMetadata metadata = model.factory.metadata;
+        ByteBuffer[] expectedRow = new ByteBuffer[metadata.columns().size()];
+        var builder = Mutation.insert(metadata);
+        int offset = 0;
+        int idx = 0;
+        for (var col : metadata.partitionKeyColumns())
+        {
+            ByteBuffer value = fn.accept(ColumnMetadata.Kind.PARTITION_KEY, idx++);
+            builder.value(new Symbol(col), value);
+            expectedRow[offset++] = value;
+        }
+        idx = 0;
+        for (var col : metadata.clusteringColumns())
+        {
+            ByteBuffer value = fn.accept(ColumnMetadata.Kind.CLUSTERING, idx++);
+            builder.value(new Symbol(col), value);
+            expectedRow[offset++] = value;
+        }
+        idx = 0;
+        for (var col : metadata.staticColumns())
+        {
+            ByteBuffer value = fn.accept(ColumnMetadata.Kind.STATIC, idx++);
+            builder.value(new Symbol(col), value);
+            expectedRow[offset++] = value;
+        }
+        idx = 0;
+        for (var col : metadata.regularColumns())
+        {
+            ByteBuffer value = fn.accept(ColumnMetadata.Kind.REGULAR, idx++);
+            builder.value(new Symbol(col), value);
+            expectedRow[offset++] = value;
+        }
+        model.update(builder.build());
+        return expectedRow;
+    }
+
+    private static List<TableMetadata> defaultTables()
+    {
+        List<TableMetadata> tables = new ArrayList<>();
+        for (int pk : Arrays.asList(1, 2))
+        {
+            for (int ck : Arrays.asList(0, 1, 2))
+            {
+                for (int statics : Arrays.asList(0, 1, 2))
+                {
+                    for (int regular : Arrays.asList(0, 1, 2))
+                    {
+                        tables.add(new Builder()
+                                   .pk(pk)
+                                   .ck(ck)
+                                   .statics(statics)
+                                   .regular(regular)
+                                   .build());
+                    }
+                }
+            }
+        }
+        return tables;
+    }
+
     private static class ModelModel
     {
         private final ASTSingleTableModel model;
@@ -599,78 +728,6 @@ public class ASTSingleTableModelTest
         ByteBuffer accept(ColumnMetadata.Kind kind, int offset);
     }
 
-    private static FunctionCall tokenFunction(BytesPartitionState.Ref ref)
-    {
-        return FunctionCall.tokenByValue(Stream.of(ref.key.getBufferArray()).map(bb -> new Bind(bb, BytesType.instance)).collect(Collectors.toList()));
-    }
-
-    private static ByteBuffer[] insert(ASTSingleTableModel model, ByteBuffer value)
-    {
-        return insert(model, (i1, i2) -> value);
-    }
-
-    private static ByteBuffer[] insert(ASTSingleTableModel model, ColumnValue fn)
-    {
-        TableMetadata metadata = model.factory.metadata;
-        ByteBuffer[] expectedRow = new ByteBuffer[metadata.columns().size()];
-        var builder = Mutation.insert(metadata);
-        int offset = 0;
-        int idx = 0;
-        for (var col : metadata.partitionKeyColumns())
-        {
-            ByteBuffer value = fn.accept(ColumnMetadata.Kind.PARTITION_KEY, idx++);
-            builder.value(new Symbol(col), value);
-            expectedRow[offset++] = value;
-        }
-        idx = 0;
-        for (var col : metadata.clusteringColumns())
-        {
-            ByteBuffer value = fn.accept(ColumnMetadata.Kind.CLUSTERING, idx++);
-            builder.value(new Symbol(col), value);
-            expectedRow[offset++] = value;
-        }
-        idx = 0;
-        for (var col : metadata.staticColumns())
-        {
-            ByteBuffer value = fn.accept(ColumnMetadata.Kind.STATIC, idx++);
-            builder.value(new Symbol(col), value);
-            expectedRow[offset++] = value;
-        }
-        idx = 0;
-        for (var col : metadata.regularColumns())
-        {
-            ByteBuffer value = fn.accept(ColumnMetadata.Kind.REGULAR, idx++);
-            builder.value(new Symbol(col), value);
-            expectedRow[offset++] = value;
-        }
-        model.update(builder.build());
-        return expectedRow;
-    }
-
-    private static List<TableMetadata> defaultTables()
-    {
-        List<TableMetadata> tables = new ArrayList<>();
-        for (int pk : Arrays.asList(1, 2))
-        {
-            for (int ck : Arrays.asList(0, 1, 2))
-            {
-                for (int statics : Arrays.asList(0, 1, 2))
-                {
-                    for (int regular : Arrays.asList(0, 1, 2))
-                    {
-                        tables.add(new Builder()
-                                   .pk(pk)
-                                   .ck(ck)
-                                   .statics(statics)
-                                   .regular(regular)
-                                   .build());
-                    }
-                }
-            }
-        }
-        return tables;
-    }
-
     private static class Builder
     {
         private int numPk = 1;
@@ -704,9 +761,7 @@ public class ASTSingleTableModelTest
 
         private TableMetadata build()
         {
-            TableMetadata.Builder builder = TableMetadata.builder("ks", "tbl")
-                                                         .kind(TableMetadata.Kind.REGULAR)
-                                                         .partitioner(Murmur3Partitioner.instance);
+            TableMetadata.Builder builder = defaultTable();
             addColumn("pk", numPk, n -> builder.addPartitionKeyColumn(n, Int32Type.instance));
             addColumn("ck", numCk, n -> builder.addClusteringColumn(n, Int32Type.instance));
             addColumn("s", numStatic, n -> builder.addStaticColumn(n, Int32Type.instance));
