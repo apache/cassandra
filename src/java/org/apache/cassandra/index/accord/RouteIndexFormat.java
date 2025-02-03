@@ -35,7 +35,6 @@ import com.google.common.collect.Maps;
 
 import accord.local.StoreParticipants;
 import accord.primitives.Participants;
-import accord.primitives.Route;
 import accord.primitives.TxnId;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.marshal.ByteBufferAccessor;
@@ -72,7 +71,7 @@ public class RouteIndexFormat
 {
     public static final Supplier<Checksum> CHECKSUM_SUPPLIER = CRC32C::new;
 
-    static final LocalVersionedSerializer<Participants<?>> participants = localSerializer(KeySerializers.participants);
+    static final LocalVersionedSerializer<Participants<?>> touches = localSerializer(KeySerializers.participants);
     private static <T> LocalVersionedSerializer<T> localSerializer(IVersionedSerializer<T> serializer)
     {
         return new LocalVersionedSerializer<>(AccordSerializerVersion.CURRENT, AccordSerializerVersion.serializer, serializer);
@@ -80,23 +79,23 @@ public class RouteIndexFormat
 
     public static ByteBuffer serialize(Participants<?> value) throws IOException
     {
-        int size = Math.toIntExact(participants.serializedSize(value));
+        int size = Math.toIntExact(touches.serializedSize(value));
         try (DataOutputBuffer buffer = new DataOutputBuffer(size))
         {
-            participants.serialize(value, buffer);
+            touches.serialize(value, buffer);
             return buffer.buffer(true);
         }
     }
 
-    static Route<?> deserializeParticipants(ByteBuffer bytes) throws IOException
+    static Participants<?> deserializeTouches(ByteBuffer bytes) throws IOException
     {
         if (bytes == null || ByteBufferAccessor.instance.isEmpty(bytes))
             return null;
 
         try (DataInputBuffer in = new DataInputBuffer(bytes, true))
         {
-            MessageVersionProvider versionProvider = participants.deserializeVersion(in);
-            return KeySerializers.route.deserialize(in, versionProvider.messageVersion());
+            MessageVersionProvider versionProvider = touches.deserializeVersion(in);
+            return KeySerializers.participants.deserialize(in, versionProvider.messageVersion());
         }
     }
 

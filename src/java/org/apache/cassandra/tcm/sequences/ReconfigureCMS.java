@@ -291,7 +291,7 @@ public class ReconfigureCMS extends MultiStepOperation<AdvanceCMSReconfiguration
 
     static void repairPaxosTopology()
     {
-        Retry.Backoff retry = new Retry.Backoff(TCMMetrics.instance.repairPaxosTopologyRetries);
+        Retry retry = Retry.withNoTimeLimit(TCMMetrics.instance.repairPaxosTopologyRetries);
 
         // The system.paxos table is what we're actually repairing and that uses the system configured partitioner
         // so although we use MetaStrategy.entireRange for streaming between CMS members, we don't use it here
@@ -301,7 +301,7 @@ public class ReconfigureCMS extends MultiStepOperation<AdvanceCMSReconfiguration
                                                                                                                Collections.singletonList(entirePaxosRange),
                                                                                                                "bootstrap");
 
-        while (!retry.reachedMax())
+        while (true)
         {
             Map<Supplier<Future<?>>, Future<?>> tasks = new HashMap<>();
             for (Supplier<Future<?>> supplier : remaining)
@@ -329,7 +329,8 @@ public class ReconfigureCMS extends MultiStepOperation<AdvanceCMSReconfiguration
             if (remaining.isEmpty())
                 return;
 
-            retry.maybeSleep();
+            if (!retry.maybeSleep())
+                break;
         }
         logger.error("Added node as a CMS, but failed to repair paxos topology after this operation.");
     }

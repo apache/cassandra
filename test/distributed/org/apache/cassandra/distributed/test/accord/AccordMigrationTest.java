@@ -647,8 +647,8 @@ public class AccordMigrationTest extends AccordTestBase
 
                  Integer nextMigratingKey = paxosMigratingKeys.next();
                  addExpectedMigratedKey(expectedKeyMigrations, nextMigratingKey, tableUUID);
-                 // Paxos migrating keys should be key migrated which means a local barrier is run by Paxos during read at each replica, the key migration barrier is also counted as a write
-                 assertTargetPaxosWrite(runCasNoApply, 1, nextMigratingKey, expectedKeyMigrations, 1, 1, 1, 0, 0);
+                 // Paxos migrating keys should be key migrated which means a local barrier is run by Paxos during read at each replica
+                 assertTargetPaxosWrite(runCasNoApply, 1, nextMigratingKey, expectedKeyMigrations, 0, 1, 1, 0, 0);
 
                  // A key from a range migrated to Accord is now not migrating/migrated and should be accessed through Accord
                  assertTargetPaxosWrite(runCasNoApply, 1, accordKeys.next(), expectedKeyMigrations, 1, 0, 0, 0, 0);
@@ -657,7 +657,7 @@ public class AccordMigrationTest extends AccordTestBase
                  cluster.get(1).runOnInstance(() -> ConsensusRequestRouter.setInstance(new RoutesToAccordOnce()));
                  nextMigratingKey = paxosMigratingKeys.next();
                  addExpectedMigratedKey(expectedKeyMigrations, nextMigratingKey, tableUUID);
-                 assertTargetPaxosWrite(runCasNoApply, 1, nextMigratingKey, expectedKeyMigrations, 2, 1, 1, 1, 1);
+                 assertTargetPaxosWrite(runCasNoApply, 1, nextMigratingKey, expectedKeyMigrations, 1, 1, 1, 1, 1);
 
                  // Repair the currently migrating range from when targets were switched, but it's not an Accord repair, this is to make sure the wrong repair type doesn't trigger progress
                  nodetool(coordinator, "repair", "-st", upperMidToken.toString(), "-et", maxAlignedWithLocalRanges.toString(), "--skip-accord");
@@ -666,7 +666,7 @@ public class AccordMigrationTest extends AccordTestBase
                  // Paxos migrating keys should still need key migration after non-Accord repair
                  nextMigratingKey = paxosMigratingKeys.next();
                  addExpectedMigratedKey(expectedKeyMigrations, nextMigratingKey, tableUUID);
-                 assertTargetPaxosWrite(runCasNoApply, 1, nextMigratingKey, expectedKeyMigrations, 1, 1, 1, 0, 0);
+                 assertTargetPaxosWrite(runCasNoApply, 1, nextMigratingKey, expectedKeyMigrations, 0, 1, 1, 0, 0);
 
                  // Now do it with an Accord repair so key migration shouldn't be necessary
                  nodetool(coordinator, "consensus_admin", "finish-migration", "-st", upperMidToken.toString(), "-et", maxAlignedWithLocalRanges.toString());

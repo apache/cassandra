@@ -72,7 +72,7 @@ public class DepsSerializers
             this.tokenRange = tokenRange;
         }
 
-        abstract D deserialize(KeyDeps keyDeps, RangeDeps rangeDeps, KeyDeps directKeyDeps, DataInputPlus in, int version) throws IOException;
+        abstract D deserialize(KeyDeps keyDeps, RangeDeps rangeDeps, DataInputPlus in, int version) throws IOException;
 
         @Override
         public void serialize(D deps, DataOutputPlus out, int version) throws IOException
@@ -144,16 +144,6 @@ public class DepsSerializers
                 for (int i = 0; i < rangesToTxnIdsCount; i++)
                     out.writeUnsignedVInt32(rangesToTxnIds(rangeDeps, i));
             }
-
-            {
-                RoutingKeys keys = deps.directKeyDeps.keys();
-                boolean isSubset = isSubset(keys, deps.keyDeps.keys());
-                out.writeBoolean(isSubset);
-                if (isSubset) serializeSubset(keys, deps.keyDeps.keys(), out);
-                else KeySerializers.routingKeys.serialize(keys, out, version);
-
-                serializeKeyDepsWithoutKeys(deps.directKeyDeps, out, version);
-            }
         }
 
         private void serializeKeyDepsWithoutKeys(KeyDeps keyDeps, DataOutputPlus out, int version) throws IOException
@@ -193,14 +183,7 @@ public class DepsSerializers
                 rangeDeps = RangeDeps.SerializerSupport.create(ranges, txnIds, rangesToTxnIds);
             }
 
-            KeyDeps directKeyDeps;
-            {
-                boolean isSubset = in.readBoolean();
-                RoutingKeys directKeys = isSubset ? (RoutingKeys) deserializeSubset(keys, in) : KeySerializers.routingKeys.deserialize(in, version);
-                directKeyDeps = deserializeKeyDeps(directKeys, in, version);
-            }
-
-            return deserialize(keyDeps, rangeDeps, directKeyDeps, in, version);
+            return deserialize(keyDeps, rangeDeps, in, version);
         }
 
         private long serializedSizeWithoutKeys(D deps, int version)
@@ -224,13 +207,6 @@ public class DepsSerializers
                 for (int i = 0; i < rangesToTxnIdsCount; i++)
                     size += sizeofUnsignedVInt(rangesToTxnIds(rangeDeps, i));
             }
-
-            {
-                boolean isSubset = isSubset(deps.directKeyDeps.keys(), deps.keyDeps.keys());
-                size += 1;
-                size += isSubset ? serializedSubsetSize(deps.directKeyDeps.keys(), deps.keyDeps.keys()) : KeySerializers.routingKeys.serializedSize(deps.directKeyDeps.keys(), version);
-                size += serializedSizeOfKeyDepsWithoutKeys(deps.directKeyDeps, version);
-            }
             return size;
         }
     }
@@ -250,19 +226,19 @@ public class DepsSerializers
             this.deps = new DepsSerializer<>(tokenRange)
             {
                 @Override
-                Deps deserialize(KeyDeps keyDeps, RangeDeps rangeDeps, KeyDeps directKeyDeps, DataInputPlus in, int version)
+                Deps deserialize(KeyDeps keyDeps, RangeDeps rangeDeps, DataInputPlus in, int version)
                 {
-                    return new Deps(keyDeps, rangeDeps, directKeyDeps);
+                    return new Deps(keyDeps, rangeDeps);
                 }
             };
             this.nullableDeps = NullableSerializer.wrap(deps);
             this.partialDeps = new DepsSerializer<>(tokenRange)
             {
                 @Override
-                PartialDeps deserialize(KeyDeps keyDeps, RangeDeps rangeDeps, KeyDeps directKeyDeps, DataInputPlus in, int version) throws IOException
+                PartialDeps deserialize(KeyDeps keyDeps, RangeDeps rangeDeps, DataInputPlus in, int version) throws IOException
                 {
                     Participants<?> covering = KeySerializers.participants.deserialize(in, version);
-                    return new PartialDeps(covering, keyDeps, rangeDeps, directKeyDeps);
+                    return new PartialDeps(covering, keyDeps, rangeDeps);
                 }
 
                 @Override

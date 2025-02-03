@@ -28,6 +28,7 @@ import com.google.common.collect.Iterables;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import accord.primitives.Ranges;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
@@ -48,7 +49,9 @@ import org.apache.cassandra.io.sstable.SSTable;
 import org.apache.cassandra.io.sstable.SSTableMultiWriter;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.service.accord.AccordService;
+import org.apache.cassandra.service.accord.AccordTopology;
 import org.apache.cassandra.service.accord.IAccordService;
+import org.apache.cassandra.service.accord.TimeOnlyRequestBookkeeping.LatencyRequestBookkeeping;
 import org.apache.cassandra.streaming.IncomingStream;
 import org.apache.cassandra.streaming.StreamReceiver;
 import org.apache.cassandra.streaming.StreamSession;
@@ -58,8 +61,11 @@ import org.apache.cassandra.utils.CloseableIterator;
 import org.apache.cassandra.utils.Throwables;
 import org.apache.cassandra.utils.concurrent.Refs;
 
+import static accord.local.durability.DurabilityService.SyncLocal.Self;
+import static accord.local.durability.DurabilityService.SyncRemote.NoRemote;
 import static com.google.common.base.Preconditions.checkNotNull;
 import static org.apache.cassandra.config.CassandraRelevantProperties.REPAIR_MUTATION_REPAIR_ROWS_PER_BATCH;
+import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 
 public class CassandraStreamReceiver implements StreamReceiver
 {
@@ -248,7 +254,15 @@ public class CassandraStreamReceiver implements StreamReceiver
         if (session.streamOperation().requiresBarrierTransaction()
             && cfs.metadata().requiresAccordSupport()
             && CassandraVersion.CASSANDRA_5_0.compareTo(minVersion) >= 0)
-            accordService.postStreamReceivingBarrier(cfs, ranges);
+        {
+            Ranges accordRanges = AccordTopology.toAccordRanges(cfs.getTableId(), ranges);
+            long startedAtNanos = nanoTime();
+            long deadlineNanos = startedAtNanos + DatabaseDescriptor.getAccordRangeSyncPointTimeoutNanos();
+            // TODO (expected): use the source bounds for the streams to avoid waiting unnecessarily long
+            AccordService.getBlocking(accordService.maxConflict(accordRanges)
+                                                   .flatMap(min -> accordService.sync("[Stream #" + session.planId() + ']', min, accordRanges, null, Self, NoRemote))
+                                      , accordRanges, new LatencyRequestBookkeeping(cfs.metric.accordPostStreamRepair), startedAtNanos, deadlineNanos);
+        }
 
         boolean requiresWritePath = requiresWritePath(cfs);
         Collection<SSTableReader> readers = sstables;

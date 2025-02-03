@@ -167,8 +167,6 @@ public class AccordJournalCompactionTest
     public static Gen<Deps> depsGen()
     {
         Gen<KeyDeps> keyDepsGen = AccordGenerators.keyDepsGen(DatabaseDescriptor.getPartitioner());
-        return AccordGens.deps(keyDepsGen::next,
-                               (rs) -> Deps.NONE.rangeDeps,
-                               (rs) -> Deps.NONE.directKeyDeps);
+        return AccordGens.deps(keyDepsGen::next, (rs) -> Deps.NONE.rangeDeps);
     }
 }

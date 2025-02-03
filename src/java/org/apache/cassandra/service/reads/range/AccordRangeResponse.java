@@ -20,30 +20,25 @@ package org.apache.cassandra.service.reads.range;
 
 import java.util.function.IntPredicate;
 
-import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.db.partitions.PartitionIterator;
 import org.apache.cassandra.db.rows.RowIterator;
 import org.apache.cassandra.exceptions.RetryOnDifferentSystemException;
 import org.apache.cassandra.service.StorageProxy;
 import org.apache.cassandra.service.StorageProxy.ConsensusAttemptResult;
-import org.apache.cassandra.service.accord.IAccordService.AsyncTxnResult;
-import org.apache.cassandra.transport.Dispatcher;
+import org.apache.cassandra.service.accord.IAccordService.IAccordResult;
+import org.apache.cassandra.service.accord.txn.TxnResult;
 import org.apache.cassandra.utils.AbstractIterator;
 
 public class AccordRangeResponse extends AbstractIterator<RowIterator> implements PartitionIterator
 {
-    private final AsyncTxnResult asyncTxnResult;
+    private final IAccordResult<TxnResult> accordResult;
     // Range queries don't support reverse, but dutifully threading it through anyways
     private final boolean reversed;
-    private final ConsistencyLevel cl;
-    private final Dispatcher.RequestTime requestTime;
     private PartitionIterator result;
 
-    public AccordRangeResponse(AsyncTxnResult asyncTxnResult, boolean reversed, ConsistencyLevel cl, Dispatcher.RequestTime requestTime)
+    public AccordRangeResponse(IAccordResult<TxnResult> accordResult, boolean reversed)
     {
-        this.asyncTxnResult = asyncTxnResult;
-        this.cl = cl;
-        this.requestTime = requestTime;
+        this.accordResult = accordResult;
         this.reversed = reversed;
     }
 
@@ -54,7 +49,7 @@ public class AccordRangeResponse extends AbstractIterator<RowIterator> implement
         IntPredicate alwaysTrue = ignored -> true;
         IntPredicate alwaysFalse = ignored -> false;
         // TODO (required): Handle retry on different system
-        ConsensusAttemptResult consensusAttemptResult = StorageProxy.getConsensusAttemptResultFromAsyncTxnResult(asyncTxnResult, 1, reversed ? alwaysTrue : alwaysFalse);
+        ConsensusAttemptResult consensusAttemptResult = StorageProxy.getConsensusAttemptResultFromAsyncTxnResult(accordResult, 1, reversed ? alwaysTrue : alwaysFalse);
         if (consensusAttemptResult.shouldRetryOnNewConsensusProtocol)
             throw new RetryOnDifferentSystemException();
         result = consensusAttemptResult.serialReadResult;

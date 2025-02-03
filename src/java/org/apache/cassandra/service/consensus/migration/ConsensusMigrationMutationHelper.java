@@ -32,7 +32,6 @@ import com.google.common.collect.ImmutableList;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import accord.coordinate.CoordinationFailed;
 import accord.primitives.Keys;
 import accord.primitives.Routable.Domain;
 import accord.primitives.Txn;
@@ -52,12 +51,13 @@ import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.schema.TableParams;
 import org.apache.cassandra.service.accord.AccordService;
 import org.apache.cassandra.service.accord.IAccordService;
-import org.apache.cassandra.service.accord.IAccordService.AsyncTxnResult;
+import org.apache.cassandra.service.accord.IAccordService.IAccordResult;
 import org.apache.cassandra.service.accord.api.PartitionKey;
 import org.apache.cassandra.service.accord.txn.TxnCondition;
 import org.apache.cassandra.service.accord.txn.TxnQuery;
 import org.apache.cassandra.service.accord.txn.TxnRead;
 import org.apache.cassandra.service.accord.txn.TxnReferenceOperations;
+import org.apache.cassandra.service.accord.txn.TxnResult;
 import org.apache.cassandra.service.accord.txn.TxnUpdate;
 import org.apache.cassandra.service.accord.txn.TxnWrite;
 import org.apache.cassandra.service.consensus.TransactionalMode;
@@ -183,7 +183,7 @@ public class ConsensusMigrationMutationHelper
         void consume(@Nullable T accordMutation, @Nullable T normalMutation, List<T> mutations, int mutationIndex);
     }
 
-    public static <T extends IMutation, N> SplitMutations<T> splitMutationsIntoAccordAndNormal(ClusterMetadata cm, List<T> mutations)
+    public static <T extends IMutation> SplitMutations<T> splitMutationsIntoAccordAndNormal(ClusterMetadata cm, List<T> mutations)
     {
         SplitMutations<T> splitMutations = new SplitMutations<>();
         splitMutationsIntoAccordAndNormal(cm, mutations, splitMutations);
@@ -233,12 +233,12 @@ public class ConsensusMigrationMutationHelper
         return new SplitMutation(accordMutation, normalMutation);
     }
 
-    public AsyncTxnResult mutateWithAccordAsync(ClusterMetadata cm, Mutation mutation, @Nullable ConsistencyLevel consistencyLevel, Dispatcher.RequestTime requestTime)
+    public IAccordResult<TxnResult> mutateWithAccordAsync(ClusterMetadata cm, Mutation mutation, @Nullable ConsistencyLevel consistencyLevel, Dispatcher.RequestTime requestTime)
     {
         return mutateWithAccordAsync(cm, ImmutableList.of(mutation), consistencyLevel, requestTime);
     }
 
-    public static AsyncTxnResult mutateWithAccordAsync(ClusterMetadata cm, Collection<? extends IMutation> mutations, @Nullable ConsistencyLevel consistencyLevel, Dispatcher.RequestTime requestTime)
+    public static IAccordResult<TxnResult> mutateWithAccordAsync(ClusterMetadata cm, Collection<? extends IMutation> mutations, @Nullable ConsistencyLevel consistencyLevel, Dispatcher.RequestTime requestTime)
     {
         if (consistencyLevel != null && !IAccordService.SUPPORTED_COMMIT_CONSISTENCY_LEVELS.contains(consistencyLevel))
             throw new InvalidRequestException(consistencyLevel + " is not supported by Accord");
@@ -260,17 +260,7 @@ public class ConsensusMigrationMutationHelper
         ConsistencyLevel clForCommit = consistencyLevelForCommit(cm, mutations, consistencyLevel);
         TxnUpdate update = new TxnUpdate(fragments, TxnCondition.none(), clForCommit, true);
         Txn.InMemory txn = new Txn.InMemory(Keys.of(partitionKeys), TxnRead.empty(Domain.Key), TxnQuery.NONE, update);
-        IAccordService accordService = AccordService.instance();
-        try
-        {
-            return accordService.coordinateAsync(minEpoch, txn, clForCommit, requestTime);
-        }
-        catch (CoordinationFailed coordinationFailed)
-        {
-            AsyncTxnResult failure = new AsyncTxnResult(coordinationFailed.txnId(), minEpoch, clForCommit, true, requestTime);
-            failure.setFailure(coordinationFailed.wrap());
-            return failure;
-        }
+        return AccordService.instance().coordinateAsync(minEpoch, txn, clForCommit, requestTime);
     }
 
     public static void validateSafeToExecuteNonTransactionally(IMutation mutation) throws RetryOnDifferentSystemException

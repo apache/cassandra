@@ -24,7 +24,6 @@ import java.util.concurrent.TimeUnit;
 import org.junit.Assert;
 import org.junit.Test;
 
-import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.test.TestBaseImpl;
 import org.apache.cassandra.metrics.TCMMetrics;
@@ -34,6 +33,8 @@ import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.tcm.Retry;
 import org.apache.cassandra.tcm.log.Entry;
 import org.apache.cassandra.tcm.log.LogState;
+
+import static org.apache.cassandra.config.DatabaseDescriptor.getCmsAwaitTimeout;
 
 public class ReconstructEpochTest extends TestBaseImpl
 {
@@ -80,8 +81,7 @@ public class ReconstructEpochTest extends TestBaseImpl
                                                               .getLogState(Epoch.create(start),
                                                                            Epoch.create(end),
                                                                            true,
-                                                                           Retry.Deadline.after(DatabaseDescriptor.getCmsAwaitTimeout().to(TimeUnit.NANOSECONDS),
-                                                                                                new Retry.Jitter(TCMMetrics.instance.commitRetries)));
+                                                                           Retry.untilElapsed(getCmsAwaitTimeout().to(TimeUnit.NANOSECONDS), TCMMetrics.instance.commitRetries));
 
                     Assert.assertEquals(start, logState.baseState.epoch.getEpoch());
                     Iterator<Entry> iter = logState.entries.iterator();

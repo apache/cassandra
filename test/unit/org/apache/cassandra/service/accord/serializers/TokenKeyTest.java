@@ -71,7 +71,9 @@ public class TokenKeyTest
                 {
                     ByteBuffer buffer = serializer.serialize(key);
                     TokenKey roundTrip = serializer.deserialize(buffer, partitioner);
+                    TokenKey roundTrip2 = serializer.deserializeAndConsume(buffer, partitioner);
                     Assertions.assertThat(roundTrip).isEqualTo(key);
+                    Assertions.assertThat(roundTrip2).isEqualTo(key);
                 }
                 {
                     TokenKey roundTrip = serializer.deserializeWithPrefixAndImpliedLength(key.prefix(), serializer.serializeWithoutPrefixOrLength(key), partitioner);

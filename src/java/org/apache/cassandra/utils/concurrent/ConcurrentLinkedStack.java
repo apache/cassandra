@@ -38,7 +38,7 @@ public class ConcurrentLinkedStack<T>
 
     public void push(T value)
     {
-        IntrusiveStack.push(headUpdater, this, (Node)new Node<>(value));
+        IntrusiveStack.getAndPush(headUpdater, this, (Node)new Node<>(value));
     }
 
     public boolean isEmpty()

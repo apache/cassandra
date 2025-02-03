@@ -65,21 +65,33 @@ public class IntrusiveStack<T extends IntrusiveStack<T>> implements Iterable<T>
     T next;
 
     @Inline
-    protected static <O, T extends IntrusiveStack<T>> T push(AtomicReferenceFieldUpdater<? super O, T> headUpdater, O owner, T prepend)
+    protected static <O, T extends IntrusiveStack<T>> T getAndPush(AtomicReferenceFieldUpdater<? super O, T> headUpdater, O owner, T prepend)
     {
-        return push(headUpdater, owner, prepend, (prev, next) -> {
+        return getAndPush(headUpdater, owner, prepend, (prev, next) -> {
             next.next = prev;
             return next;
         });
     }
 
-    protected static <O, T extends IntrusiveStack<T>> T push(AtomicReferenceFieldUpdater<O, T> headUpdater, O owner, T prepend, BiFunction<T, T, T> combine)
+    protected static <O, T extends IntrusiveStack<T>> T getAndPush(AtomicReferenceFieldUpdater<O, T> headUpdater, O owner, T prepend, BiFunction<T, T, T> combine)
     {
         while (true)
         {
             T head = headUpdater.get(owner);
-            if (headUpdater.compareAndSet(owner, head, combine.apply(head, prepend)))
+            T newHead = combine.apply(head, prepend);
+            if (headUpdater.compareAndSet(owner, head, newHead))
                 return head;
+        }
+    }
+
+    protected static <O, T extends IntrusiveStack<T>> T pushAndGet(AtomicReferenceFieldUpdater<O, T> headUpdater, O owner, T prepend, BiFunction<T, T, T> combine)
+    {
+        while (true)
+        {
+            T head = headUpdater.get(owner);
+            T newHead = combine.apply(head, prepend);
+            if (head == newHead || headUpdater.compareAndSet(owner, head, newHead))
+                return newHead;
         }
     }
 
@@ -89,15 +101,15 @@ public class IntrusiveStack<T extends IntrusiveStack<T>> implements Iterable<T>
     }
 
     @Inline
-    protected static <O, T extends IntrusiveStack<T>> T push(Function<O, T> getter, Setter<O, T> setter, O owner, T prepend)
+    protected static <O, T extends IntrusiveStack<T>> T getAndPush(Function<O, T> getter, Setter<O, T> setter, O owner, T prepend)
     {
-        return push(getter, setter, owner, prepend, (prev, next) -> {
+        return getAndPush(getter, setter, owner, prepend, (prev, next) -> {
             next.next = prev;
             return next;
         });
     }
 
-    protected static <O, T extends IntrusiveStack<T>> T push(Function<O, T> getter, Setter<O, T> setter, O owner, T prepend, BiFunction<T, T, T> combine)
+    protected static <O, T extends IntrusiveStack<T>> T getAndPush(Function<O, T> getter, Setter<O, T> setter, O owner, T prepend, BiFunction<T, T, T> combine)
     {
         while (true)
         {

@@ -25,7 +25,6 @@ import java.util.function.Supplier;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
@@ -36,6 +35,8 @@ import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.tcm.log.LogState;
 import org.apache.cassandra.utils.FBUtilities;
+
+import static org.apache.cassandra.config.DatabaseDescriptor.getCmsAwaitTimeout;
 
 public class FetchCMSLog
 {
@@ -115,8 +116,7 @@ public class FetchCMSLog
             // If both we and the other node believe it should be caught up with a linearizable read
             boolean consistentFetch = request.consistentFetch && !ClusterMetadataService.instance().isCurrentMember(message.from());
 
-            Retry.Deadline retry = Retry.Deadline.after(DatabaseDescriptor.getCmsAwaitTimeout().to(TimeUnit.NANOSECONDS),
-                                                        new Retry.Jitter(TCMMetrics.instance.fetchLogRetries));
+            Retry retry = Retry.untilElapsed(getCmsAwaitTimeout().to(TimeUnit.NANOSECONDS), TCMMetrics.instance.fetchLogRetries);
             LogState delta;
             if (consistentFetch)
                 delta = processor.get().getLogState(message.payload.lowerBound, Epoch.MAX, false, retry);

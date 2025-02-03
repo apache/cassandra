@@ -36,8 +36,8 @@ import java.util.TreeSet;
 import java.util.stream.Collectors;
 import javax.annotation.concurrent.GuardedBy;
 
+import accord.primitives.Participants;
 import accord.primitives.Routable;
-import accord.primitives.Route;
 import accord.primitives.Unseekable;
 import org.apache.cassandra.cache.IMeasurableMemory;
 import org.apache.cassandra.db.Clustering;
@@ -52,7 +52,7 @@ import org.apache.cassandra.utils.ObjectSizes;
 import org.apache.cassandra.utils.RTree;
 import org.apache.cassandra.utils.RangeTree;
 
-import static org.apache.cassandra.index.accord.RouteIndexFormat.deserializeParticipants;
+import static org.apache.cassandra.index.accord.RouteIndexFormat.deserializeTouches;
 
 public class RangeMemoryIndex
 {
@@ -107,10 +107,10 @@ public class RangeMemoryIndex
 
     public synchronized long add(DecoratedKey key, Clustering<?> clustering, ByteBuffer value)
     {
-        Route<?> route;
+        Participants<?> route;
         try
         {
-            route = deserializeParticipants(value);
+            route = deserializeTouches(value);
         }
         catch (IOException e)
         {
@@ -120,7 +120,7 @@ public class RangeMemoryIndex
         return add(key, route);
     }
 
-    public synchronized long add(DecoratedKey key, Route<?> route)
+    public synchronized long add(DecoratedKey key, Participants<?> route)
     {
         if (route == null || route.domain() != Routable.Domain.Range)
             return 0;

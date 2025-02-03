@@ -19,6 +19,7 @@
 package org.apache.cassandra.service.paxos;
 
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableMap;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
@@ -32,68 +33,36 @@ import org.apache.cassandra.service.TimeoutStrategy.ReadWriteLatencySourceFactor
 import org.apache.cassandra.service.TimeoutStrategy.Wait;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.utils.NoSpamLogger;
 
+import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+
+import javax.annotation.Nullable;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import static java.lang.Math.*;
-import static java.util.concurrent.TimeUnit.*;
+import static java.lang.Math.max;
+import static java.lang.Math.min;
+import static java.util.Arrays.stream;
+import static java.util.concurrent.TimeUnit.MICROSECONDS;
+import static java.util.concurrent.TimeUnit.MINUTES;
 import static org.apache.cassandra.config.DatabaseDescriptor.*;
 import static org.apache.cassandra.metrics.ClientRequestsMetricsHolder.casReadMetrics;
 import static org.apache.cassandra.metrics.ClientRequestsMetricsHolder.casWriteMetrics;
+import static org.apache.cassandra.service.TimeoutStrategy.parseInMicros;
 import static org.apache.cassandra.utils.Clock.waitUntil;
 
 /**
  * See {@link RetryStrategy}
+ * TODO (expected): deprecate in favour of pure RetryStrategy
  */
 public class ContentionStrategy extends RetryStrategy
 {
     private static final Logger logger = LoggerFactory.getLogger(RetryStrategy.class);
-
-    private static final String DEFAULT_WAIT_RANDOMIZER = "uniform";
-    private static final String DEFAULT_MIN = "0";
-    private static final String DEFAULT_MAX = "100ms";
-    private static final String DEFAULT_SPREAD = "100ms";
-    private static final LatencySourceFactory LATENCIES = new ReadWriteLatencySourceFactory(casReadMetrics, casWriteMetrics);
-
-    private static volatile ContentionStrategy current;
-    private static volatile ParsedStrategy currentParsed;
-    private static final RetryStrategy.ParsedStrategy defaultStrategy;
-    static
-    {
-        defaultStrategy = new ParsedStrategy(DEFAULT_WAIT_RANDOMIZER, DEFAULT_MIN, DEFAULT_MAX, DEFAULT_SPREAD, Integer.MAX_VALUE,
-                                             new ContentionStrategy(DEFAULT_WAIT_RANDOMIZER, DEFAULT_MIN, DEFAULT_MAX, DEFAULT_SPREAD, Integer.MAX_VALUE));
-
-        String waitRandomizer = orElse(DatabaseDescriptor::getPaxosContentionWaitRandomizer, DEFAULT_WAIT_RANDOMIZER);
-        String min = orElse(DatabaseDescriptor::getPaxosContentionMinWait, DEFAULT_MIN);
-        String max = orElse(DatabaseDescriptor::getPaxosContentionMaxWait, DEFAULT_MAX);
-        String spread = orElse(DatabaseDescriptor::getPaxosContentionMinDelta, DEFAULT_SPREAD);
-
-        current = new ContentionStrategy(waitRandomizer, min, max, spread, Integer.MAX_VALUE);
-        currentParsed = new ParsedStrategy(waitRandomizer, min, max, spread, Integer.MAX_VALUE, current);
-    }
-
-    final int traceAfterAttempts;
-
-    public ContentionStrategy(String waitRandomizer, String min, String max, String spread, int traceAfterAttempts)
-    {
-        super(waitRandomizer, min, max, spread, LATENCIES);
-        this.traceAfterAttempts = traceAfterAttempts;
-    }
-
-    public ContentionStrategy(WaitRandomizer waitRandomizer, Wait min, Wait max, Wait spread, int traceAfterAttempts)
-    {
-        super(waitRandomizer, min, max, spread);
-        this.traceAfterAttempts = traceAfterAttempts;
-    }
-
-    @Override
-    protected Wait parseBound(String spec, boolean isMin, LatencySourceFactory latencies)
-    {
-        return TimeoutStrategy.parseWait(spec, 0, maxQueryTimeoutMicros(), isMin ? 0 : maxQueryTimeoutMicros(), latencies);
-    }
 
     public enum Type
     {
@@ -107,6 +76,71 @@ public class ContentionStrategy extends RetryStrategy
             this.traceTitle = traceTitle;
             this.lowercase = name().toLowerCase();
         }
+    }
+
+    static final Pattern LEGACY = Pattern.compile(
+    "(?<const>0|[0-9]+[mu]?s)" +
+            "|((?<min>0|[0-9]+[mu]?s) *<= *)?" +
+                "(?<delegate>[^=]+)?" +
+            "( *<= *(?<max>0|[0-9]+[mu]?s))?");
+
+    private static final String DEFAULT_WAIT_RANDOMIZER = "uniform";
+    private static final String DEFAULT_MIN = "0";
+    private static final String DEFAULT_MAX = "100ms";
+    private static final String DEFAULT_SPREAD = "100ms";
+    private static final String MAX_INT = "" + Integer.MAX_VALUE;
+    private static final LatencySourceFactory LATENCIES = new ReadWriteLatencySourceFactory(casReadMetrics, casWriteMetrics);
+
+    private static volatile ContentionStrategy current;
+    private static volatile ParsedStrategy currentParsed;
+    static
+    {
+        String waitRandomizer = orElse(DatabaseDescriptor::getPaxosContentionWaitRandomizer, DEFAULT_WAIT_RANDOMIZER);
+        String min = orElse(DatabaseDescriptor::getPaxosContentionMinWait, DEFAULT_MIN);
+        String max = orElse(DatabaseDescriptor::getPaxosContentionMaxWait, DEFAULT_MAX);
+        String spread = orElse(DatabaseDescriptor::getPaxosContentionMinDelta, DEFAULT_SPREAD);
+        current = parse(waitRandomizer, min, max, spread, MAX_INT, MAX_INT);
+        currentParsed = new ParsedStrategy(waitRandomizer, min, max, spread, MAX_INT, MAX_INT, current);
+    }
+
+    final @Nullable LegacyWait spread;
+    final int traceAfterAttempts;
+
+    public ContentionStrategy(WaitRandomizer waitRandomizer, LegacyWait min, LegacyWait max, LegacyWait spread, int retries, int traceAfterAttempts)
+    {
+        super(waitRandomizer, min.min, min, max, max.max, retries);
+        this.traceAfterAttempts = traceAfterAttempts;
+        this.spread = spread;
+    }
+
+    public long computeWait(int attempt, TimeUnit units)
+    {
+        if (attempt > maxAttempts)
+            return -1;
+
+        long minWaitMicros = min.getMicros(attempt);
+        long maxWaitMicros = max.getMicros(attempt);
+        long spreadMicros = spread == null ? 0 : spread.getMicros(attempt);
+
+        if (minWaitMicros + spreadMicros >= maxWaitMicros)
+        {
+            if (spreadMicros == 0)
+                return units.convert(maxWaitMicros, MICROSECONDS);
+
+            if (maxWaitMicros < minWaitMicros)
+                maxWaitMicros = minWaitMicros;
+            long newMaxWaitMicros = minWaitMicros + spreadMicros;
+            if (newMaxWaitMicros > maxMaxMicros)
+            {
+                newMaxWaitMicros = maxMaxMicros;
+                minWaitMicros = max(this.minMinMicros, maxWaitMicros - spreadMicros);
+            }
+            maxWaitMicros = newMaxWaitMicros;
+            if (minWaitMicros >= maxWaitMicros)
+                return minWaitMicros;
+        }
+
+        return units.convert(waitRandomizer.wait(minWaitMicros, maxWaitMicros, attempt), MICROSECONDS);
     }
 
     long computeWaitUntilForContention(int attempts, TableMetadata table, DecoratedKey partitionKey, ConsistencyLevel consistency, Type type)
@@ -161,41 +195,71 @@ public class ContentionStrategy extends RetryStrategy
         return current.computeWaitUntilForContention(attempts, table, partitionKey, consistency, type);
     }
 
-    public static class ParsedStrategy extends RetryStrategy.ParsedStrategy
+    public static class ParsedStrategy
     {
-        public final int trace;
+        public final String waitRandomizer, min, max, spread, retries, trace;
         public final ContentionStrategy strategy;
 
-        ParsedStrategy(String waitRandomizer, String min, String max, String minDelta, int trace, ContentionStrategy strategy)
+        protected ParsedStrategy(String waitRandomizer, String min, String max, String spread, String retries, String trace, ContentionStrategy strategy)
         {
-            super(waitRandomizer, min, max, minDelta, strategy);
+            this.waitRandomizer = waitRandomizer;
+            this.min = min;
+            this.max = max;
+            this.spread = spread;
+            this.retries = retries;
             this.trace = trace;
             this.strategy = strategy;
         }
 
-        @Override
         public String toString()
         {
-            return super.toString() + (trace == Integer.MAX_VALUE ? "" : ",trace=" + current.traceAfterAttempts);
+            return "min=" + min + ",max=" + max + ",spread=" + spread + ",retries=" + retries
+                   + ",random=" + waitRandomizer + ",trace=" + current.traceAfterAttempts;
         }
     }
 
     @VisibleForTesting
-    public static ParsedStrategy parseStrategy(String spec)
+    public static ParsedStrategy parseStrategy(String spec, ParsedStrategy defaultStrategy)
     {
-        RetryStrategy.ParsedStrategy parsed = RetryStrategy.parseStrategy(spec, LATENCIES, defaultStrategy);
         String[] args = spec.split(",");
-
+        String waitRandomizer = find(args, "random");
+        String min = find(args, "min");
+        String max = find(args, "max");
+        String spread = find(args, "spread");
         String trace = find(args, "trace");
-        int traceAfterAttempts = trace == null ? current.traceAfterAttempts: Integer.parseInt(trace);
+        if (spread == null)
+            spread = find(args, "delta");
+        String retries = find(args, "retries");
 
-        ContentionStrategy strategy = new ContentionStrategy(parsed.strategy.waitRandomizer, parsed.strategy.min, parsed.strategy.max, parsed.strategy.spread, traceAfterAttempts);
-        return new ParsedStrategy(parsed.waitRandomizer, parsed.min, parsed.max, parsed.spread, traceAfterAttempts, strategy);
+        if (waitRandomizer == null) waitRandomizer = defaultStrategy.waitRandomizer;
+        if (min == null) min = defaultStrategy.min;
+        if (max == null) max = defaultStrategy.max;
+        if (spread == null) spread = defaultStrategy.spread;
+        if (retries == null) retries = defaultStrategy.retries;
+        if (trace == null) trace = defaultStrategy.trace;
+
+        ContentionStrategy strategy = parse(waitRandomizer, min, max, spread, retries, trace);
+        return new ParsedStrategy(waitRandomizer, min, max, spread, retries, trace, strategy);
     }
+
+    private static ContentionStrategy parse(String waitRandomizerString, String minString, String maxString, String spreadString, String retriesString, String traceString)
+    {
+        return new ContentionStrategy(parseWaitRandomizer(waitRandomizerString),
+                                      parseLegacy(minString, true), parseLegacy(maxString, false), parseLegacy(spreadString, false),
+                                      Integer.parseInt(retriesString), Integer.parseInt(traceString));
+    }
+
+    private static String find(String[] args, String param)
+    {
+        return stream(args).filter(s -> s.startsWith(param + '='))
+                           .map(s -> s.substring(param.length() + 1))
+                           .findFirst().orElse(null);
+    }
+
 
     public static synchronized void setStrategy(String spec)
     {
-        ParsedStrategy parsed = parseStrategy(spec);
+        ParsedStrategy parsed = parseStrategy(spec, currentParsed);
         currentParsed = parsed;
         current = parsed.strategy;
         setPaxosContentionWaitRandomizer(parsed.waitRandomizer);
@@ -209,15 +273,74 @@ public class ContentionStrategy extends RetryStrategy
         return currentParsed.toString();
     }
 
-    @VisibleForTesting
-    static long maxQueryTimeoutMicros()
-    {
-        return max(max(getCasContentionTimeout(MICROSECONDS), getWriteRpcTimeout(MICROSECONDS)), getReadRpcTimeout(MICROSECONDS));
-    }
-
     private static String orElse(Supplier<String> get, String orElse)
     {
         String result = get.get();
         return result != null ? result : orElse;
     }
+
+    @VisibleForTesting
+    static LegacyWait parseLegacy(String spec, boolean isMin)
+    {
+        long defaultMaxMicros = getRpcTimeout(MICROSECONDS);
+        return parseLegacy(spec, 0, defaultMaxMicros, isMin ? 0 : defaultMaxMicros, LATENCIES);
+    }
+
+    public static LegacyWait parseLegacy(String input, long defaultMinMicros, long defaultMaxMicros, long onFailure, LatencySourceFactory latencies)
+    {
+        Matcher m = LEGACY.matcher(input);
+        if (!m.matches())
+            throw new IllegalArgumentException(input + " does not match " + LEGACY);
+
+        String maybeConst = m.group("const");
+        if (maybeConst != null)
+        {
+            long v = parseInMicros(maybeConst);
+            return new LegacyWait(v, v, v, new Wait.Constant(v));
+        }
+
+        long min = parseInMicros(m.group("min"), defaultMinMicros);
+        long max = parseInMicros(m.group("max"), defaultMaxMicros);
+        return new LegacyWait(min, max, onFailure, TimeoutStrategy.parseWait(m.group("delegate"), latencies));
+    }
+
+
+    private static class LegacyWait implements Wait
+    {
+        final long min, max, onFailure;
+        final Wait delegate;
+
+        LegacyWait(long min, long max, long onFailure, Wait delegate)
+        {
+            Preconditions.checkArgument(min <= max, "min (%s) must be less than or equal to max (%s)", min, max);
+            this.min = min;
+            this.max = max;
+            this.onFailure = onFailure;
+            this.delegate = delegate;
+        }
+
+        public long getMicros(int attempts)
+        {
+            try
+            {
+                return max(min, min(max, delegate.getMicros(attempts)));
+            }
+            catch (Throwable t)
+            {
+                NoSpamLogger.getLogger(logger, 1L, MINUTES).info("", t);
+                return onFailure;
+            }
+        }
+
+        public String toString()
+        {
+            return "Bound{" +
+                   "min=" + min +
+                   ", max=" + max +
+                   ", onFailure=" + onFailure +
+                   ", delegate=" + delegate +
+                   '}';
+        }
+    }
+
 }

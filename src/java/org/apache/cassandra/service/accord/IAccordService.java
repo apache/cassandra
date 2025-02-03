@@ -18,11 +18,13 @@
 
 package org.apache.cassandra.service.accord;
 
+import java.util.Collection;
 import java.util.Collections;
 import java.util.EnumSet;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.function.BiConsumer;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
@@ -30,7 +32,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import accord.api.Agent;
-import accord.api.BarrierType;
+import accord.local.durability.DurabilityService.SyncLocal;
+import accord.local.durability.DurabilityService.SyncRemote;
 import accord.local.CommandStores.RangesForEpoch;
 import accord.local.DurableBefore;
 import accord.local.Node;
@@ -38,21 +41,19 @@ import accord.local.Node.Id;
 import accord.local.RedundantBefore;
 import accord.messages.Reply;
 import accord.messages.Request;
+import accord.primitives.Keys;
 import accord.primitives.Ranges;
-import accord.primitives.Seekables;
+import accord.primitives.Timestamp;
 import accord.primitives.Txn;
 import accord.primitives.TxnId;
-import accord.topology.Topology;
 import accord.topology.TopologyManager;
 import accord.utils.Invariants;
+import accord.utils.async.AsyncChain;
 import org.agrona.collections.Int2ObjectHashMap;
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.ConsistencyLevel;
-import org.apache.cassandra.dht.Range;
-import org.apache.cassandra.dht.Token;
+import org.apache.cassandra.exceptions.RequestExecutionException;
 import org.apache.cassandra.journal.Params;
-import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.net.IVerbHandler;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.schema.TableId;
@@ -61,14 +62,9 @@ import org.apache.cassandra.service.accord.api.AccordScheduler;
 import org.apache.cassandra.service.accord.api.AccordTopologySorter;
 import org.apache.cassandra.service.accord.txn.TxnResult;
 import org.apache.cassandra.tcm.Epoch;
-import org.apache.cassandra.transport.Dispatcher;
 import org.apache.cassandra.transport.Dispatcher.RequestTime;
-import org.apache.cassandra.utils.concurrent.AsyncPromise;
 import org.apache.cassandra.utils.concurrent.Future;
 import org.apache.cassandra.utils.concurrent.ImmediateFuture;
-
-import static com.google.common.base.Preconditions.checkNotNull;
-
 
 // Avoid default methods that aren't just providing wrappers around other methods
 // so it will be a compile error if DelegatingAccordService doesn't implement them
@@ -82,54 +78,20 @@ public interface IAccordService
     IVerbHandler<? extends Request> requestHandler();
     IVerbHandler<? extends Reply> responseHandler();
 
-    Seekables<?, ?> barrierWithRetries(Seekables<?, ?> keysOrRanges, long minEpoch, BarrierType barrierType, boolean isForWrite) throws InterruptedException;
+    AsyncChain<Void> sync(Object requestedBy, @Nullable Timestamp minBound, Ranges ranges, @Nullable Collection<Id> include, SyncLocal syncLocal, SyncRemote syncRemote);
+    AsyncChain<Void> sync(@Nullable Timestamp minBound, Keys keys, SyncLocal syncLocal, SyncRemote syncRemote);
+    AsyncChain<Timestamp> maxConflict(Ranges ranges);
 
-    Seekables<?, ?> barrier(@Nonnull Seekables<?, ?> keysOrRanges, long minEpoch, Dispatcher.RequestTime requestTime, long timeoutNanos, BarrierType barrierType, boolean isForWrite);
+    @Nonnull IAccordResult<TxnResult> coordinateAsync(long minEpoch, @Nonnull Txn txn, @Nonnull ConsistencyLevel consistencyLevel, RequestTime requestTime);
+    @Nonnull TxnResult coordinate(long minEpoch, @Nonnull Txn txn, @Nonnull ConsistencyLevel consistencyLevel, RequestTime requestTime) throws RequestExecutionException;
 
-    Seekables<?, ?> repairWithRetries(Seekables<?, ?> keysOrRanges, long minEpoch, BarrierType barrierType, boolean isForWrite, List<InetAddressAndPort> allEndpoints) throws InterruptedException;
-
-    Seekables<?, ?> repair(@Nonnull Seekables<?, ?> keysOrRanges, long epoch, Dispatcher.RequestTime requestTime, long timeoutNanos, BarrierType barrierType, boolean isForWrite, List<InetAddressAndPort> allEndpoints);
-
-    default void postStreamReceivingBarrier(ColumnFamilyStore cfs, List<Range<Token>> ranges)
+    interface IAccordResult<V>
     {
-        String ks = cfs.keyspace.getName();
-        Ranges accordRanges = AccordTopology.toAccordRanges(ks, ranges);
-        try
-        {
-            barrierWithRetries(accordRanges, Epoch.FIRST.getEpoch(), BarrierType.global_async, true);
-        }
-        catch (InterruptedException e)
-        {
-            throw new RuntimeException(e);
-        }
+        V success();
+        Throwable fail();
+        V awaitAndGet() throws RequestExecutionException;
+        IAccordResult<V> addCallback(BiConsumer<? super V, Throwable> callback);
     }
-
-    @Nonnull TxnResult coordinate(long minEpoch, @Nonnull Txn txn, @Nonnull ConsistencyLevel consistencyLevel, Dispatcher.RequestTime requestTime);
-
-    class AsyncTxnResult extends AsyncPromise<TxnResult>
-    {
-        public final @Nonnull TxnId txnId;
-        public final long minEpoch;
-        @Nullable
-        public final ConsistencyLevel consistencyLevel;
-        public final boolean isWrite;
-        public final Dispatcher.RequestTime requestTime;
-
-        public AsyncTxnResult(@Nonnull TxnId txnId, long minEpoch, @Nullable ConsistencyLevel consistencyLevel, boolean isWrite, @Nonnull Dispatcher.RequestTime requestTime)
-        {
-            checkNotNull(txnId);
-            checkNotNull(requestTime);
-            this.txnId = txnId;
-            this.minEpoch = minEpoch;
-            this.consistencyLevel = consistencyLevel;
-            this.isWrite = isWrite;
-            this.requestTime = requestTime;
-        }
-    }
-
-    @Nonnull
-    AsyncTxnResult coordinateAsync(long minEpoch, @Nonnull Txn txn, @Nonnull ConsistencyLevel consistencyLevel, Dispatcher.RequestTime requestTime);
-    TxnResult getTxnResult(AsyncTxnResult asyncTxnResult);
 
     long currentEpoch();
 
@@ -197,8 +159,9 @@ public interface IAccordService
     @Nullable
     Long minEpoch();
 
-    void tryMarkRemoved(Topology topology, Node.Id node);
-    void awaitTableDrop(TableId id);
+    void awaitDone(TableId id, long epoch);
+
+    AccordConfigurationService configService();
 
     Params journalConfiguration();
 
@@ -225,43 +188,31 @@ public interface IAccordService
         }
 
         @Override
-        public Seekables<?, ?> barrierWithRetries(Seekables<?, ?> keysOrRanges, long minEpoch, BarrierType barrierType, boolean isForWrite) throws InterruptedException
-        {
-            throw new UnsupportedOperationException();
-        }
-
-        @Override
-        public Seekables<?, ?> barrier(@Nonnull Seekables<?, ?> keysOrRanges, long minEpoch, Dispatcher.RequestTime requestTime, long timeoutNanos, BarrierType barrierType, boolean isForWrite)
-        {
-            throw new UnsupportedOperationException("No accord barriers should be executed when accord.enabled = false in cassandra.yaml");
-        }
-
-        @Override
-        public Seekables<?, ?> repairWithRetries(Seekables<?, ?> keysOrRanges, long minEpoch, BarrierType barrierType, boolean isForWrite, List<InetAddressAndPort> allEndpoints) throws InterruptedException
-        {
-            return null;
-        }
-
-        @Override
-        public Seekables<?, ?> repair(@Nonnull Seekables<?, ?> keysOrRanges, long epoch, Dispatcher.RequestTime requestTime, long timeoutNanos, BarrierType barrierType, boolean isForWrite, List<InetAddressAndPort> allEndpoints)
-        {
-            throw new UnsupportedOperationException("No accord repairs should be executed when accord.enabled = false in cassandra.yaml");
-        }
-
-        @Override
-        public @Nonnull TxnResult coordinate(long minEpoch, @Nonnull Txn txn, @Nonnull ConsistencyLevel consistencyLevel, @Nonnull Dispatcher.RequestTime requestTime)
+        public AsyncChain<Void> sync(Object requestedBy, @Nullable Timestamp onOrAfter, Ranges ranges, @Nullable Collection<Id> include, SyncLocal syncLocal, SyncRemote syncRemote)
         {
             throw new UnsupportedOperationException("No accord transaction should be executed when accord.enabled = false in cassandra.yaml");
         }
 
         @Override
-        public @Nonnull AsyncTxnResult coordinateAsync(long minEpoch, @Nonnull Txn txn, @Nonnull ConsistencyLevel consistencyLevel, Dispatcher.RequestTime requestTime)
+        public AsyncChain<Void> sync(@Nullable Timestamp onOrAfter, Keys keys, SyncLocal syncLocal, SyncRemote syncRemote)
         {
             throw new UnsupportedOperationException("No accord transaction should be executed when accord.enabled = false in cassandra.yaml");
         }
 
         @Override
-        public TxnResult getTxnResult(AsyncTxnResult asyncTxnResult)
+        public AsyncChain<Timestamp> maxConflict(Ranges ranges)
+        {
+            throw new UnsupportedOperationException("No accord transaction should be executed when accord.enabled = false in cassandra.yaml");
+        }
+
+        @Override
+        public @Nonnull TxnResult coordinate(long minEpoch, @Nonnull Txn txn, @Nonnull ConsistencyLevel consistencyLevel, @Nonnull RequestTime requestTime)
+        {
+            throw new UnsupportedOperationException("No accord transaction should be executed when accord.enabled = false in cassandra.yaml");
+        }
+
+        @Override
+        public @Nonnull IAccordResult<TxnResult> coordinateAsync(long minEpoch, @Nonnull Txn txn, @Nonnull ConsistencyLevel consistencyLevel, RequestTime requestTime)
         {
             throw new UnsupportedOperationException("No accord transaction should be executed when accord.enabled = false in cassandra.yaml");
         }
@@ -347,15 +298,15 @@ public interface IAccordService
         }
 
         @Override
-        public void tryMarkRemoved(Topology topology, Id node)
+        public void awaitDone(TableId id, long epoch)
         {
 
         }
 
         @Override
-        public void awaitTableDrop(TableId id)
+        public AccordConfigurationService configService()
         {
-
+            return null;
         }
 
         @Override
@@ -399,33 +350,27 @@ public interface IAccordService
         }
 
         @Override
-        public Seekables<?, ?> barrierWithRetries(Seekables<?, ?> keysOrRanges, long minEpoch, BarrierType barrierType, boolean isForWrite) throws InterruptedException
+        public AsyncChain<Void> sync(Object requestedBy, @Nullable Timestamp onOrAfter, Ranges ranges, @Nullable Collection<Id> include, SyncLocal syncLocal, SyncRemote syncRemote)
         {
-            return delegate.barrierWithRetries(keysOrRanges, minEpoch, barrierType, isForWrite);
+            return delegate.sync(requestedBy, onOrAfter, ranges, include, syncLocal, syncRemote);
         }
 
         @Override
-        public Seekables<?, ?> barrier(@Nonnull Seekables<?, ?> keysOrRanges, long minEpoch, RequestTime requestTime, long timeoutNanos, BarrierType barrierType, boolean isForWrite)
+        public AsyncChain<Void> sync(@Nullable Timestamp onOrAfter, Keys keys, SyncLocal syncLocal, SyncRemote syncRemote)
         {
-            return delegate.barrier(keysOrRanges, minEpoch, requestTime, timeoutNanos, barrierType, isForWrite);
+            return delegate.sync(onOrAfter, keys, syncLocal, syncRemote);
         }
 
         @Override
-        public Seekables<?, ?> repairWithRetries(Seekables<?, ?> keysOrRanges, long minEpoch, BarrierType barrierType, boolean isForWrite, List<InetAddressAndPort> allEndpoints) throws InterruptedException
+        public AsyncChain<Timestamp> maxConflict(Ranges ranges)
         {
-            return delegate.repairWithRetries(keysOrRanges, minEpoch, barrierType, isForWrite, allEndpoints);
+            return delegate.maxConflict(ranges);
         }
 
         @Override
-        public Seekables<?, ?> repair(@Nonnull Seekables<?, ?> keysOrRanges, long epoch, RequestTime requestTime, long timeoutNanos, BarrierType barrierType, boolean isForWrite, List<InetAddressAndPort> allEndpoints)
+        public AccordConfigurationService configService()
         {
-            return delegate.repair(keysOrRanges, epoch, requestTime, timeoutNanos, barrierType, isForWrite, allEndpoints);
-        }
-
-        @Override
-        public void postStreamReceivingBarrier(ColumnFamilyStore cfs, List<Range<Token>> ranges)
-        {
-            IAccordService.super.postStreamReceivingBarrier(cfs, ranges);
+            return delegate.configService();
         }
 
         @Nonnull
@@ -437,15 +382,9 @@ public interface IAccordService
 
         @Nonnull
         @Override
-        public AsyncTxnResult coordinateAsync(long minEpoch, @Nonnull Txn txn, @Nonnull ConsistencyLevel consistencyLevel, RequestTime requestTime)
+        public IAccordResult<TxnResult> coordinateAsync(long minEpoch, @Nonnull Txn txn, @Nonnull ConsistencyLevel consistencyLevel, RequestTime requestTime)
         {
             return delegate.coordinateAsync(minEpoch, txn, consistencyLevel, requestTime);
-        }
-
-        @Override
-        public TxnResult getTxnResult(AsyncTxnResult asyncTxnResult)
-        {
-            return delegate.getTxnResult(asyncTxnResult);
         }
 
         @Override
@@ -534,15 +473,9 @@ public interface IAccordService
         }
 
         @Override
-        public void tryMarkRemoved(Topology topology, Id node)
+        public void awaitDone(TableId id, long epoch)
         {
-            delegate.tryMarkRemoved(topology, node);
-        }
-
-        @Override
-        public void awaitTableDrop(TableId id)
-        {
-            delegate.awaitTableDrop(id);
+            delegate.awaitDone(id, epoch);
         }
 
         @Override

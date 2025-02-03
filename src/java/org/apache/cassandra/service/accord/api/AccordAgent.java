@@ -19,6 +19,7 @@
 package org.apache.cassandra.service.accord.api;
 
 import java.util.concurrent.TimeUnit;
+import java.util.function.BiConsumer;
 
 import javax.annotation.Nullable;
 
@@ -27,7 +28,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import accord.api.Agent;
-import accord.api.EventsListener;
+import accord.api.EventListener;
 import accord.api.ProgressLog.BlockedUntil;
 import accord.api.Result;
 import accord.api.RoutingKey;
@@ -35,29 +36,31 @@ import accord.local.Command;
 import accord.local.Node;
 import accord.local.SafeCommand;
 import accord.local.SafeCommandStore;
+import accord.local.TimeService;
 import accord.messages.ReplyContext;
 import accord.primitives.Keys;
 import accord.primitives.Participants;
 import accord.primitives.Ranges;
 import accord.primitives.Routable;
-import accord.primitives.Seekables;
 import accord.primitives.Status;
 import accord.primitives.Timestamp;
 import accord.primitives.Txn;
 import accord.primitives.Txn.Kind;
 import accord.primitives.TxnId;
 import accord.topology.Shard;
+import accord.topology.Topologies;
 import accord.utils.DefaultRandom;
 import accord.utils.Invariants;
 import accord.utils.RandomSource;
 import accord.utils.SortedList;
 import accord.utils.UnhandledEnum;
-import org.apache.cassandra.config.AccordSpec;
+import accord.utils.async.AsyncChain;
+import accord.utils.async.AsyncChains;
+import accord.utils.async.AsyncResult;
+import accord.utils.async.AsyncResults;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.metrics.AccordMetrics;
-import org.apache.cassandra.metrics.ClientRequestsMetricsHolder;
 import org.apache.cassandra.net.ResponseContext;
-import org.apache.cassandra.service.TimeoutStrategy;
 import org.apache.cassandra.service.accord.AccordService;
 import org.apache.cassandra.service.accord.txn.TxnQuery;
 import org.apache.cassandra.service.accord.txn.TxnRead;
@@ -65,24 +68,38 @@ import org.apache.cassandra.utils.Clock;
 import org.apache.cassandra.utils.JVMStabilityInspector;
 
 import static accord.primitives.Routable.Domain.Key;
-import static accord.primitives.Txn.Kind.Write;
+import static accord.utils.SortedArrays.SortedArrayList.ofSorted;
 import static java.util.concurrent.TimeUnit.MICROSECONDS;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import static java.util.concurrent.TimeUnit.NANOSECONDS;
 import static java.util.concurrent.TimeUnit.SECONDS;
+import static org.apache.cassandra.config.DatabaseDescriptor.getAccordScheduleDurabilityTxnIdLag;
 import static org.apache.cassandra.config.DatabaseDescriptor.getReadRpcTimeout;
+import static org.apache.cassandra.service.accord.api.AccordWaitStrategies.expireEpochWait;
+import static org.apache.cassandra.service.accord.api.AccordWaitStrategies.fetch;
+import static org.apache.cassandra.service.accord.api.AccordWaitStrategies.recover;
+import static org.apache.cassandra.service.accord.api.AccordWaitStrategies.retryBootstrap;
+import static org.apache.cassandra.service.accord.api.AccordWaitStrategies.retryDurability;
+import static org.apache.cassandra.service.accord.api.AccordWaitStrategies.retrySyncPoint;
+import static org.apache.cassandra.service.accord.api.AccordWaitStrategies.slowTxnPreaccept;
+import static org.apache.cassandra.service.accord.api.AccordWaitStrategies.slowRead;
+import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 
 // TODO (expected): merge with AccordService
 public class AccordAgent implements Agent
 {
     private static final Logger logger = LoggerFactory.getLogger(AccordAgent.class);
 
-    // TODO (required): this should be configurable and have exponential back-off, escaping to operator input past a certain number of retries
-    private long retryBootstrapDelayMicros = SECONDS.toMicros(1L);
-    private final RandomSource random = new DefaultRandom();
+    private static BiConsumer<TxnId, Throwable> onFailedBarrier;
+    public static void setOnFailedBarrier(BiConsumer<TxnId, Throwable> newOnFailedBarrier) { onFailedBarrier = newOnFailedBarrier; }
+    public static void onFailedBarrier(TxnId txnId, Throwable cause)
+    {
+        BiConsumer<TxnId, Throwable> invoke = onFailedBarrier;
+        if (invoke != null) invoke.accept(txnId, cause);
+    }
 
-    // TODO (required): make hot property
-    private TimeoutStrategy slowPreaccept, slowRead;
+
+    private final RandomSource random = new DefaultRandom();
     protected Node.Id self;
 
     public AccordAgent()
@@ -92,11 +109,6 @@ public class AccordAgent implements Agent
     public void setNodeId(Node.Id id)
     {
         self = id;
-    }
-
-    public void setRetryBootstrapDelay(long delay, TimeUnit units)
-    {
-        retryBootstrapDelayMicros = units.toMicros(delay);
     }
 
     @Override
@@ -114,22 +126,17 @@ public class AccordAgent implements Agent
         throw error;
     }
 
-    public void onFailedBarrier(TxnId id, Seekables<?, ?> keysOrRanges, Throwable cause)
-    {
-
-    }
-
     @Override
-    public void onFailedBootstrap(String phase, Ranges ranges, Runnable retry, Throwable failure)
+    public void onFailedBootstrap(int attempts, String phase, Ranges ranges, Runnable retry, Throwable failure)
     {
         logger.error("Failed bootstrap at {} for {}", phase, ranges, failure);
-        AccordService.instance().scheduler().once(retry, retryBootstrapDelayMicros, MICROSECONDS);
+        AccordService.instance().scheduler().once(retry, retryBootstrap.computeWait(attempts, MICROSECONDS), MICROSECONDS);
     }
 
     @Override
     public void onStale(Timestamp staleSince, Ranges ranges)
     {
-        // TODO (required): decide how to handle this - maybe do nothing besides log? Maybe configurably try some number of repair attempts to catch up.
+        logger.error("This replica has become stale for {} as of {}", ranges, staleSince);
     }
 
     @Override
@@ -147,10 +154,18 @@ public class AccordAgent implements Agent
     }
 
     @Override
-    public long preAcceptTimeout()
+    public Topologies selectPreferred(Node.Id from, Topologies to)
     {
-        // TODO: should distinguish between reads and writes (Aleksey: why? and why read rpc timeout is being used?)
-        return getReadRpcTimeout(MICROSECONDS);
+        SortedList<Node.Id> nodes = to.nodes();
+        int i = nodes.indexOf(from);
+        Node.Id node = i <= 0 ? nodes.get(nodes.size() - 1) : to.nodes().get(i - 1);
+        return to.select(ofSorted(node));
+    }
+
+    @Override
+    public boolean rejectPreAccept(TimeService time, TxnId txnId)
+    {
+        return time.now() - getReadRpcTimeout(MICROSECONDS) > txnId.hlc();
     }
 
     // TODO (expected): we probably want additional configuration here so we can prune on shorter time horizons when we have a lot of transactions on a single key
@@ -190,13 +205,13 @@ public class AccordAgent implements Agent
     }
 
     @Override
-    public EventsListener metricsEventsListener()
+    public EventListener eventListener()
     {
         return AccordMetrics.Listener.instance;
     }
 
     @Override
-    public long attemptCoordinationDelay(Node node, SafeCommandStore safeStore, TxnId txnId, TimeUnit units, int retryCount)
+    public long slowCoordinatorDelay(Node node, SafeCommandStore safeStore, TxnId txnId, TimeUnit units, int retryCount)
     {
         SafeCommand safeCommand = safeStore.unsafeGetNoCleanup(txnId);
         Invariants.nonNull(safeCommand);
@@ -210,8 +225,7 @@ public class AccordAgent implements Agent
 
         // TODO (expected): make this a configurable calculation on normal request latencies (like ContentionStrategy)
         long oneSecond = SECONDS.toMicros(1L);
-        long startTime = mostRecentAttempt.hlc() + DatabaseDescriptor.getAccord().recoveryDelayFor(txnId, MICROSECONDS)
-                         + (retryCount == 0 ? 0 : random.nextLong(oneSecond << Math.min(retryCount, 4)));
+        long startTime = mostRecentAttempt.hlc() + recover(txnId).computeWait(retryCount, MICROSECONDS);
 
         startTime = nonClashingStartTime(startTime, shard == null ? null : shard.nodes, node.id(), oneSecond, random);
         long nowMicros = MILLISECONDS.toMicros(Clock.Global.currentTimeMillis());
@@ -244,36 +258,34 @@ public class AccordAgent implements Agent
     }
 
     @Override
-    public long seekProgressDelay(Node node, SafeCommandStore safeStore, TxnId txnId, int retryCount, BlockedUntil blockedUntil, TimeUnit units)
+    public long slowReplicaDelay(Node node, SafeCommandStore safeStore, TxnId txnId, int attempt, BlockedUntil blockedUntil, TimeUnit units)
     {
-        // TODO (required): make this configurable and dependent upon normal request latencies, and perhaps offset from txnId.hlc()
-        return units.convert((1L << Math.min(retryCount, 4)), SECONDS);
+        return fetch(txnId).computeWait(attempt, units);
     }
 
     @Override
-    public long retryAwaitTimeout(Node node, SafeCommandStore safeStore, TxnId txnId, int retryCount, BlockedUntil retrying, TimeUnit units)
+    public long slowAwaitDelay(Node node, SafeCommandStore safeStore, TxnId txnId, int attempt, BlockedUntil retrying, TimeUnit units)
     {
-        // TODO (expected): integrate with contention backoff
-        return units.convert((1L << Math.min(retryCount, 4)), SECONDS);
+        // TODO (desired): separate config?
+        return fetch(txnId).computeWait(attempt, units);
     }
 
     @Override
-    public long localSlowAt(TxnId txnId, Status.Phase phase, TimeUnit unit)
+    public long retrySyncPointDelay(Node node, int attempt, TimeUnit units)
     {
-        switch (phase)
-        {
-            default: throw new UnhandledEnum(phase);
-            case PreAccept: return unit.convert(slowPreaccept().computeWaitUntil(1), NANOSECONDS);
-            case Execute:   return unit.convert(slowRead().computeWaitUntil(1), NANOSECONDS);
-        }
+        return retrySyncPoint.computeWait(attempt, units);
     }
 
     @Override
-    public long localExpiresAt(TxnId txnId, Status.Phase phase, TimeUnit unit)
+    public long retryDurabilityDelay(Node node, int attempt, TimeUnit units)
     {
-        // TODO (expected): make this configurable
-        return txnId.is(Write) ? DatabaseDescriptor.getWriteRpcTimeout(unit)
-                               : DatabaseDescriptor.getReadRpcTimeout(unit);
+        return retryDurability.computeWait(attempt, units);
+    }
+
+    @Override
+    public long expireEpochWait(TimeUnit units)
+    {
+        return expireEpochWait.computeWait(1, units);
     }
 
     @Override
@@ -283,34 +295,58 @@ public class AccordAgent implements Agent
     }
 
     @Override
+    public long selfSlowAt(TxnId txnId, Status.Phase phase, TimeUnit unit)
+    {
+        switch (phase)
+        {
+            default: throw new UnhandledEnum(phase);
+            case PreAccept: return unit.convert(slowTxnPreaccept.computeWaitUntil(1), NANOSECONDS);
+            case Execute:   return unit.convert(slowRead.computeWaitUntil(1), NANOSECONDS);
+        }
+    }
+
+    @Override
+    public long selfExpiresAt(TxnId txnId, Status.Phase phase, TimeUnit unit)
+    {
+        long delayNanos;
+        switch (txnId.kind())
+        {
+            default: throw new UnhandledEnum(txnId.kind());
+            case Write:
+                delayNanos = DatabaseDescriptor.getWriteRpcTimeout(NANOSECONDS);
+                break;
+            case EphemeralRead:
+            case Read:
+                delayNanos = DatabaseDescriptor.getReadRpcTimeout(NANOSECONDS);
+                break;
+            case ExclusiveSyncPoint:
+                delayNanos = DatabaseDescriptor.getAccordRangeSyncPointTimeoutNanos();
+        }
+        return unit.convert(nanoTime() + delayNanos, NANOSECONDS);
+    }
+
+    @Override
+    public AsyncChain<TxnId> awaitStaleId(Node node, TxnId staleId, boolean isRequested)
+    {
+        long waitMicros = (staleId.hlc() + getAccordScheduleDurabilityTxnIdLag(MICROSECONDS)) - node.now();
+        if (waitMicros <= 0)
+            return AsyncChains.success(staleId);
+
+        logger.debug("Waiting {} micros for {} to be stale", waitMicros, staleId);
+        AsyncResult.Settable<TxnId> result = AsyncResults.settable();
+        node.scheduler().selfRecurring(() -> result.setSuccess(staleId), waitMicros, MICROSECONDS);
+        return result;
+    }
+
+    @Override
+    public long minStaleHlc(Node node, boolean requested)
+    {
+        return node.now() - (100 + getAccordScheduleDurabilityTxnIdLag(MICROSECONDS));
+    }
+
+    @Override
     public void onViolation(String message, Participants<?> participants, @Nullable TxnId notWitnessed, @Nullable Timestamp notWitnessedExecuteAt, @Nullable TxnId by, @Nullable Timestamp byEexecuteAt)
     {
         logger.error(message);
-    }
-
-    public TimeoutStrategy slowRead()
-    {
-        if (slowRead == null)
-        {
-            synchronized (this)
-            {
-                AccordSpec config = DatabaseDescriptor.getAccord();
-                slowRead = new TimeoutStrategy(config.slowRead, TimeoutStrategy.LatencySourceFactory.of(ClientRequestsMetricsHolder.accordReadMetrics));
-            }
-        }
-        return slowRead;
-    }
-
-    public TimeoutStrategy slowPreaccept()
-    {
-        if (slowPreaccept == null)
-        {
-            synchronized (this)
-            {
-                AccordSpec config = DatabaseDescriptor.getAccord();
-                slowPreaccept = new TimeoutStrategy(config.slowPreAccept, TimeoutStrategy.LatencySourceFactory.of(ClientRequestsMetricsHolder.accordReadMetrics));
-            }
-        }
-        return slowPreaccept;
     }
 }

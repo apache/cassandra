@@ -51,8 +51,6 @@ public interface StorageProxyMBean
     public void setRangeRpcTimeout(Long timeoutInMillis);
     public Long getTruncateRpcTimeout();
     public void setTruncateRpcTimeout(Long timeoutInMillis);
-    public Long getTransactionTimeout();
-    public void setTransactionTimeout(Long timeoutInMillis);
 
     public void setNativeTransportMaxConcurrentConnections(Long nativeTransportMaxConcurrentConnections);
     public Long getNativeTransportMaxConcurrentConnections();

@@ -18,7 +18,6 @@
 
 package org.apache.cassandra.fuzz.topology;
 
-import org.junit.Ignore;
 
 import accord.utils.Gen;
 import accord.utils.Invariants;
@@ -30,7 +29,6 @@ import org.apache.cassandra.distributed.shared.ClusterUtils;
 import org.apache.cassandra.fuzz.topology.AccordTopologyMixupTest.ListenerHolder;
 import org.apache.cassandra.service.consensus.TransactionalMode;
 
-@Ignore
 public class HarryOnAccordTopologyMixupTest extends HarryTopologyMixupTest
 {
     static
@@ -77,6 +75,7 @@ public class HarryOnAccordTopologyMixupTest extends HarryTopologyMixupTest
             super.onConfigure(config);
             config.set("accord.command_store_shard_count", 1)
                   .set("accord.queue_shard_count", 1)
+                  .set("accord.shard_durability_target_splits", 4)
                   .set("concurrent_accord_operations", 1);
         }
 

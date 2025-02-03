@@ -109,7 +109,7 @@ public class AccordBootstrapTest extends TestBaseImpl
             Assertions.assertThat(completed)
                       .describedAs("Epoch %s did not become ready within timeout on %s -> %s",
                                    epoch, FBUtilities.getBroadcastAddressAndPort(),
-                                   service().configurationService().getEpochSnapshot(epoch))
+                                   service().configService().getEpochSnapshot(epoch))
                       .isTrue();
         }
         catch (InterruptedException e)
@@ -122,7 +122,7 @@ public class AccordBootstrapTest extends TestBaseImpl
     {
         try
         {
-            AccordConfigurationService configService = service().configurationService();
+            AccordConfigurationService configService = service().configService();
             boolean completed = configService.unsafeLocalSyncNotified(epoch).await(30, TimeUnit.SECONDS);
             Assert.assertTrue(String.format("Local sync notification for epoch %s did not become ready within timeout on %s",
                                             epoch, FBUtilities.getBroadcastAddressAndPort()), completed);
@@ -195,7 +195,7 @@ public class AccordBootstrapTest extends TestBaseImpl
                     Assert.assertEquals(initialMax, ClusterMetadata.current().epoch.getEpoch());
                     System.out.println("Awaiting " + initialMax);
                     awaitEpoch(initialMax);
-                    AccordConfigurationService configService = service().configurationService();
+                    AccordConfigurationService configService = service().configService();
                     long minEpoch = configService.minEpoch();
 
                     Assert.assertEquals(initialMax, configService.maxEpoch());
@@ -222,7 +222,7 @@ public class AccordBootstrapTest extends TestBaseImpl
                 node.runOnInstance(() -> {
                     ClusterMetadataService.instance().fetchLogFromCMS(Epoch.create(schemaChangeMax));
                     awaitEpoch(schemaChangeMax);
-                    AccordConfigurationService configService = service().configurationService();
+                    AccordConfigurationService configService = service().configService();
 
                     for (long epoch = initialMax + 1; epoch <= schemaChangeMax; epoch++)
                     {
@@ -260,7 +260,7 @@ public class AccordBootstrapTest extends TestBaseImpl
                     Assert.assertEquals(bootstrapMax, ClusterMetadata.current().epoch.getEpoch());
                     AccordService service = (AccordService) AccordService.instance();
                     awaitEpoch(bootstrapMax);
-                    AccordConfigurationService configService = service.configurationService();
+                    AccordConfigurationService configService = service.configService();
 
                     awaitLocalSyncNotification(bootstrapMax);
                     Assert.assertEquals(EpochSnapshot.completed(bootstrapMax), configService.getEpochSnapshot(bootstrapMax));
@@ -381,7 +381,7 @@ public class AccordBootstrapTest extends TestBaseImpl
                 node.runOnInstance(() -> {
                     Assert.assertEquals(initialMax, ClusterMetadata.current().epoch.getEpoch());
                     awaitEpoch(initialMax);
-                    AccordConfigurationService configService = service().configurationService();
+                    AccordConfigurationService configService = service().configService();
                     long minEpoch = configService.minEpoch();
 
                     Assert.assertEquals(initialMax, configService.maxEpoch());
@@ -404,7 +404,7 @@ public class AccordBootstrapTest extends TestBaseImpl
                     Assert.assertEquals(schemaChangeMax, ClusterMetadata.current().epoch.getEpoch());
                     AccordService service = (AccordService) AccordService.instance();
                     awaitEpoch(schemaChangeMax);
-                    AccordConfigurationService configService = service.configurationService();
+                    AccordConfigurationService configService = service.configService();
 
                     for (long epoch = initialMax + 1; epoch <= schemaChangeMax; epoch++)
                     {
@@ -439,7 +439,7 @@ public class AccordBootstrapTest extends TestBaseImpl
                     Assert.assertEquals(moveMax, ClusterMetadata.current().epoch.getEpoch());
                     AccordService service = (AccordService) AccordService.instance();
                     awaitEpoch(moveMax);
-                    AccordConfigurationService configService = service.configurationService();
+                    AccordConfigurationService configService = service.configService();
 
                     awaitLocalSyncNotification(moveMax);
                     Assert.assertEquals(EpochSnapshot.completed(moveMax), configService.getEpochSnapshot(moveMax));

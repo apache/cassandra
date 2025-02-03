@@ -70,7 +70,7 @@ public class PaxosBackedProcessor extends AbstractLocalProcessor
     }
 
     @Override
-    public ClusterMetadata fetchLogAndWait(Epoch waitFor, Retry.Deadline retryPolicy)
+    public ClusterMetadata fetchLogAndWait(Epoch waitFor, Retry retryPolicy)
     {
         ClusterMetadata metadata = log.waitForHighestConsecutive();
 
@@ -106,7 +106,7 @@ public class PaxosBackedProcessor extends AbstractLocalProcessor
         for (Replica peer : replicas)
             requests.add(new FetchLogRequest(peer, MessagingService.instance(), metadata.epoch));
 
-        while (!retryPolicy.reachedMax())
+        while (!retryPolicy.hasExpired())
         {
             Iterator<FetchLogRequest> iter = requests.iterator();
             boolean hasRequestToSelf = false;
@@ -153,7 +153,8 @@ public class PaxosBackedProcessor extends AbstractLocalProcessor
 
             if (collected.size() < blockFor)
             {
-                retryPolicy.maybeSleep();
+                if (!retryPolicy.maybeSleep())
+                    break;
                 continue;
             }
 
@@ -174,9 +175,9 @@ public class PaxosBackedProcessor extends AbstractLocalProcessor
     }
 
     @Override
-    public LogState getLogState(Epoch start, Epoch end, boolean includeSnapshot, Retry.Deadline retryPolicy)
+    public LogState getLogState(Epoch start, Epoch end, boolean includeSnapshot, Retry retryPolicy)
     {
-        while (!retryPolicy.reachedMax())
+        while (true)
         {
             if (Thread.currentThread().isInterrupted())
                 throw new RuntimeException("Can not reconstruct during shutdown", new InterruptedException());
@@ -186,10 +187,10 @@ public class PaxosBackedProcessor extends AbstractLocalProcessor
             }
             catch (RuntimeException e) // honestly best to only retry timeouts, but everything gets wrapped in a RuntimeException...
             {
-                retryPolicy.maybeSleep();
+                if (!retryPolicy.maybeSleep())
+                   throw new RuntimeException(String.format("Could not reconstruct range %d, %d", start.getEpoch(), end.getEpoch()), new TimeoutException());
             }
         }
-        throw new RuntimeException(String.format("Could not reconstruct range %d, %d", start.getEpoch(), end.getEpoch()), new TimeoutException());
     }
 
     private static <T> T unwrap(Promise<T> promise)

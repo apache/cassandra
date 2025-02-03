@@ -30,13 +30,13 @@ import org.apache.cassandra.tcm.log.LogState;
 public class GossipProcessor implements Processor
 {
     @Override
-    public Commit.Result commit(Entry.Id entryId, Transformation transform, Epoch lastKnown, Retry.Deadline retryPolicy)
+    public Commit.Result commit(Entry.Id entryId, Transformation transform, Epoch lastKnown, Retry retryPolicy)
     {
         throw new IllegalStateException("Can't commit transformations when running in gossip mode. Enable the ClusterMetadataService with `nodetool cms initialize`.");
     }
 
     @Override
-    public ClusterMetadata fetchLogAndWait(Epoch waitFor, Retry.Deadline retryPolicy)
+    public ClusterMetadata fetchLogAndWait(Epoch waitFor, Retry retryPolicy)
     {
         return ClusterMetadata.current();
     }
@@ -48,7 +48,7 @@ public class GossipProcessor implements Processor
     }
 
     @Override
-    public LogState getLogState(Epoch start, Epoch end, boolean includeSnapshot, Retry.Deadline retryPolicy)
+    public LogState getLogState(Epoch start, Epoch end, boolean includeSnapshot, Retry retryPolicy)
     {
         throw new IllegalStateException("Can't reconstruct log state when running in gossip mode. Enable the ClusterMetadataService with `nodetool addtocms`.");
     }

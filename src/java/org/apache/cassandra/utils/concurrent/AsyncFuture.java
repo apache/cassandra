@@ -19,14 +19,18 @@
 package org.apache.cassandra.utils.concurrent;
 
 import java.util.concurrent.Executor;
-import java.util.concurrent.atomic.AtomicReferenceFieldUpdater;
+import java.util.concurrent.locks.LockSupport;
 import java.util.function.Function;
 import javax.annotation.Nullable;
 
 import com.google.common.util.concurrent.AsyncFunction;
 import com.google.common.util.concurrent.ListenableFuture; // checkstyle: permit this import
 
+import accord.utils.Invariants;
 import io.netty.util.concurrent.GenericFutureListener;
+import org.apache.cassandra.utils.concurrent.ListenerList.Waiting;
+
+import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 
 /**
  * Our default {@link Future} implementation, with all state being managed without locks (except those used by the JVM).
@@ -45,11 +49,6 @@ import io.netty.util.concurrent.GenericFutureListener;
  */
 public class AsyncFuture<V> extends AbstractFuture<V>
 {
-    @SuppressWarnings({ "rawtypes" })
-    private static final AtomicReferenceFieldUpdater<AsyncFuture, WaitQueue> waitingUpdater = AtomicReferenceFieldUpdater.newUpdater(AsyncFuture.class, WaitQueue.class, "waiting");
-    @SuppressWarnings({ "unused" })
-    private volatile WaitQueue waiting;
-
     public AsyncFuture()
     {
         super();
@@ -100,10 +99,7 @@ public class AsyncFuture<V> extends AbstractFuture<V>
             if (resultUpdater.compareAndSet(this, current, v))
             {
                 if (v != UNCANCELLABLE)
-                {
                     ListenerList.notify(listenersUpdater, this);
-                    AsyncAwaitable.signalAll(waitingUpdater, this);
-                }
                 return true;
             }
         }
@@ -120,6 +116,17 @@ public class AsyncFuture<V> extends AbstractFuture<V>
         ListenerList.push(listenersUpdater, this, newListener);
         if (isDone())
             ListenerList.notify(listenersUpdater, this);
+    }
+
+    /**
+     * Logically append {@code newListener} to {@link #listeners}
+     * (at this stage it is a stack, so we actually prepend)
+     *
+     * @param newListener must be either a {@link ListenerList} or {@link GenericFutureListener}
+     */
+    boolean appendListenerIfNotNotifying(ListenerList<V> newListener)
+    {
+        return ListenerList.pushIfNotNotifying(listenersUpdater, this, newListener);
     }
 
     /**
@@ -161,14 +168,64 @@ public class AsyncFuture<V> extends AbstractFuture<V>
     @Override
     public AsyncFuture<V> await() throws InterruptedException
     {
-        //noinspection unchecked
-        return AsyncAwaitable.await(waitingUpdater, Future::isDone, this);
+        if (isDone())
+            return this;
+
+        Waiting<V> waiting = new Waiting<>();
+        if (!appendListenerIfNotNotifying(waiting))
+        {
+            Invariants.require(isDone());
+            return this;
+        }
+
+        while (true)
+        {
+            if (isDone())
+                return this;
+
+            LockSupport.park();
+
+            if (Thread.interrupted())
+            {
+                waiting.cancel();
+                throw new InterruptedException();
+            }
+        }
     }
 
     @Override
     public boolean awaitUntil(long nanoTimeDeadline) throws InterruptedException
     {
-        return AsyncAwaitable.awaitUntil(waitingUpdater, Future::isDone, this, nanoTimeDeadline);
+        if (isDone())
+            return true;
+
+        Waiting<V> waiting = new Waiting<>();
+        if (!appendListenerIfNotNotifying(waiting))
+        {
+            Invariants.require(isDone());
+            return true;
+        }
+
+        while (true)
+        {
+            if (isDone())
+                return true;
+
+            long wait = nanoTimeDeadline - nanoTime();
+            if (wait <= 0)
+            {
+                waiting.cancel();
+                return false;
+            }
+
+            LockSupport.parkNanos(wait);
+
+            if (Thread.interrupted())
+            {
+                waiting.cancel();
+                throw new InterruptedException();
+            }
+        }
     }
 }
 

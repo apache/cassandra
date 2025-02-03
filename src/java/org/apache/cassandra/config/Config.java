@@ -159,6 +159,8 @@ public class Config
     @Replaces(oldName = "cas_contention_timeout_in_ms", converter = Converters.MILLIS_DURATION_LONG, deprecated = true)
     public volatile DurationSpec.LongMillisecondsBound cas_contention_timeout = new DurationSpec.LongMillisecondsBound("1800ms");
 
+    public volatile DurationSpec.LongMillisecondsBound accord_preaccept_timeout = new DurationSpec.LongMillisecondsBound("1s");
+
     @Replaces(oldName = "truncate_request_timeout_in_ms", converter = Converters.MILLIS_DURATION_LONG, deprecated = true)
     public volatile DurationSpec.LongMillisecondsBound truncate_request_timeout = new DurationSpec.LongMillisecondsBound("60000ms");
 
@@ -177,12 +179,14 @@ public class Config
 
     public volatile DurationSpec.LongMillisecondsBound stream_transfer_task_timeout = new DurationSpec.LongMillisecondsBound("12h");
 
-    public volatile DurationSpec.LongMillisecondsBound transaction_timeout = new DurationSpec.LongMillisecondsBound("10s");
-
     public volatile DurationSpec.LongMillisecondsBound cms_await_timeout = new DurationSpec.LongMillisecondsBound("120000ms");
     public volatile int cms_default_max_retries = 10;
-    public volatile DurationSpec.IntMillisecondsBound cms_default_retry_backoff = new DurationSpec.IntMillisecondsBound("50ms");
-    public volatile DurationSpec.IntMillisecondsBound cms_default_max_retry_backoff = new DurationSpec.IntMillisecondsBound("1s");
+    @Deprecated(since="5.1")
+    public volatile DurationSpec.IntMillisecondsBound cms_default_retry_backoff = null;
+    @Deprecated(since="5.1")
+    public volatile DurationSpec.IntMillisecondsBound cms_default_max_retry_backoff = null;
+    public String cms_retry_delay = "0 <= 50ms*1*attempts <= 10s,retries=10";
+
     /**
      * How often we should snapshot the cluster metadata.
      */

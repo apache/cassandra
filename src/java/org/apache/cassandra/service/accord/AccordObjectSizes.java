@@ -25,7 +25,6 @@ import accord.api.Key;
 import accord.api.Result;
 import accord.api.RoutingKey;
 import accord.local.Command;
-import accord.local.Command.WaitingOn;
 import accord.local.ICommand;
 import accord.local.Node;
 import accord.local.StoreParticipants;
@@ -79,7 +78,6 @@ import static accord.local.Command.NotAcceptedWithoutDefinition.notAccepted;
 import static accord.local.Command.NotDefined.notDefined;
 import static accord.local.Command.PreAccepted.preaccepted;
 import static accord.local.Command.Truncated.*;
-import static accord.local.StoreParticipants.empty;
 import static accord.local.cfk.CommandsForKey.InternalStatus.ACCEPTED;
 import static accord.primitives.Status.Durability.NotDurable;
 import static accord.primitives.TxnId.NO_TXNIDS;
@@ -400,7 +398,7 @@ public class AccordObjectSizes
         return size;
     }
 
-    private static long EMPTY_WAITING_ON_SIZE = measure(new WaitingOn(null, null, null, null, null));
+    private static long EMPTY_WAITING_ON_SIZE = measure(new WaitingOn(null, null, null, null));
     private static long EMPTY_BIT_SET_SIZE = measure(new ImmutableBitSet(0));
     private static long waitingOn(WaitingOn waitingOn)
     {

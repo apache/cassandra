@@ -39,8 +39,9 @@ public class AccordDropKeyspaceTest extends AccordDropTableBase
         try (Cluster cluster = Cluster.build(3)
                                       .withoutVNodes()
                                       .withConfig(c -> c.with(GOSSIP, NETWORK, NATIVE_PROTOCOL)
-                                                        .set("auto_snapshot", false))
-                                      .start())
+                                                        .set("auto_snapshot", false)
+                                                        .set("accord.shard_durability_target_splits", 4)
+                                      ).start())
         {
             fixDistributedSchemas(cluster);
             for (int i = 0; i < examples; i++)

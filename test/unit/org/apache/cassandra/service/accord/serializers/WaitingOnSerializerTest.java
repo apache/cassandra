@@ -67,7 +67,7 @@ public class WaitingOnSerializerTest
             }
             try (DataInputBuffer buf = new DataInputBuffer(bb, true))
             {
-                PartialDeps deps = new PartialDeps(RoutingKeys.EMPTY, KeyDeps.none(waitingOn.keys), waitingOn.directRangeDeps, waitingOn.directKeyDeps);
+                PartialDeps deps = new PartialDeps(RoutingKeys.EMPTY, KeyDeps.none(waitingOn.keys), waitingOn.directRangeDeps);
                 Command.WaitingOn read = WaitingOnSerializer.deserializeProvider(txnId, buf).provide(txnId, deps, null, 0);
                 Assertions.assertThat(read).isEqualTo(waitingOn);
                 Assertions.assertThat(buf.available()).isEqualTo(0);
@@ -90,7 +90,7 @@ public class WaitingOnSerializerTest
         return rs -> {
             Deps deps = depsGen.next(rs);
             if (deps.isEmpty()) return Command.WaitingOn.empty(Routable.Domain.Key);
-            int txnIdCount = deps.rangeDeps.txnIdCount() + deps.directKeyDeps.txnIdCount();
+            int txnIdCount = deps.rangeDeps.txnIdCount();
             int keyCount = deps.keyDeps.keys().size();
             int[] selected = Gens.arrays(Gens.ints().between(0, txnIdCount + keyCount - 1)).unique().ofSizeBetween(0, txnIdCount + keyCount).next(rs);
             SimpleBitSet waitingOn = new SimpleBitSet(txnIdCount + keyCount, false);
@@ -111,7 +111,7 @@ public class WaitingOnSerializerTest
                 }
             }
 
-            return new Command.WaitingOn(deps.keyDeps.keys(), deps.rangeDeps, deps.directKeyDeps, Utils.ensureImmutable(waitingOn), Utils.ensureImmutable(appliedOrInvalidated));
+            return new Command.WaitingOn(deps.keyDeps.keys(), deps.rangeDeps, Utils.ensureImmutable(waitingOn), Utils.ensureImmutable(appliedOrInvalidated));
         };
     }
 }

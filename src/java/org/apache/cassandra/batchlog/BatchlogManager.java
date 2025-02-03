@@ -75,9 +75,7 @@ import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.service.WriteResponseHandler;
-import org.apache.cassandra.service.accord.AccordService;
-import org.apache.cassandra.service.accord.IAccordService;
-import org.apache.cassandra.service.accord.IAccordService.AsyncTxnResult;
+import org.apache.cassandra.service.accord.IAccordService.IAccordResult;
 import org.apache.cassandra.service.accord.txn.TxnResult;
 import org.apache.cassandra.service.consensus.migration.ConsensusMigrationMutationHelper;
 import org.apache.cassandra.service.consensus.migration.ConsensusMigrationMutationHelper.SplitMutations;
@@ -400,7 +398,7 @@ public class BatchlogManager implements BatchlogManagerMBean
         private final ClusterMetadata cm;
 
         private List<ReplayWriteResponseHandler<Mutation>> replayHandlers = ImmutableList.of();
-        private AsyncTxnResult accordResult;
+        private IAccordResult<TxnResult> accordResult;
         @Nullable
         private Dispatcher.RequestTime accordTxnStart;
 
@@ -452,8 +450,7 @@ public class BatchlogManager implements BatchlogManagerMBean
             {
                 if (accordResult != null)
                 {
-                    IAccordService accord = AccordService.instance();
-                    TxnResult.Kind kind = accord.getTxnResult(accordResult).kind();
+                    TxnResult.Kind kind = accordResult.awaitAndGet().kind();
                     if (kind == retry_new_protocol)
                         throw new RetryOnDifferentSystemException();
                 }

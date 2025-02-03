@@ -44,7 +44,6 @@ public abstract class MultiNodeSAITestBase extends SingleNodeSAITestBase
                          // At lower fetch sizes, queries w/ hundreds or thousands of matches can take a very long time.
                          .withConfig(defaultConfig().andThen(c -> c.set("range_request_timeout", "180s")
                                                                    .set("read_request_timeout", "180s")
-                                                                   .set("transaction_timeout", "180s")
                                                                    .set("write_request_timeout", "180s")
                                                                    .set("native_transport_timeout", "180s")
                                                                    .set("slow_query_log_timeout", "180s")

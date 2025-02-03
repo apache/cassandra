@@ -63,7 +63,6 @@ public class MultiNodeTableWalkTest extends SingleNodeTableWalkTest
         return createCluster(mockMultiNode ? 1 : 3, c -> {
             c.set("range_request_timeout", "180s")
              .set("read_request_timeout", "180s")
-             .set("transaction_timeout", "180s")
              .set("write_request_timeout", "180s")
              .set("native_transport_timeout", "180s")
              .set("slow_query_log_timeout", "180s");

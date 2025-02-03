@@ -25,7 +25,7 @@ import com.google.common.base.Preconditions;
 
 import accord.api.Key;
 import accord.primitives.Routable;
-import org.apache.cassandra.config.DatabaseDescriptor;
+import accord.utils.Invariants;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.SinglePartitionReadCommand;
 import org.apache.cassandra.db.TypeSizes;
@@ -33,15 +33,14 @@ import org.apache.cassandra.db.marshal.ByteBufferAccessor;
 import org.apache.cassandra.db.marshal.ValueAccessor;
 import org.apache.cassandra.db.partitions.Partition;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
-import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
-import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableId;
-import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.ObjectSizes;
+
+import static org.apache.cassandra.config.DatabaseDescriptor.getPartitioner;
 
 // final in part because we refer to its class directly in AccordRoutableKey.compareTo
 public final class PartitionKey extends AccordRoutableKey implements Key
@@ -50,7 +49,7 @@ public final class PartitionKey extends AccordRoutableKey implements Key
 
     static
     {
-        DecoratedKey key = DatabaseDescriptor.getPartitioner().decorateKey(ByteBufferUtil.EMPTY_BYTE_BUFFER);
+        DecoratedKey key = getPartitioner().decorateKey(ByteBufferUtil.EMPTY_BYTE_BUFFER);
         EMPTY_SIZE = ObjectSizes.measureDeep(new PartitionKey(null, key));
     }
 
@@ -140,6 +139,7 @@ public final class PartitionKey extends AccordRoutableKey implements Key
             int position = offset;
             position += key.table().serializeCompact(dst, accessor, position);
             ByteBuffer bytes = key.partitionKey().getKey();
+            Invariants.require(key.partitionKey().getPartitioner() == getPartitioner());
             int numBytes = ByteBufferAccessor.instance.size(bytes);
             Preconditions.checkState(numBytes <= Short.MAX_VALUE);
             position += accessor.putShort(dst, position, (short) numBytes);
@@ -159,8 +159,7 @@ public final class PartitionKey extends AccordRoutableKey implements Key
         public PartitionKey deserialize(DataInputPlus in, int version) throws IOException
         {
             TableId tableId = TableId.deserializeCompact(in).intern();
-            IPartitioner partitioner = Schema.instance.getExistingTablePartitioner(tableId);
-            DecoratedKey key = partitioner.decorateKey(ByteBufferUtil.readWithShortLength(in));
+            DecoratedKey key = getPartitioner().decorateKey(ByteBufferUtil.readWithShortLength(in));
             return new PartitionKey(tableId, key);
         }
 
@@ -168,12 +167,11 @@ public final class PartitionKey extends AccordRoutableKey implements Key
         {
             TableId tableId = TableId.deserializeCompact(src, accessor, offset).intern();
             offset += tableId.serializedCompactSize();
-            TableMetadata metadata = Schema.instance.getTableMetadata(tableId);
             int numBytes = accessor.getShort(src, offset);
             offset += TypeSizes.SHORT_SIZE;
             ByteBuffer bytes = ByteBuffer.allocate(numBytes);
             accessor.copyTo(src, offset, bytes, ByteBufferAccessor.instance, 0, numBytes);
-            DecoratedKey key = metadata.partitioner.decorateKey(bytes);
+            DecoratedKey key = getPartitioner().decorateKey(bytes);
             return new PartitionKey(tableId, key);
         }
 

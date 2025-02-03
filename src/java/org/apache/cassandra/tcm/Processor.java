@@ -25,11 +25,14 @@ import java.util.concurrent.TimeUnit;
 
 import accord.utils.Invariants;
 import com.codahale.metrics.Meter;
-import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.metrics.TCMMetrics;
+import org.apache.cassandra.service.WaitStrategy;
 import org.apache.cassandra.tcm.log.Entry;
 import org.apache.cassandra.tcm.log.LogState;
-import org.apache.cassandra.utils.Clock;
+
+import static java.util.concurrent.TimeUnit.NANOSECONDS;
+import static org.apache.cassandra.config.DatabaseDescriptor.getCmsAwaitTimeout;
+import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 
 public interface Processor
 {
@@ -48,8 +51,7 @@ public interface Processor
         }
 
         return commit(entryId, transform, lastKnown,
-                      Retry.Deadline.after(DatabaseDescriptor.getCmsAwaitTimeout().to(TimeUnit.NANOSECONDS),
-                                           new Retry.Jitter(TCMMetrics.instance.commitRetries)));
+                      Retry.untilElapsed(getCmsAwaitTimeout().to(NANOSECONDS), TCMMetrics.instance.commitRetries));
     }
 
     /**
@@ -57,33 +59,27 @@ public interface Processor
      * to overflow the long, since messaging is using only 32 bits for deadlines. To achieve that, we are
      * giving `timeoutNanos` every time we retry, but will retry indefinitely.
      */
-    private static Retry.Deadline unsafeRetryIndefinitely()
+    private static Retry unsafeRetryIndefinitely()
     {
-        long timeoutNanos = DatabaseDescriptor.getCmsAwaitTimeout().to(TimeUnit.NANOSECONDS);
+        long timeoutNanos = getCmsAwaitTimeout().to(NANOSECONDS);
         Meter retryMeter = TCMMetrics.instance.commitRetries;
-        return new Retry.Deadline(Clock.Global.nanoTime() + timeoutNanos,
-                                  new Retry.Jitter(retryMeter))
+        return Retry.withNoTimeLimit(retryMeter, new WaitStrategy()
         {
             @Override
-            public boolean reachedMax()
+            public long computeWaitUntil(int attempts)
             {
-                return false;
+                return nanoTime() + timeoutNanos;
             }
 
             @Override
-            public long remainingNanos()
+            public long computeWait(int attempts, TimeUnit units)
             {
-                return timeoutNanos;
+                return units.convert(timeoutNanos, NANOSECONDS);
             }
-
-            public String toString()
-            {
-                return String.format("RetryIndefinitely{tries=%d}", currentTries());
-            }
-        };
+        });
     }
 
-    Commit.Result commit(Entry.Id entryId, Transformation transform, Epoch lastKnown, Retry.Deadline retryPolicy);
+    Commit.Result commit(Entry.Id entryId, Transformation transform, Epoch lastKnown, Retry retryPolicy);
 
     /**
      * Fetches log from CMS up to the highest currently known epoch.
@@ -102,11 +98,10 @@ public interface Processor
     default ClusterMetadata fetchLogAndWait(Epoch waitFor)
     {
         return fetchLogAndWait(waitFor,
-                               Retry.Deadline.after(DatabaseDescriptor.getCmsAwaitTimeout().to(TimeUnit.NANOSECONDS),
-                                                    new Retry.Jitter(TCMMetrics.instance.fetchLogRetries)));
+                               Retry.untilElapsed(getCmsAwaitTimeout().to(NANOSECONDS), TCMMetrics.instance.fetchLogRetries));
     }
 
-    ClusterMetadata fetchLogAndWait(Epoch waitFor, Retry.Deadline retryPolicy);
+    ClusterMetadata fetchLogAndWait(Epoch waitFor, Retry retryPolicy);
 
     /**
      * Queries node's _local_ state. It is not guaranteed to be contiguous, but can be used for restoring CMS state/
@@ -116,12 +111,12 @@ public interface Processor
     /**
      * Queries global log state.
      */
-    LogState getLogState(Epoch start, Epoch end, boolean includeSnapshot, Retry.Deadline retryPolicy);
+    LogState getLogState(Epoch start, Epoch end, boolean includeSnapshot, Retry retryPolicy);
 
     /**
      * Reconstructs
      */
-    default List<ClusterMetadata> reconstruct(Epoch lowEpoch, Epoch highEpoch, Retry.Deadline retryPolicy)
+    default List<ClusterMetadata> reconstruct(Epoch lowEpoch, Epoch highEpoch, Retry retryPolicy)
     {
         LogState logState = getLogState(lowEpoch, highEpoch, true, retryPolicy);
         if (logState.isEmpty()) return Collections.emptyList();

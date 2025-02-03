@@ -20,6 +20,7 @@ package org.apache.cassandra.service.accord.txn;
 
 import java.io.IOException;
 
+import accord.utils.Invariants;
 import org.apache.cassandra.db.filter.ColumnFilter;
 import org.apache.cassandra.db.partitions.FilteredPartition;
 import org.apache.cassandra.db.rows.DeserializationHelper;
@@ -48,10 +49,9 @@ public class TxnDataKeyValue extends FilteredPartition implements TxnDataValue
     }
 
     @Override
-    public TxnDataValue merge(TxnDataValue other)
+    public TxnDataValue merge(TxnDataValue that)
     {
-        // TODO (review): In Accord, for keys, these should always be identical and really there shouldn't be duplicates
-        // so we could return either
+        Invariants.require(this.equals(that));
         return this;
     }
 

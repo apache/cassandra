@@ -55,7 +55,7 @@ public class TestProcessor implements Processor
     }
 
     @Override
-    public Commit.Result commit(Entry.Id entryId, Transformation transform, Epoch lastKnown, Retry.Deadline retryPolicy)
+    public Commit.Result commit(Entry.Id entryId, Transformation transform, Epoch lastKnown, Retry retryPolicy)
     {
         maybePause(transform);
         waitIfPaused();
@@ -65,7 +65,7 @@ public class TestProcessor implements Processor
     }
 
     @Override
-    public ClusterMetadata fetchLogAndWait(Epoch waitFor, Retry.Deadline retryPolicy)
+    public ClusterMetadata fetchLogAndWait(Epoch waitFor, Retry retryPolicy)
     {
         return delegate.fetchLogAndWait(waitFor, retryPolicy);
     }
@@ -77,7 +77,7 @@ public class TestProcessor implements Processor
     }
 
     @Override
-    public LogState getLogState(Epoch start, Epoch end, boolean includeSnapshot, Retry.Deadline retryPolicy)
+    public LogState getLogState(Epoch start, Epoch end, boolean includeSnapshot, Retry retryPolicy)
     {
         return delegate.getLogState(start, end, includeSnapshot, retryPolicy);
     }

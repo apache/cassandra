@@ -110,6 +110,11 @@ public class TxnUpdate extends AccordUpdate
         this.preserveTimestamps = preserveTimestamps;
     }
 
+    public static TxnUpdate empty()
+    {
+        return new TxnUpdate(Collections.emptyList(), TxnCondition.none(), null, false);
+    }
+
     @Override
     public long estimatedSizeOnHeap()
     {
@@ -220,6 +225,9 @@ public class TxnUpdate extends AccordUpdate
         checkState(cm.epoch.getEpoch() >= executeAt.epoch(), "TCM epoch %d is < executeAt epoch %d", cm.epoch.getEpoch(), executeAt.epoch());
         if (!checkCondition(data))
             return TxnWrite.EMPTY_CONDITION_FAILED;
+
+        if (keys.isEmpty())
+            return new TxnWrite(Collections.emptyList(), true);
 
         List<TxnWrite.Fragment> fragments = deserialize(this.fragments, TxnWrite.Fragment.serializer);
         List<TxnWrite.Update> updates = new ArrayList<>(fragments.size());
@@ -365,8 +373,9 @@ public class TxnUpdate extends AccordUpdate
         if (conditionResult != null)
             return conditionResult;
         TxnCondition condition = AccordSerializers.deserialize(this.condition, TxnCondition.serializer);
-        conditionResult = condition.applies((TxnData) data);
-        return conditionResult;
+        if (condition == TxnCondition.none())
+            return conditionResult = true;
+        return conditionResult = condition.applies((TxnData) data);
     }
 
     @Override

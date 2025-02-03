@@ -44,12 +44,12 @@ import org.apache.cassandra.net.MessageDelivery;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.net.RequestCallbackWithFailure;
 import org.apache.cassandra.net.Verb;
+import org.apache.cassandra.service.WaitStrategy;
 import org.apache.cassandra.tcm.Discovery.DiscoveredNodes;
 import org.apache.cassandra.tcm.log.Entry;
 import org.apache.cassandra.tcm.log.LocalLog;
 import org.apache.cassandra.tcm.log.LogState;
 import org.apache.cassandra.utils.AbstractIterator;
-import org.apache.cassandra.utils.Backoff;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.concurrent.AsyncPromise;
 import org.apache.cassandra.utils.concurrent.Future;
@@ -73,7 +73,7 @@ public final class RemoteProcessor implements Processor
 
     @Override
     @SuppressWarnings("resource")
-    public Commit.Result commit(Entry.Id entryId, Transformation transform, Epoch lastKnown, Retry.Deadline retryPolicy)
+    public Commit.Result commit(Entry.Id entryId, Transformation transform, Epoch lastKnown, Retry retryPolicy)
     {
         try
         {
@@ -126,7 +126,7 @@ public final class RemoteProcessor implements Processor
     }
 
     @Override
-    public ClusterMetadata fetchLogAndWait(Epoch waitFor, Retry.Deadline retryPolicy)
+    public ClusterMetadata fetchLogAndWait(Epoch waitFor, Retry retryPolicy)
     {
         // Synchonous, non-debounced call if we are waiting for the highest epoch (without knowing/caring what it is).
         // Should be used sparingly.
@@ -158,7 +158,7 @@ public final class RemoteProcessor implements Processor
     }
 
     @Override
-    public LogState getLogState(Epoch lowEpoch, Epoch highEpoch, boolean includeSnapshot, Retry.Deadline retryPolicy)
+    public LogState getLogState(Epoch lowEpoch, Epoch highEpoch, boolean includeSnapshot, Retry retryPolicy)
     {
         try
         {
@@ -203,7 +203,7 @@ public final class RemoteProcessor implements Processor
                                   Verb.TCM_FETCH_CMS_LOG_REQ,
                                   new FetchCMSLog(currentEpoch, ClusterMetadataService.state() == REMOTE),
                                   candidates,
-                                  new Retry.Backoff(TCMMetrics.instance.fetchLogRetries));
+                                  Retry.withNoTimeLimit(TCMMetrics.instance.fetchLogRetries));
             return remoteRequest.map((replay) -> {
                 if (!replay.isEmpty())
                 {
@@ -217,12 +217,12 @@ public final class RemoteProcessor implements Processor
     }
 
     // todo rename to send with retries or something
-    public static <REQ, RSP> RSP sendWithCallback(Verb verb, REQ request, CandidateIterator candidates, Retry retryPolicy)
+    public static <REQ, RSP> RSP sendWithCallback(Verb verb, REQ request, CandidateIterator candidates, WaitStrategy backoff)
     {
         try
         {
             Promise<RSP> promise = new AsyncPromise<>();
-            sendWithCallbackAsync(promise, verb, request, candidates, retryPolicy);
+            sendWithCallbackAsync(promise, verb, request, candidates, backoff);
             return promise.await().get();
         }
         catch (InterruptedException | ExecutionException e)
@@ -231,10 +231,10 @@ public final class RemoteProcessor implements Processor
         }
     }
 
-    public static <REQ, RSP> void sendWithCallbackAsync(Promise<RSP> promise, Verb verb, REQ request, CandidateIterator candidates, Retry retryPolicy)
+    public static <REQ, RSP> void sendWithCallbackAsync(Promise<RSP> promise, Verb verb, REQ request, CandidateIterator candidates, WaitStrategy backoff)
     {
         //TODO (now): the retry defines how long to wait for a retry, but the old behavior scheduled the message right away... should this be delayed as well?
-        MessagingService.instance().<REQ, RSP>sendWithRetries(Backoff.fromRetry(retryPolicy), MessageDelivery.ImmediateRetryScheduler.instance,
+        MessagingService.instance().<REQ, RSP>sendWithRetries(backoff, MessageDelivery.ImmediateRetryScheduler.instance,
                                                               verb, request, candidates,
                                                               (attempt, success, failure) -> {
                                                                   if (failure != null) promise.tryFailure(failure);
@@ -263,8 +263,8 @@ public final class RemoteProcessor implements Processor
                                                                   {
                                                                       case NoMoreCandidates:
                                                                           return String.format("Ran out of candidates while sending %s: %s", verb, candidates);
-                                                                      case MaxRetries:
-                                                                          return String.format("Could not succeed sending %s to %s after %d tries", verb, candidates, retryPolicy.tries);
+                                                                      case GiveUp:
+                                                                          return String.format("Could not succeed sending %s to %s; policy %s gave up", verb, candidates, backoff);
                                                                       case Interrupted:
                                                                       case FailedSchedule:
                                                                           return null;

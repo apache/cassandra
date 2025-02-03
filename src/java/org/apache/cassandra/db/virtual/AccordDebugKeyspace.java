@@ -33,7 +33,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import accord.api.RoutingKey;
-import accord.impl.DurabilityScheduling;
 import accord.impl.progresslog.DefaultProgressLog;
 import accord.impl.progresslog.TxnStateKind;
 import accord.local.CommandStore;
@@ -41,6 +40,7 @@ import accord.local.CommandStores;
 import accord.local.DurableBefore;
 import accord.local.MaxConflicts;
 import accord.local.RejectBefore;
+import accord.local.durability.ShardDurability;
 import accord.primitives.Status;
 import accord.primitives.TxnId;
 import accord.utils.Invariants;
@@ -85,22 +85,22 @@ import static org.apache.cassandra.utils.MonotonicClock.Global.approxTime;
 
 public class AccordDebugKeyspace extends VirtualKeyspace
 {
-    public static final String DURABILITY_SCHEDULING = "durability_scheduling";
-    public static final String DURABLE_BEFORE = "durable_before";
-    public static final String EXECUTOR_CACHE = "executor_cache";
-    public static final String MAX_CONFLICTS = "max_conflicts";
-    public static final String MIGRATION_STATE = "migration_state";
-    public static final String PROGRESS_LOG = "progress_log";
-    public static final String REDUNDANT_BEFORE = "redundant_before";
-    public static final String REJECT_BEFORE = "reject_before";
-    public static final String TXN_BLOCKED_BY = "txn_blocked_by";
+    public static final String DURABILITY_SERVICE = "durability_service";
+    public static final String DURABLE_BEFORE     = "durable_before";
+    public static final String EXECUTOR_CACHE     = "executor_cache";
+    public static final String MAX_CONFLICTS      = "max_conflicts";
+    public static final String MIGRATION_STATE    = "migration_state";
+    public static final String PROGRESS_LOG       = "progress_log";
+    public static final String REDUNDANT_BEFORE   = "redundant_before";
+    public static final String REJECT_BEFORE      = "reject_before";
+    public static final String TXN_BLOCKED_BY     = "txn_blocked_by";
 
     public static final AccordDebugKeyspace instance = new AccordDebugKeyspace();
 
     private AccordDebugKeyspace()
     {
         super(VIRTUAL_ACCORD_DEBUG, List.of(
-            new DurabilitySchedulingTable(),
+            new DurabilityServiceTable(),
             new DurableBeforeTable(),
             new ExecutorCacheTable(),
             new MaxConflictsTable(),
@@ -113,25 +113,33 @@ public class AccordDebugKeyspace extends VirtualKeyspace
     }
 
     // TODO (consider): use a different type for the three timestamps in micros
-    public static final class DurabilitySchedulingTable extends AbstractVirtualTable
+    public static final class DurabilityServiceTable extends AbstractVirtualTable
     {
-        private DurabilitySchedulingTable()
+        private DurabilityServiceTable()
         {
-            super(parse(VIRTUAL_ACCORD_DEBUG, DURABILITY_SCHEDULING,
-                        "Accord per-Range Durability Scheduling State",
+            super(parse(VIRTUAL_ACCORD_DEBUG, DURABILITY_SERVICE,
+                        "Accord per-Range Durability Service State",
                         "CREATE TABLE %s (\n" +
                         "  keyspace_name text,\n" +
                         "  table_name text,\n" +
                         "  token_sort blob,\n" +
                         "  token_start text,\n" +
                         "  token_end text,\n" +
+                        "  last_started_at_micros bigint,\n" +
+                        "  cycle_started_at_micros bigint,\n" +
+                        "  retries int,\n" +
+                        "  min text,\n" +
+                        "  active text,\n" +
+                        "  waiting text,\n" +
                         "  node_offset int,\n" +
-                        "  \"index\" int,\n" +
-                        "  number_of_splits int,\n" +
-                        "  range_started_at bigint,\n" +
-                        "  cycle_started_at bigint,\n" +
-                        "  retry_delay_micros bigint,\n" +
-                        "  is_defunct boolean,\n" +
+                        "  cycle_offset int,\n" +
+                        "  activeIndex int,\n" +
+                        "  nextIndex int,\n" +
+                        "  nextToIndex int,\n" +
+                        "  endIndex int,\n" +
+                        "  current_splits int,\n" +
+                        "  stopping boolean,\n" +
+                        "  stopped boolean,\n" +
                         "  PRIMARY KEY (keyspace_name, table_name, token_start)" +
                         ')', UTF8Type.instance));
         }
@@ -139,23 +147,30 @@ public class AccordDebugKeyspace extends VirtualKeyspace
         @Override
         public DataSet data()
         {
-            DurabilityScheduling.ImmutableView view = ((AccordService) AccordService.instance()).durabilityScheduling();
+            ShardDurability.ImmutableView view = ((AccordService) AccordService.instance()).shardDurability();
 
             SimpleDataSet ds = new SimpleDataSet(metadata());
             while (view.advance())
             {
-                TableId tableId = (TableId) view.range().start().prefix();
+                TableId tableId = (TableId) view.shard().range.start().prefix();
                 TableMetadata tableMetadata = tableMetadata(tableId);
-                ds.row(keyspace(tableMetadata), table(tableId, tableMetadata), sortToken(view.range().start()))
-                  .column("start_token", printToken(view.range().start()))
-                  .column("end_token", printToken(view.range().end()))
+                ds.row(keyspace(tableMetadata), table(tableId, tableMetadata), sortToken(view.shard().range.start()))
+                  .column("start_token", printToken(view.shard().range.start()))
+                  .column("end_token", printToken(view.shard().range.end()))
+                  .column("last_started_at", approxTime.translate().toMillisSinceEpoch(view.lastStartedAtMicros() * 1000))
+                  .column("cycle_started_at", approxTime.translate().toMillisSinceEpoch(view.cycleStartedAtMicros() * 1000))
+                  .column("active", Objects.toString(view.active()))
+                  .column("waiting", Objects.toString(view.waiting()))
                   .column("node_offset", view.nodeOffset())
-                  .column("index", view.index())
-                  .column("number_of_splits", view.numberOfSplits())
-                  .column("range_started_at", view.rangeStartedAtMicros())
-                  .column("cycle_started_at", view.cycleStartedAtMicros())
-                  .column("retry_delay_micros", view.retryDelayMicros())
-                  .column("is_defunct", view.isDefunct());
+                  .column("cycle_offset", view.cycleOffset())
+                  .column("activeIndex", view.activeIndex())
+                  .column("nextIndex", view.nextIndex())
+                  .column("nextToIndex", view.toIndex())
+                  .column("endIndex", view.cycleLength())
+                  .column("current_splits", view.currentSplits())
+                  .column("stopping", view.stopping())
+                  .column("stopping", view.stopping())
+                ;
             }
             return ds;
         }

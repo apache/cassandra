@@ -163,6 +163,9 @@ public abstract class AccordFastPathCoordinator implements ChangeListener, Confi
         AccordFastPath fastPath = cm.accordFastPath;
 
         long updateDelayMillis = getAccordFastPathUpdateDelayMillis();
+        if (updateDelayMillis < 0)
+            return;
+
         if (isShutdown(fastPath))
         {
             updateFastPath(localId, Status.NORMAL, Clock.Global.currentTimeMillis(), updateDelayMillis);

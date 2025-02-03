@@ -291,6 +291,7 @@ public class DatabaseDescriptorRefTest
     "org.apache.cassandra.security.SSLFactory",
     "org.apache.cassandra.service.CacheService$CacheType",
     "org.apache.cassandra.service.consensus.TransactionalMode",
+    "org.apache.cassandra.service.WaitStrategy",
     "org.apache.cassandra.transport.ProtocolException",
     "org.apache.cassandra.utils.Closeable",
     "org.apache.cassandra.utils.CloseableIterator",

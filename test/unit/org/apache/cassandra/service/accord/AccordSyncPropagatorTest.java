@@ -132,7 +132,7 @@ public class AccordSyncPropagatorTest
                             scheduler.schedule(() -> {
                                 Ranges subrange = Ranges.of(range);
                                 inst.propagator.reportClosed(epoch, nodes, subrange);
-                                scheduler.schedule(() -> inst.propagator.reportRedundant(epoch, nodes, subrange), 1, TimeUnit.MINUTES);
+                                scheduler.schedule(() -> inst.propagator.reportRetired(epoch, nodes, subrange), 1, TimeUnit.MINUTES);
                             }, rs.nextInt(30, 300), TimeUnit.SECONDS);
                         }
                     }
@@ -449,10 +449,10 @@ public class AccordSyncPropagatorTest
             }
 
             @Override
-            public void reportEpochRedundant(Ranges ranges, long epoch)
+            public void reportEpochRetired(Ranges ranges, long epoch)
             {
                 Topology topology = getTopologyForEpoch(epoch);
-                instances.get(localId).propagator.reportRedundant(epoch, topology.nodes(), ranges);
+                instances.get(localId).propagator.reportRetired(epoch, topology.nodes(), ranges);
             }
 
             @Override

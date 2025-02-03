@@ -100,7 +100,7 @@ public class InstanceConfig implements IInstanceConfig
                 .set("accord.journal_directory", accord.journal_directory)
                 .set("accord.queue_shard_count", accord.queue_shard_count.toString())
                 .set("accord.command_store_shard_count", accord.command_store_shard_count.toString())
-                .set("accord.recover_delay", accord.recover_delay.toString())
+                .set("accord.expire_txn", accord.expire_txn)
                 .set("accord.enable_virtual_debug_only_keyspace", "true")
                 .set("partitioner", "org.apache.cassandra.dht.Murmur3Partitioner")
                 .set("start_native_transport", true)

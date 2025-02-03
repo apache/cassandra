@@ -20,6 +20,7 @@ package org.apache.cassandra.utils.concurrent;
 
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicReferenceFieldUpdater;
+import java.util.concurrent.locks.LockSupport;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import javax.annotation.Nullable;
@@ -50,9 +51,18 @@ abstract class ListenerList<V> extends IntrusiveStack<ListenerList<V>>
         {
             Notifying result = new Notifying();
             result.next = next;
-            next.next = prev == NOTIFYING ? null : prev;
+            next.next = prev.next;
             return result;
         }
+        next.next = prev;
+        return next;
+    }
+
+    static ListenerList pushHeadIfNotNotifying(ListenerList prev, ListenerList next)
+    {
+        if (prev instanceof Notifying<?>)
+            return prev;
+
         next.next = prev;
         return next;
     }
@@ -66,7 +76,12 @@ abstract class ListenerList<V> extends IntrusiveStack<ListenerList<V>>
     @Inline
     static <T> void push(AtomicReferenceFieldUpdater<? super T, ListenerList> updater, T in, ListenerList newListener)
     {
-        IntrusiveStack.push(updater, in, newListener, ListenerList::pushHead);
+        IntrusiveStack.getAndPush(updater, in, newListener, ListenerList::pushHead);
+    }
+
+    static <T> boolean pushIfNotNotifying(AtomicReferenceFieldUpdater<? super T, ListenerList> updater, T in, ListenerList newListener)
+    {
+        return newListener == IntrusiveStack.pushAndGet(updater, in, newListener, ListenerList::pushHeadIfNotNotifying);
     }
 
     /**
@@ -91,13 +106,22 @@ abstract class ListenerList<V> extends IntrusiveStack<ListenerList<V>>
 
             if (updater.compareAndSet(in, listeners, NOTIFYING))
             {
-                while (true)
+                try
                 {
-                    notifyExclusive(listeners, in);
-                    if (updater.compareAndSet(in, NOTIFYING, null))
-                        return;
+                    while (true)
+                    {
+                        notifyExclusive(listeners, in);
+                        if (updater.compareAndSet(in, NOTIFYING, null))
+                            return;
 
-                    listeners = updater.getAndSet(in, NOTIFYING);
+                        listeners = updater.getAndSet(in, NOTIFYING);
+                    }
+                }
+                catch (Throwable t)
+                {
+                    Thread thread = Thread.currentThread();
+                    try { thread.getUncaughtExceptionHandler().uncaughtException(thread, t); }
+                    catch (Throwable t2) { t.addSuppressed(t2); t.printStackTrace(); }
                 }
             }
         }
@@ -354,10 +378,32 @@ abstract class ListenerList<V> extends IntrusiveStack<ListenerList<V>>
     static class Notifying<V> extends ListenerList<V>
     {
         static final Notifying NOTIFYING = new Notifying();
+        static final Notifying DONE = new Notifying();
 
         @Override
         void notifySelf(Executor notifyExecutor, Future<V> future)
         {
+        }
+    }
+
+    static class Waiting<V> extends ListenerList<V>
+    {
+        volatile Thread waiting = Thread.currentThread();
+
+        @Override
+        void notifySelf(Executor notifyExecutor, Future<V> future)
+        {
+            Thread thread = waiting;
+            if (thread != null)
+            {
+                LockSupport.unpark(thread);
+                waiting = null;
+            }
+        }
+
+        void cancel()
+        {
+            waiting = null;
         }
     }
 

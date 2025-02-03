@@ -448,7 +448,7 @@ public class AccordGenerators
 
     public static Gen<Deps> depsGen(IPartitioner partitioner)
     {
-        return AccordGens.deps(keyDepsGen(partitioner), rangeDepsGen(partitioner), directKeyDepsGen(partitioner));
+        return AccordGens.deps(keyDepsGen(partitioner), rangeDepsGen(partitioner));
     }
 
     public static Gen<Bounds> redundantBeforeEntry(IPartitioner partitioner)

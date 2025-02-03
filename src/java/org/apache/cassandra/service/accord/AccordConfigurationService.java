@@ -65,7 +65,7 @@ import org.apache.cassandra.utils.concurrent.Future;
 import static org.apache.cassandra.service.accord.AccordTopology.tcmIdToAccord;
 import static org.apache.cassandra.utils.Simulate.With.MONITORS;
 
-// TODO: listen to FailureDetector and rearrange fast path accordingly
+// TODO (desired): listen to FailureDetector and rearrange fast path accordingly
 @Simulate(with=MONITORS)
 public class AccordConfigurationService extends AbstractConfigurationService<AccordConfigurationService.EpochState, AccordConfigurationService.EpochHistory> implements AccordEndpointMapper, AccordSyncPropagator.Listener, Shutdownable
 {
@@ -389,9 +389,6 @@ public class AccordConfigurationService extends AbstractConfigurationService<Acc
             receiveRemoteSyncCompletePreListenerNotify(removed, oldEpoch);
 
         listeners.forEach(l -> l.onRemoveNode(epoch, removed));
-
-        if (shareShard(current, removed, localId))
-            AccordService.instance().tryMarkRemoved(current, removed);
     }
 
     private long[] nonCompletedEpochsBefore(long max)
@@ -467,7 +464,9 @@ public class AccordConfigurationService extends AbstractConfigurationService<Acc
             fetchTopologyAsync(epoch_,
                                (topology, throwable) -> {
                                       if (topology != null)
+                                      {
                                           future.setSuccess(topology);
+                                      }
                                       else
                                       {
                                           Invariants.require(future == pendingTopologies.remove(epoch_));
@@ -607,12 +606,12 @@ public class AccordConfigurationService extends AbstractConfigurationService<Acc
     }
 
     @Override
-    public void reportEpochRedundant(Ranges ranges, long epoch)
+    public void reportEpochRetired(Ranges ranges, long epoch)
     {
         checkStarted();
         // TODO (expected): ensure we aren't fetching a truncated epoch; otherwise this should be non-null
         Topology topology = getTopologyForEpoch(epoch);
-        syncPropagator.reportRedundant(epoch, topology.nodes(), ranges);
+        syncPropagator.reportRetired(epoch, topology.nodes(), ranges);
     }
 
     @Override

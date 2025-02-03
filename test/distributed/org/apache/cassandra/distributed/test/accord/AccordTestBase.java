@@ -96,8 +96,8 @@ import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.accord.AccordService;
 import org.apache.cassandra.service.accord.api.TokenKey;
-import org.apache.cassandra.service.accord.exceptions.ReadPreemptedException;
-import org.apache.cassandra.service.accord.exceptions.WritePreemptedException;
+import org.apache.cassandra.service.accord.exceptions.AccordReadPreemptedException;
+import org.apache.cassandra.service.accord.exceptions.AccordWritePreemptedException;
 import org.apache.cassandra.service.consensus.TransactionalMode;
 import org.apache.cassandra.service.consensus.migration.ConsensusMigrationState;
 import org.apache.cassandra.service.consensus.migration.TransactionalMigrationFromMode;
@@ -171,9 +171,9 @@ public abstract class AccordTestBase extends TestBaseImpl
 
         ClusterUtils.waitForCMSToQuiesce(SHARED_CLUSTER, 1);
         SHARED_CLUSTER.forEach(() -> Util.spinUntilTrue(() -> ClusterMetadata.current().epoch.getEpoch() ==
-                                                              ((AccordService) AccordService.instance()).configurationService().currentEpoch() &&
+                                                              ((AccordService) AccordService.instance()).configService().currentEpoch() &&
                                                               AccordService.instance().topology().current().epoch() ==
-                                                              ((AccordService) AccordService.instance()).configurationService().currentEpoch(),
+                                                              ((AccordService) AccordService.instance()).configService().currentEpoch(),
                                                         60));
     }
 
@@ -380,13 +380,11 @@ public abstract class AccordTestBase extends TestBaseImpl
                                          .withConfig(c -> c.with(Feature.GOSSIP)
                                                            .set("sasi_indexes_enabled", "true")
                                                            .set("write_request_timeout", "10s")
-                                                           .set("transaction_timeout", "15s")
                                                            .set("native_transport_timeout", "30s")
                                                            .set("cms_await_timeout", "1s")
                                                            .set("cms_default_max_retries", 10_000)
                                                            .set("accord.ephemeral_read_enabled", "false")
-                                                           .set("accord.shard_durability_target_splits", "1")
-                                                           .set("accord.shard_durability_cycle", "60s")
+                                                           .set("accord.shard_durability_target_splits", "4")
                                                            .set("accord.command_store_shard_count", "2")
                                                            .set("accord.queue_shard_count", "2"))
                                          .withInstanceInitializer(EnforceUpdateDoesNotPerformRead::install);
@@ -469,7 +467,7 @@ public abstract class AccordTestBase extends TestBaseImpl
         }
         catch (RuntimeException ex)
         {
-            if (count <= MAX_RETRIES && (hasRootCause(ex, ReadPreemptedException.class) || hasRootCause(ex, WritePreemptedException.class) || hasRootCause(ex, Invalidated.class)))
+            if (count <= MAX_RETRIES && (hasRootCause(ex, AccordReadPreemptedException.class) || hasRootCause(ex, AccordWritePreemptedException.class) || hasRootCause(ex, Invalidated.class)))
             {
                 logger.warn("[Retry attempt={}] Preempted failure for\n{}", count, check);
                 return executeWithRetry0(count + 1, cluster, inst, check, boundValues);
@@ -489,19 +487,12 @@ public abstract class AccordTestBase extends TestBaseImpl
 
     private static TxnId maybeExtractId(Throwable ex)
     {
-        if (hasRootCause(ex, ReadPreemptedException.class)
-            || hasRootCause(ex, WritePreemptedException.class)
+        if (hasRootCause(ex, AccordReadPreemptedException.class)
+            || hasRootCause(ex, AccordWritePreemptedException.class)
             || hasRootCause(ex, ReadTimeoutException.class)
             || hasRootCause(ex, WriteTimeoutException.class))
         {
-            try
-            {
-                return TxnId.parse(ex.getMessage());
-            }
-            catch (Throwable t)
-            {
-                // ignore
-            }
+            return TxnId.tryParse(ex.getMessage());
         }
         return null;
     }

@@ -192,8 +192,8 @@ public class TableMetrics
     public final LatencyMetrics keyMigration;
     /** Latency for range migrations run by locally coordinated Accord repairs **/
     public final LatencyMetrics accordRepair;
+    public final LatencyMetrics accordPostStreamRepair;
     public final TableMeter accordRepairUnexpectedFailures;
-    public final TableMeter accordRepairDependencyLimitFailures;
     public final TableMeter mutationsRejectedOnWrongSystem;
     public final TableMeter readsRejectedOnWrongSystem;
     /** percent of the data that is repaired */
@@ -810,9 +810,9 @@ public class TableMetrics
         casPropose = createLatencyMetrics("CasPropose", cfs.keyspace.metric.casPropose);
         casCommit = createLatencyMetrics("CasCommit", cfs.keyspace.metric.casCommit);
         keyMigration = createLatencyMetrics("KeyMigration", cfs.keyspace.metric.keyMigration, GLOBAL_KEY_MIGRATION_LATENCY);
-        accordRepair = createLatencyMetrics("AccordRepair", cfs.keyspace.metric.rangeMigration, GLOBAL_RANGE_MIGRATION_LATENCY);
+        accordRepair = createLatencyMetrics("AccordRepair", cfs.keyspace.metric.accordRepair, GLOBAL_RANGE_MIGRATION_LATENCY);
+        accordPostStreamRepair = createLatencyMetrics("AccordPostStreamRepair", cfs.keyspace.metric.accordPostStreamRepair);
         accordRepairUnexpectedFailures = createTableMeter("AccordRepairUnexpectedFailures", cfs.keyspace.metric.rangeMigrationUnexpectedFailures);
-        accordRepairDependencyLimitFailures = createTableMeter("AccordRepairDependencyLimitFaiures", cfs.keyspace.metric.rangeMigrationDependencyLimitFailures);
         mutationsRejectedOnWrongSystem = createTableMeter("MutationsRejectedOnWrongSystem", cfs.keyspace.metric.mutationsRejectedOnWrongSystem);
         readsRejectedOnWrongSystem = createTableMeter("ReadsRejectedOnWrongSystem", cfs.keyspace.metric.readsRejectedOnWrongSystem);
 

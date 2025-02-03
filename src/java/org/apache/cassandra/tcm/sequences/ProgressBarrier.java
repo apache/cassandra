@@ -50,6 +50,8 @@ import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.net.RequestCallbackWithFailure;
 import org.apache.cassandra.net.Verb;
 import org.apache.cassandra.schema.ReplicationParams;
+import org.apache.cassandra.service.RetryStrategy;
+import org.apache.cassandra.service.WaitStrategy;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.tcm.Retry;
@@ -57,6 +59,13 @@ import org.apache.cassandra.tcm.membership.Directory;
 import org.apache.cassandra.tcm.membership.Location;
 import org.apache.cassandra.utils.Clock;
 import org.apache.cassandra.utils.concurrent.AsyncPromise;
+
+import static org.apache.cassandra.config.DatabaseDescriptor.getCmsDefaultRetryMaxTries;
+import static org.apache.cassandra.config.DatabaseDescriptor.getProgressBarrierBackoff;
+import static org.apache.cassandra.config.DatabaseDescriptor.getProgressBarrierDefaultConsistencyLevel;
+import static org.apache.cassandra.config.DatabaseDescriptor.getProgressBarrierMinConsistencyLevel;
+import static org.apache.cassandra.config.DatabaseDescriptor.getProgressBarrierTimeout;
+import static org.apache.cassandra.service.TimeoutStrategy.LatencySourceFactory.none;
 
 /**
  * ProgressBarrier is responsible for ensuring that epoch visibility plays together with quorum consistency.
@@ -73,10 +82,16 @@ import org.apache.cassandra.utils.concurrent.AsyncPromise;
 public class ProgressBarrier
 {
     private static final Logger logger = LoggerFactory.getLogger(ProgressBarrier.class);
-    private static final ConsistencyLevel MIN_CL = DatabaseDescriptor.getProgressBarrierMinConsistencyLevel();
-    private static final ConsistencyLevel DEFAULT_CL = DatabaseDescriptor.getProgressBarrierDefaultConsistencyLevel();
-    private static final long TIMEOUT_MILLIS = DatabaseDescriptor.getProgressBarrierTimeout(TimeUnit.MILLISECONDS);
-    private static final long BACKOFF_MILLIS = DatabaseDescriptor.getProgressBarrierBackoff(TimeUnit.MILLISECONDS);
+    private static final ConsistencyLevel MIN_CL = getProgressBarrierMinConsistencyLevel();
+    private static final ConsistencyLevel DEFAULT_CL = getProgressBarrierDefaultConsistencyLevel();
+    private static final long TIMEOUT_MILLIS = getProgressBarrierTimeout(TimeUnit.MILLISECONDS);
+    private static final long BACKOFF_MILLIS = getProgressBarrierBackoff(TimeUnit.MILLISECONDS);
+    private static final WaitStrategy WAIT_STRATEGY;
+    static
+    {
+        WAIT_STRATEGY = RetryStrategy.parse(BACKOFF_MILLIS + "ms" + "*attempts <=" + TIMEOUT_MILLIS + "ms,retries="
+                                            + getCmsDefaultRetryMaxTries(), none());
+    }
 
     public final Epoch waitFor;
     // Location of the affected node; used for LOCAL_QUORUM
@@ -195,11 +210,8 @@ public class ProgressBarrier
             requests.add(new WatermarkRequest(peer, messagingService, waitFor));
 
         long start = Clock.Global.nanoTime();
-        Retry.Deadline deadline = Retry.Deadline.after(TimeUnit.MILLISECONDS.toNanos(TIMEOUT_MILLIS),
-                                                      new Retry.Backoff(DatabaseDescriptor.getCmsDefaultRetryMaxTries(),
-                                                                        (int) BACKOFF_MILLIS,
-                                                                        TCMMetrics.instance.fetchLogRetries));
-        while (!deadline.reachedMax())
+        Retry deadline = Retry.untilElapsed(TimeUnit.MILLISECONDS.toNanos(TIMEOUT_MILLIS), TCMMetrics.instance.fetchLogRetries, WAIT_STRATEGY);
+        while (!deadline.hasExpired())
         {
             for (WatermarkRequest request : requests)
                 request.retry();
@@ -219,7 +231,8 @@ public class ProgressBarrier
             // No need to try processing until we collect enough nodes to pass all conditions
             if (collected.size() < maxWaitFor)
             {
-                deadline.maybeSleep();
+                if (!deadline.maybeSleep())
+                    break;
                 continue;
             }
 

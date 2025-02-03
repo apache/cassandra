@@ -43,7 +43,6 @@ import accord.primitives.Ranges;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
-import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.locator.InetAddressAndPort;
@@ -191,8 +190,7 @@ public class RepairJob extends AsyncFuture<RepairResult> implements Runnable
                         requireAllEndpoints = true;
                 }
                 logger.info("{} {}.{} starting accord repair, require all endpoints {}", session.previewKind.logPrefix(session.getId()), desc.keyspace, desc.columnFamily, requireAllEndpoints);
-                IPartitioner partitioner = metadata.partitioner;
-                AccordRepair repair = new AccordRepair(ctx, cfs, partitioner, desc.keyspace, desc.ranges, requireAllEndpoints, allEndpoints);
+                AccordRepair repair = new AccordRepair(ctx, cfs, desc.sessionId, desc.keyspace, desc.ranges, requireAllEndpoints, allEndpoints);
                 return repair.repair(taskExecutor);
             }, taskExecutor);
         }

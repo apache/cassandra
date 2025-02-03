@@ -87,8 +87,8 @@ public class RepairMetrics
 
     public static void retry(Verb verb, int attempt)
     {
-        retries.update(attempt);
-        retriesByVerb.get(verb).update(attempt);
+        retries.update(attempt - 1);
+        retriesByVerb.get(verb).update(attempt - 1);
     }
 
     public static void retryTimeout(Verb verb)

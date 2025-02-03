@@ -54,6 +54,7 @@ import accord.local.PreLoadContext;
 import accord.local.SafeCommandStore;
 import accord.local.StoreParticipants;
 import accord.local.TimeService;
+import accord.local.durability.DurabilityService;
 import accord.primitives.Ballot;
 import accord.primitives.FullKeyRoute;
 import accord.primitives.FullRoute;
@@ -116,7 +117,6 @@ import static org.apache.cassandra.service.accord.AccordExecutor.wrap;
 
 public class AccordTestUtils
 {
-    private static final AccordAgent AGENT = new AccordAgent();
     public static final TableId TABLE_ID1 = TableId.fromString("00000000-0000-0000-0000-000000000001");
 
     public static class Commands
@@ -326,13 +326,12 @@ public class AccordTestUtils
     public static AccordCommandStore createAccordCommandStore(
         Node.Id node, LongSupplier now, Topology topology, ExecutorPlus loadExecutor, ExecutorPlus saveExecutor)
     {
-        AccordAgent agent = new AccordAgent();
-        AccordExecutor executor = new AccordExecutorSyncSubmit(0, RUN_WITH_LOCK, CommandStore.class.getSimpleName() + '[' + 0 + ']', new AccordCacheMetrics("test"), loadExecutor, saveExecutor, loadExecutor, agent);
-        return createAccordCommandStore(node, now, topology, agent, executor);
+        AccordExecutor executor = new AccordExecutorSyncSubmit(0, RUN_WITH_LOCK, CommandStore.class.getSimpleName() + '[' + 0 + ']', new AccordCacheMetrics("test"), loadExecutor, saveExecutor, loadExecutor, new AccordAgent());
+        return createAccordCommandStore(node, now, topology, executor);
     }
 
     public static AccordCommandStore createAccordCommandStore(
-        Node.Id node, LongSupplier now, Topology topology, AccordAgent agent, AccordExecutor executor)
+        Node.Id node, LongSupplier now, Topology topology, AccordExecutor executor)
     {
         NodeCommandStoreService time = new NodeCommandStoreService()
         {
@@ -340,16 +339,16 @@ public class AccordTestUtils
 
             @Override public Timeouts timeouts() { return null; }
             @Override public DurableBefore durableBefore() { return DurableBefore.EMPTY; }
+            @Override public DurabilityService durability() { return null; }
             @Override public Id id() { return node;}
             @Override public long epoch() {return 1; }
             @Override public long now() {return now.getAsLong(); }
-            @Override public Timestamp uniqueNow() { return uniqueNow(Timestamp.NONE); }
-            @Override public Timestamp uniqueNow(Timestamp atLeast) { return Timestamp.fromValues(1, now.getAsLong(), node); }
+            @Override public long uniqueNow(long atLeast) { return now.getAsLong(); }
             @Override public long elapsed(TimeUnit timeUnit) { return elapsed.applyAsLong(timeUnit); }
             @Override public TopologyManager topology() { throw new UnsupportedOperationException(); }
         };
 
-
+        AccordAgent agent = new AccordAgent();
         if (new File(DatabaseDescriptor.getAccordJournalDirectory()).exists())
             ServerTestUtils.cleanupDirectory(DatabaseDescriptor.getAccordJournalDirectory());
         AccordSpec.JournalSpec spec = new AccordSpec.JournalSpec();

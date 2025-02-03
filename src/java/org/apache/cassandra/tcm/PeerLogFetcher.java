@@ -95,8 +95,7 @@ public class PeerLogFetcher
                                                   Verb.TCM_FETCH_PEER_LOG_REQ,
                                                   new FetchPeerLog(before),
                                                   new RemoteProcessor.CandidateIterator(Collections.singletonList(remote), false),
-                                                  Retry.Deadline.after(DatabaseDescriptor.getCmsAwaitTimeout().to(TimeUnit.NANOSECONDS),
-                                                                       new Retry.Jitter(TCMMetrics.instance.fetchLogRetries)));
+                                                  Retry.untilElapsed(DatabaseDescriptor.getCmsAwaitTimeout().to(TimeUnit.NANOSECONDS), TCMMetrics.instance.fetchLogRetries));
 
             return fetchRes.map((logState) -> {
                 log.append(logState);

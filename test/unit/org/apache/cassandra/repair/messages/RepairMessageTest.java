@@ -32,9 +32,11 @@ import org.apache.cassandra.net.MessageDelivery;
 import org.apache.cassandra.net.RequestCallback;
 import org.apache.cassandra.net.Verb;
 import org.apache.cassandra.repair.SharedContext;
+import org.apache.cassandra.service.RetryStrategy;
+import org.apache.cassandra.service.TimeoutStrategy.LatencySourceFactory;
+import org.apache.cassandra.service.WaitStrategy;
 import org.apache.cassandra.tcm.ClusterMetadataService;
 import org.apache.cassandra.tcm.StubClusterMetadataService;
-import org.apache.cassandra.utils.Backoff;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.TimeUUID;
 import org.assertj.core.api.Assertions;
@@ -53,7 +55,7 @@ public class RepairMessageTest
     private static final Answer REJECT_ALL = ignore -> {
         throw new UnsupportedOperationException();
     };
-    private static final int[] attempts = {1, 2, 10};
+    private static final int[] retries = { 1, 2, 10 };
     // Tests may use verb / message pairs that do not make sense... that is due to the fact that the message sending logic does not validate this and delegates such validation to messaging, which is mocked within the class...
     // By using messages with simpler state it makes the test easier to read, even though the verb -> message mapping is incorrect.
     private static final Verb VERB = Verb.PREPARE_MSG;
@@ -104,18 +106,18 @@ public class RepairMessageTest
     @Test
     public void retryWithTimeout()
     {
-        test((maxAttempts, callback) -> {
+        test((maxRetries, callback) -> {
             callback.onFailure(ADDRESS, RequestFailure.TIMEOUT);
-            assertMetrics(maxAttempts, true, false);
+            assertMetrics(maxRetries, true, false);
         });
     }
 
     @Test
     public void retryWithFailure()
     {
-        test((maxAttempts, callback) -> {
+        test((maxRetries, callback) -> {
             callback.onFailure(ADDRESS, RequestFailure.UNKNOWN);
-            assertMetrics(maxAttempts, false, true);
+            assertMetrics(maxRetries, false, true);
         });
     }
 
@@ -124,9 +126,9 @@ public class RepairMessageTest
         assertMetrics(0, false, false);
     }
 
-    private void assertMetrics(long attempts, boolean timeout, boolean failure)
+    private void assertMetrics(long retries, boolean timeout, boolean failure)
     {
-        if (attempts == 0)
+        if (retries == 0)
         {
             assertThat(RepairMetrics.retries).isEmpty();
             assertThat(RepairMetrics.retriesByVerb.get(VERB)).isEmpty();
@@ -137,8 +139,8 @@ public class RepairMessageTest
         }
         else
         {
-            assertThat(RepairMetrics.retries).hasCount(1).hasMax(attempts);
-            assertThat(RepairMetrics.retriesByVerb.get(VERB)).hasCount(1).hasMax(attempts);
+            assertThat(RepairMetrics.retries).hasCount(1).hasMax(retries);
+            assertThat(RepairMetrics.retriesByVerb.get(VERB)).hasCount(1).hasMax(retries);
             assertThat(RepairMetrics.retryTimeout).hasCount(timeout ? 1 : 0);
             assertThat(RepairMetrics.retryTimeoutByVerb.get(VERB)).hasCount(timeout ? 1 : 0);
             assertThat(RepairMetrics.retryFailure).hasCount(failure ? 1 : 0);
@@ -146,9 +148,9 @@ public class RepairMessageTest
         }
     }
 
-    private static Backoff backoff(int maxAttempts)
+    private static WaitStrategy backoff(int maxRetries)
     {
-        return new Backoff.ExponentialBackoff(maxAttempts, 100, 1000, () -> .5);
+        return RetryStrategy.parse("0 <= 100ms * 2^attempts <= 1000ms,retries=" + maxRetries, LatencySourceFactory.none());
     }
 
     private static SharedContext ctx()
@@ -194,22 +196,22 @@ public class RepairMessageTest
 
     private void test(TestCase fn)
     {
-        test(attempts, fn);
+        test(retries, fn);
     }
 
-    private void test(int[] attempts, TestCase fn)
+    private void test(int[] retries, TestCase fn)
     {
         SharedContext ctx = ctx();
         MessageDelivery messaging = ctx.messaging();
 
-        for (int maxAttempts : attempts)
+        for (int maxRetries : retries)
         {
             before();
 
-            sendMessageWithRetries(ctx, backoff(maxAttempts), always(), PAYLOAD, VERB, ADDRESS, RepairMessage.NOOP_CALLBACK);
-            for (int i = 0; i < maxAttempts; i++)
+            sendMessageWithRetries(ctx, backoff(maxRetries), always(), PAYLOAD, VERB, ADDRESS, RepairMessage.NOOP_CALLBACK);
+            for (int i = 0; i < maxRetries; i++)
                 callback(messaging).onFailure(ADDRESS, RequestFailure.TIMEOUT);
-            fn.test(maxAttempts, callback(messaging));
+            fn.test(maxRetries, callback(messaging));
             Mockito.verifyNoInteractions(messaging);
         }
     }

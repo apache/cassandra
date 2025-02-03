@@ -120,13 +120,13 @@ public class ValidatingClusterMetadataService extends StubClusterMetadataService
         return new Processor()
         {
             @Override
-            public Commit.Result commit(Entry.Id entryId, Transformation transform, Epoch lastKnown, Retry.Deadline retryPolicy)
+            public Commit.Result commit(Entry.Id entryId, Transformation transform, Epoch lastKnown, Retry retryPolicy)
             {
                 return delegate.commit(entryId, transform, lastKnown, retryPolicy);
             }
 
             @Override
-            public ClusterMetadata fetchLogAndWait(Epoch waitFor, Retry.Deadline retryPolicy)
+            public ClusterMetadata fetchLogAndWait(Epoch waitFor, Retry retryPolicy)
             {
                 return delegate.fetchLogAndWait(waitFor, retryPolicy);
             }
@@ -145,7 +145,7 @@ public class ValidatingClusterMetadataService extends StubClusterMetadataService
             }
 
             @Override
-            public LogState getLogState(Epoch lowEpoch, Epoch highEpoch, boolean includeSnapshot, Retry.Deadline retryPolicy)
+            public LogState getLogState(Epoch lowEpoch, Epoch highEpoch, boolean includeSnapshot, Retry retryPolicy)
             {
                 return getLocalState(lowEpoch, highEpoch, includeSnapshot);
             }

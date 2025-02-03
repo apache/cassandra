@@ -735,7 +735,7 @@ public abstract class CoordinatorPathTestBase extends FuzzTestBase
                                        new Processor()
                                        {
                                            @Override
-                                           public Commit.Result commit(Entry.Id entryId, Transformation event, Epoch lastKnown, Retry.Deadline retryPolicy)
+                                           public Commit.Result commit(Entry.Id entryId, Transformation event, Epoch lastKnown, Retry retryPolicy)
                                            {
                                                if (lastKnown == null)
                                                    lastKnown = log.waitForHighestConsecutive().epoch;
@@ -749,7 +749,7 @@ public abstract class CoordinatorPathTestBase extends FuzzTestBase
                                            }
 
                                            @Override
-                                           public ClusterMetadata fetchLogAndWait(Epoch waitFor, Retry.Deadline retryPolicy)
+                                           public ClusterMetadata fetchLogAndWait(Epoch waitFor, Retry retryPolicy)
                                            {
                                                Epoch since = log.waitForHighestConsecutive().epoch;
                                                LogState logState = driver.requestResponse(new FetchCMSLog(since, true));
@@ -764,7 +764,7 @@ public abstract class CoordinatorPathTestBase extends FuzzTestBase
                                            }
 
                                            @Override
-                                           public LogState getLogState(Epoch start, Epoch end, boolean includeSnapshot, Retry.Deadline retryPolicy)
+                                           public LogState getLogState(Epoch start, Epoch end, boolean includeSnapshot, Retry retryPolicy)
                                            {
                                                return getLocalState(start, end, includeSnapshot);
                                            }

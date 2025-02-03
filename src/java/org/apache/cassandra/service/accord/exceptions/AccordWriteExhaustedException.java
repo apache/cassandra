@@ -18,15 +18,20 @@
 
 package org.apache.cassandra.service.accord.exceptions;
 
-import com.google.common.collect.ImmutableMap;
+import org.apache.cassandra.db.WriteType;
+import org.apache.cassandra.exceptions.WriteTimeoutException;
 
-import org.apache.cassandra.db.ConsistencyLevel;
-import org.apache.cassandra.exceptions.ReadFailureException;
+import static org.apache.cassandra.db.ConsistencyLevel.SERIAL;
 
-public class ReadExhaustedException extends ReadFailureException
+public class AccordWriteExhaustedException extends WriteTimeoutException
 {
-    public ReadExhaustedException(ConsistencyLevel consistency, int received, int blockFor, boolean dataPresent, String msg)
+    public AccordWriteExhaustedException(int received, int blockFor)
     {
-        super(msg, consistency, received, blockFor, dataPresent, ImmutableMap.of());
+        super(WriteType.CAS, SERIAL, received, blockFor);
+    }
+
+    public AccordWriteExhaustedException(int received, int blockFor, String msg)
+    {
+        super(WriteType.CAS, SERIAL, received, blockFor, msg);
     }
 }
