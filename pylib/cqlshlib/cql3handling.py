@@ -741,13 +741,13 @@ syntax_rules += r'''
                     ;
 <whereClause> ::= <relation> ( "AND" <relation> )*
                 ;
-<relation> ::= [rel_lhs]=<cident> ( "[" <term> "]" )? ( "=" | "<" | ">" | "<=" | ">=" | "!=" | ( "NOT" )? "CONTAINS" ( "KEY" )? ) (<term> |  <rhsFunctions>)
+<relation> ::= [rel_lhs]=<cident> ( "[" <term> "]" )? ( "=" | "<" | ">" | "<=" | ">=" | "!=" | ( "NOT" )? "CONTAINS" ( "KEY" )? ) (<term> | <operandFunctions>)
              | token="TOKEN" "(" [rel_tokname]=<cident>
                                  ( "," [rel_tokname]=<cident> )*
                              ")" ("=" | "<" | ">" | "<=" | ">=") <tokenDefinition>
              | [rel_lhs]=<cident> (( "NOT" )? "IN" ) "(" <term> ( "," <term> )* ")"
              | [rel_lhs]=<cident> "BETWEEN" <term> "AND" <term>
-             | <timeuuidFunctions>
+             | <operandFunctions>
              ;
 <selectClause> ::= "DISTINCT"? <selector> ("AS" <cident>)? ("," <selector> ("AS" <cident>)?)*
                  | "*"
@@ -756,9 +756,6 @@ syntax_rules += r'''
                          ;
 <selector> ::= [colname]=<cident> ( "[" ( <term> ( ".." <term> "]" )? | <term> ".." ) )?
              | <udtSubfieldSelection>
-             | "WRITETIME" "(" [colname]=<cident> ")"
-             | "MIN_WRITETIME" "(" [colname]=<cident> ")"
-             | "MAX_WRITETIME" "(" [colname]=<cident> ")"
              | "CAST" "(" <selector> "AS" <storageType> ")"
              | "TTL" "(" [colname]=<cident> ")"
              | "TOKEN" "(" [colname]=<cident> ")"
@@ -768,6 +765,7 @@ syntax_rules += r'''
              | <currentTimeFunctions>
              | <maskFunctions>
              | <timeConversionFunctions>
+             | <writetimeFunctions>
              | <functionName> <selectionFunctionArguments>
              | <term>
              ;
@@ -816,10 +814,12 @@ syntax_rules += r'''
 
 <maskFunctions> ::= "MASK_NULL" "(" [colname]=<cident> ")"
              | "MASK_DEFAULT" "(" [colname]=<cident> ")"
+             | "MAP_KEYS" "(" [colname]=<cident> ")"
+             | "MAP_VALUES" "(" [colname]=<cident> ")"
              | "MASK_REPLACE" "(" [colname]=<cident> "," <term> ")"
              | "MASK_HASH" "(" [colname]=<cident> ")"
-             | "MASK_INNER" "(" [colname]=<cident> ")"
-             | "MASK_OUTER" "(" [colname]=<cident> ")"
+             | "MASK_INNER" "(" [colname]=<cident> "," <term> "," <term> ")"
+             | "MASK_OUTER" "(" [colname]=<cident> "," <term> "," <term> ")"
              ;
 
 <timeConversionFunctions> ::= "TO_DATE" "(" [colname]=<cident> ")"
@@ -831,7 +831,11 @@ syntax_rules += r'''
              | "MIN_TIMEUUID" "(" [colname]=<cident> ")"
              ;
 
-<rhsFunctions> ::= <currentTimeFunctions> | <timeuuidFunctions>
+<writetimeFunctions> ::= "WRITETIME" "(" [colname]=<cident> ")"
+             | "MIN_WRITETIME" "(" [colname]=<cident> ")"
+             | "MAX_WRITETIME" "(" [colname]=<cident> ")"
+             ;
+<operandFunctions> ::= <currentTimeFunctions> | <timeuuidFunctions>
              ;
 
 
@@ -1061,7 +1065,7 @@ syntax_rules += r'''
 
 @completer_for('updateStatement', 'updateopt')
 def update_option_completer(ctxt, cass):
-    opts = set('TIMESTAMP TTL'.split())
+    opts = {'TIMESTAMP', 'TTL'}
     for opt in ctxt.get_binding('updateopt', ()):
         opts.discard(opt.split()[0])
     return opts

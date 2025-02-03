@@ -204,7 +204,8 @@ class TestCqlshCompletion(CqlshCompletionCase):
 
     def test_complete_in_select_where(self):
         self.trycompletions('SELECT * FROM system.peers WHERE ',
-                            choices=('<identifier>', '<quotedName>', 'peer', 'TOKEN', 'MIN_TIMEUUID', 'MAX_TIMEUUID')
+                            choices=('<identifier>', '<quotedName>', 'peer', 'CURRENT_DATE()', 'CURRENT_TIME()',
+                            'CURRENT_TIMEUUID()','CURRENT_TIMESTAMP()', 'TOKEN', 'MIN_TIMEUUID', 'MAX_TIMEUUID')
                             )
 
     def test_complete_in_select_where_equal(self):
@@ -213,7 +214,7 @@ class TestCqlshCompletion(CqlshCompletionCase):
                                      '<identifier>', '<pgStringLiteral>', '<quotedStringLiteral>',
                                      '[', '{', 'false', 'true', 'NULL',
                                      'TOKEN', 'MIN_TIMEUUID', 'MAX_TIMEUUID',
-                                     'CURRENT_TIME()', 'CURRENT_TIMEUUID()', 'CURRENT_DATE()', 'CURRENT_TIMESTAMP()'
+                                     'CURRENT_DATE()', 'CURRENT_TIME()', 'CURRENT_TIMEUUID()','CURRENT_TIMESTAMP()'
                                      )
                             )
 
@@ -416,7 +417,8 @@ class TestCqlshCompletion(CqlshCompletionCase):
         self.trycompletions("UPDATE empty_table SET lonelycol = 'eggs'",
                             choices=[',', 'WHERE'])
         self.trycompletions("UPDATE empty_table SET lonelycol = 'eggs' WHERE ",
-                            choices=['TOKEN', 'MIN_TIMEUUID', 'MAX_TIMEUUID', 'lonelykey'])
+                            choices=['CURRENT_DATE()', 'CURRENT_TIME()', 'CURRENT_TIMESTAMP()',
+                            'CURRENT_TIMEUUID()', 'TOKEN', 'MIN_TIMEUUID', 'MAX_TIMEUUID', 'lonelykey'])
 
         self.trycompletions("UPDATE empty_table SET lonelycol = 'eggs' WHERE lonel",
                             immediate='ykey ')
@@ -425,7 +427,8 @@ class TestCqlshCompletion(CqlshCompletionCase):
         self.trycompletions("UPDATE empty_table SET lonelycol = 'eggs' WHERE lonelykey = 0.0 ",
                             choices=['AND', 'IF', ';'])
         self.trycompletions("UPDATE empty_table SET lonelycol = 'eggs' WHERE lonelykey = 0.0 AND ",
-                            choices=['TOKEN', 'MIN_TIMEUUID', 'MAX_TIMEUUID', 'lonelykey'])
+                            choices=['CURRENT_DATE()', 'CURRENT_TIME()', 'CURRENT_TIMESTAMP()',
+                            'CURRENT_TIMEUUID()', 'TOKEN', 'MIN_TIMEUUID', 'MAX_TIMEUUID', 'lonelykey'])
 
         self.trycompletions("UPDATE empty_table SET lonelycol = 'eggs' WHERE TOKEN(lonelykey ",
                             choices=[',', ')'])
@@ -501,7 +504,8 @@ class TestCqlshCompletion(CqlshCompletionCase):
         self.trycompletions('DELETE FROM twenty_rows_composite_table USING TIMESTAMP 0 ',
                             immediate='WHERE ')
         self.trycompletions('DELETE FROM twenty_rows_composite_table USING TIMESTAMP 0 WHERE ',
-                            choices=['a', 'b', 'MAX_TIMEUUID', 'MIN_TIMEUUID', 'TOKEN'])
+                            choices=['a', 'b', 'CURRENT_DATE()', 'CURRENT_TIME()', 'CURRENT_TIMESTAMP()',
+                            'CURRENT_TIMEUUID()', 'MAX_TIMEUUID', 'MIN_TIMEUUID', 'TOKEN'])
 
         self.trycompletions('DELETE FROM twenty_rows_composite_table USING TIMESTAMP 0 WHERE a ',
                             choices=['<=', '>=', 'BETWEEN', 'CONTAINS', 'IN', 'NOT', '[', '=', '<', '>', '!='])
