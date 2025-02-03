@@ -23,20 +23,27 @@ import org.apache.cassandra.net.Message;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-public class GossipShutdownVerbHandler implements IVerbHandler<Boolean>
+public class GossipShutdownVerbHandler implements IVerbHandler<GossipShutdown>
 {
     public static final GossipShutdownVerbHandler instance = new GossipShutdownVerbHandler();
 
     private static final Logger logger = LoggerFactory.getLogger(GossipShutdownVerbHandler.class);
 
-    public void doVerb(Message<Boolean> message)
+    public void doVerb(Message<GossipShutdown> message)
     {
         if (!Gossiper.instance.isEnabled())
         {
             logger.debug("Ignoring shutdown message from {} because gossip is disabled", message.from());
             return;
         }
-        Gossiper.instance.markAsShutdown(message.from(), message.payload);
+        int remoteGeneration = message.payload.state.getHeartBeatState().getGeneration();
+        int localGeneration = Gossiper.instance.getEndpointStateForEndpoint(message.from()).getHeartBeatState().getGeneration();
+        if (remoteGeneration < localGeneration)
+        {
+            logger.warn("Ignoring shutdown message from {} because generation {} older than local {}", message.from(), remoteGeneration, localGeneration);
+            return;
+        }
+        Gossiper.instance.markAsShutdown(message.from(), message.payload.isForceShutdown);
     }
 
 }

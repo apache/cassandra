@@ -20,14 +20,31 @@ package org.apache.cassandra.distributed.test;
 
 import java.io.IOException;
 import java.io.Serializable;
+import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
+import com.google.common.util.concurrent.Uninterruptibles;
+
+import net.bytebuddy.ByteBuddy;
+import net.bytebuddy.dynamic.loading.ClassLoadingStrategy;
+import net.bytebuddy.implementation.MethodDelegation;
+import net.bytebuddy.implementation.bind.annotation.SuperCall;
+import org.apache.cassandra.distributed.api.IInvokableInstance;
+import org.apache.cassandra.distributed.api.NodeToolResult;
+import org.apache.cassandra.distributed.shared.ClusterUtils;
+import org.apache.cassandra.gms.GossipShutdown;
+import org.apache.cassandra.gms.GossipShutdownVerbHandler;
+import org.apache.cassandra.net.Message;
 import org.apache.cassandra.utils.concurrent.Condition;
 import org.junit.Test;
+
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
 
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.gms.EndpointState;
@@ -37,6 +54,7 @@ import org.apache.cassandra.service.StorageService;
 
 
 import static java.lang.Thread.sleep;
+import static net.bytebuddy.matcher.ElementMatchers.named;
 import static org.apache.cassandra.distributed.api.ConsistencyLevel.ALL;
 import static org.apache.cassandra.distributed.api.Feature.GOSSIP;
 import static org.apache.cassandra.distributed.api.Feature.NETWORK;
@@ -127,4 +145,100 @@ public class GossipShutdownTest extends TestBaseImpl
             wasDead = true;
         }
     };
+
+    public static class BB
+    {
+        static ExecutorService es = Executors.newSingleThreadExecutor();
+        public static void install(ClassLoader classLoader, Integer num)
+        {
+            new ByteBuddy().rebase(GossipShutdownVerbHandler.class)
+                           .method(named("doVerb"))
+                           .intercept(MethodDelegation.to(GossipShutdownTest.BB.class))
+                           .make()
+                           .load(classLoader, ClassLoadingStrategy.Default.INJECTION);
+
+        }
+
+        public static void doVerb(Message<GossipShutdown> message, @SuperCall Callable<Void> zuper)
+        {
+            es.submit(() -> {
+                // sleep 10 second to simulate a long network delay of the gossip shutdown message
+                Uninterruptibles.sleepUninterruptibly(30, TimeUnit.SECONDS);
+                try
+                {
+                    zuper.call();
+                }
+                catch (Exception e)
+                {
+                    throw new RuntimeException(e);
+                }
+            });
+
+        }
+    }
+
+    @Test
+    public void shutdownGenerationCheckTest() throws IOException
+    {
+        try (Cluster cluster = init(builder().withNodes(2)
+                                             .withConfig(config -> config.with(GOSSIP)
+                                                                         .with(NETWORK))
+                                             .withInstanceInitializer(GossipShutdownTest.BB::install)
+                                             .start()))
+        {
+            IInvokableInstance node1 = cluster.get(1);
+            IInvokableInstance node2 = cluster.get(2);
+            NodeToolResult result =  node2.nodetoolResult("gossipinfo");
+            result.asserts().success();
+            String node1Address = node1.broadcastAddress().getAddress().toString();
+            int oldGeneration = Integer.parseInt(getValueFromGossipinfo(result.getStdout(), "generation:", node1Address));
+            //restart node1
+            ClusterUtils.stopUnchecked(node1);
+            node1.startup();
+            //check node2 get the new generation of node 1 and verify that the node is normal
+            result =  node2.nodetoolResult("gossipinfo");
+            result.asserts().success();
+            int newGeneration = Integer.parseInt(getValueFromGossipinfo(result.getStdout(), "generation:", node1Address));
+            assertTrue(oldGeneration < newGeneration);
+            String status = getValueFromGossipinfo(result.getStdout(), "STATUS_WITH_PORT:", node1Address);
+            assertTrue(status.contains("NORMAL"));
+
+            // the shutdown message arrives and should be ignored because node2 has the latest generation of node1
+            Uninterruptibles.sleepUninterruptibly(32, TimeUnit.SECONDS);
+            result =  node2.nodetoolResult("gossipinfo");
+            result.asserts().success();
+            int latestGeneration = Integer.parseInt(getValueFromGossipinfo(result.getStdout(), "generation:", node1Address));
+            assertEquals(newGeneration, latestGeneration);
+            status = getValueFromGossipinfo(result.getStdout(), "STATUS_WITH_PORT:", node1Address);
+            assertTrue(status.contains("NORMAL"));
+        }
+    }
+
+    private String getValueFromGossipinfo(String gossipInfoOutput, String key, String nodeIPAddress)
+    {
+        String[] lines = gossipInfoOutput.split("\\r?\\n");
+        String currentNodeIP = null;
+        for (String line : lines)
+        {
+            line = line.trim();
+
+            if (line.startsWith("/") && line.equals(nodeIPAddress))
+            {
+                // Extract the IP address (skipping the leading "/")
+                currentNodeIP = line;
+            }
+            else if (line.startsWith(key))
+            {
+                // Extract the generation value
+                String value = line.substring(key.length()).trim();
+
+                // Put into the map if we have an IP
+                if (currentNodeIP != null)
+                {
+                    return value;
+                }
+            }
+        }
+        return "";
+    }
 }

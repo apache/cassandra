@@ -749,14 +749,14 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
         markAsShutdown(endpoint, isForceShutdown(endpoint));
     }
 
-    protected void markAsShutdown(InetAddressAndPort endpoint, boolean forceShutdown)
+    protected void markAsShutdown(InetAddressAndPort endpoint, boolean forceshutdown)
     {
         checkProperThreadForStateMutation();
         EndpointState epState = endpointStateMap.get(endpoint);
         // do not mark shutdown if the current state is forceshutdown
         if (epState == null || epState.isStateEmpty())
             return;
-        VersionedValue shutdown = forceShutdown ? StorageService.instance.valueFactory.forceShutdown() : StorageService.instance.valueFactory.shutdown(true);
+        VersionedValue shutdown = forceshutdown ? StorageService.instance.valueFactory.forceShutdown() : StorageService.instance.valueFactory.shutdown(true);
         epState.addApplicationState(ApplicationState.STATUS_WITH_PORT, shutdown);
         epState.addApplicationState(ApplicationState.STATUS, shutdown);
         epState.addApplicationState(ApplicationState.RPC_READY, StorageService.instance.valueFactory.rpcReady(false));
@@ -767,7 +767,7 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
         for (IEndpointStateChangeSubscriber subscriber : subscribers)
             subscriber.onChange(endpoint, ApplicationState.STATUS_WITH_PORT, shutdown);
 
-        if (forceShutdown)
+        if (forceshutdown)
             logger.debug("Marked {} as force shutdown", endpoint);
         else
             logger.debug("Marked {} as shutdown", endpoint);
@@ -2325,7 +2325,7 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
             logger.info("Announcing shutdown");
             addLocalApplicationState(ApplicationState.STATUS_WITH_PORT, value);
             addLocalApplicationState(ApplicationState.STATUS, value);
-            Message message = Message.out(Verb.GOSSIP_SHUTDOWN, forceShutdown);
+            Message message = Message.out(Verb.GOSSIP_SHUTDOWN, new GossipShutdown(mystate, forceShutdown));
             for (InetAddressAndPort ep : liveEndpoints)
                 MessagingService.instance().send(message, ep);
             Uninterruptibles.sleepUninterruptibly(SHUTDOWN_ANNOUNCE_DELAY_IN_MS.getInt(), TimeUnit.MILLISECONDS);
@@ -2818,7 +2818,7 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
 
     public void unsafeSendShutdown(InetAddressAndPort to)
     {
-        Message<?> message = Message.out(Verb.GOSSIP_SHUTDOWN, false);
+        Message<?> message = Message.out(Verb.GOSSIP_SHUTDOWN, new GossipShutdown(endpointStateMap.get(getBroadcastAddressAndPort()), false));
         MessagingService.instance().send(message, to);
     }
 
