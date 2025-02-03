@@ -49,7 +49,7 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
 @RunWith(Parameterized.class)
-public class PrimaryIdTableTest extends CQLTester
+public class PartitionKeyStatsTableTest extends CQLTester
 {
     private static final String KS_NAME = "vts";
     private String table;
@@ -63,7 +63,7 @@ public class PrimaryIdTableTest extends CQLTester
         return Arrays.asList(new Object[][]{ { false }, { true } });
     }
 
-    public PrimaryIdTableTest(boolean useBtiFormat)
+    public PartitionKeyStatsTableTest(boolean useBtiFormat)
     {
         this.useBtiFormat = useBtiFormat;
     }
@@ -74,7 +74,7 @@ public class PrimaryIdTableTest extends CQLTester
         if (useBtiFormat)
             DatabaseDescriptor.setSelectedSSTableFormat(new BtiFormat.BtiFormatFactory().getInstance(Collections.emptyMap()));
 
-        PrimaryIdTable primaryIdTable = new PrimaryIdTable(KS_NAME);
+        PartitionKeyStatsTable primaryIdTable = new PartitionKeyStatsTable(KS_NAME);
         scanned = new AtomicInteger();
         VirtualKeyspaceRegistry.instance.register(new VirtualKeyspace(KS_NAME, ImmutableList.of(primaryIdTable)));
 
@@ -93,7 +93,7 @@ public class PrimaryIdTableTest extends CQLTester
     @Test
     public void testPrimaryIdTable()
     {
-        ResultSet rs = executeNetWithPaging("SELECT * FROM vts.primary_ids WHERE keyspace_name = ? AND table_name = ?",
+        ResultSet rs = executeNetWithPaging("SELECT * FROM vts.partition_key_statistics WHERE keyspace_name = ? AND table_name = ?",
                                             10, KEYSPACE, table);
         List<Row> all = rs.all();
         assertEquals(1010, all.size());
@@ -105,7 +105,7 @@ public class PrimaryIdTableTest extends CQLTester
     @Test
     public void testTokenValueGreaterThanZero()
     {
-        ResultSet rs = executeNetWithPaging("SELECT * FROM vts.primary_ids WHERE keyspace_name = ? AND table_name = ? AND token_value > 0",
+        ResultSet rs = executeNetWithPaging("SELECT * FROM vts.partition_key_statistics WHERE keyspace_name = ? AND table_name = ? AND token_value > 0",
                                             10, KEYSPACE, table);
         List<Row> all = rs.all();
         assertEquals(999, all.size());
@@ -116,7 +116,7 @@ public class PrimaryIdTableTest extends CQLTester
     @Test
     public void testTokenValueGreaterThanNegativeFive()
     {
-        ResultSet rs = executeNetWithPaging("SELECT * FROM vts.primary_ids WHERE keyspace_name = ? AND table_name = ? AND token_value > -5",
+        ResultSet rs = executeNetWithPaging("SELECT * FROM vts.partition_key_statistics WHERE keyspace_name = ? AND table_name = ? AND token_value > -5",
                                             10, KEYSPACE, table);
         List<Row> all = rs.all();
         assertEquals(1004, all.size());
@@ -128,7 +128,7 @@ public class PrimaryIdTableTest extends CQLTester
     @Test
     public void testTokenValueLessThanOrEqualToFive()
     {
-        ResultSet rs = executeNetWithPaging("SELECT * FROM vts.primary_ids WHERE keyspace_name = ? AND table_name = ? AND token_value <= 5",
+        ResultSet rs = executeNetWithPaging("SELECT * FROM vts.partition_key_statistics WHERE keyspace_name = ? AND table_name = ? AND token_value <= 5",
                                             10, KEYSPACE, table);
         List<Row> all = rs.all();
         assertEquals(16, all.size());
@@ -139,7 +139,7 @@ public class PrimaryIdTableTest extends CQLTester
     @Test
     public void testTokenValueEqualToZero()
     {
-        ResultSet rs = executeNetWithPaging("SELECT * FROM vts.primary_ids WHERE keyspace_name = ? AND table_name = ? AND token_value = 0",
+        ResultSet rs = executeNetWithPaging("SELECT * FROM vts.partition_key_statistics WHERE keyspace_name = ? AND table_name = ? AND token_value = 0",
                                             10, KEYSPACE, table);
         List<Row> all = rs.all();
         assertEquals(1, all.size());
@@ -151,7 +151,7 @@ public class PrimaryIdTableTest extends CQLTester
     @Test
     public void testTokenValueBounds()
     {
-        ResultSet rs = executeNetWithPaging("SELECT * FROM vts.primary_ids WHERE keyspace_name = ? AND table_name = ? AND token_value > 0 AND token_value < 15",
+        ResultSet rs = executeNetWithPaging("SELECT * FROM vts.partition_key_statistics WHERE keyspace_name = ? AND table_name = ? AND token_value > 0 AND token_value < 15",
                                             10, KEYSPACE, table);
         List<Row> all = rs.all();
         assertEquals(14, all.size());
@@ -163,7 +163,7 @@ public class PrimaryIdTableTest extends CQLTester
     @Test
     public void testTokenValueBoundsWithBetween()
     {
-        ResultSet rs = executeNetWithPaging("SELECT * FROM vts.primary_ids WHERE keyspace_name = ? AND table_name = ? AND token_value BETWEEN 0 AND 15",
+        ResultSet rs = executeNetWithPaging("SELECT * FROM vts.partition_key_statistics WHERE keyspace_name = ? AND table_name = ? AND token_value BETWEEN 0 AND 15",
                                             10, KEYSPACE, table);
         List<Row> all = rs.all();
         assertEquals(16, all.size());
@@ -174,7 +174,7 @@ public class PrimaryIdTableTest extends CQLTester
     @Test
     public void testTokenValueBoundsWithIn()
     {
-        ResultSet rs = executeNetWithPaging("SELECT * FROM vts.primary_ids WHERE keyspace_name = ? AND table_name = ? AND token_value IN (1,3,6)",
+        ResultSet rs = executeNetWithPaging("SELECT * FROM vts.partition_key_statistics WHERE keyspace_name = ? AND table_name = ? AND token_value IN (1,3,6)",
                                             10, KEYSPACE, table);
         List<Row> all = rs.all();
         assertEquals(3, all.size());
@@ -188,7 +188,7 @@ public class PrimaryIdTableTest extends CQLTester
     public void testTokenValueBoundsWithKey()
     {
         ByteBuffer ten = Murmur3Partitioner.LongToken.keyForToken(10);
-        ResultSet rs = executeNetWithPaging("SELECT * FROM vts.primary_ids WHERE keyspace_name = ? AND table_name = ? AND token_value > 0 AND token_value < 15 AND key = ?",
+        ResultSet rs = executeNetWithPaging("SELECT * FROM vts.partition_key_statistics WHERE keyspace_name = ? AND table_name = ? AND token_value > 0 AND token_value < 15 AND key = ?",
                                             10, KEYSPACE, table, Hex.toHexString(ten.array()));
         List<Row> all = rs.all();
         assertEquals(1, all.size());
@@ -201,7 +201,7 @@ public class PrimaryIdTableTest extends CQLTester
     public void testByKey()
     {
         ByteBuffer ten = Murmur3Partitioner.LongToken.keyForToken(10);
-        ResultSet rs = executeNetWithPaging("SELECT * FROM vts.primary_ids WHERE keyspace_name = ? AND table_name = ? AND key = ?",
+        ResultSet rs = executeNetWithPaging("SELECT * FROM vts.partition_key_statistics WHERE keyspace_name = ? AND table_name = ? AND key = ?",
                                             10, KEYSPACE, table, Hex.toHexString(ten.array()));
         List<Row> all = rs.all();
         assertEquals(1, all.size());
@@ -216,7 +216,7 @@ public class PrimaryIdTableTest extends CQLTester
         ByteBuffer twok = Murmur3Partitioner.LongToken.keyForToken(2000);
         execute("INSERT INTO %s (key, value) VALUES (?, ?)", twok, ByteBuffer.wrap(new byte[1]));
         Util.flushTable(KEYSPACE, table);
-        ResultSet rs = executeNetWithPaging("SELECT * FROM vts.primary_ids WHERE keyspace_name = ? AND table_name = ? AND token_value > 1500",
+        ResultSet rs = executeNetWithPaging("SELECT * FROM vts.partition_key_statistics WHERE keyspace_name = ? AND table_name = ? AND token_value > 1500",
                                             10, KEYSPACE, table);
         List<Row> all = rs.all();
         assertEquals(1, all.size());
@@ -229,7 +229,7 @@ public class PrimaryIdTableTest extends CQLTester
     @Test
     public void testNoResults()
     {
-        ResultSet rs = executeNetWithPaging("SELECT * FROM vts.primary_ids WHERE keyspace_name = ? AND table_name = ? AND token_value < -1000",
+        ResultSet rs = executeNetWithPaging("SELECT * FROM vts.partition_key_statistics WHERE keyspace_name = ? AND table_name = ? AND token_value < -1000",
                                             10, KEYSPACE, table);
         List<Row> all = rs.all();
         assertEquals(0, all.size());
@@ -239,7 +239,7 @@ public class PrimaryIdTableTest extends CQLTester
     @Test(expected = InvalidQueryException.class)
     public void testNonExistantKeyspace()
     {
-        ResultSet rs = executeNetWithPaging("SELECT * FROM vts.primary_ids WHERE keyspace_name = 'non_existent' AND table_name = ?",
+        ResultSet rs = executeNetWithPaging("SELECT * FROM vts.partition_key_statistics WHERE keyspace_name = 'non_existent' AND table_name = ?",
                                             10, table);
         List<Row> all = rs.all();
         assertEquals(0, all.size());
@@ -256,7 +256,7 @@ public class PrimaryIdTableTest extends CQLTester
         execute("INSERT INTO %s (key, value) VALUES (?, ?)", o2, value);
         Util.flushTable(KEYSPACE, table);
 
-        ResultSet rs = executeNetWithPaging("SELECT * FROM vts.primary_ids WHERE keyspace_name = ? AND table_name = ? AND token_value = 10001",
+        ResultSet rs = executeNetWithPaging("SELECT * FROM vts.partition_key_statistics WHERE keyspace_name = ? AND table_name = ? AND token_value = 10001",
                                             10, KEYSPACE, table);
         List<Row> all = rs.all();
         assertEquals(0, all.size());
@@ -275,7 +275,7 @@ public class PrimaryIdTableTest extends CQLTester
         execute("INSERT INTO %s (key, value) VALUES (?, ?)", dup2, value);
         Util.flushTable(KEYSPACE, table);
 
-        ResultSet rs = executeNetWithPaging("SELECT * FROM vts.primary_ids WHERE keyspace_name = ? AND table_name = ? AND token_value = 1563004846366",
+        ResultSet rs = executeNetWithPaging("SELECT * FROM vts.partition_key_statistics WHERE keyspace_name = ? AND table_name = ? AND token_value = 1563004846366",
                                             10, KEYSPACE, table);
         List<Row> all = rs.all();
         assertEquals(2, all.size());
@@ -294,7 +294,7 @@ public class PrimaryIdTableTest extends CQLTester
         execute("INSERT INTO %s (key, keytwo, value) VALUES (?, ?, ?)", "testkey", InetAddress.getByName("127.0.0.1"), "value");
         Util.flushTable(KEYSPACE, table);
 
-        ResultSet rs = executeNetWithPaging("SELECT * FROM vts.primary_ids WHERE keyspace_name = ? AND table_name = ? AND key = 'testkey:127.0.0.1'",
+        ResultSet rs = executeNetWithPaging("SELECT * FROM vts.partition_key_statistics WHERE keyspace_name = ? AND table_name = ? AND key = 'testkey:127.0.0.1'",
                                             10, KEYSPACE, table);
         List<Row> all = rs.all();
         assertEquals(1, all.size());
@@ -308,7 +308,7 @@ public class PrimaryIdTableTest extends CQLTester
         execute("INSERT INTO %s (key, value) VALUES (?, ?)", "testkey", "value");
         Util.flushTable(KEYSPACE, table);
 
-        ResultSet rs = executeNetWithPaging("SELECT * FROM vts.primary_ids WHERE keyspace_name = ? AND table_name = ? AND key = 'testkey'",
+        ResultSet rs = executeNetWithPaging("SELECT * FROM vts.partition_key_statistics WHERE keyspace_name = ? AND table_name = ? AND key = 'testkey'",
                                             10, KEYSPACE, table);
         List<Row> all = rs.all();
         assertEquals(1, all.size());
@@ -327,13 +327,15 @@ public class PrimaryIdTableTest extends CQLTester
         execute("INSERT INTO %s (key, value) VALUES (?, ?)", key, value);
         Util.flushTable(KEYSPACE, table);
 
-        ResultSet rs = executeNetWithPaging("SELECT * FROM vts.primary_ids WHERE keyspace_name = ? AND table_name = ?",
+        ResultSet rs = executeNetWithPaging("SELECT * FROM vts.partition_key_statistics WHERE keyspace_name = ? AND table_name = ?",
                                             10, KEYSPACE, table);
         List<Row> all = rs.all();
         assertEquals(1, all.size());
         Row row = all.get(0);
         assertEquals(BigInteger.valueOf(1), row.get("token_value", BigInteger.class));
         long size = row.get("size_estimate", Long.class);
+        // providing a range since with timestamp delta vint encoding worried this may drift with time or in wierd
+        // VMs so just want to make sure it's in the right ballpark
         assertTrue(size >= 110 && size < 200);
         assertEquals(2L, row.get("sstables", Long.class).longValue());
         assertEquals(2, scanned.get());

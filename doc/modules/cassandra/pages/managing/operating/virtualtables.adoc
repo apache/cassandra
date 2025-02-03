@@ -519,7 +519,7 @@ FROM system_views.sstable_tasks;
 === Virtual table for primary id's
 
 Since https://issues.apache.org/jira/browse/CASSANDRA-20161[CASSANDRA-20161], there is
-a virtual table `system_views.primary_ids` to allow users to query partition keys and related metadata for a specific table within a keyspace. This feature provides insights into SSTable-level details, such as token values, size estimates, and SSTable counts, without requiring expensive disk-based operations.
+a virtual table `system_views.partition_key_statistics` to allow users to query partition keys and related metadata for a specific table within a keyspace. This feature provides insights into SSTable-level details, such as token values, size estimates, and SSTable counts, without requiring expensive disk-based operations.
 
 [source,console]
 ----
@@ -536,7 +536,7 @@ cassandra@cqlsh> select * from ks.tbl;
 [source,console]
 ----
 cassandra@cqlsh> use system_views;
-cassandra@cqlsh> select * from primary_ids where keyspace_name = 'ks' and table_name = 'tbl';
+cassandra@cqlsh> select * from partition_key_statistics where keyspace_name = 'ks' and table_name = 'tbl';
 
 @ Row 1
 ---------------+----------------------

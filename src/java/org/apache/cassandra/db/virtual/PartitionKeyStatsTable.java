@@ -77,14 +77,14 @@ import org.apache.cassandra.schema.TableMetadata;
 import static org.apache.cassandra.cql3.statements.RequestValidations.invalidRequest;
 
 /**
- * A virtual table for querying primary IDs of SSTables in a specific keyspace.
+ * A virtual table for querying partition keys of SSTables in a specific keyspace.
  *
  * <p>This table is implemented as a virtual table in Cassandra, meaning it does not
  * store data persistently on disk but instead derives its data from live metadata.
  *
  * <p>The CQL equivalent of this virtual table is:
  * <pre>
- * CREATE TABLE system_views.primary_ids (
+ * CREATE TABLE system_views.partition_key_statistics (
  *     keyspace_name TEXT,
  *     table_name TEXT,
  *     token_value INT,
@@ -101,10 +101,10 @@ import static org.apache.cassandra.cql3.statements.RequestValidations.invalidReq
  *     <li>Range queries across multiple tables and updates are not supported as this is a read-only table.</li>
  * </ul>
  */
-public class PrimaryIdTable implements VirtualTable
+public class PartitionKeyStatsTable implements VirtualTable
 {
-    private static final Logger logger = LoggerFactory.getLogger(PrimaryIdTable.class);
-    public static final String NAME = "primary_ids";
+    private static final Logger logger = LoggerFactory.getLogger(PartitionKeyStatsTable.class);
+    public static final String NAME = "partition_key_statistics";
 
     private static final String TABLE_READ_ONLY_ERROR = "The specified table is read-only.";
     private static final String UNSUPPORTED_RANGE_QUERY_ERROR = "Range queries are not supported. Please provide both a keyspace and a table name.";
@@ -129,7 +129,7 @@ public class PrimaryIdTable implements VirtualTable
     @VisibleForTesting
     final CopyOnWriteArrayList<Consumer<DecoratedKey>> readListener = new CopyOnWriteArrayList<>();
 
-    public PrimaryIdTable(String keyspace)
+    public PartitionKeyStatsTable(String keyspace)
     {
         this.metadata = TableMetadata.builder(keyspace, NAME)
                                      .kind(TableMetadata.Kind.VIRTUAL)
