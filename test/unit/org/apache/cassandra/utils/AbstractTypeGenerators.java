@@ -550,10 +550,11 @@ public final class AbstractTypeGenerators
                                                         .withoutTypeKinds(COUNTER)
                                                         .withoutPrimitive(DecimalType.instance)
                                                         // its ordering is special...
-                                                        .withoutPrimitive(DurationType.instance);
-        // composite requires all elements fit into Short.MAX_VALUE bytes
-        // so try to limit the possible expansion of types
-        return baseline.withCompositeElementGen(new TypeGenBuilder(baseline).withDefaultSizeGen(1).withMaxDepth(1).build())
+                                                        .withoutPrimitive(DurationType.instance)
+                                                        // To make sure all elements fit within Short.MAX_VALUE bytes,
+                                                        // need to limit the possible expansion of types
+                                                        .withDefaultSizeGen(1).withMaxDepth(1);
+        return baseline.withCompositeElementGen(new TypeGenBuilder(baseline).build())
                        .build();
     }
 

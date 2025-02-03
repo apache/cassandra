@@ -49,7 +49,7 @@ public class AccordRoutingKeyByteSourceTest
     @Test
     public void tokenSerde()
     {
-        qt().forAll(fromQT(CassandraGenerators.partitioners().map(CassandraGenerators::simplify).flatMap(CassandraGenerators::token))).check(token -> {
+        qt().forAll(fromQT(CassandraGenerators.token())).check(token -> {
             var serializer = AccordRoutingKeyByteSource.create(token.getPartitioner());
             byte[] minMin = ByteSourceInverse.readBytes(serializer.minMinAsComparableBytes());
             byte[] minMax = ByteSourceInverse.readBytes(serializer.minMaxAsComparableBytes());

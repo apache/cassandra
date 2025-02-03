@@ -32,7 +32,6 @@ import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.SchemaProvider;
 import org.apache.cassandra.utils.AccordGenerators;
-import org.apache.cassandra.utils.CassandraGenerators;
 import org.mockito.Mockito;
 
 import static accord.utils.Property.qt;
@@ -53,7 +52,7 @@ public class DepsSerializersTest
     {
         DataOutputBuffer buffer = new DataOutputBuffer();
         qt().check(rs -> {
-            IPartitioner partitioner = AccordGenerators.partitioner().map(CassandraGenerators::simplify).next(rs);
+            IPartitioner partitioner = AccordGenerators.partitioner().next(rs);
             Schema.instance = Mockito.mock(SchemaProvider.class);
             DatabaseDescriptor.setPartitionerUnsafe(partitioner);
             Mockito.when(Schema.instance.getExistingTablePartitioner(Mockito.any())).thenReturn(partitioner);
