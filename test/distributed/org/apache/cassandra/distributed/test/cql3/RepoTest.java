@@ -20,6 +20,7 @@ package org.apache.cassandra.distributed.test.cql3;
 
 import java.io.File;
 import java.io.IOException;
+import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.util.function.BiConsumer;
@@ -33,6 +34,8 @@ import org.slf4j.LoggerFactory;
 
 import com.datastax.driver.core.SimpleStatement;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.db.marshal.AbstractType;
+import org.apache.cassandra.db.marshal.FloatType;
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
 import org.apache.cassandra.distributed.api.Feature;
@@ -50,13 +53,14 @@ public class RepoTest extends TestBaseImpl
 
     private static final Splitter CQL_SPLITTER = Splitter.on(';').trimResults().omitEmptyStrings();
     private static final Splitter NEW_LINE_SPLITTER = Splitter.on('\n').trimResults().omitEmptyStrings();
+    private static final Splitter WHITESPACE_SPLITTER = Splitter.on(' ').trimResults().omitEmptyStrings();
     private static final String COMMENT_SEPERATOR = "--";
     private static final Pattern HISTORY_PREFIX = Pattern.compile("^([0-9]+):(.*)");
 
     @Test
     public void test() throws IOException
     {
-        boolean multinode = false;
+        boolean multinode = true;
         ConsistencyLevel selectCL = multinode ? ConsistencyLevel.ALL : ConsistencyLevel.LOCAL_QUORUM;
         ConsistencyLevel mutationCL = multinode ? ConsistencyLevel.NODE_LOCAL : ConsistencyLevel.LOCAL_QUORUM;
 
@@ -124,8 +128,15 @@ public class RepoTest extends TestBaseImpl
                 {
                     line = matcher.group(2).trim();
                 }
-                //TODO (now): nodetool support
-                if (true)
+                if (line.startsWith("nodetool"))
+                {
+                    // nodetool flush ks1 tbl
+                    // this runs on every node
+                    var split = WHITESPACE_SPLITTER.splitToList(line);
+                    var args = split.subList(1, split.size()).toArray(String[]::new);
+                    cluster.forEach(i -> i.nodetoolResult(args).asserts().success());
+                }
+                else
                 {
                     // its CQL
                     String cql;
@@ -146,20 +157,39 @@ public class RepoTest extends TestBaseImpl
                 }
             }
 
-            //  -- ck1 float, indexed with SAI, on node1, fetch size 10
-            SimpleStatement stmt = new SimpleStatement("SELECT * FROM ks1.tbl WHERE s1 = 5.086192563173748E143 AND pk1 = 0 AND ck0 = 0xd9a5349bfa3f8b AND ck1 = 374196101 AND s0 = 1.001963606543411E-147 ALLOW FILTERING");
+            // SELECT * FROM ks1.tbl WHERE ck1 <= -1.1792862E33 -- ck1 float, indexed with SAI, on node3, fetch size 5000
+
+            AbstractType<?> ck1Type = FloatType.instance;
+            ByteBuffer ck1UpperLimit = ck1Type.asCQL3Type().fromCQLLiteral("-1.1792862E33");
+            String cql = "SELECT ck1 FROM ks1.tbl WHERE ck1 <= -1.1792862E33";
+            SimpleStatement stmt = new SimpleStatement(cql);
             stmt.setConsistencyLevel(JavaDriverUtils.toDriverCL(selectCL));
-            stmt.setFetchSize(10);
+            stmt.setFetchSize(5000);
             var result = StatefulASTBase.BaseState.getRowsAsByteBuffer(session.execute(stmt));
+            for (var row : result)
+            {
+                ByteBuffer ck1 = row[0];
+                int rc = ck1Type.compare(ck1, ck1UpperLimit);
+                if (rc > 0)
+                    throw new AssertionError("Unexpected ck1 value: " + ck1Type.asCQL3Type().toCQLLiteral(ck1));
+            }
 
             // test error
             /*
-Caused by: java.lang.AssertionError: No rows returned
+Caused by: java.lang.AssertionError: Unexpected rows found:
+pk0              | pk1         | ck0                                  | ck1           | s0             | v0                                   | v1    | v2         | v3     | v4
+0x3db7b69ecdd6a6 | -1459423004 | 00000000-0000-4200-b600-000000000000 | 2.3472485E-29 | -2.59839216E17 | 00000000-0000-4f00-a500-000000000000 | true  | 1355516395 | 0x5d   | '33.54.24.0'
+0x3db7b69ecdd6a6 | -1459423004 | 00000000-0000-4a00-8400-000000000000 | -4.3491496E7  | -2.59839216E17 | null                                 | true  | null       | 0x9c50 | '230.216.82.197'
+0x3db7b69ecdd6a6 | -1459423004 | 00000000-0000-4800-b200-000000000000 | 0.02575966    | -2.59839216E17 | 00000000-0000-4700-ac00-000000000000 | false | 1758201503 | 0xdf   | '40a5:cfbf:23ef:c168:de52:4ac4:c56d:6795'
+0x3db7b69ecdd6a6 | -1459423004 | 00000000-0000-4f00-a100-000000000000 | -2.691734E-5  | -2.59839216E17 | 00000000-0000-4a00-b700-000000000000 | null  | null       | null   | '168.70.3.14'
+
 Expected:
-pk0  | pk1 | ck0              | ck1       | s0                     | s1                    | v0
-'じ' | 0   | 0xd9a5349bfa3f8b | 374196101 | 1.001963606543411E-147 | 5.086192563173748E143 | -3.504167388172892E97
+pk0              | pk1         | ck0                                  | ck1           | s0             | v0                                   | v1    | v2   | v3     | v4
+0x3db7b69ecdd6a6 | -1459423004 | 00000000-0000-4600-9f00-000000000000 | -3.854987E34  | -2.59839216E17 | null                                 | null  | null | 0x003c | '126.229.32.3'
+0x3027b5aa00a577 | -652702739  | 00000000-0000-4b00-8400-000000000000 | -1.1792862E33 | -2.7431481E-8  | 00000000-0000-4a00-9b00-000000000000 | false | null | null   | null
+0x3027b5aa00a577 | -652702739  | 00000000-0000-4c00-9a00-000000000000 | -7.706793E37  | -2.7431481E-8  | null                                 | false | null | null   | null
              */
-            Assertions.assertThat(result).hasDimensions(1, 7);
+//            Assertions.assertThat(result).hasDimensions(3, 10);
         }
     }
 }
