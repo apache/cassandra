@@ -119,13 +119,30 @@ public class AlterTableWithTableConstraintValidationTest extends CqlConstraintVa
         execute("ALTER TABLE %s ALTER ck2 CHECK LENGTH(ck2) = 4");
 
         tableCreateStatement = "CREATE TABLE " + KEYSPACE + "." + table + " (\n" +
-                                      "    pk int,\n" +
-                                      "    ck1 int CHECK ck1 < 100,\n" +
-                                      "    ck2 text CHECK LENGTH(ck2) = 4,\n" +
-                                      "    v int,\n" +
-                                      "    PRIMARY KEY (pk, ck1, ck2)\n" +
-                                      ") WITH CLUSTERING ORDER BY (ck1 ASC, ck2 ASC)\n" +
-                                      "    AND " + tableParametersCql();
+                               "    pk int,\n" +
+                               "    ck1 int CHECK ck1 < 100,\n" +
+                               "    ck2 text CHECK LENGTH(ck2) = 4,\n" +
+                               "    v int,\n" +
+                               "    PRIMARY KEY (pk, ck1, ck2)\n" +
+                               ") WITH CLUSTERING ORDER BY (ck1 ASC, ck2 ASC)\n" +
+                               "    AND " + tableParametersCql();
+
+        assertRowsNet(executeDescribeNet(KEYSPACE, "DESCRIBE TABLE " + KEYSPACE + "." + table),
+                      row(KEYSPACE,
+                          "table",
+                          table,
+                          tableCreateStatement));
+
+        execute("ALTER TABLE %s ALTER v CHECK NOT_NULL(v)");
+
+        tableCreateStatement = "CREATE TABLE " + KEYSPACE + "." + table + " (\n" +
+                               "    pk int,\n" +
+                               "    ck1 int CHECK ck1 < 100,\n" +
+                               "    ck2 text CHECK LENGTH(ck2) = 4,\n" +
+                               "    v int CHECK NOT_NULL(v),\n" +
+                               "    PRIMARY KEY (pk, ck1, ck2)\n" +
+                               ") WITH CLUSTERING ORDER BY (ck1 ASC, ck2 ASC)\n" +
+                               "    AND " + tableParametersCql();
 
         assertRowsNet(executeDescribeNet(KEYSPACE, "DESCRIBE TABLE " + KEYSPACE + "." + table),
                       row(KEYSPACE,

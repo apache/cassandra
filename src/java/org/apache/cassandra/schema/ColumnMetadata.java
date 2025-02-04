@@ -31,6 +31,7 @@ import com.google.common.collect.Collections2;
 import com.google.common.collect.Lists;
 
 import org.apache.cassandra.cql3.*;
+import org.apache.cassandra.cql3.constraints.AbstractFunctionConstraint;
 import org.apache.cassandra.cql3.constraints.ColumnConstraint;
 import org.apache.cassandra.cql3.constraints.ColumnConstraints;
 import org.apache.cassandra.cql3.functions.masking.ColumnMask;
@@ -319,6 +320,21 @@ public final class ColumnMetadata extends ColumnSpecification implements Selecta
         return columnConstraints.hasRelevantConstraints();
     }
 
+    public static boolean hasFunctionConstraint(ColumnConstraints columnConstraints, String name)
+    {
+        for (ColumnConstraint<?> constraint : columnConstraints.getConstraints())
+        {
+            if (constraint.getConstraintType() == ColumnConstraint.ConstraintType.UNARY_FUNCTION ||
+                constraint.getConstraintType() == ColumnConstraint.ConstraintType.FUNCTION)
+            {
+                if (((AbstractFunctionConstraint<?>) constraint).name().equals(name))
+                    return true;
+            }
+        }
+
+        return false;
+    }
+
     public boolean isRegular()
     {
         return kind == Kind.REGULAR;
@@ -350,6 +366,7 @@ public final class ColumnMetadata extends ColumnSpecification implements Selecta
 
     public void setColumnConstraints(ColumnConstraints constraints)
     {
+        constraints.checkInvalidConstraintsCombinations(name);
         this.columnConstraints = constraints;
     }
 

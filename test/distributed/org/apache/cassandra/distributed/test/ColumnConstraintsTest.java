@@ -22,6 +22,7 @@ import java.io.IOException;
 import java.util.Map;
 import java.util.Set;
 
+import org.apache.cassandra.cql3.constraints.ConstraintViolationException;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.junit.Test;
 
@@ -279,6 +280,27 @@ public class ColumnConstraintsTest extends TestBaseImpl
                 assertThrowsConstraintViolationException(cluster,
                                                          String.format("INSERT INTO " + tableName + " (pk, ck1, ck2, v) VALUES (" + value + ", 100, 2, 3)", "foo"),
                                                          "ck1 value length should be smaller than 100");
+            }
+        }
+    }
+
+    @Test
+    public void testNotNullTableLevelConstraint() throws IOException
+    {
+        Set<String> typesSet = Set.of("varchar", "text", "blob", "ascii", "int", "smallint", "decimal", "float", "double");
+
+        for (String type : typesSet)
+        {
+            try (Cluster cluster = init(Cluster.build(1).start()))
+            {
+                String tableName = String.format(KEYSPACE + ".%s_tbl1_%s", type, "st");
+                String createTableNotNullValue = "CREATE TABLE " + tableName + " (pk int, value int CHECK NOT_NULL(value), PRIMARY KEY (pk));";
+                cluster.schemaChange(createTableNotNullValue);
+
+                Assertions.assertThatThrownBy(() -> cluster.coordinator(1).execute(String.format("INSERT INTO " + tableName + " (pk, value) VALUES (1, null)"), ConsistencyLevel.ALL))
+                          .describedAs("Column value does not satisfy value constraint for column 'value' as it is null.")
+                          .has(new Condition<Throwable>(t -> t.getClass().getCanonicalName().equals(ConstraintViolationException.class.getCanonicalName()),
+                                                        "Column value does not satisfy value constraint for column 'value' as it is null."));
             }
         }
     }

@@ -346,14 +346,16 @@ public final class CreateTableStatement extends AlterSchemaStatement
 
         for (int i = 0; i < partitionKeyColumns.size(); i++)
         {
+            ColumnConstraints constraints = validateConstraints(partitionKeyColumns.get(i));
             ColumnProperties properties = partitionKeyColumnProperties.get(i);
-            builder.addPartitionKeyColumn(partitionKeyColumns.get(i), properties.type, properties.mask, columnConstraints.get(partitionKeyColumns.get(i)));
+            builder.addPartitionKeyColumn(partitionKeyColumns.get(i), properties.type, properties.mask, constraints);
         }
 
         for (int i = 0; i < clusteringColumns.size(); i++)
         {
+            ColumnConstraints constraints = validateConstraints(clusteringColumns.get(i));
             ColumnProperties properties = clusteringColumnProperties.get(i);
-            builder.addClusteringColumn(clusteringColumns.get(i), properties.type, properties.mask, columnConstraints.get(clusteringColumns.get(i)));
+            builder.addClusteringColumn(clusteringColumns.get(i), properties.type, properties.mask, constraints);
         }
 
         if (useCompactStorage)
@@ -363,14 +365,22 @@ public final class CreateTableStatement extends AlterSchemaStatement
         else
         {
             columns.forEach((column, properties) -> {
+                ColumnConstraints constraints = validateConstraints(column);
                 if (staticColumns.contains(column))
-                    builder.addStaticColumn(column, properties.type, properties.mask, columnConstraints.get(column));
+                    builder.addStaticColumn(column, properties.type, properties.mask, constraints);
                 else
-                    builder.addRegularColumn(column, properties.type, properties.mask, columnConstraints.get(column));
+                    builder.addRegularColumn(column, properties.type, properties.mask, constraints);
             });
         }
 
         return builder;
+    }
+
+    private ColumnConstraints validateConstraints(ColumnIdentifier columnIdentifier)
+    {
+        ColumnConstraints constraints = columnConstraints.get(columnIdentifier);
+        constraints.checkInvalidConstraintsCombinations(columnIdentifier);
+        return constraints;
     }
 
     private void validateCompactTable(List<ColumnProperties> clusteringColumnProperties,
