@@ -153,6 +153,10 @@ public enum CassandraRelevantProperties
     /** mx4jport */
     MX4JPORT ("mx4jport"),
 
+    /**
+     * Whether we reset any found data from previously run bootstraps.
+     */
+    RESET_BOOTSTRAP_PROGRESS("cassandra.reset_bootstrap_progress"),
     RING_DELAY("cassandra.ring_delay_ms"),
 
     FAILED_BOOTSTRAP_TIMEOUT("cassandra.failed_bootstrap_timeout_ms"),

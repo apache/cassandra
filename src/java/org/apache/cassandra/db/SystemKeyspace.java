@@ -1698,6 +1698,12 @@ public final class SystemKeyspace
         availableRanges.truncateBlockingWithoutSnapshot();
     }
 
+    public static void resetAvailableStreamedRangesForKeyspace(String keyspace)
+    {
+        String cql = "DELETE FROM %s.%s WHERE keyspace_name = ?";
+        executeInternal(format(cql, SchemaConstants.SYSTEM_KEYSPACE_NAME, AVAILABLE_RANGES_V2), keyspace);
+    }
+
     public static synchronized void updateTransferredRanges(StreamOperation streamOperation,
                                                          InetAddressAndPort peer,
                                                          String keyspace,

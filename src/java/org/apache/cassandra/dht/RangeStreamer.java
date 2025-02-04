@@ -71,6 +71,7 @@ import static com.google.common.base.Predicates.and;
 import static com.google.common.base.Predicates.not;
 import static com.google.common.collect.Iterables.all;
 import static com.google.common.collect.Iterables.any;
+import static org.apache.cassandra.config.CassandraRelevantProperties.RESET_BOOTSTRAP_PROGRESS;
 import static org.apache.cassandra.locator.Replica.fullReplica;
 
 /**
@@ -667,33 +668,45 @@ public class RangeStreamer
             logger.debug("Keyspace {} Sources {}", keyspace, sources);
             sources.asMap().forEach((source, fetchReplicas) -> {
 
-                // filter out already streamed ranges
-                SystemKeyspace.AvailableRanges available = stateStore.getAvailableRanges(keyspace, metadata.partitioner);
-
-                Predicate<FetchReplica> isAvailable = fetch -> {
-                    boolean isInFull = available.full.contains(fetch.local.range());
-                    boolean isInTrans = available.trans.contains(fetch.local.range());
-
-                    if (!isInFull && !isInTrans)
-                        //Range is unavailable
-                        return false;
-
-                    if (fetch.local.isFull())
-                        //For full, pick only replicas with matching transientness
-                        return isInFull == fetch.remote.isFull();
-
-                    // Any transient or full will do
-                    return true;
-                };
-
-                List<FetchReplica> remaining = fetchReplicas.stream().filter(not(isAvailable)).collect(Collectors.toList());
-
-                if (remaining.size() < available.full.size() + available.trans.size())
+                List<FetchReplica> remaining;
+                if (RESET_BOOTSTRAP_PROGRESS.getBoolean())
                 {
-                    List<FetchReplica> skipped = fetchReplicas.stream().filter(isAvailable).collect(Collectors.toList());
-                    logger.info("Some ranges of {} are already available. Skipping streaming those ranges. Skipping {}. Fully available {} Transiently available {}",
-                                fetchReplicas, skipped, available.full, available.trans);
+                    SystemKeyspace.resetAvailableStreamedRangesForKeyspace(keyspace);
+                    Keyspace.truncateBlockingWithoutSnapshot(keyspace);
+                    remaining = new ArrayList<>(fetchReplicas);
                 }
+                else
+                {
+                    // filter out already streamed ranges
+                    SystemKeyspace.AvailableRanges available = stateStore.getAvailableRanges(keyspace, metadata.partitioner);
+
+                    Predicate<FetchReplica> isAvailable = fetch -> {
+                        boolean isInFull = available.full.contains(fetch.local.range());
+                        boolean isInTrans = available.trans.contains(fetch.local.range());
+
+                        if (!isInFull && !isInTrans)
+                            //Range is unavailable
+                            return false;
+
+                        if (fetch.local.isFull())
+                            //For full, pick only replicas with matching transientness
+                            return isInFull == fetch.remote.isFull();
+
+                        // Any transient or full will do
+                        return true;
+                    };
+
+                    remaining = fetchReplicas.stream().filter(not(isAvailable)).collect(Collectors.toList());
+
+                    if (remaining.size() < available.full.size() + available.trans.size())
+                    {
+                        List<FetchReplica> skipped = fetchReplicas.stream().filter(isAvailable).collect(Collectors.toList());
+                        logger.info("Some ranges of {} are already available. Skipping streaming those ranges. Skipping {}. Fully available {} Transiently available {}",
+                                    fetchReplicas, skipped, available.full, available.trans);
+                    }
+                }
+
+
 
                 if (logger.isTraceEnabled())
                     logger.trace("{}ing from {} ranges {}", description, source, StringUtils.join(remaining, ", "));

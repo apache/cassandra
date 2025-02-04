@@ -316,6 +316,18 @@ public class Keyspace
     }
 
     /**
+     * Clear(trucate) all data for a given keyspace without taking snapshot
+     * @param keyspace the keyspace name to be cleared
+     */
+    public static void truncateBlockingWithoutSnapshot(String keyspace)
+    {
+        for (ColumnFamilyStore store : Keyspace.open(keyspace).getColumnFamilyStores())
+        {
+            store.truncateBlockingWithoutSnapshot();
+        }
+    }
+
+    /**
      * Clear all the snapshots for a given keyspace.
      *
      * @param snapshotName the user supplied snapshot name. It empty or null,
