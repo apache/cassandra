@@ -1,5 +1,7 @@
 4.1.9
  * Fix WaitQueue.Signal.awaitUninterruptibly may block forever if invoking thread is interrupted (CASSANDRA-20084)
+Merged from 4.0:
+ * Fix autocompletion for role names/user names (CASSANDRA-20175)
 
 
 4.1.8
