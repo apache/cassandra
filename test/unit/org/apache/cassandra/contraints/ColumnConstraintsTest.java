@@ -25,11 +25,12 @@ import org.apache.cassandra.cql3.constraints.ColumnConstraint.ConstraintType;
 import static org.apache.cassandra.cql3.constraints.ColumnConstraint.ConstraintType.COMPOSED;
 import static org.apache.cassandra.cql3.constraints.ColumnConstraint.ConstraintType.FUNCTION;
 import static org.apache.cassandra.cql3.constraints.ColumnConstraint.ConstraintType.SCALAR;
+import static org.apache.cassandra.cql3.constraints.ColumnConstraint.ConstraintType.UNARY_FUNCTION;
 import static org.junit.Assert.assertEquals;
 
 public class ColumnConstraintsTest
 {
-    private static final ConstraintType[] EXPECTED_VALUES = { COMPOSED, FUNCTION, SCALAR };
+    private static final ConstraintType[] EXPECTED_VALUES = { COMPOSED, FUNCTION, SCALAR, UNARY_FUNCTION };
 
     @Test
     public void testEnumCodesAndNames()

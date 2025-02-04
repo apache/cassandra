@@ -796,6 +796,7 @@ columnConstraints returns [ColumnConstraints.Raw constraints]
 
 columnConstraint returns [ColumnConstraint columnConstraint]
     : funcName=ident '(' k=ident ')' op=relationType t=value { $columnConstraint = new FunctionColumnConstraint.Raw(funcName, k, op, t.getText()).prepare(); }
+    | funcName=ident '(' k=ident ')' { $columnConstraint = new UnaryFunctionColumnConstraint.Raw(funcName, k).prepare(); }
     | k=ident op=relationType t=value { $columnConstraint = new ScalarColumnConstraint.Raw(k, op, t.getText()).prepare(); }
     ;
 

@@ -91,3 +91,51 @@ Finally, the constraint can be removed:
 ----
 ALTER TABLE keyspace.table ALTER name DROP CHECK;
 ----
+
+=== NOT_NULL constraint
+
+Defines a constraint that checks if a column is not null in every modification statement.
+
+For example, let's have this table:
+
+----
+CREATE TABLE ks.tb (
+    id int,
+    cl int,
+    col1 int CHECK NOT_NULL(col1),
+    col2 int CHECK NOT_NULL(col2),
+    PRIMARY KEY (id, cl)
+);
+----
+
+then this statement would fail:
+
+----
+INSERT INTO ks.tb (id, cl, col1) VALUES (1, 2, 3);
+... [Invalid query] message="Column 'col2' has to be specified as part of this query."
+----
+
+as well as this statement:
+
+----
+INSERT INTO ks.tb (id, cl, col1, col2) VALUES (1, 2, 3, null);
+----
+
+A column which has `NOT_NULL` constraint has to be specified in every modification statement.
+
+The constraint can be removed:
+
+----
+ALTER TABLE keyspace.table ALTER col1 DROP CHECK;
+ALTER TABLE keyspace.table ALTER col2 DROP CHECK;
+----
+
+We can not remove the value of a column where `NOT_NULL` constraint is present:
+
+----
+DELETE col2 FROM ks.tb WHERE id = 1 AND cl = 2;
+... [Invalid query] message="Column 'col2' can not be set to null."
+----
+
+Additionally, `NOT_NULL` can not be specified on any column of a primary key,
+being it a partition key or a clustering column.
