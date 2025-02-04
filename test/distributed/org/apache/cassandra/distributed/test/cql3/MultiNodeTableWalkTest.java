@@ -32,7 +32,7 @@ public class MultiNodeTableWalkTest extends SingleNodeTableWalkTest
      * This field lets the test run as if it was multiple nodes, but actually runs against a single node.
      * This behavior is desirable when this test fails to see if the issue can be reproduced on single node as well.
      */
-    private boolean mockMultiNode = true;
+    private boolean mockMultiNode = false;
 
     @Override
     protected void preCheck(Cluster cluster, Property.StatefulBuilder builder)
@@ -44,7 +44,6 @@ public class MultiNodeTableWalkTest extends SingleNodeTableWalkTest
         // Sometimes It's useful to validate that the error is localized to mutliple nodes rather than single node,
         // so uncomment the below to allow running the test as a single node
         // mockMultiNode = true;
-        builder.withSeed(-2930054107517116909L).withExamples(1);
     }
 
     @Override
