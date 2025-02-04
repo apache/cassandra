@@ -36,6 +36,8 @@ public class MultiNodeTableWalkWithReadRepairTest extends MultiNodeTableWalkBase
         // Example: builder.withSeed(42L);
         // CQL operations may have opertors such as +, -, and / (example 4 + 4), to "apply" them to get a constant value
 //         CQL_DEBUG_APPLY_OPERATOR = true;
+        // When an issue is found, it's a good idea to also run the same seed against MultiNodeTableWalkWithoutReadRepairTest; if Read Repair is given bad input, you should expect bad output!
+        // This test needs to make sure it shares the same random history as MultiNodeTableWalkWithoutReadRepairTest to always allow the ability to maintain this property.
 
         // This got wrapped up into CASSANDRA-20189.  With RR=NONE a query was found to produce incorrect result, and when you run with RR=BLOCKING this corrupts the data causing a failure down the line
         // The pattern seen is that SAI is touching multiple unrepaired columns and would misclassify matches.
