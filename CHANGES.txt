@@ -1,6 +1,11 @@
-5.0.3
+5.0.4
  * Avoid under-skipping during intersections when an iterator has mixed STATIC and WIDE keys (CASSANDRA-20258)
  * Correct the default behavior of compareTo() when comparing WIDE and STATIC PrimaryKeys (CASSANDRA-20238)
+Merged from 4.1:
+ * Fix WaitQueue.Signal.awaitUninterruptibly may block forever if invoking thread is interrupted (CASSANDRA-20084)
+
+
+5.0.3
  * Make sure we can set parameters when configuring CassandraCIDRAuthorizer (CASSANDRA-20220)
  * Add selected SAI index state and query performance metrics to nodetool tablestats (CASSANDRA-20026)
  * Remove v30 and v3X from 5.x in-JVM upgrade tests (CASSANDRA-20103)
@@ -13,7 +18,6 @@
  * Ban the usage of "var" instead of full types in the production code (CASSANDRA-20038)
  * Suppress CVE-2024-45772 from lucene-core-9.7.0.jar (CASSANDRA-20024)
 Merged from 4.1:
- * Fix WaitQueue.Signal.awaitUninterruptibly may block forever if invoking thread is interrupted (CASSANDRA-20084)
  * Run audit_logging_options through santiation and validation on startup (CASSANDRA-20208)
  * Enforce CQL message size limit on multiframe messages (CASSANDRA-20052)
  * Add nodetool checktokenmetadata command that checks TokenMetadata is insync with Gossip endpointState (CASSANDRA-18758)
