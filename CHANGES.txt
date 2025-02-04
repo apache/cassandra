@@ -1,3 +1,6 @@
+3.0.32
+
+
 3.0.31
  * Tighten up permissions on system keyspaces (CASSANDRA-20090)
  * Fix incorrect column identifier bytes problem when renaming a column (CASSANDRA-18956)
