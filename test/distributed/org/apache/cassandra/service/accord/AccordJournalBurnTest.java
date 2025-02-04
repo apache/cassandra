@@ -20,18 +20,23 @@ package org.apache.cassandra.service.accord;
 
 import java.nio.file.Files;
 import java.util.List;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.BiFunction;
+import javax.annotation.Nullable;
 
-import org.junit.Before;
 import org.junit.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import accord.api.Agent;
+import accord.api.Journal;
 import accord.burn.BurnTestBase;
 import accord.burn.SimulationException;
 import accord.impl.TopologyFactory;
 import accord.impl.basic.Cluster;
 import accord.impl.basic.RandomDelayQueue;
+import accord.local.CommandStores;
 import accord.local.Node;
 import accord.utils.DefaultRandom;
 import accord.utils.RandomSource;
@@ -52,9 +57,9 @@ import org.apache.cassandra.service.accord.serializers.KeySerializers;
 import org.apache.cassandra.service.accord.serializers.ResultSerializers;
 import org.apache.cassandra.service.accord.serializers.TopologySerializers;
 import org.apache.cassandra.tools.FieldUtil;
+import org.apache.cassandra.utils.concurrent.Condition;
 
 import static accord.impl.PrefixedIntHashKey.ranges;
-
 
 public class AccordJournalBurnTest extends BurnTestBase
 {
@@ -92,10 +97,93 @@ public class AccordJournalBurnTest extends BurnTestBase
 
     private static final AtomicInteger counter = new AtomicInteger();
 
-    @Before
-    public void beforeTest() throws Throwable
+    private static final class JournalFactory implements BiFunction<Node.Id, Agent, Journal>
     {
+        private final Keyspace ks;
+        public JournalFactory(Keyspace ks)
+        {
+            this.ks = ks;
+        }
+        public Journal apply(Node.Id node, Agent agent)
+        {
+            try
+            {
+                File directory = new File(Files.createTempDirectory(Integer.toString(counter.incrementAndGet())));
+                directory.deleteRecursiveOnExit();
+                ColumnFamilyStore cfs = ks.getColumnFamilyStore("journal_" + node);
+                cfs.disableAutoCompaction();
+                AccordJournal journal = new AccordJournal(new TestParams()
+                {
+                    @Override
+                    public FlushMode flushMode()
+                    {
+                        return FlushMode.PERIODIC;
+                    }
 
+                    @Override
+                    public long flushPeriod(TimeUnit units)
+                    {
+                        return 1;
+                    }
+
+                    @Override
+                    public int segmentSize()
+                    {
+                        return 1024 * 1024;
+                    }
+
+                    @Override
+                    public boolean enableCompaction()
+                    {
+                        return false;
+                    }
+                }, new AccordAgent(), directory, cfs) {
+                    @Override
+                    public void saveCommand(int store, CommandUpdate update, @Nullable Runnable onFlush)
+                    {
+                        Condition condition = Condition.newOneTimeCondition();
+                        super.saveCommand(store, update, condition::signal);
+                        condition.awaitUninterruptibly();
+                        if (onFlush != null)
+                            onFlush.run();
+                    }
+
+                    @Override
+                    public void saveStoreState(int store, FieldUpdates fieldUpdates, Runnable onFlush)
+                    {
+                        Condition condition = Condition.newOneTimeCondition();
+                        super.saveStoreState(store, fieldUpdates, condition::signal);
+                        if (onFlush != null)
+                            onFlush.run();
+                    }
+
+                    @Override
+                    public void saveTopology(TopologyUpdate topologyUpdate, Runnable onFlush)
+                    {
+                        Condition condition = Condition.newOneTimeCondition();
+                        super.saveTopology(topologyUpdate, condition::signal);
+                        if (onFlush != null)
+                            onFlush.run();
+                    }
+
+                    @Override
+                    public void replay(CommandStores commandStores)
+                    {
+                        // Make sure to replay _only_ static segments
+                        this.closeCurrentSegmentForTestingIfNonEmpty();
+                        super.replay(commandStores);
+                    }
+                };
+
+                journal.start(null);
+                journal.unsafeSetStarted();
+                return journal;
+            }
+            catch (Throwable t)
+            {
+                throw new RuntimeException(t);
+            }
+        }
     }
 
     @Test
@@ -143,38 +231,7 @@ public class AccordJournalBurnTest extends BurnTestBase
                  operations,
                  10 + random.nextInt(30),
                  new RandomDelayQueue.Factory(random).get(),
-                 (node, agent) -> {
-                     try
-                     {
-                         File directory = new File(Files.createTempDirectory(Integer.toString(counter.incrementAndGet())));
-                         directory.deleteRecursiveOnExit();
-                         ColumnFamilyStore cfs = ks.getColumnFamilyStore("journal_" + node);
-                         cfs.disableAutoCompaction();
-                         AccordJournal journal = new AccordJournal(new TestParams()
-                         {
-                             @Override
-                             public int segmentSize()
-                             {
-                                 return 32 * 1024 * 1024;
-                             }
-
-                             @Override
-                             public boolean enableCompaction()
-                             {
-                                 return false;
-                             }
-                         }, new AccordAgent(), directory, cfs);
-
-                         journal.start(null);
-                         journal.unsafeSetStarted();
-                         return journal;
-                     }
-                     catch (Throwable t)
-                     {
-                         throw new RuntimeException(t);
-                     }
-                 }
-            );
+                 new JournalFactory(ks));
         }
         catch (Throwable t)
         {
