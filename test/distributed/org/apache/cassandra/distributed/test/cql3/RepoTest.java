@@ -168,16 +168,19 @@ public class RepoTest extends TestBaseImpl
                 }
             }
 
-            // 38: SELECT * FROM ks1.tbl WHERE s0 = 'c4Nw\u0002}' AND ck0 = '14:01:27.502156662' ALLOW FILTERING -- s0 ascii (indexed with SAI), ck0 time (indexed with SAI), on node3, fetch size 2147483647
+            // 		240: SELECT * FROM ks1.tbl WHERE pk0 = 00000000-0000-4400-b700-000000000000 AND pk1 = '23:44:45.357079588' AND ck1 = -72 -- ck1 tinyint, indexed with SAI, on node3, fetch size 2147483647
             int selectNode = 3;
-            String select = "SELECT * FROM ks1.tbl WHERE s0 = 'c4Nw\\u0002}' AND ck0 = '14:01:27.502156662'";
+            String select = "SELECT * FROM ks1.tbl WHERE pk0 = 00000000-0000-4400-b700-000000000000 AND pk1 = '23:44:45.357079588' AND ck1 = -72";
+            int fetchSize = Integer.MAX_VALUE;
 
             SimpleStatement stmt = new SimpleStatement(select);
             stmt.setConsistencyLevel(JavaDriverUtils.toDriverCL(selectCL));
             stmt.setHost(nodeToHost.get(selectNode));
+            if (fetchSize != Integer.MAX_VALUE)
+                stmt.setFetchSize(fetchSize);
             var result = StatefulASTBase.BaseState.getRowsAsByteBuffer(session.execute(stmt));
 
-            Assertions.assertThat(result).hasDimensions(1, 5);
+            Assertions.assertThat(result).hasDimensions(1, 9);
 
 //            // 396: SELECT * FROM ks1.tbl WHERE pk0 = '0.q\u0017wJ1' AND ck1 > 00000000-0000-1c00-b700-000000000000 -- ck1 timeuuid (reversed), indexed with SAI, on node1, fetch size 2147483647
 //            SimpleStatement stmt = new SimpleStatement("SELECT * FROM ks1.tbl WHERE pk0 = '0.q\\u0017wJ1' AND ck1 > 00000000-0000-1c00-b700-000000000000");
