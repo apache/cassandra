@@ -1,3 +1,6 @@
+4.0.17
+
+
 4.0.16
  * Tighten up permissions in dc authorizers (CASSANDRA-20225)
  * CBUtil serialization of UTF8 does not handle all UTF8 properly (CASSANDRA-20234)
