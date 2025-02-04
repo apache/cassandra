@@ -391,7 +391,7 @@ public class AccordJournalTable<K extends JournalKey, V> implements RangeSearche
     }
 
     @SuppressWarnings("resource") // Auto-closeable iterator will release related resources
-    public CloseableIterator<K> keyIterator()
+    public CloseableIterator<Journal.KeyRefs<K>> keyIterator()
     {
         return new JournalAndTableKeyIterator();
     }
@@ -435,7 +435,7 @@ public class AccordJournalTable<K extends JournalKey, V> implements RangeSearche
         }
     }
 
-    private class JournalAndTableKeyIterator extends AbstractIterator<K> implements CloseableIterator<K>
+    private class JournalAndTableKeyIterator extends AbstractIterator<Journal.KeyRefs<K>> implements CloseableIterator<Journal.KeyRefs<K>>
     {
         final TableIterator tableIterator;
         final Journal<K, V>.StaticSegmentKeyIterator journalIterator;
@@ -446,25 +446,25 @@ public class AccordJournalTable<K extends JournalKey, V> implements RangeSearche
             this.journalIterator = journal.staticSegmentKeyIterator();
         }
 
-        protected K computeNext()
+        protected Journal.KeyRefs<K> computeNext()
         {
             K tableKey = tableIterator.hasNext() ? tableIterator.peek() : null;
-            K journalKey = journalIterator.hasNext() ? journalIterator.peek() : null;
+            Journal.KeyRefs<K> journalKey = journalIterator.hasNext() ? journalIterator.peek() : null;
 
             if (tableKey == null)
                 return journalKey == null ? endOfData() : journalIterator.next();
 
             if (journalKey == null)
-                return tableIterator.next();
+                return new Journal.KeyRefs<>(tableIterator.next());
 
-            int cmp = keySupport.compare(tableKey, journalKey);
+            int cmp = keySupport.compare(tableKey, journalKey.key());
             if (cmp == 0)
             {
                 tableIterator.next();
                 return journalIterator.next();
             }
 
-            return cmp > 0 ? tableIterator.next() : journalIterator.next();
+            return cmp > 0 ? new Journal.KeyRefs<>(tableIterator.next()) : journalIterator.next();
         }
 
         public void close()

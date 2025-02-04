@@ -21,6 +21,7 @@ import java.io.IOException;
 import java.nio.channels.ClosedByInterruptException;
 import java.nio.file.FileStore;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Iterator;
 import java.util.List;
@@ -30,6 +31,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.locks.LockSupport;
 import java.util.function.BooleanSupplier;
 import java.util.function.Function;
+import java.util.function.LongConsumer;
 import java.util.function.Predicate;
 import java.util.zip.CRC32;
 
@@ -930,24 +932,108 @@ public class Journal<K, V> implements Shutdownable
         return new StaticSegmentKeyIterator();
     }
 
-    public class StaticSegmentKeyIterator implements CloseableIterator<K>
+    /**
+     * List of key and a list of segment descriptors referencing this key
+     */
+    public static class KeyRefs<K>
+    {
+        long segments[];
+        K key;
+        int size;
+
+        public KeyRefs(K key)
+        {
+            this.key = key;
+        }
+
+        private KeyRefs(int maxSize)
+        {
+            this.segments = new long[maxSize];
+        }
+
+        public void segments(LongConsumer consumer)
+        {
+            for (int i = 0; i < size; i++)
+                consumer.accept(segments[i]);
+        }
+
+        public K key()
+        {
+            return key;
+        }
+
+        private void add(K key, long segment)
+        {
+            this.key = key;
+            if (size == 0 || segments[size - 1] < segment)
+                segments[size++] = segment;
+        }
+
+        private void reset()
+        {
+            key = null;
+            size = 0;
+            Arrays.fill(segments, 0);
+        }
+    }
+
+    public class StaticSegmentKeyIterator implements CloseableIterator<KeyRefs<K>>
     {
         private final ReferencedSegments<K, V> segments;
-        private final MergeIterator<K, K> iterator;
+        private final MergeIterator<Head, KeyRefs<K>> iterator;
 
         public StaticSegmentKeyIterator()
         {
             this.segments = selectAndReference(Segment::isStatic);
-            List<Iterator<K>> iterators = new ArrayList<>(segments.count());
+            List<Iterator<Head>> iterators = new ArrayList<>(segments.count());
 
             for (Segment<K, V> segment : segments.allSorted(true))
             {
                 StaticSegment<K, V> staticSegment = (StaticSegment<K, V>) segment;
-                iterators.add(staticSegment.index().reader());
+                Iterator<K> iter = staticSegment.index().reader();
+                Head head = new Head(staticSegment.descriptor.timestamp);
+                iterators.add(new Iterator<>()
+                {
+                    public boolean hasNext()
+                    {
+                        return iter.hasNext();
+                    }
+
+                    public Head next()
+                    {
+                        head.key = iter.next();
+                        return head;
+                    }
+                });
             }
+
             this.iterator = MergeIterator.get(iterators,
-                                              keySupport::compare,
-                                              new MergeIterator.Reducer.Trivial<>());
+                                              (r1, r2) -> {
+                                                  int keyCmp = keySupport.compare(r1.key, r2.key);
+                                                  if (keyCmp != 0)
+                                                      return keyCmp;
+                                                  return Long.compare(r1.segment, r2.segment);
+                                              },
+                                              new MergeIterator.Reducer<Head, KeyRefs<K>>()
+                                              {
+                                                  final KeyRefs<K> ret = new KeyRefs<>(segments.count());
+
+                                                  public void reduce(int idx, Head head)
+                                                  {
+                                                      ret.add(head.key, head.segment);
+                                                  }
+
+                                                  protected KeyRefs<K> getReduced()
+                                                  {
+                                                      return ret;
+                                                  }
+
+                                                  protected void onKeyChange()
+                                                  {
+                                                      ret.reset();
+                                                      super.onKeyChange();
+                                                  }
+                                              });
         }
 
         @Override
@@ -956,7 +1042,7 @@ public class Journal<K, V> implements Shutdownable
             segments.close();
         }
 
-        public K peek()
+        public KeyRefs<K> peek()
         {
             if (iterator.hasNext())
                 return iterator.peek();
@@ -970,9 +1056,35 @@ public class Journal<K, V> implements Shutdownable
         }
 
         @Override
-        public K next()
+        public KeyRefs<K> next()
         {
             return iterator.next();
+        }
+
+        class Head
+        {
+            final long segment;
+            K key;
+
+            public Head(long segment)
+            {
+                this.segment = segment;
+            }
+
+            public void set(K key)
+            {
+                this.key = key;
+            }
+
+            public K key()
+            {
+                return key;
+            }
+
+            public void reset()
+            {
+                key = null;
+            }
         }
     }
 

@@ -59,7 +59,6 @@ import accord.primitives.TxnId;
 import accord.utils.Invariants;
 import accord.utils.async.AsyncChain;
 import accord.utils.async.AsyncChains;
-import accord.utils.async.AsyncResults;
 import org.apache.cassandra.service.accord.api.AccordRoutingKey.TokenKey;
 import org.apache.cassandra.service.accord.txn.TxnRead;
 import org.apache.cassandra.utils.Clock;
@@ -484,16 +483,13 @@ public class AccordCommandStore extends CommandStore
         }
 
         @Override
-        public AsyncChain<Void> load(TxnId txnId)
+        public AsyncChain<Command> load(TxnId txnId)
         {
-            if (store.caches.commands().isReferenced(txnId))
-                return AsyncResults.SUCCESS_NULL;
-
             return store.submit(txnId, safeStore -> {
-                applyWrites(txnId, safeStore, (safeCommand, cmd) -> {
+                maybeApplyWrites(txnId, safeStore, (safeCommand, cmd) -> {
                     Commands.applyWrites(safeStore, txnId, cmd).begin(store.agent);
                 });
-                return null;
+                return safeStore.unsafeGet(txnId).current();
             });
         }
     }

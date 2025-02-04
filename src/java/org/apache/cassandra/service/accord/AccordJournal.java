@@ -25,7 +25,6 @@ import java.util.Iterator;
 import java.util.NavigableMap;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
-import java.util.function.BiConsumer;
 import javax.annotation.Nullable;
 
 import com.google.common.annotations.VisibleForTesting;
@@ -76,7 +75,6 @@ import org.apache.cassandra.service.accord.serializers.ResultSerializers;
 import org.apache.cassandra.service.accord.serializers.WaitingOnSerializer;
 import org.apache.cassandra.utils.CloseableIterator;
 import org.apache.cassandra.utils.ExecutorUtils;
-import org.apache.cassandra.utils.concurrent.AsyncPromise;
 
 import static accord.impl.CommandChange.anyFieldChanged;
 import static accord.impl.CommandChange.getFlags;
@@ -443,42 +441,36 @@ public class AccordJournal implements accord.api.Journal, RangeSearcher.Supplier
     public void replay(CommandStores commandStores)
     {
         journal.closeCurrentSegmentForTestingIfNonEmpty();
-        try (CloseableIterator<JournalKey> iter = journalTable.keyIterator())
+        try (CloseableIterator<Journal.KeyRefs<JournalKey>> iter = journalTable.keyIterator())
         {
             while (iter.hasNext())
             {
-                JournalKey key = iter.next();
+                Journal.KeyRefs<JournalKey> ref = iter.next();
 
-                if (key.type != JournalKey.Type.COMMAND_DIFF)
+                if (ref.key().type != JournalKey.Type.COMMAND_DIFF)
                     continue;
 
-                CommandStore commandStore = commandStores.forId(key.commandStoreId);
+                CommandStore commandStore = commandStores.forId(ref.key().commandStoreId);
                 Loader loader = commandStore.loader();
-                AsyncChains.getUnchecked(loader.load(key.id).beginAsResult());
+                AsyncChains.getUnchecked(loader.load(ref.key().id)
+                                               .map(command -> {
+                                                   if (journalTable.shouldIndex(ref.key())
+                                                       && command.participants() != null
+                                                       && command.participants().route() != null)
+                                                   {
+                                                       ref.segments(segment -> {
+                                                           journalTable.safeNotify(index -> index.update(segment, ref.key().commandStoreId, ref.key().id, command.participants().route()));
+                                                       });
+                                                   }
+                                                   return command;
+                                               })
+                                               .beginAsResult());
             }
         }
         catch (Throwable t)
         {
             throw new RuntimeException("Can not replay journal.", t);
         }
-    }
-
-    private AsyncPromise<?> async(BiConsumer<Command, OnDone> consumer, Command command)
-    {
-        AsyncPromise<?> future = new AsyncPromise<>();
-        consumer.accept(command, new OnDone()
-        {
-            public void success()
-            {
-                future.setSuccess(null);
-            }
-
-            public void failure(Throwable t)
-            {
-                future.setFailure(t);
-            }
-        });
-        return future;
     }
 
     public static @Nullable ByteBuffer asSerializedChange(Command before, Command after, int userVersion) throws IOException
