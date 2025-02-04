@@ -730,7 +730,6 @@ public class AutoRepairUtils
         {
             //find hostId from IP address
             UUID hostId = ClusterMetadata.current().directory.hostId(ClusterMetadata.current().directory.peerId(host));
-            //UUID hostId = StorageService.instance.getTokenMetadata().getHostId(host);
             hostIds.add(hostId);
             if (hostId != null)
             {

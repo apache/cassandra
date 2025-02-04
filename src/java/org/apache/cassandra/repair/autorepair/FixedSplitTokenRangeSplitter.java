@@ -33,6 +33,8 @@ import org.apache.cassandra.service.AutoRepairService;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.tcm.compatibility.TokenRingUtils;
+import org.apache.cassandra.utils.FBUtilities;
 
 import static org.apache.cassandra.repair.autorepair.AutoRepairUtils.split;
 
@@ -87,7 +89,7 @@ public class FixedSplitTokenRangeSplitter implements IAutoRepairTokenRangeSplitt
         String keyspaceName = repairPlan.getKeyspaceName();
         List<String> tableNames = repairPlan.getTableNames();
 
-        Collection<Range<Token>> tokens = StorageService.instance.getPrimaryRanges(keyspaceName);
+        Collection<Range<Token>> tokens = TokenRingUtils.getPrimaryRangesForEndpoint(keyspaceName, FBUtilities.getBroadcastAddressAndPort());
         if (!primaryRangeOnly)
         {
             // if we need to repair non-primary token ranges, then change the tokens accordingly
