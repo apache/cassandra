@@ -73,6 +73,7 @@ import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableMetadata;
+import org.apache.cassandra.serializers.MarshalException;
 
 import static org.apache.cassandra.cql3.statements.RequestValidations.invalidRequest;
 
@@ -314,8 +315,14 @@ public class PartitionKeyStatsTable implements VirtualTable
 
                 String keyString = UTF8Type.instance.compose(expression.getIndexValue());
                 ByteBuffer keyAsBB;
-
-                keyAsBB = target.partitionKeyType.fromString(keyString);
+                try
+                {
+                    keyAsBB = target.partitionKeyType.fromString(keyString);
+                }
+                catch (MarshalException ex)
+                {
+                    throw new InvalidRequestException(ex.getMessage());
+                }
                 DecoratedKey decoratedKey = target.partitioner.decorateKey(keyAsBB);
 
                 if (!DataRange.forKeyRange(new Range<>(startToken.minKeyBound(), endToken.maxKeyBound())).contains(decoratedKey.getToken().minKeyBound()))
