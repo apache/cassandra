@@ -161,6 +161,7 @@ Merged from 4.1:
  * Enforce CQL message size limit on multiframe messages (CASSANDRA-20052)
  * Fix race condition in DecayingEstimatedHistogramReservoir during rescale (CASSANDRA-19365)
 Merged from 4.0:
+ * Fix autocompletion for role names/user names (CASSANDRA-20175)
  * Tighten up permissions in dc and cidr authorizers (CASSANDRA-20225)
  * CBUtil serialization of UTF8 does not handle all UTF8 properly (CASSANDRA-20234)
  * Make hint expiry use request start time rather than timeout time for TTL (CASSANDRA-20014)
