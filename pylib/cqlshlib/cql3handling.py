@@ -808,18 +808,18 @@ syntax_rules += r'''
 
 <currentTimeFunctions> ::= "CURRENT_DATE()"
              | "CURRENT_TIME()"
-             | "CURRENT_TIMEUUID()"
              | "CURRENT_TIMESTAMP()"
+             | "CURRENT_TIMEUUID()"
              ;
 
-<maskFunctions> ::= "MASK_NULL" "(" [colname]=<cident> ")"
-             | "MASK_DEFAULT" "(" [colname]=<cident> ")"
-             | "MAP_KEYS" "(" [colname]=<cident> ")"
+<maskFunctions> ::= "MAP_KEYS" "(" [colname]=<cident> ")"
              | "MAP_VALUES" "(" [colname]=<cident> ")"
-             | "MASK_REPLACE" "(" [colname]=<cident> "," <term> ")"
+             | "MASK_DEFAULT" "(" [colname]=<cident> ")"
              | "MASK_HASH" "(" [colname]=<cident> ")"
-             | "MASK_INNER" "(" [colname]=<cident> "," <term> "," <term> ")"
-             | "MASK_OUTER" "(" [colname]=<cident> "," <term> "," <term> ")"
+             | "MASK_INNER" "(" [colname]=<cident> "," <wholenumber> "," <wholenumber> ")"
+             | "MASK_NULL" "(" [colname]=<cident> ")"
+             | "MASK_REPLACE" "(" [colname]=<cident> "," <propertyValue> ")"
+             | "MASK_OUTER" "(" [colname]=<cident> "," <wholenumber> "," <wholenumber> ")"
              ;
 
 <timeConversionFunctions> ::= "TO_DATE" "(" [colname]=<cident> ")"
@@ -831,13 +831,12 @@ syntax_rules += r'''
              | "MIN_TIMEUUID" "(" [colname]=<cident> ")"
              ;
 
-<writetimeFunctions> ::= "WRITETIME" "(" [colname]=<cident> ")"
+<writetimeFunctions> ::= "MAX_WRITETIME" "(" [colname]=<cident> ")"
              | "MIN_WRITETIME" "(" [colname]=<cident> ")"
-             | "MAX_WRITETIME" "(" [colname]=<cident> ")"
+             | "WRITETIME" "(" [colname]=<cident> ")"
              ;
 <operandFunctions> ::= <currentTimeFunctions> | <timeuuidFunctions>
              ;
-
 
 '''
 
