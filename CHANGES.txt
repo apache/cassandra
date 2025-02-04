@@ -3,6 +3,8 @@
  * Correct the default behavior of compareTo() when comparing WIDE and STATIC PrimaryKeys (CASSANDRA-20238)
 Merged from 4.1:
  * Fix WaitQueue.Signal.awaitUninterruptibly may block forever if invoking thread is interrupted (CASSANDRA-20084)
+Merged from 4.0:
+ * Fix autocompletion for role names/user names (CASSANDRA-20175)
 
 
 5.0.3
