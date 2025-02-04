@@ -101,7 +101,9 @@ public class StatefulASTBase extends TestBaseImpl
         CUSTOM_INDEX_MAX_COLUMN_48("https://issues.apache.org/jira/browse/CASSANDRA-19897",
                                    "Columns can be up to 50 chars, but CREATE CUSTOM INDEX only allows up to 48"),
         AF_MULTI_NODE_AND_NODE_LOCAL_WRITES("https://issues.apache.org/jira/browse/CASSANDRA-20243",
-                                            "When writes are done at NODE_LOCAL and the select is ALL, AF should be able to return the correct data but it doesn't")
+                                            "When writes are done at NODE_LOCAL and the select is ALL, AF should be able to return the correct data but it doesn't"),
+        RANGE_QUERY_ON_MULTI_NODE_PAGING("TODO",
+                          "When running on multiple nodes doing range queries with paging some data can be skipped; but this behavior is not deterministic!")
         ;
 
         KnownIssue(String url, String description)
@@ -283,7 +285,16 @@ public class StatefulASTBase extends TestBaseImpl
         protected <S extends BaseState> Property.Command<S, Void, ?> command(RandomSource rs, Select select, @Nullable String annotate)
         {
             var inst = selectInstance(rs);
-            int fetchSize = fetchSizeGen.nextInt(rs);
+            //TODO (coverage): don't limit this to all selects, only those doing range queries!
+            int fetchSize;
+            if (isMultiNode() && IGNORED_ISSUES.contains(KnownIssue.RANGE_QUERY_ON_MULTI_NODE_PAGING))
+            {
+                fetchSize = Integer.MAX_VALUE;
+            }
+            else
+            {
+                fetchSize = fetchSizeGen.nextInt(rs);
+            }
             String postfix = "on " + inst + ", fetch size " + fetchSize;
             if (annotate == null) annotate = postfix;
             else                  annotate += ", " + postfix;

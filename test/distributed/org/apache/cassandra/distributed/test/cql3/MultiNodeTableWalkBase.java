@@ -20,30 +20,33 @@ package org.apache.cassandra.distributed.test.cql3;
 
 import java.io.IOException;
 
-import accord.utils.Property;
 import accord.utils.RandomSource;
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
 import org.apache.cassandra.distributed.api.IInvokableInstance;
+import org.apache.cassandra.schema.TableMetadata;
+import org.apache.cassandra.service.reads.repair.ReadRepairStrategy;
 
-public class MultiNodeTableWalkTest extends SingleNodeTableWalkTest
+public abstract class MultiNodeTableWalkBase extends SingleNodeTableWalkTest
 {
     /**
      * This field lets the test run as if it was multiple nodes, but actually runs against a single node.
      * This behavior is desirable when this test fails to see if the issue can be reproduced on single node as well.
      */
-    private boolean mockMultiNode = false;
+    private static final boolean mockMultiNode = false;
+
+    private final ReadRepairStrategy readRepair;
+
+    protected MultiNodeTableWalkBase(ReadRepairStrategy readRepair)
+    {
+        this.readRepair = readRepair;
+    }
 
     @Override
-    protected void preCheck(Cluster cluster, Property.StatefulBuilder builder)
+    protected TableMetadata defineTable(RandomSource rs, String ks)
     {
-        // if a failing seed is detected, populate here
-        // Example: builder.withSeed(42L);
-        // CQL operations may have opertors such as +, -, and / (example 4 + 4), to "apply" them to get a constant value
-        // CQL_DEBUG_APPLY_OPERATOR = true;
-        // Sometimes It's useful to validate that the error is localized to mutliple nodes rather than single node,
-        // so uncomment the below to allow running the test as a single node
-        // mockMultiNode = true;
+        TableMetadata tbl = super.defineTable(rs, ks);
+        return tbl.unbuild().params(tbl.params.unbuild().readRepair(readRepair).build()).build();
     }
 
     @Override

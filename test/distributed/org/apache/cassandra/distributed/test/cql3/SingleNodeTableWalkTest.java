@@ -62,6 +62,7 @@ import org.apache.cassandra.distributed.test.sai.SAIUtil;
 import org.apache.cassandra.harry.model.BytesPartitionState;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.TableMetadata;
+import org.apache.cassandra.service.reads.repair.ReadRepairStrategy;
 import org.apache.cassandra.utils.ASTGenerators;
 import org.apache.cassandra.utils.AbstractTypeGenerators;
 import org.apache.cassandra.utils.AbstractTypeGenerators.TypeGenBuilder;
@@ -367,7 +368,7 @@ public class SingleNodeTableWalkTest extends StatefulASTBase
         }
     }
 
-    private TableMetadata defineTable(RandomSource rs, String ks)
+    protected TableMetadata defineTable(RandomSource rs, String ks)
     {
         //TODO (correctness): the id isn't correct... this is what we use to create the table, so would miss the actual ID
         // Defaults may also be incorrect, but given this is the same version it "shouldn't"
