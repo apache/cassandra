@@ -56,6 +56,7 @@ import javax.annotation.Nullable;
 import javax.annotation.concurrent.GuardedBy;
 
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.base.Throwables;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.LinkedHashMultimap;
 import org.junit.Assume;
@@ -93,9 +94,9 @@ import org.apache.cassandra.distributed.shared.ShutdownException;
 import org.apache.cassandra.distributed.shared.Versions;
 import org.apache.cassandra.io.util.PathUtils;
 import org.apache.cassandra.net.Verb;
+import org.apache.cassandra.utils.AssertionUtils;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Isolated;
-import org.apache.cassandra.utils.JVMStabilityInspector;
 import org.apache.cassandra.utils.Shared;
 import org.apache.cassandra.utils.Shared.Recursive;
 import org.apache.cassandra.utils.concurrent.Condition;
@@ -332,29 +333,12 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster<I
             ++generation;
             IClassTransformer transformer = classTransformer == null ? null : classTransformer.initialise();
             ClassLoader classLoader = new InstanceClassLoader(generation, config.num(), version.classpath, sharedClassLoader, sharedClassPredicate, transformer);
-            Consumer<Throwable> stabilityInspector;
-            {
-                try
-                {
-                    Class<?> owner = classLoader.loadClass(JVMStabilityInspector.class.getName());
-                    Method method = owner.getMethod("inspectThrowable", Throwable.class);
-                    stabilityInspector = t -> {
-                        try { method.invoke(null, t); }
-                        catch (IllegalAccessException | InvocationTargetException e) { throw new RuntimeException(e); }
-                    };
-                }
-                catch (ClassNotFoundException | NoSuchMethodException e)
-                {
-                    throw new RuntimeException(e);
-                }
-            }
             ThreadGroup threadGroup = new ThreadGroup(clusterThreadGroup, "node" + config.num() + (generation > 1 ? "_" + generation : ""))
             {
                 @Override
                 public void uncaughtException(Thread t, Throwable e)
                 {
-                    AbstractCluster.this.uncaughtException(t, e);
-                    stabilityInspector.accept(e);
+                    AbstractCluster.this.uncaughtException(get(config.num()), t, e);
                 }
             };
             if (instanceInitializer != null)
@@ -1117,15 +1101,34 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster<I
         }
     }
 
-    private void uncaughtException(Thread thread, Throwable error)
+    private void uncaughtException(I instance, Thread thread, Throwable error)
     {
+        // should no longer be possible given this is called from a ThreadGroup, but just in case
         if (!(thread.getContextClassLoader() instanceof InstanceClassLoader))
             return;
 
-        InstanceClassLoader cl = (InstanceClassLoader) thread.getContextClassLoader();
+        try
+        {
+            instance.uncaughtException(thread, error);
+        }
+        catch (Throwable t)
+        {
+            // mixing ClassLoaders so can't use normal instanceOf check
+            if (AssertionUtils.isInstanceof(InstanceKiller.InstanceShutdown.class).matches(Throwables.getRootCause(t)))
+            {
+                // The exception was handled by JVMStabilityInspector
+                return;
+            }
+            maybeAddUncaughtExceptions(t, instance);
+        }
+
+        maybeAddUncaughtExceptions(error, instance);
+    }
+
+    private void maybeAddUncaughtExceptions(Throwable error, I instance)
+    {
         BiPredicate<Integer, Throwable> ignore = ignoreUncaughtThrowable;
-        I instance = get(cl.getInstanceId());
-        if ((ignore == null || !ignore.test(cl.getInstanceId(), error)) && instance != null && !instance.isShutdown())
+        if ((ignore == null || !ignore.test(instance.config().num(), error)) && instance != null && !instance.isShutdown())
             uncaughtExceptions.add(error);
     }
 
