@@ -1480,24 +1480,28 @@ public class DatabaseDescriptor
     {
         boolean compressOrEncrypt = getCommitLogCompression() != null || (getEncryptionContext() != null && getEncryptionContext().isEnabled());
         boolean directIOSupported = false;
-        try
+        // File.getBlockSize creates directories/files tools may not have permissions for
+        if (!toolInitialized)
         {
-            String commitLogLocation = getCommitLogLocation();
+            try
+            {
+                String commitLogLocation = getCommitLogLocation();
 
-            if (commitLogLocation == null)
-                throw new ConfigurationException("commitlog_directory must be specified", false);
+                if (commitLogLocation == null)
+                    throw new ConfigurationException("commitlog_directory must be specified", false);
 
-            File commitLogLocationDir = new File(commitLogLocation);
-            PathUtils.createDirectoriesIfNotExists(commitLogLocationDir.toPath());
-            directIOSupported = FileUtils.getBlockSize(commitLogLocationDir) > 0;
-        }
-        catch (IOError | ConfigurationException ex)
-        {
-            throw  ex;
-        }
-        catch (RuntimeException e)
-        {
-            logger.warn("Unable to determine block size for commit log directory: {}", e.getMessage());
+                File commitLogLocationDir = new File(commitLogLocation);
+                PathUtils.createDirectoriesIfNotExists(commitLogLocationDir.toPath());
+                directIOSupported = FileUtils.getBlockSize(commitLogLocationDir) > 0;
+            }
+            catch (IOError | ConfigurationException ex)
+            {
+                throw ex;
+            }
+            catch (RuntimeException e)
+            {
+                logger.warn("Unable to determine block size for commit log directory: {}", e.getMessage());
+            }
         }
 
         if (providedDiskAccessMode == DiskAccessMode.auto)
