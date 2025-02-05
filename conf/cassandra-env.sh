@@ -44,45 +44,24 @@ calculate_heap_sizes()
     esac
 
     # some systems like the raspberry pi don't report cores, use at least 1
-    if [ "$system_cpu_cores" -lt "1" ]
-    then
+    if [ "$system_cpu_cores" -lt "1" ] ; then
         system_cpu_cores="1"
     fi
 
-    # set max heap size based on the following
-    # max(min(1/2 ram, 1024MB), min(1/4 ram, 8GB))
-    # calculate 1/2 ram and cap to 1024MB
-    # calculate 1/4 ram and cap to 8192MB
-    # pick the max
+    # Heap size: min(1/2 ram, CMS ? 16G : 31G)
+    # CMS Young gen: 1/2 * heap size
+    if [ $USING_CMS -eq 0 ] ; then
+        heap_limit="15872"
+    else
+        heap_limit="31744"
+    fi
     half_system_memory_in_mb=`expr $system_memory_in_mb / 2`
-    quarter_system_memory_in_mb=`expr $half_system_memory_in_mb / 2`
-    if [ "$half_system_memory_in_mb" -gt "1024" ]
-    then
-        half_system_memory_in_mb="1024"
-    fi
-    if [ "$quarter_system_memory_in_mb" -gt "8192" ]
-    then
-        quarter_system_memory_in_mb="8192"
-    fi
-    if [ "$half_system_memory_in_mb" -gt "$quarter_system_memory_in_mb" ]
-    then
-        max_heap_size_in_mb="$half_system_memory_in_mb"
+    if [ "$half_system_memory_in_mb" -gt "$heap_limit" ] ; then
+        CALCULATED_MAX_HEAP_SIZE="${heap_limit}M"
+        CALCULATED_CMS_HEAP_NEWSIZE="8G"
     else
-        max_heap_size_in_mb="$quarter_system_memory_in_mb"
-    fi
-    MAX_HEAP_SIZE="${max_heap_size_in_mb}M"
-
-    # Young gen: min(max_sensible_per_modern_cpu_core * num_cores, 1/4 * heap size)
-    max_sensible_yg_per_core_in_mb="100"
-    max_sensible_yg_in_mb=`expr $max_sensible_yg_per_core_in_mb "*" $system_cpu_cores`
-
-    desired_yg_in_mb=`expr $max_heap_size_in_mb / 4`
-
-    if [ "$desired_yg_in_mb" -gt "$max_sensible_yg_in_mb" ]
-    then
-        HEAP_NEWSIZE="${max_sensible_yg_in_mb}M"
-    else
-        HEAP_NEWSIZE="${desired_yg_in_mb}M"
+        CALCULATED_MAX_HEAP_SIZE="${half_system_memory_in_mb}M"
+        CALCULATED_CMS_HEAP_NEWSIZE="`expr $half_system_memory_in_mb / 4`M"
     fi
 }
 
@@ -108,35 +87,44 @@ echo $JVM_OPTS | grep -q Xmx
 DEFINED_XMX=$?
 echo $JVM_OPTS | grep -q Xms
 DEFINED_XMS=$?
+echo $JVM_OPTS | grep -q ParallelGCThreads
+DEFINED_PARALLEL_GC_THREADS=$?
+echo $JVM_OPTS | grep -q ConcGCThreads
+DEFINED_CONC_GC_THREADS=$?
 echo $JVM_OPTS | grep -q UseConcMarkSweepGC
 USING_CMS=$?
 echo $JVM_OPTS | grep -q +UseG1GC
 USING_G1=$?
 
+calculate_heap_sizes
+
 # Override these to set the amount of memory to allocate to the JVM at
 # start-up. For production use you may wish to adjust this for your
 # environment. MAX_HEAP_SIZE is the total amount of memory dedicated
 # to the Java heap. HEAP_NEWSIZE refers to the size of the young
-# generation. Both MAX_HEAP_SIZE and HEAP_NEWSIZE should be either set
+# generation when CMS is used.
+#
+# When using G1 only MAX_HEAP_SIZE may be set, and HEAP_NEWSIZE must be
+# left unset.
+#
+# When using CMS both MAX_HEAP_SIZE and HEAP_NEWSIZE should be either set
 # or not (if you set one, set the other).
-#
-# The main trade-off for the young generation is that the larger it
-# is, the longer GC pause times will be. The shorter it is, the more
-# expensive GC will be (usually).
-#
-# The example HEAP_NEWSIZE assumes a modern 8-core+ machine for decent pause
-# times. If in doubt, and if you do not particularly want to tweak, go with
-# 100 MB per physical CPU core.
 
-#MAX_HEAP_SIZE="4G"
-#HEAP_NEWSIZE="800M"
+#MAX_HEAP_SIZE="20G"
+#HEAP_NEWSIZE="10G"
 
 # Set this to control the amount of arenas per-thread in glibc
 #export MALLOC_ARENA_MAX=4
 
-# only calculate the size if it's not set manually
+# Warn on an erroneously set HEAP_NEWSIZE when using G1
+if [ "x$HEAP_NEWSIZE" != "x" -a $USING_G1 -eq 0 ]; then
+    echo "HEAP_NEWSIZE has erroneously been set and will be ignored in combination with G1 (see cassandra-env.sh)"
+fi
+
+# Only use the calculated size if it's not set manually
 if [ "x$MAX_HEAP_SIZE" = "x" ] && [ "x$HEAP_NEWSIZE" = "x" -o $USING_G1 -eq 0 ]; then
-    calculate_heap_sizes
+    MAX_HEAP_SIZE="$CALCULATED_MAX_HEAP_SIZE"
+    HEAP_NEWSIZE="$CALCULATED_CMS_HEAP_NEWSIZE"
 elif [ "x$MAX_HEAP_SIZE" = "x" ] ||  [ "x$HEAP_NEWSIZE" = "x" -a $USING_G1 -ne 0 ]; then
     echo "please set or unset MAX_HEAP_SIZE and HEAP_NEWSIZE in pairs when using CMS GC (see cassandra-env.sh)"
     exit 1
@@ -157,8 +145,7 @@ elif [ $DEFINED_XMX -ne 0 ] || [ $DEFINED_XMS -ne 0 ]; then
 fi
 
 # We only set -Xmn flag if it was not defined in jvm-server.options file
-# and if the CMS GC is being used
-# If defined, both Xmn and Xmx should be defined together.
+# and CMS is being used.  If defined, both Xmn and Xmx must be defined together.
 if [ $DEFINED_XMN -eq 0 ] && [ $DEFINED_XMX -ne 0 ]; then
     echo "Please set or unset -Xmx and -Xmn flags in pairs on jvm-server.options file."
     exit 1
@@ -166,11 +153,20 @@ elif [ $DEFINED_XMN -ne 0 ] && [ $USING_CMS -eq 0 ]; then
     JVM_OPTS="$JVM_OPTS -Xmn${HEAP_NEWSIZE}"
 fi
 
-# We fail to start if -Xmn is used with G1 GC is being used
-# See comments for -Xmn in jvm-server.options
+# We fail to start if -Xmn is used with G1
 if [ $DEFINED_XMN -eq 0 ] && [ $USING_G1 -eq 0 ]; then
+    # It is not recommended to set the young generation size if using the
+    # G1 GC, since that will override the target pause-time goal.
+    # Instead floor the young generation size with -XX:NewSize
+    # More info: http://www.oracle.com/technetwork/articles/java/g1gc-1984535.html
     echo "It is not recommended to set -Xmn with the G1 garbage collector. See comments for -Xmn in jvm-server.options for details."
     exit 1
+fi
+
+if [ $USING_G1 -eq 0 ] && [ $DEFINED_PARALLEL_GC_THREADS -ne 0 ] && [ $DEFINED_CONC_GC_THREADS -ne 0 ] ; then
+    # Set ParallelGCThreads and ConcGCThreads equal to number of cpu cores.
+    # Setting both to the same value is important to reduce STW durations.
+    JVM_OPTS="$JVM_OPTS -XX:ParallelGCThreads=$system_cpu_cores -XX:ConcGCThreads=$system_cpu_cores"
 fi
 
 if [ "$JVM_ARCH" = "64-Bit" ] && [ $USING_CMS -eq 0 ]; then
@@ -183,10 +179,11 @@ JVM_OPTS="$JVM_OPTS -XX:CompileCommandFile=$CASSANDRA_CONF/hotspot_compiler"
 # add the jamm javaagent
 JVM_OPTS="$JVM_OPTS -javaagent:$CASSANDRA_HOME/lib/jamm-0.4.0.jar"
 
-# set jvm HeapDumpPath with CASSANDRA_HEAPDUMP_DIR
-if [ "x$CASSANDRA_HEAPDUMP_DIR" != "x" ]; then
-    JVM_OPTS="$JVM_OPTS -XX:HeapDumpPath=$CASSANDRA_HEAPDUMP_DIR/cassandra-`date +%s`-pid$$.hprof"
+
+if [ "x$CASSANDRA_HEAPDUMP_DIR" = "x" ]; then
+    CASSANDRA_HEAPDUMP_DIR="$CASSANDRA_LOG_DIR"
 fi
+JVM_OPTS="$JVM_OPTS -XX:HeapDumpPath=$CASSANDRA_HEAPDUMP_DIR/cassandra-`date +%s`-pid$$.hprof"
 
 # stop the jvm on OutOfMemoryError as it can result in some data corruption
 # uncomment the preferred option
