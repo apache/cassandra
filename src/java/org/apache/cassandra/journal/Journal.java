@@ -55,6 +55,7 @@ import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.CloseableIterator;
 import org.apache.cassandra.utils.Crc;
 import org.apache.cassandra.utils.JVMStabilityInspector;
+import org.apache.cassandra.utils.LazyToString;
 import org.apache.cassandra.utils.MergeIterator;
 import org.apache.cassandra.utils.Simulate;
 import org.apache.cassandra.utils.concurrent.OpOrder;
@@ -967,6 +968,10 @@ public class Journal<K, V> implements Shutdownable
             this.key = key;
             if (size == 0 || segments[size - 1] < segment)
                 segments[size++] = segment;
+            else
+                Invariants.require(segments[size - 1] == segment,
+                                   "Tried to add an out-of-order segment: %d, %s", segment,
+                                   LazyToString.lazy(() -> Arrays.toString(Arrays.copyOf(segments, size))));
         }
 
         private void reset()
@@ -1018,16 +1023,19 @@ public class Journal<K, V> implements Shutdownable
                                               {
                                                   final KeyRefs<K> ret = new KeyRefs<>(segments.count());
 
+                                                  @Override
                                                   public void reduce(int idx, Head head)
                                                   {
                                                       ret.add(head.key, head.segment);
                                                   }
 
+                                                  @Override
                                                   protected KeyRefs<K> getReduced()
                                                   {
                                                       return ret;
                                                   }
 
+                                                  @Override
                                                   protected void onKeyChange()
                                                   {
                                                       ret.reset();
@@ -1065,26 +1073,7 @@ public class Journal<K, V> implements Shutdownable
         {
             final long segment;
             K key;
-
-            public Head(long segment)
-            {
-                this.segment = segment;
-            }
-
-            public void set(K key)
-            {
-                this.key = key;
-            }
-
-            public K key()
-            {
-                return key;
-            }
-
-            public void reset()
-            {
-                key = null;
-            }
+            Head(long segment) { this.segment = segment; }
         }
     }
 
