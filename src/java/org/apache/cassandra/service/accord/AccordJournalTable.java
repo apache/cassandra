@@ -162,10 +162,21 @@ public class AccordJournalTable<K extends JournalKey, V> implements RangeSearche
             this.reader = reader;
         }
 
+        private long prevSegment = -1;
+        private long prevPosition = -1;
+
         @Override
         public void accept(long segment, int position, K key, ByteBuffer buffer, int userVersion)
         {
+            Invariants.require(prevSegment == -1 || segment <= prevSegment,
+                               "Records should always be iterated over in a reverse order, but %s was seen after %s", segment, prevSegment);
+            if (prevSegment != segment)
+                prevPosition = -1;
+            Invariants.require(prevPosition == -1 || position < prevPosition,
+                               "Records should always be iterated over in a reverse order, but %s was seen after %s", position, prevPosition);
             readBuffer(buffer, reader, userVersion);
+            prevSegment = segment;
+            prevPosition = position;
         }
     }
 
@@ -173,6 +184,7 @@ public class AccordJournalTable<K extends JournalKey, V> implements RangeSearche
     {
         protected LongHashSet visited = null;
         protected RecordConsumer<K> delegate;
+
         TableRecordConsumer(RecordConsumer<K> delegate)
         {
             this.delegate = delegate;
@@ -203,6 +215,7 @@ public class AccordJournalTable<K extends JournalKey, V> implements RangeSearche
         private final K key;
         private final TableRecordConsumer tableRecordConsumer;
         private final RecordConsumer<K> delegate;
+
         JournalAndTableRecordConsumer(K key, RecordConsumer<K> reader)
         {
             this.key = key;
@@ -218,7 +231,7 @@ public class AccordJournalTable<K extends JournalKey, V> implements RangeSearche
         @Override
         public void accept(long segment, int position, K key, ByteBuffer buffer, int userVersion)
         {
-            if (!tableRecordConsumer.visited(segment))
+            if (!tableRecordConsumer.visited(segment)) //TODO: don't need this anymore
                 delegate.accept(segment, position, key, buffer, userVersion);
         }
     }
@@ -339,15 +352,15 @@ public class AccordJournalTable<K extends JournalKey, V> implements RangeSearche
      * <p>
      * When reading from journal segments, skip descriptors that were read from the table.
      */
-    public void readAll(K key, Reader reader, boolean asc)
+    public void readAll(K key, Reader reader)
     {
-        readAll(key, new RecordConsumerAdapter(reader), asc);
+        readAll(key, new RecordConsumerAdapter(reader));
     }
 
-    public void readAll(K key, RecordConsumer<K> reader, boolean asc)
+    public void readAll(K key, RecordConsumer<K> reader)
     {
         JournalAndTableRecordConsumer consumer = new JournalAndTableRecordConsumer(key, reader);
-        journal.readAll(key, consumer, asc);
+        journal.readAll(key, consumer);
         consumer.readTable();
     }
 
@@ -382,7 +395,6 @@ public class AccordJournalTable<K extends JournalKey, V> implements RangeSearche
 
         long descriptor = LongType.instance.compose(ByteBuffer.wrap((byte[]) row.clustering().get(0)));
         int position = Int32Type.instance.compose(ByteBuffer.wrap((byte[]) row.clustering().get(1)));
-
         into.key = key;
         into.value = row.getCell(recordColumn).buffer();
         into.userVersion = Int32Type.instance.compose(row.getCell(versionColumn).buffer());
