@@ -364,9 +364,9 @@ public class ClientState
             if (((FunctionResource)resource).getKeyspace().equals(SystemKeyspace.NAME))
                 return;
 
-        if (resource instanceof DataResource && !(user.isSuper() || user.isSystem()))
+        if (resource instanceof DataResource)
         {
-            DataResource dataResource = (DataResource)resource;
+            DataResource dataResource = (DataResource) resource;
             if (!dataResource.isRootLevel())
             {
                 String keyspace = dataResource.getKeyspace();
@@ -376,7 +376,8 @@ public class ClientState
                 // see the Permission enum for details.
                 if (Schema.isSystemKeyspace(keyspace))
                 {
-                    ensurePermissionOnResourceChain(perm, Resources.chain(dataResource, IResource::hasParent));
+                    if (!(user.isSystem() || user.isSuper()))
+                        ensurePermissionOnResourceChain(perm, Resources.chain(dataResource, IResource::hasParent));
                     return;
                 }
             }
