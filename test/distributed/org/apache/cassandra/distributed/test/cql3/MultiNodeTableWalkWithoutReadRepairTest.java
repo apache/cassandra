@@ -35,11 +35,22 @@ public class MultiNodeTableWalkWithoutReadRepairTest extends MultiNodeTableWalkB
         // if a failing seed is detected, populate here
         // Example: builder.withSeed(42L);
         // CQL operations may have opertors such as +, -, and / (example 4 + 4), to "apply" them to get a constant value
-//         CQL_DEBUG_APPLY_OPERATOR = true;
+         CQL_DEBUG_APPLY_OPERATOR = true;
 
 
         // This got wrapped up into CASSANDRA-20189.  With RR=NONE a query was found to produce incorrect result, and when you run with RR=BLOCKING this corrupts the data causing a failure down the line
         // The pattern seen is that SAI is touching multiple unrepaired columns and would misclassify matches.
 //        builder.withSeed(-4289657656513111232L).withExamples(1); // CASSANDRA-20189: Avoid possible consistency violations for SAI intersection queries over repaired index matches and multiple non-indexed column matches
+
+        builder.withExamples(Integer.MAX_VALUE);
+        // All seeds are against SHA=00bf3edc2c86d2f6f435d1263063f9dfd633bc84
+
+        // CASSANDRA-20260: Partition restricted SAI query returned rows that didn't match the clustering index column predicate
+//        builder.withSeed(-3940244592355929823L).withExamples(1);
+
+        // NOTE: all select commands other than "fullTableScan" were commented out, so this seed will not repo
+        // without first modifying the test
+        // Git SHA=a67755db0ac5c62f560d61d5095f4fc418db0eca
+        builder.withSeed(7684880116377589440L).withExamples(1);
     }
 }

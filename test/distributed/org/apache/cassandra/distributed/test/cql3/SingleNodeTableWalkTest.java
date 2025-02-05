@@ -87,6 +87,7 @@ public class SingleNodeTableWalkTest extends StatefulASTBase
         // Example: builder.withSeed(42L);
         // CQL operations may have opertors such as +, -, and / (example 4 + 4), to "apply" them to get a constant value
         // CQL_DEBUG_APPLY_OPERATOR = true;
+        builder.withExamples(Integer.MAX_VALUE);
     }
 
     protected TypeGenBuilder supportedTypes()
@@ -352,16 +353,15 @@ public class SingleNodeTableWalkTest extends StatefulASTBase
             preCheck(cluster, statefulBuilder);
             statefulBuilder.check(commands(() -> rs -> createState(rs, cluster))
                                   .add(StatefulASTBase::insert)
-                                  //TODO (now, coverage): this is flakey and non-deterministic.  When this fails (gives bad response) rerunning the seed yields a passing test!
-//                                  .add(StatefulASTBase::fullTableScan)
-                                  .addIf(State::hasPartitions, this::selectExisting)
-                                  .addAllIf(State::supportTokens, b -> b.add(this::selectToken)
-                                                                        .add(this::selectTokenRange))
+                                  .addIf(BaseState::isFullTableScanSafe, StatefulASTBase::fullTableScan)
+//                                  .addIf(State::hasPartitions, this::selectExisting)
+//                                  .addAllIf(State::supportTokens, b -> b.add(this::selectToken)
+//                                                                        .add(this::selectTokenRange))
                                   .addIf(State::hasEnoughMemtable, StatefulASTBase::flushTable)
                                   .addIf(State::hasEnoughSSTables, StatefulASTBase::compactTable)
-                                  .addIf(State::allowNonPartitionQuery, this::nonPartitionQuery)
-                                  .addIf(State::allowNonPartitionMultiColumnQuery, this::multiColumnQuery)
-                                  .addIf(State::allowPartitionQuery, this::partitionRestrictedQuery)
+//                                  .addIf(State::allowNonPartitionQuery, this::nonPartitionQuery)
+//                                  .addIf(State::allowNonPartitionMultiColumnQuery, this::multiColumnQuery)
+//                                  .addIf(State::allowPartitionQuery, this::partitionRestrictedQuery)
                                   .destroyState(State::close)
                                   .onSuccess(onSuccess(logger))
                                   .build());

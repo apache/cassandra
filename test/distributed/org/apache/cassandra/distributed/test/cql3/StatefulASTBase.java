@@ -346,6 +346,11 @@ public class StatefulASTBase extends TestBaseImpl
             return flushesSinceLastCompaction > enoughSSTables;
         }
 
+        protected boolean isFullTableScanSafe()
+        {
+            return true;
+        }
+
         protected void mutation()
         {
             numMutations++;
