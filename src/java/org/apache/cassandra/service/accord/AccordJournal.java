@@ -82,7 +82,7 @@ import static accord.impl.CommandChange.isChanged;
 import static accord.impl.CommandChange.isNull;
 import static accord.impl.CommandChange.nextSetField;
 import static accord.impl.CommandChange.setChanged;
-import static accord.impl.CommandChange.setFieldIsNull;
+import static accord.impl.CommandChange.setFieldIsNullAndChanged;
 import static accord.impl.CommandChange.toIterableSetFields;
 import static accord.impl.CommandChange.unsetIterable;
 import static accord.impl.CommandChange.validateFlags;
@@ -254,35 +254,35 @@ public class AccordJournal implements accord.api.Journal, RangeSearcher.Supplier
     }
 
     @Override
-    public RedundantBefore loadRedundantBefore(int store)
+    public RedundantBefore loadRedundantBefore(int commandStoreId)
     {
-        IdentityAccumulator<RedundantBefore> accumulator = readAll(new JournalKey(TxnId.NONE, JournalKey.Type.REDUNDANT_BEFORE, store), false);
+        IdentityAccumulator<RedundantBefore> accumulator = readAll(new JournalKey(TxnId.NONE, JournalKey.Type.REDUNDANT_BEFORE, commandStoreId));
         return accumulator.get();
     }
 
     @Override
-    public NavigableMap<TxnId, Ranges> loadBootstrapBeganAt(int store)
+    public NavigableMap<TxnId, Ranges> loadBootstrapBeganAt(int commandStoreId)
     {
-        IdentityAccumulator<NavigableMap<TxnId, Ranges>> accumulator = readAll(new JournalKey(TxnId.NONE, JournalKey.Type.BOOTSTRAP_BEGAN_AT, store), false);
+        IdentityAccumulator<NavigableMap<TxnId, Ranges>> accumulator = readAll(new JournalKey(TxnId.NONE, JournalKey.Type.BOOTSTRAP_BEGAN_AT, commandStoreId));
         return accumulator.get();
     }
 
     @Override
-    public NavigableMap<Timestamp, Ranges> loadSafeToRead(int store)
+    public NavigableMap<Timestamp, Ranges> loadSafeToRead(int commandStoreId)
     {
-        IdentityAccumulator<NavigableMap<Timestamp, Ranges>> accumulator = readAll(new JournalKey(TxnId.NONE, JournalKey.Type.SAFE_TO_READ, store), false);
+        IdentityAccumulator<NavigableMap<Timestamp, Ranges>> accumulator = readAll(new JournalKey(TxnId.NONE, JournalKey.Type.SAFE_TO_READ, commandStoreId));
         return accumulator.get();
     }
 
     @Override
-    public CommandStores.RangesForEpoch loadRangesForEpoch(int store)
+    public CommandStores.RangesForEpoch loadRangesForEpoch(int commandStoreId)
     {
-        IdentityAccumulator<RangesForEpoch> accumulator = readAll(new JournalKey(TxnId.NONE, JournalKey.Type.RANGES_FOR_EPOCH, store), false);
+        IdentityAccumulator<RangesForEpoch> accumulator = readAll(new JournalKey(TxnId.NONE, JournalKey.Type.RANGES_FOR_EPOCH, commandStoreId));
         return accumulator.get();
     }
 
     @Override
-    public void saveCommand(int store, CommandUpdate update, @Nullable Runnable onFlush)
+    public void saveCommand(int commandStoreId, CommandUpdate update, @Nullable Runnable onFlush)
     {
         Writer diff = Writer.make(update.before, update.after);
         if (diff == null)
@@ -292,7 +292,7 @@ public class AccordJournal implements accord.api.Journal, RangeSearcher.Supplier
             return;
         }
 
-        JournalKey key = new JournalKey(update.txnId, JournalKey.Type.COMMAND_DIFF, store);
+        JournalKey key = new JournalKey(update.txnId, JournalKey.Type.COMMAND_DIFF, commandStoreId);
         RecordPointer pointer = journal.asyncWrite(key, diff);
         if (journalTable.shouldIndex(key)
             && diff.hasParticipants()
@@ -307,7 +307,7 @@ public class AccordJournal implements accord.api.Journal, RangeSearcher.Supplier
     @Override
     public Iterator<TopologyUpdate> replayTopologies()
     {
-        AccordJournalValueSerializers.MapAccumulator<Long, TopologyUpdate> accumulator = readAll(new JournalKey(TxnId.NONE, JournalKey.Type.TOPOLOGY_UPDATE, 0), false);
+        AccordJournalValueSerializers.MapAccumulator<Long, TopologyUpdate> accumulator = readAll(new JournalKey(TxnId.NONE, JournalKey.Type.TOPOLOGY_UPDATE, 0));
         return accumulator.get().values().iterator();
     }
 
@@ -338,25 +338,25 @@ public class AccordJournal implements accord.api.Journal, RangeSearcher.Supplier
             @Override
             public DurableBefore load()
             {
-                DurableBeforeAccumulator accumulator = readAll(new JournalKey(TxnId.NONE, JournalKey.Type.DURABLE_BEFORE, 0), false);
+                DurableBeforeAccumulator accumulator = readAll(new JournalKey(TxnId.NONE, JournalKey.Type.DURABLE_BEFORE, 0));
                 return accumulator.get();
             }
         };
     }
 
     @Override
-    public void saveStoreState(int store, FieldUpdates fieldUpdates, Runnable onFlush)
+    public void saveStoreState(int commandStoreId, FieldUpdates fieldUpdates, Runnable onFlush)
     {
         RecordPointer pointer = null;
         // TODO: avoid allocating keys
         if (fieldUpdates.newRedundantBefore != null)
-            pointer = appendInternal(new JournalKey(TxnId.NONE, JournalKey.Type.REDUNDANT_BEFORE, store), fieldUpdates.newRedundantBefore);
+            pointer = appendInternal(new JournalKey(TxnId.NONE, JournalKey.Type.REDUNDANT_BEFORE, commandStoreId), fieldUpdates.newRedundantBefore);
         if (fieldUpdates.newBootstrapBeganAt != null)
-            pointer = appendInternal(new JournalKey(TxnId.NONE, JournalKey.Type.BOOTSTRAP_BEGAN_AT, store), fieldUpdates.newBootstrapBeganAt);
+            pointer = appendInternal(new JournalKey(TxnId.NONE, JournalKey.Type.BOOTSTRAP_BEGAN_AT, commandStoreId), fieldUpdates.newBootstrapBeganAt);
         if (fieldUpdates.newSafeToRead != null)
-            pointer = appendInternal(new JournalKey(TxnId.NONE, JournalKey.Type.SAFE_TO_READ, store), fieldUpdates.newSafeToRead);
+            pointer = appendInternal(new JournalKey(TxnId.NONE, JournalKey.Type.SAFE_TO_READ, commandStoreId), fieldUpdates.newSafeToRead);
         if (fieldUpdates.newRangesForEpoch != null)
-            pointer = appendInternal(new JournalKey(TxnId.NONE, JournalKey.Type.RANGES_FOR_EPOCH, store), fieldUpdates.newRangesForEpoch);
+            pointer = appendInternal(new JournalKey(TxnId.NONE, JournalKey.Type.RANGES_FOR_EPOCH, commandStoreId), fieldUpdates.newRangesForEpoch);
 
         if (onFlush == null)
             return;
@@ -371,7 +371,7 @@ public class AccordJournal implements accord.api.Journal, RangeSearcher.Supplier
     {
         JournalKey key = new JournalKey(txnId, JournalKey.Type.COMMAND_DIFF, commandStoreId);
         Builder builder = new Builder(txnId, load);
-        journalTable.readAll(key, builder::deserializeNext, false);
+        journalTable.readAll(key, builder::deserializeNext);
         return builder;
     }
 
@@ -381,13 +381,13 @@ public class AccordJournal implements accord.api.Journal, RangeSearcher.Supplier
         return loadDiffs(commandStoreId, txnId, Load.ALL);
     }
 
-    private <BUILDER> BUILDER readAll(JournalKey key, boolean asc)
+    private <BUILDER> BUILDER readAll(JournalKey key)
     {
         BUILDER builder = (BUILDER) key.type.serializer.mergerFor(key);
         // TODO: this can be further improved to avoid allocating lambdas
         AccordJournalValueSerializers.FlyweightSerializer<?, BUILDER> serializer = (AccordJournalValueSerializers.FlyweightSerializer<?, BUILDER>) key.type.serializer;
         // TODO (expected): for those where we store an image, read only the first entry we find in DESC order
-        journalTable.readAll(key, (in, userVersion) -> serializer.deserialize(key, builder, in, userVersion), asc);
+        journalTable.readAll(key, (in, userVersion) -> serializer.deserialize(key, builder, in, userVersion));
         return builder;
     }
 
@@ -544,6 +544,7 @@ public class AccordJournal implements accord.api.Journal, RangeSearcher.Supplier
                     continue;
                 }
 
+
                 switch (field)
                 {
                     case EXECUTE_AT:
@@ -648,31 +649,33 @@ public class AccordJournal implements accord.api.Journal, RangeSearcher.Supplier
         public void deserializeNext(DataInputPlus in, int userVersion) throws IOException
         {
             Invariants.require(txnId != null);
-            int flags = in.readInt();
-            Invariants.require(flags != 0);
+            int readFlags = in.readInt();
+            Invariants.require(readFlags != 0);
             nextCalled = true;
             count++;
 
-            int iterable = toIterableSetFields(flags);
+            int iterable = toIterableSetFields(readFlags);
             while (iterable != 0)
             {
                 Field field = nextSetField(iterable);
+                // Since we are iterating in reverse order, we skip the fields that were
+                // set by entries writter later (i.e. already read ones).
                 if (isChanged(field, this.flags) || isNull(field, mask))
                 {
-                    if (!isNull(field, flags))
-                        skip(field, in, userVersion);
+                    if (!isNull(field, readFlags))
+                        skip(txnId, field, in, userVersion);
 
                     iterable = unsetIterable(field, iterable);
                     continue;
                 }
-                this.flags = setChanged(field, this.flags);
 
-                if (isNull(field, flags))
+                if (isNull(field, readFlags))
                 {
-                    this.flags = setFieldIsNull(field, this.flags);
+                    this.flags = setFieldIsNullAndChanged(field, this.flags);
                 }
                 else
                 {
+                    this.flags = setChanged(field, this.flags);
                     deserialize(field, in, userVersion);
                 }
 
@@ -731,7 +734,7 @@ public class AccordJournal implements accord.api.Journal, RangeSearcher.Supplier
             }
         }
 
-        private void skip(Field field, DataInputPlus in, int userVersion) throws IOException
+        private static void skip(TxnId txnId, Field field, DataInputPlus in, int userVersion) throws IOException
         {
             switch (field)
             {
@@ -777,7 +780,7 @@ public class AccordJournal implements accord.api.Journal, RangeSearcher.Supplier
                     break;
                 case RESULT:
                     // TODO (expected): skip
-                    result = ResultSerializers.result.deserialize(in, userVersion);
+                    ResultSerializers.result.deserialize(in, userVersion);
                     break;
             }
         }
