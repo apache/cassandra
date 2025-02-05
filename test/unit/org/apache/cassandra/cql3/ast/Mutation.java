@@ -32,6 +32,7 @@ import javax.annotation.Nullable;
 
 import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.db.marshal.Int32Type;
+import org.apache.cassandra.db.marshal.LongType;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.TableMetadata;
 
@@ -50,6 +51,13 @@ public abstract class Mutation implements Statement
     }
 
     public abstract boolean isCas();
+
+    public Mutation withTimestamp(long timestamp)
+    {
+        return withTimestamp(new Timestamp(new Bind(timestamp, LongType.instance)));
+    }
+
+    public abstract Mutation withTimestamp(Timestamp timestamp);
 
     public final Kind mutationKind()
     {
@@ -164,6 +172,11 @@ public abstract class Mutation implements Statement
             this.timestamp = timestamp;
         }
 
+        public Using withTimestamp(Timestamp timestamp)
+        {
+            return new Using(ttl, Optional.of(timestamp));
+        }
+
         @Override
         public void toCQL(StringBuilder sb, CQLFormatter formatter)
         {
@@ -177,6 +190,18 @@ public abstract class Mutation implements Statement
                 if (ttl.isPresent())
                     sb.append(" AND ");
                 timestamp.get().toCQL(sb, formatter);
+            }
+        }
+
+        @Override
+        public Stream<? extends Element> stream()
+        {
+            int size = (ttl.isPresent() ? 1 : 0) + (timestamp.isPresent() ? 1 : 0);
+            switch (size)
+            {
+                case 0: return Stream.empty();
+                case 1: return Stream.of(ttl.isPresent() ? ttl.get() : timestamp.get());
+                default: return Stream.of(ttl.get(), timestamp.get());
             }
         }
     }
@@ -272,6 +297,14 @@ public abstract class Mutation implements Statement
         public boolean isCas()
         {
             return ifNotExists;
+        }
+
+        @Override
+        public Insert withTimestamp(Timestamp timestamp)
+        {
+            return new Insert(table, values, ifNotExists, using.isEmpty()
+                                                          ? Optional.of(new Using(Optional.empty(), Optional.of(timestamp)))
+                                                          : using.map(u -> u.withTimestamp(timestamp)));
         }
     }
 
@@ -381,24 +414,33 @@ public abstract class Mutation implements Statement
         {
             return casCondition.isPresent();
         }
+
+        @Override
+        public Update withTimestamp(Timestamp timestamp)
+        {
+            var updated = using.isEmpty()
+                          ? Optional.of(new Using(Optional.empty(), Optional.of(timestamp)))
+                          : using.map(u -> u.withTimestamp(timestamp));
+            return new Update(table, updated, set, where, casCondition);
+        }
     }
 
     public static class Delete extends Mutation
     {
         public final List<Symbol> columns;
-        public final Optional<Timestamp> using;
+        public final Optional<Timestamp> timestamp;
         public final Conditional where;
         public final Optional<? extends CasCondition> casCondition;
 
         public Delete(List<Symbol> columns,
                       TableReference table,
-                      Optional<Timestamp> using,
+                      Optional<Timestamp> timestamp,
                       Conditional where,
                       Optional<? extends CasCondition> casCondition)
         {
             super(Mutation.Kind.DELETE, table);
             this.columns = columns;
-            this.using = using;
+            this.timestamp = timestamp;
             this.where = where;
             this.casCondition = casCondition;
         }
@@ -430,10 +472,11 @@ WHERE PK_column_conditions
             sb.append("FROM ");
             table.toCQL(sb, formatter);
             // [USING TIMESTAMP timestamp_value]
-            if (using.isPresent())
+            if (timestamp.isPresent())
             {
                 formatter.section(sb);
-                using.get().toCQL(sb, formatter);
+                sb.append("USING ");
+                timestamp.get().toCQL(sb, formatter);
             }
             // WHERE PK_column_conditions
             toCQLWhere(this.where, sb, formatter);
@@ -451,8 +494,8 @@ WHERE PK_column_conditions
             List<Element> elements = new ArrayList<>(columns.size() + 4);
             elements.addAll(columns);
             elements.add(table);
-            if (using.isPresent())
-                elements.add(using.get());
+            if (timestamp.isPresent())
+                elements.add(timestamp.get());
             elements.add(where);
             if (casCondition.isPresent())
                 elements.add(casCondition.get());
@@ -479,13 +522,19 @@ WHERE PK_column_conditions
                 updated = true;
 
             if (!updated) return this;
-            return new Delete(copiedColumns, table, using, copiedWhere, casCondition);
+            return new Delete(copiedColumns, table, timestamp, copiedWhere, casCondition);
         }
 
         @Override
         public boolean isCas()
         {
             return casCondition.isPresent();
+        }
+
+        @Override
+        public Delete withTimestamp(Timestamp timestamp)
+        {
+            return new Delete(columns, table, Optional.of(timestamp), where, casCondition);
         }
     }
 
