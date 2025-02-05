@@ -554,7 +554,10 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
 
     public void flush(String keyspace)
     {
-        Util.flushKeyspace(keyspace);
+        sync(() -> {
+            inInstancelogger.info("In-jvm dtest flushing keyspace {}", keyspace);
+            Util.flushKeyspace(keyspace);
+        }).run();
     }
 
     public void forceCompact(String keyspace, String table)
