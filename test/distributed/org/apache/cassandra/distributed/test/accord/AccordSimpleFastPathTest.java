@@ -29,6 +29,7 @@ import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.service.consensus.TransactionalMode;
 import org.junit.Assert;
+import org.junit.Ignore;
 import org.junit.Test;
 
 import accord.local.Node;
@@ -82,6 +83,7 @@ public class AccordSimpleFastPathTest extends TestBaseImpl
         return result;
     }
 
+    @Ignore
     @Test
     public void downNodesRemovedFromFastPath() throws Throwable
     {

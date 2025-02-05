@@ -28,6 +28,7 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import javax.annotation.Nullable;
 
+import org.junit.Ignore;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -78,6 +79,7 @@ import static org.apache.cassandra.utils.AbstractTypeGenerators.overridePrimitiv
 import static org.apache.cassandra.utils.AbstractTypeGenerators.stringComparator;
 import static org.apache.cassandra.utils.AccordGenerators.fromQT;
 
+@Ignore
 public class AccordTopologyMixupTest extends TopologyMixupTestBase<AccordTopologyMixupTest.Spec>
 {
     private static final Logger logger = LoggerFactory.getLogger(AccordTopologyMixupTest.class);

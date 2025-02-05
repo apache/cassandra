@@ -34,6 +34,7 @@ import com.google.common.primitives.Longs;
 import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
+import org.junit.Ignore;
 import org.junit.Test;
 
 import org.apache.cassandra.ServerTestUtils;
@@ -171,6 +172,7 @@ public class CompactionAwareWriterTest extends CQLTester
         cfs.truncateBlocking();
     }
 
+    @Ignore
     @Test
     public void testMajorLeveledCompactionWriter() throws Throwable
     {

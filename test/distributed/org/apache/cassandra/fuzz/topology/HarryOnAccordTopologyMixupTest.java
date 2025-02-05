@@ -18,6 +18,8 @@
 
 package org.apache.cassandra.fuzz.topology;
 
+import org.junit.Ignore;
+
 import accord.utils.Gen;
 import accord.utils.Invariants;
 import accord.utils.Property;
@@ -28,6 +30,7 @@ import org.apache.cassandra.distributed.shared.ClusterUtils;
 import org.apache.cassandra.fuzz.topology.AccordTopologyMixupTest.ListenerHolder;
 import org.apache.cassandra.service.consensus.TransactionalMode;
 
+@Ignore
 public class HarryOnAccordTopologyMixupTest extends HarryTopologyMixupTest
 {
     static

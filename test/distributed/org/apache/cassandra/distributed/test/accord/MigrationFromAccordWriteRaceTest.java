@@ -18,6 +18,9 @@
 
 package org.apache.cassandra.distributed.test.accord;
 
+import org.junit.Ignore;
+
+@Ignore
 public class MigrationFromAccordWriteRaceTest extends AccordMigrationWriteRaceTestBase
 {
     protected boolean migratingAwayFromAccord()

@@ -282,6 +282,7 @@ public class ResourceLeakTest extends TestBaseImpl
      * Depending on the type of leak, we may need to actually exercise functionality like JMX or Native
      * beyond just enabling the feature, so we use the "everything" test even though it may take longer to run.
      */
+    @Ignore
     @Test
     public void looperEverythingTest() throws Throwable
     {

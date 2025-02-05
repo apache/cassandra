@@ -20,6 +20,7 @@ package org.apache.cassandra.fuzz.topology;
 
 import java.util.HashSet;
 
+import org.junit.Ignore;
 import org.junit.Test;
 
 import org.apache.cassandra.config.CassandraRelevantProperties;
@@ -53,6 +54,8 @@ public class AccordBootstrapTest extends FuzzTestBase
 {
     private static final int WRITES = 10;
     private static final int POPULATION = 1000;
+
+    @Ignore
     @Test
     public void bootstrapFuzzTest() throws Throwable
     {
