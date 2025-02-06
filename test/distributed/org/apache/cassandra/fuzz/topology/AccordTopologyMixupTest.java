@@ -45,6 +45,7 @@ import accord.utils.Invariants;
 import accord.utils.Property;
 import accord.utils.Property.Command;
 import accord.utils.RandomSource;
+import org.agrona.collections.Int2ObjectHashMap;
 import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.config.Config;
 import org.apache.cassandra.cql3.ast.CQLFormatter;
@@ -60,21 +61,25 @@ import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
 import org.apache.cassandra.distributed.api.IInstanceConfig;
 import org.apache.cassandra.distributed.api.IInvokableInstance;
+import org.apache.cassandra.distributed.api.QueryResults;
 import org.apache.cassandra.distributed.api.SimpleQueryResult;
 import org.apache.cassandra.distributed.shared.ClusterUtils;
 import org.apache.cassandra.distributed.test.accord.AccordTestBase;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.accord.api.AccordAgent;
 import org.apache.cassandra.service.consensus.TransactionalMode;
+import org.apache.cassandra.tools.nodetool.formatter.TableBuilder;
 import org.apache.cassandra.utils.ASTGenerators;
 import org.apache.cassandra.utils.AbstractTypeGenerators;
 import org.apache.cassandra.utils.CassandraGenerators;
 import org.apache.cassandra.utils.FastByteOperations;
 import org.apache.cassandra.utils.Generators;
 import org.apache.cassandra.utils.Isolated;
+import org.apache.cassandra.utils.Retry;
 import org.apache.cassandra.utils.Shared;
 import org.quicktheories.generators.SourceDSL;
 
+import static org.apache.cassandra.schema.SchemaConstants.VIRTUAL_VIEWS;
 import static org.apache.cassandra.utils.AbstractTypeGenerators.overridePrimitiveTypeSupport;
 import static org.apache.cassandra.utils.AbstractTypeGenerators.stringComparator;
 import static org.apache.cassandra.utils.AccordGenerators.fromQT;
@@ -240,6 +245,7 @@ public class AccordTopologyMixupTest extends TopologyMixupTestBase<AccordTopolog
 
     private static class AccordState extends State<Spec>
     {
+        private final Int2ObjectHashMap<String> instanceEpochState = new Int2ObjectHashMap<>();
         private final ListenerHolder listener;
 
         public AccordState(RandomSource rs)
@@ -247,6 +253,31 @@ public class AccordTopologyMixupTest extends TopologyMixupTestBase<AccordTopolog
             super(rs, AccordTopologyMixupTest::createSchemaSpec, AccordTopologyMixupTest::cqlOperations);
 
             this.listener = new ListenerHolder(this);
+            this.preActions.add(this::populateEpochState);
+        }
+
+        private void populateEpochState()
+        {
+            String cql = "SELECT * FROM " + VIRTUAL_VIEWS + ".accord_epoch";
+            for (var inst : cluster)
+            {
+                int num = inst.config().num();
+                if (inst.isShutdown())
+                {
+                    instanceEpochState.put(num, "unknown");
+                    continue;
+                }
+                try
+                {
+                    SimpleQueryResult qr = Retry.retryWithBackoffBlocking(5, () -> cluster.get(num).executeInternalWithResult(cql));
+                    instanceEpochState.put(num, TableBuilder.toStringPiped(qr.names(), QueryResults.stringify(qr)));
+                }
+                catch (Throwable t)
+                {
+                    // Throwable.toString shows the type + msg but not the stack trace
+                    instanceEpochState.put(num, "unknown due to failure: " + t);
+                }
+            }
         }
 
         @Override
@@ -262,6 +293,21 @@ public class AccordTopologyMixupTest extends TopologyMixupTestBase<AccordTopolog
         protected void onStartupComplete(long tcmEpoch)
         {
             ClusterUtils.awaitAccordEpochReady(cluster, tcmEpoch);
+        }
+
+        @Override
+        public String toString()
+        {
+            StringBuilder sb = new StringBuilder(super.toString());
+            sb.append("\nAccord Epoch State:");
+            for (int i = 1; i <= cluster.size(); i++)
+            {
+                String state = instanceEpochState.get(i);
+                if (state == null)
+                    state = "unknown";
+                sb.append("\n\tnode").append(i).append(": ").append(state);
+            }
+            return sb.toString();
         }
 
         @Override

@@ -51,7 +51,7 @@ import org.agrona.collections.IntArrayList;
 import org.agrona.collections.IntHashSet;
 import org.apache.cassandra.distributed.Constants;
 import org.apache.cassandra.distributed.api.ICoordinator;
-import org.apache.cassandra.distributed.api.Row;
+import org.apache.cassandra.distributed.api.QueryResults;
 import org.apache.cassandra.distributed.api.SimpleQueryResult;
 
 import org.junit.Test;
@@ -753,17 +753,8 @@ public abstract class TopologyMixupTestBase<S extends TopologyMixupTestBase.Sche
             try
             {
                 SimpleQueryResult qr = Retry.retryWithBackoffBlocking(5, () -> cluster.get(cmsNode).executeInternalWithResult("SELECT epoch, kind, transformation FROM system_views.cluster_metadata_log"));
-                TableBuilder builder = new TableBuilder(" | ");
-                builder.add(qr.names());
-                while (qr.hasNext())
-                {
-                    Row next = qr.next();
-                    builder.add(Stream.of(next.toObjectArray())
-                                      .map(Objects::toString)
-                                      .map(s -> s.length() > 100 ? s.substring(0, 100) + "..." : s)
-                                      .collect(Collectors.toList()));
-                }
-                epochHistory = "Epochs:\n" + builder;
+                String table = TableBuilder.toStringPiped(qr.names(), QueryResults.stringify(qr, 100));
+                epochHistory = "Epochs:\n" + table;
             }
             catch (Throwable t)
             {
