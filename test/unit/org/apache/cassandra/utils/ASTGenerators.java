@@ -41,6 +41,7 @@ import javax.annotation.Nullable;
 
 import com.google.common.collect.Iterables;
 
+import org.apache.cassandra.cql3.KnownIssue;
 import org.apache.cassandra.cql3.ast.AssignmentOperator;
 import org.apache.cassandra.cql3.ast.Bind;
 import org.apache.cassandra.cql3.ast.CasCondition;
@@ -74,6 +75,8 @@ import static org.apache.cassandra.utils.Generators.SYMBOL_GEN;
 
 public class ASTGenerators
 {
+    public static final EnumSet<KnownIssue> IGNORE_ISSUES = KnownIssue.ignoreAll();
+
     static Gen<Value> valueGen(Object value, AbstractType<?> type)
     {
         Gen<Boolean> bool = SourceDSL.booleans().all();
@@ -144,8 +147,9 @@ public class ASTGenerators
             //NOTE: (smallint) of -11843 and 3749 failed as well...
             //NOTE: (long) was found and didn't fail...
             //NOTE: see https://the-asf.slack.com/archives/CK23JSY2K/p1724819303058669 - varint didn't fail but serialized using int32 which causes equality mismatches for pk/ck lookups
-            if (e.type().unwrap() == ShortType.instance
-                || e.type().unwrap() == IntegerType.instance) // seed=7525457176675272023L
+            if ((e.type().unwrap() == ShortType.instance
+                 || e.type().unwrap() == IntegerType.instance)
+                && IGNORE_ISSUES.contains(KnownIssue.SHORT_AND_VARINT_GET_INT_FUNCTIONS)) // seed=7525457176675272023L
             {
                 left = new TypeHint(left);
                 right = new TypeHint(right);
