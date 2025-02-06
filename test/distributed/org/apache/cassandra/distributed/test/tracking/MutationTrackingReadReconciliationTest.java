@@ -43,20 +43,11 @@ import static org.apache.cassandra.distributed.test.tracking.MutationTrackingUti
 import static org.apache.cassandra.distributed.test.tracking.MutationTrackingUtils.getIdsForKey;
 import static org.apache.cassandra.distributed.test.tracking.MutationTrackingUtils.getIdsForTable;
 import static org.apache.cassandra.distributed.test.tracking.MutationTrackingUtils.numLogReconciliations;
+import static org.apache.cassandra.distributed.test.tracking.MutationTrackingUtils.row;
 
 public class MutationTrackingReadReconciliationTest extends TestBaseImpl
 {
     private static final Logger logger = LoggerFactory.getLogger(MutationTrackingReadReconciliationTest.class);
-
-    private static Object[] row(Object... objs)
-    {
-        return objs;
-    }
-
-    private static Object[][] rows(Object[][]... objs)
-    {
-        return objs;
-    }
 
     /**
      * Test a read reconciliation where the coordinator doesn't have a read response it needs to apply

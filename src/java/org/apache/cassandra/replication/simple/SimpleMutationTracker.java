@@ -77,48 +77,62 @@ public class SimpleMutationTracker implements MutationTracker
 
     private class SimpleAccumulator implements MutationSummarizer
     {
-        private SimpleMutationSummary summary;
+        private final TableId tableId;
+        private List<DecoratedKey> keys;
+        private List<AbstractBounds<PartitionPosition>> ranges;
 
         public SimpleAccumulator(TableId tableId)
         {
-            summary = SimpleMutationSummary.empty(tableId);
-            lock.readLock().lock();
+            this.tableId = tableId;
         }
 
         @Override
         public synchronized void addForKey(TableId table, DecoratedKey key)
         {
-            Preconditions.checkNotNull(summary);
-            summary = summary.merge(summaryForKey(table, key));
+            Preconditions.checkArgument(table.equals(tableId));
+            if (keys == null)
+                keys = new ArrayList<>();
+            keys.add(key);
         }
 
         @Override
         public void addForRange(TableId table, AbstractBounds<PartitionPosition> range)
         {
-            Preconditions.checkNotNull(summary);
-            summary = summary.merge(summaryForRange(table, range));
+            Preconditions.checkArgument(table.equals(tableId));
+            if (ranges == null)
+                ranges = new ArrayList<>();
+            ranges.add(range);
         }
 
         @Override
         public synchronized MutationSummary summary()
         {
-            Preconditions.checkNotNull(summary);
-            SimpleMutationSummary result = summary;
-            summary = null;
-            return result;
-        }
-
-        @Override
-        public synchronized void close()
-        {
+            lock.readLock().lock();
             try
             {
-                summary = null;
+                SimpleMutationSummary summary = SimpleMutationSummary.empty(tableId);
+                if (keys != null)
+                {
+                    for (DecoratedKey key : keys)
+                        summary = summary.merge(summaryForKey(tableId, key));
+                }
+
+                if (ranges != null)
+                {
+                    for (AbstractBounds<PartitionPosition> range : ranges)
+                        summary = summary.merge(summaryForRange(tableId, range));
+                }
+                return summary;
             }
             finally
             {
                 lock.readLock().unlock();
             }
+        }
+
+        @Override
+        public synchronized void close()
+        {
         }
     }
 
@@ -142,6 +156,11 @@ public class SimpleMutationTracker implements MutationTracker
         public void close()
         {
             pendingReads.remove(this);
+        }
+
+        public Set<MutationId> mutationIds()
+        {
+            return pendingWrites.keySet();
         }
 
         @Override
@@ -175,6 +194,7 @@ public class SimpleMutationTracker implements MutationTracker
             return PendingWrite.NOOP;
 
         pendingMutations.put(mutation.id(), mutation);
+        pendingReads.forEach(read -> read.onNewWrite(mutation));
 
         return new PendingWrite()
         {
@@ -193,6 +213,7 @@ public class SimpleMutationTracker implements MutationTracker
             return PendingRead.NOOP;
 
         SimplePendingRead pendingRead = new SimplePendingRead(command);
+        pendingReads.add(pendingRead);
         pendingMutations.values().forEach(pendingRead::onNewWrite);
 
         return pendingRead;
@@ -201,12 +222,12 @@ public class SimpleMutationTracker implements MutationTracker
     @Override
     public void add(Mutation mutation)
     {
+        if (mutation.id().isNone())
+            return;
+
         lock.writeLock().lock();
         try
         {
-            if (mutation.id().isNone())
-                return;
-
             if (mutations.containsKey(mutation.id()))
                 return;
 

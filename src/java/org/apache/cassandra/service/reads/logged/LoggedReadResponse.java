@@ -33,6 +33,7 @@ import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.replication.MutationSummary;
+import org.apache.cassandra.replication.MutationTracker.PendingRead;
 import org.apache.cassandra.replication.MutationTrackingService;
 import org.apache.cassandra.service.reads.IReadResponse;
 import org.apache.cassandra.utils.ByteBufferUtil;
@@ -164,8 +165,9 @@ public class LoggedReadResponse implements IReadResponse
         return Kind.LOGGED;
     }
 
-    public static LoggedReadResponse createDataResponse(UnfilteredPartitionIterator partitionIterator, ReadCommand command, MutationSummary summary)
+    public static LoggedReadResponse createDataResponse(UnfilteredPartitionIterator partitionIterator, ReadCommand command, MutationSummary summary, PendingRead pendingRead)
     {
+        partitionIterator = pendingRead.augmentResponseWithPendingWrites(partitionIterator, summary);
         return new LocalData(IReadResponse.serializeData(partitionIterator, command.columnFilter()), summary);
     }
 
