@@ -245,7 +245,8 @@ public class AccordTopologyMixupTest extends TopologyMixupTestBase<AccordTopolog
 
     private static class AccordState extends State<Spec>
     {
-        private final Map<Integer, String> instanceEpochState = new TreeMap<>();
+        private final Map<Integer, String> instanceEpochReadyState = new TreeMap<>();
+        private final Map<Integer, String> instanceEpochSyncState = new TreeMap<>();
         private final ListenerHolder listener;
 
         public AccordState(RandomSource rs)
@@ -258,24 +259,29 @@ public class AccordTopologyMixupTest extends TopologyMixupTestBase<AccordTopolog
 
         private void populateEpochState()
         {
-            String cql = "SELECT * FROM " + VIRTUAL_VIEWS + ".accord_epoch_ready";
+            updateMap(instanceEpochReadyState, "SELECT * FROM " + VIRTUAL_VIEWS + ".accord_epoch_ready");
+            updateMap(instanceEpochSyncState, "SELECT * FROM " + VIRTUAL_VIEWS + ".accord_epoch_ranges");
+        }
+
+        private void updateMap(Map<Integer, String> map, String cql)
+        {
             for (var inst : cluster)
             {
                 int num = inst.config().num();
                 if (inst.isShutdown())
                 {
-                    instanceEpochState.put(num, "unknown");
+                    map.put(num, "unknown");
                     continue;
                 }
                 try
                 {
                     SimpleQueryResult qr = Retry.retryWithBackoffBlocking(5, () -> cluster.get(num).executeInternalWithResult(cql));
-                    instanceEpochState.put(num, TableBuilder.toStringPiped(qr.names(), QueryResults.stringify(qr)));
+                    map.put(num, TableBuilder.toStringPiped(qr.names(), QueryResults.stringify(qr)));
                 }
                 catch (Throwable t)
                 {
                     // Throwable.toString shows the type + msg but not the stack trace
-                    instanceEpochState.put(num, "unknown due to failure: " + t);
+                    map.put(num, "unknown due to failure: " + t);
                 }
             }
         }
@@ -300,9 +306,11 @@ public class AccordTopologyMixupTest extends TopologyMixupTestBase<AccordTopolog
         {
             StringBuilder sb = new StringBuilder(super.toString());
             sb.append("\nAccord Epoch State:");
-            // cluster may already be shutdown, so need to rely on instanceEpochState for nodes
-            for (var e : instanceEpochState.entrySet())
-                sb.append("\n\tnode").append(e.getKey()).append(":\n").append(e.getValue());
+            for (var e : instanceEpochReadyState.entrySet())
+                sb.append("\nnode").append(e.getKey()).append(":\n").append(e.getValue());
+            sb.append("\nAccord Epoch Ranges:");
+            for (var e : instanceEpochSyncState.entrySet())
+                sb.append("\nnode").append(e.getKey()).append(":\n").append(e.getValue());
             return sb.toString();
         }
 
