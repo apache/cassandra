@@ -46,10 +46,9 @@ public class AccordVirtualTables
         );
     }
 
-    private static TableMetadata.Builder parse(String keyspace, String comment, String query)
+    private static TableMetadata.Builder parse(String keyspace, String query)
     {
         return CreateTableStatement.parse(query, keyspace)
-                                   .comment(comment)
                                    .kind(TableMetadata.Kind.VIRTUAL);
     }
 
@@ -57,7 +56,7 @@ public class AccordVirtualTables
     {
         public EpochTable(String keyspace)
         {
-            super(parse(keyspace, "", "CREATE TABLE accord_epoch (\n" +
+            super(parse(keyspace, "CREATE TABLE accord_epoch (\n" +
                                       "  epoch bigint PRIMARY KEY,\n" +
                                       "  ready_metadata text,\n" +
                                       "  ready_coordinate text,\n" +
@@ -66,6 +65,7 @@ public class AccordVirtualTables
                                       "  ready boolean,\n" +
                                       ")")
                   .partitioner(new LocalPartitioner(LongType.instance))
+                  .comment("Exposes the epoch state for recieved epochs in Accord")
                   .build());
         }
 
