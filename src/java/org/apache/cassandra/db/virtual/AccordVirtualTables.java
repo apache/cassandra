@@ -83,7 +83,9 @@ public class AccordVirtualTables
                 TopologyManager.EpochState state = tm.getEpochStateUnsafe(epoch);
                 if (state == null)
                     continue;
-                // if there is no state, then this node doesn't know about the epoch, but the epoch was pulled from the node, which means we have a gap!
+                // When state is null there are 2 possible things going on
+                // 1) race condition with epoch evicition; this should impact the starting epochs such as min.  If this happens there isn't a reason to display the epochs as they were evicited.
+                // 2) gap!  A gap should not be possible and would be a bug (N exists, N + 2 exists, N + 1 does not exist).  This table exposes such a gap by having a missing row.
                 ds.row(epoch);
                 ConfigurationService.EpochReady ready = state.ready();
                 if (ready != null)
