@@ -22,6 +22,7 @@ import java.nio.ByteBuffer;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.TreeMap;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.stream.Collectors;
@@ -45,7 +46,6 @@ import accord.utils.Invariants;
 import accord.utils.Property;
 import accord.utils.Property.Command;
 import accord.utils.RandomSource;
-import org.agrona.collections.Int2ObjectHashMap;
 import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.config.Config;
 import org.apache.cassandra.cql3.ast.CQLFormatter;
@@ -245,7 +245,7 @@ public class AccordTopologyMixupTest extends TopologyMixupTestBase<AccordTopolog
 
     private static class AccordState extends State<Spec>
     {
-        private final Int2ObjectHashMap<String> instanceEpochState = new Int2ObjectHashMap<>();
+        private final Map<Integer, String> instanceEpochState = new TreeMap<>();
         private final ListenerHolder listener;
 
         public AccordState(RandomSource rs)
@@ -300,13 +300,9 @@ public class AccordTopologyMixupTest extends TopologyMixupTestBase<AccordTopolog
         {
             StringBuilder sb = new StringBuilder(super.toString());
             sb.append("\nAccord Epoch State:");
-            for (int i = 1; i <= cluster.size(); i++)
-            {
-                String state = instanceEpochState.get(i);
-                if (state == null)
-                    state = "unknown";
-                sb.append("\n\tnode").append(i).append(": ").append(state);
-            }
+            // cluster may already be shutdown, so need to rely on instanceEpochState for nodes
+            for (var e : instanceEpochState.entrySet())
+                sb.append("\n\tnode").append(e.getKey()).append(": ").append(e.getValue());
             return sb.toString();
         }
 
