@@ -200,11 +200,11 @@ public class ThreadLocalMetrics
         public long getCount()
         {
             cleanDeadAndUpdateSummaries();
-            AtomicLong dead;
+            long dead;
             long result;
             do
             {
-                dead = deadThreadsSummaryValues.get(metricId);
+                dead = getDeadSummary(metricId);
                 result = 0;
                 for (ThreadLocalMetrics threadLocalMetrics : allThreadLocalMetrics)
                 {
@@ -220,9 +220,15 @@ public class ThreadLocalMetrics
                 // we use a kind of optimistic locking here
                 // to get a correct sum of live and dead parts for the total count
                 // in case of a concurrent cleanDeadAndUpdatedSummaries invocation
-            } while (dead != deadThreadsSummaryValues.get(metricId));
-            result += (dead != null) ? dead.get() : 0;
+            } while (dead != getDeadSummary(metricId));
+            result += dead;
             return result;
         }
+    }
+
+    private static long getDeadSummary(int metricId)
+    {
+        AtomicLong dead = deadThreadsSummaryValues.get(metricId);
+        return (dead != null) ? dead.get() : 0;
     }
 }
