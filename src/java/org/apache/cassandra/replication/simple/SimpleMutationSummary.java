@@ -86,9 +86,10 @@ public class SimpleMutationSummary implements MutationSummary
             {
                 mergedKeyIds.put(entry.getKey(), entry.getValue());
             }
+            mergedIds.addAll(entry.getValue());
         }
 
-        return new SimpleMutationSummary(tableId, ImmutableSortedMap.copyOf(mergedKeyIds), ImmutableSet.copyOf(allIds));
+        return new SimpleMutationSummary(tableId, ImmutableSortedMap.copyOf(mergedKeyIds), ImmutableSet.copyOf(mergedIds));
     }
 
     @Override

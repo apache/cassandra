@@ -480,7 +480,6 @@ public abstract class ReadCommand extends AbstractReadQuery
         // validate that the sequence of RT markers is correct: open is followed by close, deletion times for both
         // ends equal, and there are no dangling RT bound in any partition.
         iterator = RTBoundValidator.validate(iterator, Stage.PROCESSED, true);
-        iterator = pendingRead.augmentResponseWithPendingWrites(iterator, summary);
 
         switch (responseType())
         {
@@ -489,7 +488,7 @@ public abstract class ReadCommand extends AbstractReadQuery
             case LEGACY_DIGEST:
                 return ReadResponse.createDigestResponse(iterator, this);
             case LOGGED_DATA:
-                return LoggedReadResponse.createDataResponse(iterator, this, summary);
+                return LoggedReadResponse.createDataResponse(iterator, this, summary, pendingRead);
             case LOGGED_SUMMARY:
                 return LoggedReadResponse.createSummaryResponse(summary);
             default:

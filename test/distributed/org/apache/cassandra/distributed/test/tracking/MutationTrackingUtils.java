@@ -161,4 +161,14 @@ public class MutationTrackingUtils
     {
         return node.callOnInstance(() -> ReadRepairMetrics.logReconcile.getCount());
     }
+
+    public static Object[] row(Object... objs)
+    {
+        return objs;
+    }
+
+    public static Object[][] rows(Object[][]... objs)
+    {
+        return objs;
+    }
 }
