@@ -33,6 +33,9 @@ import org.apache.cassandra.service.accord.AccordService;
 
 public class AccordVirtualTables
 {
+
+    public static final String SUCCESS = "success";
+
     private AccordVirtualTables()
     {
     }
@@ -94,7 +97,13 @@ public class AccordVirtualTables
                     ds.column("ready_coordinate", resultToString(ready.coordinate));
                     ds.column("ready_data", resultToString(ready.data));
                     ds.column("ready_reads", resultToString(ready.reads));
-                    ds.column("ready", ready.reads.isSuccess());
+                    boolean success = ready.reads.isSuccess();
+                    ds.column("ready", success);
+                    // There is a race condition given these fields are AsyncResults; checking it twice could get different results!
+                    // If ready_reads was set to "pending", then the next check its "success", make sure to update the field
+                    // to avoid any confussion.
+                    if (success)
+                        ds.column("ready_reads", SUCCESS);
                 }
                 else
                 {
@@ -110,7 +119,7 @@ public class AccordVirtualTables
     private static String resultToString(AsyncResult<?> result)
     {
         if (result.isDone())
-            return result.isSuccess() ? "success" : "failed";
+            return result.isSuccess() ? SUCCESS : "failed";
         return "pending";
     }
 }
