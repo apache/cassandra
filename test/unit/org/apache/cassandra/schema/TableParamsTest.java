@@ -20,14 +20,14 @@ package org.apache.cassandra.schema;
 
 import org.junit.Test;
 
+import accord.utils.Gen;
 import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.tcm.membership.NodeVersion;
 import org.apache.cassandra.tcm.serialization.AsymmetricMetadataSerializers;
 import org.apache.cassandra.utils.CassandraGenerators.TableParamsBuilder;
-import org.apache.cassandra.utils.FailingConsumer;
-import org.quicktheories.core.Gen;
+import org.apache.cassandra.utils.Generators;
 
-import static org.quicktheories.QuickTheory.qt;
+import static accord.utils.Property.qt;
 
 
 public class TableParamsTest
@@ -36,17 +36,17 @@ public class TableParamsTest
     public void serdeLatest()
     {
         DataOutputBuffer output = new DataOutputBuffer();
-        qt().forAll(tableParams()).checkAssert(FailingConsumer.orFail(params -> {
+        qt().forAll(tableParams()).check(params -> {
             AsymmetricMetadataSerializers.testSerde(output, TableParams.serializer, params, NodeVersion.CURRENT_METADATA_VERSION);
-        }));
+        });
     }
 
     private static Gen<TableParams> tableParams()
     {
-        return new TableParamsBuilder()
-               .withKnownMemtables()
-               .withTransactionalMode()
-               .withFastPathStrategy()
-               .build();
+        return Generators.toGen(new TableParamsBuilder()
+                                .withKnownMemtables()
+                                .withTransactionalMode()
+                                .withFastPathStrategy()
+                                .build());
     }
 }

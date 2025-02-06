@@ -146,7 +146,7 @@ public class ParameterizedFastPathStrategy implements FastPathStrategy
             else if (parts.length == 2)
                 return new WeightedDc(validateDC(parts[0]), validateWeight(parts[1]), false);
             else
-                throw cfe("Invalid dc weighting syntax %s, use <dc>:<weight>");
+                throw cfe("Invalid dc weighting syntax %s, use <dc>:<weight>", s);
         }
     }
 
