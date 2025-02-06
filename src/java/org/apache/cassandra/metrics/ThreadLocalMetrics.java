@@ -58,9 +58,6 @@ public class ThreadLocalMetrics
     private final Thread thread;
 
     private final AtomicReference<AtomicLongArray> counterValues = new AtomicReference<>(new AtomicLongArray(16));
-    {
-        counterValues.set(new AtomicLongArray(16));
-    }
 
     public ThreadLocalMetrics(Thread thread)
     {
