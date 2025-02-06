@@ -126,7 +126,6 @@ public class AccordTopologyMixupTest extends TopologyMixupTestBase<AccordTopolog
     private static Spec createSchemaSpec(RandomSource rs, Cluster cluster)
     {
         TransactionalMode mode = rs.pick(TRANSACTIONAL_MODES);
-        boolean enableMigration = allowsMigration(mode) && rs.nextBoolean();
         // This test puts a focus on topology / cluster operations, so schema "shouldn't matter"... limit the domain of the test to improve the ability to debug
         AbstractTypeGenerators.TypeGenBuilder supportedTypes = AbstractTypeGenerators.withoutUnsafeEquality(AbstractTypeGenerators.builder()
                                                                                                                                   .withTypeKinds(AbstractTypeGenerators.TypeKind.PRIMITIVE));
@@ -137,7 +136,7 @@ public class AccordTopologyMixupTest extends TopologyMixupTestBase<AccordTopolog
                                         .withKnownMemtables()
                                         .withSimpleColumnNames()
                                         //TODO (coverage): include "fast_path = 'keyspace'" override
-                                        .withTransactionalMode(enableMigration ? TransactionalMode.off : mode)
+                                        .withTransactionalMode(mode)
                                         .withDefaultTypeGen(supportedTypes)
                                         .build())
                                  .next(rs);
@@ -145,12 +144,7 @@ public class AccordTopologyMixupTest extends TopologyMixupTestBase<AccordTopolog
         String schemaCQL = metadata.toCqlString(false, false, false);
         logger.info("Creating test table:\n{}", schemaCQL);
         cluster.schemaChange(schemaCQL);
-        if (enableMigration)
-        {
-            cluster.schemaChange("ALTER TABLE " + metadata + " WITH " + mode.asCqlParam());
-            cluster.get(1).nodetoolResult("consensus_admin", "begin-migration", metadata.keyspace, metadata.name).asserts().success();
-        }
-        return new Spec(mode, enableMigration, metadata);
+        return new Spec(mode, metadata);
     }
 
     private static CommandGen<Spec> cqlOperations(Spec spec)
@@ -180,18 +174,6 @@ public class AccordTopologyMixupTest extends TopologyMixupTestBase<AccordTopolog
         return new Property.SimpleCommand<>(node + ":" + msg + "; epoch=" + state.currentEpoch.get(), s2 -> executeTxn(s2.cluster, node, stmt.toCQL(), stmt.bindsEncoded()));
     }
 
-    private static boolean allowsMigration(TransactionalMode mode)
-    {
-        switch (mode)
-        {
-            case mixed_reads:
-            case full:
-                return true;
-            default:
-                return false;
-        }
-    }
-
     private static SimpleQueryResult executeTxn(Cluster cluster, IInvokableInstance node, String stmt, ByteBuffer[] binds)
     {
         if (!AccordTestBase.isIdempotent(node, stmt))
@@ -214,13 +196,11 @@ public class AccordTopologyMixupTest extends TopologyMixupTestBase<AccordTopolog
     public static class Spec implements Schema
     {
         private final TransactionalMode mode;
-        private final boolean enableMigration;
         private final TableMetadata metadata;
 
-        public Spec(TransactionalMode mode, boolean enableMigration, TableMetadata metadata)
+        public Spec(TransactionalMode mode, TableMetadata metadata)
         {
             this.mode = mode;
-            this.enableMigration = enableMigration;
             this.metadata = metadata;
         }
 
