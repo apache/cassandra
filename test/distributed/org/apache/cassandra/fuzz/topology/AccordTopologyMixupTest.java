@@ -302,7 +302,7 @@ public class AccordTopologyMixupTest extends TopologyMixupTestBase<AccordTopolog
             sb.append("\nAccord Epoch State:");
             // cluster may already be shutdown, so need to rely on instanceEpochState for nodes
             for (var e : instanceEpochState.entrySet())
-                sb.append("\n\tnode").append(e.getKey()).append(": ").append(e.getValue());
+                sb.append("\n\tnode").append(e.getKey()).append(":\n").append(e.getValue());
             return sb.toString();
         }
 
