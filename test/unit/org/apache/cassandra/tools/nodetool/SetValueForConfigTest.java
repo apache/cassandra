@@ -18,87 +18,92 @@
 
 package org.apache.cassandra.tools.nodetool;
 
-import java.util.Arrays;
-import java.util.concurrent.TimeUnit;
-
-import org.junit.Before;
+import org.junit.BeforeClass;
 import org.junit.Test;
-import org.apache.cassandra.config.DurationSpec;
-import org.mockito.Mock;
-import org.apache.cassandra.tools.NodeProbe;
-import org.mockito.MockitoAnnotations;
-import static org.mockito.ArgumentMatchers.anyString;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.times;
-import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
+import org.apache.cassandra.cql3.CQLTester;
+import org.apache.cassandra.tools.ToolRunner;
 
-public class SetValueForConfigTest
+import static org.apache.cassandra.tools.ToolRunner.invokeNodetool;
+import static org.junit.Assert.assertTrue;
+
+public class SetValueForConfigTest extends CQLTester
 {
-    @Mock
-    private NodeProbe probe;
-    private SetValueForConfig cmd;
-
-
-    @Before
-    public void setup() throws Exception
+    @BeforeClass
+    public static void setup() throws Exception
     {
-        MockitoAnnotations.initMocks(this);
-        cmd = new SetValueForConfig();
+        startJMXServer();
+    }
+
+    private class TestData
+    {
+        String[] cmds;
+        String[] outputs;
+
+        TestData(String[] cmds, String[] outputs)
+        {
+            this.cmds = cmds;
+            this.outputs = outputs;
+        }
     }
 
     @Test
-    public void testSetValueForConfigWithDurationSpec_ms() {
-        when(probe.setValueForConfig(anyString(), any())).thenReturn("");
-        cmd.args = Arrays.asList("xyz durationspec 20ms".split(" "));
-        cmd.execute(probe);
-        verify(probe, times(1)).setValueForConfig("xyz",
-                                                  new DurationSpec.LongMillisecondsBound(20));
-    }
+    public void testSetValues() {
+        TestData[] testData = {
+            // Unknown field should fail
+            new TestData(new String[]{"setvalueforconfig", "abc", "true"}, new String[]{"Unable to find type for field name: abc"}),
+            // test boolean
+            new TestData(new String[]{"setvalueforconfig", "start_native_transport", "true"}, new String[]{"Successfully set the value for start_native_transport to true"}),
+            new TestData(new String[]{"setvalueforconfig", "start_native_transport", "false"}, new String[]{"Successfully set the value for start_native_transport to false"}),
+            new TestData(new String[]{"setvalueforconfig", "start_native_transport", "Trues"}, new String[]{"Error parsing the given value Trues to type boolean for field start_native_transport"}),
+            // test Boolean
+            new TestData(new String[]{"setvalueforconfig", "compaction_ignore_disk_check", "true"}, new String[]{"Successfully set the value for compaction_ignore_disk_check to true"}),
+            new TestData(new String[]{"setvalueforconfig", "compaction_ignore_disk_check", "false"}, new String[]{"Successfully set the value for compaction_ignore_disk_check to false"}),
+            new TestData(new String[]{"setvalueforconfig", "compaction_ignore_disk_check", "Trues"}, new String[]{"Error parsing the given value Trues to type java.lang.Boolean for field compaction_ignore_disk_check"}),
+            // test int
+            new TestData(new String[]{"setvalueforconfig", "native_transport_max_threads", "1"}, new String[]{"Successfully set the value for native_transport_max_threads to 1"}),
+            new TestData(new String[]{"setvalueforconfig", "native_transport_max_threads", "a8"}, new String[]{"Error parsing the given value a8 to type int for field native_transport_max_threads"}),
+            // test integer
+            new TestData(new String[]{"setvalueforconfig", "compaction_tombstone_warning_threshold", "1"}, new String[]{"Successfully set the value for compaction_tombstone_warning_threshold to 1"}),
+            new TestData(new String[]{"setvalueforconfig", "compaction_tombstone_warning_threshold", "a8"}, new String[]{"Error parsing the given value a8 to type java.lang.Integer for field compaction_tombstone_warning_threshold"}),
+            // test long
+            new TestData(new String[]{"setvalueforconfig", "native_transport_max_concurrent_connections", "1"}, new String[]{"Successfully set the value for native_transport_max_concurrent_connections to 1"}),
+            new TestData(new String[]{"setvalueforconfig", "native_transport_max_concurrent_connections", "a8"}, new String[]{"Error parsing the given value a8 to type long for field native_transport_max_concurrent_connections"}),
+            // test Long
+            new TestData(new String[]{"setvalueforconfig", "auth_check_interval_in_ms", "1"}, new String[]{"Successfully set the value for auth_check_interval_in_ms to 1"}),
+            new TestData(new String[]{"setvalueforconfig", "auth_check_interval_in_ms", "a8"}, new String[]{"Error parsing the given value a8 to type java.lang.Long for field auth_check_interval_in_ms"}),
+            // test double
+            new TestData(new String[]{"setvalueforconfig", "phi_convict_threshold", "8.3"}, new String[]{"Successfully set the value for phi_convict_threshold to 8.3"}),
+            new TestData(new String[]{"setvalueforconfig", "phi_convict_threshold", "a8"}, new String[]{"Error parsing the given value a8 to type double for field phi_convict_threshold"}),
+            // test Double
+            new TestData(new String[]{"setvalueforconfig", "bad_query_tracing_fraction", "8.3"}, new String[]{"Successfully set the value for bad_query_tracing_fraction to 8.3"}),
+            new TestData(new String[]{"setvalueforconfig", "bad_query_tracing_fraction", "a8"}, new String[]{"Error parsing the given value a8 to type java.lang.Double for field bad_query_tracing_fraction"}),
+            // test Float
+            new TestData(new String[]{"setvalueforconfig", "memtable_cleanup_threshold", "8.3"}, new String[]{"Successfully set the value for memtable_cleanup_threshold to 8.3"}),
+            new TestData(new String[]{"setvalueforconfig", "memtable_cleanup_threshold", "a8"}, new String[]{"Error parsing the given value a8 to type java.lang.Float for field memtable_cleanup_threshold"}),
+            // test DurationSpec
+            new TestData(new String[]{"setvalueforconfig", "validation_preview_purge_head_start", "1m"}, new String[]{"Successfully set the value for validation_preview_purge_head_start to 1m"}),
+            // test duration too long will get error
+            new TestData(new String[]{"setvalueforconfig", "permissions_validity", "100000d"}, new String[]{"Invalid duration: 100000d. It shouldn't be more than 2147483646 in milliseconds"}),
+            // test DataStorageSpec
+            new TestData(new String[]{"setvalueforconfig", "local_read_size_fail_threshold", "1KiB"}, new String[]{"Successfully set the value for local_read_size_fail_threshold to 1KiB"}),
+            // test data storage value too small
+            new TestData(new String[]{"setvalueforconfig", "index_summary_capacity", "1KiB"}, new String[]{"Invalid data storage: 1KiB Accepted units:[MEBIBYTES, GIBIBYTES]"}),
+            // test DataRateSpec
+            new TestData(new String[]{"setvalueforconfig", "compaction_throughput", "1MiB/s"}, new String[]{"Successfully set the value for compaction_throughput to 1MiB/s"}),
+            // wrong unit
+            new TestData(new String[]{"setvalueforconfig", "compaction_throughput", "1MiB"}, new String[]{"Invalid data rate: 1MiB Accepted units: MiB/s, KiB/s, B/s where case matters and only non-negative values are valid"}),
+        };
 
-    @Test
-    public void testSetValueForConfigWithDurationSpec_ns() {
-        when(probe.setValueForConfig(anyString(), any())).thenReturn("");
-        cmd.args = Arrays.asList("xyz durationspec 20ns".split(" "));
-        cmd.execute(probe);
-        verify(probe, times(1)).setValueForConfig("xyz",
-                                                  new DurationSpec.LongNanosecondsBound(20));
-    }
-
-    @Test
-    public void testSetValueForConfigWithDurationSpec_s() {
-        when(probe.setValueForConfig(anyString(), any())).thenReturn("");
-        cmd.args = Arrays.asList("xyz durationspec 20s".split(" "));
-        cmd.execute(probe);
-        verify(probe, times(1)).setValueForConfig("xyz",
-                                                  new DurationSpec.LongSecondsBound(20));
-    }
-
-    @Test
-    public void testSetValueForConfigWithDurationSpec_m() {
-        when(probe.setValueForConfig(anyString(), any())).thenReturn("");
-        cmd.args = Arrays.asList("xyz durationspec 20m".split(" "));
-        cmd.execute(probe);
-        verify(probe, times(1)).setValueForConfig("xyz",
-                                                  new DurationSpec.IntMinutesBound(20));
-    }
-
-    @Test
-    public void testSetValueForConfigWithDurationSpec_h() {
-        when(probe.setValueForConfig(anyString(), any())).thenReturn("");
-        cmd.args = Arrays.asList("xyz durationspec 20h".split(" "));
-        cmd.execute(probe);
-        verify(probe, times(1)).setValueForConfig("xyz",
-                                                  new DurationSpec.LongMillisecondsBound(20, TimeUnit.HOURS));
-    }
-
-    @Test
-    public void testSetValueForConfigWithDurationSpec_invalid() {
-        when(probe.setValueForConfig(anyString(), any())).thenReturn("");
-        cmd.args = Arrays.asList("xyz durationspec 20x".split(" "));
-        cmd.execute(probe);
-        verify(probe, never()).setValueForConfig(eq("xyz"), any());
+        for (int i = 0; i < testData.length; i++)
+        {
+            // run command
+            ToolRunner.ToolResult result = invokeNodetool(testData[i].cmds);
+            // check expected output
+            for (int j = 0; j < testData[i].outputs.length; j++)
+            {
+                System.out.println(result.getStdout());
+                assertTrue(result.getStdout().contains(testData[i].outputs[j]));
+            }
+        }
     }
 }

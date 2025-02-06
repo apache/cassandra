@@ -290,7 +290,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
     private final JMXProgressSupport progressSupport = new JMXProgressSupport(this);
 
-    public String setValueForConfig(String configName, Object value)
+    public String setValueForConfig(String configName, String value)
     {
         return DatabaseDescriptor.setValueForConfig(configName, value);
     }

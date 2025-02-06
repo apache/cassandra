@@ -43,7 +43,7 @@ import org.apache.cassandra.exceptions.InvalidRequestException;
 
 public interface StorageServiceMBean extends NotificationEmitter
 {
-    public String setValueForConfig(String configName, Object value);
+    public String setValueForConfig(String configName, String value);
 
     public Object getValueForConfig(String configName);
 

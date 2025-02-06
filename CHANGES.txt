@@ -175,6 +175,7 @@ Merged from 3.0:
  * Fix CQLSH online help topic link (CASSANDRA-17534)
  * Remove unused suppressions (CASSANDRA-18724)
 Unreleased
+ * [SO-40018] Refactor setvalueforconfig nodetool command to support more types with proper check
  * Fix "open RT bound as its last item" exception (CASSANDRA-17810)
  * [SO-39948] Shutdown message verb handler should ignore ealier generation messages
  * [SO-39024] Query Event Logger can be Enabled/Disabled via Nodetool Commands

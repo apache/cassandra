@@ -18,6 +18,8 @@
 package org.apache.cassandra.config;
 
 import java.io.IOException;
+import java.lang.reflect.Constructor;
+import java.lang.reflect.InvocationTargetException;
 import java.net.Inet4Address;
 import java.net.Inet6Address;
 import java.net.InetAddress;
@@ -4768,6 +4770,63 @@ public class DatabaseDescriptor
         return rst;
     }
 
+    public static String setValueForConfig(String fieldName, String stringValue) {
+        Object value;
+        Class<?> fieldType;
+        try
+        {
+            fieldType = getValueTypeForConfig(fieldName);
+        }
+        catch (NoSuchFieldException e)
+        {
+            return "Unable to find type for field name: " + fieldName;
+        }
+        try
+        {
+            if (fieldType == int.class || fieldType == Integer.class) {
+                value = Integer.parseInt(stringValue);
+            } else if (fieldType == long.class || fieldType == Long.class) {
+                value = Long.parseLong(stringValue);
+            } else if (fieldType == double.class || fieldType == Double.class) {
+                value = Double.parseDouble(stringValue);
+            } else if (fieldType == float.class || fieldType == Float.class) {
+                value = Float.parseFloat(stringValue);
+            } else if (fieldType == boolean.class || fieldType == Boolean.class) {
+                // any value that is not "true" will be evaluated false, we don't want typo to be converted to false, adding one more check
+                if (!Boolean.parseBoolean(stringValue) && !stringValue.equalsIgnoreCase("false")){
+                    throw new IllegalArgumentException("only true/false value is supported");
+                }
+                value = Boolean.parseBoolean(stringValue);
+            } else if (DataStorageSpec.class.isAssignableFrom(fieldType) ||
+                       DurationSpec.class.isAssignableFrom(fieldType) ||
+                       DataRateSpec.class.isAssignableFrom(fieldType))
+            {
+                // any type with a constructor that take in one single string can use below logic
+                try
+                {
+                    Constructor<?> constructor = fieldType.getConstructor(String.class);
+                    value = constructor.newInstance(stringValue);
+                }
+                catch (InvocationTargetException e)
+                {
+                    // Return the actual cause of the failure
+                    return e.getCause().getMessage();
+                }
+                catch (Exception e)
+                {
+                    e.printStackTrace();
+                    return String.format("Failed to parse value: %s for given type: %s", stringValue, fieldType.getName());
+                }
+            } else {
+                return "Unsupported type value: " + fieldType.getName();
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+            return String.format("Error parsing the given value %s to type %s for field %s", stringValue, fieldType.getName(), fieldName);
+        }
+        return setValueForConfig(fieldName, value);
+    }
+
     public static Object getValueForConfig(String configName)
     {
         try
@@ -4780,6 +4839,20 @@ public class DatabaseDescriptor
             e.printStackTrace();
         }
         return null;
+    }
+
+    public static Class<?> getValueTypeForConfig(String configName) throws NoSuchFieldException
+    {
+        try
+        {
+            Field field = Config.class.getField(configName);
+            return field.getType();
+        }
+        catch (NoSuchFieldException e)
+        {
+            e.printStackTrace();
+            throw e;
+        }
     }
 
     public static DataStorageSpec.LongBytesBound getStreamingStateSize()

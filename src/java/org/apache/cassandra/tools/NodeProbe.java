@@ -1299,7 +1299,7 @@ public class NodeProbe implements AutoCloseable
         return ssProxy.getNativeTransportThrowOnOverload();
     }
 
-    public String setValueForConfig(String configName, Object value)
+    public String setValueForConfig(String configName, String value)
     {
         return ssProxy.setValueForConfig(configName, value);
     }
