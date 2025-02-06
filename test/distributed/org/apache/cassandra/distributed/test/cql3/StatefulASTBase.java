@@ -291,7 +291,9 @@ public class StatefulASTBase extends TestBaseImpl
             {
                 fetchSize = fetchSizeGen.nextInt(rs);
             }
-            String postfix = "on " + inst + ", fetch size " + fetchSize;
+            String postfix = "on " + inst;
+            if (fetchSize != Integer.MAX_VALUE)
+                postfix += ", fetch size " + fetchSize;
             if (annotate == null) annotate = postfix;
             else                  annotate += ", " + postfix;
             return new Property.SimpleCommand<>(humanReadable(select, annotate), s -> {
