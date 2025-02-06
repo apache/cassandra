@@ -20,6 +20,7 @@ package org.apache.cassandra.metrics;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.NavigableSet;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentSkipListSet;
@@ -27,39 +28,36 @@ import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
-import java.util.concurrent.atomic.AtomicLongArray;
-import java.util.concurrent.atomic.AtomicReference;
-
 import io.netty.util.concurrent.FastThreadLocal;
 
-public class ThreadLocalMetrics
+public class PiggybackArrayThreadLocalMetrics
 {
     static final AtomicInteger idGenerator = new AtomicInteger();
 
     static final NavigableSet<Integer> freeMetricIdSet = new ConcurrentSkipListSet<>();
 
-    static final List<ThreadLocalMetrics> allThreadLocalMetrics = new CopyOnWriteArrayList<>();
+    static final List<PiggybackArrayThreadLocalMetrics> allThreadLocalMetrics = new CopyOnWriteArrayList<>();
 
-    private static final FastThreadLocal<ThreadLocalMetrics> threadLocalMetricsCurrent = new FastThreadLocal<>()
+    private static final FastThreadLocal<PiggybackArrayThreadLocalMetrics> threadLocalMetricsCurrent = new FastThreadLocal<>()
     {
         @Override
-        protected ThreadLocalMetrics initialValue()
+        protected PiggybackArrayThreadLocalMetrics initialValue()
         {
 
-            ThreadLocalMetrics result = new ThreadLocalMetrics(Thread.currentThread());
+            PiggybackArrayThreadLocalMetrics result = new PiggybackArrayThreadLocalMetrics(Thread.currentThread());
             allThreadLocalMetrics.add(result);
             return result;
         }
     };
 
-    private static final ConcurrentHashMap<Integer, AtomicLong> deadThreadsSummaryValues = new ConcurrentHashMap<>();
+    private static final Map<Integer, AtomicLong> deadThreadsSummaryValues = new ConcurrentHashMap<>();
     private static final AtomicBoolean transferInProgress = new AtomicBoolean();
 
     private final Thread thread;
 
-    private final AtomicReference<AtomicLongArray> counterValues = new AtomicReference<>(new AtomicLongArray(16));
+    private long[] counterValues = new long[16];
 
-    public ThreadLocalMetrics(Thread thread)
+    public PiggybackArrayThreadLocalMetrics(Thread thread)
     {
         this.thread = thread;
     }
@@ -70,14 +68,14 @@ public class ThreadLocalMetrics
         if (transferInProgress.compareAndSet(false, true))
             try
             {
-                List<ThreadLocalMetrics> toRemove = new ArrayList<>();
-                for (ThreadLocalMetrics threadLocalMetrics : allThreadLocalMetrics)
+                List<PiggybackArrayThreadLocalMetrics> toRemove = new ArrayList<>();
+                for (PiggybackArrayThreadLocalMetrics threadLocalMetrics : allThreadLocalMetrics)
                 {
                     if (!threadLocalMetrics.thread.isAlive())
                     {
-                        for (int i = 0; i < threadLocalMetrics.counterValues.get().length(); i++)
+                        for (int i = 0; i < threadLocalMetrics.counterValues.length; i++)
                         {
-                            long value = threadLocalMetrics.counterValues.get().get(i);
+                            long value = threadLocalMetrics.counterValues[i];
                             if (value != 0)
                                 deadThreadsSummaryValues.computeIfAbsent(i, (metricId) -> new AtomicLong()).addAndGet(value);
                         }
@@ -106,21 +104,24 @@ public class ThreadLocalMetrics
         return idGenerator.getAndIncrement();
     }
 
-    public static void destroyCounter(ThreadLocalCounter counter)
+    public static void destroyCounter(CounterMetric counter)
     {
-        int metricId = counter.metricId;
-        for (ThreadLocalMetrics threadLocalMetrics : allThreadLocalMetrics)
+        if (!(counter instanceof ThreadLocalCounter))
+            return;
+
+        int metricId = ((ThreadLocalCounter)counter).metricId;
+        for (PiggybackArrayThreadLocalMetrics threadLocalMetrics : allThreadLocalMetrics)
             if (threadLocalMetrics != null)
             {
-                AtomicLongArray currentCounterValues = threadLocalMetrics.counterValues.get();
-                if (metricId < currentCounterValues.length())
-                    currentCounterValues.set(metricId, 0);
+                long[] currentCounterValues = threadLocalMetrics.counterValues;
+                if (metricId < currentCounterValues.length)
+                    currentCounterValues[metricId] = 0;
             }
         deadThreadsSummaryValues.remove(metricId);
         freeMetricIdSet.add(metricId);
     }
 
-    private static ThreadLocalMetrics get() {
+    private static PiggybackArrayThreadLocalMetrics get() {
         return threadLocalMetricsCurrent.get();
     }
 
@@ -133,14 +134,6 @@ public class ThreadLocalMetrics
                '}';
     }
 
-    public interface CounterMetric {
-        void inc();
-        void inc(long n);
-        void dec();
-        void dec(long n);
-        long getCount();
-    }
-
     public static class ThreadLocalCounter implements CounterMetric
     {
         private final int metricId;
@@ -150,50 +143,45 @@ public class ThreadLocalMetrics
             this.metricId = metricId;
         }
 
-        private AtomicLongArray get()
+        private long[] get()
         {
-            ThreadLocalMetrics threadLocalMetrics = ThreadLocalMetrics.get();
-            AtomicLongArray currentCounterValues = threadLocalMetrics.counterValues.getPlain();
-            if (metricId < currentCounterValues.length())
+            PiggybackArrayThreadLocalMetrics threadLocalMetrics = PiggybackArrayThreadLocalMetrics.get();
+            long[] currentCounterValues = threadLocalMetrics.counterValues;
+            if (metricId < currentCounterValues.length)
                 return currentCounterValues;
 
-            AtomicLongArray newCounterValues = new AtomicLongArray((int)(metricId * 1.1));
-            for (int i = 0; i < currentCounterValues.length(); i++)
-                newCounterValues.setPlain(i, currentCounterValues.getPlain(i));
-            threadLocalMetrics.counterValues.lazySet(newCounterValues);
+            long[] newCounterValues = new long[(int)(metricId * 1.1)];
+            System.arraycopy(currentCounterValues, 0, newCounterValues, 0, currentCounterValues.length);
+            threadLocalMetrics.counterValues = newCounterValues;
             return newCounterValues;
         }
 
         @Override
         public void inc()
         {
-           AtomicLongArray values = get();
-           long current = values.getPlain(metricId);
-           values.lazySet(metricId, ++current);
+           long[] values = get();
+           values[metricId]++;
         }
 
         @Override
         public void inc(long n)
         {
-            AtomicLongArray values = get();
-            long current = values.getPlain(metricId);
-            values.lazySet(metricId, current + n);
+            long[] values = get();
+            values[metricId] += n;
         }
 
         @Override
         public void dec()
         {
-            AtomicLongArray values = get();
-            long current = values.getPlain(metricId);
-            values.lazySet(metricId, --current);
+            long[] values = get();
+            values[metricId]--;
         }
 
         @Override
         public void dec(long n)
         {
-            AtomicLongArray values = get();
-            long current = values.getPlain(metricId);
-            values.lazySet(metricId, current - n);
+            long[] values = get();
+            values[metricId] -= n;
         }
 
         @Override
@@ -206,14 +194,14 @@ public class ThreadLocalMetrics
             {
                 dead = getDeadSummary(metricId);
                 result = 0;
-                for (ThreadLocalMetrics threadLocalMetrics : allThreadLocalMetrics)
+                for (PiggybackArrayThreadLocalMetrics threadLocalMetrics : allThreadLocalMetrics)
                 {
                     if (threadLocalMetrics != null)
                     {
-                        AtomicLongArray currentCounterValues = threadLocalMetrics.counterValues.get();
-                        if (metricId < currentCounterValues.length())
+                        long[] currentCounterValues = threadLocalMetrics.counterValues;
+                        if (metricId < currentCounterValues.length)
                         {
-                            result += currentCounterValues.get(metricId);
+                            result += currentCounterValues[metricId];
                         }
                     }
                 }
