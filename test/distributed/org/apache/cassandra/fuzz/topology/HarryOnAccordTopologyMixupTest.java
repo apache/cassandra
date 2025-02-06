@@ -72,6 +72,13 @@ public class HarryOnAccordTopologyMixupTest extends HarryTopologyMixupTest
         }
 
         @Override
+        protected boolean allowRepair()
+        {
+            //TODO (required, operational): repair barriers depend on durability sync, which requires ALL, even if --force is done.
+            return topologyHistory.down().length == 0;
+        }
+
+        @Override
         protected void onConfigure(IInstanceConfig config)
         {
             super.onConfigure(config);
