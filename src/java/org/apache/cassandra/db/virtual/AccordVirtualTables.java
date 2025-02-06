@@ -44,7 +44,7 @@ public class AccordVirtualTables
         if (!DatabaseDescriptor.getAccordTransactionsEnabled())
             return Collections.emptyList();
 
-        return List.of(new EpochTable(keyspace)
+        return List.of(new EpochReadyTable(keyspace)
         );
     }
 
@@ -54,11 +54,11 @@ public class AccordVirtualTables
                                    .kind(TableMetadata.Kind.VIRTUAL);
     }
 
-    public static class EpochTable extends AbstractVirtualTable
+    public static class EpochReadyTable extends AbstractVirtualTable
     {
-        public EpochTable(String keyspace)
+        public EpochReadyTable(String keyspace)
         {
-            super(parse(keyspace, "CREATE TABLE accord_epoch (\n" +
+            super(parse(keyspace, "CREATE TABLE accord_epoch_ready (\n" +
                                       "  epoch bigint PRIMARY KEY,\n" +
                                       "  ready_metadata text,\n" +
                                       "  ready_coordinate text,\n" +
@@ -67,15 +67,14 @@ public class AccordVirtualTables
                                       "  ready boolean,\n" +
                                       ")")
                   .partitioner(new LocalPartitioner(LongType.instance))
-                  .comment("Exposes the epoch state for recieved epochs in Accord")
+                  .comment("Exposes the epoch ready state for recieved epochs in Accord")
                   .build());
         }
 
         @Override
         public DataSet data()
         {
-            // This table focuses on epochs that have already been received and does not include inflight epochs nor does it include acknowledge status.
-            AccordService service = (AccordService) AccordService.instance();
+            AccordService service = accordService();
             SimpleDataSet ds = new SimpleDataSet(metadata());
             TopologyManager tm = service.node().topology();
             long minEpoch = tm.minEpoch();
@@ -113,6 +112,12 @@ public class AccordVirtualTables
             }
             return ds;
         }
+    }
+
+    private static AccordService accordService()
+    {
+        // This table focuses on epochs that have already been received and does not include inflight epochs nor does it include acknowledge status.
+        return (AccordService) AccordService.instance();
     }
 
     private static String resultToString(AsyncResult<?> result)

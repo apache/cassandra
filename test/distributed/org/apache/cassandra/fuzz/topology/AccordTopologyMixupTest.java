@@ -258,7 +258,7 @@ public class AccordTopologyMixupTest extends TopologyMixupTestBase<AccordTopolog
 
         private void populateEpochState()
         {
-            String cql = "SELECT * FROM " + VIRTUAL_VIEWS + ".accord_epoch";
+            String cql = "SELECT * FROM " + VIRTUAL_VIEWS + ".accord_epoch_ready";
             for (var inst : cluster)
             {
                 int num = inst.config().num();
