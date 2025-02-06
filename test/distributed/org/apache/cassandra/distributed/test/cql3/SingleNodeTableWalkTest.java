@@ -87,7 +87,6 @@ public class SingleNodeTableWalkTest extends StatefulASTBase
         // Example: builder.withSeed(42L);
         // CQL operations may have opertors such as +, -, and / (example 4 + 4), to "apply" them to get a constant value
         // CQL_DEBUG_APPLY_OPERATOR = true;
-        builder.withExamples(Integer.MAX_VALUE);
     }
 
     protected TypeGenBuilder supportedTypes()
@@ -228,7 +227,9 @@ public class SingleNodeTableWalkTest extends StatefulASTBase
             return Property.ignoreCommand();
         ByteBuffer value = rs.pickOrderedSet(allowed);
 
-        EnumSet<CreateIndexDDL.QueryType> supported = !state.indexes.containsKey(symbol) ? EnumSet.noneOf(CreateIndexDDL.QueryType.class) : state.indexes.get(symbol).supportedQueries();
+        EnumSet<CreateIndexDDL.QueryType> supported = !state.indexes.containsKey(symbol)
+                                                      ? EnumSet.noneOf(CreateIndexDDL.QueryType.class)
+                                                      : state.indexes.get(symbol).supportedQueries();
         if (supported.isEmpty() || !supported.contains(CreateIndexDDL.QueryType.Range))
             builder.allowFiltering();
 
