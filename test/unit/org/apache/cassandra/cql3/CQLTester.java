@@ -1561,7 +1561,7 @@ public abstract class CQLTester
      * @param text the text that the exception message must contains
      * @param e the exception to check
      */
-    private static void assertMessageContains(String text, Exception e)
+    protected static void assertMessageContains(String text, Exception e)
     {
         Assert.assertTrue("Expected error message to contain '" + text + "', but got '" + e.getMessage() + "'",
                 e.getMessage().contains(text));
