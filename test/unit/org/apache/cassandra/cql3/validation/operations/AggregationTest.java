@@ -181,6 +181,86 @@ public class AggregationTest extends CQLTester
     }
 
     @Test
+    public void testMaxAggregationDescending()
+    {
+        createTable("CREATE TABLE %s (a int, b int, primary key (a, b)) WITH CLUSTERING ORDER BY (b DESC)");
+
+        execute("INSERT INTO %s (a, b) VALUES (1, 1000)");
+        execute("INSERT INTO %s (a, b) VALUES (1, 100)");
+        execute("INSERT INTO %s (a, b) VALUES (1, 1)");
+
+        assertRows(execute("SELECT count(b), max(b) as max FROM %s WHERE a = 1"),
+                   row(3L, 1000));
+
+        execute("INSERT INTO %s (a, b) VALUES (2, 4000)");
+        execute("INSERT INTO %s (a, b) VALUES (3, 100)");
+        execute("INSERT INTO %s (a, b) VALUES (4, 0)");
+
+        assertRows(execute("SELECT count(b), max(b) as max FROM %s"),
+                   row(6L, 4000));
+    }
+
+    @Test
+    public void testMinAggregationDescending()
+    {
+        createTable("CREATE TABLE %s (a int, b int, primary key (a, b)) WITH CLUSTERING ORDER BY (b DESC)");
+
+        execute("INSERT INTO %s (a, b) VALUES (1, 1000)");
+        execute("INSERT INTO %s (a, b) VALUES (1, 100)");
+        execute("INSERT INTO %s (a, b) VALUES (1, 1)");
+
+        assertRows(execute("SELECT count(b), min(b) as min FROM %s WHERE a = 1"),
+                   row(3L, 1));
+
+        execute("INSERT INTO %s (a, b) VALUES (2, 4000)");
+        execute("INSERT INTO %s (a, b) VALUES (3, 100)");
+        execute("INSERT INTO %s (a, b) VALUES (4, 0)");
+
+        assertRows(execute("SELECT count(b), min(b) as min FROM %s"),
+                   row(6L, 0));
+    }
+
+    @Test
+    public void testMaxAggregationAscending()
+    {
+        createTable("CREATE TABLE %s (a int, b int, primary key (a, b)) WITH CLUSTERING ORDER BY (b ASC)");
+
+        execute("INSERT INTO %s (a, b) VALUES (1, 1000)");
+        execute("INSERT INTO %s (a, b) VALUES (1, 100)");
+        execute("INSERT INTO %s (a, b) VALUES (1, 1)");
+
+        assertRows(execute("SELECT count(b), max(b) as max FROM %s WHERE a = 1"),
+                   row(3L, 1000));
+
+        execute("INSERT INTO %s (a, b) VALUES (2, 4000)");
+        execute("INSERT INTO %s (a, b) VALUES (3, 100)");
+        execute("INSERT INTO %s (a, b) VALUES (4, 5)");
+
+        assertRows(execute("SELECT count(b), max(b) as max FROM %s"),
+                   row(6L, 4000));
+    }
+
+    @Test
+    public void testMinAggregationAscending()
+    {
+        createTable("CREATE TABLE %s (a int, b int, primary key (a, b)) WITH CLUSTERING ORDER BY (b ASC)");
+
+        execute("INSERT INTO %s (a, b) VALUES (1, 1000)");
+        execute("INSERT INTO %s (a, b) VALUES (1, 100)");
+        execute("INSERT INTO %s (a, b) VALUES (1, 1)");
+
+        assertRows(execute("SELECT count(b), min(b) as min FROM %s WHERE a = 1"),
+                   row(3L, 1));
+
+        execute("INSERT INTO %s (a, b) VALUES (2, 4000)");
+        execute("INSERT INTO %s (a, b) VALUES (3, 100)");
+        execute("INSERT INTO %s (a, b) VALUES (4, 0)");
+
+        assertRows(execute("SELECT count(b), min(b) as min FROM %s"),
+                   row(6L, 0));
+    }
+
+    @Test
     public void testAggregateWithColumns() throws Throwable
     {
         createTable("CREATE TABLE %s (a int, b int, c int, primary key (a, b))");
