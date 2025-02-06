@@ -158,13 +158,7 @@ public class AutoRepairConfig implements Serializable
 
     public int getRepairSubRangeNum(RepairType repairType)
     {
-        Integer numSubranges =  applyOverrides(repairType, opt -> opt.number_of_subranges);
-        // number_of_subranges is not set
-        if (numSubranges == null)
-        {
-            return Math.min(16, Math.max(1, 256 / DatabaseDescriptor.getNumTokens()));
-        }
-        return numSubranges;
+        return applyOverrides(repairType, opt -> opt.number_of_subranges);
     }
 
     public void setRepairSubRangeNum(RepairType repairType, int repairSubRanges)

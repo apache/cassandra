@@ -183,6 +183,7 @@ public class AutoRepairV2ParameterizedTest extends CQLTester
     {
         // prepare a fresh default config
         defaultConfig = new AutoRepairConfig(true);
+        DatabaseDescriptor.applyAutoRepairConfig(defaultConfig);
         for (AutoRepairConfig.RepairType repairType : AutoRepairConfig.RepairType.values())
         {
             defaultConfig.setAutoRepairEnabled(repairType, true);

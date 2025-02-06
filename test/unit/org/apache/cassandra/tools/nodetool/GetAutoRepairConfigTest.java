@@ -122,6 +122,7 @@ public class GetAutoRepairConfigTest
         {
             AutoRepairConfig config = new AutoRepairConfig(true);
             config.setAutoRepairHistoryClearDeleteHostsBufferInSec(700);
+            DatabaseDescriptor.applyAutoRepairConfig(config);
             for (RepairType repairType : RepairType.values())
             {
                 config.setAutoRepairEnabled(repairType, false);
@@ -142,6 +143,7 @@ public class GetAutoRepairConfigTest
         {
             AutoRepairConfig config = new AutoRepairConfig(true);
             config.setAutoRepairHistoryClearDeleteHostsBufferInSec(700);
+            DatabaseDescriptor.applyAutoRepairConfig(config);
             for (RepairType repairType : RepairType.values())
             {
                 config.setAutoRepairEnabled(repairType, true);
@@ -200,6 +202,7 @@ public class GetAutoRepairConfigTest
         public void testOneRepairTypeEnabled()
         {
             AutoRepairConfig config = new AutoRepairConfig(true);
+            DatabaseDescriptor.applyAutoRepairConfig(config);
             config.setAutoRepairHistoryClearDeleteHostsBufferInSec(700);
             config.setMVRepairEnabled(repairType, true);
             for (RepairType type : RepairType.values())

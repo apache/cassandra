@@ -403,6 +403,8 @@ public class DatabaseDescriptor
 
         applyTokensConfig();
 
+        applyAutoRepairConfig();
+
         applySeedProvider();
 
         applyEncryptionContext();
@@ -1356,6 +1358,20 @@ public class DatabaseDescriptor
         else if (conf.num_tokens == null)
         {
             conf.num_tokens = 1;
+        }
+    }
+
+    public static void applyAutoRepairConfig()
+    {
+        applyAutoRepairConfig(conf.auto_repair);
+    }
+
+    public static void applyAutoRepairConfig(AutoRepairConfig config)
+    {
+        // set the number of subranges of global_settings if the value is not set
+        if (config.global_settings.number_of_subranges == null)
+        {
+            config.global_settings.number_of_subranges = Math.min(16, Math.max(1, 256 / DatabaseDescriptor.getNumTokens()));
         }
     }
 
