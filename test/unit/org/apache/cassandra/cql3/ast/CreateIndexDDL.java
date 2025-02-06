@@ -23,19 +23,14 @@ import java.util.EnumSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.Set;
 import java.util.stream.Stream;
-
-import com.google.common.collect.ImmutableSet;
 
 import org.apache.cassandra.cql3.ast.Symbol.UnquotedSymbol;
 import org.apache.cassandra.db.marshal.AbstractType;
-import org.apache.cassandra.db.marshal.AsciiType;
-import org.apache.cassandra.db.marshal.BooleanType;
 import org.apache.cassandra.db.marshal.CompositeType;
 import org.apache.cassandra.db.marshal.UTF8Type;
-import org.apache.cassandra.db.marshal.UUIDType;
 import org.apache.cassandra.index.sai.StorageAttachedIndex;
+import org.apache.cassandra.index.sai.utils.IndexTermType;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.TableMetadata;
 
@@ -106,10 +101,6 @@ public class CreateIndexDDL implements Element
         }
     };
 
-    private static final Set<AbstractType<?>> SAI_EQ_ONLY = ImmutableSet.of(UTF8Type.instance, AsciiType.instance,
-                                                                            BooleanType.instance,
-                                                                            UUIDType.instance);
-
     public static final Indexer SAI = new Indexer()
     {
         @Override
@@ -150,7 +141,7 @@ public class CreateIndexDDL implements Element
         public EnumSet<QueryType> supportedQueries(AbstractType<?> type)
         {
             type = type.unwrap();
-            if (SAI_EQ_ONLY.contains(type))
+            if (IndexTermType.isEqOnlyType(type))
                 return EnumSet.of(QueryType.Eq);
             return EnumSet.allOf(QueryType.class);
         }

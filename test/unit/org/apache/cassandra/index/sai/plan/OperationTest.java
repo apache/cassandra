@@ -27,7 +27,6 @@ import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
 import com.google.common.base.Preconditions;
-import com.google.common.collect.Multimap;
 import com.google.common.collect.Sets;
 import org.junit.Before;
 import org.junit.BeforeClass;
@@ -324,10 +323,10 @@ public class OperationTest
         assertTrue(node.buildFilter(controllerClustering, true).isSatisfiedBy(key, row, staticRow));
     }
 
-    private Map<Expression.IndexOperator, Expression> convert(Multimap<ColumnMetadata, Expression> expressions)
+    private Map<Expression.IndexOperator, Expression> convert(Operation.Expressions expressions)
     {
         Map<Expression.IndexOperator, Expression> converted = new EnumMap<>(Expression.IndexOperator.class);
-        for (Expression expression : expressions.values())
+        for (Expression expression : expressions.all())
         {
             Expression column = converted.get(expression.getIndexOperator());
             assert column == null; // sanity check
