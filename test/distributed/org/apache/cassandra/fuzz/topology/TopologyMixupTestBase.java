@@ -375,12 +375,12 @@ public abstract class TopologyMixupTestBase<S extends TopologyMixupTestBase.Sche
         preCheck(statefulBuilder);
         statefulBuilder.check(commands(this::stateGen)
                               .preCommands(state -> state.preActions.forEach(Runnable::run))
-                              .add(2, (rs, state) -> {
+                              .addIf(State::allowTopologyChanges, 2, (rs, state) -> {
                                   EnumSet<TopologyChange> possibleTopologyChanges = possibleTopologyChanges(state);
                                   if (possibleTopologyChanges.isEmpty()) return ignoreCommand();
                                   return topologyCommand(state, possibleTopologyChanges).next(rs);
                               })
-                              .add(1, (rs, state) -> repairCommand(rs.pickInt(state.topologyHistory.up())))
+                              .addIf(State::allowRepair, 1, (rs, state) -> repairCommand(rs.pickInt(state.topologyHistory.up())))
                               .add(7, (rs, state) -> state.statementGen.apply(rs, state))
                               .destroyState((state, cause) -> {
                                   try (state)
@@ -397,7 +397,7 @@ public abstract class TopologyMixupTestBase<S extends TopologyMixupTestBase.Sche
                               .build());
     }
 
-    private EnumSet<TopologyChange> possibleTopologyChanges(State<S> state)
+    private static EnumSet<TopologyChange> possibleTopologyChanges(State<?> state)
     {
         EnumSet<TopologyChange> possibleTopologyChanges = EnumSet.noneOf(TopologyChange.class);
         // up or down is logically more correct, but since this runs sequentially and after the topology changes are complete, we don't have downed nodes at this point
@@ -681,6 +681,16 @@ public abstract class TopologyMixupTestBase<S extends TopologyMixupTestBase.Sche
             long waitForEpoch = HackSerialization.tcmEpoch(cluster.get(1));
             currentEpoch.set(waitForEpoch);
             onStartupComplete(waitForEpoch);
+        }
+
+        protected boolean allowTopologyChanges()
+        {
+            return !possibleTopologyChanges(this).isEmpty();
+        }
+
+        protected boolean allowRepair()
+        {
+            return true;
         }
 
         protected void onStartupComplete(long tcmEpoch)
