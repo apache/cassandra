@@ -240,7 +240,7 @@ public class AccordTopologyMixupTest extends TopologyMixupTestBase<AccordTopolog
         @Override
         protected boolean allowRepair()
         {
-            //TODO (operational): repair barriers depend on durability sync, which requires ALL, even if --force is done.
+            //TODO (required, operational): repair barriers depend on durability sync, which requires ALL, even if --force is done.
             return topologyHistory.down().length == 0;
         }
 
