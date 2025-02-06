@@ -54,7 +54,7 @@ public abstract class Mutation implements Statement
 
     public Mutation withTimestamp(long timestamp)
     {
-        return withTimestamp(new Timestamp(new Bind(timestamp, LongType.instance)));
+        return withTimestamp(new Timestamp(new Literal(timestamp, LongType.instance)));
     }
 
     public abstract Mutation withTimestamp(Timestamp timestamp);

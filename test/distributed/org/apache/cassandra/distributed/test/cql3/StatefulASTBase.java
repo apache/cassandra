@@ -25,7 +25,6 @@ import java.util.ArrayList;
 import java.util.EnumSet;
 import java.util.List;
 import java.util.Objects;
-import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
@@ -34,7 +33,6 @@ import java.util.stream.Stream;
 import javax.annotation.Nullable;
 
 import com.google.common.annotations.VisibleForTesting;
-import com.google.common.collect.ImmutableSet;
 import org.slf4j.Logger;
 
 import accord.utils.Gen;
@@ -64,10 +62,6 @@ import org.apache.cassandra.cql3.ast.Visitor.CompositeVisitor;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.AsciiType;
 import org.apache.cassandra.db.marshal.BytesType;
-import org.apache.cassandra.db.marshal.DecimalType;
-import org.apache.cassandra.db.marshal.InetAddressType;
-import org.apache.cassandra.db.marshal.IntegerType;
-import org.apache.cassandra.db.marshal.LongType;
 import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
@@ -202,7 +196,8 @@ public class StatefulASTBase extends TestBaseImpl
 
     protected static <S extends CommonState> Property.Command<S, Void, ?> insert(RandomSource rs, S state)
     {
-        return state.command(rs, state.mutationGen().next(rs));
+        int timestamp = ++state.operations;
+        return state.command(rs, state.mutationGen().next(rs).withTimestamp(timestamp));
     }
 
     protected static <S extends BaseState> Property.Command<S, Void, ?> fullTableScan(RandomSource rs, S state)
@@ -232,6 +227,7 @@ public class StatefulASTBase extends TestBaseImpl
         protected int numMutations, mutationsSinceLastFlush;
         protected int numFlushes, flushesSinceLastCompaction;
         protected int numCompact;
+        protected int operations;
 
         protected BaseState(RandomSource rs, Cluster cluster, TableMetadata metadata)
         {
@@ -344,11 +340,6 @@ public class StatefulASTBase extends TestBaseImpl
         protected boolean hasEnoughSSTables()
         {
             return flushesSinceLastCompaction > enoughSSTables;
-        }
-
-        protected boolean isFullTableScanSafe()
-        {
-            return true;
         }
 
         protected void mutation()
