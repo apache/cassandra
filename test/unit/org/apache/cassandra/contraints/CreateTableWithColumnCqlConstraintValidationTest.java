@@ -874,7 +874,7 @@ public class CreateTableWithColumnCqlConstraintValidationTest extends CqlConstra
         // Valid
         execute("INSERT INTO %s (pk, ck1, ck2, v) VALUES (1, 'fooo', 2, 3)");
 
-        final String expectedErrorMessage = "ck1 does not satisfy length constraint.";
+        final String expectedErrorMessage = "Column value does not satisfy value constraint for column 'ck1'. It has a length of";
         // Invalid
         assertInvalidThrowMessage(expectedErrorMessage, InvalidRequestException.class, "INSERT INTO %s (pk, ck1, ck2, v) VALUES (1, 'foo', 2, 3)");
         assertInvalidThrowMessage(expectedErrorMessage, InvalidRequestException.class, "INSERT INTO %s (pk, ck1, ck2, v) VALUES (1, 'foooo', 2, 3)");
@@ -885,7 +885,7 @@ public class CreateTableWithColumnCqlConstraintValidationTest extends CqlConstra
     {
         createTable("CREATE TABLE %s (pk int, ck1 text CHECK LENGTH(ck1) != 4, ck2 int, v int, PRIMARY KEY ((pk),ck1, ck2)) WITH CLUSTERING ORDER BY (ck1 ASC);");
 
-        final String expectedErrorMessage = "ck1 does not satisfy length constraint.";
+        final String expectedErrorMessage = "Column value does not satisfy value constraint for column 'ck1'. It has a length of";
         // Valid
         execute("INSERT INTO %s (pk, ck1, ck2, v) VALUES (1, 'foo', 2, 3)");
         execute("INSERT INTO %s (pk, ck1, ck2, v) VALUES (1, 'foooo', 2, 3)");
@@ -902,7 +902,7 @@ public class CreateTableWithColumnCqlConstraintValidationTest extends CqlConstra
         // Valid
         execute("INSERT INTO %s (pk, ck1, ck2, v) VALUES (1, 'foooo', 2, 3)");
 
-        final String expectedErrorMessage = "ck1 does not satisfy length constraint.";
+        final String expectedErrorMessage = "Column value does not satisfy value constraint for column 'ck1'. It has a length of";
         // Invalid
         assertInvalidThrowMessage(expectedErrorMessage, InvalidRequestException.class, "INSERT INTO %s (pk, ck1, ck2, v) VALUES (1, 'foo', 2, 3)");
         assertInvalidThrowMessage(expectedErrorMessage, InvalidRequestException.class, "INSERT INTO %s (pk, ck1, ck2, v) VALUES (1, 'fooo', 2, 3)");
@@ -917,7 +917,7 @@ public class CreateTableWithColumnCqlConstraintValidationTest extends CqlConstra
         execute("INSERT INTO %s (pk, ck1, ck2, v) VALUES (1, 'foooo', 2, 3)");
         execute("INSERT INTO %s (pk, ck1, ck2, v) VALUES (1, 'fooo', 2, 3)");
 
-        final String expectedErrorMessage = "ck1 does not satisfy length constraint.";
+        final String expectedErrorMessage = "Column value does not satisfy value constraint for column 'ck1'. It has a length of";
         // Invalid
         assertInvalidThrowMessage(expectedErrorMessage, InvalidRequestException.class, "INSERT INTO %s (pk, ck1, ck2, v) VALUES (1, 'foo', 2, 3)");
     }
@@ -930,7 +930,7 @@ public class CreateTableWithColumnCqlConstraintValidationTest extends CqlConstra
         // Valid
         execute("INSERT INTO %s (pk, ck1, ck2, v) VALUES (1, 'foo', 2, 3)");
 
-        final String expectedErrorMessage = "ck1 does not satisfy length constraint.";
+        final String expectedErrorMessage = "Column value does not satisfy value constraint for column 'ck1'. It has a length of";
         // Invalid
         assertInvalidThrowMessage(expectedErrorMessage, InvalidRequestException.class, "INSERT INTO %s (pk, ck1, ck2, v) VALUES (1, 'fooo', 2, 3)");
         assertInvalidThrowMessage(expectedErrorMessage, InvalidRequestException.class, "INSERT INTO %s (pk, ck1, ck2, v) VALUES (1, 'foooo', 2, 3)");
@@ -945,7 +945,7 @@ public class CreateTableWithColumnCqlConstraintValidationTest extends CqlConstra
         execute("INSERT INTO %s (pk, ck1, ck2, v) VALUES (1, 'foo', 2, 3)");
         execute("INSERT INTO %s (pk, ck1, ck2, v) VALUES (1, 'fooo', 2, 3)");
 
-        final String expectedErrorMessage = "ck1 does not satisfy length constraint.";
+        final String expectedErrorMessage = "Column value does not satisfy value constraint for column 'ck1'. It has a length of";
         // Invalid
         assertInvalidThrowMessage(expectedErrorMessage, InvalidRequestException.class, "INSERT INTO %s (pk, ck1, ck2, v) VALUES (1, 'foooo', 2, 3)");
     }
@@ -958,7 +958,7 @@ public class CreateTableWithColumnCqlConstraintValidationTest extends CqlConstra
         // Valid
         execute("INSERT INTO %s (pk, ck1, ck2, v) VALUES (1, textAsBlob('fooo'), 2, 3)");
 
-        final String expectedErrorMessage = "ck1 does not satisfy length constraint.";
+        final String expectedErrorMessage = "Column value does not satisfy value constraint for column 'ck1'. It has a length of";
         // Invalid
         assertInvalidThrowMessage(expectedErrorMessage, InvalidRequestException.class, "INSERT INTO %s (pk, ck1, ck2, v) VALUES (1, textAsBlob('foo'), 2, 3)");
         assertInvalidThrowMessage(expectedErrorMessage, InvalidRequestException.class, "INSERT INTO %s (pk, ck1, ck2, v) VALUES (1, textAsBlob('foooo'), 2, 3)");
@@ -973,7 +973,7 @@ public class CreateTableWithColumnCqlConstraintValidationTest extends CqlConstra
         execute("INSERT INTO %s (pk, ck1, ck2, v) VALUES (1, textAsBlob('foo'), 2, 3)");
         execute("INSERT INTO %s (pk, ck1, ck2, v) VALUES (1, textAsBlob('foooo'), 2, 3)");
 
-        final String expectedErrorMessage = "ck1 does not satisfy length constraint.";
+        final String expectedErrorMessage = "Column value does not satisfy value constraint for column 'ck1'. It has a length of";
         // Invalid
         assertInvalidThrowMessage(expectedErrorMessage, InvalidRequestException.class, "INSERT INTO %s (pk, ck1, ck2, v) VALUES (1, textAsBlob('fooo'), 2, 3)");
     }
@@ -986,7 +986,7 @@ public class CreateTableWithColumnCqlConstraintValidationTest extends CqlConstra
         // Valid
         execute("INSERT INTO %s (pk, ck1, ck2, v) VALUES (1, textAsBlob('foooo'), 2, 3)");
 
-        final String expectedErrorMessage = "ck1 does not satisfy length constraint.";
+        final String expectedErrorMessage = "Column value does not satisfy value constraint for column 'ck1'. It has a length of";
         // Invalid
         assertInvalidThrowMessage(expectedErrorMessage, InvalidRequestException.class, "INSERT INTO %s (pk, ck1, ck2, v) VALUES (1, textAsBlob('foo'), 2, 3)");
         assertInvalidThrowMessage(expectedErrorMessage, InvalidRequestException.class, "INSERT INTO %s (pk, ck1, ck2, v) VALUES (1, textAsBlob('fooo'), 2, 3)");
@@ -1001,7 +1001,7 @@ public class CreateTableWithColumnCqlConstraintValidationTest extends CqlConstra
         execute("INSERT INTO %s (pk, ck1, ck2, v) VALUES (1, textAsBlob('foooo'), 2, 3)");
         execute("INSERT INTO %s (pk, ck1, ck2, v) VALUES (1, textAsBlob('fooo'), 2, 3)");
 
-        final String expectedErrorMessage = "ck1 does not satisfy length constraint.";
+        final String expectedErrorMessage = "Column value does not satisfy value constraint for column 'ck1'. It has a length of";
         // Invalid
         assertInvalidThrowMessage(expectedErrorMessage, InvalidRequestException.class, "INSERT INTO %s (pk, ck1, ck2, v) VALUES (1, textAsBlob('foo'), 2, 3)");
     }
@@ -1014,7 +1014,7 @@ public class CreateTableWithColumnCqlConstraintValidationTest extends CqlConstra
         // Valid
         execute("INSERT INTO %s (pk, ck1, ck2, v) VALUES (1, textAsBlob('foo'), 2, 3)");
 
-        final String expectedErrorMessage = "ck1 does not satisfy length constraint.";
+        final String expectedErrorMessage = "Column value does not satisfy value constraint for column 'ck1'. It has a length of";
         // Invalid
         assertInvalidThrowMessage(expectedErrorMessage, InvalidRequestException.class, "INSERT INTO %s (pk, ck1, ck2, v) VALUES (1, textAsBlob('fooo'), 2, 3)");
         assertInvalidThrowMessage(expectedErrorMessage, InvalidRequestException.class, "INSERT INTO %s (pk, ck1, ck2, v) VALUES (1, textAsBlob('foooo'), 2, 3)");
@@ -1029,7 +1029,7 @@ public class CreateTableWithColumnCqlConstraintValidationTest extends CqlConstra
         execute("INSERT INTO %s (pk, ck1, ck2, v) VALUES (1, textAsBlob('foo'), 2, 3)");
         execute("INSERT INTO %s (pk, ck1, ck2, v) VALUES (1, textAsBlob('fooo'), 2, 3)");
 
-        final String expectedErrorMessage = "ck1 does not satisfy length constraint.";
+        final String expectedErrorMessage = "Column value does not satisfy value constraint for column 'ck1'. It has a length of";
         // Invalid
         assertInvalidThrowMessage(expectedErrorMessage, InvalidRequestException.class, "INSERT INTO %s (pk, ck1, ck2, v) VALUES (1, textAsBlob('foooo'), 2, 3)");
     }
@@ -1043,7 +1043,7 @@ public class CreateTableWithColumnCqlConstraintValidationTest extends CqlConstra
         // Valid
         execute("INSERT INTO %s (pk, ck1, ck2, v) VALUES ('fooo', 1, 2, 3)");
 
-        final String expectedErrorMessage = "pk does not satisfy length constraint.";
+        final String expectedErrorMessage = "Column value does not satisfy value constraint for column 'pk'. It has a length of";
         // Invalid
         assertInvalidThrowMessage(expectedErrorMessage, InvalidRequestException.class, "INSERT INTO %s (pk, ck1, ck2, v) VALUES ('foo', 1, 2, 3)");
         assertInvalidThrowMessage(expectedErrorMessage, InvalidRequestException.class, "INSERT INTO %s (pk, ck1, ck2, v) VALUES ('foooo', 1, 2, 3)");
@@ -1058,7 +1058,7 @@ public class CreateTableWithColumnCqlConstraintValidationTest extends CqlConstra
         execute("INSERT INTO %s (pk, ck1, ck2, v) VALUES ('foo', 1, 2, 3)");
         execute("INSERT INTO %s (pk, ck1, ck2, v) VALUES ('foooo', 1, 2, 3)");
 
-        final String expectedErrorMessage = "pk does not satisfy length constraint.";
+        final String expectedErrorMessage = "Column value does not satisfy value constraint for column 'pk'. It has a length of";
         // Invalid
         assertInvalidThrowMessage(expectedErrorMessage, InvalidRequestException.class, "INSERT INTO %s (pk, ck1, ck2, v) VALUES ('fooo', 1, 2, 3)");
     }
@@ -1071,7 +1071,7 @@ public class CreateTableWithColumnCqlConstraintValidationTest extends CqlConstra
         // Valid
         execute("INSERT INTO %s (pk, ck1, ck2, v) VALUES ('foooo', 1, 2, 3)");
 
-        final String expectedErrorMessage = "pk does not satisfy length constraint.";
+        final String expectedErrorMessage = "Column value does not satisfy value constraint for column 'pk'. It has a length of";
         // Invalid
         assertInvalidThrowMessage(expectedErrorMessage, InvalidRequestException.class, "INSERT INTO %s (pk, ck1, ck2, v) VALUES ('foo', 1, 2, 3)");
         assertInvalidThrowMessage(expectedErrorMessage, InvalidRequestException.class, "INSERT INTO %s (pk, ck1, ck2, v) VALUES ('fooo', 1, 2, 3)");
@@ -1086,7 +1086,7 @@ public class CreateTableWithColumnCqlConstraintValidationTest extends CqlConstra
         execute("INSERT INTO %s (pk, ck1, ck2, v) VALUES ('foooo', 1, 2, 3)");
         execute("INSERT INTO %s (pk, ck1, ck2, v) VALUES ('fooo', 1, 2, 3)");
 
-        final String expectedErrorMessage = "pk does not satisfy length constraint.";
+        final String expectedErrorMessage = "Column value does not satisfy value constraint for column 'pk'. It has a length of";
         // Invalid
         assertInvalidThrowMessage(expectedErrorMessage, InvalidRequestException.class, "INSERT INTO %s (pk, ck1, ck2, v) VALUES ('foo', 1, 2, 3)");
     }
@@ -1099,7 +1099,7 @@ public class CreateTableWithColumnCqlConstraintValidationTest extends CqlConstra
         // Valid
         execute("INSERT INTO %s (pk, ck1, ck2, v) VALUES ('foo', 1, 2, 3)");
 
-        final String expectedErrorMessage = "pk does not satisfy length constraint.";
+        final String expectedErrorMessage = "Column value does not satisfy value constraint for column 'pk'. It has a length of";
         // Invalid
         assertInvalidThrowMessage(expectedErrorMessage, InvalidRequestException.class, "INSERT INTO %s (pk, ck1, ck2, v) VALUES ('fooo', 1, 2, 3)");
         assertInvalidThrowMessage(expectedErrorMessage, InvalidRequestException.class, "INSERT INTO %s (pk, ck1, ck2, v) VALUES ('foooo', 1, 2, 3)");
@@ -1114,7 +1114,7 @@ public class CreateTableWithColumnCqlConstraintValidationTest extends CqlConstra
         execute("INSERT INTO %s (pk, ck1, ck2, v) VALUES ('foo', 1, 2, 3)");
         execute("INSERT INTO %s (pk, ck1, ck2, v) VALUES ('fooo', 1, 2, 3)");
 
-        final String expectedErrorMessage = "pk does not satisfy length constraint.";
+        final String expectedErrorMessage = "Column value does not satisfy value constraint for column 'pk'. It has a length of";
         // Invalid
         assertInvalidThrowMessage(expectedErrorMessage, InvalidRequestException.class, "INSERT INTO %s (pk, ck1, ck2, v) VALUES ('foooo', 1, 2, 3)");
     }
@@ -1128,7 +1128,7 @@ public class CreateTableWithColumnCqlConstraintValidationTest extends CqlConstra
         // Valid
         execute("INSERT INTO %s (pk, ck1, ck2, v) VALUES (1, 2, 3, 'fooo')");
 
-        final String expectedErrorMessage = "v does not satisfy length constraint.";
+        final String expectedErrorMessage = "Column value does not satisfy value constraint for column 'v'. It has a length of";
         // Invalid
         assertInvalidThrowMessage(expectedErrorMessage, InvalidRequestException.class, "INSERT INTO %s (pk, ck1, ck2, v) VALUES (1, 2, 3, 'foo')");
         assertInvalidThrowMessage(expectedErrorMessage, InvalidRequestException.class, "INSERT INTO %s (pk, ck1, ck2, v) VALUES (1, 2, 3, 'foooo')");
@@ -1143,7 +1143,7 @@ public class CreateTableWithColumnCqlConstraintValidationTest extends CqlConstra
         execute("INSERT INTO %s (pk, ck1, ck2, v) VALUES (1, 2, 3, 'foo')");
         execute("INSERT INTO %s (pk, ck1, ck2, v) VALUES (1, 2, 3, 'foooo')");
 
-        final String expectedErrorMessage = "v does not satisfy length constraint.";
+        final String expectedErrorMessage = "Column value does not satisfy value constraint for column 'v'. It has a length of";
         // Invalid
         assertInvalidThrowMessage(expectedErrorMessage, InvalidRequestException.class, "INSERT INTO %s (pk, ck1, ck2, v) VALUES (1, 2, 3, 'fooo')");
     }
@@ -1156,7 +1156,7 @@ public class CreateTableWithColumnCqlConstraintValidationTest extends CqlConstra
         // Valid
         execute("INSERT INTO %s (pk, ck1, ck2, v) VALUES (1, 2, 3, 'foooo')");
 
-        final String expectedErrorMessage = "v does not satisfy length constraint.";
+        final String expectedErrorMessage = "Column value does not satisfy value constraint for column 'v'. It has a length of";
         // Invalid
         assertInvalidThrowMessage(expectedErrorMessage, InvalidRequestException.class, "INSERT INTO %s (pk, ck1, ck2, v) VALUES (1, 2, 3, 'foo')");
         assertInvalidThrowMessage(expectedErrorMessage, InvalidRequestException.class, "INSERT INTO %s (pk, ck1, ck2, v) VALUES (1, 2, 3, 'fooo')");
@@ -1171,7 +1171,7 @@ public class CreateTableWithColumnCqlConstraintValidationTest extends CqlConstra
         execute("INSERT INTO %s (pk, ck1, ck2, v) VALUES (1, 2, 3, 'foooo')");
         execute("INSERT INTO %s (pk, ck1, ck2, v) VALUES (1, 2, 3, 'fooo')");
 
-        final String expectedErrorMessage = "v does not satisfy length constraint.";
+        final String expectedErrorMessage = "Column value does not satisfy value constraint for column 'v'. It has a length of";
         // Invalid
         assertInvalidThrowMessage(expectedErrorMessage, InvalidRequestException.class, "INSERT INTO %s (pk, ck1, ck2, v) VALUES (1, 2, 3, 'foo')");
     }
@@ -1184,7 +1184,7 @@ public class CreateTableWithColumnCqlConstraintValidationTest extends CqlConstra
         // Valid
         execute("INSERT INTO %s (pk, ck1, ck2, v) VALUES (1, 2, 3, 'foo')");
 
-        final String expectedErrorMessage = "v does not satisfy length constraint.";
+        final String expectedErrorMessage = "Column value does not satisfy value constraint for column 'v'. It has a length of";
         // Invalid
         assertInvalidThrowMessage(expectedErrorMessage, InvalidRequestException.class, "INSERT INTO %s (pk, ck1, ck2, v) VALUES (1, 2, 3, 'fooo')");
         assertInvalidThrowMessage(expectedErrorMessage, InvalidRequestException.class, "INSERT INTO %s (pk, ck1, ck2, v) VALUES (1, 2, 3, 'foooo')");
@@ -1199,7 +1199,7 @@ public class CreateTableWithColumnCqlConstraintValidationTest extends CqlConstra
         execute("INSERT INTO %s (pk, ck1, ck2, v) VALUES (1, 2, 3, 'foo')");
         execute("INSERT INTO %s (pk, ck1, ck2, v) VALUES (1, 2, 3, 'fooo')");
 
-        final String expectedErrorMessage = "v does not satisfy length constraint.";
+        final String expectedErrorMessage = "Column value does not satisfy value constraint for column 'v'. It has a length of";
         // Invalid
         assertInvalidThrowMessage(expectedErrorMessage, InvalidRequestException.class, "INSERT INTO %s (pk, ck1, ck2, v) VALUES (1, 2, 3, 'foooo')");
     }
@@ -1212,8 +1212,8 @@ public class CreateTableWithColumnCqlConstraintValidationTest extends CqlConstra
         // Valid
         execute("INSERT INTO %s (pk, ck1, ck2, v) VALUES ('fooo', 2, 3, 'fooo')");
 
-        final String expectedErrorMessage = "pk does not satisfy length constraint.";
-        final String expectedErrorMessage2 = "v does not satisfy length constraint.";
+        final String expectedErrorMessage = "Column value does not satisfy value constraint for column 'pk'. It has a length of";
+        final String expectedErrorMessage2 = "Column value does not satisfy value constraint for column 'v'. It has a length of";
         // Invalid
         assertInvalidThrowMessage(expectedErrorMessage, InvalidRequestException.class, "INSERT INTO %s (pk, ck1, ck2, v) VALUES ('foo', 2, 3, 'foo')");
         assertInvalidThrowMessage(expectedErrorMessage2, InvalidRequestException.class, "INSERT INTO %s (pk, ck1, ck2, v) VALUES ('fooo', 2, 3, 'foo')");
