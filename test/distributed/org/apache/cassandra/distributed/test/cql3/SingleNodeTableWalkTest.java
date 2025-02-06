@@ -42,6 +42,7 @@ import accord.utils.Gen;
 import accord.utils.Gens;
 import accord.utils.Property;
 import accord.utils.RandomSource;
+import org.apache.cassandra.cql3.KnownIssue;
 import org.apache.cassandra.cql3.ast.Bind;
 import org.apache.cassandra.cql3.ast.Conditional;
 import org.apache.cassandra.cql3.ast.CreateIndexDDL;

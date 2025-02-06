@@ -47,6 +47,7 @@ import com.datastax.driver.core.SimpleStatement;
 import com.datastax.driver.core.SocketOptions;
 import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.cql3.KnownIssue;
 import org.apache.cassandra.cql3.ast.Bind;
 import org.apache.cassandra.cql3.ast.CQLFormatter;
 import org.apache.cassandra.cql3.ast.Conditional;
@@ -86,24 +87,7 @@ import static org.apache.cassandra.utils.AbstractTypeGenerators.stringComparator
 
 public class StatefulASTBase extends TestBaseImpl
 {
-    protected enum KnownIssue
-    {
-        BETWEEN_START_LARGER_THAN_END("https://issues.apache.org/jira/browse/CASSANDRA-20154",
-                                      "BETWEEN is matching values when start > end, which should never return anything"),
-        SAI_INET_MIXED("https://issues.apache.org/jira/browse/CASSANDRA-19492",
-                       "SAI converts ipv4 to ipv6 to simplify the index, this causes issues with range search as it starts to mix the values, which isn't always desirable or intuative"),
-        CUSTOM_INDEX_MAX_COLUMN_48("https://issues.apache.org/jira/browse/CASSANDRA-19897",
-                                   "Columns can be up to 50 chars, but CREATE CUSTOM INDEX only allows up to 48"),
-        AF_MULTI_NODE_AND_NODE_LOCAL_WRITES("https://issues.apache.org/jira/browse/CASSANDRA-20243",
-                                            "When writes are done at NODE_LOCAL and the select is ALL, AF should be able to return the correct data but it doesn't"),
-        ;
-
-        KnownIssue(String url, String description)
-        {
-            // don't actually care to save the values, just there to force documentation
-        }
-    }
-    protected static final EnumSet<KnownIssue> IGNORED_ISSUES = EnumSet.allOf(KnownIssue.class);
+    protected static final EnumSet<KnownIssue> IGNORED_ISSUES = KnownIssue.ignoreAll();
     /**
      * mutations and selects will use operators (eg. {@code 4 + 4}, the + operator), and this will be reflected in the history output.
      *

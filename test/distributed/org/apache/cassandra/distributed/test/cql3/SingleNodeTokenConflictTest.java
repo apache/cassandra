@@ -42,6 +42,7 @@ import accord.utils.Gens;
 import accord.utils.Property;
 import accord.utils.RandomSource;
 import org.apache.cassandra.cql3.ColumnIdentifier;
+import org.apache.cassandra.cql3.KnownIssue;
 import org.apache.cassandra.cql3.ast.Conditional.Where.Inequality;
 import org.apache.cassandra.cql3.ast.FunctionCall;
 import org.apache.cassandra.cql3.ast.Mutation;
