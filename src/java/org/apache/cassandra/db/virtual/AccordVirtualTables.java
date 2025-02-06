@@ -33,8 +33,7 @@ import org.apache.cassandra.service.accord.AccordService;
 
 public class AccordVirtualTables
 {
-
-    public static final String SUCCESS = "success";
+    private static final String SUCCESS = "success";
 
     private AccordVirtualTables()
     {
