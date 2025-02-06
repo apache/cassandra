@@ -38,14 +38,5 @@ public class MultiNodeTableWalkWithReadRepairTest extends MultiNodeTableWalkBase
 //         CQL_DEBUG_APPLY_OPERATOR = true;
         // When an issue is found, it's a good idea to also run the same seed against MultiNodeTableWalkWithoutReadRepairTest; if Read Repair is given bad input, you should expect bad output!
         // This test needs to make sure it shares the same random history as MultiNodeTableWalkWithoutReadRepairTest to always allow the ability to maintain this property.
-
-        // This got wrapped up into CASSANDRA-20189.  With RR=NONE a query was found to produce incorrect result, and when you run with RR=BLOCKING this corrupts the data causing a failure down the line
-        // The pattern seen is that SAI is touching multiple unrepaired columns and would misclassify matches.
-//        builder.withSeed(-4289657656513111232L).withExamples(1); // CASSANDRA-20189: Avoid possible consistency violations for SAI intersection queries over repaired index matches and multiple non-indexed column matches
-
-        // NOTE: all select commands other than "fullTableScan" were commented out, so this seed will not repo
-        // without first modifying the test
-        // Git SHA=a67755db0ac5c62f560d61d5095f4fc418db0eca
-        builder.withSeed(7684880116377589440L).withExamples(1);
     }
 }

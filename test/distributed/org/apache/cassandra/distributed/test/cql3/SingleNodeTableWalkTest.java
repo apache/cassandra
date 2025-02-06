@@ -62,7 +62,6 @@ import org.apache.cassandra.distributed.test.sai.SAIUtil;
 import org.apache.cassandra.harry.model.BytesPartitionState;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.TableMetadata;
-import org.apache.cassandra.service.reads.repair.ReadRepairStrategy;
 import org.apache.cassandra.utils.ASTGenerators;
 import org.apache.cassandra.utils.AbstractTypeGenerators;
 import org.apache.cassandra.utils.AbstractTypeGenerators.TypeGenBuilder;
@@ -354,14 +353,14 @@ public class SingleNodeTableWalkTest extends StatefulASTBase
             statefulBuilder.check(commands(() -> rs -> createState(rs, cluster))
                                   .add(StatefulASTBase::insert)
                                   .add(StatefulASTBase::fullTableScan)
-//                                  .addIf(State::hasPartitions, this::selectExisting)
-//                                  .addAllIf(State::supportTokens, b -> b.add(this::selectToken)
-//                                                                        .add(this::selectTokenRange))
+                                  .addIf(State::hasPartitions, this::selectExisting)
+                                  .addAllIf(State::supportTokens, b -> b.add(this::selectToken)
+                                                                        .add(this::selectTokenRange))
                                   .addIf(State::hasEnoughMemtable, StatefulASTBase::flushTable)
                                   .addIf(State::hasEnoughSSTables, StatefulASTBase::compactTable)
-//                                  .addIf(State::allowNonPartitionQuery, this::nonPartitionQuery)
-//                                  .addIf(State::allowNonPartitionMultiColumnQuery, this::multiColumnQuery)
-//                                  .addIf(State::allowPartitionQuery, this::partitionRestrictedQuery)
+                                  .addIf(State::allowNonPartitionQuery, this::nonPartitionQuery)
+                                  .addIf(State::allowNonPartitionMultiColumnQuery, this::multiColumnQuery)
+                                  .addIf(State::allowPartitionQuery, this::partitionRestrictedQuery)
                                   .destroyState(State::close)
                                   .onSuccess(onSuccess(logger))
                                   .build());
