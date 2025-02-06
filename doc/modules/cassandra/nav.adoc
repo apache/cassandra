@@ -74,6 +74,7 @@
 *** xref:operating/auditlogging.adoc[Audit logging]
 *** xref:operating/audit_logging.adoc[Audit logging 2]
 *** xref:operating/fqllogging.adoc[Full query logging]
+*** xref:operating/sqel_logging.adoc[Sampled query event logging]
 *** xref:operating/transientreplication.adoc[Transient replication]
 
 ** xref:tools/index.adoc[Tools]

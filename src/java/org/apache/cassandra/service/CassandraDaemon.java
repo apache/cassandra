@@ -78,6 +78,8 @@ import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.security.ThreadAwareSecurityManager;
+import org.apache.cassandra.sqel.SampledQueryEventLogger;
+import org.apache.cassandra.streaming.StreamManager;
 import org.apache.cassandra.service.paxos.PaxosState;
 import org.apache.cassandra.streaming.StreamManager;
 import org.apache.cassandra.utils.FBUtilities;
@@ -520,6 +522,9 @@ public class CassandraDaemon
         }
 
         AuditLogManager.instance.initialize();
+
+        // Initialize the SampledQueryEventLogger on instance start
+        SampledQueryEventLogger.instance.initialize();
 
         // schedule periodic background compaction task submission. this is simply a backstop against compactions stalling
         // due to scheduling errors or race conditions

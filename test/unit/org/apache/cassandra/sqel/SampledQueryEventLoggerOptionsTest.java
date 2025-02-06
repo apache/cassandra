@@ -45,6 +45,7 @@ public class SampledQueryEventLoggerOptionsTest
         
         // Create options using builder
         SampledQueryEventLoggerOptions options = new SampledQueryEventLoggerOptions.Builder()
+            .withEnabled(true)
             .withQuerySuccessSampleRate(querySuccessRate)
             .withQueryFailureSampleRate(queryFailureRate)
             .withBatchSuccessSampleRate(batchSuccessRate)
@@ -56,6 +57,7 @@ public class SampledQueryEventLoggerOptionsTest
             .build();
             
         // Verify all rates were set correctly
+        Assert.assertEquals(true, options.enabled);
         Assert.assertEquals(querySuccessRate, options.query_success_sample_rate, 0.000001);
         Assert.assertEquals(queryFailureRate, options.query_failure_sample_rate, 0.000001);
         Assert.assertEquals(batchSuccessRate, options.batch_success_sample_rate, 0.000001);

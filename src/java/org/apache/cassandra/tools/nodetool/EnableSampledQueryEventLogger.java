@@ -22,36 +22,38 @@ import io.airlift.airline.Command;
 import io.airlift.airline.Option;
 import org.apache.cassandra.tools.NodeProbe;
 import org.apache.cassandra.tools.NodeTool;
-@Command(name = "enablesampledqueryeventlogger", description = "Enables SampledQueryEventLogger")
+import org.apache.cassandra.sqel.SampledQueryEventLoggerOptions;
+
+@Command(name = "enablesqel", description = "Enables SampledQueryEventLogger")
 public class EnableSampledQueryEventLogger extends NodeTool.NodeToolCmd
 {
-
     @Option(title = "query_success_rate", name = {"--query-success-rate"}, description = "Sampling rate for successful queries.")
-    private double querySuccessRate = 0.1;
+    private double querySuccessRate = SampledQueryEventLoggerOptions.INVALID_UNSET_SAMPLE_RATE;
 
     @Option(title = "query_failure_rate", name = {"--query-failure-rate"}, description = "Sampling rate for failed queries.")
-    private double queryFailureRate = 0.1;
+    private double queryFailureRate = SampledQueryEventLoggerOptions.INVALID_UNSET_SAMPLE_RATE;
 
     @Option(title = "batch_success_rate", name = {"--batch-success-rate"}, description = "Sampling rate for successful batches.")
-    private double batchSuccessRate = 0.1;
+    private double batchSuccessRate = SampledQueryEventLoggerOptions.INVALID_UNSET_SAMPLE_RATE;
 
     @Option(title = "batch_failure_rate", name = {"--batch-failure-rate"}, description = "Sampling rate for failed batches.")
-    private double batchFailureRate = 0.1;
+    private double batchFailureRate = SampledQueryEventLoggerOptions.INVALID_UNSET_SAMPLE_RATE;
 
     @Option(title = "execute_success_rate", name = {"--execute-success-rate"}, description = "Sampling rate for successful execute statements.")
-    private double executeSuccessRate = 0.1;
+    private double executeSuccessRate = SampledQueryEventLoggerOptions.INVALID_UNSET_SAMPLE_RATE;
 
     @Option(title = "execute_failure_rate", name = {"--execute-failure-rate"}, description = "Sampling rate for failed execute statements.")
-    private double executeFailureRate = 0.1;
+    private double executeFailureRate = SampledQueryEventLoggerOptions.INVALID_UNSET_SAMPLE_RATE;
 
     @Option(title = "prepare_success_rate", name = {"--prepare-success-rate"}, description = "Sampling rate for successful prepare statements.")
-    private double prepareSuccessRate = 0.1;
+    private double prepareSuccessRate = SampledQueryEventLoggerOptions.INVALID_UNSET_SAMPLE_RATE;
 
     @Option(title = "prepare_failure_rate", name = {"--prepare-failure-rate"}, description = "Sampling rate for failed prepare statements.")
-    private double prepareFailureRate = 0.1;
+    private double prepareFailureRate = SampledQueryEventLoggerOptions.INVALID_UNSET_SAMPLE_RATE;
+    
     @Override
     public void execute(NodeProbe probe)
     {
-        probe.getStorageService().enableSimpleQueryEventLogger(querySuccessRate, queryFailureRate, batchSuccessRate, batchFailureRate, executeSuccessRate, executeFailureRate, prepareSuccessRate, prepareFailureRate);
+        probe.getStorageService().enableSampledQueryEventLogger(querySuccessRate, queryFailureRate, batchSuccessRate, batchFailureRate, executeSuccessRate, executeFailureRate, prepareSuccessRate, prepareFailureRate);
     }
 }

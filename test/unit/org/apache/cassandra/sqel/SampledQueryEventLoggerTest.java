@@ -48,12 +48,11 @@ import org.apache.cassandra.config.ParameterizedClass;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.cql3.QueryEvents;
 import org.apache.cassandra.service.StorageService;
+import org.junit.After;
+import org.junit.Assert;
 import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
-import org.junit.Assert;
-import org.junit.After;
-import org.junit.Assert;
 import org.slf4j.LoggerFactory;
 
 import static org.junit.Assert.assertEquals;
@@ -80,6 +79,7 @@ public class SampledQueryEventLoggerTest extends CQLTester
     {
         // SampledQueryEventLoggerOptions options = new SampledQueryEventLoggerOptions();
         SampledQueryEventLoggerOptions options = new SampledQueryEventLoggerOptions.Builder()
+            .withEnabled(true)
             .withQuerySuccessSampleRate(1.0)
             .withQueryFailureSampleRate(1.0)
             .withBatchSuccessSampleRate(1.0)
@@ -89,6 +89,7 @@ public class SampledQueryEventLoggerTest extends CQLTester
             .withPrepareSuccessSampleRate(1.0)
             .withPrepareFailureSampleRate(1.0)
             .build();
+        DatabaseDescriptor.setSampledQueryEventLoggingOptions(options);
         enableSampledQueryEventLoggerOptions(options);
         lc.reset();
         Logger logger = (Logger) LoggerFactory.getLogger(SampledQueryEventLogger.class);
@@ -118,13 +119,22 @@ public class SampledQueryEventLoggerTest extends CQLTester
     }
 
     @Test
+    public void testInitialize() throws IOException
+    {    
+        StorageService.instance.disableSampledQueryEventLogger();
+        assertEquals(0, QueryEvents.instance.listenerCount());
+        SampledQueryEventLogger.instance.initialize();
+        assertEquals(1, QueryEvents.instance.listenerCount());
+    }
+
+    @Test
     public void testEnableDisable() throws IOException
     {
-        StorageService.instance.disableSimpleQueryEventLogger();
+        StorageService.instance.disableSampledQueryEventLogger();
         assertEquals(0, QueryEvents.instance.listenerCount());
-        StorageService.instance.enableSimpleQueryEventLogger(1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0);
+        StorageService.instance.enableSampledQueryEventLogger(1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0);
         assertEquals(1, QueryEvents.instance.listenerCount());
-        StorageService.instance.disableSimpleQueryEventLogger();
+        StorageService.instance.disableSampledQueryEventLogger();
         assertEquals(0, QueryEvents.instance.listenerCount());
     }
 

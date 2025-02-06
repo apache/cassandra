@@ -25,6 +25,7 @@ import org.apache.cassandra.exceptions.ConfigurationException;
 
 public class SampledQueryEventLoggerOptions 
 {
+    public volatile boolean enabled = false;
     public double query_success_sample_rate = 0.0;
     public double query_failure_sample_rate = 0.0;
     public double batch_success_sample_rate = 0.0;
@@ -33,6 +34,8 @@ public class SampledQueryEventLoggerOptions
     public double execute_failure_sample_rate = 0.0;
     public double prepare_success_sample_rate = 0.0;
     public double prepare_failure_sample_rate = 0.0;
+
+    public static final double INVALID_UNSET_SAMPLE_RATE = 0.424242424242;
 
     public SampledQueryEventLoggerOptions() {}
 
@@ -57,6 +60,7 @@ public class SampledQueryEventLoggerOptions
 
     public static class Builder 
     {
+        private boolean enabled;
         private double query_success_sample_rate;
         private double query_failure_sample_rate;
         private double batch_success_sample_rate;
@@ -73,6 +77,7 @@ public class SampledQueryEventLoggerOptions
 
         public Builder(final SampledQueryEventLoggerOptions opts) 
         {
+            this.enabled = opts.enabled;
             this.query_success_sample_rate = opts.query_success_sample_rate;
             this.query_failure_sample_rate = opts.query_failure_sample_rate;
             this.batch_success_sample_rate = opts.batch_success_sample_rate;
@@ -81,6 +86,12 @@ public class SampledQueryEventLoggerOptions
             this.execute_failure_sample_rate = opts.execute_failure_sample_rate;
             this.prepare_success_sample_rate = opts.prepare_success_sample_rate;
             this.prepare_failure_sample_rate = opts.prepare_failure_sample_rate;
+        }
+
+        public Builder withEnabled(boolean isEnabled) 
+        {
+            this.enabled = isEnabled;
+            return this;
         }
 
         public Builder withQuerySuccessSampleRate(final double sampleRate) 
@@ -131,9 +142,21 @@ public class SampledQueryEventLoggerOptions
             return this;
         }
 
+        public boolean shouldEnable() {
+            return this.query_success_sample_rate != 0.0 ||
+                this.query_failure_sample_rate != 0.0 ||
+                this.batch_success_sample_rate != 0.0 ||
+                this.batch_failure_sample_rate != 0.0 ||
+                this.execute_success_sample_rate != 0.0 ||
+                this.execute_failure_sample_rate != 0.0 ||
+                this.prepare_success_sample_rate != 0.0 ||
+                this.prepare_failure_sample_rate != 0.0;
+    }
+
         public SampledQueryEventLoggerOptions build()
         {
             final SampledQueryEventLoggerOptions opts = new SampledQueryEventLoggerOptions();
+            opts.enabled = this.enabled;
             opts.query_success_sample_rate = this.query_success_sample_rate;
             opts.query_failure_sample_rate = this.query_failure_sample_rate;
             opts.batch_success_sample_rate = this.batch_success_sample_rate;
@@ -151,7 +174,8 @@ public class SampledQueryEventLoggerOptions
 
     public String toString() {
         return "SampledQueryEventLoggerOptions{" + '\'' +
-            "query_success_sample_rate=" + query_success_sample_rate + '\'' +
+            "enabled=" + enabled + '\'' +
+            ", query_success_sample_rate=" + query_success_sample_rate + '\'' +
             ", query_failure_sample_rate=" + query_failure_sample_rate + '\'' +
             ", batch_success_sample_rate=" + batch_success_sample_rate + '\'' +
             ", batch_failure_sample_rate=" + batch_failure_sample_rate + '\'' +

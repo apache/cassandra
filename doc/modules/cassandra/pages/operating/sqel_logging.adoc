@@ -1,0 +1,96 @@
+= Sampled Query Event Logging
+
+Sampled Query Event Logging (SQEL) allows you to log only a subset of CQL queries, based on sampling rates for successful and failed statements. 
+This feature can be enabled or disabled per node and configured at runtime.
+
+== Using nodetool commands for SQEL
+
+=== enablesqel
+
+Enable SQEL at runtime on a per-node basis:
+
+[source,plaintext]
+----
+nodetool [(-h <host> | --host <host>)] [(-p <port> | --port <port>)]
+    [(-pp | --print-port)] [(-pw <password> | --password <password>)]
+    [(-pwf <passwordFilePath> | --password-file <passwordFilePath>)]
+    [(-u <username> | --username <username>)] 
+    enablesqel
+    [--query-success-rate <rate>]
+    [--query-failure-rate <rate>]
+    [--batch-success-rate <rate>]
+    [--batch-failure-rate <rate>]
+    [--execute-success-rate <rate>]
+    [--execute-failure-rate <rate>]
+    [--prepare-success-rate <rate>]
+    [--prepare-failure-rate <rate>]
+
+OPTIONS
+        --query-success-rate <rate>
+            Sampling rate for successful CQL queries. If not set, the default or cassandra.yaml rate is used.
+
+        --query-failure-rate <rate>
+            Sampling rate for failed CQL queries. If not set, the default or cassandra.yaml rate is used.
+
+        --batch-success-rate <rate>
+            Sampling rate for successful batches. If not set, the default or cassandra.yaml rate is used.
+
+        --batch-failure-rate <rate>
+            Sampling rate for failed batches. If not set, the default or cassandra.yaml rate is used.
+
+        --execute-success-rate <rate>
+            Sampling rate for successful EXECUTE statements. If not set, the default or cassandra.yaml rate is used.
+
+        --execute-failure-rate <rate>
+            Sampling rate for failed EXECUTE statements. If not set, the default or cassandra.yaml rate is used.
+
+        --prepare-success-rate <rate>
+            Sampling rate for successful PREPARE statements. If not set, the default or cassandra.yaml rate is used.
+
+        --prepare-failure-rate <rate>
+            Sampling rate for failed PREPARE statements. If not set, the default or cassandra.yaml rate is used.
+        
+        -p <port>, --port <port>
+            Remote jmx agent port number
+
+        -pp, --print-port
+            Operate in 4.0 mode with hosts disambiguated by port number
+
+        -pw <password>, --password <password>
+            Remote jmx agent password
+
+        -pwf <passwordFilePath>, --password-file <passwordFilePath>
+            Path to the JMX password file
+
+        -u <username>, --username <username>
+            Remote jmx agent username
+----
+
+If these sampling rates are not supplied, the default or cassandra.yaml rates will be used.
+
+=== disablesqel
+
+Disable SQEL on a node:
+
+[source,plaintext]
+----
+nodetool disablesqel
+----
+
+=== getsqel
+
+View whether SQEL is enabled and the current sampling rates:
+
+[source,plaintext]
+----
+nodetool getsqel
+----
+
+Example output might look like:
+
+----
+enabled: true
+query_success_sample_rate: 0.10
+query_failure_sample_rate: 0.05
+...
+----

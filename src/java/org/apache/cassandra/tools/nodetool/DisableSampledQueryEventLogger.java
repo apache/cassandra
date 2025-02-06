@@ -22,12 +22,12 @@ import io.airlift.airline.Command;
 import org.apache.cassandra.tools.NodeProbe;
 import org.apache.cassandra.tools.NodeTool;
 
-@Command(name = "disablesampledqueryeventlogger", description = "Disbales SampledQueryEventLogger")
+@Command(name = "disablesqel", description = "Disables SampledQueryEventLogger")
 public class DisableSampledQueryEventLogger extends NodeTool.NodeToolCmd
 {
     @Override
     public void execute(NodeProbe probe)
     {
-        probe.getStorageService().disableSimpleQueryEventLogger();
+        probe.getStorageService().disableSampledQueryEventLogger();
     }
 }

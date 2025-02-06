@@ -127,6 +127,13 @@ public class SampledQueryEventLogger implements QueryEvents.Listener {
         return ThreadLocalRandom.current().nextDouble() < rate;
     }
 
+    public void initialize() {
+        if (DatabaseDescriptor.getSampledQueryEventLoggingOptions().enabled) {
+            logger.info("Initializing sampled query event logger");
+            registerAsListener();
+        }
+    }
+
     public synchronized void stop()
     {
         logger.info("Stopping sampled query event logger");
@@ -289,6 +296,20 @@ public class SampledQueryEventLogger implements QueryEvents.Listener {
                                                                 .setType(AuditLogEntryType.PREPARE_STATEMENT)
                                                                 .build();
             this.log(entry, cause);
+        }
+    }
+
+    public boolean isEnabled()
+    {
+        return sampledQueryEventLoggerOptions.enabled;
+    }
+
+    public SampledQueryEventLoggerOptions getSampledQueryEventLoggerOptions()
+    {
+        if (isEnabled()) {
+            return sampledQueryEventLoggerOptions;
+        } else {
+            return DatabaseDescriptor.getSampledQueryEventLoggingOptions();
         }
     }
 }

@@ -106,6 +106,7 @@ import org.apache.cassandra.repair.AutoRepairV2;
 import org.apache.cassandra.service.throttler.dynamic.CassandraResourceUtilization;
 import org.apache.cassandra.sqel.SampledQueryEventLogger;
 import org.apache.cassandra.sqel.SampledQueryEventLoggerOptions;
+import org.apache.cassandra.sqel.SampledQueryEventLoggerOptionsCompositeData;
 import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -6847,37 +6848,64 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         logger.info("Cleared connection history");
     }
 
-    public void enableSimpleQueryEventLogger(double querySuccessRate, double queryFailureRate, double batchSuccessRate, double batchFailureRate, 
+    @Override
+    public void enableSampledQueryEventLogger(double querySuccessRate, double queryFailureRate, double batchSuccessRate, double batchFailureRate, 
                                              double executeSuccessRate, double executeFailureRate, double prepareSuccessRate, double prepareFailureRate) throws IllegalStateException {
-        SampledQueryEventLoggerOptions options = new SampledQueryEventLoggerOptions.Builder()
-            .withQuerySuccessSampleRate(querySuccessRate)
-            .withQueryFailureSampleRate(queryFailureRate)
-            .withBatchSuccessSampleRate(batchSuccessRate)
-            .withBatchFailureSampleRate(batchFailureRate)
-            .withExecuteSuccessSampleRate(executeSuccessRate)
-            .withExecuteFailureSampleRate(executeFailureRate)
-            .withPrepareSuccessSampleRate(prepareSuccessRate)
-            .withPrepareFailureSampleRate(prepareFailureRate)
-            .build();
+        // build from existing options, and override
+        SampledQueryEventLoggerOptions.Builder optionsBuilder = new SampledQueryEventLoggerOptions.Builder(DatabaseDescriptor.getSampledQueryEventLoggingOptions());
+        
+        if (querySuccessRate != SampledQueryEventLoggerOptions.INVALID_UNSET_SAMPLE_RATE) {
+            optionsBuilder.withQuerySuccessSampleRate(querySuccessRate);
+        }
+        if (queryFailureRate != SampledQueryEventLoggerOptions.INVALID_UNSET_SAMPLE_RATE) {
+            optionsBuilder.withQueryFailureSampleRate(queryFailureRate);
+        }
+        if (batchSuccessRate != SampledQueryEventLoggerOptions.INVALID_UNSET_SAMPLE_RATE) {
+            optionsBuilder.withBatchSuccessSampleRate(batchSuccessRate);
+        }
+        if (batchFailureRate != SampledQueryEventLoggerOptions.INVALID_UNSET_SAMPLE_RATE) {
+            optionsBuilder.withBatchFailureSampleRate(batchFailureRate);
+        }
+        if (executeSuccessRate != SampledQueryEventLoggerOptions.INVALID_UNSET_SAMPLE_RATE) {
+            optionsBuilder.withExecuteSuccessSampleRate(executeSuccessRate);
+        }
+        if (executeFailureRate != SampledQueryEventLoggerOptions.INVALID_UNSET_SAMPLE_RATE) {
+            optionsBuilder.withExecuteFailureSampleRate(executeFailureRate);
+        }
+        if (prepareSuccessRate != SampledQueryEventLoggerOptions.INVALID_UNSET_SAMPLE_RATE) {
+            optionsBuilder.withPrepareSuccessSampleRate(prepareSuccessRate);
+        }
+        if (prepareFailureRate != SampledQueryEventLoggerOptions.INVALID_UNSET_SAMPLE_RATE) {
+            optionsBuilder.withPrepareFailureSampleRate(prepareFailureRate);
+        }
+
+        if (optionsBuilder.shouldEnable()) 
+        {
+            optionsBuilder.withEnabled(true);
+        }
+
+        SampledQueryEventLoggerOptions options = optionsBuilder.build();
 
         SampledQueryEventLogger.instance.enable(options);
         logger.info("SampledQueryEventLogger is enabled with configuration: {}", options);
     }
 
-    public void disableSimpleQueryEventLogger() {
-        SampledQueryEventLoggerOptions options = new SampledQueryEventLoggerOptions.Builder()
-            .withQuerySuccessSampleRate(0.0)
-            .withQueryFailureSampleRate(0.0)
-            .withBatchSuccessSampleRate(0.0)
-            .withBatchFailureSampleRate(0.0)
-            .withExecuteSuccessSampleRate(0.0)
-            .withExecuteFailureSampleRate(0.0)
-            .withPrepareSuccessSampleRate(0.0)
-            .withPrepareFailureSampleRate(0.0)
-            .build();
-
+    @Override
+    public void disableSampledQueryEventLogger() {
         SampledQueryEventLogger.instance.stop();
         logger.info("SampledQueryEventLogger is disabled");
+    }
+
+    @Override
+    public CompositeData getSampledQueryEventLoggerOptions()
+    {
+        return SampledQueryEventLoggerOptionsCompositeData.toCompositeData(SampledQueryEventLogger.instance.getSampledQueryEventLoggerOptions());
+    }
+
+    @Override
+    public boolean isSampledQueryEventLoggerEnabled()
+    {
+        return SampledQueryEventLogger.instance.isEnabled();
     }
 
     public void disableAuditLog()

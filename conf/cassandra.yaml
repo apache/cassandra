@@ -1666,6 +1666,7 @@ audit_logging_options:
 #  self-described state that will be logged over an extended period of time
 # These options function on a scale of [0-1] where 0.0 is 0% and 1.0 is 100%
 # sampled_query_event_logging_options:
+  # enabled: false
   # query_success_sample_rate: 0.0 
   # query_failure_sample_rate: 0.0
   # batch_success_sample_rate: 0.0

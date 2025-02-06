@@ -116,6 +116,8 @@ import org.apache.cassandra.service.StorageServiceMBean;
 import org.apache.cassandra.streaming.StreamManagerMBean;
 import org.apache.cassandra.streaming.StreamState;
 import org.apache.cassandra.streaming.management.StreamStateCompositeData;
+import org.apache.cassandra.sqel.SampledQueryEventLoggerOptions;
+import org.apache.cassandra.sqel.SampledQueryEventLoggerOptionsCompositeData;
 
 import com.codahale.metrics.JmxReporter;
 import com.google.common.base.Function;
@@ -2259,6 +2261,10 @@ public class NodeProbe implements AutoCloseable
     public AuditLogOptions getAuditLogOptions()
     {
         return AuditLogOptionsCompositeData.fromCompositeData(almProxy.getAuditLogOptionsData());
+    }
+
+    public SampledQueryEventLoggerOptions getSampledQueryEventLoggerOptions() {
+        return SampledQueryEventLoggerOptionsCompositeData.fromCompositeData(ssProxy.getSampledQueryEventLoggerOptions());
     }
 
     public void setDefaultKeyspaceReplicationFactor(int value)

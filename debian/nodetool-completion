@@ -84,6 +84,7 @@ _have nodetool && _have cqlsh &&
             disablehandoff
             disablehintsfordc
             disableoldprotocolversions
+            disablesqel
             drain
             enableauditlog
             enablebackup
@@ -93,6 +94,7 @@ _have nodetool && _have cqlsh &&
             enablehandoff
             enablehintsfordc
             enableoldprotocolversions
+            enablesqel
             failuredetector
             gcstats
             getbatchlogreplaythrottle
@@ -106,6 +108,7 @@ _have nodetool && _have cqlsh &&
             getstreamthroughput
             gettimeout
             gettraceprobability
+            getsqel
             gossipinfo
             handoffwindow
             help

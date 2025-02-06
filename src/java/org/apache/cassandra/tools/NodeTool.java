@@ -170,6 +170,7 @@ public class NodeTool
                 GetNativeTransportTimeoutThreshold.class,
                 GetNaturalEndpointsForAllTokenRanges.class,
                 GetPersistPreparedStatementsEnabled.class,
+                GetSampledQueryEventLogger.class,
                 GetSSTables.class,
                 GetSeeds.class,
                 GetSnapshotThrottle.class,
