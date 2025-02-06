@@ -64,7 +64,7 @@ public class ThreadLocalMetrics
         this.thread = thread;
     }
 
-    private static void cleanDeadAndUpdatedSummaries() {
+    private static void cleanDeadAndUpdateSummaries() {
         // TODO: should we invoke it peridically as well (to avoid memory leak if nobody invokes getCount()?
         // TODO: add and check allThreadLocalMetrics size threshold to avoid the iteration every time
         if (transferInProgress.compareAndSet(false, true))
@@ -160,7 +160,7 @@ public class ThreadLocalMetrics
             AtomicLongArray newCounterValues = new AtomicLongArray((int)(metricId * 1.1));
             for (int i = 0; i < currentCounterValues.length(); i++)
                 newCounterValues.setPlain(i, currentCounterValues.getPlain(i));
-            threadLocalMetrics.counterValues.setRelease(newCounterValues);
+            threadLocalMetrics.counterValues.lazySet(newCounterValues);
             return newCounterValues;
         }
 
@@ -199,7 +199,7 @@ public class ThreadLocalMetrics
         @Override
         public long getCount()
         {
-            cleanDeadAndUpdatedSummaries();
+            cleanDeadAndUpdateSummaries();
             AtomicLong dead;
             long result;
             do
