@@ -61,6 +61,7 @@ import org.apache.cassandra.tcm.ClusterMetadataService;
 import org.apache.cassandra.tcm.transformations.UnsafeJoin;
 
 import static org.apache.cassandra.simulator.Action.Modifiers.NO_TIMEOUTS;
+import static org.apache.cassandra.simulator.Action.Modifiers.RELIABLE;
 import static org.apache.cassandra.simulator.Debug.EventType.CLUSTER;
 import static org.apache.cassandra.simulator.cluster.ClusterActions.TopologyChange.JOIN;
 import static org.apache.cassandra.simulator.cluster.ClusterActions.TopologyChange.LEAVE;
@@ -216,7 +217,7 @@ public class ClusterActions extends SimulatedSystems
         return StrictAction.of("Initialise Cluster", () -> {
             List<Action> actions = new ArrayList<>();
 
-            cluster.stream().forEach(i -> actions.add(invoke("Startup " + i.broadcastAddress(), NO_TIMEOUTS, NO_TIMEOUTS,
+            cluster.stream().forEach(i -> actions.add(invoke("Startup " + i.broadcastAddress(), RELIABLE, RELIABLE,
                                                              new InterceptedRunnableExecution((InterceptingExecutor) i.executor(), i::startup))));
 
             List<InetSocketAddress> endpoints = cluster.stream().map(IInstance::broadcastAddress).collect(Collectors.toList());

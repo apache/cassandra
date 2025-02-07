@@ -32,6 +32,7 @@ import accord.burn.SimulationException;
 import accord.impl.TopologyFactory;
 import accord.impl.basic.Cluster;
 import accord.impl.basic.RandomDelayQueue;
+import accord.local.CommandStores;
 import accord.local.Node;
 import accord.utils.DefaultRandom;
 import accord.utils.RandomSource;
@@ -54,7 +55,6 @@ import org.apache.cassandra.service.accord.serializers.TopologySerializers;
 import org.apache.cassandra.tools.FieldUtil;
 
 import static accord.impl.PrefixedIntHashKey.ranges;
-
 
 public class AccordJournalBurnTest extends BurnTestBase
 {
@@ -163,7 +163,14 @@ public class AccordJournalBurnTest extends BurnTestBase
                              {
                                  return false;
                              }
-                         }, new AccordAgent(), directory, cfs);
+                         }, new AccordAgent(), directory, cfs)
+                         {
+                             public void replay(CommandStores commandStores)
+                             {
+                                 closeCurrentSegmentForTestingIfNonEmpty();
+                                 super.replay(commandStores);
+                             }
+                         };
 
                          journal.start(null);
                          journal.unsafeSetStarted();

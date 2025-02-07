@@ -371,6 +371,8 @@ public abstract class AccordTestBase extends TestBaseImpl
                                                            .set("write_request_timeout", "10s")
                                                            .set("transaction_timeout", "15s")
                                                            .set("native_transport_timeout", "30s")
+                                                           .set("cms_await_timeout", "1s")
+                                                           .set("cms_default_max_retries", 10_000)
                                                            .set("accord.ephemeral_read_enabled", "false")
                                                            .set("accord.shard_durability_target_splits", "1")
                                                            .set("accord.shard_durability_cycle", "60s")

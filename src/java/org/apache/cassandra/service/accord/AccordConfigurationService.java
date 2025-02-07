@@ -22,7 +22,9 @@ import java.util.HashSet;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
+import java.util.function.BiConsumer;
 import java.util.stream.Collectors;
 import javax.annotation.Nullable;
 import javax.annotation.concurrent.GuardedBy;
@@ -59,7 +61,6 @@ import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Simulate;
 import org.apache.cassandra.utils.concurrent.AsyncPromise;
 import org.apache.cassandra.utils.concurrent.Future;
-import org.apache.cassandra.utils.concurrent.UncheckedInterruptedException;
 
 import static org.apache.cassandra.service.accord.AccordTopology.tcmIdToAccord;
 import static org.apache.cassandra.utils.Simulate.With.MONITORS;
@@ -448,21 +449,60 @@ public class AccordConfigurationService extends AbstractConfigurationService<Acc
         getOrCreateEpochState(epoch - 1).acknowledged().addCallback(() -> reportMetadata(metadata));
     }
 
+    private final Map<Long, Future<Topology>> pendingTopologies = new ConcurrentHashMap<>();
+
     @Override
-    protected void fetchTopologyInternal(long epoch)
+    public void fetchTopologyForEpoch(long epoch)
+    {
+        long minEpoch = currentEpoch() + 1;
+        // Find and fetch all epochs in-between
+        for (long i = minEpoch; i <= epoch; ++i)
+            fetchTopologyInternal(i);
+    }
+
+    private void fetchTopologyInternal(long epoch)
+    {
+        pendingTopologies.computeIfAbsent(epoch, (epoch_) -> {
+            AsyncPromise<Topology> future = new AsyncPromise<>();
+            fetchTopologyAsync(epoch_,
+                               (topology, throwable) -> {
+                                      if (topology != null)
+                                          future.setSuccess(topology);
+                                      else
+                                      {
+                                          Invariants.require(future == pendingTopologies.remove(epoch_));
+                                          future.setFailure(Invariants.nonNull(throwable));
+                                          fetchTopologyForEpoch(epoch_);
+                                      }
+                                  });
+            return future;
+        });
+    }
+
+    private void fetchTopologyAsync(long epoch, BiConsumer<Topology, ? super Throwable> onResult)
     {
         // It's not safe for this to block on CMS so for now pick a thread pool to handle it
         Stage.ACCORD_MIGRATION.execute(() -> {
-            if (ClusterMetadata.current().epoch.getEpoch() < epoch)
-                ClusterMetadataService.instance().fetchLogFromCMS(Epoch.create(epoch));
-
+            try
+            {
+                if (ClusterMetadata.current().epoch.getEpoch() < epoch)
+                    ClusterMetadataService.instance().fetchLogFromCMS(Epoch.create(epoch));
+            }
+            catch (Throwable t)
+            {
+                onResult.accept(null, t);
+                return;
+            }
             // In most cases, after fetching log from CMS, we will be caught up to the required epoch.
             // This TCM will also notify Accord via reportMetadata, so we do not need to fetch topologies.
             // If metadata has reported has skipped one or more epochs, and is _ahead_ of the requested epoch,
             // we need to fetch topologies from peers to fill in the gap.
             ClusterMetadata metadata = ClusterMetadata.current();
             if (metadata.epoch.getEpoch() == epoch)
+            {
+                onResult.accept(AccordTopology.createAccordTopology(metadata), null);
                 return;
+            }
 
             try
             {
@@ -475,18 +515,18 @@ public class AccordConfigurationService extends AbstractConfigurationService<Acc
                 Topology topology = FetchTopology.fetch(SharedContext.Global.instance, peers, epoch).get();
                 Invariants.require(topology.epoch() == epoch);
                 reportTopology(topology);
-            }
-            catch (InterruptedException e)
-            {
-                if (currentEpoch() >= epoch)
-                    return;
-                Thread.currentThread().interrupt();
-                throw new UncheckedInterruptedException(e);
+                onResult.accept(topology, null);
             }
             catch (Throwable e)
             {
                 if (currentEpoch() >= epoch)
+                {
+                    onResult.accept(getTopologyForEpoch(epoch), null);
                     return;
+                }
+                if (e instanceof InterruptedException)
+                    Thread.currentThread().interrupt();
+                onResult.accept(null, e);
                 throw new RuntimeException(e.getCause());
             }
         });

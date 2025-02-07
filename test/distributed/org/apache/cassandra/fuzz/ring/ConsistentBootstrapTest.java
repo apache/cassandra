@@ -153,6 +153,7 @@ public class ConsistentBootstrapTest extends FuzzTestBase
                                         .withNodeIdTopology(NetworkTopology.singleDcNetworkTopology(4, "dc0", "rack0"))
                                         .withConfig((config) -> config.with(Feature.NETWORK, Feature.GOSSIP)
                                                                       .set("write_request_timeout", "10s")
+                                                                      .set("accord.enabled", false)
                                                                       .set("metadata_snapshot_frequency", 5))
                                         .start())
         {
