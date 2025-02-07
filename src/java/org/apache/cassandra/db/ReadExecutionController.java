@@ -25,7 +25,6 @@ import com.google.common.base.Preconditions;
 
 import org.apache.cassandra.db.filter.DataLimits;
 import org.apache.cassandra.index.Index;
-import org.apache.cassandra.replication.MutationSummarizer;
 import org.apache.cassandra.replication.MutationTracker;
 import org.apache.cassandra.replication.MutationTrackingService;
 import org.apache.cassandra.schema.TableMetadata;
@@ -52,7 +51,6 @@ public class ReadExecutionController implements AutoCloseable
 
     private final RepairedDataInfo repairedDataInfo;
     private long oldestUnrepairedTombstone = Long.MAX_VALUE;
-    private final MutationSummarizer summarizer;
     private final MutationTracker.PendingRead pendingRead;
 
     ReadExecutionController(ReadCommand command,
@@ -88,12 +86,6 @@ public class ReadExecutionController implements AutoCloseable
         }
 
         pendingRead = MutationTrackingService.instance().startRead(command);
-        summarizer = MutationTrackingService.summarizerForRead(command);
-    }
-
-    public MutationSummarizer summarizer()
-    {
-        return summarizer;
     }
 
     public MutationTracker.PendingRead pendingRead()
@@ -216,26 +208,19 @@ public class ReadExecutionController implements AutoCloseable
         {
             try
             {
-                summarizer.close();
+                pendingRead.close();
             }
             finally
             {
-                try
+                if (indexController != null)
                 {
-                    pendingRead.close();
-                }
-                finally
-                {
-                    if (indexController != null)
+                    try
                     {
-                        try
-                        {
-                            indexController.close();
-                        }
-                        finally
-                        {
-                            writeContext.close();
-                        }
+                        indexController.close();
+                    }
+                    finally
+                    {
+                        writeContext.close();
                     }
                 }
             }

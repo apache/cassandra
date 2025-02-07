@@ -54,6 +54,8 @@ import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.metrics.TableMetrics;
 import org.apache.cassandra.net.Verb;
+import org.apache.cassandra.replication.MutationSummary;
+import org.apache.cassandra.replication.MutationTrackingService;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.StorageProxy;
@@ -327,8 +329,6 @@ public class PartitionRangeReadCommand extends ReadCommand implements PartitionR
     @VisibleForTesting
     public UnfilteredPartitionIterator queryStorage(final ColumnFamilyStore cfs, ReadExecutionController controller)
     {
-        // TODO: actually retrieve mutation data from disk
-        controller.summarizer().addForRange(metadata().id, dataRange.keyRange);
         if (responseType() == ResponseType.LOGGED_SUMMARY)
             return EmptyIterators.unfilteredPartition(metadata());
 
@@ -398,7 +398,6 @@ public class PartitionRangeReadCommand extends ReadCommand implements PartitionR
         }
     }
 
-
     @Override
     public boolean readsMutationContents(Mutation mutation)
     {
@@ -431,6 +430,12 @@ public class PartitionRangeReadCommand extends ReadCommand implements PartitionR
         });
 
         return UnfilteredPartitionIterators.merge(partitions, UnfilteredPartitionIterators.MergeListener.NOOP);
+    }
+
+    @Override
+    public MutationSummary createMutationSummary()
+    {
+        return MutationTrackingService.instance().summaryForRange(metadata().id, dataRange.keyRange);
     }
 
     @Override

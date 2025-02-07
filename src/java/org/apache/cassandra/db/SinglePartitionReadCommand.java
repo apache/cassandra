@@ -75,6 +75,8 @@ import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.metrics.TableMetrics;
 import org.apache.cassandra.net.Verb;
+import org.apache.cassandra.replication.MutationSummary;
+import org.apache.cassandra.replication.MutationTrackingService;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.CacheService;
@@ -497,9 +499,6 @@ public class SinglePartitionReadCommand extends ReadCommand implements SinglePar
 
     protected UnfilteredPartitionIterator queryStorage(final ColumnFamilyStore cfs, ReadExecutionController executionController)
     {
-
-        // TODO: actually retrieve mutation data from disk
-        executionController.summarizer().addForKey(metadata().id, partitionKey);
         if (responseType() == ResponseType.LOGGED_SUMMARY)
             return EmptyIterators.unfilteredPartition(metadata());
 
@@ -880,6 +879,12 @@ public class SinglePartitionReadCommand extends ReadCommand implements SinglePar
         partitions.add(result);
         partitions.add(new SingletonUnfilteredPartitionIterator(merged));
         return UnfilteredPartitionIterators.merge(partitions, UnfilteredPartitionIterators.MergeListener.NOOP);
+    }
+
+    @Override
+    public MutationSummary createMutationSummary()
+    {
+        return MutationTrackingService.instance().summaryForKey(metadata().id, partitionKey);
     }
 
     @Override

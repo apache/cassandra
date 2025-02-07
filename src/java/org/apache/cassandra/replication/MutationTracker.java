@@ -96,7 +96,6 @@ public interface MutationTracker
     {
         return summaryForRange(tableId, Range.makeRowRange(range));
     }
-    MutationSummarizer summarizer(TableId tableId);
     Map<InetAddressAndPort, ReconciliationPlan> calculateReconciliation(Map<InetAddressAndPort, MutationSummary> summaries);
     List<Mutation> mutations(Collection<MutationId> ids);
 }
