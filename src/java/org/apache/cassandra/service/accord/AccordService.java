@@ -261,8 +261,8 @@ public class AccordService implements IAccordService, Shutdownable
             // when replacing another node but using the same ip the hostId will also match, this causes no TCM transactions
             // to be committed...
             // In order to bootup correctly, need to pull in the current epoch
-            ClusterMetadata current = ClusterMetadata.current();
-            as.configurationService().listener.notifyPostCommit(current, current, false);
+            ClusterMetadata metadata = ClusterMetadata.current();
+            as.configurationService().listener.notifyPostCommit(metadata, metadata, false);
         }
         instance = as;
 
@@ -381,6 +381,7 @@ public class AccordService implements IAccordService, Shutdownable
         {
             Journal.TopologyUpdate update = iter.next();
             local.add(update.global);
+            Invariants.require(lastSeen == null || update.global.epoch() > lastSeen.global.epoch());
             lastSeen = update;
         }
 

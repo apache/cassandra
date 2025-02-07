@@ -440,7 +440,6 @@ public class AccordJournal implements accord.api.Journal, RangeSearcher.Supplier
     @SuppressWarnings("unchecked") @Override
     public void replay(CommandStores commandStores)
     {
-        journal.closeCurrentSegmentForTestingIfNonEmpty();
         try (CloseableIterator<Journal.KeyRefs<JournalKey>> iter = journalTable.keyIterator())
         {
             while (iter.hasNext())

@@ -429,7 +429,7 @@ public class AccordSyncPropagatorTest
             }
 
             @Override
-            protected void fetchTopologyInternal(long epoch)
+            public void fetchTopologyForEpoch(long epoch)
             {
                 // TODO
             }

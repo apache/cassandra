@@ -275,6 +275,22 @@ public abstract class AccordMigrationWriteRaceTestBase extends AccordTestBase
             ConsensusKeyMigrationState.reset();
         });
         truncateSystemTables();
+        ClusterUtils.waitForCMSToQuiesce(SHARED_CLUSTER, 1);
+        SHARED_CLUSTER.forEach(() -> Util.spinUntilTrue(() -> ClusterMetadata.current().epoch.getEpoch() ==
+                                                              ((AccordService) AccordService.instance()).configurationService().currentEpoch() &&
+                                                              AccordService.instance().topology().current().epoch() ==
+                                                              ((AccordService) AccordService.instance()).configurationService().currentEpoch(),
+                                                        60));
+        SHARED_CLUSTER.forEach(() -> {
+            try
+            {
+                AccordService.instance().epochReady(ClusterMetadata.current().epoch).get(30, TimeUnit.SECONDS);
+            }
+            catch (Throwable e)
+            {
+                throw new RuntimeException(e);
+            }
+        });
     }
 
     private ListenableFuture<Void> alterTableTransactionalModeAsync(TransactionalMode mode)

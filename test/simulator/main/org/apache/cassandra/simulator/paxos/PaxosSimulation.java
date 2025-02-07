@@ -39,6 +39,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import accord.coordinate.CoordinationFailed;
+import accord.coordinate.Invalidated;
+import accord.coordinate.Preempted;
 import org.apache.cassandra.concurrent.ExecutorFactory;
 import org.apache.cassandra.concurrent.ScheduledExecutorPlus;
 import org.apache.cassandra.distributed.Cluster;
@@ -90,6 +92,8 @@ public abstract class PaxosSimulation implements Simulation, ClusterActionListen
     protected Class<? extends Throwable>[] expectedExceptionsAccord()
     {
         return (Class<? extends Throwable>[]) new Class<?>[] { RequestExecutionException.class,
+                                                               Invalidated.class,
+                                                               Preempted.class,
                                                                CancellationException.class,
                                                                CoordinationFailed.class,
                                                                ClosedChannelException.class,
