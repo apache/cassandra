@@ -160,6 +160,11 @@ public class Mutation implements IMutation, Supplier<Mutation>
         return table == null ? null : modifications.get(table.id);
     }
 
+    public long getApproxCreatedAtNanos()
+    {
+        return approxCreatedAtNanos;
+    }
+
     public boolean isEmpty()
     {
         return modifications.isEmpty();

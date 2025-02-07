@@ -1,10 +1,24 @@
-4.1.8
+4.1.9
  * IntervalTree should support updateIntervals for checkpoint when ranges are unchanged (CASSANDRA-20158)
+ * Fix WaitQueue.Signal.awaitUninterruptibly may block forever if invoking thread is interrupted (CASSANDRA-20084)
+Merged from 4.0:
+ * Fix autocompletion for role names/user names (CASSANDRA-20175)
+
+
+4.1.8
+ * Run audit_logging_options through santiation and validation on startup (CASSANDRA-20208)
+ * Enforce CQL message size limit on multiframe messages (CASSANDRA-20052)
  * Add nodetool checktokenmetadata command that checks TokenMetadata is insync with Gossip endpointState (CASSANDRA-18758)
  * Backport Java 11 support for Simulator (CASSANDRA-17178/CASSANDRA-19935)
  * Equality check for Paxos.Electorate should not depend on collection types (CASSANDRA-19935)
  * Fix race condition in DecayingEstimatedHistogramReservoir during rescale (CASSANDRA-19365)
 Merged from 4.0:
+ * Tighten up permissions in dc authorizers (CASSANDRA-20225)
+ * CBUtil serialization of UTF8 does not handle all UTF8 properly (CASSANDRA-20234)
+ * Make hint expiry use request start time rather than timeout time for TTL (CASSANDRA-20014)
+ * Do not attach rows and partitions to CheckForAbort when already attached (CASSANDRA-20135)
+ * Allow hint delivery during schema mismatch (CASSANDRA-20188)
+ * IndexOutOfBoundsException when accessing partition where the column was deleted (CASSANDRA-20108)
  * Enhance CQLSSTableWriter to notify clients on sstable production (CASSANDRA-19800)
  * Fix gossip issue with gossip-only and bootstrapping nodes missing DC/Rack/Host ID endpoint state (CASSANDRA-19983)
  * Change the resolution of AbstractCommitLogService#lastSyncedAt to nanos to be aligned with later comparisons (CASSANDRA-20074)
@@ -17,6 +31,8 @@ Merged from 4.0:
  * Fix text containing "/*" being interpreted as multiline comment in cqlsh (CASSANDRA-17667)
  * Fix indexing of a frozen collection that is the clustering key and reversed (CASSANDRA-19889)
  * Emit error when altering a table with non-frozen UDTs with nested non-frozen collections the same way as done upon table creation (CASSANDRA-19925)
+Merged from 3.0
+  * Tighten up permissions on system keyspaces (CASSANDRA-20090)
 
 
 4.1.7

@@ -269,6 +269,7 @@ public class Config
     public int native_transport_max_threads = 128;
     @Replaces(oldName = "native_transport_max_frame_size_in_mb", converter = Converters.MEBIBYTES_DATA_STORAGE_INT, deprecated = true)
     public DataStorageSpec.IntMebibytesBound native_transport_max_frame_size = new DataStorageSpec.IntMebibytesBound("16MiB");
+    public volatile DataStorageSpec.LongBytesBound native_transport_max_message_size = null;
     /** do bcrypt hashing in a limited pool to prevent cpu load spikes; 0 means that all requests will go to default request executor**/
     public int native_transport_max_auth_threads = 0;
     public volatile long native_transport_max_concurrent_connections = -1L;
@@ -426,6 +427,7 @@ public class Config
     public ParameterizedClass hints_compression;
     public volatile boolean auto_hints_cleanup_enabled = false;
     public volatile boolean transfer_hints_on_decommission = true;
+    public volatile boolean use_creation_time_for_hint_ttl = true;
 
     public volatile boolean incremental_backups = false;
     public boolean trickle_fsync = false;

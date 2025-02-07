@@ -55,7 +55,9 @@ public class ClientStateTest
         SchemaLoader.createKeyspace(SchemaConstants.AUTH_KEYSPACE_NAME,
                                     KeyspaceParams.simple(1),
                                     Iterables.toArray(AuthKeyspace.metadata().tables, TableMetadata.class));
-
+        DatabaseDescriptor.setRoleManager(new AuthTestUtils.LocalCassandraRoleManager());
+        DatabaseDescriptor.getRoleManager().setup();
+        Roles.init();
         AuthCacheService.initializeAndRegisterCaches();
     }
 

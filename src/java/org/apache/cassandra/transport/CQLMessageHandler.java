@@ -31,6 +31,7 @@ import io.netty.buffer.Unpooled;
 import io.netty.channel.Channel;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.exceptions.OverloadedException;
+import org.apache.cassandra.exceptions.OversizedCQLMessageException;
 import org.apache.cassandra.metrics.ClientMessageSizeMetrics;
 import org.apache.cassandra.metrics.ClientMetrics;
 import org.apache.cassandra.net.AbstractMessageHandler;
@@ -81,6 +82,10 @@ public class CQLMessageHandler<M extends Message> extends AbstractMessageHandler
     public static final int LARGE_MESSAGE_THRESHOLD = FrameEncoder.Payload.MAX_SIZE - 1;
     public static final TimeUnit RATE_LIMITER_DELAY_UNIT = TimeUnit.NANOSECONDS;
 
+    static final String MULTI_FRAME_AUTH_ERROR_MESSAGE_PREFIX = "The connection is not yet in a valid state " +
+                                                                "to process multi frame CQL Messages, usually this" +
+                                                                "means that authentication is still pending. ";
+
     private final QueueBackpressure queueBackpressure;
     private final Envelope.Decoder envelopeDecoder;
     private final Message.Decoder<M> messageDecoder;
@@ -94,6 +99,8 @@ public class CQLMessageHandler<M extends Message> extends AbstractMessageHandler
     long channelPayloadBytesInFlight;
     private int consecutiveMessageErrors = 0;
 
+    private final ServerConnection serverConnection;
+
     interface MessageConsumer<M extends Message>
     {
         void dispatch(Channel channel, M message, Dispatcher.FlushItemConverter toFlushItem, Overload backpressure);
@@ -106,6 +113,7 @@ public class CQLMessageHandler<M extends Message> extends AbstractMessageHandler
     }
 
     CQLMessageHandler(Channel channel,
+                      ServerConnection serverConnection,
                       ProtocolVersion version,
                       FrameDecoder decoder,
                       Envelope.Decoder envelopeDecoder,
@@ -128,6 +136,7 @@ public class CQLMessageHandler<M extends Message> extends AbstractMessageHandler
               resources.endpointWaitQueue(),
               resources.globalWaitQueue(),
               onClosed);
+        this.serverConnection = serverConnection;
         this.envelopeDecoder    = envelopeDecoder;
         this.messageDecoder     = messageDecoder;
         this.payloadAllocator   = payloadAllocator;
@@ -518,10 +527,28 @@ public class CQLMessageHandler<M extends Message> extends AbstractMessageHandler
             // max CQL message size defaults to 256mb, so should be safe to downcast
             int messageSize = Ints.checkedCast(header.bodySizeInBytes);
             receivedBytes += buf.remaining();
+
+            if (serverConnection != null && serverConnection.stage() != ConnectionStage.READY)
+            {
+                // Disallow any multiframe messages before the connection reaches the READY state.
+                // This guards against being swamped with oversize messages from unauthenticated
+                // clients. In this case, we raise a fatal error and close the connection so it does
+                // not make sense to continue processing subsequent frames
+                handleError(ProtocolException.toFatalException(new OversizedAuthMessageException(
+                            MULTI_FRAME_AUTH_ERROR_MESSAGE_PREFIX +
+                            "type = " + header.type + ", size = " + header.bodySizeInBytes)));
+                ClientMetrics.instance.markRequestDiscarded();
+                return false;
+            }
             
             LargeMessage largeMessage = new LargeMessage(header);
-
-            if (throwOnOverload)
+            if (messageSize > DatabaseDescriptor.getNativeTransportMaxMessageSizeInBytes())
+            {
+                ClientMetrics.instance.markRequestDiscarded();
+                // Mark as too big so that discard the message after consuming any subsequent frames
+                largeMessage.markTooBig();
+            }
+            else if (throwOnOverload)
             {
                 if (!acquireCapacity(header, endpointReserve, globalReserve))
                 {
@@ -567,9 +594,9 @@ public class CQLMessageHandler<M extends Message> extends AbstractMessageHandler
                     }
                 }
             }
-            else
+            else // throwOnOverload = false
             {
-                if (acquireCapacity(header, endpointReserve, globalReserve))
+                if (acquireCapacityAndQueueOnFailure(header, endpointReserve, globalReserve))
                 {
                     long delay = -1;
                     Overload backpressure = Overload.NONE;
@@ -605,7 +632,14 @@ public class CQLMessageHandler<M extends Message> extends AbstractMessageHandler
                 }
                 else
                 {
-                    noSpamLogger.error("Could not aquire capacity while processing native protocol message");
+                    // we checked previously that messageSize <= native_transport_max_message_size
+                    // and native_transport_max_message_size <= native_transport_max_request_data_in_flight
+                    // and native_transport_max_message_size <= native_transport_max_request_data_in_flight_per_ip
+                    // so, a starvation is not possible for the following case:
+                    // a connection is blocked forever if somebody tries to send a single too big message > total rate limiting capacity.
+                    // Once other messages in the same or other CQL connections are processed and capacity is returned to the limits
+                    // we have enough capacity to acquire it for the current large message.
+                    return false;
                 }
             }
 
@@ -712,6 +746,7 @@ public class CQLMessageHandler<M extends Message> extends AbstractMessageHandler
 
         private Overload overload = Overload.NONE;
         private Overload backpressure = Overload.NONE;
+        private boolean tooBig = false;
 
         private LargeMessage(Envelope.Header header)
         {
@@ -747,18 +782,75 @@ public class CQLMessageHandler<M extends Message> extends AbstractMessageHandler
             this.backpressure = backpressure;
         }
 
+        private void markTooBig()
+        {
+            this.tooBig = true;
+        }
+
+        @Override
+        protected void onIntactFrame(IntactFrame frame)
+        {
+            if (tooBig || overload != Overload.NONE)
+                // we do not want to add the frame to buffers (to not consume a lot of memory and throw it away later
+                // we also do not want to release capacity because we haven't accuired it
+                frame.consume();
+            else
+                super.onIntactFrame(frame);
+        }
+
+        @Override
+        protected void onCorruptFrame()
+        {
+            if (!isExpired && !isCorrupt && !tooBig)
+            {
+                releaseBuffers(); // release resources once we transition from normal state to corrupt
+                if (overload != Overload.BYTES_IN_FLIGHT)
+                    releaseCapacity(size);
+            }
+            isCorrupt = true;
+            isExpired |= approxTime.isAfter(expiresAtNanos);
+        }
+
+
+        @Override
         protected void onComplete()
         {
-            if (overload != Overload.NONE)
-                handleErrorAndRelease(buildOverloadedException(endpointReserveCapacity, globalReserveCapacity, overload), header);
+            if (tooBig)
+                // we haven't accuired a capacity for too big messages to release it
+                handleError(buildOversizedCQLMessageException(header.bodySizeInBytes), header);
+            else if (overload != Overload.NONE)
+                if (overload == Overload.BYTES_IN_FLIGHT)
+                    // we haven't accuired a capacity successfully to release it
+                    handleError(buildOverloadedException(endpointReserveCapacity, globalReserveCapacity, overload), header);
+                else
+                    handleErrorAndRelease(buildOverloadedException(endpointReserveCapacity, globalReserveCapacity, overload), header);
             else if (!isCorrupt)
                 processRequest(assembleFrame(), backpressure);
         }
 
+        @Override
         protected void abort()
         {
-            if (!isCorrupt)
-                releaseBuffersAndCapacity(); // release resources if in normal state when abort() is invoked
+            if (!isCorrupt && !tooBig && overload == Overload.NONE)
+                releaseBuffers();
+
+            if (overload == Overload.NONE || overload == Overload.BYTES_IN_FLIGHT)
+                releaseCapacity(size);
+        }
+
+        private OversizedCQLMessageException buildOversizedCQLMessageException(long messageBodySize)
+        {
+            return new OversizedCQLMessageException("CQL Message of size " + messageBodySize
+                                                    + " bytes exceeds allowed maximum of "
+                                                    + DatabaseDescriptor.getNativeTransportMaxMessageSizeInBytes() + " bytes");
+        }
+    }
+
+    static class OversizedAuthMessageException extends ProtocolException
+    {
+        OversizedAuthMessageException(String message)
+        {
+            super(message);
         }
     }
 }

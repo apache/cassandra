@@ -25,6 +25,10 @@ import org.junit.Test;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufAllocator;
 import io.netty.buffer.PooledByteBufAllocator;
+import org.assertj.core.api.Assertions;
+import org.quicktheories.generators.SourceDSL;
+
+import static org.quicktheories.QuickTheory.qt;
 
 public class CBUtilTest
 {
@@ -36,6 +40,21 @@ public class CBUtilTest
     {
         if (buf != null && buf.refCnt() > 0)
             buf.release(buf.refCnt());
+    }
+
+    @Test
+    public void stringList()
+    {
+        qt().forAll(SourceDSL.lists().of(SourceDSL.strings().allPossible().ofLengthBetween(0, 20)).ofSizeBetween(0, 10)).checkAssert(list -> {
+            int expectedSize = CBUtil.sizeOfStringList(list);
+            ByteBuf body = CBUtil.allocator.buffer(expectedSize * 2);
+            CBUtil.writeStringList(list, body);
+            Assertions.assertThat(body.readableBytes()).isEqualTo(expectedSize);
+            // In CASSANDRA-20234 the sizeOf method now reflects the write method, but the work to do this in read
+            // was not done; read took a stance that it wants to limit things in CASSANDRA-8101 but that never made
+            // it to the other methods... write and read are not compatable with the full domain of UTF-8, and fixing
+            // that was higher bar than CASSANDRA-20234 wanted to tackle out of fear of unknown regressions it would cause.
+        });
     }
 
     @Test

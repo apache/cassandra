@@ -648,7 +648,7 @@ public class OperationTest extends SchemaLoader
         }
 
         @Override
-        public boolean isSatisfiedBy(TableMetadata metadata, DecoratedKey partitionKey, Row row)
+        public boolean isSatisfiedBy(TableMetadata metadata, DecoratedKey partitionKey, Row row, int nowInSec)
         {
             throw new UnsupportedOperationException();
         }

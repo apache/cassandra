@@ -28,7 +28,9 @@ import java.util.stream.Collectors;
 
 import com.codahale.metrics.Meter;
 import com.google.common.base.Ticker;
+
 import org.awaitility.Awaitility;
+
 import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
@@ -36,12 +38,9 @@ import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.cql3.CQLTester;
-import org.apache.cassandra.cql3.QueryOptions;
 import org.apache.cassandra.exceptions.OverloadedException;
 import org.apache.cassandra.metrics.CassandraMetricsRegistry;
 import org.apache.cassandra.service.StorageService;
-import org.apache.cassandra.transport.messages.QueryMessage;
 import org.apache.cassandra.utils.Throwables;
 
 import static org.junit.Assert.assertEquals;
@@ -54,7 +53,7 @@ import static org.apache.cassandra.transport.ProtocolVersion.V4;
 
 @SuppressWarnings("UnstableApiUsage")
 @RunWith(Parameterized.class)
-public class RateLimitingTest extends CQLTester
+public class RateLimitingTest extends NativeProtocolLimitsTestBase
 {
     public static final String BACKPRESSURE_WARNING_SNIPPET = "Request breached global limit";
     
@@ -63,15 +62,17 @@ public class RateLimitingTest extends CQLTester
 
     private static final long MAX_LONG_CONFIG_VALUE = Long.MAX_VALUE - 1;
 
-    @Parameterized.Parameter
-    public ProtocolVersion version;
-
     @Parameterized.Parameters(name="{0}")
     public static Collection<Object[]> versions()
     {
         return ProtocolVersion.SUPPORTED.stream()
                                         .map(v -> new Object[]{v})
                                         .collect(Collectors.toList());
+    }
+
+    public RateLimitingTest(ProtocolVersion version)
+    {
+        super(version);
     }
 
     private AtomicLong tick;
@@ -104,6 +105,7 @@ public class RateLimitingTest extends CQLTester
 
         ClientResourceLimits.setGlobalLimit(MAX_LONG_CONFIG_VALUE);
     }
+
 
     @Test
     public void shouldThrowOnOverloadSmallMessages() throws Exception
@@ -147,15 +149,19 @@ public class RateLimitingTest extends CQLTester
 
     private void testBytesInFlightOverload(int payloadSize) throws Exception
     {
-        try (SimpleClient client = client().connect(false, true))
+        int emulatedConcurrentMessageSize = payloadSize * 3 / 2;
+        try (SimpleClient client = client(true, LARGE_PAYLOAD_THRESHOLD_BYTES))
         {
             StorageService.instance.setNativeTransportRateLimitingEnabled(false);
-            QueryMessage queryMessage = new QueryMessage("CREATE TABLE IF NOT EXISTS " + KEYSPACE + ".atable (pk int PRIMARY KEY, v text)", queryOptions());
-            client.execute(queryMessage);
+            createTable(client);
 
             StorageService.instance.setNativeTransportRateLimitingEnabled(true);
             ClientResourceLimits.GLOBAL_REQUEST_LIMITER.setRate(OVERLOAD_PERMITS_PER_SECOND, ticker);
-            ClientResourceLimits.setGlobalLimit(1);
+            // test message = 1x
+            // emulated concurrent message = 1.5x
+            // test message + emulated concurrent message = 2.5x > 2x set as a global limit
+            ClientResourceLimits.setGlobalLimit(payloadSize * 2);
+            emulateInFlightConcurrentMessage(emulatedConcurrentMessageSize);
 
             try
             {
@@ -170,18 +176,17 @@ public class RateLimitingTest extends CQLTester
         finally
         {
             // Sanity check bytes in flight limiter.
-            Awaitility.await().untilAsserted(() -> assertEquals(0, ClientResourceLimits.getCurrentGlobalUsage()));
+            Awaitility.await().untilAsserted(() -> assertEquals(emulatedConcurrentMessageSize, ClientResourceLimits.getCurrentGlobalUsage()));
             StorageService.instance.setNativeTransportRateLimitingEnabled(false);
         }
     }
 
     private void testOverload(int payloadSize, boolean throwOnOverload) throws Exception
     {
-        try (SimpleClient client = client().connect(false, throwOnOverload))
+        try (SimpleClient client = client(throwOnOverload, LARGE_PAYLOAD_THRESHOLD_BYTES))
         {
             StorageService.instance.setNativeTransportRateLimitingEnabled(false);
-            QueryMessage queryMessage = new QueryMessage("CREATE TABLE IF NOT EXISTS " + KEYSPACE + ".atable (pk int PRIMARY KEY, v text)", queryOptions());
-            client.execute(queryMessage);
+            createTable(client);
 
             StorageService.instance.setNativeTransportRateLimitingEnabled(true);
             ClientResourceLimits.GLOBAL_REQUEST_LIMITER.setRate(OVERLOAD_PERMITS_PER_SECOND, ticker);
@@ -284,40 +289,6 @@ public class RateLimitingTest extends CQLTester
         client.execute(queryMessage(payloadSize));
 
         assertEquals(dispatchedPrior + 2, getRequestDispatchedMeter().getCount());
-    }
-
-    private QueryMessage queryMessage(int length)
-    {
-        StringBuilder query = new StringBuilder("INSERT INTO " + KEYSPACE + ".atable (pk, v) VALUES (1, '");
-        
-        for (int i = 0; i < length; i++)
-        {
-            query.append('a');
-        }
-        
-        query.append("')");
-        return new QueryMessage(query.toString(), queryOptions());
-    }
-
-    private SimpleClient client()
-    {
-        return SimpleClient.builder(nativeAddr.getHostAddress(), nativePort)
-                           .protocolVersion(version)
-                           .useBeta()
-                           .largeMessageThreshold(LARGE_PAYLOAD_THRESHOLD_BYTES)
-                           .build();
-    }
-
-    private QueryOptions queryOptions()
-    {
-        return QueryOptions.create(QueryOptions.DEFAULT.getConsistency(),
-                                   QueryOptions.DEFAULT.getValues(),
-                                   QueryOptions.DEFAULT.skipMetadata(),
-                                   QueryOptions.DEFAULT.getPageSize(),
-                                   QueryOptions.DEFAULT.getPagingState(),
-                                   QueryOptions.DEFAULT.getSerialConsistency(),
-                                   version,
-                                   KEYSPACE);
     }
 
     protected static Meter getRequestDispatchedMeter()
