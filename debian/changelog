@@ -1,3 +1,9 @@
+assandra (4.0.18) UNRELEASED; urgency=medium
+
+  * New release
+
+ -- Mick Semb Wever <mck@apache.org>  Thu, 07 Feb 2025 10:44:49 +0100
+
 cassandra (4.0.17) unstable; urgency=medium
 
   * New release

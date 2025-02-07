@@ -1,3 +1,6 @@
+4.0.18
+
+
 4.0.17
  * Fix autocompletion for role names/user names (CASSANDRA-20175)
  * Re-apply: Tighten up permission on system keyspaces (CASSANDRA-20090)
