@@ -68,6 +68,7 @@ import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.Locator;
+import org.apache.cassandra.service.tracking.Shards;
 import org.apache.cassandra.tcm.CMSOperations;
 import org.apache.cassandra.tcm.ClusterMetadataService;
 import org.apache.cassandra.tcm.RegistrationStatus;
@@ -267,6 +268,8 @@ public class CassandraDaemon
         {
             disableAutoCompaction(Schema.instance.localKeyspaces().names());
             Startup.initialize(DatabaseDescriptor.getSeeds());
+            // if we need to grab it earliier, go to tcm.Startup and add afterReplay() callbacks
+            Shards.insance.load(ClusterMetadata.current());
             disableAutoCompaction(Schema.instance.distributedKeyspaces().names());
             CMSOperations.initJmx();
             if (ClusterMetadata.current().myNodeId() != null)

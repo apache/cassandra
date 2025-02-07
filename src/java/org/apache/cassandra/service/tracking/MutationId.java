@@ -28,10 +28,10 @@ public class MutationId
     public final long logId;
 
     /**
-     * 4 byte position + 4 byte timestamp packed into a long.
-     * Position is incremented, the timestamp is monotonically non-decreasing.
-     * The position is enough to identify the entry within a coordinator log,
-     * the timestamp is added for correlation purposes.
+     * 4 byte offset + 4 byte timestamp packed into a long.
+     * Offest is incremented, the timestamp is monotonically non-decreasing.
+     * The offset alone is sufficient to identify the entry within a coordinator
+     * log, the timestamp is added for correlation purposes.
      */
     public final long sequenceId;
 
@@ -39,6 +39,11 @@ public class MutationId
     {
         this.logId = logId;
         this.sequenceId = sequenceId;
+    }
+
+    public long logId()
+    {
+        return logId;
     }
 
     public int hostId()
@@ -51,12 +56,32 @@ public class MutationId
         return (int) (0xffffffffL & logId);
     }
 
-    public int position()
+    public long sequenceId()
+    {
+        return sequenceId;
+    }
+
+    public int offset()
+    {
+        return offset(sequenceId);
+    }
+
+    public int timestamp()
+    {
+        return timestamp(sequenceId);
+    }
+
+    static long sequenceId(int offset, int timestamp)
+    {
+        return ((long) offset << 32) | timestamp;
+    }
+
+    static int offset(long sequenceId)
     {
         return (int) (0xffffffffL & (sequenceId >> 32));
     }
 
-    public int timestamp()
+    static int timestamp(long sequenceId)
     {
         return (int) (0xffffffffL & sequenceId);
     }

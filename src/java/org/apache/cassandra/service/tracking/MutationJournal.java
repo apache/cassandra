@@ -161,15 +161,15 @@ public class MutationJournal
         @Override
         public void serialize(MutationId id, DataOutputPlus out, int userVersion) throws IOException
         {
-            out.writeLong(id.logId);
-            out.writeLong(id.sequenceId);
+            out.writeLong(id.logId());
+            out.writeLong(id.sequenceId());
         }
 
         @Override
         public void serialize(MutationId id, ByteBuffer out, int userVersion) throws IOException
         {
-            out.putLong(id.logId);
-            out.putLong(id.sequenceId);
+            out.putLong(id.logId());
+            out.putLong(id.sequenceId());
         }
 
         @Override
@@ -199,22 +199,22 @@ public class MutationJournal
         @Override
         public void updateChecksum(Checksum crc, MutationId id, int userVersion)
         {
-            FBUtilities.updateChecksumLong(crc, id.logId);
-            FBUtilities.updateChecksumLong(crc, id.sequenceId);
+            FBUtilities.updateChecksumLong(crc, id.logId());
+            FBUtilities.updateChecksumLong(crc, id.sequenceId());
         }
 
         @Override
         public int compareWithKeyAt(MutationId id, ByteBuffer buffer, int position, int userVersion)
         {
-            int cmp = Long.compare(id.logId, buffer.getLong(position + LOG_ID_OFFSET));
-            return cmp != 0 ? cmp : Long.compare(id.sequenceId, buffer.getLong(position + SEQUENCE_ID_OFFSET));
+            int cmp = Long.compare(id.logId(), buffer.getLong(position + LOG_ID_OFFSET));
+            return cmp != 0 ? cmp : Long.compare(id.sequenceId(), buffer.getLong(position + SEQUENCE_ID_OFFSET));
         }
 
         @Override
         public int compare(MutationId id1, MutationId id2)
         {
-            int cmp = Long.compare(id1.logId, id2.logId);
-            return cmp != 0 ? cmp : Long.compare(id1.sequenceId, id2.sequenceId);
+            int cmp = Long.compare(id1.logId(), id2.logId());
+            return cmp != 0 ? cmp : Long.compare(id1.sequenceId(), id2.sequenceId());
         }
     }
 
