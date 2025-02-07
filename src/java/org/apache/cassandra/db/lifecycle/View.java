@@ -374,16 +374,10 @@ public class View
             return Collections.emptyMap();
 
         List<SSTableReader> toRemoves = new ArrayList<>(remove);
-        // sort the SSTableReader list by (first, last, descriptor)
-        Comparator<SSTableReader> comp = (o1, o2) -> {
-            if (o1.first.compareTo(o2.first) == 0)
-                if (o1.last.compareTo(o2.last) == 0)
-                    return Integer.compare(o1.descriptor.hashCode(), o2.descriptor.hashCode());
-                else
-                    return o1.last.compareTo(o2.last);
-            else
-                return o1.first.compareTo(o2.first);
-        };
+        // sort the SSTableReader list by (first, last, descriptor.id). The view is per cfs so id will be unique
+        Comparator<SSTableReader> comp = Comparator.comparing((SSTableReader s) -> s.first)
+                                                   .thenComparing(s -> s.last)
+                                                   .thenComparing(SSTableReader.idComparator);
         toRemoves.sort(comp);
         toAdds.sort(comp);
 
