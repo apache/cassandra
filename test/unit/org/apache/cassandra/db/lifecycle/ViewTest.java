@@ -19,6 +19,7 @@
 package org.apache.cassandra.db.lifecycle;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Set;
@@ -32,6 +33,9 @@ import org.junit.BeforeClass;
 import org.junit.Test;
 
 import org.junit.Assert;
+import org.junit.runner.RunWith;
+import org.junit.runners.Parameterized;
+
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.PartitionPosition;
@@ -47,6 +51,7 @@ import static com.google.common.collect.Iterables.concat;
 import static java.util.Collections.singleton;
 import static org.apache.cassandra.db.lifecycle.Helpers.emptySet;
 
+@RunWith(Parameterized.class)
 public class ViewTest
 {
     @BeforeClass
@@ -55,6 +60,17 @@ public class ViewTest
         DatabaseDescriptor.daemonInitialization();
         CommitLog.instance.start();
         MockSchema.cleanup();
+    }
+
+    public ViewTest(Boolean replaceSSTableReaderForIntervalTreeEnabled)
+    {
+        DatabaseDescriptor.setReplaceSSTableReaderForIntervalTreeEnabled(replaceSSTableReaderForIntervalTreeEnabled);
+    }
+
+    @Parameterized.Parameters()
+    public static List<Boolean> buildParameterizedVariants()
+    {
+        return Arrays.asList(true, false);
     }
 
     @Test

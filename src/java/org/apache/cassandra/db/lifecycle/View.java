@@ -26,6 +26,7 @@ import com.google.common.base.Objects;
 import com.google.common.base.Predicate;
 import com.google.common.collect.*;
 
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.memtable.Memtable;
 import org.apache.cassandra.db.PartitionPosition;
@@ -284,15 +285,14 @@ public class View
             public View apply(View view)
             {
                 Map<SSTableReader, SSTableReader> sstableMap = replace(view.sstablesMap, remove, add);
-                if (isRangesUnchanged(remove, add))
-                {
-                    // If the SSTable before and after has the same key range, then there is no need to rebuild the interval tree.
-                    // Instead, we find and update the node
+                Map<SSTableReader, SSTableReader> replacementMap = getReplacementMap(remove, add);
+                if (replacementMap.isEmpty())
                     return new View(view.liveMemtables, view.flushingMemtables, sstableMap, view.compactingMap,
-                                    SSTableIntervalTree.replaceSSTables(view.intervalTree, add));
-                }
+                                    SSTableIntervalTree.build(sstableMap.keySet()));
+                // If we're able to map the SSTableReaders from remove and add set to make pairs with the same (first, last)
+                // ranges, then there is no need to rebuild the interval tree. Instead, we find and update the node.
                 return new View(view.liveMemtables, view.flushingMemtables, sstableMap, view.compactingMap,
-                                SSTableIntervalTree.build(sstableMap.keySet()));
+                                view.intervalTree.copyAndReplaceSSTables(replacementMap));
             }
         };
     }
@@ -372,8 +372,45 @@ public class View
         return hashSum;
     }
 
-    private static boolean isRangesUnchanged(final Set<SSTableReader> remove, final Iterable<SSTableReader> add)
+    // Match the SSTableReaders from the existing ones to the new one to be added (with same ranges)
+    // Returns the map of toRemove <-> toAdd. Return empty map if such 1-1 replacement doesn't exist
+    private static Map<SSTableReader, SSTableReader> getReplacementMap(final Set<SSTableReader> remove, final Iterable<SSTableReader> add)
     {
-        return getSSTablesHash(remove) == getSSTablesHash(add);
+        List<SSTableReader> toAdds = new ArrayList<>();
+        for (SSTableReader s : add)
+            toAdds.add(s);
+
+        if (remove.size() != toAdds.size())
+            return Collections.emptyMap();
+
+        List<SSTableReader> toRemoves = new ArrayList<>(remove);
+        // sort the SSTableReader list by (first, last, descriptor)
+        Comparator<SSTableReader> comp = (o1, o2) -> {
+            if (o1.first.compareTo(o2.first) == 0)
+                if (o1.last.compareTo(o2.last) == 0)
+                    return Integer.compare(o1.descriptor.hashCode(), o2.descriptor.hashCode());
+                else
+                    return o1.last.compareTo(o2.last);
+            else
+                return o1.first.compareTo(o2.first);
+        };
+        toRemoves.sort(comp);
+        toAdds.sort(comp);
+
+        Map<SSTableReader, SSTableReader> replacementMap = new HashMap<>();
+        // toAdd and toRemove have the same size
+        for (int i = 0; i < toAdds.size(); i++)
+        {
+            SSTableReader toRemove = toRemoves.get(i);
+            SSTableReader toAdd = toAdds.get(i);
+            // optimization: here we don't check the descriptor. If we're able to match those to be removed with those
+            // to be added, we ensure that the pairs have the same (first, last) range
+            if (toRemove.first.equals(toAdd.first) && toRemove.last.equals(toAdd.last))
+                replacementMap.put(toRemove, toAdd);
+            else
+                // stop and return empty map if toAdd and toRemove can't match
+                return Collections.emptyMap();
+        }
+        return replacementMap;
     }
 }
