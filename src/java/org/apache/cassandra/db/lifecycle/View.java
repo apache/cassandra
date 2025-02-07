@@ -362,16 +362,6 @@ public class View
         };
     }
 
-    private static int getSSTablesHash(Iterable<SSTableReader> readers) {
-        int hashSum = 0;
-        for (SSTableReader reader : readers) {
-            if (reader != null) {
-                hashSum += Objects.hashCode(reader.descriptor.hashCode(), reader.first, reader.last);
-            }
-        }
-        return hashSum;
-    }
-
     // Match the SSTableReaders from the existing ones to the new one to be added (with same ranges)
     // Returns the map of toRemove <-> toAdd. Return empty map if such 1-1 replacement doesn't exist
     private static Map<SSTableReader, SSTableReader> getReplacementMap(final Set<SSTableReader> remove, final Iterable<SSTableReader> add)

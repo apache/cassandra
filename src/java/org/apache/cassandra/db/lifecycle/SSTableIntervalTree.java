@@ -54,9 +54,7 @@ public class SSTableIntervalTree extends IntervalTree<PartitionPosition, SSTable
 
     public static SSTableIntervalTree build(Iterable<SSTableReader> sstables)
     {
-        List<Interval<PartitionPosition, SSTableReader>> intervals = buildIntervals(sstables);
-        SSTableIntervalTree tree = new SSTableIntervalTree(intervals);
-        return tree;
+        return new SSTableIntervalTree(buildIntervals(sstables));
     }
 
     /**
