@@ -468,6 +468,8 @@ public abstract class ReadCommand extends AbstractReadQuery
      */
     public abstract UnfilteredPartitionIterator augmentResultWithMutations(UnfilteredPartitionIterator result, Collection<Mutation> mutations);
 
+    public abstract MutationSummary createMutationSummary();
+
     /**
      * Whether the underlying {@code ClusteringIndexFilter} is reversed or not.
      *

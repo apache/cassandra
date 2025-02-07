@@ -140,7 +140,7 @@ public class MutationTrackingPendingReadTest
                     try (ReadExecutionController controller = command.executionController(false);
                          UnfilteredPartitionIterator iterator = command.executeLocally(controller))
                     {
-                        summary = (SimpleMutationSummary) controller.summarizer().summary();
+                        summary = (SimpleMutationSummary) command.createMutationSummary();
                         response = (LoggedReadResponse) command.createResponse(iterator, controller.getRepairedDataInfo(), summary, controller.pendingRead());
                     }
                 }

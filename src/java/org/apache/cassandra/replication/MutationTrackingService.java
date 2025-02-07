@@ -20,7 +20,6 @@ package org.apache.cassandra.replication;
 
 import java.io.IOException;
 
-import org.apache.cassandra.db.ReadCommand;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
@@ -45,13 +44,6 @@ public class MutationTrackingService
     public static ReadReconciliations reconciliations()
     {
         return reconciliations;
-    }
-
-    public static MutationSummarizer summarizerForRead(ReadCommand command)
-    {
-        if (!command.responseType().isLogged())
-            return MutationSummarizer.NOOP;
-        return instance().summarizer(command.metadata().id);
     }
 
     public static final IVersionedSerializer<MutationSummary> summarySerializer = new IVersionedSerializer<MutationSummary>()

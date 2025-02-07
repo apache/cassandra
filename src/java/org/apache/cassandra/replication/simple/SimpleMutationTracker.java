@@ -45,7 +45,6 @@ import org.apache.cassandra.db.partitions.PartitionUpdate;
 import org.apache.cassandra.db.partitions.UnfilteredPartitionIterator;
 import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.locator.InetAddressAndPort;
-import org.apache.cassandra.replication.MutationSummarizer;
 import org.apache.cassandra.replication.MutationSummary;
 import org.apache.cassandra.replication.MutationTracker;
 import org.apache.cassandra.replication.ReconciliationPlan;
@@ -72,67 +71,6 @@ public class SimpleMutationTracker implements MutationTracker
         public void add(DecoratedKey key, MutationId mutationId)
         {
             tableIds.computeIfAbsent(key, k -> new KeyIds()).add(mutationId);
-        }
-    }
-
-    private class SimpleAccumulator implements MutationSummarizer
-    {
-        private final TableId tableId;
-        private List<DecoratedKey> keys;
-        private List<AbstractBounds<PartitionPosition>> ranges;
-
-        public SimpleAccumulator(TableId tableId)
-        {
-            this.tableId = tableId;
-        }
-
-        @Override
-        public synchronized void addForKey(TableId table, DecoratedKey key)
-        {
-            Preconditions.checkArgument(table.equals(tableId));
-            if (keys == null)
-                keys = new ArrayList<>();
-            keys.add(key);
-        }
-
-        @Override
-        public void addForRange(TableId table, AbstractBounds<PartitionPosition> range)
-        {
-            Preconditions.checkArgument(table.equals(tableId));
-            if (ranges == null)
-                ranges = new ArrayList<>();
-            ranges.add(range);
-        }
-
-        @Override
-        public synchronized MutationSummary summary()
-        {
-            lock.readLock().lock();
-            try
-            {
-                SimpleMutationSummary summary = SimpleMutationSummary.empty(tableId);
-                if (keys != null)
-                {
-                    for (DecoratedKey key : keys)
-                        summary = summary.merge(summaryForKey(tableId, key));
-                }
-
-                if (ranges != null)
-                {
-                    for (AbstractBounds<PartitionPosition> range : ranges)
-                        summary = summary.merge(summaryForRange(tableId, range));
-                }
-                return summary;
-            }
-            finally
-            {
-                lock.readLock().unlock();
-            }
-        }
-
-        @Override
-        public synchronized void close()
-        {
         }
     }
 
@@ -290,12 +228,6 @@ public class SimpleMutationTracker implements MutationTracker
         {
             lock.readLock().unlock();
         }
-    }
-
-    @Override
-    public MutationSummarizer summarizer(TableId tableId)
-    {
-        return new SimpleAccumulator(tableId);
     }
 
     @Override
