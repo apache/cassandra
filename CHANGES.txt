@@ -1,3 +1,6 @@
+3.0.33
+
+
 3.0.32
 * Minimise expensive reads during authz flow in 3.0/3.11 (CASSANDRA-20293)
 

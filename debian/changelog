@@ -1,3 +1,9 @@
+cassandra (3.0.33) UNRELEASED; urgency=medium
+
+  * New release
+
+ -- Stefan Miklosovic <smiklosovic@apache.org>  Fri, 07 Feb 2025 07:20:16 +0100
+
 cassandra (3.0.32) unstable; urgency=medium
 
   * New release
