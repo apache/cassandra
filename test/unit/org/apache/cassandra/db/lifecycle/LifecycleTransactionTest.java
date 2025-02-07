@@ -19,7 +19,6 @@
 package org.apache.cassandra.db.lifecycle;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -29,9 +28,6 @@ import org.junit.BeforeClass;
 import org.junit.Test;
 
 import org.junit.Assert;
-import org.junit.runner.RunWith;
-import org.junit.runners.Parameterized;
-
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.commitlog.CommitLogPosition;
@@ -54,7 +50,6 @@ import static org.apache.cassandra.db.lifecycle.Helpers.idIn;
 import static org.apache.cassandra.db.lifecycle.Helpers.orIn;
 import static org.apache.cassandra.db.lifecycle.Helpers.select;
 
-@RunWith(Parameterized.class)
 public class LifecycleTransactionTest extends AbstractTransactionalTest
 {
     private boolean incrementalBackups;
@@ -62,19 +57,7 @@ public class LifecycleTransactionTest extends AbstractTransactionalTest
     @BeforeClass
     public static void setUp()
     {
-        DatabaseDescriptor.daemonInitialization();
         MockSchema.cleanup();
-    }
-
-    public LifecycleTransactionTest(Boolean replaceSSTableReaderForIntervalTreeEnabled)
-    {
-        DatabaseDescriptor.setReplaceSSTableReaderForIntervalTreeEnabled(replaceSSTableReaderForIntervalTreeEnabled);
-    }
-
-    @Parameterized.Parameters()
-    public static List<Boolean> buildParameterizedVariants()
-    {
-        return Arrays.asList(true, false);
     }
 
     @Before
