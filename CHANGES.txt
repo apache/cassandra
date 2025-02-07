@@ -175,6 +175,7 @@ Merged from 3.0:
  * Fix CQLSH online help topic link (CASSANDRA-17534)
  * Remove unused suppressions (CASSANDRA-18724)
 Unreleased
+4.1.3.18
  * [SO-40218] Fix NPE when getautorepairconfig
  * [SO-40026] Enable the SampledQueryEventLogger on instance startup
  * [SO-40018] Refactor setvalueforconfig nodetool command to support more types with proper check
