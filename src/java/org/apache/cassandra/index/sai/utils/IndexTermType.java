@@ -275,6 +275,14 @@ public class IndexTermType
         }
     }
 
+    /**
+     * @return {@code true} if the empty values of the given type should be excluded from indexing
+     */
+    public boolean skipsEmptyValue()
+    {
+        return !indexType.allowsEmpty() || !isLiteral();
+    }
+
     public AbstractType<?> indexType()
     {
         return indexType;
@@ -541,6 +549,9 @@ public class IndexTermType
 
     public ByteSource asComparableBytes(ByteBuffer value, ByteComparable.Version version)
     {
+        if (value.remaining() == 0)
+            return ByteSource.EMPTY;
+
         if (isInetAddress() || isBigInteger() || isBigDecimal())
             return ByteSource.optionalFixedLength(ByteBufferAccessor.instance, value);
         else if (isLong())
@@ -560,8 +571,8 @@ public class IndexTermType
      */
     public ByteBuffer asIndexBytes(ByteBuffer value)
     {
-        if (value == null)
-            return null;
+        if (value == null || value.remaining() == 0)
+            return value;
 
         if (isInetAddress())
             return encodeInetAddress(value);
