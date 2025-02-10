@@ -20,6 +20,7 @@ package org.apache.cassandra.db.guardrails;
 
 import java.util.Collections;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -429,8 +430,14 @@ public final class Guardrails implements GuardrailsMBean
     public static final MaxThreshold collectionMapSize =
     new MaxThreshold("collection_map_size",
                      null,
-                     state -> sizeToBytes(CONFIG_PROVIDER.getOrCreate(state).getCollectionMapSizeWarnThreshold()),
-                     state -> sizeToBytes(CONFIG_PROVIDER.getOrCreate(state).getCollectionMapSizeFailThreshold()),
+                     state -> {
+                         Long mapSizeWarnThreshold = sizeToBytes(CONFIG_PROVIDER.getOrCreate(state).getCollectionMapSizeWarnThreshold());
+                         return Objects.requireNonNullElseGet(mapSizeWarnThreshold, () -> collectionSize.warnValue(state));
+                     },
+                     state -> {
+                         Long mapSizeFailThreshold = sizeToBytes(CONFIG_PROVIDER.getOrCreate(state).getCollectionMapSizeFailThreshold());
+                         return Objects.requireNonNullElseGet(mapSizeFailThreshold, () -> collectionSize.failValue(state));
+                     },
                      (isWarning, what, value, threshold) ->
                      format("Detected collection %s of size %s, this exceeds the %s threshold of %s.",
                             what, value, isWarning ? "warning" : "failure", threshold));
@@ -441,8 +448,14 @@ public final class Guardrails implements GuardrailsMBean
     public static final MaxThreshold collectionSetSize =
     new MaxThreshold("collection_set_size",
                      null,
-                     state -> sizeToBytes(CONFIG_PROVIDER.getOrCreate(state).getCollectionSetSizeWarnThreshold()),
-                     state -> sizeToBytes(CONFIG_PROVIDER.getOrCreate(state).getCollectionSetSizeFailThreshold()),
+                     state -> {
+                         Long setSizeWarnThreshold = sizeToBytes(CONFIG_PROVIDER.getOrCreate(state).getCollectionSetSizeWarnThreshold());
+                         return Objects.requireNonNullElseGet(setSizeWarnThreshold, () -> collectionSize.warnValue(state));
+                     },
+                     state -> {
+                         Long setSizeFailThreshold = sizeToBytes(CONFIG_PROVIDER.getOrCreate(state).getCollectionSetSizeFailThreshold());
+                         return Objects.requireNonNullElseGet(setSizeFailThreshold, () -> collectionSize.failValue(state));
+                     },
                      (isWarning, what, value, threshold) ->
                      format("Detected collection %s of size %s, this exceeds the %s threshold of %s.",
                             what, value, isWarning ? "warning" : "failure", threshold));
@@ -453,8 +466,14 @@ public final class Guardrails implements GuardrailsMBean
     public static final MaxThreshold collectionListSize =
     new MaxThreshold("collection_list_size",
                      null,
-                     state -> sizeToBytes(CONFIG_PROVIDER.getOrCreate(state).getCollectionListSizeWarnThreshold()),
-                     state -> sizeToBytes(CONFIG_PROVIDER.getOrCreate(state).getCollectionListSizeFailThreshold()),
+                     state -> {
+                         Long listSizeWarnThreshold = sizeToBytes(CONFIG_PROVIDER.getOrCreate(state).getCollectionListSizeWarnThreshold());
+                         return Objects.requireNonNullElseGet(listSizeWarnThreshold, () -> collectionSize.warnValue(state));
+                     },
+                     state -> {
+                         Long listSizeFailThreshold = sizeToBytes(CONFIG_PROVIDER.getOrCreate(state).getCollectionListSizeFailThreshold());
+                         return Objects.requireNonNullElseGet(listSizeFailThreshold, () -> collectionSize.failValue(state));
+                     },
                      (isWarning, what, value, threshold) ->
                      format("Detected collection %s of size %s, this exceeds the %s threshold of %s.",
                             what, value, isWarning ? "warning" : "failure", threshold));
