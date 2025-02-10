@@ -487,9 +487,8 @@ public class ReplicaGroups
                     InetAddressAndPort replicaAddress = InetAddressAndPort.MetadataSerializer.serializer.deserialize(in, version);
                     boolean isFull = in.readBoolean();
                     replicas.add(new Replica(replicaAddress, replicaRange, isFull));
-
                 }
-                EndpointsForRange efr = EndpointsForRange.copyOf(replicas);
+                EndpointsForRange efr = replicas.isEmpty() ? EndpointsForRange.builder(range).build() : EndpointsForRange.copyOf(replicas);
                 result.put(range, VersionedEndpoints.forRange(lastModified, efr));
             }
             return new ReplicaGroups(result);
