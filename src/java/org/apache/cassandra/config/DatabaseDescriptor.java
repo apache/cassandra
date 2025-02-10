@@ -5322,4 +5322,15 @@ public class DatabaseDescriptor
     {
         return conf.enable_get_natural_endpoints_for_all_token_ranges;
     }
+
+    public static Config.TombstonesMetricGranularity getPurgeableTobmstonesMetricGranularity()
+    {
+        return conf.tombstone_read_purgeable_metric_granularity;
+    }
+
+    @VisibleForTesting
+    public static void setPurgeableTobmstonesMetricGranularity(Config.TombstonesMetricGranularity granularity)
+    {
+        conf.tombstone_read_purgeable_metric_granularity = granularity;
+    }
 }
