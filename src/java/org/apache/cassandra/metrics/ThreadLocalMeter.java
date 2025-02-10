@@ -22,6 +22,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 
 import com.codahale.metrics.Clock;
+
 import static java.lang.Math.exp;
 
 public class ThreadLocalMeter implements Meter
@@ -31,11 +32,13 @@ public class ThreadLocalMeter implements Meter
     private final long startTime;
     private final Clock clock;
 
-    public ThreadLocalMeter() {
+    public ThreadLocalMeter()
+    {
         this(Clock.defaultClock());
     }
 
-    public ThreadLocalMeter(Clock clock) {
+    public ThreadLocalMeter(Clock clock)
+    {
         this.movingAverages = new ThreadLocalExponentialMovingAverages(clock);
         this.clock = clock;
         this.startTime = this.clock.getTick();
@@ -45,7 +48,8 @@ public class ThreadLocalMeter implements Meter
     /**
      * Mark the occurrence of an event.
      */
-    public void mark() {
+    public void mark()
+    {
         mark(1);
     }
 
@@ -54,7 +58,8 @@ public class ThreadLocalMeter implements Meter
      *
      * @param n the number of events
      */
-    public void mark(long n) {
+    public void mark(long n)
+    {
         PiggybackArrayThreadLocalMetrics context = PiggybackArrayThreadLocalMetrics.get();
         movingAverages.tickIfNecessary();
         context.addNonStatic(countMetricId, n);
@@ -62,34 +67,42 @@ public class ThreadLocalMeter implements Meter
     }
 
     @Override
-    public long getCount() {
+    public long getCount()
+    {
         return PiggybackArrayThreadLocalMetrics.getCount(countMetricId);
     }
 
     @Override
-    public double getFifteenMinuteRate() {
+    public double getFifteenMinuteRate()
+    {
         movingAverages.tickIfNecessary();
         return movingAverages.getM15Rate();
     }
 
     @Override
-    public double getFiveMinuteRate() {
+    public double getFiveMinuteRate()
+    {
         movingAverages.tickIfNecessary();
         return movingAverages.getM5Rate();
     }
 
     @Override
-    public double getOneMinuteRate() {
+    public double getOneMinuteRate()
+    {
         movingAverages.tickIfNecessary();
         return movingAverages.getM1Rate();
     }
 
     @Override
-    public double getMeanRate() {
+    public double getMeanRate()
+    {
         long count = getCount();
-        if (count == 0) {
+        if (count == 0)
+        {
             return 0.0;
-        } else {
+        }
+        else
+        {
             final double elapsed = clock.getTick() - startTime;
             return count / elapsed * TimeUnit.SECONDS.toNanos(1);
         }
@@ -97,6 +110,27 @@ public class ThreadLocalMeter implements Meter
 
     private static class ThreadLocalExponentialMovingAverages
     {
+        /**
+         * If ticking would reduce even Long.MAX_VALUE in the 15 minute EWMA below this target then don't bother
+         * ticking in a loop and instead reset all the EWMAs.
+         */
+        private static final double maxTickZeroTarget = 0.0001;
+        private static final int maxTicks;
+
+        static
+        {
+            int m3Ticks = 1;
+            final EWMA m3 = EWMA.fifteenMinuteEWMA();
+            m3.update(PiggybackArrayThreadLocalMetrics.get(), Long.MAX_VALUE);
+            do
+            {
+                m3.tick();
+                m3Ticks++;
+            }
+            while (m3.getRatePerSecond() > maxTickZeroTarget);
+            maxTicks = m3Ticks;
+        }
+
         private static final long TICK_INTERVAL = TimeUnit.SECONDS.toNanos(EWMA.INTERVAL_SEC);
         private final EWMA m1Rate;
         private final EWMA m5Rate;
@@ -104,7 +138,8 @@ public class ThreadLocalMeter implements Meter
         private final AtomicLong lastTick;
         private final Clock clock;
 
-        public ThreadLocalExponentialMovingAverages(Clock clock) {
+        public ThreadLocalExponentialMovingAverages(Clock clock)
+        {
             this.m1Rate = EWMA.oneMinuteEWMA();
             this.m5Rate = EWMA.fiveMinuteEWMA();
             this.m15Rate = EWMA.fifteenMinuteEWMA();
@@ -112,45 +147,62 @@ public class ThreadLocalMeter implements Meter
             this.lastTick = new AtomicLong(this.clock.getTick());
         }
 
-        public void update(PiggybackArrayThreadLocalMetrics context, long n) {
+        public void update(PiggybackArrayThreadLocalMetrics context, long n)
+        {
             this.m1Rate.update(context, n);
             this.m5Rate.update(context, n);
             this.m15Rate.update(context, n);
         }
 
-        public void tickIfNecessary() {
+        public void tickIfNecessary()
+        {
             long oldTick = this.lastTick.get();
             long newTick = this.clock.getTick();
             long age = newTick - oldTick;
-            if (age > TICK_INTERVAL) {
+            if (age > TICK_INTERVAL)
+            {
                 long newIntervalStartTick = newTick - age % TICK_INTERVAL;
-                if (this.lastTick.compareAndSet(oldTick, newIntervalStartTick)) {
+                if (this.lastTick.compareAndSet(oldTick, newIntervalStartTick))
+                {
                     long requiredTicks = age / TICK_INTERVAL;
-
-                    for(long i = 0L; i < requiredTicks; ++i) {
-                        this.m1Rate.tick();
-                        this.m5Rate.tick();
-                        this.m15Rate.tick();
+                    if (requiredTicks >= maxTicks)
+                    {
+                        m1Rate.reset();
+                        m5Rate.reset();
+                        m15Rate.reset();
+                    }
+                    else
+                    {
+                        for (long i = 0; i < requiredTicks; i++)
+                        {
+                            m1Rate.tick();
+                            m5Rate.tick();
+                            m15Rate.tick();
+                        }
                     }
                 }
             }
         }
 
-        public double getM1Rate() {
+        public double getM1Rate()
+        {
             return this.m1Rate.getRatePerSecond();
         }
 
-        public double getM5Rate() {
+        public double getM5Rate()
+        {
             return this.m5Rate.getRatePerSecond();
         }
 
-        public double getM15Rate() {
+        public double getM15Rate()
+        {
             return this.m15Rate.getRatePerSecond();
         }
     }
 
     // TODO: check if we can avoid using a separate object for EWMA
-    public static class EWMA {
+    public static class EWMA
+    {
         private static final int INTERVAL_SEC = 5;
         private static final long INTERVAL_NANO = TimeUnit.SECONDS.toNanos(INTERVAL_SEC);
         private static final double SECONDS_PER_MINUTE = 60.0;
@@ -161,50 +213,68 @@ public class ThreadLocalMeter implements Meter
         private static final double M5_ALPHA = 1 - exp(-INTERVAL_SEC / SECONDS_PER_MINUTE / FIVE_MINUTES);
         private static final double M15_ALPHA = 1 - exp(-INTERVAL_SEC / SECONDS_PER_MINUTE / FIFTEEN_MINUTES);
 
-
         private volatile boolean initialized = false;
         private volatile double rate = 0.0;
         private final int uncountedMetricId;
         private final double alpha;
 
-        public static EWMA oneMinuteEWMA() {
+        public static EWMA oneMinuteEWMA()
+        {
             return new EWMA(M1_ALPHA);
         }
 
-        public static EWMA fiveMinuteEWMA() {
+        public static EWMA fiveMinuteEWMA()
+        {
             return new EWMA(M5_ALPHA);
         }
 
-        public static EWMA fifteenMinuteEWMA() {
+        public static EWMA fifteenMinuteEWMA()
+        {
             return new EWMA(M15_ALPHA);
         }
 
-        public EWMA(double alpha) {
+        public EWMA(double alpha)
+        {
             this.alpha = alpha;
             this.uncountedMetricId = PiggybackArrayThreadLocalMetrics.getMetricId();
         }
 
-        public void update(PiggybackArrayThreadLocalMetrics context, long n) {
+        public void update(PiggybackArrayThreadLocalMetrics context, long n)
+        {
             context.addNonStatic(uncountedMetricId, n);
         }
 
-        public void tick() {
+        public void tick()
+        {
             // TODO: check how to make tick cheaper
             // we can skip dead threads check for ticks executed as a part of a meter mark
             // we can try to replace a global rate and ticks with local rates..
             long count = PiggybackArrayThreadLocalMetrics.getCountAndReset(uncountedMetricId);
-            double instantRate = (double)count / INTERVAL_NANO;
-            if (this.initialized) {
+            double instantRate = (double) count / INTERVAL_NANO;
+            if (this.initialized)
+            {
                 double oldRate = this.rate;
                 this.rate = oldRate + this.alpha * (instantRate - oldRate);
-            } else {
+            }
+            else
+            {
                 this.rate = instantRate;
                 this.initialized = true;
             }
         }
 
-        public double getRatePerSecond() {
-            return this.rate * (double)TimeUnit.SECONDS.toNanos(1L);
+        /**
+         * Set the rate to the smallest possible positive value. Used to avoid calling tick a large number of times.
+         */
+        public void reset()
+        {
+            PiggybackArrayThreadLocalMetrics.getCountAndReset(uncountedMetricId);
+            rate = Double.MIN_NORMAL;
+        }
+
+        public double getRatePerSecond()
+        {
+            return this.rate * (double) TimeUnit.SECONDS.toNanos(1L);
         }
     }
 }
