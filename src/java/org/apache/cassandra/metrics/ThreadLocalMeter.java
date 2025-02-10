@@ -21,7 +21,7 @@ package org.apache.cassandra.metrics;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 
-import com.codahale.metrics.Clock;
+import org.apache.cassandra.utils.MonotonicClock;
 
 import static java.lang.Math.exp;
 
@@ -30,18 +30,18 @@ public class ThreadLocalMeter implements Meter
     private final ThreadLocalExponentialMovingAverages movingAverages;
     private final int countMetricId;
     private final long startTime;
-    private final Clock clock;
+    private final MonotonicClock clock;
 
     public ThreadLocalMeter()
     {
-        this(Clock.defaultClock());
+        this(MonotonicClock.Global.approxTime);
     }
 
-    public ThreadLocalMeter(Clock clock)
+    public ThreadLocalMeter(MonotonicClock clock)
     {
         this.movingAverages = new ThreadLocalExponentialMovingAverages(clock);
         this.clock = clock;
-        this.startTime = this.clock.getTick();
+        this.startTime = this.clock.now();
         this.countMetricId = PiggybackArrayThreadLocalMetrics.getMetricId();
     }
 
@@ -103,7 +103,7 @@ public class ThreadLocalMeter implements Meter
         }
         else
         {
-            final double elapsed = clock.getTick() - startTime;
+            final double elapsed = clock.now() - startTime;
             return count / elapsed * TimeUnit.SECONDS.toNanos(1);
         }
     }
@@ -136,15 +136,15 @@ public class ThreadLocalMeter implements Meter
         private final EWMA m5Rate;
         private final EWMA m15Rate;
         private final AtomicLong lastTick;
-        private final Clock clock;
+        private final MonotonicClock clock;
 
-        public ThreadLocalExponentialMovingAverages(Clock clock)
+        public ThreadLocalExponentialMovingAverages(MonotonicClock clock)
         {
             this.m1Rate = EWMA.oneMinuteEWMA();
             this.m5Rate = EWMA.fiveMinuteEWMA();
             this.m15Rate = EWMA.fifteenMinuteEWMA();
             this.clock = clock;
-            this.lastTick = new AtomicLong(this.clock.getTick());
+            this.lastTick = new AtomicLong(this.clock.now());
         }
 
         public void update(PiggybackArrayThreadLocalMetrics context, long n)
@@ -157,7 +157,7 @@ public class ThreadLocalMeter implements Meter
         public void tickIfNecessary()
         {
             long oldTick = this.lastTick.get();
-            long newTick = this.clock.getTick();
+            long newTick = this.clock.now();
             long age = newTick - oldTick;
             if (age > TICK_INTERVAL)
             {

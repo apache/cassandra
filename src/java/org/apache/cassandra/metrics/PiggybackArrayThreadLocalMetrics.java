@@ -101,7 +101,7 @@ public class PiggybackArrayThreadLocalMetrics
 
     public void addNonStatic(int metricId, long n)
     {
-        get(metricId)[metricId] += n;
+        getNonStatic(metricId)[metricId] += n;
     }
 
     public static void add(int metricId, long n)
