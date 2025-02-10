@@ -72,7 +72,8 @@ public class FixedSplitTokenRangeSplitter implements IAutoRepairTokenRangeSplitt
     @Override
     public Iterator<KeyspaceRepairAssignments> getRepairAssignments(boolean primaryRangeOnly, List<PrioritizedRepairPlan> repairPlans)
     {
-        return new RepairAssignmentIterator(repairPlans) {
+        return new RepairAssignmentIterator(repairPlans)
+        {
 
             @Override
             protected KeyspaceRepairAssignments next(int priority, KeyspaceRepairPlan repairPlan)
