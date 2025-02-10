@@ -683,8 +683,11 @@ public class LocalSessionTest extends AbstractRepairTest
         sessions.start();
         LocalSession session = sessions.prepareForTest(sessionID);
         session.setState(REPAIRING);
+        int lastUpdatedOriginal = session.getLastUpdate();
+        Thread.sleep(1100);
 
         sessions.handleStatusResponse(PARTICIPANT1, new StatusResponse(sessionID, FINALIZE_PROMISED));
+        Assert.assertNotEquals(lastUpdatedOriginal, session.getLastUpdate());
         Assert.assertEquals(REPAIRING, session.getState());
     }
 
