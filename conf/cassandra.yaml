@@ -2352,6 +2352,8 @@ drop_compact_storage_enabled: false
 # of non-frozen collections there could be unaccounted parts of the collection on the sstables. This is done this way to
 # prevent read-before-write. The guardrail is also checked at sstable write time to detect large non-frozen collections,
 # although in that case exceeding the fail threshold will only log an error message, without interrupting the operation.
+# Also, this guardrail can be used with the generic collection_size_fail_threshold. The lowest of the two guardrail will
+# be the one enforced.
 # The two thresholds default to null to disable.
 # Min unit: B
 # collection_size_warn_threshold:
@@ -2363,6 +2365,8 @@ drop_compact_storage_enabled: false
 # of non-frozen collections there could be unaccounted parts of the collection on the sstables. This is done this way to
 # prevent read-before-write. The guardrail is also checked at sstable write time to detect large non-frozen collections,
 # although in that case exceeding the fail threshold will only log an error message, without interrupting the operation.
+# Also, this guardrail can be used with the generic collection_size_fail_threshold. The lowest of the two guardrail will
+# be the one enforced.
 # The two thresholds default to null to disable.
 # Min unit: B
 # collection_map_size_warn_threshold:
@@ -2385,6 +2389,8 @@ drop_compact_storage_enabled: false
 # of non-frozen collections there could be unaccounted parts of the collection on the sstables. This is done this way to
 # prevent read-before-write. The guardrail is also checked at sstable write time to detect large non-frozen collections,
 # although in that case exceeding the fail threshold will only log an error message, without interrupting the operation.
+# Also, this guardrail can be used with the generic collection_size_fail_threshold. The lowest of the two guardrail will
+# be the one enforced.
 # The two thresholds default to null to disable.
 # Min unit: B
 # collection_list_size_warn_threshold:
