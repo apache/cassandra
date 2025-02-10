@@ -20,8 +20,6 @@ package org.apache.cassandra.metrics;
 
 import java.util.Collection;
 
-import com.codahale.metrics.Counter;
-
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.restrictions.StatementRestrictions;
 import org.apache.cassandra.cql3.selection.Selection;

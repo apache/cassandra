@@ -20,7 +20,6 @@ package org.apache.cassandra.metrics;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
-import com.codahale.metrics.Counter;
 import com.codahale.metrics.Timer;
 
 import static org.apache.cassandra.metrics.CassandraMetricsRegistry.Metrics;

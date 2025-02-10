@@ -107,12 +107,8 @@ public class LazySetArrayThreadLocalMetrics
         return idGenerator.getAndIncrement();
     }
 
-    public static void destroyCounter(CounterMetric counter)
+    public static void destroyMetric(int metricId)
     {
-        if (!(counter instanceof ThreadLocalCounter))
-            return;
-
-        int metricId = ((ThreadLocalCounter)counter).metricId;
         for (LazySetArrayThreadLocalMetrics threadLocalMetrics : allThreadLocalMetrics)
             if (threadLocalMetrics != null)
             {
@@ -137,7 +133,7 @@ public class LazySetArrayThreadLocalMetrics
                '}';
     }
 
-    public static class ThreadLocalCounter implements CounterMetric
+    public static class ThreadLocalCounter implements Counter
     {
         private final int metricId;
 
@@ -219,6 +215,12 @@ public class LazySetArrayThreadLocalMetrics
             } while (dead != getDeadSummary(metricId));
             result += dead;
             return result;
+        }
+
+        @Override
+        public void destroy()
+        {
+            destroyMetric(metricId);
         }
     }
 

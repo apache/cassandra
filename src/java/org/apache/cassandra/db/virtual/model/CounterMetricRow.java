@@ -18,7 +18,7 @@
 
 package org.apache.cassandra.db.virtual.model;
 
-import com.codahale.metrics.Counter;
+import org.apache.cassandra.metrics.Counter;
 import com.codahale.metrics.Metric;
 
 import static org.apache.cassandra.metrics.CassandraMetricsRegistry.Metrics;

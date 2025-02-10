@@ -26,7 +26,7 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
-import com.codahale.metrics.Meter;
+import org.apache.cassandra.metrics.Meter;
 import com.google.common.base.Ticker;
 
 import org.awaitility.Awaitility;
@@ -294,7 +294,12 @@ public class RateLimitingTest extends NativeProtocolLimitsTestBase
     protected static Meter getRequestDispatchedMeter()
     {
         String metricName = "org.apache.cassandra.metrics.Client.RequestDispatched";
-        Map<String, Meter> metrics = CassandraMetricsRegistry.Metrics.getMeters((name, metric) -> name.equals(metricName));
+        Map<String, Meter> metrics = CassandraMetricsRegistry.Metrics.getMetrics()
+             .entrySet()
+             .stream()
+             .filter((entry) -> entry.getKey().equals(metricName) && entry.getValue() instanceof Meter)
+             .collect(Collectors.toMap(Map.Entry::getKey, element -> (Meter) element.getValue()));
+
         if (metrics.size() != 1)
             fail(String.format("Expected a single registered metric for request dispatched, found %s",metrics.size()));
         return metrics.get(metricName);

@@ -18,7 +18,6 @@
 package org.apache.cassandra.metrics;
 
 import com.codahale.metrics.Gauge;
-import com.codahale.metrics.Meter;
 import org.apache.cassandra.net.OutboundConnections;
 
 import static org.apache.cassandra.metrics.CassandraMetricsRegistry.Metrics;

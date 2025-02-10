@@ -24,7 +24,7 @@ import org.junit.BeforeClass;
 import org.junit.Test;
 
 import com.codahale.metrics.Gauge;
-import com.codahale.metrics.Meter;
+import org.apache.cassandra.metrics.Meter;
 import com.datastax.driver.core.Cluster;
 import com.datastax.driver.core.HostDistance;
 import com.datastax.driver.core.PoolingOptions;

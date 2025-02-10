@@ -20,7 +20,6 @@ package org.apache.cassandra.metrics;
 import java.util.concurrent.ConcurrentMap;
 
 
-import com.codahale.metrics.Counter;
 import com.codahale.metrics.Timer;
 import org.apache.cassandra.locator.InetAddressAndPort;
 

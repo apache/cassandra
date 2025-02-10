@@ -21,7 +21,6 @@
 package org.apache.cassandra.metrics;
 
 
-import com.codahale.metrics.Meter;
 import org.apache.cassandra.exceptions.ReadAbortException;
 import org.apache.cassandra.exceptions.ReadSizeAbortException;
 import org.apache.cassandra.exceptions.TombstoneAbortException;

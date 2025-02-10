@@ -17,7 +17,7 @@
  */
 package org.apache.cassandra.index.sai.metrics;
 
-import com.codahale.metrics.Counter;
+import org.apache.cassandra.metrics.Counter;
 import com.codahale.metrics.Gauge;
 import com.codahale.metrics.Histogram;
 import com.codahale.metrics.Timer;

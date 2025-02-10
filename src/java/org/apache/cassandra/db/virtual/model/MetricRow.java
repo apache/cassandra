@@ -18,10 +18,10 @@
 
 package org.apache.cassandra.db.virtual.model;
 
-import com.codahale.metrics.Counter;
+import org.apache.cassandra.metrics.Counter;
 import com.codahale.metrics.Gauge;
 import com.codahale.metrics.Histogram;
-import com.codahale.metrics.Meter;
+import org.apache.cassandra.metrics.Meter;
 import com.codahale.metrics.Metric;
 import com.codahale.metrics.Timer;
 import org.apache.cassandra.metrics.CassandraMetricsRegistry;

@@ -24,10 +24,8 @@ import java.util.Collection;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
-import com.codahale.metrics.Counter;
 import com.codahale.metrics.Gauge;
 import com.codahale.metrics.Histogram;
-import com.codahale.metrics.Meter;
 import com.codahale.metrics.MetricRegistryListener;
 import com.codahale.metrics.Timer;
 import org.apache.cassandra.SchemaLoader;
@@ -251,8 +249,9 @@ public class ColumnFamilyMetricTest
 
         }
 
+        // TODO: clarify how the test is affected
         @Override
-        public void onCounterAdded(String name, Counter counter)
+        public void onCounterAdded(String name, com.codahale.metrics.Counter counter)
         {
             counter.getCount();
         }
@@ -275,8 +274,9 @@ public class ColumnFamilyMetricTest
 
         }
 
+        // TODO: clarify how the test is affected
         @Override
-        public void onMeterAdded(String name, Meter meter)
+        public void onMeterAdded(String name, com.codahale.metrics.Meter meter)
         {
             meter.getCount();
         }

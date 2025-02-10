@@ -21,10 +21,8 @@ import java.util.function.ToLongFunction;
 
 import com.google.common.collect.ImmutableMap;
 
-import com.codahale.metrics.Counter;
 import com.codahale.metrics.Gauge;
 import com.codahale.metrics.Histogram;
-import com.codahale.metrics.Meter;
 import com.codahale.metrics.Timer;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamilyStore;
@@ -354,7 +352,7 @@ public class KeyspaceMetrics
      */
     private Counter createKeyspaceCounter(String name, final ToLongFunction<TableMetrics> extractor)
     {
-        return Metrics.register(factory.createMetricName(name), new Counter()
+        return Metrics.register(factory.createMetricName(name), new ThreadLocalCounter()
         {
             @Override
             public long getCount()

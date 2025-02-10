@@ -18,9 +18,12 @@
 
 package org.apache.cassandra.test.microbench;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicLongArray;
 
-import org.apache.cassandra.metrics.CounterMetric;
+import org.apache.cassandra.metrics.Counter;
 import org.apache.cassandra.metrics.LazySetArrayThreadLocalMetrics;
 import org.apache.cassandra.metrics.LongAdderCounter;
 import org.apache.cassandra.metrics.PiggybackArrayThreadLocalMetrics;
@@ -38,8 +41,8 @@ import org.openjdk.jmh.annotations.State;
 import org.openjdk.jmh.annotations.Threads;
 import org.openjdk.jmh.annotations.Warmup;
 
-@BenchmarkMode(Mode.Throughput)
-@OutputTimeUnit(TimeUnit.MILLISECONDS)
+@BenchmarkMode(Mode.AverageTime)
+@OutputTimeUnit(TimeUnit.NANOSECONDS)
 @Warmup(iterations = 4, time = 1, timeUnit = TimeUnit.SECONDS)
 @Measurement(iterations = 8, time = 2, timeUnit = TimeUnit.SECONDS)
 @Fork(value = 2,
@@ -51,21 +54,48 @@ public class ThreadLocalMetricsBench
     @Param({"LongAdder", "LazySetArray", "PiggybackArray"})
     private String type;
 
-    private CounterMetric counterMetric;
+    @Param({"50", "100"})
+    private int metricsCount;
+
+    private List<Counter> counters;
+
 
     @Setup(Level.Trial)
     public void setup() throws Throwable
     {
-        switch (type)
+        counters = new ArrayList<>(metricsCount);
+        for (int i = 0; i < metricsCount; i++)
         {
-            case "LongAdder"       : counterMetric = new LongAdderCounter(); break;
-            case "LazySetArray"    : counterMetric = LazySetArrayThreadLocalMetrics.createCounter(); break;
-            case "PiggybackArray"  : counterMetric = PiggybackArrayThreadLocalMetrics.createCounter(); break;
+            Counter counter;
+            switch (type)
+            {
+                case "LongAdder":
+                    counter = new LongAdderCounter();
+                    break;
+                case "LazySetArray":
+                    counter = LazySetArrayThreadLocalMetrics.createCounter();
+                    break;
+                case "PiggybackArray":
+                    counter = PiggybackArrayThreadLocalMetrics.createCounter();
+                    break;
+                default:
+                    throw new UnsupportedOperationException();
+            }
+            counters.add(counter);
         }
+    }
+
+    private final AtomicLongArray anotherMemory = new AtomicLongArray(256 * 1024);
+
+    @Setup(Level.Invocation)
+    public void polluteCpuCaches() {
+        for (int i = 0; i < anotherMemory.length(); i++)
+            anotherMemory.incrementAndGet(i);
     }
 
     @Benchmark
     public void increment() {
-        counterMetric.inc();
+        for (Counter counter : counters)
+            counter.inc();
     }
 }

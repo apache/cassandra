@@ -49,15 +49,15 @@ public class ThreadLocalMetricsTest
         parameters.add(new CounterSource()
         {
             @Override
-            public CounterMetric createCounter()
+            public Counter createCounter()
             {
                 return LazySetArrayThreadLocalMetrics.createCounter();
             }
 
             @Override
-            public void destroyCounter(CounterMetric counterMetric)
+            public void destroyCounter(Counter counter)
             {
-                LazySetArrayThreadLocalMetrics.destroyCounter(counterMetric);
+                counter.destroy();
             }
 
             @Override
@@ -76,15 +76,15 @@ public class ThreadLocalMetricsTest
         parameters.add(new CounterSource()
         {
             @Override
-            public CounterMetric createCounter()
+            public Counter createCounter()
             {
                 return PiggybackArrayThreadLocalMetrics.createCounter();
             }
 
             @Override
-            public void destroyCounter(CounterMetric counterMetric)
+            public void destroyCounter(Counter counter)
             {
-                PiggybackArrayThreadLocalMetrics.destroyCounter(counterMetric);
+                counter.destroy();
             }
 
             @Override
@@ -104,8 +104,8 @@ public class ThreadLocalMetricsTest
 
     public interface CounterSource
     {
-        CounterMetric createCounter();
-        void destroyCounter(CounterMetric counterMetric);
+        Counter createCounter();
+        void destroyCounter(Counter counter);
 
         void printDiagnostic();
     }
@@ -113,7 +113,7 @@ public class ThreadLocalMetricsTest
     @Test
     public void test() throws InterruptedException
     {
-        final List<List<CounterMetric>> metricsPerIteration = new ArrayList<>();
+        final List<List<Counter>> metricsPerIteration = new ArrayList<>();
         int METRICS_COUNT = 50;
         int ITERATIONS_COUNT = 50;
         long TASKS_COUNT = 100_000;
@@ -123,7 +123,7 @@ public class ThreadLocalMetricsTest
         for (int iteration = 0; iteration < ITERATIONS_COUNT; iteration++)
         {
             {
-                final List<CounterMetric> metrics = new ArrayList<>();
+                final List<Counter> metrics = new ArrayList<>();
                 for (int i = 0; i < METRICS_COUNT; i++)
                     metrics.add(counterSource.createCounter());
                 metricsPerIteration.add(metrics);
@@ -136,8 +136,8 @@ public class ThreadLocalMetricsTest
             for (int i = 0; i < TASKS_COUNT; i++)
             {
                 executor.submit(() -> {
-                    for (List<CounterMetric> metricSet : metricsPerIteration)
-                        for (CounterMetric metric : metricSet)
+                    for (List<Counter> metricSet : metricsPerIteration)
+                        for (Counter metric : metricSet)
                             metric.inc();
                 });
             }
@@ -146,19 +146,19 @@ public class ThreadLocalMetricsTest
             {
                 allIncremented = true;
                 for (int metricSetId = 0; metricSetId < metricsPerIteration.size(); metricSetId++)
-                    for (CounterMetric metric : metricsPerIteration.get(metricSetId))
+                    for (Counter metric : metricsPerIteration.get(metricSetId))
                         allIncremented &= TASKS_COUNT * (metricsPerIteration.size() - metricSetId) == metric.getCount();
             }
             executor.shutdown();
             executor.awaitTermination(30, TimeUnit.SECONDS);
             for (int metricSetId = 0; metricSetId < metricsPerIteration.size(); metricSetId++)
-                for (CounterMetric metric : metricsPerIteration.get(metricSetId))
+                for (Counter metric : metricsPerIteration.get(metricSetId))
                     assertEquals(TASKS_COUNT * (metricsPerIteration.size() - metricSetId), metric.getCount());
 
             if (DESTROY_COUNTERS_AT_THE_END_OF_ITERATION)
             {
                 for (int metricSetId = 0; metricSetId < metricsPerIteration.size(); metricSetId++)
-                    for (CounterMetric metric : metricsPerIteration.get(metricSetId))
+                    for (Counter metric : metricsPerIteration.get(metricSetId))
                         counterSource.destroyCounter(metric);
                 metricsPerIteration.clear();
             }

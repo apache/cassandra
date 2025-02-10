@@ -18,7 +18,7 @@
 
 package org.apache.cassandra.test.asserts;
 
-import com.codahale.metrics.Counter;
+import org.apache.cassandra.metrics.Counter;
 import com.codahale.metrics.Counting;
 import com.codahale.metrics.Histogram;
 import com.codahale.metrics.Snapshot;

@@ -22,7 +22,6 @@ import java.util.function.DoubleSupplier;
 import com.google.common.annotations.VisibleForTesting;
 
 import com.codahale.metrics.Gauge;
-import com.codahale.metrics.Meter;
 import com.codahale.metrics.RatioGauge;
 
 import static org.apache.cassandra.metrics.CassandraMetricsRegistry.Metrics;

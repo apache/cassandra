@@ -27,7 +27,7 @@ import java.util.function.Predicate;
 import com.codahale.metrics.Counting;
 import com.codahale.metrics.Gauge;
 import com.codahale.metrics.Histogram;
-import com.codahale.metrics.Meter;
+import org.apache.cassandra.metrics.Meter;
 import com.codahale.metrics.Metric;
 import com.codahale.metrics.Snapshot;
 import com.codahale.metrics.Timer;
@@ -115,17 +115,17 @@ class InstanceMetrics implements Metrics
     @Override
     public double getMeter(String name, Rate value)
     {
-        return getRate(metricsRegistry.getMeters().get(name), value);
+        return getRate((Meter) metricsRegistry.getMetrics().get(name), value);
     }
 
     @Override
     public Map<String, Double> getMeters(Predicate<String> filter, Rate rate)
     {
         Map<String, Double> values = new HashMap<>();
-        for (Map.Entry<String, Meter> e : metricsRegistry.getMeters().entrySet())
+        for (Map.Entry<String, Metric> e : metricsRegistry.getMetrics().entrySet())
         {
-            if (filter.test(e.getKey()))
-                values.put(e.getKey(), getRate(e.getValue(), rate));
+            if (e.getValue() instanceof Meter && filter.test(e.getKey()))
+                values.put(e.getKey(), getRate((Meter) e.getValue(), rate));
         }
         return values;
     }

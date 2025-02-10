@@ -41,7 +41,7 @@ import com.google.common.collect.ImmutableList;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.codahale.metrics.Meter;
+import org.apache.cassandra.metrics.Meter;
 import com.codahale.metrics.MetricRegistryListener;
 import com.codahale.metrics.SharedMetricRegistries;
 import org.apache.cassandra.audit.AuditLogManager;
@@ -137,7 +137,7 @@ public class CassandraDaemon
         SharedMetricRegistries.getOrCreate("logback-metrics").addListener(new MetricRegistryListener.Base()
         {
             @Override
-            public void onMeterAdded(String metricName, Meter meter)
+            public void onMeterAdded(String metricName, com.codahale.metrics.Meter meter)
             {
                 // Given metricName consists of appender name in logback.xml + "." + metric name.
                 // We first separate appender name

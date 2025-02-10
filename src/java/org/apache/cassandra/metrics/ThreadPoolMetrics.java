@@ -19,7 +19,6 @@ package org.apache.cassandra.metrics;
 
 import java.util.concurrent.ThreadPoolExecutor;
 
-import com.codahale.metrics.Counter;
 import com.codahale.metrics.Gauge;
 import org.apache.cassandra.concurrent.ResizableThreadPool;
 import org.apache.cassandra.metrics.CassandraMetricsRegistry.MetricName;
@@ -89,8 +88,8 @@ public class ThreadPoolMetrics
         this.path = path;
         this.poolName = poolName;
 
-        totalBlocked = new Counter();
-        currentBlocked = new Counter();
+        totalBlocked = new ThreadLocalCounter();
+        currentBlocked = new ThreadLocalCounter();
         activeTasks = executor::getActiveTaskCount;
         pendingTasks = executor::getPendingTaskCount;
         completedTasks = executor::getCompletedTaskCount;

@@ -39,10 +39,8 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableSet;
 
-import com.codahale.metrics.Counter;
 import com.codahale.metrics.Gauge;
 import com.codahale.metrics.Histogram;
-import com.codahale.metrics.Meter;
 import com.codahale.metrics.Metered;
 import com.codahale.metrics.Metric;
 import com.codahale.metrics.MetricRegistry;
@@ -294,14 +292,26 @@ public class CassandraMetricsRegistry extends MetricRegistry
 
     public Counter counter(MetricName... name)
     {
-        Counter counter = super.counter(name[0].getMetricName());
+        String simpleMetricName = name[0].getMetricName();
+        Metric metric = super.getMetrics().get(simpleMetricName);
+        if (metric instanceof Counter)
+            return (Counter) metric;
+
+        Counter counter = new ThreadLocalCounter();
+        super.register(simpleMetricName, counter);
         Stream.of(name).forEach(n -> register(n, counter));
         return counter;
     }
 
     public Meter meter(MetricName... name)
     {
-        Meter meter = super.meter(name[0].getMetricName());
+        String simpleMetricName = name[0].getMetricName();
+        Metric metric = super.getMetrics().get(simpleMetricName);
+        if (metric instanceof Meter)
+            return (Meter) metric;
+
+        Meter meter = new ThreadLocalMeter();
+        super.register(simpleMetricName, meter);
         Stream.of(name).forEach(n -> register(n, meter));
         return meter;
     }

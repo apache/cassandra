@@ -18,44 +18,53 @@
 
 package org.apache.cassandra.metrics;
 
-import java.util.concurrent.atomic.LongAdder;
-
-public class LongAdderCounter implements Counter
+public class ThreadLocalCounter implements Counter
 {
-    private final LongAdder counter = new LongAdder();
+    private final int metricId;
+
+    ThreadLocalCounter(int metricId)
+    {
+        this.metricId = metricId;
+    }
+
+    public ThreadLocalCounter()
+    {
+        this(PiggybackArrayThreadLocalMetrics.getMetricId());
+    }
+
     @Override
     public void inc()
     {
-        counter.increment();
+        PiggybackArrayThreadLocalMetrics.add(metricId, 1);
     }
 
     @Override
     public void inc(long n)
     {
-        counter.add(n);
+        PiggybackArrayThreadLocalMetrics.add(metricId, n);
     }
 
     @Override
     public void dec()
     {
-        counter.decrement();
+        PiggybackArrayThreadLocalMetrics.add(metricId, -1);
     }
 
     @Override
     public void dec(long n)
     {
-        counter.add(-n);
+        PiggybackArrayThreadLocalMetrics.add(metricId, -n);
     }
 
     @Override
     public long getCount()
     {
-        return counter.sum();
+        return PiggybackArrayThreadLocalMetrics.getCount(metricId);
     }
 
     @Override
     public void destroy()
     {
-        // NOTHING TO DO
+        PiggybackArrayThreadLocalMetrics.destroyMetric(metricId);
     }
 }

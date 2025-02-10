@@ -23,7 +23,6 @@ import java.util.concurrent.TimeUnit;
 
 import com.google.common.collect.Lists;
 
-import com.codahale.metrics.Counter;
 import com.codahale.metrics.Reservoir;
 import com.codahale.metrics.Snapshot;
 import com.codahale.metrics.Timer;
@@ -249,7 +248,8 @@ public class LatencyMetrics
         }
     }
 
-    class LatencyMetricsCounter extends Counter 
+    // TODO: optimize
+    class LatencyMetricsCounter extends ThreadLocalCounter
     {
         @Override
         public long getCount()

@@ -27,7 +27,7 @@ import java.util.Map;
 
 import com.google.common.annotations.VisibleForTesting;
 
-import com.codahale.metrics.Counter;
+import org.apache.cassandra.metrics.Counter;
 import com.codahale.metrics.Snapshot;
 import org.apache.cassandra.auth.CassandraAuthorizer;
 import org.apache.cassandra.config.DatabaseDescriptor;

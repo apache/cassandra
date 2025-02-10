@@ -20,9 +20,7 @@ package org.apache.cassandra.metrics;
 import java.util.function.ToLongFunction;
 import java.util.stream.StreamSupport;
 
-import com.codahale.metrics.Counter;
 import com.codahale.metrics.Gauge;
-import com.codahale.metrics.Meter;
 import org.apache.cassandra.db.Keyspace;
 
 import static org.apache.cassandra.metrics.CassandraMetricsRegistry.Metrics;

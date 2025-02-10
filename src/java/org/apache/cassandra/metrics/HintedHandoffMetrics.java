@@ -19,7 +19,6 @@ package org.apache.cassandra.metrics;
 
 import java.util.Map.Entry;
 
-import com.codahale.metrics.Counter;
 import com.github.benmanes.caffeine.cache.Caffeine;
 import com.github.benmanes.caffeine.cache.LoadingCache;
 

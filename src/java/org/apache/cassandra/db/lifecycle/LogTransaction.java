@@ -35,7 +35,7 @@ import java.util.function.Predicate;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.util.concurrent.Runnables;
 
-import com.codahale.metrics.Counter;
+import org.apache.cassandra.metrics.Counter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 

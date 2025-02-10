@@ -18,7 +18,10 @@
 
 package org.apache.cassandra.metrics;
 
-public interface CounterMetric
+import com.codahale.metrics.Counting;
+import com.codahale.metrics.Metric;
+
+public interface Counter extends Metric, Counting
 {
     void inc();
 
@@ -29,4 +32,6 @@ public interface CounterMetric
     void dec(long n);
 
     long getCount();
+
+    public void destroy();
 }
