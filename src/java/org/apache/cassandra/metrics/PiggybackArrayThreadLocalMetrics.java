@@ -96,7 +96,7 @@ public class PiggybackArrayThreadLocalMetrics
 
     public static ThreadLocalCounter createCounter()
     {
-        return new ThreadLocalCounter(getMetricId());
+        return new ThreadLocalCounter(allocateMetricId());
     }
 
     public void addNonStatic(int metricId, long n)
@@ -169,7 +169,7 @@ public class PiggybackArrayThreadLocalMetrics
     }
 
 
-    static int getMetricId()
+    static int allocateMetricId()
     {
         Integer id = freeMetricIdSet.pollFirst();
         if (id != null)

@@ -29,7 +29,7 @@ public class ThreadLocalCounter implements Counter
 
     public ThreadLocalCounter()
     {
-        this(PiggybackArrayThreadLocalMetrics.getMetricId());
+        this(PiggybackArrayThreadLocalMetrics.allocateMetricId());
     }
 
     @Override
