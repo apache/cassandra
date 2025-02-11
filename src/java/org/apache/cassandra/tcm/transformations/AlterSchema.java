@@ -43,6 +43,8 @@ import org.apache.cassandra.schema.ReplicationParams;
 import org.apache.cassandra.schema.SchemaTransformation;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.schema.Tables;
+import org.apache.cassandra.schema.ViewMetadata;
+import org.apache.cassandra.schema.Views;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.ClusterMetadataService;
 import org.apache.cassandra.tcm.Epoch;
@@ -163,8 +165,9 @@ public class AlterSchema implements Transformation
             if (!keyspacesByReplication.containsKey(newKSM.params.replication))
                 affectsPlacements.add(newKSM);
 
-            Tables tables = Tables.of(normaliseEpochs(nextEpoch, newKSM.tables.stream()));
-            newKeyspaces = newKeyspaces.withAddedOrUpdated(newKSM.withSwapped(tables));
+            Tables tables = Tables.of(normaliseTableEpochs(nextEpoch, newKSM.tables.stream()));
+            Views views = Views.of(normaliseViewEpochs(nextEpoch, newKSM.views.stream()));
+            newKeyspaces = newKeyspaces.withAddedOrUpdated(newKSM.withSwapped(tables).withSwapped(views));
         }
 
         // Scan modified keyspaces to check for replication changes and to ensure that any modified table metadata
@@ -175,12 +178,20 @@ public class AlterSchema implements Transformation
                 affectsPlacements.add(alteredKSM.before);
 
             Tables tables = Tables.of(alteredKSM.after.tables);
-            for (TableMetadata created : normaliseEpochs(nextEpoch, alteredKSM.tables.created.stream()))
+            for (TableMetadata created : normaliseTableEpochs(nextEpoch, alteredKSM.tables.created.stream()))
                 tables = tables.withSwapped(created);
 
-            for (TableMetadata altered : normaliseEpochs(nextEpoch, alteredKSM.tables.altered.stream().map(altered -> altered.after)))
+            for (TableMetadata altered : normaliseTableEpochs(nextEpoch, alteredKSM.tables.altered.stream().map(altered -> altered.after)))
                 tables = tables.withSwapped(altered);
-            newKeyspaces = newKeyspaces.withAddedOrUpdated(alteredKSM.after.withSwapped(tables));
+
+            Views views = Views.of(alteredKSM.after.views);
+            for (ViewMetadata created : normaliseViewEpochs(nextEpoch, alteredKSM.views.created.stream()))
+                views = views.withSwapped(created);
+
+            for (ViewMetadata altered : normaliseViewEpochs(nextEpoch, alteredKSM.views.altered.stream().map(altered -> altered.after)))
+                views = views.withSwapped(altered);
+
+            newKeyspaces = newKeyspaces.withAddedOrUpdated(alteredKSM.after.withSwapped(tables).withSwapped(views));
         }
 
         // Changes which affect placement (i.e. new, removed or altered replication settings) are not allowed if there
@@ -236,7 +247,7 @@ public class AlterSchema implements Transformation
         return byReplication;
     }
 
-    private static Iterable<TableMetadata> normaliseEpochs(Epoch nextEpoch, Stream<TableMetadata> tables)
+    private static Iterable<TableMetadata> normaliseTableEpochs(Epoch nextEpoch, Stream<TableMetadata> tables)
     {
         return tables.map(tm -> tm.epoch.is(nextEpoch)
                                 ? tm
@@ -244,6 +255,13 @@ public class AlterSchema implements Transformation
                      .collect(Collectors.toList());
     }
 
+    private static Iterable<ViewMetadata> normaliseViewEpochs(Epoch nextEpoch, Stream<ViewMetadata> views)
+    {
+        return views.map(vm -> vm.metadata.epoch.is(nextEpoch)
+                                ? vm
+                                : vm.copy(vm.metadata.unbuild().epoch(nextEpoch).build()))
+                     .collect(Collectors.toList());
+    }
 
     static class Serializer implements AsymmetricMetadataSerializer<Transformation, AlterSchema>
     {
