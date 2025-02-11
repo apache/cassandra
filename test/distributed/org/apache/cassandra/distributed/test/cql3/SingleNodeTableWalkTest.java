@@ -434,12 +434,23 @@ public class SingleNodeTableWalkTest extends StatefulASTBase
                 }).uniqueBestEffort().ofSize(unique).next(rs);
             }
 
-            this.mutationGen = toGen(new ASTGenerators.MutationGenBuilder(metadata)
-                                     .withoutTransaction()
-                                     .withoutTtl()
-                                     .withoutTimestamp()
-                                     .withPartitions(SourceDSL.arbitrary().pick(uniquePartitions))
-                                     .build());
+            ASTGenerators.MutationGenBuilder mutationGenBuilder = new ASTGenerators.MutationGenBuilder(metadata)
+                                                                  .withoutTransaction()
+                                                                  .withoutTtl()
+                                                                  .withoutTimestamp()
+                                                                  .withPartitions(SourceDSL.arbitrary().pick(uniquePartitions));
+            if (IGNORED_ISSUES.contains(KnownIssue.SAI_EMPTY_TYPE))
+            {
+                model.factory.regularAndStaticColumns.stream()
+                                                     // exclude SAI indexed columns
+                                                     .filter(s -> !indexes.containsKey(s) || indexes.get(s).indexDDL.indexer != CreateIndexDDL.SAI)
+                                                     .forEach(mutationGenBuilder::allowEmpty);
+            }
+            else
+            {
+                model.factory.regularAndStaticColumns.forEach(mutationGenBuilder::allowEmpty);
+            }
+            this.mutationGen = toGen(mutationGenBuilder.build());
 
             nonPartitionColumns = ImmutableList.<Symbol>builder()
                                                .addAll(model.factory.clusteringColumns)

@@ -372,12 +372,13 @@ public class ASTGenerators
             regularAndStaticColumns.addAll(regularColumns);
 
             for (Symbol symbol : allColumns)
-            {
-                ExpressionBuilder builder = new ExpressionBuilder(symbol.type());
-                if (regularAndStaticColumns.contains(symbol))
-                    builder.allowEmpty();
-                columnExpressions.put(symbol, builder);
-            }
+                columnExpressions.put(symbol, new ExpressionBuilder(symbol.type()));
+        }
+
+        public MutationGenBuilder allowEmpty(Symbol symbol)
+        {
+            columnExpressions.get(symbol).allowEmpty();
+            return this;
         }
 
         public MutationGenBuilder withDeletionKind(Gen<DeleteKind> deleteKindGen)

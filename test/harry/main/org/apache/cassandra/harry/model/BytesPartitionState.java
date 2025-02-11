@@ -432,7 +432,7 @@ public class BytesPartitionState
         public final ImmutableUniqueList<Symbol> clusteringColumns;
         public final ImmutableUniqueList<Symbol> staticColumns;
         public final ImmutableUniqueList<Symbol> regularColumns;
-        public final ImmutableUniqueList<Symbol> selectionOrder;
+        public final ImmutableUniqueList<Symbol> selectionOrder, regularAndStaticColumns;
         public final ClusteringComparator clusteringComparator;
 
 
@@ -460,6 +460,8 @@ public class BytesPartitionState
             regularColumns = symbolListBuilder.buildAndClear();
             metadata.allColumnsInSelectOrder().forEachRemaining(cm -> symbolListBuilder.add(Symbol.from(cm)));
             selectionOrder = symbolListBuilder.buildAndClear();
+            metadata.regularAndStaticColumns().forEach(cm -> symbolListBuilder.add(Symbol.from(cm)));
+            regularAndStaticColumns = symbolListBuilder.buildAndClear();
 
             clusteringComparator = new ClusteringComparator(clusteringColumns.stream().map(Symbol::rawType).collect(Collectors.toList()));
 

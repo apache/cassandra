@@ -37,6 +37,8 @@ public enum KnownIssue
                                         "When writes are done at NODE_LOCAL and the select is ALL, AF should be able to return the correct data but it doesn't"),
     SHORT_AND_VARINT_GET_INT_FUNCTIONS("https://issues.apache.org/jira/browse/CASSANDRA-19874",
                                        "Function inference maybe unable to infer the correct function or chooses one for a smaller type"),
+    SAI_EMPTY_TYPE("ML: Meaningless emptiness and filtering",
+                   "Some types allow empty bytes, but define them as meaningless.  AF can be used to query them using <, <=, and =; but SAI can not")
     ;
 
     KnownIssue(String url, String description)
