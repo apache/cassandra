@@ -21,6 +21,7 @@ package org.apache.cassandra.test.microbench;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicLongArray;
 
 import org.apache.cassandra.metrics.Meter;
 import org.apache.cassandra.metrics.ThreadLocalMeter;
@@ -40,8 +41,8 @@ import org.openjdk.jmh.annotations.Warmup;
 
 @BenchmarkMode(Mode.AverageTime)
 @OutputTimeUnit(TimeUnit.NANOSECONDS)
-@Warmup(iterations = 4, time = 1, timeUnit = TimeUnit.SECONDS)
-@Measurement(iterations = 8, time = 2, timeUnit = TimeUnit.SECONDS)
+@Warmup(iterations = 4, time = 10, timeUnit = TimeUnit.SECONDS)
+@Measurement(iterations = 8, time = 10, timeUnit = TimeUnit.SECONDS)
 @Fork(value = 2,
 jvmArgsAppend = { "-Djmh.executor=CUSTOM", "-Djmh.executor.class=org.apache.cassandra.test.microbench.FastThreadExecutor"})
 @Threads(4)
@@ -53,6 +54,9 @@ public class MetersBench
 
     @Param({"10"})
     private int metricsCount;
+
+    @Param({"true"})
+    private boolean polluteCpuCaches;
 
     private List<Meter> meters;
 
@@ -76,6 +80,15 @@ public class MetersBench
             }
             meters.add(meter);
         }
+    }
+
+    private final AtomicLongArray anotherMemory = new AtomicLongArray(256 * 1024);
+
+    @Setup(Level.Invocation)
+    public void polluteCpuCaches() {
+        if (polluteCpuCaches)
+            for (int i = 0; i < anotherMemory.length(); i++)
+                anotherMemory.incrementAndGet(i);
     }
 
     @Benchmark

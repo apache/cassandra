@@ -137,7 +137,7 @@ public class PiggybackArrayThreadLocalMetrics
         } while (summaryLocal != summary.get());
         result += summaryLocal;
         if (reset)
-            summary.addAndGet(result); // reset
+            summary.addAndGet(-result); // reset
         return result;
     }
 
