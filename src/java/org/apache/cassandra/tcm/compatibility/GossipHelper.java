@@ -107,10 +107,10 @@ public class GossipHelper
     }
 
     public static VersionedValue nodeStateToStatus(NodeId nodeId,
-                                                    ClusterMetadata metadata,
-                                                    Collection<Token> tokens,
-                                                    VersionedValue.VersionedValueFactory valueFactory,
-                                                    VersionedValue oldValue)
+                                                   ClusterMetadata metadata,
+                                                   Collection<Token> tokens,
+                                                   VersionedValue.VersionedValueFactory valueFactory,
+                                                   VersionedValue oldValue)
     {
         NodeState nodeState =  metadata.directory.peerState(nodeId);
         if ((tokens == null || tokens.isEmpty()) && !NodeState.isBootstrap(nodeState))
@@ -344,13 +344,18 @@ public class GossipHelper
             NodeAddresses nodeAddresses = getAddressesFromEndpointState(endpoint, epState);
             NodeVersion nodeVersion = getVersionFromEndpointState(endpoint, epState);
             assert hostIdString != null;
+            NodeState nodeState = toNodeState(endpoint, epState);
+
             directory = directory.withNonUpgradedNode(nodeAddresses,
                                                       new Location(dc, rack),
                                                       nodeVersion,
-                                                      toNodeState(endpoint, epState),
+                                                      nodeState,
                                                       UUID.fromString(hostIdString));
-            NodeId nodeId = directory.peerId(endpoint);
-            tokenMap = tokenMap.assignTokens(nodeId, getTokensIn(partitioner, epState));
+            if (nodeState != NodeState.LEFT)
+            {
+                NodeId nodeId = directory.peerId(endpoint);
+                tokenMap = tokenMap.assignTokens(nodeId, getTokensIn(partitioner, epState));
+            }
         }
 
         ClusterMetadata forPlacementCalculation = new ClusterMetadata(Epoch.UPGRADE_GOSSIP,
