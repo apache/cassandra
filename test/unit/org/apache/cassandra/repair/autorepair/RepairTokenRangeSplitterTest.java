@@ -31,6 +31,8 @@ import org.junit.Assert;
 import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
+import org.junit.runner.RunWith;
+import org.junit.runners.Parameterized;
 
 import org.apache.cassandra.config.DataStorageSpec.LongMebibytesBound;
 import org.apache.cassandra.config.DatabaseDescriptor;
@@ -41,6 +43,7 @@ import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.sstable.format.big.BigFormat;
+import org.apache.cassandra.io.sstable.format.bti.BtiFormat;
 import org.apache.cassandra.repair.autorepair.AutoRepairConfig.RepairType;
 import org.apache.cassandra.repair.autorepair.RepairTokenRangeSplitter.FilteredRepairAssignments;
 import org.apache.cassandra.repair.autorepair.RepairTokenRangeSplitter.SizeEstimate;
@@ -54,11 +57,21 @@ import static org.apache.cassandra.repair.autorepair.RepairTokenRangeSplitter.MA
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
+@RunWith(Parameterized.class)
 public class RepairTokenRangeSplitterTest extends CQLTester
 {
     private RepairTokenRangeSplitter repairRangeSplitter;
     private String tableName;
     private static Range<Token> FULL_RANGE;
+
+    @Parameterized.Parameter()
+    public String sstableFormat;
+
+    @Parameterized.Parameters(name = "sstableFormat={0}")
+    public static Collection<String> sstableFormats()
+    {
+        return List.of(BtiFormat.NAME, BigFormat.NAME);
+    }
 
     @BeforeClass
     public static void setUpClass()
@@ -66,15 +79,14 @@ public class RepairTokenRangeSplitterTest extends CQLTester
         CQLTester.setUpClass();
         AutoRepairService.setup();
         FULL_RANGE = new Range<>(DatabaseDescriptor.getPartitioner().getMinimumToken(), DatabaseDescriptor.getPartitioner().getMaximumToken());
-        DatabaseDescriptor.setSelectedSSTableFormat(DatabaseDescriptor.getSSTableFormats().get(BigFormat.NAME));
     }
 
     @Before
     public void setUp()
     {
+        DatabaseDescriptor.setSelectedSSTableFormat(DatabaseDescriptor.getSSTableFormats().get(sstableFormat));
         repairRangeSplitter = new RepairTokenRangeSplitter(RepairType.FULL, Collections.emptyMap());
         tableName = createTable("CREATE TABLE %s (k INT PRIMARY KEY, v INT)");
-        assertTrue(BigFormat.isSelected());
     }
 
     @Test
