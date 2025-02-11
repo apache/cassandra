@@ -198,8 +198,7 @@ public final class TableParams
                             .transactionalMode(params.transactionalMode)
                             .transactionalMigrationFrom(params.transactionalMigrationFrom)
                             .pendingDrop(params.pendingDrop)
-                            .automatedRepair(params.autoRepair)
-        ;
+                            .automatedRepair(params.autoRepair);
     }
 
     public Builder unbuild()

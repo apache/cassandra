@@ -44,6 +44,9 @@ import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
 
+/**
+ * Unit tests to cover AutoRepair functionality inside {@link org.apache.cassandra.service.StorageService}
+ */
 public class SSTableRepairedAtTest extends CQLTester
 {
     public static final String TEST_KEYSPACE = "test_keyspace";

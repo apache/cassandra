@@ -31,6 +31,9 @@ import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.tools.NodeProbe;
 import org.apache.cassandra.tools.NodeTool;
 
+/**
+ * Provides a way to set the repaired state of SSTables without any downtime through nodetool.
+ */
 @Command(name = "sstablerepairedset", description = "Set the repaired state of SSTables for given keyspace/tables")
 public class SSTableRepairedSet extends NodeTool.NodeToolCmd
 {
@@ -87,7 +90,7 @@ public class SSTableRepairedSet extends NodeTool.NodeToolCmd
             {
                 sstableList.addAll(probe.mutateSSTableRepairedState(isRepaired, !reallySet, keyspace,
                                                                     tables.isEmpty()
-                                                                    ? probe.getTablesForKeyspace(keyspace) // mutate all tables
+                                                                    ? probe.getAutoRepairTablesForKeyspace(keyspace) // mutate all tables
                                                                     : tables)); // mutate specific tables
             }
             catch (InvalidRequestException e)

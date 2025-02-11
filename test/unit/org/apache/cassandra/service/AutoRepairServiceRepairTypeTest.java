@@ -37,6 +37,9 @@ import static org.apache.cassandra.Util.setAutoRepairEnabled;
 import static org.apache.cassandra.config.CassandraRelevantProperties.SYSTEM_DISTRIBUTED_DEFAULT_RF;
 import static org.junit.Assert.assertEquals;
 
+/**
+ * Unit tests covering different repair types for {@link org.apache.cassandra.service.AutoRepairService}
+ */
 @RunWith(Parameterized.class)
 public class AutoRepairServiceRepairTypeTest extends CQLTester {
     @Parameterized.Parameter()

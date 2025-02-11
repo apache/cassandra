@@ -57,6 +57,9 @@ import static org.apache.cassandra.repair.autorepair.RepairTokenRangeSplitter.MA
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
+/**
+ * Unit tests for {@link org.apache.cassandra.repair.autorepair.RepairTokenRangeSplitter}
+ */
 @RunWith(Parameterized.class)
 public class RepairTokenRangeSplitterTest extends CQLTester
 {

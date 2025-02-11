@@ -35,6 +35,9 @@ import java.util.Set;
 
 import static com.google.common.base.Preconditions.checkArgument;
 
+/**
+ * Allows to set AutoRepair configuration through nodetool.
+ */
 @Command(name = "setautorepairconfig", description = "sets the autorepair configuration")
 public class SetAutoRepairConfig extends NodeToolCmd
 {
@@ -77,7 +80,7 @@ public class SetAutoRepairConfig extends NodeToolCmd
             case "start_scheduler":
                 if (Boolean.parseBoolean(paramVal))
                 {
-                    probe.startScheduler();
+                    probe.startAutoRepairScheduler();
                 }
                 return;
             case "history_clear_delete_hosts_buffer_interval":
@@ -113,13 +116,13 @@ public class SetAutoRepairConfig extends NodeToolCmd
                 probe.setAutoRepairEnabled(repairTypeStr, Boolean.parseBoolean(paramVal));
                 break;
             case "number_of_repair_threads":
-                probe.setRepairThreads(repairTypeStr, Integer.parseInt(paramVal));
+                probe.setAutoRepairThreads(repairTypeStr, Integer.parseInt(paramVal));
                 break;
             case "min_repair_interval":
-                probe.setRepairMinInterval(repairTypeStr, paramVal);
+                probe.setAutoRepairMinInterval(repairTypeStr, paramVal);
                 break;
             case "sstable_upper_threshold":
-                probe.setRepairSSTableCountHigherThreshold(repairTypeStr, Integer.parseInt(paramVal));
+                probe.setAutoRepairSSTableCountHigherThreshold(repairTypeStr, Integer.parseInt(paramVal));
                 break;
             case "table_max_repair_time":
                 probe.setAutoRepairTableMaxRepairTime(repairTypeStr, paramVal);
@@ -127,11 +130,11 @@ public class SetAutoRepairConfig extends NodeToolCmd
             case "priority_hosts":
                 if (paramVal!= null && !paramVal.isEmpty())
                 {
-                    probe.setRepairPriorityForHosts(repairTypeStr, paramVal);
+                    probe.setAutoRepairPriorityForHosts(repairTypeStr, paramVal);
                 }
                 break;
             case "forcerepair_hosts":
-                probe.setForceRepairForHosts(repairTypeStr, paramVal);
+                probe.setAutoRepairForceRepairForHosts(repairTypeStr, paramVal);
                 break;
             case "ignore_dcs":
                 Set<String> ignoreDCs = new HashSet<>();
@@ -142,19 +145,19 @@ public class SetAutoRepairConfig extends NodeToolCmd
                 probe.setAutoRepairIgnoreDCs(repairTypeStr, ignoreDCs);
                 break;
             case "repair_primary_token_range_only":
-                probe.setPrimaryTokenRangeOnly(repairTypeStr, Boolean.parseBoolean(paramVal));
+                probe.setAutoRepairPrimaryTokenRangeOnly(repairTypeStr, Boolean.parseBoolean(paramVal));
                 break;
             case "parallel_repair_count":
-                probe.setParallelRepairCount(repairTypeStr, Integer.parseInt(paramVal));
+                probe.setAutoRepairParallelRepairCount(repairTypeStr, Integer.parseInt(paramVal));
                 break;
             case "parallel_repair_percentage":
-                probe.setParallelRepairPercentage(repairTypeStr, Integer.parseInt(paramVal));
+                probe.setAutoRepairParallelRepairPercentage(repairTypeStr, Integer.parseInt(paramVal));
                 break;
             case "materialized_view_repair_enabled":
-                probe.setMaterializedViewRepairEnabled(repairTypeStr, Boolean.parseBoolean(paramVal));
+                probe.setAutoRepairMaterializedViewRepairEnabled(repairTypeStr, Boolean.parseBoolean(paramVal));
                 break;
             case "repair_session_timeout":
-                probe.setRepairSessionTimeout(repairTypeStr, paramVal);
+                probe.setAutoRepairSessionTimeout(repairTypeStr, paramVal);
                 break;
             default:
                 throw new IllegalArgumentException("Unknown parameter: " + paramType);
