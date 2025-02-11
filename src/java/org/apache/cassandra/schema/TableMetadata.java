@@ -691,19 +691,14 @@ public class TableMetadata implements SchemaElement
     }
 
     /**
-     * @return true if the change as made impacts queries/updates on the table,
-     *         e.g. any columns or indexes were added, removed, or altered; otherwise, false is returned.
+     * @return true if the change as made impacts queries/updates on the table, effectively this is
+     *              true if the metadata has changed in any way, as replicas compare metadata epochs
+     *              when performing reads & writes.
      *         Used to determine whether prepared statements against this table need to be re-prepared.
      */
     boolean changeAffectsPreparedStatements(TableMetadata updated)
     {
-        return !partitionKeyColumns.equals(updated.partitionKeyColumns)
-            || !clusteringColumns.equals(updated.clusteringColumns)
-            || !regularAndStaticColumns.equals(updated.regularAndStaticColumns)
-            || !indexes.equals(updated.indexes)
-            || params.defaultTimeToLive != updated.params.defaultTimeToLive
-            || params.gcGraceSeconds != updated.params.gcGraceSeconds
-            || ( !Flag.isCQLTable(flags) && Flag.isCQLTable(updated.flags) );
+        return epoch.isBefore(updated.epoch);
     }
 
     /**
