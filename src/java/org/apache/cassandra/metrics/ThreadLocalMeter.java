@@ -108,7 +108,13 @@ public class ThreadLocalMeter implements Meter
         }
     }
 
-    private static class ThreadLocalExponentialMovingAverages
+    public void destroy()
+    {
+        PiggybackArrayThreadLocalMetrics.destroyMetric(countMetricId);
+        movingAverages.destroy();
+    }
+
+    static class ThreadLocalExponentialMovingAverages
     {
         private static final int INTERVAL_SEC = 5;
         private static final long TICK_INTERVAL = TimeUnit.SECONDS.toNanos(INTERVAL_SEC);
@@ -121,6 +127,7 @@ public class ThreadLocalMeter implements Meter
         private static final double M15_ALPHA = 1 - exp(-INTERVAL_SEC / SECONDS_PER_MINUTE / FIFTEEN_MINUTES);
 
         /**
+         * CASSANDRA-19332
          * If ticking would reduce even Long.MAX_VALUE in the 15 minute EWMA below this target then don't bother
          * ticking in a loop and instead reset all the EWMAs.
          */
@@ -141,10 +148,10 @@ public class ThreadLocalMeter implements Meter
             maxTicks = m3Ticks;
         }
 
-
-        private volatile double m1Rate = 0.0;
-        private volatile double m5Rate = 0.0;
-        private volatile double m15Rate = 0.0;
+        // Double.MIN_VALUE means non-initialized
+        private volatile double m1Rate = Double.MIN_VALUE;
+        private volatile double m5Rate = Double.MIN_VALUE;
+        private volatile double m15Rate = Double.MIN_VALUE;
 
         private final AtomicLong lastTick;
         private final MonotonicClock clock;
@@ -163,6 +170,11 @@ public class ThreadLocalMeter implements Meter
             context.addNonStatic(uncountedMetricId, n);
         }
 
+        public void update(long n)
+        {
+            update(PiggybackArrayThreadLocalMetrics.get(), n);
+        }
+
         public void tickIfNecessary()
         {
             long oldTick = this.lastTick.get();
@@ -178,16 +190,16 @@ public class ThreadLocalMeter implements Meter
                         reset();
                     else
                     {
+                        // TODO: check how to make count and reset cheaper
+                        // we can skip dead threads check for ticks executed as a part of a meter mark
+                        // we can try to replace a global rate and ticks with local rates..
+                        long count = PiggybackArrayThreadLocalMetrics.getCountAndReset(uncountedMetricId);
                         for (long i = 0; i < requiredTicks; i++)
                         {
-                            // TODO: move the count out of the cycle
-                            // TODO: check how to make count and reset cheaper
-                            // we can skip dead threads check for ticks executed as a part of a meter mark
-                            // we can try to replace a global rate and ticks with local rates..
-                            long count = PiggybackArrayThreadLocalMetrics.getCountAndReset(uncountedMetricId);
                             m1Rate = tickOneMinuteEWMA(m1Rate, count);
                             m5Rate = tickFiveMinuteEWMA(m5Rate, count);
                             m15Rate = tickFifteenMinuteEWMA(m15Rate, count);
+                            count = 0;
                         }
                     }
                 }
@@ -212,9 +224,9 @@ public class ThreadLocalMeter implements Meter
         private static double tick(double alpha, double oldRate, long count)
         {
             double instantRate = (double) count / TICK_INTERVAL;
-            if (oldRate == Double.MIN_NORMAL)
+            if (oldRate != Double.MIN_VALUE)
                 return oldRate + alpha * (instantRate - oldRate);
-            else
+            else // init
                 return instantRate;
         }
 
@@ -235,6 +247,8 @@ public class ThreadLocalMeter implements Meter
 
         private static double getRatePerSecond(double rate)
         {
+            if (rate == Double.MIN_VALUE)
+                rate = 0.0;
             return rate * (double) TimeUnit.SECONDS.toNanos(1L);
         }
 
@@ -247,6 +261,11 @@ public class ThreadLocalMeter implements Meter
             m1Rate = Double.MIN_NORMAL;
             m5Rate = Double.MIN_NORMAL;
             m15Rate = Double.MIN_NORMAL;
+        }
+
+        public void destroy()
+        {
+            PiggybackArrayThreadLocalMetrics.destroyMetric(uncountedMetricId);
         }
     }
 }
