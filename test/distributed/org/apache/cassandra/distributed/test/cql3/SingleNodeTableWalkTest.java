@@ -76,7 +76,6 @@ import static accord.utils.Property.stateful;
 import static org.apache.cassandra.utils.AbstractTypeGenerators.getTypeSupport;
 import static org.apache.cassandra.utils.Generators.toGen;
 
-//TODO (coverage): add partition restricted clustering range queries: eg. WHERE pk=? and ck BETWEEN ? AND ?
 public class SingleNodeTableWalkTest extends StatefulASTBase
 {
     private static final Logger logger = LoggerFactory.getLogger(SingleNodeTableWalkTest.class);

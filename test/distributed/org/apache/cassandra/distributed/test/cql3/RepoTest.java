@@ -47,7 +47,7 @@ import org.assertj.core.api.Assertions;
 /**
  * This test exists to help isolate issues with {@link SingleNodeTableWalkTest} and related classes.
  */
-@Ignore
+@Ignore("This test is not expected to be run in CI, its to manually run the histories the tests in this package produce.")
 public class RepoTest extends TestBaseImpl
 {
     private static final Logger logger = LoggerFactory.getLogger(RepoTest.class);
