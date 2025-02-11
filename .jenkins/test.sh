@@ -89,6 +89,14 @@ if [[ -f "build/jacoco/report.xml" ]] && [[ "${ANT_TARGET:-test}" == "test" ]]; 
   fi
   FILE_PHAB_COMMENT="build/comment/phabricator-comment-${ANT_TARGET:-test}"
 
+  # setup python env
+  python3 --version
+  set -e
+  virtualenv --python=python3 venv
+  source venv/bin/activate
+  pip3 install --upgrade setuptools
+  pip3 install -r .jenkins/code_coverage/requirements.txt
+
   # try to get code coverage for other builds
   echo "Diff ID to collect coverage report: $PHAB_DIFF_ID"
   python3 .jenkins/code_coverage/coverage_report_generator.py --diff_id $PHAB_DIFF_ID
@@ -108,7 +116,7 @@ if [[ -f "build/jacoco/report.xml" ]] && [[ "${ANT_TARGET:-test}" == "test" ]]; 
   set +e
   for build_phid in "${BUILDKITE_BUILD_IDS[@]}"; do
       echo "Downloading artifact for build PHID: $build_phid"
-      buildkite-agent artifact download "build/jacoco/*.exec" . --build "$build_phid" --agent-access-token $BUILDKITE_AGENT_ACCESS_TOKEN
+      buildkite-agent artifact download "build/jacoco/*.exec" . --build "$build_phid"
   done
   set -e
 
@@ -120,14 +128,6 @@ if [[ -f "build/jacoco/report.xml" ]] && [[ "${ANT_TARGET:-test}" == "test" ]]; 
 
   ant build
   ant jacoco-report
-
-  # setup python env
-  python3 --version
-  set -e
-  virtualenv --python=python3 venv
-  source venv/bin/activate
-  pip3 install --upgrade setuptools
-  pip3 install -r .jenkins/code_coverage/requirements.txt
 
   comment=$(python3 ".jenkins/code_coverage/parse_jacoco_html.py" "-p" "build/jacoco/index.html" "-t" "${ANT_TARGET:-test}")
   echo "$comment" >> "$FILE_PHAB_COMMENT"

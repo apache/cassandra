@@ -50,7 +50,7 @@ echo "Buildkite build ids: ${BUILDKITE_BUILD_IDS[@]}"
 
 for build_phid in "${BUILDKITE_BUILD_IDS[@]}"; do
     echo "Downloading artifact for build PHID: $build_phid"
-    buildkite-agent artifact download "build/jacoco/*.exec" . --build "$build_phid" --agent-access-token $BUILDKITE_AGENT_ACCESS_TOKEN
+    buildkite-agent artifact download "build/jacoco/*.exec" . --build "$build_phid"
 done
 
 # generic-udj is migrated to Debian 12, which is using Java 17 by default. We want to switch to Java 11
