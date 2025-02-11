@@ -17,7 +17,6 @@
  */
 package org.apache.cassandra.config;
 
-import java.io.Serializable;
 import java.util.List;
 import java.util.Map;
 
