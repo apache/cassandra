@@ -57,6 +57,7 @@ import org.apache.cassandra.cql3.ast.Txn;
 import org.apache.cassandra.db.marshal.AsciiType;
 import org.apache.cassandra.db.marshal.BytesType;
 import org.apache.cassandra.db.marshal.UTF8Type;
+import org.apache.cassandra.db.virtual.AccordVirtualTables;
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
 import org.apache.cassandra.distributed.api.IInstanceConfig;
@@ -239,8 +240,8 @@ public class AccordTopologyMixupTest extends TopologyMixupTestBase<AccordTopolog
 
         private void populateEpochState()
         {
-            updateMap(instanceEpochReadyState, "SELECT * FROM " + VIRTUAL_VIEWS + ".accord_epoch_ready");
-            updateMap(instanceEpochSyncState, "SELECT * FROM " + VIRTUAL_VIEWS + ".accord_epoch_ranges");
+            updateMap(instanceEpochReadyState, "SELECT * FROM " + VIRTUAL_VIEWS + "." + AccordVirtualTables.EPOCHS);
+            updateMap(instanceEpochSyncState, "SELECT * FROM " + VIRTUAL_VIEWS + "." + AccordVirtualTables.TABLE_EPOCHS);
         }
 
         private void updateMap(Map<Integer, String> map, String cql)

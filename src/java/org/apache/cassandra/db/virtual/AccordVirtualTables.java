@@ -47,6 +47,9 @@ import static accord.topology.TopologyManager.EpochsSnapshot.ResultStatus.SUCCES
 
 public class AccordVirtualTables
 {
+    public static final String EPOCHS = "accord_epochs";
+    public static final String TABLE_EPOCHS = "accord_table_epochs";
+
     private AccordVirtualTables()
     {
     }
@@ -71,14 +74,14 @@ public class AccordVirtualTables
     {
         public EpochReadyTable(String keyspace)
         {
-            super(parse(keyspace, "CREATE TABLE accord_epoch_ready (\n" +
-                                      "  epoch bigint PRIMARY KEY,\n" +
-                                      "  ready_metadata text,\n" +
-                                      "  ready_coordinate text,\n" +
-                                      "  ready_data text,\n" +
-                                      "  ready_reads text,\n" +
-                                      "  ready boolean,\n" +
-                                      ")")
+            super(parse(keyspace, "CREATE TABLE " + EPOCHS + " (\n" +
+                                  "  epoch bigint PRIMARY KEY,\n" +
+                                  "  ready_metadata text,\n" +
+                                  "  ready_coordinate text,\n" +
+                                  "  ready_data text,\n" +
+                                  "  ready_reads text,\n" +
+                                  "  ready boolean,\n" +
+                                  ")")
                   .partitioner(new LocalPartitioner(LongType.instance))
                   .comment("Exposes the epoch ready state for recieved epochs in Accord")
                   .build());
@@ -114,7 +117,7 @@ public class AccordVirtualTables
     {
         protected EpochSyncRanges(String keyspace)
         {
-            super(parse(keyspace, "CREATE TABLE accord_epoch_ranges (\n" +
+            super(parse(keyspace, "CREATE TABLE " + TABLE_EPOCHS + " (\n" +
                                   "  epoch bigint,\n" +
                                   "  keyspace_name text,\n" +
                                   "  table_name text,\n" +
