@@ -120,8 +120,6 @@ public class AccordVirtualTables
                 {
                     ds.column("ready", false);
                 }
-                //TODO (operations): include syncTracker? Would give visibility on stuck epochs due to accord's gossip not making progress
-                //TODO (operations): include synced, closed, and complete.  If user txn are timing out synced is useful to know.  If sync points are timing out then closed is useful.
             }
             return ds;
         }
