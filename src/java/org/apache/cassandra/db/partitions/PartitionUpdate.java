@@ -800,7 +800,7 @@ public class PartitionUpdate extends AbstractBTreePartition
             if (version >= MessagingService.VERSION_51)
             {
                 long epoch = VIntCoding.getUnsignedVInt(in, position);
-                position += VIntCoding.computeVIntSize(epoch);
+                position += VIntCoding.computeUnsignedVIntSize(epoch);
             }
 
             // DecoratedKey key = metadata.decorateKey(ByteBufferUtil.readWithVIntLength(in));

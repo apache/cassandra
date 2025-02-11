@@ -43,6 +43,7 @@ import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.paxos.Ballot;
 import org.apache.cassandra.service.paxos.Commit;
+import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.CloseableIterator;
 import org.apache.cassandra.utils.FBUtilities;
@@ -96,7 +97,7 @@ public class PaxosRowsTest
         SchemaLoader.prepareServer();
 
         ks = "coordinatorsessiontest";
-        metadata = CreateTableStatement.parse("CREATE TABLE tbl (k INT PRIMARY KEY, v INT)", ks).build();
+        metadata = CreateTableStatement.parse("CREATE TABLE tbl (k INT PRIMARY KEY, v INT)", ks).epoch(Epoch.create(100)).build();
         tableId = metadata.id;
     }
 
@@ -109,7 +110,7 @@ public class PaxosRowsTest
     @Test
     public void testRowInterpretation()
     {
-        DecoratedKey key = dk(5);
+        DecoratedKey key = dk(Integer.MAX_VALUE);
         Ballot[] ballots = createBallots(3);
 
         SystemKeyspace.savePaxosWritePromise(key, metadata, ballots[0]);
