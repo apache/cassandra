@@ -380,7 +380,7 @@ public abstract class TopologyMixupTestBase<S extends TopologyMixupTestBase.Sche
                                   if (possibleTopologyChanges.isEmpty()) return ignoreCommand();
                                   return topologyCommand(state, possibleTopologyChanges).next(rs);
                               })
-                              .addIf(State::allowRepair, 1, (rs, state) -> repairCommand(rs.pickInt(state.topologyHistory.up())))
+                              .add(1, (rs, state) -> repairCommand(rs.pickInt(state.topologyHistory.up())))
                               .add(7, (rs, state) -> state.statementGen.apply(rs, state))
                               .destroyState((state, cause) -> {
                                   try (state)
@@ -686,11 +686,6 @@ public abstract class TopologyMixupTestBase<S extends TopologyMixupTestBase.Sche
         protected boolean allowTopologyChanges()
         {
             return !possibleTopologyChanges(this).isEmpty();
-        }
-
-        protected boolean allowRepair()
-        {
-            return true;
         }
 
         protected void onStartupComplete(long tcmEpoch)

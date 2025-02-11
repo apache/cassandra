@@ -237,13 +237,6 @@ public class AccordTopologyMixupTest extends TopologyMixupTestBase<AccordTopolog
             this.preActions.add(this::populateEpochState);
         }
 
-        @Override
-        protected boolean allowRepair()
-        {
-            //TODO (required, operational): repair barriers depend on durability sync, which requires ALL, even if --force is done.
-            return topologyHistory.down().length == 0;
-        }
-
         private void populateEpochState()
         {
             updateMap(instanceEpochReadyState, "SELECT * FROM " + VIRTUAL_VIEWS + ".accord_epoch_ready");
