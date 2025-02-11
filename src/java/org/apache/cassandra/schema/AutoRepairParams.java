@@ -33,6 +33,9 @@ import org.apache.cassandra.utils.LocalizeString;
 import static java.lang.String.format;
 import static org.apache.cassandra.utils.LocalizeString.toLowerCaseLocalized;
 
+/**
+ * AutoRepair table parameters - used to define the auto-repair configuration for a table.
+ */
 public final class AutoRepairParams
 {
     public enum Option

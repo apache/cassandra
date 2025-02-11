@@ -42,6 +42,9 @@ import static org.apache.cassandra.Util.setAutoRepairEnabled;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
+/**
+ * Unit tests for {@link org.apache.cassandra.repair.autorepair.AutoRepair}
+ */
 public class AutoRepairTest extends CQLTester
 {
     @BeforeClass

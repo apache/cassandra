@@ -31,6 +31,9 @@ import org.apache.cassandra.tools.nodetool.formatter.TableBuilder;
 
 import static com.google.common.base.Preconditions.checkArgument;
 
+/**
+ * Provides currently running auto-repair tasks.
+ */
 @Command(name = "autorepairstatus", description = "Print autorepair status")
 public class AutoRepairStatus extends NodeTool.NodeToolCmd
 {
@@ -52,7 +55,7 @@ public class AutoRepairStatus extends NodeTool.NodeToolCmd
 
         TableBuilder table = new TableBuilder();
         table.add("Active Repairs");
-        Set<String> ongoingRepairHostIds = probe.getOnGoingRepairHostIds(repairType);
+        Set<String> ongoingRepairHostIds = probe.getAutoRepairOnGoingRepairHostIds(repairType);
         table.add(getSetString(ongoingRepairHostIds));
         table.printTo(out);
     }

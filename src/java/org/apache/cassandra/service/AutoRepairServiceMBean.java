@@ -20,6 +20,9 @@ package org.apache.cassandra.service;
 
 import java.util.Set;
 
+/**
+ * Defines all the MBeans exposed for AutoRepair.
+ */
 public interface AutoRepairServiceMBean
 {
     /**
