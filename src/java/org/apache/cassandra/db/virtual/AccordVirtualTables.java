@@ -139,7 +139,7 @@ public class AccordVirtualTables
                                   "  PRIMARY KEY (epoch, keyspace_name, table_name)\n" +
                                   ")")
                   .partitioner(new LocalPartitioner(LongType.instance))
-                  .comment("")
+                  .comment("Shows details on a per-table basis about what ranges are synced per epoch")
                   .build());
         }
 
