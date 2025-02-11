@@ -81,16 +81,19 @@ public class RepairTokenRangeSplitterTest extends CQLTester
     public void testSizePartitionCount() throws Throwable
     {
         insertAndFlushTable(tableName, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10);
-        Refs<SSTableReader> sstables = RepairTokenRangeSplitter.getSSTableReaderRefs(RepairType.FULL, KEYSPACE, tableName, FULL_RANGE);
-        assertEquals(10, sstables.iterator().next().getEstimatedPartitionSize().count());
-        SizeEstimate sizes = RepairTokenRangeSplitter.getSizesForRangeOfSSTables(RepairType.FULL, KEYSPACE, tableName, FULL_RANGE, sstables);
-        assertEquals(10, sizes.partitions);
+        try (Refs<SSTableReader> sstables = RepairTokenRangeSplitter.getSSTableReaderRefs(RepairType.FULL, KEYSPACE, tableName, FULL_RANGE))
+        {
+            assertEquals(10, sstables.iterator().next().getEstimatedPartitionSize().count());
+            SizeEstimate sizes = RepairTokenRangeSplitter.getSizesForRangeOfSSTables(RepairType.FULL, KEYSPACE, tableName, FULL_RANGE, sstables);
+            assertEquals(10, sizes.partitions);
+        }
     }
 
     @Test
     public void testSizePartitionCountSplit() throws Throwable
     {
-        int[] values = new int[10000];
+        int partitionCount = 100_000;
+        int[] values = new int[partitionCount];
         for (int i = 0; i < values.length; i++)
             values[i] = i + 1;
         insertAndFlushTable(tableName, values);
@@ -99,12 +102,17 @@ public class RepairTokenRangeSplitterTest extends CQLTester
         Range<Token> tokenRange2 = range.next();
         Assert.assertFalse(range.hasNext());
 
-        Refs<SSTableReader> sstables1 = RepairTokenRangeSplitter.getSSTableReaderRefs(RepairType.FULL, KEYSPACE, tableName, tokenRange1);
-        Refs<SSTableReader> sstables2 = RepairTokenRangeSplitter.getSSTableReaderRefs(RepairType.FULL, KEYSPACE, tableName, tokenRange2);
-        SizeEstimate sizes1 = RepairTokenRangeSplitter.getSizesForRangeOfSSTables(RepairType.FULL, KEYSPACE, tableName, tokenRange1, sstables1);
-        SizeEstimate sizes2 = RepairTokenRangeSplitter.getSizesForRangeOfSSTables(RepairType.FULL, KEYSPACE, tableName, tokenRange2, sstables2);
-        // +-5% because HLL merge and the applying of range size approx ratio causes estimation errors
-        assertTrue(Math.abs(10000 - (sizes1.partitions + sizes2.partitions)) <= 60);
+        try(Refs<SSTableReader> sstables1 = RepairTokenRangeSplitter.getSSTableReaderRefs(RepairType.FULL, KEYSPACE, tableName, tokenRange1);
+            Refs<SSTableReader> sstables2 = RepairTokenRangeSplitter.getSSTableReaderRefs(RepairType.FULL, KEYSPACE, tableName, tokenRange2))
+        {
+            SizeEstimate sizes1 = RepairTokenRangeSplitter.getSizesForRangeOfSSTables(RepairType.FULL, KEYSPACE, tableName, tokenRange1, sstables1);
+            SizeEstimate sizes2 = RepairTokenRangeSplitter.getSizesForRangeOfSSTables(RepairType.FULL, KEYSPACE, tableName, tokenRange2, sstables2);
+
+            // +-5% because including entire compression blocks covering token range, HLL merge and the applying of range size approx ratio causes estimation errors
+            long allowableDelta = (long) (partitionCount * .05);
+            long estimatedPartitionDelta = Math.abs(partitionCount - (sizes1.partitions + sizes2.partitions));
+            assertTrue("Partition count delta was +/-" + estimatedPartitionDelta + " but expected +/- " + allowableDelta, estimatedPartitionDelta <= allowableDelta);
+        }
     }
 
     @Test

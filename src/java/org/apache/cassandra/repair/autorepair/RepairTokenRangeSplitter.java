@@ -38,10 +38,6 @@ import java.util.stream.Collectors;
 
 import com.google.common.annotations.VisibleForTesting;
 
-import org.apache.cassandra.db.DataRange;
-import org.apache.cassandra.db.filter.ColumnFilter;
-import org.apache.cassandra.io.sstable.SSTableReadsListener;
-import org.apache.cassandra.io.sstable.format.big.BigTableReader;
 import org.apache.cassandra.tcm.compatibility.TokenRingUtils;
 import org.apache.cassandra.utils.FBUtilities;
 import org.slf4j.Logger;
@@ -56,11 +52,9 @@ import org.apache.cassandra.db.PartitionPosition;
 import org.apache.cassandra.db.lifecycle.SSTableIntervalTree;
 import org.apache.cassandra.db.lifecycle.SSTableSet;
 import org.apache.cassandra.db.lifecycle.View;
-import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
-import org.apache.cassandra.io.sstable.format.big.BigTableScanner;
 import org.apache.cassandra.io.sstable.metadata.CompactionMetadata;
 import org.apache.cassandra.io.sstable.metadata.MetadataType;
 import org.apache.cassandra.io.util.FileUtils;
@@ -210,7 +204,8 @@ public class RepairTokenRangeSplitter implements IAutoRepairTokenRangeSplitter
      * move the entire repaired set from unrepaired to repaired at steady state, assuming not more the 100GiB of
      * data is written to a node per min_repair_interval.
      */
-    private static final Map<AutoRepairConfig.RepairType, RepairTypeDefaults> DEFAULTS_BY_REPAIR_TYPE = new EnumMap<>(AutoRepairConfig.RepairType.class) {{
+    private static final Map<AutoRepairConfig.RepairType, RepairTypeDefaults> DEFAULTS_BY_REPAIR_TYPE = new EnumMap<>(AutoRepairConfig.RepairType.class)
+    {{
         put(AutoRepairConfig.RepairType.FULL, RepairTypeDefaults.builder(AutoRepairConfig.RepairType.FULL)
                                                                 .build());
         // Restrict incremental repair to 50GB bytes per assignment to confine the amount of possible autocompaction.
@@ -359,7 +354,8 @@ public class RepairTokenRangeSplitter implements IAutoRepairTokenRangeSplitter
                 long currentAssignmentsBytes = getEstimatedBytes(currentAssignments);
                 long tableAssignmentsBytes = getEstimatedBytes(tableAssignments);
                 // only add assignments together if they don't exceed max bytes per schedule.
-                if (currentAssignmentsBytes + tableAssignmentsBytes < maxBytesPerSchedule.toBytes()) {
+                if (currentAssignmentsBytes + tableAssignmentsBytes < maxBytesPerSchedule.toBytes())
+                {
                     currentAssignments.addAll(tableAssignments);
                 }
                 else
@@ -677,6 +673,7 @@ public class RepairTokenRangeSplitter implements IAutoRepairTokenRangeSplitter
     @VisibleForTesting
     static SizeEstimate getSizesForRangeOfSSTables(AutoRepairConfig.RepairType repairType, String keyspace, String table, Range<Token> tokenRange, Refs<SSTableReader> refs)
     {
+        List<Range<Token>> singletonRange = Collections.singletonList(tokenRange);
         ICardinality cardinality = new HyperLogLogPlus(13, 25);
         long approxBytesInRange = 0L;
         long totalBytes = 0L;
@@ -691,32 +688,14 @@ public class RepairTokenRangeSplitter implements IAutoRepairTokenRangeSplitter
                 if (metadata != null)
                     cardinality = cardinality.merge(metadata.cardinalityEstimator);
 
-                long sstableSize = reader.bytesOnDisk();
+                // use onDiskLength, which is the actual size of the SSTable data file.
+                long sstableSize = reader.onDiskLength();
                 totalBytes += sstableSize;
-                // get the bounds of the sstable for this range using the index file but do not actually read it.
-                List<AbstractBounds<PartitionPosition>> bounds = BigTableScanner.makeBounds(reader, Collections.singleton(tokenRange));
 
-                // Type check bounds to check if the range is not covered in the
-                // SSTable, in this case we will avoid incrementing approxBytesInRange.
-                if (!bounds.isEmpty() && reader instanceof BigTableReader)
-                {
-                    try (BigTableScanner scanner = (BigTableScanner) BigTableScanner.getScanner((BigTableReader) reader, ColumnFilter.all(reader.metadata()), DataRange.forTokenRange(tokenRange), SSTableReadsListener.NOOP_LISTENER))
-                    {
-                        assert bounds.size() == 1;
-
-                        AbstractBounds<PartitionPosition> bound = bounds.get(0);
-                        long startPosition = scanner.getDataPosition(bound.left);
-                        long endPosition = scanner.getDataPosition(bound.right);
-                        // If end position is 0 we can assume the sstable ended before that token, bound at size of file
-                        if (endPosition == 0)
-                        {
-                            endPosition = sstableSize;
-                        }
-
-                        long approximateRangeBytesInSSTable = Math.max(0, endPosition - startPosition);
-                        approxBytesInRange += Math.min(approximateRangeBytesInSSTable, sstableSize);
-                    }
-                }
+                // get the on disk size for the token range, note for compressed data this includes the full
+                // chunks the start and end ranges are found in.
+                long approximateRangeBytesInSSTable = reader.onDiskSizeForPartitionPositions(reader.getPositionsForRanges(singletonRange));
+                approxBytesInRange += Math.min(approximateRangeBytesInSSTable, sstableSize);
             }
             catch (IOException | CardinalityMergeException e)
             {
@@ -881,7 +860,8 @@ public class RepairTokenRangeSplitter implements IAutoRepairTokenRangeSplitter
         /**
          * @return Additional metadata about the repair assignment.
          */
-        public String getDescription() {
+        public String getDescription()
+        {
             return description;
         }
 
