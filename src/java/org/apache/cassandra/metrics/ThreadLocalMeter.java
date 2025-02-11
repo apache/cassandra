@@ -246,6 +246,9 @@ public class ThreadLocalMeter implements Meter
 
         public void tick()
         {
+            // TODO: we tick m1/m5/m15 coherently, so the count is actualy shared and can be stored and inremented once
+            // we only need to store different rates
+
             // TODO: check how to make tick cheaper
             // we can skip dead threads check for ticks executed as a part of a meter mark
             // we can try to replace a global rate and ticks with local rates..
