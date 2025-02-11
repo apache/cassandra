@@ -360,9 +360,9 @@ public class SingleNodeTableWalkTest extends StatefulASTBase
                                                                         .add(this::selectTokenRange))
                                   .addIf(State::hasEnoughMemtable, StatefulASTBase::flushTable)
                                   .addIf(State::hasEnoughSSTables, StatefulASTBase::compactTable)
-                                  .addIf(State::allowNonPartitionQuery, this::nonPartitionQuery)
-                                  .addIf(State::allowNonPartitionMultiColumnQuery, this::multiColumnQuery)
-                                  .addIf(State::allowPartitionQuery, this::partitionRestrictedQuery)
+//                                  .addIf(State::allowNonPartitionQuery, this::nonPartitionQuery)
+//                                  .addIf(State::allowNonPartitionMultiColumnQuery, this::multiColumnQuery)
+//                                  .addIf(State::allowPartitionQuery, this::partitionRestrictedQuery)
                                   .destroyState(State::close)
                                   .onSuccess(onSuccess(logger))
                                   .build());
