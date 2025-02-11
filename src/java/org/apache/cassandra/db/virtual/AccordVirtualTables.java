@@ -97,18 +97,11 @@ public class AccordVirtualTables
             {
                 ds.row(epoch.epoch);
                 EpochReady ready = epoch.ready;
-                if (ready != null)
-                {
-                    ds.column("ready_metadata", ready.metadata.value);
-                    ds.column("ready_coordinate", ready.coordinate.value);
-                    ds.column("ready_data", ready.data.value);
-                    ds.column("ready_reads", ready.reads.value);
-                    ds.column("ready", ready.reads == SUCCESS);
-                }
-                else
-                {
-                    ds.column("ready", false);
-                }
+                ds.column("ready_metadata", ready.metadata.value);
+                ds.column("ready_coordinate", ready.coordinate.value);
+                ds.column("ready_data", ready.data.value);
+                ds.column("ready_reads", ready.reads.value);
+                ds.column("ready", ready.reads == SUCCESS);
             }
             return ds;
         }
