@@ -159,12 +159,12 @@ public class AccordVirtualTables
                 // When state is null there are 2 possible things going on
                 // 1) race condition with epoch evicition; this should impact the starting epochs such as min.  If this happens there isn't a reason to display the epochs as they were evicited.
                 // 2) gap!  A gap should not be possible and would be a bug (N exists, N + 2 exists, N + 1 does not exist).  This table exposes such a gap by having a missing row.
-                var synced = groupByTable(state.synced());
-                var closed = groupByTable(state.closed());
-                var complete = groupByTable(state.complete());
+                Map<TableId, List<TokenRange>> synced = groupByTable(state.synced());
+                Map<TableId, List<TokenRange>> closed = groupByTable(state.closed());
+                Map<TableId, List<TokenRange>> complete = groupByTable(state.complete());
 
-                var allTables = Sets.union(Sets.union(synced.keySet(), closed.keySet()), complete.keySet());
-                for (var table : allTables)
+                Sets.SetView<TableId> allTables = Sets.union(Sets.union(synced.keySet(), closed.keySet()), complete.keySet());
+                for (TableId table : allTables)
                 {
                     TableMetadata metadata = Schema.instance.getTableMetadata(table);
                     if (metadata == null) continue; // table dropped, ignore
