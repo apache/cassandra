@@ -33,12 +33,12 @@ public enum KnownIssue
                    "SAI converts ipv4 to ipv6 to simplify the index, this causes issues with range search as it starts to mix the values, which isn't always desirable or intuative"),
     CUSTOM_INDEX_MAX_COLUMN_48("https://issues.apache.org/jira/browse/CASSANDRA-19897",
                                "Columns can be up to 50 chars, but CREATE CUSTOM INDEX only allows up to 48"),
-    AF_MULTI_NODE_AND_NODE_LOCAL_WRITES("https://issues.apache.org/jira/browse/CASSANDRA-20243",
-                                        "When writes are done at NODE_LOCAL and the select is ALL, AF should be able to return the correct data but it doesn't"),
     SHORT_AND_VARINT_GET_INT_FUNCTIONS("https://issues.apache.org/jira/browse/CASSANDRA-19874",
                                        "Function inference maybe unable to infer the correct function or chooses one for a smaller type"),
     SAI_EMPTY_TYPE("ML: Meaningless emptiness and filtering",
-                   "Some types allow empty bytes, but define them as meaningless.  AF can be used to query them using <, <=, and =; but SAI can not")
+                   "Some types allow empty bytes, but define them as meaningless.  AF can be used to query them using <, <=, and =; but SAI can not"),
+    AF_MULTI_NODE_MULTI_COLUMN_AND_NODE_LOCAL_WRITES("https://issues.apache.org/jira/browse/CASSANDRA-19007",
+                                                     "When doing multi node/multi column queries, AF can miss data when the nodes are not in-sync"),
     ;
 
     KnownIssue(String url, String description)

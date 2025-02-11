@@ -206,18 +206,8 @@ public class SingleNodeTableWalkTest extends StatefulASTBase
             builder.value(pk, key.bufferAt(pks.indexOf(pk)));
 
 
-        Symbol symbol;
         List<Symbol> searchableColumns = state.nonPartitionColumns;
-        if (state.hasMultiNodeAllowFilteringWithLocalWritesIssue())
-        {
-            if (state.nonPkIndexedColumns.isEmpty())
-                throw new AssertionError("Ignoring AF_MULTI_NODE_AND_NODE_LOCAL_WRITES is defined, but no non-partition columns are indexed");
-            symbol = rs.pick(state.nonPkIndexedColumns);
-        }
-        else
-        {
-            symbol = rs.pick(searchableColumns);
-        }
+        Symbol symbol = rs.pick(searchableColumns);
 
         TreeMap<ByteBuffer, List<BytesPartitionState.PrimaryKey>> universe = state.model.index(ref, symbol);
         // we need to index 'null' so LT works, but we can not directly query it... so filter out when selecting values
@@ -248,15 +238,7 @@ public class SingleNodeTableWalkTest extends StatefulASTBase
 
     public Property.Command<State, Void, ?> nonPartitionQuery(RandomSource rs, State state)
     {
-        Symbol symbol;
-        if (state.hasMultiNodeAllowFilteringWithLocalWritesIssue())
-        {
-            symbol = rs.pickUnorderedSet(state.indexes.keySet());
-        }
-        else
-        {
-            symbol = rs.pick(state.searchableColumns);
-        }
+        Symbol symbol = rs.pick(state.searchableColumns);
         TreeMap<ByteBuffer, List<BytesPartitionState.PrimaryKey>> universe = state.model.index(symbol);
         // we need to index 'null' so LT works, but we can not directly query it... so filter out when selecting values
         NavigableSet<ByteBuffer> allowed = Sets.filter(universe.navigableKeySet(), b -> !ByteBufferUtil.EMPTY_BYTE_BUFFER.equals(b));
@@ -410,6 +392,7 @@ public class SingleNodeTableWalkTest extends StatefulASTBase
         private final Gen<Mutation> mutationGen;
         private final List<Symbol> nonPartitionColumns;
         private final List<Symbol> searchableColumns;
+        private final List<Symbol> nonPkIndexedColumns;
 
         public State(RandomSource rs, Cluster cluster)
         {
@@ -457,6 +440,9 @@ public class SingleNodeTableWalkTest extends StatefulASTBase
                                                .addAll(model.factory.staticColumns)
                                                .addAll(model.factory.regularColumns)
                                                .build();
+            nonPkIndexedColumns = nonPartitionColumns.stream()
+                                                     .filter(indexes::containsKey)
+                                                     .collect(Collectors.toList());
 
             searchableColumns = metadata.partitionKeyColumns().size() > 1 ?  model.factory.selectionOrder : nonPartitionColumns;
         }
@@ -521,12 +507,7 @@ public class SingleNodeTableWalkTest extends StatefulASTBase
 
         public boolean allowNonPartitionQuery()
         {
-            boolean result = !model.isEmpty() && !searchableColumns.isEmpty();
-            if (hasMultiNodeAllowFilteringWithLocalWritesIssue())
-            {
-                return hasNonPkIndexedColumns() && result;
-            }
-            return result;
+            return !model.isEmpty() && !searchableColumns.isEmpty();
         }
 
         public boolean allowNonPartitionMultiColumnQuery()
@@ -537,31 +518,19 @@ public class SingleNodeTableWalkTest extends StatefulASTBase
         private List<Symbol> multiColumnQueryColumns()
         {
             List<Symbol> allowedColumns = searchableColumns;
-            if (hasMultiNodeAllowFilteringWithLocalWritesIssue())
+            if (hasMultiNodeMultiColumnAllowFilteringWithLocalWritesIssue())
                 allowedColumns = nonPkIndexedColumns;
             return allowedColumns;
         }
 
-        private boolean hasMultiNodeAllowFilteringWithLocalWritesIssue()
+        private boolean hasMultiNodeMultiColumnAllowFilteringWithLocalWritesIssue()
         {
-            return isMultiNode() && IGNORED_ISSUES.contains(KnownIssue.AF_MULTI_NODE_AND_NODE_LOCAL_WRITES);
+            return isMultiNode() && IGNORED_ISSUES.contains(KnownIssue.AF_MULTI_NODE_MULTI_COLUMN_AND_NODE_LOCAL_WRITES);
         }
 
-        public List<Symbol> nonPkIndexedColumns;
         public boolean allowPartitionQuery()
         {
-            if (model.isEmpty() || nonPartitionColumns.isEmpty()) return false;
-            if (hasMultiNodeAllowFilteringWithLocalWritesIssue())
-                return hasNonPkIndexedColumns();
-            return true;
-        }
-
-        private boolean hasNonPkIndexedColumns()
-        {
-            nonPkIndexedColumns = nonPartitionColumns.stream()
-                                                     .filter(indexes::containsKey)
-                                                     .collect(Collectors.toList());
-            return !nonPkIndexedColumns.isEmpty();
+            return !(model.isEmpty() || nonPartitionColumns.isEmpty());
         }
 
         @Override

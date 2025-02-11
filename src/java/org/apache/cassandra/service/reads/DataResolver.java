@@ -276,7 +276,7 @@ public class DataResolver<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<
     private  UnaryOperator<PartitionIterator> preCountFilterForReplicaFilteringProtection()
     {
         // Key columns are immutable and should never need to participate in replica filtering
-        if (!command.rowFilter().hasNonKeyExpressions())
+        if (!command.rowFilter().hasNonKeyExpression())
             return results -> results;
 
         return results -> {
