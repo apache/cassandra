@@ -24,7 +24,7 @@ import accord.utils.Property;
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.service.reads.repair.ReadRepairStrategy;
 
-@Ignore
+@Ignore("In order to stay stable RR tests are ignored for now.  Once Single node and multi node w/o RR are stable, then this test should be enabled to include RR testing")
 public class MultiNodeTableWalkWithReadRepairTest extends MultiNodeTableWalkBase
 {
     public MultiNodeTableWalkWithReadRepairTest()

@@ -24,6 +24,8 @@ import accord.utils.Property;
 import accord.utils.RandomSource;
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
+import org.apache.cassandra.schema.TableMetadata;
+import org.apache.cassandra.service.reads.repair.ReadRepairStrategy;
 
 public class MultiNodeTokenConflictTest extends SingleNodeTokenConflictTest
 {
@@ -34,6 +36,14 @@ public class MultiNodeTokenConflictTest extends SingleNodeTokenConflictTest
         // Example: builder.withSeed(42L);
         // CQL operations may have opertors such as +, -, and / (example 4 + 4), to "apply" them to get a constant value
         // CQL_DEBUG_APPLY_OPERATOR = true;
+    }
+
+    @Override
+    protected TableMetadata defineTable(RandomSource rs, String ks)
+    {
+        TableMetadata tbl = super.defineTable(rs, ks);
+        // disable RR for now, should make RR testing its own class
+        return tbl.unbuild().params(tbl.params.unbuild().readRepair(ReadRepairStrategy.NONE).build()).build();
     }
 
     @Override
