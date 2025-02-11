@@ -87,6 +87,15 @@ public class RepairTokenRangeSplitterTest extends CQLTester
         DatabaseDescriptor.setSelectedSSTableFormat(DatabaseDescriptor.getSSTableFormats().get(sstableFormat));
         repairRangeSplitter = new RepairTokenRangeSplitter(RepairType.FULL, Collections.emptyMap());
         tableName = createTable("CREATE TABLE %s (k INT PRIMARY KEY, v INT)");
+        // ensure correct format is selected.
+        if (sstableFormat.equalsIgnoreCase(BigFormat.NAME))
+        {
+            assertTrue(BigFormat.isSelected());
+        }
+        else
+        {
+            assertTrue(BtiFormat.isSelected());
+        }
     }
 
     @Test
