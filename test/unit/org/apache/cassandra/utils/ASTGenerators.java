@@ -176,7 +176,6 @@ public class ASTGenerators
 
         public ExpressionBuilder allowEmpty()
         {
-            if (IGNORE_ISSUES.contains(KnownIssue.SAI_EMPTY_TYPE)) return this;
             if (!type.allowsEmpty()) return this;
             useEmpty = SourceDSL.integers().between(1, 100).map(i -> i < 10);
             return this;
