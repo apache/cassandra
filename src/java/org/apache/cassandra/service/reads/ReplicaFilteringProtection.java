@@ -427,12 +427,12 @@ public class ReplicaFilteringProtection<E extends Endpoints<E>>
             if (toFetch == null)
                 toFetch = BTreeSet.builder(command.metadata().comparator);
 
-            // Note that for static, we shouldn't add the clustering to the clustering set (the
-            // ClusteringIndexNamesFilter we'll build from this later does not expect it), but the fact
-            // we created a builder in the first place will act as a marker that the static row must be
-            // fetched, even if no other rows are added for this partition.
             if (row.isStatic())
-                unresolvedStatic = true;
+                // If there is an expression on a static column, the static row must be marked unresolved and the 
+                // partition fetched, as completing the static row could produce matches across the entire partition.
+                // The static row itself will still be retrieved and completed if there is any unresolved non-static 
+                // row, however, ensuring the latest static values are returned from the query.
+                unresolvedStatic = command.rowFilter().hasStaticExpression();
             else
                 toFetch.add(row.clustering());
         }
