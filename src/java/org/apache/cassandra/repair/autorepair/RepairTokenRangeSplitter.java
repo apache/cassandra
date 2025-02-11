@@ -702,9 +702,14 @@ public class RepairTokenRangeSplitter implements IAutoRepairTokenRangeSplitter
                 logger.error("Error calculating size estimate for {}.{} for range {} on {}", keyspace, table, tokenRange, reader, e);
             }
         }
-        double ratio = approxBytesInRange / (double) totalBytes;
-        // use the ratio from size to estimate the partitions in the range as well
-        long partitions = (long) Math.max(1, Math.ceil(cardinality.cardinality() * ratio));
+
+        long partitions = 0L;
+        if (totalBytes > 0)
+        {
+            // use the ratio from size to estimate the partitions in the range as well
+            double ratio = approxBytesInRange / (double) totalBytes;
+            partitions = (long) Math.max(1, Math.ceil(cardinality.cardinality() * ratio));
+        }
         return new SizeEstimate(repairType, keyspace, table, tokenRange, partitions, approxBytesInRange, totalBytes);
     }
 
