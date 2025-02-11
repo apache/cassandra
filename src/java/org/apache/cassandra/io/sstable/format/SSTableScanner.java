@@ -19,7 +19,6 @@ package org.apache.cassandra.io.sstable.format;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Set;
@@ -36,7 +35,6 @@ import org.apache.cassandra.db.rows.UnfilteredRowIterator;
 import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.dht.AbstractBounds.Boundary;
 import org.apache.cassandra.dht.Range;
-import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.sstable.AbstractRowIndexEntry;
 import org.apache.cassandra.io.sstable.CorruptSSTableException;
 import org.apache.cassandra.io.sstable.ISSTableScanner;
@@ -83,14 +81,6 @@ implements ISSTableScanner
         this.dataRange = dataRange;
         this.rangeIterator = rangeIterator;
         this.listener = listener;
-    }
-
-    public static List<AbstractBounds<PartitionPosition>> makeBounds(SSTableReader sstable, Collection<Range<Token>> tokenRanges)
-    {
-        List<AbstractBounds<PartitionPosition>> boundsList = new ArrayList<>(tokenRanges.size());
-        for (Range<Token> range : Range.normalize(tokenRanges))
-            addRange(sstable, Range.makeRowRange(range), boundsList);
-        return boundsList;
     }
 
     protected static List<AbstractBounds<PartitionPosition>> makeBounds(SSTableReader sstable, DataRange dataRange)

@@ -20,8 +20,6 @@ package org.apache.cassandra.io.sstable.format.big;
 import java.io.IOException;
 import java.util.Iterator;
 
-import javax.annotation.Nullable;
-
 import org.apache.cassandra.db.DataRange;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.PartitionPosition;
@@ -66,12 +64,9 @@ public class BigTableScanner extends SSTableScanner<BigTableReader, RowIndexEntr
         this.rowIndexEntrySerializer = new RowIndexEntry.Serializer(sstable.descriptor.version, sstable.header, sstable.owner().map(SSTable.Owner::getMetrics).orElse(null));
     }
 
-    // Helper method to seek to the index for the given position or range and optionally in the data file
-    private long seekAndProcess(@Nullable PartitionPosition position,
-                                @Nullable AbstractBounds<PartitionPosition> range,
-                                boolean seekDataFile) throws CorruptSSTableException
+    private void seekToCurrentRangeStart()
     {
-        long indexPosition = sstable.getIndexScanPosition(position);
+        long indexPosition = sstable.getIndexScanPosition(currentRange.left);
         ifile.seek(indexPosition);
         try
         {
@@ -80,21 +75,13 @@ public class BigTableScanner extends SSTableScanner<BigTableReader, RowIndexEntr
             {
                 indexPosition = ifile.getFilePointer();
                 DecoratedKey indexDecoratedKey = sstable.decorateKey(ByteBufferUtil.readWithShortLength(ifile));
-
-                // Whether the position or range is present in the SSTable.
-                boolean isFound = (range == null && indexDecoratedKey.compareTo(position) > 0)
-                                  || (range != null && (indexDecoratedKey.compareTo(range.left) > 0 || range.contains(indexDecoratedKey)));
-                if (isFound)
+                if (indexDecoratedKey.compareTo(currentRange.left) > 0 || currentRange.contains(indexDecoratedKey))
                 {
                     // Found, just read the dataPosition and seek into index and data files
                     long dataPosition = RowIndexEntry.Serializer.readPosition(ifile);
-                    // seek the index file position as we will presumably seek further when going to the next position.
                     ifile.seek(indexPosition);
-                    if (seekDataFile)
-                    {
-                        dfile.seek(dataPosition);
-                    }
-                    return dataPosition;
+                    dfile.seek(dataPosition);
+                    break;
                 }
                 else
                 {
@@ -107,28 +94,6 @@ public class BigTableScanner extends SSTableScanner<BigTableReader, RowIndexEntr
             sstable.markSuspect();
             throw new CorruptSSTableException(e, sstable.getFilename());
         }
-        // If for whatever reason we don't find position in file, just return 0
-        return 0L;
-    }
-
-    /**
-     * Seeks to the start of the current range and updates both the index and data file positions.
-     */
-    private void seekToCurrentRangeStart() throws CorruptSSTableException
-    {
-        seekAndProcess(currentRange.left, currentRange, true);
-    }
-
-    /**
-     * Gets the position in the data file, but does not seek to it. This does seek the index to find the data position
-     * but does not actually seek the data file.
-     * @param position position to find in data file.
-     * @return offset in data file where position exists.
-     * @throws CorruptSSTableException if SSTable was malformed
-     */
-    public long getDataPosition(PartitionPosition position) throws CorruptSSTableException
-    {
-        return seekAndProcess(position, null, false);
     }
 
     protected void doClose() throws IOException

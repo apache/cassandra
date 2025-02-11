@@ -31,6 +31,8 @@ import org.junit.Assert;
 import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
+import org.junit.runner.RunWith;
+import org.junit.runners.Parameterized;
 
 import org.apache.cassandra.config.DataStorageSpec.LongMebibytesBound;
 import org.apache.cassandra.config.DatabaseDescriptor;
@@ -41,6 +43,7 @@ import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.sstable.format.big.BigFormat;
+import org.apache.cassandra.io.sstable.format.bti.BtiFormat;
 import org.apache.cassandra.repair.autorepair.AutoRepairConfig.RepairType;
 import org.apache.cassandra.repair.autorepair.RepairTokenRangeSplitter.FilteredRepairAssignments;
 import org.apache.cassandra.repair.autorepair.RepairTokenRangeSplitter.SizeEstimate;
@@ -54,11 +57,21 @@ import static org.apache.cassandra.repair.autorepair.RepairTokenRangeSplitter.MA
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
+@RunWith(Parameterized.class)
 public class RepairTokenRangeSplitterTest extends CQLTester
 {
     private RepairTokenRangeSplitter repairRangeSplitter;
     private String tableName;
     private static Range<Token> FULL_RANGE;
+
+    @Parameterized.Parameter()
+    public String sstableFormat;
+
+    @Parameterized.Parameters(name = "sstableFormat={0}")
+    public static Collection<String> sstableFormats()
+    {
+        return List.of(BtiFormat.NAME, BigFormat.NAME);
+    }
 
     @BeforeClass
     public static void setUpClass()
@@ -66,31 +79,42 @@ public class RepairTokenRangeSplitterTest extends CQLTester
         CQLTester.setUpClass();
         AutoRepairService.setup();
         FULL_RANGE = new Range<>(DatabaseDescriptor.getPartitioner().getMinimumToken(), DatabaseDescriptor.getPartitioner().getMaximumToken());
-        DatabaseDescriptor.setSelectedSSTableFormat(DatabaseDescriptor.getSSTableFormats().get(BigFormat.NAME));
     }
 
     @Before
     public void setUp()
     {
+        DatabaseDescriptor.setSelectedSSTableFormat(DatabaseDescriptor.getSSTableFormats().get(sstableFormat));
         repairRangeSplitter = new RepairTokenRangeSplitter(RepairType.FULL, Collections.emptyMap());
         tableName = createTable("CREATE TABLE %s (k INT PRIMARY KEY, v INT)");
-        assertTrue(BigFormat.isSelected());
+        // ensure correct format is selected.
+        if (sstableFormat.equalsIgnoreCase(BigFormat.NAME))
+        {
+            assertTrue(BigFormat.isSelected());
+        }
+        else
+        {
+            assertTrue(BtiFormat.isSelected());
+        }
     }
 
     @Test
     public void testSizePartitionCount() throws Throwable
     {
         insertAndFlushTable(tableName, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10);
-        Refs<SSTableReader> sstables = RepairTokenRangeSplitter.getSSTableReaderRefs(RepairType.FULL, KEYSPACE, tableName, FULL_RANGE);
-        assertEquals(10, sstables.iterator().next().getEstimatedPartitionSize().count());
-        SizeEstimate sizes = RepairTokenRangeSplitter.getSizesForRangeOfSSTables(RepairType.FULL, KEYSPACE, tableName, FULL_RANGE, sstables);
-        assertEquals(10, sizes.partitions);
+        try (Refs<SSTableReader> sstables = RepairTokenRangeSplitter.getSSTableReaderRefs(RepairType.FULL, KEYSPACE, tableName, FULL_RANGE))
+        {
+            assertEquals(10, sstables.iterator().next().getEstimatedPartitionSize().count());
+            SizeEstimate sizes = RepairTokenRangeSplitter.getSizesForRangeOfSSTables(RepairType.FULL, KEYSPACE, tableName, FULL_RANGE, sstables);
+            assertEquals(10, sizes.partitions);
+        }
     }
 
     @Test
     public void testSizePartitionCountSplit() throws Throwable
     {
-        int[] values = new int[10000];
+        int partitionCount = 100_000;
+        int[] values = new int[partitionCount];
         for (int i = 0; i < values.length; i++)
             values[i] = i + 1;
         insertAndFlushTable(tableName, values);
@@ -99,12 +123,17 @@ public class RepairTokenRangeSplitterTest extends CQLTester
         Range<Token> tokenRange2 = range.next();
         Assert.assertFalse(range.hasNext());
 
-        Refs<SSTableReader> sstables1 = RepairTokenRangeSplitter.getSSTableReaderRefs(RepairType.FULL, KEYSPACE, tableName, tokenRange1);
-        Refs<SSTableReader> sstables2 = RepairTokenRangeSplitter.getSSTableReaderRefs(RepairType.FULL, KEYSPACE, tableName, tokenRange2);
-        SizeEstimate sizes1 = RepairTokenRangeSplitter.getSizesForRangeOfSSTables(RepairType.FULL, KEYSPACE, tableName, tokenRange1, sstables1);
-        SizeEstimate sizes2 = RepairTokenRangeSplitter.getSizesForRangeOfSSTables(RepairType.FULL, KEYSPACE, tableName, tokenRange2, sstables2);
-        // +-5% because HLL merge and the applying of range size approx ratio causes estimation errors
-        assertTrue(Math.abs(10000 - (sizes1.partitions + sizes2.partitions)) <= 60);
+        try(Refs<SSTableReader> sstables1 = RepairTokenRangeSplitter.getSSTableReaderRefs(RepairType.FULL, KEYSPACE, tableName, tokenRange1);
+            Refs<SSTableReader> sstables2 = RepairTokenRangeSplitter.getSSTableReaderRefs(RepairType.FULL, KEYSPACE, tableName, tokenRange2))
+        {
+            SizeEstimate sizes1 = RepairTokenRangeSplitter.getSizesForRangeOfSSTables(RepairType.FULL, KEYSPACE, tableName, tokenRange1, sstables1);
+            SizeEstimate sizes2 = RepairTokenRangeSplitter.getSizesForRangeOfSSTables(RepairType.FULL, KEYSPACE, tableName, tokenRange2, sstables2);
+
+            // +-5% because including entire compression blocks covering token range, HLL merge and the applying of range size approx ratio causes estimation errors
+            long allowableDelta = (long) (partitionCount * .05);
+            long estimatedPartitionDelta = Math.abs(partitionCount - (sizes1.partitions + sizes2.partitions));
+            assertTrue("Partition count delta was +/-" + estimatedPartitionDelta + " but expected +/- " + allowableDelta, estimatedPartitionDelta <= allowableDelta);
+        }
     }
 
     @Test
