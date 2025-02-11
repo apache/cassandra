@@ -45,7 +45,7 @@ public class SchemaSpec
     public final List<ColumnSpec<?>> staticColumns;
 
     public final List<ColumnSpec<?>> allColumnInSelectOrder;
-    public final ValueGenerators valueGenerators;
+    public final ValueGenerators<Object[], Object[]> valueGenerators;
     public final Options options;
 
     public SchemaSpec(long seed,

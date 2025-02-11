@@ -41,6 +41,7 @@ import javax.annotation.Nullable;
 
 import com.google.common.collect.Iterables;
 
+import org.apache.cassandra.cql3.KnownIssue;
 import org.apache.cassandra.cql3.ast.AssignmentOperator;
 import org.apache.cassandra.cql3.ast.Bind;
 import org.apache.cassandra.cql3.ast.CasCondition;
@@ -74,6 +75,8 @@ import static org.apache.cassandra.utils.Generators.SYMBOL_GEN;
 
 public class ASTGenerators
 {
+    public static final EnumSet<KnownIssue> IGNORE_ISSUES = KnownIssue.ignoreAll();
+
     static Gen<Value> valueGen(Object value, AbstractType<?> type)
     {
         Gen<Boolean> bool = SourceDSL.booleans().all();
@@ -93,17 +96,6 @@ public class ASTGenerators
         if (map.size() == 1)
             return map;
         throw new AssertionError("Unsupported map type: " + map.getClass());
-    }
-
-    /**
-     * Returns a list of all columns in a deterministic order.  This method is similar to {@link TableMetadata#columns()},
-     * but that method uses a hash order, so the values could be different from host to host or jvm to jvm...
-     */
-    public static List<ColumnMetadata> allColumnsInFixedOrder(TableMetadata metadata)
-    {
-        List<ColumnMetadata> columns = new ArrayList<>(metadata.columns().size());
-        metadata.allColumnsInSelectOrder().forEachRemaining(columns::add);
-        return columns;
     }
 
     public static Gen<AssignmentOperator> assignmentOperatorGen(EnumSet<AssignmentOperator.Kind> allowed, Expression right)
@@ -155,8 +147,9 @@ public class ASTGenerators
             //NOTE: (smallint) of -11843 and 3749 failed as well...
             //NOTE: (long) was found and didn't fail...
             //NOTE: see https://the-asf.slack.com/archives/CK23JSY2K/p1724819303058669 - varint didn't fail but serialized using int32 which causes equality mismatches for pk/ck lookups
-            if (e.type().unwrap() == ShortType.instance
-                || e.type().unwrap() == IntegerType.instance) // seed=7525457176675272023L
+            if ((e.type().unwrap() == ShortType.instance
+                 || e.type().unwrap() == IntegerType.instance)
+                && IGNORE_ISSUES.contains(KnownIssue.SHORT_AND_VARINT_GET_INT_FUNCTIONS)) // seed=7525457176675272023L
             {
                 left = new TypeHint(left);
                 right = new TypeHint(right);
@@ -165,19 +158,27 @@ public class ASTGenerators
         };
     }
 
-    public static class ExpressionBuilder<T>
+    public static class ExpressionBuilder
     {
-        private final AbstractType<T> type;
+        private final AbstractType<?> type;
         private final EnumSet<Operator.Kind> allowedOperators;
-        private Gen<T> valueGen;
+        private Gen<?> valueGen;
         private Gen<Boolean> useOperator = SourceDSL.booleans().all();
+        private Gen<Boolean> useEmpty = SourceDSL.arbitrary().constant(false);
         private BiFunction<Object, AbstractType<?>, Gen<Value>> literalOrBindGen = ASTGenerators::valueGen;
 
-        public ExpressionBuilder(AbstractType<T> type)
+        public ExpressionBuilder(AbstractType<?> type)
         {
             this.type = type.unwrap();
             this.valueGen = AbstractTypeGenerators.getTypeSupport(this.type).valueGen;
             this.allowedOperators = Operator.supportsOperators(this.type);
+        }
+
+        public ExpressionBuilder allowEmpty()
+        {
+            if (!type.allowsEmpty()) return this;
+            useEmpty = SourceDSL.integers().between(1, 100).map(i -> i < 10);
+            return this;
         }
 
         public ExpressionBuilder withOperators()
@@ -209,6 +210,8 @@ public class ASTGenerators
             //TODO (coverage): rather than single level operators, allow nested (a + b + c + d)
             Gen<Value> leaf = rs -> literalOrBindGen.apply(valueGen.generate(rs), type).generate(rs);
             return rs -> {
+                if (useEmpty.generate(rs))
+                    return new Bind(ByteBufferUtil.EMPTY_BYTE_BUFFER, type);
                 Expression e = leaf.generate(rs);
                 if (!allowedOperators.isEmpty() && useOperator.generate(rs))
                     e = operatorGen(allowedOperators, e, leaf).generate(rs);
@@ -304,7 +307,7 @@ public class ASTGenerators
 
         private static Gen<List<Expression>> selectColumns(TableMetadata metadata)
         {
-            List<ColumnMetadata> columns = allColumnsInFixedOrder(metadata);
+            List<ColumnMetadata> columns = metadata.columnsInFixedOrder();
             Constraint between = Constraint.between(0, columns.size() - 1);
             Gen<int[]> indexGen = rnd -> {
                 int size = Math.toIntExact(rnd.next(between)) + 1;
@@ -324,7 +327,7 @@ public class ASTGenerators
         private static Gen<Map<Symbol, Expression>> partitionKeyGen(TableMetadata metadata)
         {
             Map<ColumnMetadata, Gen<?>> gens = new LinkedHashMap<>();
-            for (ColumnMetadata col : allColumnsInFixedOrder(metadata))
+            for (ColumnMetadata col : metadata.columnsInFixedOrder())
                 gens.put(col, AbstractTypeGenerators.getTypeSupport(col.type).valueGen);
             return rnd -> {
                 Map<Symbol, Expression> output = new LinkedHashMap<>();
@@ -353,7 +356,7 @@ public class ASTGenerators
         private Gen<Boolean> useCasIf = SourceDSL.booleans().all();
         private BiFunction<RandomnessSource, List<Symbol>, List<Symbol>> ifConditionFilter = (rnd, symbols) -> symbols;
         private Gen<DeleteKind> deleteKindGen = SourceDSL.arbitrary().enumValues(DeleteKind.class);
-        private Map<Symbol, ExpressionBuilder<?>> columnExpressions = new LinkedHashMap<>();
+        private Map<Symbol, ExpressionBuilder> columnExpressions = new LinkedHashMap<>();
 
         public MutationGenBuilder(TableMetadata metadata)
         {
@@ -369,7 +372,13 @@ public class ASTGenerators
             regularAndStaticColumns.addAll(regularColumns);
 
             for (Symbol symbol : allColumns)
-                columnExpressions.put(symbol, new ExpressionBuilder<>(symbol.type()));
+                columnExpressions.put(symbol, new ExpressionBuilder(symbol.type()));
+        }
+
+        public MutationGenBuilder allowEmpty(Symbol symbol)
+        {
+            columnExpressions.get(symbol).allowEmpty();
+            return this;
         }
 
         public MutationGenBuilder withDeletionKind(Gen<DeleteKind> deleteKindGen)
@@ -483,7 +492,7 @@ public class ASTGenerators
         }
 
         private static void values(RandomnessSource rnd,
-                                   Map<Symbol, ExpressionBuilder<?>> columnExpressions,
+                                   Map<Symbol, ExpressionBuilder> columnExpressions,
                                    Conditional.EqBuilder<?> builder,
                                    LinkedHashSet<Symbol> columns,
                                    @Nullable Gen<? extends Map<Symbol, Object>> gen)
