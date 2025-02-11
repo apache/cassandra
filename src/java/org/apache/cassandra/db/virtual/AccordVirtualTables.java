@@ -28,11 +28,11 @@ import javax.annotation.Nullable;
 
 import com.google.common.collect.Sets;
 
-import accord.api.ConfigurationService;
 import accord.primitives.Range;
 import accord.primitives.Ranges;
-import accord.topology.TopologyManager;
-import accord.utils.async.AsyncResult;
+import accord.topology.TopologyManager.EpochsSnapshot;
+import accord.topology.TopologyManager.EpochsSnapshot.Epoch;
+import accord.topology.TopologyManager.EpochsSnapshot.EpochReady;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.statements.schema.CreateTableStatement;
 import org.apache.cassandra.db.marshal.LongType;
@@ -43,10 +43,10 @@ import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.accord.AccordService;
 import org.apache.cassandra.service.accord.TokenRange;
 
+import static accord.topology.TopologyManager.EpochsSnapshot.ResultStatus.SUCCESS;
+
 public class AccordVirtualTables
 {
-    private static final String SUCCESS = "success";
-
     private AccordVirtualTables()
     {
     }
@@ -87,34 +87,19 @@ public class AccordVirtualTables
         @Override
         public DataSet data()
         {
-            AccordService service = accordService();
             SimpleDataSet ds = new SimpleDataSet(metadata());
-            TopologyManager tm = service.node().topology();
-            long minEpoch = tm.minEpoch();
-            long maxEpoch = tm.epoch();
-            for (long epoch = minEpoch; epoch <= maxEpoch; epoch++)
+            EpochsSnapshot snapshot = epochsSnapshot();
+            for (Epoch epoch : snapshot)
             {
-                TopologyManager.EpochState state = tm.getEpochStateUnsafe(epoch);
-                if (state == null)
-                    continue;
-                // When state is null there are 2 possible things going on
-                // 1) race condition with epoch evicition; this should impact the starting epochs such as min.  If this happens there isn't a reason to display the epochs as they were evicited.
-                // 2) gap!  A gap should not be possible and would be a bug (N exists, N + 2 exists, N + 1 does not exist).  This table exposes such a gap by having a missing row.
-                ds.row(epoch);
-                ConfigurationService.EpochReady ready = state.ready();
+                ds.row(epoch.epoch);
+                EpochReady ready = epoch.ready;
                 if (ready != null)
                 {
-                    ds.column("ready_metadata", resultToString(ready.metadata));
-                    ds.column("ready_coordinate", resultToString(ready.coordinate));
-                    ds.column("ready_data", resultToString(ready.data));
-                    ds.column("ready_reads", resultToString(ready.reads));
-                    boolean success = ready.reads.isSuccess();
-                    ds.column("ready", success);
-                    // There is a race condition given these fields are AsyncResults; checking it twice could get different results!
-                    // If ready_reads was set to "pending", then the next check its "success", make sure to update the field
-                    // to avoid any confussion.
-                    if (success)
-                        ds.column("ready_reads", SUCCESS);
+                    ds.column("ready_metadata", ready.metadata.value);
+                    ds.column("ready_coordinate", ready.coordinate.value);
+                    ds.column("ready_data", ready.data.value);
+                    ds.column("ready_reads", ready.reads.value);
+                    ds.column("ready", ready.reads == SUCCESS);
                 }
                 else
                 {
@@ -146,33 +131,27 @@ public class AccordVirtualTables
         @Override
         public DataSet data()
         {
-            AccordService service = accordService();
             SimpleDataSet ds = new SimpleDataSet(metadata());
-            TopologyManager tm = service.node().topology();
-            long minEpoch = tm.minEpoch();
-            long maxEpoch = tm.epoch();
-            for (long epoch = minEpoch; epoch <= maxEpoch; epoch++)
+            EpochsSnapshot snapshot = epochsSnapshot();
+            for (Epoch state : snapshot)
             {
-                TopologyManager.EpochState state = tm.getEpochStateUnsafe(epoch);
-                if (state == null)
-                    continue;
                 // When state is null there are 2 possible things going on
                 // 1) race condition with epoch evicition; this should impact the starting epochs such as min.  If this happens there isn't a reason to display the epochs as they were evicited.
                 // 2) gap!  A gap should not be possible and would be a bug (N exists, N + 2 exists, N + 1 does not exist).  This table exposes such a gap by having a missing row.
-                Map<TableId, List<TokenRange>> synced = groupByTable(state.synced());
-                Map<TableId, List<TokenRange>> closed = groupByTable(state.closed());
-                Map<TableId, List<TokenRange>> complete = groupByTable(state.complete());
+                Map<TableId, List<TokenRange>> synced = groupByTable(state.synced);
+                Map<TableId, List<TokenRange>> closed = groupByTable(state.closed);
+                Map<TableId, List<TokenRange>> retired = groupByTable(state.retired);
 
-                Sets.SetView<TableId> allTables = Sets.union(Sets.union(synced.keySet(), closed.keySet()), complete.keySet());
+                Sets.SetView<TableId> allTables = Sets.union(Sets.union(synced.keySet(), closed.keySet()), retired.keySet());
                 for (TableId table : allTables)
                 {
                     TableMetadata metadata = Schema.instance.getTableMetadata(table);
                     if (metadata == null) continue; // table dropped, ignore
-                    ds.row(epoch, metadata.keyspace, metadata.name);
+                    ds.row(state.epoch, metadata.keyspace, metadata.name);
 
                     ds.column("synced", format(synced.get(table)));
                     ds.column("closed", format(closed.get(table)));
-                    ds.column("retired", format(complete.get(table)));
+                    ds.column("retired", format(retired.get(table)));
                 }
             }
             return ds;
@@ -188,10 +167,9 @@ public class AccordVirtualTables
         }
     }
 
-    private static AccordService accordService()
+    private static EpochsSnapshot epochsSnapshot()
     {
-        // This table focuses on epochs that have already been received and does not include inflight epochs nor does it include acknowledge status.
-        return (AccordService) AccordService.instance();
+        return AccordService.instance().node().topology().epochsSnapshot();
     }
 
     private static String toStringNoTable(TokenRange tr)
@@ -209,12 +187,5 @@ public class AccordVirtualTables
             map.computeIfAbsent(tr.table(), i -> new ArrayList<>()).add(tr);
         }
         return map;
-    }
-
-    private static String resultToString(AsyncResult<?> result)
-    {
-        if (result.isDone())
-            return result.isSuccess() ? SUCCESS : "failed";
-        return "pending";
     }
 }
