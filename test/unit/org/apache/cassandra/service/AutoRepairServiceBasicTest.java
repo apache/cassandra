@@ -28,6 +28,9 @@ import org.apache.cassandra.repair.autorepair.AutoRepairConfig;
 
 import static org.junit.Assert.assertEquals;
 
+/**
+ * Unit tests for {@link org.apache.cassandra.service.AutoRepairService}
+ */
 public class AutoRepairServiceBasicTest extends CQLTester {
     private static AutoRepairService autoRepairService;
     private static AutoRepairConfig config;

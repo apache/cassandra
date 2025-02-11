@@ -18,7 +18,6 @@
 
 package org.apache.cassandra.repair.autorepair;
 
-
 import org.junit.Assert;
 import org.junit.Test;
 

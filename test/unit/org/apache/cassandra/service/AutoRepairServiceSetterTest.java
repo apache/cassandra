@@ -48,6 +48,9 @@ import java.util.stream.Stream;
 import static org.apache.cassandra.Util.setAutoRepairEnabled;
 import static org.assertj.core.api.Assertions.assertThat;
 
+/**
+ * Unit tests for (updating parameters through JMX) {@link org.apache.cassandra.service.AutoRepairService}
+ */
 @RunWith(Parameterized.class)
 public class AutoRepairServiceSetterTest<T> extends CQLTester
 {
