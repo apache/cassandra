@@ -20,7 +20,6 @@ package org.apache.cassandra.config;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
 import java.util.Collections;
-import java.io.Serializable;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Predicate;
