@@ -158,19 +158,28 @@ public class ASTGenerators
         };
     }
 
-    public static class ExpressionBuilder<T>
+    public static class ExpressionBuilder
     {
-        private final AbstractType<T> type;
+        private final AbstractType<?> type;
         private final EnumSet<Operator.Kind> allowedOperators;
-        private Gen<T> valueGen;
+        private Gen<?> valueGen;
         private Gen<Boolean> useOperator = SourceDSL.booleans().all();
+        private Gen<Boolean> useEmpty = SourceDSL.arbitrary().constant(false);
         private BiFunction<Object, AbstractType<?>, Gen<Value>> literalOrBindGen = ASTGenerators::valueGen;
 
-        public ExpressionBuilder(AbstractType<T> type)
+        public ExpressionBuilder(AbstractType<?> type)
         {
             this.type = type.unwrap();
             this.valueGen = AbstractTypeGenerators.getTypeSupport(this.type).valueGen;
             this.allowedOperators = Operator.supportsOperators(this.type);
+        }
+
+        public ExpressionBuilder allowEmpty()
+        {
+            if (IGNORE_ISSUES.contains(KnownIssue.SAI_EMPTY_TYPE)) return this;
+            if (!type.allowsEmpty()) return this;
+            useEmpty = SourceDSL.integers().between(1, 100).map(i -> i < 10);
+            return this;
         }
 
         public ExpressionBuilder withOperators()
@@ -202,6 +211,8 @@ public class ASTGenerators
             //TODO (coverage): rather than single level operators, allow nested (a + b + c + d)
             Gen<Value> leaf = rs -> literalOrBindGen.apply(valueGen.generate(rs), type).generate(rs);
             return rs -> {
+                if (useEmpty.generate(rs))
+                    return new Bind(ByteBufferUtil.EMPTY_BYTE_BUFFER, type);
                 Expression e = leaf.generate(rs);
                 if (!allowedOperators.isEmpty() && useOperator.generate(rs))
                     e = operatorGen(allowedOperators, e, leaf).generate(rs);
@@ -346,7 +357,7 @@ public class ASTGenerators
         private Gen<Boolean> useCasIf = SourceDSL.booleans().all();
         private BiFunction<RandomnessSource, List<Symbol>, List<Symbol>> ifConditionFilter = (rnd, symbols) -> symbols;
         private Gen<DeleteKind> deleteKindGen = SourceDSL.arbitrary().enumValues(DeleteKind.class);
-        private Map<Symbol, ExpressionBuilder<?>> columnExpressions = new LinkedHashMap<>();
+        private Map<Symbol, ExpressionBuilder> columnExpressions = new LinkedHashMap<>();
 
         public MutationGenBuilder(TableMetadata metadata)
         {
@@ -362,7 +373,12 @@ public class ASTGenerators
             regularAndStaticColumns.addAll(regularColumns);
 
             for (Symbol symbol : allColumns)
-                columnExpressions.put(symbol, new ExpressionBuilder<>(symbol.type()));
+            {
+                ExpressionBuilder builder = new ExpressionBuilder(symbol.type());
+                if (regularAndStaticColumns.contains(symbol))
+                    builder.allowEmpty();
+                columnExpressions.put(symbol, builder);
+            }
         }
 
         public MutationGenBuilder withDeletionKind(Gen<DeleteKind> deleteKindGen)
@@ -476,7 +492,7 @@ public class ASTGenerators
         }
 
         private static void values(RandomnessSource rnd,
-                                   Map<Symbol, ExpressionBuilder<?>> columnExpressions,
+                                   Map<Symbol, ExpressionBuilder> columnExpressions,
                                    Conditional.EqBuilder<?> builder,
                                    LinkedHashSet<Symbol> columns,
                                    @Nullable Gen<? extends Map<Symbol, Object>> gen)

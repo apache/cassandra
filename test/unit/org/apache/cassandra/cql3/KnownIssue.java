@@ -36,7 +36,9 @@ public enum KnownIssue
     AF_MULTI_NODE_AND_NODE_LOCAL_WRITES("https://issues.apache.org/jira/browse/CASSANDRA-20243",
                                         "When writes are done at NODE_LOCAL and the select is ALL, AF should be able to return the correct data but it doesn't"),
     SHORT_AND_VARINT_GET_INT_FUNCTIONS("https://issues.apache.org/jira/browse/CASSANDRA-19874",
-                                       "Function inference maybe unable to infer the correct function or chooses one for a smaller type")
+                                       "Function inference maybe unable to infer the correct function or chooses one for a smaller type"),
+    SAI_EMPTY_TYPE("https://issues.apache.org/jira/browse/CASSANDRA-20313",
+      "SAI should avoid attempting to index empty values for numerics and types that do not allow them")
     ;
 
     KnownIssue(String url, String description)

@@ -21,7 +21,9 @@ package org.apache.cassandra.cql3.ast;
 import java.nio.ByteBuffer;
 
 import org.apache.cassandra.db.marshal.AbstractType;
+import org.apache.cassandra.db.marshal.BytesType;
 import org.apache.cassandra.db.marshal.Int32Type;
+import org.apache.cassandra.db.marshal.StringType;
 
 public class Literal implements Value
 {
@@ -66,6 +68,17 @@ public class Literal implements Value
     @Override
     public void toCQL(StringBuilder sb, CQLFormatter formatter)
     {
-        sb.append(type.asCQL3Type().toCQLLiteral(valueEncoded()));
+        ByteBuffer bytes = valueEncoded();
+        if (bytes.remaining() == 0 && !actuallySupportsEmpty(type))
+        {
+            sb.append("<empty bytes>");
+            return;
+        }
+        sb.append(type.asCQL3Type().toCQLLiteral(bytes));
+    }
+
+    private static boolean actuallySupportsEmpty(AbstractType<?> type)
+    {
+        return type == BytesType.instance || type instanceof StringType;
     }
 }
