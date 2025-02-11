@@ -394,6 +394,24 @@ public class RowFilter implements Iterable<RowFilter.Expression>
         return withNewExpressions(newExpressions);
     }
 
+    public boolean hasNonKeyExpression()
+    {
+        for (Expression e : expressions)
+            if (!e.column().isPrimaryKeyColumn())
+                return true;
+
+        return false;
+    }
+
+    public boolean hasStaticExpression()
+    {
+        for (Expression e : expressions)
+            if (e.column().isStatic())
+                return true;
+
+        return false;
+    }
+
     public RowFilter withoutExpressions()
     {
         return withNewExpressions(Collections.emptyList());
