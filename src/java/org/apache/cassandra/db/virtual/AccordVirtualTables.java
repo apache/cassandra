@@ -36,6 +36,7 @@ import accord.topology.TopologyManager.EpochsSnapshot.EpochReady;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.statements.schema.CreateTableStatement;
 import org.apache.cassandra.db.marshal.LongType;
+import org.apache.cassandra.db.marshal.ReversedType;
 import org.apache.cassandra.dht.LocalPartitioner;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableId;
@@ -82,7 +83,7 @@ public class AccordVirtualTables
                                   "  ready_reads text,\n" +
                                   "  ready boolean,\n" +
                                   ")")
-                  .partitioner(new LocalPartitioner(LongType.instance))
+                  .partitioner(new LocalPartitioner(ReversedType.getInstance(LongType.instance)))
                   .comment("Exposes the epoch ready state for recieved epochs in Accord")
                   .build());
         }
@@ -126,7 +127,7 @@ public class AccordVirtualTables
                                   "  retired frozen<list<text>>,\n" +
                                   "  PRIMARY KEY (epoch, keyspace_name, table_name)\n" +
                                   ")")
-                  .partitioner(new LocalPartitioner(LongType.instance))
+                  .partitioner(new LocalPartitioner(ReversedType.getInstance(LongType.instance)))
                   .comment("Shows details on a per-table basis about what ranges are synced per epoch")
                   .build());
         }
