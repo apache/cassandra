@@ -1866,7 +1866,8 @@ drop_compact_storage_enabled: false
 #    excluded_keyspaces: # comma separated list of keyspaces to exclude from the check
 #    excluded_tables: # comma separated list of keyspace.table pairs to exclude from the check
 
-# at least 20% of disk must be unused to run incremental repair
+# At least 20% of disk must be unused to run incremental repair. It is useful to avoid disks filling up during
+# incremental repair as anti-compaction during incremental repair may contribute to additional space temporarily.
 # if you want to disable this feature (the recommendation is not to, but if you want to disable it for whatever reason)
 # then set the ratio to 0.0
 # incremental_repair_disk_headroom_reject_ratio = 0.2;

@@ -52,6 +52,9 @@ import static org.apache.cassandra.config.CassandraRelevantProperties.SYSTEM_DIS
 import static org.junit.Assert.assertEquals;
 import static org.assertj.core.api.Assertions.assertThat;
 
+/**
+ * Unit tests for {@link org.apache.cassandra.service.AutoRepairService}
+ */
 @RunWith(Suite.class)
 @Suite.SuiteClasses({ AutoRepairServiceTest.BasicTests.class, AutoRepairServiceTest.SetterTests.class })
 public class AutoRepairServiceTest

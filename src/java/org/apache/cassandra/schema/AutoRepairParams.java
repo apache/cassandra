@@ -31,6 +31,9 @@ import org.apache.cassandra.repair.autorepair.AutoRepairConfig;
 
 import static java.lang.String.format;
 
+/**
+ * AutoRepair table parameters - used to define the auto-repair configuration for a table.
+ */
 public final class AutoRepairParams
 {
     public enum Option

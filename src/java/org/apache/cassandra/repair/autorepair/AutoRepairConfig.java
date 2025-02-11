@@ -38,6 +38,9 @@ import org.apache.cassandra.config.ParameterizedClass;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.utils.FBUtilities;
 
+/**
+ * Defines configurations for AutoRepair.
+ */
 public class AutoRepairConfig implements Serializable
 {
     // Enable/Disable the auto-repair scheduler.

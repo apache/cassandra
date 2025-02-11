@@ -42,6 +42,9 @@ import org.apache.cassandra.service.AutoRepairService;
 import static org.apache.cassandra.schema.SchemaConstants.DISTRIBUTED_KEYSPACE_NAME;
 import static org.junit.Assert.assertEquals;
 
+/**
+ * Unit tests for {@link org.apache.cassandra.repair.autorepair.AutoRepair}
+ */
 public class AutoRepairSchedulerTest extends TestBaseImpl
 {
 

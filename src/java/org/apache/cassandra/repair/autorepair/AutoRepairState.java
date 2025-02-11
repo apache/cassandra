@@ -55,7 +55,9 @@ import java.util.stream.Collectors;
 import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
 import static org.apache.cassandra.utils.concurrent.Condition.newOneTimeCondition;
 
-// AutoRepairState represents the state of automated repair for a given repair type.
+/**
+ * AutoRepairState represents the state of automated repair for a given repair type.
+ */
 public abstract class AutoRepairState implements ProgressListener
 {
     protected static final Logger logger = LoggerFactory.getLogger(AutoRepairState.class);

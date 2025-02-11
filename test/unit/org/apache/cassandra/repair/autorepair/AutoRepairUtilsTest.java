@@ -68,6 +68,9 @@ import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Mockito.when;
 
+/**
+ * Unit tests for {@link org.apache.cassandra.repair.autorepair.AutoRepairUtils}
+ */
 public class AutoRepairUtilsTest extends CQLTester
 {
     static RepairType repairType = RepairType.INCREMENTAL;

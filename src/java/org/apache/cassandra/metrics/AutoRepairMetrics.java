@@ -89,7 +89,6 @@ public class AutoRepairMetrics
             }
         });
 
-
         longestUnrepairedSec = Metrics.register(factory.createMetricName("LongestUnrepairedSec"), new Gauge<Integer>()
         {
             public Integer getValue()

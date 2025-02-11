@@ -85,6 +85,9 @@ import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+/**
+ * Unit tests for {@link org.apache.cassandra.repair.autorepair.AutoRepair}
+ */
 @RunWith(Parameterized.class)
 public class AutoRepairParameterizedTest extends CQLTester
 {

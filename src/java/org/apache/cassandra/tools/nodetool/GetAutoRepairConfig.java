@@ -25,6 +25,9 @@ import io.airlift.airline.Command;
 import org.apache.cassandra.tools.NodeProbe;
 import org.apache.cassandra.tools.NodeTool.NodeToolCmd;
 
+/**
+ * Prints all the configurations for AutoRepair through nodetool.
+ */
 @Command(name = "getautorepairconfig", description = "Print autorepair configurations")
 public class GetAutoRepairConfig extends NodeToolCmd
 {
