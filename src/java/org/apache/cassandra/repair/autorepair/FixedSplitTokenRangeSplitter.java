@@ -77,7 +77,6 @@ public class FixedSplitTokenRangeSplitter implements IAutoRepairTokenRangeSplitt
     {
         return new RepairAssignmentIterator(repairPlans)
         {
-
             @Override
             protected KeyspaceRepairAssignments next(int priority, KeyspaceRepairPlan repairPlan)
             {
@@ -127,7 +126,6 @@ public class FixedSplitTokenRangeSplitter implements IAutoRepairTokenRangeSplitt
                 }
             }
         }
-
         return new KeyspaceRepairAssignments(priority, keyspaceName, repairAssignments);
     }
 
@@ -138,7 +136,6 @@ public class FixedSplitTokenRangeSplitter implements IAutoRepairTokenRangeSplitt
         {
             throw new IllegalArgumentException("Unexpected parameter '" + key + "', must be " + NUMBER_OF_SUBRANGES);
         }
-
         logger.info("Setting {} to {} for repair type {}", key, value, repairType);
         this.numberOfSubranges = Integer.parseInt(value);
     }

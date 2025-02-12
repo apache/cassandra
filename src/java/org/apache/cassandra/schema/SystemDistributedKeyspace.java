@@ -185,7 +185,6 @@ public final class SystemDistributedKeyspace
     private static final TableMetadata AutoRepairPriorityTable =
             parse(AUTO_REPAIR_PRIORITY, "Auto repair priority for each group", AUTO_REPAIR_PRIORITY_CQL).build();
 
-
     private static TableMetadata.Builder parse(String table, String description, String cql)
     {
         return CreateTableStatement.parse(format(cql, table), SchemaConstants.DISTRIBUTED_KEYSPACE_NAME)

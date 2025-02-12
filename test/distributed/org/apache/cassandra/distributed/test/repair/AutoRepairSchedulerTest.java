@@ -47,7 +47,6 @@ import static org.junit.Assert.assertEquals;
  */
 public class AutoRepairSchedulerTest extends TestBaseImpl
 {
-
     private static Cluster cluster;
     static SimpleDateFormat sdf;
 

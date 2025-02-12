@@ -52,7 +52,7 @@ public class AutoRepairConfigTest extends CQLTester
 {
     private AutoRepairConfig config;
 
-    private Set<String> testSet = ImmutableSet.of("dc1");
+    private final Set<String> testSet = ImmutableSet.of("dc1");
 
     @Parameterized.Parameter
     public AutoRepairConfig.RepairType repairType;
