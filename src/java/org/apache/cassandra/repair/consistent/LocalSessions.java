@@ -1076,6 +1076,7 @@ public class LocalSessions
         }
         else
         {
+            session.setLastUpdate();
             logger.debug("Received StatusResponse for repair session {} with state {}, which is not actionable. Doing nothing.", sessionID, response.state);
         }
     }
