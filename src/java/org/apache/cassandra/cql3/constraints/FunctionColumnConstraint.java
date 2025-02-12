@@ -20,10 +20,11 @@ package org.apache.cassandra.cql3.constraints;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.util.List;
+import java.util.Set;
 import java.util.function.Function;
 
 import org.apache.cassandra.cql3.ColumnIdentifier;
-import org.apache.cassandra.cql3.CqlBuilder;
 import org.apache.cassandra.cql3.Operator;
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.db.marshal.AbstractType;
@@ -32,15 +33,15 @@ import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.tcm.serialization.MetadataSerializer;
 import org.apache.cassandra.tcm.serialization.Version;
-import org.apache.cassandra.utils.LocalizeString;
+
+import static org.apache.cassandra.cql3.Operator.NEQ;
+import static org.apache.cassandra.cql3.constraints.AbstractFunctionSatisfiabilityChecker.FUNCTION_SATISFIABILITY_CHECKER;
 
 public class FunctionColumnConstraint extends AbstractFunctionConstraint<FunctionColumnConstraint>
 {
     public static final Serializer serializer = new Serializer();
 
     private final ConstraintFunction function;
-    private final Operator relationType;
-    private final String term;
 
     public final static class Raw
     {
@@ -63,9 +64,16 @@ public class FunctionColumnConstraint extends AbstractFunctionConstraint<Functio
         }
     }
 
-    private enum Functions
+    public enum Functions implements SatisfiabilityChecker
     {
-        LENGTH(LengthConstraint::new);
+        LENGTH(LengthConstraint::new)
+        {
+            @Override
+            public void checkSatisfiability(List<ColumnConstraint<?>> constraints, ColumnMetadata columnMetadata)
+            {
+                FUNCTION_SATISFIABILITY_CHECKER.check(name(), constraints, columnMetadata);
+            }
+        };
 
         private final Function<ColumnIdentifier, ConstraintFunction> functionCreator;
 
@@ -77,33 +85,42 @@ public class FunctionColumnConstraint extends AbstractFunctionConstraint<Functio
 
     private static ConstraintFunction createConstraintFunction(String functionName, ColumnIdentifier columnName)
     {
-        try
-        {
-            return Functions.valueOf(LocalizeString.toUpperCaseLocalized(functionName)).functionCreator.apply(columnName);
-        }
-        catch (IllegalArgumentException ex)
-        {
-            throw new InvalidConstraintDefinitionException("Unrecognized constraint function: " + functionName);
-        }
+        return getEnum(Functions.class, functionName).functionCreator.apply(columnName);
     }
 
     private FunctionColumnConstraint(ConstraintFunction function, ColumnIdentifier columnName, Operator relationType, String term)
     {
-        super(columnName);
+        super(columnName, relationType, term);
         this.function = function;
-        this.relationType = relationType;
-        this.term = term;
     }
 
+    public ConstraintFunction function()
+    {
+        return function;
+    }
+
+    @Override
+    public Set<Operator> getSupportedOperators()
+    {
+        return function.getSupportedOperators();
+    }
+
+    @Override
     public String name()
     {
         return function.name;
     }
 
     @Override
-    public void appendCqlTo(CqlBuilder builder)
+    public String fullName()
     {
-        builder.append(toString());
+        return function.name + ' ' + relationType;
+    }
+
+    @Override
+    public boolean enablesDuplicateDefinitions(String name)
+    {
+        return relationType == NEQ;
     }
 
     @Override
