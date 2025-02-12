@@ -40,6 +40,7 @@ import org.apache.cassandra.service.paxos.AbstractPaxosRepair;
 import org.apache.cassandra.service.paxos.PaxosRepair;
 import org.apache.cassandra.service.paxos.PaxosState;
 import org.apache.cassandra.service.paxos.uncommitted.UncommittedPaxosKey;
+import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.utils.CloseableIterator;
 import org.apache.cassandra.utils.concurrent.AsyncFuture;
 
@@ -84,7 +85,14 @@ public class PaxosCleanupLocalCoordinator extends AsyncFuture<PaxosCleanupRespon
             return;
         }
 
-        if (!PaxosRepair.validatePeerCompatibility(ctx, table, ranges))
+        ClusterMetadata metadata = ClusterMetadata.current();
+        if (metadata.schema.getKeyspace(table.keyspace) == null)
+        {
+            fail("Unknown keyspace: " + table.keyspace);
+            return;
+        }
+
+        if (!PaxosRepair.validatePeerCompatibility(ctx, metadata, table, ranges))
         {
             fail("Unsupported peer versions for " + tableId + ' ' + ranges.toString());
             return;
