@@ -720,7 +720,7 @@ public class EpochSyncTest
                     @Override
                     public void onEpochRetired(Ranges ranges, long epoch)
                     {
-                        topology.onEpochRedundant(ranges, epoch);
+                        topology.onEpochRetired(ranges, epoch);
                     }
                 });
 

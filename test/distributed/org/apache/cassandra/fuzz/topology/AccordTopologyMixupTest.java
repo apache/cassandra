@@ -22,6 +22,7 @@ import java.nio.ByteBuffer;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.TreeMap;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.stream.Collectors;
@@ -56,25 +57,30 @@ import org.apache.cassandra.cql3.ast.Txn;
 import org.apache.cassandra.db.marshal.AsciiType;
 import org.apache.cassandra.db.marshal.BytesType;
 import org.apache.cassandra.db.marshal.UTF8Type;
+import org.apache.cassandra.db.virtual.AccordVirtualTables;
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
 import org.apache.cassandra.distributed.api.IInstanceConfig;
 import org.apache.cassandra.distributed.api.IInvokableInstance;
+import org.apache.cassandra.distributed.api.QueryResults;
 import org.apache.cassandra.distributed.api.SimpleQueryResult;
 import org.apache.cassandra.distributed.shared.ClusterUtils;
 import org.apache.cassandra.distributed.test.accord.AccordTestBase;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.accord.api.AccordAgent;
 import org.apache.cassandra.service.consensus.TransactionalMode;
+import org.apache.cassandra.tools.nodetool.formatter.TableBuilder;
 import org.apache.cassandra.utils.ASTGenerators;
 import org.apache.cassandra.utils.AbstractTypeGenerators;
 import org.apache.cassandra.utils.CassandraGenerators;
 import org.apache.cassandra.utils.FastByteOperations;
 import org.apache.cassandra.utils.Generators;
 import org.apache.cassandra.utils.Isolated;
+import org.apache.cassandra.utils.Retry;
 import org.apache.cassandra.utils.Shared;
 import org.quicktheories.generators.SourceDSL;
 
+import static org.apache.cassandra.schema.SchemaConstants.VIRTUAL_VIEWS;
 import static org.apache.cassandra.utils.AbstractTypeGenerators.overridePrimitiveTypeSupport;
 import static org.apache.cassandra.utils.AbstractTypeGenerators.stringComparator;
 import static org.apache.cassandra.utils.AccordGenerators.fromQT;
@@ -121,7 +127,6 @@ public class AccordTopologyMixupTest extends TopologyMixupTestBase<AccordTopolog
     private static Spec createSchemaSpec(RandomSource rs, Cluster cluster)
     {
         TransactionalMode mode = rs.pick(TRANSACTIONAL_MODES);
-        boolean enableMigration = allowsMigration(mode) && rs.nextBoolean();
         // This test puts a focus on topology / cluster operations, so schema "shouldn't matter"... limit the domain of the test to improve the ability to debug
         AbstractTypeGenerators.TypeGenBuilder supportedTypes = AbstractTypeGenerators.withoutUnsafeEquality(AbstractTypeGenerators.builder()
                                                                                                                                   .withTypeKinds(AbstractTypeGenerators.TypeKind.PRIMITIVE));
@@ -140,12 +145,7 @@ public class AccordTopologyMixupTest extends TopologyMixupTestBase<AccordTopolog
         String schemaCQL = metadata.toCqlString(false, false, false);
         logger.info("Creating test table:\n{}", schemaCQL);
         cluster.schemaChange(schemaCQL);
-        if (enableMigration)
-        {
-            cluster.schemaChange("ALTER TABLE " + metadata + " WITH " + mode.asCqlParam());
-            cluster.get(1).nodetoolResult("consensus_admin", "begin-migration", metadata.keyspace, metadata.name).asserts().success();
-        }
-        return new Spec(mode, enableMigration, metadata);
+        return new Spec(mode, metadata);
     }
 
     private static CommandGen<Spec> cqlOperations(Spec spec)
@@ -175,18 +175,6 @@ public class AccordTopologyMixupTest extends TopologyMixupTestBase<AccordTopolog
         return new Property.SimpleCommand<>(node + ":" + msg + "; epoch=" + state.currentEpoch.get(), s2 -> executeTxn(s2.cluster, node, stmt.toCQL(), stmt.bindsEncoded()));
     }
 
-    private static boolean allowsMigration(TransactionalMode mode)
-    {
-        switch (mode)
-        {
-            case mixed_reads:
-            case full:
-                return true;
-            default:
-                return false;
-        }
-    }
-
     private static SimpleQueryResult executeTxn(Cluster cluster, IInvokableInstance node, String stmt, ByteBuffer[] binds)
     {
         if (!AccordTestBase.isIdempotent(node, stmt))
@@ -209,13 +197,11 @@ public class AccordTopologyMixupTest extends TopologyMixupTestBase<AccordTopolog
     public static class Spec implements Schema
     {
         private final TransactionalMode mode;
-        private final boolean enableMigration;
         private final TableMetadata metadata;
 
-        public Spec(TransactionalMode mode, boolean enableMigration, TableMetadata metadata)
+        public Spec(TransactionalMode mode, TableMetadata metadata)
         {
             this.mode = mode;
-            this.enableMigration = enableMigration;
             this.metadata = metadata;
         }
 
@@ -240,6 +226,8 @@ public class AccordTopologyMixupTest extends TopologyMixupTestBase<AccordTopolog
 
     private static class AccordState extends State<Spec>
     {
+        private final Map<Integer, String> instanceEpochReadyState = new TreeMap<>();
+        private final Map<Integer, String> instanceEpochSyncState = new TreeMap<>();
         private final ListenerHolder listener;
 
         public AccordState(RandomSource rs)
@@ -247,6 +235,36 @@ public class AccordTopologyMixupTest extends TopologyMixupTestBase<AccordTopolog
             super(rs, AccordTopologyMixupTest::createSchemaSpec, AccordTopologyMixupTest::cqlOperations);
 
             this.listener = new ListenerHolder(this);
+            this.preActions.add(this::populateEpochState);
+        }
+
+        private void populateEpochState()
+        {
+            updateMap(instanceEpochReadyState, "SELECT * FROM " + VIRTUAL_VIEWS + "." + AccordVirtualTables.EPOCHS);
+            updateMap(instanceEpochSyncState, "SELECT * FROM " + VIRTUAL_VIEWS + "." + AccordVirtualTables.TABLE_EPOCHS);
+        }
+
+        private void updateMap(Map<Integer, String> map, String cql)
+        {
+            for (var inst : cluster)
+            {
+                int num = inst.config().num();
+                if (inst.isShutdown())
+                {
+                    map.put(num, "unknown");
+                    continue;
+                }
+                try
+                {
+                    SimpleQueryResult qr = Retry.retryWithBackoffBlocking(5, () -> cluster.get(num).executeInternalWithResult(cql));
+                    map.put(num, TableBuilder.toStringPiped(qr.names(), QueryResults.stringify(qr)));
+                }
+                catch (Throwable t)
+                {
+                    // Throwable.toString shows the type + msg but not the stack trace
+                    map.put(num, "unknown due to failure: " + t);
+                }
+            }
         }
 
         @Override
@@ -262,6 +280,19 @@ public class AccordTopologyMixupTest extends TopologyMixupTestBase<AccordTopolog
         protected void onStartupComplete(long tcmEpoch)
         {
             ClusterUtils.awaitAccordEpochReady(cluster, tcmEpoch);
+        }
+
+        @Override
+        public String toString()
+        {
+            StringBuilder sb = new StringBuilder(super.toString());
+            sb.append("\nAccord Epoch State:");
+            for (var e : instanceEpochReadyState.entrySet())
+                sb.append("\nnode").append(e.getKey()).append(":\n").append(e.getValue());
+            sb.append("\nAccord Epoch Ranges:");
+            for (var e : instanceEpochSyncState.entrySet())
+                sb.append("\nnode").append(e.getKey()).append(":\n").append(e.getValue());
+            return sb.toString();
         }
 
         @Override

@@ -51,7 +51,7 @@ import org.agrona.collections.IntArrayList;
 import org.agrona.collections.IntHashSet;
 import org.apache.cassandra.distributed.Constants;
 import org.apache.cassandra.distributed.api.ICoordinator;
-import org.apache.cassandra.distributed.api.Row;
+import org.apache.cassandra.distributed.api.QueryResults;
 import org.apache.cassandra.distributed.api.SimpleQueryResult;
 
 import org.junit.Test;
@@ -374,30 +374,30 @@ public abstract class TopologyMixupTestBase<S extends TopologyMixupTestBase.Sche
         Property.StatefulBuilder statefulBuilder = stateful().withSteps(20).withStepTimeout(Duration.ofMinutes(3)).withExamples(1);
         preCheck(statefulBuilder);
         statefulBuilder.check(commands(this::stateGen)
-                .preCommands(state -> state.preActions.forEach(Runnable::run))
-                .add(2, (rs, state) -> {
-                    EnumSet<TopologyChange> possibleTopologyChanges = possibleTopologyChanges(state);
-                    if (possibleTopologyChanges.isEmpty()) return ignoreCommand();
-                    return topologyCommand(state, possibleTopologyChanges).next(rs);
-                })
-                .add(1, (rs, state) -> repairCommand(rs.pickInt(state.topologyHistory.up())))
-                .add(7, (rs, state) -> state.statementGen.apply(rs, state))
-                .destroyState((state, cause) -> {
-                    try (state)
-                    {
-                        TopologyMixupTestBase.this.destroyState(state, cause);
-                    }
-                })
-                .commandsTransformer((state, gen) -> {
-                    for (BiFunction<State<S>, Gen<Command<State<S>, Void, ?>>, Gen<Command<State<S>, Void, ?>>> fn : state.commandsTransformers)
-                        gen = fn.apply(state, gen);
-                    return gen;
-                })
-                .onSuccess((state, sut, history) -> logger.info("Successful for the following:\nState {}\nHistory:\n{}", state, Property.formatList("\t\t", history)))
-                .build());
+                              .preCommands(state -> state.preActions.forEach(Runnable::run))
+                              .addIf(State::allowTopologyChanges, 2, (rs, state) -> {
+                                  EnumSet<TopologyChange> possibleTopologyChanges = possibleTopologyChanges(state);
+                                  if (possibleTopologyChanges.isEmpty()) return ignoreCommand();
+                                  return topologyCommand(state, possibleTopologyChanges).next(rs);
+                              })
+                              .add(1, (rs, state) -> repairCommand(rs.pickInt(state.topologyHistory.up())))
+                              .add(7, (rs, state) -> state.statementGen.apply(rs, state))
+                              .destroyState((state, cause) -> {
+                                  try (state)
+                                  {
+                                      TopologyMixupTestBase.this.destroyState(state, cause);
+                                  }
+                              })
+                              .commandsTransformer((state, gen) -> {
+                                  for (BiFunction<State<S>, Gen<Command<State<S>, Void, ?>>, Gen<Command<State<S>, Void, ?>>> fn : state.commandsTransformers)
+                                      gen = fn.apply(state, gen);
+                                  return gen;
+                              })
+                              .onSuccess((state, sut, history) -> logger.info("Successful for the following:\nState {}\nHistory:\n{}", state, Property.formatList("\t\t", history)))
+                              .build());
     }
 
-    private EnumSet<TopologyChange> possibleTopologyChanges(State<S> state)
+    private static EnumSet<TopologyChange> possibleTopologyChanges(State<?> state)
     {
         EnumSet<TopologyChange> possibleTopologyChanges = EnumSet.noneOf(TopologyChange.class);
         // up or down is logically more correct, but since this runs sequentially and after the topology changes are complete, we don't have downed nodes at this point
@@ -683,6 +683,11 @@ public abstract class TopologyMixupTestBase<S extends TopologyMixupTestBase.Sche
             onStartupComplete(waitForEpoch);
         }
 
+        protected boolean allowTopologyChanges()
+        {
+            return !possibleTopologyChanges(this).isEmpty();
+        }
+
         protected void onStartupComplete(long tcmEpoch)
         {
 
@@ -753,17 +758,8 @@ public abstract class TopologyMixupTestBase<S extends TopologyMixupTestBase.Sche
             try
             {
                 SimpleQueryResult qr = Retry.retryWithBackoffBlocking(5, () -> cluster.get(cmsNode).executeInternalWithResult("SELECT epoch, kind, transformation FROM system_views.cluster_metadata_log"));
-                TableBuilder builder = new TableBuilder(" | ");
-                builder.add(qr.names());
-                while (qr.hasNext())
-                {
-                    Row next = qr.next();
-                    builder.add(Stream.of(next.toObjectArray())
-                            .map(Objects::toString)
-                            .map(s -> s.length() > 100 ? s.substring(0, 100) + "..." : s)
-                            .collect(Collectors.toList()));
-                }
-                epochHistory = "Epochs:\n" + builder;
+                String table = TableBuilder.toStringPiped(qr.names(), QueryResults.stringify(qr, 100));
+                epochHistory = "Epochs:\n" + table;
             }
             catch (Throwable t)
             {
