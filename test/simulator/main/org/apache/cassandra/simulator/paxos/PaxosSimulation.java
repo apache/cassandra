@@ -18,6 +18,7 @@
 
 package org.apache.cassandra.simulator.paxos;
 
+import java.nio.channels.ClosedChannelException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -37,6 +38,7 @@ import com.google.common.base.Throwables;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import accord.coordinate.CoordinationFailed;
 import accord.coordinate.Invalidated;
 import org.apache.cassandra.concurrent.ExecutorFactory;
 import org.apache.cassandra.concurrent.ScheduledExecutorPlus;
@@ -55,6 +57,7 @@ import org.apache.cassandra.simulator.cluster.ClusterActionListener;
 import org.apache.cassandra.simulator.systems.InterceptorOfGlobalMethods;
 import org.apache.cassandra.simulator.systems.SimulatedActionCallable;
 import org.apache.cassandra.simulator.systems.SimulatedSystems;
+import org.apache.cassandra.streaming.StreamReceivedOutOfTokenRangeException;
 import org.apache.cassandra.utils.AssertionUtils;
 import org.apache.cassandra.utils.CloseableIterator;
 import org.apache.cassandra.utils.concurrent.Threads;
@@ -74,16 +77,30 @@ public abstract class PaxosSimulation implements Simulation, ClusterActionListen
 
     private static String createDescription(int[] primaryKeys, int id, String idString)
     {
-        return (primaryKeys.length == 1 ? Integer.toString(primaryKeys[0]) : Arrays.toString(primaryKeys)) + "/" + id + ": " + idString;
+        return (primaryKeys.length == 1 ? Integer.toString(primaryKeys[0]) : Arrays.toString(primaryKeys)) + '/' + id + ": " + idString;
     }
 
     @SuppressWarnings("unchecked")
-    protected Class<? extends Throwable>[] expectedExceptions()
+    protected Class<? extends Throwable>[] expectedExceptionsPaxos()
     {
         return (Class<? extends Throwable>[]) new Class<?>[] { RequestExecutionException.class,
                                                                Invalidated.class,
                                                                CancellationException.class };
     }
+
+    @SuppressWarnings("unchecked")
+    protected Class<? extends Throwable>[] expectedExceptionsAccord()
+    {
+        return (Class<? extends Throwable>[]) new Class<?>[] { CancellationException.class,
+                                                               CoordinationFailed.class,
+                                                               ClosedChannelException.class,
+                                                               Invalidated.class,
+                                                               RequestExecutionException.class,
+                                                               StreamReceivedOutOfTokenRangeException.class // should always come in combination with closed channel exception
+        };
+    }
+
+    protected abstract Class<? extends Throwable>[] expectedExceptions();
 
     abstract class Operation extends SimulatedActionCallable<SimpleQueryResult> implements BiConsumer<SimpleQueryResult, Throwable>
     {

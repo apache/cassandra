@@ -281,6 +281,20 @@ public class PairOfSequencesPaxosSimulation extends AbstractPairOfSequencesPaxos
     }
 
     @Override
+    protected Class<? extends Throwable>[] expectedExceptions()
+    {
+        return maybeAccord() ? expectedExceptionsAccord() : expectedExceptionsPaxos();
+    }
+
+    private boolean maybeAccord()
+    {
+        // at startup are we accord?
+        if (transactionalMode != null && transactionalMode.accordIsEnabled) return true;
+        // do we migrate to accord?
+        return clusterOptions.consensusChangeLimit > 0;
+    }
+
+    @Override
     void log(@Nullable Integer primaryKey)
     {
         if (primaryKey == null) historyCheckers.forEach(HistoryChecker::print);
