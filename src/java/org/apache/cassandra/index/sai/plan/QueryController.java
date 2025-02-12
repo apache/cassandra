@@ -288,7 +288,11 @@ public class QueryController
 
     private void maybeTriggerGuardrails(QueryViewBuilder.QueryView queryView)
     {
-        int referencedIndexes = queryView.referencedIndexes.size();
+        int referencedIndexes = 0;
+
+        // We want to make sure that no individual column expression touches too many SSTable-attached indexes:
+        for (Pair<Expression, Collection<SSTableIndex>> expressionSSTables : queryView.view)
+            referencedIndexes = Math.max(referencedIndexes, expressionSSTables.right.size());
 
         if (Guardrails.saiSSTableIndexesPerQuery.failsOn(referencedIndexes, null))
         {

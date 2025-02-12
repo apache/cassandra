@@ -22,6 +22,7 @@ package org.apache.cassandra.fuzz.sai;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 
@@ -62,11 +63,11 @@ public abstract class SingleNodeSAITestBase extends TestBaseImpl
     private static final int VALIDATION_SKIP = 739;
     private static final int QUERIES_PER_VALIDATION = 8;
 
-    private static final int FLUSH_SKIP = 1499;
-    private static final int COMPACTION_SKIP = 1503;
-    private static final int DEFAULT_REPAIR_SKIP = 6101;
+    private static final int FLUSH_SKIP = 2217;
+    private static final int COMPACTION_SKIP = 4435;
+    private static final int DEFAULT_REPAIR_SKIP = 8869;
 
-    private static final int OPERATIONS_PER_RUN = DEFAULT_REPAIR_SKIP * 5;
+    private static final int OPERATIONS_PER_RUN = 30_000;
 
     private static final int NUM_PARTITIONS = 64;
     private static final int NUM_VISITED_PARTITIONS = 16;
@@ -162,12 +163,13 @@ public abstract class SingleNodeSAITestBase extends TestBaseImpl
         Generator<Integer> globalPkGen = Generators.int32(0, Math.min(NUM_PARTITIONS, schema.valueGenerators.pkPopulation()));
         Generator<Integer> ckGen = Generators.int32(0, schema.valueGenerators.ckPopulation());
 
-        CassandraRelevantProperties.SAI_INTERSECTION_CLAUSE_LIMIT.setInt(100);
         beforeEach();
         cluster.forEach(i -> i.nodetool("disableautocompaction"));
 
         cluster.schemaChange(schema.compile());
         cluster.schemaChange(schema.compile().replace(schema.keyspace + '.' + schema.table, schema.keyspace + ".debug_table"));
+
+        AtomicInteger indexCount = new AtomicInteger();
 
         Streams.concat(schema.clusteringKeys.stream(), schema.regularColumns.stream(), schema.staticColumns.stream())
                .forEach(column -> {
@@ -175,7 +177,8 @@ public abstract class SingleNodeSAITestBase extends TestBaseImpl
                    {
                        logger.info("Adding index to column {}...", column.name);
                        cluster.schemaChange(String.format("CREATE INDEX %s_sai_idx ON %s.%s (%s) USING 'sai' ",
-                               column.name, schema.keyspace, schema.table, column.name));
+                                                          column.name, schema.keyspace, schema.table, column.name));
+                       indexCount.incrementAndGet();
                    }
                    else
                    {
@@ -183,6 +186,7 @@ public abstract class SingleNodeSAITestBase extends TestBaseImpl
                    }
                });
 
+        CassandraRelevantProperties.SAI_INTERSECTION_CLAUSE_LIMIT.setInt(indexCount.get());
         waitForIndexesQueryable(schema);
 
         HistoryBuilder history = new ReplayingHistoryBuilder(schema.valueGenerators,
