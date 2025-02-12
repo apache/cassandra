@@ -30,6 +30,9 @@ import org.apache.cassandra.cql3.CQLTester;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
+/**
+ * Unit tests for {@link org.apache.cassandra.repair.autorepair.PrioritizedRepairPlan}
+ */
 public class PrioritizedRepairPlanTest extends CQLTester
 {
 

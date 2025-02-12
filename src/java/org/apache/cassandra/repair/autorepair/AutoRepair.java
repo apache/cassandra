@@ -63,6 +63,9 @@ import static org.apache.cassandra.repair.autorepair.AutoRepairUtils.RepairTurn.
 import static org.apache.cassandra.repair.autorepair.AutoRepairUtils.RepairTurn.MY_TURN_DUE_TO_PRIORITY;
 import static org.apache.cassandra.repair.autorepair.AutoRepairUtils.RepairTurn.MY_TURN_FORCE_REPAIR;
 
+/**
+ * AutoRepair scheduler responsible for running different types of repairs.
+ */
 public class AutoRepair
 {
     private static final Logger logger = LoggerFactory.getLogger(AutoRepair.class);

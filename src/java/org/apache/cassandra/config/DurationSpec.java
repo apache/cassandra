@@ -17,7 +17,6 @@
  */
 package org.apache.cassandra.config;
 
-import java.io.Serializable;
 import java.util.Arrays;
 import java.util.Objects;
 import java.util.concurrent.TimeUnit;
@@ -42,7 +41,7 @@ import static org.apache.cassandra.utils.LocalizeString.toLowerCaseLocalized;
  * users the opportunity to be able to provide config with a unit of their choice in cassandra.yaml as per the available
  * options. (CASSANDRA-15234)
  */
-public abstract class DurationSpec implements Serializable
+public abstract class DurationSpec
 {
     /**
      * The Regexp used to parse the duration provided as String.

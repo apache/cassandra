@@ -1122,7 +1122,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         AutoRepairService.setup();
         if (DatabaseDescriptor.getAutoRepairConfig().isAutoRepairSchedulingEnabled())
         {
-            logger.info("Enable auto-repair scheduling");
+            logger.info("Enabling auto-repair scheduling");
             AutoRepair.instance.setup();
         }
         logger.info("AutoRepair setup complete!");

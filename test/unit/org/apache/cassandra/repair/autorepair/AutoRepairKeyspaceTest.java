@@ -29,6 +29,9 @@ import org.junit.Test;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 
+/**
+ * Unit tests for {@link org.apache.cassandra.schema.SystemDistributedKeyspace}
+ */
 public class AutoRepairKeyspaceTest
 {
     @BeforeClass

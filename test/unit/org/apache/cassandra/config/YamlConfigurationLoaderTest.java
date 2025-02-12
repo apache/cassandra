@@ -35,6 +35,7 @@ import org.junit.Test;
 
 import org.apache.cassandra.distributed.shared.WithProperties;
 import org.apache.cassandra.io.util.File;
+import org.apache.cassandra.repair.autorepair.AutoRepairConfig;
 import org.yaml.snakeyaml.error.YAMLException;
 
 import static org.apache.cassandra.config.CassandraRelevantProperties.CONFIG_ALLOW_SYSTEM_PROPERTIES;
@@ -42,7 +43,6 @@ import static org.apache.cassandra.config.DataStorageSpec.DataStorageUnit.KIBIBY
 import static org.apache.cassandra.config.YamlConfigurationLoader.SYSTEM_PROPERTY_PREFIX;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import org.apache.cassandra.repair.autorepair.AutoRepairConfig;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;

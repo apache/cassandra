@@ -38,6 +38,9 @@ import org.apache.cassandra.utils.FBUtilities;
 
 import static org.apache.cassandra.repair.autorepair.AutoRepairUtils.split;
 
+/**
+ * An implementation that splits token ranges into a fixed number of subranges.
+ */
 public class FixedSplitTokenRangeSplitter implements IAutoRepairTokenRangeSplitter
 {
     private static final Logger logger = LoggerFactory.getLogger(FixedSplitTokenRangeSplitter.class);
@@ -72,7 +75,8 @@ public class FixedSplitTokenRangeSplitter implements IAutoRepairTokenRangeSplitt
     @Override
     public Iterator<KeyspaceRepairAssignments> getRepairAssignments(boolean primaryRangeOnly, List<PrioritizedRepairPlan> repairPlans)
     {
-        return new RepairAssignmentIterator(repairPlans) {
+        return new RepairAssignmentIterator(repairPlans)
+        {
 
             @Override
             protected KeyspaceRepairAssignments next(int priority, KeyspaceRepairPlan repairPlan)

@@ -40,6 +40,9 @@ import static org.apache.cassandra.Util.setAutoRepairEnabled;
 import static org.junit.Assert.assertEquals;
 import static org.mockito.Mockito.when;
 
+/**
+ * Unit tests for {@link org.apache.cassandra.tools.nodetool.AutoRepairStatus}
+ */
 @RunWith(Parameterized.class)
 public class AutoRepairStatusTest
 {
@@ -94,7 +97,7 @@ public class AutoRepairStatusTest
     @Test
     public void testExecute()
     {
-        when(probe.getOnGoingRepairHostIds(repairType.name())).thenReturn(ImmutableSet.of("host1", "host2", "host3", "host4"));
+        when(probe.getAutoRepairOnGoingRepairHostIds(repairType.name())).thenReturn(ImmutableSet.of("host1", "host2", "host3", "host4"));
         cmd.repairType = repairType.name();
 
         cmd.execute(probe);

@@ -86,8 +86,6 @@ public class ReplaceSameAddress
                             "For more, see `nodetool help bootstrap`. {}", SystemKeyspace.getBootstrapState());
                 throw new IllegalStateException("Could not finish join for during replacement");
             }
-            // this node might have just bootstrapped; check if we should run repair immediately
-            AutoRepairUtils.runRepairOnNewlyBootstrappedNodeIfEnabled();
         }
 
         if (finishJoiningRing)
@@ -97,6 +95,9 @@ public class ReplaceSameAddress
                          .filter(cfs -> Schema.instance.getUserKeyspaces().names().contains(cfs.keyspace.getName()))
                          .forEach(cfs -> cfs.indexManager.executePreJoinTasksBlocking(true));
             Gossiper.instance.mergeNodeToGossip(metadata.myNodeId(), metadata);
+
+            // this node might have just bootstrapped; check if we should run repair immediately
+            AutoRepairUtils.runRepairOnNewlyBootstrappedNodeIfEnabled();
         }
     }
 }

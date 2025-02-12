@@ -39,6 +39,9 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+/**
+ * Unit tests for {@link org.apache.cassandra.tools.nodetool.SSTableRepairedSetTest}
+ */
 public class SSTableRepairedSetTest
 {
     @Mock
@@ -58,8 +61,8 @@ public class SSTableRepairedSetTest
     public void testNoKeyspace() {
         when(probe.getNonLocalStrategyKeyspaces()).thenReturn(new ArrayList<>(Arrays.asList("ks1", "ks2")));
         when(probe.getKeyspaces()).thenReturn(new ArrayList<>(Arrays.asList("ks1", "ks2")));
-        when(probe.getTablesForKeyspace("ks1")).thenReturn(new ArrayList<>(Arrays.asList("table1", "table2")));
-        when(probe.getTablesForKeyspace("ks2")).thenReturn(new ArrayList<>(Arrays.asList("table3", "table4")));
+        when(probe.getAutoRepairTablesForKeyspace("ks1")).thenReturn(new ArrayList<>(Arrays.asList("table1", "table2")));
+        when(probe.getAutoRepairTablesForKeyspace("ks2")).thenReturn(new ArrayList<>(Arrays.asList("table3", "table4")));
         cmd.isRepaired = true;
         cmd.reallySet = true;
 

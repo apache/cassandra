@@ -217,8 +217,6 @@ public class BootstrapAndReplace extends MultiStepOperation<Epoch>
                                         "For more, see `nodetool help bootstrap`. {}", SystemKeyspace.getBootstrapState());
                             return halted();
                         }
-                        // this node might have just bootstrapped; check if we should run repair immediately
-                        AutoRepairUtils.runRepairOnNewlyBootstrappedNodeIfEnabled();
                         SystemKeyspace.setBootstrapState(SystemKeyspace.BootstrapState.COMPLETED);
                     }
                     else
@@ -242,6 +240,9 @@ public class BootstrapAndReplace extends MultiStepOperation<Epoch>
                                      .filter(cfs -> Schema.instance.getUserKeyspaces().names().contains(cfs.keyspace.getName()))
                                      .forEach(cfs -> cfs.indexManager.executePreJoinTasksBlocking(true));
                         ClusterMetadataService.instance().commit(midReplace);
+
+                        // this node might have just bootstrapped; check if we should run repair immediately
+                        AutoRepairUtils.runRepairOnNewlyBootstrappedNodeIfEnabled();
                     }
                     else
                     {
