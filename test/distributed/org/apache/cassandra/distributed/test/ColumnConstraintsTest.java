@@ -23,6 +23,7 @@ import java.util.Map;
 import java.util.Set;
 
 import org.apache.cassandra.cql3.constraints.ConstraintViolationException;
+import org.apache.cassandra.cql3.constraints.InvalidConstraintDefinitionException;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.junit.Test;
 
@@ -51,7 +52,7 @@ public class ColumnConstraintsTest extends TestBaseImpl
         {
             assertThrowsInvalidConstraintException(cluster, String.format("CREATE TABLE %s (pk int, ck1 text CHECK ck1 < 100, ck2 int, v int, " +
                                                                           "PRIMARY KEY ((pk), ck1, ck2));", tableName),
-                                                   "ck1 is not a number");
+                                                   "Column 'ck1' is not a number type.");
 
             assertThrowsInvalidConstraintException(cluster, String.format("CREATE TABLE %s (pk int, ck1 int CHECK LENGTH(ck1) < 100, ck2 int, v int, " +
                                                                           "PRIMARY KEY ((pk), ck1, ck2));", tableName),
@@ -319,6 +320,6 @@ public class ColumnConstraintsTest extends TestBaseImpl
         assertThatThrownBy(() -> cluster.schemaChange(statement))
                   .describedAs(description)
                   .has(new Condition<Throwable>(t -> t.getClass().getCanonicalName()
-                                                      .equals(InvalidRequestException.class.getCanonicalName()), description));
+                                                      .equals(InvalidConstraintDefinitionException.class.getCanonicalName()), description));
     }
 }

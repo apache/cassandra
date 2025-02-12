@@ -19,6 +19,7 @@
 package org.apache.cassandra.cql3.constraints;
 
 import java.nio.ByteBuffer;
+import java.util.Set;
 
 import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.cql3.Operator;
@@ -32,11 +33,12 @@ import org.apache.cassandra.utils.ByteBufferUtil;
 
 public class LengthConstraint extends ConstraintFunction
 {
-    private static final AbstractType<?>[] SUPPORTED_TYPES = new AbstractType[] { BytesType.instance, UTF8Type.instance, AsciiType.instance };
+    private static final String NAME = "LENGTH";
+    private static final AbstractType<?>[] SUPPORTED_TYPES = new AbstractType[]{ BytesType.instance, UTF8Type.instance, AsciiType.instance };
 
     public LengthConstraint(ColumnIdentifier columnName)
     {
-        super(columnName, "LENGTH");
+        super(columnName, NAME);
     }
 
     @Override
@@ -50,7 +52,7 @@ public class LengthConstraint extends ConstraintFunction
 
         if (!relationType.isSatisfiedBy(Int32Type.instance, leftOperand, rightOperand))
             throw new ConstraintViolationException("Column value does not satisfy value constraint for column '" + columnName + "'. "
-                                                   + "It has a length of " + valueLength + " and it should be should be "
+                                                   + "It has a length of " + valueLength + " and it should be "
                                                    + relationType + ' ' + term);
     }
 
@@ -70,6 +72,12 @@ public class LengthConstraint extends ConstraintFunction
 
         if (!supported)
             throw invalidConstraintDefinitionException(columnMetadata.type);
+    }
+
+    @Override
+    public Set<Operator> getSupportedOperators()
+    {
+        return DEFAULT_FUNCTION_OPERATORS;
     }
 
     private int getValueLength(ByteBuffer value, AbstractType<?> valueType)

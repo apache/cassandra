@@ -20,10 +20,12 @@ package org.apache.cassandra.cql3.constraints;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.util.Set;
 import java.util.function.Function;
 
 import org.apache.cassandra.cql3.ColumnIdentifier;
-import org.apache.cassandra.cql3.CqlBuilder;
+import org.apache.cassandra.cql3.Operator;
+import org.apache.cassandra.cql3.constraints.SatisfiabilityChecker.UnaryFunctionSatisfiabilityChecker;
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.io.util.DataInputPlus;
@@ -31,7 +33,6 @@ import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.tcm.serialization.MetadataSerializer;
 import org.apache.cassandra.tcm.serialization.Version;
-import org.apache.cassandra.utils.LocalizeString;
 
 import static org.apache.cassandra.cql3.constraints.ColumnConstraint.ConstraintType.UNARY_FUNCTION;
 
@@ -58,7 +59,7 @@ public class UnaryFunctionColumnConstraint extends AbstractFunctionConstraint<Un
         }
     }
 
-    private enum Functions
+    public enum Functions implements UnaryFunctionSatisfiabilityChecker
     {
         NOT_NULL(NotNullConstraint::new);
 
@@ -72,22 +73,16 @@ public class UnaryFunctionColumnConstraint extends AbstractFunctionConstraint<Un
 
     private static ConstraintFunction createConstraintFunction(String functionName, ColumnIdentifier columnName)
     {
-        try
-        {
-            return Functions.valueOf(LocalizeString.toUpperCaseLocalized(functionName)).functionCreator.apply(columnName);
-        }
-        catch (IllegalArgumentException ex)
-        {
-            throw new InvalidConstraintDefinitionException("Unrecognized constraint function: " + functionName);
-        }
+        return getEnum(Functions.class, functionName).functionCreator.apply(columnName);
     }
 
     private UnaryFunctionColumnConstraint(ConstraintFunction function, ColumnIdentifier columnName)
     {
-        super(columnName);
+        super(columnName, null, null);
         this.function = function;
     }
 
+    @Override
     public String name()
     {
         return function.name;
@@ -100,9 +95,15 @@ public class UnaryFunctionColumnConstraint extends AbstractFunctionConstraint<Un
     }
 
     @Override
-    public void appendCqlTo(CqlBuilder builder)
+    public Set<Operator> getSupportedOperators()
     {
-        builder.append(toString());
+        return Set.of();
+    }
+
+    @Override
+    public boolean enablesDuplicateDefinitions(String name)
+    {
+        return Functions.valueOf(name).enableDuplicateDefinitions();
     }
 
     @Override

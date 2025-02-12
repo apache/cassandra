@@ -24,8 +24,9 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
+import java.util.Set;
+import java.util.TreeSet;
 
-import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.cql3.CqlBuilder;
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.db.marshal.AbstractType;
@@ -34,6 +35,8 @@ import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.tcm.serialization.MetadataSerializer;
 import org.apache.cassandra.tcm.serialization.Version;
+
+import static java.lang.String.format;
 
 // group of constraints for the column
 public class ColumnConstraints extends ColumnConstraint<ColumnConstraints>
@@ -50,6 +53,12 @@ public class ColumnConstraints extends ColumnConstraint<ColumnConstraints>
     }
 
     @Override
+    public String name()
+    {
+        return getConstraintType().name();
+    }
+
+    @Override
     public MetadataSerializer<ColumnConstraints> serializer()
     {
         return serializer;
@@ -60,6 +69,12 @@ public class ColumnConstraints extends ColumnConstraint<ColumnConstraints>
     {
         for (ColumnConstraint<?> constraint : constraints)
             constraint.appendCqlTo(builder);
+    }
+
+    @Override
+    public boolean enablesDuplicateDefinitions(String name)
+    {
+        return false;
     }
 
     @Override
@@ -101,11 +116,6 @@ public class ColumnConstraints extends ColumnConstraint<ColumnConstraints>
         return false;
     }
 
-    public void checkInvalidConstraintsCombinations(ColumnIdentifier columnName)
-    {
-        // TODO check duplicities etc CASSANDRA-20330
-    }
-
     @Override
     public void validate(ColumnMetadata columnMetadata) throws InvalidConstraintDefinitionException
     {
@@ -114,6 +124,12 @@ public class ColumnConstraints extends ColumnConstraint<ColumnConstraints>
                                                            + columnMetadata.name + " of type " + columnMetadata.type.asCQL3Type()
                                                            + " for the table " + columnMetadata.ksName + "." + columnMetadata.cfName);
 
+        // this will look at constraints as a whole,
+        // checking if combinations of a particular constraint make sense (duplicities, satisfiability etc.).
+        for (SatisfiabilityChecker satisfiabilityChecker : ConstraintType.getSatisfiabilityCheckers())
+            satisfiabilityChecker.checkSatisfiability(constraints, columnMetadata);
+
+        // this validation will check whether it makes sense to execute such constraint on a given column
         for (ColumnConstraint<?> constraint : constraints)
             constraint.validate(columnMetadata);
     }
@@ -122,6 +138,33 @@ public class ColumnConstraints extends ColumnConstraint<ColumnConstraints>
     public ConstraintType getConstraintType()
     {
         return ConstraintType.COMPOSED;
+    }
+
+    public static class DuplicatesChecker implements SatisfiabilityChecker
+    {
+        @Override
+        public void checkSatisfiability(List<ColumnConstraint<?>> constraints, ColumnMetadata columnMetadata)
+        {
+            Set<String> constraintNames = new TreeSet<>();
+            List<String> duplicateConstraints = new ArrayList<>();
+
+            for (ColumnConstraint<?> constraint : constraints)
+            {
+                String constraintFullName = constraint.fullName();
+                String constraintName = constraint.name();
+
+                if (!constraintNames.add(constraintFullName))
+                {
+                    if (!constraint.enablesDuplicateDefinitions(constraintName))
+                        duplicateConstraints.add(constraintFullName);
+                }
+            }
+
+            if (!duplicateConstraints.isEmpty())
+                throw new InvalidConstraintDefinitionException(format("There are duplicate constraint definitions on column '%s': %s",
+                                                                      columnMetadata.name,
+                                                                      duplicateConstraints));
+        }
     }
 
     private static class Noop extends ColumnConstraints
@@ -135,6 +178,12 @@ public class ColumnConstraints extends ColumnConstraint<ColumnConstraints>
         public void validate(ColumnMetadata columnMetadata)
         {
             // Do nothing. It is always valid
+        }
+
+        @Override
+        public String name()
+        {
+            return "NO_OP";
         }
     }
 
