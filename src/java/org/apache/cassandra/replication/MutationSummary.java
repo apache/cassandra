@@ -18,28 +18,10 @@
 
 package org.apache.cassandra.replication;
 
-import java.io.IOException;
-
-import org.apache.cassandra.dht.IPartitioner;
-import org.apache.cassandra.io.util.DataInputPlus;
-import org.apache.cassandra.io.util.DataOutputPlus;
-import org.apache.cassandra.schema.TableMetadata;
+import org.apache.cassandra.schema.TableId;
 
 public interface MutationSummary
 {
-    interface Serializer<S extends MutationSummary>
-    {
-        void serialize(S t, DataOutputPlus out, int version) throws IOException;
-
-        S deserialize(IPartitioner partitioner, DataInputPlus in, int version) throws IOException;
-
-        default S deserialize(TableMetadata metadata, DataInputPlus in, int version) throws IOException
-        {
-            return deserialize(metadata.partitioner, in, version);
-        }
-
-        long serializedSize(S t, int version);
-    }
-
+    TableId tableId();
     long digest();
 }

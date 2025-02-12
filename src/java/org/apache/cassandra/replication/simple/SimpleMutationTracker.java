@@ -65,10 +65,11 @@ public class SimpleMutationTracker implements MutationTracker
 
     private class SimpleAccumulator implements MutationSummarizer
     {
-        private SimpleMutationSummary summary = SimpleMutationSummary.empty();
+        private SimpleMutationSummary summary;
 
-        public SimpleAccumulator()
+        public SimpleAccumulator(TableId tableId)
         {
+            summary = SimpleMutationSummary.empty(tableId);
             lock.readLock().lock();
         }
 
@@ -130,21 +131,21 @@ public class SimpleMutationTracker implements MutationTracker
     }
 
     @Override
-    public synchronized SimpleMutationSummary summaryForKey(TableId table, DecoratedKey key)
+    public synchronized SimpleMutationSummary summaryForKey(TableId tableId, DecoratedKey key)
     {
         lock.readLock().lock();
         try
         {
-            TableIds ids = tableIds.get(table);
+            TableIds ids = tableIds.get(tableId);
 
             if (ids == null)
-                return SimpleMutationSummary.empty();
+                return SimpleMutationSummary.empty(tableId);
 
             KeyIds keyIds = ids.tableIds.get(key);
             if (keyIds == null || keyIds.mutationIds.isEmpty())
-                return SimpleMutationSummary.empty();
+                return SimpleMutationSummary.empty(tableId);
 
-            return SimpleMutationSummary.of(key, keyIds.mutationIds);
+            return SimpleMutationSummary.of(tableId, key, keyIds.mutationIds);
         }
         finally
         {
@@ -153,9 +154,9 @@ public class SimpleMutationTracker implements MutationTracker
     }
 
     @Override
-    public MutationSummarizer summarizer()
+    public MutationSummarizer summarizer(TableId tableId)
     {
-        return new SimpleAccumulator();
+        return new SimpleAccumulator(tableId);
     }
 
     @Override

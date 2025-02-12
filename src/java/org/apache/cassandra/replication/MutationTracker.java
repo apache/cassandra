@@ -31,9 +31,8 @@ import org.apache.cassandra.schema.TableId;
 public interface MutationTracker
 {
     void add(Mutation mutation);
-
-    MutationSummary summaryForKey(TableId table, DecoratedKey key);
-    MutationSummarizer summarizer();
+    MutationSummary summaryForKey(TableId tableId, DecoratedKey key);
+    MutationSummarizer summarizer(TableId tableId);
     Map<InetAddressAndPort, ReconciliationPlan> calculateReconciliation(Map<InetAddressAndPort, MutationSummary> summaries);
     List<Mutation> mutations(Collection<MutationId> ids);
 }
