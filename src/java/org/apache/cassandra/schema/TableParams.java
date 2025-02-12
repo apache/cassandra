@@ -101,8 +101,7 @@ public final class TableParams
         TRANSACTIONAL_MODE,
         TRANSACTIONAL_MIGRATION_FROM,
         PENDING_DROP,
-        AUTO_REPAIR,
-        ;
+        AUTO_REPAIR;
 
         @Override
         public String toString()

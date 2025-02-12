@@ -33,20 +33,19 @@ import static org.apache.cassandra.utils.LocalizeString.toLowerCaseLocalized;
 public class AutoRepairMetrics
 {
     public static final String TYPE_NAME = "autorepair";
-    public Gauge<Integer> repairsInProgress;
-    public Gauge<Integer> nodeRepairTimeInSec;
-    public Gauge<Integer> clusterRepairTimeInSec;
-    public Gauge<Integer> longestUnrepairedSec;
-    public Gauge<Integer> succeededTokenRangesCount;
-    public Gauge<Integer> failedTokenRangesCount;
-    public Gauge<Integer> skippedTokenRangesCount;
-    public Gauge<Integer> skippedTablesCount;
+    public final Gauge<Integer> repairsInProgress;
+    public final Gauge<Integer> nodeRepairTimeInSec;
+    public final Gauge<Integer> clusterRepairTimeInSec;
+    public final Gauge<Integer> longestUnrepairedSec;
+    public final Gauge<Integer> succeededTokenRangesCount;
+    public final Gauge<Integer> failedTokenRangesCount;
+    public final Gauge<Integer> skippedTokenRangesCount;
+    public final Gauge<Integer> skippedTablesCount;
+    public final Gauge<Integer> totalMVTablesConsideredForRepair;
+    public final Gauge<Integer> totalDisabledRepairTables;
     public Counter repairTurnMyTurn;
     public Counter repairTurnMyTurnDueToPriority;
     public Counter repairTurnMyTurnForceRepair;
-    public Gauge<Integer> totalMVTablesConsideredForRepair;
-    public Gauge<Integer> totalDisabledRepairTables;
-
     public AutoRepairMetrics(RepairType repairType)
     {
         AutoRepairMetricsFactory factory = new AutoRepairMetricsFactory(repairType);

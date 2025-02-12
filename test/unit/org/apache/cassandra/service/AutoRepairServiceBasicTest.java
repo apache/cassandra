@@ -67,14 +67,12 @@ public class AutoRepairServiceBasicTest extends CQLTester {
         assertEquals(100, config.getAutoRepairHistoryClearDeleteHostsBufferInterval().toSeconds());
     }
 
-
     @Test
     public void testsetAutoRepairMaxRetriesCount() {
         autoRepairService.setAutoRepairMaxRetriesCount(101);
 
         assertEquals(101, config.getRepairMaxRetries());
     }
-
 
     @Test
     public void testsetAutoRepairRetryBackoffInSec() {

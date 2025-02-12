@@ -83,17 +83,14 @@ public abstract class AutoRepairState implements ProgressListener
     protected int totalMVTablesConsideredForRepair = 0;
     @VisibleForTesting
     protected int totalDisabledTablesRepairCount = 0;
-
     @VisibleForTesting
     protected int failedTokenRangesCount = 0;
     @VisibleForTesting
     protected int succeededTokenRangesCount = 0;
     @VisibleForTesting
     protected int skippedTokenRangesCount = 0;
-
     @VisibleForTesting
     protected int skippedTablesCount = 0;
-
     @VisibleForTesting
     protected AutoRepairHistory longestUnrepairedNode;
     @VisibleForTesting
@@ -114,7 +111,6 @@ public abstract class AutoRepairState implements ProgressListener
     {
         RepairCoordinator task = new RepairCoordinator(StorageService.instance, StorageService.nextRepairCommand.incrementAndGet(),
                                                     options, keyspace);
-
         task.addProgressListener(this);
 
         return task;
