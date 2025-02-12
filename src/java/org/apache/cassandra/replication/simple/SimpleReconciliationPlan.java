@@ -85,7 +85,7 @@ public class SimpleReconciliationPlan implements ReconciliationPlan
         {
             Preconditions.checkState(!node.equals(to));
             Preconditions.checkArgument(owned.contains(id));
-            txPlan.computeIfAbsent(node, k -> Sets.newHashSet()).add(id);
+            txPlan.computeIfAbsent(to, k -> Sets.newHashSet()).add(id);
         }
 
         SimpleReconciliationPlan build()

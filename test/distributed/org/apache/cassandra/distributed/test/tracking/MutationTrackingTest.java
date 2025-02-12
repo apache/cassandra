@@ -19,6 +19,7 @@
 package org.apache.cassandra.distributed.test.tracking;
 
 import java.util.UUID;
+import java.util.concurrent.TimeoutException;
 
 import com.google.common.collect.Iterables;
 import org.junit.Assert;
@@ -32,6 +33,7 @@ import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
 import org.apache.cassandra.distributed.api.Feature;
+import org.apache.cassandra.distributed.api.IInvokableInstance;
 import org.apache.cassandra.distributed.test.TestBaseImpl;
 import org.apache.cassandra.hints.HintsService;
 import org.apache.cassandra.metrics.StorageMetrics;
@@ -43,10 +45,12 @@ import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.schema.TableParams;
 import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.tcm.ClusterMetadata;
+import org.apache.cassandra.tcm.ClusterMetadataService;
+import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
-import static org.apache.cassandra.distributed.test.tracking.MutationTrackingUtils.decodeId;
-import static org.apache.cassandra.distributed.test.tracking.MutationTrackingUtils.encodeId;
+import static org.apache.cassandra.distributed.test.tracking.MutationTrackingUtils.*;
 
 public class MutationTrackingTest extends TestBaseImpl
 {
@@ -99,7 +103,6 @@ public class MutationTrackingTest extends TestBaseImpl
             }));
 
             logger.info(">>> Mutation id: {}", id);
-
         }
     }
 
@@ -139,5 +142,37 @@ public class MutationTrackingTest extends TestBaseImpl
                 Assert.assertEquals(hints, StorageMetrics.totalHints.getCount());
             });
         }
+    }
+
+    /**
+     * Finds the highest epoch in the cluster and waits for all nodes to be on it
+     */
+    private static void awaitHighEpoch(Cluster cluster)
+    {
+        long max = Epoch.EMPTY.getEpoch();
+        for (IInvokableInstance instance : cluster)
+        {
+            long epoch = instance.callOnInstance(() -> ClusterMetadata.current().epoch.getEpoch());
+            max = Math.max(max, epoch);
+        }
+
+        long maxEpoch = max;
+        for (IInvokableInstance instance : cluster)
+        {
+            instance.runOnInstance(() -> {
+                try
+                {
+                    ClusterMetadataService.instance().awaitAtLeast(Epoch.create(maxEpoch));
+                }
+                catch (InterruptedException | TimeoutException e)
+                {
+                    throw new RuntimeException(e);
+                }
+            });
+        }
+
+
+        return;
+
     }
 }

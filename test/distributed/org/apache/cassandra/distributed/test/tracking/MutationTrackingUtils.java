@@ -20,15 +20,27 @@ package org.apache.cassandra.distributed.test.tracking;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.util.Set;
+import java.util.SortedSet;
+import java.util.TreeSet;
 
 import com.google.common.primitives.Ints;
 
 import org.junit.Assert;
 
+import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.MutationId;
+import org.apache.cassandra.dht.Murmur3Partitioner;
+import org.apache.cassandra.distributed.api.IInvokableInstance;
 import org.apache.cassandra.io.util.DataInputBuffer;
 import org.apache.cassandra.io.util.DataOutputBuffer;
+import org.apache.cassandra.metrics.ReadRepairMetrics;
 import org.apache.cassandra.net.MessagingService;
+import org.apache.cassandra.replication.MutationTrackingService;
+import org.apache.cassandra.replication.simple.SimpleMutationSummary;
+import org.apache.cassandra.schema.Schema;
+import org.apache.cassandra.schema.TableMetadata;
+import org.apache.cassandra.utils.ByteBufferUtil;
 
 public class MutationTrackingUtils
 {
@@ -60,5 +72,51 @@ public class MutationTrackingUtils
         {
             throw new RuntimeException(e);
         }
+    }
+
+    public static SimpleMutationSummary summaryForKey(String keyspaceName, String tableName, DecoratedKey dk)
+    {
+        TableMetadata table = Schema.instance.getTableMetadata(keyspaceName, tableName);
+        return  (SimpleMutationSummary) MutationTrackingService.instance().summaryForKey(table.id, dk);
+    }
+
+    public static SimpleMutationSummary summaryForKey(String keyspaceName, String tableName, int key)
+    {
+        return  summaryForKey(keyspaceName, tableName, Murmur3Partitioner.instance.decorateKey(ByteBufferUtil.bytes(key)));
+    }
+
+    public static Set<MutationId> getIdsForKey(IInvokableInstance node, String keyspaceName, String tableName, int key)
+    {
+        byte[][] encodedIds = node.callOnInstance(() -> {
+            DecoratedKey dk = Murmur3Partitioner.instance.decorateKey(ByteBufferUtil.bytes(key));
+            SimpleMutationSummary summary = summaryForKey(keyspaceName, tableName, dk);
+            SortedSet<MutationId> ids = summary.ids.get(dk);
+            if (ids == null || ids.isEmpty())
+                return new byte[][] {};
+
+            byte[][] result = new byte[ids.size()][];
+            int idx = 0;
+            for (MutationId id : ids)
+            {
+                result[idx++] = encodeId(id);
+            }
+            return result;
+        });
+
+        SortedSet<MutationId> result = new TreeSet<>();
+        for (byte[] encodedId : encodedIds)
+            result.add(decodeId(encodedId));
+        return result;
+    }
+
+    public static void assertIdsForKey(IInvokableInstance node, String keyspaceName, String tableName, int key, Set<MutationId> expected)
+    {
+        Set<MutationId> actual = getIdsForKey(node, keyspaceName, tableName, key);
+        Assert.assertEquals(expected, actual);
+    }
+
+    public static long numLogReconciliations(IInvokableInstance node)
+    {
+        return node.callOnInstance(() -> ReadRepairMetrics.logReconcile.getCount());
     }
 }
