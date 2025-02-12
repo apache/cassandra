@@ -23,9 +23,11 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import javax.annotation.Nullable;
 
+import com.google.common.base.Preconditions;
 import com.google.common.collect.Sets;
 
 import accord.primitives.Range;
@@ -115,6 +117,8 @@ public class AccordVirtualTables
                                   "  epoch bigint,\n" +
                                   "  keyspace_name text,\n" +
                                   "  table_name text,\n" +
+                                  "  added frozen<list<text>>,\n" +
+                                  "  removed frozen<list<text>>,\n" +
                                   "  synced frozen<list<text>>,\n" +
                                   "  closed frozen<list<text>>,\n" +
                                   "  retired frozen<list<text>>,\n" +
@@ -132,26 +136,37 @@ public class AccordVirtualTables
             EpochsSnapshot snapshot = epochsSnapshot();
             for (Epoch state : snapshot)
             {
-                // When state is null there are 2 possible things going on
-                // 1) race condition with epoch evicition; this should impact the starting epochs such as min.  If this happens there isn't a reason to display the epochs as they were evicited.
-                // 2) gap!  A gap should not be possible and would be a bug (N exists, N + 2 exists, N + 1 does not exist).  This table exposes such a gap by having a missing row.
+                Map<TableId, List<TokenRange>> addedRanges = groupByTable(state.addedRanges);
+                Map<TableId, List<TokenRange>> removedRanges = groupByTable(state.removedRanges);
                 Map<TableId, List<TokenRange>> synced = groupByTable(state.synced);
                 Map<TableId, List<TokenRange>> closed = groupByTable(state.closed);
                 Map<TableId, List<TokenRange>> retired = groupByTable(state.retired);
 
-                Sets.SetView<TableId> allTables = Sets.union(Sets.union(synced.keySet(), closed.keySet()), retired.keySet());
+                Set<TableId> allTables = union(addedRanges.keySet(), removedRanges.keySet(), synced.keySet(), closed.keySet(), retired.keySet());
                 for (TableId table : allTables)
                 {
                     TableMetadata metadata = Schema.instance.getTableMetadata(table);
                     if (metadata == null) continue; // table dropped, ignore
                     ds.row(state.epoch, metadata.keyspace, metadata.name);
 
+                    ds.column("added", format(addedRanges.get(table)));
+                    ds.column("removed", format(removedRanges.get(table)));
                     ds.column("synced", format(synced.get(table)));
                     ds.column("closed", format(closed.get(table)));
                     ds.column("retired", format(retired.get(table)));
                 }
             }
             return ds;
+        }
+
+        private static <T> Set<T> union(Set<T>... sets)
+        {
+            Preconditions.checkArgument(sets.length > 0);
+            if (sets.length == 1) return sets[0];
+            Sets.SetView accum = Sets.union(sets[0], sets[1]);
+            for (int i = 2; i < sets.length; i++)
+                accum = Sets.union(accum, sets[i]);
+            return accum;
         }
 
         private static List<String> format(@Nullable List<TokenRange> list)

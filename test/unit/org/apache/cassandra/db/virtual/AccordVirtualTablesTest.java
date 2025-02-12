@@ -111,31 +111,31 @@ public class AccordVirtualTablesTest extends CQLTester
 
         // the range was added in the first epoch, so its fully synced
         assertRows(execute("SELECT * FROM " + VIRTUAL_VIEWS + "." + AccordVirtualTables.TABLE_EPOCHS),
-                   row(e1, T1_META.keyspace, T1_META.name, List.of(), List.of(), FULL_RANGE));
+                   row(e1, T1_META.keyspace, T1_META.name, FULL_RANGE, List.of(), List.of(), List.of(), FULL_RANGE));
 
         // range is no longer "added" so doesn't show up as synced!
         long e2 = 2;
         tm.onTopologyUpdate(topology(e2, T1), () -> ConfigurationService.EpochReady.done(e2));
         assertRows(execute("SELECT * FROM " + VIRTUAL_VIEWS + "." + AccordVirtualTables.TABLE_EPOCHS),
-                   row(e1, T1_META.keyspace, T1_META.name, List.of(), List.of(), FULL_RANGE));
+                   row(e1, T1_META.keyspace, T1_META.name, FULL_RANGE, List.of(), List.of(), List.of(), FULL_RANGE));
 
         // sync the range
         tm.onEpochSyncComplete(N1, e2);
         assertRows(execute("SELECT * FROM " + VIRTUAL_VIEWS + "." + AccordVirtualTables.TABLE_EPOCHS),
-                   row(e2, T1_META.keyspace, T1_META.name, List.of(), List.of(), FULL_RANGE),
-                   row(e1, T1_META.keyspace, T1_META.name, List.of(), List.of(), FULL_RANGE));
+                   row(e2, T1_META.keyspace, T1_META.name, List.of(), List.of(), List.of(), List.of(), FULL_RANGE),
+                   row(e1, T1_META.keyspace, T1_META.name, FULL_RANGE, List.of(), List.of(), List.of(), FULL_RANGE));
 
         // lets close e2
         tm.onEpochClosed(Ranges.single(TokenRange.fullRange(T1)), e2);
         assertRows(execute("SELECT * FROM " + VIRTUAL_VIEWS + "." + AccordVirtualTables.TABLE_EPOCHS),
-                   row(e2, T1_META.keyspace, T1_META.name, FULL_RANGE, List.of(), FULL_RANGE),
-                   row(e1, T1_META.keyspace, T1_META.name, FULL_RANGE, List.of(), FULL_RANGE));
+                   row(e2, T1_META.keyspace, T1_META.name, List.of(), FULL_RANGE, List.of(), List.of(), FULL_RANGE),
+                   row(e1, T1_META.keyspace, T1_META.name, FULL_RANGE, FULL_RANGE, List.of(), List.of(), FULL_RANGE));
 
         // enjoy retirement!
         tm.onEpochRetired(Ranges.single(TokenRange.fullRange(T1)), e2);
         assertRows(execute("SELECT * FROM " + VIRTUAL_VIEWS + "." + AccordVirtualTables.TABLE_EPOCHS),
-                   row(e2, T1_META.keyspace, T1_META.name, FULL_RANGE, FULL_RANGE, FULL_RANGE),
-                   row(e1, T1_META.keyspace, T1_META.name, FULL_RANGE, FULL_RANGE, FULL_RANGE));
+                   row(e2, T1_META.keyspace, T1_META.name, List.of(), FULL_RANGE, List.of(), FULL_RANGE, FULL_RANGE),
+                   row(e1, T1_META.keyspace, T1_META.name, FULL_RANGE, FULL_RANGE, List.of(), FULL_RANGE, FULL_RANGE));
     }
 
     private static ConfigurationService.EpochReady pendingReady(long epoch)
