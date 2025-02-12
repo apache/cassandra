@@ -968,7 +968,7 @@ public class StorageProxy implements StorageProxyMBean
     private static void hintMutations(Collection<? extends IMutation> mutations)
     {
         for (IMutation mutation : mutations)
-            if (!(mutation instanceof CounterMutation))
+            if (!(mutation instanceof CounterMutation) && mutation.id().isNone())
                 hintMutation((Mutation) mutation);
 
         Tracing.trace("Wrote hints to satisfy CL.ANY after no replicas acknowledged the write");
@@ -2738,6 +2738,7 @@ public class StorageProxy implements StorageProxyMBean
                                    EndpointsForToken targets,
                                    AbstractWriteResponseHandler<IMutation> responseHandler)
     {
+        Preconditions.checkArgument(mutation.id().isNone());
         Replicas.assertFull(targets); // hints should not be written for transient replicas
         HintRunnable runnable = new HintRunnable(targets)
         {

@@ -173,6 +173,8 @@ public class Mutation implements IMutation, Supplier<Mutation>
     @Override
     public Supplier<Mutation> hintOnFailure()
     {
+        if (!id().isNone())
+            return null;
         return this;
     }
 
