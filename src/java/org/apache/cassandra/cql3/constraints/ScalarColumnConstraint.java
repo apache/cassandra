@@ -20,9 +20,10 @@ package org.apache.cassandra.cql3.constraints;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.util.List;
+import java.util.Set;
 
 import org.apache.cassandra.cql3.ColumnIdentifier;
-import org.apache.cassandra.cql3.CqlBuilder;
 import org.apache.cassandra.cql3.Operator;
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.db.marshal.AbstractType;
@@ -32,12 +33,19 @@ import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.tcm.serialization.MetadataSerializer;
 import org.apache.cassandra.tcm.serialization.Version;
 
-public class ScalarColumnConstraint extends ColumnConstraint<ScalarColumnConstraint>
-{
-    public final static Serializer serializer = new Serializer();
+import static org.apache.cassandra.cql3.Operator.EQ;
+import static org.apache.cassandra.cql3.Operator.GT;
+import static org.apache.cassandra.cql3.Operator.GTE;
+import static org.apache.cassandra.cql3.Operator.LT;
+import static org.apache.cassandra.cql3.Operator.LTE;
+import static org.apache.cassandra.cql3.Operator.NEQ;
+import static org.apache.cassandra.cql3.constraints.AbstractFunctionSatisfiabilityChecker.SCALAR_SATISFIABILITY_CHECKER;
 
-    private final Operator relationType;
-    private final String term;
+public class ScalarColumnConstraint extends AbstractFunctionConstraint<ScalarColumnConstraint>
+{
+    public static final Set<Operator> SUPPORTED_OPERATORS = Set.of(EQ, NEQ, GTE, GT, LTE, LT);
+
+    public static final Serializer serializer = new Serializer();
 
     public final static class Raw
     {
@@ -58,13 +66,25 @@ public class ScalarColumnConstraint extends ColumnConstraint<ScalarColumnConstra
         }
     }
 
-    private ScalarColumnConstraint(ColumnIdentifier param, Operator relationType, String term)
+    public static class ScalarColumnConstraintSatisfiabilityChecker implements SatisfiabilityChecker
     {
-        super(param);
-        this.relationType = relationType;
-        this.term = term;
+        @Override
+        public void checkSatisfiability(List<ColumnConstraint<?>> constraints, ColumnMetadata columnMetadata)
+        {
+            SCALAR_SATISFIABILITY_CHECKER.check("scalar", constraints, columnMetadata);
+        }
     }
 
+    private ScalarColumnConstraint(ColumnIdentifier param, Operator relationType, String term)
+    {
+        super(param, relationType, term);
+    }
+
+    @Override
+    public Set<Operator> getSupportedOperators()
+    {
+        return SUPPORTED_OPERATORS;
+    }
 
     @Override
     protected void internalEvaluate(AbstractType<?> valueType, ByteBuffer columnValue)
@@ -104,15 +124,21 @@ public class ScalarColumnConstraint extends ColumnConstraint<ScalarColumnConstra
     }
 
     @Override
+    public String name()
+    {
+        return columnName + " " + relationType;
+    }
+
+    @Override
     public MetadataSerializer<ScalarColumnConstraint> serializer()
     {
         return serializer;
     }
 
     @Override
-    public void appendCqlTo(CqlBuilder builder)
+    public boolean enablesDuplicateDefinitions(String name)
     {
-        builder.append(toString());
+        return relationType == NEQ;
     }
 
     private static class Serializer implements MetadataSerializer<ScalarColumnConstraint>

@@ -19,12 +19,17 @@
 package org.apache.cassandra.cql3.constraints;
 
 import java.nio.ByteBuffer;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
 
 import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.cql3.CqlBuilder;
+import org.apache.cassandra.cql3.constraints.ColumnConstraints.DuplicatesChecker;
+import org.apache.cassandra.cql3.constraints.ScalarColumnConstraint.ScalarColumnConstraintSatisfiabilityChecker;
 import org.apache.cassandra.db.marshal.AbstractType;
-import org.apache.cassandra.tcm.serialization.MetadataSerializer;
 import org.apache.cassandra.schema.ColumnMetadata;
+import org.apache.cassandra.tcm.serialization.MetadataSerializer;
 
 /**
  * Common class for the conditions that a CQL Constraint needs to implement to be integrated in the
@@ -46,32 +51,65 @@ public abstract class ColumnConstraint<T>
         // The order of that enum matters!!
         // We are serializing its enum position instead of its name.
         // Changing this enum would affect how that int is interpreted when deserializing.
-        COMPOSED(ColumnConstraints.serializer),
-        FUNCTION(FunctionColumnConstraint.serializer),
-        SCALAR(ScalarColumnConstraint.serializer),
-        UNARY_FUNCTION(UnaryFunctionColumnConstraint.serializer);
+        COMPOSED(ColumnConstraints.serializer, new DuplicatesChecker()),
+        FUNCTION(FunctionColumnConstraint.serializer, FunctionColumnConstraint.Functions.values()),
+        SCALAR(ScalarColumnConstraint.serializer, new ScalarColumnConstraintSatisfiabilityChecker()),
+        UNARY_FUNCTION(UnaryFunctionColumnConstraint.serializer, UnaryFunctionColumnConstraint.Functions.values());
 
         private final MetadataSerializer<?> serializer;
+        private final SatisfiabilityChecker[] satisfiabilityCheckers;
 
-        ConstraintType(MetadataSerializer<?> serializer)
+        ConstraintType(MetadataSerializer<?> serializer, SatisfiabilityChecker satisfiabilityChecker)
+        {
+            this(serializer, new SatisfiabilityChecker[]{ satisfiabilityChecker });
+        }
+
+        ConstraintType(MetadataSerializer<?> serializer, SatisfiabilityChecker[] satisfiabilityCheckers)
         {
             this.serializer = serializer;
+            this.satisfiabilityCheckers = satisfiabilityCheckers;
         }
 
         public static MetadataSerializer<?> getSerializer(int i)
         {
             return ConstraintType.values()[i].serializer;
         }
+
+        public static SatisfiabilityChecker[] getSatisfiabilityCheckers()
+        {
+            List<SatisfiabilityChecker> result = new ArrayList<>();
+            for (ConstraintType constraintType : ConstraintType.values())
+                result.addAll(Arrays.asList(constraintType.satisfiabilityCheckers));
+
+            return result.toArray(new SatisfiabilityChecker[0]);
+        }
+    }
+
+    public abstract String name();
+
+    /**
+     * Typically includes name of a constraint as in {@link #name()},
+     * plus an operator of a function, if constraint is a function.
+     * Full name serves as String which uniquely distinguishes two constraints even of same names for the purpose
+     * of checking if there is a specific constraint used twice. A duplicit usage of a constraint is illegal.
+     *
+     * @return full name of a constraint, with an operator.
+     */
+    public String fullName()
+    {
+        return name();
     }
 
     public abstract MetadataSerializer<T> serializer();
 
     public abstract void appendCqlTo(CqlBuilder builder);
 
+    public abstract boolean enablesDuplicateDefinitions(String name);
+
     /**
      * Method that evaluates the condition. It can either succeed or throw a {@link ConstraintViolationException}.
      *
-     * @param valueType value type of the column value under test
+     * @param valueType   value type of the column value under test
      * @param columnValue Column value to be evaluated at write time
      */
     public void evaluate(AbstractType<?> valueType, ByteBuffer columnValue) throws ConstraintViolationException

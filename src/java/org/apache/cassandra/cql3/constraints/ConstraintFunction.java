@@ -19,17 +19,27 @@
 package org.apache.cassandra.cql3.constraints;
 
 import java.nio.ByteBuffer;
+import java.util.Set;
 
 import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.cql3.Operator;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.schema.ColumnMetadata;
 
+import static org.apache.cassandra.cql3.Operator.EQ;
+import static org.apache.cassandra.cql3.Operator.GT;
+import static org.apache.cassandra.cql3.Operator.GTE;
+import static org.apache.cassandra.cql3.Operator.LT;
+import static org.apache.cassandra.cql3.Operator.LTE;
+import static org.apache.cassandra.cql3.Operator.NEQ;
+
 /**
  * Interface to be implemented by functions that are executed as part of CQL constraints.
  */
 public abstract class ConstraintFunction
 {
+    public static final Set<Operator> DEFAULT_FUNCTION_OPERATORS = Set.of(EQ, NEQ, GTE, GT, LTE, LT);
+
     protected final ColumnIdentifier columnName;
     protected final String name;
 
@@ -70,4 +80,14 @@ public abstract class ConstraintFunction
      * if the CQL statement is valid or needs to be rejected as invalid throwing a {@link InvalidConstraintDefinitionException}
      */
     public abstract void validate(ColumnMetadata columnMetadata) throws InvalidConstraintDefinitionException;
+
+    /**
+     * Return operators this function supports. By default, it returns an empty set, modelling unary function.
+     *
+     * @return set of operators this function is allowed to have.
+     */
+    public Set<Operator> getSupportedOperators()
+    {
+        return Set.of();
+    }
 }

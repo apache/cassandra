@@ -18,14 +18,52 @@
 
 package org.apache.cassandra.cql3.constraints;
 
+import java.util.Set;
+
 import org.apache.cassandra.cql3.ColumnIdentifier;
+import org.apache.cassandra.cql3.CqlBuilder;
+import org.apache.cassandra.cql3.Operator;
+import org.apache.cassandra.utils.LocalizeString;
 
 public abstract class AbstractFunctionConstraint<T> extends ColumnConstraint<T>
 {
-    public AbstractFunctionConstraint(ColumnIdentifier columnName)
+    protected final Operator relationType;
+    protected final String term;
+
+    public AbstractFunctionConstraint(ColumnIdentifier columnName, Operator relationType, String term)
     {
         super(columnName);
+        this.relationType = relationType;
+        this.term = term;
     }
 
-    public abstract String name();
+    public Operator relationType()
+    {
+        return relationType;
+    }
+
+    public String term()
+    {
+        return term;
+    }
+
+    public abstract Set<Operator> getSupportedOperators();
+
+    @Override
+    public void appendCqlTo(CqlBuilder builder)
+    {
+        builder.append(toString());
+    }
+
+    public static <T extends Enum<T>> T getEnum(Class<T> enumClass, String functionName)
+    {
+        try
+        {
+            return Enum.valueOf(enumClass, LocalizeString.toUpperCaseLocalized(functionName));
+        }
+        catch (IllegalArgumentException e)
+        {
+            throw new InvalidConstraintDefinitionException("Unrecognized constraint function: " + functionName);
+        }
+    }
 }
