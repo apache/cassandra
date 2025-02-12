@@ -677,16 +677,15 @@ public class PaxosRepair extends AbstractPaxosRepair
         return result;
     }
 
-    static boolean validatePeerCompatibility(SharedContext ctx, TableMetadata table, Range<Token> range)
+    static boolean validatePeerCompatibility(SharedContext ctx, ClusterMetadata metadata, TableMetadata table, Range<Token> range)
     {
-        ClusterMetadata metadata = ClusterMetadata.current();
         Participants participants = Participants.get(metadata, table, range.right, ConsistencyLevel.SERIAL, r -> ctx.failureDetector().isAlive(r.endpoint()));
         return Iterables.all(participants.all, (participant) -> validatePeerCompatibility(metadata, participant));
     }
 
-    public static boolean validatePeerCompatibility(SharedContext ctx, TableMetadata table, Collection<Range<Token>> ranges)
+    public static boolean validatePeerCompatibility(SharedContext ctx, ClusterMetadata metadata, TableMetadata table, Collection<Range<Token>> ranges)
     {
-        return Iterables.all(ranges, range -> validatePeerCompatibility(ctx, table, range));
+        return Iterables.all(ranges, range -> validatePeerCompatibility(ctx, metadata, table, range));
     }
 
     public static void shutdownAndWait(long timeout, TimeUnit units) throws InterruptedException, TimeoutException

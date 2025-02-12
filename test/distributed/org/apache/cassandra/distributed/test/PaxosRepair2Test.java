@@ -23,12 +23,17 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
 import com.google.common.collect.Iterators;
 import com.google.common.collect.Sets;
 
 import org.apache.cassandra.distributed.shared.WithProperties;
+import org.apache.cassandra.repair.SharedContext;
+import org.apache.cassandra.service.paxos.cleanup.PaxosCleanupLocalCoordinator;
+import org.apache.cassandra.service.paxos.cleanup.PaxosCleanupResponse;
+import org.apache.cassandra.utils.Shared;
 import org.awaitility.Awaitility;
 import org.junit.Assert;
 import org.junit.Test;
@@ -456,6 +461,13 @@ public class PaxosRepair2Test extends TestBaseImpl
         }
     }
 
+    @Shared(scope = Shared.Scope.ANY)
+    public static class Conditions
+    {
+        public java.util.concurrent.CountDownLatch beforeKeyspaceDrop = new CountDownLatch(1);
+        public java.util.concurrent.CountDownLatch afterKeyspaceDrop = new CountDownLatch(1);
+    }
+
     @Test
     public void legacyPurgeRepairLoop() throws Exception
     {
@@ -573,6 +585,43 @@ public class PaxosRepair2Test extends TestBaseImpl
                 assertUncommitted(cluster.get(1), KEYSPACE, TABLE, 0);
                 assertUncommitted(cluster.get(2), KEYSPACE, TABLE, 0);
                 assertUncommitted(cluster.get(3), KEYSPACE, TABLE, 0);
+
+                Conditions conditions = new Conditions();
+
+                Thread keyspaceDropTask = new Thread(() -> {
+                    try
+                    {
+                        conditions.beforeKeyspaceDrop.await();
+                        cluster.schemaChange("DROP KEYSPACE " + KEYSPACE, 3);
+                        conditions.afterKeyspaceDrop.countDown();
+                    }
+                    catch (InterruptedException e)
+                    {
+                        throw new RuntimeException(e);
+                    }
+                });
+
+                keyspaceDropTask.start();
+
+                boolean failedAsExpected = cluster.get(3).applyOnInstance(conds -> {
+                    try
+                    {
+                        TableId tableId = Schema.instance.getTableMetadata(KEYSPACE, TABLE).id;
+                        Token token = DatabaseDescriptor.getPartitioner().getMinimumToken();
+                        Collection<Range<Token>> ranges = Collections.singleton(new Range<>(token, token));
+                        PaxosCleanupLocalCoordinator repair = PaxosCleanupLocalCoordinator.createForAutoRepair(SharedContext.Global.instance, tableId, ranges);
+                        conds.beforeKeyspaceDrop.countDown();
+                        conds.afterKeyspaceDrop.await();
+                        repair.start();
+                        PaxosCleanupResponse result = repair.get();
+                        return !result.wasSuccessful && result.message.contains("Unknown keyspace: " + KEYSPACE);
+                    }
+                    catch (Exception e)
+                    {
+                        throw new RuntimeException(e);
+                    }
+                }, conditions);
+                Assert.assertTrue(failedAsExpected);
             }
         }
         finally
