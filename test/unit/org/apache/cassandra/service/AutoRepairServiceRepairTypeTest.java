@@ -55,7 +55,6 @@ public class AutoRepairServiceRepairTypeTest extends CQLTester {
         return Arrays.asList(AutoRepairConfig.RepairType.values());
     }
 
-
     @BeforeClass
     public static void setupClass() throws Exception {
         SYSTEM_DISTRIBUTED_DEFAULT_RF.setInt(1);

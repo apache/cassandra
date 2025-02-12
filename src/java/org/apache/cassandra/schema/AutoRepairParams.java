@@ -52,7 +52,7 @@ public final class AutoRepairParams
         }
     }
 
-    private ImmutableMap<String, String> options;
+    private final ImmutableMap<String, String> options;
 
     public static final Map<String, String> DEFAULT_OPTIONS = ImmutableMap.of(
     LocalizeString.toLowerCaseLocalized(Option.FULL_ENABLED.name()), Boolean.toString(true),
@@ -151,7 +151,6 @@ public final class AutoRepairParams
     {
         return StringUtils.isNumeric(value);
     }
-
 
     public Map<String, String> options()
     {

@@ -78,6 +78,7 @@ public class SSTableRepairedAtTest extends CQLTester
         table2 = Keyspace.open(TEST_KEYSPACE).getColumnFamilyStore("table2");
         assert table2 != null;
     }
+
     @Test
     public void testGetTablesForKeyspace()
     {
