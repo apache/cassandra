@@ -51,7 +51,6 @@ public class AutoRepairKeyspaceTest
         AutoRepair.SLEEP_IF_REPAIR_FINISHES_QUICKLY = new DurationSpec.IntSecondsBound("0s");
     }
 
-
     @Test
     public void testEnsureAutoRepairTablesArePresent()
     {

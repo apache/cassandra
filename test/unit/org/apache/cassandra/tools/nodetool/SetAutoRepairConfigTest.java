@@ -203,7 +203,6 @@ public class SetAutoRepairConfigTest
             verify(probe, times(1)).setAutoRepairThreads(repairType.name(), 1);
         }
 
-
         @Test
         public void testV2FlagMissing()
         {

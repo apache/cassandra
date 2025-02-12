@@ -35,7 +35,6 @@ import static org.junit.Assert.assertTrue;
  */
 public class PrioritizedRepairPlanTest extends CQLTester
 {
-
     @Test
     public void testBuildWithDifferentPriorities()
     {
@@ -162,5 +161,4 @@ public class PrioritizedRepairPlanTest extends CQLTester
         assertEquals(5, prioritizedRepairPlans.get(0).getPriority());
         assertEquals(table1, prioritizedRepairPlans.get(0).getKeyspaceRepairPlans().get(0).getTableNames().get(0));
     }
-
 }

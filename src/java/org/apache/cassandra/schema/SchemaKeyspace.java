@@ -557,7 +557,6 @@ public final class SchemaKeyspace
                .add("extensions", params.extensions)
                .add("auto_repair", params.autoRepair.asMap());
 
-
         // Only add CDC-enabled flag to schema if it's enabled on the node. This is to work around RTE's post-8099 if a 3.8+
         // node sends table schema to a < 3.8 versioned node with an unknown column.
         if (DatabaseDescriptor.isCDCEnabled())

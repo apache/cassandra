@@ -51,7 +51,6 @@ public abstract class RepairAssignmentIterator implements Iterator<KeyspaceRepai
                 currentIterator = currentPlan.getKeyspaceRepairPlans().iterator();
             }
         }
-
         return currentIterator;
     }
 
