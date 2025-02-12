@@ -166,7 +166,7 @@ public class AccordVirtualTables
 
     private static EpochsSnapshot epochsSnapshot()
     {
-        return AccordService.instance().node().topology().epochsSnapshot();
+        return AccordService.instance().topology().epochsSnapshot();
     }
 
     private static String toStringNoTable(TokenRange tr)
