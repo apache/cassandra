@@ -84,18 +84,16 @@ public abstract class PaxosSimulation implements Simulation, ClusterActionListen
     protected Class<? extends Throwable>[] expectedExceptionsPaxos()
     {
         return (Class<? extends Throwable>[]) new Class<?>[] { RequestExecutionException.class,
-                                                               Invalidated.class,
                                                                CancellationException.class };
     }
 
     @SuppressWarnings("unchecked")
     protected Class<? extends Throwable>[] expectedExceptionsAccord()
     {
-        return (Class<? extends Throwable>[]) new Class<?>[] { CancellationException.class,
+        return (Class<? extends Throwable>[]) new Class<?>[] { RequestExecutionException.class,
+                                                               CancellationException.class,
                                                                CoordinationFailed.class,
                                                                ClosedChannelException.class,
-                                                               Invalidated.class,
-                                                               RequestExecutionException.class,
                                                                StreamReceivedOutOfTokenRangeException.class // should always come in combination with closed channel exception
         };
     }
