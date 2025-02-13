@@ -70,8 +70,7 @@ public final class TableParams
         CRC_CHECK_CHANCE,
         CDC,
         READ_REPAIR,
-        AUTO_REPAIR,
-        ;
+        AUTO_REPAIR;
 
         @Override
         public String toString()

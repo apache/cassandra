@@ -65,7 +65,7 @@ import static org.junit.Assert.assertTrue;
  */
 public class AutoRepairUtilsTest extends CQLTester
 {
-    static RepairType repairType = RepairType.INCREMENTAL;
+    static final RepairType repairType = RepairType.INCREMENTAL;
     static UUID hostId;
 
     static InetAddressAndPort localEndpoint;
@@ -129,7 +129,6 @@ public class AutoRepairUtilsTest extends CQLTester
         assertEquals(1, result.size());
         assertTrue(result.one().getBoolean(COL_FORCE_REPAIR));
     }
-
 
     @Test
     public void testClearDeleteHosts()
@@ -259,7 +258,6 @@ public class AutoRepairUtilsTest extends CQLTester
 
         assertEquals(2, count);
     }
-
 
     @Test
     public void testGetMaxNumberOfNodeRunAutoRepairInGroup_percentage()

@@ -377,7 +377,6 @@ public class RepairTokenRangeSplitterTest extends CQLTester
         return new SizeEstimate(RepairType.INCREMENTAL, KEYSPACE, "table1", FULL_RANGE, 1, sizeInRange.toBytes(), totalSize.toBytes());
     }
 
-
     private void insertAndFlushSingleTable() throws Throwable
     {
         execute("INSERT INTO %s (k, v) values (?, ?)", 1, 1);

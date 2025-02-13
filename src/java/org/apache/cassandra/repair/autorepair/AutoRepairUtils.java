@@ -136,7 +136,6 @@ public class AutoRepairUtils
     COL_REPAIR_TYPE, COL_HOST_ID);
 
     final static String RECORD_FINISH_REPAIR_HISTORY = String.format(
-
     "UPDATE %s.%s SET %s= ?, %s=false WHERE %s = ? AND %s = ?"
     , SchemaConstants.DISTRIBUTED_KEYSPACE_NAME, SystemDistributedKeyspace.AUTO_REPAIR_HISTORY, COL_REPAIR_FINISH_TS,
     COL_FORCE_REPAIR, COL_REPAIR_TYPE, COL_HOST_ID);
@@ -183,10 +182,8 @@ public class AutoRepairUtils
                                                                                                             .forInternalCalls());
         selectStatementRepairPriority = (SelectStatement) QueryProcessor.getStatement(SELECT_REPAIR_PRIORITY, ClientState
                                                                                                               .forInternalCalls());
-
         selectLastRepairTimeForNode = (SelectStatement) QueryProcessor.getStatement(SELECT_LAST_REPAIR_TIME_FOR_NODE, ClientState
                                                                                                                       .forInternalCalls());
-
         delStatementPriorityStatus = (ModificationStatement) QueryProcessor.getStatement(DEL_REPAIR_PRIORITY, ClientState
                                                                                                               .forInternalCalls());
         addPriorityHost = (ModificationStatement) QueryProcessor.getStatement(ADD_PRIORITY_HOST, ClientState
@@ -390,14 +387,11 @@ public class AutoRepairUtils
                                                                                                     ByteBufferUtil.bytes(repairType.toString()),
                                                                                                     ByteBufferUtil.bytes(hostId))),
                                                                       Dispatcher.RequestTime.forImmediateExecution());
-
         UntypedResultSet repairTime = UntypedResultSet.create(rows.result);
-
         if (repairTime.isEmpty())
         {
             return 0;
         }
-
         return repairTime.one().getLong(COL_REPAIR_FINISH_TS);
     }
 
@@ -562,11 +556,9 @@ public class AutoRepairUtils
             int parallelRepairNumber = getMaxNumberOfNodeRunAutoRepair(repairType,
                                                                               autoRepairHistories == null ? 0 : autoRepairHistories.size());
             logger.info("Will run repairs concurrently on {} node(s)", parallelRepairNumber);
-
             if (currentRepairStatus == null || parallelRepairNumber > currentRepairStatus.hostIdsWithOnGoingRepair.size())
             {
                 // more repairs can be run, I might be the new one
-
                 if (autoRepairHistories != null)
                 {
                     logger.info("Auto repair history table has {} records", autoRepairHistories.size());
@@ -608,13 +600,11 @@ public class AutoRepairUtils
                                 "First node in priority list is {}", ClusterMetadata.current().directory.addresses.get(NodeId.fromUUID(priorityHostId)));
                     return NOT_MY_TURN;
                 }
-
                 if (myId.equals(priorityHostId))
                 {
                     //I have a priority for repair hence its my turn now
                     return MY_TURN_DUE_TO_PRIORITY;
                 }
-
                 // get the longest unrepaired node from the nodes which are not running repair
                 AutoRepairHistory defaultNodeToBeRepaired = getHostWithLongestUnrepairTime(currentRepairStatus.historiesWithoutOnGoingRepair);
                 //check who is next, which is helpful for debugging
@@ -814,7 +804,6 @@ public class AutoRepairUtils
         }
         return repair;
     }
-
 
     public static boolean tableMaxRepairTimeExceeded(RepairType repairType, long startTime)
     {

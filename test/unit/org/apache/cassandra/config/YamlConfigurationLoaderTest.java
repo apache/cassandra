@@ -274,11 +274,11 @@ public class YamlConfigurationLoaderTest
                                                                "optional", false,
                                                                "enabled", true);
         Map<String, Object> autoRepairConfig = ImmutableMap.of("enabled", true,
-                                                               "global_settings", ImmutableMap.of("number_of_repair_threads",
-                                                                                                  1),
-                                                               "repair_type_overrides", ImmutableMap.of(
-        "full", ImmutableMap.of("number_of_repair_threads",
-                                2)));
+                                                               "global_settings",
+                                                                        ImmutableMap.of("number_of_repair_threads", 1),
+                                                               "repair_type_overrides",
+                                                                        ImmutableMap.of("full",
+                                                                                    ImmutableMap.of("number_of_repair_threads", 2)));
         Map<String,Object> map = new ImmutableMap.Builder<String, Object>()
                                  .put("storage_port", storagePort)
                                  .put("commitlog_sync", commitLogSync)

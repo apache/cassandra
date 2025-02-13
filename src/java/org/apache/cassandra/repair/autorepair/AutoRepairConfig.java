@@ -453,8 +453,8 @@ public class AutoRepairConfig implements Serializable
             opts.table_max_repair_time = new DurationSpec.IntSecondsBound("6h");
             opts.materialized_view_repair_enabled = false;
             opts.token_range_splitter = new ParameterizedClass(DEFAULT_SPLITTER.getName(), Collections.emptyMap());
-            opts.initial_scheduler_delay = new DurationSpec.IntSecondsBound("5m"); // 5 minutes
-            opts.repair_session_timeout = new DurationSpec.IntSecondsBound("3h"); // 3 hours
+            opts.initial_scheduler_delay = new DurationSpec.IntSecondsBound("5m");
+            opts.repair_session_timeout = new DurationSpec.IntSecondsBound("3h");
 
             return opts;
         }

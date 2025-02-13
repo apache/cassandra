@@ -25,9 +25,6 @@ import java.util.Set;
  */
 public interface AutoRepairServiceMBean
 {
-    /**
-     * Enable or disable auto-repair for a given repair type
-     */
     public void setAutoRepairEnabled(String repairType, boolean enabled);
 
     public void setRepairThreads(String repairType, int repairThreads);
