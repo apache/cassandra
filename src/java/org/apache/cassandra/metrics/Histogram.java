@@ -18,10 +18,12 @@
 
 package org.apache.cassandra.metrics;
 
-import com.codahale.metrics.Metered;
+import com.codahale.metrics.Counting;
+import com.codahale.metrics.Metric;
+import com.codahale.metrics.Sampling;
 
-public interface Meter extends Metered, Destoyable
+public interface Histogram extends Metric, Sampling, Counting, Destoyable
 {
-    void mark(long n);
-    void mark();
+    void update(long value);
+    void update(int value);
 }

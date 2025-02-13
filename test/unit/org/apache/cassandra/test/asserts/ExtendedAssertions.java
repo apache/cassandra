@@ -20,7 +20,7 @@ package org.apache.cassandra.test.asserts;
 
 import org.apache.cassandra.metrics.Counter;
 import com.codahale.metrics.Counting;
-import com.codahale.metrics.Histogram;
+import org.apache.cassandra.metrics.Histogram;
 import com.codahale.metrics.Snapshot;
 import org.assertj.core.api.AbstractObjectAssert;
 

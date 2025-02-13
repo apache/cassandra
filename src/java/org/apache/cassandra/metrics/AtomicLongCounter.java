@@ -18,10 +18,44 @@
 
 package org.apache.cassandra.metrics;
 
-import com.codahale.metrics.Metered;
+import java.util.concurrent.atomic.AtomicLong;
 
-public interface Meter extends Metered, Destoyable
+/**
+ * This type of Counter is not very efficient for updates but fast to read.
+ * It should be used only when getCount performance is critical
+ * and we can sucrifice the update speed by multiple threads
+ */
+public class AtomicLongCounter implements Counter
 {
-    void mark(long n);
-    void mark();
+    private final AtomicLong count = new AtomicLong();
+
+    @Override
+    public void inc()
+    {
+        count.incrementAndGet();
+    }
+
+    @Override
+    public void inc(long n)
+    {
+        count.addAndGet(n);
+    }
+
+    @Override
+    public void dec()
+    {
+        count.decrementAndGet();
+    }
+
+    @Override
+    public void dec(long n)
+    {
+        count.addAndGet(-n);
+    }
+
+    @Override
+    public long getCount()
+    {
+        return count.get();
+    }
 }

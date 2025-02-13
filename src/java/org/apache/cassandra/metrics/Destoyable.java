@@ -18,10 +18,7 @@
 
 package org.apache.cassandra.metrics;
 
-import com.codahale.metrics.Metered;
-
-public interface Meter extends Metered, Destoyable
+public interface Destoyable
 {
-    void mark(long n);
-    void mark();
+    default void destroy() {}
 }

@@ -20,7 +20,7 @@ package org.apache.cassandra.index.sai.metrics;
 import java.util.concurrent.TimeUnit;
 
 import org.apache.cassandra.metrics.Counter;
-import com.codahale.metrics.Histogram;
+import org.apache.cassandra.metrics.Histogram;
 import org.apache.cassandra.metrics.Timer;
 import org.apache.cassandra.index.sai.QueryContext;
 import org.apache.cassandra.schema.TableMetadata;

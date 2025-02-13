@@ -20,8 +20,6 @@ package org.apache.cassandra.metrics;
 
 import static org.apache.cassandra.metrics.CassandraMetricsRegistry.Metrics;
 
-import com.codahale.metrics.Histogram;
-
 /**
  * Metrics to track the size of incoming and outgoing bytes at Cassandra server.
  */

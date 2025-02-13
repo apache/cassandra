@@ -24,7 +24,7 @@ import com.google.common.collect.ImmutableList;
 import org.junit.Before;
 import org.junit.Test;
 
-import com.codahale.metrics.Histogram;
+import org.apache.cassandra.metrics.Histogram;
 import com.codahale.metrics.Snapshot;
 import com.datastax.driver.core.ResultSet;
 import org.apache.cassandra.cql3.CQLTester;

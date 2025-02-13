@@ -21,7 +21,7 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.List;
 
-import com.codahale.metrics.Histogram;
+import org.apache.cassandra.metrics.Histogram;
 import org.apache.cassandra.config.DataStorageSpec;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ArrayClustering;

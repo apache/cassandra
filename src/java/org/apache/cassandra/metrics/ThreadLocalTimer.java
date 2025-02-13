@@ -25,14 +25,13 @@ import java.util.function.Supplier;
 
 import com.codahale.metrics.Clock;
 import com.codahale.metrics.ExponentiallyDecayingReservoir;
-import com.codahale.metrics.Histogram;
 import com.codahale.metrics.Reservoir;
 import com.codahale.metrics.Snapshot;
 
 public class ThreadLocalTimer implements Timer
 {
     private final Meter meter;
-    private final Histogram histogram;
+    private final ThreadLocalHistogram histogram;
     private final Clock clock;
 
     /**
@@ -61,10 +60,10 @@ public class ThreadLocalTimer implements Timer
     public ThreadLocalTimer(Reservoir reservoir, Clock clock) {
         // clock is intentionally not propagated to ThreadLocalMeter
         // we do not need a precise and more expensive time there
-        this(new ThreadLocalMeter(), new Histogram(reservoir), clock);
+        this(new ThreadLocalMeter(), new ThreadLocalHistogram(reservoir), clock);
     }
 
-    public ThreadLocalTimer(Meter meter, Histogram histogram, Clock clock) {
+    public ThreadLocalTimer(Meter meter, ThreadLocalHistogram histogram, Clock clock) {
         this.meter = meter;
         this.histogram = histogram;
         this.clock = clock;
@@ -190,5 +189,12 @@ public class ThreadLocalTimer implements Timer
             histogram.update(duration);
             meter.mark();
         }
+    }
+
+    @Override
+    public void destroy()
+    {
+        meter.destroy();
+        histogram.destroy();
     }
 }

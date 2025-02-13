@@ -26,7 +26,7 @@ import java.util.function.Predicate;
 
 import com.codahale.metrics.Counting;
 import com.codahale.metrics.Gauge;
-import com.codahale.metrics.Histogram;
+import org.apache.cassandra.metrics.Histogram;
 import org.apache.cassandra.metrics.Meter;
 import com.codahale.metrics.Metric;
 import com.codahale.metrics.Snapshot;
@@ -78,7 +78,7 @@ class InstanceMetrics implements Metrics
     @Override
     public double getHistogram(String name, MetricValue value)
     {
-        Histogram histogram = metricsRegistry.getHistograms().get(name);
+        Histogram histogram = (Histogram) metricsRegistry.getMetrics().get(name);
         return getValue(histogram, value);
     }
 
@@ -86,10 +86,11 @@ class InstanceMetrics implements Metrics
     public Map<String, Double> getHistograms(Predicate<String> filter, MetricValue value)
     {
         Map<String, Double> values = new HashMap<>();
-        for (Map.Entry<String, Histogram> e : metricsRegistry.getHistograms().entrySet())
+        for (Map.Entry<String, Metric> e : metricsRegistry.getMetrics().entrySet())
         {
-            if (filter.test(e.getKey()))
-                values.put(e.getKey(), getValue(e.getValue(), value));
+            Metric metric = e.getValue();
+            if (metric instanceof Histogram && filter.test(e.getKey()))
+                values.put(e.getKey(), getValue((Histogram) metric, value));
         }
         return values;
     }

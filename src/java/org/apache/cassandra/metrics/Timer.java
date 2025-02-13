@@ -27,7 +27,7 @@ import com.codahale.metrics.Clock;
 import com.codahale.metrics.Metered;
 import com.codahale.metrics.Sampling;
 
-public interface Timer extends Metered, Sampling
+public interface Timer extends Metered, Sampling, Destoyable
 {
     /**
      * A timing context.

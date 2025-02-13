@@ -37,7 +37,6 @@ import com.google.common.collect.Maps;
 import org.apache.commons.lang3.ArrayUtils;
 
 import com.codahale.metrics.Gauge;
-import com.codahale.metrics.Histogram;
 import com.codahale.metrics.Metric;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamilyStore;

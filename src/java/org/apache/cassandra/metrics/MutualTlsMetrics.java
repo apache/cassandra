@@ -18,7 +18,6 @@
 
 package org.apache.cassandra.metrics;
 
-import com.codahale.metrics.Histogram;
 
 import static org.apache.cassandra.metrics.CassandraMetricsRegistry.Metrics;
 

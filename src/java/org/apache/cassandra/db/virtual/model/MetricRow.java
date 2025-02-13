@@ -20,7 +20,7 @@ package org.apache.cassandra.db.virtual.model;
 
 import org.apache.cassandra.metrics.Counter;
 import com.codahale.metrics.Gauge;
-import com.codahale.metrics.Histogram;
+import org.apache.cassandra.metrics.Histogram;
 import org.apache.cassandra.metrics.Meter;
 import com.codahale.metrics.Metric;
 import org.apache.cassandra.metrics.Timer;

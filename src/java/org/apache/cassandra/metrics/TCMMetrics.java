@@ -21,7 +21,6 @@ package org.apache.cassandra.metrics;
 import java.util.concurrent.TimeUnit;
 
 import com.codahale.metrics.Gauge;
-import com.codahale.metrics.Histogram;
 import org.apache.cassandra.gms.FailureDetector;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.Epoch;

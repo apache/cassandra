@@ -18,7 +18,7 @@
 
 package org.apache.cassandra.db.virtual.model;
 
-import com.codahale.metrics.Histogram;
+import org.apache.cassandra.metrics.Histogram;
 import com.codahale.metrics.Metric;
 import com.codahale.metrics.Snapshot;
 

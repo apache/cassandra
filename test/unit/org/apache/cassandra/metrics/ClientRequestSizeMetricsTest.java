@@ -26,8 +26,6 @@ import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 
-import org.apache.cassandra.metrics.Counter;
-import com.codahale.metrics.Histogram;
 import com.codahale.metrics.Snapshot;
 import com.datastax.driver.core.QueryOptions;
 import org.apache.cassandra.cql3.CQLTester;

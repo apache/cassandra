@@ -25,6 +25,7 @@ import java.util.NavigableSet;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentSkipListSet;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
@@ -32,9 +33,19 @@ import java.util.concurrent.atomic.AtomicLong;
 import com.google.common.annotations.VisibleForTesting;
 
 import io.netty.util.concurrent.FastThreadLocal;
+import org.apache.cassandra.concurrent.ScheduledExecutors;
 
 public class ThreadLocalMetrics
 {
+    private static final int DEAD_THREADS_INFO_CLEANUP_INTERVAL_SEC = 120;
+    static
+    {
+        ScheduledExecutors.scheduledTasks.scheduleWithFixedDelay(ThreadLocalMetrics::cleanDeadAndUpdateSummaries,
+                                                                 DEAD_THREADS_INFO_CLEANUP_INTERVAL_SEC,
+                                                                 DEAD_THREADS_INFO_CLEANUP_INTERVAL_SEC,
+                                                                 TimeUnit.SECONDS);
+    }
+
     static final AtomicInteger idGenerator = new AtomicInteger();
 
     static final NavigableSet<Integer> freeMetricIdSet = new ConcurrentSkipListSet<>();
@@ -66,8 +77,6 @@ public class ThreadLocalMetrics
     }
 
     private static void cleanDeadAndUpdateSummaries() {
-        // TODO: should we invoke it peridically as well (to avoid memory leak if nobody invokes getCount()?
-        // TODO: add and check allThreadLocalMetrics size threshold to avoid the iteration every time
         if (transferInProgress.compareAndSet(false, true))
             try
             {
@@ -76,11 +85,11 @@ public class ThreadLocalMetrics
                 {
                     if (!threadLocalMetrics.thread.isAlive())
                     {
-                        for (int i = 0; i < threadLocalMetrics.counterValues.length; i++)
+                        for (int metricId = 0; metricId < threadLocalMetrics.counterValues.length; metricId++)
                         {
-                            long value = threadLocalMetrics.counterValues[i];
+                            long value = threadLocalMetrics.counterValues[metricId];
                             if (value != 0)
-                                summaryValues.computeIfAbsent(i, (metricId) -> new AtomicLong()).addAndGet(value);
+                                getSummary(metricId).addAndGet(value);
                         }
                         toRemove.add(threadLocalMetrics);
                     }
@@ -111,11 +120,9 @@ public class ThreadLocalMetrics
 
     private static long getCount(int metricId, boolean reset)
     {
-        cleanDeadAndUpdateSummaries();
-        AtomicLong summary;
         long summaryLocal;
         long result;
-        summary = getSummary(metricId);
+        AtomicLong summary = getSummary(metricId);
         do
         {
             summaryLocal = summary.get();
@@ -137,8 +144,16 @@ public class ThreadLocalMetrics
         } while (summaryLocal != summary.get());
         result += summaryLocal;
         if (reset)
-            summary.addAndGet(-result); // reset
+            summary.addAndGet(-result); // compensative reset without writing to thread local values
         return result;
+    }
+
+    private static AtomicLong getSummary(int metricId)
+    {
+        AtomicLong result = summaryValues.get(metricId);
+        if (result != null)
+            return result;
+        return summaryValues.computeIfAbsent(metricId, (metricIdToAdd) -> new AtomicLong());
     }
 
     public static long getCount(int metricId)
@@ -171,6 +186,7 @@ public class ThreadLocalMetrics
 
     static int allocateMetricId()
     {
+        cleanDeadAndUpdateSummaries();
         Integer id = freeMetricIdSet.pollFirst();
         if (id != null)
             return id;
@@ -179,6 +195,7 @@ public class ThreadLocalMetrics
 
     public static void destroyMetric(int metricId)
     {
+        cleanDeadAndUpdateSummaries();
         for (ThreadLocalMetrics threadLocalMetrics : allThreadLocalMetrics)
             if (threadLocalMetrics != null)
             {
@@ -188,11 +205,6 @@ public class ThreadLocalMetrics
             }
         summaryValues.remove(metricId);
         freeMetricIdSet.add(metricId);
-    }
-
-    private static AtomicLong getSummary(int metricId)
-    {
-        return summaryValues.computeIfAbsent(metricId, (metricIdToAdd) -> new AtomicLong());
     }
 
     @VisibleForTesting

@@ -36,7 +36,7 @@ public class ThreadLocalMeter implements Meter
     private static final List<ThreadLocalMeter> allMeters = new CopyOnWriteArrayList<>();
     static
     {
-        ScheduledExecutors.scheduledFastTasks.scheduleWithFixedDelay(() -> {
+        ScheduledExecutors.scheduledTasks.scheduleWithFixedDelay(() -> {
 
             for (ThreadLocalMeter threadLocalMeter : allMeters)
             {
@@ -126,6 +126,7 @@ public class ThreadLocalMeter implements Meter
         }
     }
 
+    @Override
     public void destroy()
     {
         // TODO: need to protect against concurrent issues with ticking or reading a metric while releasing

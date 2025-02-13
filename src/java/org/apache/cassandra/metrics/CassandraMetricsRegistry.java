@@ -40,7 +40,6 @@ import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableSet;
 
 import com.codahale.metrics.Gauge;
-import com.codahale.metrics.Histogram;
 import com.codahale.metrics.Metered;
 import com.codahale.metrics.Metric;
 import com.codahale.metrics.MetricRegistry;
@@ -302,6 +301,19 @@ public class CassandraMetricsRegistry extends MetricRegistry
         return counter;
     }
 
+    public Counter atomicLongCounter(MetricName... name)
+    {
+        String simpleMetricName = name[0].getMetricName();
+        Metric metric = super.getMetrics().get(simpleMetricName);
+        if (metric instanceof Counter)
+            return (Counter) metric;
+
+        Counter counter = new AtomicLongCounter();
+        super.register(simpleMetricName, counter);
+        Stream.of(name).forEach(n -> register(n, counter));
+        return counter;
+    }
+
     public Meter meter(MetricName... name)
     {
         String simpleMetricName = name[0].getMetricName();
@@ -502,10 +514,8 @@ public class CassandraMetricsRegistry extends MetricRegistry
 
         boolean result = super.remove(metricName);
 
-        if (metric instanceof ThreadLocalCounter)
-            ((ThreadLocalCounter) metric).destroy();
-        else if (metric instanceof ThreadLocalMeter)
-            ((ThreadLocalMeter) metric).destroy();
+        if (metric instanceof Destoyable)
+            ((Destoyable) metric).destroy();
 
         return result;
     }

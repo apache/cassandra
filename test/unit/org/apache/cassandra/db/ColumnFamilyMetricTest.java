@@ -25,7 +25,6 @@ import org.junit.BeforeClass;
 import org.junit.Test;
 
 import com.codahale.metrics.Gauge;
-import com.codahale.metrics.Histogram;
 import com.codahale.metrics.MetricRegistryListener;
 import com.codahale.metrics.Timer;
 import org.apache.cassandra.SchemaLoader;
@@ -262,8 +261,9 @@ public class ColumnFamilyMetricTest
 
         }
 
+        // TODO: clarify how the test is affected but switching to thread local metrics
         @Override
-        public void onHistogramAdded(String name, Histogram histogram)
+        public void onHistogramAdded(String name, com.codahale.metrics.Histogram histogram)
         {
             histogram.getCount();
         }
@@ -274,7 +274,7 @@ public class ColumnFamilyMetricTest
 
         }
 
-        // TODO: clarify how the test is affected
+        // TODO: clarify how the test is affected but switching to thread local metrics
         @Override
         public void onMeterAdded(String name, com.codahale.metrics.Meter meter)
         {

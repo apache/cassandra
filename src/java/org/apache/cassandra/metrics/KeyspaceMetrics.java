@@ -22,7 +22,6 @@ import java.util.function.ToLongFunction;
 import com.google.common.collect.ImmutableMap;
 
 import com.codahale.metrics.Gauge;
-import com.codahale.metrics.Histogram;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
