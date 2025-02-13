@@ -134,12 +134,6 @@ public abstract class UDFunction extends UserFunction implements ScalarFunction
     // Only need to disallow a pattern, if it would otherwise be allowed via allowedPatterns
     private static final String[] disallowedPatterns =
     {
-    "com/datastax/driver/core/Cluster.class",
-    "com/datastax/driver/core/Metrics.class",
-    "com/datastax/driver/core/NettyOptions.class",
-    "com/datastax/driver/core/Session.class",
-    "com/datastax/driver/core/Statement.class",
-    "com/datastax/driver/core/TimestampGenerator.class", // indirectly covers ServerSideTimestampGenerator + ThreadLocalMonotonicTimestampGenerator
     "java/lang/Compiler.class",
     "java/lang/InheritableThreadLocal.class",
     "java/lang/Package.class",

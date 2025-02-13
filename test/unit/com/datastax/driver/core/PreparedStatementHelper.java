@@ -41,16 +41,6 @@ public class PreparedStatementHelper
         return statement.getPreparedId().boundValuesMetadata.id;
     }
 
-    public static void assertStable(PreparedStatement first, PreparedStatement subsequent)
-    {
-        if (!id(first).equals(id(subsequent)))
-        {
-            throw new AssertionError(String.format("Subsequent id (%s) is different from the first one (%s)",
-                                                   id(first),
-                                                   id(subsequent)));
-        }
-    }
-
     public static void assertHashWithoutKeyspace(PreparedStatement statement, String queryString, String ks)
     {
         MD5Digest returned = id(statement);

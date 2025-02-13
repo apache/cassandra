@@ -33,7 +33,6 @@ import java.util.stream.StreamSupport;
 
 import com.google.common.annotations.VisibleForTesting;
 
-import com.datastax.driver.core.CodecUtils;
 import org.apache.cassandra.cql3.functions.types.LocalDate;
 import org.apache.cassandra.cql3.statements.SelectStatement;
 import org.apache.cassandra.db.Clustering;
@@ -442,7 +441,13 @@ public abstract class UntypedResultSet implements Iterable<UntypedResultSet.Row>
             return TimestampType.instance.compose(data.get(column));
         }
 
-        public LocalDate getDate(String column) { return LocalDate.fromDaysSinceEpoch(CodecUtils.fromUnsignedToSignedInt(data.get(column).getInt()));}
+        public LocalDate getDate(String column)
+        {
+            // date type is stored as an unsigned byte; convert it back by adding MIN_VALUE.
+            int unsigned = data.get(column).getInt();
+            int signed = unsigned + Integer.MIN_VALUE;
+            return LocalDate.fromDaysSinceEpoch(signed);
+        }
 
         public long getLong(String column)
         {
