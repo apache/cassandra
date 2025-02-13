@@ -187,7 +187,7 @@ public abstract class Token implements RingPosition<Token>, Serializable
         }
     }
 
-    public static volatile boolean logPartitioner = false;
+    public static boolean logPartitioner = false;
     public static final Set<Class<? extends IPartitioner>> serializePartitioners = Sets.newSetFromMap(new ConcurrentHashMap<>());
     public static final Set<Class<? extends IPartitioner>> deserializePartitioners = Sets.newSetFromMap(new ConcurrentHashMap<>());
 

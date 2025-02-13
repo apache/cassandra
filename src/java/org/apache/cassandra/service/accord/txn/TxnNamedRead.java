@@ -29,9 +29,11 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import accord.api.Data;
+import accord.api.RoutingKey;
 import accord.primitives.Range;
 import accord.primitives.Seekable;
 import accord.primitives.Timestamp;
+import accord.utils.Invariants;
 import accord.utils.async.AsyncChain;
 import accord.utils.async.AsyncChains;
 import accord.utils.async.AsyncResults;
@@ -66,6 +68,7 @@ import org.apache.cassandra.service.accord.api.PartitionKey;
 import org.apache.cassandra.service.accord.serializers.KeySerializers;
 import org.apache.cassandra.service.accord.txn.TxnData.TxnDataNameKind;
 import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.utils.Comparables;
 import org.apache.cassandra.utils.MonotonicClock;
 import org.apache.cassandra.utils.ObjectSizes;
 
@@ -217,6 +220,31 @@ public class TxnNamedRead extends AbstractSerialized<ReadCommand>
             default:
                 throw new IllegalStateException("Unhandled domain " + key.domain());
         }
+    }
+
+    public TxnNamedRead slice(Range range)
+    {
+        Invariants.require(key.domain().isRange());
+        if (key.equals(range))
+            return this;
+
+        Invariants.require(((Range)key).contains(range));
+        return new TxnNamedRead(txnDataName(), range, bytes());
+    }
+
+    public TxnNamedRead merge(TxnNamedRead with)
+    {
+        Invariants.require(key.domain().isRange());
+        if (key.equals(with.key))
+            return this;
+
+        Range thisRange = key.asRange();
+        Range thatRange = with.key.asRange();
+        Invariants.require(thisRange.compareTouching(thatRange) == 0);
+        RoutingKey start = Comparables.min(thisRange.start(), thatRange.start());
+        RoutingKey end = Comparables.max(thisRange.end(), thatRange.end());
+        Range range = thisRange.newRange(start, end);
+        return new TxnNamedRead(txnDataName(), range, bytes());
     }
 
     public static boolean readsWithoutReconciliation(ConsistencyLevel consistencyLevel)

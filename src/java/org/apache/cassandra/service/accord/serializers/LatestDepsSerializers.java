@@ -38,7 +38,7 @@ import org.apache.cassandra.service.accord.serializers.CommandSerializers.Execut
 
 public class LatestDepsSerializers
 {
-    public static final IVersionedSerializer<LatestDeps> latestDeps = new IVersionedSerializer<LatestDeps>()
+    public static final IVersionedSerializer<LatestDeps> latestDeps = new IVersionedSerializer<>()
     {
         @Override
         public void serialize(LatestDeps t, DataOutputPlus out, int version) throws IOException
@@ -133,8 +133,9 @@ public class LatestDepsSerializers
         @Override
         public GetLatestDeps deserializeBody(DataInputPlus in, int version, TxnId txnId, Route<?> scope, long waitForEpoch, long minEpoch) throws IOException
         {
+            Ballot ballot = CommandSerializers.ballot.deserialize(in);
             Timestamp executeAt = ExecuteAtSerializer.deserialize(in);
-            return GetLatestDeps.SerializationSupport.create(txnId, scope, waitForEpoch, minEpoch, executeAt);
+            return GetLatestDeps.SerializationSupport.create(txnId, scope, waitForEpoch, minEpoch, ballot, executeAt);
         }
 
         @Override

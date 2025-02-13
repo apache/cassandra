@@ -20,13 +20,15 @@ package org.apache.cassandra.service.accord.serializers;
 
 import java.io.IOException;
 
+import accord.local.Commands.AcceptOutcome;
 import accord.messages.Accept;
 import accord.messages.Accept.AcceptReply;
 import accord.primitives.Ballot;
+import accord.primitives.Deps;
+import accord.primitives.Participants;
 import accord.primitives.Route;
 import accord.primitives.Timestamp;
 import accord.primitives.TxnId;
-import accord.utils.Invariants;
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
@@ -34,20 +36,21 @@ import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.service.accord.serializers.CommandSerializers.ExecuteAtSerializer;
 
 import static accord.messages.Accept.SerializerSupport.create;
-import static accord.utils.Invariants.illegalState;
 
 public class AcceptSerializers
 {
     private AcceptSerializers() {}
 
-    public static final IVersionedSerializer<Accept> request = new TxnRequestSerializer.WithUnsyncedSerializer<>()
+    public static final IVersionedSerializer<Accept> request = new RequestSerializer();
+    public static class RequestSerializer extends TxnRequestSerializer.WithUnsyncedSerializer<Accept>
     {
-        final IVersionedSerializer<Accept.Kind> kindSerializer = new EnumSerializer<>(Accept.Kind.class);
+        private static final Accept.Kind[] kinds = Accept.Kind.values();
+        private static final int IS_PARTIAL = 1;
 
         @Override
         public void serializeBody(Accept accept, DataOutputPlus out, int version) throws IOException
         {
-            kindSerializer.serialize(accept.kind, out, version);
+            out.writeByte((accept.kind.ordinal() << 1) | (accept.isPartialAccept ? IS_PARTIAL : 0));
             CommandSerializers.ballot.serialize(accept.ballot, out, version);
             ExecuteAtSerializer.serialize(accept.txnId, accept.executeAt, out);
             DepsSerializers.partialDeps.serialize(accept.partialDeps, out, version);
@@ -56,17 +59,20 @@ public class AcceptSerializers
         @Override
         public Accept deserializeBody(DataInputPlus in, int version, TxnId txnId, Route<?> scope, long waitForEpoch, long minEpoch) throws IOException
         {
+            int flags = in.readByte();
+            Accept.Kind kind = kinds[(flags >>> 1) & 1];
             return create(txnId, scope, waitForEpoch, minEpoch,
-                          kindSerializer.deserialize(in, version),
+                          kind,
                           CommandSerializers.ballot.deserialize(in, version),
                           ExecuteAtSerializer.deserialize(txnId, in),
-                          DepsSerializers.partialDeps.deserialize(in, version));
+                          DepsSerializers.partialDeps.deserialize(in, version),
+                          (flags & IS_PARTIAL) != 0);
         }
 
         @Override
         public long serializedBodySize(Accept accept, int version)
         {
-            return kindSerializer.serializedSize(accept.kind, version)
+            return 1
                    + CommandSerializers.ballot.serializedSize(accept.ballot, version)
                    + ExecuteAtSerializer.serializedSize(accept.txnId, accept.executeAt)
                    + DepsSerializers.partialDeps.serializedSize(accept.partialDeps, version);
@@ -103,84 +109,58 @@ public class AcceptSerializers
         }
     };
 
-    public static final IVersionedSerializer<AcceptReply> reply = new IVersionedSerializer<>()
+    public static final IVersionedSerializer<AcceptReply> reply = new ReplySerializer();
+    public static class ReplySerializer implements IVersionedSerializer<AcceptReply>
     {
+        private static final int SUPERSEDED_BY        = 0x08;
+        private static final int COMMITTED_EXECUTE_AT = 0x10;
+        private static final int SUCCESSFUL           = 0x20;
+        private static final int DEPS                 = 0x40;
         @Override
         public void serialize(AcceptReply reply, DataOutputPlus out, int version) throws IOException
         {
-            switch (reply.outcome())
-            {
-                default: throw new AssertionError();
-                case Retired:
-                case Truncated:
-                    throw illegalState("AcceptReply with invalid AcceptOutcome: " + reply.outcome);
-                case Success:
-                    if (reply.deps != null)
-                    {
-                        out.writeByte(1);
-                        DepsSerializers.deps.serialize(reply.deps, out, version);
-                    }
-                    else
-                    {
-                        Invariants.require(reply == AcceptReply.SUCCESS);
-                        out.writeByte(2);
-                    }
-                    break;
-                case RejectedBallot:
-                    out.writeByte(3);
-                    CommandSerializers.ballot.serialize(reply.supersededBy, out, version);
-                    break;
-                case Redundant:
-                    int flags = 4 | (reply.supersededBy != null ? 0x8 : 0) | (reply.committedExecuteAt != null ? 0x10 : 0);
-                    out.writeByte(flags);
-                    if (reply.supersededBy != null)
-                        CommandSerializers.ballot.serialize(reply.supersededBy, out, version);
-                    if (reply.committedExecuteAt != null)
-                        ExecuteAtSerializer.serialize(reply.committedExecuteAt, out);
-            }
+            int flags =  reply.outcome.ordinal()
+                      | (reply.supersededBy != null       ? SUPERSEDED_BY        : 0)
+                      | (reply.committedExecuteAt != null ? COMMITTED_EXECUTE_AT : 0)
+                      | (reply.successful != null         ? SUCCESSFUL           : 0)
+                      | (reply.deps != null               ? DEPS                 : 0);
+
+            out.writeByte(flags);
+            if (reply.supersededBy != null)
+                CommandSerializers.ballot.serialize(reply.supersededBy, out, version);
+            if (reply.committedExecuteAt != null)
+                ExecuteAtSerializer.serialize(reply.committedExecuteAt, out);
+            if (reply.successful != null)
+                KeySerializers.participants.serialize(reply.successful, out, version);
+            if (reply.deps != null)
+                DepsSerializers.deps.serialize(reply.deps, out, version);
         }
 
+        private final AcceptOutcome[] outcomes = AcceptOutcome.values();
         @Override
         public AcceptReply deserialize(DataInputPlus in, int version) throws IOException
         {
             int flags = in.readByte();
-            switch (flags & 0x7)
-            {
-                default: throw new IllegalStateException("Unexpected AcceptNack type: " + (flags & 0x7));
-                case 1:
-                    return new AcceptReply(DepsSerializers.deps.deserialize(in, version));
-                case 2:
-                    return AcceptReply.SUCCESS;
-                case 3:
-                    return new AcceptReply(CommandSerializers.ballot.deserialize(in, version));
-                case 4:
-                    Ballot supersededBy = (flags & 0x8) == 0 ? null : CommandSerializers.ballot.deserialize(in, version);
-                    Timestamp committedExecuteAt = (flags & 0x10) == 0 ? null : ExecuteAtSerializer.deserialize(in);
-                    return new AcceptReply(supersededBy, committedExecuteAt);
-            }
+            AcceptOutcome outcome = outcomes[flags & 3];
+            Ballot supersededBy = (flags & SUPERSEDED_BY) == 0 ? null : CommandSerializers.ballot.deserialize(in, version);
+            Timestamp committedExecuteAt = (flags & COMMITTED_EXECUTE_AT) == 0 ? null : ExecuteAtSerializer.deserialize(in);
+            Participants<?> successful = (flags & SUCCESSFUL) == 0 ? null : KeySerializers.participants.deserialize(in, version);
+            Deps deps = (flags & DEPS) == 0 ? null : DepsSerializers.deps.deserialize(in, version);
+            return new AcceptReply(outcome, supersededBy, successful, deps, committedExecuteAt);
         }
 
         @Override
         public long serializedSize(AcceptReply reply, int version)
         {
             long size = TypeSizes.BYTE_SIZE;
-            switch (reply.outcome())
-            {
-                default: throw new AssertionError();
-                case Retired:
-                case Truncated:
-                    throw illegalState("AcceptReply with invalid AcceptOutcome: " + reply.outcome);
-                case Success:
-                    if (reply.deps != null)
-                        size += DepsSerializers.deps.serializedSize(reply.deps, version);
-                    break;
-                case RejectedBallot:
-                    size += CommandSerializers.ballot.serializedSize(reply.supersededBy, version);
-                    break;
-                case Redundant:
-                    if (reply.supersededBy != null) size += CommandSerializers.ballot.serializedSize(reply.supersededBy, version);
-                    if (reply.committedExecuteAt != null) size += ExecuteAtSerializer.serializedSize(reply.committedExecuteAt);
-            }
+            if (reply.supersededBy != null)
+                size += CommandSerializers.ballot.serializedSize(reply.supersededBy, version);
+            if (reply.committedExecuteAt != null)
+                size += ExecuteAtSerializer.serializedSize(reply.committedExecuteAt);
+            if (reply.successful != null)
+                size += KeySerializers.participants.serializedSize(reply.successful, version);
+            if (reply.deps != null)
+                size += DepsSerializers.deps.serializedSize(reply.deps, version);
             return size;
         }
     };

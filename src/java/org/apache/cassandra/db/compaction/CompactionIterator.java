@@ -40,6 +40,7 @@ import accord.local.CommandStores;
 import accord.local.DurableBefore;
 import accord.local.RedundantBefore;
 import accord.utils.Invariants;
+import accord.utils.UnhandledEnum;
 import org.agrona.collections.Int2ObjectHashMap;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.ColumnIdentifier;
@@ -98,7 +99,9 @@ import org.apache.cassandra.service.paxos.uncommitted.PaxosRows;
 import org.apache.cassandra.utils.TimeUUID;
 
 import static accord.local.Cleanup.ERASE;
+import static accord.local.Cleanup.EXPUNGE;
 import static accord.local.Cleanup.Input.PARTIAL;
+import static accord.local.Cleanup.NO;
 import static com.google.common.base.Preconditions.checkState;
 import static java.util.concurrent.TimeUnit.MICROSECONDS;
 import static org.apache.cassandra.config.Config.PaxosStatePurging.legacy;
@@ -912,22 +915,30 @@ public class CompactionIterator extends CompactionInfo.Holder implements Unfilte
                 RedundantBefore redundantBefore = redundantBefores.get(key.commandStoreId);
                 DurableBefore durableBefore = durableBefores.get(key.commandStoreId);
                 Cleanup cleanup = commandBuilder.shouldCleanup(PARTIAL, agent, redundantBefore, durableBefore);
-                if (cleanup == ERASE)
-                    return PartitionUpdate.fullPartitionDelete(metadata(), partition.partitionKey(), Long.MAX_VALUE, nowInSec).unfilteredIterator();
-
-                commandBuilder = commandBuilder.maybeCleanup(cleanup);
-                if (commandBuilder != builder)
+                if (cleanup != NO)
                 {
-                    if (commandBuilder == null)
-                        return null;
+                    switch (cleanup)
+                    {
+                        default: throw new UnhandledEnum(cleanup);
+                        case EXPUNGE:
+                            return null;
+                        case ERASE:
+                            return PartitionUpdate.fullPartitionDelete(metadata(), partition.partitionKey(), Long.MAX_VALUE, nowInSec).unfilteredIterator();
+                        case TRUNCATE:
+                        case INVALIDATE:
+                        case TRUNCATE_WITH_OUTCOME:
+                        case VESTIGIAL:
+                            if (commandBuilder.maybeCleanup(PARTIAL, cleanup))
+                            {
+                                PartitionUpdate.SimpleBuilder newVersion = PartitionUpdate.simpleBuilder(AccordKeyspace.Journal, partition.partitionKey());
 
-                    PartitionUpdate.SimpleBuilder newVersion = PartitionUpdate.simpleBuilder(AccordKeyspace.Journal, partition.partitionKey());
+                                Row.SimpleBuilder rowBuilder = newVersion.row(firstClustering);
+                                rowBuilder.add("record", commandBuilder.asByteBuffer(redundantBefore, userVersion))
+                                          .add("user_version", userVersion);
 
-                    Row.SimpleBuilder rowBuilder = newVersion.row(firstClustering);
-                    rowBuilder.add("record", commandBuilder.asByteBuffer(redundantBefore, userVersion))
-                              .add("user_version", userVersion);
-
-                    return newVersion.build().unfilteredIterator();
+                                return newVersion.build().unfilteredIterator();
+                            }
+                    }
                 }
 
                 return PartitionUpdate.multiRowUpdate(AccordKeyspace.Journal, partition.partitionKey(), rows)

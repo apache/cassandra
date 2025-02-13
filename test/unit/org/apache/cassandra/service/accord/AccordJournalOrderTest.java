@@ -41,7 +41,7 @@ import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.ServerTestUtils;
 import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.dht.Murmur3Partitioner;
+import org.apache.cassandra.dht.ByteOrderedPartitioner;
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.journal.TestParams;
 import org.apache.cassandra.schema.KeyspaceParams;
@@ -77,7 +77,7 @@ public class AccordJournalOrderTest
             ServerTestUtils.cleanupDirectory(DatabaseDescriptor.getAccordJournalDirectory());
         AccordJournal accordJournal = new AccordJournal(TestParams.INSTANCE, new AccordAgent());
         accordJournal.start(null);
-        RandomSource randomSource = RandomSource.wrap(new Random());
+        RandomSource randomSource = RandomSource.wrap(new Random(0));
         TxnId id1 = AccordGens.txnIds().next(randomSource);
         TxnId id2 = AccordGens.txnIds().next(randomSource);
 
@@ -87,7 +87,7 @@ public class AccordJournalOrderTest
             TxnId txnId = randomSource.nextBoolean() ? id1 : id2;
             JournalKey key = new JournalKey(txnId, JournalKey.Type.COMMAND_DIFF, randomSource.nextInt(5));
             res.compute(key, (k, prev) -> prev == null ? 1 : prev + 1);
-            Participants<?> participants = RoutingKeys.of(new AccordRoutingKey.TokenKey(TableId.generate(), new Murmur3Partitioner.LongToken(1)));
+            Participants<?> participants = RoutingKeys.of(new AccordRoutingKey.TokenKey(TableId.generate(), new ByteOrderedPartitioner.BytesToken(new byte[1])));
             Command command = Command.NotDefined.notDefined(txnId, SaveStatus.NotDefined, Status.Durability.NotDurable, StoreParticipants.create(null, participants, null, participants, participants), Ballot.ZERO);
             accordJournal.saveCommand(key.commandStoreId,
                                       new Journal.CommandUpdate(null, command),

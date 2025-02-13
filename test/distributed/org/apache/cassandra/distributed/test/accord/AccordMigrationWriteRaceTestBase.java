@@ -45,7 +45,7 @@ import org.slf4j.LoggerFactory;
 import accord.api.RoutingKey;
 import accord.coordinate.Outcome;
 import accord.messages.PreAccept;
-import accord.primitives.PartialKeyRoute;
+import accord.primitives.KeyRoute;
 import accord.primitives.Ranges;
 import accord.primitives.Routable.Domain;
 import accord.primitives.Route;
@@ -476,7 +476,7 @@ public abstract class AccordMigrationWriteRaceTestBase extends AccordTestBase
                                      PreAccept preAccept = (PreAccept)Instance.deserializeMessage(message).payload;
                                      Route<?> route = preAccept.scope;
                                      if (route.domain() == Domain.Key)
-                                         for (RoutingKey key : (PartialKeyRoute)route)
+                                         for (RoutingKey key : (KeyRoute)route)
                                          {
                                              AccordRoutingKey routingKey = (AccordRoutingKey)key;
                                              ColumnFamilyStore cfs = ColumnFamilyStore.getIfExists(routingKey.table());

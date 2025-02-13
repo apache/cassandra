@@ -58,6 +58,7 @@ import org.junit.Assume;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import accord.utils.Invariants;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.db.AbstractReadCommandBuilder;
@@ -377,7 +378,7 @@ public class Util
         catch (Throwable e)
         {
             // Use name because in-jvm dtests will have different instances of the class
-            assert e.getClass().getName().equals(exception.getName()) : e.getClass().getName() + " is not " + exception.getName();
+            Invariants.require(e.getClass().getName().equals(exception.getName()), e.getClass().getName() + " is not " + exception.getName());
             thrown = true;
         }
 

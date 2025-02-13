@@ -176,6 +176,7 @@ import static accord.messages.SimpleReply.Ok;
 import static accord.primitives.Routable.Domain.Key;
 import static accord.primitives.Routable.Domain.Range;
 import static accord.primitives.TxnId.Cardinality.cardinality;
+import static accord.topology.Topologies.SelectNodeOwnership.SHARE;
 import static accord.utils.Invariants.require;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import static java.util.concurrent.TimeUnit.NANOSECONDS;
@@ -957,8 +958,6 @@ public class AccordService implements IAccordService, Shutdownable
             }
             else if (cause instanceof RuntimeException)
                 throw (RuntimeException) cause;
-            else if (cause instanceof InvalidRequestException)
-                throw ((InvalidRequestException)cause);
             else
                 throw new RuntimeException(cause);
         }
@@ -1486,7 +1485,7 @@ public class AccordService implements IAccordService, Shutdownable
 
         private Await(Node node, SyncPoint<?> exclusiveSyncPoint)
         {
-            Topologies topologies = node.topology().forEpoch(exclusiveSyncPoint.route, exclusiveSyncPoint.syncId.epoch());
+            Topologies topologies = node.topology().forEpoch(exclusiveSyncPoint.route, exclusiveSyncPoint.syncId.epoch(), SHARE);
             this.node = node;
             this.tracker = new AllTracker(topologies);
             this.exclusiveSyncPoint = exclusiveSyncPoint;

@@ -75,8 +75,7 @@ public class CommandSerializers
     public static final IVersionedSerializer<TxnId> nullableTxnId = NullableSerializer.wrap(txnId);
     public static final TimestampSerializer<Timestamp> timestamp = new TimestampSerializer<>(Timestamp::fromBits);
     public static final IVersionedSerializer<Timestamp> nullableTimestamp = NullableSerializer.wrap(timestamp);
-    public static final TimestampSerializer<Ballot> ballot = new TimestampSerializer<>(Ballot::fromBits);
-    public static final IVersionedSerializer<Ballot> nullableBallot = NullableSerializer.wrap(ballot);
+    public static final BallotSerializer ballot = new BallotSerializer(); // permits null
     public static final EnumSerializer<Txn.Kind> kind = new EnumSerializer<>(Txn.Kind.class);
     public static final StoreParticipantsSerializer participants = new StoreParticipantsSerializer();
 
@@ -356,8 +355,11 @@ public class CommandSerializers
         public void skip(DataInputPlus in, int version) throws IOException
         {
             int flags = in.readByte();
-            if (0 != (flags & HAS_ROUTE))
-                KeySerializers.route.deserialize(in, version);
+            if (0 != (flags & HAS_ROUTE)) KeySerializers.route.skip(in, version);
+            if (0 == (flags & HAS_TOUCHED_EQUALS_ROUTE)) KeySerializers.participants.skip(in, version);
+            if (0 == (flags & TOUCHES_EQUALS_HAS_TOUCHED)) KeySerializers.participants.skip(in, version);
+            if (0 == (flags & OWNS_EQUALS_TOUCHES)) KeySerializers.participants.skip(in, version);
+            if (0 == (flags & (EXECUTES_IS_OWNS | EXECUTES_IS_NULL))) KeySerializers.participants.skip(in, version);
         }
 
         @Override
@@ -446,7 +448,7 @@ public class CommandSerializers
             TopologySerializers.nodeId.serialize(ts.node, out);
         }
 
-        public void skip(DataInputPlus in, int version) throws IOException
+        public void skip(DataInputPlus in) throws IOException
         {
             in.skipBytesFully(serializedSize());
         }
@@ -497,6 +499,64 @@ public class CommandSerializers
             return TypeSizes.LONG_SIZE +  // ts.msb
                    TypeSizes.LONG_SIZE +  // ts.lsb
                    TopologySerializers.nodeId.serializedSize();   // ts.node
+        }
+    }
+
+    public static class BallotSerializer implements IVersionedSerializer<Ballot>
+    {
+        final TimestampSerializer<Ballot> wrapped = new TimestampSerializer<>(Ballot::fromBits);
+
+        @Override
+        public void serialize(Ballot t, DataOutputPlus out, int version) throws IOException
+        {
+            if (t == null || t.equals(Ballot.ZERO) || t.equals(Ballot.MAX))
+            {
+                out.writeByte(t == null ? 1 : t.equals(Ballot.ZERO) ? 2 : 3);
+            }
+            else
+            {
+                out.writeByte(0);
+                wrapped.serialize(t, out, version);
+            }
+        }
+
+        @Override
+        public Ballot deserialize(DataInputPlus in, int version) throws IOException
+        {
+            return deserialize(in);
+        }
+
+        public Ballot deserialize(DataInputPlus in) throws IOException
+        {
+            int flags = in.readByte();
+            switch (flags)
+            {
+                default: throw new IOException("Corrupted input: expected [0..3], received: " + flags);
+                case 0: return wrapped.deserialize(in);
+                case 1: return null;
+                case 2: return Ballot.ZERO;
+                case 3: return Ballot.MAX;
+            }
+        }
+
+        public void skip(DataInputPlus in) throws IOException
+        {
+            int flags = in.readByte();
+            if (flags == 0)
+                wrapped.skip(in);
+        }
+
+        @Override
+        public long serializedSize(Ballot t, int version)
+        {
+            return serializedSize(t);
+        }
+
+        public long serializedSize(Ballot t)
+        {
+            if (t == null || t.equals(Ballot.ZERO) || t.equals(Ballot.MAX))
+                return 1;
+            return 1 + wrapped.serializedSize();
         }
     }
 
