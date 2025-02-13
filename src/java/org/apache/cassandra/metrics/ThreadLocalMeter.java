@@ -18,15 +18,34 @@
 
 package org.apache.cassandra.metrics;
 
+import java.util.List;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 
+import com.google.common.annotations.VisibleForTesting;
+
+import org.apache.cassandra.concurrent.ScheduledExecutors;
 import org.apache.cassandra.utils.MonotonicClock;
 
 import static java.lang.Math.exp;
 
 public class ThreadLocalMeter implements Meter
 {
+    private static final int BACKGROUND_TICK_INTERVAL_SEC = ThreadLocalExponentialMovingAverages.INTERVAL_SEC;
+    private static final List<ThreadLocalMeter> allMeters = new CopyOnWriteArrayList<>();
+    static
+    {
+        ScheduledExecutors.scheduledFastTasks.scheduleWithFixedDelay(() -> {
+
+            for (ThreadLocalMeter threadLocalMeter : allMeters)
+            {
+                threadLocalMeter.movingAverages.tickIfNecessary();
+            }
+
+        }, BACKGROUND_TICK_INTERVAL_SEC, BACKGROUND_TICK_INTERVAL_SEC, TimeUnit.SECONDS);
+    }
+
     private final ThreadLocalExponentialMovingAverages movingAverages;
     private final int countMetricId;
     private final long startTime;
@@ -42,7 +61,7 @@ public class ThreadLocalMeter implements Meter
         this.movingAverages = new ThreadLocalExponentialMovingAverages(clock);
         this.clock = clock;
         this.startTime = this.clock.now();
-        this.countMetricId = PiggybackArrayThreadLocalMetrics.allocateMetricId();
+        this.countMetricId = ThreadLocalMetrics.allocateMetricId();
     }
 
     /**
@@ -60,8 +79,7 @@ public class ThreadLocalMeter implements Meter
      */
     public void mark(long n)
     {
-        PiggybackArrayThreadLocalMetrics context = PiggybackArrayThreadLocalMetrics.get();
-        movingAverages.tickIfNecessary();
+        ThreadLocalMetrics context = ThreadLocalMetrics.get();
         context.addNonStatic(countMetricId, n);
         movingAverages.update(context, n);
     }
@@ -69,7 +87,7 @@ public class ThreadLocalMeter implements Meter
     @Override
     public long getCount()
     {
-        return PiggybackArrayThreadLocalMetrics.getCount(countMetricId);
+        return ThreadLocalMetrics.getCount(countMetricId);
     }
 
     @Override
@@ -110,8 +128,16 @@ public class ThreadLocalMeter implements Meter
 
     public void destroy()
     {
-        PiggybackArrayThreadLocalMetrics.destroyMetric(countMetricId);
+        // TODO: need to protect against concurrent issues with ticking or reading a metric while releasing
+        allMeters.remove(this);
+        ThreadLocalMetrics.destroyMetric(countMetricId);
         movingAverages.destroy();
+    }
+
+    @VisibleForTesting
+    void tickIfNecessary()
+    {
+        movingAverages.tickIfNecessary();
     }
 
     static class ThreadLocalExponentialMovingAverages
@@ -162,17 +188,17 @@ public class ThreadLocalMeter implements Meter
         {
             this.clock = clock;
             this.lastTick = new AtomicLong(this.clock.now());
-            this.uncountedMetricId = PiggybackArrayThreadLocalMetrics.allocateMetricId();
+            this.uncountedMetricId = ThreadLocalMetrics.allocateMetricId();
         }
 
-        public void update(PiggybackArrayThreadLocalMetrics context, long n)
+        public void update(ThreadLocalMetrics context, long n)
         {
             context.addNonStatic(uncountedMetricId, n);
         }
 
         public void update(long n)
         {
-            update(PiggybackArrayThreadLocalMetrics.get(), n);
+            update(ThreadLocalMetrics.get(), n);
         }
 
         public void tickIfNecessary()
@@ -193,7 +219,7 @@ public class ThreadLocalMeter implements Meter
                         // TODO: check how to make count and reset cheaper
                         // we can skip dead threads check for ticks executed as a part of a meter mark
                         // we can try to replace a global rate and ticks with local rates..
-                        long count = PiggybackArrayThreadLocalMetrics.getCountAndReset(uncountedMetricId);
+                        long count = ThreadLocalMetrics.getCountAndReset(uncountedMetricId);
                         for (long i = 0; i < requiredTicks; i++)
                         {
                             m1Rate = tickOneMinuteEWMA(m1Rate, count);
@@ -257,7 +283,7 @@ public class ThreadLocalMeter implements Meter
          */
         public void reset()
         {
-            PiggybackArrayThreadLocalMetrics.getCountAndReset(uncountedMetricId);
+            ThreadLocalMetrics.getCountAndReset(uncountedMetricId);
             m1Rate = Double.MIN_NORMAL;
             m5Rate = Double.MIN_NORMAL;
             m15Rate = Double.MIN_NORMAL;
@@ -265,7 +291,7 @@ public class ThreadLocalMeter implements Meter
 
         public void destroy()
         {
-            PiggybackArrayThreadLocalMetrics.destroyMetric(uncountedMetricId);
+            ThreadLocalMetrics.destroyMetric(uncountedMetricId);
         }
     }
 }

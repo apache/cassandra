@@ -35,9 +35,7 @@ import java.util.stream.Collectors;
 import org.junit.Before;
 import org.junit.Test;
 
-import org.apache.cassandra.metrics.Meter;
 import com.codahale.metrics.Metric;
-import com.codahale.metrics.Timer;
 import com.codahale.metrics.jvm.BufferPoolMetricSet;
 import com.codahale.metrics.jvm.GarbageCollectorMetricSet;
 import com.codahale.metrics.jvm.MemoryUsageGaugeSet;
@@ -148,7 +146,7 @@ public class CassandraMetricsRegistryTest
     public void testTimer()
     {
         long[] offsets = EstimatedHistogram.newOffsets(DecayingEstimatedHistogramReservoir.LOW_BUCKET_COUNT, false);
-        Timer timer = new Timer(CassandraMetricsRegistry.createReservoir(TimeUnit.MICROSECONDS));
+        Timer timer = new ThreadLocalTimer(CassandraMetricsRegistry.createReservoir(TimeUnit.MICROSECONDS));
         timer.update(42, TimeUnit.NANOSECONDS);
         timer.update(100, TimeUnit.NANOSECONDS);
         timer.update(42, TimeUnit.MICROSECONDS);

@@ -41,6 +41,7 @@ public class ThreadLocalMeterTest
         ThreadLocalMeter meter = new ThreadLocalMeter(clock);
         com.codahale.metrics.Meter codahaleMeter = new com.codahale.metrics.Meter(clock);
         clock.setTime(TimeUnit.SECONDS.toNanos(10));
+        meter.tickIfNecessary();
         assertMeter(meter, codahaleMeter);
     }
 
@@ -58,6 +59,7 @@ public class ThreadLocalMeterTest
             meter.mark();
             codahaleMeter.mark();
             clock.setTime(TimeUnit.SECONDS.toNanos(i + 1));
+            meter.tickIfNecessary();
         }
 
         assertMeter(meter, codahaleMeter);
@@ -72,6 +74,7 @@ public class ThreadLocalMeterTest
         com.codahale.metrics.Meter codahaleMeter = new com.codahale.metrics.Meter(clock);
 
         clock.setTime(TimeUnit.SECONDS.toNanos(10));
+        meter.tickIfNecessary();
         meter.mark();
         meter.mark(2);
         codahaleMeter.mark();
@@ -96,8 +99,9 @@ public class ThreadLocalMeterTest
             meter.mark(n);
             codahaleMeter.mark(n);
             clock.setTime(clock.now() + random.nextInt());
+            meter.tickIfNecessary();
         }
-
+        meter.tickIfNecessary();
         assertMeter(meter, codahaleMeter);
     }
 

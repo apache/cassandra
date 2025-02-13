@@ -37,7 +37,7 @@ import java.util.zip.CRC32;
 import com.google.common.annotations.VisibleForTesting;
 import org.cliffc.high_scale_lib.NonBlockingHashMap;
 
-import com.codahale.metrics.Timer;
+import org.apache.cassandra.metrics.Timer;
 import net.openhft.chronicle.core.util.ThrowingFunction;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.Mutation;

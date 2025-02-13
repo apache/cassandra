@@ -20,7 +20,6 @@ package org.apache.cassandra.metrics;
 
 import static org.apache.cassandra.metrics.CassandraMetricsRegistry.Metrics;
 
-import com.codahale.metrics.Timer;
 import com.codahale.metrics.Gauge;
 
 public class ViewWriteMetrics extends ClientRequestMetrics

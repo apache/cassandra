@@ -18,7 +18,6 @@
 package org.apache.cassandra.metrics;
 
 import com.codahale.metrics.Gauge;
-import com.codahale.metrics.Timer;
 import org.apache.cassandra.db.commitlog.AbstractCommitLogService;
 import org.apache.cassandra.db.commitlog.AbstractCommitLogSegmentManager;
 

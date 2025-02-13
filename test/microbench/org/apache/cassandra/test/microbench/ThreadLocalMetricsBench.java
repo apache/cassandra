@@ -24,9 +24,8 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLongArray;
 
 import org.apache.cassandra.metrics.Counter;
-import org.apache.cassandra.metrics.LazySetArrayThreadLocalMetrics;
 import org.apache.cassandra.metrics.LongAdderCounter;
-import org.apache.cassandra.metrics.PiggybackArrayThreadLocalMetrics;
+import org.apache.cassandra.metrics.ThreadLocalMetrics;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
 import org.openjdk.jmh.annotations.Fork;
@@ -51,7 +50,7 @@ import org.openjdk.jmh.annotations.Warmup;
 @State(Scope.Benchmark)
 public class ThreadLocalMetricsBench
 {
-    @Param({"LongAdder", "LazySetArray", "PiggybackArray"})
+    @Param({"LongAdder", "PlainArray"})
     private String type;
 
     @Param({"50", "100"})
@@ -72,11 +71,8 @@ public class ThreadLocalMetricsBench
                 case "LongAdder":
                     counter = new LongAdderCounter();
                     break;
-                case "LazySetArray":
-                    counter = LazySetArrayThreadLocalMetrics.createCounter();
-                    break;
-                case "PiggybackArray":
-                    counter = PiggybackArrayThreadLocalMetrics.createCounter();
+                case "PlainArray":
+                    counter = ThreadLocalMetrics.createCounter();
                     break;
                 default:
                     throw new UnsupportedOperationException();

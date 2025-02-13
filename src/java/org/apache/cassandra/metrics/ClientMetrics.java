@@ -33,7 +33,6 @@ import com.google.common.annotations.VisibleForTesting;
 import com.codahale.metrics.Gauge;
 import com.codahale.metrics.Histogram;
 import com.codahale.metrics.Reservoir;
-import com.codahale.metrics.Timer;
 import org.apache.cassandra.auth.AuthenticatedUser;
 import org.apache.cassandra.auth.IAuthenticator;
 import org.apache.cassandra.auth.IAuthenticator.AuthenticationMode;

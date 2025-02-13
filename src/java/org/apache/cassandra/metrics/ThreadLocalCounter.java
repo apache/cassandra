@@ -29,42 +29,42 @@ public class ThreadLocalCounter implements Counter
 
     public ThreadLocalCounter()
     {
-        this(PiggybackArrayThreadLocalMetrics.allocateMetricId());
+        this(ThreadLocalMetrics.allocateMetricId());
     }
 
     @Override
     public void inc()
     {
-        PiggybackArrayThreadLocalMetrics.add(metricId, 1);
+        ThreadLocalMetrics.add(metricId, 1);
     }
 
     @Override
     public void inc(long n)
     {
-        PiggybackArrayThreadLocalMetrics.add(metricId, n);
+        ThreadLocalMetrics.add(metricId, n);
     }
 
     @Override
     public void dec()
     {
-        PiggybackArrayThreadLocalMetrics.add(metricId, -1);
+        ThreadLocalMetrics.add(metricId, -1);
     }
 
     @Override
     public void dec(long n)
     {
-        PiggybackArrayThreadLocalMetrics.add(metricId, -n);
+        ThreadLocalMetrics.add(metricId, -n);
     }
 
     @Override
     public long getCount()
     {
-        return PiggybackArrayThreadLocalMetrics.getCount(metricId);
+        return ThreadLocalMetrics.getCount(metricId);
     }
 
     @Override
     public void destroy()
     {
-        PiggybackArrayThreadLocalMetrics.destroyMetric(metricId);
+        ThreadLocalMetrics.destroyMetric(metricId);
     }
 }

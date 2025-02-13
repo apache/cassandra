@@ -33,21 +33,21 @@ import com.google.common.annotations.VisibleForTesting;
 
 import io.netty.util.concurrent.FastThreadLocal;
 
-public class PiggybackArrayThreadLocalMetrics
+public class ThreadLocalMetrics
 {
     static final AtomicInteger idGenerator = new AtomicInteger();
 
     static final NavigableSet<Integer> freeMetricIdSet = new ConcurrentSkipListSet<>();
 
-    static final List<PiggybackArrayThreadLocalMetrics> allThreadLocalMetrics = new CopyOnWriteArrayList<>();
+    static final List<ThreadLocalMetrics> allThreadLocalMetrics = new CopyOnWriteArrayList<>();
 
-    private static final FastThreadLocal<PiggybackArrayThreadLocalMetrics> threadLocalMetricsCurrent = new FastThreadLocal<>()
+    private static final FastThreadLocal<ThreadLocalMetrics> threadLocalMetricsCurrent = new FastThreadLocal<>()
     {
         @Override
-        protected PiggybackArrayThreadLocalMetrics initialValue()
+        protected ThreadLocalMetrics initialValue()
         {
 
-            PiggybackArrayThreadLocalMetrics result = new PiggybackArrayThreadLocalMetrics(Thread.currentThread());
+            ThreadLocalMetrics result = new ThreadLocalMetrics(Thread.currentThread());
             allThreadLocalMetrics.add(result);
             return result;
         }
@@ -60,7 +60,7 @@ public class PiggybackArrayThreadLocalMetrics
 
     private long[] counterValues = new long[16];
 
-    public PiggybackArrayThreadLocalMetrics(Thread thread)
+    public ThreadLocalMetrics(Thread thread)
     {
         this.thread = thread;
     }
@@ -71,8 +71,8 @@ public class PiggybackArrayThreadLocalMetrics
         if (transferInProgress.compareAndSet(false, true))
             try
             {
-                List<PiggybackArrayThreadLocalMetrics> toRemove = new ArrayList<>();
-                for (PiggybackArrayThreadLocalMetrics threadLocalMetrics : allThreadLocalMetrics)
+                List<ThreadLocalMetrics> toRemove = new ArrayList<>();
+                for (ThreadLocalMetrics threadLocalMetrics : allThreadLocalMetrics)
                 {
                     if (!threadLocalMetrics.thread.isAlive())
                     {
@@ -120,7 +120,7 @@ public class PiggybackArrayThreadLocalMetrics
         {
             summaryLocal = summary.get();
             result = 0;
-            for (PiggybackArrayThreadLocalMetrics threadLocalMetrics : allThreadLocalMetrics)
+            for (ThreadLocalMetrics threadLocalMetrics : allThreadLocalMetrics)
             {
                 if (threadLocalMetrics != null)
                 {
@@ -152,7 +152,7 @@ public class PiggybackArrayThreadLocalMetrics
     }
     private static long[] get(int metricId)
     {
-        PiggybackArrayThreadLocalMetrics threadLocalMetrics = PiggybackArrayThreadLocalMetrics.get();
+        ThreadLocalMetrics threadLocalMetrics = ThreadLocalMetrics.get();
         return threadLocalMetrics.getNonStatic(metricId);
     }
 
@@ -179,7 +179,7 @@ public class PiggybackArrayThreadLocalMetrics
 
     public static void destroyMetric(int metricId)
     {
-        for (PiggybackArrayThreadLocalMetrics threadLocalMetrics : allThreadLocalMetrics)
+        for (ThreadLocalMetrics threadLocalMetrics : allThreadLocalMetrics)
             if (threadLocalMetrics != null)
             {
                 long[] currentCounterValues = threadLocalMetrics.counterValues;
@@ -196,7 +196,7 @@ public class PiggybackArrayThreadLocalMetrics
     }
 
     @VisibleForTesting
-    public static PiggybackArrayThreadLocalMetrics get() {
+    public static ThreadLocalMetrics get() {
         return threadLocalMetricsCurrent.get();
     }
 

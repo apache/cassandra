@@ -23,7 +23,7 @@ import java.util.concurrent.atomic.AtomicLongFieldUpdater;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.codahale.metrics.Timer;
+import org.apache.cassandra.metrics.Timer;
 
 import org.apache.cassandra.utils.concurrent.OpOrder;
 import org.apache.cassandra.utils.concurrent.WaitQueue;

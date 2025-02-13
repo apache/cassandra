@@ -20,7 +20,7 @@ package org.apache.cassandra.index.sai.metrics;
 import java.util.concurrent.TimeUnit;
 
 import org.apache.cassandra.metrics.Meter;
-import com.codahale.metrics.Timer;
+import org.apache.cassandra.metrics.Timer;
 import org.apache.cassandra.index.sai.utils.IndexIdentifier;
 
 import static org.apache.cassandra.metrics.CassandraMetricsRegistry.Metrics;

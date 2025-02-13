@@ -32,7 +32,7 @@ import org.apache.cassandra.utils.NoSpamLogger;
 import org.apache.cassandra.utils.concurrent.Semaphore;
 import org.apache.cassandra.utils.concurrent.WaitQueue;
 
-import static com.codahale.metrics.Timer.Context;
+import org.apache.cassandra.metrics.Timer.Context;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import static java.util.concurrent.TimeUnit.MINUTES;
 import static java.util.concurrent.TimeUnit.NANOSECONDS;

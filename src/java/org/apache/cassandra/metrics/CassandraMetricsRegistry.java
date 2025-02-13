@@ -45,7 +45,6 @@ import com.codahale.metrics.Metered;
 import com.codahale.metrics.Metric;
 import com.codahale.metrics.MetricRegistry;
 import com.codahale.metrics.MetricSet;
-import com.codahale.metrics.Timer;
 import org.apache.cassandra.db.virtual.CollectionVirtualTableAdapter;
 import org.apache.cassandra.db.virtual.VirtualTable;
 import org.apache.cassandra.db.virtual.model.CounterMetricRow;
@@ -492,6 +491,23 @@ public class CassandraMetricsRegistry extends MetricRegistry
         boolean success = remove(name.getMetricName());
         if (success)
             unregisterMBean(name.getMBeanName(), MBeanWrapper.instance);
+    }
+
+    @Override
+    public boolean remove(String metricName)
+    {
+        // note: codahale metric registry listener does not work with custom metric implementations
+        // so, we have to emulate the listener behavior
+        Metric metric = super.getMetrics().get(metricName);
+
+        boolean result = super.remove(metricName);
+
+        if (metric instanceof ThreadLocalCounter)
+            ((ThreadLocalCounter) metric).destroy();
+        else if (metric instanceof ThreadLocalMeter)
+            ((ThreadLocalMeter) metric).destroy();
+
+        return result;
     }
 
     @FunctionalInterface

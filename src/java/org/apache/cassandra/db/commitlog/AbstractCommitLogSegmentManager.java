@@ -33,7 +33,7 @@ import com.google.common.annotations.VisibleForTesting;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.codahale.metrics.Timer.Context;
+import org.apache.cassandra.metrics.Timer.Context;
 import net.nicoulaj.compilecommand.annotations.DontInline;
 import org.apache.cassandra.concurrent.Interruptible;
 import org.apache.cassandra.concurrent.Interruptible.TerminateException;

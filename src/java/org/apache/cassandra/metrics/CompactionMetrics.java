@@ -21,7 +21,6 @@ import java.util.*;
 
 import com.codahale.metrics.Gauge;
 
-import com.codahale.metrics.Timer;
 import org.apache.cassandra.concurrent.ExecutorPlus;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;

@@ -23,8 +23,6 @@ import java.util.List;
 import java.util.concurrent.TimeUnit;
 
 import org.junit.Test;
-import org.junit.runner.RunWith;
-import org.junit.runners.Parameterized;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -34,81 +32,9 @@ import org.apache.cassandra.concurrent.LocalAwareExecutorPlus;
 import static org.apache.cassandra.concurrent.ExecutorFactory.Global.executorFactory;
 import static org.junit.Assert.assertEquals;
 
-@RunWith(Parameterized.class)
-public class ThreadLocalMetricsTest
+public class ThreadLocalCounterTest
 {
-    private static final Logger LOGGER = LoggerFactory.getLogger(ThreadLocalMetricsTest.class);
-
-    @Parameterized.Parameter
-    public CounterSource counterSource;
-
-    @Parameterized.Parameters(name = "{0}")
-    public static List<CounterSource> parameters()
-    {
-        List<CounterSource> parameters = new ArrayList<>();
-        parameters.add(new CounterSource()
-        {
-            @Override
-            public Counter createCounter()
-            {
-                return LazySetArrayThreadLocalMetrics.createCounter();
-            }
-
-            @Override
-            public void destroyCounter(Counter counter)
-            {
-                counter.destroy();
-            }
-
-            @Override
-            public void printDiagnostic()
-            {
-                LOGGER.info("id generator state: {}, free IDs: {}",
-                            LazySetArrayThreadLocalMetrics.idGenerator.get(),
-                            LazySetArrayThreadLocalMetrics.freeMetricIdSet);
-            }
-
-            public String toString()
-            {
-                return LazySetArrayThreadLocalMetrics.class.getSimpleName();
-            }
-        });
-        parameters.add(new CounterSource()
-        {
-            @Override
-            public Counter createCounter()
-            {
-                return PiggybackArrayThreadLocalMetrics.createCounter();
-            }
-
-            @Override
-            public void destroyCounter(Counter counter)
-            {
-                counter.destroy();
-            }
-
-            @Override
-            public void printDiagnostic()
-            {
-                LOGGER.info("id generator state: {}, free IDs: {}",
-                            PiggybackArrayThreadLocalMetrics.idGenerator.get(),
-                            PiggybackArrayThreadLocalMetrics.freeMetricIdSet);
-            }
-            public String toString()
-            {
-                return PiggybackArrayThreadLocalMetrics.class.getSimpleName();
-            }
-        });
-        return parameters;
-    }
-
-    public interface CounterSource
-    {
-        Counter createCounter();
-        void destroyCounter(Counter counter);
-
-        void printDiagnostic();
-    }
+    private static final Logger LOGGER = LoggerFactory.getLogger(ThreadLocalCounterTest.class);
 
     @Test
     public void test() throws InterruptedException
@@ -118,14 +44,14 @@ public class ThreadLocalMetricsTest
         int ITERATIONS_COUNT = 50;
         long TASKS_COUNT = 100_000;
         int THREADS = 10;
-        boolean DESTROY_COUNTERS_AT_THE_END_OF_ITERATION = false;
+        boolean DESTROY_COUNTERS_AT_THE_END_OF_ITERATION = true;
 
         for (int iteration = 0; iteration < ITERATIONS_COUNT; iteration++)
         {
             {
                 final List<Counter> metrics = new ArrayList<>();
                 for (int i = 0; i < METRICS_COUNT; i++)
-                    metrics.add(counterSource.createCounter());
+                    metrics.add(new ThreadLocalCounter());
                 metricsPerIteration.add(metrics);
             }
 
@@ -159,11 +85,13 @@ public class ThreadLocalMetricsTest
             {
                 for (int metricSetId = 0; metricSetId < metricsPerIteration.size(); metricSetId++)
                     for (Counter metric : metricsPerIteration.get(metricSetId))
-                        counterSource.destroyCounter(metric);
+                        metric.destroy();
                 metricsPerIteration.clear();
             }
 
-            counterSource.printDiagnostic();
+            LOGGER.info("id generator state: {}, free IDs: {}",
+                        ThreadLocalMetrics.idGenerator.get(),
+                        ThreadLocalMetrics.freeMetricIdSet);
             LOGGER.info("iteration completed: {} / {}", iteration + 1, ITERATIONS_COUNT);
         }
     }

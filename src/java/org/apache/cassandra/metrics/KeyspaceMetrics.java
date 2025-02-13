@@ -23,7 +23,6 @@ import com.google.common.collect.ImmutableMap;
 
 import com.codahale.metrics.Gauge;
 import com.codahale.metrics.Histogram;
-import com.codahale.metrics.Timer;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;

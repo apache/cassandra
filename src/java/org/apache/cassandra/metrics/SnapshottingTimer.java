@@ -20,9 +20,8 @@ package org.apache.cassandra.metrics;
 
 import com.codahale.metrics.Clock;
 import com.codahale.metrics.Snapshot;
-import com.codahale.metrics.Timer;
 
-public class SnapshottingTimer extends Timer
+public class SnapshottingTimer extends ThreadLocalTimer
 {
     private final SnapshottingReservoir reservoir;
     
