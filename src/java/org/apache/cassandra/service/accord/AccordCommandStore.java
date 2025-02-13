@@ -308,7 +308,7 @@ public class AccordCommandStore extends CommandStore
     }
 
     @Override
-    public <T> AsyncChain<T> submit(Callable<T> task)
+    public <T> AsyncChain<T> build(Callable<T> task)
     {
         return AsyncChains.ofCallable(taskExecutor(), task);
     }

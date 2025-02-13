@@ -66,7 +66,7 @@ public class BeginInvalidationSerializers
         @Override
         public void serialize(InvalidateReply reply, DataOutputPlus out, int version) throws IOException
         {
-            CommandSerializers.nullableBallot.serialize(reply.supersededBy, out, version);
+            CommandSerializers.ballot.serialize(reply.supersededBy, out, version);
             CommandSerializers.ballot.serialize(reply.accepted, out, version);
             CommandSerializers.saveStatus.serialize(reply.maxStatus, out, version);
             CommandSerializers.saveStatus.serialize(reply.maxKnowledgeStatus, out, version);
@@ -80,7 +80,7 @@ public class BeginInvalidationSerializers
         public InvalidateReply deserialize(DataInputPlus in, int version) throws IOException
         {
             // TODO (expected): use headers instead of nullable+bool serializers
-            Ballot supersededBy = CommandSerializers.nullableBallot.deserialize(in, version);
+            Ballot supersededBy = CommandSerializers.ballot.deserialize(in, version);
             Ballot accepted = CommandSerializers.ballot.deserialize(in, version);
             SaveStatus maxStatus = CommandSerializers.saveStatus.deserialize(in, version);
             SaveStatus maxKnowledgeStatus = CommandSerializers.saveStatus.deserialize(in, version);
@@ -94,7 +94,7 @@ public class BeginInvalidationSerializers
         @Override
         public long serializedSize(InvalidateReply reply, int version)
         {
-            return CommandSerializers.nullableBallot.serializedSize(reply.supersededBy, version)
+            return CommandSerializers.ballot.serializedSize(reply.supersededBy, version)
                  + CommandSerializers.ballot.serializedSize(reply.accepted, version)
                  + CommandSerializers.saveStatus.serializedSize(reply.maxStatus, version)
                  + CommandSerializers.saveStatus.serializedSize(reply.maxKnowledgeStatus, version)

@@ -26,7 +26,6 @@ import java.util.NavigableSet;
 import java.util.TreeSet;
 import java.util.function.Consumer;
 
-import accord.primitives.Routable;
 import accord.primitives.Route;
 import accord.primitives.Timestamp;
 import accord.primitives.TxnId;
@@ -44,6 +43,8 @@ import org.apache.cassandra.utils.CloseableIterator;
 import org.apache.cassandra.utils.FastByteOperations;
 import org.apache.cassandra.utils.RTree;
 import org.apache.cassandra.utils.RangeTree;
+
+import static accord.primitives.Routable.Domain.Range;
 
 public class RouteInMemoryIndex<V> implements RangeSearcher
 {
@@ -144,8 +145,7 @@ public class RouteInMemoryIndex<V> implements RangeSearcher
 
         private void add(TxnId id, Unseekable keyOrRange)
         {
-            if (keyOrRange.domain() != Routable.Domain.Range)
-                throw new IllegalArgumentException("Unexpected domain: " + keyOrRange.domain());
+            Invariants.require(keyOrRange.domain() == Range);
             TokenRange ts = (TokenRange) keyOrRange;
             TableId tableId = ts.table();
             tableIndex.computeIfAbsent(tableId, i -> new TableIndex()).add(id, ts);

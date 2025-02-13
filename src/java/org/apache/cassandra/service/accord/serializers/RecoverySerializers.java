@@ -90,7 +90,7 @@ public class RecoverySerializers
         final RecoverReply.Kind[] kinds = RecoverReply.Kind.values();
         void serializeNack(RecoverNack recoverNack, DataOutputPlus out, int version) throws IOException
         {
-            CommandSerializers.nullableBallot.serialize(recoverNack.supersededBy, out, version);
+            CommandSerializers.ballot.serialize(recoverNack.supersededBy, out, version);
         }
 
         void serializeOk(RecoverOk recoverOk, DataOutputPlus out, int version) throws IOException
@@ -132,7 +132,7 @@ public class RecoverySerializers
         {
             RecoverReply.Kind kind = kinds[in.readByte()];
             if (kind != Ok)
-                return deserializeNack(kind, CommandSerializers.nullableBallot.deserialize(in, version), in, version);
+                return deserializeNack(kind, CommandSerializers.ballot.deserialize(in, version), in, version);
 
             TxnId id = CommandSerializers.txnId.deserialize(in, version);
             Status status = CommandSerializers.status.deserialize(in, version);
@@ -160,7 +160,7 @@ public class RecoverySerializers
 
         long serializedNackSize(RecoverNack recoverNack, int version)
         {
-            return CommandSerializers.nullableBallot.serializedSize(recoverNack.supersededBy, version);
+            return CommandSerializers.ballot.serializedSize(recoverNack.supersededBy, version);
         }
 
         long serializedOkSize(RecoverOk recoverOk, int version)

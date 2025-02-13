@@ -231,7 +231,7 @@ public class AccordJournalTable<K extends JournalKey, V> implements RangeSearche
         @Override
         public void accept(long segment, int position, K key, ByteBuffer buffer, int userVersion)
         {
-            if (!tableRecordConsumer.visited(segment)) //TODO: don't need this anymore
+            if (!tableRecordConsumer.visited(segment)) //TODO (required): don't need this anymore
                 delegate.accept(segment, position, key, buffer, userVersion);
         }
     }

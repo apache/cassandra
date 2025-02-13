@@ -654,7 +654,7 @@ public class CommandsForKeySerializerTest
         @Override public <T> AsyncChain<T> build(PreLoadContext context, Function<? super SafeCommandStore, T> apply) { throw new UnsupportedOperationException(); }
         @Override public void shutdown() { }
         @Override protected void registerTransitive(SafeCommandStore safeStore, RangeDeps deps){ }
-        @Override public <T> AsyncChain<T> submit(Callable<T> task) { throw new UnsupportedOperationException(); }
+        @Override public <T> AsyncChain<T> build(Callable<T> task) { throw new UnsupportedOperationException(); }
         @Override public void onRecover(Node node, Result success, Throwable fail) { throw new UnsupportedOperationException(); }
         @Override public void onInconsistentTimestamp(Command command, Timestamp prev, Timestamp next) { throw new UnsupportedOperationException(); }
         @Override public void onFailedBootstrap(String phase, Ranges ranges, Runnable retry, Throwable failure) { throw new UnsupportedOperationException(); }
@@ -670,6 +670,7 @@ public class CommandsForKeySerializerTest
         @Override public long attemptCoordinationDelay(Node node, SafeCommandStore safeStore, TxnId txnId, TimeUnit units, int retryCount) { return 0; }
         @Override public long seekProgressDelay(Node node, SafeCommandStore safeStore, TxnId txnId, int retryCount, ProgressLog.BlockedUntil blockedUntil, TimeUnit units) { return 0; }
         @Override public long retryAwaitTimeout(Node node, SafeCommandStore safeStore, TxnId txnId, int retryCount, ProgressLog.BlockedUntil retrying, TimeUnit units) { return 0; }
+        @Override public long localSlowAt(TxnId txnId, Status.Phase phase, TimeUnit unit) { return 0; }
         @Override public long localExpiresAt(TxnId txnId, Status.Phase phase, TimeUnit unit) { return 0; }
         @Override public long expiresAt(ReplyContext replyContext, TimeUnit unit) { return 0; }
     }

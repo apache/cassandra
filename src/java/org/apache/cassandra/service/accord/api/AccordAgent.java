@@ -51,9 +51,13 @@ import accord.utils.DefaultRandom;
 import accord.utils.Invariants;
 import accord.utils.RandomSource;
 import accord.utils.SortedList;
+import accord.utils.UnhandledEnum;
+import org.apache.cassandra.config.AccordSpec;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.metrics.AccordMetrics;
+import org.apache.cassandra.metrics.ClientRequestsMetricsHolder;
 import org.apache.cassandra.net.ResponseContext;
+import org.apache.cassandra.service.TimeoutStrategy;
 import org.apache.cassandra.service.accord.AccordService;
 import org.apache.cassandra.service.accord.txn.TxnQuery;
 import org.apache.cassandra.service.accord.txn.TxnRead;
@@ -73,11 +77,17 @@ public class AccordAgent implements Agent
 {
     private static final Logger logger = LoggerFactory.getLogger(AccordAgent.class);
 
-    protected Node.Id self;
-
     // TODO (required): this should be configurable and have exponential back-off, escaping to operator input past a certain number of retries
     private long retryBootstrapDelayMicros = SECONDS.toMicros(1L);
     private final RandomSource random = new DefaultRandom();
+
+    // TODO (required): make hot property
+    private TimeoutStrategy slowPreaccept, slowRead;
+    protected Node.Id self;
+
+    public AccordAgent()
+    {
+    }
 
     public void setNodeId(Node.Id id)
     {
@@ -248,10 +258,22 @@ public class AccordAgent implements Agent
     }
 
     @Override
+    public long localSlowAt(TxnId txnId, Status.Phase phase, TimeUnit unit)
+    {
+        switch (phase)
+        {
+            default: throw new UnhandledEnum(phase);
+            case PreAccept: return unit.convert(slowPreaccept().computeWaitUntil(1), NANOSECONDS);
+            case Execute:   return unit.convert(slowRead().computeWaitUntil(1), NANOSECONDS);
+        }
+    }
+
+    @Override
     public long localExpiresAt(TxnId txnId, Status.Phase phase, TimeUnit unit)
     {
         // TODO (expected): make this configurable
-        return txnId.is(Write) ? DatabaseDescriptor.getWriteRpcTimeout(unit) : DatabaseDescriptor.getReadRpcTimeout(unit);
+        return txnId.is(Write) ? DatabaseDescriptor.getWriteRpcTimeout(unit)
+                               : DatabaseDescriptor.getReadRpcTimeout(unit);
     }
 
     @Override
@@ -264,5 +286,31 @@ public class AccordAgent implements Agent
     public void onViolation(String message, Participants<?> participants, @Nullable TxnId notWitnessed, @Nullable Timestamp notWitnessedExecuteAt, @Nullable TxnId by, @Nullable Timestamp byEexecuteAt)
     {
         logger.error(message);
+    }
+
+    public TimeoutStrategy slowRead()
+    {
+        if (slowRead == null)
+        {
+            synchronized (this)
+            {
+                AccordSpec config = DatabaseDescriptor.getAccord();
+                slowRead = new TimeoutStrategy(config.slowRead, TimeoutStrategy.LatencySourceFactory.of(ClientRequestsMetricsHolder.accordReadMetrics));
+            }
+        }
+        return slowRead;
+    }
+
+    public TimeoutStrategy slowPreaccept()
+    {
+        if (slowPreaccept == null)
+        {
+            synchronized (this)
+            {
+                AccordSpec config = DatabaseDescriptor.getAccord();
+                slowPreaccept = new TimeoutStrategy(config.slowPreAccept, TimeoutStrategy.LatencySourceFactory.of(ClientRequestsMetricsHolder.accordReadMetrics));
+            }
+        }
+        return slowPreaccept;
     }
 }

@@ -544,7 +544,6 @@ public class AccordJournal implements accord.api.Journal, RangeSearcher.Supplier
                     continue;
                 }
 
-
                 switch (field)
                 {
                     case EXECUTE_AT:
@@ -557,7 +556,7 @@ public class AccordJournal implements accord.api.Journal, RangeSearcher.Supplier
                         out.writeUnsignedVInt(command.waitingOn().minUniqueHlc());
                         break;
                     case SAVE_STATUS:
-                        out.writeShort(command.saveStatus().ordinal());
+                        out.writeByte(command.saveStatus().ordinal());
                         break;
                     case DURABILITY:
                         out.writeByte(command.durability().ordinal());
@@ -631,12 +630,6 @@ public class AccordJournal implements accord.api.Journal, RangeSearcher.Supplier
             }
         }
 
-        public Builder maybeCleanup(Cleanup cleanup)
-        {
-            super.maybeCleanup(cleanup);
-            return this;
-        }
-
         public void serialize(DataOutputPlus out, RedundantBefore redundantBefore, int userVersion) throws IOException
         {
             Invariants.require(mask == 0);
@@ -697,7 +690,7 @@ public class AccordJournal implements accord.api.Journal, RangeSearcher.Supplier
                     minUniqueHlc = in.readUnsignedVInt();
                     break;
                 case SAVE_STATUS:
-                    saveStatus = SaveStatus.values()[in.readShort()];
+                    saveStatus = SaveStatus.values()[in.readByte()];
                     break;
                 case DURABILITY:
                     durability = Durability.values()[in.readByte()];
@@ -748,14 +741,14 @@ public class AccordJournal implements accord.api.Journal, RangeSearcher.Supplier
                     in.readUnsignedVInt();
                     break;
                 case SAVE_STATUS:
-                    in.readShort();
+                    in.readByte();
                     break;
                 case DURABILITY:
                     in.readByte();
                     break;
                 case ACCEPTED:
                 case PROMISED:
-                    CommandSerializers.ballot.skip(in, userVersion);
+                    CommandSerializers.ballot.skip(in);
                     break;
                 case PARTICIPANTS:
                     // TODO (expected): skip

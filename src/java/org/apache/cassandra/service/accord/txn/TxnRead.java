@@ -20,7 +20,6 @@ package org.apache.cassandra.service.accord.txn;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 import javax.annotation.Nonnull;
@@ -41,6 +40,8 @@ import accord.primitives.Routable.Domain;
 import accord.primitives.Seekable;
 import accord.primitives.Seekables;
 import accord.primitives.Timestamp;
+import accord.utils.Invariants;
+import accord.utils.UnhandledEnum;
 import accord.utils.async.AsyncChain;
 import accord.utils.async.AsyncChains;
 import org.apache.cassandra.db.ConsistencyLevel;
@@ -55,6 +56,7 @@ import org.apache.cassandra.service.accord.api.PartitionKey;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.utils.ObjectSizes;
 
+import static accord.primitives.Routables.Slice.Minimal;
 import static com.google.common.base.Preconditions.checkArgument;
 import static com.google.common.base.Preconditions.checkState;
 import static org.apache.cassandra.service.accord.AccordSerializers.consistencyLevelSerializer;
@@ -112,6 +114,10 @@ public class TxnRead extends AbstractKeySorted<TxnNamedRead> implements Read
         checkArgument(cassandraConsistencyLevel == null || SUPPORTED_READ_CONSISTENCY_LEVELS.contains(cassandraConsistencyLevel), "Unsupported consistency level for read: %s", cassandraConsistencyLevel);
         this.cassandraConsistencyLevel = cassandraConsistencyLevel;
         this.domain = items[0].key().domain();
+        // TODO (expected): relax this condition, require only that it holds for each equal byte[]
+        //  right now this means we don't permit two different range queries in the same transaction touching adjacent ranges
+        //  this is a pretty weak restriction and doesn't interfere with current CQL capabilities, but should be addressed eventually
+        Invariants.require(domain == Domain.Key || ((Ranges)keys()).mergeTouching() == keys());
     }
 
     private TxnRead(@Nonnull List<TxnNamedRead> items, @Nullable ConsistencyLevel cassandraConsistencyLevel)
@@ -120,6 +126,7 @@ public class TxnRead extends AbstractKeySorted<TxnNamedRead> implements Read
         checkArgument(cassandraConsistencyLevel == null || SUPPORTED_READ_CONSISTENCY_LEVELS.contains(cassandraConsistencyLevel), "Unsupported consistency level for read: %s", cassandraConsistencyLevel);
         this.cassandraConsistencyLevel = cassandraConsistencyLevel;
         this.domain = items.get(0).key().domain();
+        Invariants.require(domain == Domain.Key || ((Ranges)keys()).mergeTouching() == keys());
     }
 
     private static void sortReads(List<TxnNamedRead> reads)
@@ -213,52 +220,147 @@ public class TxnRead extends AbstractKeySorted<TxnNamedRead> implements Read
     @Override
     public Read slice(Ranges ranges)
     {
-        return intersecting(itemKeys.slice(ranges));
+        return select(itemKeys.slice(ranges, Minimal));
     }
 
     @Override
     public Read intersecting(Participants<?> participants)
     {
-        return intersecting(itemKeys.intersecting(participants));
+        return select(itemKeys.intersecting(participants, Minimal));
     }
 
-    private Read intersecting(Seekables<?, ?> select)
+    private Read select(Seekables<?, ?> select)
     {
-        // TODO (review): Why construct this keys at all and not just check against select?
-        Seekables<?, ?> keys = (Seekables<?, ?>)itemKeys.intersecting(select);
-        List<TxnNamedRead> reads = new ArrayList<>(keys.size());
+        if (select == keys())
+            return this;
 
-        switch (keys.domain())
+        List<TxnNamedRead> reads = new ArrayList<>(select.size());
+        switch (select.domain())
         {
             case Key:
-                for (TxnNamedRead read : items)
-                    if (keys.contains((Key)read.key()))
+            {
+                Keys keys = (Keys) select;
+                int i = 0, j = 0;
+                while (i < select.size() && j < items.length)
+                {
+                    Key key = keys.get(i);
+                    TxnNamedRead read = items[j];
+                    int c = key.compareTo((Key)read.key());
+                    if (c < 0) ++i;
+                    else if (c > 0) ++j;
+                    else
+                    {
                         reads.add(read);
+                        ++j;
+                    }
+                }
                 break;
+            }
             case Range:
-                for (TxnNamedRead read : items)
-                    if (keys.intersects((Range)read.key()))
-                        reads.add(read);
+            {
+                Ranges ranges = (Ranges) select;
+                int i = 0, j = 0;
+                while (i < select.size() && j < items.length)
+                {
+                    Range range = ranges.get(i);
+                    TxnNamedRead read = items[j];
+                    int c = range.compareIntersecting((Range) read.key());
+                    if (c < 0) ++i;
+                    else if (c > 0) ++j;
+                    else
+                    {
+                        reads.add(read.slice(range));
+                        ++j;
+                    }
+                }
                 break;
+            }
             default:
-                throw new IllegalStateException("Unhandled domain " + keys.domain());
+                throw new UnhandledEnum(select.domain());
         }
 
-        return createTxnRead(reads, cassandraConsistencyLevel, keys.domain());
+        return createTxnRead(reads, cassandraConsistencyLevel, select.domain());
     }
 
     @Override
     public Read merge(Read read)
     {
-        TxnRead txnRead = (TxnRead)read;
+        TxnRead that = (TxnRead)read;
         List<TxnNamedRead> reads = new ArrayList<>(items.length);
-        Collections.addAll(reads, items);
 
-        for (TxnNamedRead namedRead : txnRead)
-            if (!reads.contains(namedRead))
-                reads.add(namedRead);
+        switch (domain)
+        {
+            default: throw new UnhandledEnum(domain);
+            case Key:
+            {
+                int i = 0, j = 0;
+                while (i < items.length && j < that.items.length)
+                {
+                    TxnNamedRead r1 = this.items[i], r2 = that.items[i];
+                    int c = compareKey(r1, r2);
+                    if (c <= 0)
+                    {
+                        reads.add(r1);
+                        ++i;
+                        if (c == 0)
+                            ++j;
+                    }
+                    else
+                    {
+                        reads.add(r2);
+                        ++j;
+                    }
+                }
+                break;
+            }
+            case Range:
+            {
+                int i = 0, j = 0;
+                TxnNamedRead pending = null;
+                while (i < items.length && j < that.items.length)
+                {
+                    TxnNamedRead r1 = this.items[i], r2 = that.items[i];
+                    int c = compareRange(r1, r2);
+                    TxnNamedRead add;
+                    if (c == 0)
+                    {
+                        add = r1.merge(r2);
+                        ++i;
+                        ++j;
+                    }
+                    else if (c < 0)
+                    {
+                        add = r1;
+                        ++i;
+                    }
+                    else
+                    {
+                        add = r2;
+                        ++j;
+                    }
 
-        return createTxnRead(reads, cassandraConsistencyLevel, txnRead.domain);
+                    if (pending == null) pending = add;
+                    else
+                    {
+                        c = compareRange(pending, add);
+                        if (c < 0)
+                        {
+                            reads.add(pending);
+                            pending = add;
+                        }
+                        else
+                        {
+                            Invariants.require(c == 0);
+                            pending = pending.merge(add);
+                        }
+                    }
+                }
+                if (pending != null)
+                    reads.add(pending);
+                break;
+            }
+        }
+        return createTxnRead(reads, cassandraConsistencyLevel, that.domain);
     }
 
     public void unmemoize()

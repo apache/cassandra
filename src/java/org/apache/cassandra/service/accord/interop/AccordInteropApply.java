@@ -48,9 +48,11 @@ import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.service.accord.AccordMessageSink.AccordMessageType;
 import org.apache.cassandra.service.accord.serializers.ApplySerializers.ApplySerializer;
 import org.apache.cassandra.service.accord.txn.AccordUpdate;
+import org.apache.cassandra.tcm.ClusterMetadata;
 
 import static accord.utils.Invariants.requireArgument;
 import static com.google.common.base.Preconditions.checkArgument;
+import static com.google.common.base.Preconditions.checkState;
 
 /**
  * Apply that waits until the transaction is actually applied before sending a response
@@ -100,6 +102,8 @@ public class AccordInteropApply extends Apply implements LocalListeners.ComplexL
     @Override
     public ApplyReply apply(SafeCommandStore safeStore, StoreParticipants participants)
     {
+        ClusterMetadata cm = ClusterMetadata.current();
+        checkState(cm.epoch.getEpoch() >= minEpoch, "TCM epoch %d is < minEpoch %d", cm.epoch.getEpoch(), minEpoch);
         ApplyReply reply = super.apply(safeStore, participants);
         requireArgument(reply == ApplyReply.Redundant || reply == ApplyReply.Applied || reply == ApplyReply.Insufficient, "Unexpected ApplyReply");
 
@@ -198,7 +202,8 @@ public class AccordInteropApply extends Apply implements LocalListeners.ComplexL
             listeners = this.listeners;
             this.listeners = null;
         }
-        listeners.forEach((i, v) -> v.cancel());
+        if (listeners != null)
+            listeners.forEach((i, v) -> v.cancel());
     }
 
     @Override

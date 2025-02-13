@@ -90,6 +90,8 @@ import org.apache.cassandra.utils.AbstractIterator;
 import org.apache.cassandra.utils.concurrent.Future;
 import org.apache.cassandra.utils.concurrent.FutureCombiner;
 
+import static accord.primitives.Routable.Domain.Range;
+
 public class RouteJournalIndex implements Index, INotificationConsumer
 {
     public enum RegisterStatus
@@ -131,7 +133,7 @@ public class RouteJournalIndex implements Index, INotificationConsumer
 
     public static boolean allowed(TxnId id)
     {
-        return id.domain().isRange();
+        return id.is(Range);
     }
 
     private static void validateTargets(ColumnFamilyStore baseCfs, IndexMetadata indexMetadata)

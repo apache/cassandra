@@ -33,6 +33,7 @@ import accord.local.ShardDistributor;
 import accord.primitives.Range;
 import accord.primitives.RangeFactory;
 import accord.primitives.Ranges;
+import accord.utils.Invariants;
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.db.marshal.ByteBufferAccessor;
 import org.apache.cassandra.dht.IPartitioner;
@@ -257,6 +258,7 @@ public abstract class AccordRoutingKey extends AccordRoutableKey implements Rout
         public void serialize(T key, DataOutputPlus out, int version) throws IOException
         {
             key.table.serializeCompact(out);
+            Invariants.require(key.token.getPartitioner() == getPartitioner());
             Token.compactSerializer.serialize(key.token, out, version);
         }
 
@@ -264,7 +266,6 @@ public abstract class AccordRoutingKey extends AccordRoutableKey implements Rout
         public void skip(DataInputPlus in, int version) throws IOException
         {
             TableId.skipCompact(in);
-            // TODO (expected): should we be using the TableId partitioner here?
             Token.compactSerializer.skip(in, getPartitioner(), version);
         }
 

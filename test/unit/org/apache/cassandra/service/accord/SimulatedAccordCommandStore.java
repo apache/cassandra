@@ -304,7 +304,7 @@ public class SimulatedAccordCommandStore implements AutoCloseable
                 }
                 else if (RoutableKey.class.isAssignableFrom(keyType))
                 {
-                    RoutableKey key = (RoutableKey) state.key();
+                    RoutingKey key = (RoutingKey) state.key();
                     if ((keys.contains(key) || ranges.intersects(key))
                         && shouldEvict.getAsBoolean())
                         cache.tryEvict(state);

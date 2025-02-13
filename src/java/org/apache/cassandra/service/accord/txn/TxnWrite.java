@@ -60,7 +60,6 @@ import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.service.accord.AccordObjectSizes;
 import org.apache.cassandra.service.accord.api.PartitionKey;
-import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.utils.BooleanSerializer;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.ObjectSizes;
@@ -381,8 +380,6 @@ public class TxnWrite extends AbstractKeySorted<TxnWrite.Update> implements Writ
     @Override
     public AsyncChain<Void> apply(Seekable key, SafeCommandStore safeStore, TxnId txnId, Timestamp executeAt, DataStore store, PartialTxn txn)
     {
-        ClusterMetadata cm = ClusterMetadata.current();
-        checkState(cm.epoch.getEpoch() >= executeAt.epoch(), "TCM epoch %d is < executeAt epoch %d", cm.epoch.getEpoch(), executeAt.epoch());
         // UnrecoverableRepairUpdate will deserialize as null at other nodes
         // Accord should skip the Update for a read transaction, but handle it here anyways
         TxnUpdate txnUpdate = ((TxnUpdate)txn.update());

@@ -95,6 +95,7 @@ import org.apache.cassandra.transport.Dispatcher;
 
 import static accord.coordinate.CoordinationAdapter.Factory.Kind.Standard;
 import static accord.primitives.Txn.Kind.Write;
+import static accord.topology.Topologies.SelectNodeOwnership.SHARE;
 import static accord.utils.Invariants.requireArgument;
 import static org.apache.cassandra.metrics.ClientRequestsMetricsHolder.accordReadMetrics;
 import static org.apache.cassandra.metrics.ClientRequestsMetricsHolder.accordWriteMetrics;
@@ -130,7 +131,7 @@ public class AccordInteropExecution implements ReadCoordinator, MaximalCommitSen
         }
 
         @Override
-        public <T> AsyncChain<T> submit(Callable<T> task)
+        public <T> AsyncChain<T> build(Callable<T> task)
         {
             try
             {
@@ -181,9 +182,10 @@ public class AccordInteropExecution implements ReadCoordinator, MaximalCommitSen
         this.consistencyLevel = consistencyLevel;
         this.endpointMapper = endpointMapper;
 
-        this.executes = node.topology().forEpoch(route, executeAt.epoch());
+        // TODO (required): compare this to latest logic in Accord, make sure it makes sense
+        this.executes = node.topology().forEpoch(route, executeAt.epoch(), SHARE);
         this.allTopologies = txnId.epoch() != executeAt.epoch()
-                             ? node.topology().preciseEpochs(route, txnId.epoch(), executeAt.epoch())
+                             ? node.topology().preciseEpochs(route, txnId.epoch(), executeAt.epoch(), SHARE)
                              : executes;
         this.executeTopology = executes.getEpoch(executeAt.epoch());
         this.coordinateTopology = allTopologies.getEpoch(txnId.epoch());

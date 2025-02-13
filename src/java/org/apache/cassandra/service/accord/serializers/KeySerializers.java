@@ -80,11 +80,11 @@ public class KeySerializers
     public static final IVersionedSerializer<Route<?>> nullableRoute;
     public static final IVersionedSerializer<PartialRoute<?>> partialRoute;
 
-    public static final IVersionedSerializer<FullRoute<?>> fullRoute;
+    public static final AbstractRoutablesSerializer<FullRoute<?>> fullRoute;
     public static final IVersionedSerializer<Seekables<?, ?>> seekables;
     public static final IVersionedSerializer<FullRoute<?>> nullableFullRoute;
-    public static final IVersionedSerializer<Unseekables<?>> unseekables;
-    public static final IVersionedSerializer<Participants<?>> participants;
+    public static final AbstractRoutablesSerializer<Unseekables<?>> unseekables;
+    public static final AbstractRoutablesSerializer<Participants<?>> participants;
     public static final IVersionedSerializer<Participants<?>> nullableParticipants;
 
     static
@@ -138,11 +138,11 @@ public class KeySerializers
         final IVersionedSerializer<Route<?>> nullableRoute;
         final IVersionedSerializer<PartialRoute<?>> partialRoute;
 
-        final IVersionedSerializer<FullRoute<?>> fullRoute;
-        final IVersionedSerializer<Seekables<?, ?>> seekables;
+        final AbstractRoutablesSerializer<FullRoute<?>> fullRoute;
+        final AbstractSeekablesSerializer seekables;
         final IVersionedSerializer<FullRoute<?>> nullableFullRoute;
-        final IVersionedSerializer<Unseekables<?>> unseekables;
-        final IVersionedSerializer<Participants<?>> participants;
+        final AbstractRoutablesSerializer<Unseekables<?>> unseekables;
+        final AbstractRoutablesSerializer<Participants<?>> participants;
         final IVersionedSerializer<Participants<?>> nullableParticipants;
         private Impl()
         {
@@ -285,19 +285,19 @@ public class KeySerializers
             this.route = (AbstractRoutablesSerializer<Route<?>>) factory.apply(EnumSet.of(UnseekablesKind.PartialKeyRoute, UnseekablesKind.FullKeyRoute, UnseekablesKind.PartialRangeRoute, UnseekablesKind.FullRangeRoute));
             this.nullableRoute = NullableSerializer.wrap(route);
 
-            this.partialRoute = (IVersionedSerializer<PartialRoute<?>>) factory.apply(EnumSet.of(UnseekablesKind.PartialKeyRoute, UnseekablesKind.PartialRangeRoute));
-            this.fullRoute = (IVersionedSerializer<FullRoute<?>>) factory.apply(EnumSet.of(UnseekablesKind.FullKeyRoute, UnseekablesKind.FullRangeRoute));
+            this.partialRoute = (AbstractRoutablesSerializer<PartialRoute<?>>) factory.apply(EnumSet.of(UnseekablesKind.PartialKeyRoute, UnseekablesKind.PartialRangeRoute));
+            this.fullRoute = (AbstractRoutablesSerializer<FullRoute<?>>) factory.apply(EnumSet.of(UnseekablesKind.FullKeyRoute, UnseekablesKind.FullRangeRoute));
             this.nullableFullRoute = NullableSerializer.wrap(fullRoute);
 
-            this.unseekables = (IVersionedSerializer<Unseekables<?>>) factory.apply(EnumSet.allOf(UnseekablesKind.class));
-            this.participants = (IVersionedSerializer<Participants<?>>) factory.apply(EnumSet.allOf(UnseekablesKind.class));
+            this.unseekables = (AbstractRoutablesSerializer<Unseekables<?>>) factory.apply(EnumSet.allOf(UnseekablesKind.class));
+            this.participants = (AbstractRoutablesSerializer<Participants<?>>) factory.apply(EnumSet.allOf(UnseekablesKind.class));
 
             this.nullableParticipants = NullableSerializer.wrap(participants);
             this.seekables = new AbstractSeekablesSerializer(keys, ranges);
         }
     }
 
-    static class AbstractRoutablesSerializer<RS extends Unseekables<?>> implements IVersionedSerializer<RS>
+    public static class AbstractRoutablesSerializer<RS extends Unseekables<?>> implements IVersionedSerializer<RS>
     {
         final EnumSet<UnseekablesKind> permitted;
         final AbstractKeysSerializer<RoutingKey, RoutingKeys> routingKeys;
