@@ -247,7 +247,6 @@ public class ActiveRepairServiceTest
         ActiveRepairService.instance().getNeighbors(KEYSPACE5, ranges, ranges.iterator().next(), null, hosts);
     }
 
-
     @Test
     public void testParentRepairStatus() throws Throwable
     {

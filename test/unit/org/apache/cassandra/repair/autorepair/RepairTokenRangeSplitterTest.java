@@ -126,8 +126,8 @@ public class RepairTokenRangeSplitterTest extends CQLTester
         Range<Token> tokenRange2 = range.next();
         Assert.assertFalse(range.hasNext());
 
-        try(Refs<SSTableReader> sstables1 = RepairTokenRangeSplitter.getSSTableReaderRefs(RepairType.FULL, KEYSPACE, tableName, tokenRange1);
-            Refs<SSTableReader> sstables2 = RepairTokenRangeSplitter.getSSTableReaderRefs(RepairType.FULL, KEYSPACE, tableName, tokenRange2))
+        try (Refs<SSTableReader> sstables1 = RepairTokenRangeSplitter.getSSTableReaderRefs(RepairType.FULL, KEYSPACE, tableName, tokenRange1);
+             Refs<SSTableReader> sstables2 = RepairTokenRangeSplitter.getSSTableReaderRefs(RepairType.FULL, KEYSPACE, tableName, tokenRange2))
         {
             SizeEstimate sizes1 = RepairTokenRangeSplitter.getSizesForRangeOfSSTables(RepairType.FULL, KEYSPACE, tableName, tokenRange1, sstables1);
             SizeEstimate sizes2 = RepairTokenRangeSplitter.getSizesForRangeOfSSTables(RepairType.FULL, KEYSPACE, tableName, tokenRange2, sstables2);
@@ -330,23 +330,23 @@ public class RepairTokenRangeSplitterTest extends CQLTester
         FilteredRepairAssignments filteredRepairAssignments = repairRangeSplitter.filterRepairAssignments(0, KEYSPACE, assignments, 0);
         List<RepairAssignment> finalRepairAssignments = filteredRepairAssignments.repairAssignments;
         assertEquals(2, finalRepairAssignments.size());
-        assertEquals(expectedBytes*2, filteredRepairAssignments.newBytesSoFar);
+        assertEquals(expectedBytes * 2, filteredRepairAssignments.newBytesSoFar);
     }
 
-    @Test(expected=IllegalArgumentException.class)
+    @Test(expected = IllegalArgumentException.class)
     public void testSetParameterShouldNotAllowUnknownParameter()
     {
         repairRangeSplitter.setParameter("unknown", "x");
     }
 
-    @Test(expected=IllegalArgumentException.class)
+    @Test(expected = IllegalArgumentException.class)
     public void testSetParameterShouldNotAllowSettingBytesPerAssignmentGreaterThanMaxBytesPerSchedule()
     {
         repairRangeSplitter.setParameter(MAX_BYTES_PER_SCHEDULE, "500GiB");
         repairRangeSplitter.setParameter(BYTES_PER_ASSIGNMENT, "600GiB");
     }
 
-    @Test(expected=IllegalArgumentException.class)
+    @Test(expected = IllegalArgumentException.class)
     public void testSetParameterShouldNotAllowSettingMaxBytesPerScheduleLessThanBytesPerAssignment()
     {
         repairRangeSplitter.setParameter(BYTES_PER_ASSIGNMENT, "100MiB");
@@ -386,7 +386,8 @@ public class RepairTokenRangeSplitterTest extends CQLTester
     private List<String> createAndInsertTables(int count) throws Throwable
     {
         List<String> tableNames = new ArrayList<>();
-        for (int i = 0; i < count; i++) {
+        for (int i = 0; i < count; i++)
+        {
             String tableName = createTable("CREATE TABLE %s (k INT PRIMARY KEY, v INT)");
             tableNames.add(tableName);
             insertAndFlushTable(tableName);
