@@ -252,7 +252,7 @@ public class CMSOperations implements CMSOperationsMBean
         for (NodeId nodeId : nodeIds)
         {
             logger.info("Unregistering " + nodeId);
-            cms.commit(new Unregister(nodeId, EnumSet.of(NodeState.LEFT)));
+            cms.commit(new Unregister(nodeId, EnumSet.of(NodeState.LEFT), ClusterMetadataService.instance().placementProvider()));
         }
     }
 }

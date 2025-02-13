@@ -252,7 +252,11 @@ public class Directory implements MetadataValue<Directory>
     {
         InetAddressAndPort endpoint = peers.get(id);
         Location location = locations.get(id);
+        if (location == null)
+            return this;
         BTreeMultimap<String, InetAddressAndPort> rackEP = (BTreeMultimap<String, InetAddressAndPort>) racksByDC.get(location.datacenter);
+        if (rackEP == null)
+            return this;
         rackEP = rackEP.without(location.rack, endpoint);
         BTreeMap<String, Multimap<String, InetAddressAndPort>> newRacksByDC;
         if (rackEP.isEmpty())

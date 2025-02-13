@@ -44,6 +44,7 @@ import org.apache.cassandra.tcm.membership.NodeAddresses;
 import org.apache.cassandra.tcm.membership.NodeId;
 import org.apache.cassandra.tcm.membership.NodeState;
 import org.apache.cassandra.tcm.membership.NodeVersion;
+import org.apache.cassandra.tcm.ownership.PlacementProvider;
 import org.apache.cassandra.tcm.sequences.LeaveStreams;
 import org.apache.cassandra.tcm.sequences.UnbootstrapAndLeave;
 import org.apache.cassandra.tcm.serialization.Version;
@@ -75,15 +76,16 @@ public class RegisterTest extends TestBaseImpl
             for (int i : new int[]{ 3, 2 })
             {
                 cluster.get(i).runOnInstance(() -> {
+                    PlacementProvider pp = ClusterMetadataService.instance().placementProvider();
                     ClusterMetadataService.instance().commit(new PrepareLeave(ClusterMetadata.current().myNodeId(),
                                                                               true,
-                                                                              ClusterMetadataService.instance().placementProvider(),
+                                                                              pp,
                                                                               LeaveStreams.Kind.UNBOOTSTRAP));
                     UnbootstrapAndLeave unbootstrapAndLeave = (UnbootstrapAndLeave) ClusterMetadata.current().inProgressSequences.get(ClusterMetadata.current().myNodeId());
                     ClusterMetadataService.instance().commit(unbootstrapAndLeave.startLeave);
                     ClusterMetadataService.instance().commit(unbootstrapAndLeave.midLeave);
                     ClusterMetadataService.instance().commit(unbootstrapAndLeave.finishLeave);
-                    ClusterMetadataService.instance().commit(new Unregister(ClusterMetadata.current().myNodeId(), EnumSet.of(NodeState.LEFT)));
+                    ClusterMetadataService.instance().commit(new Unregister(ClusterMetadata.current().myNodeId(), EnumSet.of(NodeState.LEFT), pp));
                 });
 
                 cluster.get(1).runOnInstance(() -> {
@@ -142,7 +144,7 @@ public class RegisterTest extends TestBaseImpl
                         }
 
                         // If we unregister oldNode, then the ceiling for serialization version will rise
-                        ClusterMetadataService.instance().commit(new Unregister(oldNode, EnumSet.allOf(NodeState.class)));
+                        ClusterMetadataService.instance().commit(new Unregister(oldNode, EnumSet.allOf(NodeState.class), ClusterMetadataService.instance().placementProvider()));
                         assertEquals(ClusterMetadata.current().directory.clusterMinVersion.serializationVersion,
                                      NodeVersion.CURRENT_METADATA_VERSION.asInt());
                         bytes = t.kind().toVersionedBytes(t);

@@ -411,7 +411,9 @@ public class ClusterMetadata
 
         public Transformer unregister(NodeId nodeId)
         {
-            directory = directory.without(nodeId);
+            directory = directory.withoutRackAndDC(nodeId).without(nodeId);
+            if (!tokenMap.tokens(nodeId).isEmpty())
+                tokenMap = tokenMap.unassignTokens(nodeId);
             return this;
         }
 
