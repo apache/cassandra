@@ -31,12 +31,14 @@ import static org.junit.Assert.assertEquals;
 /**
  * Unit tests for {@link org.apache.cassandra.service.AutoRepairService}
  */
-public class AutoRepairServiceBasicTest extends CQLTester {
+public class AutoRepairServiceBasicTest extends CQLTester
+{
     private static AutoRepairService autoRepairService;
     private static AutoRepairConfig config;
 
     @Before
-    public void setUp() {
+    public void setUp()
+    {
         DatabaseDescriptor.setCDCOnRepairEnabled(false);
         DatabaseDescriptor.setMaterializedViewsOnRepairEnabled(false);
         DatabaseDescriptor.setMaterializedViewsEnabled(false);
@@ -47,7 +49,8 @@ public class AutoRepairServiceBasicTest extends CQLTester {
     }
 
     @Test
-    public void testSetup() {
+    public void testSetup()
+    {
         AutoRepairService.instance.config = null;
 
         AutoRepairService.setup();
@@ -56,40 +59,46 @@ public class AutoRepairServiceBasicTest extends CQLTester {
     }
 
     @Test
-    public void testGetAutoRepairConfigReturnsConfig() {
+    public void testGetAutoRepairConfigReturnsConfig()
+    {
         assertEquals(config, autoRepairService.getAutoRepairConfig());
     }
 
     @Test
-    public void testsetAutoRepairHistoryClearDeleteHostsBufferInSecV2() {
+    public void testsetAutoRepairHistoryClearDeleteHostsBufferInSecV2()
+    {
         autoRepairService.setAutoRepairHistoryClearDeleteHostsBufferDuration("100s");
 
         assertEquals(100, config.getAutoRepairHistoryClearDeleteHostsBufferInterval().toSeconds());
     }
 
     @Test
-    public void testsetAutoRepairMaxRetriesCount() {
+    public void testsetAutoRepairMaxRetriesCount()
+    {
         autoRepairService.setAutoRepairMaxRetriesCount(101);
 
         assertEquals(101, config.getRepairMaxRetries());
     }
 
     @Test
-    public void testsetAutoRepairRetryBackoffInSec() {
+    public void testsetAutoRepairRetryBackoffInSec()
+    {
         autoRepairService.setAutoRepairRetryBackoff("102s");
 
         assertEquals(102, config.getRepairRetryBackoff().toSeconds());
     }
 
     @Test(expected = ConfigurationException.class)
-    public void testSetAutoRepairEnabledThrowsWithSchedulerDisabled() {
+    public void testSetAutoRepairEnabledThrowsWithSchedulerDisabled()
+    {
         autoRepairService.config = new AutoRepairConfig(false);
 
         autoRepairService.setAutoRepairEnabled(AutoRepairConfig.RepairType.INCREMENTAL.name(), true);
     }
 
     @Test
-    public void testSetAutoRepairEnabledDoesNotThrowForIRWithMVReplayButMVRepairDisabled() {
+    public void testSetAutoRepairEnabledDoesNotThrowForIRWithMVReplayButMVRepairDisabled()
+    {
         autoRepairService.config = new AutoRepairConfig(true);
         autoRepairService.config.setMaterializedViewRepairEnabled(AutoRepairConfig.RepairType.INCREMENTAL, false);
         DatabaseDescriptor.setMaterializedViewsOnRepairEnabled(true);
@@ -97,7 +106,8 @@ public class AutoRepairServiceBasicTest extends CQLTester {
     }
 
     @Test(expected = ConfigurationException.class)
-    public void testSetAutoRepairEnabledThrowsForIRWithMVReplay() {
+    public void testSetAutoRepairEnabledThrowsForIRWithMVReplay()
+    {
         autoRepairService.config = new AutoRepairConfig(true);
         autoRepairService.config.setMaterializedViewRepairEnabled(AutoRepairConfig.RepairType.INCREMENTAL, true);
         DatabaseDescriptor.setMaterializedViewsOnRepairEnabled(true);
@@ -105,7 +115,8 @@ public class AutoRepairServiceBasicTest extends CQLTester {
     }
 
     @Test
-    public void testSetAutoRepairEnabledDoesNotThrowForIRWithMVReplayDisabled() {
+    public void testSetAutoRepairEnabledDoesNotThrowForIRWithMVReplayDisabled()
+    {
         autoRepairService.config = new AutoRepairConfig(true);
         DatabaseDescriptor.setMaterializedViewsEnabled(true);
         DatabaseDescriptor.setMaterializedViewsOnRepairEnabled(false);
@@ -113,7 +124,8 @@ public class AutoRepairServiceBasicTest extends CQLTester {
     }
 
     @Test
-    public void testSetAutoRepairEnabledDoesNotThrowForIRWithCDCReplayButCDCDisabled() {
+    public void testSetAutoRepairEnabledDoesNotThrowForIRWithCDCReplayButCDCDisabled()
+    {
         autoRepairService.config = new AutoRepairConfig(true);
         DatabaseDescriptor.setCDCOnRepairEnabled(true);
         DatabaseDescriptor.setCDCEnabled(false);
@@ -121,7 +133,8 @@ public class AutoRepairServiceBasicTest extends CQLTester {
     }
 
     @Test(expected = ConfigurationException.class)
-    public void testSetAutoRepairEnabledThrowsForIRWithCDCReplay() {
+    public void testSetAutoRepairEnabledThrowsForIRWithCDCReplay()
+    {
         autoRepairService.config = new AutoRepairConfig(true);
         DatabaseDescriptor.setCDCOnRepairEnabled(true);
         DatabaseDescriptor.setCDCEnabled(true);
@@ -129,7 +142,8 @@ public class AutoRepairServiceBasicTest extends CQLTester {
     }
 
     @Test
-    public void testSetAutoRepairEnabledDoesNotThrowForIRWithCDCReplayDisabled() {
+    public void testSetAutoRepairEnabledDoesNotThrowForIRWithCDCReplayDisabled()
+    {
         autoRepairService.config = new AutoRepairConfig(true);
         DatabaseDescriptor.setCDCEnabled(true);
         autoRepairService.setAutoRepairEnabled(AutoRepairConfig.RepairType.INCREMENTAL.name(), true);

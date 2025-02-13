@@ -19,9 +19,11 @@
 package org.apache.cassandra.service;
 
 import com.google.common.collect.ImmutableSet;
+
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.repair.autorepair.AutoRepairConfig;
 import org.apache.cassandra.repair.autorepair.AutoRepairUtils;
+
 import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
@@ -41,7 +43,8 @@ import static org.junit.Assert.assertEquals;
  * Unit tests covering different repair types for {@link org.apache.cassandra.service.AutoRepairService}
  */
 @RunWith(Parameterized.class)
-public class AutoRepairServiceRepairTypeTest extends CQLTester {
+public class AutoRepairServiceRepairTypeTest extends CQLTester
+{
     @Parameterized.Parameter()
     public AutoRepairConfig.RepairType repairType;
 
@@ -51,25 +54,29 @@ public class AutoRepairServiceRepairTypeTest extends CQLTester {
     private AutoRepairService instance;
 
     @Parameterized.Parameters(name = "repairType={0}")
-    public static Collection<AutoRepairConfig.RepairType> repairTypes() {
+    public static Collection<AutoRepairConfig.RepairType> repairTypes()
+    {
         return Arrays.asList(AutoRepairConfig.RepairType.values());
     }
 
     @BeforeClass
-    public static void setupClass() throws Exception {
+    public static void setupClass() throws Exception
+    {
         SYSTEM_DISTRIBUTED_DEFAULT_RF.setInt(1);
         setAutoRepairEnabled(true);
         requireNetwork();
     }
 
     @Before
-    public void setUpTest() {
+    public void setUpTest()
+    {
         AutoRepairUtils.setup();
         instance = new AutoRepairService();
     }
 
     @Test
-    public void testGetOnGoingRepairHostIdsTest() {
+    public void testGetOnGoingRepairHostIdsTest()
+    {
         long now = System.currentTimeMillis();
         AutoRepairUtils.insertNewRepairHistory(repairType, host1, now, now - 1000000);
         AutoRepairUtils.insertNewRepairHistory(repairType, host2, now, now - 1000000);
