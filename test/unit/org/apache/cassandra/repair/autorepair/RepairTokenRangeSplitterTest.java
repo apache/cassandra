@@ -31,8 +31,6 @@ import org.junit.Assert;
 import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
-import org.junit.runner.RunWith;
-import org.junit.runners.Parameterized;
 
 import org.apache.cassandra.config.DataStorageSpec.LongMebibytesBound;
 import org.apache.cassandra.config.DatabaseDescriptor;
@@ -58,7 +56,6 @@ import static org.junit.Assert.assertTrue;
 /**
  * Unit tests for {@link org.apache.cassandra.repair.autorepair.RepairTokenRangeSplitter}
  */
-@RunWith(Parameterized.class)
 public class RepairTokenRangeSplitterTest extends CQLTester
 {
     private RepairTokenRangeSplitter repairRangeSplitter;
