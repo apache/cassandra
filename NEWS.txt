@@ -58,7 +58,7 @@ New features
     significantly reduces operational overhead by eliminating the need for operators to deploy external tools to submit
     and manage repairs. See
     https://cwiki.apache.org/confluence/display/CASSANDRA/CEP-37+Apache+Cassandra+Unified+Repair+Solution for more
-    details on the motivation and design
+    details on the motivation and design.
 
 4.1.3
 =====
