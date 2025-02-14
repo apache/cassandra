@@ -23,6 +23,9 @@ import org.apache.cassandra.repair.autorepair.AutoRepairConfig.RepairType;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
+/**
+ * AutoRepair metrics manager holding all the auto-repair related metrics.
+ */
 public class AutoRepairMetricsManager
 {
     private static final Map<RepairType, AutoRepairMetrics> metrics = new ConcurrentHashMap<>();

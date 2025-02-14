@@ -31,6 +31,9 @@ import org.apache.cassandra.repair.autorepair.AutoRepairConfig;
 
 import static java.lang.String.format;
 
+/**
+ * AutoRepair table parameters - used to define the auto-repair configuration for a table.
+ */
 public final class AutoRepairParams
 {
     public enum Option
@@ -47,7 +50,7 @@ public final class AutoRepairParams
         }
     }
 
-    private ImmutableMap<String, String> options;
+    private final ImmutableMap<String, String> options;
 
     public static final Map<String, String> DEFAULT_OPTIONS = ImmutableMap.of(
     Option.FULL_ENABLED.name().toLowerCase(), Boolean.toString(true),
@@ -146,7 +149,6 @@ public final class AutoRepairParams
     {
         return StringUtils.isNumeric(value);
     }
-
 
     public Map<String, String> options()
     {

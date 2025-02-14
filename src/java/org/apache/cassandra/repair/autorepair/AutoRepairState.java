@@ -55,7 +55,9 @@ import java.util.stream.Collectors;
 import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
 import static org.apache.cassandra.utils.concurrent.Condition.newOneTimeCondition;
 
-// AutoRepairState represents the state of automated repair for a given repair type.
+/**
+ * AutoRepairState represents the state of automated repair for a given repair type.
+ */
 public abstract class AutoRepairState implements ProgressListener
 {
     protected static final Logger logger = LoggerFactory.getLogger(AutoRepairState.class);
@@ -81,17 +83,14 @@ public abstract class AutoRepairState implements ProgressListener
     protected int totalMVTablesConsideredForRepair = 0;
     @VisibleForTesting
     protected int totalDisabledTablesRepairCount = 0;
-
     @VisibleForTesting
     protected int failedTokenRangesCount = 0;
     @VisibleForTesting
     protected int succeededTokenRangesCount = 0;
     @VisibleForTesting
     protected int skippedTokenRangesCount = 0;
-
     @VisibleForTesting
     protected int skippedTablesCount = 0;
-
     @VisibleForTesting
     protected AutoRepairHistory longestUnrepairedNode;
     @VisibleForTesting
@@ -112,7 +111,6 @@ public abstract class AutoRepairState implements ProgressListener
     {
         RepairRunnable task = new RepairRunnable(StorageService.instance, StorageService.nextRepairCommand.incrementAndGet(),
                                                  options, keyspace);
-
         task.addProgressListener(this);
 
         return task;

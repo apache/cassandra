@@ -30,9 +30,11 @@ import org.apache.cassandra.cql3.CQLTester;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
+/**
+ * Unit tests for {@link org.apache.cassandra.repair.autorepair.PrioritizedRepairPlan}
+ */
 public class PrioritizedRepairPlanTest extends CQLTester
 {
-
     @Test
     public void testBuildWithDifferentPriorities()
     {
@@ -159,5 +161,4 @@ public class PrioritizedRepairPlanTest extends CQLTester
         assertEquals(5, prioritizedRepairPlans.get(0).getPriority());
         assertEquals(table1, prioritizedRepairPlans.get(0).getKeyspaceRepairPlans().get(0).getTableNames().get(0));
     }
-
 }

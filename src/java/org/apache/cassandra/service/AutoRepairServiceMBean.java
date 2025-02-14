@@ -20,11 +20,11 @@ package org.apache.cassandra.service;
 
 import java.util.Set;
 
+/**
+ * Defines all the MBeans exposed for AutoRepair.
+ */
 public interface AutoRepairServiceMBean
 {
-    /**
-     * Enable or disable auto-repair for a given repair type
-     */
     public void setAutoRepairEnabled(String repairType, boolean enabled);
 
     public void setRepairThreads(String repairType, int repairThreads);

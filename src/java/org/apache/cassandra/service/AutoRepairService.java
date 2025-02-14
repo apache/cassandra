@@ -36,6 +36,9 @@ import java.util.UUID;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Joiner;
 
+/**
+ * Implement all the MBeans for AutoRepair.
+ */
 public class AutoRepairService implements AutoRepairServiceMBean
 {
     public static final String MBEAN_NAME = "org.apache.cassandra.db:type=AutoRepairService";

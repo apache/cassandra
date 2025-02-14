@@ -52,6 +52,9 @@ import static org.apache.cassandra.config.CassandraRelevantProperties.SYSTEM_DIS
 import static org.junit.Assert.assertEquals;
 import static org.assertj.core.api.Assertions.assertThat;
 
+/**
+ * Unit tests for {@link org.apache.cassandra.service.AutoRepairService}
+ */
 @RunWith(Suite.class)
 @Suite.SuiteClasses({ AutoRepairServiceTest.BasicTests.class, AutoRepairServiceTest.SetterTests.class })
 public class AutoRepairServiceTest
@@ -97,7 +100,6 @@ public class AutoRepairServiceTest
             assertEquals(100, config.getAutoRepairHistoryClearDeleteHostsBufferInterval().toSeconds());
         }
 
-
         @Test
         public void testsetAutoRepairMaxRetriesCount()
         {
@@ -105,7 +107,6 @@ public class AutoRepairServiceTest
 
             assertEquals(101, config.getRepairMaxRetries());
         }
-
 
         @Test
         public void testsetAutoRepairRetryBackoffInSec()
@@ -181,7 +182,6 @@ public class AutoRepairServiceTest
         {
             return Arrays.asList(AutoRepairConfig.RepairType.values());
         }
-
 
         @BeforeClass
         public static void setupClass() throws Exception

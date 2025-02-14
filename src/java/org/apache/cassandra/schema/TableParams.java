@@ -58,8 +58,7 @@ public final class TableParams
         CRC_CHECK_CHANCE,
         CDC,
         READ_REPAIR,
-        AUTO_REPAIR,
-        ;
+        AUTO_REPAIR;
 
         @Override
         public String toString()
@@ -135,8 +134,7 @@ public final class TableParams
                             .extensions(params.extensions)
                             .cdc(params.cdc)
                             .readRepair(params.readRepair)
-                            .automatedRepair(params.autoRepair)
-        ;
+                            .automatedRepair(params.autoRepair);
     }
 
     public Builder unbuild()

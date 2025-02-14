@@ -34,6 +34,9 @@ import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.schema.SystemDistributedKeyspace;
 import org.apache.cassandra.schema.TableMetadata;
 
+/**
+ * Unit tests for {@link org.apache.cassandra.schema.SystemDistributedKeyspace}
+ */
 public class AutoRepairKeyspaceTest
 {
     private static final Set<String> tables = ImmutableSet.of(
@@ -47,7 +50,6 @@ public class AutoRepairKeyspaceTest
         DatabaseDescriptor.daemonInitialization();
         AutoRepair.SLEEP_IF_REPAIR_FINISHES_QUICKLY = new DurationSpec.IntSecondsBound("0s");
     }
-
 
     @Test
     public void testEnsureAutoRepairTablesArePresent()

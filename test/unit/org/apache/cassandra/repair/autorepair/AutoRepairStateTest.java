@@ -49,6 +49,9 @@ import static org.junit.Assert.assertTrue;
 import static org.mockito.Mockito.when;
 import static org.mockito.MockitoAnnotations.initMocks;
 
+/**
+ * Unit tests for {@link org.apache.cassandra.repair.autorepair.AutoRepairState}
+ */
 @RunWith(Parameterized.class)
 public class AutoRepairStateTest extends CQLTester
 {

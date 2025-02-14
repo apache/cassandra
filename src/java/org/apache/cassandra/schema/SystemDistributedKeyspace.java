@@ -185,7 +185,6 @@ public final class SystemDistributedKeyspace
                              + "repair_priority set<uuid>,"
                              + "PRIMARY KEY (repair_type))").build();
 
-
     private static TableMetadata.Builder parse(String table, String description, String cql)
     {
         return CreateTableStatement.parse(format(cql, table), SchemaConstants.DISTRIBUTED_KEYSPACE_NAME)
