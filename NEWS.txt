@@ -51,6 +51,15 @@ restore snapshots created with the previous major version using the
 'sstableloader' tool. You can upgrade the file format of your snapshots
 using the provided 'sstableupgrade' tool.
 
+New features
+------------
+    [The following is a placeholder, to be revised asap]
+    - CEP-37 Auto Repair is a fully automated scheduler that provides repair orchestration within Apache Cassandra. This
+    significantly reduces operational overhead by eliminating the need for operators to deploy external tools to submit
+    and manage repairs. See
+    https://cwiki.apache.org/confluence/display/CASSANDRA/CEP-37+Apache+Cassandra+Unified+Repair+Solution for more
+    details on the motivation and design.
+
 4.1.3
 =====
 
