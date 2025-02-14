@@ -71,3 +71,6 @@ mkdir "build/coverage"
 cp "build/jacoco/report.xml" "build/coverage/report-dtest-group${DTEST_GROUP_ID}.xml"
 # rename jacoco.exec
 mv build/jacoco/jacoco.exec build/jacoco/jacoco-dtest-group${DTEST_GROUP_ID}.exec
+
+# try to generate coverage report
+./.jenkins/coverage_report_generator.sh

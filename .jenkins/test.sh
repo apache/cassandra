@@ -78,60 +78,6 @@ cp "build/jacoco/report.xml" "build/coverage/report-${ANT_TARGET:-test}.xml"
 # rename jacoco.exec
 mv build/jacoco/jacoco.exec build/jacoco/jacoco-utest-${ANT_TARGET:-test}.exec
 
-# TODO: Ideally this report should be generated from a separate build waiting other builds finished.
-# TODO: Currently generic-udj doesn't support customized pipeline for micro-repo and Phabricator doesn't have this
-# TODO: wait mechanism. So we assume the in-jvm dtests should already finished at this time and we'll be able to get the artifacts.
-# TODO: i.e. the report result might be partial.
-# add phab comments
-if [[ -f "build/jacoco/report.xml" ]] && [[ "${ANT_TARGET:-test}" == "test" ]]; then
-  if [[ ! -f "build/comment" ]]; then
-    mkdir "build/comment"
-  fi
-  FILE_PHAB_COMMENT="build/comment/phabricator-comment-${ANT_TARGET:-test}"
-
-  # setup python env
-  python3 --version
-  set -e
-  virtualenv --python=python3 venv
-  source venv/bin/activate
-  pip3 install --upgrade setuptools
-  pip3 install -r .jenkins/code_coverage/requirements.txt
-
-  # try to get code coverage for other builds
-  echo "Diff ID to collect coverage report: $PHAB_DIFF_ID"
-  python3 .jenkins/code_coverage/coverage_report_generator.py --diff_id $PHAB_DIFF_ID
-
-  if [ -f /tmp/buildkite_build_ids.json ]; then
-      output=$(cat /tmp/buildkite_build_ids.json)
-      echo "JSON content: $output"
-      BUILDKITE_BUILD_IDS=($(echo "$output" | jq -r '.[]'))
-  else
-      echo "JSON file not found!"
-      break
-  fi
-
-  echo "Buildkite build ids: ${BUILDKITE_BUILD_IDS[@]}"
-
-  # There might be no artifact for download here (build hasn't finished) and we don't fail the script here
-  set +e
-  for build_phid in "${BUILDKITE_BUILD_IDS[@]}"; do
-      echo "Downloading artifact for build PHID: $build_phid"
-      buildkite-agent artifact download "build/jacoco/*.exec" . --build "$build_phid"
-  done
-  set -e
-
-  BASE_NAMES=""
-  for file in build/jacoco/*.exec; do
-      base_name=$(basename "$file" .exec)
-      BASE_NAMES="$BASE_NAMES $base_name"
-  done
-
-  ant build
-  ant jacoco-report
-
-  comment=$(python3 ".jenkins/code_coverage/parse_jacoco_html.py" "-p" "build/jacoco/index.html" "-t" "${ANT_TARGET:-test}")
-  echo "$comment" >> "$FILE_PHAB_COMMENT"
-  echo "jacoco.exec files found for: **$BASE_NAMES**" >> "$FILE_PHAB_COMMENT"
-  echo "This report is generated automatically after unit test is finished and result might be partial. You may re-generate the report after the builds are completed with https://code.uberinternal.com/harbormaster/plan/23269/ (Run Plan Manually > copy paste the revision number DXXX)" >> "$FILE_PHAB_COMMENT"
-fi
+# try to generate coverage report
+./.jenkins/coverage_report_generator.sh
 

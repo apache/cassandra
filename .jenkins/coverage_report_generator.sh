@@ -79,19 +79,26 @@ for file in build/jacoco/*.exec; do
     BASE_NAMES="$BASE_NAMES $base_name"
 done
 
-ant build
-ant jacoco-report
+# Capture the result of the check_base_names.sh script
+result=$(./.jenkins/check_all_reports_ready.sh "$BASE_NAMES")
 
-ls build/jacoco
+# Check if the result is "true"
+if [ "$result" == "true" ]; then
+    echo "All expected names are present! Proceeding with the next action."
+    ant build
+    ant jacoco-report
 
-# Phabricator comment
-if [[ ! -f "build/comment" ]]; then
-    mkdir "build/comment"
+    ls build/jacoco
+
+    # Phabricator comment
+    if [[ ! -f "build/comment" ]]; then
+        mkdir "build/comment"
+    fi
+    comment=$(python3 ".jenkins/code_coverage/parse_jacoco_html.py" "-p" "build/jacoco/index.html" "-t" "utest+jvmdtest")
+    echo "$comment" >> "$FILE_PHAB_COMMENT"
+    echo "" >> "$FILE_PHAB_COMMENT"
+    BASE_NAMES=$(echo $BASE_NAMES | tr ' ' '\n' | sort | xargs)
+    echo "jacoco.exec files found for: **$BASE_NAMES**" >> "$FILE_PHAB_COMMENT"
+else
+    echo "Not all expected names are present. Exiting..."
 fi
-comment=$(python3 ".jenkins/code_coverage/parse_jacoco_html.py" "-p" "build/jacoco/index.html" "-t" "utest+jvmdtest")
-echo "$comment" >> "$FILE_PHAB_COMMENT"
-echo "" >> "$FILE_PHAB_COMMENT"
-BASE_NAMES=$(echo $BASE_NAMES | tr ' ' '\n' | sort | xargs)
-echo "jacoco.exec files found for: **$BASE_NAMES**" >> "$FILE_PHAB_COMMENT"
-echo "" >> "$FILE_PHAB_COMMENT"
-echo "Result might be partial. You may re-generate the report after the builds are completed with https://code.uberinternal.com/harbormaster/plan/23269/ (Run Plan Manually > copy paste the revision number DXXX)" >> "$FILE_PHAB_COMMENT"
