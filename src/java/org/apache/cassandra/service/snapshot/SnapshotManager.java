@@ -434,7 +434,7 @@ public class SnapshotManager implements SnapshotManagerMBean, INotificationConsu
         {
             takeSnapshot(SnapshotOptions.userSnapshot(tag, optMap, entities));
         }
-        catch (SnapshotException ex)
+        catch (Throwable ex)
         {
             // to be compatible with deprecated methods in StorageService
             throw new IOException(ex);
@@ -536,7 +536,7 @@ public class SnapshotManager implements SnapshotManagerMBean, INotificationConsu
         }
         catch (Throwable t)
         {
-            throw new SnapshotException(String.format("Exception occured while executing %s: %s", task.toString(), t.getMessage()), t);
+            throw new RuntimeException(String.format("Exception occured while executing %s: %s", task.toString(), t.getMessage()), t);
         }
     }
 
@@ -549,7 +549,7 @@ public class SnapshotManager implements SnapshotManagerMBean, INotificationConsu
         }
         catch (Throwable t)
         {
-            throw new SnapshotException(String.format("Exception occured while executing %s", task.toString()), t);
+            throw new RuntimeException(String.format("Exception occured while executing %s", task.toString()), t);
         }
     }
 

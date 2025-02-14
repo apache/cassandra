@@ -297,7 +297,7 @@ public class SnapshotsTest extends TestBaseImpl
         instance.nodetoolResult("snapshot", "--ttl", format("%ds", 1), "-t", "basic")
                 .asserts()
                 .failure()
-                .stdoutContains(format("ttl for snapshot must be at least %d seconds", FIVE_SECONDS));
+                .stderrContains(format("ttl for snapshot must be at least %d seconds", FIVE_SECONDS));
 
         instance.nodetoolResult("snapshot", "--ttl", "invalid-ttl").asserts().failure();
     }
