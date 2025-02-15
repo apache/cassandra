@@ -50,18 +50,44 @@ def _api_conduit_call(end_point):
 
 
 def api_request(end_point, params, callback_func):
-    call_command = _api_conduit_call(end_point)
-    p = subprocess.Popen(
-        call_command, stdout=subprocess.PIPE, stdin=subprocess.PIPE)
-    response, _ = p.communicate(input=json.dumps(params).encode())
-    if not response:
-        raise Exception(
-            "Unsuccessful api call to {} with params:\n{}".format(
-                end_point, params)
-        )
+    results = []
+    after = None
+    while True:  # Use True instead of true
+        call_command = _api_conduit_call(end_point)
+        if after:
+            params['after'] = after
+        try:
+            # Assuming call_command is a valid executable or a subprocess call.
+            p = subprocess.Popen(call_command, stdout=subprocess.PIPE, stdin=subprocess.PIPE)
+            response, _ = p.communicate(input=json.dumps(params).encode())
+        except Exception as e:
+            raise Exception(f"Error while making the API request: {str(e)}")
 
-    print(f"Response: {json.loads(response)}")
-    return callback_func(json.loads(response))
+        if not response:
+            raise Exception(
+                f"Unsuccessful API call to {end_point} with params:\n{params}"
+            )
+
+        try:
+            response_map = json.loads(response)
+        except json.JSONDecodeError:
+            raise Exception(f"Invalid JSON response from {end_point}: {response}")
+
+        print(f"Response: {response_map}")
+        new_result = callback_func(response_map)
+        if isinstance(new_result, list):
+            print("The result is a list.")
+            results.extend(new_result)
+        else:
+            print("The result is not a list. Returning this result as there is no cursor issue")
+            return new_result
+
+        # Check if 'after' cursor exists in the response map
+        after = response_map.get('response', {}).get('cursor', {}).get('after')
+        if not after:
+            return results
+
+
 
 
 def get_revision_phid_from_diff_id(diff_id):
@@ -93,8 +119,8 @@ def get_build_phids_from_buildable_phid(buildable_phid):
 
     def process_result(res):
         # one buildable_phid has multiple build_phids
-        # we only want the build_phids for utest/jvm-dtest
-        return [obj["phid"] for obj in res["response"]["data"] if "utest" in obj["fields"]["name"] or "jvm" in obj["fields"]["name"]]
+        # we only want the build_phids for utest/jvm-dtest/unit tests
+        return [obj["phid"] for obj in res["response"]["data"] if "utest" in obj["fields"]["name"] or "jvm" in obj["fields"]["name"] or "unit tests" in obj["fields"]["name"]]
     return api_request("harbormaster.build.search", request_params, process_result)
 
 

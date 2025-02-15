@@ -29,8 +29,15 @@ for i in $(seq 1 $NUM_JVM_DTEST_GROUPS); do
     EXPECTED_BASE_NAMES="$EXPECTED_BASE_NAMES jacoco-dtest-group$i"
 done
 
+NUM_UNIT_TEST_GROUPS=10
+for i in $(seq 1 $NUM_UNIT_TEST_GROUPS); do
+    EXPECTED_BASE_NAMES="$EXPECTED_BASE_NAMES jacoco-utest-testclasslist-group$i"
+    EXPECTED_BASE_NAMES="$EXPECTED_BASE_NAMES jacoco-utest-testclasslist-compression-group$i"
+    EXPECTED_BASE_NAMES="$EXPECTED_BASE_NAMES jacoco-utest-testclasslist-cdc-group$i"
+done
+
 # Add additional jacoco-utest- names
-EXPECTED_BASE_NAMES="$EXPECTED_BASE_NAMES jacoco-utest-long-test jacoco-utest-stress-test jacoco-utest-test jacoco-utest-test-cdc jacoco-utest-test-compression jacoco-utest-test-memory"
+EXPECTED_BASE_NAMES="$EXPECTED_BASE_NAMES jacoco-utest-long-test jacoco-utest-stress-test jacoco-utest-test-memory"
 
 # Initialize a variable to track missing names
 missing_names=""

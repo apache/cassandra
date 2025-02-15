@@ -20,7 +20,7 @@ version: 1.0
 
 uown: 99295401-c534-41b4-949d-26efbebc4ad4 # cassandra-service
 
-command: ".jenkins/jvm_dtest.sh"
+command: ".jenkins/unit_test_single_group.sh"
 
 timeout_in_minutes: 300
 
@@ -28,6 +28,3 @@ artifact_paths:
   - build/jacoco/jacoco-*.exec
   - build/coverage/*
   - build/comment/phabricator-comment*
-
-agent:
-  queue: "odin-cassandra-ci"

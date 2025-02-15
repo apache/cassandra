@@ -17,11 +17,16 @@
 # limitations under the License.
 #
 
-# Directory path
-dir_path="$PROJECT_DIR/test/distributed/"
+# Get dir_path and output_file from command-line arguments
+dir_path="$1"
+output_file="$2"
+number_of_parts="$3"
 
-# Output file to store filenames
-output_file="distributed_tests"
+# Check if all arguments are provided
+if [ -z "$dir_path" ] || [ -z "$output_file" ] || [ -z "$number_of_parts" ]; then
+  echo "Usage: $0 <dir_path> <output_file> <number_of_parts>"
+  exit 1
+fi
 
 # Temporary file for storing modified content
 temp_file="temp_file_names.txt"
@@ -39,17 +44,17 @@ total_lines=$(wc -l < "$output_file")
 echo $total_lines
 
 # Calculate lines per subfile, split into 20 subfiles
-lines_per_subfile=$(( total_lines / 20 ))  # Rounded up
+lines_per_subfile=$(( total_lines / number_of_parts ))  # Rounded up
 
 # Remaining lines to distribute among the 20 files
-remaining_lines=$(( total_lines % 20 ))
+remaining_lines=$(( total_lines % number_of_parts ))
 
 # Splitting and renaming
 counter=1
 line_start=1
 line_end=$lines_per_subfile
 
-while [ $counter -le 20 ]; do
+while [ $counter -le $number_of_parts ]; do
   # Adding remaining lines to each file one at a time
   if [ $remaining_lines -gt 0 ]; then
     line_end=$((line_end + 1))

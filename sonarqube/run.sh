@@ -66,8 +66,12 @@ ant jacoco-run -Dtaskname=test
 
 cd "$PROJECT_ROOT"
 ant build
-./get_all_distributed_tests.sh
-selected_test_file="$PROJECT_ROOT/test/distributed/distributed_tests"
+
+dir_path="$PROJECT_DIR/test/distributed"
+output_file_prefix="distributed_tests"
+
+./.jenkins/get_all_tests.sh "${dir_path}" "${output_file_prefix}" 20
+selected_test_file="${dir_path}/${output_file_prefix}"
 ant jacoco-run -Dtaskname=testclasslist  -Dtest.timeout=900000  -Dtest.classlistfile="$selected_test_file"  -Dtest.classlistprefix=distributed
 ant jacoco-init jacoco-merge jacoco-report
 

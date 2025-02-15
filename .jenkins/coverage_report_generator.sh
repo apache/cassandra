@@ -48,10 +48,19 @@ fi
 
 echo "Buildkite build ids: ${BUILDKITE_BUILD_IDS[@]}"
 
+# Record the existing files in build/jacoco/ before the loop downloading starts
+existing_files=$(ls build/jacoco/*.exec 2>/dev/null)
+
 for build_phid in "${BUILDKITE_BUILD_IDS[@]}"; do
     echo "Downloading artifact for build PHID: $build_phid"
     buildkite-agent artifact download "build/jacoco/*.exec" . --build "$build_phid"
 done
+
+# List the files in build/jacoco/ after all downloads
+new_files=$(ls build/jacoco/*.exec 2>/dev/null)
+
+# Compare the existing and new files to identify newly downloaded files
+newly_downloaded_files=$(comm -13 <(echo "$existing_files" | sort) <(echo "$new_files" | sort))
 
 # generic-udj is migrated to Debian 12, which is using Java 17 by default. We want to switch to Java 11
 JAVA_HOME="$(readlink -f $HOME/java_home/jdk_11)"
@@ -81,10 +90,11 @@ done
 
 # Capture the result of the check_base_names.sh script
 result=$(./.jenkins/check_all_reports_ready.sh "$BASE_NAMES")
+echo "$result"
 
 # Check if the result is "true"
 if [ "$result" == "true" ]; then
-    echo "All expected names are present! Proceeding with the next action."
+    echo "All expected coverage reports are present! Proceeding with the next action."
     ant build
     ant jacoco-report
 
@@ -100,5 +110,18 @@ if [ "$result" == "true" ]; then
     BASE_NAMES=$(echo $BASE_NAMES | tr ' ' '\n' | sort | xargs)
     echo "jacoco.exec files found for: **$BASE_NAMES**" >> "$FILE_PHAB_COMMENT"
 else
-    echo "Not all expected names are present. Exiting..."
+    echo "Not all expected coverage reports are present. Deleting downloaded files and exit..."
+    if [ -z "$newly_downloaded_files" ]; then
+        echo "No new files were downloaded"
+    else
+        echo "Newly downloaded files:"
+        echo "$newly_downloaded_files"
+
+        # Delete the newly downloaded files
+        echo "Deleting newly downloaded files..."
+        while IFS= read -r file; do
+            rm -f "$file"
+            echo "Deleted $file"
+        done <<< "$newly_downloaded_files"
+    fi
 fi

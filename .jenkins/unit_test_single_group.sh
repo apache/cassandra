@@ -19,7 +19,8 @@
 
 
 set -ex
-echo "DTEST_GROUP_ID: $DTEST_GROUP_ID"
+echo "UNIT_TEST_GROUP_ID: $UNIT_TEST_GROUP_ID"
+echo "TEST_TASK_NAME: $TEST_TASK_NAME"
 
 # Get the directory of the current script
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd -P)"
@@ -50,13 +51,13 @@ ant build
 
 cd "$PROJECT_DIR"
 
-dir_path="$PROJECT_DIR/test/distributed"
+dir_path="$PROJECT_DIR/test/unit"
 
-output_file_prefix="distributed_tests"
+output_file_prefix="unit_tests"
 
-./.jenkins/get_all_tests.sh "${dir_path}" "${output_file_prefix}" 20
+./.jenkins/get_all_tests.sh "${dir_path}" "${output_file_prefix}" 10
 
-selected_test_file="${dir_path}/${output_file_prefix}_part_$(printf '%04d' $DTEST_GROUP_ID).txt"
+selected_test_file="${dir_path}/${output_file_prefix}_part_$(printf '%04d' $UNIT_TEST_GROUP_ID).txt"
 
 selected_java_files_to_test=$(wc -l < "$selected_test_file")
 
@@ -66,13 +67,13 @@ if [ "$selected_java_files_to_test" -le 0 ]; then
 fi
 
 # run jvm dtest with jacoco report generated
-ant codecoverage -Dtaskname=testclasslist -Dtest.timeout=900000 -Dtest.classlistfile="$selected_test_file" -Dtest.classlistprefix=distributed
+ant codecoverage -Dtaskname="$TEST_TASK_NAME" -Dtest.timeout=900000 -Dtest.classlistfile="$selected_test_file" -Dtest.classlistprefix=unit
 
 # upload code coverage xml , and the full jacoco tar to buildkite artifact
 mkdir "build/coverage"
-cp "build/jacoco/report.xml" "build/coverage/report-dtest-group${DTEST_GROUP_ID}.xml"
+cp "build/jacoco/report.xml" "build/coverage/report-utest-${TEST_TASK_NAME}-group${UNIT_TEST_GROUP_ID}.xml"
 # rename jacoco.exec
-mv build/jacoco/jacoco.exec build/jacoco/jacoco-dtest-group${DTEST_GROUP_ID}.exec
+mv build/jacoco/jacoco.exec build/jacoco/jacoco-utest-${TEST_TASK_NAME}-group${UNIT_TEST_GROUP_ID}.exec
 
 # try to generate coverage report
 ./.jenkins/coverage_report_generator.sh
