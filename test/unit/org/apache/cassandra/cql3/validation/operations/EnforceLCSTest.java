@@ -18,11 +18,16 @@
 
 package org.apache.cassandra.cql3.validation.operations;
 
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
+import java.util.TreeSet;
 
+import com.google.common.collect.ImmutableSet;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
@@ -37,7 +42,6 @@ import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.db.compaction.AbstractCompactionStrategy;
 import org.apache.cassandra.db.compaction.LeveledCompactionStrategy;
 import org.apache.cassandra.db.compaction.SizeTieredCompactionStrategy;
-import org.apache.cassandra.db.compaction.TimeWindowCompactionStrategy;
 import org.apache.cassandra.schema.SystemDistributedKeyspace;
 import org.apache.cassandra.schema.CompactionParams;
 import org.apache.cassandra.schema.KeyspaceMetadata;
@@ -55,6 +59,29 @@ public class EnforceLCSTest extends CQLTester
 
     public static final Config.LCSEnforcementLevel originalLevel = DatabaseDescriptor.getLCSEnforcementLevel();
     public static final int originalSSTableSize = DatabaseDescriptor.getLCSSSTableSizeInMB();
+    Set<String> sysKeyspaces = ImmutableSet.of(SchemaConstants.SYSTEM_KEYSPACE_NAME, SchemaConstants.SCHEMA_KEYSPACE_NAME, SchemaConstants.DISTRIBUTED_KEYSPACE_NAME,
+                                               SchemaConstants.AUTH_KEYSPACE_NAME, SchemaConstants.TRACE_KEYSPACE_NAME, SchemaConstants.AUTO_REPAIR_KEYSPACE_NAME);
+    List<String> systemTablesToBeVerified = Arrays.asList(
+    "system.IndexInfo", "system.available_ranges", "system.available_ranges_v2",
+    "system.batches", "system.built_views", "system.compaction_history",
+    "system.local", "system.paxos", "system.paxos_repair_history",
+    "system.peer_events", "system.peer_events_v2", "system.peers", "system.peers_v2",
+    "system.prepared_statements", "system.repairs", "system.size_estimates",
+    "system.sstable_activity", "system.sstable_activity_v2", "system.table_estimates",
+    "system.top_partitions", "system.transferred_ranges", "system.transferred_ranges_v2",
+    "system.view_builds_in_progress",
+    "system_auth.network_permissions", "system_auth.resource_role_permissons_index",
+    "system_auth.role_members", "system_auth.role_permissions", "system_auth.roles",
+    "system_auto_repair.auto_repair_history_v2", "system_auto_repair.auto_repair_priority_v2",
+    "system_distributed.audit_users", "system_distributed.parent_repair_history",
+    "system_distributed.partition_denylist", "system_distributed.repair_history",
+    "system_distributed.view_build_status",
+    "system_schema.aggregates", "system_schema.columns", "system_schema.dropped_columns",
+    "system_schema.functions", "system_schema.indexes", "system_schema.keyspaces",
+    "system_schema.tables", "system_schema.triggers", "system_schema.types",
+    "system_schema.views",
+    "system_traces.events", "system_traces.sessions"
+    );
 
     @Before
     public void init()
@@ -105,20 +132,27 @@ public class EnforceLCSTest extends CQLTester
     @Test
     public void testEnforcementShouldNotAffectSystemSchema() throws Throwable
     {
+        requireNetwork();
         Assert.assertEquals(Config.LCSEnforcementLevel.none, DatabaseDescriptor.getLCSEnforcementLevel());
-        Assert.assertTrue(isCurrentSystemSchemaCompactionStrategiesUnchanged());
+        Set<String> actualTablesVerified = new TreeSet<>();
+        Assert.assertTrue(isCurrentSystemSchemaCompactionStrategiesUnchanged(actualTablesVerified));
+        Assert.assertEquals(new TreeSet<>(systemTablesToBeVerified), actualTablesVerified);
+        actualTablesVerified.clear();
 
         // force re-write system schema
         DatabaseDescriptor.setLCSEnforcementLevel(Config.LCSEnforcementLevel.hard);
         Schema.instance.reloadSchemaAndAnnounceVersion();
         Assert.assertEquals(Config.LCSEnforcementLevel.hard, DatabaseDescriptor.getLCSEnforcementLevel());
-        Assert.assertTrue(isCurrentSystemSchemaCompactionStrategiesUnchanged());
+        Assert.assertTrue(isCurrentSystemSchemaCompactionStrategiesUnchanged(actualTablesVerified));
+        Assert.assertEquals(new TreeSet<>(systemTablesToBeVerified), actualTablesVerified);
+        actualTablesVerified.clear();
 
         // force re-write system schema
         DatabaseDescriptor.setLCSEnforcementLevel(Config.LCSEnforcementLevel.soft);
         Schema.instance.reloadSchemaAndAnnounceVersion();
         Assert.assertEquals(Config.LCSEnforcementLevel.soft, DatabaseDescriptor.getLCSEnforcementLevel());
-        Assert.assertTrue(isCurrentSystemSchemaCompactionStrategiesUnchanged());
+        Assert.assertTrue(isCurrentSystemSchemaCompactionStrategiesUnchanged(actualTablesVerified));
+        Assert.assertEquals(new TreeSet<>(systemTablesToBeVerified), actualTablesVerified);
     }
 
     @Test
@@ -135,11 +169,13 @@ public class EnforceLCSTest extends CQLTester
         assertCompactionParams(CompactionParams.stcs(Collections.emptyMap()), keyspace(), table1);
 
         DatabaseDescriptor.setLCSEnforcementLevel(Config.LCSEnforcementLevel.hard);
-        try {
+        try
+        {
             schemaChange(String.format("CREATE TABLE IF NOT EXISTS %s.%s (id text PRIMARY KEY, content text) WITH " +
                                        "compaction={'class': 'SizeTieredCompactionStrategy'};", keyspace(), table1));
         }
-        catch (Exception e) {
+        catch (Exception e)
+        {
             // should not see exception
             Assert.fail("unexpected Exception");
         }
@@ -178,18 +214,24 @@ public class EnforceLCSTest extends CQLTester
     private void assertCompactionParams(CompactionParams expected, String keyspace, String table)
     {
         TableMetadata tableMetadata = Schema.instance.getTableMetadata(keyspace, table);
-        if (tableMetadata == null) {
+        if (tableMetadata == null)
+        {
             Assert.fail(String.format("TableMetadata not found for %s.%s", keyspace, table));
         }
         Assert.assertEquals(expected, tableMetadata.params.compaction);
     }
 
-    private boolean isCurrentSystemSchemaCompactionStrategiesUnchanged() {
-        for (String ks : SchemaConstants.LOCAL_SYSTEM_KEYSPACE_NAMES) {
+    private boolean isCurrentSystemSchemaCompactionStrategiesUnchanged(Set<String> tablesVerified)
+    {
+        for (String ks : sysKeyspaces)
+        {
             KeyspaceMetadata ksMetadata = Schema.instance.getKeyspaceMetadata(ks);
             Assert.assertNotNull(ksMetadata);
-            for (TableMetadata table : ksMetadata.tables) {
-                if (!isSystemSchemaCompactionStrategyUnchanged(ks, table.name, table.params.compaction.klass())) {
+            for (TableMetadata table : ksMetadata.tables)
+            {
+                tablesVerified.add(ks + '.' + table.name);
+                if (!isSystemSchemaCompactionStrategyUnchanged(ks, table.name, table.params.compaction.klass()))
+                {
                     return false;
                 }
             }
@@ -199,7 +241,8 @@ public class EnforceLCSTest extends CQLTester
 
     private boolean isSystemSchemaCompactionStrategyUnchanged(String keyspace,
                                                               String schema,
-                                                              Class<? extends AbstractCompactionStrategy> actualCS) {
+                                                              Class<? extends AbstractCompactionStrategy> actualCS)
+    {
         return originalSystemSchemaCompactionStrategies.get(keyspace) != null
                ? originalSystemSchemaCompactionStrategies.get(keyspace).equals(actualCS)
                : originalSystemSchemaCompactionStrategies.get(keyspace + '.' + schema).equals(actualCS);
@@ -210,9 +253,11 @@ public class EnforceLCSTest extends CQLTester
      * flag won't affect system schema behaviors in compaction options.
      * Will probably break if {@link CreateTableStatement#parse(String, String)}
      * changes or any of the System schema changes its compaction parameters.
+     *
      * @return schemaToCompactionStrategy
      */
-    private static HashMap<String, Class<? extends AbstractCompactionStrategy>> getSystemSchemaCompactionStrategies() {
+    private static HashMap<String, Class<? extends AbstractCompactionStrategy>> getSystemSchemaCompactionStrategies()
+    {
         HashMap<String, Class<? extends AbstractCompactionStrategy>> schemaToCompactionStrategy = new HashMap<>();
         Class<? extends AbstractCompactionStrategy> defaultCS = CompactionParams.DEFAULT.klass();
 
@@ -300,9 +345,9 @@ public class EnforceLCSTest extends CQLTester
 
         // system_distributed
         schemaToCompactionStrategy.put(SchemaConstants.DISTRIBUTED_KEYSPACE_NAME + '.' + SystemDistributedKeyspace.REPAIR_HISTORY,
-                                       TimeWindowCompactionStrategy.class);
+                                       LeveledCompactionStrategy.class);
         schemaToCompactionStrategy.put(SchemaConstants.DISTRIBUTED_KEYSPACE_NAME + '.' + SystemDistributedKeyspace.PARENT_REPAIR_HISTORY,
-                                       TimeWindowCompactionStrategy.class);
+                                       LeveledCompactionStrategy.class);
         schemaToCompactionStrategy.put(SchemaConstants.DISTRIBUTED_KEYSPACE_NAME + '.' + SystemDistributedKeyspace.VIEW_BUILD_STATUS,
                                        defaultCS);
         schemaToCompactionStrategy.put(SchemaConstants.DISTRIBUTED_KEYSPACE_NAME + '.' + SystemDistributedKeyspace.PARTITION_DENYLIST_TABLE,
@@ -317,8 +362,8 @@ public class EnforceLCSTest extends CQLTester
         // system_views, system_virtual_schema are virtual keyspaces. Virtual tables won't create SSTables
 
         // system_auto_repair (all using default compaction strategy)
-        schemaToCompactionStrategy.put(SchemaConstants.AUTO_REPAIR_KEYSPACE_NAME + '.' + "auto_repair_history", defaultCS);
-        schemaToCompactionStrategy.put(SchemaConstants.AUTO_REPAIR_KEYSPACE_NAME + '.' + "auto_repair_priority", defaultCS);
+        schemaToCompactionStrategy.put(SchemaConstants.AUTO_REPAIR_KEYSPACE_NAME + '.' + "auto_repair_history_v2", defaultCS);
+        schemaToCompactionStrategy.put(SchemaConstants.AUTO_REPAIR_KEYSPACE_NAME + '.' + "auto_repair_priority_v2", defaultCS);
 
         return schemaToCompactionStrategy;
     }

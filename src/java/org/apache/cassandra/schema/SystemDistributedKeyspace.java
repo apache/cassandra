@@ -84,7 +84,7 @@ public final class SystemDistributedKeyspace
      * gen 5: add ttl and TWCS to repair_history tables
      * gen 6: add denylist table
      */
-    public static final long GENERATION = 6;
+    public static final long GENERATION = 7;
 
     public static final String REPAIR_HISTORY = "repair_history";
 
@@ -116,9 +116,8 @@ public final class SystemDistributedKeyspace
                      + "started_at timestamp,"
                      + "finished_at timestamp,"
                      + "PRIMARY KEY ((keyspace_name, columnfamily_name), id))")
-        .defaultTimeToLive((int) TimeUnit.DAYS.toSeconds(30))
-        .compaction(CompactionParams.twcs(ImmutableMap.of("compaction_window_unit","DAYS",
-                                                          "compaction_window_size","1")))
+        .defaultTimeToLive((int) TimeUnit.DAYS.toSeconds(15))
+        .compaction(CompactionParams.lcs(emptyMap()))
         .build();
 
     private static final TableMetadata ParentRepairHistory =
@@ -136,9 +135,8 @@ public final class SystemDistributedKeyspace
                      + "successful_ranges set<text>,"
                      + "options map<text, text>,"
                      + "PRIMARY KEY (parent_id))")
-        .defaultTimeToLive((int) TimeUnit.DAYS.toSeconds(30))
-        .compaction(CompactionParams.twcs(ImmutableMap.of("compaction_window_unit","DAYS",
-                                                          "compaction_window_size","1")))
+        .defaultTimeToLive((int) TimeUnit.DAYS.toSeconds(15))
+        .compaction(CompactionParams.lcs(emptyMap()))
         .build();
 
     private static final TableMetadata ViewBuildStatus =
