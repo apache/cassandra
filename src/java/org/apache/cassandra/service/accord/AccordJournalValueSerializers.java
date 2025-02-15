@@ -90,7 +90,6 @@ public class AccordJournalValueSerializers
             from.serialize(out,
                            // In CompactionIterator, we are dealing with relatively recent records, so we do not pass redundant before here.
                            // However, we do on load and during Journal SSTable compaction.
-                           RedundantBefore.EMPTY,
                            userVersion);
         }
 

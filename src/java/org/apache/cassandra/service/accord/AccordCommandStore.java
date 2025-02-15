@@ -59,7 +59,9 @@ import accord.primitives.TxnId;
 import accord.utils.Invariants;
 import accord.utils.async.AsyncChain;
 import accord.utils.async.AsyncChains;
-import org.apache.cassandra.service.accord.api.AccordRoutingKey.TokenKey;
+import org.apache.cassandra.schema.TableId;
+import org.apache.cassandra.service.accord.AccordKeyspace.CommandsForKeyAccessor;
+import org.apache.cassandra.service.accord.api.TokenKey;
 import org.apache.cassandra.service.accord.txn.TxnRead;
 import org.apache.cassandra.utils.Clock;
 import org.apache.cassandra.utils.concurrent.UncheckedInterruptedException;
@@ -140,6 +142,7 @@ public class AccordCommandStore extends CommandStore
     private final ExclusiveCaches caches;
     private long lastSystemTimestampMicros = Long.MIN_VALUE;
     private final CommandsForRanges.Manager commandsForRanges;
+    private final TableId tableId;
 
     private AccordSafeCommandStore current;
     private Thread currentThread;
@@ -157,7 +160,7 @@ public class AccordCommandStore extends CommandStore
                               AccordExecutor executor)
     {
         super(id, node, agent, dataStore, progressLogFactory, listenerFactory, epochUpdateHolder);
-        loggingId = String.format("[%s]", id);
+        this.loggingId = String.format("[%s]", id);
         this.journal = journal;
         this.rangeSearcher = RangeSearcher.extractRangeSearcher(journal);
         this.executor = executor;
@@ -179,6 +182,19 @@ public class AccordCommandStore extends CommandStore
         maybeLoadBootstrapBeganAt(journal.loadBootstrapBeganAt(id()));
         maybeLoadSafeToRead(journal.loadSafeToRead(id()));
         maybeLoadRangesForEpoch(journal.loadRangesForEpoch(id()));
+
+        CommandStores.RangesForEpoch ranges = this.rangesForEpoch;
+        if (ranges == null || ranges.all().isEmpty())
+        {
+            EpochUpdate update = epochUpdateHolder.get();
+            if (update != null)
+                ranges = update.newRangesForEpoch;
+            Invariants.require(ranges != null, "CommandStore %d created with no ranges", id);
+        }
+        tableId = (TableId)ranges.all().stream().map(r -> r.start().prefix()).reduce((a, b) -> {
+            Invariants.require(a.equals(b), "CommandStore created with multiple distinct TableId (%s and %s)", a, b);
+            return a;
+        }).orElseThrow(() -> Invariants.illegalState("CommandStore %d created with no ranges", id));
     }
 
     static Factory factory(IntFunction<AccordExecutor> executorFactory)
@@ -209,6 +225,11 @@ public class AccordCommandStore extends CommandStore
     {
         if (inStore() && current != null)
             task.presetup(current.task);
+    }
+
+    public final TableId tableId()
+    {
+        return tableId;
     }
 
     public AccordExecutor executor()
@@ -278,7 +299,7 @@ public class AccordCommandStore extends CommandStore
 
     CommandsForKey loadCommandsForKey(RoutableKey key)
     {
-        return AccordKeyspace.loadCommandsForKey(id, (TokenKey) key);
+        return CommandsForKeyAccessor.load(id, (TokenKey) key);
     }
 
     boolean validateCommandsForKey(RoutableKey key, CommandsForKey evicting)
@@ -286,14 +307,14 @@ public class AccordCommandStore extends CommandStore
         if (!Invariants.isParanoid())
             return true;
 
-        CommandsForKey reloaded = AccordKeyspace.loadCommandsForKey(id, (TokenKey) key);
+        CommandsForKey reloaded = CommandsForKeyAccessor.load(id, (TokenKey) key);
         return Objects.equals(evicting, reloaded);
     }
 
     @Nullable
     Runnable saveCommandsForKey(RoutingKey key, CommandsForKey after, Object serialized)
     {
-        return AccordKeyspace.getCommandsForKeyUpdater(id, (TokenKey) key, after, serialized, nextSystemTimestampMicros());
+        return CommandsForKeyAccessor.systemTableUpdater(id, (TokenKey) key, after, serialized, nextSystemTimestampMicros());
     }
 
     public long nextSystemTimestampMicros()

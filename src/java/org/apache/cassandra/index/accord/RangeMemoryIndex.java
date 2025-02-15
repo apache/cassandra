@@ -52,8 +52,11 @@ import org.apache.cassandra.utils.ObjectSizes;
 import org.apache.cassandra.utils.RTree;
 import org.apache.cassandra.utils.RangeTree;
 
+import static org.apache.cassandra.index.accord.RouteIndexFormat.deserializeRoute;
+
 public class RangeMemoryIndex
 {
+
     @GuardedBy("this")
     private final Map<Group, RangeTree<byte[], Range, DecoratedKey>> map = new HashMap<>();
     @GuardedBy("this")
@@ -107,7 +110,7 @@ public class RangeMemoryIndex
         Route<?> route;
         try
         {
-            route = AccordKeyspace.deserializeParticipantsRouteOnlyOrNull(value);
+            route = deserializeRoute(value);
         }
         catch (IOException e)
         {
@@ -116,7 +119,6 @@ public class RangeMemoryIndex
 
         return add(key, route);
     }
-
 
     public synchronized long add(DecoratedKey key, Route<?> route)
     {
@@ -137,8 +139,8 @@ public class RangeMemoryIndex
         int storeId = AccordKeyspace.JournalColumns.getStoreId(key);
         TableId tableId = ts.table();
         Group group = new Group(storeId, tableId);
-        byte[] start = OrderedRouteSerializer.serializeRoutingKeyNoTable(ts.start());
-        byte[] end = OrderedRouteSerializer.serializeRoutingKeyNoTable(ts.end());
+        byte[] start = OrderedRouteSerializer.serializeTokenOnly(ts.start());
+        byte[] end = OrderedRouteSerializer.serializeTokenOnly(ts.end());
         Range range = new Range(start, end);
         map.computeIfAbsent(group, ignore -> createRangeTree()).add(range, key);
         Metadata metadata = groupMetadata.computeIfAbsent(group, ignore -> new Metadata());

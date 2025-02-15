@@ -62,7 +62,7 @@ public class SimulatedMultiKeyAndRangeTest extends SimulatedAccordCommandStoreTe
 
         qt().withExamples(100).check(rs -> {
             AccordKeyspace.unsafeClear();
-            try (var instance = new SimulatedAccordCommandStore(rs))
+            try (var instance = new SimulatedAccordCommandStore(tbl.id, rs))
             {
                 Gen.LongGen tokenGen = tokenDistribution.next(rs);
                 Gen<Domain> domainGen = domainDistribution.next(rs);
@@ -115,7 +115,7 @@ public class SimulatedMultiKeyAndRangeTest extends SimulatedAccordCommandStoreTe
                                     start = token;
                                     end = start + offset;
                                 }
-                                set.add(tokenRange(tbl.id, start, end));
+                                set.add(tokenRange(tbl.id, tbl.partitioner, start, end));
                             }
                             // The property ranges.size() == numRanges is not true as this logic will sort + deoverlap
                             // so if the ranges were overlapped, we could have more or less than numRanges

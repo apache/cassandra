@@ -35,7 +35,7 @@ public class SimpleSimulatedAccordCommandStoreTest extends SimulatedAccordComman
     {
         qt().withExamples(10).check(rs -> {
             AccordKeyspace.unsafeClear();
-            try (var instance = new SimulatedAccordCommandStore(rs))
+            try (var instance = new SimulatedAccordCommandStore(reverseTokenTbl.id, rs))
             {
                 for (int i = 0, examples = 100; i < examples; i++)
                 {

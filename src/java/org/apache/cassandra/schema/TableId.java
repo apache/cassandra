@@ -24,10 +24,10 @@ import java.nio.ByteBuffer;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
+import java.util.function.LongUnaryOperator;
 
 import javax.annotation.Nullable;
 
-import accord.utils.Invariants;
 import org.agrona.collections.Hashing;
 import org.apache.cassandra.concurrent.ScheduledExecutors;
 import org.apache.cassandra.tcm.ClusterMetadata;
@@ -44,7 +44,6 @@ import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.ObjectSizes;
 import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.UUIDGen;
-import org.apache.cassandra.utils.vint.VIntCoding;
 
 import static java.nio.charset.StandardCharsets.UTF_8;
 import static org.apache.cassandra.utils.TimeUUID.Generator.nextTimeUUID;
@@ -203,20 +202,46 @@ public final class TableId implements Comparable<TableId>
         return position - offset;
     }
 
+    public final long msb()
+    {
+        return msb;
+    }
+
+    public final long lsb()
+    {
+        return lsb;
+    }
+
     public final int serializedSize()
     {
         return 16;
     }
 
+    private static final int MAGIC_BYTE = (int) ((flipSign(MAGIC) >>> 56) & 0xf0);
+
     public void serializeCompact(DataOutputPlus out) throws IOException
     {
-        if (msb == MAGIC && lsb < Long.MAX_VALUE - 1)
+        serializeCompact(out, Long.compare(msb, MAGIC), msb, lsb);
+    }
+
+    public void serializeCompactComparable(DataOutputPlus out) throws IOException
+    {
+        serializeCompact(out, Long.compare(msb, MAGIC), flipSign(msb), flipSign(lsb));
+    }
+
+    private static void serializeCompact(DataOutputPlus out, int compareMagic, long msb, long lsb) throws IOException
+    {
+        // make this an ordered compact serialization at the cost of one byte
+        // TODO (desired): we could use 6 bits of the byte for encoding the vint header and avoid any extra bytes in most cases
+        if (compareMagic == 0)
         {
-            out.writeUnsignedVInt(1 + lsb);
+            int bytes = numberOfBytes(lsb);
+            out.writeByte(MAGIC_BYTE | bytes);
+            out.writeLeastSignificantBytes(lsb, bytes);
         }
         else
         {
-            out.writeByte(0);
+            out.writeByte(MAGIC_BYTE + (compareMagic > 0 ? 0x10 : -0x10));
             out.writeLong(msb);
             out.writeLong(lsb);
         }
@@ -224,25 +249,48 @@ public final class TableId implements Comparable<TableId>
 
     public <V> int serializeCompact(V dst, ValueAccessor<V> accessor, int offset)
     {
-        if (msb == MAGIC && lsb < Long.MAX_VALUE - 1)
+        return serializeCompact(dst, accessor, offset, Long.compare(msb, MAGIC), msb, lsb);
+    }
+
+    public <V> int serializeCompactComparable(V dst, ValueAccessor<V> accessor, int offset)
+    {
+        return serializeCompact(dst, accessor, offset, Long.compare(msb, MAGIC), flipSign(msb), flipSign(lsb));
+    }
+
+    private static <V> int serializeCompact(V dst, ValueAccessor<V> accessor, int offset, int compareMagic, long msb, long lsb)
+    {
+        if (compareMagic == 0)
         {
-            return accessor.putUnsignedVInt(dst, offset, 1 + lsb);
+            int bytes = numberOfBytes(lsb);
+            accessor.putByte(dst, offset, (byte) (MAGIC_BYTE | bytes));
+            accessor.putLeastSignificantBytes(dst, offset + 1, lsb, bytes);
+            return 1 + bytes;
         }
         else
         {
             int position = offset;
-            position += accessor.putByte(dst, position, (byte)0);
+            position += accessor.putByte(dst, position, (byte) (MAGIC_BYTE + (compareMagic > 0 ? 0x10 : -0x10)));
             position += accessor.putLong(dst, position, msb);
             position += accessor.putLong(dst, position, lsb);
             return position - offset;
         }
     }
 
+    private static int numberOfBytes(long lsb)
+    {
+        return (64 + 7 - Long.numberOfLeadingZeros(lsb)) / 8;
+    }
+
     public final int serializedCompactSize()
     {
-        if (msb == MAGIC && lsb < Long.MAX_VALUE - 1)
-            return VIntCoding.computeUnsignedVIntSize(1 + lsb);
-        return 17;
+        // make this an ordered compact serialization at the cost of one byte
+        return msb == MAGIC ? 1 + numberOfBytes(lsb) : 17;
+    }
+
+    public final int serializedCompactComparableSize()
+    {
+        // make this an ordered compact serialization at the cost of one byte
+        return msb == MAGIC ? 1 + numberOfBytes(flipSign(lsb)) : 17;
     }
 
     public static int staticSerializedSize()
@@ -250,11 +298,18 @@ public final class TableId implements Comparable<TableId>
         return 16;
     }
 
+    public static void skip(DataInputPlus in) throws IOException
+    {
+        in.skipBytesFully(16);
+    }
+
     public static void skipCompact(DataInputPlus in) throws IOException
     {
-        long compact = in.readUnsignedVInt();
-        if (compact == 0)
+        int b = in.readByte();
+        if ((b & 0xf0) != MAGIC_BYTE)
             in.skipBytesFully(16);
+        else
+            in.skipBytesFully(b & 0xf);
     }
 
     public static TableId deserialize(DataInput in) throws IOException
@@ -262,27 +317,68 @@ public final class TableId implements Comparable<TableId>
         return new TableId(in.readLong(), in.readLong());
     }
 
+    private static TableId deserialize(DataInput in, LongUnaryOperator transform) throws IOException
+    {
+        return new TableId(transform.applyAsLong(in.readLong()), transform.applyAsLong(in.readLong()));
+    }
+
+    private static long flipSign(long bits)
+    {
+        return bits ^ Long.MIN_VALUE;
+    }
+
+    private static long keepSign(long bits)
+    {
+        return bits;
+    }
+
     public static <V> TableId deserialize(V src, ValueAccessor<V> accessor, int offset)
     {
-        return new TableId(accessor.getLong(src, offset), accessor.getLong(src, offset + TypeSizes.LONG_SIZE));
+        return deserialize(src, accessor, offset, TableId::keepSign);
+    }
+
+    public static <V> TableId deserializeComparable(V src, ValueAccessor<V> accessor, int offset)
+    {
+        return deserialize(src, accessor, offset, TableId::flipSign);
+    }
+
+    private static <V> TableId deserialize(V src, ValueAccessor<V> accessor, int offset, LongUnaryOperator transform)
+    {
+        return new TableId(transform.applyAsLong(accessor.getLong(src, offset)), transform.applyAsLong(accessor.getLong(src, offset + TypeSizes.LONG_SIZE)));
     }
 
     public static TableId deserializeCompact(DataInputPlus in) throws IOException
     {
-        long compact = in.readUnsignedVInt();
-        if (compact > 0)
-            return fromLong(compact - 1);
-        Invariants.require(compact == 0);
-        return deserialize(in);
+        return deserializeCompact(in, TableId::keepSign);
+    }
+
+    public static TableId deserializeCompactComparable(DataInputPlus in) throws IOException
+    {
+        return deserializeCompact(in, TableId::flipSign);
+    }
+
+    private static TableId deserializeCompact(DataInputPlus in, LongUnaryOperator transform) throws IOException
+    {
+        int b = in.readByte();
+        if ((b & 0xf0) != MAGIC_BYTE) return deserialize(in, transform);
+        else return new TableId(MAGIC, transform.applyAsLong(in.readLeastSignificantBytes(b & 0xf)));
     }
 
     public static <V> TableId deserializeCompact(V src, ValueAccessor<V> accessor, int offset)
     {
-        long compact = accessor.getUnsignedVInt(src, offset);
-        if (compact > 0)
-            return fromLong(compact - 1);
-        Invariants.require(compact == 0);
-        return deserialize(src, accessor, offset + 1);
+        return deserializeCompact(src, accessor, offset, TableId::keepSign);
+    }
+
+    public static <V> TableId deserializeCompactComparable(V src, ValueAccessor<V> accessor, int offset)
+    {
+        return deserializeCompact(src, accessor, offset, TableId::flipSign);
+    }
+
+    private static <V> TableId deserializeCompact(V src, ValueAccessor<V> accessor, int offset, LongUnaryOperator transform)
+    {
+        int b = accessor.getByte(src, offset++);
+        if ((b & 0xf0) != MAGIC_BYTE) return deserialize(src, accessor, offset, transform);
+        else return new TableId(MAGIC, transform.applyAsLong(accessor.getLeastSignificantBytes(src, offset, b & 0x0f)));
     }
 
     public TableId intern()

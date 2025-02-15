@@ -59,7 +59,8 @@ import org.apache.cassandra.service.accord.AccordCacheEntry.Status;
 import org.apache.cassandra.service.accord.AccordCommandStore.Caches;
 import org.apache.cassandra.service.accord.AccordExecutor.Task;
 import org.apache.cassandra.service.accord.AccordExecutor.TaskQueue;
-import org.apache.cassandra.service.accord.api.AccordRoutingKey;
+import org.apache.cassandra.service.accord.AccordKeyspace.CommandsForKeyAccessor;
+import org.apache.cassandra.service.accord.api.TokenKey;
 import org.apache.cassandra.utils.NoSpamLogger;
 import org.apache.cassandra.utils.concurrent.Condition;
 
@@ -67,6 +68,7 @@ import static accord.primitives.Routable.Domain.Key;
 import static accord.primitives.Txn.Kind.EphemeralRead;
 import static accord.utils.Invariants.illegalState;
 import static org.apache.cassandra.config.CassandraRelevantProperties.DTEST_ACCORD_JOURNAL_SANITY_CHECK_ENABLED;
+import static org.apache.cassandra.config.DatabaseDescriptor.getPartitioner;
 import static org.apache.cassandra.service.accord.AccordTask.State.CANCELLED;
 import static org.apache.cassandra.service.accord.AccordTask.State.FAILED;
 import static org.apache.cassandra.service.accord.AccordTask.State.FAILING;
@@ -937,7 +939,7 @@ public abstract class AccordTask<R> extends Task implements Runnable, Function<S
             }
         }
 
-        final Set<AccordRoutingKey.TokenKey> intersectingKeys = new ObjectHashSet<>();
+        final Set<TokenKey> intersectingKeys = new ObjectHashSet<>();
         final KeyWatcher keyWatcher = new KeyWatcher();
         final Ranges ranges = ((AbstractRanges) preLoadContext.keys()).toRanges();
         final AccordCache.Type<RoutingKey, CommandsForKey, AccordSafeCommandsForKey>.Instance commandsForKeyCache;
@@ -953,10 +955,10 @@ public abstract class AccordTask<R> extends Task implements Runnable, Function<S
         {
             for (Range range : ranges)
             {
-                AccordKeyspace.findAllKeysBetween(commandStore.id(),
-                                                  (AccordRoutingKey) range.start(), range.startInclusive(),
-                                                  (AccordRoutingKey) range.end(), range.endInclusive(),
-                                                  intersectingKeys::add);
+                CommandsForKeyAccessor.findAllKeysBetween(commandStore.id(), commandStore.tableId(), getPartitioner(),
+                                                          (TokenKey) range.start(), range.startInclusive(),
+                                                          (TokenKey) range.end(), range.endInclusive(),
+                                                          intersectingKeys::add);
             }
             super.runInternal();
         }
@@ -995,7 +997,7 @@ public abstract class AccordTask<R> extends Task implements Runnable, Function<S
             for (RoutingKey key : caches.commandsForKeys().keySet())
             {
                 if (ranges.contains(key))
-                    intersectingKeys.add((AccordRoutingKey.TokenKey) key);
+                    intersectingKeys.add((TokenKey) key);
             }
             caches.commandsForKeys().register(keyWatcher);
             super.startInternal(caches);

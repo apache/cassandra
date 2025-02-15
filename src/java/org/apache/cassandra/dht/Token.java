@@ -37,7 +37,6 @@ import org.apache.cassandra.tcm.serialization.PartitionerAwareMetadataSerializer
 import org.apache.cassandra.tcm.serialization.Version;
 import org.apache.cassandra.utils.bytecomparable.ByteComparable;
 import org.apache.cassandra.utils.bytecomparable.ByteSource;
-import org.apache.cassandra.utils.bytecomparable.ByteSourceInverse;
 import org.apache.cassandra.utils.vint.VIntCoding;
 
 public abstract class Token implements RingPosition<Token>, Serializable
@@ -54,16 +53,6 @@ public abstract class Token implements RingPosition<Token>, Serializable
     {
         public abstract ByteBuffer toByteArray(Token token);
         public abstract Token fromByteArray(ByteBuffer bytes);
-
-        public byte[] toOrderedByteArray(Token token, ByteComparable.Version version)
-        {
-            return ByteSourceInverse.readBytes(asComparableBytes(token, version));
-        }
-
-        public Token fromOrderedByteArray(byte[] bytes, ByteComparable.Version version)
-        {
-            return fromComparableBytes(ByteSource.peekable(ByteSource.fixedLength(bytes)), version);
-        }
 
         /**
          * Produce a byte-comparable representation of the token.
@@ -107,6 +96,12 @@ public abstract class Token implements RingPosition<Token>, Serializable
             byte[] bytes = new byte[size];
             in.readFully(bytes);
             return p.getTokenFactory().fromByteArray(ByteBuffer.wrap(bytes));
+        }
+
+        public void skip(DataInputPlus in, IPartitioner p) throws IOException
+        {
+            int size = p.isFixedLength() ? p.getMaxTokenSize() : in.readUnsignedVInt32();
+            in.skipBytesFully(size);
         }
 
         public Token fromByteBuffer(ByteBuffer bytes, int position, int length)
@@ -260,6 +255,7 @@ public abstract class Token implements RingPosition<Token>, Serializable
     abstract public long getHeapSize();
     abstract public Object getTokenValue();
     abstract public int tokenHash();
+    public TokenFactory tokenFactory() { return getPartitioner().getTokenFactory(); }
 
     /**
      * This method exists so that callers can access the primitive {@code long} value for this {@link Token}, if

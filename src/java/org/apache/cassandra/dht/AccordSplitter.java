@@ -24,9 +24,7 @@ import accord.local.ShardDistributor;
 import accord.primitives.Range;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.service.accord.TokenRange;
-import org.apache.cassandra.service.accord.api.AccordRoutingKey;
-import org.apache.cassandra.service.accord.api.AccordRoutingKey.SentinelKey;
-import org.apache.cassandra.service.accord.api.AccordRoutingKey.TokenKey;
+import org.apache.cassandra.service.accord.api.TokenKey;
 
 import static java.math.BigInteger.ZERO;
 
@@ -41,19 +39,21 @@ public abstract class AccordSplitter implements ShardDistributor.EvenSplit.Split
     public BigInteger sizeOf(accord.primitives.Range range)
     {
         // note: minimum value
-        BigInteger start = range.start() instanceof SentinelKey ? minimumValue() : valueForToken(((AccordRoutingKey)range.start()).token());
-        BigInteger end = range.end() instanceof SentinelKey ? maximumValue() : valueForToken(((AccordRoutingKey)range.end()).token());
+        TokenKey startBound = (TokenKey)range.start();
+        TokenKey endBound = (TokenKey)range.end();
+        BigInteger start = startBound.isMin() ? minimumValue() : valueForToken(((TokenKey)range.start()).token());
+        BigInteger end = endBound.isMax() ? maximumValue() : valueForToken(((TokenKey)range.end()).token());
         return end.subtract(start);
     }
 
     @Override
     public TokenRange subRange(accord.primitives.Range range, BigInteger startOffset, BigInteger endOffset)
     {
-        AccordRoutingKey startBound = (AccordRoutingKey)range.start();
-        AccordRoutingKey endBound = (AccordRoutingKey)range.end();
+        TokenKey startBound = (TokenKey)range.start();
+        TokenKey endBound = (TokenKey)range.end();
 
-        BigInteger start = startBound instanceof SentinelKey ? minimumValue() : valueForToken(startBound.token());
-        BigInteger end = endBound instanceof SentinelKey ? maximumValue() : valueForToken(endBound.token());
+        BigInteger start = startBound.isMin() ? minimumValue() : valueForToken(startBound.token());
+        BigInteger end = endBound.isMax() ? maximumValue() : valueForToken(endBound.token());
         BigInteger sizeOfRange = end.subtract(start);
 
         TableId tableId = startBound.table();

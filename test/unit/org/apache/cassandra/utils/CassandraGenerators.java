@@ -72,7 +72,6 @@ import org.apache.cassandra.db.rows.Cell;
 import org.apache.cassandra.db.marshal.UserType;
 import org.apache.cassandra.dht.ByteOrderedPartitioner;
 import org.apache.cassandra.dht.IPartitioner;
-import org.apache.cassandra.dht.LocalCompositePrefixPartitioner;
 import org.apache.cassandra.dht.LocalPartitioner;
 import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.dht.OrderPreservingPartitioner;
@@ -162,7 +161,7 @@ public final class CassandraGenerators
         return InetAddressAndPort.getByAddressOverrideDefaults(address, NETWORK_PORT_GEN.generate(rnd));
     };
 
-    public static final Gen<TableId> TABLE_ID_GEN = Generators.UUID_RANDOM_GEN.map(TableId::fromUUID);
+    public static final Gen<TableId> TABLE_ID_GEN = Generate.booleans().flatMap(uuid -> uuid ? Generators.UUID_RANDOM_GEN.map(TableId::fromUUID) : Generate.longRange(Long.MIN_VALUE, Long.MAX_VALUE).map(TableId::fromLong));
     private static final Gen<TableMetadata.Kind> TABLE_KIND_GEN = SourceDSL.arbitrary().pick(TableMetadata.Kind.REGULAR, TableMetadata.Kind.INDEX, TableMetadata.Kind.VIRTUAL);
     public static final Gen<TableMetadata> TABLE_METADATA_GEN = gen(rnd -> createTableMetadata(IDENTIFIER_GEN.generate(rnd), rnd)).describedAs(CassandraGenerators::toStringRecursive);
 
@@ -1057,34 +1056,6 @@ public final class CassandraGenerators
         return AbstractTypeGenerators.safeTypeGen().map(LocalPartitioner::new);
     }
 
-    public static Gen<LocalCompositePrefixPartitioner> localCompositePrefixPartitioner()
-    {
-        return AbstractTypeGenerators.safeTypeGen().map(type -> {
-            if (type instanceof CompositeType)
-                return new LocalCompositePrefixPartitioner((CompositeType) type);
-            else
-                return new LocalCompositePrefixPartitioner(type);
-        });
-    }
-
-    public static Gen<Token> localPartitionerToken()
-    {
-        var lpGen = localPartitioner();
-        return rs -> {
-            var lp = lpGen.generate(rs);
-            var bytes = AbstractTypeGenerators.getTypeSupport(lp.getTokenValidator()).bytesGen();
-            return lp.getToken(bytes.generate(rs));
-        };
-    }
-
-    public static Gen<Token> localCompositePrefixPartitionerToken(LocalCompositePrefixPartitioner partitioner)
-    {
-        return rs -> {
-            var bytes = AbstractTypeGenerators.getTypeSupport(partitioner.getTokenValidator()).bytesGen();
-            return partitioner.getToken(bytes.generate(rs));
-        };
-    }
-
     public static Gen<Token> reversedLongLocalToken()
     {
         Constraint range = Constraint.between(0, Long.MAX_VALUE);
@@ -1121,7 +1092,7 @@ public final class CassandraGenerators
         Random(RandomPartitioner.class,                                 ignore -> RandomPartitioner.instance),
         Local(LocalPartitioner.class,                                   localPartitioner()),
         OrderPreserving(OrderPreservingPartitioner.class,               ignore -> OrderPreservingPartitioner.instance),
-        LocalCompositePrefix(LocalCompositePrefixPartitioner.class,     localCompositePrefixPartitioner());
+        ;
 
         private final Class<? extends IPartitioner> clazz;
         private final Gen<? extends IPartitioner> partitioner;
@@ -1161,8 +1132,7 @@ public final class CassandraGenerators
     public static Gen<IPartitioner> nonLocalPartitioners()
     {
         return SourceDSL.arbitrary().enumValues(SupportedPartitioners.class)
-                        .assuming(p -> p != SupportedPartitioners.Local &&
-                                       p != SupportedPartitioners.LocalCompositePrefix)
+                        .assuming(p -> p != SupportedPartitioners.Local)
                         .flatMap(SupportedPartitioners::partitioner);
     }
 
@@ -1176,7 +1146,6 @@ public final class CassandraGenerators
         if (partitioner instanceof Murmur3Partitioner) return murmurToken();
         if (partitioner instanceof ByteOrderedPartitioner) return byteOrderToken();
         if (partitioner instanceof RandomPartitioner) return randomPartitionerToken();
-        if (partitioner instanceof LocalCompositePrefixPartitioner) return localCompositePrefixPartitionerToken((LocalCompositePrefixPartitioner) partitioner);
         if (partitioner instanceof LocalPartitioner) return localPartitionerToken((LocalPartitioner) partitioner);
         if (partitioner instanceof OrderPreservingPartitioner) return orderPreservingToken();
         throw new UnsupportedOperationException("Unsupported partitioner: " + partitioner.getClass());

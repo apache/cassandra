@@ -168,6 +168,13 @@ public class TrackedDataOutputPlus implements DataOutputPlus
     }
 
     @Override
+    public void writeLeastSignificantBytes(long register, int bytes) throws IOException
+    {
+        out.writeLeastSignificantBytes(register, bytes);
+        position += bytes;
+    }
+
+    @Override
     public long position()
     {
         return position;

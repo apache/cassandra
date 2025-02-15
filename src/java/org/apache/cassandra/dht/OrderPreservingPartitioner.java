@@ -39,7 +39,7 @@ import org.apache.cassandra.gms.VersionedValue;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.StorageService;
-import org.apache.cassandra.service.accord.api.AccordRoutingKey;
+import org.apache.cassandra.service.accord.api.TokenKey;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.bytecomparable.ByteComparable;
 import org.apache.cassandra.utils.bytecomparable.ByteSource;
@@ -273,7 +273,7 @@ public class OrderPreservingPartitioner implements IPartitioner
     {
         // allTokens will contain the count and be returned, sorted_ranges is shorthand for token<->token math.
         Map<Token, Float> allTokens = new HashMap<Token, Float>();
-        List<Range<Token>> sortedRanges = new ArrayList<Range<Token>>(sortedTokens.size());
+        List<Range<Token>> sortedRanges = new ArrayList<>(sortedTokens.size());
 
         // this initializes the counts to 0 and calcs the ranges in order.
         Token lastToken = sortedTokens.get(sortedTokens.size() - 1);
@@ -364,9 +364,7 @@ public class OrderPreservingPartitioner implements IPartitioner
 
     private static int charLength(RoutingKey routingKey)
     {
-        AccordRoutingKey accordKey = (AccordRoutingKey) routingKey;
-        if (accordKey.kindOfRoutingKey() == AccordRoutingKey.RoutingKeyKind.SENTINEL)
-            return 0;
+        TokenKey accordKey = (TokenKey) routingKey;
         return charLength(accordKey.token());
     }
 

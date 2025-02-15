@@ -78,7 +78,7 @@ public class SimulatedRandomKeysWithRangeConflictTest extends SimulatedAccordCom
         final SimulatedAccordCommandStore instance;
 
         final TableMetadata tbl = reverseTokenTbl;
-        final Ranges wholeRange = Ranges.of(fullRange(tbl.id));
+        final Ranges wholeRange = Ranges.of(fullRange(tbl.id, tbl.partitioner));
         final FullRangeRoute rangeRoute = wholeRange.toRoute(wholeRange.get(0).end());
         final Txn rangeTxn = createTxn(Txn.Kind.ExclusiveSyncPoint, wholeRange);
         final DepsModel model;
@@ -86,7 +86,7 @@ public class SimulatedRandomKeysWithRangeConflictTest extends SimulatedAccordCom
         public State(RandomSource rs)
         {
             AccordKeyspace.unsafeClear();
-            this.instance = new SimulatedAccordCommandStore(rs);
+            this.instance = new SimulatedAccordCommandStore(tbl.id, rs);
             this.instance.commandStore.executor().cacheUnsafe().setShrinkingOn(false);
             this.model = new DepsModel(instance.commandStore.unsafeGetRangesForEpoch().currentRanges());
         }

@@ -63,11 +63,12 @@ import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.db.Keyspace;
+import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.schema.TableMetadata;
-import org.apache.cassandra.service.accord.api.AccordRoutingKey;
+import org.apache.cassandra.service.accord.api.TokenKey;
 import org.apache.cassandra.service.accord.api.PartitionKey;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.utils.Pair;
@@ -141,19 +142,19 @@ public abstract class SimulatedAccordCommandStoreTestBase extends CQLTester
         ServerTestUtils.markCMS();
     }
 
-    protected static TokenRange fullRange(TableId id)
+    protected static TokenRange fullRange(TableId id, IPartitioner partitioner)
     {
-        return TokenRange.create(AccordRoutingKey.SentinelKey.min(id), AccordRoutingKey.SentinelKey.max(id));
+        return TokenRange.create(TokenKey.min(id, partitioner), TokenKey.max(id, partitioner));
     }
 
-    protected static TokenRange tokenRange(TableId id, long start, long end)
+    protected static TokenRange tokenRange(TableId id, IPartitioner partitioner, long start, long end)
     {
-        return TokenRange.create(start == Long.MIN_VALUE ? AccordRoutingKey.SentinelKey.min(id) : tokenKey(id, start), tokenKey(id, end));
+        return TokenRange.create(start == Long.MIN_VALUE ? TokenKey.min(id, partitioner) : tokenKey(id, start), tokenKey(id, end));
     }
 
-    protected static AccordRoutingKey.TokenKey tokenKey(TableId id, long token)
+    protected static TokenKey tokenKey(TableId id, long token)
     {
-        return new AccordRoutingKey.TokenKey(id, new Murmur3Partitioner.LongToken(token));
+        return new TokenKey(id, new Murmur3Partitioner.LongToken(token));
     }
 
     protected static Map<RoutingKey, List<TxnId>> keyConflicts(List<TxnId> list, Unseekables<RoutingKey> keys)
@@ -348,9 +349,9 @@ public abstract class SimulatedAccordCommandStoreTestBase extends CQLTester
         }
     }
 
-    protected static Gen<Pair<Txn, FullRoute<?>>> randomTxn(Gen<Routable.Domain> domainGen, Gen.LongGen tokenGen)
+    protected static Gen<Pair<Txn, FullRoute<?>>> randomTxn(TableMetadata tbl, Gen<Routable.Domain> domainGen, Gen.LongGen tokenGen)
     {
-        TableMetadata tbl = reverseTokenTbl;
+        Invariants.require(tbl == reverseTokenTbl);
         Invariants.requireArgument(tbl.partitioner == Murmur3Partitioner.instance, "Only murmur partitioner is supported; given %s", tbl.partitioner.getClass());
         Gen<PartitionKey> keyGen = rs -> new PartitionKey(tbl.id, tbl.partitioner.decorateKey(Murmur3Partitioner.LongToken.keyForToken(tokenGen.nextLong(rs))));
         Gen<Range> rangeGen = rs -> {
@@ -364,7 +365,7 @@ public abstract class SimulatedAccordCommandStoreTestBase extends CQLTester
                 a = b;
                 b = tmp;
             }
-            return tokenRange(tbl.id, a, b);
+            return tokenRange(tbl.id, tbl.partitioner, a, b);
         };
         return rs -> {
             Routable.Domain domain = domainGen.next(rs);

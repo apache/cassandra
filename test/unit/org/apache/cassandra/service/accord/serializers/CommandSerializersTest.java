@@ -31,6 +31,7 @@ import org.apache.cassandra.service.accord.TokenRange;
 import org.apache.cassandra.service.accord.api.PartitionKey;
 import org.apache.cassandra.utils.SerializerTestUtils;
 
+import static org.apache.cassandra.config.DatabaseDescriptor.getPartitioner;
 import static org.apache.cassandra.cql3.statements.schema.CreateTableStatement.parse;
 
 public class CommandSerializersTest
@@ -55,7 +56,7 @@ public class CommandSerializersTest
                                                  "  END IF\n" +
                                                  "COMMIT TRANSACTION");
         PartitionKey key = (PartitionKey) txn.keys().get(0);
-        PartialTxn expected = txn.slice(Ranges.of(TokenRange.fullRange(key.table())), true);
+        PartialTxn expected = txn.slice(Ranges.of(TokenRange.fullRange(key.table(), getPartitioner())), true);
         SerializerTestUtils.assertSerializerIOEquality(expected, CommandSerializers.partialTxn);
     }
 }

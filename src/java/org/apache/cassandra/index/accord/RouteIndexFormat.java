@@ -34,23 +34,32 @@ import java.util.zip.Checksum;
 import com.google.common.collect.Maps;
 
 import accord.local.StoreParticipants;
+import accord.primitives.Route;
 import accord.primitives.TxnId;
 import org.apache.cassandra.db.DecoratedKey;
+import org.apache.cassandra.db.marshal.ByteBufferAccessor;
 import org.apache.cassandra.db.marshal.Int32Type;
 import org.apache.cassandra.db.rows.Cell;
 import org.apache.cassandra.db.rows.Row;
 import org.apache.cassandra.db.rows.Unfiltered;
 import org.apache.cassandra.index.accord.IndexDescriptor.IndexComponent;
+import org.apache.cassandra.io.IVersionedSerializer;
+import org.apache.cassandra.io.LocalVersionedSerializer;
+import org.apache.cassandra.io.MessageVersionProvider;
 import org.apache.cassandra.io.sstable.SSTableFlushObserver;
 import org.apache.cassandra.io.util.ChecksumedRandomAccessReader;
 import org.apache.cassandra.io.util.ChecksumedSequentialWriter;
+import org.apache.cassandra.io.util.DataInputBuffer;
+import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.io.util.FileHandle;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.serializers.UUIDSerializer;
 import org.apache.cassandra.service.accord.AccordJournal;
 import org.apache.cassandra.service.accord.AccordJournalTable;
 import org.apache.cassandra.service.accord.AccordKeyspace;
+import org.apache.cassandra.service.accord.AccordSerializerVersion;
 import org.apache.cassandra.service.accord.JournalKey;
+import org.apache.cassandra.service.accord.serializers.KeySerializers;
 import org.apache.cassandra.utils.ByteArrayUtil;
 import org.apache.cassandra.utils.Throwables;
 
@@ -61,6 +70,34 @@ import static org.apache.cassandra.utils.Clock.Global.nowInSeconds;
 public class RouteIndexFormat
 {
     public static final Supplier<Checksum> CHECKSUM_SUPPLIER = CRC32C::new;
+
+    static final LocalVersionedSerializer<Route<?>> route = localSerializer(KeySerializers.route);
+    private static <T> LocalVersionedSerializer<T> localSerializer(IVersionedSerializer<T> serializer)
+    {
+        return new LocalVersionedSerializer<>(AccordSerializerVersion.CURRENT, AccordSerializerVersion.serializer, serializer);
+    }
+
+    public static ByteBuffer serialize(Route<?> value) throws IOException
+    {
+        int size = Math.toIntExact(route.serializedSize(value));
+        try (DataOutputBuffer buffer = new DataOutputBuffer(size))
+        {
+            route.serialize(value, buffer);
+            return buffer.buffer(true);
+        }
+    }
+
+    static Route<?> deserializeRoute(ByteBuffer bytes) throws IOException
+    {
+        if (bytes == null || ByteBufferAccessor.instance.isEmpty(bytes))
+            return null;
+
+        try (DataInputBuffer in = new DataInputBuffer(bytes, true))
+        {
+            MessageVersionProvider versionProvider = route.deserializeVersion(in);
+            return KeySerializers.route.deserialize(in, versionProvider.messageVersion());
+        }
+    }
 
     public interface Writer extends SSTableFlushObserver
     {
@@ -126,9 +163,13 @@ public class RouteIndexFormat
         StoreParticipants participants = builder.participants();
         if (participants == null)
             return null;
+        Route<?> route = participants.route();
+        if (route == null)
+            return null;
+
         try
         {
-            return AccordKeyspace.LocalVersionedSerializers.serialize(participants);
+            return serialize(participants.route());
         }
         catch (IOException e)
         {

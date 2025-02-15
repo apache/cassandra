@@ -40,7 +40,7 @@ public class ClusterMetadataSerializerTest
 {
     static
     {
-        DatabaseDescriptor.clientInitialization();
+        DatabaseDescriptor.toolInitialization();
     }
 
     @Test

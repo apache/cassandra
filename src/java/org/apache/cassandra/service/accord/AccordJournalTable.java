@@ -72,7 +72,7 @@ import org.apache.cassandra.journal.Journal;
 import org.apache.cassandra.journal.KeySupport;
 import org.apache.cassandra.journal.RecordConsumer;
 import org.apache.cassandra.schema.ColumnMetadata;
-import org.apache.cassandra.service.accord.api.AccordRoutingKey;
+import org.apache.cassandra.service.accord.api.TokenKey;
 import org.apache.cassandra.utils.CloseableIterator;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.JVMStabilityInspector;
@@ -276,28 +276,28 @@ public class AccordJournalTable<K extends JournalKey, V> implements RangeSearche
         }
 
         @Override
-        public Result search(int commandStoreId, AccordRoutingKey key, TxnId minTxnId, Timestamp maxTxnId)
+        public Result search(int commandStoreId, TokenKey key, TxnId minTxnId, Timestamp maxTxnId)
         {
             CloseableIterator<TxnId> inMemory = index.search(commandStoreId, key, minTxnId, maxTxnId).results();
             CloseableIterator<TxnId> table = tableSearch(commandStoreId, key);
             return new DefaultResult(minTxnId, maxTxnId, MergeIterator.get(Arrays.asList(inMemory, table)));
         }
 
-        private CloseableIterator<TxnId> tableSearch(int store, AccordRoutingKey start, AccordRoutingKey end)
+        private CloseableIterator<TxnId> tableSearch(int store, TokenKey start, TokenKey end)
         {
             RowFilter rowFilter = RowFilter.create(false);
-            rowFilter.add(AccordJournalTable.SyntheticColumn.participants.metadata, Operator.GT, OrderedRouteSerializer.serializeRoutingKey(start));
-            rowFilter.add(AccordJournalTable.SyntheticColumn.participants.metadata, Operator.LTE, OrderedRouteSerializer.serializeRoutingKey(end));
+            rowFilter.add(AccordJournalTable.SyntheticColumn.participants.metadata, Operator.GT, OrderedRouteSerializer.serialize(start));
+            rowFilter.add(AccordJournalTable.SyntheticColumn.participants.metadata, Operator.LTE, OrderedRouteSerializer.serialize(end));
             rowFilter.add(AccordJournalTable.SyntheticColumn.store_id.metadata, Operator.EQ, Int32Type.instance.decompose(store));
 
             return process(store, rowFilter);
         }
 
-        private CloseableIterator<TxnId> tableSearch(int store, AccordRoutingKey key)
+        private CloseableIterator<TxnId> tableSearch(int store, TokenKey key)
         {
             RowFilter rowFilter = RowFilter.create(false);
-            rowFilter.add(AccordJournalTable.SyntheticColumn.participants.metadata, Operator.GTE, OrderedRouteSerializer.serializeRoutingKey(key));
-            rowFilter.add(AccordJournalTable.SyntheticColumn.participants.metadata, Operator.LTE, OrderedRouteSerializer.serializeRoutingKey(key));
+            rowFilter.add(AccordJournalTable.SyntheticColumn.participants.metadata, Operator.GTE, OrderedRouteSerializer.serialize(key));
+            rowFilter.add(AccordJournalTable.SyntheticColumn.participants.metadata, Operator.LTE, OrderedRouteSerializer.serialize(key));
             rowFilter.add(AccordJournalTable.SyntheticColumn.store_id.metadata, Operator.EQ, Int32Type.instance.decompose(store));
 
             return process(store, rowFilter);

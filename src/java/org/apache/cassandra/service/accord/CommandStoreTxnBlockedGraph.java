@@ -32,7 +32,7 @@ import com.google.common.collect.ImmutableSet;
 import accord.primitives.SaveStatus;
 import accord.primitives.Timestamp;
 import accord.primitives.TxnId;
-import org.apache.cassandra.service.accord.api.AccordRoutingKey.TokenKey;
+import org.apache.cassandra.service.accord.api.TokenKey;
 
 public class CommandStoreTxnBlockedGraph
 {

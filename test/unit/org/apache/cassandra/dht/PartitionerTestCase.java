@@ -35,7 +35,7 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.commitlog.CommitLog;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.service.accord.TokenRange;
-import org.apache.cassandra.service.accord.api.AccordRoutingKey.TokenKey;
+import org.apache.cassandra.service.accord.api.TokenKey;
 
 import static org.apache.cassandra.service.accord.AccordTestUtils.TABLE_ID1;
 import static org.junit.Assert.assertEquals;

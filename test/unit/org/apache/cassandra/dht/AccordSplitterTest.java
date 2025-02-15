@@ -31,7 +31,7 @@ import accord.primitives.Ranges;
 import accord.utils.Gens;
 import accord.utils.RandomSource;
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.service.accord.api.AccordRoutingKey;
+import org.apache.cassandra.service.accord.api.TokenKey;
 import org.apache.cassandra.utils.AccordGenerators;
 import org.assertj.core.api.Assertions;
 
@@ -50,8 +50,8 @@ public class AccordSplitterTest
     public void split()
     {
         qt().forAll(AccordGenerators.range(), Gens.random()).check((range, rs) -> {
-            AccordRoutingKey startKey = (AccordRoutingKey) range.start();
-            AccordRoutingKey endKey = (AccordRoutingKey) range.end();
+            TokenKey startKey = (TokenKey) range.start();
+            TokenKey endKey = (TokenKey) range.end();
             IPartitioner partitioner = getPartitioner(range, rs);
             // this section is filtering out known bugs
             // TODO (now): fix the fact accordSplitter returns AccordBytesSplitter which will fail for java.lang.ClassCastException: org.apache.cassandra.dht.LocalPartitioner$LocalToken cannot be cast to org.apache.cassandra.dht.ByteOrderedPartitioner$BytesToken
@@ -59,13 +59,13 @@ public class AccordSplitterTest
             if (partitioner instanceof LocalPartitioner)
                 return;
             // TODO (now): java.lang.AssertionError: [size is not larger than 0 for partitioner org.apache.cassandra.dht.OrderPreservingPartitioner@54a67a45]
-            if (partitioner instanceof OrderPreservingPartitioner && endKey.kindOfRoutingKey() == AccordRoutingKey.RoutingKeyKind.SENTINEL)
+            if (partitioner instanceof OrderPreservingPartitioner && endKey.isTableSentinel())
                 return;
             // TODO (now): [size is not larger than 0 for partitioner org.apache.cassandra.dht.ByteOrderedPartitioner@44e3a2b2]
-            if (partitioner instanceof ByteOrderedPartitioner && endKey.kindOfRoutingKey() == AccordRoutingKey.RoutingKeyKind.SENTINEL)
+            if (partitioner instanceof ByteOrderedPartitioner && endKey.isTableSentinel())
                 return;
             // TODO (now): [num splits not as expected for partitioner org.apache.cassandra.dht.ByteOrderedPartitioner@4c550889]\nExpected size to be between: <47> and <48> but was:<62> in:
-            if (partitioner instanceof ByteOrderedPartitioner && startKey.kindOfRoutingKey() == AccordRoutingKey.RoutingKeyKind.SENTINEL)
+            if (partitioner instanceof ByteOrderedPartitioner && startKey.isTableSentinel())
                 return;
             // TODO (now): [num splits not as expected for partitioner org.apache.cassandra.dht.ByteOrderedPartitioner@13518f37]\nExpected size to be between: <11> and <12> but was:<13> in:
             if (partitioner instanceof ByteOrderedPartitioner)
@@ -121,10 +121,10 @@ public class AccordSplitterTest
 
     private static IPartitioner getPartitioner(Range range, RandomSource rs)
     {
-        AccordRoutingKey key = (AccordRoutingKey) range.start();
-        if (key.kindOfRoutingKey() == AccordRoutingKey.RoutingKeyKind.SENTINEL)
-            key = (AccordRoutingKey) range.end();
-        if (key.kindOfRoutingKey() == AccordRoutingKey.RoutingKeyKind.SENTINEL)
+        TokenKey key = (TokenKey) range.start();
+        if (key.isTableSentinel())
+            key = (TokenKey) range.end();
+        if (key.isTableSentinel())
             return AccordGenerators.partitioner().next(rs);
 
         return key.token().getPartitioner();

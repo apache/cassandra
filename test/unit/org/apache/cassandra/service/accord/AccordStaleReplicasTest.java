@@ -27,6 +27,7 @@ import accord.local.Node;
 import accord.utils.AccordGens;
 import accord.utils.Gen;
 import accord.utils.Gens;
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.tcm.serialization.AsymmetricMetadataSerializers;
@@ -36,6 +37,11 @@ import static accord.utils.Property.qt;
 
 public class AccordStaleReplicasTest
 {
+    static
+    {
+        DatabaseDescriptor.toolInitialization();
+    }
+
     @Test
     public void serde()
     {

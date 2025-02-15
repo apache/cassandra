@@ -40,7 +40,7 @@ import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputBuffer;
 import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.net.MessagingService;
-import org.apache.cassandra.service.accord.api.AccordRoutingKey;
+import org.apache.cassandra.service.accord.api.TokenKey;
 import org.apache.cassandra.utils.AccordGenerators;
 import org.apache.cassandra.utils.CassandraGenerators;
 import org.assertj.core.api.Assertions;
@@ -86,9 +86,9 @@ public class CheckStatusSerializersTest
             {
                 case Key:
                     // TODO (coverage): don't hard code murmur
-                    Gen<AccordRoutingKey> keyGen = AccordGenerators.routingKeyGen(fromQT(CassandraGenerators.TABLE_ID_GEN), Gens.constant(AccordRoutingKey.RoutingKeyKind.TOKEN), fromQT(CassandraGenerators.murmurToken()));
-                    AccordRoutingKey homeKey = keyGen.next(rs);
-                    List<AccordRoutingKey> forOrdering = Gens.lists(keyGen).unique().ofSizeBetween(1, 10).next(rs);
+                    Gen<TokenKey> keyGen = AccordGenerators.routingKeyGen(fromQT(CassandraGenerators.TABLE_ID_GEN), Gens.constant(TokenKey.RoutingKeyKind.TOKEN), fromQT(CassandraGenerators.murmurToken()), Murmur3Partitioner.instance);
+                    TokenKey homeKey = keyGen.next(rs);
+                    List<TokenKey> forOrdering = Gens.lists(keyGen).unique().ofSizeBetween(1, 10).next(rs);
                     forOrdering.sort(Comparator.naturalOrder());
                     // TODO (coverage): don't hard code keys type
                     keysOrRanges = new FullKeyRoute(homeKey, forOrdering.toArray(RoutingKey[]::new));

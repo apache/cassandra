@@ -67,8 +67,7 @@ import org.apache.cassandra.service.accord.AccordExecutor;
 import org.apache.cassandra.service.accord.AccordKeyspace;
 import org.apache.cassandra.service.accord.AccordService;
 import org.apache.cassandra.service.accord.CommandStoreTxnBlockedGraph;
-import org.apache.cassandra.service.accord.api.AccordRoutingKey;
-import org.apache.cassandra.service.accord.api.AccordRoutingKey.TokenKey;
+import org.apache.cassandra.service.accord.api.TokenKey;
 import org.apache.cassandra.service.consensus.migration.ConsensusMigrationState;
 import org.apache.cassandra.service.consensus.migration.TableMigrationState;
 import org.apache.cassandra.tcm.ClusterMetadata;
@@ -616,15 +615,8 @@ public class AccordDebugKeyspace extends VirtualKeyspace
 
     private static ByteBuffer decompose(RoutingKey routingKey)
     {
-        AccordRoutingKey key = (AccordRoutingKey) routingKey;
-        switch (key.kindOfRoutingKey())
-        {
-            case SENTINEL:
-            case TOKEN:
-                return ROUTING_KEY_TYPE.pack(UUIDType.instance.decompose(key.table().asUUID()), bytes(key.suffix()));
-            default:
-                throw new IllegalStateException("Unhandled key Kind " + key.kindOfRoutingKey());
-        }
+        TokenKey key = (TokenKey) routingKey;
+        return ROUTING_KEY_TYPE.pack(UUIDType.instance.decompose(key.table().asUUID()), bytes(key.suffix().toString()));
     }
 
     private static TableMetadata parse(String keyspace, String table, String comment, String schema, AbstractType<?> partitionKeyType)

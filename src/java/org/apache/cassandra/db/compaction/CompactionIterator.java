@@ -36,12 +36,10 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import accord.local.Cleanup;
-import accord.local.CommandStores;
 import accord.local.DurableBefore;
 import accord.local.RedundantBefore;
 import accord.utils.Invariants;
 import accord.utils.UnhandledEnum;
-import org.agrona.collections.Int2ObjectHashMap;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.db.AbstractCompactionController;
@@ -91,22 +89,22 @@ import org.apache.cassandra.service.accord.AccordKeyspace;
 import org.apache.cassandra.service.accord.AccordKeyspace.CommandsForKeyAccessor;
 import org.apache.cassandra.service.accord.AccordService;
 import org.apache.cassandra.service.accord.IAccordService;
+import org.apache.cassandra.service.accord.IAccordService.AccordCompactionInfo;
+import org.apache.cassandra.service.accord.IAccordService.AccordCompactionInfos;
 import org.apache.cassandra.service.accord.JournalKey;
 import org.apache.cassandra.service.accord.api.AccordAgent;
-import org.apache.cassandra.service.accord.api.AccordRoutingKey.TokenKey;
+import org.apache.cassandra.service.accord.api.TokenKey;
 import org.apache.cassandra.service.paxos.PaxosRepairHistory;
 import org.apache.cassandra.service.paxos.uncommitted.PaxosRows;
 import org.apache.cassandra.utils.TimeUUID;
 
-import static accord.local.Cleanup.ERASE;
-import static accord.local.Cleanup.EXPUNGE;
 import static accord.local.Cleanup.Input.PARTIAL;
 import static accord.local.Cleanup.NO;
 import static com.google.common.base.Preconditions.checkState;
 import static java.util.concurrent.TimeUnit.MICROSECONDS;
 import static org.apache.cassandra.config.Config.PaxosStatePurging.legacy;
 import static org.apache.cassandra.config.DatabaseDescriptor.paxosStatePurging;
-import static org.apache.cassandra.service.accord.AccordKeyspace.CommandsForKeysAccessor;
+import static org.apache.cassandra.service.accord.AccordKeyspace.CFKAccessor;
 
 /**
  * Merge multiple iterators over the content of sstable into a "compacted" iterator.
@@ -220,7 +218,7 @@ public class CompactionIterator extends CompactionInfo.Holder implements Unfilte
         if (isAccordJournal(cfs))
             return new AccordJournalPurger(accordService, cfs);
         if (isAccordCommandsForKey(cfs))
-            return new AccordCommandsForKeyPurger(AccordKeyspace.CommandsForKeysAccessor, accordService);
+            return new AccordCommandsForKeyPurger(AccordKeyspace.CFKAccessor, accordService);
 
         throw new IllegalArgumentException("Unhandled accord table: " + cfs.keyspace.getName() + '.' + cfs.name);
     }
@@ -782,21 +780,24 @@ public class CompactionIterator extends CompactionInfo.Holder implements Unfilte
     class AccordCommandsForKeyPurger extends AbstractPurger
     {
         final CommandsForKeyAccessor accessor;
-        final Int2ObjectHashMap<RedundantBefore> redundantBefores;
+        final AccordCompactionInfos compactionInfos;
+
+        AccordCompactionInfo info;
         int storeId;
-        TokenKey partitionKey;
+        TokenKey tokenKey;
 
         AccordCommandsForKeyPurger(CommandsForKeyAccessor accessor, Supplier<IAccordService> accordService)
         {
             this.accessor = accessor;
-            this.redundantBefores = accordService.get().getCompactionInfo().redundantBefores;
+            this.compactionInfos = new AccordCompactionInfos(null, accordService.get().getCompactionInfo());
         }
 
         protected void beginPartition(UnfilteredRowIterator partition)
         {
-            ByteBuffer[] partitionKeyComponents = accessor.splitPartitionKey(partition.partitionKey());
-            storeId = accessor.getStoreId(partitionKeyComponents);
-            partitionKey = accessor.getKey(partitionKeyComponents);
+            ByteBuffer key = partition.partitionKey().getKey();
+            storeId = CommandsForKeyAccessor.getCommandStoreId(key);
+            info = compactionInfos.get(storeId);
+            tokenKey = info == null ? null : CommandsForKeyAccessor.getUserTableKey(info.tableId, key);
         }
 
         @Override
@@ -804,16 +805,16 @@ public class CompactionIterator extends CompactionInfo.Holder implements Unfilte
         {
             updateProgress();
 
-            RedundantBefore redundantBefore = redundantBefores.get(storeId);
-            // TODO (expected): if the store has been retired, this should return null
-            if (redundantBefore == null)
+            // TODO (required): if the store has been retired, this should return null
+            if (info == null)
                 return row;
 
-            RedundantBefore.Entry redundantBeforeEntry = redundantBefore.get(partitionKey.toUnseekable());
+            RedundantBefore redundantBefore = info.redundantBefore;
+            RedundantBefore.Entry redundantBeforeEntry = redundantBefore.get(tokenKey.toUnseekable());
             if (redundantBeforeEntry == null)
                 return row;
 
-            return CommandsForKeysAccessor.withoutRedundantCommands(partitionKey, row, redundantBeforeEntry);
+            return CFKAccessor.withoutRedundantCommands(tokenKey, row, redundantBeforeEntry);
         }
 
         @Override
@@ -826,14 +827,13 @@ public class CompactionIterator extends CompactionInfo.Holder implements Unfilte
 
     class AccordJournalPurger extends AbstractPurger
     {
-        final Int2ObjectHashMap<RedundantBefore> redundantBefores;
-        final Int2ObjectHashMap<DurableBefore> durableBefores;
-        final Int2ObjectHashMap<CommandStores.RangesForEpoch> ranges;
+        final AccordCompactionInfos infos;
         final ColumnMetadata recordColumn;
         final ColumnMetadata versionColumn;
         final AccordService service;
         final AccordAgent agent;
 
+        AccordCompactionInfo info;
         JournalKey key = null;
         Object builder = null;
         FlyweightSerializer<Object, Object> serializer = null;
@@ -847,12 +847,9 @@ public class CompactionIterator extends CompactionInfo.Holder implements Unfilte
             service = (AccordService) serviceSupplier.get();
             // TODO: test serialization version logic
             userVersion = service.journalConfiguration().userVersion();
-            IAccordService.CompactionInfo compactionInfo = service.getCompactionInfo();
 
             this.agent = service.agent();
-            this.redundantBefores = compactionInfo.redundantBefores;
-            this.ranges = compactionInfo.ranges;
-            this.durableBefores = compactionInfo.durableBefores;
+            this.infos = service.getCompactionInfo();
             this.recordColumn = cfs.metadata().getColumn(ColumnIdentifier.getInterned("record", false));
             this.versionColumn = cfs.metadata().getColumn(ColumnIdentifier.getInterned("user_version", false));
         }
@@ -912,9 +909,13 @@ public class CompactionIterator extends CompactionInfo.Holder implements Unfilte
                     return partition;
                 }
 
-                RedundantBefore redundantBefore = redundantBefores.get(key.commandStoreId);
-                DurableBefore durableBefore = durableBefores.get(key.commandStoreId);
-                Cleanup cleanup = commandBuilder.shouldCleanup(PARTIAL, agent, redundantBefore, durableBefore);
+                if (info != null && info.commandStoreId != key.commandStoreId) info = null;
+                if (info == null) info = infos.get(key.commandStoreId);
+                // TODO (required): should return null if commandStore has been removed
+                if (info == null)
+                    return partition;
+                DurableBefore durableBefore = infos.durableBefore;
+                Cleanup cleanup = commandBuilder.shouldCleanup(PARTIAL, agent, info.redundantBefore, durableBefore);
                 if (cleanup != NO)
                 {
                     switch (cleanup)
@@ -933,7 +934,7 @@ public class CompactionIterator extends CompactionInfo.Holder implements Unfilte
                                 PartitionUpdate.SimpleBuilder newVersion = PartitionUpdate.simpleBuilder(AccordKeyspace.Journal, partition.partitionKey());
 
                                 Row.SimpleBuilder rowBuilder = newVersion.row(firstClustering);
-                                rowBuilder.add("record", commandBuilder.asByteBuffer(redundantBefore, userVersion))
+                                rowBuilder.add("record", commandBuilder.asByteBuffer(userVersion))
                                           .add("user_version", userVersion);
 
                                 return newVersion.build().unfilteredIterator();

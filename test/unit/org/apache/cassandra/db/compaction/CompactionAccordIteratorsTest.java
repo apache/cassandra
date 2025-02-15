@@ -41,7 +41,6 @@ import accord.api.Result;
 import accord.local.CheckedCommands;
 import accord.local.Command;
 import accord.local.CommandStore;
-import accord.local.CommandStores;
 import accord.local.DurableBefore;
 import accord.local.RedundantBefore;
 import accord.local.StoreParticipants;
@@ -61,7 +60,6 @@ import accord.primitives.Txn;
 import accord.primitives.Txn.Kind;
 import accord.primitives.TxnId;
 import accord.primitives.Writes;
-import org.agrona.collections.Int2ObjectHashMap;
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.cql3.QueryProcessor;
@@ -86,7 +84,7 @@ import org.apache.cassandra.service.accord.AccordExecutor;
 import org.apache.cassandra.service.accord.AccordService;
 import org.apache.cassandra.service.accord.AccordTestUtils;
 import org.apache.cassandra.service.accord.IAccordService;
-import org.apache.cassandra.service.accord.api.AccordRoutingKey.TokenKey;
+import org.apache.cassandra.service.accord.api.TokenKey;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Pair;
 
@@ -99,7 +97,7 @@ import static org.apache.cassandra.Util.spinAssertEquals;
 import static org.apache.cassandra.cql3.statements.schema.CreateTableStatement.parse;
 import static org.apache.cassandra.schema.SchemaConstants.ACCORD_KEYSPACE_NAME;
 import static org.apache.cassandra.service.accord.AccordKeyspace.COMMANDS_FOR_KEY;
-import static org.apache.cassandra.service.accord.AccordKeyspace.CommandsForKeysAccessor;
+import static org.apache.cassandra.service.accord.AccordKeyspace.CFKAccessor;
 import static org.junit.Assert.assertEquals;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
@@ -174,7 +172,7 @@ public class CompactionAccordIteratorsTest
     private void testAccordCommandsForKeyPurger(boolean singleCompaction) throws Throwable
     {
         this.singleCompaction = singleCompaction;
-        testAccordCommandsForKeyPurger(null, expectedAccordCommandsForKeyNoChange());
+        testAccordCommandsForKeyPurger(RedundantBefore.EMPTY, expectedAccordCommandsForKeyNoChange());
         testAccordCommandsForKeyPurger(redundantBefore(LT_TXN_ID), expectedAccordCommandsForKeyNoChange());
         // will erase one more than expected as converted to ExclusiveSyncPoint id which is > base id
         testAccordCommandsForKeyPurger(redundantBefore(TXN_ID), expectedAccordCommandsForKeyEraseOne());
@@ -188,7 +186,7 @@ public class CompactionAccordIteratorsTest
             assertEquals(1, partitions.size());
             Partition partition = partitions.get(0);
             TokenKey partitionKey = new TokenKey(partition.metadata().id, partition.partitionKey().getToken());
-            CommandsForKey cfk = CommandsForKeysAccessor.getCommandsForKey(partitionKey, ((Row) partition.unfilteredIterator().next()));
+            CommandsForKey cfk = CFKAccessor.fromRow(partitionKey, ((Row) partition.unfilteredIterator().next()));
             assertEquals(TXN_IDS.length, cfk.size());
             for (int i = 0; i < TXN_IDS.length; ++i)
                 assertEquals(TXN_IDS[i], cfk.txnId(i));
@@ -262,15 +260,10 @@ public class CompactionAccordIteratorsTest
     private static IAccordService mockAccordService(CommandStore commandStore, RedundantBefore redundantBefore, DurableBefore durableBefore)
     {
         IAccordService mockAccordService = mock(IAccordService.class);
-        Int2ObjectHashMap<RedundantBefore> redundantBefores = new Int2ObjectHashMap<>();
-        if (redundantBefore != null)
-            redundantBefores.put(commandStore.id(), redundantBefore);
-        Int2ObjectHashMap<DurableBefore> durableBefores = new Int2ObjectHashMap<>();
-        if (durableBefore != null)
-            durableBefores.put(commandStore.id(), durableBefore);
-        Int2ObjectHashMap<CommandStores.RangesForEpoch> rangesForEpochs = new Int2ObjectHashMap<>();
-        rangesForEpochs.put(commandStore.id(), commandStore.unsafeGetRangesForEpoch());
-        when(mockAccordService.getCompactionInfo()).thenReturn(new IAccordService.CompactionInfo(redundantBefores, rangesForEpochs, durableBefores));
+        IAccordService.AccordCompactionInfo compactionInfo = new IAccordService.AccordCompactionInfo(commandStore.id(), redundantBefore, commandStore.unsafeGetRangesForEpoch(), ((AccordCommandStore)commandStore).tableId());
+        IAccordService.AccordCompactionInfos compactionInfos = new IAccordService.AccordCompactionInfos(durableBefore);
+        compactionInfos.put(commandStore.id(), compactionInfo);
+        when(mockAccordService.getCompactionInfo()).thenReturn(compactionInfos);
         return mockAccordService;
     }
 

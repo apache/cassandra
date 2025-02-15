@@ -59,7 +59,8 @@ import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.StorageService;
-import org.apache.cassandra.service.accord.api.AccordRoutingKey.TokenKey;
+import org.apache.cassandra.service.accord.AccordKeyspace.CommandsForKeyAccessor;
+import org.apache.cassandra.service.accord.api.TokenKey;
 import org.apache.cassandra.service.accord.api.PartitionKey;
 import org.apache.cassandra.service.accord.serializers.CommandsForKeySerializerTest.TestSafeCommandStore;
 import org.apache.cassandra.service.accord.serializers.ResultSerializers;
@@ -166,9 +167,9 @@ public class AccordCommandStoreTest
         cfk.set(cfk.current().update(new TestSafeCommandStore(command1.txnId()), command1).cfk());
         cfk.set(cfk.current().update(new TestSafeCommandStore(command1.txnId()), command2).cfk());
 
-        AccordKeyspace.getCommandsForKeyUpdater(commandStore.id(), (TokenKey)cfk.key(), cfk.current(), null, commandStore.nextSystemTimestampMicros()).run();
+        CommandsForKeyAccessor.systemTableUpdater(commandStore.id(), (TokenKey)cfk.key(), cfk.current(), null, commandStore.nextSystemTimestampMicros()).run();
         logger.info("E: {}", cfk);
-        CommandsForKey actual = AccordKeyspace.loadCommandsForKey(commandStore.id(), key);
+        CommandsForKey actual = CommandsForKeyAccessor.load(commandStore.id(), key);
         logger.info("A: {}", actual);
 
         Assert.assertEquals(cfk.current(), actual);

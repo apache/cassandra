@@ -47,6 +47,7 @@ import accord.primitives.Timestamp;
 import accord.primitives.TxnId;
 import accord.utils.Invariants;
 import accord.utils.PersistentField;
+import accord.utils.UnhandledEnum;
 import accord.utils.async.AsyncChains;
 import accord.utils.async.AsyncResult;
 import accord.utils.async.AsyncResults;
@@ -81,8 +82,7 @@ import static accord.impl.CommandChange.getFlags;
 import static accord.impl.CommandChange.isChanged;
 import static accord.impl.CommandChange.isNull;
 import static accord.impl.CommandChange.nextSetField;
-import static accord.impl.CommandChange.setChanged;
-import static accord.impl.CommandChange.setFieldIsNullAndChanged;
+import static accord.impl.CommandChange.toIterableNonNullFields;
 import static accord.impl.CommandChange.toIterableSetFields;
 import static accord.impl.CommandChange.unsetIterable;
 import static accord.impl.CommandChange.validateFlags;
@@ -620,22 +620,91 @@ public class AccordJournal implements accord.api.Journal, RangeSearcher.Supplier
         {
             super(txnId, load);
         }
-        public ByteBuffer asByteBuffer(RedundantBefore redundantBefore, int userVersion) throws IOException
+        public ByteBuffer asByteBuffer(int userVersion) throws IOException
         {
             try (DataOutputBuffer out = new DataOutputBuffer())
             {
-                serialize(out, redundantBefore, userVersion);
+                serialize(out, userVersion);
                 return out.asNewBuffer();
             }
         }
 
-        public void serialize(DataOutputPlus out, RedundantBefore redundantBefore, int userVersion) throws IOException
+        public void serialize(DataOutputPlus out, int userVersion) throws IOException
         {
             Invariants.require(mask == 0);
             Invariants.require(flags != 0);
 
             int flags = validateFlags(this.flags);
-            Writer.serialize(construct(redundantBefore), flags, out, userVersion);
+            serialize(flags, out, userVersion);
+        }
+
+        private void serialize(int flags, DataOutputPlus out, int userVersion) throws IOException
+        {
+            Invariants.require(flags != 0);
+            out.writeInt(flags);
+
+            int iterable = toIterableNonNullFields(flags);
+            for (Field field = nextSetField(iterable) ; field != null; iterable = unsetIterable(field, iterable), field = nextSetField(iterable))
+            {
+                switch (field)
+                {
+                    default: throw new UnhandledEnum(field);
+                    case CLEANUP: throw UnhandledEnum.invalid(field);
+                    case EXECUTE_AT:
+                        Invariants.require(txnId != null);
+                        Invariants.require(executeAt != null);
+                        ExecuteAtSerializer.serialize(txnId, executeAt, out);
+                        break;
+                    case EXECUTES_AT_LEAST:
+                        Invariants.require(executesAtLeast != null);
+                        ExecuteAtSerializer.serialize(executesAtLeast, out);
+                        break;
+                    case MIN_UNIQUE_HLC:
+                        Invariants.require(minUniqueHlc != 0);
+                        out.writeUnsignedVInt(minUniqueHlc);
+                        break;
+                    case SAVE_STATUS:
+                        Invariants.require(saveStatus != null);
+                        out.writeByte(saveStatus.ordinal());
+                        break;
+                    case DURABILITY:
+                        Invariants.require(durability != null);
+                        out.writeByte(durability.ordinal());
+                        break;
+                    case ACCEPTED:
+                        Invariants.require(acceptedOrCommitted != null);
+                        CommandSerializers.ballot.serialize(acceptedOrCommitted, out, userVersion);
+                        break;
+                    case PROMISED:
+                        Invariants.require(promised != null);
+                        CommandSerializers.ballot.serialize(promised, out, userVersion);
+                        break;
+                    case PARTICIPANTS:
+                        Invariants.require(participants != null);
+                        CommandSerializers.participants.serialize(participants, out, userVersion);
+                        break;
+                    case PARTIAL_TXN:
+                        Invariants.require(partialTxn != null);
+                        CommandSerializers.partialTxn.serialize(partialTxn, out, userVersion);
+                        break;
+                    case PARTIAL_DEPS:
+                        Invariants.require(partialDeps != null);
+                        DepsSerializers.partialDeps.serialize(partialDeps, out, userVersion);
+                        break;
+                    case WAITING_ON:
+                        Invariants.require(waitingOn != null);
+                        ((WaitingOnSerializer.Provider)waitingOn).reserialize(out, userVersion);
+                        break;
+                    case WRITES:
+                        Invariants.require(writes != null);
+                        CommandSerializers.writes.serialize(writes, out, userVersion);
+                        break;
+                    case RESULT:
+                        Invariants.require(result != null);
+                        ResultSerializers.result.serialize(result, out, userVersion);
+                        break;
+                }
+            }
         }
 
         public void deserializeNext(DataInputPlus in, int userVersion) throws IOException
@@ -646,33 +715,22 @@ public class AccordJournal implements accord.api.Journal, RangeSearcher.Supplier
             nextCalled = true;
             count++;
 
-            int iterable = toIterableSetFields(readFlags);
-            while (iterable != 0)
+            // batch-apply any new nulls
+            setNulls(readFlags);
+            // iterator sets low 16 bits; low readFlag bits are nulls, so masking with ~readFlags restricts to non-null changed fields
+            int iterable = toIterableSetFields(readFlags) & ~readFlags;
+            for (Field field = nextSetField(iterable) ; field != null; field = nextSetField(iterable = unsetIterable(field, iterable)))
             {
-                Field field = nextSetField(iterable);
                 // Since we are iterating in reverse order, we skip the fields that were
                 // set by entries writter later (i.e. already read ones).
-                if (isChanged(field, this.flags) || isNull(field, mask))
-                {
-                    if (!isNull(field, readFlags))
-                        skip(txnId, field, in, userVersion);
-
-                    iterable = unsetIterable(field, iterable);
-                    continue;
-                }
-
-                if (isNull(field, readFlags))
-                {
-                    this.flags = setFieldIsNullAndChanged(field, this.flags);
-                }
+                if (isChanged(field, flags))
+                    skip(txnId, field, in, userVersion);
                 else
-                {
-                    this.flags = setChanged(field, this.flags);
                     deserialize(field, in, userVersion);
-                }
-
-                iterable = unsetIterable(field, iterable);
             }
+
+            // upper 16 bits are changed flags, lower are nulls; by masking upper by ~lower we restrict to only non-null changed fields
+            this.flags |= readFlags & (~readFlags << 16);
         }
 
         private void deserialize(Field field, DataInputPlus in, int userVersion) throws IOException
@@ -683,7 +741,7 @@ public class AccordJournal implements accord.api.Journal, RangeSearcher.Supplier
                     executeAt = ExecuteAtSerializer.deserialize(txnId, in);
                     break;
                 case EXECUTES_AT_LEAST:
-                    executeAtLeast = ExecuteAtSerializer.deserialize(in);
+                    executesAtLeast = ExecuteAtSerializer.deserialize(in);
                     break;
                 case MIN_UNIQUE_HLC:
                     minUniqueHlc = in.readUnsignedVInt();
@@ -740,9 +798,8 @@ public class AccordJournal implements accord.api.Journal, RangeSearcher.Supplier
                     in.readUnsignedVInt();
                     break;
                 case SAVE_STATUS:
-                    in.readByte();
-                    break;
                 case DURABILITY:
+                case CLEANUP:
                     in.readByte();
                     break;
                 case ACCEPTED:
@@ -750,7 +807,6 @@ public class AccordJournal implements accord.api.Journal, RangeSearcher.Supplier
                     CommandSerializers.ballot.skip(in);
                     break;
                 case PARTICIPANTS:
-                    // TODO (expected): skip
                     CommandSerializers.participants.deserialize(in, userVersion);
                     break;
                 case PARTIAL_TXN:
@@ -766,9 +822,6 @@ public class AccordJournal implements accord.api.Journal, RangeSearcher.Supplier
                 case WRITES:
                     // TODO (expected): skip
                     CommandSerializers.writes.deserialize(in, userVersion);
-                    break;
-                case CLEANUP:
-                    in.readByte();
                     break;
                 case RESULT:
                     // TODO (expected): skip

@@ -84,6 +84,33 @@ public interface DataInputPlus extends DataInput
         return VIntCoding.readUnsignedVInt32(this);
     }
 
+    default long readLeastSignificantBytes(int bytes) throws IOException
+    {
+        switch (bytes)
+        {
+            case 0: return 0;
+            case 1: return readByte();
+            case 2: return readShort();
+            case 3:
+                return ((long)readShort() << 8)
+                     |  (long)readByte();
+            case 4:
+                return readInt();
+            case 5:
+                return ((long)readInt() << 8)
+                     |  (long)readByte();
+            case 6:
+                return ((long)readInt() << 16)
+                     |  (long)readShort();
+            case 7:
+                return ((long)readInt() << 24)
+                     | ((long)readShort() << 8)
+                     |  (long)readByte();
+            case 8: return readLong();
+            default: throw new IllegalArgumentException();
+        }
+    }
+
     /**
      * Always skips the requested number of bytes, unless EOF is reached
      *

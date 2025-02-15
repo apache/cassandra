@@ -2846,6 +2846,7 @@ public abstract class AccordCQLTestBase extends AccordTestBase
                        "    UPDATE " + qualifiedAccordTableName + "1 SET v = row2.v WHERE k=1 AND c=2;\n" +
                        "  END IF\n" +
                        "COMMIT TRANSACTION";
+
         Object[][] result = SHARED_CLUSTER.coordinator(1).execute(query, ConsistencyLevel.ANY);
         assertEquals(3, result[0][0]);
 

@@ -40,7 +40,6 @@ import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.schema.TableMetadata;
-import org.apache.cassandra.service.accord.api.AccordRoutingKey.TokenKey;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.ObjectSizes;
 
@@ -95,9 +94,15 @@ public final class PartitionKey extends AccordRoutableKey implements Key
     }
 
     @Override
-    public TokenKey toUnseekable()
+    public org.apache.cassandra.service.accord.api.TokenKey toUnseekable()
     {
-        return new TokenKey(table, token());
+        return new org.apache.cassandra.service.accord.api.TokenKey(table, token());
+    }
+
+    @Override
+    byte sentinel()
+    {
+        return org.apache.cassandra.service.accord.api.TokenKey.NORMAL_SENTINEL;
     }
 
     public long estimatedSizeOnHeap()

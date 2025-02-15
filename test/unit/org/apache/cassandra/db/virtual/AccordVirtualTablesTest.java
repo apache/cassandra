@@ -46,6 +46,7 @@ import org.apache.cassandra.service.accord.IAccordService;
 import org.apache.cassandra.service.accord.TokenRange;
 import org.mockito.Mockito;
 
+import static org.apache.cassandra.config.DatabaseDescriptor.getPartitioner;
 import static org.apache.cassandra.schema.SchemaConstants.VIRTUAL_VIEWS;
 
 public class AccordVirtualTablesTest extends CQLTester
@@ -126,13 +127,13 @@ public class AccordVirtualTablesTest extends CQLTester
                    row(e1, T1_META.keyspace, T1_META.name, FULL_RANGE, List.of(), List.of(), List.of(), FULL_RANGE));
 
         // lets close e2
-        tm.onEpochClosed(Ranges.single(TokenRange.fullRange(T1)), e2);
+        tm.onEpochClosed(Ranges.single(TokenRange.fullRange(T1, getPartitioner())), e2);
         assertRows(execute("SELECT * FROM " + VIRTUAL_VIEWS + "." + AccordVirtualTables.TABLE_EPOCHS),
                    row(e2, T1_META.keyspace, T1_META.name, List.of(), FULL_RANGE, List.of(), List.of(), FULL_RANGE),
                    row(e1, T1_META.keyspace, T1_META.name, FULL_RANGE, FULL_RANGE, List.of(), List.of(), FULL_RANGE));
 
         // enjoy retirement!
-        tm.onEpochRetired(Ranges.single(TokenRange.fullRange(T1)), e2);
+        tm.onEpochRetired(Ranges.single(TokenRange.fullRange(T1, getPartitioner())), e2);
         assertRows(execute("SELECT * FROM " + VIRTUAL_VIEWS + "." + AccordVirtualTables.TABLE_EPOCHS),
                    row(e2, T1_META.keyspace, T1_META.name, List.of(), FULL_RANGE, List.of(), FULL_RANGE, FULL_RANGE),
                    row(e1, T1_META.keyspace, T1_META.name, FULL_RANGE, FULL_RANGE, List.of(), FULL_RANGE, FULL_RANGE));
@@ -145,7 +146,7 @@ public class AccordVirtualTablesTest extends CQLTester
 
     private static Topology topology(long epoch, TableId tableId)
     {
-        TokenRange all = TokenRange.fullRange(tableId);
+        TokenRange all = TokenRange.fullRange(tableId, getPartitioner());
         return new Topology(epoch, Shard.create(all, ALL, FP));
     }
 

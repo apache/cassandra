@@ -75,13 +75,10 @@ import accord.impl.progresslog.DefaultProgressLogs;
 import accord.local.Command;
 import accord.local.CommandStore;
 import accord.local.CommandStores;
-import accord.local.CommandStores.RangesForEpoch;
-import accord.local.DurableBefore;
 import accord.local.KeyHistory;
 import accord.local.Node;
 import accord.local.Node.Id;
 import accord.local.PreLoadContext;
-import accord.local.RedundantBefore;
 import accord.local.SafeCommand;
 import accord.local.ShardDistributor.EvenSplit;
 import accord.local.cfk.CommandsForKey;
@@ -113,7 +110,6 @@ import accord.utils.async.AsyncChain;
 import accord.utils.async.AsyncChains;
 import accord.utils.async.AsyncResult;
 import accord.utils.async.AsyncResults;
-import org.agrona.collections.Int2ObjectHashMap;
 import org.apache.cassandra.concurrent.Shutdownable;
 import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.config.DatabaseDescriptor;
@@ -142,8 +138,8 @@ import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.service.accord.AccordSyncPropagator.Notification;
 import org.apache.cassandra.service.accord.api.AccordAgent;
-import org.apache.cassandra.service.accord.api.AccordRoutingKey.KeyspaceSplitter;
-import org.apache.cassandra.service.accord.api.AccordRoutingKey.TokenKey;
+import org.apache.cassandra.service.accord.api.TokenKey.KeyspaceSplitter;
+import org.apache.cassandra.service.accord.api.TokenKey;
 import org.apache.cassandra.service.accord.api.AccordScheduler;
 import org.apache.cassandra.service.accord.api.AccordTimeService;
 import org.apache.cassandra.service.accord.api.AccordTopologySorter;
@@ -1329,23 +1325,25 @@ public class AccordService implements IAccordService, Shutdownable
     }
 
     @Override
-    public CompactionInfo getCompactionInfo()
+    public AccordCompactionInfos getCompactionInfo()
     {
-        Int2ObjectHashMap<RedundantBefore> redundantBefores = new Int2ObjectHashMap<>();
-        Int2ObjectHashMap<DurableBefore> durableBefores = new Int2ObjectHashMap<>();
-        Int2ObjectHashMap<RangesForEpoch> ranges = new Int2ObjectHashMap<>();
+        AccordCompactionInfos compactionInfos = new AccordCompactionInfos(node.durableBefore());
         if (node.commandStores().all().length > 0)
         {
             AsyncChains.getBlockingAndRethrow(node.commandStores().forEach(safeStore -> {
-                synchronized (redundantBefores)
+                synchronized (compactionInfos)
                 {
-                    redundantBefores.put(safeStore.commandStore().id(), safeStore.redundantBefore());
-                    ranges.put(safeStore.commandStore().id(), safeStore.ranges());
-                    durableBefores.put(safeStore.commandStore().id(), safeStore.durableBefore());
+                    int id = safeStore.commandStore().id();
+                    compactionInfos.put(id, new AccordCompactionInfo(
+                        id,
+                        safeStore.redundantBefore(),
+                        safeStore.ranges(),
+                        ((AccordCommandStore)safeStore.commandStore()).tableId()
+                    ));
                 }
             }));
         }
-        return new CompactionInfo(redundantBefores, ranges, durableBefores);
+        return compactionInfos;
     }
 
     @Override

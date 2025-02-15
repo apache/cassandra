@@ -40,7 +40,9 @@ import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.LongType;
 import org.apache.cassandra.db.marshal.PartitionerDefinedOrder;
+import org.apache.cassandra.db.marshal.ValueAccessor;
 import org.apache.cassandra.exceptions.ConfigurationException;
+import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.MurmurHash;
@@ -239,6 +241,12 @@ public class Murmur3Partitioner implements IPartitioner
         }
 
         @Override
+        public TokenFactory tokenFactory()
+        {
+            return tokenFactory;
+        }
+
+        @Override
         public double size(Token next)
         {
             LongToken n = (LongToken) next;
@@ -253,7 +261,7 @@ public class Murmur3Partitioner implements IPartitioner
             // CASSANDRA-17109 Added the below checks, but paxos tests were not updated, rather than fix
             // the paxos tests, disabling the checks for now.  The current paxos tests bias twards MIN but
             // not for MAX, which makes the test very flaky as when MAX is generated the test fails...
-            // TODO (mustfix): This was done as part of CEP-15 and needs to be added back
+            // TODO (required): this check breaks a bunch of tests, but should be re-enabled
 //            if (token == MAXIMUM)
 //                throw new IllegalArgumentException("Cannot increase above MAXIMUM");
 
@@ -316,6 +324,58 @@ public class Murmur3Partitioner implements IPartitioner
     public int getMaxTokenSize()
     {
         return MAXIMUM_TOKEN_SIZE;
+    }
+
+    public final boolean accordSupported()
+    {
+        return true;
+    }
+
+    @Override
+    public final void accordSerialize(Token token, DataOutputPlus out) throws IOException
+    {
+        out.writeLong(flip(((LongToken)token).token));
+    }
+
+    @Override
+    public final void accordSerialize(Token token, ByteBuffer out)
+    {
+        out.putLong(flip(((LongToken)token).token));
+    }
+
+    @Override
+    public final Token accordDeserialize(DataInputPlus in, int length) throws IOException
+    {
+        return new LongToken(flip(in.readLong()));
+    }
+
+    @Override
+    public final Token accordDeserialize(ByteBuffer in, int length)
+    {
+        return new LongToken(flip(in.getLong()));
+    }
+
+    @Override
+    public final <V> Token accordDeserialize(V src, ValueAccessor<V> accessor, int offset, int length)
+    {
+        return new LongToken(flip(accessor.getLong(src, offset)));
+    }
+
+    @Override
+    public final int accordSerializedSize(Token token)
+    {
+        return 8;
+    }
+
+    @Override
+    public final int accordFixedLength()
+    {
+        return 8;
+    }
+
+    private static long flip(long value)
+    {
+        return value ^ 0x8000000000000000L;
     }
 
     private long[] getHash(ByteBuffer key)
@@ -386,7 +446,7 @@ public class Murmur3Partitioner implements IPartitioner
         return tokenFactory;
     }
 
-    private final Token.TokenFactory tokenFactory = new Token.TokenFactory()
+    private static final Token.TokenFactory tokenFactory = new Token.TokenFactory()
     {
         public Token fromComparableBytes(ByteSource.Peekable comparableBytes, ByteComparable.Version version)
         {
@@ -404,6 +464,12 @@ public class Murmur3Partitioner implements IPartitioner
         public void serialize(Token token, DataOutputPlus out) throws IOException
         {
             out.writeLong(((LongToken) token).token);
+        }
+
+        @Override
+        public Token deserialize(DataInputPlus in, IPartitioner p) throws IOException
+        {
+            return new LongToken(in.readLong());
         }
 
         @Override

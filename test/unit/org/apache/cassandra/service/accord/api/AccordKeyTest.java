@@ -28,8 +28,6 @@ import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableId;
-import org.apache.cassandra.service.accord.api.AccordRoutingKey.SentinelKey;
-import org.apache.cassandra.service.accord.api.AccordRoutingKey.TokenKey;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.SerializerTestUtils;
 
@@ -109,8 +107,8 @@ public class AccordKeyTest
         DecoratedKey dk2 = partitioner(TABLE2).decorateKey(ByteBufferUtil.bytes(5));
         PartitionKey pk2 = new PartitionKey(TABLE2, dk2);
 
-        SentinelKey loSentinel = SentinelKey.min(TABLE1);
-        SentinelKey hiSentinel = SentinelKey.max(TABLE1);
+        TokenKey loSentinel = TokenKey.min(TABLE1, partitioner(TABLE1));
+        TokenKey hiSentinel = TokenKey.max(TABLE1, partitioner(TABLE1));
         Assert.assertTrue(loSentinel.compareTo(hiSentinel) < 0);
         Assert.assertTrue(pk1.compareTo(loSentinel) > 0);
         Assert.assertTrue(loSentinel.compareTo(pk1) < 0);

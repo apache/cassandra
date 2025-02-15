@@ -28,6 +28,7 @@ import org.junit.BeforeClass;
 import org.junit.Test;
 
 import org.apache.cassandra.ServerTestUtils;
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.io.util.DataInputBuffer;
 import org.apache.cassandra.io.util.DataOutputBuffer;
@@ -67,6 +68,7 @@ public class ClusterMetadataTransformationTest
     public static void init()
     {
         ServerTestUtils.initSnitch();
+        DatabaseDescriptor.toolInitialization();
     }
 
     long seed = System.nanoTime();

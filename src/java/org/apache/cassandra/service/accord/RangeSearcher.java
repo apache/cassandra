@@ -22,13 +22,13 @@ import java.util.function.Consumer;
 
 import accord.primitives.Timestamp;
 import accord.primitives.TxnId;
-import org.apache.cassandra.service.accord.api.AccordRoutingKey;
+import org.apache.cassandra.service.accord.api.TokenKey;
 import org.apache.cassandra.utils.CloseableIterator;
 
 public interface RangeSearcher
 {
     Result search(int commandStoreId, TokenRange range, TxnId minTxnId, Timestamp maxTxnId);
-    Result search(int commandStoreId, AccordRoutingKey key, TxnId minTxnId, Timestamp maxTxnId);
+    Result search(int commandStoreId, TokenKey key, TxnId minTxnId, Timestamp maxTxnId);
 
     static RangeSearcher extractRangeSearcher(Object o)
     {
@@ -120,7 +120,7 @@ public interface RangeSearcher
         }
 
         @Override
-        public Result search(int commandStoreId, AccordRoutingKey key, TxnId minTxnId, Timestamp maxTxnId)
+        public Result search(int commandStoreId, TokenKey key, TxnId minTxnId, Timestamp maxTxnId)
         {
             return NoopResult.instance;
         }
