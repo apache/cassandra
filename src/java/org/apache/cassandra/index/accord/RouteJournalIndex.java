@@ -85,7 +85,7 @@ import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.accord.AccordJournalTable;
 import org.apache.cassandra.service.accord.AccordKeyspace;
 import org.apache.cassandra.service.accord.JournalKey;
-import org.apache.cassandra.service.accord.api.AccordRoutingKey;
+import org.apache.cassandra.service.accord.api.TokenKey;
 import org.apache.cassandra.utils.AbstractIterator;
 import org.apache.cassandra.utils.concurrent.Future;
 import org.apache.cassandra.utils.concurrent.FutureCombiner;
@@ -451,10 +451,9 @@ public class RouteJournalIndex implements Index, INotificationConsumer
                 TableId tableId;
                 byte[] start;
                 {
-
-                    AccordRoutingKey route = OrderedRouteSerializer.deserializeRoutingKey(key);
+                    TokenKey route = OrderedRouteSerializer.deserialize(key);
                     tableId = route.table();
-                    start = OrderedRouteSerializer.serializeRoutingKeyNoTable(route);
+                    start = OrderedRouteSerializer.serializeTokenOnly(route);
                 }
                 NavigableSet<ByteBuffer> matches = sstableManager.search(storeId, tableId, start);
                 matches.addAll(memtableIndexManager.search(storeId, tableId, start));
@@ -490,11 +489,11 @@ public class RouteJournalIndex implements Index, INotificationConsumer
                 byte[] start;
                 {
 
-                    AccordRoutingKey route = OrderedRouteSerializer.deserializeRoutingKey(startTableWithToken);
+                    TokenKey route = OrderedRouteSerializer.deserialize(startTableWithToken);
                     tableId = route.table();
-                    start = OrderedRouteSerializer.serializeRoutingKeyNoTable(route);
+                    start = OrderedRouteSerializer.serializeTokenOnly(route);
                 }
-                byte[] end = OrderedRouteSerializer.serializeRoutingKeyNoTable(OrderedRouteSerializer.deserializeRoutingKey(endTableWithToken));
+                byte[] end = OrderedRouteSerializer.serializeTokenOnly(OrderedRouteSerializer.deserialize(endTableWithToken));
                 NavigableSet<ByteBuffer> matches = sstableManager.search(storeId, tableId, start, startInclusive, end, endInclusive);
                 matches.addAll(memtableIndexManager.search(storeId, tableId, start, startInclusive, end, endInclusive));
                 return matches;

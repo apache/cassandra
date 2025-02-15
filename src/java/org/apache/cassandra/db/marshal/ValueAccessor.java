@@ -340,6 +340,11 @@ public interface ValueAccessor<V>
         return VIntCoding.getVInt32(value, this, offset);
     }
 
+    default long getLeastSignificantBytes(V value, int offset, int bytes)
+    {
+        return getLeastSignificantBytes(this, value, offset, bytes);
+    }
+
     float getFloat(V value, int offset);
     double getDouble(V value, int offset);
     /** returns a long from offset 0 */
@@ -397,6 +402,18 @@ public interface ValueAccessor<V>
     default int putBytes(V dst, int offset, byte[] src, int srcOffset, int length)
     {
         return ByteArrayAccessor.instance.copyTo(src, srcOffset, dst, this, offset, length);
+    }
+
+    /**
+     * An efficient way to write the type {@code bytes} of a long
+     *
+     * @param register - the long value to be written
+     * @param bytes - the number of bytes the register occupies. Valid values are between 1 and 8 inclusive.
+     * @throws IOException
+     */
+    default int putLeastSignificantBytes(V dst, int offset, long register, int bytes)
+    {
+        return putLeastSignificantBytes(this, dst, offset, register, bytes);
     }
 
     default int putBytes(V dst, int offset, byte[] src)
@@ -492,5 +509,73 @@ public interface ValueAccessor<V>
     public static <L, R> boolean equals(L left, ValueAccessor<L> leftAccessor, R right, ValueAccessor<R> rightAccessor)
     {
         return compare(left, leftAccessor, right, rightAccessor) == 0;
+    }
+
+    public static <V> int putLeastSignificantBytes(ValueAccessor<V> accessor, V dst, int offset, long register, int bytes)
+    {
+        switch (bytes)
+        {
+            case 0:
+                break;
+            case 1:
+                accessor.putByte(dst, offset, (byte)register);
+                break;
+            case 2:
+                accessor.putShort(dst, offset, (short)register);
+                break;
+            case 3:
+                accessor.putShort(dst, offset, (short)(register >>> 8));
+                accessor.putByte(dst, offset, (byte)register);
+                break;
+            case 4:
+                accessor.putInt(dst, offset, (int)register);
+                break;
+            case 5:
+                accessor.putInt(dst, offset, (int)(register >>> 8));
+                accessor.putByte(dst, offset, (byte)register);
+                break;
+            case 6:
+                accessor.putInt(dst, offset, (int)(register >>> 16));
+                accessor.putShort(dst, offset, (short)register);
+                break;
+            case 7:
+                accessor.putInt(dst, offset, (int)(register >>> 24));
+                accessor.putShort(dst, offset, (short)(register >> 8));
+                accessor.putByte(dst, offset, (byte)register);
+                break;
+            case 8:
+                accessor.putLong(dst, offset, register);
+                break;
+            default:
+                throw new IllegalArgumentException();
+        }
+        return bytes;
+    }
+
+    public static <V> long getLeastSignificantBytes(ValueAccessor<V> accessor, V dst, int offset, int bytes)
+    {
+        switch (bytes)
+        {
+            case 0: return 0;
+            case 1: return accessor.getByte(dst, offset);
+            case 2: return accessor.getShort(dst, offset);
+            case 3:
+                return ((long)accessor.getShort(dst, offset) << 8)
+                     |  (long)accessor.getByte(dst, offset + 2);
+            case 4:
+                return accessor.getInt(dst, offset);
+            case 5:
+                return ((long)accessor.getInt(dst, offset) << 8)
+                     |  (long)accessor.getByte(dst, offset + 4);
+            case 6:
+                return ((long)accessor.getInt(dst, offset) << 16)
+                     |  (long)accessor.getShort(dst, offset + 4);
+            case 7:
+                return ((long)accessor.getInt(dst, offset) << 24)
+                     | ((long)accessor.getShort(dst, offset + 4) << 8)
+                     |  (long)accessor.getByte(dst, offset + 6);
+            case 8: return accessor.getLong(dst, offset);
+            default: throw new IllegalArgumentException();
+        }
     }
 }

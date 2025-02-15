@@ -78,8 +78,7 @@ import org.apache.cassandra.service.StorageProxy;
 import org.apache.cassandra.service.accord.AccordEndpointMapper;
 import org.apache.cassandra.service.accord.TokenRange;
 import org.apache.cassandra.service.accord.api.AccordAgent;
-import org.apache.cassandra.service.accord.api.AccordRoutingKey;
-import org.apache.cassandra.service.accord.api.AccordRoutingKey.TokenKey;
+import org.apache.cassandra.service.accord.api.TokenKey;
 import org.apache.cassandra.service.accord.api.PartitionKey;
 import org.apache.cassandra.service.accord.interop.AccordInteropReadCallback.MaximalCommitSender;
 import org.apache.cassandra.service.accord.txn.AccordUpdate;
@@ -211,7 +210,7 @@ public class AccordInteropExecution implements ReadCoordinator, MaximalCommitSen
     @Override
     public EndpointsForToken forNonLocalStrategyTokenRead(ClusterMetadata doNotUse, KeyspaceMetadata keyspace, TableId tableId, Token token)
     {
-        AccordRoutingKey.TokenKey key = new AccordRoutingKey.TokenKey(tableId, token);
+        TokenKey key = new TokenKey(tableId, token);
         Shard shard = executeTopology.forKey(key);
         Range<Token> range = ((TokenRange) shard.range).toKeyspaceRange();
 

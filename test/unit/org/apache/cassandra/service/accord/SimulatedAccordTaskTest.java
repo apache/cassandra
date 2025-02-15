@@ -49,7 +49,7 @@ import org.apache.cassandra.dht.Murmur3Partitioner.LongToken;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.accord.SimulatedAccordCommandStore.FunctionWrapper;
-import org.apache.cassandra.service.accord.api.AccordRoutingKey.TokenKey;
+import org.apache.cassandra.service.accord.api.TokenKey;
 import org.apache.cassandra.utils.Pair;
 import org.assertj.core.api.Assertions;
 
@@ -67,7 +67,7 @@ public class SimulatedAccordTaskTest extends SimulatedAccordCommandStoreTestBase
     @Test
     public void happyPath()
     {
-        qt().withExamples(100).check(rs -> test(rs, 100, intTbl, ignore -> Action.SUCCESS, ignore -> 0L));
+        qt().withExamples(100).check(rs -> test(rs, 100, reverseTokenTbl, ignore -> Action.SUCCESS, ignore -> 0L));
     }
 
     @Test
@@ -75,7 +75,7 @@ public class SimulatedAccordTaskTest extends SimulatedAccordCommandStoreTestBase
     {
         Gen<Action> actionGen = Gens.enums().allWithWeights(Action.class, 10, 1, 1);
         Gen.LongGen delaysNanos = Gens.longs().between(0, TimeUnit.MILLISECONDS.toNanos(10));
-        qt().withExamples(100).check(rs -> test(rs, 100, intTbl, actionGen, delaysNanos));
+        qt().withExamples(100).check(rs -> test(rs, 100, reverseTokenTbl, actionGen, delaysNanos));
     }
 
     enum Operation { Task, PreAccept }
@@ -93,9 +93,9 @@ public class SimulatedAccordTaskTest extends SimulatedAccordCommandStoreTestBase
         Gen<RoutingKeys> keysGen = Gens.lists(keyGen).unique().ofSizeBetween(1, 10).map(l -> RoutingKeys.of(l));
         Gen<Ranges> rangesGen = Gens.lists(rangeInsideRange(tbl.id, minToken, maxToken)).uniqueBestEffort().ofSizeBetween(1, 10).map(l -> Ranges.of(l.toArray(Range[]::new)));
         Gen<Unseekables<?>> unseekablesGen = Gens.oneOf(keysGen, rangesGen);
-        Gen<Pair<Txn, FullRoute<?>>> txnGen = randomTxn(mixedDomainGen.next(rs), mixedTokenGen.next(rs));
+        Gen<Pair<Txn, FullRoute<?>>> txnGen = randomTxn(tbl, mixedDomainGen.next(rs), mixedTokenGen.next(rs));
 
-        try (var instance = new SimulatedAccordCommandStore(rs, new SimulatedLoadFunctionWrapper(actionGen.asSupplier(rs), delaysNanos.asLongSupplier(rs))))
+        try (var instance = new SimulatedAccordCommandStore(tbl.id, rs, new SimulatedLoadFunctionWrapper(actionGen.asSupplier(rs), delaysNanos.asLongSupplier(rs))))
         {
             instance.ignoreExceptions = t -> t instanceof SimulatedFault;
             Counter counter = new Counter();

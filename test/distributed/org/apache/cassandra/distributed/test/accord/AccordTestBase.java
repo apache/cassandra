@@ -95,7 +95,7 @@ import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.accord.AccordService;
-import org.apache.cassandra.service.accord.api.AccordRoutingKey;
+import org.apache.cassandra.service.accord.api.TokenKey;
 import org.apache.cassandra.service.accord.exceptions.ReadPreemptedException;
 import org.apache.cassandra.service.accord.exceptions.WritePreemptedException;
 import org.apache.cassandra.service.consensus.TransactionalMode;
@@ -671,7 +671,7 @@ public abstract class AccordTestBase extends TestBaseImpl
                     if (route.domain() == Domain.Key)
                         for (RoutingKey key : (KeyRoute)route)
                         {
-                            AccordRoutingKey routingKey = (AccordRoutingKey)key;
+                            TokenKey routingKey = (TokenKey)key;
                             ColumnFamilyStore cfs = ColumnFamilyStore.getIfExists(routingKey.table());
                             if (cfs.getKeyspaceName().equals(KEYSPACE))
                                 return true;

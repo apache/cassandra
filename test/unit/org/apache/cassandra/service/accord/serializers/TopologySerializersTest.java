@@ -21,11 +21,17 @@ package org.apache.cassandra.service.accord.serializers;
 import org.junit.Test;
 
 import accord.local.Node;
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.utils.SerializerTestUtils;
 
 
 public class TopologySerializersTest
 {
+    static
+    {
+        DatabaseDescriptor.toolInitialization();
+    }
+
     @Test
     public void nodeId()
     {

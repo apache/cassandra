@@ -43,6 +43,7 @@ import accord.utils.Invariants;
 import accord.utils.SortedArrays.SortedArrayList;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.Keyspace;
+import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.locator.InetAddressAndPort;
@@ -53,8 +54,7 @@ import org.apache.cassandra.schema.Keyspaces;
 import org.apache.cassandra.schema.ReplicationParams;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.schema.TableMetadata;
-import org.apache.cassandra.service.accord.api.AccordRoutingKey.SentinelKey;
-import org.apache.cassandra.service.accord.api.AccordRoutingKey.TokenKey;
+import org.apache.cassandra.service.accord.api.TokenKey;
 import org.apache.cassandra.service.accord.fastpath.FastPathStrategy;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.ClusterMetadataService;
@@ -221,24 +221,24 @@ public class AccordTopology
 
     static TokenRange minRange(TableId table, Token token)
     {
-        return TokenRange.create(SentinelKey.min(table), new TokenKey(table, token));
+        return TokenRange.create(TokenKey.min(table, token.getPartitioner()), new TokenKey(table, token));
     }
 
     static TokenRange maxRange(TableId table, Token token)
     {
-        return TokenRange.create(new TokenKey(table, token), SentinelKey.max(table));
+        return TokenRange.create(new TokenKey(table, token), TokenKey.max(table, token.getPartitioner()));
     }
 
-    static TokenRange fullRange(TableId table)
+    static TokenRange fullRange(TableId table, IPartitioner partitioner)
     {
-        return TokenRange.create(SentinelKey.min(table), SentinelKey.max(table));
+        return TokenRange.create(TokenKey.min(table, partitioner), TokenKey.max(table, partitioner));
     }
 
     static TokenRange range(TableId table, Range<Token> range)
     {
         Token minToken = range.left.minValue();
-        return TokenRange.create(range.left.equals(minToken) ? SentinelKey.min(table) : new TokenKey(table, range.left),
-                                 range.right.equals(minToken) ? SentinelKey.max(table) : new TokenKey(table, range.right));
+        return TokenRange.create(range.left.equals(minToken) ? TokenKey.min(table, minToken.getPartitioner()) : new TokenKey(table, range.left),
+                                 range.right.equals(minToken) ? TokenKey.max(table, minToken.getPartitioner()) : new TokenKey(table, range.right));
     }
 
     public static accord.primitives.Ranges toAccordRanges(TableId tableId, Collection<Range<Token>> ranges)

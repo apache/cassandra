@@ -27,26 +27,26 @@ import accord.primitives.Range;
 import accord.utils.Invariants;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.dht.IPartitioner;
+import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.schema.TableId;
-import org.apache.cassandra.service.accord.api.AccordRoutingKey;
-import org.apache.cassandra.service.accord.api.AccordRoutingKey.SentinelKey;
+import org.apache.cassandra.service.accord.api.TokenKey;
 import org.apache.cassandra.utils.ObjectSizes;
 
 public class TokenRange extends Range.EndInclusive
 {
-    public static final long EMPTY_SIZE = ObjectSizes.measure(new TokenRange(SentinelKey.min(TableId.fromLong(0)), SentinelKey.max(TableId.fromLong(0))));
+    public static final long EMPTY_SIZE = ObjectSizes.measure(new TokenRange(TokenKey.min(TableId.fromLong(0), Murmur3Partitioner.instance), TokenKey.max(TableId.fromLong(0), Murmur3Partitioner.instance)));
 
     // Don't make this public use create or createUnsafe
-    private TokenRange(AccordRoutingKey start, AccordRoutingKey end)
+    private TokenRange(TokenKey start, TokenKey end)
     {
         super(start, end);
     }
 
-    public static TokenRange create(AccordRoutingKey start, AccordRoutingKey end)
+    public static TokenRange create(TokenKey start, TokenKey end)
     {
         Invariants.requireArgument(start.table().equals(end.table()),
                                  "Token ranges cannot cover more than one keyspace start:%s, end:%s",
@@ -54,7 +54,7 @@ public class TokenRange extends Range.EndInclusive
         return new TokenRange(start, end);
     }
 
-    public static TokenRange createUnsafe(AccordRoutingKey start, AccordRoutingKey end)
+    public static TokenRange createUnsafe(TokenKey start, TokenKey end)
     {
         return new TokenRange(start, end);
     }
@@ -65,15 +65,15 @@ public class TokenRange extends Range.EndInclusive
     }
 
     @Override
-    public AccordRoutingKey start()
+    public TokenKey start()
     {
-        return (AccordRoutingKey) super.start();
+        return (TokenKey) super.start();
     }
 
     @Override
-    public AccordRoutingKey end()
+    public TokenKey end()
     {
-        return  (AccordRoutingKey) super.end();
+        return  (TokenKey) super.end();
     }
 
     public long estimatedSizeOnHeap()
@@ -83,7 +83,7 @@ public class TokenRange extends Range.EndInclusive
 
     public boolean isFullRange()
     {
-        return start().kindOfRoutingKey() == AccordRoutingKey.RoutingKeyKind.SENTINEL && end().kindOfRoutingKey() == AccordRoutingKey.RoutingKeyKind.SENTINEL;
+        return start().isMin() && end().isMax();
     }
 
     @VisibleForTesting
@@ -92,15 +92,15 @@ public class TokenRange extends Range.EndInclusive
         return new TokenRange(start().withTable(table), end().withTable(table));
     }
 
-    public static TokenRange fullRange(TableId table)
+    public static TokenRange fullRange(TableId table, IPartitioner partitioner)
     {
-        return new TokenRange(SentinelKey.min(table), SentinelKey.max(table));
+        return new TokenRange(TokenKey.min(table, partitioner), TokenKey.max(table, partitioner));
     }
 
     @Override
     public TokenRange newRange(RoutingKey start, RoutingKey end)
     {
-        return new TokenRange((AccordRoutingKey) start, (AccordRoutingKey) end);
+        return new TokenRange((TokenKey) start, (TokenKey) end);
     }
 
     /*
@@ -111,10 +111,10 @@ public class TokenRange extends Range.EndInclusive
     public org.apache.cassandra.dht.Range<Token> toKeyspaceRange()
     {
         IPartitioner partitioner = DatabaseDescriptor.getPartitioner();
-        AccordRoutingKey start = start();
-        AccordRoutingKey end = end();
-        Token left = start instanceof SentinelKey ? partitioner.getMinimumToken() : start.token();
-        Token right = end instanceof SentinelKey ? partitioner.getMinimumToken() : end.token();
+        TokenKey start = start();
+        TokenKey end = end();
+        Token left = start.isMin() ? partitioner.getMinimumToken() : start.token();
+        Token right = end.isMax() ? partitioner.getMinimumToken() : end.token();
         return new org.apache.cassandra.dht.Range<>(left, right);
     }
 
@@ -125,28 +125,28 @@ public class TokenRange extends Range.EndInclusive
         @Override
         public void serialize(TokenRange range, DataOutputPlus out, int version) throws IOException
         {
-            AccordRoutingKey.serializer.serialize(range.start(), out, version);
-            AccordRoutingKey.serializer.serialize(range.end(), out, version);
+            TokenKey.serializer.serialize(range.start(), out, version);
+            TokenKey.serializer.serialize(range.end(), out, version);
         }
 
         public void skip(DataInputPlus in, int version) throws IOException
         {
-            AccordRoutingKey.serializer.skip(in, version);
-            AccordRoutingKey.serializer.skip(in, version);
+            TokenKey.serializer.skip(in, version);
+            TokenKey.serializer.skip(in, version);
         }
 
         @Override
         public TokenRange deserialize(DataInputPlus in, int version) throws IOException
         {
-            return TokenRange.create(AccordRoutingKey.serializer.deserialize(in, version),
-                                     AccordRoutingKey.serializer.deserialize(in, version));
+            return TokenRange.create(TokenKey.serializer.deserialize(in, version),
+                                     TokenKey.serializer.deserialize(in, version));
         }
 
         @Override
         public long serializedSize(TokenRange range, int version)
         {
-            return AccordRoutingKey.serializer.serializedSize(range.start(), version)
-                 + AccordRoutingKey.serializer.serializedSize(range.end(), version);
+            return TokenKey.serializer.serializedSize(range.start(), version)
+                   + TokenKey.serializer.serializedSize(range.end(), version);
         }
     };
 }

@@ -17,6 +17,7 @@
  */
 package org.apache.cassandra.dht;
 
+import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.List;
 import java.util.Map;
@@ -27,6 +28,9 @@ import java.util.function.Function;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.marshal.AbstractType;
+import org.apache.cassandra.db.marshal.ValueAccessor;
+import org.apache.cassandra.io.util.DataInputPlus;
+import org.apache.cassandra.io.util.DataOutputPlus;
 
 import javax.annotation.Nullable;
 
@@ -166,4 +170,13 @@ public interface IPartitioner
     {
         return Integer.MIN_VALUE;
     }
+
+    default boolean accordSupported() { return false; }
+    default void accordSerialize(Token token, DataOutputPlus out) throws IOException { throw new UnsupportedOperationException(); }
+    default void accordSerialize(Token token, ByteBuffer out) { throw new UnsupportedOperationException(); }
+    default Token accordDeserialize(DataInputPlus in, int length) throws IOException { throw new UnsupportedOperationException(); }
+    default Token accordDeserialize(ByteBuffer in, int length) { throw new UnsupportedOperationException(); }
+    default <V> Token accordDeserialize(V src, ValueAccessor<V> accessor, int offset, int length) { throw new UnsupportedOperationException(); }
+    default int accordSerializedSize(Token token) { throw new UnsupportedOperationException(); }
+    default int accordFixedLength() { throw new UnsupportedOperationException(); }
 }

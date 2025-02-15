@@ -32,7 +32,7 @@ import org.apache.cassandra.db.marshal.Int32Type;
 import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.dht.Murmur3Partitioner.LongToken;
 import org.apache.cassandra.schema.TableMetadata;
-import org.apache.cassandra.service.accord.api.AccordRoutingKey.TokenKey;
+import org.apache.cassandra.service.accord.api.TokenKey;
 import org.apache.cassandra.service.accord.api.PartitionKey;
 import org.apache.cassandra.utils.Generators;
 import org.junit.Test;
@@ -63,7 +63,7 @@ public class SimulatedDepsTest extends SimulatedAccordCommandStoreTestBase
             Keys keys = Keys.of(pk);
             FullKeyRoute route = keys.toRoute(pk.toUnseekable());
             Txn txn = createTxn(wrapInTxn("INSERT INTO " + tbl + "(pk, value) VALUES (?, ?)"), Arrays.asList(key, 42));
-            try (var instance = new SimulatedAccordCommandStore(rs))
+            try (var instance = new SimulatedAccordCommandStore(tbl.id, rs))
             {
                 List<TxnId> conflicts = new ArrayList<>(numSamples);
                 for (int i = 0; i < numSamples; i++)
@@ -96,7 +96,7 @@ public class SimulatedDepsTest extends SimulatedAccordCommandStoreTestBase
             Keys keysTokenConflict = Keys.of(pkTokenConflict);
             FullKeyRoute routeTokenConflict = keysTokenConflict.toRoute(pkTokenConflict.toUnseekable());
             Txn txnTokenConflict = createTxn(wrapInTxn("INSERT INTO " + tbl + "(pk, value) VALUES (?, ?)"), Arrays.asList(tokenConflictKey, 42));
-            try (var instance = new SimulatedAccordCommandStore(rs))
+            try (var instance = new SimulatedAccordCommandStore(tbl.id, rs))
             {
                 List<TxnId> conflicts = new ArrayList<>(numSamples);
                 for (int i = 0; i < numSamples; i++)
@@ -118,10 +118,10 @@ public class SimulatedDepsTest extends SimulatedAccordCommandStoreTestBase
 
         qt().withExamples(10).check(rs -> {
             AccordKeyspace.unsafeClear();
-            try (var instance = new SimulatedAccordCommandStore(rs))
+            try (var instance = new SimulatedAccordCommandStore(tbl.id, rs))
             {
                 long token = rs.nextLong(Long.MIN_VALUE  + 1, Long.MAX_VALUE);
-                Ranges partialRange = Ranges.of(tokenRange(tbl.id, token - 1, token));
+                Ranges partialRange = Ranges.of(tokenRange(tbl.id, tbl.partitioner, token - 1, token));
 
                 long outOfRangeToken = token - 10;
                 if (outOfRangeToken == Long.MIN_VALUE) // if this wraps around that is fine, just can't be min
@@ -166,12 +166,12 @@ public class SimulatedDepsTest extends SimulatedAccordCommandStoreTestBase
     public void simpleRangeConflicts()
     {
         var tbl = reverseTokenTbl;
-        Ranges wholeRange = Ranges.of(fullRange(tbl.id));
+        Ranges wholeRange = Ranges.of(fullRange(tbl.id, tbl.partitioner));
         int numSamples = 100;
 
         qt().withExamples(10).check(rs -> {
             AccordKeyspace.unsafeClear();
-            try (var instance = new SimulatedAccordCommandStore(rs))
+            try (var instance = new SimulatedAccordCommandStore(tbl.id, rs))
             {
                 long token = rs.nextLong(Long.MIN_VALUE  + 1, Long.MAX_VALUE);
                 ByteBuffer key = LongToken.keyForToken(token);
@@ -180,7 +180,7 @@ public class SimulatedDepsTest extends SimulatedAccordCommandStoreTestBase
                 FullKeyRoute keyRoute = keys.toRoute(pk.toUnseekable());
                 Txn keyTxn = createTxn(wrapInTxn("INSERT INTO " + tbl + "(pk, value) VALUES (?, ?)"), Arrays.asList(key, 42));
 
-                Ranges partialRange = Ranges.of(tokenRange(tbl.id, token - 1, token));
+                Ranges partialRange = Ranges.of(tokenRange(tbl.id, tbl.partitioner, token - 1, token));
                 boolean useWholeRange = rs.nextBoolean();
                 Ranges ranges = useWholeRange ? wholeRange : partialRange;
                 FullRangeRoute rangeRoute = ranges.toRoute(pk.toUnseekable());
@@ -205,7 +205,7 @@ public class SimulatedDepsTest extends SimulatedAccordCommandStoreTestBase
 
         qt().withExamples(10).check(rs -> {
             AccordKeyspace.unsafeClear();
-            try (var instance = new SimulatedAccordCommandStore(rs))
+            try (var instance = new SimulatedAccordCommandStore(tbl.id, rs))
             {
                 long token = rs.nextLong(Long.MIN_VALUE + numSamples + 1, Long.MAX_VALUE - numSamples);
                 ByteBuffer key = LongToken.keyForToken(token);
@@ -218,7 +218,7 @@ public class SimulatedDepsTest extends SimulatedAccordCommandStoreTestBase
                 Map<Range, List<TxnId>> rangeConflicts = new HashMap<>();
                 for (int i = 0; i < numSamples; i++)
                 {
-                    Ranges partialRange = Ranges.of(tokenRange(tbl.id, token - i - 1, token + i));
+                    Ranges partialRange = Ranges.of(tokenRange(tbl.id, tbl.partitioner, token - i - 1, token + i));
                     FullRangeRoute rangeRoute = partialRange.toRoute(pk.toUnseekable());
                     Txn rangeTxn = createTxn(Txn.Kind.ExclusiveSyncPoint, partialRange);
                     try
@@ -246,7 +246,7 @@ public class SimulatedDepsTest extends SimulatedAccordCommandStoreTestBase
 
         qt().withExamples(10).check(rs -> {
             AccordKeyspace.unsafeClear();
-            try (var instance = new SimulatedAccordCommandStore(rs))
+            try (var instance = new SimulatedAccordCommandStore(tbl.id, rs))
             {
                 long token = rs.nextLong(Long.MIN_VALUE + numSamples + 1, Long.MAX_VALUE - numSamples);
                 ByteBuffer key = LongToken.keyForToken(token);
@@ -255,8 +255,8 @@ public class SimulatedDepsTest extends SimulatedAccordCommandStoreTestBase
                 FullKeyRoute keyRoute = keys.toRoute(pk.toUnseekable());
                 Txn keyTxn = createTxn(wrapInTxn("INSERT INTO " + tbl + "(pk, value) VALUES (?, ?)"), Arrays.asList(key, 42));
 
-                Range left = tokenRange(tbl.id, token - 10, token + 5);
-                Range right = tokenRange(tbl.id, token - 5, token + 10);
+                Range left = tokenRange(tbl.id, tbl.partitioner, token - 10, token + 5);
+                Range right = tokenRange(tbl.id, tbl.partitioner, token - 5, token + 10);
 
                 DepsModel model = new DepsModel(instance.commandStore.unsafeGetRangesForEpoch().currentRanges());
                 for (int i = 0; i < numSamples; i++)

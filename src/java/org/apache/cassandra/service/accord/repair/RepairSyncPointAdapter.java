@@ -25,6 +25,7 @@ import com.google.common.collect.ImmutableSet;
 
 import accord.api.Result;
 import accord.coordinate.CoordinationAdapter;
+import accord.coordinate.ExecuteFlag;
 import accord.coordinate.ExecutePath;
 import accord.coordinate.ExecuteSyncPoint;
 import accord.local.Node;
@@ -58,7 +59,7 @@ public class RepairSyncPointAdapter<U extends Unseekable> extends CoordinationAd
     }
 
     @Override
-    public void execute(Node node, Topologies all, FullRoute<?> route, ExecutePath path, TxnId txnId, Txn txn, Timestamp executeAt, Deps stableDeps, Deps sendDeps, BiConsumer<? super SyncPoint<U>, Throwable> callback)
+    public void execute(Node node, Topologies all, FullRoute<?> route, ExecutePath path, ExecuteFlag.ExecuteFlags executeFlags, TxnId txnId, Txn txn, Timestamp executeAt, Deps stableDeps, Deps sendDeps, BiConsumer<? super SyncPoint<U>, Throwable> callback)
     {
         RequiredResponseTracker tracker = new RequiredResponseTracker(requiredResponses, all);
         ExecuteSyncPoint.ExecuteInclusive<U> execute = new ExecuteSyncPoint.ExecuteInclusive<>(node, new SyncPoint<>(txnId, executeAt, stableDeps, (FullRoute<U>) route), tracker, executeAt);

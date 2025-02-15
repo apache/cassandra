@@ -60,10 +60,7 @@ import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.service.accord.AccordObjectSizes;
 import org.apache.cassandra.service.accord.TokenRange;
-import org.apache.cassandra.service.accord.api.AccordRoutingKey;
-import org.apache.cassandra.service.accord.api.AccordRoutingKey.MinTokenKey;
-import org.apache.cassandra.service.accord.api.AccordRoutingKey.SentinelKey;
-import org.apache.cassandra.service.accord.api.AccordRoutingKey.TokenKey;
+import org.apache.cassandra.service.accord.api.TokenKey;
 import org.apache.cassandra.service.accord.api.PartitionKey;
 import org.apache.cassandra.service.accord.serializers.KeySerializers;
 import org.apache.cassandra.service.accord.txn.TxnData.TxnDataNameKind;
@@ -109,25 +106,25 @@ public class TxnNamedRead extends AbstractSerialized<ReadCommand>
         boolean startIsMinKeyBound = startPP.getClass() == KeyBound.class ? ((KeyBound)startPP).isMinimumBound : false;
         Token startToken = startPP.getToken();
         Token stopToken = range.right.getToken();
-        AccordRoutingKey startAccordRoutingKey;
+        TokenKey startTokenKey;
         if (startToken.isMinimum() && inclusiveLeft)
-            startAccordRoutingKey = SentinelKey.min(tableId);
+            startTokenKey = TokenKey.min(tableId, startToken.getPartitioner());
         else if (inclusiveLeft || startIsMinKeyBound || startToken.equals(stopToken))
-            startAccordRoutingKey = new MinTokenKey(tableId, startToken);
+            startTokenKey = TokenKey.before(tableId, startToken);
         else
-            startAccordRoutingKey = new TokenKey(tableId, startToken);
+            startTokenKey = new TokenKey(tableId, startToken);
 
         boolean inclusiveRight = range.inclusiveRight();
         PartitionPosition endPP = range.right;
         boolean endIsMinKeyBound = endPP.getClass() == KeyBound.class ? ((KeyBound)endPP).isMinimumBound : false;
-        AccordRoutingKey stopAccordRoutingKey;
+        TokenKey stopTokenKey;
         if (stopToken.isMinimum())
-            stopAccordRoutingKey = SentinelKey.max(tableId);
+            stopTokenKey = TokenKey.max(tableId, startToken.getPartitioner());
         else if (inclusiveRight && !endIsMinKeyBound)
-            stopAccordRoutingKey = new TokenKey(tableId, stopToken);
+            stopTokenKey = new TokenKey(tableId, stopToken);
         else
-            stopAccordRoutingKey = new MinTokenKey(tableId, stopToken);
-        return TokenRange.create(startAccordRoutingKey, stopAccordRoutingKey);
+            stopTokenKey = TokenKey.before(tableId, stopToken);
+        return TokenRange.create(startTokenKey, stopTokenKey);
     }
 
     public TxnNamedRead(int name, AbstractBounds<PartitionPosition> range, PartitionRangeReadCommand value)
@@ -326,10 +323,10 @@ public class TxnNamedRead extends AbstractSerialized<ReadCommand>
         AbstractBounds<PartitionPosition> bounds = command.dataRange().keyRange();
         PartitionPosition startPP = bounds.left;
         PartitionPosition endPP = bounds.right;
-        AccordRoutingKey startRoutingKey = ((AccordRoutingKey)r.start());
-        AccordRoutingKey endRoutingKey = ((AccordRoutingKey)r.end());
-        Token subRangeStartToken = startRoutingKey.getClass() == SentinelKey.class ? startPP.getToken() : ((AccordRoutingKey)r.start()).asTokenKey().token();
-        Token subRangeEndToken = endRoutingKey.getClass() == SentinelKey.class ? endPP.getToken() : ((AccordRoutingKey)r.end()).asTokenKey().token();
+        TokenKey startRoutingKey = ((TokenKey)r.start());
+        TokenKey endRoutingKey = ((TokenKey)r.end());
+        Token subRangeStartToken = startRoutingKey.isMin() ? startPP.getToken() : startRoutingKey.token();
+        Token subRangeEndToken = endRoutingKey.isMax() ? endPP.getToken() : endRoutingKey.token();
 
         /*
          * The way ranges/bounds work for range queries is that the beginning and ending bounds from the command

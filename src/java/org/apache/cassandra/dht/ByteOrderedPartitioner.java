@@ -17,6 +17,7 @@
  */
 package org.apache.cassandra.dht;
 
+import java.io.IOException;
 import java.math.BigInteger;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
@@ -35,10 +36,14 @@ import org.apache.cassandra.db.BufferDecoratedKey;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.BytesType;
+import org.apache.cassandra.db.marshal.ValueAccessor;
 import org.apache.cassandra.exceptions.ConfigurationException;
+import org.apache.cassandra.io.util.DataInputPlus;
+import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.service.accord.api.TokenKey.Serializer;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Hex;
@@ -133,6 +138,12 @@ public class ByteOrderedPartitioner implements IPartitioner
         public int tokenHash()
         {
             return hashCode();
+        }
+
+        @Override
+        public TokenFactory tokenFactory()
+        {
+            return tokenFactory;
         }
 
         @Override
@@ -285,7 +296,7 @@ public class ByteOrderedPartitioner implements IPartitioner
         return new BytesToken(buffer);
     }
 
-    private final Token.TokenFactory tokenFactory = new Token.TokenFactory()
+    private static final Token.TokenFactory tokenFactory = new Token.TokenFactory()
     {
         public Token fromComparableBytes(ByteSource.Peekable comparableBytes, ByteComparable.Version version)
         {
@@ -340,6 +351,58 @@ public class ByteOrderedPartitioner implements IPartitioner
     public Token.TokenFactory getTokenFactory()
     {
         return tokenFactory;
+    }
+
+    @Override
+    public boolean accordSupported()
+    {
+        return true;
+    }
+
+    @Override
+    public final void accordSerialize(Token token, DataOutputPlus out) throws IOException
+    {
+        Serializer.serializeWithEscapes(((BytesToken)token).token, out);
+    }
+
+    @Override
+    public final void accordSerialize(Token token, ByteBuffer out)
+    {
+        Serializer.serializeWithEscapes(((BytesToken)token).token, out);
+    }
+
+    @Override
+    public final Token accordDeserialize(DataInputPlus in, int length) throws IOException
+    {
+        byte[] bytes = Serializer.deserializeWithEscapes(in, length);
+        return new BytesToken(bytes);
+    }
+
+    @Override
+    public final Token accordDeserialize(ByteBuffer in, int length)
+    {
+        byte[] bytes = Serializer.deserializeWithEscapes(in, length);
+        return new BytesToken(bytes);
+    }
+
+    @Override
+    public final <V> Token accordDeserialize(V src, ValueAccessor<V> accessor, int offset, int length)
+    {
+        byte[] bytes = Serializer.deserializeWithEscapes(src, accessor, offset, length);
+        return new BytesToken(bytes);
+    }
+
+    @Override
+    public final int accordSerializedSize(Token token)
+    {
+        byte[] bytes = ((BytesToken)token).token;
+        return Serializer.serializedSize(bytes);
+    }
+
+    @Override
+    public final int accordFixedLength()
+    {
+        return -1;
     }
 
     public boolean preservesOrder()

@@ -20,6 +20,7 @@ package org.apache.cassandra.service.accord.serializers;
 
 import java.io.IOException;
 
+import accord.coordinate.ExecuteFlag.ExecuteFlags;
 import accord.local.Commands.AcceptOutcome;
 import accord.messages.Accept;
 import accord.messages.Accept.AcceptReply;
@@ -112,10 +113,12 @@ public class AcceptSerializers
     public static final IVersionedSerializer<AcceptReply> reply = new ReplySerializer();
     public static class ReplySerializer implements IVersionedSerializer<AcceptReply>
     {
+        // we have one spare bit at 0x04 for either another flag or more AcceptOutcome variants
         private static final int SUPERSEDED_BY        = 0x08;
         private static final int COMMITTED_EXECUTE_AT = 0x10;
         private static final int SUCCESSFUL           = 0x20;
         private static final int DEPS                 = 0x40;
+        private static final int FLAGS                = 0x80;
         @Override
         public void serialize(AcceptReply reply, DataOutputPlus out, int version) throws IOException
         {
@@ -123,7 +126,8 @@ public class AcceptSerializers
                       | (reply.supersededBy != null       ? SUPERSEDED_BY        : 0)
                       | (reply.committedExecuteAt != null ? COMMITTED_EXECUTE_AT : 0)
                       | (reply.successful != null         ? SUCCESSFUL           : 0)
-                      | (reply.deps != null               ? DEPS                 : 0);
+                      | (reply.deps != null               ? DEPS                 : 0)
+                      | (!reply.flags.isEmpty()           ? FLAGS                : 0);
 
             out.writeByte(flags);
             if (reply.supersededBy != null)
@@ -134,6 +138,8 @@ public class AcceptSerializers
                 KeySerializers.participants.serialize(reply.successful, out, version);
             if (reply.deps != null)
                 DepsSerializers.deps.serialize(reply.deps, out, version);
+            if (!reply.flags.isEmpty())
+                out.writeUnsignedVInt32(reply.flags.bits());
         }
 
         private final AcceptOutcome[] outcomes = AcceptOutcome.values();
@@ -146,7 +152,8 @@ public class AcceptSerializers
             Timestamp committedExecuteAt = (flags & COMMITTED_EXECUTE_AT) == 0 ? null : ExecuteAtSerializer.deserialize(in);
             Participants<?> successful = (flags & SUCCESSFUL) == 0 ? null : KeySerializers.participants.deserialize(in, version);
             Deps deps = (flags & DEPS) == 0 ? null : DepsSerializers.deps.deserialize(in, version);
-            return new AcceptReply(outcome, supersededBy, successful, deps, committedExecuteAt);
+            ExecuteFlags executeFlags = (flags & FLAGS) == 0 ? ExecuteFlags.none() : ExecuteFlags.get(in.readUnsignedVInt32());
+            return new AcceptReply(outcome, supersededBy, successful, deps, committedExecuteAt, executeFlags);
         }
 
         @Override
@@ -161,6 +168,8 @@ public class AcceptSerializers
                 size += KeySerializers.participants.serializedSize(reply.successful, version);
             if (reply.deps != null)
                 size += DepsSerializers.deps.serializedSize(reply.deps, version);
+            if (!reply.flags.isEmpty())
+                size += TypeSizes.sizeofUnsignedVInt(reply.flags.bits());
             return size;
         }
     };

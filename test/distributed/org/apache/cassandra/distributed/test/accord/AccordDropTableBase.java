@@ -45,6 +45,8 @@ import org.apache.cassandra.service.accord.AccordService;
 import org.apache.cassandra.service.accord.TokenRange;
 import org.assertj.core.api.Assertions;
 
+import static org.apache.cassandra.config.DatabaseDescriptor.getPartitioner;
+
 public class AccordDropTableBase extends TestBaseImpl
 {
     protected static void addChaos(Cluster cluster, int example)
@@ -128,7 +130,7 @@ public class AccordDropTableBase extends TestBaseImpl
             inst.runOnInstance(() -> {
                 TableId tableId = TableId.fromUUID(UUID.fromString(s));
                 AccordService accord = (AccordService) AccordService.instance();
-                PreLoadContext ctx = PreLoadContext.contextFor(Ranges.single(TokenRange.fullRange(tableId)), KeyHistory.SYNC);
+                PreLoadContext ctx = PreLoadContext.contextFor(Ranges.single(TokenRange.fullRange(tableId, getPartitioner())), KeyHistory.SYNC);
                 CommandStores stores = accord.node().commandStores();
                 for (int storeId : stores.ids())
                 {

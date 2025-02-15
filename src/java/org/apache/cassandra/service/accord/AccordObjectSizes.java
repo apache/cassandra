@@ -60,9 +60,9 @@ import accord.primitives.TxnId;
 import accord.primitives.Unseekables;
 import accord.primitives.Writes;
 import accord.utils.ImmutableBitSet;
+import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.schema.TableId;
-import org.apache.cassandra.service.accord.api.AccordRoutingKey;
-import org.apache.cassandra.service.accord.api.AccordRoutingKey.TokenKey;
+import org.apache.cassandra.service.accord.api.TokenKey;
 import org.apache.cassandra.service.accord.api.PartitionKey;
 import org.apache.cassandra.service.accord.serializers.ResultSerializers;
 import org.apache.cassandra.service.accord.txn.AccordUpdate;
@@ -86,11 +86,11 @@ public class AccordObjectSizes
 
     public static long key(RoutingKey key)
     {
-        return ((AccordRoutingKey) key).estimatedSizeOnHeap();
+        return ((TokenKey) key).estimatedSizeOnHeap();
     }
 
     private static final TableId EMPTY_ID = TableId.fromUUID(new UUID(0, 0));
-    private static final long EMPTY_RANGE_SIZE = measure(TokenRange.fullRange(EMPTY_ID));
+    private static final long EMPTY_RANGE_SIZE = measure(TokenRange.fullRange(EMPTY_ID, Murmur3Partitioner.instance));
     public static long range(Range range)
     {
         return EMPTY_RANGE_SIZE + key(range.start()) + key(range.end());

@@ -20,12 +20,14 @@ package org.apache.cassandra.service.accord.serializers;
 
 import java.io.IOException;
 
-import accord.impl.CommandChange;
+import accord.impl.CommandChange.WaitingOnProvider;
 import accord.local.Command;
 import accord.local.Command.WaitingOn;
 import accord.primitives.KeyDeps;
+import accord.primitives.PartialDeps;
 import accord.primitives.RangeDeps;
 import accord.primitives.RoutingKeys;
+import accord.primitives.Timestamp;
 import accord.primitives.TxnId;
 import accord.utils.ImmutableBitSet;
 import accord.utils.Invariants;
@@ -56,24 +58,22 @@ public class WaitingOnSerializer
         }
     }
 
-    public static CommandChange.WaitingOnProvider deserializeProvider(TxnId txnId, DataInputPlus in) throws IOException
+    public static final class Provider implements WaitingOnProvider
     {
-        ImmutableBitSet waitingOn, appliedOrInvalidated;
+        final ImmutableBitSet waitingOn, appliedOrInvalidated;
+        final int waitingOnLength, appliedOrInvalidatedLength;
+
+        public Provider(ImmutableBitSet waitingOn, ImmutableBitSet appliedOrInvalidated, int waitingOnLength, int appliedOrInvalidatedLength)
         {
-            int waitingOnLength = in.readUnsignedVInt32();
-            waitingOn = deserialize(waitingOnLength, in);
-            if (txnId.is(Range))
-            {
-                int appliedOrInvalidatedLength = waitingOnLength - in.readUnsignedVInt32();
-                appliedOrInvalidated = deserialize(appliedOrInvalidatedLength, in);
-            }
-            else
-            {
-                appliedOrInvalidated = null;
-            }
+            this.waitingOn = waitingOn;
+            this.appliedOrInvalidated = appliedOrInvalidated;
+            this.waitingOnLength = waitingOnLength;
+            this.appliedOrInvalidatedLength = appliedOrInvalidatedLength;
         }
 
-        return (id, deps, executeAtLeast, uniqueHlc) -> {
+        @Override
+        public WaitingOn provide(TxnId txnId, PartialDeps deps, Timestamp executeAtLeast, long uniqueHlc)
+        {
             RoutingKeys keys = deps.keyDeps.keys();
             RangeDeps directRangeDeps = deps.rangeDeps;
             KeyDeps directKeyDeps = deps.directKeyDeps;
@@ -85,7 +85,33 @@ public class WaitingOnSerializer
             if (executeAtLeast != null) return new Command.WaitingOnWithExecuteAt(result, executeAtLeast);
             else if (uniqueHlc != 0) return new Command.WaitingOnWithMinUniqueHlc(result, uniqueHlc);
             return result;
-        };
+        }
+
+        public void reserialize(DataOutputPlus out, int version) throws IOException
+        {
+            out.writeUnsignedVInt32(waitingOnLength);
+            serialize(waitingOnLength, waitingOn, out);
+            if (appliedOrInvalidated != null)
+            {
+                out.writeUnsignedVInt32(waitingOnLength - appliedOrInvalidatedLength);
+                serialize(appliedOrInvalidatedLength, appliedOrInvalidated, out);
+            }
+        }
+    }
+
+    public static WaitingOnProvider deserializeProvider(TxnId txnId, DataInputPlus in) throws IOException
+    {
+        ImmutableBitSet waitingOn, appliedOrInvalidated = null;
+        int waitingOnLength, appliedOrInvalidatedLength = 0;
+        waitingOnLength = in.readUnsignedVInt32();
+        waitingOn = deserialize(waitingOnLength, in);
+        if (txnId.is(Range))
+        {
+            appliedOrInvalidatedLength = waitingOnLength - in.readUnsignedVInt32();
+            appliedOrInvalidated = deserialize(appliedOrInvalidatedLength, in);
+        }
+
+        return new Provider(waitingOn, appliedOrInvalidated, waitingOnLength, appliedOrInvalidatedLength);
     }
 
     public static void skip(TxnId txnId, DataInputPlus in) throws IOException

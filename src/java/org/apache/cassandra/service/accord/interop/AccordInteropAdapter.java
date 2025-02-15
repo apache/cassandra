@@ -27,6 +27,7 @@ import accord.api.Result;
 import accord.api.Update;
 import accord.coordinate.CoordinationAdapter;
 import accord.coordinate.CoordinationAdapter.Adapters.TxnAdapter;
+import accord.coordinate.ExecuteFlag.ExecuteFlags;
 import accord.coordinate.ExecutePath;
 import accord.local.Node;
 import accord.messages.Apply;
@@ -83,10 +84,10 @@ public class AccordInteropAdapter extends TxnAdapter
     }
 
     @Override
-    public void execute(Node node, Topologies any, FullRoute<?> route, ExecutePath path, TxnId txnId, Txn txn, Timestamp executeAt, Deps stableDeps, Deps sendDeps, BiConsumer<? super Result, Throwable> callback)
+    public void execute(Node node, Topologies any, FullRoute<?> route, ExecutePath path, ExecuteFlags executeFlags, TxnId txnId, Txn txn, Timestamp executeAt, Deps stableDeps, Deps sendDeps, BiConsumer<? super Result, Throwable> callback)
     {
         if (!doInteropExecute(node, route, txnId, txn, executeAt, stableDeps, callback))
-            super.execute(node, any, route, path, txnId, txn, executeAt, stableDeps, sendDeps, callback);
+            super.execute(node, any, route, path, executeFlags, txnId, txn, executeAt, stableDeps, sendDeps, callback);
     }
 
     @Override

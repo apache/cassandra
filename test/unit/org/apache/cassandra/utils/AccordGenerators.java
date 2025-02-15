@@ -68,8 +68,7 @@ import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.service.accord.AccordTestUtils;
 import org.apache.cassandra.service.accord.TokenRange;
-import org.apache.cassandra.service.accord.api.AccordRoutingKey;
-import org.apache.cassandra.service.accord.api.AccordRoutingKey.MinTokenKey;
+import org.apache.cassandra.service.accord.api.TokenKey;
 import org.apache.cassandra.service.accord.api.PartitionKey;
 import org.apache.cassandra.service.accord.txn.TxnData;
 import org.apache.cassandra.service.accord.txn.TxnWrite;
@@ -91,7 +90,7 @@ public class AccordGenerators
 
     public static Gen<IPartitioner> partitioner()
     {
-        return PARTITIONER_GEN;
+        return PARTITIONER_GEN.filter(IPartitioner::accordSupported);
     }
 
     private enum SupportedCommandTypes
@@ -319,36 +318,31 @@ public class AccordGenerators
         return rs -> new PartitionKey(tableIdGen.next(rs), key.next(rs));
     }
 
-    public static Gen<AccordRoutingKey> routingKeys()
+    public static Gen<TokenKey> routingKeys(IPartitioner partitioner)
     {
         return routingKeyGen(fromQT(CassandraGenerators.TABLE_ID_GEN),
-                    fromQT(CassandraGenerators.token()));
+                             fromQT(CassandraGenerators.token(partitioner)),
+                             partitioner);
     }
 
-    public static Gen<AccordRoutingKey> routingKeys(IPartitioner partitioner)
+    public static Gen<TokenKey> routingKeyGen(Gen<TableId> tableIdGen, Gen<Token> tokenGen, IPartitioner partitioner)
     {
-        return routingKeyGen(fromQT(CassandraGenerators.TABLE_ID_GEN),
-                             fromQT(CassandraGenerators.token(partitioner)));
+        return routingKeyGen(tableIdGen, Gens.enums().all(TokenKey.RoutingKeyKind.class), tokenGen, partitioner);
     }
 
-    public static Gen<AccordRoutingKey> routingKeyGen(Gen<TableId> tableIdGen, Gen<Token> tokenGen)
-    {
-        return routingKeyGen(tableIdGen, Gens.enums().all(AccordRoutingKey.RoutingKeyKind.class), tokenGen);
-    }
-
-    public static Gen<AccordRoutingKey> routingKeyGen(Gen<TableId> tableIdGen, Gen<AccordRoutingKey.RoutingKeyKind> kindGen, Gen<Token> tokenGen)
+    public static Gen<TokenKey> routingKeyGen(Gen<TableId> tableIdGen, Gen<TokenKey.RoutingKeyKind> kindGen, Gen<Token> tokenGen, IPartitioner partitioner)
     {
         return rs -> {
             TableId tableId = tableIdGen.next(rs);
-            AccordRoutingKey.RoutingKeyKind kind = kindGen.next(rs);
+            TokenKey.RoutingKeyKind kind = kindGen.next(rs);
             switch (kind)
             {
                 case TOKEN:
-                    return new AccordRoutingKey.TokenKey(tableId, tokenGen.next(rs));
+                    return new TokenKey(tableId, tokenGen.next(rs));
                 case MIN_TOKEN:
-                    return new MinTokenKey(tableId, tokenGen.next(rs));
+                    return TokenKey.before(tableId, tokenGen.next(rs));
                 case SENTINEL:
-                    return rs.nextBoolean() ? AccordRoutingKey.SentinelKey.min(tableId) : AccordRoutingKey.SentinelKey.max(tableId);
+                    return rs.nextBoolean() ? TokenKey.min(tableId, partitioner) : TokenKey.max(tableId, partitioner);
                 default:
                     throw new AssertionError("Unknown kind: " + kind);
             }
@@ -357,20 +351,20 @@ public class AccordGenerators
 
     public static Gen<Range> range()
     {
-        return PARTITIONER_GEN.flatMap(partitioner -> range(fromQT(CassandraGenerators.TABLE_ID_GEN), fromQT(CassandraGenerators.token(partitioner))));
+        return PARTITIONER_GEN.flatMap(partitioner -> range(fromQT(CassandraGenerators.TABLE_ID_GEN), fromQT(CassandraGenerators.token(partitioner)), partitioner));
     }
 
     public static Gen<Range> range(IPartitioner partitioner)
     {
-        return range(fromQT(CassandraGenerators.TABLE_ID_GEN), fromQT(CassandraGenerators.token(partitioner)));
+        return range(fromQT(CassandraGenerators.TABLE_ID_GEN), fromQT(CassandraGenerators.token(partitioner)), partitioner);
     }
 
-    public static Gen<Range> range(Gen<TableId> tables, Gen<Token> tokenGen)
+    public static Gen<Range> range(Gen<TableId> tables, Gen<Token> tokenGen, IPartitioner partitioner)
     {
         return rs -> {
-            Gen<AccordRoutingKey> gen = routingKeyGen(Gens.constant(tables.next(rs)), tokenGen);
-            AccordRoutingKey a = gen.next(rs);
-            AccordRoutingKey b = gen.next(rs);
+            Gen<TokenKey> gen = routingKeyGen(Gens.constant(tables.next(rs)), tokenGen, partitioner);
+            TokenKey a = gen.next(rs);
+            TokenKey b = gen.next(rs);
             while (a.equals(b))
                 b = gen.next(rs);
             if (a.compareTo(b) < 0) return TokenRange.create(a, b);
@@ -391,7 +385,7 @@ public class AccordGenerators
             IPartitioner partitioner = partitionerGen.next(rs);
             List<Range> ranges = new ArrayList<>();
             int numSplits = rs.nextInt(10, 100);
-            TokenRange range = TokenRange.create(AccordRoutingKey.SentinelKey.min(TABLE_ID1), AccordRoutingKey.SentinelKey.max(TABLE_ID1));
+            TokenRange range = TokenRange.create(TokenKey.min(TABLE_ID1, partitioner), TokenKey.max(TABLE_ID1, partitioner));
             AccordSplitter splitter = partitioner.accordSplitter().apply(Ranges.of(range));
             BigInteger size = splitter.sizeOf(range);
             BigInteger update = splitter.divide(size, numSplits);
@@ -428,19 +422,9 @@ public class AccordGenerators
         };
     }
 
-    public static Gen<KeyDeps> keyDepsGen()
-    {
-        return AccordGens.keyDeps(AccordGenerators.routingKeys());
-    }
-
     public static Gen<KeyDeps> keyDepsGen(IPartitioner partitioner)
     {
         return AccordGens.keyDeps(AccordGenerators.routingKeys(partitioner));
-    }
-
-    public static Gen<KeyDeps> directKeyDepsGen()
-    {
-        return AccordGens.directKeyDeps(AccordGenerators.routingKeys());
     }
 
     public static Gen<KeyDeps> directKeyDepsGen(IPartitioner partitioner)
@@ -448,19 +432,9 @@ public class AccordGenerators
         return AccordGens.directKeyDeps(AccordGenerators.routingKeys(partitioner));
     }
 
-    public static Gen<RangeDeps> rangeDepsGen()
-    {
-        return AccordGens.rangeDeps(AccordGenerators.range());
-    }
-
     public static Gen<RangeDeps> rangeDepsGen(IPartitioner partitioner)
     {
         return AccordGens.rangeDeps(AccordGenerators.range(partitioner));
-    }
-
-    public static Gen<Deps> depsGen()
-    {
-        return AccordGens.deps(keyDepsGen(), rangeDepsGen(), directKeyDepsGen());
     }
 
     public static Gen<Deps> depsGen(IPartitioner partitioner)

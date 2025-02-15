@@ -71,7 +71,7 @@ public class CheckpointIntervalArrayIndexTest
 
     static
     {
-        DatabaseDescriptor.clientInitialization();
+        DatabaseDescriptor.toolInitialization();
     }
 
     private static final byte[] EMPTY = new byte[0];

@@ -21,6 +21,7 @@ package org.apache.cassandra.service.accord.serializers;
 import java.io.IOException;
 import javax.annotation.Nullable;
 
+import accord.coordinate.ExecuteFlag.ExecuteFlags;
 import accord.messages.PreAccept;
 import accord.messages.PreAccept.PreAcceptOk;
 import accord.messages.PreAccept.PreAcceptReply;
@@ -96,6 +97,7 @@ public class PreacceptSerializers
             CommandSerializers.txnId.serialize(preAcceptOk.txnId, out, version);
             ExecuteAtSerializer.serialize(preAcceptOk.txnId, preAcceptOk.witnessedAt, out);
             DepsSerializers.deps.serialize(preAcceptOk.deps, out, version);
+            out.writeUnsignedVInt32(preAcceptOk.flags.bits());
         }
 
         @Override
@@ -107,7 +109,8 @@ public class PreacceptSerializers
             TxnId txnId = CommandSerializers.txnId.deserialize(in, version);
             return new PreAcceptOk(txnId,
                                    ExecuteAtSerializer.deserialize(txnId, in),
-                                   DepsSerializers.deps.deserialize(in, version));
+                                   DepsSerializers.deps.deserialize(in, version),
+                                   ExecuteFlags.get(in.readUnsignedVInt32()));
         }
 
         @Override
@@ -121,7 +124,7 @@ public class PreacceptSerializers
             size += CommandSerializers.txnId.serializedSize(preAcceptOk.txnId, version);
             size += ExecuteAtSerializer.serializedSize(preAcceptOk.txnId, preAcceptOk.witnessedAt);
             size += DepsSerializers.deps.serializedSize(preAcceptOk.deps, version);
-
+            size += TypeSizes.sizeofUnsignedVInt(preAcceptOk.flags.bits());
             return size;
         }
     };

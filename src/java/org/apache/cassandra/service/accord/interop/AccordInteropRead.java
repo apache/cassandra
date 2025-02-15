@@ -59,8 +59,7 @@ import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.RequestCallback;
 import org.apache.cassandra.service.accord.AccordMessageSink.AccordMessageType;
 import org.apache.cassandra.service.accord.TokenRange;
-import org.apache.cassandra.service.accord.api.AccordRoutingKey;
-import org.apache.cassandra.service.accord.api.AccordRoutingKey.TokenKey;
+import org.apache.cassandra.service.accord.api.TokenKey;
 import org.apache.cassandra.service.accord.serializers.CommandSerializers;
 import org.apache.cassandra.service.accord.serializers.KeySerializers;
 import org.apache.cassandra.service.accord.serializers.ReadDataSerializers;
@@ -112,7 +111,7 @@ public class AccordInteropRead extends ReadData
 
     private static class LocalReadData implements Data
     {
-        private static final Comparator<Pair<AccordRoutingKey, ReadResponse>> RESPONSE_COMPARATOR = Comparator.comparing(Pair::left);
+        private static final Comparator<Pair<TokenKey, ReadResponse>> RESPONSE_COMPARATOR = Comparator.comparing(Pair::left);
 
         static final IVersionedSerializer<LocalReadData> serializer = new IVersionedSerializer<>()
         {
@@ -138,13 +137,13 @@ public class AccordInteropRead extends ReadData
         };
 
         // Will be null at coordinator
-        List<Pair<AccordRoutingKey, ReadResponse>> localResponses;
+        List<Pair<TokenKey, ReadResponse>> localResponses;
         // Will be null at coordinator
         final ReadCommand readCommand;
         // Will be not null at coordinator, but null at the node creating the response until it serialized
         ReadResponse remoteResponse;
 
-        public LocalReadData(@Nullable AccordRoutingKey start, @Nonnull ReadResponse response, @Nonnull ReadCommand readCommand)
+        public LocalReadData(@Nullable TokenKey start, @Nonnull ReadResponse response, @Nonnull ReadCommand readCommand)
         {
             checkNotNull(response, "response is null");
             checkNotNull(readCommand, "readCommand is null");
@@ -178,7 +177,7 @@ public class AccordInteropRead extends ReadData
             checkState(readCommand == other.readCommand, "Should share the same ReadCommand");
             if (localResponses.size() == 1)
             {
-                List<Pair<AccordRoutingKey, ReadResponse>> merged = new ArrayList<>();
+                List<Pair<TokenKey, ReadResponse>> merged = new ArrayList<>();
                 merged.add(localResponses.get(0));
                 localResponses = merged;
             }
@@ -191,7 +190,7 @@ public class AccordInteropRead extends ReadData
             if (remoteResponse != null)
                 return;
             // Range reads will be spread across command stores and need to be merged in token order
-            List<Pair<AccordRoutingKey, ReadResponse>> responses = localResponses;
+            List<Pair<TokenKey, ReadResponse>> responses = localResponses;
             if (responses.size() == 1)
             {
                 remoteResponse = responses.get(0).right;
@@ -251,7 +250,7 @@ public class AccordInteropRead extends ReadData
         for (Range r : ranges)
         {
             ReadCommand readCommand = this.command;
-            AccordRoutingKey routingKey = null;
+            TokenKey routingKey = null;
             final ReadCommand readCommandFinal;
             if (readCommand.isRangeRequest())
             {
@@ -272,7 +271,7 @@ public class AccordInteropRead extends ReadData
                     continue;
                 readCommandFinal = ((SinglePartitionReadCommand)readCommand).withTransactionalSettings(TxnNamedRead.readsWithoutReconciliation(txnRead.cassandraConsistencyLevel()), nowInSeconds);
             }
-            AccordRoutingKey routingKeyFinal = routingKey;
+            TokenKey routingKeyFinal = routingKey;
             chains.add(AsyncChains.ofCallable(Stage.READ.executor(), () -> new LocalReadData(routingKeyFinal, ReadCommandVerbHandler.instance.doRead(readCommandFinal, false), readCommand)));
         }
 

@@ -57,9 +57,6 @@ import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.schema.TableParams;
 import org.apache.cassandra.service.accord.TokenRange;
-import org.apache.cassandra.service.accord.api.AccordRoutingKey.MinTokenKey;
-import org.apache.cassandra.service.accord.api.AccordRoutingKey.SentinelKey;
-import org.apache.cassandra.service.accord.api.AccordRoutingKey.TokenKey;
 import org.apache.cassandra.service.consensus.TransactionalMode;
 import org.apache.cassandra.service.consensus.migration.ConsensusKeyMigrationState.KeyMigrationState;
 import org.apache.cassandra.service.paxos.Paxos;
@@ -323,14 +320,14 @@ public class ConsensusRequestRouter
         // = token ends up as a min and max key bound in C* parlance and min and max token key in Accord parlance
         // and the conversion to a C* range results in the unintentional creation of a wrap around range.
         // Instead treat it like a key and do that check.
-        if (range.start().getClass() == MinTokenKey.class
-            && range.end() instanceof TokenKey
+        if (range.start().isTokenSentinel()
+            && !range.end().isSentinel()
             && range.start().token().equals(range.end().token()))
         {
-            checkState(range.end().getClass() != MinTokenKey.class, "Unexpected empty range");
+            checkState(!range.end().isTokenSentinel(), "Unexpected empty range");
             return isTokenManagedByAccordForReadAndWrite(metadata, tms, range.start().token());
         }
-        else if (range.start().getClass() == MinTokenKey.class)
+        else if (range.start().isTokenSentinel())
         {
             // Start is particularly problematic because we use min MinTokenKey to make start inclusive and this is something
             // that isn't possible to mimic at all with Range<Token>, for end it's less problematic because just the token
@@ -339,9 +336,9 @@ public class ConsensusRequestRouter
             // and use the bounds check
             PartitionPosition startPP = range.start().token().minKeyBound();
             PartitionPosition endPP;
-            if (range.end().getClass() == SentinelKey.class)
+            if (range.end().isTableSentinel())
                 endPP = DatabaseDescriptor.getPartitioner().getMinimumToken().maxKeyBound();
-            else if (range.end().getClass() == MinTokenKey.class)
+            else if (range.end().isTokenSentinel())
                 endPP = range.end().token().minKeyBound();
             else
                 endPP = range.end().token().maxKeyBound();

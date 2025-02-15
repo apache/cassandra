@@ -187,7 +187,7 @@ public class AccordVirtualTables
     private static String toStringNoTable(TokenRange tr)
     {
         // TokenRange extends Range.EndInclusive
-        return "(" + tr.start().suffix() + ", " + tr.end().suffix() + "]";
+        return "(" + tr.start().printableSuffix() + ", " + tr.end().printableSuffix() + "]";
     }
 
     private static Map<TableId, List<TokenRange>> groupByTable(Ranges ranges)

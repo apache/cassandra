@@ -30,6 +30,8 @@ import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.function.ToLongFunction;
 
+import javax.annotation.Nullable;
+
 import accord.api.Agent;
 import accord.api.Journal;
 import accord.api.LocalListeners;
@@ -87,12 +89,15 @@ import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.db.filter.ColumnFilter;
 import org.apache.cassandra.db.memtable.Memtable;
 import org.apache.cassandra.metrics.AccordCacheMetrics;
+import org.apache.cassandra.schema.TableId;
+import org.apache.cassandra.service.accord.api.TokenKey;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Generators;
 import org.apache.cassandra.utils.Pair;
 import org.assertj.core.api.Assertions;
 
+import static org.apache.cassandra.config.DatabaseDescriptor.getPartitioner;
 import static org.apache.cassandra.db.ColumnFamilyStore.FlushReason.UNIT_TESTS;
 import static org.apache.cassandra.schema.SchemaConstants.ACCORD_KEYSPACE_NAME;
 import static org.apache.cassandra.utils.AccordGenerators.fromQT;
@@ -125,10 +130,20 @@ public class SimulatedAccordCommandStore implements AutoCloseable
 
     public SimulatedAccordCommandStore(RandomSource rs)
     {
-        this(rs, FunctionWrapper.identity());
+        this(null, rs, FunctionWrapper.identity());
+    }
+
+    public SimulatedAccordCommandStore(TableId tableId, RandomSource rs)
+    {
+        this(tableId, rs, FunctionWrapper.identity());
     }
 
     public SimulatedAccordCommandStore(RandomSource rs, FunctionWrapper loadFunctionWrapper)
+    {
+        this(null, rs, loadFunctionWrapper);
+    }
+
+    public SimulatedAccordCommandStore(@Nullable TableId tableId, RandomSource rs, FunctionWrapper loadFunctionWrapper)
     {
         globalExecutor = new SimulatedExecutorFactory(rs.fork(), fromQT(Generators.TIMESTAMP_GEN.map(java.sql.Timestamp::getTime)).mapToLong(TimeUnit.MILLISECONDS::toNanos).next(rs), failures::add);
         this.unorderedScheduled = globalExecutor.scheduled("ignored");
@@ -138,8 +153,16 @@ public class SimulatedAccordCommandStore implements AutoCloseable
         for (Stage stage : Arrays.asList(Stage.MISC, Stage.ACCORD_MIGRATION, Stage.READ, Stage.MUTATION))
             stage.unsafeSetExecutor(globalExecutor.configureSequential("ignore").build());
 
-        this.updateHolder = new CommandStore.EpochUpdateHolder();
         this.nodeId = AccordTopology.tcmIdToAccord(ClusterMetadata.currentNullable().myNodeId());
+        this.updateHolder = new CommandStore.EpochUpdateHolder();
+        this.topology = AccordTopology.createAccordTopology(ClusterMetadata.current());
+        this.topologies = new Topologies.Single(SizeOfIntersectionSorter.SUPPLIER, topology);
+        Ranges ranges = topology.ranges();
+        if (tableId != null)
+            ranges = ranges.slice(Ranges.of(TokenRange.create(TokenKey.min(tableId, getPartitioner()), TokenKey.max(tableId, getPartitioner()))));
+        CommandStores.RangesForEpoch rangesForEpoch = new CommandStores.RangesForEpoch(topology.epoch(), ranges);
+        updateHolder.add(topology.epoch(), rangesForEpoch, ranges);
+
         this.storeService = new NodeCommandStoreService()
         {
             private final ToLongFunction<TimeUnit> elapsed = TimeService.elapsedWrapperFromNonMonotonicSource(TimeUnit.NANOSECONDS, this::now);
@@ -229,10 +252,6 @@ public class SimulatedAccordCommandStore implements AutoCloseable
             commandStore.executor().setCapacity(8 << 20);
             commandStore.executor().setWorkingSetSize(4 << 20);
         });
-        this.topology = AccordTopology.createAccordTopology(ClusterMetadata.current());
-        this.topologies = new Topologies.Single(SizeOfIntersectionSorter.SUPPLIER, topology);
-        CommandStores.RangesForEpoch rangesForEpoch = new CommandStores.RangesForEpoch(topology.epoch(), topology.ranges());
-        updateHolder.add(topology.epoch(), rangesForEpoch, topology.ranges());
         commandStore.unsafeUpdateRangesForEpoch();
 
         shouldEvict = boolSource(rs.fork());
@@ -342,7 +361,7 @@ public class SimulatedAccordCommandStore implements AutoCloseable
         }
     }
 
-    private static boolean intersects(ColumnFamilyStore store, Memtable memtable, Unseekables<RoutingKey> keys, Ranges ranges)
+    private boolean intersects(ColumnFamilyStore store, Memtable memtable, Unseekables<RoutingKey> keys, Ranges ranges)
     {
         if (keys.isEmpty() && ranges.isEmpty()) // shouldn't happen, but just in case...
             return false;
@@ -355,7 +374,7 @@ public class SimulatedAccordCommandStore implements AutoCloseable
                 {
                     while (it.hasNext())
                     {
-                        var key = AccordKeyspace.CommandsForKeysAccessor.getKey(it.next().partitionKey());
+                        var key = AccordKeyspace.CommandsForKeyAccessor.getUserTableKey(commandStore.tableId(), it.next().partitionKey());
                         if (keys.contains(key) || ranges.intersects(key))
                             return true;
                     }

@@ -220,6 +220,25 @@ public class ByteBufferUtil
     }
 
     /**
+     * You should almost never use this.  Instead, use the write* methods to avoid copies.
+     */
+    public static byte[] getArrayUnsafe(ByteBuffer buffer)
+    {
+        return getArrayUnsafe(buffer, buffer.position(), buffer.remaining());
+    }
+
+    /**
+     * You should almost never use this.  Instead, use the write* methods to avoid copies.
+     */
+    public static byte[] getArrayUnsafe(ByteBuffer buffer, int position, int length)
+    {
+        if (buffer.hasArray() && position == 0 && buffer.arrayOffset() == 0 && length == buffer.capacity())
+            return buffer.array();
+
+        return getArray(buffer, position, length);
+    }
+
+    /**
      * ByteBuffer adaptation of org.apache.commons.lang3.ArrayUtils.lastIndexOf method
      *
      * @param buffer the array to traverse for looking for the object, may be <code>null</code>

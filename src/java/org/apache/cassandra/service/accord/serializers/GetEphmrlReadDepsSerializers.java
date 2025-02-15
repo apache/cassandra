@@ -20,6 +20,7 @@ package org.apache.cassandra.service.accord.serializers;
 
 import java.io.IOException;
 
+import accord.coordinate.ExecuteFlag.ExecuteFlags;
 import accord.messages.GetEphemeralReadDeps;
 import accord.messages.GetEphemeralReadDeps.GetEphemeralReadDepsOk;
 import accord.primitives.Deps;
@@ -61,6 +62,7 @@ public class GetEphmrlReadDepsSerializers
         {
             DepsSerializers.deps.serialize(reply.deps, out, version);
             out.writeUnsignedVInt(reply.latestEpoch);
+            out.writeUnsignedVInt32(reply.flags.bits());
         }
 
         @Override
@@ -68,14 +70,16 @@ public class GetEphmrlReadDepsSerializers
         {
             Deps deps = DepsSerializers.deps.deserialize(in, version);
             long latestEpoch = in.readUnsignedVInt();
-            return new GetEphemeralReadDepsOk(deps, latestEpoch);
+            ExecuteFlags flags = ExecuteFlags.get(in.readUnsignedVInt32());
+            return new GetEphemeralReadDepsOk(deps, latestEpoch, flags);
         }
 
         @Override
         public long serializedSize(GetEphemeralReadDepsOk reply, int version)
         {
             return DepsSerializers.deps.serializedSize(reply.deps, version)
-                   + TypeSizes.sizeofUnsignedVInt(reply.latestEpoch);
+                   + TypeSizes.sizeofUnsignedVInt(reply.latestEpoch)
+                   + TypeSizes.sizeofUnsignedVInt(reply.flags.bits());
         }
     };
 }

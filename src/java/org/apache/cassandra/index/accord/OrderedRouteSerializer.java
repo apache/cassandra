@@ -18,42 +18,25 @@
 
 package org.apache.cassandra.index.accord;
 
-import java.io.IOException;
 import java.nio.ByteBuffer;
 
-import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.db.marshal.ByteBufferAccessor;
-import org.apache.cassandra.service.accord.api.AccordRoutingKey;
-import org.apache.cassandra.service.accord.serializers.AccordRoutingKeyByteSource;
+import org.apache.cassandra.service.accord.api.TokenKey;
+import org.apache.cassandra.utils.ByteBufferUtil;
 
 public class OrderedRouteSerializer
 {
-    private static final AccordRoutingKeyByteSource.FixedLength SERIALIZER = AccordRoutingKeyByteSource.fixedLength(DatabaseDescriptor.getPartitioner());
-
-    public static ByteBuffer serializeRoutingKey(AccordRoutingKey key)
+    public static ByteBuffer serialize(TokenKey key)
     {
-        return ByteBuffer.wrap(SERIALIZER.serialize(key));
+        return TokenKey.serializer.serialize(key);
     }
 
-    public static byte[] serializeRoutingKeyNoTable(AccordRoutingKey key)
+    public static byte[] serializeTokenOnly(TokenKey key)
     {
-        return SERIALIZER.serializeNoTable(key);
+        return ByteBufferUtil.getArrayUnsafe(TokenKey.serializer.serializeWithoutPrefixOrLength(key));
     }
 
-    public static byte[] unwrap(AccordRoutingKey key)
+    public static TokenKey deserialize(ByteBuffer bb)
     {
-        return SERIALIZER.serialize(key);
-    }
-
-    public static AccordRoutingKey deserializeRoutingKey(ByteBuffer bb)
-    {
-        try
-        {
-            return SERIALIZER.fromComparableBytes(ByteBufferAccessor.instance, bb);
-        }
-        catch (IOException e)
-        {
-            throw new UnsupportedOperationException(e);
-        }
+        return TokenKey.serializer.deserialize(bb);
     }
 }

@@ -86,9 +86,9 @@ import org.apache.cassandra.service.accord.AccordService;
 import org.apache.cassandra.service.accord.AccordTestUtils;
 import org.apache.cassandra.service.accord.AccordTopology;
 import org.apache.cassandra.service.accord.IAccordService;
+import org.apache.cassandra.service.accord.IAccordService.AccordCompactionInfo;
 import org.apache.cassandra.service.accord.TokenRange;
-import org.apache.cassandra.service.accord.api.AccordRoutingKey;
-import org.apache.cassandra.service.accord.api.AccordRoutingKey.TokenKey;
+import org.apache.cassandra.service.accord.api.TokenKey;
 import org.apache.cassandra.service.consensus.TransactionalMode;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.membership.NodeId;
@@ -177,8 +177,8 @@ public class RouteIndexTest extends CQLTester.InMemory
         TokenRange range = selectExistingRange(rs, ranges);
 
         // have a key, so find a key within the range
-        long start = range.start().kindOfRoutingKey() == AccordRoutingKey.RoutingKeyKind.SENTINEL ? Long.MIN_VALUE : ((LongToken) range.start().token()).token;
-        long end = range.end().kindOfRoutingKey() == AccordRoutingKey.RoutingKeyKind.SENTINEL ? Long.MAX_VALUE : ((LongToken) range.end().token()).token;
+        long start = range.start().isMin() ? Long.MIN_VALUE : ((LongToken) range.start().token()).token;
+        long end = range.end().isMax() ? Long.MAX_VALUE : ((LongToken) range.end().token()).token;
         long token = 1 + rs.nextLong(start, end);
         return new KeySearch(storeId, new TokenKey(tableId, new LongToken(token)));
     }
@@ -265,9 +265,9 @@ public class RouteIndexTest extends CQLTester.InMemory
     private static class KeySearch implements Command<State, Sut, Set<TxnId>>
     {
         private final int storeId;
-        private final AccordRoutingKey key;
+        private final TokenKey key;
 
-        private KeySearch(int storeId, AccordRoutingKey key)
+        private KeySearch(int storeId, TokenKey key)
         {
             this.storeId = storeId;
             this.key = key;
@@ -448,7 +448,7 @@ public class RouteIndexTest extends CQLTester.InMemory
     private static class State implements AutoCloseable
     {
         private final Int2ObjectHashMap<Map<TableId, Long2ObjectHashMap<List<TxnId>>>> storeToTableToRoutingKeysToTxns = new Int2ObjectHashMap<>();
-        private final Int2ObjectHashMap<Map<TableId, RangeTree<AccordRoutingKey, TokenRange, TxnId>>> storeToTableToRangesToTxns = new Int2ObjectHashMap<>();
+        private final Int2ObjectHashMap<Map<TableId, RangeTree<TokenKey, TokenRange, TxnId>>> storeToTableToRangesToTxns = new Int2ObjectHashMap<>();
 
         private final int numStores;
         private final List<TableId> tables;
@@ -484,7 +484,7 @@ public class RouteIndexTest extends CQLTester.InMemory
 
             // the reason for the mocking is to speed up compaction.  Collecting the info from the stores has been slow and its always empty in this test... so stub it out to speed up the test
             AccordService mock = Mockito.spy(as);
-            Mockito.doReturn(emptyCompactionInfo()).when(mock).getCompactionInfo();
+            Mockito.doReturn(emptyCompactionInfo(tableId)).when(mock).getCompactionInfo();
             AccordService.unsafeSetNewAccordService(mock);
 
             AccordService.replayJournal(as);
@@ -504,7 +504,7 @@ public class RouteIndexTest extends CQLTester.InMemory
                 {
                     case Key:
                     {
-                        AccordRoutingKey key = (AccordRoutingKey) u;
+                        TokenKey key = (TokenKey) u;
                         var table = key.table();
                         var token = key.token().getLongValue();
                         storeToTableToRoutingKeysToTxns.computeIfAbsent(storeId, ignore -> new HashMap<>())
@@ -596,53 +596,47 @@ public class RouteIndexTest extends CQLTester.InMemory
         }
     }
 
-    private static RangeTree<AccordRoutingKey, TokenRange, TxnId> rangeTree()
+    private static RangeTree<TokenKey, TokenRange, TxnId> rangeTree()
     {
         return RTree.create(ACCESSOR);
     }
 
-    private static final RangeTree.Accessor<AccordRoutingKey, TokenRange> ACCESSOR = new RangeTree.Accessor<>()
+    private static final RangeTree.Accessor<TokenKey, TokenRange> ACCESSOR = new RangeTree.Accessor<>()
     {
         @Override
-        public AccordRoutingKey start(TokenRange tokenRange)
+        public TokenKey start(TokenRange tokenRange)
         {
             return tokenRange.start();
         }
 
         @Override
-        public AccordRoutingKey end(TokenRange tokenRange)
+        public TokenKey end(TokenRange tokenRange)
         {
             return tokenRange.end();
         }
 
         @Override
-        public boolean contains(AccordRoutingKey start, AccordRoutingKey end, AccordRoutingKey accordRoutingKey)
+        public boolean contains(TokenKey start, TokenKey end, TokenKey tokenKey)
         {
-            return TokenRange.create(start, end).contains(accordRoutingKey);
+            return TokenRange.create(start, end).contains(tokenKey);
         }
 
         @Override
-        public boolean intersects(TokenRange tokenRange, AccordRoutingKey start, AccordRoutingKey end)
+        public boolean intersects(TokenRange tokenRange, TokenKey start, TokenKey end)
         {
             return tokenRange.compareIntersecting(TokenRange.create(start, end)) == 0;
         }
     };
 
-    private static IAccordService.CompactionInfo emptyCompactionInfo()
+    private static IAccordService.AccordCompactionInfos emptyCompactionInfo(TableId tableId)
     {
-        Int2ObjectHashMap<RedundantBefore> redundantBefores = new Int2ObjectHashMap<>();
-        Int2ObjectHashMap<DurableBefore> durableBefores = new Int2ObjectHashMap<>();
-        Int2ObjectHashMap<CommandStores.RangesForEpoch> ranges = new Int2ObjectHashMap<>();
+        IAccordService.AccordCompactionInfos compactionInfos = new IAccordService.AccordCompactionInfos(DurableBefore.EMPTY);
         RedundantBefore redundantBefore = Mockito.spy(RedundantBefore.EMPTY);
         Mockito.doReturn(RedundantStatus.NONE).when(redundantBefore).status(Mockito.any(), Mockito.any(), (Participants<?>) Mockito.any());
         Mockito.doReturn(RedundantStatus.NONE).when(redundantBefore).status(Mockito.any(), Mockito.any(), (RoutingKey) Mockito.any());
         for (int i = 0; i < MAX_STORES; i++)
-        {
-            redundantBefores.put(i, redundantBefore);
-            durableBefores.put(i, DurableBefore.EMPTY);
-            ranges.put(i, new CommandStores.RangesForEpoch(1, Ranges.EMPTY));
-        }
-        return new IAccordService.CompactionInfo(redundantBefores, ranges, durableBefores);
+            compactionInfos.put(i, new AccordCompactionInfo(i, redundantBefore, new CommandStores.RangesForEpoch(1, Ranges.EMPTY), tableId));
+        return compactionInfos;
     }
 
     private static ColumnFamilyStore cfs()
@@ -707,7 +701,7 @@ public class RouteIndexTest extends CQLTester.InMemory
         {
             case Key:
             {
-                TreeSet<AccordRoutingKey> keys = new TreeSet<>();
+                TreeSet<TokenKey> keys = new TreeSet<>();
                 while (keys.size() < numKeys)
                 {
                     var table = rs.pick(state.tables);
@@ -728,7 +722,7 @@ public class RouteIndexTest extends CQLTester.InMemory
         }
     }
 
-    private static TokenRange selectExistingRange(RandomSource rs, RangeTree<AccordRoutingKey, TokenRange, TxnId> ranges)
+    private static TokenRange selectExistingRange(RandomSource rs, RangeTree<TokenKey, TokenRange, TxnId> ranges)
     {
         TreeSet<TokenRange> distinctRanges = ranges.stream().map(Map.Entry::getKey).collect(Collectors.toCollection(() -> new TreeSet<>(TokenRange::compareTo)));
         TokenRange range;

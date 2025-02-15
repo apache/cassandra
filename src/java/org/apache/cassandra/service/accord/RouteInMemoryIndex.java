@@ -37,7 +37,7 @@ import org.apache.cassandra.index.accord.OrderedRouteSerializer;
 import org.apache.cassandra.index.accord.RouteJournalIndex;
 import org.apache.cassandra.journal.StaticSegment;
 import org.apache.cassandra.schema.TableId;
-import org.apache.cassandra.service.accord.api.AccordRoutingKey;
+import org.apache.cassandra.service.accord.api.TokenKey;
 import org.apache.cassandra.utils.ByteArrayUtil;
 import org.apache.cassandra.utils.CloseableIterator;
 import org.apache.cassandra.utils.FastByteOperations;
@@ -70,8 +70,8 @@ public class RouteInMemoryIndex<V> implements RangeSearcher
     public RangeSearcher.Result search(int commandStoreId, TokenRange range, TxnId minTxnId, Timestamp maxTxnId)
     {
         NavigableSet<TxnId> result = search(commandStoreId, range.table(),
-                                            OrderedRouteSerializer.serializeRoutingKeyNoTable(range.start()),
-                                            OrderedRouteSerializer.serializeRoutingKeyNoTable(range.end()));
+                                            OrderedRouteSerializer.serializeTokenOnly(range.start()),
+                                            OrderedRouteSerializer.serializeTokenOnly(range.end()));
         return new DefaultResult(minTxnId, maxTxnId, CloseableIterator.wrap(result.iterator()));
     }
 
@@ -83,9 +83,9 @@ public class RouteInMemoryIndex<V> implements RangeSearcher
     }
 
     @Override
-    public RangeSearcher.Result search(int commandStoreId, AccordRoutingKey key, TxnId minTxnId, Timestamp maxTxnId)
+    public RangeSearcher.Result search(int commandStoreId, TokenKey key, TxnId minTxnId, Timestamp maxTxnId)
     {
-        NavigableSet<TxnId> result = search(commandStoreId, key.table(), OrderedRouteSerializer.serializeRoutingKeyNoTable(key));
+        NavigableSet<TxnId> result = search(commandStoreId, key.table(), OrderedRouteSerializer.serializeTokenOnly(key));
         return new DefaultResult(minTxnId, maxTxnId, CloseableIterator.wrap(result.iterator()));
     }
 
@@ -176,8 +176,8 @@ public class RouteInMemoryIndex<V> implements RangeSearcher
 
         public void add(TxnId id, TokenRange ts)
         {
-            byte[] start = OrderedRouteSerializer.serializeRoutingKeyNoTable(ts.start());
-            byte[] end = OrderedRouteSerializer.serializeRoutingKeyNoTable(ts.end());
+            byte[] start = OrderedRouteSerializer.serializeTokenOnly(ts.start());
+            byte[] end = OrderedRouteSerializer.serializeTokenOnly(ts.end());
             IndexRange range = new IndexRange(start, end);
 
             index.add(range, id);

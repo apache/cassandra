@@ -136,6 +136,11 @@ public class Generators
 
     public static Generator<ByteBuffer> bytes(int minSize, int maxSize)
     {
+        return byteArrays(minSize, maxSize).map(ByteBuffer::wrap);
+    }
+
+    public static Generator<byte[]> byteArrays(int minSize, int maxSize)
+    {
         return rng -> {
             int size = rng.nextInt(minSize, maxSize);
             byte[] bytes = new byte[size];
@@ -144,7 +149,7 @@ public class Generators
                      n = Math.min(size - i, Long.SIZE / Byte.SIZE);
                      n-- > 0; v >>= Byte.SIZE)
                     bytes[i++] = (byte) v;
-            return ByteBuffer.wrap(bytes);
+            return bytes;
         };
     }
 

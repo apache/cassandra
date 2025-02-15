@@ -40,7 +40,7 @@ import accord.primitives.Unseekable;
 import accord.primitives.Unseekables;
 import accord.utils.Invariants;
 import org.agrona.collections.ObjectHashSet;
-import org.apache.cassandra.service.accord.api.AccordRoutingKey;
+import org.apache.cassandra.service.accord.api.TokenKey;
 
 import static accord.local.CommandSummaries.SummaryStatus.NOT_DIRECTLY_WITNESSED;
 
@@ -141,7 +141,7 @@ public class CommandsForRanges extends TreeMap<Timestamp, Summary> implements Co
                     break;
                 case Key:
                     for (Unseekable key : searchKeysOrRanges)
-                        manager.searcher.search(manager.commandStore.id(), (AccordRoutingKey) key, minTxnId, maxTxnId).consume(forEach);
+                        manager.searcher.search(manager.commandStore.id(), (TokenKey) key, minTxnId, maxTxnId).consume(forEach);
             }
 
             if (!manager.transitive.isEmpty())

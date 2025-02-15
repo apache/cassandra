@@ -40,7 +40,9 @@ import org.apache.cassandra.db.marshal.ByteArrayAccessor;
 import org.apache.cassandra.db.marshal.ByteBufferAccessor;
 import org.apache.cassandra.db.marshal.IntegerType;
 import org.apache.cassandra.db.marshal.PartitionerDefinedOrder;
+import org.apache.cassandra.db.marshal.ValueAccessor;
 import org.apache.cassandra.exceptions.ConfigurationException;
+import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
@@ -403,6 +405,86 @@ public class RandomPartitioner implements IPartitioner
     public Function<Ranges, AccordSplitter> accordSplitter()
     {
         return ignore -> splitter;
+    }
+
+    public final boolean accordSupported()
+    {
+        return true;
+    }
+
+    private static final byte[] EMPTY_BYTES = new byte[16];
+
+    @Override
+    public final void accordSerialize(Token token, DataOutputPlus out) throws IOException
+    {
+        byte[] bytes = increment(((BigIntegerToken)token).token.toByteArray());
+        if (bytes.length < 16)
+            out.write(EMPTY_BYTES, 0, 16 - bytes.length);
+        out.write(bytes);
+    }
+
+    @Override
+    public final void accordSerialize(Token token, ByteBuffer out)
+    {
+        byte[] bytes = increment(((BigIntegerToken)token).token.toByteArray());
+        if (bytes.length < 16)
+            out.put(EMPTY_BYTES, 0, 16 - bytes.length);
+        out.put(bytes);
+    }
+
+    @Override
+    public final Token accordDeserialize(DataInputPlus in, int length) throws IOException
+    {
+        byte[] bytes = new byte[16];
+        in.readFully(bytes);
+        decrement(bytes);
+        return new BigIntegerToken(new BigInteger(bytes));
+    }
+
+    @Override
+    public final Token accordDeserialize(ByteBuffer in, int length)
+    {
+        byte[] bytes = new byte[16];
+        in.get(bytes);
+        decrement(bytes);
+        return new BigIntegerToken(new BigInteger(bytes));
+    }
+
+    @Override
+    public final <V> Token accordDeserialize(V src, ValueAccessor<V> accessor, int offset, int length)
+    {
+        byte[] bytes = accessor.toArray(src, offset, 16);
+        decrement(bytes);
+        return new BigIntegerToken(new BigInteger(bytes));
+    }
+
+    public static byte[] increment(byte[] bytes)
+    {
+        int i = bytes.length;
+        while (--i >= 0 && ++bytes[i] == 0);
+        if (i == 0)
+        {
+            bytes = new byte[bytes.length + 1];
+            bytes[0] = (byte)1;
+        }
+        return bytes;
+    }
+
+    public static void decrement(byte[] bytes)
+    {
+        for (int i = bytes.length - 1 ; i >= 0 && bytes[i]-- == 0 ; --i);
+    }
+
+    @Override
+    public final int accordSerializedSize(Token token)
+    {
+        return 16;
+    }
+
+    @Override
+    public final int accordFixedLength()
+    {
+        return 16;
     }
 
     private static BigInteger hashToBigInteger(ByteBuffer data)

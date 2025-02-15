@@ -23,8 +23,7 @@ import java.math.BigInteger;
 import accord.api.RoutingKey;
 import accord.primitives.Ranges;
 import accord.utils.Invariants;
-import org.apache.cassandra.service.accord.api.AccordRoutingKey;
-import org.apache.cassandra.service.accord.api.AccordRoutingKey.SentinelKey;
+import org.apache.cassandra.service.accord.api.TokenKey;
 
 import static accord.utils.Invariants.requireArgument;
 import static java.math.BigInteger.ONE;
@@ -51,8 +50,8 @@ public class AccordBytesSplitter extends AccordSplitter
         if (bytesLength == 0)
         {
             requireArgument(ranges.size() <= 1);
-            requireArgument(ranges.isEmpty() || ranges.get(0).start().getClass() == SentinelKey.class);
-            requireArgument(ranges.isEmpty() || ranges.get(0).end().getClass() == SentinelKey.class);
+            requireArgument(ranges.isEmpty() || ((TokenKey)ranges.get(0).start()).isMin());
+            requireArgument(ranges.isEmpty() || ((TokenKey)ranges.get(0).end()).isMax());
             // Intentionally does not match 16 that is used by ServerTestUtils.getRandomToken to elicit breakage
             bytesLength = 8;
         }
@@ -94,9 +93,7 @@ public class AccordBytesSplitter extends AccordSplitter
 
     private static int byteLength(RoutingKey routingKey)
     {
-        AccordRoutingKey accordKey = (AccordRoutingKey) routingKey;
-        if (accordKey.kindOfRoutingKey() == AccordRoutingKey.RoutingKeyKind.SENTINEL)
-            return 0;
+        TokenKey accordKey = (TokenKey) routingKey;
         return byteLength(accordKey.token());
     }
 

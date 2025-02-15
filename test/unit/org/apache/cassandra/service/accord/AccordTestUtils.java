@@ -313,7 +313,7 @@ public class AccordTestUtils
     public static Ranges fullRange(Seekables<?, ?> keys)
     {
         PartitionKey key = (PartitionKey) keys.get(0);
-        return Ranges.of(TokenRange.fullRange(key.table()));
+        return Ranges.of(TokenRange.fullRange(key.table(), DatabaseDescriptor.getPartitioner()));
     }
 
     public static PartialTxn createPartialTxn(int key)
@@ -321,21 +321,6 @@ public class AccordTestUtils
         Txn txn = createTxn(key, key);
         Ranges ranges = fullRange(txn);
         return new PartialTxn.InMemory(txn.kind(), txn.keys(), txn.read(), txn.query(), txn.update());
-    }
-
-    private static class SingleEpochRanges extends CommandStore.EpochUpdateHolder
-    {
-        private final Ranges ranges;
-
-        public SingleEpochRanges(Ranges ranges)
-        {
-            this.ranges = ranges;
-        }
-
-        private void set()
-        {
-            add(1, new CommandStores.RangesForEpoch(1, ranges), ranges);
-        }
     }
 
     public static AccordCommandStore createAccordCommandStore(
@@ -372,12 +357,13 @@ public class AccordTestUtils
         AccordJournal journal = new AccordJournal(spec, agent);
         journal.start(null);
 
-        SingleEpochRanges holder = new SingleEpochRanges(topology.rangesForNode(node));
+        CommandStore.EpochUpdateHolder holder = new CommandStore.EpochUpdateHolder();
+        Ranges ranges = topology.rangesForNode(node);
+        holder.add(1, new CommandStores.RangesForEpoch(1, ranges), ranges);
         AccordCommandStore result = new AccordCommandStore(0, time, agent, null,
                                                            cs -> new NoOpProgressLog(),
                                                            cs -> new DefaultLocalListeners(new NoOpRemoteListeners(), new NoOpNotifySink()),
                                                            holder, journal, executor);
-        holder.set();
         result.unsafeUpdateRangesForEpoch();
         return result;
     }
@@ -391,7 +377,7 @@ public class AccordTestUtils
         LongSupplier now, String keyspace, String table, ExecutorPlus loadExecutor, ExecutorPlus saveExecutor)
     {
         TableMetadata metadata = Schema.instance.getTableMetadata(keyspace, table);
-        TokenRange range = TokenRange.fullRange(metadata.id);
+        TokenRange range = TokenRange.fullRange(metadata.id, metadata.partitioner);
         Node.Id node = new Id(1);
         Topology topology = new Topology(1, Shard.create(range, new SortedArrayList<>(new Id[] { node }), Sets.newHashSet(node), Collections.emptySet()));
         AccordCommandStore store = createAccordCommandStore(node, now, topology, loadExecutor, saveExecutor);

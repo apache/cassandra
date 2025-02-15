@@ -45,7 +45,7 @@ import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.service.accord.api.AccordRoutableKey;
-import org.apache.cassandra.service.accord.api.AccordRoutableKey.AccordKeySerializer;
+import org.apache.cassandra.service.accord.api.AccordRoutableKey.AccordSearchableKeySerializer;
 import org.apache.cassandra.service.accord.serializers.CommandSerializers;
 import org.apache.cassandra.service.accord.serializers.KeySerializers;
 import org.apache.cassandra.service.accord.serializers.TopologySerializers;
@@ -58,8 +58,8 @@ public class BurnTestKeySerializers
 
     public static final AccordRoutableKey.AccordKeySerializer<Key> key =
     (AccordRoutableKey.AccordKeySerializer<Key>)
-    (AccordRoutableKey.AccordKeySerializer<?>)
-    new AccordRoutableKey.AccordKeySerializer<PrefixedIntHashKey>()
+    (AccordSearchableKeySerializer<?>)
+    new AccordSearchableKeySerializer<PrefixedIntHashKey>()
     {
         public void serialize(PrefixedIntHashKey t, DataOutputPlus out, int version) throws IOException
         {
@@ -86,12 +86,57 @@ public class BurnTestKeySerializers
         {
             in.skipBytesFully(3 * Integer.BYTES);
         }
+
+        @Override
+        public int fixedKeyLengthForPrefix(Object prefix)
+        {
+            return 8;
+        }
+
+        @Override
+        public int serializedSizeOfPrefix(Object prefix)
+        {
+            return 4;
+        }
+
+        @Override
+        public int serializedSizeWithoutPrefix(PrefixedIntHashKey key)
+        {
+            return 8;
+        }
+
+        @Override
+        public void serializePrefix(Object prefix, DataOutputPlus out, int version) throws IOException
+        {
+            out.writeInt((Integer) prefix);
+        }
+
+        @Override
+        public void serializeWithoutPrefixOrLength(PrefixedIntHashKey key, DataOutputPlus out, int version) throws IOException
+        {
+            out.writeInt(key.hash);
+            out.writeInt(key.key);
+        }
+
+        @Override
+        public Object deserializePrefix(DataInputPlus in, int version) throws IOException
+        {
+            return in.readInt();
+        }
+
+        @Override
+        public PrefixedIntHashKey deserializeWithPrefix(Object prefix, int length, DataInputPlus in, int version) throws IOException
+        {
+            int key = in.readInt();
+            int hash = in.readInt();
+            return PrefixedIntHashKey.key((Integer)prefix, key, hash);
+        }
     };
 
-    public static final IVersionedSerializer<RoutingKey> routingKey =
-    (AccordKeySerializer<RoutingKey>)
-    (AccordKeySerializer<?>)
-    new AccordRoutableKey.AccordKeySerializer<PrefixedIntHashKey.Hash>()
+    public static final AccordSearchableKeySerializer<RoutingKey> routingKey =
+    (AccordSearchableKeySerializer<RoutingKey>)
+    (AccordSearchableKeySerializer<?>)
+    new AccordSearchableKeySerializer<PrefixedIntHashKey.Hash>()
     {
         public void serialize(PrefixedIntHashKey.Hash t, DataOutputPlus out, int version) throws IOException
         {
@@ -114,6 +159,49 @@ public class BurnTestKeySerializers
         public void skip(DataInputPlus in, int version) throws IOException
         {
             in.skipBytesFully(2 * Integer.BYTES);
+        }
+
+        @Override
+        public int fixedKeyLengthForPrefix(Object prefix)
+        {
+            return 4;
+        }
+
+        @Override
+        public int serializedSizeOfPrefix(Object prefix)
+        {
+            return 4;
+        }
+
+        @Override
+        public int serializedSizeWithoutPrefix(PrefixedIntHashKey.Hash key)
+        {
+            return 4;
+        }
+
+        @Override
+        public void serializePrefix(Object prefix, DataOutputPlus out, int version) throws IOException
+        {
+            out.writeInt((Integer) prefix);
+        }
+
+        @Override
+        public void serializeWithoutPrefixOrLength(PrefixedIntHashKey.Hash key, DataOutputPlus out, int version) throws IOException
+        {
+            out.writeInt(key.hash);
+        }
+
+        @Override
+        public Object deserializePrefix(DataInputPlus in, int version) throws IOException
+        {
+            return in.readInt();
+        }
+
+        @Override
+        public PrefixedIntHashKey.Hash deserializeWithPrefix(Object prefix, int length, DataInputPlus in, int version) throws IOException
+        {
+            int hash = in.readInt();
+            return PrefixedIntHashKey.forHash((Integer)prefix, hash);
         }
     };
 
