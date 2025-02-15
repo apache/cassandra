@@ -103,11 +103,6 @@ public class ThreadLocalMetrics
             }
     }
 
-    public static ThreadLocalCounter createCounter()
-    {
-        return new ThreadLocalCounter(allocateMetricId());
-    }
-
     public void addNonStatic(int metricId, long n)
     {
         getNonStatic(metricId)[metricId] += n;

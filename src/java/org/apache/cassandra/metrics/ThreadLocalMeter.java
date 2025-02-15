@@ -19,9 +19,11 @@
 package org.apache.cassandra.metrics;
 
 import java.util.List;
+import java.util.NavigableSet;
+import java.util.concurrent.ConcurrentSkipListSet;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import com.google.common.annotations.VisibleForTesting;
 
@@ -32,22 +34,104 @@ import static java.lang.Math.exp;
 
 public class ThreadLocalMeter implements Meter
 {
-    private static final int BACKGROUND_TICK_INTERVAL_SEC = ThreadLocalExponentialMovingAverages.INTERVAL_SEC;
+    private static final int INTERVAL_SEC = 5;
+    private static final long TICK_INTERVAL_NS = TimeUnit.SECONDS.toNanos(INTERVAL_SEC);
+    private static final double SECONDS_PER_MINUTE = 60.0;
+    private static final int ONE_MINUTE = 1;
+    private static final int FIVE_MINUTES = 5;
+    private static final int FIFTEEN_MINUTES = 15;
+    private static final double M1_ALPHA = 1 - exp(-INTERVAL_SEC / SECONDS_PER_MINUTE / ONE_MINUTE);
+    private static final double M5_ALPHA = 1 - exp(-INTERVAL_SEC / SECONDS_PER_MINUTE / FIVE_MINUTES);
+    private static final double M15_ALPHA = 1 - exp(-INTERVAL_SEC / SECONDS_PER_MINUTE / FIFTEEN_MINUTES);
+
+    private static final int M1_RATE_OFFSET = 0;
+    private static final int M5_RATE_OFFSET = 1;
+    private static final int M15_RATE_OFFSET = 2;
+    private static final int RATES_COUNT = 3;
+    private static final double NON_INITIALIZED = Double.MIN_VALUE;
+
+    private static final int BACKGROUND_TICK_INTERVAL_SEC = INTERVAL_SEC;
     private static final List<ThreadLocalMeter> allMeters = new CopyOnWriteArrayList<>();
+
+    /**
+     * CASSANDRA-19332
+     * If ticking would reduce even Long.MAX_VALUE in the 15 minute EWMA below this target then don't bother
+     * ticking in a loop and instead reset all the EWMAs.
+     */
+    private static final double maxTickZeroTarget = 0.0001;
+    private static final int maxTicks;
+
+    private static volatile MonotonicClock tickClock = MonotonicClock.Global.approxTime;
+    private static long lastTick;
+
     static
     {
-        ScheduledExecutors.scheduledTasks.scheduleWithFixedDelay(() -> {
-
-            for (ThreadLocalMeter threadLocalMeter : allMeters)
-            {
-                threadLocalMeter.movingAverages.tickIfNecessary();
-            }
-
-        }, BACKGROUND_TICK_INTERVAL_SEC, BACKGROUND_TICK_INTERVAL_SEC, TimeUnit.SECONDS);
+        int m3Ticks = 1;
+        double emulatedM15Rate = 0.0;
+        emulatedM15Rate = tickFifteenMinuteEWMA(emulatedM15Rate, Long.MAX_VALUE);
+        do
+        {
+            emulatedM15Rate = tickFifteenMinuteEWMA(emulatedM15Rate, 0);
+            m3Ticks++;
+        }
+        while (getRatePerSecond(emulatedM15Rate) > maxTickZeroTarget);
+        maxTicks = m3Ticks;
     }
 
-    private final ThreadLocalExponentialMovingAverages movingAverages;
+    @VisibleForTesting
+    static void setTickClock(MonotonicClock clock)
+    {
+        tickClock = clock;
+        lastTick = 0;
+    }
+
+    static
+    {
+        ScheduledExecutors.scheduledTasks.scheduleWithFixedDelay(ThreadLocalMeter::tickAll,
+                                                                 BACKGROUND_TICK_INTERVAL_SEC,
+                                                                 BACKGROUND_TICK_INTERVAL_SEC,
+                                                                 TimeUnit.SECONDS);
+    }
+
+    private static volatile double[] rates = new double[RATES_COUNT * 16];
+    static final AtomicInteger rateGroupIdGenerator = new AtomicInteger();
+
+    static final NavigableSet<Integer> freeRateGroupIdSet = new ConcurrentSkipListSet<>();
+
+
+    private static int allocateRateGroupOffset()
+    {
+        Integer rateGroupId = freeRateGroupIdSet.pollFirst();
+        if (rateGroupId == null)
+        {
+            rateGroupId = rateGroupIdGenerator.getAndAdd(RATES_COUNT);
+            double[] currentRates = rates;
+            if (currentRates.length < rateGroupId)
+            {
+                double[] newRates = new double[(int) (rateGroupId + RATES_COUNT)];
+                System.arraycopy(currentRates, 0, newRates, 0, currentRates.length);
+                rates = newRates;
+            }
+        }
+        rates[rateGroupId +  M1_RATE_OFFSET] = NON_INITIALIZED;
+        rates[rateGroupId +  M5_RATE_OFFSET] = NON_INITIALIZED;
+        rates[rateGroupId + M15_RATE_OFFSET] = NON_INITIALIZED;
+        return rateGroupId;
+    }
+
+    static double getRateValue(int offset)
+    {
+        return rates[offset];
+    }
+
+    private static void setRateValue(int offset, double value)
+    {
+        rates[offset] = value;
+    }
+
     private final int countMetricId;
+    private final int uncountedMetricId;
+    private final int rateGroupId;
     private final long startTime;
     private final MonotonicClock clock;
 
@@ -58,10 +142,12 @@ public class ThreadLocalMeter implements Meter
 
     public ThreadLocalMeter(MonotonicClock clock)
     {
-        this.movingAverages = new ThreadLocalExponentialMovingAverages(clock);
         this.clock = clock;
         this.startTime = this.clock.now();
         this.countMetricId = ThreadLocalMetrics.allocateMetricId();
+        this.uncountedMetricId = ThreadLocalMetrics.allocateMetricId();
+        this.rateGroupId = allocateRateGroupOffset();
+        allMeters.add(this);
     }
 
     /**
@@ -81,7 +167,7 @@ public class ThreadLocalMeter implements Meter
     {
         ThreadLocalMetrics context = ThreadLocalMetrics.get();
         context.addNonStatic(countMetricId, n);
-        movingAverages.update(context, n);
+        context.addNonStatic(uncountedMetricId, n);
     }
 
     @Override
@@ -93,22 +179,19 @@ public class ThreadLocalMeter implements Meter
     @Override
     public double getFifteenMinuteRate()
     {
-        movingAverages.tickIfNecessary();
-        return movingAverages.getM15Rate();
+        return getRatePerSecond(getRateValue(rateGroupId + M15_RATE_OFFSET));
     }
 
     @Override
     public double getFiveMinuteRate()
     {
-        movingAverages.tickIfNecessary();
-        return movingAverages.getM5Rate();
+        return getRatePerSecond(getRateValue(rateGroupId + M5_RATE_OFFSET));
     }
 
     @Override
     public double getOneMinuteRate()
     {
-        movingAverages.tickIfNecessary();
-        return movingAverages.getM1Rate();
+        return getRatePerSecond(getRateValue(rateGroupId + M1_RATE_OFFSET));
     }
 
     @Override
@@ -116,9 +199,7 @@ public class ThreadLocalMeter implements Meter
     {
         long count = getCount();
         if (count == 0)
-        {
             return 0.0;
-        }
         else
         {
             final double elapsed = clock.now() - startTime;
@@ -129,170 +210,84 @@ public class ThreadLocalMeter implements Meter
     @Override
     public void destroy()
     {
-        // TODO: need to protect against concurrent issues with ticking or reading a metric while releasing
         allMeters.remove(this);
         ThreadLocalMetrics.destroyMetric(countMetricId);
-        movingAverages.destroy();
+        ThreadLocalMetrics.destroyMetric(uncountedMetricId);
+        freeRateGroupIdSet.add(rateGroupId);
     }
 
     @VisibleForTesting
-    void tickIfNecessary()
+    static synchronized void tickAll()
     {
-        movingAverages.tickIfNecessary();
+        long newTick = tickClock.now();
+        long age = newTick - lastTick;
+        if (age > TICK_INTERVAL_NS)
+        {
+            lastTick = newTick - age % TICK_INTERVAL_NS;
+            long requiredTicks = age / TICK_INTERVAL_NS;
+            for (ThreadLocalMeter threadLocalMeter : allMeters)
+                threadLocalMeter.tick(requiredTicks);
+        }
     }
 
-    static class ThreadLocalExponentialMovingAverages
+    private void tick(long requiredTicks)
     {
-        private static final int INTERVAL_SEC = 5;
-        private static final long TICK_INTERVAL = TimeUnit.SECONDS.toNanos(INTERVAL_SEC);
-        private static final double SECONDS_PER_MINUTE = 60.0;
-        private static final int ONE_MINUTE = 1;
-        private static final int FIVE_MINUTES = 5;
-        private static final int FIFTEEN_MINUTES = 15;
-        private static final double M1_ALPHA = 1 - exp(-INTERVAL_SEC / SECONDS_PER_MINUTE / ONE_MINUTE);
-        private static final double M5_ALPHA = 1 - exp(-INTERVAL_SEC / SECONDS_PER_MINUTE / FIVE_MINUTES);
-        private static final double M15_ALPHA = 1 - exp(-INTERVAL_SEC / SECONDS_PER_MINUTE / FIFTEEN_MINUTES);
-
-        /**
-         * CASSANDRA-19332
-         * If ticking would reduce even Long.MAX_VALUE in the 15 minute EWMA below this target then don't bother
-         * ticking in a loop and instead reset all the EWMAs.
-         */
-        private static final double maxTickZeroTarget = 0.0001;
-        private static final int maxTicks;
-
-        static
+        if (requiredTicks >= maxTicks)
+            reset();
+        else
         {
-            int m3Ticks = 1;
-            double m15Rate = 0.0;
-            m15Rate = tickFifteenMinuteEWMA(m15Rate, Long.MAX_VALUE);
-            do
+            long count = ThreadLocalMetrics.getCountAndReset(uncountedMetricId);
+            for (long i = 0; i < requiredTicks; i++)
             {
-                m15Rate = tickFifteenMinuteEWMA(m15Rate, 0);
-                m3Ticks++;
-            }
-            while (getRatePerSecond(m15Rate) > maxTickZeroTarget);
-            maxTicks = m3Ticks;
-        }
-
-        // Double.MIN_VALUE means non-initialized
-        private volatile double m1Rate = Double.MIN_VALUE;
-        private volatile double m5Rate = Double.MIN_VALUE;
-        private volatile double m15Rate = Double.MIN_VALUE;
-
-        private final AtomicLong lastTick;
-        private final MonotonicClock clock;
-
-        private final int uncountedMetricId;
-
-        public ThreadLocalExponentialMovingAverages(MonotonicClock clock)
-        {
-            this.clock = clock;
-            this.lastTick = new AtomicLong(this.clock.now());
-            this.uncountedMetricId = ThreadLocalMetrics.allocateMetricId();
-        }
-
-        public void update(ThreadLocalMetrics context, long n)
-        {
-            context.addNonStatic(uncountedMetricId, n);
-        }
-
-        public void update(long n)
-        {
-            update(ThreadLocalMetrics.get(), n);
-        }
-
-        public void tickIfNecessary()
-        {
-            long oldTick = this.lastTick.get();
-            long newTick = this.clock.now();
-            long age = newTick - oldTick;
-            if (age > TICK_INTERVAL)
-            {
-                long newIntervalStartTick = newTick - age % TICK_INTERVAL;
-                if (this.lastTick.compareAndSet(oldTick, newIntervalStartTick))
-                {
-                    long requiredTicks = age / TICK_INTERVAL;
-                    if (requiredTicks >= maxTicks)
-                        reset();
-                    else
-                    {
-                        // TODO: check how to make count and reset cheaper
-                        // we can skip dead threads check for ticks executed as a part of a meter mark
-                        // we can try to replace a global rate and ticks with local rates..
-                        long count = ThreadLocalMetrics.getCountAndReset(uncountedMetricId);
-                        for (long i = 0; i < requiredTicks; i++)
-                        {
-                            m1Rate = tickOneMinuteEWMA(m1Rate, count);
-                            m5Rate = tickFiveMinuteEWMA(m5Rate, count);
-                            m15Rate = tickFifteenMinuteEWMA(m15Rate, count);
-                            count = 0;
-                        }
-                    }
-                }
+                double m1Rate  = getRateValue(rateGroupId +  M1_RATE_OFFSET);
+                double m5Rate  = getRateValue(rateGroupId +  M5_RATE_OFFSET);
+                double m15Rate = getRateValue(rateGroupId + M15_RATE_OFFSET);
+                setRateValue(rateGroupId +  M1_RATE_OFFSET, tickOneMinuteEWMA(m1Rate, count));
+                setRateValue(rateGroupId +  M5_RATE_OFFSET, tickFiveMinuteEWMA(m5Rate, count));
+                setRateValue(rateGroupId + M15_RATE_OFFSET, tickFifteenMinuteEWMA(m15Rate, count));
+                count = 0;
             }
         }
+    }
 
-        public static double tickOneMinuteEWMA(double oldRate, long count)
-        {
-            return tick(M1_ALPHA, oldRate, count);
-        }
+    private static double tickOneMinuteEWMA(double oldRate, long count)
+    {
+        return tick(M1_ALPHA, oldRate, count);
+    }
 
-        public static double tickFiveMinuteEWMA(double oldRate, long count)
-        {
-            return tick(M5_ALPHA, oldRate, count);
-        }
+    private static double tickFiveMinuteEWMA(double oldRate, long count)
+    {
+        return tick(M5_ALPHA, oldRate, count);
+    }
 
-        public static double tickFifteenMinuteEWMA(double oldRate, long count)
-        {
-            return tick(M15_ALPHA, oldRate, count);
-        }
+    private static double tickFifteenMinuteEWMA(double oldRate, long count)
+    {
+        return tick(M15_ALPHA, oldRate, count);
+    }
 
-        private static double tick(double alpha, double oldRate, long count)
-        {
-            double instantRate = (double) count / TICK_INTERVAL;
-            if (oldRate != Double.MIN_VALUE)
-                return oldRate + alpha * (instantRate - oldRate);
-            else // init
-                return instantRate;
-        }
+    private static double tick(double alpha, double oldRate, long count)
+    {
+        double instantRate = (double) count / TICK_INTERVAL_NS;
+        if (oldRate != NON_INITIALIZED)
+            return oldRate + alpha * (instantRate - oldRate);
+        else // init
+            return instantRate;
+    }
+    private static double getRatePerSecond(double rate)
+    {
+        if (rate == NON_INITIALIZED)
+            rate = 0.0;
+        return rate * (double) TimeUnit.SECONDS.toNanos(1L);
+    }
 
-        public double getM1Rate()
-        {
-            return getRatePerSecond(m1Rate);
-        }
-
-        public double getM5Rate()
-        {
-            return getRatePerSecond(m5Rate);
-        }
-
-        public double getM15Rate()
-        {
-            return getRatePerSecond(m15Rate);
-        }
-
-        private static double getRatePerSecond(double rate)
-        {
-            if (rate == Double.MIN_VALUE)
-                rate = 0.0;
-            return rate * (double) TimeUnit.SECONDS.toNanos(1L);
-        }
-
-        /**
-         * Set the rate to the smallest possible positive value. Used to avoid calling tick a large number of times.
-         */
-        public void reset()
-        {
-            ThreadLocalMetrics.getCountAndReset(uncountedMetricId);
-            m1Rate = Double.MIN_NORMAL;
-            m5Rate = Double.MIN_NORMAL;
-            m15Rate = Double.MIN_NORMAL;
-        }
-
-        public void destroy()
-        {
-            ThreadLocalMetrics.destroyMetric(uncountedMetricId);
-        }
+    /**
+     * Set the rate to the smallest possible positive value. Used to avoid calling tick a large number of times.
+     */
+    private void reset()
+    {
+        ThreadLocalMetrics.getCountAndReset(uncountedMetricId);
+        setRateValue(rateGroupId +  M1_RATE_OFFSET, Double.MIN_NORMAL);
+        setRateValue(rateGroupId +  M5_RATE_OFFSET, Double.MIN_NORMAL);
+        setRateValue(rateGroupId + M15_RATE_OFFSET, Double.MIN_NORMAL);
     }
 }

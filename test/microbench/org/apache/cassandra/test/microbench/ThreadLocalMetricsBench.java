@@ -25,7 +25,7 @@ import java.util.concurrent.atomic.AtomicLongArray;
 
 import org.apache.cassandra.metrics.Counter;
 import org.apache.cassandra.metrics.LongAdderCounter;
-import org.apache.cassandra.metrics.ThreadLocalMetrics;
+import org.apache.cassandra.metrics.ThreadLocalCounter;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
 import org.openjdk.jmh.annotations.Fork;
@@ -72,7 +72,7 @@ public class ThreadLocalMetricsBench
                     counter = new LongAdderCounter();
                     break;
                 case "PlainArray":
-                    counter = ThreadLocalMetrics.createCounter();
+                    counter = new ThreadLocalCounter();
                     break;
                 default:
                     throw new UnsupportedOperationException();

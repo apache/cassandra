@@ -36,30 +36,30 @@ public class ThreadLocalMeterTest
     @Test
     public void checkNoMark()
     {
-        DeterministicClock clock = new DeterministicClock();
-        clock.setTime(0);
+        DeterministicClock clock = new DeterministicClock(0);
+        ThreadLocalMeter.setTickClock(clock);
         ThreadLocalMeter meter = new ThreadLocalMeter(clock);
         com.codahale.metrics.Meter codahaleMeter = new com.codahale.metrics.Meter(clock);
         clock.setTime(TimeUnit.SECONDS.toNanos(10));
-        meter.tickIfNecessary();
+        ThreadLocalMeter.tickAll();
         assertMeter(meter, codahaleMeter);
     }
 
     @Test
     public void constantRate()
     {
-        DeterministicClock clock = new DeterministicClock();
-        clock.setTime(0);
+        DeterministicClock clock = new DeterministicClock(0);
+        ThreadLocalMeter.setTickClock(clock);
         ThreadLocalMeter meter = new ThreadLocalMeter(clock);
         com.codahale.metrics.Meter codahaleMeter = new com.codahale.metrics.Meter(clock);
 
         long seconds = TimeUnit.MINUTES.toSeconds(15);
         for (long i = 0; i < seconds; i++)
         {
+            ThreadLocalMeter.tickAll();
             meter.mark();
             codahaleMeter.mark();
             clock.setTime(TimeUnit.SECONDS.toNanos(i + 1));
-            meter.tickIfNecessary();
         }
 
         assertMeter(meter, codahaleMeter);
@@ -68,13 +68,13 @@ public class ThreadLocalMeterTest
     @Test
     public void marksEventsAndUpdatesRatesAndCount()
     {
-        DeterministicClock clock = new DeterministicClock();
-        clock.setTime(0);
+        DeterministicClock clock = new DeterministicClock(0);
+        ThreadLocalMeter.setTickClock(clock);
         ThreadLocalMeter meter = new ThreadLocalMeter(clock);
         com.codahale.metrics.Meter codahaleMeter = new com.codahale.metrics.Meter(clock);
 
         clock.setTime(TimeUnit.SECONDS.toNanos(10));
-        meter.tickIfNecessary();
+        ThreadLocalMeter.tickAll();
         meter.mark();
         meter.mark(2);
         codahaleMeter.mark();
@@ -87,8 +87,8 @@ public class ThreadLocalMeterTest
     public void pseudoRandomRateSimulation()
     {
         Random random = new Random(1);
-        DeterministicClock clock = new DeterministicClock();
-        clock.setTime(0);
+        DeterministicClock clock = new DeterministicClock(0);
+        ThreadLocalMeter.setTickClock(clock);
         ThreadLocalMeter meter = new ThreadLocalMeter(clock);
         com.codahale.metrics.Meter codahaleMeter = new com.codahale.metrics.Meter(clock);
 
@@ -96,28 +96,26 @@ public class ThreadLocalMeterTest
         for (int i = 0; i < rounds; i++)
         {
             long n = random.nextInt();
+            ThreadLocalMeter.tickAll();
             meter.mark(n);
             codahaleMeter.mark(n);
             clock.setTime(clock.now() + random.nextInt());
-            meter.tickIfNecessary();
         }
-        meter.tickIfNecessary();
         assertMeter(meter, codahaleMeter);
     }
 
     @Test // CASSANDRA-19332
     public void testMaxTicks()
     {
-        DeterministicClock clock = new DeterministicClock();
-        clock.setTime(0);
-        ThreadLocalMeter.ThreadLocalExponentialMovingAverages averages = new ThreadLocalMeter.ThreadLocalExponentialMovingAverages(clock);
+        DeterministicClock clock = new DeterministicClock(0);
+        ThreadLocalMeter threadLocalMeter = new ThreadLocalMeter(clock);
         clock.setTime(Long.MAX_VALUE);
-        averages.update(Long.MAX_VALUE);
-        averages.tickIfNecessary();
+        threadLocalMeter.mark(Long.MAX_VALUE);
+        ThreadLocalMeter.tickAll();
         final long secondNanos = TimeUnit.SECONDS.toNanos(1);
-        assertEquals(averages.getM1Rate(), Double.MIN_NORMAL * secondNanos, 0.0);
-        assertEquals(averages.getM5Rate(), Double.MIN_NORMAL * secondNanos, 0.0);
-        assertEquals(averages.getM15Rate(), Double.MIN_NORMAL * secondNanos, 0.0);
+        assertEquals(threadLocalMeter.getOneMinuteRate(), Double.MIN_NORMAL * secondNanos, 0.0);
+        assertEquals(threadLocalMeter.getFiveMinuteRate(), Double.MIN_NORMAL * secondNanos, 0.0);
+        assertEquals(threadLocalMeter.getFifteenMinuteRate(), Double.MIN_NORMAL * secondNanos, 0.0);
     }
 
     private static void assertMeter(ThreadLocalMeter checkingMeter, com.codahale.metrics.Meter standardMeter)
@@ -131,7 +129,12 @@ public class ThreadLocalMeterTest
 
     private static class DeterministicClock extends Clock implements MonotonicClock
     {
-        private long tickNs;
+        private volatile long tickNs;
+
+        public DeterministicClock(long initialTime)
+        {
+            tickNs = initialTime;
+        }
 
         public void setTime(long tickNs)
         {
