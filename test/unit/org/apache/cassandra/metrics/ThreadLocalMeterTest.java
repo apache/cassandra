@@ -18,6 +18,8 @@
 
 package org.apache.cassandra.metrics;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Random;
 import java.util.concurrent.TimeUnit;
 
@@ -37,7 +39,6 @@ public class ThreadLocalMeterTest
     public void checkNoMark()
     {
         DeterministicClock clock = new DeterministicClock(0);
-        ThreadLocalMeter.setTickClock(clock);
         ThreadLocalMeter meter = new ThreadLocalMeter(clock);
         com.codahale.metrics.Meter codahaleMeter = new com.codahale.metrics.Meter(clock);
         clock.setTime(TimeUnit.SECONDS.toNanos(10));
@@ -49,7 +50,6 @@ public class ThreadLocalMeterTest
     public void constantRate()
     {
         DeterministicClock clock = new DeterministicClock(0);
-        ThreadLocalMeter.setTickClock(clock);
         ThreadLocalMeter meter = new ThreadLocalMeter(clock);
         com.codahale.metrics.Meter codahaleMeter = new com.codahale.metrics.Meter(clock);
 
@@ -69,7 +69,6 @@ public class ThreadLocalMeterTest
     public void marksEventsAndUpdatesRatesAndCount()
     {
         DeterministicClock clock = new DeterministicClock(0);
-        ThreadLocalMeter.setTickClock(clock);
         ThreadLocalMeter meter = new ThreadLocalMeter(clock);
         com.codahale.metrics.Meter codahaleMeter = new com.codahale.metrics.Meter(clock);
 
@@ -88,7 +87,6 @@ public class ThreadLocalMeterTest
     {
         Random random = new Random(1);
         DeterministicClock clock = new DeterministicClock(0);
-        ThreadLocalMeter.setTickClock(clock);
         ThreadLocalMeter meter = new ThreadLocalMeter(clock);
         com.codahale.metrics.Meter codahaleMeter = new com.codahale.metrics.Meter(clock);
 
@@ -116,6 +114,45 @@ public class ThreadLocalMeterTest
         assertEquals(threadLocalMeter.getOneMinuteRate(), Double.MIN_NORMAL * secondNanos, 0.0);
         assertEquals(threadLocalMeter.getFiveMinuteRate(), Double.MIN_NORMAL * secondNanos, 0.0);
         assertEquals(threadLocalMeter.getFifteenMinuteRate(), Double.MIN_NORMAL * secondNanos, 0.0);
+    }
+
+    @Test
+    public void testAllocationAndDestroy()
+    {
+        DeterministicClock clock = new DeterministicClock(0);
+        Random random = new Random(42);
+        List<MeterPair> meters = new ArrayList<>();
+        for (int i = 0; i < 10_000; i++)
+        {
+            boolean create = random.nextBoolean();
+            if (create)
+            {
+                MeterPair pair = new MeterPair();
+                pair.meter = new ThreadLocalMeter(clock);
+                pair.codahaleMeter = new com.codahale.metrics.Meter(clock);
+                meters.add(pair);
+            }
+            else if (!meters.isEmpty())
+            {
+               int meterToRemove = random.nextInt(meters.size());
+               meters.remove(meterToRemove).meter.destroy();
+            }
+            ThreadLocalMeter.tickAll();
+            for (MeterPair meterPair : meters)
+            {
+                meterPair.meter.mark();
+                meterPair.codahaleMeter.mark();
+                assertMeter(meterPair.meter, meterPair.codahaleMeter);
+            }
+            clock.setTime(clock.now() + random.nextLong(TimeUnit.SECONDS.toNanos(10)));
+        }
+    }
+
+    private static class MeterPair
+    {
+        ThreadLocalMeter meter;
+        com.codahale.metrics.Meter codahaleMeter;
+
     }
 
     private static void assertMeter(ThreadLocalMeter checkingMeter, com.codahale.metrics.Meter standardMeter)

@@ -61,9 +61,6 @@ public class ThreadLocalMeter implements Meter
     private static final double maxTickZeroTarget = 0.0001;
     private static final int maxTicks;
 
-    private static volatile MonotonicClock tickClock = MonotonicClock.Global.approxTime;
-    private static long lastTick;
-
     static
     {
         int m3Ticks = 1;
@@ -76,13 +73,6 @@ public class ThreadLocalMeter implements Meter
         }
         while (getRatePerSecond(emulatedM15Rate) > maxTickZeroTarget);
         maxTicks = m3Ticks;
-    }
-
-    @VisibleForTesting
-    static void setTickClock(MonotonicClock clock)
-    {
-        tickClock = clock;
-        lastTick = 0;
     }
 
     static
@@ -106,7 +96,7 @@ public class ThreadLocalMeter implements Meter
         {
             rateGroupId = rateGroupIdGenerator.getAndAdd(RATES_COUNT);
             double[] currentRates = rates;
-            if (currentRates.length < rateGroupId)
+            if (currentRates.length < rateGroupId + RATES_COUNT)
             {
                 double[] newRates = new double[(int) (rateGroupId + RATES_COUNT)];
                 System.arraycopy(currentRates, 0, newRates, 0, currentRates.length);
@@ -134,6 +124,7 @@ public class ThreadLocalMeter implements Meter
     private final int rateGroupId;
     private final long startTime;
     private final MonotonicClock clock;
+    private long lastTick;
 
     public ThreadLocalMeter()
     {
@@ -144,6 +135,7 @@ public class ThreadLocalMeter implements Meter
     {
         this.clock = clock;
         this.startTime = this.clock.now();
+        this.lastTick = this.startTime;
         this.countMetricId = ThreadLocalMetrics.allocateMetricId();
         this.uncountedMetricId = ThreadLocalMetrics.allocateMetricId();
         this.rateGroupId = allocateRateGroupOffset();
@@ -219,22 +211,26 @@ public class ThreadLocalMeter implements Meter
     @VisibleForTesting
     static synchronized void tickAll()
     {
-        long newTick = tickClock.now();
+        for (ThreadLocalMeter threadLocalMeter : allMeters)
+            threadLocalMeter.tickIfNessesary();
+    }
+
+    private void tickIfNessesary()
+    {
+        long newTick = clock.now();
         long age = newTick - lastTick;
         if (age > TICK_INTERVAL_NS)
         {
             lastTick = newTick - age % TICK_INTERVAL_NS;
             long requiredTicks = age / TICK_INTERVAL_NS;
-            for (ThreadLocalMeter threadLocalMeter : allMeters)
-                threadLocalMeter.tick(requiredTicks);
+            tick(requiredTicks);
         }
     }
-
     private void tick(long requiredTicks)
     {
         if (requiredTicks >= maxTicks)
             reset();
-        else
+        else if (requiredTicks > 0)
         {
             long count = ThreadLocalMetrics.getCountAndReset(uncountedMetricId);
             for (long i = 0; i < requiredTicks; i++)
