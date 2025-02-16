@@ -713,6 +713,7 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
             startJmx();
         LoggingSupportFactory.getLoggingSupport().onStartup();
         logSystemInfo(inInstancelogger);
+        Config.log(DatabaseDescriptor.getRawConfig());
 
         FileUtils.setFSErrorHandler(new DefaultFSErrorHandler());
         DatabaseDescriptor.createAllDirectories();
