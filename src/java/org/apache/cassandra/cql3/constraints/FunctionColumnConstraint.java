@@ -77,7 +77,8 @@ public class FunctionColumnConstraint extends AbstractFunctionConstraint<Functio
 
     public enum Functions
     {
-        LENGTH(LengthConstraint::new);
+        LENGTH(LengthConstraint::new),
+        SERIALIZED_SIZE(SerializedSizeConstraint::new);
 
         private final Function<ColumnIdentifier, ConstraintFunction> functionCreator;
 

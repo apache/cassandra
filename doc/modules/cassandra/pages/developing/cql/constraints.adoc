@@ -92,6 +92,31 @@ Finally, the constraint can be removed:
 ALTER TABLE keyspace.table ALTER name DROP CHECK;
 ----
 
+=== SERIALIZED_SIZE CONSTRAINT
+
+Defines a condition that checks the size in bytes of text or binary type.
+
+For example, we can create a constraint that checks that name can't be bigger than 256 characters:
+
+----
+CREATE TABLE keyspace.table (
+	name text CHECK SERIALIZED_SIZE(name) < 256
+	...,
+);
+----
+
+Altering that constraint can be done with:
+
+----
+ALTER TABLE keyspace.table ALTER name SERIALIZED_SIZE(name) < 512;
+----
+
+Finally, the constraint can be removed:
+
+----
+ALTER TABLE keyspace.table ALTER name DROP CHECK;
+----
+
 === NOT_NULL constraint
 
 Defines a constraint that checks if a column is not null in every modification statement.
