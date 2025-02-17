@@ -153,7 +153,7 @@ public class CompactionStrategyMigrationManager implements CompactionStrategyMig
 
         // do override: here we override both compaction strategy and options regardless what was set before
         cfsToMigrate.forEach((cfs, params) -> {
-            cfs.getCompactionStrategyManager().setNewLocalCompactionStrategy(params);
+            cfs.getCompactionStrategyManager().overrideLocalParams(params);
         });
     }
 

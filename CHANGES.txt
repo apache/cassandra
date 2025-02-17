@@ -175,6 +175,7 @@ Merged from 3.0:
  * Fix CQLSH online help topic link (CASSANDRA-17534)
  * Remove unused suppressions (CASSANDRA-18724)
 Unreleased
+ * Only reload compaction strategies if disk boundaries change (CASSANDRA-17874)
  * [SO-34092] Convert system_distributed.parent_repair_history/repair_history to LCS
  * Fix hints delivery for a node going down repeatedly (CASSANDRA-19495)
  * Add table metric PurgeableTombstoneScannedHistogram and a tracing event for scanned purgeable tombstones (CASSANDRA-20132)
