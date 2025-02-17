@@ -92,6 +92,32 @@ Finally, the constraint can be removed:
 ALTER TABLE keyspace.table ALTER name DROP CHECK;
 ----
 
+=== OCTET_LENGTH CONSTRAINT
+
+Defines a condition that checks the size in bytes of text or binary type.
+
+For example, we can create a constraint that checks that name can't be bigger than 256 characters:
+
+----
+CREATE TABLE keyspace.table (
+	name text CHECK OCTET_LENGTH(name) < 2
+	...,
+);
+----
+
+Inserting a valid row:
+----
+INSERT INTO keyspace.table (name) VALUES ("f")
+----
+
+Inserting an invalid row:
+----
+INSERT INTO keyspace.table (name) VALUES ("fooooooo")
+
+ERROR: Column value does not satisfy value constraint for column 'name'. It has a length of 8 and
+and it should be should be < 2
+----
+
 === NOT_NULL constraint
 
 Defines a constraint that checks if a column is not null in every modification statement.

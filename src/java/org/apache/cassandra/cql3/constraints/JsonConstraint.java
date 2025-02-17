@@ -26,7 +26,6 @@ import org.apache.cassandra.cql3.Operator;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.AsciiType;
 import org.apache.cassandra.db.marshal.UTF8Type;
-import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.serializers.MarshalException;
 import org.apache.cassandra.utils.JsonUtils;
 
@@ -61,11 +60,6 @@ public class JsonConstraint extends ConstraintFunction
                                                           columnName.toCQLString(),
                                                           name));
         }
-    }
-
-    @Override
-    public void validate(ColumnMetadata columnMetadata) throws InvalidConstraintDefinitionException
-    {
     }
 
     @Override

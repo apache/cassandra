@@ -30,20 +30,19 @@ import org.apache.cassandra.db.marshal.Int32Type;
 import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
-public class LengthConstraint extends ConstraintFunction
+public class OctetLengthConstraint extends ConstraintFunction
 {
-    private static final String NAME = "LENGTH";
     private static final List<AbstractType<?>> SUPPORTED_TYPES = List.of(BytesType.instance, UTF8Type.instance, AsciiType.instance);
 
-    public LengthConstraint(ColumnIdentifier columnName)
+    public OctetLengthConstraint(ColumnIdentifier columnName)
     {
-        super(columnName, NAME);
+        super(columnName, "OCTET_LENGTH");
     }
 
     @Override
     public void internalEvaluate(AbstractType<?> valueType, Operator relationType, String term, ByteBuffer columnValue)
     {
-        int valueLength = getValueLength(columnValue, valueType);
+        int valueLength = columnValue.remaining();
         int sizeConstraint = Integer.parseInt(term);
 
         ByteBuffer leftOperand = ByteBufferUtil.bytes(valueLength);
@@ -51,7 +50,7 @@ public class LengthConstraint extends ConstraintFunction
 
         if (!relationType.isSatisfiedBy(Int32Type.instance, leftOperand, rightOperand))
             throw new ConstraintViolationException("Column value does not satisfy value constraint for column '" + columnName + "'. "
-                                                   + "It has a length of " + valueLength + " and it should be "
+                                                   + "It has a length of " + valueLength + " and it should be should be "
                                                    + relationType + ' ' + term);
     }
 
@@ -67,24 +66,16 @@ public class LengthConstraint extends ConstraintFunction
         return SUPPORTED_TYPES;
     }
 
-    private int getValueLength(ByteBuffer value, AbstractType<?> valueType)
-    {
-        if (valueType.getClass() == BytesType.class)
-            return value.remaining();
-        else
-            return ((String) valueType.compose(value)).length();
-    }
-
     @Override
     public boolean equals(Object o)
     {
         if (this == o)
             return true;
 
-        if (!(o instanceof LengthConstraint))
+        if (!(o instanceof OctetLengthConstraint))
             return false;
 
-        LengthConstraint other = (LengthConstraint) o;
+        OctetLengthConstraint other = (OctetLengthConstraint) o;
 
         return columnName.equals(other.columnName);
     }
