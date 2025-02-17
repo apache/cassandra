@@ -28,6 +28,3 @@ artifact_paths:
   - build/jacoco/jacoco-*.exec
   - build/coverage/*
   - build/comment/phabricator-comment*
-
-agent:
-  queue: "odin-cassandra-ci"

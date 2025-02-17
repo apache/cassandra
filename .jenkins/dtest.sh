@@ -193,7 +193,7 @@ pip freeze
 cd cassandra-dtest
 set +e # disable immediate exit from this point
 
-py.test --cassandra-dir="${CASSANDRA_DIR}"  --use-vnodes --num-tokens=16 --test-group-count=$TOTAL_GROUP_NUMBER --test-group=$DTEST_GROUP_ID -x
+pytest --cassandra-dir="${CASSANDRA_DIR}"  --use-vnodes --num-tokens=16 --splits $TOTAL_GROUP_NUMBER --group $DTEST_GROUP_ID --store-durations --durations-path latest_test_durations -x
 
 RETURN="$?"
 if [ "${RETURN}" -ne "0" ]; then
@@ -203,6 +203,10 @@ fi
 
 # /virtualenv
 deactivate
+
+mkdir test_durations_dir
+cat .test_durations
+mv .test_durations test_durations_dir/test_durations${DTEST_GROUP_ID}
 
 # Exit cleanly for usable "Unstable" status
 exit 0

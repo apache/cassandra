@@ -52,6 +52,7 @@ def _api_conduit_call(end_point):
 def api_request(end_point, params, callback_func):
     results = []
     after = None
+    retry = 3
     while True:  # Use True instead of true
         call_command = _api_conduit_call(end_point)
         if after:
@@ -59,9 +60,16 @@ def api_request(end_point, params, callback_func):
         try:
             # Assuming call_command is a valid executable or a subprocess call.
             p = subprocess.Popen(call_command, stdout=subprocess.PIPE, stdin=subprocess.PIPE)
-            response, _ = p.communicate(input=json.dumps(params).encode())
+            response, err_data = p.communicate(input=json.dumps(params).encode())
         except Exception as e:
             raise Exception(f"Error while making the API request: {str(e)}")
+
+        if err_data:
+            print(err_data)
+            if retry > 0:
+                retry -= 1
+                print("API call failed, {retry} chances left, will retry soon...")
+                continue
 
         if not response:
             raise Exception(
