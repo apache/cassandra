@@ -98,6 +98,24 @@ public class ScalarColumnConstraint extends ColumnConstraint<ScalarColumnConstra
     }
 
     @Override
+    public String term()
+    {
+        return term;
+    }
+
+    @Override
+    public String function()
+    {
+        return null;
+    }
+
+    @Override
+    public String condition()
+    {
+        return relationType.toString();
+    }
+
+    @Override
     public String toString()
     {
         return columnName + " " + relationType + " " + term;

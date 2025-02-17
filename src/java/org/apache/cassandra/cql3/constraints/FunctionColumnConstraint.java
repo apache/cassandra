@@ -137,6 +137,24 @@ public class FunctionColumnConstraint extends AbstractFunctionConstraint<Functio
         return ConstraintType.FUNCTION;
     }
 
+    @Override
+    public String function()
+    {
+        return function.name;
+    }
+
+    @Override
+    public String term()
+    {
+        return term;
+    }
+
+    @Override
+    public String condition()
+    {
+        return relationType.toString();
+    }
+
     void validateArgs(ColumnMetadata columnMetadata)
     {
         if (!columnMetadata.name.equals(columnName))

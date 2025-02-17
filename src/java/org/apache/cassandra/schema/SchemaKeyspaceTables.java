@@ -25,6 +25,7 @@ public class SchemaKeyspaceTables
     public static final String TABLES = "tables";
     public static final String COLUMNS = "columns";
     public static final String COLUMN_MASKS = "column_masks";
+    public static final String COLUMN_CONSTRAINTS = "column_constraints";
     public static final String DROPPED_COLUMNS = "dropped_columns";
     public static final String TRIGGERS = "triggers";
     public static final String VIEWS = "views";
@@ -32,7 +33,7 @@ public class SchemaKeyspaceTables
     public static final String FUNCTIONS = "functions";
     public static final String AGGREGATES = "aggregates";
     public static final String INDEXES = "indexes";
- 
+
     /**
      * The order in this list matters.
      *
@@ -47,6 +48,7 @@ public class SchemaKeyspaceTables
      * See CASSANDRA-12213 for more details.
      */
     public static final ImmutableList<String> ALL = ImmutableList.of(COLUMN_MASKS,
+                                                                     COLUMN_CONSTRAINTS,
                                                                      COLUMNS,
                                                                      DROPPED_COLUMNS,
                                                                      TRIGGERS,

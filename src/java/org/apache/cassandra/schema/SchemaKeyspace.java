@@ -34,6 +34,11 @@ import org.slf4j.LoggerFactory;
 import org.antlr.runtime.RecognitionException;
 import org.apache.cassandra.config.*;
 import org.apache.cassandra.cql3.*;
+import org.apache.cassandra.cql3.constraints.ColumnConstraint;
+import org.apache.cassandra.cql3.constraints.ColumnConstraint.ConstraintType;
+import org.apache.cassandra.cql3.constraints.ColumnConstraints;
+import org.apache.cassandra.cql3.constraints.FunctionColumnConstraint;
+import org.apache.cassandra.cql3.constraints.ScalarColumnConstraint;
 import org.apache.cassandra.cql3.functions.*;
 import org.apache.cassandra.cql3.functions.masking.ColumnMask;
 import org.apache.cassandra.cql3.statements.schema.CreateTableStatement;
@@ -158,6 +163,19 @@ public final class SchemaKeyspace
           + "function_argument_nulls frozen<list<boolean>>," // arguments that are null
           + "PRIMARY KEY ((keyspace_name), table_name, column_name))");
 
+    private static final TableMetadata ColumnConstraints =
+    parse(COLUMN_CONSTRAINTS,
+          "column constraints registry",
+          "CREATE TABLE %s ("
+          + "keyspace_name text,"
+          + "table_name text,"
+          + "column_name text,"
+          + "constraint_types frozen<list<text>>,"
+          + "constraint_functions frozen<list<text>>,"
+          + "constraint_conditions frozen<list<text>>,"
+          + "constraint_terms frozen<list<text>>,"
+          + "PRIMARY KEY ((keyspace_name), table_name, column_name))");
+
     private static final TableMetadata DroppedColumns =
         parse(DROPPED_COLUMNS,
               "dropped column registry",
@@ -267,6 +285,7 @@ public final class SchemaKeyspace
                                                                                    Tables,
                                                                                    Columns,
                                                                                    ColumnMasks,
+                                                                                   ColumnConstraints,
                                                                                    Triggers,
                                                                                    DroppedColumns,
                                                                                    Views,
@@ -746,6 +765,34 @@ public final class SchemaKeyspace
                            .add("function_argument_nulls", nulls);
             }
         }
+
+        Row.SimpleBuilder constraintsBuilder = builder.update(ColumnConstraints).row(table.name, column.name.toString());
+
+        if (column.hasConstraint())
+        {
+            int numArgs = column.getColumnConstraints().getConstraints().size();
+            List<String> types = new ArrayList<>(numArgs);
+            List<String> functions = new ArrayList<>(numArgs);
+            List<String> conditions = new ArrayList<>(numArgs);
+            List<String> terms = new ArrayList<>(numArgs);
+
+            for (int i = 0; i < numArgs; i++)
+            {
+                types.add(column.getColumnConstraints().getConstraints().get(i).getConstraintType().name());
+                functions.add(column.getColumnConstraints().getConstraints().get(i).function() == null ? "null" : column.getColumnConstraints().getConstraints().get(i).function());
+                conditions.add(column.getColumnConstraints().getConstraints().get(i).condition() == null ? "null" : column.getColumnConstraints().getConstraints().get(i).condition());
+                terms.add(column.getColumnConstraints().getConstraints().get(i).term() == null ? "null" : column.getColumnConstraints().getConstraints().get(i).term());
+            }
+
+            constraintsBuilder.add("constraint_types", types)
+                              .add("constraint_functions", functions)
+                              .add("constraint_conditions", conditions)
+                              .add("constraint_terms", terms);
+        }
+        else
+        {
+            constraintsBuilder.delete();
+        }
     }
 
     private static void dropColumnFromSchemaMutation(TableMetadata table, ColumnMetadata column, Mutation.SimpleBuilder builder)
@@ -1134,7 +1181,39 @@ public final class SchemaKeyspace
             mask = new ColumnMask((ScalarFunction) function, values);
         }
 
-        return new ColumnMetadata(keyspace, table, name, type, position, kind, mask);
+
+        String constraintsQuery = format("SELECT * FROM %s.%s WHERE keyspace_name = ? AND table_name = ? AND column_name = ?",
+                              SchemaConstants.SCHEMA_KEYSPACE_NAME, COLUMN_CONSTRAINTS);
+        UntypedResultSet columnConstraints = query(constraintsQuery, keyspace, table, name.toString());
+        List<ColumnConstraint<?>> constraints = new ArrayList<>();
+        if (!columnConstraints.isEmpty())
+        {
+            UntypedResultSet.Row constraintRow = columnConstraints.one();
+            List<String> typesAsCQL = constraintRow.getFrozenList("constraint_types", UTF8Type.instance);
+            List<String> functionsAsCQL = constraintRow.getFrozenList("constraint_functions", UTF8Type.instance);
+            List<String> conditionsAsCQL = constraintRow.getFrozenList("constraint_conditions", UTF8Type.instance);
+            List<String> termsAsCQL = constraintRow.getFrozenList("constraint_terms", UTF8Type.instance);
+
+            for (int i = 0; i < typesAsCQL.size(); i++)
+            {
+                if (ConstraintType.valueOf(typesAsCQL.get(i)) == ConstraintType.SCALAR)
+                {
+                    constraints.add(new ScalarColumnConstraint.Raw(name, Operator.valueOf(conditionsAsCQL.get(i)), termsAsCQL.get(i)).prepare());
+                }
+                else if(ConstraintType.valueOf(typesAsCQL.get(i)) == ConstraintType.FUNCTION)
+                {
+                    constraints.add(new FunctionColumnConstraint.Raw(new ColumnIdentifier(functionsAsCQL.get(i), true), name, Operator.valueOf(conditionsAsCQL.get(i)), termsAsCQL.get(i)).prepare());
+                }
+                else
+                {
+                    throw new AssertionError(format("Column %s.%s.%s has an unexpected constraint type %s",
+                                                    keyspace, table, name, typesAsCQL.get(i)));
+                }
+
+            }
+        }
+
+        return new ColumnMetadata(keyspace, table, name, type, position, kind, mask, columnConstraints.isEmpty() ? org.apache.cassandra.cql3.constraints.ColumnConstraints.NO_OP : new ColumnConstraints(constraints));
     }
 
     private static Map<ByteBuffer, DroppedColumn> fetchDroppedColumns(String keyspace, String table)

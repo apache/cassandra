@@ -124,6 +124,24 @@ public class UnaryFunctionColumnConstraint extends AbstractFunctionConstraint<Un
         return UNARY_FUNCTION;
     }
 
+    @Override
+    public String function()
+    {
+        return function.name;
+    }
+
+    @Override
+    public String term()
+    {
+        return null;
+    }
+
+    @Override
+    public String condition()
+    {
+        return null;
+    }
+
     void validateArgs(ColumnMetadata columnMetadata)
     {
         if (!columnMetadata.name.equals(columnName))

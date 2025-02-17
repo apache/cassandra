@@ -101,5 +101,12 @@ public abstract class ColumnConstraint<T>
      *
      * @return the Constraint type serializer
      */
+
     public abstract ConstraintType getConstraintType();
+
+    public abstract String function();
+
+    public abstract String term();
+
+    public abstract String condition();
 }

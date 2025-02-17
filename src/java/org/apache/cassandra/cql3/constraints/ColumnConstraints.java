@@ -124,6 +124,24 @@ public class ColumnConstraints extends ColumnConstraint<ColumnConstraints>
         return ConstraintType.COMPOSED;
     }
 
+    @Override
+    public String function()
+    {
+        throw new AssertionError("ColumnConstraints is only an aggregator constraint");
+    }
+
+    @Override
+    public String term()
+    {
+        throw new AssertionError("ColumnConstraints is only an aggregator constraint");
+    }
+
+    @Override
+    public String condition()
+    {
+        throw new AssertionError("ColumnConstraints is only an aggregator constraint");
+    }
+
     private static class Noop extends ColumnConstraints
     {
         private Noop()
