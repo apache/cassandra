@@ -187,13 +187,6 @@ public final class Tables implements Iterable<TableMetadata>
              : this;
     }
 
-    public Tables withKeyspaceReplicationType(ReplicationType type)
-    {
-        return any(this, t -> t.keyspaceReplicationType != type)
-               ? builder().add(transform(this, t -> t.withKeyspaceReplicationType(type))).build()
-               : this;
-    }
-
     MapDifference<String, TableMetadata> indexesDiff(Tables other)
     {
         Map<String, TableMetadata> thisIndexTables = new HashMap<>();
