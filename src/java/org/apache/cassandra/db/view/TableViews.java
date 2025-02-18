@@ -571,7 +571,7 @@ public class TableViews extends AbstractCollection<View>
                 Mutation.PartitionUpdateCollector collector = mutations.get(key);
                 if (collector == null)
                 {
-                    collector = new Mutation.PartitionUpdateCollector(baseTableMetadata.keyspace, key);
+                    collector = new Mutation.PartitionUpdateCollector(MutationId.fixme(), baseTableMetadata.keyspace, key);
                     mutations.put(key, collector);
                 }
                 collector.add(update);

@@ -118,7 +118,7 @@ public class CounterMutationTest
         cfsTwo.truncateBlocking();
 
         // Do the update (+1, -1), (+2, -2)
-        Mutation.PartitionUpdateCollector batch = new Mutation.PartitionUpdateCollector(KEYSPACE1, Util.dk("key1"));
+        Mutation.PartitionUpdateCollector batch = new Mutation.PartitionUpdateCollector(MutationId.none(), KEYSPACE1, Util.dk("key1"));
         batch.add(new RowUpdateBuilder(cfsOne.metadata(), 5, "key1")
             .clustering("cc")
             .add("val", 1L)

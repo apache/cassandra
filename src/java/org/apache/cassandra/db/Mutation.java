@@ -383,9 +383,9 @@ public class Mutation implements IMutation, Supplier<Mutation>
      * @param partitionKey the key of partition this if a mutation for.
      * @return a newly created builder.
      */
-    public static SimpleBuilder simpleBuilder(String keyspaceName, DecoratedKey partitionKey)
+    public static SimpleBuilder simpleBuilder(MutationId mutationId, String keyspaceName, DecoratedKey partitionKey)
     {
-        return new SimpleBuilders.MutationBuilder(keyspaceName, partitionKey);
+        return new SimpleBuilders.MutationBuilder(mutationId, keyspaceName, partitionKey);
     }
 
     /**
@@ -644,13 +644,15 @@ public class Mutation implements IMutation, Supplier<Mutation>
     public static class PartitionUpdateCollector
     {
         private final ImmutableMap.Builder<TableId, PartitionUpdate> modifications = new ImmutableMap.Builder<>();
+        private final MutationId mutationId;
         private final String keyspaceName;
         private final DecoratedKey key;
         private final long approxCreatedAtNanos = approxTime.now();
         private boolean empty = true;
 
-        public PartitionUpdateCollector(String keyspaceName, DecoratedKey key)
+        public PartitionUpdateCollector(MutationId mutationId, String keyspaceName, DecoratedKey key)
         {
+            this.mutationId = mutationId;
             this.keyspaceName = keyspaceName;
             this.key = key;
         }
@@ -682,7 +684,7 @@ public class Mutation implements IMutation, Supplier<Mutation>
 
         public Mutation build()
         {
-            return new Mutation(MutationId.createForKeyspace(keyspaceName), keyspaceName, key, modifications.build(), approxCreatedAtNanos);
+            return new Mutation(mutationId, keyspaceName, key, modifications.build(), approxCreatedAtNanos);
         }
     }
 }
