@@ -19,13 +19,9 @@
 package org.apache.cassandra.replication.simple;
 
 import java.io.IOException;
-import java.util.Collection;
-import java.util.HashMap;
 import java.util.Map;
-import java.util.Set;
 import java.util.Objects;
 import java.util.SortedSet;
-import java.util.TreeSet;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableSortedMap;
@@ -52,35 +48,12 @@ public class SimpleMutationSummary implements MutationSummary
         this.ids = ids;
     }
 
-    public static class Builder
+    public SimpleMutationSummary merge(SimpleMutationSummary that)
     {
-        private final Map<DecoratedKey, Set<MutationId>> ids = new HashMap<>();
-
-        public Builder add(DecoratedKey key, MutationId id)
-        {
-            ids.computeIfAbsent(key, k -> new TreeSet<>()).add(id);
-            return this;
-        }
-
-        public Builder add(DecoratedKey key, Collection<MutationId> id)
-        {
-            ids.computeIfAbsent(key, k -> new TreeSet<>()).addAll(id);
-            return this;
-        }
-
-        public SimpleMutationSummary build()
-        {
-            ImmutableSortedMap.Builder<DecoratedKey, ImmutableSortedSet<MutationId>> builder = ImmutableSortedMap.builder();
-            for (Map.Entry<DecoratedKey, Set<MutationId>> entry : ids.entrySet())
-                builder.put(entry.getKey(), ImmutableSortedSet.copyOf(entry.getValue()));
-
-            return new SimpleMutationSummary(builder.build());
-        }
-    }
-
-    public static Builder builder()
-    {
-        return new Builder();
+        ImmutableSortedMap.Builder<DecoratedKey, ImmutableSortedSet<MutationId>> builder = ImmutableSortedMap.builder();
+        builder.putAll(this.ids);
+        builder.putAll(that.ids);
+        return new SimpleMutationSummary(builder.build());
     }
 
     @Override

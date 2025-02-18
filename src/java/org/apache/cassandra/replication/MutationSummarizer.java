@@ -19,13 +19,31 @@
 package org.apache.cassandra.replication;
 
 import org.apache.cassandra.db.DecoratedKey;
-import org.apache.cassandra.db.Mutation;
 import org.apache.cassandra.schema.TableId;
 
-public interface MutationTracker
+/**
+ * Used to ensure that the data and mutation summaries returned by a logged read command accurately describe
+ * each other. That is, we're not returning data that contains mutations not reflected in the summary, and we're
+ * not including mutations in the summary that aren't reflected in the data.
+ */
+public interface MutationSummarizer extends AutoCloseable
 {
-    void add(Mutation mutation);
+    static MutationSummarizer NOOP = new MutationSummarizer()
+    {
+        @Override
+        public void addForKey(TableId table, DecoratedKey key) {}
 
-    MutationSummary summaryForKey(TableId table, DecoratedKey key);
-    MutationSummarizer summarizer();
+        @Override
+        public MutationSummary summary() { return null; }
+
+        @Override
+        public void close() {}
+    };
+
+    // TODO: accept sstable/memtable id data to accumulate
+    void addForKey(TableId table, DecoratedKey key);
+    MutationSummary summary();
+
+    @Override
+    void close();
 }
