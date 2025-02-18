@@ -42,7 +42,6 @@ import org.apache.cassandra.utils.ByteBufferUtil;
 
 import static java.lang.String.format;
 import static java.util.stream.Collectors.toMap;
-import static org.apache.cassandra.db.TypeSizes.BYTE_SIZE;
 import static org.apache.cassandra.schema.TableParams.Option.*;
 import static org.apache.cassandra.db.TypeSizes.sizeof;
 import static org.apache.cassandra.utils.LocalizeString.toLowerCaseLocalized;
@@ -50,69 +49,6 @@ import static org.apache.cassandra.utils.LocalizeString.toLowerCaseLocalized;
 public final class TableParams
 {
     public static final Serializer serializer = new Serializer();
-
-    public static enum TableReplicationType
-    {
-        keyspace, legacy, logged;
-
-        public static TableReplicationType fromString(String value)
-        {
-            return valueOf(value.toLowerCase());
-        }
-
-        private static MetadataSerializer<TableReplicationType> serializer = new MetadataSerializer<TableReplicationType>()
-        {
-            @Override
-            public void serialize(TableReplicationType t, DataOutputPlus out, Version version) throws IOException
-            {
-                if (version.isBefore(Version.V7))
-                    return;
-
-                switch (t)
-                {
-                    case keyspace:
-                        out.writeByte(0);
-                        break;
-                    case legacy:
-                        out.writeByte(1);
-                        break;
-                    case logged:
-                        out.writeByte(2);
-                        break;
-                    default:
-                        throw new IllegalArgumentException("Unsupported table replication type: " + t);
-                }
-            }
-
-            @Override
-            public TableReplicationType deserialize(DataInputPlus in, Version version) throws IOException
-            {
-                if (version.isBefore(Version.V7))
-                    return keyspace;
-
-                byte t = in.readByte();
-                switch (t)
-                {
-                    case 0:
-                        return keyspace;
-                    case 1:
-                        return legacy;
-                    case 2:
-                        return logged;
-                    default:
-                        throw new IllegalArgumentException("Unsupported table replication value: " + t);
-                }
-            }
-
-            @Override
-            public long serializedSize(TableReplicationType t, Version version)
-            {
-                if (version.isBefore(Version.V7))
-                    return 0;
-                return BYTE_SIZE;
-            }
-        };
-    }
 
     public enum Option
     {
@@ -134,8 +70,7 @@ public final class TableParams
         ADDITIONAL_WRITE_POLICY,
         CRC_CHECK_CHANCE,
         CDC,
-        READ_REPAIR,
-        REPLICATION_TYPE;
+        READ_REPAIR;
 
         @Override
         public String toString()
@@ -163,7 +98,6 @@ public final class TableParams
     public final ImmutableMap<String, ByteBuffer> extensions;
     public final boolean cdc;
     public final ReadRepairStrategy readRepair;
-    public final TableReplicationType replicationType;
 
     private TableParams(Builder builder)
     {
@@ -188,7 +122,6 @@ public final class TableParams
         extensions = builder.extensions;
         cdc = builder.cdc;
         readRepair = builder.readRepair;
-        replicationType = builder.replicationType;
     }
 
     public static Builder builder()
@@ -216,8 +149,7 @@ public final class TableParams
                             .additionalWritePolicy(params.additionalWritePolicy)
                             .extensions(params.extensions)
                             .cdc(params.cdc)
-                            .readRepair(params.readRepair)
-                            .replicationType(params.replicationType);
+                            .readRepair(params.readRepair);
     }
 
     public Builder unbuild()
@@ -308,8 +240,7 @@ public final class TableParams
             && memtable.equals(p.memtable)
             && extensions.equals(p.extensions)
             && cdc == p.cdc
-            && readRepair == p.readRepair
-            && replicationType == p.replicationType;
+            && readRepair == p.readRepair;
     }
 
     @Override
@@ -333,8 +264,7 @@ public final class TableParams
                                 memtable,
                                 extensions,
                                 cdc,
-                                readRepair,
-                                replicationType);
+                                readRepair);
     }
 
     @Override
@@ -360,7 +290,6 @@ public final class TableParams
                           .add(EXTENSIONS.toString(), extensions)
                           .add(CDC.toString(), cdc)
                           .add(READ_REPAIR.toString(), readRepair)
-                          .add(REPLICATION_TYPE.toString(), replicationType)
                           .toString();
     }
 
@@ -412,9 +341,7 @@ public final class TableParams
                .newLine()
                .append("AND read_repair = ").appendWithSingleQuotes(readRepair.toString())
                .newLine()
-               .append("AND speculative_retry = ").appendWithSingleQuotes(speculativeRetry.toString())
-               .newLine()
-               .append("AND replication_type = ").appendWithSingleQuotes(replicationType.toString());
+               .append("AND speculative_retry = ").appendWithSingleQuotes(speculativeRetry.toString());
     }
 
     public static final class Builder
@@ -438,7 +365,6 @@ public final class TableParams
         private ImmutableMap<String, ByteBuffer> extensions = ImmutableMap.of();
         private boolean cdc;
         private ReadRepairStrategy readRepair = ReadRepairStrategy.BLOCKING;
-        private TableReplicationType replicationType = TableReplicationType.keyspace;
 
         public Builder()
         {
@@ -557,12 +483,6 @@ public final class TableParams
             return this;
         }
 
-        public Builder replicationType(TableReplicationType type)
-        {
-            replicationType = type;
-            return this;
-        }
-
         public Builder extensions(Map<String, ByteBuffer> val)
         {
             extensions = ImmutableMap.copyOf(val);
@@ -597,7 +517,6 @@ public final class TableParams
                 out.writeBoolean(t.allowAutoSnapshot);
                 out.writeBoolean(t.incrementalBackups);
             }
-            TableReplicationType.serializer.serialize(t.replicationType, out, version);
         }
 
         public TableParams deserialize(DataInputPlus in, Version version) throws IOException
@@ -621,8 +540,7 @@ public final class TableParams
                    .cdc(in.readBoolean())
                    .readRepair(ReadRepairStrategy.fromString(in.readUTF()))
                    .allowAutoSnapshot(!version.isAtLeast(Version.V4) || in.readBoolean())
-                   .incrementalBackups(!version.isAtLeast(Version.V4) || in.readBoolean())
-                   .replicationType(TableReplicationType.serializer.deserialize(in, version));
+                   .incrementalBackups(!version.isAtLeast(Version.V4) || in.readBoolean());
             return builder.build();
         }
 
@@ -646,8 +564,7 @@ public final class TableParams
                    sizeof(t.cdc) +
                    sizeof(t.readRepair.name()) +
                    (version.isAtLeast(Version.V4) ? sizeof(t.allowAutoSnapshot) : 0) +
-                   (version.isAtLeast(Version.V4) ? sizeof(t.incrementalBackups) : 0) +
-                   TableReplicationType.serializer.serializedSize(t.replicationType, version);
+                   (version.isAtLeast(Version.V4) ? sizeof(t.incrementalBackups) : 0);
         }
 
         private void serializeMap(Map<String, String> map, DataOutputPlus out) throws IOException

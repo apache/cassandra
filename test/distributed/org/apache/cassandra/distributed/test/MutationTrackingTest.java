@@ -26,8 +26,6 @@ import org.apache.cassandra.distributed.api.Feature;
 import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.schema.ReplicationType;
 import org.apache.cassandra.schema.Schema;
-import org.apache.cassandra.schema.TableMetadata;
-import org.apache.cassandra.schema.TableParams;
 
 public class MutationTrackingTest extends TestBaseImpl
 {
@@ -51,23 +49,6 @@ public class MutationTrackingTest extends TestBaseImpl
                 KeyspaceMetadata keyspace = Schema.instance.getKeyspaceMetadata(keyspaceName);
                 Assert.assertEquals(ReplicationType.logged, keyspace.params.replicationType);
             });
-
-            // test keyspace inheritance
-            cluster.schemaChange(withKeyspace("CREATE TABLE %s.tbl (k int primary key, v int);"));
-            cluster.get(1).runOnInstance(() -> {
-                TableMetadata table = Schema.instance.getTableMetadata(keyspaceName, "tbl");
-                Assert.assertEquals(TableParams.TableReplicationType.keyspace, table.params.replicationType);
-                Assert.assertTrue(table.hasLoggedReplication());
-            });
-
-            // test table override
-            cluster.schemaChange(withKeyspace("CREATE TABLE %s.tbl2 (k int primary key, v int) WITH replication_type='legacy';"));
-            cluster.get(1).runOnInstance(() -> {
-                TableMetadata table = Schema.instance.getTableMetadata(keyspaceName, "tbl2");
-                Assert.assertEquals(TableParams.TableReplicationType.legacy, table.params.replicationType);
-                Assert.assertFalse(table.hasLoggedReplication());
-            });
-
         }
     }
 }

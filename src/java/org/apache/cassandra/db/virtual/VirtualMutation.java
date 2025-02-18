@@ -63,6 +63,12 @@ public final class VirtualMutation implements IMutation
     }
 
     @Override
+    public IMutation withMutationId(MutationId mutationId)
+    {
+        throw new IllegalArgumentException("MutationId cannot be used for virtual mutations");
+    }
+
+    @Override
     public void apply()
     {
         modifications.forEach((id, update) -> VirtualKeyspaceRegistry.instance.getTableNullable(id).apply(update));

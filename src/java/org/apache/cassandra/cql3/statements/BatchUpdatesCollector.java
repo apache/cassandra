@@ -224,9 +224,8 @@ final class BatchUpdatesCollector implements UpdatesCollector
             {
                 PartitionUpdate update = updateEntry.getValue().build();
                 updates.put(updateEntry.getKey(), update);
-                createId |= update.metadata().hasLoggedReplication();
             }
-            return new Mutation(createId ? MutationId.createNext() : MutationId.none(), keyspaceName, key, updates.build(), createdAt);
+            return new Mutation(MutationId.createForKeyspace(keyspaceName), keyspaceName, key, updates.build(), createdAt);
         }
 
         public PartitionUpdate.Builder get(TableId tableId)
