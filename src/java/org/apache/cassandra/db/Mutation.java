@@ -523,7 +523,7 @@ public class Mutation implements IMutation, Supplier<Mutation>
             {
                 teeIn = new TeeDataInputPlus(in, dob, CACHEABLE_MUTATION_SIZE_LIMIT);
 
-                MutationId id = MutationId.serializer.deserialize(in, version);
+                MutationId id = MutationId.serializer.deserialize(teeIn, version);
 
                 int size = teeIn.readUnsignedVInt32();
                 assert size > 0;
