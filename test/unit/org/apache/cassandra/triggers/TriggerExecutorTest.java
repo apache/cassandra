@@ -19,12 +19,13 @@ package org.apache.cassandra.triggers;
 
 import java.util.*;
 
+import org.apache.cassandra.SchemaLoader;
+import org.apache.cassandra.schema.KeyspaceParams;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
 import org.apache.cassandra.Util;
 import org.apache.cassandra.schema.TableMetadata;
-import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.rows.*;
 import org.apache.cassandra.db.marshal.UTF8Type;
@@ -45,7 +46,8 @@ public class TriggerExecutorTest
     @BeforeClass
     public static void setupDD()
     {
-        DatabaseDescriptor.daemonInitialization();
+        SchemaLoader.prepareServer();
+        SchemaLoader.createKeyspace("ks1", KeyspaceParams.simple(1));
     }
 
     @Test
