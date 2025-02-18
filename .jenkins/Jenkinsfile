@@ -165,25 +165,25 @@ def tasks() {
     'cqlsh-test': [splits: 1],
     'fqltool-test': [splits: 1, size: 'small'],
     'test-cdc': [splits: 8],
-    'test': [splits: 8],
-    'test-latest': [splits: 8],
-    'test-compression': [splits: 8],
+    'test': [splits: 16],
+    'test-latest': [splits: 16],
+    'test-compression': [splits: 16],
     'stress-test': [splits: 1, size: 'small'],
     'test-burn': [splits: 2],
-    'long-test': [splits: 8],
-    'test-oa': [splits: 8],
-    'test-system-keyspace-directory': [splits: 8],
+    'long-test': [splits: 4],
+    'test-oa': [splits: 16],
+    'test-system-keyspace-directory': [splits: 16],
     'jvm-dtest': [splits: 12],
-    'jvm-dtest-upgrade': [splits: 8],
+    'jvm-dtest-upgrade': [splits: 6],
     'simulator-dtest': [splits: 1, size: 'large'],
     'dtest': [splits: 64, size: 'large'],
     'dtest-novnode': [splits: 64, size: 'large'],
     'dtest-latest': [splits: 64, size: 'large'],
-    'dtest-large': [splits: 8, size: 'large'],
-    'dtest-large-novnode': [splits: 8, size: 'large'],
-    'dtest-large-latest': [splits: 8, size: 'large'],
-    'dtest-upgrade': [splits: 64, size: 'large'],
-    'dtest-upgrade-novnode': [splits: 64, size: 'large'],
+    'dtest-large': [splits: 6, size: 'large'],
+    'dtest-large-novnode': [splits: 6, size: 'large'],
+    'dtest-large-latest': [splits: 6, size: 'large'],
+    'dtest-upgrade': [splits: 128, size: 'large'],
+    'dtest-upgrade-novnode': [splits: 128, size: 'large'],
     'dtest-upgrade-large': [splits: 32, size: 'large'],
     'dtest-upgrade-novnode-large': [splits: 32, size: 'large'],
   ]
@@ -379,8 +379,7 @@ def test(command, cell) {
           fetchDockerImages(['ubuntu2004_test'])
           def cell_suffix = "_jdk${cell.jdk}_python_${cell.python}_${cell.cython}_${cell.arch}_${cell.split}_${splits}"
           def logfile = "stage-logs/${JOB_NAME}_${BUILD_NUMBER}_${cell.step}${cell_suffix}_attempt${attempt}.log.xz"
-          // pipe to tee needs pipefail
-          def script_vars = "#!/bin/bash \n set -o pipefail ; "
+          def script_vars = "#!/bin/bash \n set -o pipefail ; " // pipe to tee needs pipefail
           script_vars = "${script_vars} python_version=\'${cell.python}\'"
           script_vars = "${script_vars} m2_dir=\'${WORKSPACE}/build/m2\'"
           if ("cqlsh-test" == cell.step) {
@@ -394,7 +393,6 @@ def test(command, cell) {
               def status = sh label: "RUNNING TESTS ${cell.step}...", script: "${script_vars} .build/docker/run-tests.sh -a ${cell.step} -c '${cell.split}/${splits}' -j ${cell.jdk} 2>&1 | tee >( xz -c > build/${logfile} )", returnStatus: true
               dir("build") {
                 archiveArtifacts artifacts: "${logfile}", fingerprint: true
-                copyToNightlies("${logfile}", "${cell.step}/${cell.arch}/jdk${cell.jdk}/python${cell.python}/cython_${cell.cython}/" + "split_${cell.split}_${splits}".replace("/", "_"))
               }
               if (0 != status) { error("Stage ${cell.step}${cell_suffix} failed with exit status ${status}") }
             } finally {
@@ -411,9 +409,9 @@ def test(command, cell) {
                 find test/output -name nosetests.xml -execdir mv nosetests.xml ${cell.step}/nosetests${cell_suffix}.xml ';'
               """
             junit testResults: "test/**/TEST-*.xml,test/**/cqlshlib*.xml,test/**/nosetests*.xml", testDataPublishers: [[$class: 'StabilityTestDataPublisher']]
-            sh "find test/output -type f -name *.xml -exec sh -c 'xz -f {} &' ';' ; wait "
+            sh "find test/output -type f -name *.xml -exec sh -c 'xz -f {} &' ';' ; wait ; find test/output -type f -name *.xml.xz | wc -l"
             archiveArtifacts artifacts: "test/logs/**,test/**/TEST-*.xml.xz,test/**/cqlshlib*.xml.xz,test/**/nosetests*.xml.xz", fingerprint: true
-            copyToNightlies("test/logs/**", "${cell.step}/${cell.arch}/jdk${cell.jdk}/python${cell.python}/cython_${cell.cython}/" + "split_${cell.split}_${splits}".replace("/", "_"))
+            copyToNightlies("${logfile}, test/logs/**", "${cell.step}/${cell.arch}/jdk${cell.jdk}/python${cell.python}/cython_${cell.cython}/" + "split_${cell.split}_${splits}".replace("/", "_"))
           }
           cleanAgent(cell.step)
         }
@@ -551,6 +549,7 @@ def generateTestReports() {
       //   TODO parallelised for loop
       //   TODO results_details.tar.xz needs to include all logs for failed tests
       sh """${script_vars} (
+          find build/test/output -type f -name *.xml.xz | wc -l
           find build/test/output -name *.xml.xz -exec sh -c 'xz -f --decompress {} &' ';'  ; wait
 
           for target in \$(ls build/test/output/) ; do
