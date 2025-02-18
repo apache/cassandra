@@ -65,7 +65,7 @@ public final class TableParams
             @Override
             public void serialize(TableReplicationType t, DataOutputPlus out, Version version) throws IOException
             {
-                if (!version.isAtLeast(Version.V7))
+                if (version.isBefore(Version.V7))
                     return;
 
                 switch (t)
@@ -87,7 +87,7 @@ public final class TableParams
             @Override
             public TableReplicationType deserialize(DataInputPlus in, Version version) throws IOException
             {
-                if (!version.isAtLeast(Version.V7))
+                if (version.isBefore(Version.V7))
                     return keyspace;
 
                 byte t = in.readByte();
@@ -107,7 +107,9 @@ public final class TableParams
             @Override
             public long serializedSize(TableReplicationType t, Version version)
             {
-                return version.isAtLeast(Version.V7) ? BYTE_SIZE : 0;
+                if (version.isBefore(Version.V7))
+                    return 0;
+                return BYTE_SIZE;
             }
         };
     }
@@ -595,8 +597,7 @@ public final class TableParams
                 out.writeBoolean(t.allowAutoSnapshot);
                 out.writeBoolean(t.incrementalBackups);
             }
-            if (version.isAtLeast(Version.V7))
-                TableReplicationType.serializer.serialize(t.replicationType, out, version);
+            TableReplicationType.serializer.serialize(t.replicationType, out, version);
         }
 
         public TableParams deserialize(DataInputPlus in, Version version) throws IOException
@@ -621,7 +622,7 @@ public final class TableParams
                    .readRepair(ReadRepairStrategy.fromString(in.readUTF()))
                    .allowAutoSnapshot(!version.isAtLeast(Version.V4) || in.readBoolean())
                    .incrementalBackups(!version.isAtLeast(Version.V4) || in.readBoolean())
-                   .replicationType(version.isAtLeast(Version.V7) ? TableReplicationType.serializer.deserialize(in, version) : TableReplicationType.legacy);
+                   .replicationType(TableReplicationType.serializer.deserialize(in, version));
             return builder.build();
         }
 
@@ -646,7 +647,7 @@ public final class TableParams
                    sizeof(t.readRepair.name()) +
                    (version.isAtLeast(Version.V4) ? sizeof(t.allowAutoSnapshot) : 0) +
                    (version.isAtLeast(Version.V4) ? sizeof(t.incrementalBackups) : 0) +
-                   (version.isAtLeast(Version.V7) ? TableReplicationType.serializer.serializedSize(t.replicationType, version) : 0);
+                   TableReplicationType.serializer.serializedSize(t.replicationType, version);
         }
 
         private void serializeMap(Map<String, String> map, DataOutputPlus out) throws IOException

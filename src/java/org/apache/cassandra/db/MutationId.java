@@ -27,6 +27,7 @@ import java.util.concurrent.atomic.AtomicLong;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
+import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.utils.Clock;
@@ -145,6 +146,9 @@ public class MutationId implements Comparable<MutationId>, Serializable
         @Override
         public void serialize(MutationId id, DataOutputPlus out, int version) throws IOException
         {
+            if (version < MessagingService.VERSION_52)
+                return;
+
             out.writeInt(id.node);
             out.writeLong(id.timestamp);
         }
@@ -152,12 +156,18 @@ public class MutationId implements Comparable<MutationId>, Serializable
         @Override
         public MutationId deserialize(DataInputPlus in, int version) throws IOException
         {
+            if (version < MessagingService.VERSION_52)
+                return MutationId.none();
+
             return create(in.readInt(), in.readLong());
         }
 
         @Override
         public long serializedSize(MutationId id, int version)
         {
+            if (version < MessagingService.VERSION_52)
+                return 0;
+
             return TypeSizes.sizeof(id.node) + TypeSizes.sizeof(id.timestamp);
         }
     };
