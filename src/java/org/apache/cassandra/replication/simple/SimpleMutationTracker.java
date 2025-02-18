@@ -31,7 +31,6 @@ import org.apache.cassandra.db.MutationId;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
 import org.apache.cassandra.replication.MutationTracker;
 import org.apache.cassandra.schema.TableId;
-import org.apache.cassandra.schema.TableMetadata;
 
 public class SimpleMutationTracker implements MutationTracker
 {
@@ -72,22 +71,9 @@ public class SimpleMutationTracker implements MutationTracker
             return;
         }
 
-        boolean isTracked = false;
         for (PartitionUpdate update : mutation.getPartitionUpdates())
-        {
-            // TODO: should we also track ids for tables that don't have logged replication? In case of TCM races?
-            TableMetadata metadata = update.metadata();
-            if (!metadata.hasLoggedReplication())
-                continue;
+            tableIds.computeIfAbsent(update.metadata().id, k -> new TableIds()).add(mutation.key(), mutation.id());
 
-            tableIds.computeIfAbsent(metadata.id, k -> new TableIds()).add(mutation.key(), mutation.id());
-            isTracked = true;
-        }
-
-        // TODO: would this being false make any sense? Need to work out what to do if we had a mutation tagged with
-        //    an id and it didn't apply to any tables with logged replication. This is likely a case migration will have
-        //    to deal with since we'll have a mixed mode
-        if (isTracked)
-            mutations.put(mutation.id(), mutation);
+        mutations.put(mutation.id(), mutation);
     }
 }

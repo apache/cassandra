@@ -115,6 +115,12 @@ public class Mutation implements IMutation, Supplier<Mutation>
         return id;
     }
 
+    @Override
+    public Mutation withMutationId(MutationId mutationId)
+    {
+        return new Mutation(mutationId, keyspaceName, key, modifications, approxCreatedAtNanos, cdcEnabled);
+    }
+
     private static boolean cdcEnabled(Iterable<PartitionUpdate> modifications)
     {
         boolean cdc = false;
@@ -642,7 +648,6 @@ public class Mutation implements IMutation, Supplier<Mutation>
         private final DecoratedKey key;
         private final long approxCreatedAtNanos = approxTime.now();
         private boolean empty = true;
-        private boolean createId = false;
 
         public PartitionUpdateCollector(String keyspaceName, DecoratedKey key)
         {
@@ -657,7 +662,6 @@ public class Mutation implements IMutation, Supplier<Mutation>
             // note that ImmutableMap.Builder only allows put:ing the same key once, it will fail during build() below otherwise
             modifications.put(partitionUpdate.metadata().id, partitionUpdate);
             empty = false;
-            createId |= partitionUpdate.metadata().hasLoggedReplication();
             return this;
         }
 
@@ -678,7 +682,7 @@ public class Mutation implements IMutation, Supplier<Mutation>
 
         public Mutation build()
         {
-            return new Mutation(createId ? MutationId.createNext() : MutationId.none(), keyspaceName, key, modifications.build(), approxCreatedAtNanos);
+            return new Mutation(MutationId.createForKeyspace(keyspaceName), keyspaceName, key, modifications.build(), approxCreatedAtNanos);
         }
     }
 }

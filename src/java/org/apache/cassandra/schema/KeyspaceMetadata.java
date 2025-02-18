@@ -238,6 +238,11 @@ public final class KeyspaceMetadata implements SchemaElement
         return Optional.empty();
     }
 
+    public boolean hasLoggedReplication()
+    {
+        return params.replicationType.isLogged();
+    }
+
     @Override
     public int hashCode()
     {

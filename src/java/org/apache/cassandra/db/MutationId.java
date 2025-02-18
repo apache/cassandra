@@ -28,6 +28,8 @@ import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.net.MessagingService;
+import org.apache.cassandra.schema.KeyspaceMetadata;
+import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.utils.Clock;
@@ -104,6 +106,16 @@ public class MutationId implements Comparable<MutationId>, Serializable
             if (state.lastTimestamp.compareAndSet(lastMicros, timestamp))
                 return new MutationId(state.node, timestamp);
         }
+    }
+
+    public static MutationId createFor(KeyspaceMetadata metadata)
+    {
+        return metadata.hasLoggedReplication() ? createNext() : none();
+    }
+
+    public static MutationId createForKeyspace(String keyspace)
+    {
+        return createFor(Schema.instance.getKeyspaceMetadata(keyspace));
     }
 
     public static MutationId createFor(TableMetadata metadata)

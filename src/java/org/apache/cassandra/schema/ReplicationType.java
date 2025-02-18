@@ -78,4 +78,9 @@ public enum ReplicationType
             return TypeSizes.BYTE_SIZE;
         }
     };
+
+    public boolean isLogged()
+    {
+        return this == logged;
+    }
 }
