@@ -121,7 +121,7 @@ public class MutationTrackingPendingReadTest
                 MutationId firstId = Iterables.getOnlyElement(summaryForKey(keyspaceName, tableName, dk).allIds);
 
                 // create a mutation
-                SimpleBuilders.MutationBuilder builder = new SimpleBuilders.MutationBuilder(keyspaceName, dk);
+                SimpleBuilders.MutationBuilder builder = new SimpleBuilders.MutationBuilder(MutationId.none(), keyspaceName, dk);
                 PartitionUpdate.SimpleBuilder tableBuilder = builder.update(metadata);
                 tableBuilder.row(bytes(1)).add("v", 1);
                 Mutation mutation = builder.build();
@@ -217,7 +217,7 @@ public class MutationTrackingPendingReadTest
                     Assert.assertTrue(pendingRead.mutationIds().isEmpty());
 
                     // create and apply a mutation
-                    SimpleBuilders.MutationBuilder builder = new SimpleBuilders.MutationBuilder(keyspaceName, dk);
+                    SimpleBuilders.MutationBuilder builder = new SimpleBuilders.MutationBuilder(MutationId.none(), keyspaceName, dk);
                     PartitionUpdate.SimpleBuilder tableBuilder = builder.update(metadata);
                     tableBuilder.row(bytes(1)).add("v", 1);
                     Mutation mutation = builder.build();
