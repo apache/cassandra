@@ -58,16 +58,19 @@ public class TlsTestUtils
     public static String SERVER_KEYSTORE_PATH_PEM = "test/conf/cassandra_ssl_test.keystore.pem";
     public static String SERVER_KEYSTORE_PATH_UNENCRYPTED_PEM = "test/conf/cassandra_ssl_test.unencrypted_keystore.pem";
     public static String SERVER_KEYSTORE_PASSWORD = "cassandra";
+    public static String SERVER_KEYSTORE_PASSWORD_FILE = "test/conf/cassandra_ssl_test_keystore_passwordfile.txt";
 
     public static String SERVER_KEYSTORE_ENDPOINT_VERIFY_PATH = "test/conf/cassandra_ssl_test_endpoint_verify.keystore";
     public static String SERVER_KEYSTORE_ENDPOINT_VERIFY_PASSWORD = "cassandra";
 
     public static String SERVER_OUTBOUND_KEYSTORE_PATH = "test/conf/cassandra_ssl_test_outbound.keystore";
     public static String SERVER_OUTBOUND_KEYSTORE_PASSWORD = "cassandra";
+    public static String SERVER_OUTBOUND_KEYSTORE_PASSWORD_FILE = "test/conf/cassandra_ssl_test_outbound_keystore_password.txt";
 
     public static String SERVER_TRUSTSTORE_PATH = "test/conf/cassandra_ssl_test.truststore";
     public static String SERVER_TRUSTSTORE_PEM_PATH = "test/conf/cassandra_ssl_test.truststore.pem";
     public static String SERVER_TRUSTSTORE_PASSWORD = "cassandra";
+    public static String SERVER_TRUSTSTORE_PASSWORD_FILE = "test/conf/cassandra_ssl_test_truststore_passwordfile.txt";
 
     // To regenerate:
     // 1. generate keystore

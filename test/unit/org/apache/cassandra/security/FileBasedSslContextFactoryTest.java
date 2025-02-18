@@ -31,6 +31,7 @@ import org.junit.Test;
 import org.apache.cassandra.config.EncryptionOptions;
 import org.apache.cassandra.config.ParameterizedClass;
 import org.apache.cassandra.distributed.shared.WithProperties;
+import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.transport.TlsTestUtils;
 
 import static org.apache.cassandra.config.CassandraRelevantProperties.CASSANDRA_CONFIG;
@@ -89,7 +90,7 @@ public class FileBasedSslContextFactoryTest
     }
 
     /**
-     * Tests that empty {@code keystore_password} and {@code outbound_keystore_password} is allowed.
+     * Tests that empty {@code keystore_password} and {@code outbound_keystore_password} are allowed.
      */
     @Test
     public void testEmptyKeystorePasswords() throws SSLException
@@ -103,13 +104,53 @@ public class FileBasedSslContextFactoryTest
         Assert.assertEquals("org.apache.cassandra.security.FileBasedSslContextFactoryTest$TestFileBasedSSLContextFactory",
                             localEncryptionOptions.ssl_context_factory.class_name);
         Assert.assertEquals("keystore_password must be empty", "", localEncryptionOptions.keystore_password);
-        Assert.assertEquals("outbound_keystore_password must empty", "", localEncryptionOptions.outbound_keystore_password);
+        Assert.assertEquals("outbound_keystore_password must be empty", "", localEncryptionOptions.outbound_keystore_password);
 
         TestFileBasedSSLContextFactory sslContextFactory =
         (TestFileBasedSSLContextFactory) localEncryptionOptions.sslContextFactoryInstance;
 
         sslContextFactory.buildKeyManagerFactory();
         sslContextFactory.buildTrustManagerFactory();
+    }
+
+    @Test
+    public void testKeystorePasswordFile() throws SSLException
+    {
+        // Here we only override password configuration and specify password_file configuration since keystore paths
+        // are already loaded in the `encryptionOptions`
+        EncryptionOptions.ServerEncryptionOptions localEncryptionOptions = encryptionOptions
+                                                                           .withKeyStorePassword(null)
+                                                                           .withKeyStorePasswordFile(TlsTestUtils.SERVER_KEYSTORE_PASSWORD_FILE)
+                                                                           .withOutboundKeystorePassword(null)
+                                                                           .withOutboundKeystorePasswordFile(TlsTestUtils.SERVER_OUTBOUND_KEYSTORE_PASSWORD_FILE)
+                                                                           .withTrustStorePassword(null)
+                                                                           .withTrustStorePasswordFile(TlsTestUtils.SERVER_TRUSTSTORE_PASSWORD_FILE);
+
+        Assert.assertEquals("org.apache.cassandra.security.FileBasedSslContextFactoryTest$TestFileBasedSSLContextFactory",
+                            localEncryptionOptions.ssl_context_factory.class_name);
+        TestFileBasedSSLContextFactory sslContextFactory =
+        (TestFileBasedSSLContextFactory) localEncryptionOptions.sslContextFactoryInstance;
+
+        sslContextFactory.buildKeyManagerFactory();
+        sslContextFactory.buildTrustManagerFactory();
+    }
+
+    /**
+     * Tests for missing password configuration and non-existance file specified in the password_file configuration.
+     * @throws SSLException
+     */
+    @Test(expected =  ConfigurationException.class)
+    public void testBadKeystorePasswordFile() throws SSLException
+    {
+        // Here we only override password configuration and specify password_file configuration since keystore paths
+        // are already loaded in the `encryptionOptions`
+        encryptionOptions
+        .withKeyStorePassword(null)
+        .withKeyStorePasswordFile("/path/to/non-existance-password-file")
+        .withOutboundKeystorePassword(null)
+        .withOutboundKeystorePasswordFile("/path/to/non-existance-password-file")
+        .withTrustStorePassword(null)
+        .withTrustStorePasswordFile("/path/to/non-existance-password-file");
     }
 
     /**

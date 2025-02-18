@@ -150,10 +150,12 @@ public class KubernetesSecretsSslContextFactory extends FileBasedSslContextFacto
     public KubernetesSecretsSslContextFactory()
     {
         keystoreContext = new FileBasedStoreContext(getString(EncryptionOptions.ConfigKey.KEYSTORE.toString(), KEYSTORE_PATH_VALUE),
-                                                    getValueFromEnv(KEYSTORE_PASSWORD_ENV_VAR_NAME, DEFAULT_KEYSTORE_PASSWORD));
+                                                    getValueFromEnv(KEYSTORE_PASSWORD_ENV_VAR_NAME, DEFAULT_KEYSTORE_PASSWORD),
+                                                    null);
 
         trustStoreContext = new FileBasedStoreContext(getString(EncryptionOptions.ConfigKey.TRUSTSTORE.toString(), TRUSTSTORE_PATH_VALUE),
-                                                      getValueFromEnv(TRUSTSTORE_PASSWORD_ENV_VAR_NAME, DEFAULT_TRUSTSTORE_PASSWORD));
+                                                      getValueFromEnv(TRUSTSTORE_PASSWORD_ENV_VAR_NAME, DEFAULT_TRUSTSTORE_PASSWORD),
+                                                      null);
 
         keystoreLastUpdatedTime = System.nanoTime();
         keystoreUpdatedTimeSecretKeyPath = getString(ConfigKeys.KEYSTORE_UPDATED_TIMESTAMP_PATH,
@@ -168,11 +170,13 @@ public class KubernetesSecretsSslContextFactory extends FileBasedSslContextFacto
         super(parameters);
         keystoreContext = new FileBasedStoreContext(getString(EncryptionOptions.ConfigKey.KEYSTORE.toString(), KEYSTORE_PATH_VALUE),
                                                     getValueFromEnv(getString(ConfigKeys.KEYSTORE_PASSWORD_ENV_VAR,
-                                                                              KEYSTORE_PASSWORD_ENV_VAR_NAME), DEFAULT_KEYSTORE_PASSWORD));
+                                                                              KEYSTORE_PASSWORD_ENV_VAR_NAME), DEFAULT_KEYSTORE_PASSWORD),
+                                                    null);
 
         trustStoreContext = new FileBasedStoreContext(getString(EncryptionOptions.ConfigKey.TRUSTSTORE.toString(), TRUSTSTORE_PATH_VALUE),
                                                       getValueFromEnv(getString(ConfigKeys.TRUSTSTORE_PASSWORD_ENV_VAR,
-                                                                                TRUSTSTORE_PASSWORD_ENV_VAR_NAME), DEFAULT_TRUSTSTORE_PASSWORD));
+                                                                                TRUSTSTORE_PASSWORD_ENV_VAR_NAME), DEFAULT_TRUSTSTORE_PASSWORD),
+                                                      null);
         keystoreLastUpdatedTime = System.nanoTime();
         keystoreUpdatedTimeSecretKeyPath = getString(ConfigKeys.KEYSTORE_UPDATED_TIMESTAMP_PATH,
                                                      KEYSTORE_UPDATED_TIMESTAMP_PATH_VALUE);
