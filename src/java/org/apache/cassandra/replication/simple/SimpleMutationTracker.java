@@ -76,4 +76,19 @@ public class SimpleMutationTracker implements MutationTracker
 
         mutations.put(mutation.id(), mutation);
     }
+
+    @Override
+    public MutationSummary summaryForKey(TableId table, DecoratedKey key)
+    {
+        TableIds ids = tableIds.get(table);
+
+        if (ids == null)
+            return SimpleMutationSummary.empty();
+
+        KeyIds keyIds = ids.tableIds.get(key);
+        if (keyIds == null || keyIds.mutationIds.isEmpty())
+            return SimpleMutationSummary.empty();
+
+        return SimpleMutationSummary.of(key, keyIds.mutationIds);
+    }
 }

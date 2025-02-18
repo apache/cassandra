@@ -18,10 +18,13 @@
 
 package org.apache.cassandra.replication;
 
+import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.Mutation;
+import org.apache.cassandra.schema.TableId;
 
 public interface MutationTracker
 {
     void add(Mutation mutation);
 
+    MutationSummary summaryForKey(TableId table, DecoratedKey key);
 }
