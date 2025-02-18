@@ -408,7 +408,7 @@ public final class SchemaKeyspace
                         continue;
 
                     DecoratedKey key = partition.partitionKey();
-                    Mutation.PartitionUpdateCollector puCollector = mutationMap.computeIfAbsent(key, k -> new Mutation.PartitionUpdateCollector(SchemaConstants.SCHEMA_KEYSPACE_NAME, key));
+                    Mutation.PartitionUpdateCollector puCollector = mutationMap.computeIfAbsent(key, k -> new Mutation.PartitionUpdateCollector(MutationId.none(), SchemaConstants.SCHEMA_KEYSPACE_NAME, key));
                     puCollector.add(makeUpdateForSchema(partition, cmd.columnFilter()).withOnlyPresentColumns());
                 }
             }
@@ -457,7 +457,7 @@ public final class SchemaKeyspace
 
     private static Mutation.SimpleBuilder makeCreateKeyspaceMutation(String name, KeyspaceParams params, long timestamp)
     {
-        Mutation.SimpleBuilder builder = Mutation.simpleBuilder(Keyspaces.keyspace, decorate(Keyspaces, name))
+        Mutation.SimpleBuilder builder = Mutation.simpleBuilder(MutationId.none(), Keyspaces.keyspace, decorate(Keyspaces, name))
                                                  .timestamp(timestamp);
 
         builder.update(Keyspaces)
@@ -486,7 +486,7 @@ public final class SchemaKeyspace
 
     private static Mutation.SimpleBuilder makeDropKeyspaceMutation(KeyspaceMetadata keyspace, long timestamp)
     {
-        Mutation.SimpleBuilder builder = Mutation.simpleBuilder(SchemaConstants.SCHEMA_KEYSPACE_NAME, decorate(Keyspaces, keyspace.name))
+        Mutation.SimpleBuilder builder = Mutation.simpleBuilder(MutationId.none(), SchemaConstants.SCHEMA_KEYSPACE_NAME, decorate(Keyspaces, keyspace.name))
                                                  .timestamp(timestamp);
 
         for (TableMetadata schemaTable : ALL_TABLE_METADATA)

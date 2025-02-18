@@ -139,7 +139,7 @@ public class CounterMutation implements IMutation
      */
     public Mutation applyCounterMutation() throws WriteTimeoutException
     {
-        Mutation.PartitionUpdateCollector resultBuilder = new Mutation.PartitionUpdateCollector(getKeyspaceName(), key());
+        Mutation.PartitionUpdateCollector resultBuilder = new Mutation.PartitionUpdateCollector(id(), getKeyspaceName(), key());
         Keyspace keyspace = Keyspace.open(getKeyspaceName());
 
         List<Lock> locks = new ArrayList<>();
