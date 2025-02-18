@@ -502,8 +502,7 @@ public class Mutation implements IMutation, Supplier<Mutation>
         {
             Map<TableId, PartitionUpdate> modifications = mutation.modifications;
 
-            if (version >= VERSION_52)
-                MutationId.serializer.serialize(mutation.id, out, version);
+            MutationId.serializer.serialize(mutation.id, out, version);
 
             /* serialize the modifications in the mutation */
             int size = modifications.size();
@@ -524,9 +523,7 @@ public class Mutation implements IMutation, Supplier<Mutation>
             {
                 teeIn = new TeeDataInputPlus(in, dob, CACHEABLE_MUTATION_SIZE_LIMIT);
 
-                MutationId id = version >= VERSION_52
-                                ? MutationId.serializer.deserialize(in, version)
-                                : MutationId.none();
+                MutationId id = MutationId.serializer.deserialize(in, version);
 
                 int size = teeIn.readUnsignedVInt32();
                 assert size > 0;

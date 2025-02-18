@@ -32,7 +32,6 @@ import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.serialization.MetadataSerializer;
 import org.apache.cassandra.tcm.serialization.Version;
 
-import static org.apache.cassandra.tcm.serialization.Version.V7;
 import static org.apache.cassandra.utils.LocalizeString.toLowerCaseLocalized;
 
 /**
@@ -166,17 +165,14 @@ public final class KeyspaceParams
     {
         public void serialize(KeyspaceParams t, DataOutputPlus out, Version version) throws IOException
         {
-            if (version.isAtLeast(V7))
-                ReplicationType.serializer.serialize(t.replicationType, out, version);
+            ReplicationType.serializer.serialize(t.replicationType, out, version);
             ReplicationParams.serializer.serialize(t.replication, out, version);
             out.writeBoolean(t.durableWrites);
         }
 
         public KeyspaceParams deserialize(DataInputPlus in, Version version) throws IOException
         {
-            ReplicationType rtype = version.isAtLeast(V7)
-                                    ? ReplicationType.serializer.deserialize(in, version)
-                                    : ReplicationType.legacy;
+            ReplicationType rtype = ReplicationType.serializer.deserialize(in, version);
             ReplicationParams params = ReplicationParams.serializer.deserialize(in, version);
             boolean durableWrites = in.readBoolean();
             return new KeyspaceParams(durableWrites, params, rtype);
@@ -184,7 +180,7 @@ public final class KeyspaceParams
 
         public long serializedSize(KeyspaceParams t, Version version)
         {
-            return (version.isAtLeast(V7) ? ReplicationType.serializer.serializedSize(t.replicationType, version) : 0) +
+            return ReplicationType.serializer.serializedSize(t.replicationType, version) +
                    ReplicationParams.serializer.serializedSize(t.replication, version) +
                    TypeSizes.sizeof(t.durableWrites);
         }

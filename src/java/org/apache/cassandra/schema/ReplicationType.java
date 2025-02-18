@@ -35,7 +35,7 @@ public enum ReplicationType
         @Override
         public void serialize(ReplicationType t, DataOutputPlus out, Version version) throws IOException
         {
-            if (!version.isAtLeast(Version.V6))
+            if (version.isBefore(Version.V7))
                 return;
 
             switch (t)
@@ -54,7 +54,7 @@ public enum ReplicationType
         @Override
         public ReplicationType deserialize(DataInputPlus in, Version version) throws IOException
         {
-            if (!version.isAtLeast(Version.V6))
+            if (version.isBefore(Version.V7))
                 return legacy;
 
             byte t = in.readByte();
@@ -73,7 +73,9 @@ public enum ReplicationType
         @Override
         public long serializedSize(ReplicationType t, Version version)
         {
-            return version.isAtLeast(Version.V6) ? TypeSizes.BYTE_SIZE : 0;
+            if (version.isBefore(Version.V7))
+                return 0;
+            return TypeSizes.BYTE_SIZE;
         }
     };
 }
