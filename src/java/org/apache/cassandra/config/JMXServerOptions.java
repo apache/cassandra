@@ -194,11 +194,17 @@ public class JMXServerOptions
 
         boolean sslEnabled = COM_SUN_MANAGEMENT_JMXREMOTE_SSL.getBoolean();
 
+        // CASSANDRA-13428: Support for specifying password file for keystores is only added to the `encryption_options`
+        // in the `cassandra.yaml`. Since the JMX SSL Config can also leverage it as per CASSANDRA-18508, password file
+        // support is not added to the JMX SSL configuration via the system properties. Hence, `null` is used as
+        // the password file arguments for the keystore and the truststore while constructing the encryption options here.
         EncryptionOptions encryptionOptions = new EncryptionOptions(new ParameterizedClass("org.apache.cassandra.security.DefaultSslContextFactory", new HashMap<>()),
                                                                     keystore,
                                                                     keystorePassword,
+                                                                    null,
                                                                     truststore,
                                                                     truststorePassword,
+                                                                    null,
                                                                     cipherSuites,
                                                                     null, // protocol
                                                                     acceptedProtocols,

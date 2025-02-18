@@ -82,6 +82,54 @@ public class EncryptionOptionsEqualityTest
     }
 
     @Test
+    public void testKeystoreOptionsWithPasswordFile() {
+        EncryptionOptions encryptionOptions1 =
+        new EncryptionOptions()
+        .withStoreType("JKS")
+        .withKeyStore(TlsTestUtils.SERVER_KEYSTORE_PATH)
+        .withKeyStorePasswordFile(TlsTestUtils.SERVER_KEYSTORE_PASSWORD_FILE)
+        .withTrustStore(TlsTestUtils.SERVER_TRUSTSTORE_PATH)
+        .withTrustStorePasswordFile(TlsTestUtils.SERVER_TRUSTSTORE_PASSWORD_FILE)
+        .withProtocol("TLSv1.1")
+        .withRequireClientAuth(REQUIRED)
+        .withRequireEndpointVerification(false);
+
+        EncryptionOptions encryptionOptions2 =
+        new EncryptionOptions()
+        .withStoreType("JKS")
+        .withKeyStore(TlsTestUtils.SERVER_KEYSTORE_PATH)
+        .withKeyStorePasswordFile(TlsTestUtils.SERVER_KEYSTORE_PASSWORD_FILE)
+        .withTrustStore(TlsTestUtils.SERVER_TRUSTSTORE_PATH)
+        .withTrustStorePasswordFile(TlsTestUtils.SERVER_TRUSTSTORE_PASSWORD_FILE)
+        .withProtocol("TLSv1.1")
+        .withRequireClientAuth(REQUIRED)
+        .withRequireEndpointVerification(false);
+
+        assertEquals(encryptionOptions1, encryptionOptions2);
+        assertEquals(encryptionOptions1.hashCode(), encryptionOptions2.hashCode());
+    }
+
+    @Test
+    public void testMismatchForKeystoreOptionsWithPasswordFile()
+    {
+        EncryptionOptions.ServerEncryptionOptions encryptionOptions1 = createServerEncryptionOptions();
+        EncryptionOptions.ServerEncryptionOptions encryptionOptions2 = createServerEncryptionOptions();
+
+        encryptionOptions1 = encryptionOptions1
+                             .withKeyStore(TlsTestUtils.SERVER_KEYSTORE_PATH)
+                             .withKeyStorePassword(null)
+                             .withKeyStorePasswordFile(TlsTestUtils.SERVER_KEYSTORE_PASSWORD_FILE);
+
+        encryptionOptions2 = encryptionOptions2
+                             .withKeyStore(TlsTestUtils.SERVER_KEYSTORE_PATH)
+                             .withKeyStorePassword(null)
+                             .withKeyStorePasswordFile(TlsTestUtils.SERVER_TRUSTSTORE_PASSWORD_FILE);
+
+        assertNotEquals(encryptionOptions1, encryptionOptions2);
+        assertNotEquals(encryptionOptions1.hashCode(), encryptionOptions2.hashCode());
+    }
+
+    @Test
     public void testSameCustomSslContextFactoryImplementation() {
 
         Map<String,String> parameters1 = new HashMap<>();

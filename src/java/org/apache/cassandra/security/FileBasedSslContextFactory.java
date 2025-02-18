@@ -60,18 +60,19 @@ public abstract class FileBasedSslContextFactory extends AbstractSslContextFacto
 
     public FileBasedSslContextFactory()
     {
-        keystoreContext = new FileBasedStoreContext("conf/.keystore", "cassandra");
-        outboundKeystoreContext = new FileBasedStoreContext("conf/.keystore", "cassandra");
-        trustStoreContext = new FileBasedStoreContext("conf/.truststore", "cassandra");
+        keystoreContext = new FileBasedStoreContext("conf/.keystore", "cassandra", null);
+        outboundKeystoreContext = new FileBasedStoreContext("conf/.keystore", "cassandra", null);
+        trustStoreContext = new FileBasedStoreContext("conf/.truststore", "cassandra", null);
     }
 
     public FileBasedSslContextFactory(Map<String, Object> parameters)
     {
         super(parameters);
-        keystoreContext = new FileBasedStoreContext(getString("keystore"), getString("keystore_password"));
+        keystoreContext = new FileBasedStoreContext(getString("keystore"), getString("keystore_password"), getString("keystore_password_file"));
         outboundKeystoreContext = new FileBasedStoreContext(StringUtils.defaultString(getString("outbound_keystore"), keystoreContext.filePath),
-                                                            StringUtils.defaultString(getString("outbound_keystore_password"), keystoreContext.password));
-        trustStoreContext = new FileBasedStoreContext(getString("truststore"), getString("truststore_password"));
+                                                            StringUtils.defaultString(getString("outbound_keystore_password"), keystoreContext.password),
+                                                            StringUtils.defaultString(getString("outbound_keystore_password_file"), keystoreContext.passwordFilePath));
+        trustStoreContext = new FileBasedStoreContext(getString("truststore"), getString("truststore_password"), getString("truststore_password_file"));
     }
 
     @Override
@@ -278,11 +279,16 @@ public abstract class FileBasedSslContextFactory extends AbstractSslContextFacto
         public volatile boolean checkedExpiry = false;
         public String filePath;
         public String password;
+        public String passwordFilePath;
+        public boolean passwordFileUsed;
 
-        public FileBasedStoreContext(String keystore, String keystorePassword)
+        public FileBasedStoreContext(String keystoreFilePath, String keystorePassword, String keystorePasswordFilePath)
         {
-            this.filePath = keystore;
-            this.password = keystorePassword;
+            FileBasedKeystorePasswordWrapper fileBasedKeystorePasswordWrapper = new FileBasedKeystorePasswordWrapper(keystoreFilePath, keystorePassword, keystorePasswordFilePath);
+            this.filePath = keystoreFilePath;
+            this.passwordFilePath = keystorePasswordFilePath;
+            this.password = fileBasedKeystorePasswordWrapper.getPassword();
+            this.passwordFileUsed = fileBasedKeystorePasswordWrapper.isPasswordFileUsed();
         }
 
         protected boolean hasKeystore()
