@@ -171,7 +171,6 @@ public class TableMetadata implements SchemaElement
     public final IPartitioner partitioner;
     public final Kind kind;
     public final TableParams params;
-    public final ReplicationType keyspaceReplicationType;
     public final ImmutableSet<Flag> flags;
 
     @Nullable
@@ -217,7 +216,6 @@ public class TableMetadata implements SchemaElement
         partitioner = builder.partitioner;
         kind = builder.kind;
         params = builder.params.build();
-        keyspaceReplicationType = builder.keyspaceReplicationType;
 
         indexName = kind == Kind.INDEX ? name.substring(name.indexOf('.') + 1) : null;
 
@@ -281,7 +279,6 @@ public class TableMetadata implements SchemaElement
                .partitioner(partitioner)
                .kind(kind)
                .params(params)
-               .keyspaceReplicationType(keyspaceReplicationType)
                .flags(flags)
                .addColumns(columns())
                .droppedColumns(droppedColumns)
@@ -293,11 +290,6 @@ public class TableMetadata implements SchemaElement
     public boolean isIndex()
     {
         return kind == Kind.INDEX;
-    }
-
-    public TableMetadata withKeyspaceReplicationType(ReplicationType type)
-    {
-        return unbuild().keyspaceReplicationType(type).build();
     }
 
     public TableMetadata withSwapped(TableParams params)
@@ -328,26 +320,6 @@ public class TableMetadata implements SchemaElement
     public boolean isVirtual()
     {
         return kind == Kind.VIRTUAL;
-    }
-
-    public ReplicationType replicationType()
-    {
-        switch (params.replicationType)
-        {
-            case keyspace:
-                return keyspaceReplicationType;
-            case legacy:
-                return ReplicationType.legacy;
-            case logged:
-                return ReplicationType.logged;
-            default:
-                throw new IllegalArgumentException("Unhandled replication type: " + params.replicationType);
-        }
-    }
-
-    public boolean hasLoggedReplication()
-    {
-        return replicationType() == ReplicationType.logged;
     }
 
     public Optional<String> indexName()
@@ -871,7 +843,6 @@ public class TableMetadata implements SchemaElement
         private IPartitioner partitioner;
         private Kind kind = Kind.REGULAR;
         private TableParams.Builder params = TableParams.builder();
-        private ReplicationType keyspaceReplicationType = null;
 
         // See the comment on Flag.COMPOUND definition for why we (still) inconditionally add this flag.
         private Set<Flag> flags = EnumSet.of(Flag.COMPOUND);
@@ -920,12 +891,6 @@ public class TableMetadata implements SchemaElement
                 return new TableMetadata(this);
             else
                 return new CompactTableMetadata(this);
-        }
-
-        public Builder keyspaceReplicationType(ReplicationType type)
-        {
-            keyspaceReplicationType = type;
-            return this;
         }
 
         public Builder id(TableId val)
