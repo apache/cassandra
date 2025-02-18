@@ -940,10 +940,16 @@ public final class SchemaKeyspace
         UntypedResultSet.Row row = query(query, keyspaceName).one();
         boolean durableWrites = row.getBoolean(KeyspaceParams.Option.DURABLE_WRITES.toString());
 
-        String replicationTypeName = row.getString(KeyspaceParams.Option.REPLICATION_TYPE.toString());
-        ReplicationType replicationType = replicationTypeName != null ? ReplicationType.valueOf(replicationTypeName) : ReplicationType.legacy;
-
-
+        ReplicationType replicationType;
+        if (row.has(KeyspaceParams.Option.REPLICATION_TYPE.toString()))
+        {
+            String replicationTypeName = row.getString(KeyspaceParams.Option.REPLICATION_TYPE.toString());
+            replicationType = replicationTypeName != null ? ReplicationType.valueOf(replicationTypeName) : ReplicationType.legacy;
+        }
+        else
+        {
+            replicationType = ReplicationType.logged;
+        }
 
         Map<String, String> replication = row.getFrozenTextMap(KeyspaceParams.Option.REPLICATION.toString());
         KeyspaceParams params = KeyspaceParams.create(durableWrites, replication, replicationType);
