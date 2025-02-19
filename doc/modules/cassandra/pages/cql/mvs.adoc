@@ -74,7 +74,7 @@ The `WHERE` clause has the following restrictions:
 ** no other restriction is allowed
 ** cannot have columns that are part of the _view_ primary key be null, they must always be at least restricted by a `IS NOT NULL`
 restriction (or any other restriction, but they must have one).
-* cannot have an xref:cql/dml.adoc#ordering-clause[ordering clause], a xref:cql/dml.adoc#limit-clause[limit], or xref:cql/dml.adoc#allow-filtering[ALLOW FILTERING
+* cannot have an xref:cql/dml.adoc#ordering-clause[ordering clause], a xref:cql/dml.adoc#limit-clause[limit], or xref:cql/dml.adoc#allow-filtering[ALLOW FILTERING]
 
 === MV primary key
 
