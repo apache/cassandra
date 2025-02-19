@@ -168,7 +168,7 @@ public abstract class ReadCommand extends AbstractReadQuery
 
         public static ResponseType fromMetadata(TableMetadata metadata)
         {
-            ReplicationType replicationType = Schema.instance.getKeyspaceMetadata(metadata.keyspace).params.replicationType;
+            ReplicationType replicationType = metadata.replicationType();
             switch (replicationType)
             {
                 case legacy:
