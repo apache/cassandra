@@ -81,14 +81,15 @@ import org.apache.cassandra.service.SnapshotVerbHandler;
 import org.apache.cassandra.service.accord.AccordService;
 import org.apache.cassandra.service.accord.AccordSyncPropagator;
 import org.apache.cassandra.service.accord.AccordSyncPropagator.Notification;
-import org.apache.cassandra.service.accord.FetchTopology;
-import org.apache.cassandra.service.accord.FetchMinEpoch;
+import org.apache.cassandra.service.accord.FetchTopologies;
+import org.apache.cassandra.service.accord.WatermarkCollector;
 import org.apache.cassandra.service.accord.interop.AccordInteropApply;
 import org.apache.cassandra.service.accord.interop.AccordInteropRead;
 import org.apache.cassandra.service.accord.interop.AccordInteropReadRepair;
 import org.apache.cassandra.service.accord.interop.AccordInteropStableThenRead;
 import org.apache.cassandra.service.accord.serializers.AcceptSerializers;
 import org.apache.cassandra.service.accord.serializers.ApplySerializers;
+import org.apache.cassandra.service.accord.serializers.AwaitSerializers;
 import org.apache.cassandra.service.accord.serializers.BeginInvalidationSerializers;
 import org.apache.cassandra.service.accord.serializers.CheckStatusSerializers;
 import org.apache.cassandra.service.accord.serializers.CommitSerializers;
@@ -103,7 +104,6 @@ import org.apache.cassandra.service.accord.serializers.GetDurableBeforeSerialize
 import org.apache.cassandra.service.accord.serializers.ReadDataSerializers;
 import org.apache.cassandra.service.accord.serializers.RecoverySerializers;
 import org.apache.cassandra.service.accord.serializers.SetDurableSerializers;
-import org.apache.cassandra.service.accord.serializers.AwaitSerializers;
 import org.apache.cassandra.service.consensus.migration.ConsensusKeyMigrationState;
 import org.apache.cassandra.service.consensus.migration.ConsensusKeyMigrationState.ConsensusKeyMigrationFinished;
 import org.apache.cassandra.service.paxos.Commit;
@@ -350,21 +350,21 @@ public enum Verb
     ACCORD_SET_GLOBALLY_DURABLE_REQ (157, P2, rpcTimeout,   MISC,               () -> SetDurableSerializers.globallyDurable,AccordService::requestHandlerOrNoop, ACCORD_SIMPLE_RSP                         ),
 
     ACCORD_SYNC_NOTIFY_RSP          (158, P2, writeTimeout, MISC,               () -> EnumSerializer.simpleReply,           RESPONSE_HANDLER),
-    ACCORD_SYNC_NOTIFY_REQ          (159, P2, writeTimeout, MISC,               () -> Notification.listSerializer,          () -> AccordSyncPropagator.verbHandler,       ACCORD_SYNC_NOTIFY_RSP             ),
+    ACCORD_SYNC_NOTIFY_REQ          (159, P2, writeTimeout, MISC,               () -> Notification.serializer,          () -> AccordSyncPropagator.verbHandler,       ACCORD_SYNC_NOTIFY_RSP             ),
 
 
     CONSENSUS_KEY_MIGRATION         (160, P1, writeTimeout,  MISC,              () -> ConsensusKeyMigrationFinished.serializer,() -> ConsensusKeyMigrationState.consensusKeyMigrationFinishedHandler),
 
     ACCORD_INTEROP_READ_RSP         (161, P2, writeTimeout, IMMEDIATE,          () -> AccordInteropRead.replySerializer,         AccordService::responseHandlerOrNoop),
-    ACCORD_INTEROP_READ_REQ         (162, P2, writeTimeout, IMMEDIATE,          () -> AccordInteropRead.requestSerializer,       AccordService::requestHandlerOrNoop, ACCORD_INTEROP_READ_RSP),
+    ACCORD_INTEROP_READ_REQ         (162, P2, writeTimeout, IMMEDIATE,          () -> AccordInteropRead.requestSerializer,       AccordService::requestHandlerOrNoop,     ACCORD_INTEROP_READ_RSP),
     ACCORD_INTEROP_STABLE_THEN_READ_REQ(163, P2, writeTimeout, IMMEDIATE,       () -> AccordInteropStableThenRead.requestSerializer, AccordService::requestHandlerOrNoop, ACCORD_INTEROP_READ_RSP),
     ACCORD_INTEROP_READ_REPAIR_RSP  (164, P2, writeTimeout, IMMEDIATE,          () -> AccordInteropReadRepair.replySerializer,   AccordService::responseHandlerOrNoop),
-    ACCORD_INTEROP_READ_REPAIR_REQ  (165, P2, writeTimeout, IMMEDIATE,          () -> AccordInteropReadRepair.requestSerializer, AccordService::requestHandlerOrNoop, ACCORD_INTEROP_READ_REPAIR_RSP),
-    ACCORD_INTEROP_APPLY_REQ        (166, P2, writeTimeout, IMMEDIATE,          () -> AccordInteropApply.serializer,             AccordService::requestHandlerOrNoop,             ACCORD_APPLY_RSP),
-    ACCORD_FETCH_MIN_EPOCH_RSP      (167, P0, shortTimeout, FETCH_METADATA,     () -> FetchMinEpoch.Response.serializer,         RESPONSE_HANDLER),
-    ACCORD_FETCH_MIN_EPOCH_REQ      (168, P0, shortTimeout, FETCH_METADATA,     () -> FetchMinEpoch.serializer,                  () -> FetchMinEpoch.handler, ACCORD_FETCH_MIN_EPOCH_RSP),
-    ACCORD_FETCH_TOPOLOGY_RSP       (169, P0, shortTimeout, FETCH_METADATA,     () -> FetchTopology.Response.serializer,         RESPONSE_HANDLER),
-    ACCORD_FETCH_TOPOLOGY_REQ       (170, P0, shortTimeout, FETCH_METADATA,     () -> FetchTopology.serializer,                  () -> FetchTopology.handler, ACCORD_FETCH_TOPOLOGY_RSP),
+    ACCORD_INTEROP_READ_REPAIR_REQ  (165, P2, writeTimeout, IMMEDIATE,          () -> AccordInteropReadRepair.requestSerializer, AccordService::requestHandlerOrNoop,     ACCORD_INTEROP_READ_REPAIR_RSP),
+    ACCORD_INTEROP_APPLY_REQ        (166, P2, writeTimeout, IMMEDIATE,          () -> AccordInteropApply.serializer,             AccordService::requestHandlerOrNoop,     ACCORD_APPLY_RSP),
+    ACCORD_FETCH_WATERMARKS_RSP     (167, P0, shortTimeout, FETCH_METADATA,     () -> WatermarkCollector.serializer,             RESPONSE_HANDLER),
+    ACCORD_FETCH_WATERMARKS_REQ     (168, P0, shortTimeout, FETCH_METADATA,     () -> NoPayload.serializer,                      AccordService::watermarkHandlerOrNoop,   ACCORD_FETCH_WATERMARKS_RSP),
+    ACCORD_FETCH_TOPOLOGY_RSP       (169, P0, shortTimeout, FETCH_METADATA,     () -> FetchTopologies.responseSerializer,        RESPONSE_HANDLER),
+    ACCORD_FETCH_TOPOLOGY_REQ       (170, P0, shortTimeout, FETCH_METADATA,     () -> FetchTopologies.serializer,                () -> FetchTopologies.handler,           ACCORD_FETCH_TOPOLOGY_RSP),
 
     // generic failure response
     FAILURE_RSP            (99,  P0, noTimeout,       REQUEST_RESPONSE,  () -> RequestFailure.serializer,            RESPONSE_HANDLER                             ),

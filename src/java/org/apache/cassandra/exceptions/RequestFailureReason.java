@@ -42,7 +42,7 @@ public enum RequestFailureReason
     READ_TOO_MANY_INDEXES                 (10),
     RETRY_ON_DIFFERENT_TRANSACTION_SYSTEM (11),
     BOOTING                               (12),
-    UNKNOWN_TOPOLOGY                      (13)
+    ACCORD_DISABLED                       (13)
     ;
 
     static

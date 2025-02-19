@@ -241,8 +241,6 @@ public class AccordDebugKeyspaceTest extends CQLTester
                 case ACCORD_AWAIT_REQ:
                 case ACCORD_AWAIT_RSP:
                 case ACCORD_AWAIT_ASYNC_RSP_REQ:
-                case ACCORD_FETCH_MIN_EPOCH_REQ:
-                case ACCORD_FETCH_MIN_EPOCH_RSP:
                     return true;
                 default:
                     // many code paths don't log the error...

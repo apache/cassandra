@@ -426,7 +426,7 @@ public class RouteIndexTest extends CQLTester.InMemory
         @Override
         public void runUnit(Sut sut)
         {
-            sut.journal.get().purge(sut.stores.get());
+            sut.journal.get().purge(sut.stores.get(), () -> 0);
         }
     };
 
@@ -464,7 +464,6 @@ public class RouteIndexTest extends CQLTester.InMemory
         private final Gen<TokenRange> rangeGen;
         private final Gen<Domain> domainGen;
         private final ColumnFamilyStore journalTable;
-        //        private final AccordJournal journal;
         private AccordService accordService;
         private int hlc = 1000;
 
@@ -642,7 +641,7 @@ public class RouteIndexTest extends CQLTester.InMemory
 
     private static IAccordService.AccordCompactionInfos emptyCompactionInfo(TableId tableId, RedundantBefore redundantBefore, Int2ObjectHashMap<RangesForEpoch> storeRangesForEpoch)
     {
-        IAccordService.AccordCompactionInfos compactionInfos = new IAccordService.AccordCompactionInfos(DurableBefore.EMPTY);
+        IAccordService.AccordCompactionInfos compactionInfos = new IAccordService.AccordCompactionInfos(DurableBefore.EMPTY, 0);
         for (int i = 0; i < storeRangesForEpoch.size(); i++)
             compactionInfos.put(i, new AccordCompactionInfo(i, redundantBefore, storeRangesForEpoch.get(i), tableId));
         return compactionInfos;

@@ -1,0 +1,416 @@
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+package org.apache.cassandra.service.accord.journal;
+
+import java.io.IOException;
+import java.util.Iterator;
+import java.util.Map;
+import java.util.NavigableMap;
+import java.util.TreeMap;
+import java.util.function.Function;
+
+import accord.api.Journal;
+import accord.local.CommandStores;
+import accord.primitives.EpochSupplier;
+import accord.primitives.Ranges;
+import accord.topology.Topology;
+import accord.utils.Invariants;
+import accord.utils.UnhandledEnum;
+import org.agrona.collections.Int2ObjectHashMap;
+import org.apache.cassandra.db.TypeSizes;
+import org.apache.cassandra.io.IVersionedSerializer;
+import org.apache.cassandra.io.util.DataInputPlus;
+import org.apache.cassandra.io.util.DataOutputPlus;
+import org.apache.cassandra.service.accord.AccordConfigurationService;
+import org.apache.cassandra.service.accord.AccordJournalValueSerializers;
+import org.apache.cassandra.service.accord.JournalKey;
+import org.apache.cassandra.service.accord.serializers.KeySerializers;
+import org.apache.cassandra.service.accord.serializers.TopologySerializers;
+
+import static org.apache.cassandra.service.accord.JournalKey.Type.TOPOLOGY_UPDATE;
+
+public interface AccordTopologyUpdate
+{
+    Kind kind();
+    void applyTo(TopologyImage accumulator);
+    long epoch();
+
+    static AccordTopologyUpdate newTopology(Journal.TopologyUpdate update)
+    {
+        return new NewTopology(update);
+    }
+    class RangesForEpochSerializer implements IVersionedSerializer<CommandStores.RangesForEpoch>
+    {
+        public static final RangesForEpochSerializer instance = new RangesForEpochSerializer();
+
+        @Override
+        public void serialize(CommandStores.RangesForEpoch from, DataOutputPlus out, int version) throws IOException
+        {
+            out.writeUnsignedVInt32(from.size());
+            from.forEach((epoch, ranges) -> {
+                try
+                {
+                    out.writeLong(epoch);
+                    KeySerializers.ranges.serialize(ranges, out, version);
+                }
+                catch (Throwable t)
+                {
+                    throw new IllegalStateException("Serialization error", t);
+                }
+            });
+        }
+
+        @Override
+        public CommandStores.RangesForEpoch deserialize(DataInputPlus in, int version) throws IOException
+        {
+            int size = in.readUnsignedVInt32();
+            Ranges[] ranges = new Ranges[size];
+            long[] epochs = new long[size];
+            for (int i = 0; i < ranges.length; i++)
+            {
+                epochs[i] = in.readLong();
+                ranges[i] = KeySerializers.ranges.deserialize(in, version);
+            }
+            Invariants.require(ranges.length == epochs.length);
+            return new CommandStores.RangesForEpoch(epochs, ranges);
+        }
+
+        @Override
+        public long serializedSize(CommandStores.RangesForEpoch t, int version)
+        {
+            return TypeSizes.sizeofUnsignedVInt(t.size());
+        }
+    }
+
+    class TopologyUpdateSerializer implements IVersionedSerializer<Journal.TopologyUpdate>
+    {
+        public static final TopologyUpdateSerializer instance = new TopologyUpdateSerializer();
+
+        @Override
+        public void serialize(Journal.TopologyUpdate from, DataOutputPlus out, int version) throws IOException
+        {
+            out.writeUnsignedVInt32(from.commandStores.size());
+            for (Map.Entry<Integer, CommandStores.RangesForEpoch> e : from.commandStores.entrySet())
+            {
+                out.writeUnsignedVInt32(e.getKey());
+                RangesForEpochSerializer.instance.serialize(e.getValue(), out, version);
+            }
+            TopologySerializers.topology.serialize(from.local, out, version);
+            TopologySerializers.topology.serialize(from.global, out, version);
+        }
+
+        @Override
+        public Journal.TopologyUpdate deserialize(DataInputPlus in, int version) throws IOException
+        {
+            int commandStoresSize = in.readUnsignedVInt32();
+            Int2ObjectHashMap<CommandStores.RangesForEpoch> commandStores = new Int2ObjectHashMap<>();
+            for (int j = 0; j < commandStoresSize; j++)
+            {
+                int commandStoreId = in.readUnsignedVInt32();
+                CommandStores.RangesForEpoch rangesForEpoch = RangesForEpochSerializer.instance.deserialize(in, version);
+                commandStores.put(commandStoreId, rangesForEpoch);
+            }
+            Topology local = TopologySerializers.topology.deserialize(in, version);
+            Topology global = TopologySerializers.topology.deserialize(in, version);
+            return new Journal.TopologyUpdate(commandStores, local, global);
+        }
+
+        @Override
+        public long serializedSize(Journal.TopologyUpdate from, int version)
+        {
+            long size = TypeSizes.sizeofUnsignedVInt(from.commandStores.size());
+            for (Map.Entry<Integer, CommandStores.RangesForEpoch> e : from.commandStores.entrySet())
+            {
+                size += TypeSizes.sizeofUnsignedVInt(e.getKey());
+                size += RangesForEpochSerializer.instance.serializedSize(e.getValue(), version);
+            }
+
+            size += TopologySerializers.topology.serializedSize(from.local, version);
+            size += TopologySerializers.topology.serializedSize(from.global, version);
+            return size;
+        }
+    }
+
+    class Serializer implements IVersionedSerializer<AccordTopologyUpdate>
+    {
+        public static Serializer instance = new Serializer();
+
+        public void serialize(AccordTopologyUpdate t, DataOutputPlus out, int version) throws IOException
+        {
+            out.writeUnsignedVInt(t.epoch());
+            out.writeUnsignedVInt32(t.kind().ordinal());
+            switch (t.kind())
+            {
+                case NewTopology:
+                    TopologyUpdateSerializer.instance.serialize(((NewTopology) t).update, out, version);
+                    break;
+                case Topologies:
+                    TopologyImage image = (TopologyImage) t;
+
+                    out.writeBoolean(image.update != null);
+                    if (image.update != null)
+                        TopologyUpdateSerializer.instance.serialize(image.update, out, version);
+                    if (image.syncStatus == null)
+                        out.writeByte(Byte.MAX_VALUE);
+                    else
+                        out.writeByte(image.syncStatus.ordinal());
+
+                    KeySerializers.ranges.serialize(image.closed, out, version);
+                    KeySerializers.ranges.serialize(image.retired, out, version);
+                    break;
+                default:
+                    throw new UnhandledEnum(t.kind());
+            }
+        }
+
+        public AccordTopologyUpdate deserialize(DataInputPlus in, int version) throws IOException
+        {
+            int epoch = in.readUnsignedVInt32();
+            Kind kind = Kind.values()[in.readUnsignedVInt32()];
+            switch (kind)
+            {
+                case NewTopology:
+                    return new NewTopology(TopologyUpdateSerializer.instance.deserialize(in, version));
+                case Topologies:
+                {
+                    TopologyImage image = new TopologyImage(epoch);
+                    if (in.readBoolean())
+                        image.update = TopologyUpdateSerializer.instance.deserialize(in, version);
+
+                    byte syncStateByte = in.readByte();
+                    if (syncStateByte != Byte.MAX_VALUE)
+                        image.syncStatus = AccordConfigurationService.SyncStatus.values()[syncStateByte];
+
+                    image.closed = KeySerializers.ranges.deserialize(in, version);
+                    image.retired = KeySerializers.ranges.deserialize(in, version);
+                    return image;
+                }
+                default:
+                    throw new UnhandledEnum(kind);
+            }
+        }
+
+        public long serializedSize(AccordTopologyUpdate t, int version)
+        {
+            long size = TypeSizes.sizeofUnsignedVInt(t.epoch());
+            size += TypeSizes.sizeofUnsignedVInt(t.kind().ordinal());
+
+            switch (t.kind())
+            {
+                case NewTopology:
+                    size += TopologyUpdateSerializer.instance.serializedSize(((NewTopology) t).update, version);
+                    break;
+                case Topologies:
+                    TopologyImage image = (TopologyImage) t;
+
+                    size += TypeSizes.sizeof(image.update != null);
+                    if (image.update != null)
+                        size += TopologyUpdateSerializer.instance.serializedSize(image.update, version);
+
+                    size += Byte.BYTES;
+
+                    size += KeySerializers.ranges.serializedSize(image.closed, version);
+                    size += KeySerializers.ranges.serializedSize(image.retired, version);
+                    break;
+                default:
+                    throw new UnhandledEnum(t.kind());
+            }
+            return size;
+        }
+    }
+
+    enum Kind
+    {
+        NewTopology,
+        Topologies
+    }
+
+    class ImmutableTopoloyImage extends Journal.TopologyUpdate
+    {
+        public ImmutableTopoloyImage(TopologyImage image)
+        {
+            super(image.update.commandStores, image.update.local, image.update.global);
+        }
+    }
+
+    class TopologyImage implements AccordTopologyUpdate
+    {
+        private Journal.TopologyUpdate update;
+        private AccordConfigurationService.SyncStatus syncStatus = null;
+
+        private Ranges closed = Ranges.EMPTY;
+        private Ranges retired = Ranges.EMPTY;
+
+        private final long epoch;
+
+        public TopologyImage(long epoch)
+        {
+            this.epoch = epoch;
+        }
+
+        @Override
+        public long epoch()
+        {
+            return this.epoch;
+        }
+
+        @Override
+        public Kind kind()
+        {
+            return Kind.Topologies;
+        }
+
+        @Override
+        public void applyTo(TopologyImage accumulator)
+        {
+            Invariants.require(accumulator.epoch == epoch);
+            Invariants.require(accumulator.update == null || accumulator.update.equals(update));
+            accumulator.update = update;
+            // We're iterating in _reverse_ order
+            if (accumulator.syncStatus == null)
+                accumulator.syncStatus = syncStatus;
+            accumulator.closed = accumulator.closed.with(closed);
+            accumulator.retired = accumulator.retired.with(retired);
+        }
+    }
+
+    class NewTopology implements AccordTopologyUpdate
+    {
+        private final Journal.TopologyUpdate update;
+        private final long epoch;
+
+        public NewTopology(Journal.TopologyUpdate update)
+        {
+            this.epoch = update.global.epoch();
+            this.update = update;
+        }
+
+        @Override
+        public long epoch()
+        {
+            return this.epoch;
+        }
+
+        @Override
+        public Kind kind()
+        {
+            return Kind.NewTopology;
+        }
+
+        @Override
+        public void applyTo(TopologyImage accumulator)
+        {
+            Invariants.require(accumulator.epoch == epoch);
+            Invariants.require(accumulator.update == null);
+            accumulator.update = update;
+        }
+    }
+
+    class Accumulator
+    extends AccordJournalValueSerializers.Accumulator<NavigableMap<Long, TopologyImage>, AccordTopologyUpdate>
+    {
+        public Accumulator()
+        {
+            super(new TreeMap<>());
+        }
+
+        @Override
+        public void update(AccordTopologyUpdate newValue)
+        {
+            super.update(newValue);
+        }
+
+        public Iterator<ImmutableTopoloyImage> images()
+        {
+            return map(get().values().iterator(), ImmutableTopoloyImage::new);
+        }
+
+        @Override
+        protected NavigableMap<Long, TopologyImage> accumulate(NavigableMap<Long, TopologyImage> allEpochs, AccordTopologyUpdate update)
+        {
+            update.applyTo(allEpochs.computeIfAbsent(update.epoch(), v -> new TopologyImage(update.epoch())));
+            return allEpochs;
+        }
+    }
+
+    static <FROM, TO> Iterator<TO> map(Iterator<FROM> iter, Function<FROM, TO> fn)
+    {
+        return new Iterator<TO>()
+        {
+            public boolean hasNext()
+            {
+                return iter.hasNext();
+            }
+
+            public TO next()
+            {
+                return fn.apply(iter.next());
+            }
+        };
+    }
+
+    class AccumulatingSerializer
+    implements AccordJournalValueSerializers.FlyweightSerializer<AccordTopologyUpdate, Accumulator>
+    {
+        public static final AccumulatingSerializer defaultInstance = new AccumulatingSerializer(() -> 0);
+
+        private final EpochSupplier minEpoch;
+        public AccumulatingSerializer(EpochSupplier minEpoch)
+        {
+            this.minEpoch = minEpoch;
+        }
+
+        @Override
+        public Accumulator mergerFor(JournalKey key)
+        {
+            Invariants.require(key.type == TOPOLOGY_UPDATE);
+            return new Accumulator();
+        }
+
+        @Override
+        public void serialize(JournalKey key, AccordTopologyUpdate from, DataOutputPlus out, int version) throws IOException
+        {
+            out.writeUnsignedVInt32(1);
+            Serializer.instance.serialize(from, out, version);
+        }
+
+        @Override
+        public void reserialize(JournalKey key, Accumulator from, DataOutputPlus out, int version) throws IOException
+        {
+            out.writeUnsignedVInt32(from.get().size());
+            for (TopologyImage value : from.get().values())
+                Serializer.instance.serialize(value, out, version);
+        }
+
+        @Override
+        public void deserialize(JournalKey key, Accumulator into, DataInputPlus in, int version) throws IOException
+        {
+            long minEpoch = this.minEpoch.epoch();
+            int count = in.readUnsignedVInt32();
+            while (--count >= 0)
+            {
+                AccordTopologyUpdate update = Serializer.instance.deserialize(in, version);
+                if (update.epoch() >= minEpoch)
+                    into.update(update);
+                else
+                    return;
+            }
+        }
+    }
+}

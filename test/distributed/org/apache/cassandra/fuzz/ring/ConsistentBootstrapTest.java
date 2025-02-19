@@ -19,6 +19,8 @@
 package org.apache.cassandra.fuzz.ring;
 
 import java.util.concurrent.Callable;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Consumer;
 
 import org.junit.Assert;
 import org.junit.Test;
@@ -32,6 +34,7 @@ import org.apache.cassandra.distributed.api.Feature;
 import org.apache.cassandra.distributed.api.IInstanceConfig;
 import org.apache.cassandra.distributed.api.IInvokableInstance;
 import org.apache.cassandra.distributed.api.TokenSupplier;
+import org.apache.cassandra.distributed.shared.ClusterUtils;
 import org.apache.cassandra.distributed.shared.NetworkTopology;
 import org.apache.cassandra.distributed.test.log.FuzzTestBase;
 import org.apache.cassandra.harry.SchemaSpec;
@@ -66,17 +69,16 @@ public class ConsistentBootstrapTest extends FuzzTestBase
     public void bootstrapFuzzTest() throws Throwable
     {
         Generator<SchemaSpec> schemaGen = SchemaGenerators.schemaSpecGen(KEYSPACE, "bootstrap_fuzz", 1000);
-        IInvokableInstance forShutdown = null;
         try (Cluster cluster = builder().withNodes(3)
                                         .withTokenSupplier(TokenSupplier.evenlyDistributedTokens(4))
                                         .withNodeIdTopology(NetworkTopology.singleDcNetworkTopology(4, "dc0", "rack0"))
                                         .withConfig((config) -> config.with(Feature.NETWORK, Feature.GOSSIP)
                                                                       .set("write_request_timeout", "10s")
                                                                       .set("metadata_snapshot_frequency", 5))
-                                        .start())
+                                        .start();
+             CloseableRef<IInvokableInstance> forShutdown = new CloseableRef<>(ClusterUtils::unpauseCommits))
         {
             IInvokableInstance cmsInstance = cluster.get(1);
-            forShutdown = cmsInstance;
             waitForCMSToQuiesce(cluster, cmsInstance);
 
             withRandom(rng -> {
@@ -107,6 +109,7 @@ public class ConsistentBootstrapTest extends FuzzTestBase
                                                     .set(Constants.KEY_DTEST_FULL_STARTUP, true);
                     IInvokableInstance newInstance = cluster.bootstrap(config);
 
+                    forShutdown.set(cmsInstance);
                     // Prime the CMS node to pause before the finish join event is committed
                     Callable<?> pending = pauseBeforeCommit(cmsInstance, (e) -> e instanceof PrepareJoin.FinishJoin);
                     new Thread(() -> newInstance.startup()).start();
@@ -123,6 +126,7 @@ public class ConsistentBootstrapTest extends FuzzTestBase
 
                     // wait for the cluster to all witness the finish join event
                     unpauseCommits(cmsInstance);
+                    forShutdown.set(null);
                     waitForCMSToQuiesce(cluster, bootstrapVisible.call());
                 }, "Finish bootstrap");
                 writeAndValidate.run();
@@ -134,31 +138,42 @@ public class ConsistentBootstrapTest extends FuzzTestBase
                                                         history);
             });
         }
-        catch (Throwable t)
-        {
-            if (forShutdown != null)
-                unpauseCommits(forShutdown);
-            throw t;
-        }
     }
 
+    public static class CloseableRef<T> extends AtomicReference<T> implements AutoCloseable
+    {
+        private final Consumer<T> onClose;
+
+        public CloseableRef(Consumer<T> onClose)
+        {
+            this.onClose = onClose;
+        }
+
+        @Override
+        public void close() throws Exception
+        {
+            T v = getAndSet(null);
+            if (v != null)
+                onClose.accept(v);
+        }
+    }
     @Test
     public void coordinatorIsBehindTest() throws Throwable
     {
         Generator<SchemaSpec> schemaGen = SchemaGenerators.schemaSpecGen(KEYSPACE, "coordinator_is_behind", 1000);
 
-        IInvokableInstance forShutdown = null;
         try (Cluster cluster = builder().withNodes(3)
                                         .withTokenSupplier(TokenSupplier.evenlyDistributedTokens(4))
                                         .withNodeIdTopology(NetworkTopology.singleDcNetworkTopology(4, "dc0", "rack0"))
                                         .withConfig((config) -> config.with(Feature.NETWORK, Feature.GOSSIP)
                                                                       .set("write_request_timeout", "10s")
                                                                       .set("accord.enabled", false)
+                                                                      .set("cms_await_timeout", "60s")
                                                                       .set("metadata_snapshot_frequency", 5))
-                                        .start())
+                                        .start();
+             CloseableRef<IInvokableInstance> forShutdown = new CloseableRef<>(ClusterUtils::unpauseCommits))
         {
             IInvokableInstance cmsInstance = cluster.get(1);
-            forShutdown = cmsInstance;
             waitForCMSToQuiesce(cluster, cmsInstance);
 
             withRandom(rng -> {
@@ -196,6 +211,7 @@ public class ConsistentBootstrapTest extends FuzzTestBase
 
                 // Prime the CMS node to pause before the finish join event is committed
                 Callable<?> pending = pauseBeforeCommit(cmsInstance, (e) -> e instanceof PrepareJoin.MidJoin);
+                forShutdown.set(cmsInstance);
                 IInstanceConfig config = cluster.newInstanceConfig()
                                                 .set("auto_bootstrap", true)
                                                 .set(Constants.KEY_DTEST_FULL_STARTUP, true)
@@ -266,14 +282,9 @@ public class ConsistentBootstrapTest extends FuzzTestBase
 
                 cluster.filters().reset();
                 unpauseCommits(cmsInstance);
+                forShutdown.set(null);
                 startup.join();
             });
-        }
-        catch (Throwable t)
-        {
-            if (forShutdown != null)
-                unpauseCommits(forShutdown);
-            throw t;
         }
     }
 }

@@ -49,7 +49,6 @@ import org.slf4j.LoggerFactory;
 
 import accord.api.ConfigurationService;
 import accord.api.ConfigurationService.EpochReady;
-import accord.api.Journal;
 import accord.impl.DefaultTimeouts;
 import accord.impl.SizeOfIntersectionSorter;
 import accord.impl.TestAgent;
@@ -108,6 +107,7 @@ import org.apache.cassandra.tcm.transformations.PrepareLeave;
 import org.apache.cassandra.utils.ByteArrayUtil;
 import org.apache.cassandra.utils.Pair;
 import org.assertj.core.api.Assertions;
+import org.assertj.core.description.Description;
 
 import static accord.utils.Property.commands;
 import static accord.utils.Property.stateful;
@@ -133,21 +133,22 @@ public class EpochSyncTest
                     cluster.processAll();
                     cluster.validate(true);
                 })
-                .addAllIf(Cluster::hasPendingWork, b ->
-                        b.addIf(c -> !c.status(s -> s == Cluster.Status.Registered).isEmpty(), (rs, state) -> {
-                                    long epoch = state.cms.metadata().epoch.getEpoch() + 1;
-                                    Node.Id pick = rs.pick(state.status(s -> s == Cluster.Status.Registered));
-                                    return new SimpleCommand<>(pick + " Start Joining; epoch=" + epoch,
-                                            c -> c.increment(pick));
-                                })
-                                .addIf(c -> !c.cms.metadata().inProgressSequences.isEmpty(),
-                                        (rs, state) -> new SimpleCommand<>("Next Epoch Step; epoch=" + (state.cms.metadata().epoch.getEpoch() + 1),
-                                                Cluster::incrementInProgressSequences))
-                )
-                .addAllIf(Cluster::hasNoPendingWork, b ->
-                        b.addIf(cluster -> cluster.joined().size() <= cluster.maxNodes, EpochSyncTest::addNode)
-                                .addIf(cluster -> cluster.joined().size() > cluster.minNodes, EpochSyncTest::removeNode)
-                )
+                .addAllIf(Cluster::hasPendingWork, b -> {
+                    b.addIf(c -> !c.status(s -> s == Cluster.Status.Registered).isEmpty(),
+                            (rs, state) -> {
+                                long epoch = state.cms.metadata().epoch.getEpoch() + 1;
+                                Node.Id pick = rs.pick(state.status(s -> s == Cluster.Status.Registered));
+                                return new SimpleCommand<>(String.format("%s Start Joining; epoch=%d", pick, epoch),
+                                                           c -> c.increment(pick));
+                            })
+                     .addIf(c -> !c.cms.metadata().inProgressSequences.isEmpty(),
+                            (rs, state) -> new SimpleCommand<>(String.format("Next Epoch Step; epoch=%d", state.cms.metadata().epoch.getEpoch() + 1),
+                                                               Cluster::incrementInProgressSequences));
+                })
+                .addAllIf(Cluster::hasNoPendingWork, b -> {
+                    b.addIf(cluster -> cluster.joined().size() <= cluster.maxNodes, EpochSyncTest::addNode)
+                     .addIf(cluster -> cluster.joined().size() > cluster.minNodes, EpochSyncTest::removeNode);
+                })
                 .addIf(Cluster::hasWork, EpochSyncTest::processSome)
                 .add(rs -> new SimpleCommand<>("Validate", c -> c.validate(false)))
                 .add((rs, cluster) -> new SimpleCommand<>("Bump Epoch " + (cluster.cms.metadata().epoch.getEpoch() + 1), Cluster::bumpEpoch))
@@ -172,7 +173,7 @@ public class EpochSyncTest
         long epoch = cluster.cms.metadata().epoch.getEpoch() + 1;
         long finalToken = token;
         return new SimpleCommand<>("Start Node " + id + "; token=" + token + ", epoch=" + epoch,
-                                 c -> c.registerNode(id, finalToken));
+                                   c -> c.registerNode(id, finalToken));
     }
 
     private static SimpleCommand<Cluster> removeNode(RandomSource rs, Cluster cluster)
@@ -187,8 +188,7 @@ public class EpochSyncTest
     private static SimpleCommand<Cluster> processSome(RandomSource rs) {
         return new SimpleCommand<>("Process Some",
                 c -> {//noinspection StatementWithEmptyBody
-                    for (int i = 0, attempts = rs.nextInt(1, 100); i < attempts && c.processOne(); i++) {
-                    }
+                    for (int i = 0, attempts = rs.nextInt(1, 100); i < attempts && c.processOne(); i++) {}
                 });
     }
 
@@ -208,6 +208,7 @@ public class EpochSyncTest
         private final ScheduledExecutorPlus scheduler;
         private int nodeCounter = 0;
         private final ValidatingClusterMetadataService cms = ValidatingClusterMetadataService.createAndRegister(NodeVersion.CURRENT_METADATA_VERSION);
+
         private final IFailureDetector fd = new IFailureDetector()
         {
             @Override
@@ -394,7 +395,7 @@ public class EpochSyncTest
                 if (removed.contains(id)) continue; // ignore removed nodes
                 AccordConfigurationService conf = inst.config;
                 TopologyManager tm = inst.topology;
-                for (long epoch = inst.epoch.getEpoch(); epoch <= cms.metadata().epoch.getEpoch(); epoch++)
+                for (long epoch = Math.max(tm.firstNonEmpty(), inst.epoch.getEpoch()); epoch <= cms.metadata().epoch.getEpoch(); epoch++)
                 {
                     // validate config
                     EpochSnapshot snapshot = conf.getEpochSnapshot(epoch);
@@ -425,9 +426,20 @@ public class EpochSyncTest
                         // TopologyManager defines syncComplete for an epoch as (epoch - 1).syncComplete.  This means that an epoch has reached quorum, but will still miss ranges as previous epochs have not
                         if (!ranges.equals(actual) && tm.minEpoch() != epoch && !ranges.equals(tm.syncComplete(epoch - 1).mergeTouching()))
                             continue;
+                        long epoch_ = epoch;
                         Assertions.assertThat(actual)
-                                  .describedAs("node%s does not have all expected sync ranges for epoch %d; missing %s; peers=%s; previous epochs %s", id, epoch, ranges.without(actual), topology.nodes(),
-                                               LongStream.range(inst.epoch.getEpoch(), epoch + 1).mapToObj(e -> e + " -> " + conf.getEpochSnapshot(e).syncStatus + "(synced=" + globalSynced(e) + "): " + tm.syncComplete(e)).collect(Collectors.joining("\n")))
+                                  .describedAs(new Description()
+                                  {
+                                      public String value()
+                                      {
+                                          return String.format("node%s does not have all expected sync ranges for epoch %d; missing %s; peers=%s; previous epochs %s",
+                                                               id, epoch_, ranges.without(actual), topology.nodes(),
+                                                               LongStream.range(inst.epoch.getEpoch(), epoch_ + 1)
+                                                                         .mapToObj(e -> String.format("%d -> %s(synced=%s): %s", e, conf.getEpochSnapshot(e).syncStatus, globalSynced(e), tm.syncComplete(e)))
+                                                                         .collect(Collectors.joining("\n")));
+
+                                      }
+                                  })
                                   .isEqualTo(ranges);
                     }
                 }
@@ -670,22 +682,19 @@ public class EpochSyncTest
                 // TODO (review): Should there be a real scheduler here? Is it possible to adapt the Scheduler interface to scheduler used in this test?
                 TimeService time = TimeService.ofNonMonotonic(globalExecutor::currentTimeMillis, TimeUnit.MILLISECONDS);
                 this.topology = new TopologyManager(SizeOfIntersectionSorter.SUPPLIER, new TestAgent.RethrowAgent(), id, time, new DefaultTimeouts(time));
-                AccordConfigurationService.DiskStateManager instance = MockDiskStateManager.instance;
-                Journal journal = null; // TODO
-                config = new AccordConfigurationService(node, messagingService, failureDetector, instance, scheduler);
+                config = new AccordConfigurationService(node, messagingService, failureDetector, scheduler);
                 config.registerListener(new ConfigurationService.Listener()
                 {
                     @Override
                     public AsyncResult<Void> onTopologyUpdate(Topology topology, boolean isLoad, boolean startSync)
                     {
-//                        EpochReady ready = EpochReady.done(topology.epoch());
                         AsyncResult<Void> metadata = schedule(rs.nextInt(1, 10), TimeUnit.SECONDS, (Callable<Void>) () -> null).beginAsResult();
                         AsyncResult<Void> coordination = metadata.flatMap(ignore -> schedule(rs.nextInt(1, 10), TimeUnit.SECONDS, (Callable<Void>) () -> null)).beginAsResult();
                         AsyncResult<Void> data = coordination.flatMap(ignore -> schedule(rs.nextInt(1, 10), TimeUnit.SECONDS, (Callable<Void>) () -> null)).beginAsResult();
                         AsyncResult<Void> reads = data.flatMap(ignore -> schedule(rs.nextInt(1, 10), TimeUnit.SECONDS, (Callable<Void>) () -> null)).beginAsResult();
                         EpochReady ready = new EpochReady(topology.epoch(), metadata, coordination, data, reads);
 
-                        topology().onTopologyUpdate(topology, () -> ready);
+                        topology().onTopologyUpdate(topology, () -> ready, e -> {});
                         ready.coordinate.addCallback(() -> topology().onEpochSyncComplete(id, topology.epoch()));
                         if (topology().minEpoch() == topology.epoch() && topology().epoch() != topology.epoch())
                             return ready.coordinate;
@@ -700,9 +709,10 @@ public class EpochSyncTest
                     }
 
                     @Override
-                    public void truncateTopologyUntil(long epoch)
+                    public void onRemoveNode(long epoch, Node.Id removed)
                     {
-                        topology.truncateTopologyUntil(epoch);
+                        // TODO
+                        //topology.onRemoveNode(epoch, removed);
                     }
 
                     @Override
@@ -720,7 +730,7 @@ public class EpochSyncTest
 
                 Map<Verb, IVerbHandler<?>> handlers = new EnumMap<>(Verb.class);
                 //noinspection unchecked
-                handlers.put(Verb.ACCORD_SYNC_NOTIFY_REQ, msg -> AccordService.receive(messagingService, config, (Message<List<AccordSyncPropagator.Notification>>) (Message<?>) msg));
+                handlers.put(Verb.ACCORD_SYNC_NOTIFY_REQ, msg -> AccordService.receive(messagingService, config, (Message<AccordSyncPropagator.Notification>) (Message<?>) msg));
                 this.messaging = messagingService;
                 this.reciver = messagingService.receiver(new SimulatedMessageDelivery.SimpleVerbHandler(handlers));
             }

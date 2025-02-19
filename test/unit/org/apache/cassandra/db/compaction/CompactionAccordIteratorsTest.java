@@ -263,7 +263,7 @@ public class CompactionAccordIteratorsTest
     {
         IAccordService mockAccordService = mock(IAccordService.class);
         IAccordService.AccordCompactionInfo compactionInfo = new IAccordService.AccordCompactionInfo(commandStore.id(), redundantBefore, commandStore.unsafeGetRangesForEpoch(), ((AccordCommandStore)commandStore).tableId());
-        IAccordService.AccordCompactionInfos compactionInfos = new IAccordService.AccordCompactionInfos(durableBefore);
+        IAccordService.AccordCompactionInfos compactionInfos = new IAccordService.AccordCompactionInfos(durableBefore, 0);
         compactionInfos.put(commandStore.id(), compactionInfo);
         when(mockAccordService.getCompactionInfo()).thenReturn(compactionInfos);
         return mockAccordService;

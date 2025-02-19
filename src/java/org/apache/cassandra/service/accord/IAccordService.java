@@ -112,7 +112,7 @@ public interface IAccordService
      */
     Future<Void> epochReady(Epoch epoch);
 
-    void receive(Message<List<AccordSyncPropagator.Notification>> message);
+    void receive(Message<AccordSyncPropagator.Notification> message);
 
     class AccordCompactionInfo
     {
@@ -133,16 +133,19 @@ public interface IAccordService
     class AccordCompactionInfos extends Int2ObjectHashMap<AccordCompactionInfo>
     {
         public final DurableBefore durableBefore;
+        public final long minEpoch;
 
-        public AccordCompactionInfos(DurableBefore durableBefore)
+        public AccordCompactionInfos(DurableBefore durableBefore, long minEpoch)
         {
             this.durableBefore = durableBefore;
+            this.minEpoch = minEpoch;
         }
 
-        public AccordCompactionInfos(DurableBefore durableBefore, AccordCompactionInfos copy)
+        public AccordCompactionInfos(DurableBefore durableBefore, long minEpoch, AccordCompactionInfos copy)
         {
             super(copy);
             this.durableBefore = durableBefore;
+            this.minEpoch = minEpoch;
         }
     }
 
@@ -264,12 +267,12 @@ public interface IAccordService
         }
 
         @Override
-        public void receive(Message<List<AccordSyncPropagator.Notification>> message) {}
+        public void receive(Message<AccordSyncPropagator.Notification> message) {}
 
         @Override
         public AccordCompactionInfos getCompactionInfo()
         {
-            return new AccordCompactionInfos(DurableBefore.EMPTY);
+            return new AccordCompactionInfos(DurableBefore.EMPTY, 0);
         }
 
         @Override
@@ -436,7 +439,7 @@ public interface IAccordService
         }
 
         @Override
-        public void receive(Message<List<Notification>> message)
+        public void receive(Message<Notification> message)
         {
             delegate.receive(message);
         }

@@ -23,13 +23,11 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
-import java.util.List;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Iterables;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -58,16 +56,18 @@ import org.apache.cassandra.service.accord.serializers.TopologySerializers;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.utils.CollectionSerializers;
 
-import static org.apache.cassandra.utils.CollectionSerializers.newListSerializer;
-
 /**
- * Notifies remote replicas that the local replica has synchronised coordination information for this epoch
+ * Receives information about closed, retired ranges, and about sync completion, and
+ * propagates this information to the peers.
+ *
+ * Notifies remote replicas that the local replica has synchronised coordination
+ * information for this epoch.
  */
 public class AccordSyncPropagator
 {
     private static final Logger logger = LoggerFactory.getLogger(AccordSyncPropagator.class);
 
-    public static final IVerbHandler<List<Notification>> verbHandler = message -> {
+    public static final IVerbHandler<Notification> verbHandler = message -> {
         if (!AccordService.isSetup())
             return;
         AccordService.instance().receive(message);
@@ -141,7 +141,7 @@ public class AccordSyncPropagator
                 else syncComplete = ImmutableSet.copyOf(Iterables.filter(syncComplete, v -> !notification.syncComplete.contains(v)));
             }
             closed = closed.without(notification.closed);
-            retired = retired.without(notification.redundant);
+            retired = retired.without(notification.retired);
             return syncComplete.isEmpty() && closed.isEmpty() && retired.isEmpty();
         }
 
@@ -152,30 +152,25 @@ public class AccordSyncPropagator
                    "epoch=" + epoch +
                    ", syncComplete=" + syncComplete +
                    ", closed=" + closed +
-                   ", redundant=" + retired +
+                   ", retired=" + retired +
                    '}';
         }
     }
 
     static class PendingEpochs extends Long2ObjectHashMap<PendingEpoch>
     {
-        boolean ack(List<Notification> notifications)
+        boolean ack(Notification notification)
         {
-            for (Notification notification : notifications)
-            {
-                PendingEpoch epoch = get(notification.epoch);
-                if (epoch == null)
-                    continue;
-                if (epoch.ack(notification))
-                    remove(notification.epoch);
-            }
+            PendingEpoch epoch = get(notification.epoch);
+            if (epoch != null && epoch.ack(notification))
+                remove(notification.epoch);
             return isEmpty();
         }
     }
 
     static class PendingNodes extends Int2ObjectHashMap<PendingEpochs>
     {
-        boolean ack(Node.Id id, List<Notification> notifications)
+        boolean ack(Node.Id id, Notification notifications)
         {
             PendingEpochs node = get(id.id);
             if (node == null)
@@ -277,15 +272,15 @@ public class AccordSyncPropagator
         report(epoch, notify, PendingEpoch::closed, closed);
     }
 
-    public void reportRetired(long epoch, Collection<Node.Id> notify, Ranges redundant)
+    public void reportRetired(long epoch, Collection<Node.Id> notify, Ranges retired)
     {
-        report(epoch, notify, PendingEpoch::retired, redundant);
+        report(epoch, notify, PendingEpoch::retired, retired);
     }
 
     private synchronized <T> void report(long epoch, Collection<Node.Id> notify, ReportPending<T> report, T param)
     {
         // TODO (efficiency, now): for larger clusters this can be a problem as we trigger 1 msg for each instance, so in a 1k cluster its 1k messages; this can cause a thundering herd problem
-        // this is mostly a problem for reportSyncComplete as we include every node in the cluster, for reportClosed/reportRedundant these tend to use only the nodes that are replicas of the range,
+        // this is mostly a problem for reportSyncComplete as we include every node in the cluster, for reportClosed/reportRetired these tend to use only the nodes that are replicas of the range,
         // and there is currently an assumption that sub-ranges are done, so only impacting a handful of nodes.
         // TODO (correctness, now): during a host replacement multiple epochs are generated (move the range, remove the node), so its possible that notify will never be able to send the notification as the node is leaving the cluster
         notify.forEach(id -> {
@@ -293,7 +288,7 @@ public class AccordSyncPropagator
                                                .computeIfAbsent(epoch, PendingEpoch::new);
             Notification notification = report.report(pendingEpoch, param);
             if (notification != null)
-                notify(id, Collections.singletonList(notification));
+                notify(id, notification);
         });
     }
 
@@ -307,10 +302,10 @@ public class AccordSyncPropagator
         });
     }
 
-    private boolean notify(Node.Id to, List<Notification> notifications)
+    private boolean notify(Node.Id to, Notification notification)
     {
         InetAddressAndPort toEp = endpointMapper.mappedEndpoint(to);
-        Message<List<Notification>> msg = Message.out(Verb.ACCORD_SYNC_NOTIFY_REQ, notifications);
+        Message<Notification> msg = Message.out(Verb.ACCORD_SYNC_NOTIFY_REQ, notification);
         RequestCallback<SimpleReply> cb = new RequestCallback<>()
         {
             @Override
@@ -321,30 +316,25 @@ public class AccordSyncPropagator
                 // TODO review is it a good idea to call the listener while not holding the `AccordSyncPropagator` lock?
                 synchronized (AccordSyncPropagator.this)
                 {
-                    pending.ack(to, notifications);
-                    for (Notification notification : notifications)
+                    pending.ack(to, notification);
+                    long epoch = notification.epoch;
+                    if (notification.syncComplete.contains(localId))
                     {
-                        long epoch = notification.epoch;
-                        if (notification.syncComplete.contains(localId))
-                        {
-                            if (hasSyncCompletedFor(epoch))
-                                completedEpochs.add(epoch);
-                        }
+                        if (hasSyncCompletedFor(epoch))
+                            completedEpochs.add(epoch);
                     }
                 }
-                for (Notification notification : notifications)
-                {
-                    long epoch = notification.epoch;
-                    listener.onEndpointAck(to, epoch);
-                    if (completedEpochs.contains(epoch))
-                        listener.onComplete(epoch);
-                }
+
+                long epoch = notification.epoch;
+                listener.onEndpointAck(to, epoch);
+                if (completedEpochs.contains(epoch))
+                    listener.onComplete(epoch);
             }
 
             @Override
             public void onFailure(InetAddressAndPort from, RequestFailure failure)
             {
-                scheduler.schedule(() -> AccordSyncPropagator.this.notify(to, notifications), 1, TimeUnit.MINUTES);
+                scheduler.schedule(() -> AccordSyncPropagator.this.notify(to, notification), 1, TimeUnit.SECONDS);
             }
 
             @Override
@@ -363,8 +353,8 @@ public class AccordSyncPropagator
                 cb.onResponse(msg.responseWith(SimpleReply.Ok));
                 return true;
             }
-            logger.warn("Node{} is not alive, unable to notify of {}", to, notifications);
-            scheduler.schedule(() -> notify(to, notifications), 1, TimeUnit.MINUTES);
+            logger.warn("Node{} is not alive, unable to notify of {}", to, notification);
+            scheduler.schedule(() -> notify(to, notification), 1, TimeUnit.MINUTES);
             return false;
         }
         messagingService.sendWithCallback(msg, toEp, cb);
@@ -373,7 +363,7 @@ public class AccordSyncPropagator
 
     public static class Notification
     {
-        public static final IVersionedSerializer<Notification> serializer = new IVersionedSerializer<Notification>()
+        public static final IVersionedSerializer<Notification> serializer = new IVersionedSerializer<>()
         {
             @Override
             public void serialize(Notification notification, DataOutputPlus out, int version) throws IOException
@@ -381,7 +371,7 @@ public class AccordSyncPropagator
                 out.writeLong(notification.epoch);
                 CollectionSerializers.serializeCollection(notification.syncComplete, out, version, TopologySerializers.nodeId);
                 KeySerializers.ranges.serialize(notification.closed, out, version);
-                KeySerializers.ranges.serialize(notification.redundant, out, version);
+                KeySerializers.ranges.serialize(notification.retired, out, version);
             }
 
             @Override
@@ -399,21 +389,20 @@ public class AccordSyncPropagator
                 return TypeSizes.LONG_SIZE
                        + CollectionSerializers.serializedCollectionSize(notification.syncComplete, version, TopologySerializers.nodeId)
                        + KeySerializers.ranges.serializedSize(notification.closed, version)
-                       + KeySerializers.ranges.serializedSize(notification.redundant, version);
+                       + KeySerializers.ranges.serializedSize(notification.retired, version);
             }
         };
-        public static final IVersionedSerializer<List<Notification>> listSerializer = newListSerializer(serializer);
 
         final long epoch;
         final Collection<Node.Id> syncComplete;
-        final Ranges closed, redundant;
+        final Ranges closed, retired;
 
-        public Notification(long epoch, Collection<Node.Id> syncComplete, Ranges closed, Ranges redundant)
+        public Notification(long epoch, Collection<Node.Id> syncComplete, Ranges closed, Ranges retired)
         {
             this.epoch = epoch;
             this.syncComplete = syncComplete;
             this.closed = closed;
-            this.redundant = redundant;
+            this.retired = retired;
         }
 
         @Override
@@ -423,7 +412,7 @@ public class AccordSyncPropagator
                    "epoch=" + epoch +
                    ", syncComplete=" + syncComplete +
                    ", closed=" + closed +
-                   ", redundant=" + redundant +
+                   ", retired=" + retired +
                    '}';
         }
     }

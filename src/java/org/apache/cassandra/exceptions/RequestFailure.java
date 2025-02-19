@@ -43,7 +43,7 @@ import static org.apache.cassandra.exceptions.ExceptionSerializer.nullableRemote
 public class RequestFailure
 {
     public static final RequestFailure UNKNOWN = new RequestFailure(RequestFailureReason.UNKNOWN);
-    public static final RequestFailure UNKNOWN_TOPOLOGY = new RequestFailure(RequestFailureReason.UNKNOWN_TOPOLOGY);
+    public static final RequestFailure ACCORD_DISABLED = new RequestFailure(RequestFailureReason.ACCORD_DISABLED);
     public static final RequestFailure READ_TOO_MANY_TOMBSTONES = new RequestFailure(RequestFailureReason.READ_TOO_MANY_TOMBSTONES);
     public static final RequestFailure TIMEOUT = new RequestFailure(RequestFailureReason.TIMEOUT);
     public static final RequestFailure INCOMPATIBLE_SCHEMA = new RequestFailure(RequestFailureReason.INCOMPATIBLE_SCHEMA);
@@ -55,7 +55,7 @@ public class RequestFailure
     public static final RequestFailure COORDINATOR_BEHIND = new RequestFailure(RequestFailureReason.COORDINATOR_BEHIND);
     public static final RequestFailure READ_TOO_MANY_INDEXES = new RequestFailure(RequestFailureReason.READ_TOO_MANY_INDEXES);
     public static final RequestFailure RETRY_ON_DIFFERENT_TRANSACTION_SYSTEM = new RequestFailure(RequestFailureReason.RETRY_ON_DIFFERENT_TRANSACTION_SYSTEM);
-    public static final RequestFailure BOOTING = new RequestFailure(RequestFailureReason.RETRY_ON_DIFFERENT_TRANSACTION_SYSTEM);
+    public static final RequestFailure BOOTING = new RequestFailure(RequestFailureReason.BOOTING);
 
     static
     {
@@ -135,7 +135,7 @@ public class RequestFailure
         {
             default: throw new IllegalStateException("Unhandled request failure reason " + reason);
             case UNKNOWN: return UNKNOWN;
-            case UNKNOWN_TOPOLOGY: return UNKNOWN_TOPOLOGY;
+            case ACCORD_DISABLED: return ACCORD_DISABLED;
             case READ_TOO_MANY_TOMBSTONES: return READ_TOO_MANY_TOMBSTONES;
             case TIMEOUT: return TIMEOUT;
             case INCOMPATIBLE_SCHEMA: return INCOMPATIBLE_SCHEMA;

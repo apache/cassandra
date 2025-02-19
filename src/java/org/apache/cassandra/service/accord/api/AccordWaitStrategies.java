@@ -40,7 +40,7 @@ public class AccordWaitStrategies
     static TimeoutStrategy expireTxn, expireSyncPoint, expireDurability, expireEpochWait;
     static TimeoutStrategy fetchTxn, fetchSyncPoint;
     static RetryStrategy recoverTxn, recoverSyncPoint, retrySyncPoint, retryDurability, retryBootstrap;
-    static RetryStrategy retryFetchMinEpoch, retryFetchTopology;
+    static RetryStrategy retryFetchWatermarks, retryFetchTopology;
 
     public static @Nullable TimeoutStrategy slowRead(@Nullable TxnId txnId)
     {
@@ -70,9 +70,9 @@ public class AccordWaitStrategies
         return slowTxnPreaccept;
     }
 
-    public static RetryStrategy retryFetchMinEpoch()
+    public static RetryStrategy retryFetchWatermarks()
     {
-        return retryFetchMinEpoch;
+        return retryFetchWatermarks;
     }
 
     public static RetryStrategy retryFetchTopology()
@@ -96,7 +96,7 @@ public class AccordWaitStrategies
         setRecoverSyncPoint(config.recover_syncpoint);
         setRetrySyncPoint(config.retry_syncpoint);
         setRetryDurability(config.retry_durability);
-        setRetryFetchMinEpoch(config.retry_fetch_min_epoch);
+        setRetryFetchWatermarks(config.retry_fetch_watermark);
         setRetryFetchTopology(config.retry_fetch_topology);
     }
 
@@ -165,9 +165,9 @@ public class AccordWaitStrategies
         retryDurability = RetryStrategy.parse(spec, none());
     }
 
-    public static void setRetryFetchMinEpoch(String spec)
+    public static void setRetryFetchWatermarks(String spec)
     {
-        retryFetchMinEpoch = RetryStrategy.parse(spec, none());
+        retryFetchWatermarks = RetryStrategy.parse(spec, none());
     }
 
     public static void setRetryFetchTopology(String spec)

@@ -74,6 +74,7 @@ public abstract class DecommissionAvoidTimeouts extends TestBaseImpl
     @Test
     public void test() throws Exception
     {
+        IInvokableInstance paused = null;
         try (Cluster cluster = Cluster.build(8)
                                       .withRacks(2, 4)
                                       .withInstanceInitializer(new BB())
@@ -103,11 +104,13 @@ public abstract class DecommissionAvoidTimeouts extends TestBaseImpl
                 toDecom.coordinator().execute("INSERT INTO " + table + "(pk) VALUES (?)", ConsistencyLevel.EACH_QUORUM, key);
             }
 
-            Callable<?> pending = pauseBeforeCommit(cluster.get(1), (e) -> e instanceof PrepareLeave.StartLeave);
+            paused = cluster.get(1);
+            Callable<?> pending = pauseBeforeCommit(paused, (e) -> e instanceof PrepareLeave.StartLeave);
             CompletableFuture<Void> nodetool = CompletableFuture.runAsync(() -> toDecom.nodetoolResult("decommission").asserts().success());
             ClusterUtils.awaitGossipStateMatch(cluster, cluster.get(DECOM_NODE), ApplicationState.SEVERITY);
             pending.call();
-            unpauseCommits(cluster.get(1));
+            unpauseCommits(paused);
+            paused = null;
 
             cluster.forEach(i -> i.runOnInstance(() -> ((DynamicEndpointSnitch) DatabaseDescriptor.getEndpointSnitch()).updateScores()));
             cluster.filters().verbs(Verb.GOSSIP_DIGEST_SYN.id).drop();
@@ -168,6 +171,12 @@ public abstract class DecommissionAvoidTimeouts extends TestBaseImpl
             {
                 // ignore
             }
+        }
+        finally
+        {
+            if (paused != null)
+                unpauseCommits(paused);
+
         }
     }
 

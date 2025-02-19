@@ -80,6 +80,8 @@ public class AuthTest extends TestBaseImpl
                                         .withTokenSupplier(TokenSupplier.evenlyDistributedTokens(2, 1))
                                         .withConfig(config -> config.with(NETWORK, GOSSIP, NATIVE_PROTOCOL)
                                                                     .set("authenticator", "PasswordAuthenticator")
+                                                                    // Test drops all TCM communication, which precludes topology discovery
+                                                                    .set("accord.enabled", false)
                                                                     .set("credentials_validity", "2s")) // revert to OSS default
                                         .start())
         {

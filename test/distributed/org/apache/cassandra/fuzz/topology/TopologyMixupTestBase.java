@@ -708,11 +708,15 @@ public abstract class TopologyMixupTestBase<S extends TopologyMixupTestBase.Sche
             int quorum = topologyHistory.quorum();
             // find what ranges are able to handle 1 node loss
             Set<Range> safeRanges = new HashSet<>();
+            Set<Integer> cms = new HashSet<>();
+            for (Integer node : cmsGroup)
+                cms.add(node);
+
             ring.rangesToReplicas((range, replicas) -> {
                 IntHashSet alive = new IntHashSet();
                 for (int peer : replicas)
                 {
-                    if (up.contains(peer))
+                    if (up.contains(peer) && !cms.contains(peer))
                         alive.add(peer);
                 }
                 if (quorum < alive.size())

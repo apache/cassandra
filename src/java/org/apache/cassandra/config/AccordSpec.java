@@ -150,8 +150,8 @@ public class AccordSpec
     public String slow_read = "30ms <= p50*2 <= 100ms";
     public String retry_syncpoint = "10s*attempts <= 600s";
     public String retry_durability = "10s*attempts <= 600s";
-    public String retry_fetch_min_epoch = "200ms...1s*attempts <= 1s,retries=3";
-    public String retry_fetch_topology = "200ms...1s*attempts <= 1s,retries=100";
+    public String retry_fetch_watermark = "200ms*attempts <= 1s,retries=3";
+    public String retry_fetch_topology = "200ms*attempts <= 1s,retries=100";
 
     public volatile DurationSpec.IntSecondsBound fast_path_update_delay = null;
 
