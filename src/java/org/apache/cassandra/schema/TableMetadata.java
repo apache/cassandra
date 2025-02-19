@@ -332,17 +332,7 @@ public class TableMetadata implements SchemaElement
 
     public ReplicationType replicationType()
     {
-        switch (params.replicationType)
-        {
-            case keyspace:
-                return keyspaceReplicationType;
-            case legacy:
-                return ReplicationType.legacy;
-            case logged:
-                return ReplicationType.logged;
-            default:
-                throw new IllegalArgumentException("Unhandled replication type: " + params.replicationType);
-        }
+        return keyspaceReplicationType;
     }
 
     public boolean hasLoggedReplication()
