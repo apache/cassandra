@@ -30,13 +30,13 @@ import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
-public class SerializedSizeConstraint extends ConstraintFunction
+public class OctetLengthConstraint extends ConstraintFunction
 {
     private static final AbstractType<?>[] SUPPORTED_TYPES = new AbstractType[] { BytesType.instance, UTF8Type.instance, AsciiType.instance };
 
-    public SerializedSizeConstraint(ColumnIdentifier columnName)
+    public OctetLengthConstraint(ColumnIdentifier columnName)
     {
-        super(columnName, "SERIALIZED_SIZE");
+        super(columnName, "OCTET_LENGTH");
     }
 
     @Override
@@ -88,10 +88,10 @@ public class SerializedSizeConstraint extends ConstraintFunction
         if (this == o)
             return true;
 
-        if (!(o instanceof SerializedSizeConstraint))
+        if (!(o instanceof OctetLengthConstraint))
             return false;
 
-        SerializedSizeConstraint other = (SerializedSizeConstraint) o;
+        OctetLengthConstraint other = (OctetLengthConstraint) o;
 
         return columnName.equals(other.columnName);
     }
