@@ -48,6 +48,7 @@ import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.replication.MutationSummary;
 import org.apache.cassandra.replication.MutationTracker;
 import org.apache.cassandra.replication.ReconciliationPlan;
+import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableId;
 
 public class SimpleMutationTracker implements MutationTracker
@@ -147,7 +148,7 @@ public class SimpleMutationTracker implements MutationTracker
     @Override
     public PendingRead startRead(ReadCommand command)
     {
-        if (!command.metadata().hasLoggedReplication())
+        if (!Schema.instance.getKeyspaceMetadata(command.metadata().keyspace).hasLoggedReplication())
             return PendingRead.NOOP;
 
         SimplePendingRead pendingRead = new SimplePendingRead(command);
