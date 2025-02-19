@@ -120,7 +120,7 @@ public class MutationId implements Comparable<MutationId>, Serializable
 
     public static MutationId createFor(TableMetadata metadata)
     {
-        return createForKeyspace(metadata.keyspace);
+        return metadata.hasLoggedReplication() ? createNext() : none();
     }
 
     public static MutationId minNotNone(MutationId l, MutationId r)
