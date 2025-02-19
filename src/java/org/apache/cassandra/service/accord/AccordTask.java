@@ -685,10 +685,8 @@ public abstract class AccordTask<R> extends Task implements Runnable, Function<S
             {
                 state(PERSISTING);
                 Runnable onFlush = () -> finish(result, null);
-                if (safeStore.fieldUpdates() != null)
-                    commandStore.persistFieldUpdates(safeStore.fieldUpdates(), changes == null ? onFlush : null);
-                if (changes != null)
-                    save(changes, onFlush);
+                safeStore.persistFieldUpdatesInternal(changes == null ? onFlush : null);
+                if (changes != null) save(changes, onFlush);
             }
 
             commandStore.complete(safeStore);

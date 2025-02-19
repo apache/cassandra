@@ -50,7 +50,7 @@ public class CommandStoreSerializersTest
         DataOutputBuffer buffer = new DataOutputBuffer();
         qt().forAll(Gens.random(), AccordGenerators.partitioner()).check((rs, partitioner) -> {
             DatabaseDescriptor.setPartitionerUnsafe(partitioner);
-            RedundantBefore.Entry entry = AccordGenerators.redundantBeforeEntry(partitioner).next(rs);
+            RedundantBefore.Bounds entry = AccordGenerators.redundantBeforeEntry(partitioner).next(rs);
             for (Version version : SUPPORTED_VERSIONS)
                 IVersionedSerializers.testSerde(buffer, CommandStoreSerializers.redundantBeforeEntry, entry, version.value);
         });

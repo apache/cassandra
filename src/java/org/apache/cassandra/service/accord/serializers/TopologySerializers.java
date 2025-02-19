@@ -26,6 +26,7 @@ import accord.primitives.Range;
 import accord.topology.Shard;
 import accord.topology.Topology;
 import accord.utils.SortedArrays.SortedArrayList;
+import accord.utils.TinyEnumSet;
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.db.marshal.ValueAccessor;
 import org.apache.cassandra.io.IVersionedSerializer;
@@ -124,6 +125,8 @@ public class TopologySerializers
 
     public static class ShardSerializer implements IVersionedSerializer<Shard>
     {
+        private static final int PENDING_REMOVAL = 1;
+        private static final int MUST_WITNESS = 2;
         protected IVersionedSerializer<Range> range;
 
         public ShardSerializer(IVersionedSerializer<Range> range)
@@ -138,7 +141,7 @@ public class TopologySerializers
             CollectionSerializers.serializeList(shard.nodes, out, version, nodeId);
             CollectionSerializers.serializeList(shard.notInFastPath, out, version, nodeId);
             CollectionSerializers.serializeList(shard.joining, out, version, nodeId);
-            out.writeBoolean(shard.pendingRemoval);
+            out.writeUnsignedVInt32(shard.flags().bitset());
         }
 
         @Override
@@ -148,8 +151,8 @@ public class TopologySerializers
             SortedArrayList<Node.Id> nodes = CollectionSerializers.deserializeSortedArrayList(in, version, nodeId, Node.Id[]::new);
             SortedArrayList<Node.Id> notInFastPath = CollectionSerializers.deserializeSortedArrayList(in, version, nodeId, Node.Id[]::new);
             SortedArrayList<Node.Id> joining = CollectionSerializers.deserializeSortedArrayList(in, version, nodeId, Node.Id[]::new);
-            boolean pendingRemoval = in.readBoolean();
-            return Shard.SerializerSupport.create(range, nodes, notInFastPath, joining, pendingRemoval);
+            int flags = in.readUnsignedVInt32();
+            return Shard.SerializerSupport.create(range, nodes, notInFastPath, joining, new TinyEnumSet<>(flags));
         }
 
         @Override
@@ -159,7 +162,7 @@ public class TopologySerializers
             size += CollectionSerializers.serializedListSize(shard.nodes, version, nodeId);
             size += CollectionSerializers.serializedListSize(shard.notInFastPath, version, nodeId);
             size += CollectionSerializers.serializedListSize(shard.joining, version, nodeId);
-            size += TypeSizes.BOOL_SIZE;
+            size += TypeSizes.sizeofUnsignedVInt(shard.flags().bitset());
             return size;
         }
     };

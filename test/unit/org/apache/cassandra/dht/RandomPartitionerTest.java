@@ -25,8 +25,6 @@ import org.junit.Test;
 
 import org.apache.cassandra.cql3.functions.types.utils.Bytes;
 import org.apache.cassandra.harry.checker.TestHelper;
-import org.apache.cassandra.harry.gen.EntropySource;
-import org.apache.cassandra.harry.gen.rng.JdkRandomEntropySource;
 
 public class RandomPartitionerTest extends PartitionerTestCase
 {

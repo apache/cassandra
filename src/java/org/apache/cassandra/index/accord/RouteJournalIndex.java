@@ -94,8 +94,7 @@ import static accord.primitives.Routable.Domain.Range;
 
 public class RouteJournalIndex implements Index, INotificationConsumer
 {
-    public enum RegisterStatus
-    {PENDING, REGISTERED, UNREGISTERED}
+    public enum RegisterStatus { PENDING, REGISTERED, UNREGISTERED }
 
     private static final Logger logger = LoggerFactory.getLogger(RouteJournalIndex.class);
 

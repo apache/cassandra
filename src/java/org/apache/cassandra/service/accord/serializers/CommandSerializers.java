@@ -328,6 +328,7 @@ public class CommandSerializers
         static final int OWNS_EQUALS_TOUCHES = 0x8;
         static final int EXECUTES_IS_NULL = 0x10;
         static final int EXECUTES_IS_OWNS = 0x20;
+        static final int WAITSON_IS_OWNS = 0x40;
 
         @Override
         public void serialize(StoreParticipants t, DataOutputPlus out, int version) throws IOException
@@ -338,18 +339,21 @@ public class CommandSerializers
             boolean ownsEqualsTouches = t.owns() == t.touches();
             boolean executesIsNull = t.executes() == null;
             boolean executesIsOwns = !executesIsNull && t.executes() == t.owns();
+            boolean waitsOnIsOwns = !executesIsNull && t.waitsOn() == t.owns();
             out.writeByte((hasRoute ? HAS_ROUTE : 0)
                           | (hasTouchedEqualsRoute ? HAS_TOUCHED_EQUALS_ROUTE : 0)
                           | (touchesEqualsHasTouched ? TOUCHES_EQUALS_HAS_TOUCHED : 0)
                           | (ownsEqualsTouches ? OWNS_EQUALS_TOUCHES : 0)
                           | (executesIsNull ? EXECUTES_IS_NULL : 0)
                           | (executesIsOwns ? EXECUTES_IS_OWNS : 0)
+                          | (waitsOnIsOwns ? WAITSON_IS_OWNS : 0)
             );
             if (hasRoute) KeySerializers.route.serialize(t.route(), out, version);
             if (!hasTouchedEqualsRoute) KeySerializers.participants.serialize(t.hasTouched(), out, version);
             if (!touchesEqualsHasTouched) KeySerializers.participants.serialize(t.touches(), out, version);
             if (!ownsEqualsTouches) KeySerializers.participants.serialize(t.owns(), out, version);
             if (!executesIsNull && !executesIsOwns) KeySerializers.participants.serialize(t.executes(), out, version);
+            if (!executesIsNull && !waitsOnIsOwns) KeySerializers.participants.serialize(t.waitsOn(), out, version);
         }
 
         public void skip(DataInputPlus in, int version) throws IOException
@@ -360,6 +364,7 @@ public class CommandSerializers
             if (0 == (flags & TOUCHES_EQUALS_HAS_TOUCHED)) KeySerializers.participants.skip(in, version);
             if (0 == (flags & OWNS_EQUALS_TOUCHES)) KeySerializers.participants.skip(in, version);
             if (0 == (flags & (EXECUTES_IS_OWNS | EXECUTES_IS_NULL))) KeySerializers.participants.skip(in, version);
+            if (0 == (flags & (WAITSON_IS_OWNS | EXECUTES_IS_NULL))) KeySerializers.participants.skip(in, version);
         }
 
         @Override
@@ -371,16 +376,8 @@ public class CommandSerializers
             Participants<?> touches = 0 != (flags & TOUCHES_EQUALS_HAS_TOUCHED) ? hasTouched : KeySerializers.participants.deserialize(in, version);
             Participants<?> owns = 0 != (flags & OWNS_EQUALS_TOUCHES) ? touches : KeySerializers.participants.deserialize(in, version);
             Participants<?> executes = 0 != (flags & EXECUTES_IS_NULL) ? null : 0 != (flags & EXECUTES_IS_OWNS) ? owns : KeySerializers.participants.deserialize(in, version);
-            return StoreParticipants.create(route, owns, executes, touches, hasTouched);
-        }
-
-        public Route<?> deserializeRouteOnly(DataInputPlus in, int version) throws IOException
-        {
-            int flags = in.readByte();
-            if (0 == (flags & HAS_ROUTE))
-                return null;
-
-            return KeySerializers.route.deserialize(in, version);
+            Participants<?> waitsOn = 0 != (flags & EXECUTES_IS_NULL) ? null : 0 != (flags & WAITSON_IS_OWNS) ? owns : KeySerializers.participants.deserialize(in, version);
+            return StoreParticipants.create(route, owns, executes, waitsOn, touches, hasTouched);
         }
 
         @Override

@@ -25,6 +25,8 @@ import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReferenceFieldUpdater;
 import java.util.concurrent.locks.Lock;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -61,6 +63,7 @@ import accord.utils.async.AsyncChain;
 import accord.utils.async.AsyncChains;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.service.accord.AccordKeyspace.CommandsForKeyAccessor;
+import org.apache.cassandra.service.accord.IAccordService.AccordCompactionInfo;
 import org.apache.cassandra.service.accord.api.TokenKey;
 import org.apache.cassandra.service.accord.txn.TxnRead;
 import org.apache.cassandra.utils.Clock;
@@ -134,6 +137,10 @@ public class AccordCommandStore extends CommandStore
         }
     }
 
+    static final AtomicReferenceFieldUpdater<AccordCommandStore, SafeRedundantBefore> safeRedundantBeforeUpdater
+        = AtomicReferenceFieldUpdater.newUpdater(AccordCommandStore.class, SafeRedundantBefore.class, "safeRedundantBefore");
+    static final AtomicLong nextSafeRedundantBeforeTicket = new AtomicLong();
+
     public final String loggingId;
     private final Journal journal;
     private final RangeSearcher rangeSearcher;
@@ -143,6 +150,7 @@ public class AccordCommandStore extends CommandStore
     private long lastSystemTimestampMicros = Long.MIN_VALUE;
     private final CommandsForRanges.Manager commandsForRanges;
     private final TableId tableId;
+    volatile SafeRedundantBefore safeRedundantBefore;
 
     private AccordSafeCommandStore current;
     private Thread currentThread;
@@ -384,7 +392,6 @@ public class AccordCommandStore extends CommandStore
         Invariants.require(thread == null ? currentThread == self : currentThread == null);
         currentThread = thread;
         if (thread != null) CommandStore.register(this);
-
     }
 
     public boolean hasSafeStore()
@@ -484,6 +491,15 @@ public class AccordCommandStore extends CommandStore
         return journal.loadMinimal(id, txnId, MINIMAL, unsafeGetRedundantBefore(), durableBefore());
     }
 
+    public AccordCompactionInfo getCompactionInfo()
+    {
+        SafeRedundantBefore safeRedundantBefore = this.safeRedundantBefore;
+        RedundantBefore redundantBefore;
+        if (safeRedundantBefore == null) redundantBefore = RedundantBefore.EMPTY;
+        else redundantBefore = safeRedundantBefore.redundantBefore;
+        return new AccordCompactionInfo(id, redundantBefore, rangesForEpoch, tableId);
+    }
+
     public RangeSearcher rangeSearcher()
     {
         return rangeSearcher;
@@ -492,6 +508,12 @@ public class AccordCommandStore extends CommandStore
     public Loader loader()
     {
         return loader;
+    }
+
+    @VisibleForTesting
+    public void unsafeUpsertRedundantBefore(RedundantBefore addRedundantBefore)
+    {
+        super.unsafeUpsertRedundantBefore(addRedundantBefore);
     }
 
     private static class CommandStoreLoader extends AbstractLoader
@@ -522,7 +544,11 @@ public class AccordCommandStore extends CommandStore
     void maybeLoadRedundantBefore(RedundantBefore redundantBefore)
     {
         if (redundantBefore != null)
+        {
             loadRedundantBefore(redundantBefore);
+            Invariants.require(safeRedundantBefore == null);
+            safeRedundantBefore = new SafeRedundantBefore(0, redundantBefore);
+        }
     }
 
     void maybeLoadBootstrapBeganAt(NavigableMap<TxnId, Ranges> bootstrapBeganAt)
@@ -541,5 +567,25 @@ public class AccordCommandStore extends CommandStore
     {
         if (rangesForEpoch != null)
             loadRangesForEpoch(rangesForEpoch);
+    }
+
+    // TODO (expected): handle journal failures, and consider how we handle partial failures.
+    //  Very likely we will not be able to safely or cleanly handle partial failures of this logic, but decide and document.
+    // TODO (desired): consider merging with PersistentField? This version is cheaper to manage which may be preferable at the CommandStore level.
+    static class SafeRedundantBefore
+    {
+        final long ticket;
+        final RedundantBefore redundantBefore;
+
+        SafeRedundantBefore(long ticket, RedundantBefore redundantBefore)
+        {
+            this.ticket = ticket;
+            this.redundantBefore = redundantBefore;
+        }
+
+        static SafeRedundantBefore max(SafeRedundantBefore a, SafeRedundantBefore b)
+        {
+            return a.ticket >= b.ticket ? a : b;
+        }
     }
 }

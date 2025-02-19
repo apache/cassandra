@@ -421,11 +421,11 @@ public class AccordFetchCoordinator extends AbstractFetchCoordinator implements 
         }
 
         @Override
-        protected AsyncChain<Data> beginRead(SafeCommandStore safeStore, Timestamp executeAt, PartialTxn txn, Ranges unavailable)
+        protected AsyncChain<Data> beginRead(SafeCommandStore safeStore, Timestamp executeAt, PartialTxn txn, Participants<?> execute)
         {
-            AsyncChain<Data> result = super.beginRead(safeStore, executeAt, txn, unavailable);
+            AsyncChain<Data> result = super.beginRead(safeStore, executeAt, txn, execute);
             // TODO (required): verify that streaming snapshots have all been created by now, so we won't stream any data that arrives after this
-            readStarted(safeStore, unavailable);
+            readStarted(safeStore);
             return result;
         }
     }

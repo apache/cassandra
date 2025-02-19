@@ -27,7 +27,6 @@ import java.util.List;
 import java.util.NavigableMap;
 import java.util.Set;
 import java.util.function.BiFunction;
-import java.util.stream.Stream;
 
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSortedMap;
@@ -37,6 +36,7 @@ import accord.local.Command.Truncated;
 import accord.local.ICommand;
 import accord.local.DurableBefore;
 import accord.local.RedundantBefore;
+import accord.local.RedundantBefore.Bounds;
 import accord.local.StoreParticipants;
 import accord.primitives.Ballot;
 import accord.primitives.Deps;
@@ -75,7 +75,14 @@ import org.apache.cassandra.service.accord.txn.TxnWrite;
 import org.quicktheories.impl.JavaRandom;
 
 import static accord.local.CommandStores.RangesForEpoch;
+import static accord.local.RedundantStatus.LOCALLY_APPLIED_ONLY;
+import static accord.local.RedundantStatus.LOCALLY_WITNESSED_ONLY;
+import static accord.local.RedundantStatus.Property.GC_BEFORE;
+import static accord.local.RedundantStatus.Property.PRE_BOOTSTRAP;
+import static accord.local.RedundantStatus.SHARD_ONLY_APPLIED_ONLY;
+import static accord.local.RedundantStatus.oneSlow;
 import static accord.primitives.Status.Durability.NotDurable;
+import static accord.primitives.Timestamp.Flag.SHARD_BOUND;
 import static accord.primitives.Txn.Kind.Write;
 import static org.apache.cassandra.service.accord.AccordTestUtils.TABLE_ID1;
 import static org.apache.cassandra.service.accord.AccordTestUtils.createPartialTxn;
@@ -442,28 +449,47 @@ public class AccordGenerators
         return AccordGens.deps(keyDepsGen(partitioner), rangeDepsGen(partitioner), directKeyDepsGen(partitioner));
     }
 
-    public static Gen<RedundantBefore.Entry> redundantBeforeEntry(IPartitioner partitioner)
+    public static Gen<Bounds> redundantBeforeEntry(IPartitioner partitioner)
     {
         return redundantBeforeEntry(Gens.bools().all(), range(partitioner), AccordGens.txnIds(Gens.pick(Txn.Kind.ExclusiveSyncPoint), ignore -> Routable.Domain.Range));
     }
 
-    public static Gen<RedundantBefore.Entry> redundantBeforeEntry(Gen<Boolean> emptyGen, Gen<Range> rangeGen, Gen<TxnId> txnIdGen)
+    public static Gen<Bounds> redundantBeforeEntry(Gen<Boolean> emptyGen, Gen<Range> rangeGen, Gen<TxnId> txnIdGen)
     {
         return rs -> {
             Range range = rangeGen.next(rs);
-            TxnId locallyWitnessedOrInvalidatedBefore = emptyGen.next(rs) ? TxnId.NONE : txnIdGen.next(rs); // emptyable or range
-            TxnId locallyAppliedOrInvalidatedBefore = TxnId.nonNullOrMin(locallyWitnessedOrInvalidatedBefore, emptyGen.next(rs) ? TxnId.NONE : txnIdGen.next(rs)); // emptyable or range
-            TxnId locallyDecidedAndAppliedOrInvalidatedBefore = TxnId.nonNullOrMin(locallyAppliedOrInvalidatedBefore, emptyGen.next(rs) ? TxnId.NONE : txnIdGen.next(rs)); // emptyable or range
-            TxnId shardOnlyAppliedOrInvalidatedBefore = emptyGen.next(rs) ? TxnId.NONE : txnIdGen.next(rs); // emptyable or range
-            TxnId shardAppliedOrInvalidatedBefore = TxnId.nonNullOrMin(locallyAppliedOrInvalidatedBefore, TxnId.nonNullOrMin(shardOnlyAppliedOrInvalidatedBefore, emptyGen.next(rs) ? TxnId.NONE : txnIdGen.next(rs))); // emptyable or range
-            TxnId gcBefore = TxnId.nonNullOrMin(shardAppliedOrInvalidatedBefore, emptyGen.next(rs) ? TxnId.NONE : txnIdGen.next(rs)); // emptyable or range
-            TxnId bootstrappedAt = txnIdGen.next(rs);
-            Timestamp staleUntilAtLeast = emptyGen.next(rs) ? null : txnIdGen.next(rs); // nullable
 
-            long maxEpoch = Stream.of(locallyAppliedOrInvalidatedBefore, shardAppliedOrInvalidatedBefore, bootstrappedAt, staleUntilAtLeast).filter(t -> t != null).mapToLong(Timestamp::epoch).max().getAsLong();
-            long startEpoch = rs.nextLong(maxEpoch);
-            long endEpoch = emptyGen.next(rs) ? Long.MAX_VALUE : 1 + rs.nextLong(startEpoch, Long.MAX_VALUE);
-            return new RedundantBefore.Entry(range, startEpoch, endEpoch, locallyWitnessedOrInvalidatedBefore, locallyAppliedOrInvalidatedBefore, locallyDecidedAndAppliedOrInvalidatedBefore, shardOnlyAppliedOrInvalidatedBefore, shardAppliedOrInvalidatedBefore, gcBefore, bootstrappedAt, staleUntilAtLeast);
+            List<Bounds> bounds = new ArrayList<>();
+            if (rs.nextBoolean())
+                bounds.add(Bounds.create(range, txnIdGen.next(rs), LOCALLY_WITNESSED_ONLY, null ));
+            if (rs.nextBoolean())
+                bounds.add(Bounds.create(range, txnIdGen.next(rs), LOCALLY_APPLIED_ONLY, null ));
+            if (rs.nextBoolean())
+                bounds.add(Bounds.create(range, txnIdGen.next(rs), SHARD_ONLY_APPLIED_ONLY, null ));
+            if (rs.nextBoolean())
+                bounds.add(Bounds.create(range, txnIdGen.next(rs).addFlag(SHARD_BOUND), oneSlow(GC_BEFORE), null ));
+            if (rs.nextBoolean())
+                bounds.add(Bounds.create(range, txnIdGen.next(rs), oneSlow(PRE_BOOTSTRAP), null ));
+            if (rs.nextBoolean())
+                bounds.add(new Bounds(range, Long.MIN_VALUE, Long.MAX_VALUE, new TxnId[0], new int[0], txnIdGen.next(rs)));
+
+            Collections.shuffle(bounds);
+            long endEpoch = emptyGen.next(rs) ? Long.MAX_VALUE : rs.nextLong(0, Long.MAX_VALUE);
+            long minEpoch = Long.MAX_VALUE;
+            Bounds result = null;
+            for (Bounds b : bounds)
+            {
+                if (b.bounds.length > 0)
+                    minEpoch = Math.min(minEpoch, b.bounds[0].epoch());
+                if (result == null) result = b;
+                else result = Bounds.reduce(result, b);
+            }
+
+            long startEpoch = rs.nextLong(Math.min(minEpoch, endEpoch));
+            Bounds epochBounds = new Bounds(range, startEpoch, endEpoch, new TxnId[0], new int[0], null);
+            if (result == null)
+                return epochBounds;
+            return Bounds.reduce(result, epochBounds);
         };
     }
 
@@ -471,7 +497,7 @@ public class AccordGenerators
     {
         Gen<Ranges> rangeGen = rangesArbitrary(partitioner);
         Gen<TxnId> txnIdGen = AccordGens.txnIds(Gens.pick(Txn.Kind.ExclusiveSyncPoint), ignore -> Routable.Domain.Range);
-        BiFunction<RandomSource, Range, RedundantBefore.Entry> entryGen = (rs, range) -> redundantBeforeEntry(Gens.bools().all(), i -> range, txnIdGen).next(rs);
+        BiFunction<RandomSource, Range, Bounds> entryGen = (rs, range) -> redundantBeforeEntry(Gens.bools().all(), i -> range, txnIdGen).next(rs);
         return AccordGens.redundantBefore(rangeGen, entryGen);
     }
 

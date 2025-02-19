@@ -106,7 +106,7 @@ public class AccordSyncPropagatorTest
             RandomDelayQueue delayQueue = new RandomDelayQueue.Factory(rs).get();
             PendingQueue queue = new MonitoredPendingQueue(failures, delayQueue);
             Agent agent = new TestAgent.RethrowAgent();
-            SimulatedDelayedExecutorService globalExecutor = new SimulatedDelayedExecutorService(queue, agent);
+            SimulatedDelayedExecutorService globalExecutor = new SimulatedDelayedExecutorService(queue, agent, null);
             ScheduledExecutorPlus scheduler = new AdaptingScheduledExecutorPlus(globalExecutor);
 
             Cluster cluster = new Cluster(nodes, rs, scheduler);

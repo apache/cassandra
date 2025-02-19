@@ -36,10 +36,10 @@ import accord.api.RoutingKey;
 import accord.impl.DurabilityScheduling;
 import accord.impl.progresslog.DefaultProgressLog;
 import accord.impl.progresslog.TxnStateKind;
+import accord.local.CommandStore;
 import accord.local.CommandStores;
 import accord.local.DurableBefore;
 import accord.local.MaxConflicts;
-import accord.local.RedundantBefore;
 import accord.local.RejectBefore;
 import accord.primitives.Status;
 import accord.primitives.TxnId;
@@ -49,11 +49,9 @@ import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.marshal.AbstractType;
-import org.apache.cassandra.db.marshal.CompositeType;
 import org.apache.cassandra.db.marshal.Int32Type;
-import org.apache.cassandra.db.marshal.TupleType;
 import org.apache.cassandra.db.marshal.UTF8Type;
-import org.apache.cassandra.db.marshal.UUIDType;
+import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.LocalPartitioner;
 import org.apache.cassandra.dht.NormalizedRanges;
 import org.apache.cassandra.dht.Token;
@@ -62,6 +60,7 @@ import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.accord.AccordCache;
+import org.apache.cassandra.service.accord.AccordCommandStore;
 import org.apache.cassandra.service.accord.AccordCommandStores;
 import org.apache.cassandra.service.accord.AccordExecutor;
 import org.apache.cassandra.service.accord.AccordKeyspace;
@@ -71,14 +70,17 @@ import org.apache.cassandra.service.accord.api.TokenKey;
 import org.apache.cassandra.service.consensus.migration.ConsensusMigrationState;
 import org.apache.cassandra.service.consensus.migration.TableMigrationState;
 import org.apache.cassandra.tcm.ClusterMetadata;
-import org.apache.cassandra.utils.Pair;
 
+import static accord.local.RedundantStatus.Property.GC_BEFORE;
+import static accord.local.RedundantStatus.Property.LOCALLY_APPLIED;
+import static accord.local.RedundantStatus.Property.LOCALLY_REDUNDANT;
+import static accord.local.RedundantStatus.Property.LOCALLY_SYNCED;
+import static accord.local.RedundantStatus.Property.LOCALLY_WITNESSED;
+import static accord.local.RedundantStatus.Property.PRE_BOOTSTRAP;
+import static accord.local.RedundantStatus.Property.SHARD_ONLY_APPLIED;
 import static java.lang.String.format;
-import static java.util.Comparator.comparing;
 import static com.google.common.collect.ImmutableList.toImmutableList;
-import static accord.utils.async.AsyncChains.getBlockingAndRethrow;
 import static org.apache.cassandra.schema.SchemaConstants.VIRTUAL_ACCORD_DEBUG;
-import static org.apache.cassandra.utils.ByteBufferUtil.bytes;
 import static org.apache.cassandra.utils.MonotonicClock.Global.approxTime;
 
 public class AccordDebugKeyspace extends VirtualKeyspace
@@ -92,10 +94,6 @@ public class AccordDebugKeyspace extends VirtualKeyspace
     public static final String REDUNDANT_BEFORE = "redundant_before";
     public static final String REJECT_BEFORE = "reject_before";
     public static final String TXN_BLOCKED_BY = "txn_blocked_by";
-
-    // {table_id, token} or {table_id, +Inf/-Inf}
-    private static final TupleType ROUTING_KEY_TYPE = new TupleType(List.of(UUIDType.instance, UTF8Type.instance));
-    private static final String ROUTING_KEY_TYPE_STRING = ROUTING_KEY_TYPE.asCQL3Type().toString();
 
     public static final AccordDebugKeyspace instance = new AccordDebugKeyspace();
 
@@ -122,8 +120,11 @@ public class AccordDebugKeyspace extends VirtualKeyspace
             super(parse(VIRTUAL_ACCORD_DEBUG, DURABILITY_SCHEDULING,
                         "Accord per-Range Durability Scheduling State",
                         "CREATE TABLE %s (\n" +
-                           format("range_start %s,\n", ROUTING_KEY_TYPE_STRING) +
-                           format("range_end %s,\n", ROUTING_KEY_TYPE_STRING) +
+                        "  keyspace_name text,\n" +
+                        "  table_name text,\n" +
+                        "  token_sort blob,\n" +
+                        "  token_start text,\n" +
+                        "  token_end text,\n" +
                         "  node_offset int,\n" +
                         "  \"index\" int,\n" +
                         "  number_of_splits int,\n" +
@@ -131,8 +132,8 @@ public class AccordDebugKeyspace extends VirtualKeyspace
                         "  cycle_started_at bigint,\n" +
                         "  retry_delay_micros bigint,\n" +
                         "  is_defunct boolean,\n" +
-                        "  PRIMARY KEY ((range_start, range_end))" +
-                        ')', CompositeType.getInstance(ROUTING_KEY_TYPE, ROUTING_KEY_TYPE)));
+                        "  PRIMARY KEY (keyspace_name, table_name, token_start)" +
+                        ')', UTF8Type.instance));
         }
 
         @Override
@@ -143,7 +144,11 @@ public class AccordDebugKeyspace extends VirtualKeyspace
             SimpleDataSet ds = new SimpleDataSet(metadata());
             while (view.advance())
             {
-                ds.row(decompose(view.range().start()), decompose(view.range().end()))
+                TableId tableId = (TableId) view.range().start().prefix();
+                TableMetadata tableMetadata = tableMetadata(tableId);
+                ds.row(keyspace(tableMetadata), table(tableId, tableMetadata), sortToken(view.range().start()))
+                  .column("start_token", printToken(view.range().start()))
+                  .column("end_token", printToken(view.range().end()))
                   .column("node_offset", view.nodeOffset())
                   .column("index", view.index())
                   .column("number_of_splits", view.numberOfSplits())
@@ -163,12 +168,15 @@ public class AccordDebugKeyspace extends VirtualKeyspace
             super(parse(VIRTUAL_ACCORD_DEBUG, DURABLE_BEFORE,
                         "Accord Node's DurableBefore State",
                         "CREATE TABLE %s (\n" +
-                           format("range_start %s,\n", ROUTING_KEY_TYPE_STRING) +
-                           format("range_end %s,\n", ROUTING_KEY_TYPE_STRING) +
+                        "  keyspace_name text,\n" +
+                        "  table_name text,\n" +
+                        "  token_sort blob,\n" +
+                        "  token_start text,\n" +
+                        "  token_end text,\n" +
                         "  majority_before text,\n" +
                         "  universal_before text,\n" +
-                        "  PRIMARY KEY ((range_start, range_end))" +
-                        ')', CompositeType.getInstance(ROUTING_KEY_TYPE, ROUTING_KEY_TYPE)));
+                        "  PRIMARY KEY (keyspace_name, table_name, token_sort)" +
+                        ')', UTF8Type.instance));
         }
 
         @Override
@@ -177,7 +185,11 @@ public class AccordDebugKeyspace extends VirtualKeyspace
             DurableBefore durableBefore = AccordService.instance().node().durableBefore();
             return durableBefore.foldlWithBounds(
                 (entry, ds, start, end) -> {
-                    ds.row(decompose(start), decompose(end))
+                    TableId tableId = (TableId) start.prefix();
+                    TableMetadata tableMetadata = tableMetadata(tableId);
+                    ds.row(keyspace(tableMetadata), table(tableId, tableMetadata), sortToken(start))
+                      .column("start_token", printToken(start))
+                      .column("end_token", printToken(end))
                       .column("majority_before", entry.majorityBefore.toString())
                       .column("universal_before", entry.universalBefore.toString());
                     return ds;
@@ -237,30 +249,38 @@ public class AccordDebugKeyspace extends VirtualKeyspace
             super(parse(VIRTUAL_ACCORD_DEBUG, MAX_CONFLICTS,
                         "Accord per-CommandStore MaxConflicts State",
                         "CREATE TABLE %s (\n" +
-                        "  command_store_id int,\n" +
-                           format("range_start %s,\n", ROUTING_KEY_TYPE_STRING) +
-                           format("range_end %s,\n", ROUTING_KEY_TYPE_STRING) +
+                        "  keyspace_name text,\n" +
+                        "  table_name text,\n" +
+                        "  token_sort blob,\n" +
+                        "  token_start text,\n" +
+                        "  token_end text,\n" +
+                        "  command_store_id bigint,\n" +
                         "  timestamp text,\n" +
-                        "  PRIMARY KEY (command_store_id, range_start, range_end)" +
-                        ')', Int32Type.instance));
+                        "  PRIMARY KEY (keyspace_name, table_name, token_sort, command_store_id)" +
+                        ')', UTF8Type.instance));
         }
 
         @Override
         public DataSet data()
         {
-            CommandStores stores = AccordService.instance().node().commandStores();
-            List<Pair<Integer, MaxConflicts>> rangeMaps =
-                getBlockingAndRethrow(stores.map(store -> Pair.create(store.commandStore().id(), store.commandStore().unsafeGetMaxConflicts())));
-            rangeMaps.sort(comparing(p -> p.left));
+            CommandStores commandStores = AccordService.instance().node().commandStores();
 
             SimpleDataSet dataSet = new SimpleDataSet(metadata());
-            for (Pair<Integer, MaxConflicts> pair : rangeMaps)
+            for (CommandStore commandStore : commandStores.all())
             {
-                int storeId = pair.left;
-                MaxConflicts maxConflicts = pair.right;
+                int commandStoreId = commandStore.id();
+                MaxConflicts maxConflicts = commandStore.unsafeGetMaxConflicts();
+                TableId tableId = ((AccordCommandStore) commandStore).tableId();
+                TableMetadata tableMetadata = tableMetadata(tableId);
 
                 maxConflicts.foldlWithBounds(
-                    (timestamp, ds, start, end) -> ds.row(storeId, decompose(start), decompose(end)).column("timestamp", timestamp.toString()),
+                    (timestamp, ds, start, end) -> {
+                        return ds.row(keyspace(tableMetadata), table(tableId, tableMetadata), sortToken(start), commandStoreId)
+                                 .column("start_token", printToken(start))
+                                 .column("end_token", printToken(end))
+                                 .column("timestamp", timestamp.toString())
+                        ;
+                    },
                     dataSet,
                     ignore -> false
                 );
@@ -365,6 +385,8 @@ public class AccordDebugKeyspace extends VirtualKeyspace
             super(parse(VIRTUAL_ACCORD_DEBUG, PROGRESS_LOG,
                         "Accord per-CommandStore ProgressLog State",
                         "CREATE TABLE %s (\n" +
+                        "  keyspace_name text,\n" +
+                        "  table_name text,\n" +
                         "  command_store_id int,\n" +
                         "  txn_id text,\n" +
                         // Timer + BaseTxnState
@@ -382,25 +404,23 @@ public class AccordDebugKeyspace extends VirtualKeyspace
                         "  home_progress text,\n" +
                         "  home_retry_counter int,\n" +
                         "  home_scheduled_at timestamp,\n" +
-                        "  PRIMARY KEY (command_store_id, txn_id)" +
-                        ')', Int32Type.instance));
+                        "  PRIMARY KEY (keyspace_name, table_name, command_store_id, txn_id)" +
+                        ')', UTF8Type.instance));
         }
 
         @Override
         public DataSet data()
         {
-            CommandStores stores = AccordService.instance().node().commandStores();
-            List<DefaultProgressLog.ImmutableView> views =
-                getBlockingAndRethrow(stores.map(store -> ((DefaultProgressLog) store.progressLog()).immutableView()));
-            views.sort(comparing(DefaultProgressLog.ImmutableView::storeId));
-
+            CommandStores commandStores = AccordService.instance().node().commandStores();
             SimpleDataSet ds = new SimpleDataSet(metadata());
-            for (int i = 0, size = views.size(); i < size; ++i)
+            for (CommandStore commandStore : commandStores.all())
             {
-                DefaultProgressLog.ImmutableView view = views.get(i);
+                DefaultProgressLog.ImmutableView view = (DefaultProgressLog.ImmutableView) commandStore.unsafeProgressLog();
+                TableId tableId = ((AccordCommandStore)commandStore).tableId();
+                TableMetadata tableMetadata = tableMetadata(tableId);
                 while (view.advance())
                 {
-                    ds.row(view.storeId(), view.txnId().toString())
+                    ds.row(keyspace(tableMetadata), table(tableId, tableMetadata), view.commandStoreId(), view.txnId().toString())
                       .column("contact_everyone", view.contactEveryone())
                       .column("waiting_is_uninitialised", view.isWaitingUninitialised())
                       .column("waiting_blocked_until", view.waitingIsBlockedUntil().name())
@@ -436,47 +456,53 @@ public class AccordDebugKeyspace extends VirtualKeyspace
             super(parse(VIRTUAL_ACCORD_DEBUG, REDUNDANT_BEFORE,
                         "Accord per-CommandStore RedundantBefore State",
                         "CREATE TABLE %s (\n" +
-                        "  command_store_id int,\n" +
-                           format("range_start %s,\n", ROUTING_KEY_TYPE_STRING) +
-                           format("range_end %s,\n", ROUTING_KEY_TYPE_STRING) +
-                        "  start_ownership_epoch bigint,\n" +
-                        "  end_ownership_epoch bigint,\n" +
-                        "  locally_applied_or_invalidated_before text,\n" +
-                        "  locally_decided_and_applied_or_invalidated_before text,\n" +
-                        "  shard_applied_or_invalidated_before text,\n" +
+                        "  keyspace_name text,\n" +
+                        "  table_name text,\n" +
+                        "  token_sort blob,\n" +
+                        "  token_start text,\n" +
+                        "  token_end text,\n" +
+                        "  command_store_id bigint,\n" +
+                        "  start_epoch bigint,\n" +
+                        "  end_epoch bigint,\n" +
                         "  gc_before text,\n" +
-                        "  shard_only_applied_or_invalidated_before text,\n" +
-                        "  bootstrapped_at text,\n" +
+                        "  shard_only_applied text,\n" +
+                        "  locally_applied text,\n" +
+                        "  locally_synced text,\n" +
+                        "  locally_redundant text,\n" +
+                        "  locally_witnessed text,\n" +
+                        "  pre_bootstrap text,\n" +
                         "  stale_until_at_least text,\n" +
-                        "  PRIMARY KEY (command_store_id, range_start, range_end)" +
-                        ')', Int32Type.instance));
+                        "  PRIMARY KEY (keyspace_name, table_name, token_sort, command_store_id)" +
+                        ')', UTF8Type.instance));
         }
 
         @Override
         public DataSet data()
         {
-            CommandStores stores = AccordService.instance().node().commandStores();
-            List<Pair<Integer, RedundantBefore>> rangeMaps =
-                getBlockingAndRethrow(stores.map(store -> Pair.create(store.commandStore().id(), store.commandStore().unsafeGetRedundantBefore())));
-            rangeMaps.sort(comparing(p -> p.left));
+            CommandStores commandStores = AccordService.instance().node().commandStores();
 
             SimpleDataSet dataSet = new SimpleDataSet(metadata());
-            for (Pair<Integer, RedundantBefore> pair : rangeMaps)
+            for (CommandStore commandStore : commandStores.all())
             {
-                int storeId = pair.left;
-                RedundantBefore redundantBefore = pair.right;
-
-                redundantBefore.foldlWithBounds(
-                    (entry, ds, start, end) -> {
-                        ds.row(storeId, decompose(start), decompose(end))
-                          .column("start_ownership_epoch", entry.startOwnershipEpoch)
-                          .column("end_ownership_epoch", entry.endOwnershipEpoch)
-                          .column("locally_applied_before", entry.locallyAppliedBefore.toString())
-                          .column("locally_decided_and_applied_before", entry.locallyDecidedAndAppliedBefore.toString())
-                          .column("shard_applied_before", entry.shardAppliedBefore.toString())
-                          .column("gc_before", entry.gcBefore.toString())
-                          .column("shard_only_applied_before", entry.shardOnlyAppliedBefore.toString())
-                          .column("bootstrapped_at", entry.bootstrappedAt.toString())
+                int commandStoreId = commandStore.id();
+                TableId tableId = ((AccordCommandStore)commandStore).tableId();
+                TableMetadata tableMetadata = tableMetadata(tableId);
+                String keyspace = keyspace(tableMetadata);
+                String table = table(tableId, tableMetadata);
+                commandStore.unsafeGetRedundantBefore().foldl(
+                    (entry, ds) -> {
+                        ds.row(keyspace, table, sortToken(entry.range.start()), commandStoreId)
+                          .column("start_token", printToken(entry.range.start()))
+                          .column("end_token", printToken(entry.range.end()))
+                          .column("start_epoch", entry.startEpoch)
+                          .column("end_epoch", entry.endEpoch)
+                          .column("gc_before", entry.maxBound(GC_BEFORE).toString())
+                          .column("shard_only_applied", entry.maxBound(SHARD_ONLY_APPLIED).toString())
+                          .column("locally_applied", entry.maxBound(LOCALLY_APPLIED).toString())
+                          .column("locally_synced", entry.maxBound(LOCALLY_SYNCED).toString())
+                          .column("locally_redundant", entry.maxBound(LOCALLY_REDUNDANT).toString())
+                          .column("locally_witnessed", entry.maxBound(LOCALLY_WITNESSED).toString())
+                          .column("pre_bootstrap", entry.maxBound(PRE_BOOTSTRAP).toString())
                           .column("stale_until_at_least", entry.staleUntilAtLeast != null ? entry.staleUntilAtLeast.toString() : null);
                         return ds;
                     },
@@ -495,33 +521,38 @@ public class AccordDebugKeyspace extends VirtualKeyspace
             super(parse(VIRTUAL_ACCORD_DEBUG, REJECT_BEFORE,
                         "Accord per-CommandStore RejectBefore State",
                         "CREATE TABLE %s (\n" +
+                        "  keyspace_name text,\n" +
+                        "  table_name text,\n" +
+                        "  token_sort blob,\n" +
+                        "  token_start text,\n" +
+                        "  token_end text,\n" +
                         "  command_store_id int,\n" +
-                           format("range_start %s,\n", ROUTING_KEY_TYPE_STRING) +
-                           format("range_end %s,\n", ROUTING_KEY_TYPE_STRING) +
                         "  txn_id text,\n" +
-                        "  PRIMARY KEY (command_store_id, range_start, range_end)" +
-                        ')', Int32Type.instance));
+                        "  PRIMARY KEY (keyspace_name, table_name, token_sort, command_store_id)" +
+                        ')', UTF8Type.instance));
         }
 
         @Override
         public DataSet data()
         {
-            CommandStores stores = AccordService.instance().node().commandStores();
-            List<Pair<Integer, RejectBefore>> rangeMaps =
-                getBlockingAndRethrow(stores.map(store -> Pair.create(store.commandStore().id(), store.commandStore().unsafeGetRejectBefore())));
-            rangeMaps.sort(comparing(p -> p.left));
-
+            CommandStores commandStores = AccordService.instance().node().commandStores();
             SimpleDataSet dataSet = new SimpleDataSet(metadata());
-            for (Pair<Integer, RejectBefore> pair : rangeMaps)
+            for (CommandStore commandStore : commandStores.all())
             {
-                int storeId = pair.left;
-                RejectBefore rejectBefore = pair.right;
-
+                RejectBefore rejectBefore = commandStore.unsafeGetRejectBefore();
                 if (rejectBefore == null)
                     continue;
 
+                TableId tableId = ((AccordCommandStore)commandStore).tableId();
+                TableMetadata tableMetadata = tableMetadata(tableId);
+                String keyspace = keyspace(tableMetadata);
+                String table = table(tableId, tableMetadata);
                 rejectBefore.foldlWithBounds(
-                    (txnId, ds, start, end) -> ds.row(storeId, decompose(start), decompose(end)).column("txn_id", txnId.toString()),
+                    (txnId, ds, start, end) -> ds.row(keyspace, table, sortToken(start), commandStore.id())
+                                                 .column("token_start", printToken(start))
+                                                 .column("token_end", printToken(end))
+                                                 .column("txn_id", txnId.toString())
+                ,
                     dataSet,
                     ignore -> false
                 );
@@ -540,14 +571,16 @@ public class AccordDebugKeyspace extends VirtualKeyspace
                         "Accord Transactions Blocked By Table" ,
                         "CREATE TABLE %s (\n" +
                         "  txn_id text,\n" +
+                        "  keyspace_name text,\n" +
+                        "  table_name text,\n" +
                         "  command_store_id int,\n" +
                         "  depth int,\n" +
                         "  blocked_by text,\n" +
                         "  reason text,\n" +
                         "  save_status text,\n" +
                         "  execute_at text,\n" +
-                           format("key %s,\n", ROUTING_KEY_TYPE_STRING) +
-                        "  PRIMARY KEY (txn_id, command_store_id, depth, blocked_by, reason)" +
+                        "  key text,\n" +
+                        "  PRIMARY KEY (txn_id, keyspace_name, table_name, command_store_id, depth, blocked_by, reason)" +
                         ')', UTF8Type.instance));
         }
 
@@ -558,10 +591,11 @@ public class AccordDebugKeyspace extends VirtualKeyspace
             List<CommandStoreTxnBlockedGraph> shards = AccordService.instance().debugTxnBlockedGraph(id);
 
             SimpleDataSet ds = new SimpleDataSet(metadata());
+            CommandStores commandStores = AccordService.instance().node().commandStores();
             for (CommandStoreTxnBlockedGraph shard : shards)
             {
                 Set<TxnId> processed = new HashSet<>();
-                process(ds, shard, processed, id, 0, id, Reason.Self, null);
+                process(ds, commandStores, shard, processed, id, 0, id, Reason.Self, null);
                 // everything was processed right?
                 if (!shard.txns.isEmpty() && !shard.txns.keySet().containsAll(processed))
                     throw new IllegalStateException("Skipped txns: " + Sets.difference(shard.txns.keySet(), processed));
@@ -570,7 +604,7 @@ public class AccordDebugKeyspace extends VirtualKeyspace
             return ds;
         }
 
-        private void process(SimpleDataSet ds, CommandStoreTxnBlockedGraph shard, Set<TxnId> processed, TxnId userTxn, int depth, TxnId txnId, Reason reason, Runnable onDone)
+        private void process(SimpleDataSet ds, CommandStores commandStores, CommandStoreTxnBlockedGraph shard, Set<TxnId> processed, TxnId userTxn, int depth, TxnId txnId, Reason reason, Runnable onDone)
         {
             if (!processed.add(txnId))
                 throw new IllegalStateException("Double processed " + txnId);
@@ -583,7 +617,10 @@ public class AccordDebugKeyspace extends VirtualKeyspace
             // was it applied?  If so ignore it
             if (reason != Reason.Self && txn.saveStatus.hasBeen(Status.Applied))
                 return;
-            ds.row(userTxn.toString(), shard.storeId, depth, reason == Reason.Self ? "" : txn.txnId.toString(), reason.name());
+            TableId tableId = tableId(shard.commandStoreId, commandStores);
+            TableMetadata tableMetadata = tableMetadata(tableId);
+            ds.row(userTxn.toString(), keyspace(tableMetadata), table(tableId, tableMetadata),
+                   shard.commandStoreId, depth, reason == Reason.Self ? "" : txn.txnId.toString(), reason.name());
             ds.column("save_status", txn.saveStatus.name());
             if (txn.executeAt != null)
                 ds.column("execute_at", txn.executeAt.toString());
@@ -594,14 +631,14 @@ public class AccordDebugKeyspace extends VirtualKeyspace
                 for (TxnId blockedBy : txn.blockedBy)
                 {
                     if (!processed.contains(blockedBy))
-                        process(ds, shard, processed, userTxn, depth + 1, blockedBy, Reason.Txn, null);
+                        process(ds, commandStores, shard, processed, userTxn, depth + 1, blockedBy, Reason.Txn, null);
                 }
 
                 for (TokenKey blockedBy : txn.blockedByKey)
                 {
                     TxnId blocking = shard.keys.get(blockedBy);
                     if (!processed.contains(blocking))
-                        process(ds, shard, processed, userTxn, depth + 1, blocking, Reason.Key, () -> ds.column("key", decompose(blockedBy)));
+                        process(ds, commandStores, shard, processed, userTxn, depth + 1, blocking, Reason.Key, () -> ds.column("key", printToken(blockedBy)));
                 }
             }
         }
@@ -613,10 +650,46 @@ public class AccordDebugKeyspace extends VirtualKeyspace
         }
     }
 
-    private static ByteBuffer decompose(RoutingKey routingKey)
+    private static TableId tableId(int commandStoreId, CommandStores commandStores)
+    {
+        AccordCommandStore commandStore = (AccordCommandStore) commandStores.forId(commandStoreId);
+        if (commandStore == null)
+            return null;
+        return commandStore.tableId();
+    }
+
+    private static TableMetadata tableMetadata(TableId tableId)
+    {
+        if (tableId == null)
+            return null;
+        return Schema.instance.getTableMetadata(tableId);
+    }
+
+    private static String keyspace(TableMetadata metadata)
+    {
+        return metadata == null ? "Unknown" : metadata.keyspace;
+    }
+
+    private static String table(TableId tableId, TableMetadata metadata)
+    {
+        return metadata == null ? tableId.toString() : metadata.name;
+    }
+
+    private static String printToken(RoutingKey routingKey)
     {
         TokenKey key = (TokenKey) routingKey;
-        return ROUTING_KEY_TYPE.pack(UUIDType.instance.decompose(key.table().asUUID()), bytes(key.suffix().toString()));
+        return key.token().getPartitioner().getTokenFactory().toString(key.token());
+    }
+
+    private static ByteBuffer sortToken(RoutingKey routingKey)
+    {
+        TokenKey key = (TokenKey) routingKey;
+        Token token = key.token();
+        IPartitioner partitioner = token.getPartitioner();
+        ByteBuffer out = ByteBuffer.allocate(partitioner.accordSerializedSize(token));
+        partitioner.accordSerialize(token, out);
+        out.flip();
+        return out;
     }
 
     private static TableMetadata parse(String keyspace, String table, String comment, String schema, AbstractType<?> partitionKeyType)
