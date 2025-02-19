@@ -41,6 +41,7 @@ import accord.topology.Shard;
 import accord.topology.Topology;
 import accord.utils.Invariants;
 import accord.utils.SortedArrays.SortedArrayList;
+import accord.utils.TinyEnumSet;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.dht.IPartitioner;
@@ -80,18 +81,18 @@ public class AccordTopology
 
     private static class ShardLookup extends HashMap<accord.primitives.Range, Shard>
     {
-        private Shard createOrReuse(boolean pendingRemoval, accord.primitives.Range range, SortedArrayList<Id> nodes, SortedArrayList<Id> fastPath, Set<Id> joining)
+        private Shard createOrReuse(TinyEnumSet<Shard.Flag> flags, accord.primitives.Range range, SortedArrayList<Id> nodes, SortedArrayList<Id> fastPath, Set<Id> joining)
         {
             Shard prev = get(range);
             if (prev != null
-                && prev.pendingRemoval == pendingRemoval
+                && prev.flags().bitset() == flags.bitset()
                 && prev.nodes.equals(nodes)
                 && prev.fastPathElectorateSize == fastPath.size()
                 && prev.nodes.without(prev.notInFastPath).equals(fastPath)
                 && joining.size() == prev.joining.size() && prev.joining.containsAll(joining))
                 return prev;
 
-            return Shard.create(range, nodes, fastPath, joining, pendingRemoval);
+            return Shard.create(range, nodes, fastPath, joining, flags);
         }
     }
 
@@ -120,7 +121,7 @@ public class AccordTopology
             return strategy;
         }
 
-        List<Shard> createForTable(TableMetadata metadata, Set<Id> unavailable, Map<Id, String> dcMap, ShardLookup lookup)
+        List<Shard> createForTable(Epoch epoch, TableMetadata metadata, Set<Id> unavailable, Map<Id, String> dcMap, ShardLookup lookup)
         {
             Ranges ranges = this.ranges.stream()
                                        .map(range -> Ranges.single(AccordTopology.range(metadata.id, range)))
@@ -131,7 +132,14 @@ public class AccordTopology
 
             List<Shard> shards = new ArrayList<>(ranges.size());
             for (accord.primitives.Range range : ranges)
-                shards.add(lookup.createOrReuse(metadata.params.pendingDrop, range, nodes, electorate, pending));
+            {
+                TinyEnumSet<Shard.Flag> flags = Shard.NO_FLAGS;
+                if (metadata.params.pendingDrop)
+                    flags = flags.with(Shard.Flag.PENDING_REMOVAL);
+                if (metadata.epoch.isEqualOrAfter(epoch))
+                    flags = flags.with(Shard.Flag.MUST_WITNESS);
+                shards.add(lookup.createOrReuse(flags, range, nodes, electorate, pending));
+            }
             return shards;
         }
 
@@ -296,7 +304,7 @@ public class AccordTopology
             if (tables.isEmpty())
                 continue;
             List<KeyspaceShard> ksShards = KeyspaceShard.forKeyspace(keyspace, placements, directory);
-            tables.forEach(table -> ksShards.forEach(shard -> res.addAll(shard.createForTable(table, unavailable, dcMap, lookup))));
+            tables.forEach(table -> ksShards.forEach(shard -> res.addAll(shard.createForTable(epoch, table, unavailable, dcMap, lookup))));
         }
 
         res.sort((a, b) -> a.range.compare(b.range));

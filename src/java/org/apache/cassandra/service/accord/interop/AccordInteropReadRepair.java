@@ -146,7 +146,7 @@ public class AccordInteropReadRepair extends ReadData
     }
 
     @Override
-    protected AsyncChain<Data> beginRead(SafeCommandStore safeStore, Timestamp executeAt, PartialTxn txn, Ranges unavailable)
+    protected AsyncChain<Data> beginRead(SafeCommandStore safeStore, Timestamp executeAt, PartialTxn txn, Participants<?> execute)
     {
         // TODO (required): subtract unavailable ranges, either from read or from response (or on coordinator)
         return AsyncChains.ofCallable(Verb.READ_REPAIR_REQ.stage.executor(), () -> {

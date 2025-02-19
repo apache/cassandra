@@ -810,7 +810,7 @@ public class CompactionIterator extends CompactionInfo.Holder implements Unfilte
                 return row;
 
             RedundantBefore redundantBefore = info.redundantBefore;
-            RedundantBefore.Entry redundantBeforeEntry = redundantBefore.get(tokenKey.toUnseekable());
+            RedundantBefore.Bounds redundantBeforeEntry = redundantBefore.get(tokenKey.toUnseekable());
             if (redundantBeforeEntry == null)
                 return row;
 

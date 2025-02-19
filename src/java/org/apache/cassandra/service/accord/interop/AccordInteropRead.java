@@ -34,11 +34,11 @@ import accord.local.Node;
 import accord.local.SafeCommandStore;
 import accord.messages.MessageType;
 import accord.messages.ReadData;
+import accord.primitives.AbstractRanges;
 import accord.primitives.PartialTxn;
 import accord.primitives.Participants;
 import accord.primitives.Range;
 import accord.primitives.Ranges;
-import accord.primitives.Routables.Slice;
 import accord.primitives.Timestamp;
 import accord.primitives.TxnId;
 import accord.topology.Topologies;
@@ -241,38 +241,34 @@ public class AccordInteropRead extends ReadData
     }
 
     @Override
-    protected AsyncChain<Data> beginRead(SafeCommandStore safeStore, Timestamp executeAt, PartialTxn txn, Ranges unavailable)
+    protected AsyncChain<Data> beginRead(SafeCommandStore safeStore, Timestamp executeAt, PartialTxn txn, Participants<?> execute)
     {
         TxnRead txnRead = (TxnRead)txn.read();
-        Ranges ranges = safeStore.ranges().allAt(executeAt).without(unavailable).intersecting(scope, Slice.Minimal);
         long nowInSeconds = TxnNamedRead.nowInSeconds(executeAt);
-        List<AsyncChain<Data>> chains = new ArrayList<>(ranges.size());
-        for (Range r : ranges)
+        if (!command.isRangeRequest())
         {
-            ReadCommand readCommand = this.command;
-            TokenKey routingKey = null;
-            final ReadCommand readCommandFinal;
-            if (readCommand.isRangeRequest())
-            {
-                // This path can have a subrange we have never seen before provided by short read protection or read repair so we need to
-                // calculate the intersection with this instance of the command store and the actual command if it is not empty we
-                // will need to execute it
-                TokenRange commandRange = TxnNamedRead.boundsAsAccordRange(readCommand.dataRange().keyRange(), readCommand.metadata().id);
-                Range intersection = commandRange.intersection(r);
-                if (intersection == null)
-                    continue;
-                readCommandFinal = TxnNamedRead.commandForSubrange((PartitionRangeReadCommand) readCommand, intersection, txnRead.cassandraConsistencyLevel(), nowInSeconds);
-                routingKey = ((TokenRange)r).start();
-            }
-            else
-            {
-                SinglePartitionReadCommand singlePartitionReadCommand = ((SinglePartitionReadCommand)readCommand);
-                if (!r.contains(new TokenKey(singlePartitionReadCommand.metadata().id, singlePartitionReadCommand.partitionKey().getToken())))
-                    continue;
-                readCommandFinal = ((SinglePartitionReadCommand)readCommand).withTransactionalSettings(TxnNamedRead.readsWithoutReconciliation(txnRead.cassandraConsistencyLevel()), nowInSeconds);
-            }
-            TokenKey routingKeyFinal = routingKey;
-            chains.add(AsyncChains.ofCallable(Stage.READ.executor(), () -> new LocalReadData(routingKeyFinal, ReadCommandVerbHandler.instance.doRead(readCommandFinal, false), readCommand)));
+            SinglePartitionReadCommand readCommand = ((SinglePartitionReadCommand)command);
+            TokenKey key = new TokenKey(readCommand.metadata().id, readCommand.partitionKey().getToken());
+            if (!execute.contains(key))
+                return AsyncChains.success(null);
+
+            ReadCommand submit = readCommand.withTransactionalSettings(TxnNamedRead.readsWithoutReconciliation(txnRead.cassandraConsistencyLevel()), nowInSeconds);
+            return AsyncChains.ofCallable(Stage.READ.executor(), () -> new LocalReadData(key, ReadCommandVerbHandler.instance.doRead(submit, false), command));
+        }
+
+        // This path can have a subrange we have never seen before provided by short read protection or read repair so we need to
+        // calculate the intersection with this instance of the command store and the actual command if it is not empty we
+        // will need to execute it
+        TokenRange commandRange = TxnNamedRead.boundsAsAccordRange(command.dataRange().keyRange(), command.metadata().id);
+        List<AsyncChain<Data>> chains = new ArrayList<>(execute.size());
+        for (Range r : (AbstractRanges)execute)
+        {
+            Range intersection = commandRange.intersection(r);
+            if (intersection == null)
+                continue;
+            ReadCommand submit = TxnNamedRead.commandForSubrange((PartitionRangeReadCommand) command, intersection, txnRead.cassandraConsistencyLevel(), nowInSeconds);
+            TokenKey routingKey = ((TokenRange)r).start();
+            chains.add(AsyncChains.ofCallable(Stage.READ.executor(), () -> new LocalReadData(routingKey, ReadCommandVerbHandler.instance.doRead(submit, false), command)));
         }
 
         if (chains.isEmpty())

@@ -34,6 +34,7 @@ import java.util.zip.Checksum;
 import com.google.common.collect.Maps;
 
 import accord.local.StoreParticipants;
+import accord.primitives.Participants;
 import accord.primitives.Route;
 import accord.primitives.TxnId;
 import org.apache.cassandra.db.DecoratedKey;
@@ -71,30 +72,30 @@ public class RouteIndexFormat
 {
     public static final Supplier<Checksum> CHECKSUM_SUPPLIER = CRC32C::new;
 
-    static final LocalVersionedSerializer<Route<?>> route = localSerializer(KeySerializers.route);
+    static final LocalVersionedSerializer<Participants<?>> participants = localSerializer(KeySerializers.participants);
     private static <T> LocalVersionedSerializer<T> localSerializer(IVersionedSerializer<T> serializer)
     {
         return new LocalVersionedSerializer<>(AccordSerializerVersion.CURRENT, AccordSerializerVersion.serializer, serializer);
     }
 
-    public static ByteBuffer serialize(Route<?> value) throws IOException
+    public static ByteBuffer serialize(Participants<?> value) throws IOException
     {
-        int size = Math.toIntExact(route.serializedSize(value));
+        int size = Math.toIntExact(participants.serializedSize(value));
         try (DataOutputBuffer buffer = new DataOutputBuffer(size))
         {
-            route.serialize(value, buffer);
+            participants.serialize(value, buffer);
             return buffer.buffer(true);
         }
     }
 
-    static Route<?> deserializeRoute(ByteBuffer bytes) throws IOException
+    static Route<?> deserializeParticipants(ByteBuffer bytes) throws IOException
     {
         if (bytes == null || ByteBufferAccessor.instance.isEmpty(bytes))
             return null;
 
         try (DataInputBuffer in = new DataInputBuffer(bytes, true))
         {
-            MessageVersionProvider versionProvider = route.deserializeVersion(in);
+            MessageVersionProvider versionProvider = participants.deserializeVersion(in);
             return KeySerializers.route.deserialize(in, versionProvider.messageVersion());
         }
     }
@@ -163,13 +164,14 @@ public class RouteIndexFormat
         StoreParticipants participants = builder.participants();
         if (participants == null)
             return null;
-        Route<?> route = participants.route();
-        if (route == null)
+
+        Participants<?> touches = participants.touches();
+        if (touches == null)
             return null;
 
         try
         {
-            return serialize(participants.route());
+            return serialize(touches);
         }
         catch (IOException e)
         {

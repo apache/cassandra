@@ -361,6 +361,11 @@ public class AccordService implements IAccordService, Shutdownable
     @Override
     public synchronized void startup()
     {
+        unsafeStartupWithOverrides(null);
+    }
+
+    public synchronized void unsafeStartupWithOverrides(@Nullable Journal.TopologyUpdate overrideNullTopologyUpdate)
+    {
         if (state != State.INIT)
             return;
         journal.start(node);
@@ -380,6 +385,8 @@ public class AccordService implements IAccordService, Shutdownable
             Invariants.require(lastSeen == null || update.global.epoch() > lastSeen.global.epoch());
             lastSeen = update;
         }
+        if (lastSeen == null)
+            lastSeen = overrideNullTopologyUpdate;
 
         if (lastSeen != null)
         {
@@ -1328,21 +1335,9 @@ public class AccordService implements IAccordService, Shutdownable
     public AccordCompactionInfos getCompactionInfo()
     {
         AccordCompactionInfos compactionInfos = new AccordCompactionInfos(node.durableBefore());
-        if (node.commandStores().all().length > 0)
-        {
-            AsyncChains.getBlockingAndRethrow(node.commandStores().forEach(safeStore -> {
-                synchronized (compactionInfos)
-                {
-                    int id = safeStore.commandStore().id();
-                    compactionInfos.put(id, new AccordCompactionInfo(
-                        id,
-                        safeStore.redundantBefore(),
-                        safeStore.ranges(),
-                        ((AccordCommandStore)safeStore.commandStore()).tableId()
-                    ));
-                }
-            }));
-        }
+        node.commandStores().forEachCommandStore(commandStore -> {
+            compactionInfos.put(commandStore.id(), ((AccordCommandStore)commandStore).getCompactionInfo());
+        });
         return compactionInfos;
     }
 

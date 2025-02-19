@@ -293,7 +293,7 @@ public class AccordObjectSizes
             FullKeyRoute route = new FullKeyRoute(EMPTY_KEY, new RoutingKey[]{ EMPTY_KEY });
             Participants<?> empty = route.slice(0, 0);
             ICommand.Builder builder = new ICommand.Builder(EMPTY_TXNID)
-                                       .setParticipants(StoreParticipants.create(route, empty, executes ? empty : null, empty, route))
+                                       .setParticipants(StoreParticipants.create(route, empty, executes ? empty : null, executes ? empty : null, empty, route))
                                        .durability(Status.Durability.NotDurable)
                                        .executeAt(EMPTY_TXNID)
                                        .promised(Ballot.ZERO);

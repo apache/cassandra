@@ -296,7 +296,7 @@ public class TxnRead extends AbstractKeySorted<TxnNamedRead> implements Read
                 int i = 0, j = 0;
                 while (i < items.length && j < that.items.length)
                 {
-                    TxnNamedRead r1 = this.items[i], r2 = that.items[i];
+                    TxnNamedRead r1 = this.items[i], r2 = that.items[j];
                     int c = compareKey(r1, r2);
                     if (c <= 0)
                     {
@@ -319,7 +319,7 @@ public class TxnRead extends AbstractKeySorted<TxnNamedRead> implements Read
                 TxnNamedRead pending = null;
                 while (i < items.length && j < that.items.length)
                 {
-                    TxnNamedRead r1 = this.items[i], r2 = that.items[i];
+                    TxnNamedRead r1 = this.items[i], r2 = that.items[j];
                     int c = compareRange(r1, r2);
                     TxnNamedRead add;
                     if (c == 0)

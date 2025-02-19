@@ -28,6 +28,7 @@ import com.google.common.annotations.VisibleForTesting;
 
 import accord.api.Agent;
 import accord.api.DataStore;
+import accord.api.Journal.FieldUpdates;
 import accord.api.ProgressLog;
 import accord.api.RoutingKey;
 import accord.impl.AbstractSafeCommandStore;
@@ -40,6 +41,7 @@ import accord.primitives.Txn;
 import accord.primitives.TxnId;
 import accord.primitives.Unseekables;
 import org.apache.cassandra.service.accord.AccordCommandStore.ExclusiveCaches;
+import org.apache.cassandra.service.accord.AccordCommandStore.SafeRedundantBefore;
 
 import static accord.utils.Invariants.illegalState;
 
@@ -113,6 +115,34 @@ public class AccordSafeCommandStore extends AbstractSafeCommandStore<AccordSafeC
             caches.commands().release(safeCommand, task);
             throw illegalState("Attempted to take a duplicate reference to %s", safeCommand.txnId());
         }
+    }
+
+    @Override
+    protected void persistFieldUpdates()
+    {
+        super.persistFieldUpdates();
+    }
+
+    protected void persistFieldUpdatesInternal(Runnable onDone)
+    {
+        FieldUpdates updates = fieldUpdates();
+        if (updates == null)
+            return;
+
+        if (updates.newRedundantBefore != null)
+        {
+            long ticket = AccordCommandStore.nextSafeRedundantBeforeTicket.incrementAndGet();
+            SafeRedundantBefore update = new SafeRedundantBefore(ticket, updates.newRedundantBefore);
+            Runnable reportRedundantBefore = () -> {
+                AccordCommandStore.safeRedundantBeforeUpdater.accumulateAndGet((AccordCommandStore)commandStore, update, SafeRedundantBefore::max);
+            };
+            Runnable prevOnDone = onDone;
+            onDone = prevOnDone == null ? reportRedundantBefore : () -> {
+                try { reportRedundantBefore.run(); }
+                finally { prevOnDone.run(); }
+            };
+        }
+        commandStore.persistFieldUpdates(updates, onDone);
     }
 
     protected AccordSafeCommandsForKey add(AccordSafeCommandsForKey safeCfk, ExclusiveCaches caches)

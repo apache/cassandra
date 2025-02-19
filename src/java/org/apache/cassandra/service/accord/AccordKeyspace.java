@@ -313,7 +313,7 @@ public class AccordKeyspace
         }
 
         // TODO (expected): garbage-free filtering, reusing encoding
-        public Row withoutRedundantCommands(TokenKey key, Row row, RedundantBefore.Entry redundantBefore)
+        public Row withoutRedundantCommands(TokenKey key, Row row, RedundantBefore.Bounds redundantBefore)
         {
             Invariants.require(row.columnCount() == 1);
             Cell<?> cell = row.getCell(data);

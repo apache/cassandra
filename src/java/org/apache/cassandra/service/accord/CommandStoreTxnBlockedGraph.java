@@ -36,13 +36,13 @@ import org.apache.cassandra.service.accord.api.TokenKey;
 
 public class CommandStoreTxnBlockedGraph
 {
-    public final int storeId;
+    public final int commandStoreId;
     public final Map<TxnId, TxnState> txns;
     public final Map<TokenKey, TxnId> keys;
 
     public CommandStoreTxnBlockedGraph(Builder builder)
     {
-        storeId = builder.storeId;
+        commandStoreId = builder.storeId;
         txns = ImmutableMap.copyOf(builder.txns);
         keys = ImmutableMap.copyOf(builder.keys);
     }

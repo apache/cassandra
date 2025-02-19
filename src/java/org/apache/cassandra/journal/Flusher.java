@@ -150,7 +150,7 @@ final class Flusher<K, V>
                     return;
 
                 awaitingWork = Thread.currentThread();
-                do
+                while (true)
                 {
                     if (Thread.interrupted())
                     {
@@ -158,9 +158,11 @@ final class Flusher<K, V>
                         throw new InterruptedException();
                     }
 
+                    if (fsyncWaitingSince != lastStartedAt)
+                        break;
+
                     LockSupport.park();
                 }
-                while (fsyncWaitingSince == lastStartedAt);
 
                 awaitingWork = null;
             }

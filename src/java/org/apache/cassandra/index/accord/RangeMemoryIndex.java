@@ -52,7 +52,7 @@ import org.apache.cassandra.utils.ObjectSizes;
 import org.apache.cassandra.utils.RTree;
 import org.apache.cassandra.utils.RangeTree;
 
-import static org.apache.cassandra.index.accord.RouteIndexFormat.deserializeRoute;
+import static org.apache.cassandra.index.accord.RouteIndexFormat.deserializeParticipants;
 
 public class RangeMemoryIndex
 {
@@ -110,7 +110,7 @@ public class RangeMemoryIndex
         Route<?> route;
         try
         {
-            route = deserializeRoute(value);
+            route = deserializeParticipants(value);
         }
         catch (IOException e)
         {

@@ -43,6 +43,7 @@ import accord.local.Command;
 import accord.local.CommandStore;
 import accord.local.DurableBefore;
 import accord.local.RedundantBefore;
+import accord.local.RedundantStatus;
 import accord.local.StoreParticipants;
 import accord.local.cfk.CommandsForKey;
 import accord.local.cfk.Serialize;
@@ -92,6 +93,7 @@ import static accord.local.KeyHistory.SYNC;
 import static accord.local.PreLoadContext.contextFor;
 import static accord.primitives.Routable.Domain.Range;
 import static accord.primitives.Timestamp.Flag.HLC_BOUND;
+import static accord.primitives.Timestamp.Flag.SHARD_BOUND;
 import static accord.utils.async.AsyncChains.getUninterruptibly;
 import static org.apache.cassandra.Util.spinAssertEquals;
 import static org.apache.cassandra.cql3.statements.schema.CreateTableStatement.parse;
@@ -227,8 +229,8 @@ public class CompactionAccordIteratorsTest
     private static RedundantBefore redundantBefore(TxnId txnId)
     {
         Ranges ranges = AccordTestUtils.fullRange(AccordTestUtils.keys(table, 42));
-        txnId = txnId.as(Kind.ExclusiveSyncPoint, Range);
-        return RedundantBefore.create(ranges, Long.MIN_VALUE, Long.MAX_VALUE, txnId, txnId, txnId, txnId, LT_TXN_ID.as(Range));
+        txnId = txnId.as(Kind.ExclusiveSyncPoint, Range).addFlag(SHARD_BOUND);
+        return RedundantBefore.create(ranges, Long.MIN_VALUE, Long.MAX_VALUE, txnId, RedundantStatus.GC_BEFORE_AND_LOCALLY_APPLIED, LT_TXN_ID.as(Range));
     }
 
     enum DurableBeforeType

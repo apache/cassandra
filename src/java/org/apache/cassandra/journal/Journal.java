@@ -146,7 +146,7 @@ public class Journal<K, V> implements Shutdownable
         @Override
         public void onFlushFailed(Throwable cause)
         {
-            // TODO: panic
+            // TODO (required): panic
         }
 
         private void submit(RecordPointer pointer, Runnable runnable)
