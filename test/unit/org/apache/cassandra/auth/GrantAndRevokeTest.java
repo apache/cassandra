@@ -40,6 +40,7 @@ import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.utils.Pair;
+import org.apache.cassandra.service.CassandraDaemon;
 
 import static java.lang.String.format;
 import static org.apache.cassandra.schema.SchemaConstants.LOCAL_SYSTEM_KEYSPACE_NAMES;
@@ -66,6 +67,7 @@ public class GrantAndRevokeTest extends CQLTester
         DatabaseDescriptor.getRoleManager().setup();
         DatabaseDescriptor.getAuthenticator().setup();
         DatabaseDescriptor.getAuthorizer().setup();
+        CassandraDaemon.getInstanceForTesting().setupVirtualKeyspaces();
     }
 
     @After
@@ -300,6 +302,18 @@ public class GrantAndRevokeTest extends CQLTester
         // and also write to them, though this is still strongly discouraged
         superuser.execute("INSERT INTO system.peers(peer, data_center) VALUES ('127.0.100.100', 'invalid_dc')");
 
+    }
+
+    @Test
+    public void testGrantOnVirtualKeyspaces() throws Throwable
+    {
+        Session superuser = session(SUPERUSER);
+        superuser.execute(String.format("CREATE ROLE %s WITH LOGIN = TRUE AND password='%s'", user, pass));
+
+        superuser.execute(String.format("GRANT SELECT PERMISSION ON KEYSPACE system_virtual_schema TO %s", user));
+        superuser.execute(String.format("GRANT SELECT PERMISSION ON KEYSPACE system_views TO %s", user));
+        superuser.execute(String.format("REVOKE SELECT PERMISSION ON KEYSPACE system_virtual_schema FROM %s", user));
+        superuser.execute(String.format("REVOKE SELECT PERMISSION ON KEYSPACE system_views FROM %s", user));
     }
 
     private void maybeReadSystemTables(Session session, boolean isSuper) throws Throwable
