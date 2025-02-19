@@ -125,8 +125,6 @@ public class TopologySerializers
 
     public static class ShardSerializer implements IVersionedSerializer<Shard>
     {
-        private static final int PENDING_REMOVAL = 1;
-        private static final int MUST_WITNESS = 2;
         protected IVersionedSerializer<Range> range;
 
         public ShardSerializer(IVersionedSerializer<Range> range)

@@ -40,7 +40,10 @@ public class RequestFailureReasonTest
     { 8, "NOT_CMS" },
     { 9, "INVALID_ROUTING" },
     { 10, "COORDINATOR_BEHIND" },
-    { 503, "INDEX_BUILD_IN_PROGRESS" }
+    { 503, "INDEX_BUILD_IN_PROGRESS" },
+    { 504, "RETRY_ON_DIFFERENT_TRANSACTION_SYSTEM" },
+    { 505, "BOOTING" },
+    { 506, "ACCORD_DISABLED" }
     };
 
     @Test

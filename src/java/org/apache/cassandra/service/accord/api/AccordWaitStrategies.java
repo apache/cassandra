@@ -71,7 +71,7 @@ public class AccordWaitStrategies
         return slowTxnPreaccept;
     }
 
-    public static RetryStrategy retryFetchMinEpoch()
+    public static RetryStrategy retryFetchWatermarks()
     {
         return retryFetchMinEpoch;
     }

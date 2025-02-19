@@ -31,7 +31,6 @@ import javax.annotation.Nonnull;
 
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Ordering;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -94,6 +93,7 @@ import org.apache.cassandra.service.accord.IAccordService.AccordCompactionInfos;
 import org.apache.cassandra.service.accord.JournalKey;
 import org.apache.cassandra.service.accord.api.AccordAgent;
 import org.apache.cassandra.service.accord.api.TokenKey;
+import org.apache.cassandra.service.accord.journal.AccordTopologyUpdate;
 import org.apache.cassandra.service.paxos.PaxosRepairHistory;
 import org.apache.cassandra.service.paxos.uncommitted.PaxosRows;
 import org.apache.cassandra.utils.TimeUUID;
@@ -789,7 +789,7 @@ public class CompactionIterator extends CompactionInfo.Holder implements Unfilte
         AccordCommandsForKeyPurger(CommandsForKeyAccessor accessor, Supplier<IAccordService> accordService)
         {
             this.accessor = accessor;
-            this.compactionInfos = new AccordCompactionInfos(null, accordService.get().getCompactionInfo());
+            this.compactionInfos = accordService.get().getCompactionInfo();
         }
 
         protected void beginPartition(UnfilteredRowIterator partition)
@@ -837,6 +837,8 @@ public class CompactionIterator extends CompactionInfo.Holder implements Unfilte
         JournalKey key = null;
         Object builder = null;
         FlyweightSerializer<Object, Object> serializer = null;
+        // Initialize topology serializer during compaction to avoid deserializing redundant epochs
+        FlyweightSerializer<AccordTopologyUpdate, Object> topologySerializer;
         Object[] firstClustering = null;
         final int userVersion;
         long lastDescriptor = -1;
@@ -852,6 +854,7 @@ public class CompactionIterator extends CompactionInfo.Holder implements Unfilte
             this.infos = service.getCompactionInfo();
             this.recordColumn = cfs.metadata().getColumn(ColumnIdentifier.getInterned("record", false));
             this.versionColumn = cfs.metadata().getColumn(ColumnIdentifier.getInterned("user_version", false));
+            this.topologySerializer = (FlyweightSerializer<AccordTopologyUpdate, Object>) (FlyweightSerializer) new AccordTopologyUpdate.AccumulatingSerializer(() -> infos.minEpoch);
         }
 
         @SuppressWarnings("unchecked")
@@ -978,7 +981,10 @@ public class CompactionIterator extends CompactionInfo.Holder implements Unfilte
             try (DataInputBuffer in = new DataInputBuffer(record, false))
             {
                 int userVersion = Int32Type.instance.compose(row.getCell(versionColumn).buffer());
-                serializer.deserialize(key, builder, in, userVersion);
+                if (key.type == JournalKey.Type.TOPOLOGY_UPDATE)
+                    topologySerializer.deserialize(key, builder, in, userVersion);
+                else
+                    serializer.deserialize(key, builder, in, userVersion);
                 if (firstClustering == null)
                     firstClustering = row.clustering().getBufferArray();
             }

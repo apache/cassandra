@@ -308,7 +308,7 @@ public class AccordSyncPropagatorTest
                         throw new IllegalStateException("Unknown action: " + action);
                 }
                 callbacks.put(message.id(), cb);
-                scheduler.schedule(() -> AccordService.receive(this, node(to).configurationService, (Message<List<AccordSyncPropagator.Notification>>) message.withFrom(mappedEndpoint(from))), 500, TimeUnit.MILLISECONDS);
+                scheduler.schedule(() -> AccordService.receive(this, node(to).configurationService, (Message<AccordSyncPropagator.Notification>) message.withFrom(mappedEndpoint(from))), 500, TimeUnit.MILLISECONDS);
                 scheduler.schedule(() -> {
                     RequestCallback<?> removed = callbacks.remove(message.id());
                     if (removed != null)
@@ -453,6 +453,11 @@ public class AccordSyncPropagatorTest
             {
                 Topology topology = getTopologyForEpoch(epoch);
                 instances.get(localId).propagator.reportRetired(epoch, topology.nodes(), ranges);
+            }
+
+            @Override
+            public void reportEpochRemoved(long epoch)
+            {
             }
 
             @Override

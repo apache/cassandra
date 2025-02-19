@@ -20,7 +20,10 @@ package org.apache.cassandra.service.accord;
 
 import java.nio.file.Files;
 import java.util.List;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+
+import javax.annotation.Nullable;
 
 import org.junit.Before;
 import org.junit.Test;
@@ -53,6 +56,7 @@ import org.apache.cassandra.service.accord.serializers.KeySerializers;
 import org.apache.cassandra.service.accord.serializers.ResultSerializers;
 import org.apache.cassandra.service.accord.serializers.TopologySerializers;
 import org.apache.cassandra.tools.FieldUtil;
+import org.apache.cassandra.utils.concurrent.Condition;
 
 import static accord.impl.PrefixedIntHashKey.ranges;
 
@@ -123,12 +127,10 @@ public class AccordJournalBurnTest extends BurnTestBase
             {
                 ServerTestUtils.daemonInitialization();
 
-                TableMetadata[] metadatas = new TableMetadata[3 + nodes.size()];
+                TableMetadata[] metadatas = new TableMetadata[1 + nodes.size()];
                 metadatas[0] = AccordKeyspace.CommandsForKeys;
-                metadatas[1] = AccordKeyspace.Topologies;
-                metadatas[2] = AccordKeyspace.EpochMetadata;
                 for (int i = 0; i < nodes.size(); i++)
-                    metadatas[3 + i] = AccordKeyspace.journalMetadata("journal_" + nodes.get(i), false);
+                    metadatas[1 + i] = AccordKeyspace.journalMetadata("journal_" + nodes.get(i), false);
 
                 AccordKeyspace.TABLES = Tables.of(metadatas);
                 setUp();
@@ -153,6 +155,18 @@ public class AccordJournalBurnTest extends BurnTestBase
                          AccordJournal journal = new AccordJournal(new TestParams()
                          {
                              @Override
+                             public FlushMode flushMode()
+                             {
+                                 return FlushMode.PERIODIC;
+                             }
+
+                             @Override
+                             public long flushPeriod(TimeUnit units)
+                             {
+                                 return 1;
+                             }
+
+                             @Override
                              public int segmentSize()
                              {
                                  return 32 * 1024 * 1024;
@@ -165,9 +179,39 @@ public class AccordJournalBurnTest extends BurnTestBase
                              }
                          }, new AccordAgent(), directory, cfs)
                          {
+                             @Override
+                             public void saveCommand(int store, CommandUpdate update, @Nullable Runnable onFlush)
+                             {
+                                 Condition condition = Condition.newOneTimeCondition();
+                                 super.saveCommand(store, update, condition::signal);
+                                 condition.awaitUninterruptibly();
+                                 if (onFlush != null)
+                                     onFlush.run();
+                             }
+
+                             @Override
+                             public void saveStoreState(int store, FieldUpdates fieldUpdates, @Nullable Runnable onFlush)
+                             {
+                                 Condition condition = Condition.newOneTimeCondition();
+                                 super.saveStoreState(store, fieldUpdates, condition::signal);
+                                 if (onFlush != null)
+                                     onFlush.run();
+                             }
+
+                             @Override
+                             public void saveTopology(TopologyUpdate topologyUpdate, @Nullable Runnable onFlush)
+                             {
+                                 Condition condition = Condition.newOneTimeCondition();
+                                 super.saveTopology(topologyUpdate, condition::signal);
+                                 if (onFlush != null)
+                                     onFlush.run();
+                             }
+
+                             @Override
                              public void replay(CommandStores commandStores)
                              {
-                                 closeCurrentSegmentForTestingIfNonEmpty();
+                                 // Make sure to replay _only_ static segments
+                                 this.closeCurrentSegmentForTestingIfNonEmpty();
                                  super.replay(commandStores);
                              }
                          };

@@ -882,7 +882,6 @@ public class KeySerializers
         }
     }
 
-    // TODO: port these to burn test serializers / journal
     public static Map<ByteBuffer, ByteBuffer> rangesToBlobMap(Ranges ranges)
     {
         TreeMap<ByteBuffer, ByteBuffer> result = new TreeMap<>();

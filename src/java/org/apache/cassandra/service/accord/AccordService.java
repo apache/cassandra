@@ -36,7 +36,6 @@ import javax.annotation.Nullable;
 import javax.annotation.concurrent.GuardedBy;
 
 import com.google.common.annotations.VisibleForTesting;
-import com.google.common.collect.Streams;
 import com.google.common.primitives.Ints;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -48,8 +47,6 @@ import accord.coordinate.KeyBarriers;
 import accord.impl.AbstractConfigurationService;
 import accord.impl.DefaultLocalListeners;
 import accord.impl.DefaultRemoteListeners;
-import accord.local.UniqueTimeService.AtomicUniqueTimeWithStaleReservation;
-import accord.local.durability.DurabilityService;
 import accord.impl.RequestCallbacks;
 import accord.impl.SizeOfIntersectionSorter;
 import accord.impl.progresslog.DefaultProgressLogs;
@@ -62,8 +59,10 @@ import accord.local.Node.Id;
 import accord.local.PreLoadContext;
 import accord.local.SafeCommand;
 import accord.local.ShardDistributor.EvenSplit;
+import accord.local.UniqueTimeService.AtomicUniqueTimeWithStaleReservation;
 import accord.local.cfk.CommandsForKey;
 import accord.local.cfk.SafeCommandsForKey;
+import accord.local.durability.DurabilityService;
 import accord.local.durability.ShardDurability;
 import accord.messages.Reply;
 import accord.messages.Request;
@@ -104,12 +103,12 @@ import org.apache.cassandra.service.accord.AccordSyncPropagator.Notification;
 import org.apache.cassandra.service.accord.TimeOnlyRequestBookkeeping.LatencyRequestBookkeeping;
 import org.apache.cassandra.service.accord.api.AccordAgent;
 import org.apache.cassandra.service.accord.api.AccordRoutableKey;
-import org.apache.cassandra.service.accord.api.TokenKey.KeyspaceSplitter;
-import org.apache.cassandra.service.accord.api.TokenKey;
 import org.apache.cassandra.service.accord.api.AccordScheduler;
 import org.apache.cassandra.service.accord.api.AccordTimeService;
 import org.apache.cassandra.service.accord.api.AccordTopologySorter;
 import org.apache.cassandra.service.accord.api.CompositeTopologySorter;
+import org.apache.cassandra.service.accord.api.TokenKey;
+import org.apache.cassandra.service.accord.api.TokenKey.KeyspaceSplitter;
 import org.apache.cassandra.service.accord.interop.AccordInteropAdapter.AccordInteropFactory;
 import org.apache.cassandra.service.accord.txn.TxnQuery;
 import org.apache.cassandra.service.accord.txn.TxnRead;
@@ -134,6 +133,7 @@ import static accord.messages.SimpleReply.Ok;
 import static accord.primitives.Routable.Domain.Key;
 import static accord.primitives.Txn.Kind.Write;
 import static accord.primitives.TxnId.Cardinality.cardinality;
+import static accord.topology.TopologyManager.TopologyRange;
 import static java.util.concurrent.TimeUnit.NANOSECONDS;
 import static java.util.concurrent.TimeUnit.SECONDS;
 import static org.apache.cassandra.config.DatabaseDescriptor.getAccordCommandStoreShardCount;
@@ -143,6 +143,7 @@ import static org.apache.cassandra.config.DatabaseDescriptor.getAccordShardDurab
 import static org.apache.cassandra.config.DatabaseDescriptor.getPartitioner;
 import static org.apache.cassandra.metrics.ClientRequestsMetricsHolder.accordReadBookkeeping;
 import static org.apache.cassandra.metrics.ClientRequestsMetricsHolder.accordWriteBookkeeping;
+import static org.apache.cassandra.service.accord.journal.AccordTopologyUpdate.ImmutableTopoloyImage;
 import static org.apache.cassandra.service.consensus.migration.ConsensusRequestRouter.getTableMetadata;
 import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 
@@ -185,6 +186,13 @@ public class AccordService implements IAccordService, Shutdownable
     public static boolean isSetup()
     {
         return instance != null;
+    }
+
+    public static IVerbHandler<Void> watermarkHandlerOrNoop()
+    {
+        if (!isSetup()) return ignore -> {};
+        AccordService i = (AccordService) instance();
+        return i.configService().watermarkCollector.handler;
     }
 
     public static IVerbHandler<? extends Request> requestHandlerOrNoop()
@@ -322,6 +330,7 @@ public class AccordService implements IAccordService, Shutdownable
         unsafeStartupWithOverrides(null);
     }
 
+    @VisibleForTesting
     public synchronized void unsafeStartupWithOverrides(@Nullable Journal.TopologyUpdate overrideNullTopologyUpdate)
     {
         if (state != State.INIT)
@@ -332,43 +341,59 @@ public class AccordService implements IAccordService, Shutdownable
         ClusterMetadata metadata = ClusterMetadata.current();
         configService.updateMapping(metadata);
 
-        Long minEpoch = null;
-        List<Topology> local = new ArrayList<>();
-        Iterator<Journal.TopologyUpdate> iter = journal.replayTopologies();
-        Journal.TopologyUpdate lastSeen = null;
+        long highestKnown = -1;
+        List<ImmutableTopoloyImage> images = new ArrayList<>();
+
+        // Collect locally known topologies
+        Iterator<ImmutableTopoloyImage> iter = journal.replayTopologies();
+        Journal.TopologyUpdate prev = null;
         while (iter.hasNext())
         {
-            Journal.TopologyUpdate update = iter.next();
-            local.add(update.global);
-            Invariants.require(lastSeen == null || update.global.epoch() > lastSeen.global.epoch());
-            lastSeen = update;
-        }
-        if (lastSeen == null)
-            lastSeen = overrideNullTopologyUpdate;
+            ImmutableTopoloyImage next = iter.next();
+            // Due to partial compaction, we can clean up only some of the old epochs, creating gaps. We skip these epochs here.
+            if (prev != null && next.global.epoch() > prev.global.epoch() + 1)
+                images.clear();
 
-        if (lastSeen != null)
+            images.add(next);
+            prev = next;
+        }
+
+        if (prev == null)
+            prev = overrideNullTopologyUpdate;
+
+        // Instantiate latest topology from the log, if known
+        if (prev != null)
         {
-            node.commandStores().initializeTopologyUnsafe(lastSeen);
-            minEpoch = lastSeen.global.epoch();
+            node.commandStores().initializeTopologyUnsafe(prev);
+            highestKnown = prev.global.epoch();
         }
 
         try
         {
-            // Fetch topologies up to current
-            List<Topology> remote = fetchTopologies(minEpoch, metadata);
-            Streams.concat(local.stream(), remote.stream())
-                   .forEach(configService::reportTopology);
+            TopologyRange remote = fetchTopologies(highestKnown + 1);
+
+            // Replay local epochs
+            for (ImmutableTopoloyImage image : images)
+                configService.reportTopology(image.global);
+
+            if (remote != null)
+                remote.forEach(configService::reportTopology, highestKnown + 1, Integer.MAX_VALUE);
+            else if (images.isEmpty()) // First boot, single-node cluster
+                configService.reportTopology(AccordTopology.createAccordTopology(metadata));
 
             ClusterMetadataService.instance().log().addListener(configService.listener);
-            ClusterMetadata next = ClusterMetadata.current();
-
-            // if metadata was updated before we were able to add a listener, fetch remaining topologies
-            if (next.epoch.isAfter(metadata.epoch))
             {
-                remote = fetchTopologies(metadata.epoch.getEpoch(), next);
-                for (Topology topology : remote)
-                    configService.reportTopology(topology);
+                metadata = ClusterMetadata.current();
+                highestKnown = configService.currentEpoch();
+                if (metadata.epoch.getEpoch() > highestKnown)
+                {
+                    remote = fetchTopologies(highestKnown + 1);
+                    if (remote != null)
+                        remote.forEach(configService::reportTopology, highestKnown + 1, Integer.MAX_VALUE);
+                }
             }
+
+            WatermarkCollector.fetchAndReportWatermarksAsync(configService());
 
             int attempt = 0;
             int waitSeconds = 5;
@@ -408,17 +433,9 @@ public class AccordService implements IAccordService, Shutdownable
     /**
      * Queries peers to discover min epoch, and then fetches all topologies between min and current epochs
      */
-    private List<Topology> fetchTopologies(Long highestKnown, ClusterMetadata metadata) throws ExecutionException, InterruptedException
+    private TopologyRange fetchTopologies(long from) throws ExecutionException, InterruptedException
     {
-        Invariants.require(highestKnown == null || highestKnown <= metadata.epoch.getEpoch(),
-                           "Accord epochs should never be ahead of TCM ones, but %s was ahead of %s", (Object) highestKnown, metadata.epoch.getEpoch());
-
-        // All epochs are known and reported
-        if (highestKnown != null && highestKnown == metadata.epoch.getEpoch())
-            return Collections.emptyList();
-        // All epochs except current one are reported, no need to fetch from peers
-        if (highestKnown != null && highestKnown + 1 == metadata.epoch.getEpoch())
-            return Collections.singletonList(AccordTopology.createAccordTopology(metadata));
+        ClusterMetadata metadata = ClusterMetadata.current();
 
         Set<InetAddressAndPort> peers = new HashSet<>();
         peers.addAll(metadata.directory.allAddresses());
@@ -426,61 +443,42 @@ public class AccordService implements IAccordService, Shutdownable
 
         // No peers: single node cluster or first node to boot
         if (peers.isEmpty())
-            return Collections.singletonList(AccordTopology.createAccordTopology(metadata));
+            return null;
 
-        // Bootstrap, fetch min epoch
-        if (highestKnown == null)
+        Iterator<InetAddressAndPort> iter = peers.iterator();
+        while (iter.hasNext())
         {
-            Long fetched = findMinEpoch(SharedContext.Global.instance, peers);
-            if (fetched != null)
-                logger.info("Discovered min epoch of {} by querying {}", fetched, peers);
+            InetAddressAndPort peer = iter.next();
+            try
+            {
+                logger.info("Fetching topologies for epochs [{}, {}] from {}", from, metadata.epoch.getEpoch(), peer);
+                Invariants.require(from <= metadata.epoch.getEpoch(),
+                                   "Accord epochs should never be ahead of TCM ones, but %d was ahead of %d", from, metadata.epoch.getEpoch());
 
-            // No other node has advanced epoch just yet
-            if (fetched == null || fetched == metadata.epoch.getEpoch())
-                return Collections.singletonList(AccordTopology.createAccordTopology(metadata));
+                Future<TopologyRange> futures = FetchTopologies.fetch(SharedContext.Global.instance,
+                                                                      Collections.singleton(peer),
+                                                                      from,
+                                                                      Long.MAX_VALUE);
+                TopologyRange response = futures.get();
+                logger.info("Fetched topologies {}", response);
 
-            highestKnown = fetched;
+                // We're behind and need to catch up CMS first.
+                if (response.current > ClusterMetadata.current().epoch.getEpoch())
+                    ClusterMetadataService.instance().fetchLogFromCMS(Epoch.create(response.current));
+
+                if (response.current >= from)
+                    return response;
+                metadata = ClusterMetadata.current();
+            }
+            catch (Throwable e)
+            {
+                logger.info("Failed to fetch epochs [{}, {}] from {}", from, metadata.epoch.getEpoch(), peer);
+            }
         }
 
-        long maxEpoch = metadata.epoch.getEpoch();
-
-        // If we are behind minEpoch, catch up to at least minEpoch
-        if (metadata.epoch.getEpoch() < highestKnown)
-        {
-            highestKnown = metadata.epoch.getEpoch();
-            maxEpoch = highestKnown;
-        }
-
-        List<Future<Topology>> futures = new ArrayList<>();
-        logger.info("Fetching topologies for epochs [{}, {}].", highestKnown, maxEpoch);
-
-        for (long epoch = highestKnown; epoch <= maxEpoch; epoch++)
-            futures.add(FetchTopology.fetch(SharedContext.Global.instance, peers, epoch));
-
-        FBUtilities.waitOnFutures(futures);
-        List<Topology> topologies = new ArrayList<>(futures.size());
-        for (Future<Topology> future : futures)
-            topologies.add(future.get());
-
-        return topologies;
-    }
-
-    @VisibleForTesting
-    static Long findMinEpoch(SharedContext context, Set<InetAddressAndPort> peers)
-    {
-        try
-        {
-            return FetchMinEpoch.fetch(context, peers).get();
-        }
-        catch (InterruptedException e)
-        {
-            Thread.currentThread().interrupt();
-            throw new UncheckedInterruptedException(e);
-        }
-        catch (ExecutionException e)
-        {
-            throw new RuntimeException(e.getCause());
-        }
+        // After trying to contact all peers, and retrying according to retry spec on them, we give up.
+        // If there were no new known TCM epochs, we still allow Accord to start up, assuming there are no new epochs.
+        return null;
     }
 
     @Override
@@ -611,6 +609,7 @@ public class AccordService implements IAccordService, Shutdownable
     {
         return configService.currentEpoch();
     }
+
 
     @Override
     public TopologyManager topology()
@@ -885,22 +884,20 @@ public class AccordService implements IAccordService, Shutdownable
     }
 
     @Override
-    public void receive(Message<List<Notification>> message)
+    public void receive(Message<Notification> message)
     {
         receive(MessagingService.instance(), configService, message);
     }
 
     @VisibleForTesting
-    public static void receive(MessageDelivery sink, AbstractConfigurationService<?, ?> configService, Message<List<Notification>> message)
+    public static void receive(MessageDelivery sink, AbstractConfigurationService<?, ?> configService, Message<Notification> message)
     {
-        List<AccordSyncPropagator.Notification> notifications = message.payload;
-        notifications.forEach(notification -> {
-            notification.syncComplete.forEach(id -> configService.receiveRemoteSyncComplete(id, notification.epoch));
-            if (!notification.closed.isEmpty())
-                configService.receiveClosed(notification.closed, notification.epoch);
-            if (!notification.redundant.isEmpty())
-                configService.receiveRetired(notification.redundant, notification.epoch);
-        });
+        AccordSyncPropagator.Notification notification = message.payload;
+        notification.syncComplete.forEach(id -> configService.receiveRemoteSyncComplete(id, notification.epoch));
+        if (!notification.closed.isEmpty())
+            configService.receiveClosed(notification.closed, notification.epoch);
+        if (!notification.retired.isEmpty())
+            configService.receiveRetired(notification.retired, notification.epoch);
         sink.respond(Ok, message);
     }
 
@@ -950,7 +947,7 @@ public class AccordService implements IAccordService, Shutdownable
     @Override
     public AccordCompactionInfos getCompactionInfo()
     {
-        AccordCompactionInfos compactionInfos = new AccordCompactionInfos(node.durableBefore());
+        AccordCompactionInfos compactionInfos = new AccordCompactionInfos(node.durableBefore(), node.topology().minEpoch());
         node.commandStores().forEachCommandStore(commandStore -> {
             compactionInfos.put(commandStore.id(), ((AccordCommandStore)commandStore).getCompactionInfo());
         });

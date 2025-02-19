@@ -39,6 +39,7 @@ import accord.local.CommandStores.RangesForEpoch;
 import accord.local.DurableBefore;
 import accord.local.Node;
 import accord.local.RedundantBefore;
+import accord.primitives.EpochSupplier;
 import accord.primitives.Ranges;
 import accord.primitives.SaveStatus;
 import accord.primitives.Status.Durability;
@@ -68,6 +69,7 @@ import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.service.accord.AccordJournalValueSerializers.IdentityAccumulator;
 import org.apache.cassandra.service.accord.JournalKey.JournalKeySupport;
 import org.apache.cassandra.service.accord.api.AccordAgent;
+import org.apache.cassandra.service.accord.journal.AccordTopologyUpdate;
 import org.apache.cassandra.service.accord.serializers.CommandSerializers;
 import org.apache.cassandra.service.accord.serializers.CommandSerializers.ExecuteAtSerializer;
 import org.apache.cassandra.service.accord.serializers.DepsSerializers;
@@ -294,16 +296,17 @@ public class AccordJournal implements accord.api.Journal, RangeSearcher.Supplier
     }
 
     @Override
-    public Iterator<TopologyUpdate> replayTopologies()
+    public Iterator<AccordTopologyUpdate.ImmutableTopoloyImage> replayTopologies()
     {
-        AccordJournalValueSerializers.MapAccumulator<Long, TopologyUpdate> accumulator = readAll(new JournalKey(TxnId.NONE, JournalKey.Type.TOPOLOGY_UPDATE, 0));
-        return accumulator.get().values().iterator();
+        AccordTopologyUpdate.Accumulator accumulator = readAll(TopologyUpdateKey);
+        return accumulator.images();
     }
 
+    private static final JournalKey TopologyUpdateKey = new JournalKey(TxnId.NONE, JournalKey.Type.TOPOLOGY_UPDATE, 0);
     @Override
     public void saveTopology(TopologyUpdate topologyUpdate, Runnable onFlush)
     {
-        RecordPointer pointer = appendInternal(new JournalKey(TxnId.NONE, JournalKey.Type.TOPOLOGY_UPDATE, 0), topologyUpdate);
+        RecordPointer pointer = appendInternal(TopologyUpdateKey, AccordTopologyUpdate.newTopology(topologyUpdate));
         if (onFlush != null)
             journal.onDurable(pointer, onFlush);
     }
@@ -380,9 +383,9 @@ public class AccordJournal implements accord.api.Journal, RangeSearcher.Supplier
         return builder;
     }
 
-    private RecordPointer appendInternal(JournalKey key, Object write)
+    private <T> RecordPointer appendInternal(JournalKey key, T write)
     {
-        AccordJournalValueSerializers.FlyweightSerializer<Object, ?> serializer = (AccordJournalValueSerializers.FlyweightSerializer<Object, ?>) key.type.serializer;
+        AccordJournalValueSerializers.FlyweightSerializer<T, ?> serializer = (AccordJournalValueSerializers.FlyweightSerializer<T, ?>) key.type.serializer;
         return journal.asyncWrite(key, (out, userVersion) -> serializer.serialize(key, write, out, userVersion));
     }
 
@@ -419,7 +422,7 @@ public class AccordJournal implements accord.api.Journal, RangeSearcher.Supplier
     }
 
     @Override
-    public void purge(CommandStores commandStores)
+    public void purge(CommandStores commandStores, EpochSupplier minEpoch)
     {
         journal.closeCurrentSegmentForTestingIfNonEmpty();
         journal.runCompactorForTesting();

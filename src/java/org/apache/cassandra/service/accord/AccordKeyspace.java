@@ -19,17 +19,13 @@
 package org.apache.cassandra.service.accord;
 
 import java.io.IOException;
-import java.io.UncheckedIOException;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
-import java.util.stream.Collectors;
-import javax.annotation.Nullable;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableMap;
@@ -38,16 +34,12 @@ import com.google.common.collect.Lists;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import accord.local.Node;
 import accord.local.RedundantBefore;
 import accord.local.cfk.CommandsForKey;
 import accord.local.cfk.Serialize;
-import accord.primitives.Ranges;
 import accord.primitives.TxnId;
-import accord.topology.Topology;
 import accord.utils.Invariants;
 import org.apache.cassandra.cql3.ColumnIdentifier;
-import org.apache.cassandra.cql3.UntypedResultSet;
 import org.apache.cassandra.cql3.statements.schema.CreateTableStatement;
 import org.apache.cassandra.db.Clustering;
 import org.apache.cassandra.db.ClusteringComparator;
@@ -112,10 +104,8 @@ import org.apache.cassandra.schema.Tables;
 import org.apache.cassandra.schema.Types;
 import org.apache.cassandra.schema.UserFunctions;
 import org.apache.cassandra.schema.Views;
-import org.apache.cassandra.service.accord.AccordConfigurationService.SyncStatus;
 import org.apache.cassandra.service.accord.api.TokenKey;
 import org.apache.cassandra.service.accord.serializers.CommandSerializers;
-import org.apache.cassandra.service.accord.serializers.KeySerializers;
 import org.apache.cassandra.utils.AbstractIterator;
 import org.apache.cassandra.utils.Clock.Global;
 import org.apache.cassandra.utils.CloseableIterator;
@@ -123,14 +113,11 @@ import org.apache.cassandra.utils.MergeIterator;
 import org.apache.cassandra.utils.btree.BTreeSet;
 import org.apache.cassandra.utils.concurrent.OpOrder;
 
-import static accord.utils.Invariants.require;
 import static java.lang.String.format;
 import static java.util.Collections.emptyMap;
-import static org.apache.cassandra.cql3.QueryProcessor.executeInternal;
 import static org.apache.cassandra.db.partitions.PartitionUpdate.singleRowUpdate;
 import static org.apache.cassandra.db.rows.BTreeRow.singleCellRow;
 import static org.apache.cassandra.schema.SchemaConstants.ACCORD_KEYSPACE_NAME;
-import static org.apache.cassandra.service.accord.serializers.KeySerializers.blobMapToRanges;
 
 public class AccordKeyspace
 {
@@ -138,11 +125,9 @@ public class AccordKeyspace
 
     public static final String JOURNAL = "journal";
     public static final String COMMANDS_FOR_KEY = "commands_for_key";
-    public static final String TOPOLOGIES = "topologies";
-    public static final String EPOCH_METADATA = "epoch_metadata";
     public static final String JOURNAL_INDEX_NAME = "record";
 
-    public static final Set<String> TABLE_NAMES = ImmutableSet.of(COMMANDS_FOR_KEY, TOPOLOGIES, EPOCH_METADATA, JOURNAL);
+    public static final Set<String> TABLE_NAMES = ImmutableSet.of(COMMANDS_FOR_KEY, JOURNAL);
 
     // TODO (desired): implement a custom type so we can get correct sort order
     public static final TupleType TIMESTAMP_TYPE = new TupleType(Lists.newArrayList(LongType.instance, LongType.instance, Int32Type.instance));
@@ -510,26 +495,7 @@ public class AccordKeyspace
         }
     }
 
-    public static final TableMetadata Topologies =
-        parse(TOPOLOGIES,
-              "accord topologies",
-              "CREATE TABLE %s (" +
-              "epoch bigint primary key, " +
-              "sync_state int, " +
-              "pending_sync_notify set<int>, " + // nodes that need to be told we're synced
-              "remote_sync_complete set<int>, " +  // nodes that have told us they're synced
-              "closed map<blob, blob>, " +
-              "retired map<blob, blob>" +
-              ')').build();
-
-    public static final TableMetadata EpochMetadata =
-        parse(EPOCH_METADATA,
-              "global epoch info",
-              "CREATE TABLE %s (" +
-              "key int primary key, " +
-              "min_epoch bigint, " +
-              "max_epoch bigint " +
-              ')').build();
+    public static final CommandsForKeyAccessor CommandsForKeysAccessor = new CommandsForKeyAccessor(CommandsForKeys);
 
     private static TableMetadata.Builder parse(String name, String description, String cql)
     {
@@ -549,7 +515,7 @@ public class AccordKeyspace
         return KeyspaceMetadata.create(ACCORD_KEYSPACE_NAME, KeyspaceParams.local(), tables(), Views.none(), Types.none(), UserFunctions.none());
     }
 
-    public static Tables TABLES = Tables.of(CommandsForKeys, Topologies, EpochMetadata, Journal);
+    public static Tables TABLES = Tables.of(CommandsForKeys, Journal);
     public static Tables tables()
     {
         return TABLES;
@@ -575,76 +541,6 @@ public class AccordKeyspace
     {
         Cell<?> cell = row.getCell(column);
         return (cell != null && !cell.isTombstone()) ? cellValue(cell) : null;
-    }
-
-    public static class EpochDiskState
-    {
-        public static final EpochDiskState EMPTY = new EpochDiskState(0, 0);
-        public final long minEpoch;
-        public final long maxEpoch;
-
-        private EpochDiskState(long minEpoch, long maxEpoch)
-        {
-            Invariants.requireArgument(minEpoch >= 0, "Min Epoch %d < 0", minEpoch);
-            Invariants.requireArgument(maxEpoch >= minEpoch, "Max epoch %d < min %d", maxEpoch, minEpoch);
-            this.minEpoch = minEpoch;
-            this.maxEpoch = maxEpoch;
-        }
-
-        public static EpochDiskState create(long minEpoch, long maxEpoch)
-        {
-            if (minEpoch == maxEpoch && minEpoch == 0)
-                return EMPTY;
-            return new EpochDiskState(minEpoch, maxEpoch);
-        }
-
-        public static EpochDiskState create(long epoch)
-        {
-            return create(epoch, epoch);
-        }
-
-        public boolean isEmpty()
-        {
-            return minEpoch == maxEpoch && maxEpoch == 0;
-        }
-
-        @VisibleForTesting
-        EpochDiskState withNewMaxEpoch(long epoch)
-        {
-            Invariants.requireArgument(epoch > maxEpoch, "Epoch %d <= %d (max)", epoch, maxEpoch);
-            return EpochDiskState.create(Math.max(1, minEpoch), epoch);
-        }
-
-        private EpochDiskState withNewMinEpoch(long epoch)
-        {
-            Invariants.requireArgument(epoch > minEpoch, "epoch %d <= %d (min)", epoch, minEpoch);
-            Invariants.requireArgument(epoch <= maxEpoch, "epoch %d > %d (max)", epoch, maxEpoch);
-            return EpochDiskState.create(epoch, maxEpoch);
-        }
-
-        @Override
-        public String toString()
-        {
-            return "EpochDiskState{" +
-                   "minEpoch=" + minEpoch +
-                   ", maxEpoch=" + maxEpoch +
-                   '}';
-        }
-
-        @Override
-        public boolean equals(Object o)
-        {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            EpochDiskState diskState = (EpochDiskState) o;
-            return minEpoch == diskState.minEpoch && maxEpoch == diskState.maxEpoch;
-        }
-
-        @Override
-        public int hashCode()
-        {
-            throw new UnsupportedOperationException();
-        }
     }
 
     public static class JournalColumns
@@ -692,11 +588,6 @@ public class AccordKeyspace
             return JournalKey.Type.fromId(ByteType.instance.compose(partitionKeyComponents[type.position()]));
         }
 
-        public static TxnId getTxnId(DecoratedKey key)
-        {
-            return getTxnId(splitPartitionKey(key));
-        }
-
         public static TxnId getTxnId(ByteBuffer[] partitionKeyComponents)
         {
             ByteBuffer buffer = partitionKeyComponents[id.position()];
@@ -707,179 +598,6 @@ public class AccordKeyspace
         {
             ByteBuffer[] parts = splitPartitionKey(key);
             return new JournalKey(getTxnId(parts), getType(parts), getStoreId(parts));
-        }
-    }
-
-    private static EpochDiskState saveEpochDiskState(EpochDiskState diskState)
-    {
-        String cql = "INSERT INTO " + ACCORD_KEYSPACE_NAME + '.' + EPOCH_METADATA + ' ' +
-                     "(key, min_epoch, max_epoch) VALUES (0, ?, ?);";
-        executeInternal(cql, diskState.minEpoch, diskState.maxEpoch);
-        return diskState;
-    }
-
-    @Nullable
-    @VisibleForTesting
-    public static EpochDiskState loadEpochDiskState()
-    {
-        String cql = "SELECT * FROM " + ACCORD_KEYSPACE_NAME + '.' + EPOCH_METADATA + ' ' +
-                     "WHERE key=0";
-        UntypedResultSet result = executeInternal(format(cql, ACCORD_KEYSPACE_NAME, EPOCH_METADATA));
-        if (result.isEmpty())
-            return null;
-        UntypedResultSet.Row row = result.one();
-        return EpochDiskState.create(row.getLong("min_epoch"), row.getLong("max_epoch"));
-    }
-
-    /**
-     * Update the disk state for this epoch, if it's higher than the one we have one disk.
-     * <p>
-     * This is meant to be called before any update involving the new epoch, not after. This way if the update
-     * fails, we can detect and cleanup. If we updated disk state after an update and it failed, we could "forget"
-     * about (now acked) topology updates after a restart.
-     */
-    private static EpochDiskState maybeUpdateMaxEpoch(EpochDiskState diskState, long epoch)
-    {
-        if (diskState.isEmpty())
-            return saveEpochDiskState(EpochDiskState.create(epoch));
-        Invariants.requireArgument(epoch >= diskState.minEpoch, "Epoch %d < %d (min)", epoch, diskState.minEpoch);
-        if (epoch > diskState.maxEpoch)
-        {
-            diskState = diskState.withNewMaxEpoch(epoch);
-            saveEpochDiskState(diskState);
-        }
-        return diskState;
-    }
-
-    public static EpochDiskState saveTopology(Topology topology, EpochDiskState diskState)
-    {
-        return maybeUpdateMaxEpoch(diskState, topology.epoch());
-    }
-
-    public static EpochDiskState markRemoteTopologySync(Node.Id node, long epoch, EpochDiskState diskState)
-    {
-        diskState = maybeUpdateMaxEpoch(diskState, epoch);
-        String cql = "UPDATE " + ACCORD_KEYSPACE_NAME + '.' + TOPOLOGIES + ' ' +
-                     "SET remote_sync_complete = remote_sync_complete + ? WHERE epoch = ?";
-        executeInternal(cql,
-                        Collections.singleton(node.id), epoch);
-        return diskState;
-    }
-
-    public static EpochDiskState markClosed(Ranges ranges, long epoch, EpochDiskState diskState)
-    {
-        diskState = maybeUpdateMaxEpoch(diskState, epoch);
-        String cql = "UPDATE " + ACCORD_KEYSPACE_NAME + '.' + TOPOLOGIES + ' ' +
-                     "SET closed = closed + ? WHERE epoch = ?";
-        executeInternal(cql, KeySerializers.rangesToBlobMap(ranges), epoch);
-        return diskState;
-    }
-
-    public static EpochDiskState markRetired(Ranges ranges, long epoch, EpochDiskState diskState)
-    {
-        diskState = maybeUpdateMaxEpoch(diskState, epoch);
-        String cql = "UPDATE " + ACCORD_KEYSPACE_NAME + '.' + TOPOLOGIES + ' ' +
-                     "SET retired = retired + ? WHERE epoch = ?";
-        executeInternal(cql, KeySerializers.rangesToBlobMap(ranges), epoch);
-        return diskState;
-    }
-
-    public static EpochDiskState setNotifyingLocalSync(long epoch, Set<Node.Id> pending, EpochDiskState diskState)
-    {
-        diskState = maybeUpdateMaxEpoch(diskState, epoch);
-        String cql = "UPDATE " + ACCORD_KEYSPACE_NAME + '.' + TOPOLOGIES + ' ' +
-                     "SET sync_state = ?, pending_sync_notify = ? WHERE epoch = ?";
-        executeInternal(cql,
-                        SyncStatus.NOTIFYING.ordinal(),
-                        pending.stream().map(i -> i.id).collect(Collectors.toSet()),
-                        epoch);
-        return diskState;
-    }
-
-    public static EpochDiskState markLocalSyncAck(Node.Id node, long epoch, EpochDiskState diskState)
-    {
-        diskState = maybeUpdateMaxEpoch(diskState, epoch);
-        String cql = "UPDATE " + ACCORD_KEYSPACE_NAME + '.' + TOPOLOGIES + ' ' +
-                     "SET pending_sync_notify = pending_sync_notify - ? WHERE epoch = ?";
-        executeInternal(cql,
-                        Collections.singleton(node.id), epoch);
-        return diskState;
-    }
-
-    public static EpochDiskState setCompletedLocalSync(long epoch, EpochDiskState diskState)
-    {
-        diskState = maybeUpdateMaxEpoch(diskState, epoch);
-        String cql = "UPDATE " + ACCORD_KEYSPACE_NAME + '.' + TOPOLOGIES + ' ' +
-                     "SET sync_state = ?, pending_sync_notify = {} WHERE epoch = ?";
-        executeInternal(cql,
-                        SyncStatus.COMPLETED.ordinal(),
-                        epoch);
-        return diskState;
-    }
-
-    public static EpochDiskState truncateTopologyUntil(final long epoch, EpochDiskState diskState)
-    {
-        while (diskState.minEpoch < epoch)
-        {
-            long delete = diskState.minEpoch;
-            diskState = diskState.withNewMinEpoch(delete + 1);
-            saveEpochDiskState(diskState);
-            String cql = "DELETE FROM " + ACCORD_KEYSPACE_NAME + '.' + TOPOLOGIES + ' ' +
-                         "WHERE epoch = ?";
-            executeInternal(cql, delete);
-        }
-        return diskState;
-    }
-
-    public interface TopologyLoadConsumer
-    {
-        void load(long epoch, SyncStatus syncStatus, Set<Node.Id> pendingSyncNotify, Set<Node.Id> remoteSyncComplete, Ranges closed, Ranges redundant);
-    }
-
-    @VisibleForTesting
-    public static void loadEpoch(long epoch, TopologyLoadConsumer consumer) throws IOException
-    {
-        UntypedResultSet result = executeInternal(String.format("SELECT * FROM %s.%s WHERE epoch=?", ACCORD_KEYSPACE_NAME, TOPOLOGIES), epoch);
-        if (result.isEmpty())
-        {
-            // topology updates disk state for epoch but doesn't save the topology to the table, so there maybe an epoch we know about, but no fields are present
-            consumer.load(epoch, SyncStatus.NOT_STARTED, Collections.emptySet(), Collections.emptySet(), Ranges.EMPTY, Ranges.EMPTY);
-            return;
-        }
-        require(!result.isEmpty(), "Nothing found for epoch %d", epoch);
-        UntypedResultSet.Row row = result.one();
-
-        SyncStatus syncStatus = row.has("sync_state")
-                                ? SyncStatus.values()[row.getInt("sync_state")]
-                                : SyncStatus.NOT_STARTED;
-        Set<Node.Id> pendingSyncNotify = row.has("pending_sync_notify")
-                                         ? row.getSet("pending_sync_notify", Int32Type.instance).stream().map(Node.Id::new).collect(Collectors.toSet())
-                                         : Collections.emptySet();
-        Set<Node.Id> remoteSyncComplete = row.has("remote_sync_complete")
-                                          ? row.getSet("remote_sync_complete", Int32Type.instance).stream().map(Node.Id::new).collect(Collectors.toSet())
-                                          : Collections.emptySet();
-        Ranges closed = row.has("closed") ? blobMapToRanges(row.getMap("closed", BytesType.instance, BytesType.instance)) : Ranges.EMPTY;
-        Ranges redundant = row.has("redundant") ? blobMapToRanges(row.getMap("redundant", BytesType.instance, BytesType.instance)) : Ranges.EMPTY;
-
-        consumer.load(epoch, syncStatus, pendingSyncNotify, remoteSyncComplete, closed, redundant);
-    }
-
-    public static EpochDiskState loadTopologies(TopologyLoadConsumer consumer)
-    {
-        try
-        {
-            EpochDiskState diskState = loadEpochDiskState();
-            if (diskState == null)
-                return EpochDiskState.EMPTY;
-
-            for (long epoch = diskState.minEpoch; epoch < diskState.maxEpoch; epoch++)
-                loadEpoch(epoch, consumer);
-
-            return diskState;
-        }
-        catch (IOException e)
-        {
-            throw new UncheckedIOException(e);
         }
     }
 

@@ -49,8 +49,7 @@ public class AccordHarrySimulationTest extends HarrySimulatorTest
                                                                Verb.ACCORD_BEGIN_RECOVER_RSP, Verb.ACCORD_BEGIN_RECOVER_REQ, Verb.ACCORD_BEGIN_INVALIDATE_RSP));
 
         Set<Verb> somewhatLossy = new HashSet<>(Arrays.asList(Verb.ACCORD_SYNC_NOTIFY_RSP, Verb.ACCORD_SYNC_NOTIFY_REQ, Verb.ACCORD_APPLY_AND_WAIT_REQ,
-                                                              Verb.ACCORD_FETCH_MIN_EPOCH_RSP, Verb.ACCORD_FETCH_MIN_EPOCH_REQ, Verb.ACCORD_FETCH_TOPOLOGY_RSP,
-                                                              Verb.ACCORD_FETCH_TOPOLOGY_REQ));
+                                                              Verb.ACCORD_FETCH_TOPOLOGY_RSP, Verb.ACCORD_FETCH_TOPOLOGY_REQ));
 
         Map<Verb, FutureActionScheduler> schedulers = new HashMap<>();
         for (Verb verb : Verb.values())

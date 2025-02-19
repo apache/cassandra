@@ -61,9 +61,9 @@ import static org.apache.cassandra.simulator.cluster.ClusterActions.Options.noAc
  *
  * And then run your test using the following settings (omit add-* if you are running on jdk8):
  *
- -Dstorage-config=/Users/dcapwell/src/github/apache/cassandra/cep-15-accord/test/conf
+ -Dstorage-config=$MODULE_DIR$/test/conf
  -Djava.awt.headless=true
- -javaagent:/Users/dcapwell/src/github/apache/cassandra/cep-15-accord/lib/jamm-0.4.0.jar
+ -javaagent:$MODULE_DIR$/lib/jamm-0.4.0.jar
  -ea
  -Dcassandra.debugrefcount=true
  -Xss384k
@@ -85,15 +85,15 @@ import static org.apache.cassandra.simulator.cluster.ClusterActions.Options.noAc
  -Dcassandra.test.messagingService.nonGracefulShutdown=true
  -Dcassandra.use_nix_recursive_delete=true
  -Dcie-cassandra.disable_schema_drop_log=true
- -Dlogback.configurationFile=file:///Users/dcapwell/src/github/apache/cassandra/cep-15-accord/test/conf/logback-simulator.xml
+ -Dlogback.configurationFile=file://$MODULE_DIR$/test/conf/logback-simulator.xml
  -Dcassandra.ring_delay_ms=10000
  -Dcassandra.tolerate_sstable_size=true
  -Dcassandra.skip_sync=true
  -Dcassandra.debugrefcount=false
  -Dcassandra.test.simulator.determinismcheck=strict
  -Dcassandra.test.simulator.print_asm=none
- -javaagent:/Users/dcapwell/src/github/apache/cassandra/cep-15-accord/build/test/lib/jars/simulator-asm.jar
- -Xbootclasspath/a:/Users/dcapwell/src/github/apache/cassandra/cep-15-accord/build/test/lib/jars/simulator-bootstrap.jar
+ -javaagent:$MODULE_DIR$/build/test/lib/jars/simulator-asm.jar
+ -Xbootclasspath/a:$MODULE_DIR$/build/test/lib/jars/simulator-bootstrap.jar
  -XX:ActiveProcessorCount=4
  -XX:-TieredCompilation
  -XX:-BackgroundCompilation
@@ -121,6 +121,7 @@ import static org.apache.cassandra.simulator.cluster.ClusterActions.Options.noAc
  --add-opens jdk.management/com.sun.management.internal=ALL-UNNAMED
  --add-opens jdk.management.jfr/jdk.management.jfr=ALL-UNNAMED
  --add-opens java.desktop/com.sun.beans.introspect=ALL-UNNAMED
+
  */
 public class EpochStressTest extends SimulationTestBase
 {

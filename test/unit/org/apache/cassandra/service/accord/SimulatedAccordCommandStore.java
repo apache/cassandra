@@ -62,6 +62,7 @@ import accord.messages.Reply;
 import accord.messages.TxnRequest;
 import accord.primitives.AbstractUnseekableKeys;
 import accord.primitives.Ballot;
+import accord.primitives.EpochSupplier;
 import accord.primitives.FullRoute;
 import accord.primitives.Ranges;
 import accord.primitives.Routable;
@@ -483,9 +484,9 @@ public class SimulatedAccordCommandStore implements AutoCloseable
         }
 
         @Override
-        public void purge(CommandStores commandStores)
+        public void purge(CommandStores commandStores, EpochSupplier epochSupplier)
         {
-            super.purge(commandStores);
+            super.purge(commandStores, epochSupplier);
             index.truncateForTesting();
         }
 

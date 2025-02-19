@@ -92,12 +92,12 @@ public class AccordVirtualTablesTest extends CQLTester
     {
         TopologyManager tm = empty();
         long e1 = 1;
-        tm.onTopologyUpdate(topology(e1, T1), () -> ConfigurationService.EpochReady.done(e1));
+        tm.onTopologyUpdate(topology(e1, T1), () -> ConfigurationService.EpochReady.done(e1), e -> {});
         assertRows(execute("SELECT * FROM " + VIRTUAL_VIEWS + "." + AccordVirtualTables.EPOCHS),
                    row(e1, true, SUCCESS, SUCCESS, SUCCESS, SUCCESS));
 
         long e2 = 2;
-        tm.onTopologyUpdate(topology(e2, T1), () -> pendingReady(e1));
+        tm.onTopologyUpdate(topology(e2, T1), () -> pendingReady(e1), e -> {});
         assertRows(execute("SELECT * FROM " + VIRTUAL_VIEWS + "." + AccordVirtualTables.EPOCHS),
                    row(e2, false, PENDING, PENDING, PENDING, PENDING),
                    row(e1, true, SUCCESS, SUCCESS, SUCCESS, SUCCESS));
@@ -108,7 +108,7 @@ public class AccordVirtualTablesTest extends CQLTester
     {
         TopologyManager tm = empty();
         long e1 = 1;
-        tm.onTopologyUpdate(topology(e1, T1), () -> ConfigurationService.EpochReady.done(e1));
+        tm.onTopologyUpdate(topology(e1, T1), () -> ConfigurationService.EpochReady.done(e1), e -> {});
 
         // the range was added in the first epoch, so its fully synced
         assertRows(execute("SELECT * FROM " + VIRTUAL_VIEWS + "." + AccordVirtualTables.TABLE_EPOCHS),
@@ -116,7 +116,7 @@ public class AccordVirtualTablesTest extends CQLTester
 
         // range is no longer "added" so doesn't show up as synced!
         long e2 = 2;
-        tm.onTopologyUpdate(topology(e2, T1), () -> ConfigurationService.EpochReady.done(e2));
+        tm.onTopologyUpdate(topology(e2, T1), () -> ConfigurationService.EpochReady.done(e2), e -> {});
         assertRows(execute("SELECT * FROM " + VIRTUAL_VIEWS + "." + AccordVirtualTables.TABLE_EPOCHS),
                    row(e1, T1_META.keyspace, T1_META.name, FULL_RANGE, List.of(), List.of(), List.of(), FULL_RANGE));
 
