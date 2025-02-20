@@ -91,14 +91,16 @@ public class MemtableIndexWriter implements PerColumnIndexWriter
         // keys and row IDs in the flushing SSTable. This writer, therefore, does nothing in
         // response to the flushing of individual rows except for keeping index-specific statistics.
         boolean isStatic = indexTermType.columnMetadata().isStatic();
+        boolean isPartitionKey = indexTermType.columnMetadata().isPartitionKey();
 
         // Indexes on static columns should only track static rows, and indexes on non-static columns 
         // should only track non-static rows. (Within a partition, the row ID for a static row will always
-        // come before any non-static row.) 
-        if (key.kind() == PrimaryKey.Kind.STATIC && isStatic || key.kind() != PrimaryKey.Kind.STATIC && !isStatic)
+        // come before any non-static row.) The only exception to this is indexes on partition key elements.
+        if ((key.kind() == PrimaryKey.Kind.STATIC && (isStatic || isPartitionKey)) || key.kind() != PrimaryKey.Kind.STATIC && !isStatic)
         {
             if (minKey == null)
                 minKey = key;
+
             maxKey = key;
             rowCount++;
             maxSSTableRowId = Math.max(maxSSTableRowId, sstableRowId);
