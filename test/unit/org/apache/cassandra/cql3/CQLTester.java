@@ -536,6 +536,7 @@ public abstract class CQLTester
 
     private static void startServices()
     {
+        nativePort = getAutomaticallyAllocatedPort(nativeAddr);
         VirtualKeyspaceRegistry.instance.register(VirtualSchemaKeyspace.instance);
         StorageService.instance.initServer();
         SchemaLoader.startGossiper();

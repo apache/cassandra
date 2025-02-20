@@ -528,7 +528,7 @@ public class GossiperTest
         host0State.addApplicationState(ApplicationState.TOKENS, StorageService.instance.valueFactory.tokens(new ArrayList<Token>(){{add(DatabaseDescriptor.getPartitioner().getRandomToken());}}));
 
         output = Gossiper.instance.compareGossipAndTokenMetadata();
-        assertTrue(output.containsKey("/127.0.0.1:7012"));
+        assertTrue(output.containsKey("/127.0.0.1:" + DatabaseDescriptor.getStoragePort()));
     }
 
     @Test
@@ -603,7 +603,7 @@ public class GossiperTest
         // remove the tokens from TokenMetadata cache to create a mismatch between the two caches
         StorageService.instance.getTokenMetadata().removeEndpoint(hosts.get(0));
         output = Gossiper.instance.compareGossipAndTokenMetadata();
-        assertTrue(output.containsKey("/127.0.0.1:7012"));
+        assertTrue(output.containsKey("/127.0.0.1:" + DatabaseDescriptor.getStoragePort()));
         try
         {
             getTokenMetadataCacheTokens(0);
@@ -611,7 +611,7 @@ public class GossiperTest
         }
         catch (AssertionError e)
         {
-            assertTrue(e.getMessage().contains("Unable to get tokens for /127.0.0.1:7012; it is not a member"));
+            assertTrue(e.getMessage().contains("Unable to get tokens for /127.0.0.1:" + DatabaseDescriptor.getStoragePort() + "; it is not a member"));
         }
         assertEquals(getTokenMetadataCacheTokens(1), gossipTokensHost1);
         assertEquals(getTokenMetadataCacheTokens(1), getGossipCacheTokens(1));

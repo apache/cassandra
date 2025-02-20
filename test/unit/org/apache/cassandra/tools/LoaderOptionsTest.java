@@ -27,6 +27,8 @@ import java.security.Permission;
 import com.google.common.net.HostAndPort;
 import org.junit.Test;
 
+import org.apache.cassandra.config.Config;
+import org.apache.cassandra.config.YamlConfigurationLoader;
 import org.apache.cassandra.io.util.File;
 
 import static org.apache.cassandra.tools.OfflineToolUtils.sstableDirName;
@@ -43,7 +45,8 @@ public class LoaderOptionsTest
         File config = new File(Paths.get(".", "test", "conf", "cassandra.yaml").normalize());
         String[] args = { "-d", "127.9.9.1", "-f", config.absolutePath(), sstableDirName("legacy_sstables", "legacy_ma_simple") };
         LoaderOptions options = LoaderOptions.builder().parseArgs(args).build();
-        assertEquals(9042, options.nativePort);
+        Config cassandraConfig = new YamlConfigurationLoader().loadConfig(config.toPath().toUri().toURL());
+        assertEquals(cassandraConfig.native_transport_port, options.nativePort);
 
 
         // SSL Enabled Cassandra config

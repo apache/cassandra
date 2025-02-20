@@ -51,6 +51,11 @@ ant build
 
 cd "$PROJECT_DIR"
 
+# update ports
+./.jenkins/update_ports_for_unit_tests.sh "${UNIT_TEST_GROUP_ID}"
+# check ports updated
+git diff
+
 dir_path="$PROJECT_DIR/test/unit"
 
 output_file_prefix="unit_tests"
