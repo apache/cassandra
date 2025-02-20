@@ -37,6 +37,7 @@ import org.apache.cassandra.index.sai.StorageAttachedIndex;
 import org.apache.cassandra.index.sai.disk.format.IndexDescriptor;
 import org.apache.cassandra.index.sai.utils.PrimaryKey;
 import org.apache.cassandra.io.sstable.SSTableFlushObserver;
+import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Throwables;
 
 /**
@@ -52,6 +53,8 @@ public class StorageAttachedIndexWriter implements SSTableFlushObserver
     private final PerSSTableIndexWriter perSSTableWriter;
     private final Stopwatch stopwatch = Stopwatch.createUnstarted();
     private final RowMapping rowMapping;
+    private final long nowInSeconds = FBUtilities.nowInSeconds();
+
     private DecoratedKey currentKey;
     private boolean tokenOffsetWriterCompleted = false;
     private boolean aborted = false;
@@ -126,9 +129,14 @@ public class StorageAttachedIndexWriter implements SSTableFlushObserver
         if (!unfiltered.isRow())
             return;
 
+        // Ignore rows with no live data...
+        Row row = (Row) unfiltered;
+        if (!row.hasLiveData(nowInSeconds, false))
+            return;
+
         try
         {
-            addRow((Row)unfiltered);
+            addRow(row);
         }
         catch (Throwable t)
         {
