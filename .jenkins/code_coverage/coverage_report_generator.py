@@ -31,6 +31,8 @@ import logging
 import requests
 import argparse
 import base64
+import random
+import time
 
 parser = argparse.ArgumentParser(
     description='Download coverage reports from artifacts for all builds under the diff revision.')
@@ -64,11 +66,13 @@ def api_request(end_point, params, callback_func):
         except Exception as e:
             raise Exception(f"Error while making the API request: {str(e)}")
 
-        if err_data:
+        if not response:
             print(err_data)
             if retry > 0:
                 retry -= 1
-                print("API call failed, {retry} chances left, will retry soon...")
+                random_seconds = random.uniform(60, 120)
+                print("API call failed, {retry} chances left, will retry in {random_seconds} seconds...")
+                time.sleep(random_seconds)
                 continue
 
         if not response:
