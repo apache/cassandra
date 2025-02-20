@@ -168,6 +168,10 @@ public abstract class ReadCommand extends AbstractReadQuery
 
         public static ResponseType fromMetadata(TableMetadata metadata)
         {
+
+            if (metadata.kind != TableMetadata.Kind.REGULAR)
+                return LEGACY_DATA;
+
             ReplicationType replicationType = metadata.replicationType();
             switch (replicationType)
             {
