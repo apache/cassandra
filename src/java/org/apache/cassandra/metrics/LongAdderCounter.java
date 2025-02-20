@@ -52,10 +52,4 @@ public class LongAdderCounter implements Counter
     {
         return counter.sum();
     }
-
-    @Override
-    public void destroy()
-    {
-        // NOTHING TO DO
-    }
 }

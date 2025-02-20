@@ -18,37 +18,37 @@
 
 package org.apache.cassandra.metrics;
 
-import java.util.ArrayList;
+import java.lang.ref.PhantomReference;
+import java.lang.ref.ReferenceQueue;
+import java.util.Arrays;
+import java.util.BitSet;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import java.util.NavigableSet;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ConcurrentSkipListSet;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 
 import com.google.common.annotations.VisibleForTesting;
 
 import io.netty.util.concurrent.FastThreadLocal;
-import org.apache.cassandra.concurrent.ScheduledExecutors;
+import org.apache.cassandra.concurrent.Shutdownable;
+
+import static com.google.common.collect.ImmutableList.of;
+import static org.apache.cassandra.concurrent.ExecutorFactory.Global.executorFactory;
+import static org.apache.cassandra.concurrent.InfiniteLoopExecutor.SimulatorSafe.UNSAFE;
+import static org.apache.cassandra.utils.ExecutorUtils.shutdownAndWait;
 
 public class ThreadLocalMetrics
 {
-    private static final int DEAD_THREADS_INFO_CLEANUP_INTERVAL_SEC = 120;
-    static
-    {
-        ScheduledExecutors.scheduledTasks.scheduleWithFixedDelay(ThreadLocalMetrics::cleanDeadAndUpdateSummaries,
-                                                                 DEAD_THREADS_INFO_CLEANUP_INTERVAL_SEC,
-                                                                 DEAD_THREADS_INFO_CLEANUP_INTERVAL_SEC,
-                                                                 TimeUnit.SECONDS);
-    }
-
     static final AtomicInteger idGenerator = new AtomicInteger();
 
-    static final NavigableSet<Integer> freeMetricIdSet = new ConcurrentSkipListSet<>();
+    private static final Object freeIdsGuard = new Object();
+    static final BitSet freeMetricIdSet = new BitSet();
 
     static final List<ThreadLocalMetrics> allThreadLocalMetrics = new CopyOnWriteArrayList<>();
 
@@ -57,50 +57,114 @@ public class ThreadLocalMetrics
         @Override
         protected ThreadLocalMetrics initialValue()
         {
-
-            ThreadLocalMetrics result = new ThreadLocalMetrics(Thread.currentThread());
+            ThreadLocalMetrics result = new ThreadLocalMetrics();
             allThreadLocalMetrics.add(result);
+            destroyWhenUnreachable(Thread.currentThread(), () -> {
+                result.release();
+                allThreadLocalMetrics.remove(result);
+            });
             return result;
+        }
+
+        // this method is invoked when a thread is going to finish, but it works only for FastThreadLocalThread
+        @Override
+        protected void onRemoval(ThreadLocalMetrics value)
+        {
+            value.release();
+            allThreadLocalMetrics.remove(value);
         }
     };
 
     private static final Map<Integer, AtomicLong> summaryValues = new ConcurrentHashMap<>();
-    private static final AtomicBoolean transferInProgress = new AtomicBoolean();
 
-    private final Thread thread;
+    private static final Shutdownable cleaner;
+    private static final Set<PhantomReference<Object>> phantomReferences = Collections.newSetFromMap(new ConcurrentHashMap<>());
+    private static final ReferenceQueue<Object> referenceQueue = new ReferenceQueue<>();
 
-    private long[] counterValues = new long[16];
-
-    public ThreadLocalMetrics(Thread thread)
+    static
     {
-        this.thread = thread;
+        cleaner = executorFactory().infiniteLoop("ThreadLocalMetrics-Cleaner", ThreadLocalMetrics::cleanupRound, UNSAFE);
     }
 
-    private static void cleanDeadAndUpdateSummaries() {
-        if (transferInProgress.compareAndSet(false, true))
-            try
-            {
-                List<ThreadLocalMetrics> toRemove = new ArrayList<>();
-                for (ThreadLocalMetrics threadLocalMetrics : allThreadLocalMetrics)
-                {
-                    if (!threadLocalMetrics.thread.isAlive())
-                    {
-                        for (int metricId = 0; metricId < threadLocalMetrics.counterValues.length; metricId++)
-                        {
-                            long value = threadLocalMetrics.counterValues[metricId];
-                            if (value != 0)
-                                getSummary(metricId).addAndGet(value);
-                        }
-                        toRemove.add(threadLocalMetrics);
-                    }
-                }
-                if (!toRemove.isEmpty())
-                    allThreadLocalMetrics.removeAll(toRemove);
-            }
-            finally
-            {
-                transferInProgress.set(false);
-            }
+    private long[] counterValues = new long[16];
+    private volatile int arrayMutations = 0;
+
+    private static void cleanupRound() throws InterruptedException
+    {
+        Object obj = referenceQueue.remove(100);
+        if (obj instanceof MetricIdReference)
+        {
+            ((MetricIdReference) obj).release();
+            phantomReferences.remove(obj);
+        }
+        else if (obj instanceof MetricCleanerReference)
+        {
+            ((MetricCleanerReference) obj).release();
+            phantomReferences.remove(obj);
+        }
+    }
+
+    private static class MetricIdReference extends PhantomReference<Object>
+    {
+        private final int metricId;
+
+        public MetricIdReference(Object referent, ReferenceQueue<? super Object> q, int metricId)
+        {
+            super(referent, q);
+            this.metricId = metricId;
+        }
+
+        public void release()
+        {
+            recycleMetricId(metricId);
+        }
+    }
+
+    private static class MetricCleanerReference extends PhantomReference<Object>
+    {
+        private final MetricCleaner metricCleaner;
+
+        public MetricCleanerReference(Object referent, ReferenceQueue<? super Object> q, MetricCleaner metricCleaner)
+        {
+            super(referent, q);
+            this.metricCleaner = metricCleaner;
+        }
+
+        public void release()
+        {
+            metricCleaner.clean();
+        }
+    }
+
+    interface MetricCleaner
+    {
+        void clean();
+    }
+
+    static void destroyWhenUnreachable(Object referent, int metricId)
+    {
+        phantomReferences.add(new MetricIdReference(referent, referenceQueue, metricId));
+    }
+
+    static void destroyWhenUnreachable(Object referent, MetricCleaner metricCleaner)
+    {
+        phantomReferences.add(new MetricCleanerReference(referent, referenceQueue, metricCleaner));
+    }
+
+    @VisibleForTesting
+    public static void shutdownCleaner(long timeout, TimeUnit unit) throws InterruptedException, TimeoutException
+    {
+        shutdownAndWait(timeout, unit, of(cleaner));
+    }
+
+    private void release()
+    {
+        for (int metricId = 0; metricId < counterValues.length; metricId++)
+        {
+            long value = counterValues[metricId];
+            if (value != 0)
+                getSummary(metricId).addAndGet(value);
+        }
     }
 
     public void addNonStatic(int metricId, long n)
@@ -126,11 +190,20 @@ public class ThreadLocalMetrics
             {
                 if (threadLocalMetrics != null)
                 {
-                    long[] currentCounterValues = threadLocalMetrics.counterValues;
-                    if (metricId < currentCounterValues.length)
+                    long count = 0;
+                    long[] currentCounterValues;
+                    long currentArrayMutations;
+                    do
                     {
-                        result += currentCounterValues[metricId];
+                        currentArrayMutations = threadLocalMetrics.arrayMutations;
+                        currentCounterValues = threadLocalMetrics.counterValues;
+                        if (metricId < currentCounterValues.length)
+                        {
+                            count = currentCounterValues[metricId];
+                        }
                     }
+                    while (currentArrayMutations != threadLocalMetrics.arrayMutations);
+                    result += count;
                 }
             }
             // we use a kind of optimistic locking here
@@ -175,44 +248,75 @@ public class ThreadLocalMetrics
         long[] newCounterValues = new long[(int)(metricId * 1.1)];
         System.arraycopy(currentCounterValues, 0, newCounterValues, 0, currentCounterValues.length);
         counterValues = newCounterValues;
+        arrayMutations++; // to provide visibility of the new array to other reading threads
         return newCounterValues;
     }
 
-
     static int allocateMetricId()
     {
-        cleanDeadAndUpdateSummaries();
-        Integer id = freeMetricIdSet.pollFirst();
-        if (id != null)
-            return id;
-        return idGenerator.getAndIncrement();
+        int metricId;
+        synchronized (freeIdsGuard)
+        {
+            metricId = freeMetricIdSet.nextSetBit(0);
+            if (metricId >= 0)
+                freeMetricIdSet.clear(metricId);
+        }
+        if (metricId < 0)
+            metricId = idGenerator.getAndIncrement();
+
+        return metricId;
     }
 
-    public static void destroyMetric(int metricId)
+    static void recycleMetricId(int metricId)
     {
-        cleanDeadAndUpdateSummaries();
         for (ThreadLocalMetrics threadLocalMetrics : allThreadLocalMetrics)
             if (threadLocalMetrics != null)
             {
-                long[] currentCounterValues = threadLocalMetrics.counterValues;
-                if (metricId < currentCounterValues.length)
-                    currentCounterValues[metricId] = 0;
+                long[] currentCounterValues;
+                int currentArrayMutations;
+                do
+                {
+                    currentArrayMutations = threadLocalMetrics.arrayMutations;
+                    currentCounterValues = threadLocalMetrics.counterValues;
+                    if (metricId < currentCounterValues.length)
+                    {
+                        currentCounterValues[metricId] = 0;
+                    }
+                }
+                while (threadLocalMetrics.arrayMutations != currentArrayMutations);
             }
         summaryValues.remove(metricId);
-        freeMetricIdSet.add(metricId);
+        synchronized (freeIdsGuard)
+        {
+            freeMetricIdSet.set(metricId);
+        }
+    }
+
+    static ThreadLocalMetrics get() {
+        return threadLocalMetricsCurrent.get();
     }
 
     @VisibleForTesting
-    public static ThreadLocalMetrics get() {
-        return threadLocalMetricsCurrent.get();
+    static int getAllocatedMetricsCount()
+    {
+        int freeCount;
+        synchronized (freeIdsGuard) {
+            freeCount = freeMetricIdSet.cardinality();
+        }
+        return idGenerator.get() - freeCount;
+    }
+
+    @VisibleForTesting
+    static int getThreadLocalMetricsCount()
+    {
+        return allThreadLocalMetrics.size();
     }
 
     @Override
     public String toString()
     {
         return "ThreadLocalMetrics{" +
-               "thread=" + thread +
-               ", counterValues=" + counterValues +
+               ", counterValues=" + Arrays.toString(counterValues) +
                '}';
     }
 }

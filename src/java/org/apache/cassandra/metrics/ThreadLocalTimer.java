@@ -190,11 +190,4 @@ public class ThreadLocalTimer implements Timer
             meter.mark();
         }
     }
-
-    @Override
-    public void destroy()
-    {
-        meter.destroy();
-        histogram.destroy();
-    }
 }

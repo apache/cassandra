@@ -23,9 +23,11 @@ import java.util.List;
 import java.util.Random;
 import java.util.concurrent.TimeUnit;
 
+import org.junit.Assert;
 import org.junit.Test;
 
 import com.codahale.metrics.Clock;
+import org.apache.cassandra.Util;
 import org.apache.cassandra.utils.MonotonicClock;
 import org.apache.cassandra.utils.MonotonicClockTranslation;
 
@@ -135,7 +137,7 @@ public class ThreadLocalMeterTest
             else if (!meters.isEmpty())
             {
                int meterToRemove = random.nextInt(meters.size());
-               meters.remove(meterToRemove).meter.destroy();
+               meters.remove(meterToRemove);
             }
             ThreadLocalMeter.tickAll();
             for (MeterPair meterPair : meters)
@@ -146,6 +148,15 @@ public class ThreadLocalMeterTest
             }
             clock.setTime(clock.now() + random.nextLong(TimeUnit.SECONDS.toNanos(10)));
         }
+
+        int NUMBER_OF_COUNTERS_PER_METER = 2;
+        Util.spinAssertEquals(NUMBER_OF_COUNTERS_PER_METER * meters.size(), () -> {
+            System.gc(); // to trigger PhantomReferences queuing and recycle unused Meter thread local counters
+            return ThreadLocalMetrics.getAllocatedMetricsCount();
+        }, 20);
+
+        ThreadLocalMeter.tickAll(); // to force recycling of empty weak references
+        Assert.assertEquals(meters.size(), ThreadLocalMeter.getTickingMetersCount());
     }
 
     private static class MeterPair

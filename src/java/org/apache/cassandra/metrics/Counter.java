@@ -21,7 +21,7 @@ package org.apache.cassandra.metrics;
 import com.codahale.metrics.Counting;
 import com.codahale.metrics.Metric;
 
-public interface Counter extends Metric, Counting, Destoyable
+public interface Counter extends Metric, Counting
 {
     void inc();
 

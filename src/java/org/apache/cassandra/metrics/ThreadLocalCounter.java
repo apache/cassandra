@@ -25,6 +25,7 @@ public class ThreadLocalCounter implements Counter
     ThreadLocalCounter(int metricId)
     {
         this.metricId = metricId;
+        ThreadLocalMetrics.destroyWhenUnreachable(this, metricId);
     }
 
     public ThreadLocalCounter()
@@ -60,11 +61,5 @@ public class ThreadLocalCounter implements Counter
     public long getCount()
     {
         return ThreadLocalMetrics.getCount(metricId);
-    }
-
-    @Override
-    public void destroy()
-    {
-        ThreadLocalMetrics.destroyMetric(metricId);
     }
 }

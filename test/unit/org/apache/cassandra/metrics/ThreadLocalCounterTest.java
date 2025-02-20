@@ -83,9 +83,6 @@ public class ThreadLocalCounterTest
 
             if (DESTROY_COUNTERS_AT_THE_END_OF_ITERATION)
             {
-                for (int metricSetId = 0; metricSetId < metricsPerIteration.size(); metricSetId++)
-                    for (Counter metric : metricsPerIteration.get(metricSetId))
-                        metric.destroy();
                 metricsPerIteration.clear();
             }
 

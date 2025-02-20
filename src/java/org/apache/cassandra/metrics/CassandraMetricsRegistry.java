@@ -505,21 +505,6 @@ public class CassandraMetricsRegistry extends MetricRegistry
             unregisterMBean(name.getMBeanName(), MBeanWrapper.instance);
     }
 
-    @Override
-    public boolean remove(String metricName)
-    {
-        // note: codahale metric registry listener does not work with custom metric implementations
-        // so, we have to emulate the listener behavior
-        Metric metric = super.getMetrics().get(metricName);
-
-        boolean result = super.remove(metricName);
-
-        if (metric instanceof Destoyable)
-            ((Destoyable) metric).destroy();
-
-        return result;
-    }
-
     @FunctionalInterface
     public interface MetricNameResolver
     {

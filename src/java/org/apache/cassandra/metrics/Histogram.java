@@ -22,7 +22,7 @@ import com.codahale.metrics.Counting;
 import com.codahale.metrics.Metric;
 import com.codahale.metrics.Sampling;
 
-public interface Histogram extends Metric, Sampling, Counting, Destoyable
+public interface Histogram extends Metric, Sampling, Counting
 {
     void update(long value);
     void update(int value);

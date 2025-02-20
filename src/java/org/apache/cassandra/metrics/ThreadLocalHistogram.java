@@ -34,6 +34,7 @@ public class ThreadLocalHistogram implements Histogram
     public ThreadLocalHistogram(Reservoir reservoir) {
         this.reservoir = reservoir;
         this.countMetricId = ThreadLocalMetrics.allocateMetricId();
+        ThreadLocalMetrics.destroyWhenUnreachable(this, countMetricId);
     }
 
     /**
@@ -73,10 +74,5 @@ public class ThreadLocalHistogram implements Histogram
     @Override
     public Snapshot getSnapshot() {
         return reservoir.getSnapshot();
-    }
-
-    public void destroy()
-    {
-        ThreadLocalMetrics.destroyMetric(countMetricId);
     }
 }

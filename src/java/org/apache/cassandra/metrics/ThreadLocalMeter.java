@@ -18,6 +18,8 @@
 
 package org.apache.cassandra.metrics;
 
+import java.lang.ref.WeakReference;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.NavigableSet;
 import java.util.concurrent.ConcurrentSkipListSet;
@@ -51,7 +53,7 @@ public class ThreadLocalMeter implements Meter
     private static final double NON_INITIALIZED = Double.MIN_VALUE;
 
     private static final int BACKGROUND_TICK_INTERVAL_SEC = INTERVAL_SEC;
-    private static final List<ThreadLocalMeter> allMeters = new CopyOnWriteArrayList<>();
+    private static final List<WeakReference<ThreadLocalMeter>> allMeters = new CopyOnWriteArrayList<>();
 
     /**
      * CASSANDRA-19332
@@ -139,7 +141,30 @@ public class ThreadLocalMeter implements Meter
         this.countMetricId = ThreadLocalMetrics.allocateMetricId();
         this.uncountedMetricId = ThreadLocalMetrics.allocateMetricId();
         this.rateGroupId = allocateRateGroupOffset();
-        allMeters.add(this);
+        allMeters.add(new WeakReference<>(this));
+        ThreadLocalMetrics.destroyWhenUnreachable(this, new MeterCleaner(countMetricId, uncountedMetricId, rateGroupId));
+    }
+
+    private static class MeterCleaner implements ThreadLocalMetrics.MetricCleaner
+    {
+        private final int countMetricId;
+        private final int uncountedMetricId;
+        private final int rateGroupId;
+
+        private MeterCleaner(int countMetricId, int uncountedMetricId, int rateGroupId)
+        {
+            this.countMetricId = countMetricId;
+            this.uncountedMetricId = uncountedMetricId;
+            this.rateGroupId = rateGroupId;
+        }
+
+        @Override
+        public void clean()
+        {
+            freeRateGroupIdSet.add(rateGroupId);
+            ThreadLocalMetrics.recycleMetricId(countMetricId);
+            ThreadLocalMetrics.recycleMetricId(uncountedMetricId);
+        }
     }
 
     /**
@@ -199,20 +224,24 @@ public class ThreadLocalMeter implements Meter
         }
     }
 
-    @Override
-    public void destroy()
-    {
-        allMeters.remove(this);
-        ThreadLocalMetrics.destroyMetric(countMetricId);
-        ThreadLocalMetrics.destroyMetric(uncountedMetricId);
-        freeRateGroupIdSet.add(rateGroupId);
-    }
-
     @VisibleForTesting
     static synchronized void tickAll()
     {
-        for (ThreadLocalMeter threadLocalMeter : allMeters)
-            threadLocalMeter.tickIfNessesary();
+        List<WeakReference<ThreadLocalMeter>> emptyRefsToRemove = null;
+        for (WeakReference<ThreadLocalMeter> threadLocalMeterRef : allMeters)
+        {
+            ThreadLocalMeter meter = threadLocalMeterRef.get();
+            if (meter != null)
+                meter.tickIfNessesary();
+            else
+            {
+                if (emptyRefsToRemove == null)
+                    emptyRefsToRemove = new ArrayList<>();
+                emptyRefsToRemove.add(threadLocalMeterRef);
+            }
+            if (emptyRefsToRemove != null)
+                allMeters.removeAll(emptyRefsToRemove);
+        }
     }
 
     private void tickIfNessesary()
@@ -285,5 +314,11 @@ public class ThreadLocalMeter implements Meter
         setRateValue(rateGroupId +  M1_RATE_OFFSET, Double.MIN_NORMAL);
         setRateValue(rateGroupId +  M5_RATE_OFFSET, Double.MIN_NORMAL);
         setRateValue(rateGroupId + M15_RATE_OFFSET, Double.MIN_NORMAL);
+    }
+
+    @VisibleForTesting
+    static int getTickingMetersCount()
+    {
+        return allMeters.size();
     }
 }
