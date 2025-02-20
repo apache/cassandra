@@ -375,6 +375,10 @@ public class KeyRangeIntersectionIterator extends KeyRangeIterator
             min = nullSafeMax(min, range.getMinimum());
             // maximum of the intersection is the smallest maximum of individual iterators
             max = nullSafeMin(max, range.getMaximum());
+
+            // With STATIC keys, it is possible for the min to overtake the max, which must be corrected. 
+            min = nullSafeMin(min, max);
+
             if (empty)
             {
                 empty = false;

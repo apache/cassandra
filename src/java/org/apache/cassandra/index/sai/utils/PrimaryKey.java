@@ -218,10 +218,20 @@ public interface PrimaryKey extends Comparable<PrimaryKey>, ByteComparable
             }
 
             @Override
-            public boolean equals(Object obj)
+            public boolean equals(Object o)
             {
-                if (obj instanceof PrimaryKey)
-                    return compareTo((PrimaryKey) obj) == 0;
+                if (o instanceof PrimaryKey)
+                    return compareTo((PrimaryKey) o) == 0;
+                return false;
+            }
+
+            @Override
+            public boolean equals(Object o, boolean strict)
+            {
+                if (o == null)
+                    return false;
+                if (o instanceof PrimaryKey)
+                    return compareTo((PrimaryKey) o, strict) == 0;
                 return false;
             }
 
@@ -494,4 +504,6 @@ public interface PrimaryKey extends Comparable<PrimaryKey>, ByteComparable
     {
         return compareTo(key);
     }
+
+    boolean equals(Object obj, boolean strict);
 }
