@@ -230,7 +230,7 @@ public class ReplicaFilteringProtection<E extends Endpoints<E>>
 
                         // Even if there are no completely missing rows, replicas may still be silent about individual
                         // columns, so we need to check for divergence at the column level:
-                        for (ColumnMetadata column : columns)
+                        for (ColumnMetadata column : merged.isStatic() ? columns.statics : columns.regulars)
                         {
                             Arrays.fill(silentColumnAt, false);
                             boolean allSilent = true;
@@ -538,14 +538,19 @@ public class ReplicaFilteringProtection<E extends Endpoints<E>>
             Tracing.trace("Requesting {} rows in partition {} from {} for replica filtering protection",
                           clusterings.size(), key, source);
 
-            // build the read command taking into account that we could be requesting only in the static row
-            DataLimits limits = clusterings.isEmpty() ? DataLimits.cqlLimits(1) : DataLimits.NONE;
-            ClusteringIndexFilter filter = unresolvedStatic ? command.clusteringIndexFilter(key) : new ClusteringIndexNamesFilter(clusterings, command.isReversed());
+            // If there is an unresolved static column, we must fetch the entire partition, as static column predicates
+            // may produce row matches across the entire partition. If there are only non-static rows to complete, we
+            // query the partition specifically for the corresponding cluterings by name. In either case, we do not
+            // provide a limit. (In the unresolved static case, we have no way of knowing how many stale rows we might
+            // read on a silent replica before finding a live one.)
+            ClusteringIndexFilter filter = unresolvedStatic ? command.clusteringIndexFilter(key)
+                                                            : new ClusteringIndexNamesFilter(clusterings, command.isReversed());
+
             SinglePartitionReadCommand cmd = SinglePartitionReadCommand.create(command.metadata(),
                                                                                command.nowInSec(),
                                                                                command.columnFilter(),
                                                                                RowFilter.none(),
-                                                                               limits,
+                                                                               DataLimits.NONE,
                                                                                key,
                                                                                filter);
 
