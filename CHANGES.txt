@@ -1,4 +1,5 @@
 5.1
+ * Option to set DSCP codes on network traffic (CASSANDRA-20317)
  * Add per type max size guardrails (CASSANDRA-19677)
  * Make it possible to abort all kinds of multi step operations (CASSANDRA-20217)
  * Do not leak non-Java exceptions when calling snapshot operations via JMX (CASSANDRA-20335)

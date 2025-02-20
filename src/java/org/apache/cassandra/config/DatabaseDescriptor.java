@@ -5416,6 +5416,26 @@ public class DatabaseDescriptor
         return conf.sai_options.segment_write_buffer_size;
     }
 
+    public static boolean isDSCPCodeEnabled()
+    {
+        return conf.dscp_code.enabled;
+    }
+
+    public static int getNativeDSCPCode()
+    {
+        return conf.dscp_code.native_dscp;
+    }
+
+    public static int getInternodeInboundDSCPCode()
+    {
+        return conf.dscp_code.internode_inbound_dscp;
+    }
+
+    public static int getInternodeOutboundDSCPCode()
+    {
+        return conf.dscp_code.internode_outbound_dscp;
+    }
+
     public static RepairRetrySpec getRepairRetrySpec()
     {
         return conf == null ? new RepairRetrySpec() : conf.repair.retries;

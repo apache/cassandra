@@ -170,6 +170,11 @@ public class InboundConnectionInitiator
         if (socketReceiveBufferSizeInBytes > 0)
             bootstrap.childOption(ChannelOption.SO_RCVBUF, socketReceiveBufferSizeInBytes);
 
+        if (initializer.settings.dscpEnabled)
+        {
+            bootstrap.childOption(ChannelOption.IP_TOS, initializer.settings.dscpCode << 2);
+        }
+
         InetAddressAndPort bind = initializer.settings.bindAddress;
         ChannelFuture channelFuture = bootstrap.bind(new InetSocketAddress(bind.getAddress(), bind.getPort()));
 

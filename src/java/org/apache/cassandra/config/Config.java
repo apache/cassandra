@@ -804,6 +804,8 @@ public class Config
 
     public StorageAttachedIndexOptions sai_options = new StorageAttachedIndexOptions();
 
+    public NetworkDSCPCode dscp_code = new NetworkDSCPCode();
+
     /**
      * @deprecated migrate to {@link DatabaseDescriptor#isClientInitialized()} See CASSANDRA-12550
      */
