@@ -68,6 +68,14 @@ public interface StorageServiceMBean extends NotificationEmitter
     public List<String> getUnreachableNodesWithPort();
 
     /**
+     * Retrieve the list of unreachable token owners in the cluster, as determined
+     * by this node's failure detector.
+     *
+     * @return set of IP addresses, as Strings
+     */
+    public List<String> getUnreachableTokenOwnersWithPort();
+
+    /**
      * Retrieve the list of nodes currently bootstrapping into the ring.
      *
      * @return set of IP addresses, as Strings

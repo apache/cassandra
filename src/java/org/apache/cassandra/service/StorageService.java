@@ -4132,6 +4132,11 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         return stringify(Gossiper.instance.getUnreachableMembers(), true);
     }
 
+    public List<String> getUnreachableTokenOwnersWithPort()
+    {
+        return stringify(Gossiper.instance.getUnreachableTokenOwners(), true);
+    }
+
     @Override
     public String[] getAllDataFileLocations()
     {
