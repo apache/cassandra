@@ -61,7 +61,8 @@ public class UnaryFunctionColumnConstraint extends AbstractFunctionConstraint<Un
 
     public enum Functions implements UnaryFunctionSatisfiabilityChecker
     {
-        NOT_NULL(NotNullConstraint::new);
+        NOT_NULL(NotNullConstraint::new),
+        JSON(JsonConstraint::new);
 
         private final Function<ColumnIdentifier, ConstraintFunction> functionCreator;
 

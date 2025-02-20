@@ -139,3 +139,30 @@ DELETE col2 FROM ks.tb WHERE id = 1 AND cl = 2;
 
 Additionally, `NOT_NULL` can not be specified on any column of a primary key,
 being it a partition key or a clustering column.
+
+=== JSON constraint
+
+Defines a constraint which checks if a column contains a string which is a valid JSON.
+
+`JSON` constraint can be used only for columns of `text`, `varchar` or `ascii` types.
+
+----
+CREATE TABLE ks.tb (
+    id int primary key,
+    val text CHECK JSON(val)
+);
+
+-- valid JSON string
+
+INSERT INTO ks.tb (id, val) VALUES (1, '{"a": 5}');
+INSERT INTO ks.tb (id, val) VALUES (1, '{}');
+
+-- invalid JSON string
+
+INSERT INTO ks.tb (id, val) VALUES (1, '{"a": 5');
+INSERT INTO ks.tb (id, val) VALUES (1, 'abc');
+
+... [Invalid query] message="Value for column 'val' violated JSON
+constraint as it is not a valid JSON."
+
+----
