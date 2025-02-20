@@ -447,6 +447,7 @@ public final class CassandraGenerators
         private Gen<Integer> numClusteringColumnsGen = SourceDSL.integers().between(1, 2);
         private Gen<Integer> numRegularColumnsGen = SourceDSL.integers().between(1, 5);
         private Gen<Integer> numStaticColumnsGen = SourceDSL.integers().between(0, 2);
+        private Gen<ReplicationType> replicationTypeGen = SourceDSL.arbitrary().enumValues(ReplicationType.class);
         @Nullable
         private ColumnNameGen columnNameGen = null;
         private TableParamsBuilder paramsBuilder = new TableParamsBuilder();
@@ -486,6 +487,19 @@ public final class CassandraGenerators
         {
             return withPartitioner(i -> partitioner);
         }
+
+        public TableMetadataBuilder withReplicationType(Gen<ReplicationType> replicationTypeGen)
+        {
+            this.replicationTypeGen = Objects.requireNonNull(replicationTypeGen);
+            return this;
+        }
+
+        public TableMetadataBuilder withReplicationType(ReplicationType replicationType)
+        {
+            return withReplicationType(r -> replicationType);
+        }
+
+
 
         public TableMetadataBuilder withUseCounter(boolean useCounter)
         {
@@ -656,10 +670,12 @@ public final class CassandraGenerators
                 String tableName = tableNameGen.generate(rnd);
                 TableParams params = paramsBuilder.build().generate(rnd);
                 boolean isCounter = useCounter.generate(rnd);
+                ReplicationType replicationType = replicationTypeGen.generate(rnd);
                 TableMetadata.Builder builder = TableMetadata.builder(ks, tableName, tableIdGen.generate(rnd))
                                                              .partitioner(partitionerGen.generate(rnd))
                                                              .kind(tableKindGen.generate(rnd))
                                                              .isCounter(isCounter)
+                                                             .keyspaceReplicationType(replicationType)
                                                              .params(params);
 
                 int numPartitionColumns = numPartitionColumnsGen.generate(rnd);
