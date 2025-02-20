@@ -861,7 +861,7 @@ public class TableMetadata implements SchemaElement
         private IPartitioner partitioner;
         private Kind kind = Kind.REGULAR;
         private TableParams.Builder params = TableParams.builder();
-        private ReplicationType keyspaceReplicationType = null;
+        private ReplicationType keyspaceReplicationType = ReplicationType.legacy;
 
         // See the comment on Flag.COMPOUND definition for why we (still) inconditionally add this flag.
         private Set<Flag> flags = EnumSet.of(Flag.COMPOUND);
@@ -943,6 +943,8 @@ public class TableMetadata implements SchemaElement
 
         public Builder kind(Kind val)
         {
+            if (val != Kind.REGULAR)
+                keyspaceReplicationType = null;
             kind = val;
             return this;
         }
