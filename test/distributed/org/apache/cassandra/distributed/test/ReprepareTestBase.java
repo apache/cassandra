@@ -66,10 +66,10 @@ public class ReprepareTestBase extends TestBaseImpl
 
     public void testReprepare(BiConsumer<ClassLoader, Integer> instanceInitializer, ReprepareTestConfiguration... configs) throws Throwable
     {
-        try (ICluster<IInvokableInstance> c = init(builder().withNodes(2)
-                                                            .withConfig(config -> config.with(GOSSIP, NETWORK, NATIVE_PROTOCOL))
-                                                            .withInstanceInitializer(instanceInitializer)
-                                                            .start()))
+        try (org.apache.cassandra.distributed.Cluster c = init(builder().withNodes(2)
+                                                                        .withConfig(config -> config.with(GOSSIP, NETWORK, NATIVE_PROTOCOL))
+                                                                        .withInstanceInitializer(instanceInitializer)
+                                                                        .start()))
         {
             ForceHostLoadBalancingPolicy lbp = new ForceHostLoadBalancingPolicy();
             c.schemaChange(withKeyspace("CREATE TABLE %s.tbl (pk int, ck int, v int, PRIMARY KEY (pk, ck));"));
@@ -80,8 +80,8 @@ public class ReprepareTestBase extends TestBaseImpl
                 for (int firstContact : new int[]{ 1, 2 })
                 {
                     try (com.datastax.driver.core.Cluster cluster = com.datastax.driver.core.Cluster.builder()
-                                                                                                    .addContactPoint("127.0.0.1")
-                                                                                                    .addContactPoint("127.0.0.2")
+                                                                                                    .addContactPoint("127.0.0.1").withPort(c.getNativeTransportForNode("127.0.0.1"))
+                                                                                                    .addContactPoint("127.0.0.2").withPort(c.getNativeTransportForNode("127.0.0.2"))
                                                                                                     .withLoadBalancingPolicy(lbp)
                                                                                                     .build();
                          Session session = cluster.connect())
@@ -118,10 +118,10 @@ public class ReprepareTestBase extends TestBaseImpl
 
     public void testReprepareTwoKeyspaces(BiConsumer<ClassLoader, Integer> instanceInitializer) throws Throwable
     {
-        try (ICluster<IInvokableInstance> c = init(builder().withNodes(2)
-                                                            .withConfig(config -> config.with(GOSSIP, NETWORK, NATIVE_PROTOCOL))
-                                                            .withInstanceInitializer(instanceInitializer)
-                                                            .start()))
+        try (org.apache.cassandra.distributed.Cluster c = init(builder().withNodes(2)
+                                                                        .withConfig(config -> config.with(GOSSIP, NETWORK, NATIVE_PROTOCOL))
+                                                                        .withInstanceInitializer(instanceInitializer)
+                                                                        .start()))
         {
             c.schemaChange(withKeyspace("CREATE KEYSPACE %s2 WITH replication = {'class': 'SimpleStrategy', 'replication_factor': 2};"));
             c.schemaChange(withKeyspace("CREATE TABLE %s.tbl (pk int, ck int, v int, PRIMARY KEY (pk, ck));"));
@@ -130,8 +130,8 @@ public class ReprepareTestBase extends TestBaseImpl
 
             for (int firstContact : new int[]{ 1, 2 })
                 try (com.datastax.driver.core.Cluster cluster = com.datastax.driver.core.Cluster.builder()
-                                                                                                .addContactPoint("127.0.0.1")
-                                                                                                .addContactPoint("127.0.0.2")
+                                                                                                .addContactPoint("127.0.0.1").withPort(c.getNativeTransportForNode("127.0.0.1"))
+                                                                                                .addContactPoint("127.0.0.2").withPort(c.getNativeTransportForNode("127.0.0.2"))
                                                                                                 .withLoadBalancingPolicy(lbp)
                                                                                                 .build();
                      Session session = cluster.connect())

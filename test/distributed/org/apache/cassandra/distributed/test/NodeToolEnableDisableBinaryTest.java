@@ -25,6 +25,7 @@ import org.junit.Before;
 import org.junit.Test;
 
 import com.datastax.driver.core.Session;
+import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.ICluster;
 import org.apache.cassandra.tools.ToolRunner;
 import org.apache.cassandra.tools.ToolRunner.ToolResult;
@@ -39,7 +40,7 @@ import static org.junit.Assert.assertTrue;
 
 public class NodeToolEnableDisableBinaryTest extends TestBaseImpl
 {
-    private static ICluster cluster;
+    private static Cluster cluster;
 
     @Before
     public void setupEnv() throws IOException
@@ -130,28 +131,28 @@ public class NodeToolEnableDisableBinaryTest extends TestBaseImpl
     public void testEnableDisableBinary() throws Throwable
     {
         // We can connect
-        assertTrue(canConnect());
+        assertTrue(canConnect(cluster));
 
         // We can't connect after disabling
         ToolResult tool = ToolRunner.invokeNodetoolJvmDtest(cluster.get(1), "disablebinary");
         Assertions.assertThat(tool.getStdout()).containsIgnoringCase("Stop listening for CQL clients");
         assertTrue(tool.getCleanedStderr().isEmpty());
         assertEquals(0, tool.getExitCode());
-        assertFalse(canConnect());
+        assertFalse(canConnect(cluster));
 
         // We can connect after re-enabling
         tool = ToolRunner.invokeNodetoolJvmDtest(cluster.get(1), "enablebinary");
         Assertions.assertThat(tool.getStdout()).containsIgnoringCase("Starting listening for CQL clients");
         assertTrue(tool.getCleanedStderr().isEmpty());
         assertEquals(0, tool.getExitCode());
-        assertTrue(canConnect());
+        assertTrue(canConnect(cluster));
     }
 
-    private boolean canConnect()
+    private boolean canConnect(Cluster cluster)
     {
         boolean canConnect = false;
         try(com.datastax.driver.core.Cluster c = com.datastax.driver.core.Cluster.builder()
-                                                                                 .addContactPoint("127.0.0.1")
+                                                                                 .addContactPoint("127.0.0.1").withPort(cluster.getNativeTransportForNode("127.0.0.1"))
                                                                                  .build();
             Session s = c.connect("system_schema"))
         {

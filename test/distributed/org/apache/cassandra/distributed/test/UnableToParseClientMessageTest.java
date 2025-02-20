@@ -129,7 +129,7 @@ public class UnableToParseClientMessageTest extends TestBaseImpl
 
         long currentCount = getProtocolExceptionCount(node);
         long logStart = node.logs().mark();
-        try (SimpleClient client = SimpleClient.builder("127.0.0.1", 9042).protocolVersion(version).useBeta().build())
+        try (SimpleClient client = SimpleClient.builder("127.0.0.1", node.config().getInt("native_transport_port")).protocolVersion(version).useBeta().build())
         {
             client.connect(false, true);
 

@@ -24,6 +24,7 @@ import org.junit.Test;
 import com.datastax.driver.core.PreparedStatement;
 import com.datastax.driver.core.ResultSet;
 import com.datastax.driver.core.Session;
+import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.ICluster;
 import org.apache.cassandra.distributed.api.IInvokableInstance;
 
@@ -36,12 +37,12 @@ public class ReprepareNewBehaviourTest extends ReprepareTestBase
     @Test
     public void testUseWithMultipleKeyspaces() throws Throwable
     {
-        try (ICluster<IInvokableInstance> c = init(builder().withNodes(1)
-                                                            .withConfig(config -> config.with(GOSSIP, NETWORK, NATIVE_PROTOCOL))
-                                                            .start()))
+        try (Cluster c = init(builder().withNodes(1)
+                                       .withConfig(config -> config.with(GOSSIP, NETWORK, NATIVE_PROTOCOL))
+                                       .start()))
         {
             try (com.datastax.driver.core.Cluster cluster = com.datastax.driver.core.Cluster.builder()
-                                                                                            .addContactPoint("127.0.0.1")
+                                                                                            .addContactPoint("127.0.0.1").withPort(c.getNativeTransportForNode("127.0.0.1"))
                                                                                             .build();
                  Session session = cluster.connect())
             {

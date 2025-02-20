@@ -81,7 +81,7 @@ public class GuardrailDiskUsageTest extends GuardrailTester
         Auth.waitForExistingRoles(cluster.get(1));
 
         // create a regular user, since the default superuser is excluded from guardrails
-        com.datastax.driver.core.Cluster.Builder builder = com.datastax.driver.core.Cluster.builder().addContactPoint("127.0.0.1");
+        com.datastax.driver.core.Cluster.Builder builder = com.datastax.driver.core.Cluster.builder().addContactPoint("127.0.0.1").withPort(cluster.getNativeTransportForNode("127.0.0.1"));
         try (com.datastax.driver.core.Cluster c = builder.withCredentials("cassandra", "cassandra").build();
              Session session = c.connect())
         {

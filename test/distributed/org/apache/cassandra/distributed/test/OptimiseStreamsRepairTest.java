@@ -37,11 +37,13 @@ import net.bytebuddy.ByteBuddy;
 import net.bytebuddy.dynamic.loading.ClassLoadingStrategy;
 import net.bytebuddy.implementation.MethodDelegation;
 import net.bytebuddy.implementation.bind.annotation.SuperCall;
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
 import org.apache.cassandra.distributed.api.NodeToolResult;
+import org.apache.cassandra.gms.Gossiper;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.repair.AsymmetricRemoteSyncTask;
 import org.apache.cassandra.repair.LocalSyncTask;
@@ -145,16 +147,25 @@ public class OptimiseStreamsRepairTest extends TestBaseImpl
                 fetch.computeIfAbsent(task.nodePair().peer, k -> new ArrayList<>()).addAll(task.rangesToSync);
             }
             // 127.0.0.2 is the node out of sync - make sure it does not receive multiple copies of the same range from the other nodes;
-            Map<InetAddressAndPort, List<Range<Token>>> node2 = fetching.get(InetAddressAndPort.getByName("127.0.0.2"));
+
+            Map<InetAddressAndPort, List<Range<Token>>> node2 = fetching.get(getAddressAndPortWithIPFromGossip("127.0.0.2"));
             Set<Range<Token>> allRanges = new HashSet<>();
             node2.values().forEach(ranges -> ranges.forEach(r -> assertTrue(allRanges.add(r))));
 
             // 127.0.0.2 should stream the same ranges to .1 and .3
-            Set<Range<Token>> node2ToNode1 = new HashSet<>(fetching.get(InetAddressAndPort.getByName("127.0.0.1")).get(InetAddressAndPort.getByName("127.0.0.2")));
-            Set<Range<Token>> node2ToNode3 = new HashSet<>(fetching.get(InetAddressAndPort.getByName("127.0.0.3")).get(InetAddressAndPort.getByName("127.0.0.2")));
+            Set<Range<Token>> node2ToNode1 = new HashSet<>(fetching.get(getAddressAndPortWithIPFromGossip("127.0.0.1")).get(getAddressAndPortWithIPFromGossip("127.0.0.2")));
+            Set<Range<Token>> node2ToNode3 = new HashSet<>(fetching.get(getAddressAndPortWithIPFromGossip("127.0.0.3")).get(getAddressAndPortWithIPFromGossip("127.0.0.2")));
             assertEquals(node2ToNode1, allRanges);
             assertEquals(node2ToNode3, allRanges);
         }
+    }
+
+    // get the right InetAddressAndPort with port.
+    private static InetAddressAndPort getAddressAndPortWithIPFromGossip(String ip)
+    {
+        return Gossiper.instance.getEndpoints().stream().filter(endpoint -> endpoint.getHostAddress(false).equals(ip)).findFirst().orElseThrow(
+        () -> new IllegalStateException(ip + " is not in gossip!")
+        );
     }
 
     @Test

@@ -58,6 +58,7 @@ public class GossipSettlesTest extends TestBaseImpl
         /* Use withSubnet(1) to prove seed provider is set correctly - without the fix to pass a seed provider, this test fails */
         try (Cluster cluster = builder().withNodes(3)
                                         .withConfig(config -> config.with(GOSSIP).with(NETWORK))
+                                        .withDynamicPortAllocation(false)     // disabling dynamic port allocation as this test assumes all nodes using same storage port
                                         .withSubnet(1)
                                         .start())
         {
@@ -69,7 +70,8 @@ public class GossipSettlesTest extends TestBaseImpl
             cluster.get(1).runOnInstance(() -> {
 
                 // First prove that the storage port is added
-                Assert.assertEquals("stuff 127.0.0.1:7012 morestuff 127.0.0.2:7012", addStoragePortToIP("stuff 127.0.0.1 morestuff 127.0.0.2"));
+                String expectedString = String.format("stuff 127.0.0.1:%s morestuff 127.0.0.2:%s", DatabaseDescriptor.getStoragePort(), DatabaseDescriptor.getStoragePort());
+                Assert.assertEquals(expectedString, addStoragePortToIP("stuff 127.0.0.1 morestuff 127.0.0.2"));
 
                 FailureDetector fd = ((FailureDetector) FailureDetector.instance);
                 Assert.assertEquals(addStoragePortToInstanceName(fd.getAllEndpointStates(false)),

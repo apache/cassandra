@@ -65,7 +65,7 @@ public class NodeToolTest extends TestBaseImpl
     {
         NodeToolResult ringResult = NODE.nodetoolResult("ring");
         ringResult.asserts().stdoutContains("Datacenter: datacenter0");
-        ringResult.asserts().stdoutContains("127.0.0.1       rack0       Up     Normal");
+        ringResult.asserts().stdoutContains("127.0.0.1        rack0       Up     Normal");
         assertEquals("Non-empty error output", "", ringResult.getStderr());
     }
 

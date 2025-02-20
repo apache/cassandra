@@ -109,7 +109,6 @@ public class InternodeEncryptionOptionsTest extends AbstractEncryptionOptionsImp
     {
         try (Cluster  cluster = builder().withNodes(1).withConfig(c -> {
             c.with(Feature.NETWORK);
-            c.set("storage_port", 7012);
             c.set("ssl_storage_port", 7013);
             c.set("server_encryption_options",
                   ImmutableMap.builder().putAll(validKeystore)
@@ -144,8 +143,7 @@ public class InternodeEncryptionOptionsTest extends AbstractEncryptionOptionsImp
     {
         try (Cluster  cluster = builder().withNodes(1).withConfig(c -> {
             c.with(Feature.NETWORK);
-            c.set("storage_port", 7012); // must match in-jvm dtest assigned ports
-            c.set("ssl_storage_port", 7012);
+            c.set("ssl_storage_port", 7012); // must match in-jvm dtest assigned ports
             c.set("server_encryption_options",
                   ImmutableMap.builder().putAll(validKeystore)
                               .put("internode_encryption", "none")

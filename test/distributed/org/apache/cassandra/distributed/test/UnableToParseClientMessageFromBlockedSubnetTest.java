@@ -95,7 +95,7 @@ public class UnableToParseClientMessageFromBlockedSubnetTest extends TestBaseImp
 
         LogAction logs = node.logs();
         long mark = logs.mark();
-        try (SimpleClient client = SimpleClient.builder("127.0.0.1", 9042).protocolVersion(version).useBeta().build())
+        try (SimpleClient client = SimpleClient.builder("127.0.0.1", cluster.getNativeTransportForNode("127.0.0.1")).protocolVersion(version).useBeta().build())
         {
             client.connect(false, true);
 

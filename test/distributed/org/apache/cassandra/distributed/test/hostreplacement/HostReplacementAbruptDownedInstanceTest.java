@@ -60,6 +60,7 @@ public class HostReplacementAbruptDownedInstanceTest extends TestBaseImpl
         TokenSupplier even = TokenSupplier.evenlyDistributedTokens(numStartNodes);
         try (Cluster cluster = Cluster.build(numStartNodes)
                                       .withConfig(c -> c.with(Feature.GOSSIP, Feature.NETWORK))
+                                      .withDynamicPortAllocation(false)
                                       .withTokenSupplier(node -> even.token(node == (numStartNodes + 1) ? 2 : node))
                                       .start())
         {

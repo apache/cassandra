@@ -125,12 +125,12 @@ public class StreamCloseInMiddleTest extends TestBaseImpl
         // trigger streaming; expected to fail as streaming socket closed in the middle (currently this is an unrecoverable event)
         node2.nodetoolResult("repair", "-full", KEYSPACE, "tbl").asserts().failure();
 
-        assertStreamingType(node2, expectedEntireSSTable);
+        assertStreamingType(node2, expectedEntireSSTable, node1);
     }
 
-    private static void assertStreamingType(IInvokableInstance node, boolean expectedEntireSSTable)
+    private static void assertStreamingType(IInvokableInstance node, boolean expectedEntireSSTable, IInvokableInstance peerNode)
     {
-        String key = "org.apache.cassandra.metrics.Streaming.%s./127.0.0.1.7012";
+        String key = "org.apache.cassandra.metrics.Streaming.%s./127.0.0.1." + peerNode.broadcastAddress().getPort();
         long entire = node.metrics().getCounter(String.format(key, "EntireSSTablesStreamedIn"));
         long partial = node.metrics().getCounter(String.format(key, "PartialSSTablesStreamedIn"));
         if (expectedEntireSSTable)

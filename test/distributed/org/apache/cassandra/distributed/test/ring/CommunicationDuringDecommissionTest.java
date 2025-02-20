@@ -61,7 +61,7 @@ public class CommunicationDuringDecommissionTest extends TestBaseImpl
             {
                 for (int i = 2; i <= cluster.size(); i++)
                 {
-                    Object[][] res = cluster.get(i).executeInternal("SELECT active_connections, connection_attempts FROM system_views.internode_outbound WHERE address = '127.0.0.1' AND port = 7012");
+                    Object[][] res = cluster.get(i).executeInternal("SELECT active_connections, connection_attempts FROM system_views.internode_outbound WHERE address = '127.0.0.1' AND port = " + cluster.get(1).broadcastAddress().getPort());
                     Assert.assertEquals(1, res.length);
                     Assert.assertEquals(0L, ((Long) res[0][0]).longValue());
                     long attempts = ((Long) res[0][1]).longValue();

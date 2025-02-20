@@ -49,7 +49,7 @@ public final class JavaDriverUtils
 
         //TODO support port
         //TODO support auth
-        dtest.stream().forEach(i -> builder.addContactPoint(i.broadcastAddress().getAddress().getHostAddress()));
+        dtest.stream().forEach(i -> builder.addContactPoint(i.broadcastAddress().getAddress().getHostAddress()).withPort(i.config().getInt("native_transport_port")));
 
         if (version != null)
             builder.withProtocolVersion(version);

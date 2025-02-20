@@ -68,6 +68,7 @@ public class MigrationCoordinatorTest extends TestBaseImpl
         try (Cluster cluster = Cluster.build(2)
                                       .withTokenSupplier(TokenSupplier.evenlyDistributedTokens(3))
                                       .withNodeIdTopology(NetworkTopology.singleDcNetworkTopology(3, "dc0", "rack0"))
+                                      .withDynamicPortAllocation(false)
                                       .withConfig(config -> config.with(NETWORK, GOSSIP))
                                       .start())
         {
@@ -90,6 +91,7 @@ public class MigrationCoordinatorTest extends TestBaseImpl
                                       .withTokenSupplier(TokenSupplier.evenlyDistributedTokens(3))
                                       .withNodeIdTopology(NetworkTopology.singleDcNetworkTopology(3, "dc0", "rack0"))
                                       .withConfig(config -> config.with(NETWORK, GOSSIP))
+                                      .withDynamicPortAllocation(false)
                                       .start())
         {
             cluster.schemaChange("CREATE KEYSPACE ks with replication={'class':'SimpleStrategy', 'replication_factor':2}");

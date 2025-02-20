@@ -76,7 +76,7 @@ public class FailingResponseDoesNotLogTest extends TestBaseImpl
                                       )
                                       .start())
         {
-            try (SimpleClient client = SimpleClient.builder("127.0.0.1", 9042).build().connect(false))
+            try (SimpleClient client = SimpleClient.builder("127.0.0.1", cluster.getNativeTransportForNode("127.0.0.1")).build().connect(false))
             {
                 client.execute("SELECT * FROM system.peers", ConsistencyLevel.ONE);
                 Assert.fail("Query should have failed");

@@ -66,13 +66,13 @@ public class NetstatsRepairStreamingTest extends AbstractNetstatsStreaming
             node1.nodetoolResult("disableautocompaction", "netstats_test").asserts().success();
             node2.nodetoolResult("disableautocompaction", "netstats_test").asserts().success();
 
-            populateData(compressionEnabled);
+            populateData(compressionEnabled, cluster);
 
             node1.flush("netstats_test");
             node2.flush("netstats_test");
 
             //change RF from 1 to 2 so we need to repair it, repairing will causes streaming shown in netstats
-            changeReplicationFactor();
+            changeReplicationFactor(cluster);
 
             final Future<NetstatResults> resultsFuture1 = executorService.submit(new NetstatsCallable(node1));
 

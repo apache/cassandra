@@ -49,6 +49,7 @@ public class PrepareBatchStatementsTest extends TestBaseImpl
         {
             try (com.datastax.driver.core.Cluster cluster = com.datastax.driver.core.Cluster.builder()
                                                                                             .addContactPoint("127.0.0.1")
+                                                                                            .withPort(c.get(1).config().getInt("native_transport_port"))
                                                                                             .build();
                  Session s = cluster.connect())
             {

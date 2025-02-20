@@ -29,6 +29,13 @@ import static org.apache.cassandra.utils.Shared.Recursive.INTERFACES;
 @Shared(inner = INTERFACES)
 public interface INodeProvisionStrategy
 {
+    static final int OneNetworkInterfaceStoragePort = 7011;
+    static final int OneNetworkInterfaceNativeTransportPort = 9041;
+    static final int OneNetworkInterfaceJMXPort = 7199;
+    static final int MultipleNetworksInterfaceStoragePort = 7012;
+    static final int MultipleNetworksInterfaceNativeTransportPort = 9042;
+    static final int MultipleNetworksInterfaceJMXPort = 7199;
+
     enum Strategy
     {
         OneNetworkInterface
@@ -62,9 +69,9 @@ public interface INodeProvisionStrategy
                     {
                         if (portMap != null)
                         {
-                            return portMap.computeIfAbsent("storagePort@node" + nodeNum, key -> SocketUtils.findAvailablePort(seedIp(), 7011 + nodeNum));
+                            return portMap.computeIfAbsent("storagePort@node" + nodeNum, key -> SocketUtils.findAvailablePort(seedIp(), OneNetworkInterfaceStoragePort + nodeNum));
                         }
-                        return 7011 + nodeNum;
+                        return OneNetworkInterfaceStoragePort + nodeNum;
                     }
 
                     @Override
@@ -72,9 +79,9 @@ public interface INodeProvisionStrategy
                     {
                         if (portMap != null)
                         {
-                            return portMap.computeIfAbsent("nativeTransportPort@node" + nodeNum, key -> SocketUtils.findAvailablePort(seedIp(), 9041 + nodeNum));
+                            return portMap.computeIfAbsent("nativeTransportPort@node" + nodeNum, key -> SocketUtils.findAvailablePort(seedIp(), OneNetworkInterfaceNativeTransportPort + nodeNum));
                         }
-                        return 9041 + nodeNum;
+                        return OneNetworkInterfaceNativeTransportPort + nodeNum;
                     }
 
                     @Override
@@ -82,9 +89,9 @@ public interface INodeProvisionStrategy
                     {
                         if (portMap != null)
                         {
-                            return portMap.computeIfAbsent("jmxPort@node" + nodeNum, key -> SocketUtils.findAvailablePort(seedIp(), 7199 + nodeNum));
+                            return portMap.computeIfAbsent("jmxPort@node" + nodeNum, key -> SocketUtils.findAvailablePort(seedIp(), OneNetworkInterfaceJMXPort + nodeNum));
                         }
-                        return 7199 + nodeNum;
+                        return OneNetworkInterfaceJMXPort + nodeNum;
                     }
                 };
             }
@@ -121,9 +128,9 @@ public interface INodeProvisionStrategy
                     {
                         if (portMap != null)
                         {
-                            return portMap.computeIfAbsent("storagePort@node" + nodeNum, key -> SocketUtils.findAvailablePort(ipAddress(nodeNum), 7012));
+                            return portMap.computeIfAbsent("storagePort@node" + nodeNum, key -> SocketUtils.findAvailablePort(ipAddress(nodeNum), MultipleNetworksInterfaceStoragePort));
                         }
-                        return 7012;
+                        return MultipleNetworksInterfaceStoragePort;
                     }
 
                     @Override
@@ -131,9 +138,9 @@ public interface INodeProvisionStrategy
                     {
                         if (portMap != null)
                         {
-                            return portMap.computeIfAbsent("nativeTransportPort@node" + nodeNum, key -> SocketUtils.findAvailablePort(ipAddress(nodeNum), 9042));
+                            return portMap.computeIfAbsent("nativeTransportPort@node" + nodeNum, key -> SocketUtils.findAvailablePort(ipAddress(nodeNum), MultipleNetworksInterfaceNativeTransportPort));
                         }
-                        return 9042;
+                        return MultipleNetworksInterfaceNativeTransportPort;
                     }
 
                     @Override
@@ -141,9 +148,9 @@ public interface INodeProvisionStrategy
                     {
                         if (portMap != null)
                         {
-                            return portMap.computeIfAbsent("jmxPort@node" + nodeNum, key -> SocketUtils.findAvailablePort(ipAddress(nodeNum), 7199));
+                            return portMap.computeIfAbsent("jmxPort@node" + nodeNum, key -> SocketUtils.findAvailablePort(ipAddress(nodeNum), MultipleNetworksInterfaceJMXPort));
                         }
-                        return 7199;
+                        return MultipleNetworksInterfaceJMXPort;
                     }
                 };
             }

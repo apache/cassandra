@@ -175,6 +175,7 @@ Merged from 3.0:
  * Fix CQLSH online help topic link (CASSANDRA-17534)
  * Remove unused suppressions (CASSANDRA-18724)
 Unreleased
+ * [SO-40653] Support Dynamic Port Allocation for in-jvm dtest framework (CASSANDRA-18722) + Uber change to all JVM dtests by default enable dynamic port allocation
  * [SO-39688] Remove incorrect compaction strategy policy from bad query monitoring
  * [SO-40703] Add new JMX attribute in storaageservice mbean for unreachabletokenowners
  * Only reload compaction strategies if disk boundaries change (CASSANDRA-17874)

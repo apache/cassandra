@@ -172,7 +172,7 @@ public class IncRepairAdminTest extends TestBaseImpl
                 Range<Token> range = new Range<>(cfs.metadata().partitioner.getMinimumToken(),
                                                  cfs.metadata().partitioner.getRandomToken());
                 ActiveRepairService.instance.registerParentRepairSession(sessionId,
-                                                                         InetAddressAndPort.getByAddress(coordinator.getAddress()),
+                                                                         InetAddressAndPort.getByAddress(coordinator.getAddress()).withPort(coordinator.getPort()),
                                                                          Lists.newArrayList(cfs),
                                                                          Sets.newHashSet(range),
                                                                          true,
@@ -180,8 +180,8 @@ public class IncRepairAdminTest extends TestBaseImpl
                                                                          true,
                                                                          PreviewKind.NONE);
                 LocalSessionAccessor.prepareUnsafe(sessionId,
-                                                   InetAddressAndPort.getByAddress(coordinator.getAddress()),
-                                                   participants.stream().map(participant -> InetAddressAndPort.getByAddress(participant.getAddress())).collect(Collectors.toSet()));
+                                                   InetAddressAndPort.getByAddress(coordinator.getAddress()).withPort(coordinator.getPort()),
+                                                   participants.stream().map(participant -> InetAddressAndPort.getByAddress(participant.getAddress()).withPort(participant.getPort())).collect(Collectors.toSet()));
                 LocalSessionAccessor.setState(sessionId, REPAIRING);
             });
         });

@@ -78,6 +78,7 @@ public class RepairCoordinatorBase extends TestBaseImpl
         CLUSTER = init(Cluster.build(2)
                               .withConfig(c -> c.with(Feature.NETWORK)
                                                 .with(Feature.GOSSIP))
+                              .withDynamicPortAllocation(false)
                               .start());
 
         CLUSTER.setUncaughtExceptionsFilter(throwable -> throwable instanceof RejectedExecutionException && "RepairJobTask has shut down".equals(throwable.getMessage()));

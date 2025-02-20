@@ -505,7 +505,7 @@ public class PaxosRepairTest extends TestBaseImpl
     {
         instance.runOnInstance(() -> {
             Gossiper.runInGossipStageBlocking(() -> {
-                EndpointState epState = Gossiper.instance.getEndpointStateForEndpoint(InetAddressAndPort.getByAddress(peer.getAddress()));
+                EndpointState epState = Gossiper.instance.getEndpointStateForEndpoint(InetAddressAndPort.getByAddress(peer.getAddress()).withPort(peer.getPort()));
                 VersionedValue value = version != null ? StorageService.instance.valueFactory.rack(version) : null;
                 epState.addApplicationState(ApplicationState.RELEASE_VERSION, value);
             });

@@ -56,7 +56,7 @@ public class IPMembershipTest extends TestBaseImpl
         {
             IInvokableInstance nodeToReplace = cluster.get(3);
 
-            ToolRunner.invokeCassandraStress("write", "n=10000", "-schema", "replication(factor=3)", "-port", "native=9042").assertOnExitCode();
+            ToolRunner.invokeCassandraStress("write", "n=10000", "-schema", "replication(factor=3)", "-port", "native=" + cluster.getNativeTransportForNode("127.0.0.1")).assertOnExitCode();
 
             for (boolean auto_bootstrap : Arrays.asList(true, false))
             {
@@ -67,8 +67,9 @@ public class IPMembershipTest extends TestBaseImpl
                 // we need to override the host id because otherwise the node will not be considered as a new node
                 ((InstanceConfig) nodeToReplace.config()).setHostId(UUID.randomUUID());
 
+                String expectedString = String.format("A node with address /127.0.0.3:%d already exists, cancelling join. Use cassandra.replace_address if you want to replace this node.", cluster.get(3).broadcastAddress().getPort());
                 Assertions.assertThatThrownBy(() -> nodeToReplace.startup())
-                          .hasMessage("A node with address /127.0.0.3:7012 already exists, cancelling join. Use cassandra.replace_address if you want to replace this node.");
+                          .hasMessage(expectedString);
             }
         }
     }
@@ -87,7 +88,7 @@ public class IPMembershipTest extends TestBaseImpl
         {
             IInvokableInstance nodeToReplace = cluster.get(3);
 
-            ToolRunner.invokeCassandraStress("write", "n=10000", "-schema", "replication(factor=3)", "-port", "native=9042").assertOnExitCode();
+            ToolRunner.invokeCassandraStress("write", "n=10000", "-schema", "replication(factor=3)", "-port", "native=" + cluster.getNativeTransportForNode("127.0.0.1")).assertOnExitCode();
 
             stopUnchecked(nodeToReplace);
 
@@ -103,7 +104,7 @@ public class IPMembershipTest extends TestBaseImpl
             Set<String> expected = ImmutableSet.of("127.0.0.1", "127.0.0.2", "127.0.0.4");
             cluster.forEach(i -> assertRingIs(i, expected));
 
-            ToolRunner.invokeCassandraStress("read", "n=10000", "no-warmup", "-port", "native=9042").assertOnExitCode();
+            ToolRunner.invokeCassandraStress("read", "n=10000", "no-warmup", "-port", "native=" + cluster.getNativeTransportForNode("127.0.0.1")).assertOnExitCode();
         }
     }
 }

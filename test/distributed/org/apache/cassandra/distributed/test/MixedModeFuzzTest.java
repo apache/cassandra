@@ -77,10 +77,10 @@ public class MixedModeFuzzTest extends TestBaseImpl
     @Test
     public void mixedModeFuzzTest() throws Throwable
     {
-        try (ICluster<IInvokableInstance> c = builder().withNodes(2)
-                                                       .withConfig(config -> config.with(GOSSIP, NETWORK, NATIVE_PROTOCOL))
-                                                       .withInstanceInitializer(PrepareBehaviour::oldNewBehaviour)
-                                                       .start())
+        try (org.apache.cassandra.distributed.Cluster c = builder().withNodes(2)
+                                                                   .withConfig(config -> config.with(GOSSIP, NETWORK, NATIVE_PROTOCOL))
+                                                                   .withInstanceInitializer(PrepareBehaviour::oldNewBehaviour)
+                                                                   .start())
         {
             // Long string to make us invalidate caches occasionally
             String veryLongString = "very";
@@ -119,8 +119,8 @@ public class MixedModeFuzzTest extends TestBaseImpl
 
                         Supplier<Cluster> clusterSupplier = () -> {
                             return com.datastax.driver.core.Cluster.builder()
-                                                                   .addContactPoint("127.0.0.1")
-                                                                   .addContactPoint("127.0.0.2")
+                                                                   .addContactPoint("127.0.0.1").withPort(c.getNativeTransportForNode("127.0.0.1"))
+                                                                   .addContactPoint("127.0.0.2").withPort(c.getNativeTransportForNode("127.0.0.2"))
                                                                    .build();
                         };
 

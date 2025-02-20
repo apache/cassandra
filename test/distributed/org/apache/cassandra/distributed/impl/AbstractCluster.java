@@ -185,7 +185,7 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster<I
     {
         private INodeProvisionStrategy.Strategy nodeProvisionStrategy = INodeProvisionStrategy.Strategy.MultipleNetworkInterfaces;
         private ShutdownExecutor shutdownExecutor = DEFAULT_SHUTDOWN_EXECUTOR;
-        private boolean dynamicPortAllocation = false;
+        private boolean dynamicPortAllocation = true;
 
         {
             // Indicate that we are running in the in-jvm dtest environment

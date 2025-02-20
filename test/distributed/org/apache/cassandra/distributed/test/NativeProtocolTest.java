@@ -52,12 +52,12 @@ public class NativeProtocolTest extends TestBaseImpl
     @Test
     public void withClientRequests() throws Throwable
     {
-        try (ICluster ignored = init(builder().withNodes(3)
+        try (Cluster ignored = init(builder().withNodes(3)
                                               .withConfig(config -> config.with(GOSSIP, NETWORK, NATIVE_PROTOCOL))
                                               .start()))
         {
 
-            try (com.datastax.driver.core.Cluster cluster = com.datastax.driver.core.Cluster.builder().addContactPoint("127.0.0.1").build();
+            try (com.datastax.driver.core.Cluster cluster = com.datastax.driver.core.Cluster.builder().addContactPoint("127.0.0.1").withPort(ignored.getNativeTransportForNode("127.0.0.1")).build();
                  Session session = cluster.connect())
             {
                 session.execute("CREATE TABLE " + KEYSPACE + ".tbl (pk int, ck int, v int, PRIMARY KEY (pk, ck));");
@@ -73,11 +73,11 @@ public class NativeProtocolTest extends TestBaseImpl
     @Test
     public void withCounters() throws Throwable
     {
-        try (ICluster ignored = init(builder().withNodes(3)
+        try (Cluster ignored = init(builder().withNodes(3)
                                               .withConfig(config -> config.with(GOSSIP, NETWORK, NATIVE_PROTOCOL))
                                               .start()))
         {
-            final com.datastax.driver.core.Cluster cluster = com.datastax.driver.core.Cluster.builder().addContactPoint("127.0.0.1").build();
+            final com.datastax.driver.core.Cluster cluster = com.datastax.driver.core.Cluster.builder().addContactPoint("127.0.0.1").withPort(ignored.getNativeTransportForNode("127.0.0.1")).build();
             Session session = cluster.connect();
             session.execute("CREATE TABLE " + KEYSPACE + ".tbl (pk int, ck counter, PRIMARY KEY (pk));");
             session.execute("UPDATE " + KEYSPACE + ".tbl set ck = ck + 10 where pk = 1;");

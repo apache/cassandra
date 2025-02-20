@@ -55,6 +55,7 @@ public class NodeCannotJoinAsHibernatingNodeWithoutReplaceAddressTest extends Te
         TokenSupplier even = TokenSupplier.evenlyDistributedTokens(2);
         try (Cluster cluster = init(Cluster.build(2)
                                            .withConfig(c -> c.with(Feature.values()).set(Constants.KEY_DTEST_API_STARTUP_FAILURE_AS_SHUTDOWN, false))
+                                           .withDynamicPortAllocation(false)
                                            .withInstanceInitializer(BBHelper::install)
                                            .withTokenSupplier(node -> even.token((node == 3 || node == 4) ? 2 : node))
                                            .start()))

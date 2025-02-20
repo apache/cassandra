@@ -167,20 +167,21 @@ public abstract class RepairCoordinatorNeighbourDown extends RepairCoordinatorBa
             long repairExceptions = getRepairExceptions(CLUSTER, 1);
             NodeToolResult result = repair(1, KEYSPACE, table);
             recovered.join(); // if recovery didn't happen then the results are not what are being tested, so block here first
+            String errorString = String.format("/127.0.0.2:%s died", CLUSTER.get(2).broadcastAddress().getPort());
             result.asserts()
                   .failure()
-                  .errorContains("/127.0.0.2:7012 died");
+                  .errorContains(errorString);
             if (withNotifications)
             {
                 result.asserts()
-                      .notificationContains(NodeToolResult.ProgressEventType.ERROR, "/127.0.0.2:7012 died")
+                      .notificationContains(NodeToolResult.ProgressEventType.ERROR, errorString)
                       .notificationContains(NodeToolResult.ProgressEventType.COMPLETE, "finished with error");
             }
 
             Assert.assertEquals(repairExceptions + 1, getRepairExceptions(CLUSTER, 1));
             if (repairType != RepairType.PREVIEW)
             {
-                assertParentRepairFailedWithMessageContains(CLUSTER, KEYSPACE, table, "/127.0.0.2:7012 died");
+                assertParentRepairFailedWithMessageContains(CLUSTER, KEYSPACE, table, errorString);
             }
             else
             {

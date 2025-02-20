@@ -54,7 +54,7 @@ public class InternodeErrorExclusionTest extends TestBaseImpl
                                       .start())
         {
 
-            causeException();
+            causeException(cluster.get(1).broadcastAddress().getPort());
             assertThat(cluster.get(1).logs().watchFor("address contained in internode_error_reporting_exclusions").getResult()).hasSize(1);
         }
     }
@@ -77,7 +77,12 @@ public class InternodeErrorExclusionTest extends TestBaseImpl
 
     private void causeException()
     {
-        try (SimpleClient client = SimpleClient.builder("127.0.0.1", 7012).build())
+        causeException(7012);
+    }
+
+    private void causeException(int port)
+    {
+        try (SimpleClient client = SimpleClient.builder("127.0.0.1", port).build())
         {
             client.connect(true);
             Assert.fail("Connection should fail");

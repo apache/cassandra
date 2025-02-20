@@ -150,7 +150,7 @@ public class TopologyChangeTest extends TestBaseImpl
     {
         try (Cluster control = init(Cluster.build().withNodes(3).withNodeProvisionStrategy(strategy)
                                            .withConfig(config -> config.with(GOSSIP, NETWORK, NATIVE_PROTOCOL)).start());
-             com.datastax.driver.core.Cluster cluster = com.datastax.driver.core.Cluster.builder().addContactPoint("127.0.0.1").build();
+             com.datastax.driver.core.Cluster cluster = com.datastax.driver.core.Cluster.builder().addContactPoint("127.0.0.1").withPort(control.getNativeTransportForNode("127.0.0.1")).build();
              Session session = cluster.connect())
         {
             EventStateListener eventStateListener = new EventStateListener();
@@ -172,7 +172,7 @@ public class TopologyChangeTest extends TestBaseImpl
     {
         try (Cluster control = init(Cluster.build().withNodes(3).withNodeProvisionStrategy(strategy)
                                            .withConfig(config -> config.with(GOSSIP, NETWORK, NATIVE_PROTOCOL)).start());
-             com.datastax.driver.core.Cluster cluster = com.datastax.driver.core.Cluster.builder().addContactPoint("127.0.0.1").build();
+             com.datastax.driver.core.Cluster cluster = com.datastax.driver.core.Cluster.builder().addContactPoint("127.0.0.1").withPort(control.get(1).config().getInt("native_transport_port")).build();
              Session session = cluster.connect())
         {
             EventStateListener eventStateListener = new EventStateListener();

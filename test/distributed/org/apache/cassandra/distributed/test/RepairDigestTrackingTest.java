@@ -383,6 +383,7 @@ public class RepairDigestTrackingTest extends TestBaseImpl
                                            .withConfig(config -> config.set("repaired_data_tracking_for_partition_reads_enabled", true)
                                                                        .with(GOSSIP)
                                                                        .with(NETWORK))
+                                           .withDynamicPortAllocation(false)
                                            .start()))
         {
             // A speculative read is the reason we have two remote replicas in play that can return results before

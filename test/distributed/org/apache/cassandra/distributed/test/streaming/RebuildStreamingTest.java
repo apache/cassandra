@@ -83,7 +83,7 @@ public class RebuildStreamingTest extends TestBaseImpl
             assertThat(qr.hasNext()).isTrue();
             Row row = qr.next();
             QueryResultUtil.assertThat(row)
-                           .isEqualTo("peers", Collections.singletonList("/127.0.0.2:7012"))
+                           .isEqualTo("peers", Collections.singletonList("/127.0.0.2:" + cluster.get(2).broadcastAddress().getPort()))
                            .isEqualTo("follower", true)
                            .isEqualTo("operation", "Rebuild")
                            .isEqualTo("status", "success")
@@ -104,7 +104,7 @@ public class RebuildStreamingTest extends TestBaseImpl
             assertThat(qr.hasNext()).isTrue();
 
             QueryResultUtil.assertThat(qr.next())
-                           .isEqualTo("peers", Collections.singletonList("/127.0.0.1:7012"))
+                           .isEqualTo("peers", Collections.singletonList("/127.0.0.1:" + cluster.get(1).broadcastAddress().getPort()))
                            .isEqualTo("follower", false)
                            .isEqualTo("operation", "Rebuild")
                            .isEqualTo("status", "success")

@@ -77,6 +77,7 @@ public class AuthTest extends TestBaseImpl
     {
         try (Cluster cluster = builder().withDCs(2)
                                         .withNodes(1)
+                                        .withDynamicPortAllocation(false)
                                         .withTokenSupplier(TokenSupplier.evenlyDistributedTokens(2, 1))
                                         .withConfig(config -> config.with(NETWORK, GOSSIP, NATIVE_PROTOCOL)
                                                                     .set("authenticator", "PasswordAuthenticator"))
@@ -88,7 +89,7 @@ public class AuthTest extends TestBaseImpl
             // TIMESTAMP 0 in action
             assertEquals(0, writeTime);
 
-            changePassword();
+            changePassword(cluster);
             long writeTimeAfterPasswordChange = getPasswordWritetime(cluster.coordinator(1));
 
             // timestamp was changed after we changed the password
@@ -113,7 +114,7 @@ public class AuthTest extends TestBaseImpl
             // with default password
             doWithSession("127.0.0.2",
                           "datacenter2",
-                          "cassandra", session -> session.execute("select * from system.local"));
+                          "cassandra", session -> session.execute("select * from system.local"), cluster);
 
             // turn off filters
             to.off();
@@ -127,7 +128,7 @@ public class AuthTest extends TestBaseImpl
                 List<Row> rows = doWithSession("127.0.0.2",
                                                "datacenter2",
                                                "cassandra",
-                                               session -> session.execute("select * from system.peers")).all();
+                                               session -> session.execute("select * from system.peers"), cluster).all();
                 if (rows.isEmpty())
                     return false;
 
@@ -138,7 +139,7 @@ public class AuthTest extends TestBaseImpl
             doWithSession("127.0.0.2",
                           "datacenter2",
                           "cassandra",
-                          session -> session.execute("ALTER KEYSPACE system_auth WITH replication = {'class': 'NetworkTopologyStrategy', 'datacenter1': 1, 'datacenter2': 1}"));
+                          session -> session.execute("ALTER KEYSPACE system_auth WITH replication = {'class': 'NetworkTopologyStrategy', 'datacenter1': 1, 'datacenter2': 1}"), cluster);
 
             // repair the second node so new password from the first node propagates to it
             assertEquals(0, secondNode.nodetool("repair", "--full"));
@@ -146,12 +147,12 @@ public class AuthTest extends TestBaseImpl
             // the second node was repaired, so it is using new password
             doWithSession("127.0.0.2",
                           "datacenter2",
-                          "newpassword", session -> session.execute("select * from system.local"));
+                          "newpassword", session -> session.execute("select * from system.local"), cluster);
 
             // and the first node is still using new password after repair
             doWithSession("127.0.0.1",
                           "datacenter1",
-                          "newpassword", session -> session.execute("select * from system.local"));
+                          "newpassword", session -> session.execute("select * from system.local"), cluster);
         }
     }
 
@@ -170,20 +171,20 @@ public class AuthTest extends TestBaseImpl
                                           ConsistencyLevel.LOCAL_ONE)[0][0];
     }
 
-    private void changePassword()
+    private void changePassword(Cluster cluster)
     {
         doWithSession("127.0.0.1", "datacenter1", "cassandra", (Function<Session, Void>) session -> {
             session.execute("ALTER ROLE cassandra WITH PASSWORD = 'newpassword'");
             return null;
-        });
+        }, cluster);
     }
 
-    private <V> V doWithSession(String host, String datacenter, String password, Function<Session, V> fn)
+    private <V> V doWithSession(String host, String datacenter, String password, Function<Session, V> fn, Cluster cluster)
     {
         com.datastax.driver.core.Cluster.Builder builder = com.datastax.driver.core.Cluster.builder()
                                                                                            .withLoadBalancingPolicy(new DCAwareRoundRobinPolicy.Builder().withLocalDc(datacenter).build())
                                                                                            .withAuthProvider(new PlainTextAuthProvider("cassandra", password))
-                                                                                           .addContactPoint(host);
+                                                                                           .addContactPoint(host).withPort(cluster.getNativeTransportForNode(host));
 
         try (com.datastax.driver.core.Cluster c = builder.build(); Session session = c.connect())
         {

@@ -46,6 +46,7 @@ import net.bytebuddy.implementation.MethodDelegation;
 import org.apache.cassandra.cql3.QueryHandler.Prepared;
 import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.db.SystemKeyspace;
+import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
 import org.apache.cassandra.distributed.api.ICluster;
 import org.apache.cassandra.distributed.api.IInvokableInstance;
@@ -66,10 +67,10 @@ public class ReprepareFuzzTest extends TestBaseImpl
     @Test
     public void fuzzTest() throws Throwable
     {
-        try (ICluster<IInvokableInstance> c = builder().withNodes(1)
-                                                       .withConfig(config -> config.with(GOSSIP, NETWORK, NATIVE_PROTOCOL))
-                                                       .withInstanceInitializer(PrepareBehaviour::alwaysNewBehaviour)
-                                                       .start())
+        try (Cluster c = builder().withNodes(1)
+                                  .withConfig(config -> config.with(GOSSIP, NETWORK, NATIVE_PROTOCOL))
+                                  .withInstanceInitializer(PrepareBehaviour::alwaysNewBehaviour)
+                                  .start())
         {
             // Long string to make us invalidate caches occasionally
             String veryLongString = "very";
@@ -112,7 +113,7 @@ public class ReprepareFuzzTest extends TestBaseImpl
                         Map<Pair<Integer, Integer>, PreparedStatement> unqualifiedStatements = new HashMap<>();
 
                         cluster = com.datastax.driver.core.Cluster.builder()
-                                                                  .addContactPoint("127.0.0.1")
+                                                                  .addContactPoint("127.0.0.1").withPort(c.getNativeTransportForNode("127.0.0.1"))
                                                                   .build();
                         session = cluster.connect();
                         while (!interrupt.get() && (System.nanoTime() < deadline))
@@ -260,7 +261,7 @@ public class ReprepareFuzzTest extends TestBaseImpl
                                     session.close();
                                     cluster.close();
                                     cluster = com.datastax.driver.core.Cluster.builder()
-                                                                              .addContactPoint("127.0.0.1")
+                                                                              .addContactPoint("127.0.0.1").withPort(c.getNativeTransportForNode("127.0.0.1"))
                                                                               .build();
                                     session = cluster.connect();
                                     qualifiedStatements.clear();

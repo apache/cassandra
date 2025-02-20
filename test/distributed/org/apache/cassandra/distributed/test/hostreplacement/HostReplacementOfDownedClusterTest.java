@@ -72,6 +72,7 @@ public class HostReplacementOfDownedClusterTest extends TestBaseImpl
         try (Cluster cluster = Cluster.build(2)
                                       .withConfig(c -> c.with(Feature.GOSSIP, Feature.NETWORK))
                                       .withTokenSupplier(node -> even.token(node == 3 ? 2 : node))
+                                      .withDynamicPortAllocation(false)
                                       .start())
         {
             IInvokableInstance seed = cluster.get(1);
@@ -124,6 +125,7 @@ public class HostReplacementOfDownedClusterTest extends TestBaseImpl
         TokenSupplier even = TokenSupplier.evenlyDistributedTokens(numStartNodes);
         try (Cluster cluster = Cluster.build(numStartNodes)
                                       .withConfig(c -> c.with(Feature.GOSSIP, Feature.NETWORK))
+                                      .withDynamicPortAllocation(false)
                                       .withTokenSupplier(node -> even.token(node == (numStartNodes + 1) ? 2 : node))
                                       .start())
         {

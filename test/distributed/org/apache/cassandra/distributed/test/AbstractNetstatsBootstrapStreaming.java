@@ -62,7 +62,7 @@ public abstract class AbstractNetstatsBootstrapStreaming extends AbstractNetstat
 
             cluster.get(1).nodetoolResult("disableautocompaction", "netstats_test").asserts().success();
 
-            populateData(compressionEnabled);
+            populateData(compressionEnabled, cluster);
 
             cluster.get(1).flush("netstats_test");
 

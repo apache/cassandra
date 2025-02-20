@@ -19,6 +19,7 @@
 package org.apache.cassandra.distributed;
 
 import java.io.IOException;
+import java.net.InetAddress;
 import java.util.function.Consumer;
 
 import com.google.common.collect.ImmutableMap;
@@ -57,6 +58,20 @@ public class Cluster extends AbstractCluster<IInvokableInstance>
     public static Cluster create(int nodeCount, Consumer<IInstanceConfig> configUpdater) throws IOException
     {
         return build(nodeCount).withConfig(configUpdater).start();
+    }
+
+    public int getNativeTransportForNode(String hostAddress)
+    {
+        return stream().filter(i -> i.broadcastAddress().getAddress().getHostAddress().equals(hostAddress)).findFirst().orElseThrow(
+        () -> new IllegalStateException(hostAddress + " is not running.")
+        ).config().getInt("native_transport_port");
+    }
+
+    public int getNativeTransportForNode(InetAddress hostAddress)
+    {
+        return stream().filter(i -> i.broadcastAddress().getAddress().equals(hostAddress)).findFirst().orElseThrow(
+        () -> new IllegalStateException(hostAddress + " is not running.")
+        ).config().getInt("native_transport_port");
     }
 
     public static Cluster create(int nodeCount) throws Throwable

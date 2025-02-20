@@ -52,7 +52,7 @@ public class QueryReplayerEndToEndTest extends TestBaseImpl
         {
             cluster.schemaChange("CREATE TABLE " + KEYSPACE + ".tbl (pk int, ck int, v int, PRIMARY KEY (pk, ck))");
             List<String> hosts = cluster.stream()
-                                        .map(i -> i.config().broadcastAddress().getAddress().getHostAddress())
+                                        .map(i -> i.config().broadcastAddress().getAddress().getHostAddress() + ":" + i.config().getInt("native_transport_port"))
                                         .collect(Collectors.toList());
 
             final int queriesCount = 3;

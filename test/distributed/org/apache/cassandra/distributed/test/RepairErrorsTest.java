@@ -109,7 +109,8 @@ public class RepairErrorsTest extends TestBaseImpl
             
             // The remote sync started from node 2 will fail on plan execution and propagate the error...
             NodeToolResult result = cluster.get(1).nodetoolResult("repair", KEYSPACE);
-            result.asserts().failure().errorContains("Sync failed between /127.0.0.2:7012 and /127.0.0.3:7012");
+            String errorMessage = String.format("Sync failed between /127.0.0.2:%s and /127.0.0.3:%s", cluster.get(2).broadcastAddress().getPort(), cluster.get(3).broadcastAddress().getPort());
+            result.asserts().failure().errorContains(errorMessage);
 
             // Before CASSANDRA-17466 added an abort mechanism for local sync tasks and switched the repair task
             // executor to shut down without interrupting its threads, we could trigger the disk failure policy, as

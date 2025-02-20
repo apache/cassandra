@@ -54,6 +54,9 @@ dir_path="$PROJECT_DIR/test/distributed"
 
 output_file_prefix="distributed_tests"
 
+# update the port so it won't conflict
+./.jenkins/update_ports_for_jvm_dtests.sh "${DTEST_GROUP_ID}"
+
 ./.jenkins/get_all_tests.sh "${dir_path}" "${output_file_prefix}" 20
 
 selected_test_file="${dir_path}/${output_file_prefix}_part_$(printf '%04d' $DTEST_GROUP_ID).txt"

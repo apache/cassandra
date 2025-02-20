@@ -23,6 +23,7 @@ import org.junit.Test;
 import com.datastax.driver.core.PreparedStatement;
 import com.datastax.driver.core.Session;
 import org.apache.cassandra.cql3.QueryProcessor;
+import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.ICluster;
 import org.apache.cassandra.distributed.api.IInvokableInstance;
 
@@ -50,17 +51,17 @@ public class ReprepareOldBehaviourTest extends ReprepareTestBase
     public void testReprepareUsingOldBehavior() throws Throwable
     {
         // fork of testReprepareMixedVersionWithoutReset, but makes sure oldBehavior has a clean state
-        try (ICluster<IInvokableInstance> c = init(builder().withNodes(2)
-                                                            .withConfig(config -> config.with(GOSSIP, NETWORK, NATIVE_PROTOCOL))
-                                                            .withInstanceInitializer(PrepareBehaviour::oldBehaviour)
-                                                            .start()))
+        try (Cluster c = init(builder().withNodes(2)
+                                       .withConfig(config -> config.with(GOSSIP, NETWORK, NATIVE_PROTOCOL))
+                                       .withInstanceInitializer(PrepareBehaviour::oldBehaviour)
+                                       .start()))
         {
             ForceHostLoadBalancingPolicy lbp = new ForceHostLoadBalancingPolicy();
             c.schemaChange(withKeyspace("CREATE TABLE %s.tbl (pk int, ck int, v int, PRIMARY KEY (pk, ck));"));
 
             try (com.datastax.driver.core.Cluster cluster = com.datastax.driver.core.Cluster.builder()
-                                                                                            .addContactPoint("127.0.0.1")
-                                                                                            .addContactPoint("127.0.0.2")
+                                                                                            .addContactPoint("127.0.0.1").withPort(c.getNativeTransportForNode("127.0.0.1"))
+                                                                                            .addContactPoint("127.0.0.2").withPort(c.getNativeTransportForNode("127.0.0.2"))
                                                                                             .withLoadBalancingPolicy(lbp)
                                                                                             .build();
                  Session session = cluster.connect())
@@ -80,7 +81,7 @@ public class ReprepareOldBehaviourTest extends ReprepareTestBase
     @Test
     public void testReprepareMixedVersionWithoutReset() throws Throwable
     {
-        try (ICluster<IInvokableInstance> c = init(builder().withNodes(2)
+        try (Cluster c = init(builder().withNodes(2)
                                                             .withConfig(config -> config.with(GOSSIP, NETWORK, NATIVE_PROTOCOL))
                                                             .withInstanceInitializer(PrepareBehaviour::oldBehaviour)
                                                             .start()))
@@ -96,8 +97,8 @@ public class ReprepareOldBehaviourTest extends ReprepareTestBase
                     for (boolean clearBetweenExecutions : new boolean[]{ true, false })
                     {
                         try (com.datastax.driver.core.Cluster cluster = com.datastax.driver.core.Cluster.builder()
-                                                                                                        .addContactPoint("127.0.0.1")
-                                                                                                        .addContactPoint("127.0.0.2")
+                                                                                                        .addContactPoint("127.0.0.1").withPort(c.getNativeTransportForNode("127.0.0.1"))
+                                                                                                        .addContactPoint("127.0.0.2").withPort(c.getNativeTransportForNode("127.0.0.2"))
                                                                                                         .withLoadBalancingPolicy(lbp)
                                                                                                         .build();
                              Session session = cluster.connect())

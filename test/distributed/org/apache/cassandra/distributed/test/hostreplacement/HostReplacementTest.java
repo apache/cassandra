@@ -71,6 +71,7 @@ public class HostReplacementTest extends TestBaseImpl
         TokenSupplier even = TokenSupplier.evenlyDistributedTokens(2);
         try (Cluster cluster = Cluster.build(2)
                                       .withConfig(c -> c.with(Feature.GOSSIP, Feature.NETWORK))
+                                      .withDynamicPortAllocation(false)
                                       .withTokenSupplier(node -> even.token(node == 3 ? 2 : node))
                                       .start())
         {
@@ -117,6 +118,7 @@ public class HostReplacementTest extends TestBaseImpl
         try (Cluster cluster = Cluster.build(2)
                                       .withConfig(c -> c.with(Feature.GOSSIP, Feature.NETWORK)
                                                         .set(Constants.KEY_DTEST_API_STARTUP_FAILURE_AS_SHUTDOWN, false))
+                                      .withDynamicPortAllocation(false)
                                       .withTokenSupplier(node -> even.token(node == 3 ? 2 : node))
                                       .start())
         {
@@ -155,6 +157,7 @@ public class HostReplacementTest extends TestBaseImpl
         TokenSupplier even = TokenSupplier.evenlyDistributedTokens(3);
         try (Cluster cluster = Cluster.build(3)
                                       .withConfig(c -> c.with(Feature.GOSSIP, Feature.NETWORK))
+                                      .withDynamicPortAllocation(false)
                                       .withTokenSupplier(node -> even.token(node == 4 ? 2 : node))
                                       .start())
         {
