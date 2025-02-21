@@ -57,6 +57,7 @@ import net.bytebuddy.dynamic.loading.ClassLoadingStrategy;
 import net.bytebuddy.implementation.MethodDelegation;
 import net.bytebuddy.implementation.bind.annotation.SuperCall;
 import net.bytebuddy.implementation.bind.annotation.This;
+import org.apache.cassandra.Util;
 import org.apache.cassandra.batchlog.BatchlogManager;
 import org.apache.cassandra.cql3.CQLStatement;
 import org.apache.cassandra.cql3.QueryProcessor;
@@ -93,6 +94,7 @@ import org.apache.cassandra.net.Verb;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.ClientState;
+import org.apache.cassandra.service.accord.AccordService;
 import org.apache.cassandra.service.accord.api.AccordRoutingKey;
 import org.apache.cassandra.service.accord.exceptions.ReadPreemptedException;
 import org.apache.cassandra.service.accord.exceptions.WritePreemptedException;
@@ -149,7 +151,7 @@ public abstract class AccordTestBase extends TestBaseImpl
         if (SHARED_CLUSTER != null)
             SHARED_CLUSTER.close();
     }
-    
+
     @Before
     public void setup()
     {
@@ -164,6 +166,15 @@ public abstract class AccordTestBase extends TestBaseImpl
     {
         for (IInvokableInstance instance : SHARED_CLUSTER)
             instance.runOnInstance(() -> DefaultProgressLogs.unsafePauseForTesting(false));
+
+        truncateSystemTables();
+
+        ClusterUtils.waitForCMSToQuiesce(SHARED_CLUSTER, 1);
+        SHARED_CLUSTER.forEach(() -> Util.spinUntilTrue(() -> ClusterMetadata.current().epoch.getEpoch() ==
+                                                              ((AccordService) AccordService.instance()).configurationService().currentEpoch() &&
+                                                              AccordService.instance().topology().current().epoch() ==
+                                                              ((AccordService) AccordService.instance()).configurationService().currentEpoch(),
+                                                        60));
     }
 
     protected static void assertRowSerial(Cluster cluster, String query, int k, int c, int v, int s)
