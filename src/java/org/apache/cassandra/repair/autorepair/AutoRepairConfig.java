@@ -147,6 +147,12 @@ public class AutoRepairConfig implements Serializable
         return enabled;
     }
 
+    @VisibleForTesting
+    public void setAutoRepairSchedulingEnabled(boolean enabled)
+    {
+        this.enabled = enabled;
+    }
+
     public DurationSpec.IntSecondsBound getAutoRepairHistoryClearDeleteHostsBufferInterval()
     {
         return history_clear_delete_hosts_buffer_interval;
