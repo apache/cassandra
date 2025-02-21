@@ -701,8 +701,7 @@ class TestCqlshOutput(BaseTestCase):
                 AND read_repair = 'BLOCKING'
                 AND transactional_mode = 'off'
                 AND transactional_migration_from = 'none'
-                AND speculative_retry = '99p'
-                AND auto_repair = {'full_enabled': 'true', 'incremental_enabled': 'true', 'preview_repaired_enabled': 'true', 'priority': '0'};""" % quote_name(get_keyspace()))
+                AND speculative_retry = '99p';""" % quote_name(get_keyspace()))
 
         with cqlsh_testrun(tty=True, env=self.default_env) as c:
             for cmdword in ('describe table', 'desc columnfamily'):
