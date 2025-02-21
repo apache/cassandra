@@ -270,6 +270,19 @@ public class DescribeStatementTest extends CQLTester
     @Test
     public void testDescribe() throws Throwable
     {
+        DatabaseDescriptor.getAutoRepairConfig().setAutoRepairSchedulingEnabled(false);
+        helperTestDescribe();
+    }
+
+    @Test
+    public void testDescribeWithAutoRepair() throws Throwable
+    {
+        DatabaseDescriptor.getAutoRepairConfig().setAutoRepairSchedulingEnabled(true);
+        helperTestDescribe();
+    }
+
+    public void helperTestDescribe() throws Throwable
+    {
         try
         {
             execute("CREATE KEYSPACE test WITH REPLICATION = {'class' : 'SimpleStrategy', 'replication_factor' : 1};");
@@ -829,7 +842,7 @@ public class DescribeStatementTest extends CQLTester
         requireNetwork();
         DatabaseDescriptor.setDynamicDataMaskingEnabled(true);
         String souceTable = createTable(KEYSPACE_PER_TEST,
-                                  "CREATE TABLE %s (" +
+                                        "CREATE TABLE %s (" +
                                         "  pk1 text, " +
                                         "  pk2 int MASKED WITH DEFAULT, " +
                                         "  ck1 int, " +
@@ -1118,25 +1131,51 @@ public class DescribeStatementTest extends CQLTester
 
     private static String tableParametersCql()
     {
-        return "additional_write_policy = '99p'\n" +
-               "    AND allow_auto_snapshot = true\n" +
-               "    AND bloom_filter_fp_chance = 0.01\n" +
-               "    AND caching = {'keys': 'ALL', 'rows_per_partition': 'NONE'}\n" +
-               "    AND cdc = false\n" +
-               "    AND comment = ''\n" +
-               "    AND compaction = " + cqlQuoted(CompactionParams.DEFAULT.asMap()) + "\n" +
-               "    AND compression = {'chunk_length_in_kb': '16', 'class': 'org.apache.cassandra.io.compress.LZ4Compressor'}\n" +
-               "    AND memtable = 'default'\n" +
-               "    AND crc_check_chance = 1.0\n" +
-               "    AND default_time_to_live = 0\n" +
-               "    AND extensions = {}\n" +
-               "    AND gc_grace_seconds = 864000\n" +
-               "    AND incremental_backups = true\n" +
-               "    AND max_index_interval = 2048\n" +
-               "    AND memtable_flush_period_in_ms = 0\n" +
-               "    AND min_index_interval = 128\n" +
-               "    AND read_repair = 'BLOCKING'\n" +
-               "    AND speculative_retry = '99p';";
+        if (!DatabaseDescriptor.getAutoRepairConfig().isAutoRepairSchedulingEnabled())
+        {
+            return "additional_write_policy = '99p'\n" +
+                   "    AND allow_auto_snapshot = true\n" +
+                   "    AND bloom_filter_fp_chance = 0.01\n" +
+                   "    AND caching = {'keys': 'ALL', 'rows_per_partition': 'NONE'}\n" +
+                   "    AND cdc = false\n" +
+                   "    AND comment = ''\n" +
+                   "    AND compaction = " + cqlQuoted(CompactionParams.DEFAULT.asMap()) + "\n" +
+                   "    AND compression = {'chunk_length_in_kb': '16', 'class': 'org.apache.cassandra.io.compress.LZ4Compressor'}\n" +
+                   "    AND memtable = 'default'\n" +
+                   "    AND crc_check_chance = 1.0\n" +
+                   "    AND default_time_to_live = 0\n" +
+                   "    AND extensions = {}\n" +
+                   "    AND gc_grace_seconds = 864000\n" +
+                   "    AND incremental_backups = true\n" +
+                   "    AND max_index_interval = 2048\n" +
+                   "    AND memtable_flush_period_in_ms = 0\n" +
+                   "    AND min_index_interval = 128\n" +
+                   "    AND read_repair = 'BLOCKING'\n" +
+                   "    AND speculative_retry = '99p';";
+        }
+        else
+        {
+            return "additional_write_policy = '99p'\n" +
+                   "    AND allow_auto_snapshot = true\n" +
+                   "    AND bloom_filter_fp_chance = 0.01\n" +
+                   "    AND caching = {'keys': 'ALL', 'rows_per_partition': 'NONE'}\n" +
+                   "    AND cdc = false\n" +
+                   "    AND comment = ''\n" +
+                   "    AND compaction = " + cqlQuoted(CompactionParams.DEFAULT.asMap()) + "\n" +
+                   "    AND compression = {'chunk_length_in_kb': '16', 'class': 'org.apache.cassandra.io.compress.LZ4Compressor'}\n" +
+                   "    AND memtable = 'default'\n" +
+                   "    AND crc_check_chance = 1.0\n" +
+                   "    AND default_time_to_live = 0\n" +
+                   "    AND extensions = {}\n" +
+                   "    AND gc_grace_seconds = 864000\n" +
+                   "    AND incremental_backups = true\n" +
+                   "    AND max_index_interval = 2048\n" +
+                   "    AND memtable_flush_period_in_ms = 0\n" +
+                   "    AND min_index_interval = 128\n" +
+                   "    AND read_repair = 'BLOCKING'\n" +
+                   "    AND speculative_retry = '99p'\n" +
+                   "    AND auto_repair = {'full_enabled': 'true', 'incremental_enabled': 'true', 'preview_repaired_enabled': 'true', 'priority': '0'};";
+        }
     }
 
     private static String cqlQuoted(Map<String, String> map)
@@ -1146,24 +1185,49 @@ public class DescribeStatementTest extends CQLTester
 
     private static String mvParametersCql()
     {
-        return "additional_write_policy = '99p'\n" +
-               "    AND allow_auto_snapshot = true\n" +
-               "    AND bloom_filter_fp_chance = 0.01\n" +
-               "    AND caching = {'keys': 'ALL', 'rows_per_partition': 'NONE'}\n" +
-               "    AND cdc = false\n" +
-               "    AND comment = ''\n" +
-               "    AND compaction = " + cqlQuoted(CompactionParams.DEFAULT.asMap()) + "\n" +
-               "    AND compression = {'chunk_length_in_kb': '16', 'class': 'org.apache.cassandra.io.compress.LZ4Compressor'}\n" +
-               "    AND memtable = 'default'\n" +
-               "    AND crc_check_chance = 1.0\n" +
-               "    AND extensions = {}\n" +
-               "    AND gc_grace_seconds = 864000\n" +
-               "    AND incremental_backups = true\n" +
-               "    AND max_index_interval = 2048\n" +
-               "    AND memtable_flush_period_in_ms = 0\n" +
-               "    AND min_index_interval = 128\n" +
-               "    AND read_repair = 'BLOCKING'\n" +
-               "    AND speculative_retry = '99p';";
+        if (!DatabaseDescriptor.getAutoRepairConfig().isAutoRepairSchedulingEnabled())
+        {
+            return "additional_write_policy = '99p'\n" +
+                   "    AND allow_auto_snapshot = true\n" +
+                   "    AND bloom_filter_fp_chance = 0.01\n" +
+                   "    AND caching = {'keys': 'ALL', 'rows_per_partition': 'NONE'}\n" +
+                   "    AND cdc = false\n" +
+                   "    AND comment = ''\n" +
+                   "    AND compaction = " + cqlQuoted(CompactionParams.DEFAULT.asMap()) + "\n" +
+                   "    AND compression = {'chunk_length_in_kb': '16', 'class': 'org.apache.cassandra.io.compress.LZ4Compressor'}\n" +
+                   "    AND memtable = 'default'\n" +
+                   "    AND crc_check_chance = 1.0\n" +
+                   "    AND extensions = {}\n" +
+                   "    AND gc_grace_seconds = 864000\n" +
+                   "    AND incremental_backups = true\n" +
+                   "    AND max_index_interval = 2048\n" +
+                   "    AND memtable_flush_period_in_ms = 0\n" +
+                   "    AND min_index_interval = 128\n" +
+                   "    AND read_repair = 'BLOCKING'\n" +
+                   "    AND speculative_retry = '99p';";
+        }
+        else
+        {
+            return "additional_write_policy = '99p'\n" +
+                   "    AND allow_auto_snapshot = true\n" +
+                   "    AND bloom_filter_fp_chance = 0.01\n" +
+                   "    AND caching = {'keys': 'ALL', 'rows_per_partition': 'NONE'}\n" +
+                   "    AND cdc = false\n" +
+                   "    AND comment = ''\n" +
+                   "    AND compaction = " + cqlQuoted(CompactionParams.DEFAULT.asMap()) + "\n" +
+                   "    AND compression = {'chunk_length_in_kb': '16', 'class': 'org.apache.cassandra.io.compress.LZ4Compressor'}\n" +
+                   "    AND memtable = 'default'\n" +
+                   "    AND crc_check_chance = 1.0\n" +
+                   "    AND extensions = {}\n" +
+                   "    AND gc_grace_seconds = 864000\n" +
+                   "    AND incremental_backups = true\n" +
+                   "    AND max_index_interval = 2048\n" +
+                   "    AND memtable_flush_period_in_ms = 0\n" +
+                   "    AND min_index_interval = 128\n" +
+                   "    AND read_repair = 'BLOCKING'\n" +
+                   "    AND speculative_retry = '99p'\n" +
+                   "    AND auto_repair = {'full_enabled': 'true', 'incremental_enabled': 'true', 'preview_repaired_enabled': 'true', 'priority': '0'};";
+        }
     }
 
     private static String keyspaceOutput()
