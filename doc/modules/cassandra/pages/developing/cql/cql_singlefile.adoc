@@ -16,7 +16,7 @@ between the different versions of CQL v3.
 CQL v3 offers a model very close to SQL in the sense that data is put in
 _tables_ containing _rows_ of _columns_. For that reason, when used in
 this document, these terms (tables, rows and columns) have the same
-definition than they have in SQL. But please note that as such, they do
+definition as they have in SQL. But please note that as such, they do
 *not* refer to the concept of rows and columns found in the internal
 implementation of Cassandra and in the thrift and CQL v2 API.
 
@@ -62,18 +62,18 @@ A number of such identifiers, like `SELECT` or `WITH`, are _keywords_.
 They have a fixed meaning for the language and most are reserved. The
 list of those keywords can be found in link:#appendixA[Appendix A].
 
-Identifiers and (unquoted) keywords are case insensitive. Thus `SELECT`
-is the same than `select` or `sElEcT`, and `myId` is the same than
+Identifiers and (unquoted) keywords are case-insensitive. Thus `SELECT`
+is the same as `select` or `sElEcT`, and `myId` is the same as
 `myid` or `MYID` for instance. A convention often used (in particular by
 the samples of this documentation) is to use upper case for keywords and
 lower case for other identifiers.
 
 There is a second kind of identifiers called _quoted identifiers_
 defined by enclosing an arbitrary sequence of characters in
-double-quotes(`"`). Quoted identifiers are never keywords. Thus
+double-quotes(`"`). Quoted identifiers are never keywords. Thus,
 `"select"` is not a reserved keyword and can be used to refer to a
 column, while `select` would raise a parse error. Also, contrarily to
-unquoted identifiers and keywords, quoted identifiers are case sensitive
+unquoted identifiers and keywords, quoted identifiers are case-sensitive
 (`"My Quoted Id"` is _different_ from `"my quoted id"`). A fully
 lowercase quoted identifier that matches `[a-zA-Z]``[a-zA-Z0-9_]``*` is
 equivalent to the unquoted identifier obtained by removing the
@@ -82,7 +82,7 @@ different from `"myId"`). Inside a quoted identifier, the double-quote
 character can be repeated to escape it, so `"foo "" bar"` is a valid
 identifier.
 
-*Warning*: _quoted identifiers_ allows to declare columns with arbitrary
+*Warning*: _quoted identifiers_ allow for declaring columns with arbitrary
 names, and those can sometime clash with specific names used by the
 server. For instance, when using conditional update, the server will
 respond with a result-set containing a special result named
@@ -98,7 +98,7 @@ function call (like `"f(x)"`).
 CQL defines the following kind of _constants_: strings, integers,
 floats, booleans, uuids and blobs:
 
-* A string constant is an arbitrary sequence of characters characters
+* A string constant is an arbitrary sequence of characters
 enclosed by single-quote(`'`). One can include a single-quote in a
 string by repeating it, e.g. `'It''s raining today'`. Those are not to
 be confused with quoted identifiers that use double-quotes.
@@ -110,10 +110,10 @@ be confused with quoted identifiers that use double-quotes.
 case-insensitivity (i.e. `True` is a valid boolean constant).
 * A http://en.wikipedia.org/wiki/Universally_unique_identifier[UUID]
 constant is defined by `hex{8}-hex{4}-hex{4}-hex{4}-hex{12}` where `hex`
-is an hexadecimal character, e.g. `[0-9a-fA-F]` and `{4}` is the number
+is a hexadecimal character, e.g. `[0-9a-fA-F]` and `{4}` is the number
 of such characters.
-* A blob constant is an hexadecimal number defined by `0[xX](hex)+`
-where `hex` is an hexadecimal character, e.g. `[0-9a-fA-F]`.
+* A blob constant is a hexadecimal number defined by `0[xX](hex)+`
+where `hex` is a hexadecimal character, e.g. `[0-9a-fA-F]`.
 
 For how these constants are typed, see the link:#types[data types
 section].
@@ -123,7 +123,7 @@ section].
 CQL has the notion of a _term_, which denotes the kind of values that
 CQL support. Terms are defined by:
 
-[source, bnf]
+[source,bnf]
 ----
 include::cassandra:example$BNF/term.bnf[]
 ----
@@ -220,12 +220,12 @@ will be valid in practice. Most notably, `<variable>` and nested
 A `<variable>` can be either anonymous (a question mark (`?`)) or named
 (an identifier preceded by `:`). Both declare a bind variables for
 link:#preparedStatement[prepared statements]. The only difference
-between an anymous and a named variable is that a named one will be
+between an anonymous and a named variable is that a named one will be
 easier to refer to (how exactly depends on the client driver used).
 
 The `<properties>` production is use by statement that create and alter
 keyspaces and tables. Each `<property>` is either a _simple_ one, in
-which case it just has a value, or a _map_ one, in which case it’s value
+which case it just has a value, or a _map_ one, in which case its value
 is a map grouping sub-options. The following will refer to one or the
 other as the _kind_ (_simple_ or _map_) of the property.
 
@@ -263,7 +263,7 @@ multiple times with different concrete values.
 In a statement, each time a column value is expected (in the data
 manipulation and query statements), a `<variable>` (see above) can be
 used instead. A statement with bind variables must then be _prepared_.
-Once it has been prepared, it can executed by providing concrete values
+Once prepared, it can executed by providing concrete values
 for the bind variables. The exact procedure to prepare a statement and
 execute a prepared statement depends on the CQL driver used and is
 beyond the scope of this document.
@@ -282,7 +282,7 @@ bind markers are used, the names for the query parameters will be
 _Syntax:_
 
 [source,bnf]
-::= CREATE KEYSPACE (IF NOT EXISTS)? WITH
+include::cassandra:example$BNF/create_ks.bnf[]
 
 _Sample:_
 
@@ -302,8 +302,7 @@ The `CREATE KEYSPACE` statement creates a new top-level _keyspace_. A
 keyspace is a namespace that defines a replication strategy and some
 options for a set of tables. Valid keyspaces names are identifiers
 composed exclusively of alphanumerical characters and whose length is
-lesser or equal to 32. Note that as identifiers, keyspace names are case
-insensitive: use a quoted identifier for case sensitive keyspace names.
+lesser or equal to 32. Note that as identifiers, keyspace names are case-insensitive: use a quoted identifier for case sensitive keyspace names.
 
 The supported `<properties>` for `CREATE KEYSPACE` are:
 
@@ -342,12 +341,12 @@ will be a no-op if the keyspace already exists.
 _Syntax:_
 
 [source,bnf]
-::= USE
+include::cassandra:example$BNF/use_ks.bnf[]
 
 _Sample:_
 
 [source,sql]
-USE myApp;
+include::cassandra:example$CQL/use_ks.cql[]
 
 The `USE` statement takes an existing keyspace name as argument and set
 it as the per-connection current working keyspace. All subsequent
@@ -361,14 +360,12 @@ another USE statement is issued or the connection terminates.
 _Syntax:_
 
 [source,bnf]
-::= ALTER KEYSPACE (IF EXISTS)? WITH
+include::cassandra:example$BNF/alter_ks.bnf[]
 
 _Sample:_
 
 [source,sql]
-ALTER KEYSPACE Excelsior
-WITH replication = {'class': 'SimpleStrategy', 'replication_factor' :
-4};
+include::cassandra:example$CQL/alter_ks.cql[]
 
 The `ALTER KEYSPACE` statement alters the properties of an existing
 keyspace. The supported `<properties>` are the same as for the
@@ -385,13 +382,13 @@ _Syntax:_
 _Sample:_
 
 [source,sql]
- DROP KEYSPACE myApp;
+DROP KEYSPACE myApp;
 
 A `DROP KEYSPACE` statement results in the immediate, irreversible
 removal of an existing keyspace, including all column families in it,
 and all data contained in those column families.
 
-If the keyspace does not exists, the statement will return an error,
+If the keyspace does not exist, the statement will return an error,
 unless `IF EXISTS` is used in which case the operation is a no-op.
 
 [[createTableStmt]]
@@ -400,42 +397,15 @@ unless `IF EXISTS` is used in which case the operation is a no-op.
 _Syntax:_
 
 [source,bnf]
-----
-::= CREATE ( TABLE | COLUMNFAMILY ) ( IF NOT EXISTS )?
-`(' ( `,' )* `)'
-( WITH ( AND )* )?
-
-::= ( STATIC )? ( PRIMARY KEY )?
-| PRIMARY KEY `(' ( `,' )* `)'
-
-::=
-| `(' (`,' )* `)'
-
-::=
-| COMPACT STORAGE
-| CLUSTERING ORDER
-----
+include::cassandra:example$BNF/create_table.bnf[]
 
 _Sample:_
 
 [source,sql]
 ----
-CREATE TABLE monkeySpecies (
-species text PRIMARY KEY,
-common_name text,
-population varint,
-average_size int
-) WITH comment='Important biological records';
-
-CREATE TABLE timeline (
-userid uuid,
-posted_month int,
-posted_time uuid,
-body text,
-posted_by text,
-PRIMARY KEY (userid, posted_month, posted_time)
-) WITH compaction = { 'class' : 'LeveledCompactionStrategy' };
+include::cassandra:example$CQL/create_table.cql[]
 ----
+
 The `CREATE TABLE` statement creates a new table. Each such table is a
 set of _rows_ (usually representing related entities) for which it
 defines a number of properties. A table is defined by a
@@ -523,16 +493,10 @@ partition (having the same partition key). For instance, in:
 
 [source,sql]
 ----
-CREATE TABLE test (
-pk int,
-t int,
-v text,
-s text static,
-PRIMARY KEY (pk, t)
-);
-INSERT INTO test(pk, t, v, s) VALUES (0, 0, 'val0', 'static0');
-INSERT INTO test(pk, t, v, s) VALUES (0, 1, 'val1', 'static1');
-SELECT * FROM test WHERE pk=0 AND t=0;
+include::cassandra:example$CQL/create_static_column.cql[]
+
+include::cassandra:example$CQL/insert_static_data.cql[]
+include::cassandra:example$CQL/select_static_data.cql[]
 ----
 
 the last query will return `'static1'` as value for `s`, since `s` is
@@ -632,14 +596,14 @@ supported by the default classes are:
 enabled or not.
 
 |`tombstone_threshold` |_all_ |0.2 |A ratio such that if a sstable has
-more than this ratio of gcable tombstones over all contained columns,
+more than this ratio of GC eligable tombstones over all contained columns,
 the sstable will be compacted (with no other sstables) for the purpose
 of purging those tombstones.
 
 |`tombstone_compaction_interval` |_all_ |1 day |The minimum time to wait
 after an sstable creation time before considering it for ``tombstone
 compaction'', where ``tombstone compaction'' is the compaction triggered
-if the sstable has more gcable tombstones than `tombstone_threshold`.
+if the sstable has more GC eligible tombstones than `tombstone_threshold`.
 
 |`unchecked_tombstone_compaction` |_all_ |false |Setting this to true
 enables more aggressive tombstone compactions - single sstable tombstone
@@ -649,7 +613,7 @@ successful.
 |`min_sstable_size` |SizeTieredCompactionStrategy |50MB |The size tiered
 strategy groups SSTables to compact in buckets. A bucket groups SSTables
 that differs from less than 50% in size. However, for small sizes, this
-would result in a bucketing that is too fine grained. `min_sstable_size`
+would result in a bucketing that is too fine-grained. `min_sstable_size`
 defines a size threshold (in bytes) below which all SSTables belong to
 one unique bucket
 
@@ -677,7 +641,7 @@ given partition key are never split into 2 sstables
 
 |`timestamp_resolution` |TimeWindowCompactionStrategy |MICROSECONDS |The
 timestamp resolution used when inserting data, could be MILLISECONDS,
-MICROSECONDS etc (should be understandable by Java TimeUnit) - don’t
+MICROSECONDS etc. (should be understandable by Java TimeUnit) - don’t
 change this unless you do mutations with USING TIMESTAMP (or equivalent
 directly in the client)
 
@@ -711,7 +675,7 @@ Use `'enabled' : false` to disable compression. Custom compressor can be
 provided by specifying the full class name as a link:#constants[string
 constant]. | | |
 
-|`enabled` |true |By default compression is enabled. To disable it, set
+|`enabled` |true |By default, compression is enabled. To disable it, set
 `enabled` to `false` |`chunk_length_in_kb` |64KB |On disk SSTables are
 compressed by block (to allow random reads). This defines the size (in
 KB) of said block. Bigger values may improve the compression rate, but
@@ -750,28 +714,15 @@ haven’t) when creating a table.
 _Syntax:_
 
 [source,bnf]
-----
-::= ALTER (TABLE | COLUMNFAMILY) (IF EXISTS)?
+include::cassandra:example$BNF/alter_table.bnf[]
 
-::= ADD (IF NOT EXISTS)?
-| ADD  (IF NOT EXISTS)? ( ( , )* )
-| DROP (IF EXISTS)?
-| DROP (IF EXISTS)? ( ( , )* )
-| RENAME (IF EXISTS)? TO (AND TO)*
-| WITH ( AND )*
-----
 
 _Sample:_
 
 [source,sql]
 ----
-ALTER TABLE addamsFamily
-
-ALTER TABLE addamsFamily
-ADD gravesite varchar;
-
-ALTER TABLE addamsFamily
-WITH comment = 'A most excellent and useful column family';
+include::cassandra:example$CQL/alter_table_add_column.cql[]
+include::cassandra:example$CQL/alter_table_with_comment.cql[]
 ----
 
 The `ALTER` statement is used to manipulate table definitions. It allows
@@ -789,13 +740,13 @@ cannot be added to tables defined with the `COMPACT STORAGE` option.
 If the new column already exists, the statement will return an error, unless `IF NOT EXISTS` is used in which case the operation is a no-op.
 * `DROP`: Removes a column from the table. Dropped columns will
 immediately become unavailable in the queries and will not be included
-in compacted sstables in the future. If a column is readded, queries
+in compacted sstables in the future. If a column is read, queries
 won’t return values written before the column was last dropped. It is
 assumed that timestamps represent actual time, so if this is not your
 case, you should NOT read previously dropped columns. Columns can’t be
 dropped from tables defined with the `COMPACT STORAGE` option.
 If the dropped column does not already exist, the statement will return an error, unless `IF EXISTS` is used in which case the operation is a no-op.
-* `RENAME` a primary key column of a table. Non primary key columns cannot be renamed.
+* `RENAME` a primary key column of a table. Non-primary key columns cannot be renamed.
 Furthermore, renaming a column to another name which already exists isn't allowed.
 It's important to keep in mind that renamed columns shouldn't have dependent seconday indexes.
 If the renamed column does not already exist, the statement will return an error, unless `IF EXISTS` is used in which case the operation is a no-op.
@@ -853,12 +804,12 @@ conversions are allowed.
 _Syntax:_
 
 [source,bnf]
-::= DROP TABLE ( IF EXISTS )?
+include::cassandra:example$BNF/drop_table.bnf[]
 
 _Sample:_
 
 [source,sql]
- DROP TABLE worldSeriesAttendees;
+DROP TABLE worldSeriesAttendees;
 
 The `DROP TABLE` statement results in the immediate, irreversible
 removal of a table, including all data contained in it. As for table
@@ -873,12 +824,12 @@ If the table does not exist, the statement will return an error, unless
 _Syntax:_
 
 [source,bnf]
-::= TRUNCATE ( TABLE | COLUMNFAMILY )?
+include::cassandra:example$BNF/truncate_table.bnf[]
 
 _Sample:_
 
 [source,sql]
- TRUNCATE superImportantData;
+TRUNCATE superImportantData;
 
 The `TRUNCATE` statement permanently removes all data from a table.
 
@@ -893,27 +844,12 @@ desired.
 _Syntax:_
 
 [source,bnf]
-----
-::= CREATE ( CUSTOM )? INDEX ( IF NOT EXISTS )? ( )?
-ON `(' `)'
-( USING ( WITH OPTIONS = )? )?
-
-::=
-| keys( )
-----
+include::cassandra:example$BNF/create_index_statement.bnf[]
 
 _Sample:_
 
 [source,sql]
-----
-CREATE INDEX userIndex ON NerdMovies (user);
-CREATE INDEX ON Mutants (abilityId);
-CREATE INDEX ON users (keys(favs));
-CREATE INDEX ON users (age) USING 'sai';
-CREATE CUSTOM INDEX ON users (email) USING 'path.to.the.IndexClass';
-CREATE CUSTOM INDEX ON users (email) USING 'path.to.the.IndexClass' WITH
-OPTIONS = {'storage': '/mnt/ssd/indexes/'};
-----
+include::cassandra:example$CQL/create_index.cql[]
 
 If data already exists for the column, it will be indexed
 asynchronously. After the index is created, new data for the column is
@@ -927,7 +863,7 @@ If it is used, the statement will be a no-op if the index already exists.
 The `USING` keyword optionally specifies an index type. There are two built-in types:
 
 - legacy_local_table - (default) legacy secondary index, implemented as a hidden local table
-- sai - "storage-attched" index, implemented via optimized SSTable/Memtable-attached indexes
+- sai - "storage-attached" index, implemented via optimized SSTable/Memtable-attached indexes
 
 To create a custom index, a fully qualified class name must be specified.
 
@@ -946,7 +882,7 @@ the map values.
 _Syntax:_
 
 [source,bnf]
-DROP INDEX ( IF EXISTS )? ('.')?
+include::cassandra:example$BNF/drop_index_statement.bnf[]
 
 _Sample:_
 
@@ -960,7 +896,7 @@ The `DROP INDEX` statement is used to drop an existing secondary index.
 The argument of the statement is the index name, which may optionally
 specify the keyspace of the index.
 
-If the index does not exists, the statement will return an error, unless
+If the index does not exist, the statement will return an error, unless
 `IF EXISTS` is used in which case the operation is a no-op.
 
 [[createMVStmt]]
@@ -969,29 +905,15 @@ If the index does not exists, the statement will return an error, unless
 _Syntax:_
 
 [source,bnf]
-----
-::= CREATE MATERIALIZED VIEW ( IF NOT EXISTS )? AS
-SELECT ( `(' ( `,' ) * `)' | `*' )
-FROM
-( WHERE )?
-PRIMARY KEY `(' ( `,' )* `)'
-( WITH ( AND )* )?
-----
+include::cassandra:example$BNF/create_mv_statement.bnf[]
 
 _Sample:_
 
 [source,sql]
-----
-CREATE MATERIALIZED VIEW monkeySpecies_by_population AS
-SELECT *
-FROM monkeySpecies
-WHERE population IS NOT NULL AND species IS NOT NULL
-PRIMARY KEY (population, species)
-WITH comment='Allow query by population instead of species';
-----
+include::cassandra:example$CQL/create_mv_statement.cql[]
 
 The `CREATE MATERIALIZED VIEW` statement creates a new materialized
-view. Each such view is a set of _rows_ which corresponds to rows which
+view. Each such view is a set of _rows_  corresponding to rows which
 are present in the underlying, or base, table specified in the `SELECT`
 statement. A materialized view cannot be directly updated, but updates
 to the base table will cause corresponding updates in the view.
@@ -1020,7 +942,7 @@ _Syntax:_
 [source,bnf]
 ::= ALTER MATERIALIZED VIEW WITH ( AND )*
 
-The `ALTER MATERIALIZED VIEW` statement allows options to be update;
+The `ALTER MATERIALIZED VIEW` statement allows options to be updated;
 these options are the same as `CREATE TABLE`’s options.
 
 [[dropMVStmt]]
@@ -1029,7 +951,7 @@ these options are the same as `CREATE TABLE`’s options.
 _Syntax:_
 
 [source,bnf]
-::= DROP MATERIALIZED VIEW ( IF EXISTS )?
+include::cassandra:example$BNF/drop_mv_statement.bnf[]
 
 _Sample:_
 
@@ -1039,7 +961,7 @@ DROP MATERIALIZED VIEW monkeySpecies_by_population;
 The `DROP MATERIALIZED VIEW` statement is used to drop an existing
 materialized view.
 
-If the materialized view does not exists, the statement will return an
+If the materialized view does not exist, the statement will return an
 error, unless `IF EXISTS` is used in which case the operation is a
 no-op.
 
@@ -1049,14 +971,7 @@ no-op.
 _Syntax:_
 
 [source,bnf]
-----
-::= CREATE TYPE ( IF NOT EXISTS )?
-`(' ( `,' )* `)'
-
-::= ( `.' )?
-
-::=
-----
+include::cassandra:example$BNF/create_type.bnf[]
 
 _Sample:_
 
@@ -1141,13 +1056,12 @@ is used, in which case the operation is a no-op.
 _Syntax:_
 
 [source,bnf]
-::= CREATE TRIGGER ( IF NOT EXISTS )? ( )? ON USING
+include::cassandra:example$BNF/create_trigger_statement.bnf[]
 
 _Sample:_
 
 [source,sql]
-CREATE TRIGGER myTrigger ON myTable USING
-'org.apache.cassandra.triggers.InvertedIndex';
+include::cassandra:example$CQL/create_trigger.cql[]
 
 The actual logic that makes up the trigger can be written in any Java
 (JVM) language and exists outside the database. You place the trigger
@@ -1163,12 +1077,12 @@ the transaction.
 _Syntax:_
 
 [source,bnf]
-::= DROP TRIGGER ( IF EXISTS )? ( )? ON
+include::cassandra:example$BNF/drop_trigger_statement.bnf[]
 
 _Sample:_
 
 [source,sql]
-DROP TRIGGER myTrigger ON myTable;
+include::cassandra:example$CQL/drop_trigger.cql[]
 
 `DROP TRIGGER` statement removes the registration of a trigger created
 using `CREATE TRIGGER`.
@@ -1180,35 +1094,15 @@ _Syntax:_
 
 [source,bnf]
 ----
-::= CREATE ( OR REPLACE )?
-FUNCTION ( IF NOT EXISTS )?
-( `.' )?
-`(' ( `,' )* `)'
-( CALLED | RETURNS NULL ) ON NULL INPUT
-RETURNS
-LANGUAGE
-AS
+include::cassandra:example$BNF/create_function_statement.bnf[]
 ----
 
 _Sample:_
 
 [source,sql]
-CREATE OR REPLACE FUNCTION somefunction
-( somearg int, anotherarg text, complexarg frozen, listarg list )
-RETURNS NULL ON NULL INPUT
-RETURNS text
-LANGUAGE java
-AS $$
-// some Java code
-$$;
-CREATE FUNCTION akeyspace.fname IF NOT EXISTS
-( someArg int )
-CALLED ON NULL INPUT
-RETURNS text
-LANGUAGE java
-AS $$
-// some Java code
-$$;
+----
+include::cassandra:example$CQL/create_function.cql[]
+----
 
 `CREATE FUNCTION` creates or replaces a user-defined function.
 
@@ -1258,19 +1152,12 @@ information.
 _Syntax:_
 
 [source,bnf]
-::= DROP FUNCTION ( IF EXISTS )?
-( `.' )?
-( `(' ( `,' )* `)' )?
+include::cassandra:example$BNF/drop_function_statement.bnf[]
 
 _Sample:_
 
 [source,sql]
-----
-DROP FUNCTION myfunction;
-DROP FUNCTION mykeyspace.afunction;
-DROP FUNCTION afunction ( int );
-DROP FUNCTION afunction ( text );
-----
+include::cassandra:example$CQL/drop_function.cql[]
 
 `DROP FUNCTION` statement removes a function created using
 `CREATE FUNCTION`. +
@@ -1287,16 +1174,7 @@ if it exists.
 _Syntax:_
 
 [source,bnf]
-----
-::= CREATE ( OR REPLACE )?
-AGGREGATE ( IF NOT EXISTS )?
-( `.' )?
-`(' ( `,' )* `)'
-SFUNC
-STYPE
-( FINALFUNC )?
-( INITCOND )?
-----
+include::cassandra:example$BNF/create_aggregate_statement.bnf[]
 
 _Sample:_
 
@@ -1365,21 +1243,12 @@ information.
 _Syntax:_
 
 [source,bnf]
-----
-::= DROP AGGREGATE ( IF EXISTS )?
-( `.' )?
-( `(' ( `,' )* `)' )?
-----
+include::cassandra:example$BNF/drop_aggregate_statement.bnf[]
 
 _Sample:_
 
 [source,sql]
-----
-DROP AGGREGATE myAggregate;
-DROP AGGREGATE myKeyspace.anAggregate;
-DROP AGGREGATE someAggregate ( int );
-DROP AGGREGATE someAggregate ( text );
-----
+include::cassandra:example$CQL/drop_aggregate.cql[]
 
 The `DROP AGGREGATE` statement removes an aggregate created using
 `CREATE AGGREGATE`. You must specify the argument types of the aggregate
@@ -1403,30 +1272,14 @@ _Syntax:_
 
 [source,bnf]
 ----
-::= INSERT INTO
-( ( VALUES )
-| ( JSON ))
-( IF NOT EXISTS )?
-( USING ( AND )* )?
-
-::= `(' ( `,' )* `)'
-
-::= `(' ( `,' )* `)'
-
-::= TIMESTAMP
-| TTL
+include::cassandra:example$BNF/insert_statement.bnf[]
 ----
 
 _Sample:_
 
 [source,sql]
 ----
-INSERT INTO NerdMovies (movie, director, main_actor, year)
-VALUES ('Serenity', 'Joss Whedon', 'Nathan Fillion', 2005)
-USING TTL 86400;
-
-INSERT INTO NerdMovies JSON '{"movie": "Serenity", "director":
-"Joss Whedon", "year": 2005}'
+include::cassandra:example$CQL/insert_statement.cql[]
 ----
 
 The `INSERT` statement writes one or more columns for a given row in a
@@ -1443,7 +1296,7 @@ creation or update happened.
 
 It is however possible to use the `IF NOT EXISTS` condition to only
 insert if the row does not exist prior to the insertion. But please note
-that using `IF NOT EXISTS` will incur a non negligible performance cost
+that using `IF NOT EXISTS` will incur a non-negligible performance cost
 (internally, Paxos will be used) so this should be used sparingly.
 
 All updates for an `INSERT` are applied atomically and in isolation.
@@ -1461,54 +1314,14 @@ _Syntax:_
 
 [source,bnf]
 ----
-::= UPDATE
-( USING ( AND )* )?
-SET ( `,' )*
-WHERE
-( IF ( AND condition )* )?
-
-::= `='
-| `=' (`+' | `-') ( | | )
-| `=' `+'
-| `[' `]' `='
-| `.' `='
-
-::=
-| CONTAINS (KEY)?
-| IN
-| `[' `]'
-| `[' `]' IN
-| `.'
-| `.' IN
-
-::= `<' | `<=' | `=' | `!=' | `>=' | `>'
-::= ( | `(' ( ( `,' )* )? `)')
-
-::= ( AND )*
-
-::= `='
-| `(' (`,' )* `)' `='
-| IN `(' ( ( `,' )* )? `)'
-| IN
-| `(' (`,' )* `)' IN `(' ( ( `,' )* )? `)'
-| `(' (`,' )* `)' IN
-
-::= TIMESTAMP
-| TTL
+include::cassandra:example$BNF/update_statement.bnf[]
 ----
 
 _Sample:_
 
 [source,sql]
 ----
-UPDATE NerdMovies USING TTL 400
-SET director = 'Joss Whedon',
-main_actor = 'Nathan Fillion',
-year = 2005
-WHERE movie = 'Serenity';
-
-UPDATE UserActions SET total = total + 2 WHERE user =
-B70DE1D0-9908-4AE3-BE34-5573E5B09F14 AND action = 'click';
+include::cassandra:example$CQL/update_statement.cql[]
 ----
 
 The `UPDATE` statement writes one or more columns for a given row in a
@@ -1532,7 +1345,7 @@ In an `UPDATE` statement, all updates within the same partition key are
 applied atomically and in isolation.
 
 The `c = c + 3` form of `<assignment>` is used to increment/decrement
-counters. The identifier after the `=' sign *must* be the same than the
+counters. The identifier after the `=' sign *must* be the same as the
 one before the `=' sign (Only increment/decrement is supported on
 counters, not the assignment of a specific value).
 
@@ -1567,48 +1380,13 @@ TTL of 0 will remove the TTL for the inserted or updated values.
 _Syntax:_
 
 [source,bnf]
-----
-::= DELETE ( ( `,' )* )?
-FROM
-( USING TIMESTAMP )?
-WHERE
-( IF ( EXISTS | ( ( AND )*) ) )?
-
-::=
-| `[' `]'
-| `.'
-
-::= ( AND )*
-
-::=
-| `(' (`,' )* `)'
-| IN `(' ( ( `,' )* )? `)'
-| IN
-| `(' (`,' )* `)' IN `(' ( ( `,' )* )? `)'
-| `(' (`,' )* `)' IN
-
-::= `=' | `<' | `>' | `<=' | `>='
-::= ( | `(' ( ( `,' )* )? `)')
-
-::= ( | `!=')
-| CONTAINS (KEY)?
-| IN
-| `[' `]' ( | `!=')
-| `[' `]' IN
-| `.' ( | `!=')
-| `.' IN
-----
+include::cassandra:example$BNF/delete_statement.bnf[]
 
 _Sample:_
 
 [source,sql]
 ----
-DELETE FROM NerdMovies USING TIMESTAMP 1240003134 WHERE movie =
-'Serenity';
-
-DELETE phone FROM Users WHERE userid IN
-(C73DE1D3-AF08-40F3-B124-3FF3E5109F22,
-B70DE1D0-9908-4AE3-BE34-5573E5B09F14);
+include::cassandra:example$CQL/delete_statement.cql[]
 ----
 
 The `DELETE` statement deletes columns and rows. If column names are
@@ -1640,31 +1418,12 @@ sparingly.
 _Syntax:_
 
 [source,bnf]
-----
-::= BEGIN ( UNLOGGED | COUNTER ) BATCH
-( USING ( AND )* )?
-( `;' )*
-APPLY BATCH
-
-::=
-|
-|
-
-::= TIMESTAMP
-----
+include::cassandra:example$BNF/batch_statement.bnf[]
 
 _Sample:_
 
 [source,sql]
-----
-BEGIN BATCH
-INSERT INTO users (userid, password, name) VALUES ('user2', 'ch@ngem3b',
-'second user');
-UPDATE users SET password = 'ps22dhds' WHERE userid = 'user3';
-INSERT INTO users (userid, password) VALUES ('user4', 'ch@ngem3c');
-DELETE name FROM users WHERE userid = 'user1';
-APPLY BATCH;
-----
+include::cassandra:example$CQL/batch_statement.cql[]
 
 The `BATCH` statement group multiple modification statements
 (insertions/updates and deletions) into a single statement. It serves
@@ -1728,66 +1487,14 @@ _Syntax:_
 
 [source,bnf]
 ----
-::= SELECT ( JSON )?
-FROM
-( WHERE )?
-( GROUP BY )?
-( ORDER BY )?
-( PER PARTITION LIMIT )?
-( LIMIT )?
-( ALLOW FILTERING )?
-
-::= DISTINCT?
-
-::= (AS )? ( `,' (AS )? )*
-| `*'
-
-::=
-|
-| WRITETIME `(' `)'
-| MAXWRITETIME `(' `)'
-| COUNT `(' `*' `)'
-| TTL `(' `)'
-| CAST `(' AS `)'
-| `(' ( (`,' )*)? `)'
-| `.'
-| `[' `]'
-| `[' ? .. ? `]'
-
-::= ( AND )*
-
-::=
-| `(' (`,' )* `)'
-| IN `(' ( ( `,' )* )? `)'
-| `(' (`,' )* `)' IN `(' ( ( `,' )* )? `)'
-| TOKEN `(' ( `,' )* `)'
-
-::= `=' | `<' | `>' | `<=' | `>=' | CONTAINS | CONTAINS KEY | NOT CONTAINS | NOT CONTAINS KEY
-::= (`,' )*
-::= ( `,' )*
-::= ( ASC | DESC )?
-::= `(' (`,' )* `)'
+include::cassandra:example$BNF/select_statement.bnf[]
 ----
 
 _Sample:_
 
 [source,sql]
 ----
-SELECT name, occupation FROM users WHERE userid IN (199, 200, 207);
-
-SELECT JSON name, occupation FROM users WHERE userid = 199;
-
-SELECT name AS user_name, occupation AS user_occupation FROM users;
-
-SELECT time, value
-FROM events
-WHERE event_type = 'myEvent'
-AND time > '2011-02-03'
-AND time <= '2012-01-01'
-
-SELECT COUNT (*) FROM users;
-
-SELECT COUNT (*) AS user_count FROM users;
+include::cassandra:example$CQL/select_statement.cql[]
 ----
 
 The `SELECT` statements reads one or more columns for one or more rows
@@ -1800,7 +1507,7 @@ more details.
 [[selectSelection]]
 ===== `<select-clause>`
 
-The `<select-clause>` determines which columns needs to be queried and
+The `<select-clause>` determines which columns need to be queried and
 returned in the result-set. It consists of either the comma-separated
 list of or the wildcard character (`*`) to select all the columns
 defined for the table. Please note that for wildcard `SELECT` queries
@@ -1903,7 +1610,7 @@ relation using the tuple notation. For instance:
 SELECT * FROM posts WHERE userid='john doe' AND (blog_title, posted_at)
 > ('John''s Blog', '2012-01-01')
 
-will request all rows that sorts after the one having ``John’s Blog'' as
+will request all rows that sort after the one having ``John’s Blog'' as
 `blog_tile` and `2012-01-01' for `posted_at` in the clustering order. In
 particular, rows having a `post_at <= '2012-01-01'` will be returned as
 long as their `blog_title > 'John''s Blog'`, which wouldn’t be the case
@@ -1931,12 +1638,12 @@ applies to the map keys.
 The `ORDER BY` option allows to select the order of the returned
 results. It takes as argument a list of column names along with the
 order for the column (`ASC` for ascendant and `DESC` for descendant,
-omitting the order being equivalent to `ASC`). Currently the possible
+omitting the order being equivalent to `ASC`). Currently, the possible
 orderings are limited (which depends on the table
 link:#createTableOptions[`CLUSTERING ORDER`] ):
 
 * if the table has been defined without any specific `CLUSTERING ORDER`,
-then then allowed orderings are the order induced by the clustering
+then allowed orderings are the order induced by the clustering
 columns and the reverse of that one.
 * otherwise, the orderings allowed are the order of the
 `CLUSTERING ORDER` option and the reversed one.
@@ -1944,7 +1651,7 @@ columns and the reverse of that one.
 [[selectGroupBy]]
 ===== `<group-by>`
 
-The `GROUP BY` option allows to condense into a single row all selected
+The `GROUP BY` option allows aggregating values into a single row all selected
 rows that share the same values for a set of columns.
 
 Using the `GROUP BY` option, it is only possible to group rows at the
@@ -1968,7 +1675,7 @@ returned.
 The `LIMIT` option to a `SELECT` statement limits the number of rows
 returned by a query, while the `PER PARTITION LIMIT` option limits the
 number of rows returned for a given partition by the query. Note that
-both type of limit can used in the same statement.
+both type of limits can be used in the same statement.
 
 [[selectAllowFiltering]]
 ===== `ALLOW FILTERING`
@@ -1992,30 +1699,20 @@ their year of birth (with a secondary index on it) and country of
 residence:
 
 [source,sql]
-----
-CREATE TABLE users (
-username text PRIMARY KEY,
-firstname text,
-lastname text,
-birth_year int,
-country text
-)
-
-CREATE INDEX ON users(birth_year);
-----
+include::cassandra:example$CQL/allow_filtering.cql[]
 
 Then the following queries are valid:
 
 [source,sql]
 ----
 SELECT * FROM users;
-SELECT firstname, lastname FROM users WHERE birth_year = 1981;
+SELECT firstname, lastname FROM users WHERE birth_year = 1981 ALLOW FILTERING;
 ----
 
 because in both case, Cassandra guarantees that these queries
 performance will be proportional to the amount of data returned. In
 particular, if no users are born in 1981, then the second query
-performance will not depend of the number of user profile stored in the
+performance will not depend on the number of user profile stored in the
 database (not directly at least: due to secondary index implementation
 consideration, this query may still depend on the number of node in the
 cluster, which indirectly depends on the amount of data stored.
@@ -2050,26 +1747,12 @@ country = 'FR' ALLOW FILTERING;
 _Syntax:_
 
 [source,bnf]
-----
-::= CREATE ROLE ( IF NOT EXISTS )? ( WITH ( AND )* )?
-
-::= PASSWORD =
-| LOGIN =
-| SUPERUSER =
-| OPTIONS =
-----
+include::cassandra:example$BNF/create_role_statement.bnf[]
 
 _Sample:_
 
 [source,sql]
-----
-CREATE ROLE new_role;
-CREATE ROLE alice WITH PASSWORD = 'password_a' AND LOGIN = true;
-CREATE ROLE bob WITH PASSWORD = 'password_b' AND LOGIN = true AND
-SUPERUSER = true;
-CREATE ROLE carlos WITH OPTIONS = { 'custom_option1' : 'option1_value',
-'custom_option2' : 99 };
-----
+include::cassandra:example$CQL/create_role.cql[]
 
 By default roles do not possess `LOGIN` privileges or `SUPERUSER`
 status.
@@ -2084,7 +1767,7 @@ If a role has the `LOGIN` privilege, clients may identify as that role
 when connecting. For the duration of that connection, the client will
 acquire any roles and privileges granted to that role.
 
-Only a client with with the `CREATE` permission on the database roles
+Only a client with the `CREATE` permission on the database roles
 resource may issue `CREATE ROLE` requests (see the
 link:#permissions[relevant section] below), unless the client is a
 `SUPERUSER`. Role management in Cassandra is pluggable and custom
@@ -2108,10 +1791,7 @@ condition unless the `IF NOT EXISTS` option is used. If the option is
 used and the role exists, the statement is a no-op.
 
 [source,sql]
-----
-CREATE ROLE other_role;
-CREATE ROLE IF NOT EXISTS other_role;
-----
+include::cassandra:example$CQL/create_role_ifnotexists.cql[]
 
 [[alterRoleStmt]]
 ==== ALTER ROLE
@@ -2119,19 +1799,12 @@ CREATE ROLE IF NOT EXISTS other_role;
 _Syntax:_
 
 [source,bnf]
-----
-::= ALTER ROLE (IF EXISTS)? ( WITH ( AND )* )?
-
-::= PASSWORD =
-| LOGIN =
-| SUPERUSER =
-| OPTIONS =
-----
+include::cassandra:example$BNF/alter_role_statement.bnf[]
 
 _Sample:_
 
 [source,sql]
-ALTER ROLE bob WITH PASSWORD = 'PASSWORD_B' AND SUPERUSER = false;
+include::cassandra:example$CQL/alter_role.cql[]
 
 If the role does not exist, the statement will return an error, unless `IF EXISTS` is used in which case the operation is a no-op.
 
@@ -2152,7 +1825,7 @@ link:#permissions[permission] on that role
 _Syntax:_
 
 [source,bnf]
-::= DROP ROLE ( IF EXISTS )?
+include::cassandra:example$BNF/drop_role_statement.bnf[]
 
 _Sample:_
 
@@ -2165,7 +1838,7 @@ DROP ROLE IF EXISTS bob;
 `DROP ROLE` requires the client to have `DROP`
 link:#permissions[permission] on the role in question. In addition,
 client may not `DROP` the role with which it identified at login.
-Finaly, only a client with `SUPERUSER` status may `DROP` another
+Finally, only a client with `SUPERUSER` status may `DROP` another
 `SUPERUSER` role. +
 Attempting to drop a role which does not exist results in an invalid
 query condition unless the `IF EXISTS` option is used. If the option is
@@ -2177,12 +1850,12 @@ used and the role does not exist the statement is a no-op.
 _Syntax:_
 
 [source,bnf]
-::= GRANT TO
+include::cassandra:example$BNF/grant_role_statement.bnf[]
 
 _Sample:_
 
 [source,sql]
-GRANT report_writer TO alice;
+include::cassandra:example$CQL/grant_role.cql[]
 
 This statement grants the `report_writer` role to `alice`. Any
 permissions granted to `report_writer` are also acquired by `alice`. +
@@ -2208,12 +1881,12 @@ GRANT role_c TO role_a;
 _Syntax:_
 
 [source,bnf]
-::= REVOKE FROM
+include::cassandra:example$BNF/revoke_role_statement.bnf[]
 
 _Sample:_
 
 [source,sql]
-REVOKE report_writer FROM alice;
+include::cassandra:example$CQL/revoke_role.cql[]
 
 This statement revokes the `report_writer` role from `alice`. Any
 permissions that `alice` has acquired via the `report_writer` role are
@@ -2225,24 +1898,24 @@ also revoked.
 _Syntax:_
 
 [source,bnf]
-::= LIST ROLES ( OF )? ( NORECURSIVE )?
+include::cassandra:example$BNF/list_roles_statement.bnf[]
 
 _Sample:_
 
 [source,sql]
-LIST ROLES;
+include::cassandra:example$CQL/list_roles.cql[]
 
 Return all known roles in the system, this requires `DESCRIBE`
 permission on the database roles resource.
 
 [source,sql]
-LIST ROLES OF 'alice';
+include::cassandra:example$CQL/list_roles_of.cql[]
 
 Enumerate all roles granted to `alice`, including those transitively
-aquired.
+acquired.
 
 [source,sql]
-LIST ROLES OF 'bob' NORECURSIVE
+include::cassandra:example$CQL/list_roles_nonrecursive.cql[]
 
 List all roles directly granted to `bob`.
 
@@ -2252,47 +1925,24 @@ List all roles directly granted to `bob`.
 Prior to the introduction of roles in Cassandra 2.2, authentication and
 authorization were based around the concept of a `USER`. For backward
 compatibility, the legacy syntax has been preserved with `USER` centric
-statments becoming synonyms for the `ROLE` based equivalents.
+statements becoming synonyms for the `ROLE` based equivalents.
 
 _Syntax:_
 
 [source,bnf]
-----
-::= CREATE USER ( IF NOT EXISTS )? ( WITH PASSWORD )? ()?
-
-::= SUPERUSER | NOSUPERUSER
-----
+include::cassandra:example$BNF/create_user_statement.bnf[]
 
 _Sample:_
 
 [source,sql]
-----
-CREATE USER alice WITH PASSWORD 'password_a' SUPERUSER;
-CREATE USER bob WITH PASSWORD 'password_b' NOSUPERUSER;
-----
+include::cassandra:example$CQL/create_user.cql[]
 
 `CREATE USER` is equivalent to `CREATE ROLE` where the `LOGIN` option is
 `true`. So, the following pairs of statements are equivalent:
 
 [source,sql]
 ----
-CREATE USER alice WITH PASSWORD 'password_a' SUPERUSER;
-CREATE ROLE alice WITH PASSWORD = 'password_a' AND LOGIN = true AND
-SUPERUSER = true;
-
-CREATE USER IF NOT EXISTS alice WITH PASSWORD 'password_a' SUPERUSER;
-CREATE ROLE IF NOT EXISTS alice WITH PASSWORD = 'password_a' AND LOGIN =
-true AND SUPERUSER = true;
-
-CREATE USER alice WITH PASSWORD 'password_a' NOSUPERUSER;
-CREATE ROLE alice WITH PASSWORD = 'password_a' AND LOGIN = true AND
-SUPERUSER = false;
-
-CREATE USER alice WITH PASSWORD 'password_a' NOSUPERUSER;
-CREATE ROLE alice WITH PASSWORD = 'password_a' AND LOGIN = true;
-
-CREATE USER alice WITH PASSWORD 'password_a';
-CREATE ROLE alice WITH PASSWORD = 'password_a' AND LOGIN = true;
+include::cassandra:example$CQL/create_user_role.cql[]
 ----
 
 [[alterUserStmt]]
@@ -2301,19 +1951,12 @@ CREATE ROLE alice WITH PASSWORD = 'password_a' AND LOGIN = true;
 _Syntax:_
 
 [source,bnf]
-----
-::= ALTER USER (IF EXISTS)? ( WITH PASSWORD )? ( )?
-
-::= SUPERUSER | NOSUPERUSER
-----
+include::cassandra:example$BNF/alter_user_statement.bnf[]
 
 _Sample:_
 
 [source,sql]
-----
-ALTER USER alice WITH PASSWORD 'PASSWORD_A';
-ALTER USER bob SUPERUSER;
-----
+include::cassandra:example$CQL/alter_user.cql[]
 
 If the user does not exist, the statement will return an error, unless `IF EXISTS` is used in which case the operation is a no-op.
 
@@ -2323,7 +1966,7 @@ If the user does not exist, the statement will return an error, unless `IF EXIST
 _Syntax:_
 
 [source,bnf]
-::= DROP USER ( IF EXISTS )?
+include::cassandra:example$BNF/drop_user_statement.bnf[]
 
 _Sample:_
 
@@ -2339,7 +1982,7 @@ DROP USER IF EXISTS bob;
 _Syntax:_
 
 [source,bnf]
-::= LIST USERS;
+include::cassandra:example$BNF/list_users_statement.bnf[]
 
 _Sample:_
 
@@ -2411,7 +2054,7 @@ used and the identity does not exist the statement is a no-op.
 ==== Permissions
 
 Permissions on resources are granted to roles; there are several
-different types of resources in Cassandra and each type is modelled
+types of resources in Cassandra and each type is modelled
 hierarchically:
 
 * The hierarchy of Data resources, Keyspaces and Tables has the
@@ -2422,7 +2065,7 @@ structure `ALL KEYSPACES` -> `KEYSPACE` -> `TABLE`
 * Resources representing JMX ObjectNames, which map to sets of
 MBeans/MXBeans, have the structure `ALL MBEANS` -> `MBEAN`
 
-Permissions can be granted at any level of these hierarchies and they
+Permissions can be granted at any level of these hierarchies, and they
 flow downwards. So granting a permission on a resource higher up the
 chain automatically grants that same permission on all resources lower
 down. For example, granting `SELECT` on a `KEYSPACE` automatically
@@ -2625,27 +2268,12 @@ wildcard pattern | | |
 _Syntax:_
 
 [source,bnf]
-----
-::= GRANT ( ALL ( PERMISSIONS )? | ( PERMISSION )? ) ON TO
-
-::= CREATE | ALTER | DROP | SELECT | MODIFY | AUTHORIZE | DESCRIBE | UNMASK | SELECT_MASKED
-EXECUTE
-
-::= ALL KEYSPACES
-| KEYSPACE
-| ( TABLE )?
-| ALL ROLES
-| ROLE
-| ALL FUNCTIONS ( IN KEYSPACE )?
-| FUNCTION
-| ALL MBEANS
-| ( MBEAN | MBEANS )
-----
+include::cassandra:example$BNF/grant_permission_statement.bnf[]
 
 _Sample:_
 
 [source,sql]
-GRANT SELECT ON ALL KEYSPACES TO data_reader;
+include::cassandra:example$CQL/grant_perm.cql[]
 
 This gives any user with the role `data_reader` permission to execute
 `SELECT` statements on any table across all keyspaces
@@ -2664,15 +2292,14 @@ This gives any user with the `schema_owner` role permissions to `DROP`
 `keyspace1.table1`.
 
 [source,sql]
-GRANT EXECUTE ON FUNCTION keyspace1.user_function( int ) TO
-report_writer;
+include::cassandra:example$CQL/grant_execute.cql[]
 
 This grants any user with the `report_writer` role permission to execute
 `SELECT`, `INSERT` and `UPDATE` queries which use the function
 `keyspace1.user_function( int )`
 
 [source,sql]
-GRANT DESCRIBE ON ALL ROLES TO role_admin;
+include::cassandra:example$CQL/grant_describe.cql[]
 
 This grants any user with the `role_admin` role permission to view any
 and all roles in the system with a `LIST ROLES` statement
@@ -2698,34 +2325,12 @@ the new resource.
 _Syntax:_
 
 [source,bnf]
-----
-::= REVOKE ( ALL ( PERMISSIONS )? | ( PERMISSION )? ) ON FROM
-
-::= CREATE | ALTER | DROP | SELECT | MODIFY | AUTHORIZE | DESCRIBE | UNMASK | SELECT_MASKED
-EXECUTE
-
-::= ALL KEYSPACES
-| KEYSPACE
-| ( TABLE )?
-| ALL ROLES
-| ROLE
-| ALL FUNCTIONS ( IN KEYSPACE )?
-| FUNCTION
-| ALL MBEANS
-| ( MBEAN | MBEANS )
-----
+include::cassandra:example$BNF/revoke_permission_statement.bnf[]
 
 _Sample:_
 
 [source,sql]
-----
-REVOKE SELECT ON ALL KEYSPACES FROM data_reader;
-REVOKE MODIFY ON KEYSPACE keyspace1 FROM data_writer;
-REVOKE DROP ON keyspace1.table1 FROM schema_owner;
-REVOKE EXECUTE ON FUNCTION keyspace1.user_function( int ) FROM
-report_writer;
-REVOKE DESCRIBE ON ALL ROLES FROM role_admin;
-----
+include::cassandra:example$CQL/revoke_perm.cql[]
 
 [[listPermissionsStmt]]
 ===== LIST PERMISSIONS
@@ -2733,32 +2338,18 @@ REVOKE DESCRIBE ON ALL ROLES FROM role_admin;
 _Syntax:_
 
 [source,bnf]
-----
-::= LIST ( ALL ( PERMISSIONS )? | )
-( ON )?
-( OF ( NORECURSIVE )? )?
-
-::= ALL KEYSPACES
-| KEYSPACE
-| ( TABLE )?
-| ALL ROLES
-| ROLE
-| ALL FUNCTIONS ( IN KEYSPACE )?
-| FUNCTION
-| ALL MBEANS
-| ( MBEAN | MBEANS )
-----
+include::cassandra:example$BNF/list_permissions_statement.bnf[]
 
 _Sample:_
 
 [source,sql]
-LIST ALL PERMISSIONS OF alice;
+include::cassandra:example$CQL/list_perm.cql[]
 
 Show all permissions granted to `alice`, including those acquired
 transitively from any other roles.
 
 [source,sql]
-LIST ALL PERMISSIONS ON keyspace1.table1 OF bob;
+include::cassandra:example$CQL/list_all_perm.cql[]
 
 Show all permissions on `keyspace1.table1` granted to `bob`, including
 those acquired transitively from any other roles. This also includes any
@@ -2769,7 +2360,7 @@ the `NORECURSIVE` switch restricts the results to only those permissions
 which were directly granted to `bob` or one of `bob`’s roles.
 
 [source,sql]
-LIST SELECT PERMISSIONS OF carlos;
+include::cassandra:example$CQL/list_select_perm.cql[]
 
 Show any permissions granted to `carlos` or any of `carlos`’s roles,
 limited to `SELECT` permissions on any resource.
@@ -2820,7 +2411,7 @@ Cassandra). The syntax of types is thus:
 Note that the native types are keywords and as such are
 case-insensitive. They are however not reserved ones.
 
-The following table gives additional informations on the native data
+The following table gives additional information on the native data
 types, and on which kind of link:#constants[constants] each type
 supports:
 
@@ -2849,7 +2440,7 @@ See link:#usingdates[Working with dates] below for more information.
 
 |`inet` |strings |An IP address. It can be either 4 bytes long (IPv4) or
 16 bytes long (IPv6). There is no `inet` constant, IP address should be
-inputed as strings
+inputted as strings
 
 |`int` |integers |32-bit signed int
 
@@ -2959,12 +2550,11 @@ formats:
 ==== Counters
 
 The `counter` type is used to define _counter columns_. A counter column
-is a column whose value is a 64-bit signed integer and on which 2
-operations are supported: incrementation and decrementation (see
+is a column whose value is a 64-bit signed integer and which can be
+incremented or decremented (see
 link:#updateStmt[`UPDATE`] for syntax). Note the value of a counter
 cannot be set. A counter doesn’t exist until first
-incremented/decremented, and the first incrementation/decrementation is
-made as if the previous value was 0. Deletion of counter columns is
+increment or decrement operation, which uses the initial value of 0. Deletion of counter columns is
 supported but have some limitations (see the
 http://wiki.apache.org/cassandra/Counters[Cassandra Wiki] for more
 information).
@@ -3000,10 +2590,10 @@ details).
 * While insertion operations on sets and maps never incur a
 read-before-write internally, some operations on lists do (see the
 section on lists below for details). It is thus advised to prefer sets
-over lists when possible.
+to lists when possible.
 
 Please note that while some of those limitations may or may not be
-loosen in the future, the general rule that collections are for
+loosened in the future, the general rule that collections are for
 denormalizing small amount of data is meant to stay.
 
 [[map]]
@@ -3096,9 +2686,11 @@ Adding and removing values of a set can be accomplished with an `UPDATE`
 by adding/removing new set values to an existing `set` column.
 
 [source,sql]
+----
 UPDATE images SET tags = tags + { 'cute', 'cuddly' } WHERE name =
 'cat.jpg';
 UPDATE images SET tags = tags - { 'lame' } WHERE name = 'cat.jpg';
+----
 
 As with link:#map[maps], TTLs if used only apply to the newly
 inserted/updated _values_.
@@ -3145,8 +2737,8 @@ UPDATE plays SET players = 5, scores = [ 12 ] + scores WHERE id =
 ----
 
 It should be noted that append and prepend are not idempotent
-operations. This means that if during an append or a prepend the
-operation timeout, it is not always safe to retry the operation (as this
+operations. This means that if an append or prepend operation
+ timesout, it is not always safe to retry the operation (as this
 could result in the record appended or prepended twice).
 
 Lists also provides the following operation: setting an element by its
@@ -3196,7 +2788,7 @@ several native functions, described below:
 [[castFun]]
 ==== Cast
 
-The `cast` function can be used to converts one native datatype to
+The `cast` function can be used to convert one native datatype to
 another.
 
 The following table describes the conversions supported by the `cast`
@@ -3284,7 +2876,7 @@ username text,
 
 then the `token` function will take a single argument of type `text` (in
 that case, the partition key is `userid` (there is no clustering columns
-so the partition key is the same than the primary key)), and the return
+so the partition key is the same as the primary key)), and the return
 type will be `bigint`.
 
 [[uuidFun]]
@@ -3304,7 +2896,7 @@ executed). Note that this method is useful for insertion but is largely
 non-sensical in `WHERE` clauses. For instance, a query of the form
 
 [source,sql]
-SELECT * FROM myTable WHERE t = now()
+include::cassandra:example$CQL/timeuuid_now.cql[]
 
 will never return any result by design, since the value returned by
 `now()` is guaranteed to be unique.
@@ -3318,8 +2910,7 @@ _smallest_ (resp. _biggest_) possible `timeuuid` having for timestamp
 `t`. So for instance:
 
 [source,sql]
-SELECT * FROM myTable WHERE t > max_timeuuid('2013-01-01 00:05+0000') AND
-t < min_timeuuid('2013-02-02 10:00+0000')
+include::cassandra:example$CQL/timeuuid_min_max.cql[]
 
 will select all rows where the `timeuuid` column `t` is strictly older
 than `2013-01-01 00:05+0000' but strictly younger than `2013-02-02
@@ -3397,16 +2988,13 @@ The `count` function can be used to count the rows returned by a query.
 Example:
 
 [source,sql]
-----
-SELECT COUNT (*) FROM plays;
-SELECT COUNT (1) FROM plays;
-----
+include::cassandra:example$CQL/count.cql[]
 
 It also can be used to count the non null value of a given column.
 Example:
 
 [source,sql]
-SELECT COUNT (scores) FROM plays;
+include::cassandra:example$CQL/count_nonnull.cql[]
 
 [[maxMinFcts]]
 ==== Max and Min
@@ -3415,7 +3003,7 @@ The `max` and `min` functions can be used to compute the maximum and the
 minimum value returned by a query for a given column.
 
 [source,sql]
-SELECT MIN (players), MAX (players) FROM plays WHERE game = 'quake';
+include::cassandra:example$CQL/min_max.cql[]
 
 [[sumFct]]
 ==== Sum
@@ -3424,7 +3012,7 @@ The `sum` function can be used to sum up all the values returned by a
 query for a given column.
 
 [source,sql]
-SELECT SUM (players) FROM plays;
+include::cassandra:example$CQL/sum.cql[]
 
 [[avgFct]]
 ==== Avg
@@ -3433,7 +3021,7 @@ The `avg` function can be used to compute the average of all the values
 returned by a query for a given column.
 
 [source,sql]
-SELECT AVG (players) FROM plays;
+include::cassandra:example$CQL/avg.cql[]
 
 [[udfs]]
 === User-Defined Functions
@@ -3499,7 +3087,7 @@ User-defined functions can be used in link:#selectStmt[`SELECT`],
 link:#insertStmt[`INSERT`] and link:#updateStmt[`UPDATE`] statements.
 
 The implicitly available `udfContext` field (or binding for script UDFs)
-provides the neccessary functionality to create new UDT and tuple
+provides the necessary functionality to create new UDT and tuple
 values.
 
 [source,sql]
@@ -3777,7 +3365,7 @@ Reserved keywords cannot be used as identifier, they are truly reserved
 for the language (but one can enclose a reserved keyword by
 double-quotes to use it as an identifier). Non-reserved keywords however
 only have a specific meaning in certain context but can used as
-identifer otherwise. The only _raison d’être_ of these non-reserved
+identifier otherwise. The only _raison d’être_ of these non-reserved
 keywords is convenience: some keyword are non-reserved when it was
 always easy for the parser to decide whether they were used as keywords
 or not.
@@ -3964,7 +3552,7 @@ https://issues.apache.org/jira/browse/CASSANDRA-10707)[CASSANDRA-10707].
 * link:#updateOptions[`INSERT/UPDATE options`] for tables having a
 default_time_to_live specifying a TTL of 0 will remove the TTL from the
 inserted or updated values
-* link:#alterTableStmt[`ALTER TABLE`] `ADD` and `DROP` now allow mutiple
+* link:#alterTableStmt[`ALTER TABLE`] `ADD` and `DROP` now allow multiple
 columns to be added/removed
 * New link:#selectLimit[`PER PARTITION LIMIT`] option (see
 https://issues.apache.org/jira/browse/CASSANDRA-7017)[CASSANDRA-7017].
@@ -4005,7 +3593,7 @@ link:#createAggregateStmt[`CREATE AGGREGATE`] and
 link:#dropAggregateStmt[`DROP AGGREGATE`].
 * Allows double-dollar enclosed strings literals as an alternative to
 single-quote enclosed strings.
-* Introduces Roles to supercede user based authentication and access
+* Introduces Roles to supersede user based authentication and access
 control
 * link:#usingdates[`Date`] and link:usingtime[`Time`] data types have
 been added
@@ -4035,7 +3623,7 @@ keyspace
 partition using an `IN` clause on combinations of clustering columns.
 See link:#selectWhere[SELECT WHERE] clauses.
 * `IF NOT EXISTS` and `IF EXISTS` syntax is now supported by
-`CREATE USER` and `DROP USER` statmenets, respectively.
+`CREATE USER` and `DROP USER` statements, respectively.
 
 ==== 3.1.6
 
@@ -4061,9 +3649,9 @@ indexes (see link:#createIndexStmt[CREATE INDEX reference] ).
 
 ==== 3.1.2
 
-* `NaN` and `Infinity` has been added as valid float contants. They are
-now reserved keywords. In the unlikely case you we using them as a
-column identifier (or keyspace/table one), you will noew need to double
+* `NaN` and `Infinity` has been added as valid float constants. They are
+now reserved keywords. In the unlikely case you we're using them as a
+column identifier (or keyspace/table one), you will now need to double
 quote them (see link:#identifiers[quote identifiers] ).
 
 ==== 3.1.1
@@ -4079,10 +3667,10 @@ of `?`).
 
 ==== 3.1.0
 
-* link:#alterTableStmt[ALTER TABLE] `DROP` option has been reenabled for
+* link:#alterTableStmt[ALTER TABLE] `DROP` option has been re-enabled for
 CQL3 tables and has new semantics now: the space formerly used by
 dropped columns will now be eventually reclaimed (post-compaction). You
-should not readd previously dropped columns unless you use timestamps
+should not read previously dropped columns unless you use timestamps
 with microsecond precision (see
 https://issues.apache.org/jira/browse/CASSANDRA-3919[CASSANDRA-3919] for
 more details).
@@ -4121,9 +3709,9 @@ added.
 * Type validation for the link:#constants[constants] has been fixed. For
 instance, the implementation used to allow `'2'` as a valid value for an
 `int` column (interpreting it has the equivalent of `2`), or `42` as a
-valid `blob` value (in which case `42` was interpreted as an hexadecimal
+valid `blob` value (in which case `42` was interpreted as a hexadecimal
 representation of the blob). This is no longer the case, type validation
-of constants is now more strict. See the link:#types[data types] section
+of constants is now stricter. See the link:#types[data types] section
 for details on which constant is allowed for which type.
 * The type validation fixed of the previous point has lead to the
 introduction of link:#constants[blobs constants] to allow inputing
@@ -4134,7 +3722,7 @@ types] section does not list strings constants as valid blobs) and will
 be removed by a future version. If you were using strings as blobs, you
 should thus update your client code ASAP to switch blob constants.
 * A number of functions to convert native types to blobs have also been
-introduced. Furthermore the token function is now also allowed in select
+introduced. Furthermore, the token function is now also allowed in select
 clauses. See the link:#functions[section on functions] for details.
 
 ==== 3.0.1
