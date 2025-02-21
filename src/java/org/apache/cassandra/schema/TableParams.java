@@ -28,6 +28,7 @@ import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Maps;
 
 import org.apache.cassandra.config.CassandraRelevantProperties;
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.Attributes;
 import org.apache.cassandra.cql3.CqlBuilder;
 import org.apache.cassandra.exceptions.ConfigurationException;
@@ -419,9 +420,12 @@ public final class TableParams
                       .newLine();
         }
 
-        builder.append("AND speculative_retry = ").appendWithSingleQuotes(speculativeRetry.toString())
-               .newLine()
-               .append("AND auto_repair = ").append(autoRepair.asMap());
+        builder.append("AND speculative_retry = ").appendWithSingleQuotes(speculativeRetry.toString());
+        if (DatabaseDescriptor.getAutoRepairConfig().isAutoRepairSchedulingEnabled())
+        {
+            builder.newLine()
+                .append("AND auto_repair = ").append(autoRepair.asMap());
+        }
     }
 
     public static final class Builder
