@@ -1294,6 +1294,19 @@ public class TableMetadata implements SchemaElement
             return this;
         }
 
+        public Builder alterColumnConstraints(ColumnIdentifier name, ColumnConstraints constraints)
+        {
+            ColumnMetadata column = columns.get(name.bytes);
+            if (column == null)
+                throw new IllegalArgumentException();
+
+            ColumnMetadata newColumn = column.withNewColumnConstraints(constraints);
+
+            updateColumn(column, newColumn);
+
+            return this;
+        }
+
         Builder alterColumnType(ColumnIdentifier name, AbstractType<?> type)
         {
             ColumnMetadata column = columns.get(name.bytes);
