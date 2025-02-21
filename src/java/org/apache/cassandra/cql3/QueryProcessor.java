@@ -24,8 +24,6 @@ import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import javax.ws.rs.HEAD;
-
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Predicate;
 import com.google.common.collect.Iterables;
@@ -500,20 +498,13 @@ public class QueryProcessor implements QueryHandler
                 if (newPreparedStatementBehaviour)
                 {
                     if (cachedWithoutKeyspace != null && cachedWithoutKeyspace.fullyQualified) // For fully qualified statements, we always skip keyspace to avoid digest switching
-                    {
-                        metrics.preparedCacheIsUsed.inc();
                         return new ResultMessage.Prepared(hashWithoutKeyspace, cachedWithoutKeyspace);
-                    }
 
                     if (clientState.getRawKeyspace() != null && !cachedWithKeyspace.fullyQualified) // For non-fully qualified statements, we always include keyspace to avoid ambiguity
-                    {
-                        metrics.preparedCacheIsUsed.inc();
                         return new ResultMessage.Prepared(hashWithKeyspace, cachedWithKeyspace);
-                    }
                 }
                 else // legacy caches, pre-CASSANDRA-15252 behaviour
                 {
-                    metrics.preparedCacheIsUsed.inc();
                     return new ResultMessage.Prepared(hashWithKeyspace, cachedWithKeyspace);
                 }
             }

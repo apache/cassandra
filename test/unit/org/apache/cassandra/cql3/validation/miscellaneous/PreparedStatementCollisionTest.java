@@ -57,7 +57,6 @@ public class PreparedStatementCollisionTest extends CQLTester
         Assert.assertEquals(preparedSelect2.statementId, preparedSelect3.statementId);
         Assert.assertNull(QueryProcessor.instance.getPrepared(hashWithoutKeyspace));
         Assert.assertEquals(preparedSelect2.statementId, preparedSelect3.statementId);
-        Assert.assertEquals(0, QueryProcessor.metrics.preparedStatementCollisionFound.getCount());
     }
 
     public void helpTestEnsureFullyQualifiedPreparedNoKeyspaceDoNotCollide(boolean newPreparedStatementBehaviour) throws Throwable
@@ -92,8 +91,6 @@ public class PreparedStatementCollisionTest extends CQLTester
         Assert.assertNull(QueryProcessor.instance.getPrepared(hashWithKeyspace2));
         Assert.assertFalse(preparedSelect1.statementId.equals(preparedSelect2.statementId));
         Assert.assertEquals(preparedSelect2.statementId, preparedSelect3.statementId);
-
-        Assert.assertEquals(0, QueryProcessor.metrics.preparedStatementCollisionFound.getCount());
     }
 
     public void helpTestEnsureFullyQualifiedPreparedWithKeyspaceDoNotCollide(boolean newPreparedStatementBehaviour) throws Throwable
@@ -153,8 +150,6 @@ public class PreparedStatementCollisionTest extends CQLTester
         Assert.assertNotNull(QueryProcessor.instance.getPrepared(hashWithKeyspace2));
         Assert.assertFalse(preparedSelect1.statementId.equals(preparedSelect2.statementId));
         Assert.assertEquals(preparedSelect2.statementId, preparedSelect3.statementId);
-
-        Assert.assertEquals(0, QueryProcessor.metrics.preparedStatementCollisionFound.getCount());
     }
 
     @Test
