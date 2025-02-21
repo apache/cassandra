@@ -123,7 +123,7 @@ section].
 CQL has the notion of a _term_, which denotes the kind of values that
 CQL support. Terms are defined by:
 
-[source, bnf]
+[source,bnf]
 ----
 include::cassandra:example$BNF/term.bnf[]
 ----
@@ -1264,7 +1264,7 @@ link:#functionSignature[same rules] as for user-defined functions.
 
 _Syntax:_
 
-[source, bnf]
+[source,bnf]
 ----
 include::cassandra:example$BNF/insert_statement.bnf[]
 ----
@@ -1304,7 +1304,7 @@ counters, while `UPDATE` does.
 
 _Syntax:_
 
-[source, bnf]
+[source,bnf]
 ----
 include::cassandra:example$BNF/update_statement.bnf[]
 ----
@@ -1473,7 +1473,7 @@ used, `TIMESTAMP` *must not* be used in the statements within the batch.
 
 _Syntax:_
 
-[source, bnf]
+[source,bnf]
 ----
 include::cassandra:example$BNF/select_statement.bnf[]
 ----
@@ -1692,7 +1692,7 @@ Then the following queries are valid:
 [source,sql]
 ----
 SELECT * FROM users;
-SELECT firstname, lastname FROM users WHERE birth_year = 1981;
+SELECT firstname, lastname FROM users WHERE birth_year = 1981 ALLOW FILTERING;
 ----
 
 because in both case, Cassandra guarantees that these queries
