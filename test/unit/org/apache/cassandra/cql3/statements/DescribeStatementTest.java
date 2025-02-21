@@ -1136,8 +1136,7 @@ public class DescribeStatementTest extends CQLTester
                "    AND memtable_flush_period_in_ms = 0\n" +
                "    AND min_index_interval = 128\n" +
                "    AND read_repair = 'BLOCKING'\n" +
-               "    AND speculative_retry = '99p'\n" +
-               "    AND auto_repair = {'full_enabled': 'true', 'incremental_enabled': 'true', 'preview_repaired_enabled': 'true', 'priority': '0'};";
+               "    AND speculative_retry = '99p';";
     }
 
     private static String cqlQuoted(Map<String, String> map)
@@ -1164,8 +1163,7 @@ public class DescribeStatementTest extends CQLTester
                "    AND memtable_flush_period_in_ms = 0\n" +
                "    AND min_index_interval = 128\n" +
                "    AND read_repair = 'BLOCKING'\n" +
-               "    AND speculative_retry = '99p'\n" +
-               "    AND auto_repair = {'full_enabled': 'true', 'incremental_enabled': 'true', 'preview_repaired_enabled': 'true', 'priority': '0'};";
+               "    AND speculative_retry = '99p';";
     }
 
     private static String keyspaceOutput()
