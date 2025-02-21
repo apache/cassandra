@@ -43,15 +43,18 @@ echo "Updating port constants by adding (x * 5), where x=$x..."
 # 3. Direct replacements for each original port
 # Note: We use the 'g' (global) flag so multiple occurrences on a line are replaced (if any).
 sed -i.bak \
-  -e "s/7011/$((7011 + x * 5))/g" \
-  -e "s/9041/$((9041 + x * 5))/g" \
-  -e "s/7199/$((7199 + x * 5))/g" \
-  -e "s/7012/$((7012 + x * 5))/g" \
-  -e "s/9042/$((9042 + x * 5))/g" \
+  -e "s/7011/$((7011 + x * 50 - RANDOM % 50))/g" \
+  -e "s/9041/$((9041 + x * 50 - RANDOM % 50))/g" \
+  -e "s/7199/$((7199 + x * 50 - RANDOM % 50))/g" \
+  -e "s/7012/$((7012 + x * 50 - RANDOM % 50))/g" \
+  -e "s/9042/$((9042 + x * 50 - RANDOM % 50))/g" \
   "$FILE"
 
 # 4. Remove backup if you don't need it
 rm -f "${FILE}.bak"
+
+# check ports updated
+git diff
 
 echo "Done! The file has been updated."
 

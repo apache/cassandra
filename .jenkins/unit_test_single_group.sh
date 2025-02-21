@@ -51,10 +51,22 @@ ant build
 
 cd "$PROJECT_DIR"
 
+# Determine the index
+case "$TEST_TASK_NAME" in
+    "testclasslist") index=0 ;;
+    "testclasslist-compression") index=1 ;;
+    "testclasslist-cdc") index=2 ;;
+    *) echo "Invalid TEST_TASK_NAME"; exit 1 ;;
+esac
+
+# Compute the new variable
+NEW_VAR=$((index * 20 + UNIT_TEST_GROUP_ID))
+
+# Output the result
+echo "Computed NEW_VAR: $NEW_VAR"
+
 # update ports
-./.jenkins/update_ports_for_unit_tests.sh "${UNIT_TEST_GROUP_ID}"
-# check ports updated
-git diff
+./.jenkins/update_ports_for_unit_tests.sh "${NEW_VAR}"
 
 dir_path="$PROJECT_DIR/test/unit"
 

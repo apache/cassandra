@@ -28,7 +28,4 @@ vault_secrets:
   - path: /buildkite/migrated-from-jenkins/artifactory-credentials-ARTIFACTORY_AUTH
     alias: ARTIFACTORY_AUTH
 
-agent:
-  queue: "odin-cassandra-ci"
-
 timeout_in_minutes: 480 # 2.5 hours for unit tests + 3.5 hours jvm dtests + 2 hours buffer = 8 hours

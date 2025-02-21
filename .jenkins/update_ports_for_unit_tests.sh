@@ -25,13 +25,13 @@ set -e
 x="$1"
 if [ -z "$x" ]; then
   # Generate a random integer between 100 and 150
-  x=$((100 + RANDOM % 51))
+  x=$((500 + RANDOM % 51))
 fi
 
 echo "Using x = $x"
 
 # 2. Define the YAML file path
-CONFIG_FILE="test/conf/cassandra.yaml"  # Replace with your actual file path
+CONFIG_FILE="test/conf/cassandra.yaml"
 
 # 3. Determine correct sed in-place flag based on OS
 #    - macOS (Darwin) needs `-i ''`
@@ -56,8 +56,8 @@ for param in "${PARAMS[@]}"; do
     continue
   fi
 
-  # old value  to old value + 200 is reserved for jvm dtests
-  new_value=$((old_value + 200 + x * 50 - RANDOM % 50))
+  # old value to old value + 1000 is reserved for jvm dtests
+  new_value=$((old_value + 15000 + x * 50 - RANDOM % 50))
 
   # Use the OS-specific in-place sed argument
   sed "${SED_INPLACE[@]}" "s|^${param}:.*|${param}: ${new_value}|" "${CONFIG_FILE}"
@@ -71,5 +71,8 @@ done
 if [ -n "$new_storage_port" ]; then
   sed "${SED_INPLACE[@]}" "s|seeds: \"127.0.0.1:[0-9]*\"|seeds: \"127.0.0.1:${new_storage_port}\"|" "${CONFIG_FILE}"
 fi
+
+# check ports updated
+git diff
 
 echo "Ports updated successfully!"

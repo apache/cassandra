@@ -26,6 +26,3 @@ timeout_in_minutes: 300
 
 artifact_paths:
   - cassandra-dtest/test_durations_dir/test_durations*
-
-agent:
-  queue: "odin-cassandra-ci"

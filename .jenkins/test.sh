@@ -56,8 +56,6 @@ ant realclean
 
 # update ports
 ./.jenkins/update_ports_for_unit_tests.sh
-# check ports updated
-git diff
 
 if [ "$#" -eq 0 ]; then
     # generate Jacoco code coverage report
