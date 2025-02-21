@@ -116,28 +116,28 @@ public class AutoRepairUtilsV2
     COL_DELETE_HOSTS, COL_DELETE_HOSTS_UPDATE_TIME, COL_REPAIR_TYPE, COL_PID, COL_HOST_ID);
 
     final static String DEL_AUTO_REPAIR_HISTORY = String.format(
-    "DELETE FROM %s.%s WHERE %s = ? AND %s = ? AND %s = ?"
+    "DELETE FROM %s.%s WHERE %s = ? AND %s = ? AND %s = ? IF EXISTS"
     , SchemaConstants.AUTO_REPAIR_KEYSPACE_NAME, AutoRepairKeyspace.AUTO_REPAIR_HISTORY_V2, COL_REPAIR_TYPE, COL_PID,
     COL_HOST_ID);
 
     final static String RECORD_START_REPAIR_HISTORY = String.format(
-    "UPDATE %s.%s SET %s= ?, repair_turn = ? WHERE %s = ? AND %s = ? AND %s = ?"
+    "UPDATE %s.%s SET %s= ?, repair_turn = ? WHERE %s = ? AND %s = ? AND %s = ? IF EXISTS"
     , SchemaConstants.AUTO_REPAIR_KEYSPACE_NAME, AutoRepairKeyspace.AUTO_REPAIR_HISTORY_V2, COL_REPAIR_START_TS,
     COL_REPAIR_TYPE, COL_PID, COL_HOST_ID);
 
     final static String RECORD_FINISH_REPAIR_HISTORY = String.format(
 
-    "UPDATE %s.%s SET %s= ?, %s=false WHERE %s = ? AND %s = ? AND %s = ?"
+    "UPDATE %s.%s SET %s= ?, %s=false WHERE %s = ? AND %s = ? AND %s = ? IF EXISTS"
     , SchemaConstants.AUTO_REPAIR_KEYSPACE_NAME, AutoRepairKeyspace.AUTO_REPAIR_HISTORY_V2, COL_REPAIR_FINISH_TS,
     COL_FORCE_REPAIR, COL_REPAIR_TYPE, COL_PID, COL_HOST_ID);
 
     final static String CLEAR_DELETE_HOSTS = String.format(
-    "UPDATE %s.%s SET %s= {} WHERE %s = ? AND %s = ? AND %s = ?"
+    "UPDATE %s.%s SET %s= {} WHERE %s = ? AND %s = ? AND %s = ?  IF EXISTS"
     , SchemaConstants.AUTO_REPAIR_KEYSPACE_NAME, AutoRepairKeyspace.AUTO_REPAIR_HISTORY_V2, COL_DELETE_HOSTS,
     COL_REPAIR_TYPE, COL_PID, COL_HOST_ID);
 
     final static String SET_FORCE_REPAIR = String.format(
-    "UPDATE %s.%s SET %s=true  WHERE %s = ? AND %s = ? AND %s = ?"
+    "UPDATE %s.%s SET %s=true  WHERE %s = ? AND %s = ? AND %s = ? IF EXISTS"
     , SchemaConstants.AUTO_REPAIR_KEYSPACE_NAME, AutoRepairKeyspace.AUTO_REPAIR_HISTORY_V2, COL_FORCE_REPAIR,
     COL_REPAIR_TYPE, COL_PID, COL_HOST_ID);
 

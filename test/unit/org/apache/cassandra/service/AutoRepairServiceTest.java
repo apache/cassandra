@@ -313,6 +313,9 @@ public class AutoRepairServiceTest
             QueryProcessor.executeInternal(String.format(
             "TRUNCATE %s.%s",
             SchemaConstants.AUTO_REPAIR_KEYSPACE_NAME, AutoRepairKeyspace.AUTO_REPAIR_PRIORITY_V2));
+            QueryProcessor.executeInternal(String.format(
+            "INSERT INTO %s.%s (pid, host_id, repair_type) VALUES (0, %s, '%s')",
+            SchemaConstants.AUTO_REPAIR_KEYSPACE_NAME, AutoRepairKeyspace.AUTO_REPAIR_HISTORY_V2, Gossiper.instance.getHostId(InetAddressAndPort.getLocalHost()), repairType));
         }
 
         @Test
