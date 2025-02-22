@@ -948,7 +948,7 @@ public final class SchemaKeyspace
         }
         else
         {
-            replicationType = ReplicationType.logged;
+            replicationType = ReplicationType.legacy;
         }
 
         Map<String, String> replication = row.getFrozenTextMap(KeyspaceParams.Option.REPLICATION.toString());
