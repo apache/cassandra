@@ -1,4 +1,5 @@
 5.0.4
+ * Heap and GC jvm flags improvements (CASSANDRA-20296)
  * Fix unparseable YAML in default cassandra.yaml when uncommented for downstream tooling (CASSANDRA-20359)
  * Avoid fetching entire partitions on unresolved static rows in RFP when no static column predicates exist (CASSANDRA-20243)
  * Avoid indexing empty values for non-literals and types that do not allow them (CASSANDRA-20313)
@@ -8,6 +9,7 @@
  * Avoid under-skipping during intersections when an iterator has mixed STATIC and WIDE keys (CASSANDRA-20258)
  * Correct the default behavior of compareTo() when comparing WIDE and STATIC PrimaryKeys (CASSANDRA-20238)
 Merged from 4.1:
+ * Fix SimpleClient ability to release acquired capacity (CASSANDRA-20202)
  * Fix WaitQueue.Signal.awaitUninterruptibly may block forever if invoking thread is interrupted (CASSANDRA-20084)
 Merged from 4.0:
  * Fix autocompletion for role names/user names (CASSANDRA-20175)
