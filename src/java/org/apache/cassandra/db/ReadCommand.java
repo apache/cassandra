@@ -1418,6 +1418,8 @@ public abstract class ReadCommand extends AbstractReadQuery
         {
             out.writeByte(command.kind.ordinal());
             ResponseType responseType = command.responseType();
+            Preconditions.checkArgument(version >= MessagingService.VERSION_52 || !responseType.isLogged(),
+                                        "Can't serialize logged read commands for version " + version);
             out.writeByte(
                     digestFlag(responseType.isSummary())
                     | indexFlag(null != command.indexQueryPlan())
