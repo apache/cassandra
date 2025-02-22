@@ -156,39 +156,12 @@
 # HEAP SETTINGS #
 #################
 
-# Heap size is automatically calculated by cassandra-env based on this
-# formula: max(min(1/2 ram, 1024MB), min(1/4 ram, 8GB))
-# That is:
-# - calculate 1/2 ram and cap to 1024MB
-# - calculate 1/4 ram and cap to 8192MB
-# - pick the max
+# Heap size is automatically calculated by cassandra-env.sh based on the
+# formula: min(1/2 ram, CMS ? 16G : 31G)
 #
 # For production use you may wish to adjust this for your environment.
-# If that's the case, uncomment the -Xmx and Xms options below to override the
-# automatic calculation of JVM heap memory.
-#
-# It is recommended to set min (-Xms) and max (-Xmx) heap sizes to
-# the same value to avoid stop-the-world GC pauses during resize, and
-# so that we can lock the heap in memory on startup to prevent any
-# of it from being swapped out.
-#-Xms4G
-#-Xmx4G
+# If that's the case, see MAX_HEAP_SIZE (and HEAP_NEWSIZE for CMS) in cassandra-env.sh
 
-# Young generation size is automatically calculated by cassandra-env
-# based on this formula: min(100 * num_cores, 1/4 * heap size)
-#
-# The main trade-off for the young generation is that the larger it
-# is, the longer GC pause times will be. The shorter it is, the more
-# expensive GC will be (usually).
-#
-# It is not recommended to set the young generation size if using the
-# G1 GC, since that will override the target pause-time goal.
-# More info: http://www.oracle.com/technetwork/articles/java/g1gc-1984535.html
-#
-# The example below assumes a modern 8-core+ machine for decent
-# times. If in doubt, and if you do not particularly want to tweak, go
-# 100 MB per physical CPU core.
-#-Xmn800M
 
 ###################################
 # EXPIRATION DATE OVERFLOW POLICY #
