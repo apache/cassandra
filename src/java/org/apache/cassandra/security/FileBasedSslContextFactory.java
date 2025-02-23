@@ -308,12 +308,15 @@ public abstract class FileBasedSslContextFactory extends AbstractSslContextFacto
                 return password;
 
             if (StringUtils.isEmpty(passwordFilePath))
-                return null;
+                return password;
 
             File keystorePasswordFile = new File(passwordFilePath);
 
             if (!keystorePasswordFile.exists())
-                return null;
+            {
+                final String msg = format("keystore password file %s does not exist", keystorePasswordFile.path());
+                throw new ConfigurationException(msg);
+            }
 
             try
             {

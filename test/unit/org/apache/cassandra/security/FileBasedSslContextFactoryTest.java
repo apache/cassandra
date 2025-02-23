@@ -104,7 +104,7 @@ public class FileBasedSslContextFactoryTest
         Assert.assertEquals("org.apache.cassandra.security.FileBasedSslContextFactoryTest$TestFileBasedSSLContextFactory",
                             localEncryptionOptions.ssl_context_factory.class_name);
         Assert.assertEquals("keystore_password must be empty", "", localEncryptionOptions.keystore_password);
-        Assert.assertEquals("outbound_keystore_password must empty", "", localEncryptionOptions.outbound_keystore_password);
+        Assert.assertEquals("outbound_keystore_password must be empty", "", localEncryptionOptions.outbound_keystore_password);
 
         TestFileBasedSSLContextFactory sslContextFactory =
         (TestFileBasedSSLContextFactory) localEncryptionOptions.sslContextFactoryInstance;
