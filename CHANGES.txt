@@ -1,4 +1,5 @@
 5.1
+ * Improve performance of DistributedSchema.validate for large schemas (CASSANDRA-20360)
  * Add JSON constraint (CASSANDRA-20273)
  * Prevent invalid constraint combinations (CASSANDRA-20330)
  * Support CREATE TABLE LIKE WITH INDEXES (CASSANDRA-19965)
