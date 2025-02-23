@@ -36,8 +36,12 @@ import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.io.util.File;
+import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.utils.Clock;
+
+import static java.lang.String.format;
 
 /**
  * Abstract implementation for {@link ISslContextFactory} using file based, standard keystore format with the ability
@@ -136,7 +140,7 @@ public abstract class FileBasedSslContextFactory extends AbstractSslContextFacto
         if (password == null)
         {
             String keyName = isOutboundKeystore ? "outbound_" : "";
-            final String msg = String.format("'%skeystore_password' must be specified", keyName);
+            final String msg = format("'%skeystore_password' must be specified", keyName);
             throw new IllegalArgumentException(msg);
         }
     }
@@ -280,15 +284,12 @@ public abstract class FileBasedSslContextFactory extends AbstractSslContextFacto
         public String filePath;
         public String password;
         public String passwordFilePath;
-        public boolean passwordFileUsed;
 
         public FileBasedStoreContext(String keystoreFilePath, String keystorePassword, String keystorePasswordFilePath)
         {
-            FileBasedKeystorePasswordWrapper fileBasedKeystorePasswordWrapper = new FileBasedKeystorePasswordWrapper(keystoreFilePath, keystorePassword, keystorePasswordFilePath);
             this.filePath = keystoreFilePath;
             this.passwordFilePath = keystorePasswordFilePath;
-            this.password = fileBasedKeystorePasswordWrapper.getPassword();
-            this.passwordFileUsed = fileBasedKeystorePasswordWrapper.isPasswordFileUsed();
+            this.password = resolvePassword(keystoreFilePath, keystorePassword, keystorePasswordFilePath);
         }
 
         protected boolean hasKeystore()
@@ -299,6 +300,36 @@ public abstract class FileBasedSslContextFactory extends AbstractSslContextFacto
         protected boolean passwordMatchesIfPresent(String keyPassword)
         {
             return StringUtils.isEmpty(password) || keyPassword.equals(password);
+        }
+
+        private static String resolvePassword(String keystoreFilePath, String password, String passwordFilePath)
+        {
+            if (!StringUtils.isEmpty(password))
+                return password;
+
+            if (StringUtils.isEmpty(passwordFilePath))
+                return null;
+
+            File keystorePasswordFile = new File(passwordFilePath);
+
+            if (!keystorePasswordFile.exists())
+                return null;
+
+            try
+            {
+                // we expect a password to be on the first line
+                List<String> lines = FileUtils.readLines(keystorePasswordFile);
+                if (lines.isEmpty())
+                    return null;
+
+                return lines.get(0);
+            }
+            catch (RuntimeException e)
+            {
+                throw new ConfigurationException(format("'Failed to read keystore password from the %s for %s",
+                                                        keystorePasswordFile, keystoreFilePath),
+                                                 e);
+            }
         }
     }
 }
