@@ -20,7 +20,6 @@ package org.apache.cassandra.metrics;
 
 import java.lang.ref.PhantomReference;
 import java.lang.ref.ReferenceQueue;
-import java.util.Arrays;
 import java.util.BitSet;
 import java.util.Collections;
 import java.util.List;
@@ -32,6 +31,9 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.locks.Lock;
+import java.util.concurrent.locks.ReadWriteLock;
+import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 import com.google.common.annotations.VisibleForTesting;
 
@@ -43,14 +45,35 @@ import static org.apache.cassandra.concurrent.ExecutorFactory.Global.executorFac
 import static org.apache.cassandra.concurrent.InfiniteLoopExecutor.SimulatorSafe.UNSAFE;
 import static org.apache.cassandra.utils.ExecutorUtils.shutdownAndWait;
 
+/**
+ * A thread-local counter implementation designed to use in metrics as an alternative to LongAdder used by Dropwizard metrics.
+ * This implementation has reduced write (increment) CPU usage costs in exchange for a higher read cost.
+ * We keep and increment parts of counters locally for each thread.
+ * To reduce memory footprint per counter they are stored grouped to a long[] array for each thread.
+ * Piggyback volatile visibility is expected for readers who execute getCount method to see recent writes to thread local arrays.
+ * If a metric is not used anymore the position in the array is reused. Phantom references are used to track aliveness of metric users.
+ * When a thread died the counter values accumulated by it are transfered to a shared summaryValues collection.
+ * Threads death is tracked using 2 approaches: FastThreadLocal.onRemoval callback and phantom references to Thread objects.
+ */
 public class ThreadLocalMetrics
 {
     static final AtomicInteger idGenerator = new AtomicInteger();
 
-    private static final Object freeIdsGuard = new Object();
+    private static final Object freeMetricIdSetGuard = new Object();
+
+    @VisibleForTesting
     static final BitSet freeMetricIdSet = new BitSet();
 
-    static final List<ThreadLocalMetrics> allThreadLocalMetrics = new CopyOnWriteArrayList<>();
+    private static final List<ThreadLocalMetrics> allThreadLocalMetrics = new CopyOnWriteArrayList<>();
+
+    /* the lock is used to coordinate the threads which:
+     * 1) transfer values from a dead thread to summaryValues
+     * 2) calculate a getCount value.
+     * Using this lock we want to avoid
+     *  a value temporary lost for a transferring value in getCount
+     *  as well as a double-counting
+     */
+    private static final ReadWriteLock summaryLock = new ReentrantReadWriteLock();
 
     private static final FastThreadLocal<ThreadLocalMetrics> threadLocalMetricsCurrent = new FastThreadLocal<>()
     {
@@ -59,10 +82,7 @@ public class ThreadLocalMetrics
         {
             ThreadLocalMetrics result = new ThreadLocalMetrics();
             allThreadLocalMetrics.add(result);
-            destroyWhenUnreachable(Thread.currentThread(), () -> {
-                result.release();
-                allThreadLocalMetrics.remove(result);
-            });
+            destroyWhenUnreachable(Thread.currentThread(), result::release);
             return result;
         }
 
@@ -71,7 +91,6 @@ public class ThreadLocalMetrics
         protected void onRemoval(ThreadLocalMetrics value)
         {
             value.release();
-            allThreadLocalMetrics.remove(value);
         }
     };
 
@@ -83,13 +102,13 @@ public class ThreadLocalMetrics
 
     static
     {
-        cleaner = executorFactory().infiniteLoop("ThreadLocalMetrics-Cleaner", ThreadLocalMetrics::cleanupRound, UNSAFE);
+        cleaner = executorFactory().infiniteLoop("ThreadLocalMetrics-Cleaner", ThreadLocalMetrics::cleanupOneReference, UNSAFE);
     }
 
     private long[] counterValues = new long[16];
     private volatile int arrayMutations = 0;
 
-    private static void cleanupRound() throws InterruptedException
+    private static void cleanupOneReference() throws InterruptedException
     {
         Object obj = referenceQueue.remove(100);
         if (obj instanceof MetricIdReference)
@@ -159,14 +178,33 @@ public class ThreadLocalMetrics
 
     private void release()
     {
-        for (int metricId = 0; metricId < counterValues.length; metricId++)
+        Lock lock = summaryLock.writeLock();
+        lock.lock();
+        try
         {
-            long value = counterValues[metricId];
-            if (value != 0)
-                getSummary(metricId).addAndGet(value);
+            // we may try to release ThreadLocalMetrics 2 times: onRemoval and by PhantomReference
+            // so this if check is needed to avoid a potential double release
+            if (allThreadLocalMetrics.remove(this))
+                for (int metricId = 0; metricId < counterValues.length; metricId++)
+                {
+                    long value = counterValues[metricId];
+                    if (value != 0)
+                        getSummary(metricId).addAndGet(value);
+                }
+        }
+        finally
+        {
+            lock.unlock();
         }
     }
 
+    /**
+     * If we already have ThreadLocalMetrics instance looked up for the current thread
+     * we can use this method to avoid thread local lookup costs.
+     * It can be used if you need to update several counters at the same time.
+     * @param metricId metric to add a value
+     * @param n valuen to add, can be negative number as well
+     */
     public void addNonStatic(int metricId, long n)
     {
         getNonStatic(metricId)[metricId] += n;
@@ -177,12 +215,14 @@ public class ThreadLocalMetrics
         get(metricId)[metricId] += n;
     }
 
-    private static long getCount(int metricId, boolean reset)
+    private static long getCount(int metricId, boolean resetToZero)
     {
         long summaryLocal;
         long result;
         AtomicLong summary = getSummary(metricId);
-        do
+        Lock readLock = summaryLock.readLock();
+        readLock.lock();
+        try
         {
             summaryLocal = summary.get();
             result = 0;
@@ -202,16 +242,18 @@ public class ThreadLocalMetrics
                             count = currentCounterValues[metricId];
                         }
                     }
+                    // we want to read the actual array in case of a copy of the array by an incrementing thread
                     while (currentArrayMutations != threadLocalMetrics.arrayMutations);
                     result += count;
                 }
             }
-            // we use a kind of optimistic locking here
-            // to get a correct sum of thread-local and summary parts for the total count
-            // in case of a concurrent cleanDeadAndUpdatedSummaries invocation
-        } while (summaryLocal != summary.get());
+        }
+        finally
+        {
+            readLock.unlock();
+        }
         result += summaryLocal;
-        if (reset)
+        if (resetToZero)
             summary.addAndGet(-result); // compensative reset without writing to thread local values
         return result;
     }
@@ -248,14 +290,14 @@ public class ThreadLocalMetrics
         long[] newCounterValues = new long[(int)(metricId * 1.1)];
         System.arraycopy(currentCounterValues, 0, newCounterValues, 0, currentCounterValues.length);
         counterValues = newCounterValues;
-        arrayMutations++; // to provide visibility of the new array to other reading threads
+        arrayMutations++; // to force visibility of the new array to other reading threads, especially when we recycle a metric
         return newCounterValues;
     }
 
     static int allocateMetricId()
     {
         int metricId;
-        synchronized (freeIdsGuard)
+        synchronized (freeMetricIdSetGuard)
         {
             metricId = freeMetricIdSet.nextSetBit(0);
             if (metricId >= 0)
@@ -269,24 +311,35 @@ public class ThreadLocalMetrics
 
     static void recycleMetricId(int metricId)
     {
-        for (ThreadLocalMetrics threadLocalMetrics : allThreadLocalMetrics)
-            if (threadLocalMetrics != null)
-            {
-                long[] currentCounterValues;
-                int currentArrayMutations;
-                do
+        // we use lock here to avoid potential issues when a metric is releasing and a thread is detected as dead at the same time
+        // in this case we may clean a summary value and later the thread removal logic may re-add a non-zero summary value
+        Lock lock = summaryLock.writeLock();
+        lock.lock();
+        try
+        {
+            for (ThreadLocalMetrics threadLocalMetrics : allThreadLocalMetrics)
+                if (threadLocalMetrics != null)
                 {
-                    currentArrayMutations = threadLocalMetrics.arrayMutations;
-                    currentCounterValues = threadLocalMetrics.counterValues;
-                    if (metricId < currentCounterValues.length)
+                    long[] currentCounterValues;
+                    int currentArrayMutations;
+                    do
                     {
-                        currentCounterValues[metricId] = 0;
+                        currentArrayMutations = threadLocalMetrics.arrayMutations;
+                        currentCounterValues = threadLocalMetrics.counterValues;
+                        if (metricId < currentCounterValues.length)
+                        {
+                            currentCounterValues[metricId] = 0;
+                        }
                     }
+                    while (threadLocalMetrics.arrayMutations != currentArrayMutations);
                 }
-                while (threadLocalMetrics.arrayMutations != currentArrayMutations);
-            }
-        summaryValues.remove(metricId);
-        synchronized (freeIdsGuard)
+            summaryValues.remove(metricId);
+        }
+        finally
+        {
+            lock.unlock();
+        }
+        synchronized (freeMetricIdSetGuard)
         {
             freeMetricIdSet.set(metricId);
         }
@@ -300,23 +353,15 @@ public class ThreadLocalMetrics
     static int getAllocatedMetricsCount()
     {
         int freeCount;
-        synchronized (freeIdsGuard) {
+        synchronized (freeMetricIdSetGuard) {
             freeCount = freeMetricIdSet.cardinality();
         }
         return idGenerator.get() - freeCount;
     }
 
     @VisibleForTesting
-    static int getThreadLocalMetricsCount()
+    static int getThreadLocalMetricsObjectsCount()
     {
         return allThreadLocalMetrics.size();
-    }
-
-    @Override
-    public String toString()
-    {
-        return "ThreadLocalMetrics{" +
-               ", counterValues=" + Arrays.toString(counterValues) +
-               '}';
     }
 }
