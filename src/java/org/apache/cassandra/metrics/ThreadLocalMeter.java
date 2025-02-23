@@ -20,9 +20,8 @@ package org.apache.cassandra.metrics;
 
 import java.lang.ref.WeakReference;
 import java.util.ArrayList;
+import java.util.BitSet;
 import java.util.List;
-import java.util.NavigableSet;
-import java.util.concurrent.ConcurrentSkipListSet;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -34,6 +33,18 @@ import org.apache.cassandra.utils.MonotonicClock;
 
 import static java.lang.Math.exp;
 
+/**
+ * An alternative to Dropwizard Meter which implements the same kind of API.
+ * it has more efficent mark operations and consumes less memory.
+ * Only exponential decaying moving average is supported for 1/5/15-minutes rate values.
+ * Tick logic is moved out from a mark operation and always executed in a background thread.
+ * For better cache locality rate values are extracted to a common non thread-local array
+ *  updated by a background thread in bulk.
+ * Counter logic is implemented using @see ThreadLocalMetrics functionality.
+ *
+ * NOTE: Dropwizard Meter is a class and there is no an interface for Dropwizard Meter logic,
+ *   so we have to create an alternative hierarchy.
+ */
 public class ThreadLocalMeter implements Meter
 {
     private static final int INTERVAL_SEC = 5;
@@ -88,13 +99,19 @@ public class ThreadLocalMeter implements Meter
     private static volatile double[] rates = new double[RATES_COUNT * 16];
     static final AtomicInteger rateGroupIdGenerator = new AtomicInteger();
 
-    static final NavigableSet<Integer> freeRateGroupIdSet = new ConcurrentSkipListSet<>();
-
+    private static final Object freeRateGroupIdSetGuard = new Object();
+    private static final BitSet freeRateGroupIdSet = new BitSet();
 
     private static int allocateRateGroupOffset()
     {
-        Integer rateGroupId = freeRateGroupIdSet.pollFirst();
-        if (rateGroupId == null)
+        int rateGroupId;
+        synchronized (freeRateGroupIdSetGuard)
+        {
+            rateGroupId = freeRateGroupIdSet.nextSetBit(0);
+            if (rateGroupId >= 0)
+                freeRateGroupIdSet.clear(rateGroupId);
+        }
+        if (rateGroupId < 0)
         {
             rateGroupId = rateGroupIdGenerator.getAndAdd(RATES_COUNT);
             double[] currentRates = rates;
@@ -161,7 +178,10 @@ public class ThreadLocalMeter implements Meter
         @Override
         public void clean()
         {
-            freeRateGroupIdSet.add(rateGroupId);
+            synchronized (freeRateGroupIdSetGuard)
+            {
+                freeRateGroupIdSet.set(rateGroupId);
+            }
             ThreadLocalMetrics.recycleMetricId(countMetricId);
             ThreadLocalMetrics.recycleMetricId(uncountedMetricId);
         }

@@ -106,7 +106,6 @@ public class ThreadLocalMetrics
     }
 
     private long[] counterValues = new long[16];
-    private volatile int arrayMutations = 0;
 
     private static void cleanupOneReference() throws InterruptedException
     {
@@ -231,19 +230,9 @@ public class ThreadLocalMetrics
                 if (threadLocalMetrics != null)
                 {
                     long count = 0;
-                    long[] currentCounterValues;
-                    long currentArrayMutations;
-                    do
-                    {
-                        currentArrayMutations = threadLocalMetrics.arrayMutations;
-                        currentCounterValues = threadLocalMetrics.counterValues;
-                        if (metricId < currentCounterValues.length)
-                        {
-                            count = currentCounterValues[metricId];
-                        }
-                    }
-                    // we want to read the actual array in case of a copy of the array by an incrementing thread
-                    while (currentArrayMutations != threadLocalMetrics.arrayMutations);
+                    long[] currentCounterValues = threadLocalMetrics.counterValues;
+                    if (metricId < currentCounterValues.length)
+                        count = currentCounterValues[metricId];
                     result += count;
                 }
             }
@@ -275,6 +264,11 @@ public class ThreadLocalMetrics
     {
         return getCount(metricId, true);
     }
+
+    public static ThreadLocalMetrics get() {
+        return threadLocalMetricsCurrent.get();
+    }
+
     private static long[] get(int metricId)
     {
         ThreadLocalMetrics threadLocalMetrics = ThreadLocalMetrics.get();
@@ -290,7 +284,6 @@ public class ThreadLocalMetrics
         long[] newCounterValues = new long[(int)(metricId * 1.1)];
         System.arraycopy(currentCounterValues, 0, newCounterValues, 0, currentCounterValues.length);
         counterValues = newCounterValues;
-        arrayMutations++; // to force visibility of the new array to other reading threads, especially when we recycle a metric
         return newCounterValues;
     }
 
@@ -320,18 +313,9 @@ public class ThreadLocalMetrics
             for (ThreadLocalMetrics threadLocalMetrics : allThreadLocalMetrics)
                 if (threadLocalMetrics != null)
                 {
-                    long[] currentCounterValues;
-                    int currentArrayMutations;
-                    do
-                    {
-                        currentArrayMutations = threadLocalMetrics.arrayMutations;
-                        currentCounterValues = threadLocalMetrics.counterValues;
-                        if (metricId < currentCounterValues.length)
-                        {
-                            currentCounterValues[metricId] = 0;
-                        }
-                    }
-                    while (threadLocalMetrics.arrayMutations != currentArrayMutations);
+                    long[] currentCounterValues = threadLocalMetrics.counterValues;
+                    if (metricId < currentCounterValues.length)
+                        currentCounterValues[metricId] = 0;
                 }
             summaryValues.remove(metricId);
         }
@@ -345,15 +329,12 @@ public class ThreadLocalMetrics
         }
     }
 
-    static ThreadLocalMetrics get() {
-        return threadLocalMetricsCurrent.get();
-    }
-
     @VisibleForTesting
     static int getAllocatedMetricsCount()
     {
         int freeCount;
-        synchronized (freeMetricIdSetGuard) {
+        synchronized (freeMetricIdSetGuard)
+        {
             freeCount = freeMetricIdSet.cardinality();
         }
         return idGenerator.get() - freeCount;
