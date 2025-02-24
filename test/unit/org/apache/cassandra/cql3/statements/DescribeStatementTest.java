@@ -56,7 +56,7 @@ import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
-public class DescribeStatementTest extends CQLTester
+public class  DescribeStatementTest extends CQLTester
 {
     @Test
     public void testSchemaChangeDuringPaging()
@@ -555,9 +555,9 @@ public class DescribeStatementTest extends CQLTester
 
         try
         {
-
             assertRowsNet(executeDescribeNet("DESCRIBE TABLE " + KEYSPACE_PER_TEST + "." + table),
-                          row(KEYSPACE_PER_TEST, "table", table, tableCreateStatement));
+                          row(KEYSPACE_PER_TEST, "table", table, tableCreateStatement),
+                          row(KEYSPACE_PER_TEST, "materialized_view", "mv", mvCreateStatement));
 
             assertRowsNet(executeDescribeNet("DESCRIBE MATERIALIZED VIEW " + KEYSPACE_PER_TEST + ".mv"),
                           row(KEYSPACE_PER_TEST, "materialized_view", "mv", mvCreateStatement));

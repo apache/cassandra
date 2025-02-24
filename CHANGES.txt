@@ -1,4 +1,5 @@
 5.0.4
+ * Include materialized views to the output of DESCRIBE TABLE statements (CASSANDRA-20365)
  * Heap and GC jvm flags improvements (CASSANDRA-20296)
  * Fix unparseable YAML in default cassandra.yaml when uncommented for downstream tooling (CASSANDRA-20359)
  * Avoid fetching entire partitions on unresolved static rows in RFP when no static column predicates exist (CASSANDRA-20243)
