@@ -728,7 +728,7 @@ Table of Contents
   Clients are expected to answer the server challenge by an AUTH_RESPONSE
   message.
 
-4.2.7. AUTH_SUCCESS
+4.2.8. AUTH_SUCCESS
 
   Indicate the success of the authentication phase. See Section 4.2.3 for more
   details.
