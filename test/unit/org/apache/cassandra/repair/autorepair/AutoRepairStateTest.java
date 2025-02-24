@@ -83,7 +83,8 @@ public class AutoRepairStateTest extends CQLTester
     }
 
     @Test
-    public void testGetLastRepairTime() {
+    public void testGetLastRepairTime()
+    {
         AutoRepairState state = RepairType.getAutoRepairState(repairType);
         state.lastRepairTimeInMs = 1;
 
