@@ -73,13 +73,14 @@ public class BadQueriesInSystemLog extends BadQueryReporter
             // emit metric for large partition reads (table level)
             if (operationDetails instanceof LargePartition) {
                 LargePartition op = (LargePartition) operationDetails;
-                ColumnFamilyStore cfs = Keyspace.open(operationDetails.keySpace)
-                                                .getColumnFamilyStore(operationDetails.tableName);
-                if (queryType == BadQuery.BadQueryCategory.LARGE_PARTITION_READ) {
-                    cfs.metric.largePartitionReadSize.inc(op.getSize());
-                }
-                if (queryType == BadQuery.BadQueryCategory.LARGE_PARTITION_WRITE) {
-                    cfs.metric.largePartitionWriteSize.inc(op.getSize());
+                for (ColumnFamilyStore cfs : op.cfs)
+                {
+                    if (queryType == BadQuery.BadQueryCategory.LARGE_PARTITION_READ) {
+                        cfs.metric.largePartitionReadSize.inc(op.getSize());
+                    }
+                    if (queryType == BadQuery.BadQueryCategory.LARGE_PARTITION_WRITE) {
+                        cfs.metric.largePartitionWriteSize.inc(op.getSize());
+                    }
                 }
             }
         }

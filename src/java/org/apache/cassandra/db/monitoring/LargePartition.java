@@ -17,9 +17,15 @@
  */
 package org.apache.cassandra.db.monitoring;
 
+import java.util.Collection;
+import java.util.Collections;
+import java.util.stream.Collectors;
+
+import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.Mutation;
 import org.apache.cassandra.db.ReadCommand;
+import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.MonitoringService;
 import org.apache.commons.lang3.StringUtils;
@@ -28,15 +34,26 @@ public class LargePartition extends BadQueryTypes
 {
     private long size;
     private String keyColumns;
+    // need the column family store for large partition reporting
+    public Collection<ColumnFamilyStore> cfs;
 
-    public LargePartition(String keySpace,
-                          String tableName,
+    public LargePartition(TableMetadata metadata,
                           String keyColumns,
                           long size)
     {
-        super(keySpace, tableName);
+        super(metadata.keyspace, metadata.name);
         this.keyColumns = keyColumns;
         this.size = size;
+        this.cfs = Collections.singleton(Schema.instance.getColumnFamilyStoreInstance(metadata.id));
+    }
+
+    public LargePartition(Mutation mutation,
+                          long size)
+    {
+        super(mutation.getKeyspaceName(), StringUtils.join(mutation.getTableNames(), ":"));
+        this.keyColumns = mutation.getKey();
+        this.size = size;
+        this.cfs = mutation.getMetadatas().stream().map(x -> Schema.instance.getColumnFamilyStoreInstance(x.id)).collect(Collectors.toList());
     }
 
     @Override
@@ -74,7 +91,7 @@ public class LargePartition extends BadQueryTypes
         if (size > MonitoringService.instance.getBadQueryReadMaxPartitionSizeInbytes())
         {
             BadQuery.report(BadQuery.BadQueryCategory.LARGE_PARTITION_READ,
-                    new LargePartition(readCommand.metadata().keyspace, readCommand.metadata().name, readCommand.getKey(), size));
+                    new LargePartition(readCommand.metadata(), readCommand.getKey(), size));
         }
     }
 
@@ -84,7 +101,7 @@ public class LargePartition extends BadQueryTypes
         if (size > MonitoringService.instance.getBadQueryWriteMaxPartitionSizeInbytes())
         {
             BadQuery.report(BadQuery.BadQueryCategory.LARGE_PARTITION_WRITE,
-                    new LargePartition(mutation.getKeyspaceName(), StringUtils.join(mutation.getTableNames(), ":"), mutation.getKey(), size));
+                    new LargePartition(mutation, size));
         }
     }
 
@@ -95,7 +112,7 @@ public class LargePartition extends BadQueryTypes
         if (size > MonitoringService.instance.getBadQueryWriteMaxPartitionSizeInbytes())
         {
             BadQuery.report(BadQuery.BadQueryCategory.LARGE_PARTITION_WRITE,
-                            new LargePartition(metadata.keyspace, metadata.name, metadata.partitionKeyType.getString(decoratedKey.getKey()), size));
+                            new LargePartition(metadata, metadata.partitionKeyType.getString(decoratedKey.getKey()), size));
         }
     }
 

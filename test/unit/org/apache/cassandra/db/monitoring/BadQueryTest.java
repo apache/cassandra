@@ -18,7 +18,8 @@
 package org.apache.cassandra.db.monitoring;
 
 import java.util.Arrays;
-import java.util.List;
+import java.util.Collection;
+import java.util.Collections;
 import java.util.regex.Pattern;
 
 import org.junit.After;
@@ -35,16 +36,18 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.cql3.QueryProcessor;
+import org.apache.cassandra.cql3.statements.schema.IndexTarget;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.marshal.IntegerType;
 import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.schema.ColumnMetadata;
+import org.apache.cassandra.schema.IndexMetadata;
+import org.apache.cassandra.schema.Indexes;
 import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableMetadata;
-import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.MonitoringService;
 import org.apache.cassandra.transport.ProtocolVersion;
 
@@ -53,6 +56,7 @@ public class BadQueryTest extends CQLTester
 {
     private static final String KEYSPACE = "ks";
     private static final String TABLE = "tbl";
+    private static final String INDEX = "v_index";
 
     private static TableMetadata cfm;
     private static ColumnMetadata v;
@@ -62,30 +66,45 @@ public class BadQueryTest extends CQLTester
     ColumnFamilyStore cfs;
     long originalBadQueryWriteMaxPartitionSizeInbytes;
     long originalBadQueryReadMaxPartitionSizeInbytes;
+    private boolean tracingEnabled;
 
-    public BadQueryTest(String badQueryReporter)
+    public BadQueryTest(String badQueryReporter, boolean tracing)
     {
         requireNetwork();
+        tracingEnabled = tracing;
+        DatabaseDescriptor.setBadQueryTracingStatus(tracing);
         DatabaseDescriptor.setBadQueryReporter(badQueryReporter);
         bq = DatabaseDescriptor.getBadQueryReporter();
         BadQuery.setup();
     }
 
     @Parameters()
-    public static List<String> generateData()
+    public static Collection<Object[]> generateData()
     {
-        return Arrays.asList("BadQueriesInSystemLog", "BadQueriesInTable");
+        return Arrays.asList(new Object[][]{ {"BadQueriesInSystemLog", true},
+                                             {"BadQueriesInTable", true},
+                                             {"BadQueriesInSystemLog", false},
+                                             {"BadQueriesInTable", false} });
     }
 
     @BeforeClass
     public static void defineSchema() throws ConfigurationException
     {
-        cfm = TableMetadata.builder(KEYSPACE, TABLE)
-                                .addPartitionKeyColumn("k", UTF8Type.instance)
-                                .addStaticColumn("s", UTF8Type.instance)
-                                .addClusteringColumn("i", IntegerType.instance)
-                                .addRegularColumn("v", UTF8Type.instance)
-                                .build();
+        TableMetadata.Builder builder = TableMetadata.builder(KEYSPACE, TABLE)
+                                                     .addPartitionKeyColumn("k", UTF8Type.instance)
+                                                     .addStaticColumn("s", UTF8Type.instance)
+                                                     .addClusteringColumn("i", IntegerType.instance)
+                                                     .addRegularColumn("v", UTF8Type.instance);
+
+        Indexes.Builder indexes = Indexes.builder();
+        indexes.add(IndexMetadata.fromIndexTargets(Collections.singletonList(
+                                                   new IndexTarget(new ColumnIdentifier("v", true),
+                                                                   IndexTarget.Type.VALUES)),
+                                                   INDEX,
+                                                   IndexMetadata.Kind.COMPOSITES,
+                                                   Collections.EMPTY_MAP));
+        builder.indexes(indexes.build());
+        cfm = builder.build();
 
         SchemaLoader.prepareServer();
         SchemaLoader.createKeyspace(KEYSPACE, KeyspaceParams.simple(1), cfm);
@@ -126,7 +145,7 @@ public class BadQueryTest extends CQLTester
 
     private void executeCQL()
     {
-        QueryProcessor.executeInternal("INSERT INTO ks.tbl (k, s) VALUES ('k', 's')");
+        QueryProcessor.executeInternal("INSERT INTO ks.tbl (k, s, i, v) VALUES ('k', 's', 1, 'v')");
         QueryProcessor.executeInternal("SELECT s FROM ks.tbl WHERE k='k'");
         cfs.forceBlockingFlush(ColumnFamilyStore.FlushReason.UNIT_TESTS);
     }
@@ -138,40 +157,55 @@ public class BadQueryTest extends CQLTester
     }
 
     @Test
-    public void testLargeWritesWithTracingEnabled()
+    public void testLargeWrites()
     {
-        DatabaseDescriptor.setBadQueryTracingStatus(true);
         MonitoringService.instance.setBadQueryWriteMaxPartitionSizeInbytes(0);
         executeCQL();
-        Assert.assertTrue(bq.getBadQueryCategoryQueues().get(BadQuery.BadQueryCategory.LARGE_PARTITION_WRITE).size() > 0);
-        Assert.assertTrue(cfs.metric.largePartitionWriteSize.getCount() > 0);
+        if (tracingEnabled)
+        {
+            Assert.assertTrue(bq.getBadQueryCategoryQueues().get(BadQuery.BadQueryCategory.LARGE_PARTITION_WRITE).size() > 0);
+            Assert.assertTrue(cfs.metric.largePartitionWriteSize.getCount() > 0);
+        }
+        else
+        {
+            Assert.assertTrue(bq.getBadQueryCategoryQueues().get(BadQuery.BadQueryCategory.LARGE_PARTITION_WRITE).size() == 0);
+            Assert.assertTrue(cfs.metric.largePartitionWriteSize.getCount() == 0);
+        }
     }
 
     @Test
-    public void testLargeReadsWithTracingEnabled()
+    public void testLargeReads()
     {
-        DatabaseDescriptor.setBadQueryTracingStatus(true);
-
         MonitoringService.instance.setBadQueryReadMaxPartitionSizeInbytes(0);
         executeCQL();
-        Assert.assertTrue(bq.getBadQueryCategoryQueues().get(BadQuery.BadQueryCategory.LARGE_PARTITION_READ).size() > 0);
-        Assert.assertTrue(cfs.metric.largePartitionReadSize.getCount() > 0);
+        if (tracingEnabled)
+        {
+            Assert.assertTrue(bq.getBadQueryCategoryQueues().get(BadQuery.BadQueryCategory.LARGE_PARTITION_READ).size() > 0);
+            Assert.assertTrue(cfs.metric.largePartitionReadSize.getCount() > 0);
+        }
+        else
+        {
+            Assert.assertTrue(bq.getBadQueryCategoryQueues().get(BadQuery.BadQueryCategory.LARGE_PARTITION_READ).size() == 0);
+            Assert.assertTrue(cfs.metric.largePartitionReadSize.getCount() == 0);
+        }
     }
 
     @Test
-    public void testSlowReadWithTracingEnabled()
+    public void testSlowRead()
     {
-        DatabaseDescriptor.setBadQueryTracingStatus(true);
-
         MonitoringService.instance.setBadQueryReadSlowLocalLatencyInms(Integer.MIN_VALUE);
         executeCQL();
-        Assert.assertTrue(bq.getBadQueryCategoryQueues().get(BadQuery.BadQueryCategory.SLOW_READ_LOCAL).size() > 0);
+        if (tracingEnabled)
+            Assert.assertTrue(bq.getBadQueryCategoryQueues().get(BadQuery.BadQueryCategory.SLOW_READ_LOCAL).size() > 0);
+        else
+            Assert.assertTrue(bq.getBadQueryCategoryQueues().get(BadQuery.BadQueryCategory.SLOW_READ_LOCAL).size() == 0);
     }
 
     @Test
     public void testIgnoreKeyspacePattern()
     {
-        DatabaseDescriptor.setBadQueryTracingStatus(true);
+        if (!tracingEnabled)
+            return;
         MonitoringService.instance.setBadQueryIgnoreKeyspacesPattern(Pattern.compile("system.*|.*staging.*|.*test.*|health|pingless|" + KEYSPACE));
         Assert.assertTrue(bq.getBadQueryCategoryQueues().get(BadQuery.BadQueryCategory.SLOW_READ_LOCAL).size() == 0);
         // below is same as testSlowReadWithTracingEnabled, if keypsace is not ignored, the count will increase
@@ -183,7 +217,8 @@ public class BadQueryTest extends CQLTester
     @Test
     public void testIgnoreKeyspaceUpdateWithKeyspaceCreateAndDrop()
     {
-        DatabaseDescriptor.setBadQueryTracingStatus(true);
+        if (!tracingEnabled)
+            return;
         MonitoringService.instance.setBadQueryIgnoreKeyspacesPattern(Pattern.compile("test.*"));
         String keyspace = "test_keyspace";
         Assert.assertFalse(MonitoringService.instance.getBadQueryIgnoreKeyspaces().contains(keyspace));
@@ -203,77 +238,31 @@ public class BadQueryTest extends CQLTester
     }
 
     @Test
-    public void testTooManyTombstonesWithTracingEnabled()
+    public void testTooManyTombstones()
     {
-        DatabaseDescriptor.setBadQueryTracingStatus(true);
-
         MonitoringService.instance.setBadQueryTombstoneLimit(Integer.MIN_VALUE);
         executeCQL();
-        Assert.assertTrue(bq.getBadQueryCategoryQueues().get(BadQuery.BadQueryCategory.TOO_MANY_TOMBSTONES).size() > 0);
+        if (tracingEnabled)
+            Assert.assertTrue(bq.getBadQueryCategoryQueues().get(BadQuery.BadQueryCategory.TOO_MANY_TOMBSTONES).size() > 0);
+        else
+            Assert.assertTrue(bq.getBadQueryCategoryQueues().get(BadQuery.BadQueryCategory.TOO_MANY_TOMBSTONES).size() == 0);
     }
 
     @Test
-    public void testLargeWritesWithTracingDisabled()
+    public void testMVIsExperimental()
     {
-        DatabaseDescriptor.setBadQueryTracingStatus(false);
-
-        MonitoringService.instance.setBadQueryWriteMaxPartitionSizeInbytes(0);
-        executeCQL();
-        Assert.assertTrue(bq.getBadQueryCategoryQueues().get(BadQuery.BadQueryCategory.LARGE_PARTITION_WRITE).size() == 0);
-        Assert.assertTrue(cfs.metric.largePartitionWriteSize.getCount() == 0);
-    }
-
-    @Test
-    public void testLargeReadsWithTracingDisabled()
-    {
-        DatabaseDescriptor.setBadQueryTracingStatus(false);
-
-        MonitoringService.instance.setBadQueryReadMaxPartitionSizeInbytes(0);
-        executeCQL();
-        Assert.assertTrue(bq.getBadQueryCategoryQueues().get(BadQuery.BadQueryCategory.LARGE_PARTITION_READ).size() == 0);
-        Assert.assertTrue(cfs.metric.largePartitionReadSize.getCount() == 0);
-    }
-
-    @Test
-    public void testSlowReadWithTracingDisabled()
-    {
-        DatabaseDescriptor.setBadQueryTracingStatus(false);
-
-        MonitoringService.instance.setBadQueryReadSlowLocalLatencyInms(Integer.MIN_VALUE);
-        executeCQL();
-        Assert.assertTrue(bq.getBadQueryCategoryQueues().get(BadQuery.BadQueryCategory.SLOW_READ_LOCAL).size() == 0);
-    }
-
-    @Test
-    public void testTooManyTombstonesWithTracingDisabled()
-    {
-        DatabaseDescriptor.setBadQueryTracingStatus(false);
-
-        MonitoringService.instance.setBadQueryTombstoneLimit(Integer.MIN_VALUE);
-        executeCQL();
-        Assert.assertTrue(bq.getBadQueryCategoryQueues().get(BadQuery.BadQueryCategory.TOO_MANY_TOMBSTONES).size() == 0);
-    }
-
-    @Test
-    public void testMVIsExperimentalWithTracingDisabled()
-    {
-        DatabaseDescriptor.setBadQueryTracingStatus(false);
         executeCQLMV();
-        Assert.assertTrue(bq.getBadQueryCategoryQueues().get(BadQuery.BadQueryCategory.MV_IN_USE).size() == 0);
-    }
-
-    @Test
-    public void testMVIsExperimentalWithTracingEnabled()
-    {
-        DatabaseDescriptor.setBadQueryTracingStatus(true);
-        executeCQLMV();
-        Assert.assertTrue(bq.getBadQueryCategoryQueues().get(BadQuery.BadQueryCategory.MV_IN_USE).size() > 0);
+        if (tracingEnabled)
+            Assert.assertTrue(bq.getBadQueryCategoryQueues().get(BadQuery.BadQueryCategory.MV_IN_USE).size() > 0);
+        else
+            Assert.assertTrue(bq.getBadQueryCategoryQueues().get(BadQuery.BadQueryCategory.MV_IN_USE).size() == 0);
     }
 
     @Test
     public void testPreparedCacheOverflow() throws Throwable
     {
-        DatabaseDescriptor.setBadQueryTracingStatus(true);
+        if (!tracingEnabled)
+            return;
         Assert.assertTrue(bq.getBadQueryCategoryQueues().get(BadQuery.BadQueryCategory.PREPARED_CACHE_OVERFLOW).size() == 0);
         BadQuery.checkForPreparedCacheOverflow(0);
         Assert.assertTrue(bq.getBadQueryCategoryQueues().get(BadQuery.BadQueryCategory.PREPARED_CACHE_OVERFLOW).size() == 0);
@@ -284,7 +273,8 @@ public class BadQueryTest extends CQLTester
     @Test
     public void testTierMismatch()
     {
-        DatabaseDescriptor.setBadQueryTracingStatus(true);
+        if (!tracingEnabled)
+            return;
         Assert.assertTrue(bq.getBadQueryCategoryQueues().get(BadQuery.BadQueryCategory.TIER_MISMATCH).size() == 0);
 
         System.setProperty("cassandra.db_tier", "5");

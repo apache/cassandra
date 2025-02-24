@@ -134,6 +134,16 @@ public class Mutation implements IMutation, Supplier<Mutation>
         return tables;
     }
 
+    public Collection<TableMetadata> getMetadatas()
+    {
+        Set<TableMetadata> metadatas = new HashSet<>();
+        for (PartitionUpdate update : modifications.values())
+        {
+            metadatas.add(update.metadata());
+        }
+        return metadatas;
+    }
+
     public String getKey()
     {
         boolean firstRound = true;
