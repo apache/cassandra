@@ -20,6 +20,7 @@ package org.apache.cassandra.repair.autorepair;
 
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -829,7 +830,7 @@ public class AutoRepairParameterizedTest extends CQLTester
     public void testSchedulerIgnoresErrorsFromUnrelatedRepairRunables()
     {
         RepairOption options = new RepairOption(RepairParallelism.PARALLEL, true, repairType == AutoRepairConfig.RepairType.INCREMENTAL, false,
-                                                AutoRepairService.instance.getAutoRepairConfig().getRepairThreads(repairType), Set.of(),
+                                                AutoRepairService.instance.getAutoRepairConfig().getRepairThreads(repairType), Collections.emptySet(),
                                                 false, false, false, PreviewKind.NONE, false, true, false, false, false);
         AutoRepairState repairState = AutoRepair.instance.repairStates.get(repairType);
         AutoRepairState spyState = spy(repairState);
