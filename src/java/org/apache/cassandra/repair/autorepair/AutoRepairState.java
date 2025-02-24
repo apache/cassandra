@@ -47,7 +47,9 @@ import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
-// AutoRepairState represents the state of automated repair for a given repair type.
+/**
+ * AutoRepairState represents the state of automated repair for a given repair type.
+ */
 public abstract class AutoRepairState
 {
     protected static final Logger logger = LoggerFactory.getLogger(AutoRepairState.class);
