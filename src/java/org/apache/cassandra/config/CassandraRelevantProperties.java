@@ -87,6 +87,7 @@ public enum CassandraRelevantProperties
      * yes/null
      */
     CASSANDRA_FOREGROUND("cassandra-foreground"),
+    CASSANDRA_FSERRORHANDLER("cassandra.fserrorhandler"),
     CASSANDRA_JMX_AUTHORIZER("cassandra.jmx.authorizer"),
     CASSANDRA_JMX_LOCAL_PORT("cassandra.jmx.local.port"),
     CASSANDRA_JMX_REMOTE_LOGIN_CONFIG("cassandra.jmx.remote.login.config"),
