@@ -76,6 +76,7 @@ public class ThreadLocalCounterTest
                     for (Counter metric : metricsPerIteration.get(metricSetId))
                         allIncremented &= TASKS_COUNT * (metricsPerIteration.size() - metricSetId) == metric.getCount();
             }
+            assertEquals(THREADS, ThreadLocalMetrics.getThreadLocalMetricsObjectsCount());
             executor.shutdown();
             executor.awaitTermination(30, TimeUnit.SECONDS);
             for (int metricSetId = 0; metricSetId < metricsPerIteration.size(); metricSetId++)

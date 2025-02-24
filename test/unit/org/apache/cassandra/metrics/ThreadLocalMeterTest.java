@@ -157,6 +157,8 @@ public class ThreadLocalMeterTest
 
         ThreadLocalMeter.tickAll(); // to force recycling of empty weak references
         Assert.assertEquals(meters.size(), ThreadLocalMeter.getTickingMetersCount());
+        Assert.assertEquals(1, ThreadLocalMetrics.getThreadLocalMetricsObjectsCount());
+
     }
 
     private static class MeterPair
