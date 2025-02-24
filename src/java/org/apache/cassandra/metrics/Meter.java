@@ -20,6 +20,9 @@ package org.apache.cassandra.metrics;
 
 import com.codahale.metrics.Metered;
 
+/**
+ * An interface which mimics {@link com.codahale.metrics.Meter} API and allows alternative implementations
+ */
 public interface Meter extends Metered
 {
     void mark(long n);

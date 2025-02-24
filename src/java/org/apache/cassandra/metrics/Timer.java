@@ -27,6 +27,9 @@ import com.codahale.metrics.Clock;
 import com.codahale.metrics.Metered;
 import com.codahale.metrics.Sampling;
 
+/**
+ * An interface which mimics {@link com.codahale.metrics.Timer} API and allows alternative implementations
+ */
 public interface Timer extends Metered, Sampling
 {
     /**

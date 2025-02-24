@@ -22,9 +22,9 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLongArray;
+import java.util.concurrent.atomic.LongAdder;
 
 import org.apache.cassandra.metrics.Counter;
-import org.apache.cassandra.metrics.LongAdderCounter;
 import org.apache.cassandra.metrics.ThreadLocalCounter;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
@@ -93,5 +93,39 @@ public class ThreadLocalMetricsBench
     public void increment() {
         for (Counter counter : counters)
             counter.inc();
+    }
+
+    public static class LongAdderCounter implements Counter
+    {
+        private final LongAdder counter = new LongAdder();
+        @Override
+        public void inc()
+        {
+            counter.increment();
+        }
+
+        @Override
+        public void inc(long n)
+        {
+            counter.add(n);
+        }
+
+        @Override
+        public void dec()
+        {
+            counter.decrement();
+        }
+
+        @Override
+        public void dec(long n)
+        {
+            counter.add(-n);
+        }
+
+        @Override
+        public long getCount()
+        {
+            return counter.sum();
+        }
     }
 }

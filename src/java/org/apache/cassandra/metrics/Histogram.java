@@ -22,6 +22,9 @@ import com.codahale.metrics.Counting;
 import com.codahale.metrics.Metric;
 import com.codahale.metrics.Sampling;
 
+/**
+ * An interface which mimics {@link com.codahale.metrics.Histogram} API and allows alternative implementations
+ */
 public interface Histogram extends Metric, Sampling, Counting
 {
     void update(long value);

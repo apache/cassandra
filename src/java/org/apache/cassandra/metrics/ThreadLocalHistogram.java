@@ -21,6 +21,14 @@ package org.apache.cassandra.metrics;
 import com.codahale.metrics.Reservoir;
 import com.codahale.metrics.Snapshot;
 
+/**
+ * An alternative to Dropwizard Histogram which implements the same kind of API.
+ * it has more efficent counting operations and consumes less memory.
+ * The counter logic is implemented using {@link ThreadLocalMetrics} functionality.
+ *
+ * NOTE: Dropwizard Histogram is a concrete class and there is no an interface for Dropwizard Histogram logic,
+ *   so we have to create an alternative hierarchy.
+ */
 public class ThreadLocalHistogram implements Histogram
 {
     private final Reservoir reservoir;

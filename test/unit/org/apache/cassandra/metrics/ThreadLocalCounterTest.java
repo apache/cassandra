@@ -37,7 +37,7 @@ public class ThreadLocalCounterTest
     private static final Logger LOGGER = LoggerFactory.getLogger(ThreadLocalCounterTest.class);
 
     @Test
-    public void test() throws InterruptedException
+    public void testLifecycleAndMultipleInstancesCreation() throws InterruptedException
     {
         final List<List<Counter>> metricsPerIteration = new ArrayList<>();
         int METRICS_COUNT = 50;
@@ -55,6 +55,7 @@ public class ThreadLocalCounterTest
                 metricsPerIteration.add(metrics);
             }
 
+            // note: these threads are FastThreadLocalThread instances
             LocalAwareExecutorPlus executor = executorFactory()
                                               .localAware()
                                               .pooled("executor-" + iteration, THREADS);
@@ -91,5 +92,19 @@ public class ThreadLocalCounterTest
                         ThreadLocalMetrics.freeMetricIdSet);
             LOGGER.info("iteration completed: {} / {}", iteration + 1, ITERATIONS_COUNT);
         }
+    }
+
+    @Test
+    public void testBasicOperations()
+    {
+        Counter counter = new ThreadLocalCounter();
+        counter.inc();
+        assertEquals(1, counter.getCount());
+        counter.inc(15);
+        assertEquals(1 + 15, counter.getCount());
+        counter.dec(10);
+        assertEquals(1 + 15 - 10, counter.getCount());
+        counter.dec();
+        assertEquals(1 + 15 - 10 - 1, counter.getCount());
     }
 }

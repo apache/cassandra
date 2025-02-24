@@ -18,6 +18,14 @@
 
 package org.apache.cassandra.metrics;
 
+/**
+ * An alternative to Dropwizard Counter which implements the same kind of API.
+ * it has more efficent inc/dec operations and consumes less memory.
+ * The counter logic is implemented using {@link ThreadLocalMetrics} functionality.
+ *
+ * NOTE: Dropwizard Counter is a concrete class and there is no an interface for Dropwizard Counter logic,
+ *   so we have to create an alternative hierarchy.
+*/
 public class ThreadLocalCounter implements Counter
 {
     private final int metricId;

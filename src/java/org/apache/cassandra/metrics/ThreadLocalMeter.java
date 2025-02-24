@@ -40,7 +40,7 @@ import static java.lang.Math.exp;
  * Tick logic is moved out from a mark operation and always executed in a background thread.
  * For better cache locality rate values are extracted to a common non thread-local array
  *  updated by a background thread in bulk.
- * Counter logic is implemented using @see ThreadLocalMetrics functionality.
+ * Counter logic inside is implemented using @see ThreadLocalMetrics functionality.
  *
  * NOTE: Dropwizard Meter is a class and there is no an interface for Dropwizard Meter logic,
  *   so we have to create an alternative hierarchy.

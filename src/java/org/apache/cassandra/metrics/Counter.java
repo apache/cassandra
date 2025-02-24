@@ -21,6 +21,9 @@ package org.apache.cassandra.metrics;
 import com.codahale.metrics.Counting;
 import com.codahale.metrics.Metric;
 
+/**
+ * An interface which mimics {@link com.codahale.metrics.Counter} API and allows alternative implementations
+ */
 public interface Counter extends Metric, Counting
 {
     void inc();
@@ -30,6 +33,4 @@ public interface Counter extends Metric, Counting
     void dec();
 
     void dec(long n);
-
-    long getCount();
 }

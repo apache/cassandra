@@ -23,7 +23,7 @@ import java.util.concurrent.atomic.AtomicLong;
 /**
  * This type of Counter is not very efficient for updates but fast to read.
  * It should be used only when getCount performance is critical
- * and we can sucrifice the update speed by multiple threads
+ * and we can sucrifice the cost to update it by multiple threads
  */
 public class AtomicLongCounter implements Counter
 {
