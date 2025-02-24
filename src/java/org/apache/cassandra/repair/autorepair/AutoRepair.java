@@ -324,7 +324,7 @@ public class AutoRepair
                         try
                         {
                             long jobStartTime = timeFunc.get();
-                            listener.await();
+                            listener.await(config.getRepairSessionTimeout(repairType));
                             success = listener.isSuccess();
                             soakAfterRepair(jobStartTime, config.getRepairTaskMinDuration().toMilliseconds());
                         }
@@ -524,10 +524,10 @@ public class AutoRepair
             this.repairType = repairType;
         }
 
-        public void await() throws InterruptedException
+        public void await(DurationSpec.IntSecondsBound repairSessionTimeout) throws InterruptedException
         {
             //if for some reason we don't hear back on repair progress for sometime
-            if (!condition.await(12, TimeUnit.HOURS))
+            if (!condition.await(repairSessionTimeout.to(TimeUnit.SECONDS), TimeUnit.SECONDS))
             {
                 success = false;
             }
@@ -542,7 +542,7 @@ public class AutoRepair
         public void progress(String tag, ProgressEvent event)
         {
             ProgressEventType type = event.getType();
-            String message = String.format("[%s] %s", format.format(System.currentTimeMillis()), event.getMessage());
+            String message = String.format("[%s] %s", format.format(Clock.Global.currentTimeMillis()), event.getMessage());
             if (type == ProgressEventType.ERROR)
             {
                 logger.error("Repair failure for repair {}: {}", repairType.toString(), message);

@@ -920,6 +920,6 @@ public class AutoRepairParameterizedTest extends CQLTester
         AutoRepair.RepairProgressListener listener = new AutoRepair.RepairProgressListener(repairType);
         listener.progress("test", new ProgressEvent(ProgressEventType.COMPLETE, 0, 0, "test"));
 
-        listener.await();
+        listener.await(new DurationSpec.IntSecondsBound("12h"));
     }
 }
