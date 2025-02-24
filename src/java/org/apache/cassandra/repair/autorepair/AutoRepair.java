@@ -527,7 +527,7 @@ public class AutoRepair
         public void await(DurationSpec.IntSecondsBound repairSessionTimeout) throws InterruptedException
         {
             //if for some reason we don't hear back on repair progress for sometime
-            if (!condition.await(repairSessionTimeout.to(TimeUnit.SECONDS), TimeUnit.SECONDS))
+            if (!condition.await(repairSessionTimeout.toSeconds(), TimeUnit.SECONDS))
             {
                 success = false;
             }
