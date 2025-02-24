@@ -47,18 +47,8 @@ import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
-<<<<<<< HEAD
-import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
-import static org.apache.cassandra.utils.concurrent.Condition.newOneTimeCondition;
-
-/**
- * AutoRepairState represents the state of automated repair for a given repair type.
- */
-public abstract class AutoRepairState implements ProgressListener
-=======
 // AutoRepairState represents the state of automated repair for a given repair type.
 public abstract class AutoRepairState
->>>>>>> 0542e95397 (Fix race condition in auto-repair scheduler)
 {
     protected static final Logger logger = LoggerFactory.getLogger(AutoRepairState.class);
     private final SimpleDateFormat format = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss,SSS");
