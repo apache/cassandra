@@ -25,6 +25,7 @@ import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 
+import org.apache.cassandra.concurrent.Shutdownable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -33,6 +34,7 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.Mutation;
 import org.apache.cassandra.utils.Clock;
 
+import static java.util.concurrent.TimeUnit.MINUTES;
 import static java.util.concurrent.TimeUnit.NANOSECONDS;
 import static org.apache.cassandra.concurrent.ExecutorFactory.Global.executorFactory;
 import static org.apache.cassandra.concurrent.ExecutorFactory.SimulatorSemantics.DISCARD;
@@ -44,7 +46,7 @@ import static org.apache.cassandra.utils.MonotonicClock.Global.preciseTime;
  *
  * Borrowed heavily from RequestCallbacks
  */
-public class ReadReconciliations
+public class ReadReconciliations implements Shutdownable
 {
     private static final Logger logger = LoggerFactory.getLogger(ReadReconciliations.class);
 
@@ -135,6 +137,39 @@ public class ReadReconciliations
 
         if (info.reconciliation.addMutationsToRead(mutations))
             reconciliations.remove(reconciliationId);
+    }
+
+    @Override
+    public void shutdown()
+    {
+        executor.shutdown();
+    }
+
+    @Override
+    public boolean isTerminated()
+    {
+        return executor.isTerminated();
+    }
+
+    @Override
+    public Object shutdownNow()
+    {
+        return executor.shutdownNow();
+    }
+
+    public void shutdownBlocking() throws InterruptedException
+    {
+        if (executor == null || executor.isTerminated())
+            return;
+
+        executor.shutdown();
+        executor.awaitTermination(1, MINUTES);
+    }
+
+    @Override
+    public boolean awaitTermination(long timeout, TimeUnit units) throws InterruptedException
+    {
+        return executor.awaitTermination(timeout, units);
     }
 
     public static long defaultExpirationInterval()
