@@ -29,7 +29,6 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
 
-import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 
 import org.apache.cassandra.auth.AuthKeyspace;
@@ -92,18 +91,11 @@ public class DistributedSchema implements MetadataValue<DistributedSchema>
 
     public DistributedSchema(Keyspaces keyspaces, Epoch epoch)
     {
-        this(keyspaces, epoch, true);
-    }
-
-    @VisibleForTesting
-    public DistributedSchema(Keyspaces keyspaces, Epoch epoch, boolean validate)
-    {
         Objects.requireNonNull(keyspaces);
         this.keyspaces = keyspaces;
         this.epoch = epoch;
         this.version = new UUID(0, epoch.getEpoch());
-        if (validate)
-            validate();
+        validate();
     }
 
     @Override
@@ -410,8 +402,7 @@ public class DistributedSchema implements MetadataValue<DistributedSchema>
         return Objects.hash(keyspaces, version);
     }
 
-    @VisibleForTesting
-    protected void validate()
+    private void validate()
     {
         keyspaces.forEach(ksm -> {
             ksm.tables.forEach(tm -> Preconditions.checkArgument(tm.keyspace.equals(ksm.name), "Table %s metadata points to keyspace %s while defined in keyspace %s", tm.name, tm.keyspace, ksm.name));
