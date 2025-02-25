@@ -18,9 +18,12 @@
 package org.apache.cassandra.config;
 
 import java.lang.reflect.Constructor;
+import java.lang.reflect.InvocationTargetException;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Predicate;
+import java.util.stream.Collectors;
 
 import com.google.common.base.Objects;
 
@@ -36,7 +39,7 @@ public class ParameterizedClass
     public static final String PARAMETERS = "parameters";
 
     public String class_name;
-    public Map<String, String> parameters;
+    public Map<String, String> parameters = Collections.emptyMap();
 
     public ParameterizedClass()
     {
@@ -46,25 +49,24 @@ public class ParameterizedClass
     public ParameterizedClass(String class_name)
     {
         this.class_name = class_name;
-        this.parameters = Collections.emptyMap();
     }
 
     public ParameterizedClass(String class_name, Map<String, String> parameters)
     {
         this.class_name = class_name;
-        this.parameters = parameters;
+        this.parameters = parameters == null ? Collections.emptyMap() : parameters;
     }
 
     @SuppressWarnings("unchecked")
     public ParameterizedClass(Map<String, ?> p)
     {
         this((String)p.get(CLASS_NAME),
-             p.containsKey(PARAMETERS) ? (Map<String, String>)((List<?>)p.get(PARAMETERS)).get(0) : null);
+             p.containsKey(PARAMETERS) ? (Map<String, String>)((List<?>)p.get(PARAMETERS)).get(0) : Collections.emptyMap());
     }
 
     static public <K> K newInstance(ParameterizedClass parameterizedClass, List<String> searchPackages)
     {
-        Exception last = null;
+        Class<?> providerClass = null;
         if (searchPackages == null || searchPackages.isEmpty())
             searchPackages = Collections.singletonList("");
         for (String searchPackage : searchPackages)
@@ -74,32 +76,61 @@ public class ParameterizedClass
                 if (!searchPackage.isEmpty() && !searchPackage.endsWith("."))
                     searchPackage = searchPackage + '.';
                 String name = searchPackage + parameterizedClass.class_name;
-                Class<?> providerClass = Class.forName(name);
-                try
-                {
-                    Constructor<?> constructor = providerClass.getConstructor(Map.class);
-                    K instance = (K) constructor.newInstance(parameterizedClass.parameters);
-                    return instance;
-                }
-                catch (Exception constructorEx)
-                {
-                    //no-op
-                }
-                // fallback to no arg constructor if no params present
-                if (parameterizedClass.parameters == null || parameterizedClass.parameters.isEmpty())
-                {
-                    Constructor<?> constructor = providerClass.getConstructor();
-                    K instance = (K) constructor.newInstance();
-                    return instance;
-                }
+                providerClass = Class.forName(name);
             }
-            // there are about 5 checked exceptions that could be thrown here.
-            catch (Exception e)
+            catch (ClassNotFoundException e)
             {
-                last = e;
+                //no-op
             }
         }
-        throw new ConfigurationException("Unable to create parameterized class " + parameterizedClass.class_name, last);
+
+        if (providerClass == null)
+        {
+            String pkgList = '[' + searchPackages.stream().map(p -> '"' + p + '"').collect(Collectors.joining(",")) + ']';
+            String error = "Unable to find class " + parameterizedClass.class_name + " in packages " + pkgList;
+            throw new ConfigurationException(error);
+        }
+
+        try
+        {
+            Constructor<?> mapConstructor = filterConstructor(providerClass, c -> c.getParameterTypes().length == 1 && c.getParameterTypes()[0].equals(Map.class));
+            if (mapConstructor != null)
+                return (K) mapConstructor.newInstance(parameterizedClass.parameters == null ? Collections.emptyMap() : parameterizedClass.parameters);
+
+            // Falls-back to no-arg constructor
+            Constructor<?> noArgsConstructor = filterConstructor(providerClass, c -> c.getParameterTypes().length == 0);
+            if (noArgsConstructor != null)
+            {
+                if (parameterizedClass.parameters != null && !parameterizedClass.parameters.isEmpty())
+                    throw new ConfigurationException("Invalid parameters for class " + parameterizedClass.class_name);
+
+                return (K) noArgsConstructor.newInstance();
+            }
+
+            throw new ConfigurationException("No valid constructor found for class " + parameterizedClass.class_name);
+        }
+        catch (IllegalAccessException | InstantiationException | ExceptionInInitializerError e)
+        {
+            throw new ConfigurationException("Unable to instantiate parameterized class " + parameterizedClass.class_name, e);
+        }
+        catch (InvocationTargetException e)
+        {
+            Throwable cause = e.getCause();
+            String error = "Failed to instantiate class " + parameterizedClass.class_name +
+                           (cause.getMessage() != null ? ": " + cause.getMessage() : "");
+            throw new ConfigurationException(error, cause);
+        }
+    }
+
+    private static Constructor<?> filterConstructor(Class<?> providerClass, Predicate<Constructor<?>> filter)
+    {
+        for (Constructor<?> constructor : providerClass.getDeclaredConstructors())
+        {
+            if (filter.test(constructor))
+                return constructor;
+        }
+
+        return null;
     }
 
     @Override
@@ -122,6 +153,6 @@ public class ParameterizedClass
     @Override
     public String toString()
     {
-        return class_name + (parameters == null ? "" : parameters.toString());
+        return class_name + parameters;
     }
 }
