@@ -29,6 +29,10 @@ import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
+import org.apache.cassandra.audit.DiagnosticEventAuditLogger;
+import org.apache.cassandra.auth.CassandraRoleManager;
+import org.apache.cassandra.auth.PasswordAuthenticator;
+
 import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
@@ -64,11 +68,11 @@ public class CQLUserAuditTest
     public static void setup() throws Exception
     {
         OverrideConfigurationLoader.override((config) -> {
-            config.authenticator = new ParameterizedClass("PasswordAuthenticator");
-            config.role_manager = new ParameterizedClass("CassandraRoleManager");
+            config.authenticator = new ParameterizedClass(PasswordAuthenticator.class.getName());
+            config.role_manager = new ParameterizedClass(CassandraRoleManager.class.getName());
             config.diagnostic_events_enabled = true;
             config.audit_logging_options.enabled = true;
-            config.audit_logging_options.logger = new ParameterizedClass("DiagnosticEventAuditLogger", null);
+            config.audit_logging_options.logger = new ParameterizedClass(DiagnosticEventAuditLogger.class.getName());
         });
 
         SUPERUSER_SETUP_DELAY_MS.setLong(0);
