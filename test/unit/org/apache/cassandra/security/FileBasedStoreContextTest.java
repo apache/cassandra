@@ -42,7 +42,7 @@ public class FileBasedStoreContextTest
     @Test
     public void testPasswordFileConfiguration()
     {
-        FileBasedSslContextFactory.FileBasedStoreContext wrapper = new FileBasedSslContextFactory.FileBasedStoreContext("test/conf/cassandra_ssl_test.keystore", null, "test/conf/cassandra_ssl_test.keystore.passwordfile");
+        FileBasedSslContextFactory.FileBasedStoreContext wrapper = new FileBasedSslContextFactory.FileBasedStoreContext("test/conf/cassandra_ssl_test.keystore", null, "test/conf/cassandra_ssl_test_keystore_passwordfile.txt");
         assertEquals("Password must be loaded from the password file", "cassandra", wrapper.password);
     }
 
@@ -50,10 +50,10 @@ public class FileBasedStoreContextTest
      * Tests when password for keystore is specified via password configuration and a password file both.
      */
     @Test
-    public void testPasswordAndPasswordFileCOnfiguration()
+    public void testPasswordAndPasswordFileConfiguration()
     {
         String expectedPassword = "cassandra123";
-        FileBasedSslContextFactory.FileBasedStoreContext wrapper = new FileBasedSslContextFactory.FileBasedStoreContext("test/conf/cassandra_ssl_test.keystore", expectedPassword, "test/conf/cassandra_ssl_test.keystore.passwordfile");
+        FileBasedSslContextFactory.FileBasedStoreContext wrapper = new FileBasedSslContextFactory.FileBasedStoreContext("test/conf/cassandra_ssl_test.keystore", expectedPassword, "test/conf/cassandra_ssl_test_keystore_passwordfile.txt");
         assertEquals("Password configuration must take precedence", expectedPassword, wrapper.password);
     }
 
@@ -65,5 +65,16 @@ public class FileBasedStoreContextTest
     public void testMissingPasswordFile()
     {
         new FileBasedSslContextFactory.FileBasedStoreContext("test/conf/cassandra_ssl_test.keystore", null, "passwordfile-that-doesnotexist");
+    }
+
+    /**
+     * Tests behavior when non-null empty password is specified in the password configuration.
+     * The empty password via the configuration must take precedence in this case.
+     */
+    @Test
+    public void testBlankPasswordConfiguration()
+    {
+        FileBasedSslContextFactory.FileBasedStoreContext wrapper = new FileBasedSslContextFactory.FileBasedStoreContext("test/conf/cassandra_ssl_test.keystore", "", "test/conf/cassandra_ssl_test_keystore_passwordfile.txt");
+        assertEquals("Password must be loaded from the direct configuration", "", wrapper.password);
     }
 }
