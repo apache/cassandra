@@ -56,6 +56,11 @@ public enum Version
      */
     V6(6),
 
+    /**
+     * - MutationTracking
+     */
+    V7(7),
+
     UNKNOWN(Integer.MAX_VALUE);
 
     private static Map<Integer, Version> values = new HashMap<>();

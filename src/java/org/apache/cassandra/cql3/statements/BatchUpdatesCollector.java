@@ -32,6 +32,7 @@ import org.apache.cassandra.db.CounterMutation;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.IMutation;
 import org.apache.cassandra.db.Mutation;
+import org.apache.cassandra.db.MutationId;
 import org.apache.cassandra.db.RegularAndStaticColumns;
 import org.apache.cassandra.db.commitlog.CommitLogSegment;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
@@ -218,12 +219,13 @@ final class BatchUpdatesCollector implements UpdatesCollector
         public Mutation build()
         {
             ImmutableMap.Builder<TableId, PartitionUpdate> updates = new ImmutableMap.Builder<>();
+            boolean createId = false;
             for (Map.Entry<TableId, PartitionUpdate.Builder> updateEntry : modifications.entrySet())
             {
                 PartitionUpdate update = updateEntry.getValue().build();
                 updates.put(updateEntry.getKey(), update);
             }
-            return new Mutation(keyspaceName, key, updates.build(), createdAt);
+            return new Mutation(MutationId.createForKeyspace(keyspaceName), keyspaceName, key, updates.build(), createdAt);
         }
 
         public PartitionUpdate.Builder get(TableId tableId)

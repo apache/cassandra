@@ -25,6 +25,7 @@ import org.apache.cassandra.cql3.statements.PropertyDefinitions;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.schema.KeyspaceParams.Option;
+import org.apache.cassandra.schema.ReplicationType;
 import org.apache.cassandra.schema.ReplicationParams;
 
 public final class KeyspaceAttributes extends PropertyDefinitions
@@ -66,17 +67,25 @@ public final class KeyspaceAttributes extends PropertyDefinitions
     KeyspaceParams asNewKeyspaceParams()
     {
         boolean durableWrites = getBoolean(Option.DURABLE_WRITES.toString(), KeyspaceParams.DEFAULT_DURABLE_WRITES);
-        return KeyspaceParams.create(durableWrites, getAllReplicationOptions());
+
+        String rtypeName = getString(Option.REPLICATION_TYPE.toString());
+        ReplicationType replicationType = rtypeName != null ? ReplicationType.valueOf(rtypeName) : KeyspaceParams.DEFAULT_REPLICATION_TYPE;
+
+        return KeyspaceParams.create(durableWrites, getAllReplicationOptions(), replicationType);
     }
 
     KeyspaceParams asAlteredKeyspaceParams(KeyspaceParams previous)
     {
         boolean durableWrites = getBoolean(Option.DURABLE_WRITES.toString(), previous.durableWrites);
+        String rtypeName = getString(Option.REPLICATION_TYPE.toString());
+        ReplicationType replicationType = rtypeName != null ? ReplicationType.valueOf(rtypeName) : previous.replicationType;
+
+
         Map<String, String> previousOptions = previous.replication.options;
         ReplicationParams replication = getReplicationStrategyClass() == null
                                       ? previous.replication
                                       : ReplicationParams.fromMapWithDefaults(getAllReplicationOptions(), previousOptions);
-        return new KeyspaceParams(durableWrites, replication);
+        return new KeyspaceParams(durableWrites, replication, replicationType);
     }
 
     public boolean hasOption(Option option)

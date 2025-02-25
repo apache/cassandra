@@ -106,13 +106,15 @@ public abstract class SimpleBuilders
 
     public static class MutationBuilder extends AbstractBuilder<Mutation.SimpleBuilder> implements Mutation.SimpleBuilder
     {
+        private final MutationId mutationId;
         private final String keyspaceName;
         private final DecoratedKey key;
 
         private final Map<TableId, PartitionUpdateBuilder> updateBuilders = new HashMap<>();
 
-        public MutationBuilder(String keyspaceName, DecoratedKey key)
+        public MutationBuilder(MutationId mutationId, String keyspaceName, DecoratedKey key)
         {
+            this.mutationId = mutationId;
             this.keyspaceName = keyspaceName;
             this.key = key;
         }
@@ -145,9 +147,9 @@ public abstract class SimpleBuilders
             assert !updateBuilders.isEmpty() : "Cannot create empty mutation";
 
             if (updateBuilders.size() == 1)
-                return new Mutation(updateBuilders.values().iterator().next().build());
+                return new Mutation(MutationId.fixme(), updateBuilders.values().iterator().next().build());
 
-            Mutation.PartitionUpdateCollector mutationBuilder = new Mutation.PartitionUpdateCollector(keyspaceName, key);
+            Mutation.PartitionUpdateCollector mutationBuilder = new Mutation.PartitionUpdateCollector(mutationId, keyspaceName, key);
             for (PartitionUpdateBuilder builder : updateBuilders.values())
                 mutationBuilder.add(builder.build());
             return mutationBuilder.build();
@@ -246,7 +248,7 @@ public abstract class SimpleBuilders
 
         public Mutation buildAsMutation()
         {
-            return new Mutation(build());
+            return new Mutation(MutationId.fixme(), build());
         }
 
         private static class RTBuilder implements RangeTombstoneBuilder

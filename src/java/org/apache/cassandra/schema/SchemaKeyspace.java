@@ -96,6 +96,7 @@ public final class SchemaKeyspace
               "CREATE TABLE %s ("
               + "keyspace_name text,"
               + "durable_writes boolean,"
+              + "replication_type text,"
               + "replication frozen<map<text, text>>,"
               + "PRIMARY KEY ((keyspace_name)))");
 
@@ -407,7 +408,7 @@ public final class SchemaKeyspace
                         continue;
 
                     DecoratedKey key = partition.partitionKey();
-                    Mutation.PartitionUpdateCollector puCollector = mutationMap.computeIfAbsent(key, k -> new Mutation.PartitionUpdateCollector(SchemaConstants.SCHEMA_KEYSPACE_NAME, key));
+                    Mutation.PartitionUpdateCollector puCollector = mutationMap.computeIfAbsent(key, k -> new Mutation.PartitionUpdateCollector(MutationId.none(), SchemaConstants.SCHEMA_KEYSPACE_NAME, key));
                     puCollector.add(makeUpdateForSchema(partition, cmd.columnFilter()).withOnlyPresentColumns());
                 }
             }
@@ -456,12 +457,13 @@ public final class SchemaKeyspace
 
     private static Mutation.SimpleBuilder makeCreateKeyspaceMutation(String name, KeyspaceParams params, long timestamp)
     {
-        Mutation.SimpleBuilder builder = Mutation.simpleBuilder(Keyspaces.keyspace, decorate(Keyspaces, name))
+        Mutation.SimpleBuilder builder = Mutation.simpleBuilder(MutationId.none(), Keyspaces.keyspace, decorate(Keyspaces, name))
                                                  .timestamp(timestamp);
 
         builder.update(Keyspaces)
                .row()
                .add(KeyspaceParams.Option.DURABLE_WRITES.toString(), params.durableWrites)
+               .add(KeyspaceParams.Option.REPLICATION_TYPE.toString(), params.replicationType.toString())
                .add(KeyspaceParams.Option.REPLICATION.toString(),
                     (params.replication.isMeta() ? params.replication.asNonMeta() : params.replication).asMap());
 
@@ -484,7 +486,7 @@ public final class SchemaKeyspace
 
     private static Mutation.SimpleBuilder makeDropKeyspaceMutation(KeyspaceMetadata keyspace, long timestamp)
     {
-        Mutation.SimpleBuilder builder = Mutation.simpleBuilder(SchemaConstants.SCHEMA_KEYSPACE_NAME, decorate(Keyspaces, keyspace.name))
+        Mutation.SimpleBuilder builder = Mutation.simpleBuilder(MutationId.none(), SchemaConstants.SCHEMA_KEYSPACE_NAME, decorate(Keyspaces, keyspace.name))
                                                  .timestamp(timestamp);
 
         for (TableMetadata schemaTable : ALL_TABLE_METADATA)
@@ -937,10 +939,22 @@ public final class SchemaKeyspace
 
         UntypedResultSet.Row row = query(query, keyspaceName).one();
         boolean durableWrites = row.getBoolean(KeyspaceParams.Option.DURABLE_WRITES.toString());
+
+        ReplicationType replicationType;
+        if (row.has(KeyspaceParams.Option.REPLICATION_TYPE.toString()))
+        {
+            String replicationTypeName = row.getString(KeyspaceParams.Option.REPLICATION_TYPE.toString());
+            replicationType = replicationTypeName != null ? ReplicationType.valueOf(replicationTypeName) : ReplicationType.legacy;
+        }
+        else
+        {
+            replicationType = ReplicationType.legacy;
+        }
+
         Map<String, String> replication = row.getFrozenTextMap(KeyspaceParams.Option.REPLICATION.toString());
-        KeyspaceParams params = KeyspaceParams.create(durableWrites, replication);
+        KeyspaceParams params = KeyspaceParams.create(durableWrites, replication, replicationType);
         if (keyspaceName.equals(SchemaConstants.METADATA_KEYSPACE_NAME))
-            params = new KeyspaceParams(params.durableWrites, params.replication.asMeta());
+            params = new KeyspaceParams(params.durableWrites, params.replication.asMeta(), ReplicationType.legacy);
 
         return params;
     }
