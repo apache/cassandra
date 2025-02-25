@@ -17,28 +17,33 @@
  */
 package org.apache.cassandra.tools.nodetool;
 
-import io.airlift.airline.Arguments;
-import io.airlift.airline.Command;
-
+import org.apache.cassandra.tools.nodetool.layout.CassandraUsage;
+import picocli.CommandLine.Command;
+import picocli.CommandLine.Parameters;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 
 import org.apache.cassandra.tools.NodeProbe;
-import org.apache.cassandra.tools.NodeTool.NodeToolCmd;
 
 import static com.google.common.base.Preconditions.checkArgument;
 
 @Command(name = "gettimeout", description = "Print the timeout of the given type in ms")
-public class GetTimeout extends NodeToolCmd
+public class GetTimeout extends AbstractCommand
 {
     public static final String TIMEOUT_TYPES = "read, range, write, counterwrite, cascontention, truncate, internodeconnect, internodeuser, internodestreaminguser, misc (general rpc_timeout_in_ms)";
 
-    @Arguments(usage = "<timeout_type>", description = "The timeout type, one of (" + TIMEOUT_TYPES + ")")
+    @CassandraUsage(usage = "<timeout_type>", description = "The timeout type, one of (" + TIMEOUT_TYPES + ")")
     private List<String> args = new ArrayList<>();
+
+    @Parameters (index = "0", description = "The timeout type, one of (" + TIMEOUT_TYPES + ')')
+    private String timeout_type;
 
     @Override
     public void execute(NodeProbe probe)
     {
+        args = timeout_type == null ? Collections.emptyList() : Collections.singletonList(timeout_type);
+
         checkArgument(args.size() == 1, "gettimeout requires a timeout type, one of (" + TIMEOUT_TYPES + ")");
         try
         {

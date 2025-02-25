@@ -20,26 +20,34 @@ package org.apache.cassandra.tools.nodetool;
 import java.util.ArrayList;
 import java.util.List;
 
-import io.airlift.airline.Arguments;
-import io.airlift.airline.Command;
 import org.apache.cassandra.auth.AuthKeyspace;
 import org.apache.cassandra.tools.NodeProbe;
-import org.apache.cassandra.tools.NodeTool.NodeToolCmd;
+import org.apache.cassandra.tools.nodetool.layout.CassandraUsage;
+import picocli.CommandLine.Command;
+import picocli.CommandLine.Parameters;
 
 import static com.google.common.base.Preconditions.checkArgument;
+import static org.apache.cassandra.tools.nodetool.CommandUtils.concatArgs;
 
 /**
  * Nodetool command to insert/update a CIDR group and associated mapping in the table {@link AuthKeyspace#CIDR_GROUPS}
  */
 @Command(name = "updatecidrgroup", description = "Insert/Update a cidr group")
-public class UpdateCIDRGroup extends NodeToolCmd
+public class UpdateCIDRGroup extends AbstractCommand
 {
-    @Arguments(usage = "[<cidrGroup> <cidr> ...]", description = "Requires a cidr group name, followed by one or more CIDRs separated by space")
-    private List<String> args = new ArrayList<>();
+    @CassandraUsage(usage = "[<cidrGroup> <cidr> ...]", description = "Requires a cidr group name, followed by one or more CIDRs separated by space")
+    public List<String> args = new ArrayList<>();
+
+    @Parameters(index = "0", description = "Name of the CIDR group", arity = "0..1")
+    public String cidrGroupName;
+
+    @Parameters(index = "1..*", description = "CIDRs separated by space")
+    public List<String> cidrs;
 
     @Override
     public void execute(NodeProbe probe)
     {
+        args = concatArgs(cidrGroupName, cidrs);
         checkArgument(args.size() > 1, "updatecidrgroup command requires a cidr group name and atleast one CIDR");
 
         String cidrGroupName = args.get(0);

@@ -18,16 +18,16 @@
 
 package org.apache.cassandra.tools.nodetool;
 
-import static com.google.common.base.Preconditions.checkArgument;
-import io.airlift.airline.Arguments;
-import io.airlift.airline.Command;
 import org.apache.cassandra.tools.NodeProbe;
-import org.apache.cassandra.tools.NodeTool;
+import picocli.CommandLine.Command;
+import picocli.CommandLine.Parameters;
+
+import static com.google.common.base.Preconditions.checkArgument;
 
 @Command(name = "setconcurrentcompactors", description = "Set number of concurrent compactors in the system.")
-public class SetConcurrentCompactors extends NodeTool.NodeToolCmd
+public class SetConcurrentCompactors extends AbstractCommand
 {
-    @Arguments(title = "concurrent_compactors", usage = "<value>", description = "Number of concurrent compactors, greater than 0.", required = true)
+    @Parameters(paramLabel = "concurrent_compactors", description = "Number of concurrent compactors, greater than 0.", arity = "1")
     private Integer concurrentCompactors = null;
 
     protected void execute(NodeProbe probe)

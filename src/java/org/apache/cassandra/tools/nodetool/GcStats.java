@@ -18,19 +18,17 @@
 package org.apache.cassandra.tools.nodetool;
 
 import org.apache.cassandra.tools.NodeProbe;
-import org.apache.cassandra.tools.NodeTool.NodeToolCmd;
 import org.apache.cassandra.tools.nodetool.stats.GcStatsHolder;
 import org.apache.cassandra.tools.nodetool.stats.GcStatsPrinter;
 import org.apache.cassandra.tools.nodetool.stats.StatsPrinter;
-
-import io.airlift.airline.Command;
-import io.airlift.airline.Option;
+import picocli.CommandLine.Command;
+import picocli.CommandLine.Option;
 
 @Command(name = "gcstats", description = "Print GC Statistics")
-public class GcStats extends NodeToolCmd
+public class GcStats extends AbstractCommand
 {
-    @Option(title = "format",
-            name = {"-F", "--format"},
+    @Option(paramLabel = "format",
+            names = { "-F", "--format" },
             description = "Output format (json, yaml)")
     private String outputFormat = "";
 

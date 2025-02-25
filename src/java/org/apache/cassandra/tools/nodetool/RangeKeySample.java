@@ -17,15 +17,13 @@
  */
 package org.apache.cassandra.tools.nodetool;
 
-import io.airlift.airline.Command;
-
 import java.util.List;
 
 import org.apache.cassandra.tools.NodeProbe;
-import org.apache.cassandra.tools.NodeTool.NodeToolCmd;
+import picocli.CommandLine.Command;
 
 @Command(name = "rangekeysample", description = "Shows the sampled keys held across all keyspaces")
-public class RangeKeySample extends NodeToolCmd
+public class RangeKeySample extends AbstractCommand
 {
     @Override
     public void execute(NodeProbe probe)

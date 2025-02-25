@@ -42,6 +42,11 @@ import static org.apache.cassandra.distributed.shared.ClusterUtils.unpauseEnactm
 import static org.apache.cassandra.distributed.shared.ClusterUtils.waitForCMSToQuiesce;
 import static org.junit.Assert.assertTrue;
 
+/**
+ * @see org.apache.cassandra.tools.nodetool.RemoveNode
+ * @see org.apache.cassandra.tools.nodetool.RemoveNodeAbort
+ * @see org.apache.cassandra.tools.nodetool.RemoveNodeStatus
+ */
 public class RemoveNodeTest extends TestBaseImpl
 {
     @Test

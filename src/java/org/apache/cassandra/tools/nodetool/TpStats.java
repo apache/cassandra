@@ -17,24 +17,24 @@
  */
 package org.apache.cassandra.tools.nodetool;
 
-import io.airlift.airline.Command;
-
-import io.airlift.airline.Option;
 import org.apache.cassandra.tools.NodeProbe;
-import org.apache.cassandra.tools.NodeTool.NodeToolCmd;
-import org.apache.cassandra.tools.nodetool.stats.*;
-
+import org.apache.cassandra.tools.nodetool.stats.StatsHolder;
+import org.apache.cassandra.tools.nodetool.stats.StatsPrinter;
+import org.apache.cassandra.tools.nodetool.stats.TpStatsHolder;
+import org.apache.cassandra.tools.nodetool.stats.TpStatsPrinter;
+import picocli.CommandLine.Command;
+import picocli.CommandLine.Option;
 
 @Command(name = "tpstats", description = "Print usage statistics of thread pools")
-public class TpStats extends NodeToolCmd
+public class TpStats extends AbstractCommand
 {
-    @Option(title = "format",
-            name = {"-F", "--format"},
+    @Option(paramLabel = "format",
+            names = { "-F", "--format" },
             description = "Output format (json, yaml)")
     private String outputFormat = "";
 
-    @Option(title = "verbose",
-            name = {"-v", "--verbose"},
+    @Option(paramLabel = "verbose",
+            names = { "-v", "--verbose" },
             description = "Display detailed metrics about thread pool's sizes")
     private boolean verbose = false;
 

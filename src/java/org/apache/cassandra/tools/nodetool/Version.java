@@ -17,16 +17,15 @@
  */
 package org.apache.cassandra.tools.nodetool;
 
-import io.airlift.airline.Command;
-import io.airlift.airline.Option;
 import org.apache.cassandra.tools.NodeProbe;
-import org.apache.cassandra.tools.NodeTool.NodeToolCmd;
+import picocli.CommandLine.Command;
+import picocli.CommandLine.Option;
 
 @Command(name = "version", description = "Print cassandra version")
-public class Version extends NodeToolCmd
+public class Version extends AbstractCommand
 {
-    @Option(title = "verbose",
-            name = {"-v", "--verbose"},
+    @Option(paramLabel = "verbose",
+            names = { "-v", "--verbose" },
             description = "Include additional information")
     private boolean verbose = false;
 

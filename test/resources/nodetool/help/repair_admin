@@ -1,0 +1,123 @@
+NAME
+        nodetool repair_admin - list and fail incremental repair sessions
+
+SYNOPSIS
+        nodetool [(-h <host> | --host <host>)] [(-p <port> | --port <port>)]
+                [(-pp | --print-port)] [(-pw <password> | --password <password>)]
+                [(-pwf <passwordFilePath> | --password-file <passwordFilePath>)]
+                [(-u <username> | --username <username>)] repair_admin <command>
+                [<args>]
+
+        nodetool [(-h <host> | --host <host>)] [(-p <port> | --port <port>)]
+                [(-pp | --print-port)] [(-pw <password> | --password <password>)]
+                [(-pwf <passwordFilePath> | --password-file <passwordFilePath>)]
+                [(-u <username> | --username <username>)] repair_admin list
+                [(-a | --all)] [(-et <end_token> | --end-token <end_token>)]
+                [(-st <start_token> | --start-token <start_token>)]
+
+        nodetool [(-h <host> | --host <host>)] [(-p <port> | --port <port>)]
+                [(-pp | --print-port)] [(-pw <password> | --password <password>)]
+                [(-pwf <passwordFilePath> | --password-file <passwordFilePath>)]
+                [(-u <username> | --username <username>)]
+                repair_admin summarize-pending
+                [(-et <end_token> | --end-token <end_token>)]
+                [(-st <start_token> | --start-token <start_token>)] [(-v | --verbose)]
+                [--] [<keyspace> <tables>...]
+
+        nodetool [(-h <host> | --host <host>)] [(-p <port> | --port <port>)]
+                [(-pp | --print-port)] [(-pw <password> | --password <password>)]
+                [(-pwf <passwordFilePath> | --password-file <passwordFilePath>)]
+                [(-u <username> | --username <username>)]
+                repair_admin summarize-repaired
+                [(-et <end_token> | --end-token <end_token>)]
+                [(-st <start_token> | --start-token <start_token>)] [(-v | --verbose)]
+                [--] [<keyspace> <tables>...]
+
+        nodetool [(-h <host> | --host <host>)] [(-p <port> | --port <port>)]
+                [(-pp | --print-port)] [(-pw <password> | --password <password>)]
+                [(-pwf <passwordFilePath> | --password-file <passwordFilePath>)]
+                [(-u <username> | --username <username>)] repair_admin cleanup
+                [(-et <end_token> | --end-token <end_token>)] [(-f | --force)]
+                [(-st <start_token> | --start-token <start_token>)] [--] [<keyspace>
+                <tables>...]
+
+        nodetool [(-h <host> | --host <host>)] [(-p <port> | --port <port>)]
+                [(-pp | --print-port)] [(-pw <password> | --password <password>)]
+                [(-pwf <passwordFilePath> | --password-file <passwordFilePath>)]
+                [(-u <username> | --username <username>)] repair_admin cancel
+                [(-f | --force)] [(-s <session> | --session <session>)]
+
+OPTIONS
+        -h <host>, --host <host>
+            Node hostname or ip address
+
+        -p <port>, --port <port>
+            Remote jmx agent port number
+
+        -pp, --print-port
+            Operate in 4.0 mode with hosts disambiguated by port number
+
+        -pw <password>, --password <password>
+            Remote jmx agent password
+
+        -pwf <passwordFilePath>, --password-file <passwordFilePath>
+            Path to the JMX password file
+
+        -u <username>, --username <username>
+            Remote jmx agent username
+
+COMMANDS
+        With no arguments, Display help information
+
+        list
+            list repair sessions
+
+            With --all option, include completed and failed sessions
+
+            With --start-token option, Use -st to specify a token at which the repair
+            range starts
+
+            With --end-token option, Use -et to specify a token at which repair range
+            ends
+        summarize-pending
+            report the amount of data marked pending repair for the given token range
+            (or all replicated range if no tokens are provided
+
+            With --verbose option, print additional info
+
+            With --start-token option, Use -st to specify a token at which the repair
+            range starts
+
+            With --end-token option, Use -et to specify a token at which repair range
+            ends
+        summarize-repaired
+            return the most recent repairedAt timestamp for the given token range (or
+            all replicated ranges if no tokens are provided)
+
+            With --verbose option, print additional info
+
+            With --start-token option, Use -st to specify a token at which the repair
+            range starts
+
+            With --end-token option, Use -et to specify a token at which repair range
+            ends
+        cleanup
+            cleans up pending data from completed sessions. This happens automatically,
+            but the command is provided for situations where it needs to be expedited.
+            Use --force to cancel compactions that are preventing promotion
+
+            With --force option, Force a cleanup.
+
+            With --start-token option, Use -st to specify a token at which the repair
+            range starts
+
+            With --end-token option, Use -et to specify a token at which repair range
+            ends
+        cancel
+            cancel an incremental repair session. Use --force to cancel from a node
+            other than the repair coordinator Attempting to cancel FINALIZED or FAILED
+            sessions is an error.
+
+            With --force option, Force a cancellation.
+
+            With --session option, The session to cancel

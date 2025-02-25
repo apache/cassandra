@@ -58,15 +58,14 @@ public class JMXToolTest
         result.assertOnCleanExit();
 
         Assertions.assertThat(result.getStdout())
-                  .isEqualTo("usage: jmxtool <command> [<args>]\n" +
-                             "\n" +
-                             "The most commonly used jmxtool commands are:\n" +
-                             "    diff   Diff two jmx dump files and report their differences\n" +
-                             "    dump   Dump the Apache Cassandra JMX objects and metadata.\n" +
-                             "    help   Display help information\n" +
-                             "\n" +
-                             "See 'jmxtool help <command>' for more information on a specific command.\n" +
-                             "\n");
+                  .isEqualTo("Usage: jmxtool [-hV] [COMMAND]\n" +
+                             "JMX tool for Apache Cassandra\n" +
+                             "  -h, --help      Show this help message and exit.\n" +
+                             "  -V, --version   Print version information and exit.\n" +
+                             "Commands:\n" +
+                             "  help  Display help information about the specified command.\n" +
+                             "  dump  Dump the Apache Cassandra JMX objects and metadata.\n" +
+                             "  diff  Diff two jmx dump files and report their differences\n");
     }
 
     @Test
@@ -76,51 +75,33 @@ public class JMXToolTest
         result.assertOnCleanExit();
 
         Assertions.assertThat(result.getStdout())
-                  .isEqualTo("NAME\n" +
-                             "        jmxtool diff - Diff two jmx dump files and report their differences\n" +
-                             "\n" +
-                             "SYNOPSIS\n" +
-                             "        jmxtool diff [--exclude-attribute <exclude attributes>...]\n" +
-                             "                [--exclude-object <exclude objects>...]\n" +
-                             "                [--exclude-operation <exclude operations>...]\n" +
-                             "                [(-f <format> | --format <format>)] [(-h | --help)]\n" +
-                             "                [--ignore-missing-on-left] [--ignore-missing-on-right] [--] <left>\n" +
-                             "                <right>\n" +
-                             "\n" +
-                             "OPTIONS\n" +
-                             "        --exclude-attribute <exclude attributes>\n" +
-                             "            Ignores processing specific attributes. Each usage should take a\n" +
-                             "            single attribute, but can use this flag multiple times.\n" +
-                             "\n" +
-                             "        --exclude-object <exclude objects>\n" +
-                             "            Ignores processing specific objects. Each usage should take a single\n" +
-                             "            object, but can use this flag multiple times.\n" +
-                             "\n" +
-                             "        --exclude-operation <exclude operations>\n" +
-                             "            Ignores processing specific operations. Each usage should take a\n" +
-                             "            single operation, but can use this flag multiple times.\n" +
-                             "\n" +
-                             "        -f <format>, --format <format>\n" +
-                             "            What format the files are in; only support json and yaml as format\n" +
-                             "\n" +
-                             "        -h, --help\n" +
-                             "            Display help information\n" +
-                             "\n" +
-                             "        --ignore-missing-on-left\n" +
-                             "            Ignore results missing on the left\n" +
-                             "\n" +
-                             "        --ignore-missing-on-right\n" +
-                             "            Ignore results missing on the right\n" +
-                             "\n" +
-                             "        --\n" +
-                             "            This option can be used to separate command-line options from the\n" +
-                             "            list of argument, (useful when arguments might be mistaken for\n" +
-                             "            command-line options\n" +
-                             "\n" +
-                             "        <left> <right>\n" +
-                             "            Files to diff\n" +
-                             "\n" +
-                             "\n");
+                  .isEqualTo("Usage: jmxtool diff [-hV] [--ignore-missing-on-left]\n" +
+                             "                    [--ignore-missing-on-right] [-f=format]\n" +
+                             "                    [--exclude-attribute=exclude_attributes]...\n" +
+                             "                    [--exclude-object=exclude_objects]...\n" +
+                             "                    [--exclude-operation=exclud_operations]... [<files>...]\n" +
+                             "Diff two jmx dump files and report their differences\n" +
+                             "      [<files>...]      Files to diff\n" +
+                             "      --exclude-attribute=exclude_attributes\n" +
+                             "                        Ignores processing specific attributes. Each usage\n" +
+                             "                          should take a single attribute, but can use this flag\n" +
+                             "                          multiple times.\n" +
+                             "      --exclude-object=exclude_objects\n" +
+                             "                        Ignores processing specific objects. Each usage should\n" +
+                             "                          take a single object, but can use this flag multiple\n" +
+                             "                          times.\n" +
+                             "      --exclude-operation=exclud_operations\n" +
+                             "                        Ignores processing specific operations. Each usage\n" +
+                             "                          should take a single operation, but can use this flag\n" +
+                             "                          multiple times.\n" +
+                             "  -f, --format=format   What format the files are in; only support json and\n" +
+                             "                          yaml as format\n" +
+                             "  -h, --help            Show this help message and exit.\n" +
+                             "      --ignore-missing-on-left\n" +
+                             "                        Ignore results missing on the left\n" +
+                             "      --ignore-missing-on-right\n" +
+                             "                        Ignore results missing on the right\n" +
+                             "  -V, --version         Print version information and exit.\n");
     }
 
     @Test
@@ -130,25 +111,13 @@ public class JMXToolTest
         result.assertOnCleanExit();
 
         Assertions.assertThat(result.getStdout())
-                  .isEqualTo("NAME\n" +
-                             "        jmxtool dump - Dump the Apache Cassandra JMX objects and metadata.\n" +
-                             "\n" +
-                             "SYNOPSIS\n" +
-                             "        jmxtool dump [(-f <format> | --format <format>)] [(-h | --help)]\n" +
-                             "                [(-u <url> | --url <url>)]\n" +
-                             "\n" +
-                             "OPTIONS\n" +
-                             "        -f <format>, --format <format>\n" +
-                             "            What format to dump content as; supported values are console\n" +
-                             "            (default), json, and yaml\n" +
-                             "\n" +
-                             "        -h, --help\n" +
-                             "            Display help information\n" +
-                             "\n" +
-                             "        -u <url>, --url <url>\n" +
-                             "            JMX url to target\n" +
-                             "\n" +
-                             "\n");
+                  .isEqualTo("Usage: jmxtool dump [-hV] [-f=format] [-u=url]\n" +
+                             "Dump the Apache Cassandra JMX objects and metadata.\n" +
+                             "  -f, --format=format   What format to dump content as; supported values are\n" +
+                             "                          console (default), json, and yaml\n" +
+                             "  -h, --help            Show this help message and exit.\n" +
+                             "  -u, --url=url         JMX url to target\n" +
+                             "  -V, --version         Print version information and exit.\n");
     }
 
     private static ToolResult jmxtool(String... args)

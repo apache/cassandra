@@ -17,13 +17,11 @@
  */
 package org.apache.cassandra.tools.nodetool;
 
-import io.airlift.airline.Command;
-
 import org.apache.cassandra.tools.NodeProbe;
-import org.apache.cassandra.tools.NodeTool.NodeToolCmd;
+import picocli.CommandLine.Command;
 
 @Command(name = "disablegossip", description = "Disable gossip (effectively marking the node down)")
-public class DisableGossip extends NodeToolCmd
+public class DisableGossip extends AbstractCommand
 {
     @Override
     public void execute(NodeProbe probe)

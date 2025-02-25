@@ -117,8 +117,8 @@
       <artifactId>jbcrypt</artifactId>
     </dependency>
     <dependency>
-      <groupId>io.airlift</groupId>
-      <artifactId>airline</artifactId>
+      <groupId>info.picocli</groupId>
+      <artifactId>picocli</artifactId>
     </dependency>
     <dependency>
       <groupId>io.dropwizard.metrics</groupId>

@@ -18,12 +18,11 @@
 
 package org.apache.cassandra.tools.nodetool;
 
-import io.airlift.airline.Command;
 import org.apache.cassandra.tools.NodeProbe;
-import org.apache.cassandra.tools.NodeTool;
+import picocli.CommandLine.Command;
 
 @Command(name = "getmaxhintwindow", description = "Print the max hint window in ms")
-public class GetMaxHintWindow extends NodeTool.NodeToolCmd
+public class GetMaxHintWindow extends AbstractCommand
 {
     @Override
     public void execute(NodeProbe probe)

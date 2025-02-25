@@ -18,7 +18,6 @@
 
 package org.apache.cassandra.distributed.test;
 
-import org.junit.Ignore;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
@@ -43,7 +42,6 @@ public class FqlReplayDDLExclusionTest extends TestBaseImpl
     @Rule
     public final TemporaryFolder temporaryFolder = new TemporaryFolder();
 
-    @Ignore
     @Test
     public void test() throws Throwable
     {

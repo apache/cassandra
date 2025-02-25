@@ -23,6 +23,9 @@ import org.junit.Test;
 import org.apache.cassandra.distributed.Constants;
 import org.apache.cassandra.distributed.api.Feature;
 
+/**
+ * @see org.apache.cassandra.tools.nodetool.CMSAdmin.InitializeCMS
+ */
 public class ClusterMetadataSingleNodeUpgradeTest extends UpgradeTestBase
 {
     @Test

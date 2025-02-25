@@ -46,7 +46,7 @@ public class SetGetEntireSSTableStreamThroughputTest extends CQLTester
     @Test
     public void testNull()
     {
-        assertSetInvalidThroughput(null, "Required parameters are missing: stream_throughput");
+        assertSetInvalidThroughput(null, "Missing required parameter: 'stream_throughput'");
     }
 
     @Test
@@ -76,8 +76,8 @@ public class SetGetEntireSSTableStreamThroughputTest extends CQLTester
     @Test
     public void testUnparseable()
     {
-        assertSetInvalidThroughput("1.2", "stream_throughput: can not convert \"1.2\" to a int");
-        assertSetInvalidThroughput("value", "stream_throughput: can not convert \"value\" to a int");
+        assertSetInvalidThroughput("1.2", "Invalid value for positional parameter at index 0 (stream_throughput): '1.2' is not an int");
+        assertSetInvalidThroughput("value", "Invalid value for positional parameter at index 0 (stream_throughput): 'value' is not an int");
     }
 
     private static void assertSetGetValidThroughput(int throughput)

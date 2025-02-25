@@ -51,8 +51,6 @@ import javax.annotation.Nullable;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
-
-import org.apache.cassandra.config.UnitConfigOverride;
 import org.junit.BeforeClass;
 
 import accord.utils.DefaultRandom;
@@ -73,6 +71,7 @@ import org.apache.cassandra.concurrent.SimulatedExecutorFactory;
 import org.apache.cassandra.concurrent.Stage;
 import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.config.UnitConfigOverride;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Digest;
@@ -127,8 +126,8 @@ import org.apache.cassandra.service.paxos.cleanup.PaxosCleanupComplete;
 import org.apache.cassandra.service.paxos.cleanup.PaxosCleanupHistory;
 import org.apache.cassandra.service.paxos.cleanup.PaxosCleanupRequest;
 import org.apache.cassandra.service.paxos.cleanup.PaxosCleanupResponse;
-import org.apache.cassandra.service.paxos.cleanup.PaxosRepairState;
 import org.apache.cassandra.service.paxos.cleanup.PaxosFinishPrepareCleanup;
+import org.apache.cassandra.service.paxos.cleanup.PaxosRepairState;
 import org.apache.cassandra.service.paxos.cleanup.PaxosStartPrepareCleanup;
 import org.apache.cassandra.streaming.StreamEventHandler;
 import org.apache.cassandra.streaming.StreamReceiveException;
@@ -157,6 +156,7 @@ import org.apache.cassandra.utils.progress.ProgressEventType;
 import org.assertj.core.api.Assertions;
 import org.mockito.Mockito;
 import org.quicktheories.impl.JavaRandom;
+import picocli.CommandLine;
 
 import static org.apache.cassandra.config.CassandraRelevantProperties.CLOCK_GLOBAL;
 import static org.apache.cassandra.config.CassandraRelevantProperties.ORG_APACHE_CASSANDRA_DISABLE_MBEAN_REGISTRATION;
@@ -601,7 +601,11 @@ public abstract class FuzzTestBase extends CQLTester.InMemory
                 throw new AssertionError("Unknown parallelism: " + parallelism);
         }
         if (rs.nextBoolean()) args.add("--optimise-streams");
-        RepairOption options = RepairOption.parse(Repair.parseOptionMap(() -> "test", args), DatabaseDescriptor.getPartitioner());
+
+        Repair repair = new Repair();
+        new CommandLine(repair).parseArgs(args.toArray(new String[0]));
+        RepairOption options = RepairOption.parse(repair.createOptions(() -> "test", repair.tables), DatabaseDescriptor.getPartitioner());
+
         if (options.getRanges().isEmpty())
         {
             if (options.isPrimaryRange())

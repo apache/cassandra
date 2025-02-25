@@ -1,0 +1,49 @@
+NAME
+        nodetool setauthcacheconfig - Set configuration for Auth cache
+
+SYNOPSIS
+        nodetool [(-h <host> | --host <host>)] [(-p <port> | --port <port>)]
+                [(-pp | --print-port)] [(-pw <password> | --password <password>)]
+                [(-pwf <passwordFilePath> | --password-file <passwordFilePath>)]
+                [(-u <username> | --username <username>)] setauthcacheconfig
+                [--cache-name <cache-name>] [--disable-active-update]
+                [--enable-active-update] [--max-entries <max-entries>]
+                [--update-interval <update-interval>]
+                [--validity-period <validity-period>]
+
+OPTIONS
+        --cache-name <cache-name>
+            Name of Auth cache (required)
+
+        --disable-active-update
+            Disable active update
+
+        --enable-active-update
+            Enable active update
+
+        -h <host>, --host <host>
+            Node hostname or ip address
+
+        --max-entries <max-entries>
+            Max entries
+
+        -p <port>, --port <port>
+            Remote jmx agent port number
+
+        -pp, --print-port
+            Operate in 4.0 mode with hosts disambiguated by port number
+
+        -pw <password>, --password <password>
+            Remote jmx agent password
+
+        -pwf <passwordFilePath>, --password-file <passwordFilePath>
+            Path to the JMX password file
+
+        -u <username>, --username <username>
+            Remote jmx agent username
+
+        --update-interval <update-interval>
+            Update interval in milliseconds
+
+        --validity-period <validity-period>
+            Validity period in milliseconds

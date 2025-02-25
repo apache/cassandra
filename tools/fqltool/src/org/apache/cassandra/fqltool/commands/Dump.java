@@ -28,24 +28,24 @@ import java.util.stream.Collectors;
 
 import com.google.common.annotations.VisibleForTesting;
 
-import io.airlift.airline.Arguments;
-import io.airlift.airline.Command;
-import io.airlift.airline.Option;
 import io.netty.buffer.Unpooled;
 import net.openhft.chronicle.bytes.Bytes;
 import net.openhft.chronicle.core.io.IORuntimeException;
 import net.openhft.chronicle.queue.ChronicleQueue;
-import net.openhft.chronicle.queue.impl.single.SingleChronicleQueueBuilder;
 import net.openhft.chronicle.queue.ExcerptTailer;
 import net.openhft.chronicle.queue.RollCycles;
+import net.openhft.chronicle.queue.impl.single.SingleChronicleQueueBuilder;
 import net.openhft.chronicle.threads.Pauser;
 import net.openhft.chronicle.wire.ReadMarshallable;
 import net.openhft.chronicle.wire.ValueIn;
 import net.openhft.chronicle.wire.WireIn;
-import org.apache.cassandra.fql.FullQueryLogger;
 import org.apache.cassandra.cql3.QueryOptions;
+import org.apache.cassandra.fql.FullQueryLogger;
 import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.utils.binlog.BinLog;
+import picocli.CommandLine.Command;
+import picocli.CommandLine.Option;
+import picocli.CommandLine.Parameters;
 
 /**
  * Dump the contents of a list of paths containing full query logs
@@ -55,13 +55,13 @@ public class Dump implements Runnable
 {
     static final char[] HEXI_DECIMAL = "0123456789ABCDEF".toCharArray();
 
-    @Arguments(usage = "<path1> [<path2>...<pathN>]", description = "Path containing the full query logs to dump.", required = true)
+    @Parameters(paramLabel = "path", description = "Path containing the full query logs to dump.", arity = "1..*")
     private List<String> arguments = new ArrayList<>();
 
-    @Option(title = "roll_cycle", name = {"--roll-cycle"}, description = "How often to roll the log file was rolled. May be necessary for Chronicle to correctly parse file names. (MINUTELY, HOURLY, DAILY). Default HOURLY.")
+    @Option(paramLabel = "roll_cycle", names = { "--roll-cycle" }, description = "How often to roll the log file was rolled. May be necessary for Chronicle to correctly parse file names. (MINUTELY, HOURLY, DAILY). Default HOURLY.")
     private String rollCycle = "HOURLY";
 
-    @Option(title = "follow", name = {"--follow"}, description = "Upon reacahing the end of the log continue indefinitely waiting for more records")
+    @Option(paramLabel = "follow", names = { "--follow" }, description = "Upon reacahing the end of the log continue indefinitely waiting for more records")
     private boolean follow = false;
 
     @Override

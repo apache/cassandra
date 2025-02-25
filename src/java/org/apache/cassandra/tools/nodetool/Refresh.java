@@ -17,25 +17,36 @@
  */
 package org.apache.cassandra.tools.nodetool;
 
-import static com.google.common.base.Preconditions.checkArgument;
-import io.airlift.airline.Arguments;
-import io.airlift.airline.Command;
-
 import java.util.ArrayList;
 import java.util.List;
 
 import org.apache.cassandra.tools.NodeProbe;
-import org.apache.cassandra.tools.NodeTool.NodeToolCmd;
+import org.apache.cassandra.tools.nodetool.layout.CassandraUsage;
+import picocli.CommandLine.Command;
+import picocli.CommandLine.Parameters;
 
+import static com.google.common.base.Preconditions.checkArgument;
+import static org.apache.cassandra.tools.nodetool.CommandUtils.concatArgs;
+
+/** @deprecated See CASSANDRA-6719 */
+@Deprecated(since = "4.0")
 @Command(name = "refresh", description = "Load newly placed SSTables to the system without restart")
-public class Refresh extends NodeToolCmd
+public class Refresh extends AbstractCommand
 {
-    @Arguments(usage = "<keyspace> <table>", description = "The keyspace and table name")
+    @CassandraUsage(usage = "<keyspace> <table>", description = "The keyspace and table name")
     private List<String> args = new ArrayList<>();
+
+    @Parameters(index = "0", description = "The keyspace name", arity = "0..1")
+    private String keyspace;
+
+    @Parameters(index = "1", description = "The table name", arity = "0..1")
+    private String table;
 
     @Override
     public void execute(NodeProbe probe)
     {
+        args = concatArgs(keyspace, table);
+
         probe.output().out.println("nodetool refresh is deprecated, use nodetool import instead");
         checkArgument(args.size() == 2, "refresh requires ks and cf args");
         probe.loadNewSSTables(args.get(0), args.get(1));

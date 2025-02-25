@@ -99,6 +99,10 @@
       <artifactId>jmh-generator-annprocess</artifactId>
     </dependency>
     <dependency>
+      <groupId>io.github.java-diff-utils</groupId>
+      <artifactId>java-diff-utils</artifactId>
+    </dependency>
+    <dependency>
       <groupId>net.ju-n.compile-command-annotations</groupId>
       <artifactId>compile-command-annotations</artifactId>
     </dependency>

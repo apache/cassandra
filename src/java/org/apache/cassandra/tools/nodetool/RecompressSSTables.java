@@ -17,30 +17,41 @@
  */
 package org.apache.cassandra.tools.nodetool;
 
-import io.airlift.airline.Arguments;
-import io.airlift.airline.Command;
-import io.airlift.airline.Option;
-
 import java.util.ArrayList;
 import java.util.List;
 
 import org.apache.cassandra.tools.NodeProbe;
-import org.apache.cassandra.tools.NodeTool.NodeToolCmd;
+import org.apache.cassandra.tools.nodetool.layout.CassandraUsage;
+import picocli.CommandLine.Command;
+import picocli.CommandLine.Option;
+import picocli.CommandLine.Parameters;
+
+import static org.apache.cassandra.tools.nodetool.CommandUtils.parseOptionalKeyspace;
+import static org.apache.cassandra.tools.nodetool.CommandUtils.parseOptionalTables;
+import static org.apache.cassandra.tools.nodetool.CommandUtils.concatArgs;
 
 @Command(name = "recompress_sstables", description = "Rewrite sstables (for the requested tables) that have compression configuration different from the current")
-public class RecompressSSTables extends NodeToolCmd
+public class RecompressSSTables extends AbstractCommand
 {
-    @Arguments(usage = "[<keyspace> <tables>...]", description = "The keyspace followed by one or many tables")
+    @CassandraUsage(usage = "[<keyspace> <tables>...]", description = "The keyspace followed by one or many tables")
     private List<String> args = new ArrayList<>();
 
-    @Option(title = "jobs",
-            name = {"-j", "--jobs"},
+    @Parameters(index = "0", description = "The keyspace name", arity = "0..1")
+    private String keyspace;
+
+    @Parameters(index = "1..*", description = "The keyspace and table names", arity = "0..*")
+    private List<String> tables;
+
+    @Option(paramLabel = "jobs",
+            names = { "-j", "--jobs" },
             description = "Number of sstables to upgrade simultanously, set to 0 to use all available compaction threads")
     private int jobs = 2;
 
     @Override
     public void execute(NodeProbe probe)
     {
+        args = concatArgs(keyspace, tables);
+
         List<String> keyspaces = parseOptionalKeyspace(args, probe);
         String[] tableNames = parseOptionalTables(args);
 

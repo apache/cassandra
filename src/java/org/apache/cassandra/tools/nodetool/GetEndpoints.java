@@ -17,26 +17,38 @@
  */
 package org.apache.cassandra.tools.nodetool;
 
-import static com.google.common.base.Preconditions.checkArgument;
-import io.airlift.airline.Arguments;
-import io.airlift.airline.Command;
-
 import java.net.InetAddress;
 import java.util.ArrayList;
 import java.util.List;
 
 import org.apache.cassandra.tools.NodeProbe;
-import org.apache.cassandra.tools.NodeTool.NodeToolCmd;
+import org.apache.cassandra.tools.nodetool.layout.CassandraUsage;
+import picocli.CommandLine.Parameters;
+import picocli.CommandLine.Command;
+
+import static com.google.common.base.Preconditions.checkArgument;
+import static org.apache.cassandra.tools.nodetool.CommandUtils.concatArgs;
 
 @Command(name = "getendpoints", description = "Print the end points that owns the key")
-public class GetEndpoints extends NodeToolCmd
+public class GetEndpoints extends WithPortDisplayAbstractCommand
 {
-    @Arguments(usage = "<keyspace> <table> <key>", description = "The keyspace, the table, and the partition key for which we need to find the endpoint")
+    @CassandraUsage(usage = "<keyspace> <table> <key>", description = "The keyspace, the table, and the partition key for which we need to find the endpoint")
     private List<String> args = new ArrayList<>();
+
+    @Parameters(index = "0", arity = "0..1", description = "The keyspace for which we need to find the endpoint")
+    private String keyspace;
+
+    @Parameters(index = "1", arity = "0..1", description = "The table for which we need to find the endpoint")
+    private String table;
+
+    @Parameters(index = "2", arity = "0..1", description = "The partition key for which we need to find the endpoint")
+    private String key;
 
     @Override
     public void execute(NodeProbe probe)
     {
+        args = concatArgs(keyspace, table, key);
+
         checkArgument(args.size() == 3, "getendpoints requires keyspace, table and partition key arguments");
         String ks = args.get(0);
         String table = args.get(1);
