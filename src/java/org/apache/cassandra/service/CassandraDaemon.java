@@ -38,7 +38,6 @@ import javax.management.remote.JMXConnectorServer;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableList;
-import org.apache.cassandra.io.FSErrorHandler;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -98,7 +97,6 @@ import org.apache.cassandra.utils.logging.VirtualTableAppender;
 import static java.util.concurrent.TimeUnit.NANOSECONDS;
 import static org.apache.cassandra.config.CassandraRelevantProperties.CASSANDRA_FOREGROUND;
 import static org.apache.cassandra.config.CassandraRelevantProperties.CASSANDRA_PID_FILE;
-import static org.apache.cassandra.config.CassandraRelevantProperties.CASSANDRA_FSERRORHANDLER;
 import static org.apache.cassandra.config.CassandraRelevantProperties.COM_SUN_MANAGEMENT_JMXREMOTE_PORT;
 import static org.apache.cassandra.config.CassandraRelevantProperties.JAVA_CLASS_PATH;
 import static org.apache.cassandra.config.CassandraRelevantProperties.JAVA_RMI_SERVER_RANDOM_ID;
@@ -226,12 +224,6 @@ public class CassandraDaemon
      */
     protected void setup()
     {
-        String fsErrorHandlerClass = CASSANDRA_FSERRORHANDLER.getString();
-        FSErrorHandler fsErrorHandler = fsErrorHandlerClass == null
-                ? new DefaultFSErrorHandler()
-                : FBUtilities.construct(fsErrorHandlerClass, "fs error handler");
-        FileUtils.setFSErrorHandler(fsErrorHandler);
-
         // Since CASSANDRA-14793 the local system keyspaces data are not dispatched across the data directories
         // anymore to reduce the risks in case of disk failures. By consequence, the system need to ensure in case of
         // upgrade that the old data files have been migrated to the new directories before we start deleting

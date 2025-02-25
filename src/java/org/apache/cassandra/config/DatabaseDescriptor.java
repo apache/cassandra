@@ -92,6 +92,7 @@ import org.apache.cassandra.fql.FullQueryLoggerOptions;
 import org.apache.cassandra.gms.IEndpointStateChangeSubscriber;
 import org.apache.cassandra.gms.IFailureDetector;
 import org.apache.cassandra.gms.VersionedValue;
+import org.apache.cassandra.io.FSErrorHandler;
 import org.apache.cassandra.io.FSWriteError;
 import org.apache.cassandra.io.sstable.format.SSTableFormat;
 import org.apache.cassandra.io.sstable.format.big.BigFormat;
@@ -118,6 +119,7 @@ import org.apache.cassandra.security.EncryptionContext;
 import org.apache.cassandra.security.JREProvider;
 import org.apache.cassandra.security.SSLFactory;
 import org.apache.cassandra.service.CacheService.CacheType;
+import org.apache.cassandra.service.DefaultFSErrorHandler;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.service.paxos.Paxos;
 import org.apache.cassandra.tcm.RegistrationStatus;
@@ -129,6 +131,7 @@ import org.apache.cassandra.utils.StorageCompatibilityMode;
 import static org.apache.cassandra.config.CassandraRelevantProperties.ALLOCATE_TOKENS_FOR_KEYSPACE;
 import static org.apache.cassandra.config.CassandraRelevantProperties.ALLOW_UNLIMITED_CONCURRENT_VALIDATIONS;
 import static org.apache.cassandra.config.CassandraRelevantProperties.AUTO_BOOTSTRAP;
+import static org.apache.cassandra.config.CassandraRelevantProperties.CASSANDRA_FS_ERROR_HANDLER;
 import static org.apache.cassandra.config.CassandraRelevantProperties.CONFIG_LOADER;
 import static org.apache.cassandra.config.CassandraRelevantProperties.CHRONICLE_ANALYTICS_DISABLE;
 import static org.apache.cassandra.config.CassandraRelevantProperties.DISABLE_STCS_IN_L0;
@@ -1114,6 +1117,13 @@ public class DatabaseDescriptor
         // run audit logging options through sanitation and validation
         if (conf.audit_logging_options != null)
             setAuditLoggingOptions(conf.audit_logging_options);
+
+
+        String fsErrorHandlerClass = CASSANDRA_FS_ERROR_HANDLER.getString();
+        FSErrorHandler fsErrorHandler = fsErrorHandlerClass == null
+                                        ? new DefaultFSErrorHandler()
+                                        : FBUtilities.construct(fsErrorHandlerClass, "fs error handler");
+        setFsErrorHandler(fsErrorHandler);
     }
 
     @VisibleForTesting
@@ -5537,5 +5547,10 @@ public class DatabaseDescriptor
     public static void setPurgeableTobmstonesMetricGranularity(Config.TombstonesMetricGranularity granularity)
     {
         conf.tombstone_read_purgeable_metric_granularity = granularity;
+    }
+
+    public static void setFsErrorHandler(FSErrorHandler errorHandler)
+    {
+        FileUtils.setFSErrorHandler(errorHandler);
     }
 }
