@@ -73,7 +73,10 @@ public final class AuthConfig
         IAuthorizer authorizer = authInstantiate(conf.authorizer, AllowAllAuthorizer.class);
 
         if (!authenticator.requireAuthentication() && authorizer.requireAuthorization())
-            throw new ConfigurationException(conf.authenticator.class_name + " can't be used with " + conf.authorizer, false);
+        {
+            throw new ConfigurationException(authorizer.getClass().getName() + " has authorization enabled which requires " +
+                    authenticator.getClass().getName() + " to enable authentication", false);
+        }
 
         DatabaseDescriptor.setAuthorizer(authorizer);
 
