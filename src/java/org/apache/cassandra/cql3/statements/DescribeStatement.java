@@ -23,6 +23,7 @@ import java.util.*;
 import java.util.function.BiFunction;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+import java.util.stream.StreamSupport;
 
 import com.google.common.collect.ImmutableList;
 
@@ -472,9 +473,16 @@ public abstract class DescribeStatement<T> extends CQLStatement.Raw implements C
             TableMetadata table = checkNotNull(ks.getTableNullable(t),
                                                "Table '%s' not found in keyspace '%s'", t, ks.name);
 
-            return Stream.concat(Stream.of(table), table.indexes.stream()
-                                                                .map(index -> toDescribable(table, index))
-                                                                .sorted(SchemaElement.NAME_COMPARATOR));
+
+            Stream<SchemaElement> withIndexes = Stream.concat(Stream.of(table), table.indexes.stream()
+                                                                                             .map(index -> toDescribable(table, index))
+                                                                                             .sorted(SchemaElement.NAME_COMPARATOR));
+
+            Stream<SchemaElement> views = StreamSupport.stream(ks.views.forTable(table.id).spliterator(), false)
+                                                       .map(viewMetadata -> toDescribable(table, viewMetadata))
+                                                       .sorted(SchemaElement.NAME_COMPARATOR);
+
+            return Stream.concat(withIndexes, views);
         });
     }
 
@@ -578,6 +586,36 @@ public abstract class DescribeStatement<T> extends CQLStatement.Raw implements C
                         return index.toCqlString(table, ifNotExists);
                     }
                 };
+    }
+
+    private static SchemaElement toDescribable(TableMetadata table, ViewMetadata viewMetadata)
+    {
+        return new SchemaElement()
+        {
+            @Override
+            public SchemaElementType elementType()
+            {
+                return SchemaElementType.MATERIALIZED_VIEW;
+            }
+
+            @Override
+            public String elementKeyspace()
+            {
+                return table.keyspace;
+            }
+
+            @Override
+            public String elementName()
+            {
+                return viewMetadata.name();
+            }
+
+            @Override
+            public String toCqlString(boolean withWarnings, boolean withInternals, boolean ifNotExists)
+            {
+                return viewMetadata.toCqlString(withWarnings, withInternals, ifNotExists);
+            }
+        };
     }
 
     /**
