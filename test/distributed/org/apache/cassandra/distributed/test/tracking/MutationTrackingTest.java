@@ -56,7 +56,7 @@ public class MutationTrackingTest extends TestBaseImpl
     private static final Logger logger = LoggerFactory.getLogger(MutationTrackingTest.class);
 
     @Test
-    public void test() throws Throwable
+    public void testBasicWritePath() throws Throwable
     {
         try (Cluster cluster = Cluster.build(3)
                                       .withConfig(cfg -> cfg.with(Feature.NETWORK)
@@ -68,6 +68,8 @@ public class MutationTrackingTest extends TestBaseImpl
             cluster.schemaChange(withKeyspace("CREATE KEYSPACE %s WITH replication = " +
                                               "{'class': 'SimpleStrategy', 'replication_factor': 3} " +
                                               "AND replication_type='logged';"));
+
+            cluster.schemaChange(withKeyspace("CREATE TABLE %s.tbl (k int primary key, v int);"));
 
             String keyspaceName = KEYSPACE;
             cluster.get(1).runOnInstance(() -> {
