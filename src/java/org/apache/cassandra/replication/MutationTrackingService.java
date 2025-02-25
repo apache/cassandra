@@ -46,6 +46,11 @@ public class MutationTrackingService
         return reconciliations;
     }
 
+    public static void shutdownBlocking() throws InterruptedException
+    {
+        reconciliations.shutdownBlocking();
+    }
+
     public static final IVersionedSerializer<MutationSummary> summarySerializer = new IVersionedSerializer<MutationSummary>()
     {
         @Override

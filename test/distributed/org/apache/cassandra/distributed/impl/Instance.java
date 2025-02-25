@@ -47,6 +47,7 @@ import javax.management.Notification;
 import javax.management.NotificationListener;
 
 import com.google.common.annotations.VisibleForTesting;
+import org.apache.cassandra.replication.MutationTrackingService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -974,6 +975,7 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
             // CommitLog must shut down after Stage, or threads from the latter may attempt to use the former.
             // (ex. A Mutation stage thread may attempt to add a mutation to the CommitLog.)
             error = parallelRun(error, executor, CommitLog.instance::shutdownBlocking);
+            error = parallelRun(error, executor, MutationTrackingService::shutdownBlocking);
             error = parallelRun(error, executor,
                                 () -> shutdownAndWait(Collections.singletonList(JMXBroadcastExecutor.executor))
             );
