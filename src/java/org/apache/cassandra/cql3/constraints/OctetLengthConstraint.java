@@ -19,6 +19,7 @@
 package org.apache.cassandra.cql3.constraints;
 
 import java.nio.ByteBuffer;
+import java.util.Set;
 
 import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.cql3.Operator;
@@ -52,6 +53,12 @@ public class OctetLengthConstraint extends ConstraintFunction
             throw new ConstraintViolationException("Column value does not satisfy value constraint for column '" + columnName + "'. "
                                                    + "It has a length of " + valueLength + " and it should be should be "
                                                    + relationType + ' ' + term);
+    }
+
+    @Override
+    public Set<Operator> getSupportedOperators()
+    {
+        return DEFAULT_FUNCTION_OPERATORS;
     }
 
     @Override
