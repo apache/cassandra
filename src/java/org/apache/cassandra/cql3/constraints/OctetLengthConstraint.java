@@ -42,7 +42,7 @@ public class OctetLengthConstraint extends ConstraintFunction
     @Override
     public void internalEvaluate(AbstractType<?> valueType, Operator relationType, String term, ByteBuffer columnValue)
     {
-        int valueLength = getValueSize(columnValue);
+        int valueLength = columnValue.remaining();
         int sizeConstraint = Integer.parseInt(term);
 
         ByteBuffer leftOperand = ByteBufferUtil.bytes(valueLength);
@@ -69,17 +69,7 @@ public class OctetLengthConstraint extends ConstraintFunction
         }
 
         if (!supported)
-            throw invalidConstraintDefinitionException(columnMetadata.type);
-    }
-
-    private int getValueSize(ByteBuffer value)
-    {
-        return value.remaining();
-    }
-
-    private InvalidConstraintDefinitionException invalidConstraintDefinitionException(AbstractType<?> valueType)
-    {
-        throw new InvalidConstraintDefinitionException("Column type " + valueType.getClass() + " is not supported.");
+            throw new InvalidConstraintDefinitionException("Column type " + columnMetadata.type.getClass() + " is not supported.");
     }
 
     @Override

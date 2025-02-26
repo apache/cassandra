@@ -100,21 +100,22 @@ For example, we can create a constraint that checks that name can't be bigger th
 
 ----
 CREATE TABLE keyspace.table (
-	name text CHECK OCTET_LENGTH(name) < 256
+	name text CHECK OCTET_LENGTH(name) < 2
 	...,
 );
 ----
 
-Altering that constraint can be done with:
-
+Inserting a valid row:
 ----
-ALTER TABLE keyspace.table ALTER name OCTET_LENGTH(name) < 512;
+INSERT INTO keyspace.table (name) VALUES ("f")
 ----
 
-Finally, the constraint can be removed:
-
+Inserting an invalid row:
 ----
-ALTER TABLE keyspace.table ALTER name DROP CHECK;
+INSERT INTO keyspace.table (name) VALUES ("fooooooo")
+
+ERROR: Column value does not satisfy value constraint for column 'name'. It has a length of 8 and
+and it should be should be < 2
 ----
 
 === NOT_NULL constraint
