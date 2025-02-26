@@ -100,6 +100,7 @@ public class SerializationHeaderTest
                                                              .setTableMetadataRef(TableMetadataRef.forOfflineTools(schema))
                                                              .setKeyCount(1)
                                                              .setSerializationHeader(header)
+                                                             .setCoordinatorLogBoundaries(CoordinatorLogBoundaries.NONE)
                                                              .setMetadataCollector(new MetadataCollector(schema.comparator))
                                                              .addDefaultComponents(Collections.emptySet())
                                                              .build(txn, null))

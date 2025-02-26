@@ -28,6 +28,8 @@ import java.util.Set;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableMap;
+
+import org.apache.cassandra.db.CoordinatorLogBoundaries;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -558,6 +560,7 @@ public abstract class AbstractCompactionStrategy
                                                        long repairedAt,
                                                        TimeUUID pendingRepair,
                                                        boolean isTransient,
+                                                       CoordinatorLogBoundaries coordinatorLogBoundaries,
                                                        IntervalSet<CommitLogPosition> commitLogPositions,
                                                        int sstableLevel,
                                                        SerializationHeader header,
@@ -569,6 +572,7 @@ public abstract class AbstractCompactionStrategy
                                                repairedAt,
                                                pendingRepair,
                                                isTransient,
+                                               coordinatorLogBoundaries,
                                                cfs.metadata,
                                                commitLogPositions,
                                                sstableLevel,

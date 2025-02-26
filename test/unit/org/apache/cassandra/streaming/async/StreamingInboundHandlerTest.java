@@ -21,6 +21,9 @@ package org.apache.cassandra.streaming.async;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 
+import org.apache.cassandra.SchemaLoader;
+import org.apache.cassandra.db.CoordinatorLogBoundaries;
+
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
@@ -29,7 +32,6 @@ import org.junit.Test;
 
 import io.netty.buffer.ByteBuf;
 import io.netty.channel.embedded.EmbeddedChannel;
-import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.io.util.DataInputBuffer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputBuffer;
@@ -64,7 +66,7 @@ public class StreamingInboundHandlerTest
     @BeforeClass
     public static void before()
     {
-        DatabaseDescriptor.daemonInitialization();
+        SchemaLoader.prepareServer();
     }
 
     @Before
@@ -116,7 +118,7 @@ public class StreamingInboundHandlerTest
     public void StreamDeserializingTask_deserialize_ISM_NoSession() throws IOException
     {
         StreamMessageHeader header = new StreamMessageHeader(TableId.generate(), REMOTE_ADDR, nextTimeUUID(), true,
-                                                             0, 0, 0, nextTimeUUID());
+                                                             0, 0, 0, nextTimeUUID(), CoordinatorLogBoundaries.NONE);
 
         ByteBuffer temp = ByteBuffer.allocate(1024);
         DataOutputPlus out = new DataOutputBuffer(temp);
@@ -135,7 +137,7 @@ public class StreamingInboundHandlerTest
         StreamResultFuture future = StreamResultFuture.createFollower(0, planId, StreamOperation.REPAIR, REMOTE_ADDR, streamingChannel, MessagingService.current_version, nextTimeUUID(), PreviewKind.ALL);
         StreamManager.instance.registerFollower(future);
         StreamMessageHeader header = new StreamMessageHeader(TableId.generate(), REMOTE_ADDR, planId, false,
-                                                             0, 0, 0, nextTimeUUID());
+                                                             0, 0, 0, nextTimeUUID(), CoordinatorLogBoundaries.NONE);
 
         // IncomingStreamMessage.serializer.deserialize
         StreamSession session = StreamManager.instance.findSession(header.sender, header.planId, header.sessionIndex, header.sendByFollower);

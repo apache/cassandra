@@ -21,6 +21,7 @@ package org.apache.cassandra.schema;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
@@ -39,6 +40,7 @@ import org.apache.cassandra.Util;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.BufferDecoratedKey;
 import org.apache.cassandra.db.ColumnFamilyStore;
+import org.apache.cassandra.db.CoordinatorLogBoundaries;
 import org.apache.cassandra.db.DeletionTime;
 import org.apache.cassandra.db.Directories;
 import org.apache.cassandra.db.Keyspace;
@@ -52,6 +54,7 @@ import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.SSTableId;
 import org.apache.cassandra.io.sstable.format.SSTableFormat;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
+import org.apache.cassandra.io.sstable.format.StatsComponent;
 import org.apache.cassandra.io.sstable.format.big.BigFormat;
 import org.apache.cassandra.io.sstable.format.big.BigFormat.Components;
 import org.apache.cassandra.io.sstable.format.big.BigTableReader;
@@ -61,6 +64,7 @@ import org.apache.cassandra.io.sstable.format.bti.PartitionIndex;
 import org.apache.cassandra.io.sstable.indexsummary.IndexSummary;
 import org.apache.cassandra.io.sstable.keycache.KeyCache;
 import org.apache.cassandra.io.sstable.metadata.MetadataCollector;
+import org.apache.cassandra.io.sstable.metadata.MetadataComponent;
 import org.apache.cassandra.io.sstable.metadata.MetadataType;
 import org.apache.cassandra.io.sstable.metadata.StatsMetadata;
 import org.apache.cassandra.io.util.DataOutputStreamPlus;
@@ -183,6 +187,7 @@ public class MockSchema
 
     public static SSTableReader sstable(int generation, int size, boolean keepRef, long firstToken, long lastToken, int level, ColumnFamilyStore cfs, int minLocalDeletionTime, long timestamp)
     {
+        assert !cfs.metadata().replicationType().isTracked();
         SSTableFormat<?, ?> format = DatabaseDescriptor.getSelectedSSTableFormat();
         Descriptor descriptor = new Descriptor(cfs.getDirectories().getDirectoryForNewSSTables(),
                                                cfs.getKeyspaceName(),
@@ -192,7 +197,7 @@ public class MockSchema
 
         if (BigFormat.is(format))
         {
-            Set<Component> components = ImmutableSet.of(Components.DATA, Components.PRIMARY_INDEX, Components.FILTER, Components.TOC);
+            Set<Component> components = ImmutableSet.of(Components.DATA, Components.PRIMARY_INDEX, Components.FILTER, Components.TOC, Components.STATS);
             for (Component component : components)
             {
                 File file = descriptor.fileFor(component);
@@ -207,17 +212,26 @@ public class MockSchema
                 collector.update(DeletionTime.build(timestamp, minLocalDeletionTime));
                 BufferDecoratedKey first = readerBounds(firstToken);
                 BufferDecoratedKey last = readerBounds(lastToken);
-                StatsMetadata metadata =
-                                       (StatsMetadata) collector.sstableLevel(level)
-                                                                .finalizeMetadata(cfs.metadata().partitioner.getClass().getCanonicalName(),
-                                                                                  0.01f,
-                                                                                  UNREPAIRED_SSTABLE,
-                                                                                  null,
-                                                                                  false,
-                                                                                  header,
-                                                                                  first.retainable().getKey().slice(),
-                                                                                  last.retainable().getKey().slice())
-                                                                .get(MetadataType.STATS);
+                Map<MetadataType, MetadataComponent> metadataComponents = collector.sstableLevel(level)
+                                                                         .finalizeMetadata(cfs.metadata().partitioner.getClass().getCanonicalName(),
+                                                                        0.01f,
+                                                                        UNREPAIRED_SSTABLE,
+                                                                        null,
+                                                                        false,
+                                                                        CoordinatorLogBoundaries.NONE,
+                                                                        header,
+                                                                        first.retainable().getKey().slice(),
+                                                                        last.retainable().getKey().slice());
+                StatsMetadata statsMetadata = (StatsMetadata) metadataComponents.get(MetadataType.STATS);
+                try (DataOutputStreamPlus out = descriptor.fileFor(Components.STATS).newOutputStream(File.WriteMode.OVERWRITE))
+                {
+                    new StatsComponent(metadataComponents).save(descriptor);
+                    out.flush();
+                }
+                catch (IOException ioe)
+                {
+                    throw new RuntimeException(ioe);
+                }
                 BigTableReader reader = new BigTableReader.Builder(descriptor).setComponents(components)
                                                                               .setTableMetadataRef(cfs.metadata)
                                                                               .setDataFile(fileHandle.sharedCopy())
@@ -225,7 +239,7 @@ public class MockSchema
                                                                               .setIndexSummary(indexSummary.sharedCopy())
                                                                               .setFilter(FilterFactory.AlwaysPresent)
                                                                               .setMaxDataAge(1L)
-                                                                              .setStatsMetadata(metadata)
+                                                                              .setStatsMetadata(statsMetadata)
                                                                               .setOpenReason(SSTableReader.OpenReason.NORMAL)
                                                                               .setSerializationHeader(header)
                                                                               .setFirst(first)
@@ -256,7 +270,7 @@ public class MockSchema
                 BufferDecoratedKey first = readerBounds(firstToken);
                 BufferDecoratedKey last = readerBounds(lastToken);
                 StatsMetadata metadata = (StatsMetadata) collector.sstableLevel(level)
-                                                                  .finalizeMetadata(cfs.metadata().partitioner.getClass().getCanonicalName(), 0.01f, UNREPAIRED_SSTABLE, null, false, header, first.retainable().getKey(), last.retainable().getKey())
+                                                                  .finalizeMetadata(cfs.metadata().partitioner.getClass().getCanonicalName(), 0.01f, UNREPAIRED_SSTABLE, null, false, CoordinatorLogBoundaries.NONE, header, first.retainable().getKey(), last.retainable().getKey())
                                                                   .get(MetadataType.STATS);
                 BtiTableReader reader = new BtiTableReader.Builder(descriptor).setComponents(components)
                                                                               .setTableMetadataRef(cfs.metadata)

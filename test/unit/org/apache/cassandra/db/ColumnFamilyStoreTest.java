@@ -843,7 +843,7 @@ public class ColumnFamilyStoreTest
         {
 
             @Override
-            public long put(PartitionUpdate update, UpdateTransaction indexer, Group opGroup)
+            public long put(MutationId mutationId, PartitionUpdate update, UpdateTransaction indexer, Group opGroup)
             {
                 return 0;
             }

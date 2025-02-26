@@ -286,23 +286,26 @@ public class BtiFormat extends AbstractSSTableFormat<BtiTableReader, BtiTableWri
 
     static class BtiVersion extends Version
     {
-        public static final String current_version = "da";
+        public static final String current_version = "db";
         public static final String earliest_supported_version = "da";
 
         // versions aa-cz are not supported in OSS
         // da (5.0): initial version of the BIT format
+        // db (5.x): mutation tracking metadata
         // NOTE: when adding a new version, please add that to LegacySSTableTest, too.
 
         private final boolean isLatestVersion;
 
         private final int correspondingMessagingVersion;
+        private final boolean hasMutationTrackingMetadata;
 
         BtiVersion(BtiFormat format, String version)
         {
             super(format, version);
 
             isLatestVersion = version.compareTo(current_version) == 0;
-            correspondingMessagingVersion = MessagingService.VERSION_50;
+            correspondingMessagingVersion = MessagingService.VERSION_52;
+            hasMutationTrackingMetadata = version.compareTo("db") >= 0;
         }
 
         @Override
@@ -385,6 +388,12 @@ public class BtiFormat extends AbstractSSTableFormat<BtiTableReader, BtiTableWri
         public boolean hasTokenSpaceCoverage()
         {
             return true;
+        }
+
+        @Override
+        public boolean hasMutationTrackingMetadata()
+        {
+            return hasMutationTrackingMetadata;
         }
 
         @Override

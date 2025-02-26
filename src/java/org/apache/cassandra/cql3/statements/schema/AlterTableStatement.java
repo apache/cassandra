@@ -610,6 +610,9 @@ public abstract class AlterTableStatement extends AlterSchemaStatement
             if (!params.compression.isEnabled())
                 Guardrails.uncompressedTablesEnabled.ensureEnabled(state);
 
+            if (table.replicationType().isTracked() && params.memtable.factory().streamFromMemtable())
+                throw ire("Cannot use mutation tracking with persistent memtables");
+
             return keyspace.withSwapped(keyspace.tables.withSwapped(table.withSwapped(params)));
         }
     }

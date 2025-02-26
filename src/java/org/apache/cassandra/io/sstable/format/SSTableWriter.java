@@ -32,6 +32,8 @@ import java.util.function.Supplier;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Sets;
+
+import org.apache.cassandra.db.CoordinatorLogBoundaries;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -73,6 +75,7 @@ public abstract class SSTableWriter extends SSTable implements Transactional
     protected long repairedAt;
     protected TimeUUID pendingRepair;
     protected boolean isTransient;
+    protected CoordinatorLogBoundaries coordinatorLogBoundaries;
     protected long maxDataAge = -1;
     protected final long keyCount;
     protected final MetadataCollector metadataCollector;
@@ -96,11 +99,13 @@ public abstract class SSTableWriter extends SSTable implements Transactional
         checkNotNull(builder.getIndexGroups());
         checkNotNull(builder.getMetadataCollector());
         checkNotNull(builder.getSerializationHeader());
+        checkNotNull(builder.getCoordinatorLogBoundaries());
 
         this.keyCount = builder.getKeyCount();
         this.repairedAt = builder.getRepairedAt();
         this.pendingRepair = builder.getPendingRepair();
         this.isTransient = builder.isTransientSSTable();
+        this.coordinatorLogBoundaries = builder.getCoordinatorLogBoundaries();
         this.metadataCollector = builder.getMetadataCollector();
         this.header = builder.getSerializationHeader();
         this.mmappedRegionsCache = builder.getMmappedRegionsCache();
@@ -333,6 +338,7 @@ public abstract class SSTableWriter extends SSTable implements Transactional
                                                   repairedAt,
                                                   pendingRepair,
                                                   isTransient,
+                                                  coordinatorLogBoundaries,
                                                   header,
                                                   first.retainable().getKey(),
                                                   last.retainable().getKey());
@@ -437,6 +443,7 @@ public abstract class SSTableWriter extends SSTable implements Transactional
         private boolean transientSSTable;
         private SerializationHeader serializationHeader;
         private List<Index.Group> indexGroups;
+        private CoordinatorLogBoundaries coordinatorLogBoundaries;
 
         public B setMetadataCollector(MetadataCollector metadataCollector)
         {
@@ -459,6 +466,12 @@ public abstract class SSTableWriter extends SSTable implements Transactional
         public B setPendingRepair(TimeUUID pendingRepair)
         {
             this.pendingRepair = pendingRepair;
+            return (B) this;
+        }
+
+        public B setCoordinatorLogBoundaries(CoordinatorLogBoundaries coordinatorLogBoundaries)
+        {
+            this.coordinatorLogBoundaries = coordinatorLogBoundaries;
             return (B) this;
         }
 
@@ -538,6 +551,11 @@ public abstract class SSTableWriter extends SSTable implements Transactional
         public boolean isTransientSSTable()
         {
             return transientSSTable;
+        }
+
+        public CoordinatorLogBoundaries getCoordinatorLogBoundaries()
+        {
+            return coordinatorLogBoundaries;
         }
 
         public SerializationHeader getSerializationHeader()

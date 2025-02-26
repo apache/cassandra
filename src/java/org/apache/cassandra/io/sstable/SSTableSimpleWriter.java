@@ -52,6 +52,7 @@ class SSTableSimpleWriter extends AbstractSSTableSimpleWriter
     protected PartitionUpdate.Builder update;
 
     private SSTableTxnWriter writer;
+    private long flushedBytes;
 
     /**
      * Create a SSTable writer for sorted input data.
@@ -142,6 +143,7 @@ class SSTableSimpleWriter extends AbstractSSTableSimpleWriter
             if (writer == null)
                 return;
 
+            flushedBytes += writer.getOnDiskBytesWritten();
             Collection<SSTableReader> finished = writer.finish(shouldOpenSSTables());
             notifySSTableProduced(finished);
         }
@@ -156,5 +158,11 @@ class SSTableSimpleWriter extends AbstractSSTableSimpleWriter
     private void writePartition(PartitionUpdate update) throws IOException
     {
         getOrCreateWriter().append(update.unfilteredIterator());
+    }
+
+    @Override
+    public long bytesWritten()
+    {
+        return flushedBytes + (writer != null ? writer.getOnDiskBytesWritten() : 0);
     }
 }

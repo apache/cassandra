@@ -30,6 +30,9 @@ import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Iterables;
 import com.google.common.util.concurrent.RateLimiter;
+
+import org.apache.cassandra.db.CoordinatorLogBoundaries;
+import org.apache.cassandra.db.CoordinatorLogBoundariesBuilder;
 import org.apache.cassandra.db.compaction.unified.UnifiedCompactionTask;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
@@ -407,6 +410,13 @@ public class CompactionTask extends AbstractCompactionTask
         return isTransient;
     }
 
+    public static CoordinatorLogBoundaries getCoordinatorLogBoundaries(Set<SSTableReader> sstables)
+    {
+        CoordinatorLogBoundariesBuilder builder = new CoordinatorLogBoundariesBuilder();
+        for (SSTableReader sstable : sstables)
+            builder.addAll(sstable.getCoordinatorLogBoundaries());
+        return builder.build();
+    }
 
     /*
      * Checks if we have enough disk space to execute the compaction.  Drops the largest sstable out of the Task until
