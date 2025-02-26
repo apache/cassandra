@@ -19,6 +19,7 @@
 package org.apache.cassandra.cql3.constraints;
 
 import java.nio.ByteBuffer;
+import java.util.List;
 
 import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.cql3.Operator;
@@ -55,6 +56,12 @@ public class NotNullConstraint extends ConstraintFunction
                                                                   name,
                                                                   columnMetadata.isPartitionKey() ? "partition" : "clustering",
                                                                   columnMetadata.name));
+    }
+
+    @Override
+    public List<AbstractType<?>> getSupportedTypes()
+    {
+        return null;
     }
 
     @Override

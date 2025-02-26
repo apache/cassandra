@@ -140,6 +140,12 @@ public class ColumnConstraints extends ColumnConstraint<ColumnConstraints>
         return ConstraintType.COMPOSED;
     }
 
+    @Override
+    public List<AbstractType<?>> getSupportedTypes()
+    {
+        return null;
+    }
+
     public static class DuplicatesChecker implements SatisfiabilityChecker
     {
         @Override

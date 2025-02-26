@@ -57,7 +57,9 @@ public class JsonConstraintTest
     public void testInvalidTypes()
     {
         assertThatThrownBy(() -> json.validate(getColumnOfType(IntegerType.instance)))
-        .hasMessageContaining("JSON can be used only for columns of 'text', 'varchar' or 'ascii' types.");
+        .hasMessage("Constraint 'JSON' can be used only for columns of type " +
+                    "[org.apache.cassandra.db.marshal.UTF8Type, org.apache.cassandra.db.marshal.AsciiType] " +
+                    "but it was class org.apache.cassandra.db.marshal.IntegerType");
     }
 
     private void run(String jsonToCheck) throws Throwable

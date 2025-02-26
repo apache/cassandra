@@ -19,7 +19,7 @@
 package org.apache.cassandra.cql3.constraints;
 
 import java.nio.ByteBuffer;
-import java.util.Set;
+import java.util.List;
 
 import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.cql3.Operator;
@@ -34,7 +34,7 @@ import org.apache.cassandra.utils.ByteBufferUtil;
 public class LengthConstraint extends ConstraintFunction
 {
     private static final String NAME = "LENGTH";
-    private static final AbstractType<?>[] SUPPORTED_TYPES = new AbstractType[]{ BytesType.instance, UTF8Type.instance, AsciiType.instance };
+    private static final List<AbstractType<?>> SUPPORTED_TYPES = List.of(BytesType.instance, UTF8Type.instance, AsciiType.instance);
 
     public LengthConstraint(ColumnIdentifier columnName)
     {
@@ -57,45 +57,28 @@ public class LengthConstraint extends ConstraintFunction
     }
 
     @Override
-    public void validate(ColumnMetadata columnMetadata)
+    public void validate(ColumnMetadata columnMetadata) throws InvalidConstraintDefinitionException
     {
-        boolean supported = false;
-        AbstractType<?> unwrapped = columnMetadata.type.unwrap();
-        for (AbstractType<?> supportedType : SUPPORTED_TYPES)
-        {
-            if (supportedType == unwrapped)
-            {
-                supported = true;
-                break;
-            }
-        }
-
-        if (!supported)
-            throw invalidConstraintDefinitionException(columnMetadata.type);
     }
 
     @Override
-    public Set<Operator> getSupportedOperators()
+    public List<Operator> getSupportedOperators()
     {
         return DEFAULT_FUNCTION_OPERATORS;
+    }
+
+    @Override
+    public List<AbstractType<?>> getSupportedTypes()
+    {
+        return SUPPORTED_TYPES;
     }
 
     private int getValueLength(ByteBuffer value, AbstractType<?> valueType)
     {
         if (valueType.getClass() == BytesType.class)
-        {
             return value.remaining();
-        }
-
-        if (valueType.getClass() == AsciiType.class || valueType.getClass() == UTF8Type.class)
+        else
             return ((String) valueType.compose(value)).length();
-
-        throw invalidConstraintDefinitionException(valueType);
-    }
-
-    private InvalidConstraintDefinitionException invalidConstraintDefinitionException(AbstractType<?> valueType)
-    {
-        throw new InvalidConstraintDefinitionException("Column type " + valueType.getClass() + " is not supported.");
     }
 
     @Override

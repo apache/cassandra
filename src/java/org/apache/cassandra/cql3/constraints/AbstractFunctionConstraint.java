@@ -18,7 +18,7 @@
 
 package org.apache.cassandra.cql3.constraints;
 
-import java.util.Set;
+import java.util.List;
 
 import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.cql3.CqlBuilder;
@@ -47,7 +47,7 @@ public abstract class AbstractFunctionConstraint<T> extends ColumnConstraint<T>
         return term;
     }
 
-    public abstract Set<Operator> getSupportedOperators();
+    public abstract List<Operator> getSupportedOperators();
 
     @Override
     public void appendCqlTo(CqlBuilder builder)

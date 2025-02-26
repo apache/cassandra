@@ -19,10 +19,13 @@
 package org.apache.cassandra.cql3.constraints;
 
 import java.nio.ByteBuffer;
+import java.util.List;
 
 import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.cql3.Operator;
 import org.apache.cassandra.db.marshal.AbstractType;
+import org.apache.cassandra.db.marshal.AsciiType;
+import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.serializers.MarshalException;
 import org.apache.cassandra.utils.JsonUtils;
@@ -31,6 +34,8 @@ import static java.lang.String.format;
 
 public class JsonConstraint extends ConstraintFunction
 {
+    private static final List<AbstractType<?>> SUPPORTED_TYPES = List.of(UTF8Type.instance, AsciiType.instance);
+
     public static final String FUNCTION_NAME = "JSON";
 
     public JsonConstraint(ColumnIdentifier columnName)
@@ -61,8 +66,12 @@ public class JsonConstraint extends ConstraintFunction
     @Override
     public void validate(ColumnMetadata columnMetadata) throws InvalidConstraintDefinitionException
     {
-        if (!columnMetadata.type.unwrap().isString())
-            throw new InvalidConstraintDefinitionException(name + " can be used only for columns of 'text', 'varchar' or 'ascii' types.");
+    }
+
+    @Override
+    public List<AbstractType<?>> getSupportedTypes()
+    {
+        return SUPPORTED_TYPES;
     }
 
     @Override
