@@ -725,7 +725,6 @@ public abstract class AlterTableStatement extends AlterSchemaStatement
         @Override
         public KeyspaceMetadata apply(Epoch epoch, KeyspaceMetadata keyspace, TableMetadata table, ClusterMetadata metadata)
         {
-
             if (table.containtsColumn(columnName))
             {
                 ColumnMetadata column = table.getColumn(columnName);

@@ -348,16 +348,14 @@ public final class CreateTableStatement extends AlterSchemaStatement
         {
             ColumnProperties properties = partitionKeyColumnProperties.get(i);
             ColumnIdentifier columnIdentifier = partitionKeyColumns.get(i);
-            builder.addPartitionKeyColumn(columnIdentifier, properties.type, properties.mask);
-            builder.getColumn(columnIdentifier).setColumnConstraints(columnConstraints.get(columnIdentifier));
+            builder.addPartitionKeyColumn(columnIdentifier, properties.type, properties.mask, columnConstraints.get(columnIdentifier));
         }
 
         for (int i = 0; i < clusteringColumns.size(); i++)
         {
             ColumnProperties properties = clusteringColumnProperties.get(i);
             ColumnIdentifier columnIdentifier = clusteringColumns.get(i);
-            builder.addClusteringColumn(columnIdentifier, properties.type, properties.mask);
-            builder.getColumn(columnIdentifier).setColumnConstraints(columnConstraints.get(columnIdentifier));
+            builder.addClusteringColumn(columnIdentifier, properties.type, properties.mask, columnConstraints.get(columnIdentifier));
         }
 
         if (useCompactStorage)
@@ -368,13 +366,11 @@ public final class CreateTableStatement extends AlterSchemaStatement
         {
             columns.forEach((column, properties) -> {
                 if (staticColumns.contains(column))
-                    builder.addStaticColumn(column, properties.type, properties.mask);
+                    builder.addStaticColumn(column, properties.type, properties.mask, columnConstraints.get(column));
                 else
-                    builder.addRegularColumn(column, properties.type, properties.mask);
+                    builder.addRegularColumn(column, properties.type, properties.mask, columnConstraints.get(column));
             });
         }
-
-        columns.keySet().forEach(id -> builder.getColumn(id).setColumnConstraints(columnConstraints.get(id)));
 
         return builder;
     }

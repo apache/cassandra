@@ -363,9 +363,14 @@ public final class ColumnMetadata extends ColumnSpecification implements Selecta
         return columnConstraints;
     }
 
+    public ColumnConstraints setColumnConstraints()
+    {
+        return columnConstraints;
+    }
+
     public ColumnMetadata withNewColumnConstraints(ColumnConstraints constraints)
     {
-        constraints.checkInvalidConstraintsCombinations(name);
+        constraints.validate(this);
         return new ColumnMetadata(ksName, cfName, name, type, position, kind, mask, constraints);
     }
 
