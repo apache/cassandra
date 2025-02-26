@@ -53,7 +53,6 @@ import accord.primitives.RoutingKeys;
 import accord.primitives.SaveStatus;
 import accord.primitives.Seekable;
 import accord.primitives.Seekables;
-import accord.primitives.Status;
 import accord.primitives.Timestamp;
 import accord.primitives.Txn.Kind;
 import accord.primitives.TxnId;
@@ -73,7 +72,16 @@ import org.apache.cassandra.service.accord.txn.TxnResult;
 import org.apache.cassandra.service.accord.txn.TxnWrite;
 import org.apache.cassandra.utils.ObjectSizes;
 
+import static accord.local.Command.Accepted.accepted;
+import static accord.local.Command.Committed.committed;
+import static accord.local.Command.Executed.executed;
+import static accord.local.Command.NotAcceptedWithoutDefinition.notAccepted;
+import static accord.local.Command.NotDefined.notDefined;
+import static accord.local.Command.PreAccepted.preaccepted;
+import static accord.local.Command.Truncated.*;
+import static accord.local.StoreParticipants.empty;
 import static accord.local.cfk.CommandsForKey.InternalStatus.ACCEPTED;
+import static accord.primitives.Status.Durability.NotDurable;
 import static accord.primitives.TxnId.NO_TXNIDS;
 import static org.apache.cassandra.utils.ObjectSizes.measure;
 
@@ -294,7 +302,7 @@ public class AccordObjectSizes
             Participants<?> empty = route.slice(0, 0);
             ICommand.Builder builder = new ICommand.Builder(EMPTY_TXNID)
                                        .setParticipants(StoreParticipants.create(route, empty, executes ? empty : null, executes ? empty : null, empty, route))
-                                       .durability(Status.Durability.NotDurable)
+                                       .durability(NotDurable)
                                        .executeAt(EMPTY_TXNID)
                                        .promised(Ballot.ZERO);
             if (hasDeps)
@@ -312,14 +320,15 @@ public class AccordObjectSizes
             return builder;
         }
 
-        final static long NOT_DEFINED = measure(Command.NotDefined.notDefined(attrs(false, false, false)));
-        final static long PREACCEPTED = measure(Command.PreAccepted.preaccepted(attrs(false, true, false), SaveStatus.PreAccepted));
-        final static long NOTACCEPTED = measure(Command.NotAcceptedWithoutDefinition.notAccepted(attrs(false, false, false), SaveStatus.AcceptedInvalidate));
-        final static long ACCEPTED = measure(Command.Accepted.accepted(attrs(true, false, false), SaveStatus.AcceptedMedium));
-        final static long COMMITTED = measure(Command.Committed.committed(attrs(true, true, false), SaveStatus.Committed));
-        final static long EXECUTED = measure(Command.Executed.executed(attrs(true, true, true), SaveStatus.Applied));
-        final static long TRUNCATED = measure(Command.Truncated.truncated(attrs(false, false, false), SaveStatus.TruncatedApply,  EMPTY_TXNID, null, null));
-        final static long INVALIDATED = measure(Command.Truncated.invalidated(EMPTY_TXNID, attrs(false, false, false).participants()));
+        final static long NOT_DEFINED = measure(notDefined(attrs(false, false, false)));
+        final static long PREACCEPTED = measure(preaccepted(attrs(false, true, false), SaveStatus.PreAccepted));
+        final static long NOTACCEPTED = measure(notAccepted(attrs(false, false, false), SaveStatus.AcceptedInvalidate));
+        final static long ACCEPTED = measure(accepted(attrs(true, false, false), SaveStatus.AcceptedMedium));
+        final static long COMMITTED = measure(committed(attrs(true, true, false), SaveStatus.Committed));
+        final static long EXECUTED = measure(executed(attrs(true, true, true), SaveStatus.Applied));
+        // TODO (expected): TruncatedAwaitsOnlyDeps
+        final static long TRUNCATED = measure(vestigial(EMPTY_TXNID, attrs(false, false, false).participants()));
+        final static long INVALIDATED = measure(invalidated(EMPTY_TXNID, attrs(false, false, false).participants()));
 
         private static long emptySize(Command command)
         {
@@ -357,6 +366,7 @@ public class AccordObjectSizes
                 case TruncatedApply:
                 case TruncatedUnapplied:
                 case TruncatedApplyWithOutcome:
+                case TruncatedApplyWithOutcomeAndDeps:
                 case Vestigial:
                 case Erased:
                     return TRUNCATED;
