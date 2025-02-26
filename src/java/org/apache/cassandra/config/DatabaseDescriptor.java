@@ -1118,7 +1118,6 @@ public class DatabaseDescriptor
         if (conf.audit_logging_options != null)
             setAuditLoggingOptions(conf.audit_logging_options);
 
-
         String fsErrorHandlerClass = CASSANDRA_FS_ERROR_HANDLER.getString();
         FSErrorHandler fsErrorHandler = fsErrorHandlerClass == null
                                         ? new DefaultFSErrorHandler()
