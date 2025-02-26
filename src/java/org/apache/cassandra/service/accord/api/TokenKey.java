@@ -458,7 +458,7 @@ public final class TokenKey extends AccordRoutableKey implements RoutingKey, Ran
         {
             while (index <= escapeLimit)
             {
-                if (bytes[index] == 0 && (index == escapeLimit || bytes[index + 1] <= ESCAPE_BYTE))
+                if (bytes[index] == 0 && (index == escapeLimit || (bytes[index + 1] & 0xff) <= ESCAPE_BYTE))
                     return index;
                 ++index;
             }
