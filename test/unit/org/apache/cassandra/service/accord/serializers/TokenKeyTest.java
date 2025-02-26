@@ -112,7 +112,7 @@ public class TokenKeyTest
     @Test
     public void compare()
     {
-        qt().withSeed(0L).forAll(fromQT(partitioners().assuming(IPartitioner::accordSupported)).flatMap(partitioner -> routingKeyGen(fromQT(CassandraGenerators.TABLE_ID_GEN), fromQT(token(partitioner)), partitioner)))
+        qt().forAll(fromQT(partitioners().assuming(IPartitioner::accordSupported)).flatMap(partitioner -> routingKeyGen(fromQT(CassandraGenerators.TABLE_ID_GEN), fromQT(token(partitioner)), partitioner)))
             .check(key -> {
                 ByteBuffer keyBytes = serializer.serialize(key);
                 for (TokenKey test : mutateAfter(key))

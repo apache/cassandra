@@ -31,7 +31,6 @@ import com.google.common.annotations.VisibleForTesting;
 
 import accord.impl.CommandChange;
 import accord.impl.CommandChange.Field;
-import accord.impl.RetiredSafeCommand;
 import accord.local.Cleanup;
 import accord.local.Command;
 import accord.local.CommandStore;
@@ -87,8 +86,6 @@ import static accord.impl.CommandChange.toIterableSetFields;
 import static accord.impl.CommandChange.unsetIterable;
 import static accord.impl.CommandChange.validateFlags;
 import static accord.local.Cleanup.Input.FULL;
-import static accord.primitives.SaveStatus.Erased;
-import static accord.primitives.SaveStatus.Vestigial;
 import static org.apache.cassandra.service.accord.AccordJournalValueSerializers.DurableBeforeAccumulator;
 
 public class AccordJournal implements accord.api.Journal, RangeSearcher.Supplier, Shutdownable
@@ -222,15 +219,7 @@ public class AccordJournal implements accord.api.Journal, RangeSearcher.Supplier
     public Command loadCommand(int commandStoreId, TxnId txnId, RedundantBefore redundantBefore, DurableBefore durableBefore)
     {
         Builder builder = load(commandStoreId, txnId);
-        Cleanup cleanup = builder.shouldCleanup(FULL, agent, redundantBefore, durableBefore);
-        switch (cleanup)
-        {
-            case VESTIGIAL:
-                return RetiredSafeCommand.erased(txnId, Vestigial);
-            case EXPUNGE:
-            case ERASE:
-                return RetiredSafeCommand.erased(txnId, Erased);
-        }
+        builder.maybeCleanup(FULL, agent, redundantBefore, durableBefore);
         return builder.construct(redundantBefore);
     }
 

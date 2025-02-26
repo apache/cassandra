@@ -251,18 +251,19 @@ public class AccordGenerators
 
         public Command build(SaveStatus saveStatus)
         {
+            ICommand command = attributes(saveStatus);
             switch (saveStatus)
             {
                 default: throw new AssertionError("Unhandled saveStatus: " + saveStatus);
                 case Uninitialised:
                 case NotDefined:
-                    return Command.NotDefined.notDefined(attributes(saveStatus), Ballot.ZERO);
+                    return Command.NotDefined.notDefined(command, Ballot.ZERO);
                 case PreAccepted:
                 case PreAcceptedWithVote:
                 case PreAcceptedWithDeps:
-                    return Command.PreAccepted.preaccepted(attributes(saveStatus), saveStatus);
+                    return Command.PreAccepted.preaccepted(command, saveStatus);
                 case AcceptedInvalidate:
-                    return Command.NotAcceptedWithoutDefinition.acceptedInvalidate(attributes(saveStatus));
+                    return Command.NotAcceptedWithoutDefinition.acceptedInvalidate(command);
 
                 case AcceptedMedium:
                 case AcceptedMediumWithDefinition:
@@ -277,33 +278,34 @@ public class AccordGenerators
                 case PreCommittedWithDefAndDeps:
                 case PreCommittedWithDefAndFixedDeps:
                 case PreCommitted:
-                    return Command.Accepted.accepted(attributes(saveStatus), saveStatus);
+                    return Command.Accepted.accepted(command, saveStatus);
 
                 case Committed:
-                    return Command.Committed.committed(attributes(saveStatus), saveStatus);
+                    return Command.Committed.committed(command, saveStatus);
 
                 case Stable:
                 case ReadyToExecute:
-                    return Command.Committed.committed(attributes(saveStatus), saveStatus);
+                    return Command.Committed.committed(command, saveStatus);
 
                 case PreApplied:
                 case Applying:
                 case Applied:
-                    return Command.Executed.executed(attributes(saveStatus), saveStatus);
+                    return Command.Executed.executed(command, saveStatus);
 
                 case TruncatedApply:
                 case TruncatedUnapplied:
-                    if (txnId.kind().awaitsOnlyDeps()) return Truncated.truncated(attributes(saveStatus), saveStatus, executeAt, null, null, txnId);
-                    else return Truncated.truncated(attributes(saveStatus), saveStatus, executeAt, null, null);
+                    if (txnId.kind().awaitsOnlyDeps()) return Truncated.truncated(command, saveStatus, executeAt, null, null, null, txnId);
+                    else return Truncated.truncated(command, saveStatus, executeAt, null, null, null, null);
 
+                case TruncatedApplyWithOutcomeAndDeps:
                 case TruncatedApplyWithOutcome:
-                    if (txnId.kind().awaitsOnlyDeps()) return Truncated.truncated(attributes(saveStatus), saveStatus, executeAt, txnId.is(Write) ? new Writes(txnId, executeAt, keysOrRanges,new TxnWrite(Collections.emptyList(), true)) : null, new TxnData(), txnId);
-                    else return Truncated.truncated(attributes(saveStatus), saveStatus, executeAt, txnId.is(Write) ? new Writes(txnId, executeAt, keysOrRanges, new TxnWrite(Collections.emptyList(), true)) : null, new TxnData());
+                    if (txnId.kind().awaitsOnlyDeps()) return Truncated.truncated(command, saveStatus, executeAt, command.partialDeps(), txnId.is(Write) ? new Writes(txnId, executeAt, keysOrRanges,new TxnWrite(Collections.emptyList(), true)) : null, new TxnData(), txnId);
+                    else return Truncated.truncated(command, saveStatus, executeAt, command.partialDeps(), txnId.is(Write) ? new Writes(txnId, executeAt, keysOrRanges, new TxnWrite(Collections.emptyList(), true)) : null, new TxnData(), null);
 
                 case Erased:
                 case Vestigial:
                 case Invalidated:
-                    return Truncated.invalidated(txnId, attributes(saveStatus).participants());
+                    return Truncated.invalidated(txnId, command.participants());
             }
         }
     }
