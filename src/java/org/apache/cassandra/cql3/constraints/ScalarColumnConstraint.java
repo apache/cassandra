@@ -21,12 +21,22 @@ package org.apache.cassandra.cql3.constraints;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.List;
-import java.util.Set;
+
+import com.google.common.annotations.VisibleForTesting;
 
 import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.cql3.Operator;
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.db.marshal.AbstractType;
+import org.apache.cassandra.db.marshal.ByteType;
+import org.apache.cassandra.db.marshal.CounterColumnType;
+import org.apache.cassandra.db.marshal.DecimalType;
+import org.apache.cassandra.db.marshal.DoubleType;
+import org.apache.cassandra.db.marshal.FloatType;
+import org.apache.cassandra.db.marshal.Int32Type;
+import org.apache.cassandra.db.marshal.IntegerType;
+import org.apache.cassandra.db.marshal.LongType;
+import org.apache.cassandra.db.marshal.ShortType;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.schema.ColumnMetadata;
@@ -43,7 +53,13 @@ import static org.apache.cassandra.cql3.constraints.AbstractFunctionSatisfiabili
 
 public class ScalarColumnConstraint extends AbstractFunctionConstraint<ScalarColumnConstraint>
 {
-    public static final Set<Operator> SUPPORTED_OPERATORS = Set.of(EQ, NEQ, GTE, GT, LTE, LT);
+    private static final List<AbstractType<?>> SUPPORTED_TYPES =
+    List.of(ByteType.instance, CounterColumnType.instance, DecimalType.instance, DoubleType.instance,
+            FloatType.instance, Int32Type.instance, IntegerType.instance, LongType.instance,
+            ShortType.instance);
+
+    @VisibleForTesting
+    public static final List<Operator> SUPPORTED_OPERATORS = List.of(EQ, NEQ, GTE, GT, LTE, LT);
 
     public static final Serializer serializer = new Serializer();
 
@@ -81,9 +97,15 @@ public class ScalarColumnConstraint extends AbstractFunctionConstraint<ScalarCol
     }
 
     @Override
-    public Set<Operator> getSupportedOperators()
+    public List<Operator> getSupportedOperators()
     {
         return SUPPORTED_OPERATORS;
+    }
+
+    @Override
+    public List<AbstractType<?>> getSupportedTypes()
+    {
+        return SUPPORTED_TYPES;
     }
 
     @Override
@@ -107,8 +129,7 @@ public class ScalarColumnConstraint extends AbstractFunctionConstraint<ScalarCol
     @Override
     public void validate(ColumnMetadata columnMetadata) throws InvalidConstraintDefinitionException
     {
-        if (!columnMetadata.type.isNumber())
-            throw new InvalidConstraintDefinitionException("Column '" + columnName + "' is not a number type.");
+        validateTypes(columnMetadata);
     }
 
     @Override

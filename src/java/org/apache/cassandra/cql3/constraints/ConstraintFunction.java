@@ -19,7 +19,7 @@
 package org.apache.cassandra.cql3.constraints;
 
 import java.nio.ByteBuffer;
-import java.util.Set;
+import java.util.List;
 
 import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.cql3.Operator;
@@ -38,7 +38,7 @@ import static org.apache.cassandra.cql3.Operator.NEQ;
  */
 public abstract class ConstraintFunction
 {
-    public static final Set<Operator> DEFAULT_FUNCTION_OPERATORS = Set.of(EQ, NEQ, GTE, GT, LTE, LT);
+    public static final List<Operator> DEFAULT_FUNCTION_OPERATORS = List.of(EQ, NEQ, GTE, GT, LTE, LT);
 
     protected final ColumnIdentifier columnName;
     protected final String name;
@@ -82,12 +82,20 @@ public abstract class ConstraintFunction
     public abstract void validate(ColumnMetadata columnMetadata) throws InvalidConstraintDefinitionException;
 
     /**
-     * Return operators this function supports. By default, it returns an empty set, modelling unary function.
+     * Return operators this function supports. By default, it returns an empty list, modelling unary function.
      *
-     * @return set of operators this function is allowed to have.
+     * @return list of operators this function is allowed to have.
      */
-    public Set<Operator> getSupportedOperators()
+    public List<Operator> getSupportedOperators()
     {
-        return Set.of();
+        return List.of();
     }
+
+    /**
+     * Tells what types of columns are supported by this constraint.
+     * Returning null or empty list means that all types are supported.
+     *
+     * @return supported types for given constraint
+     */
+    public abstract List<AbstractType<?>> getSupportedTypes();
 }
