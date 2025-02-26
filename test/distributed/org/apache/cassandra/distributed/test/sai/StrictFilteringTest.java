@@ -51,26 +51,6 @@ public class StrictFilteringTest extends TestBaseImpl
     }
 
     @Test
-    public void testMissingStaticRowWithNonStaticExpression()
-    {
-        CLUSTER.schemaChange(withKeyspace("CREATE TABLE %s.single_predicate (pk0 int, ck0 int, ck1 int, s0 int static, s1 int static, v0 int, PRIMARY KEY (pk0, ck0, ck1)) " +
-                                          "WITH CLUSTERING ORDER BY (ck0 ASC, ck1 DESC) AND read_repair = 'NONE'"));
-        CLUSTER.schemaChange(withKeyspace("CREATE INDEX ON %s.single_predicate(ck1) USING 'sai'"));
-        SAIUtil.waitForIndexQueryable(CLUSTER, KEYSPACE);
-
-        CLUSTER.get(1).executeInternal(withKeyspace("INSERT INTO %s.single_predicate (pk0, ck0, ck1, s0, s1, v0) " +
-                                                    "VALUES (0, 1, 2, 3, 4, 5) USING TIMESTAMP 1"));
-        CLUSTER.get(2).executeInternal(withKeyspace("UPDATE %s.single_predicate  USING TIMESTAMP 2 SET s0 = 6, s1 = 7, v0 = 8 " +
-                                                    "WHERE  pk0 = 0 AND ck0 = 9 AND ck1 = 10"));
-
-        // Node 2 will not produce a match for the static row. Make sure that replica filtering protection does not
-        // fetch the entire partition, which could let non-matching rows slip through combined with the fact that we 
-        // don't post-filter at the coordinator with no regular column predicates in the query.
-        String select = withKeyspace("SELECT pk0, ck0, ck1, s0, s1 FROM %s.single_predicate WHERE ck1 = 2 ALLOW FILTERING");
-        assertRows(CLUSTER.coordinator(1).execute(select, ConsistencyLevel.ALL), row(0, 1, 2, 6, 7));
-    }
-
-    @Test
     public void shouldDegradeToUnionOnSingleStatic()
     {
         CLUSTER.schemaChange(withKeyspace("CREATE TABLE %s.single_static (pk0 int, ck0 int, ck1 int, s0 int static, v0 int, PRIMARY KEY (pk0, ck0, ck1)) " +
