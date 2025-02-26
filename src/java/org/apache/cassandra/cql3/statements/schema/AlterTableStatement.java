@@ -710,32 +710,6 @@ public abstract class AlterTableStatement extends AlterSchemaStatement
         }
     }
 
-    public static class DropConstraints extends AlterTableStatement
-    {
-        final ColumnIdentifier columnName;
-
-        DropConstraints(String keyspaceName, String tableName, boolean ifTableExists, ColumnIdentifier columnName)
-        {
-            super(keyspaceName, tableName, ifTableExists);
-            this.columnName = columnName;
-        }
-
-        @Override
-        public KeyspaceMetadata apply(Epoch epoch, KeyspaceMetadata keyspace, TableMetadata table, ClusterMetadata metadata)
-        {
-            ColumnMetadata columnMetadata = table.getColumn(columnName);
-            columnMetadata.removeColumnConstraints();
-
-            TableMetadata.Builder tableBuilder = table.unbuild().epoch(epoch);
-            Views.Builder viewsBuilder = keyspace.views.unbuild();
-            TableMetadata tableMetadata = tableBuilder.build();
-            tableMetadata.validate();
-
-            return keyspace.withSwapped(keyspace.tables.withSwapped(tableMetadata))
-                           .withSwapped(viewsBuilder.build());
-        }
-    }
-
     public static class AlterConstraints extends AlterTableStatement
     {
         final ColumnIdentifier columnName;
@@ -751,23 +725,22 @@ public abstract class AlterTableStatement extends AlterSchemaStatement
         @Override
         public KeyspaceMetadata apply(Epoch epoch, KeyspaceMetadata keyspace, TableMetadata table, ClusterMetadata metadata)
         {
-            for (ColumnMetadata column : table.columns())
+
+            if (table.containtsColumn(columnName))
             {
-                if (column.name == columnName)
-                {
-                    ColumnConstraints oldConstraints = column.getColumnConstraints();
-                    ColumnConstraints newConstraints = constraints == null ? ColumnConstraints.NO_OP : constraints.prepare();
-                    if (Objects.equals(oldConstraints, newConstraints))
-                        return keyspace;
-                    newConstraints.validate(column);
-                    TableMetadata.Builder tableBuilder = table.unbuild().epoch(epoch);
-                    tableBuilder.alterColumnConstraints(columnName, newConstraints);
+                ColumnMetadata column = table.getColumn(columnName);
+                ColumnConstraints oldConstraints = column.getColumnConstraints();
+                ColumnConstraints newConstraints = constraints == null ? ColumnConstraints.NO_OP : constraints.prepare();
+                if (Objects.equals(oldConstraints, newConstraints))
+                    return keyspace;
+                newConstraints.validate(column);
+                TableMetadata.Builder tableBuilder = table.unbuild().epoch(epoch);
+                tableBuilder.alterColumnConstraints(columnName, newConstraints);
 
-                    TableMetadata newTable = tableBuilder.build();
-                    newTable.validate();
+                TableMetadata newTable = tableBuilder.build();
+                newTable.validate();
 
-                    return keyspace.withSwapped(keyspace.tables.withSwapped(newTable));
-                }
+                return keyspace.withSwapped(keyspace.tables.withSwapped(newTable));
             }
             return keyspace;
         }

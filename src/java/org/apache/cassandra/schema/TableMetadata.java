@@ -455,6 +455,14 @@ public class TableMetadata implements SchemaElement
     {
         return columns.get(name.bytes);
     }
+
+    /**
+     * Returns if {@code name} is in ColumnMetadata.
+     */
+    public boolean containtsColumn(ColumnIdentifier name)
+    {
+        return columns.containsKey(name.bytes);
+    }
     /**
      * Returns the column of the provided name if it exists, but throws a user-visible exception if that column doesn't
      * exist.

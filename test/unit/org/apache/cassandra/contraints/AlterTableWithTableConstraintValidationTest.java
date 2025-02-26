@@ -222,4 +222,11 @@ public class AlterTableWithTableConstraintValidationTest extends CqlConstraintVa
         // It works
         execute("ALTER TABLE %s WITH cdc = true");
     }
+
+    @Test
+    public void testCreateTableAddConstraintWithIfExists() throws Throwable
+    {
+        createTable("CREATE TABLE %s (pk int, ck1 int, ck2 int, v int, PRIMARY KEY ((pk),ck1, ck2)) WITH CLUSTERING ORDER BY (ck1 ASC);");
+        execute("ALTER TABLE %s ALTER IF EXISTS foo CHECK foo < 100");
+    }
 }
