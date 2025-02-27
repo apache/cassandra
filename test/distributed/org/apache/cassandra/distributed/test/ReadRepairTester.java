@@ -85,6 +85,7 @@ public abstract class ReadRepairTester<T extends ReadRepairTester<T>>
     {
         cluster.schemaChange(String.format("CREATE KEYSPACE IF NOT EXISTS %s WITH REPLICATION={'class': 'SimpleStrategy', 'replication_factor': " + cluster.size() + "} AND replication_type='%s'",
                                            keyspaceName, replicationType.name()));
+        cluster.schemaChange(String.format("CREATE TYPE IF NOT EXISTS %s.udt (x int, y int)", keyspaceName));
         String query;
         switch (StringUtils.countMatches(createTable, "%s"))
         {
