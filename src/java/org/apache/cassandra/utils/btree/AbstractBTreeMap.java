@@ -107,15 +107,14 @@ public abstract class AbstractBTreeMap<K, V> extends AbstractMap<K, V>
         return keySet;
     }
 
+    /**
+     * This method, according to the contract of {@link Map#values()}, returns a collection backed by the map. It also
+     * closely mirrors {@link AbstractMap#values()}, which returns an {@link AbstractCollection}.
+     */
     @Override
     public Collection<V> values()
     {
-        // java.util.Map.values docstring says:
-        // > Returns a Collection view of the values contained in this map. The collection is backed by the map, so
-        // > changes to the map are reflected in the collection, and vice-versa.
-        // This implementation more closely mirrors the java.util.AbstractMap.values implementation, which returns an
-        // AbstractCollection as well.
-        return new AbstractCollection<V>()
+        return new AbstractCollection<>()
         {
             @Override
             public Iterator<V> iterator()
