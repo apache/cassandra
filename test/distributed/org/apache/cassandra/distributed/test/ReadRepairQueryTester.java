@@ -29,6 +29,7 @@ import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 
 import org.apache.cassandra.distributed.Cluster;
+import org.apache.cassandra.schema.ReplicationType;
 import org.apache.cassandra.service.reads.repair.ReadRepairStrategy;
 
 import static org.apache.cassandra.distributed.shared.AssertUtils.assertEquals;
@@ -97,15 +98,19 @@ public abstract class ReadRepairQueryTester extends TestBaseImpl
     @Parameterized.Parameter(3)
     public boolean paging;
 
-    @Parameterized.Parameters(name = "{index}: strategy={0} coordinator={1} flush={2} paging={3}")
+    @Parameterized.Parameter(4)
+    public ReplicationType replicationType;
+
+    @Parameterized.Parameters(name = "{index}: strategy={0} coordinator={1} flush={2} paging={3} replication={4}")
     public static Collection<Object[]> data()
     {
         List<Object[]> result = new ArrayList<>();
         for (int coordinator = 1; coordinator <= NUM_NODES; coordinator++)
             for (boolean flush : BOOLEANS)
                 for (boolean paging : BOOLEANS)
-                    result.add(new Object[]{ ReadRepairStrategy.BLOCKING, coordinator, flush, paging });
-        result.add(new Object[]{ ReadRepairStrategy.NONE, 1, false, false });
+                    for (ReplicationType replication : ReplicationType.values())
+                        result.add(new Object[]{ ReadRepairStrategy.BLOCKING, coordinator, flush, paging, replication });
+        result.add(new Object[]{ ReadRepairStrategy.NONE, 1, false, false, ReplicationType.legacy});
         return result;
     }
 
@@ -130,7 +135,7 @@ public abstract class ReadRepairQueryTester extends TestBaseImpl
 
     protected Tester tester(String restriction)
     {
-        return new Tester(restriction, cluster, strategy, coordinator, flush, paging);
+        return new Tester(restriction, cluster, strategy, coordinator, flush, paging, replicationType);
     }
 
     protected static class Tester extends ReadRepairTester<Tester>
@@ -138,9 +143,9 @@ public abstract class ReadRepairQueryTester extends TestBaseImpl
         private final String restriction; // the tested CQL query WHERE restriction
         private final String allColumnsQuery; // a SELECT * query for the table using the tested restriction
 
-        Tester(String restriction, Cluster cluster, ReadRepairStrategy strategy, int coordinator, boolean flush, boolean paging)
+        Tester(String restriction, Cluster cluster, ReadRepairStrategy strategy, int coordinator, boolean flush, boolean paging, ReplicationType replicationType)
         {
-            super(cluster, strategy, coordinator, flush, paging, false);
+            super(cluster, strategy, coordinator, flush, paging, false, replicationType);
             this.restriction = restriction;
 
             allColumnsQuery = String.format("SELECT * FROM %s %s", qualifiedTableName, restriction);

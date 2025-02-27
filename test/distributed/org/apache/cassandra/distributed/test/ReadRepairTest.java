@@ -81,6 +81,7 @@ public class ReadRepairTest extends TestBaseImpl
     @Test
     public void testBlockingReadRepair() throws Throwable
     {
+        assert false : "FIXME: parameterize replication type";
         testReadRepair(ReadRepairStrategy.BLOCKING);
     }
     /**
@@ -346,7 +347,7 @@ public class ReadRepairTest extends TestBaseImpl
                     coordinator.execute(withKeyspace("SELECT * FROM %s.t WHERE k=? AND c<?"), QUORUM, k, c);
                 }
             }
-            long requests = ReadRepairTester.readRepairRequestsCount(cluster.get(1), "t");
+            long requests = ReadRepairTester.readRepairRequestsCount(cluster.get(1), KEYSPACE, "t");
             assertEquals("No read repair requests were expected, found " + requests, 0, requests);
         }
     }
@@ -477,7 +478,7 @@ public class ReadRepairTest extends TestBaseImpl
 
             // run an unrestricted range query verifying that it doesn't trigger read repair
             coordinator.execute(withKeyspace("SELECT * FROM %s.t"), ALL);
-            long requests = ReadRepairTester.readRepairRequestsCount(cluster.get(1), "t");
+            long requests = ReadRepairTester.readRepairRequestsCount(cluster.get(1), KEYSPACE, "t");
             assertEquals("No read repair requests were expected, found " + requests, 0, requests);
         }
     }
