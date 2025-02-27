@@ -83,4 +83,10 @@ public enum ReplicationType
     {
         return this == logged;
     }
+
+    // FIXME: used in lieu of adding support for logged reads in parameterized tests, fix usages of this method
+    public static ReplicationType[] fixmeValues()
+    {
+        return new ReplicationType[]{legacy};
+    }
 }

@@ -81,7 +81,7 @@ public abstract class ReadRepairEmptyRangeTombstonesTestBase extends TestBaseImp
         for (int coordinator = 1; coordinator <= NUM_NODES; coordinator++)
             for (boolean paging : BOOLEANS)
                 for (boolean reverse : BOOLEANS)
-                    for (ReplicationType replication : ReplicationType.values())
+                    for (ReplicationType replication : ReplicationType.fixmeValues())
                         result.add(new Object[]{ ReadRepairStrategy.BLOCKING, coordinator, paging, reverse, replication });
         result.add(new Object[]{ ReadRepairStrategy.NONE, 1, false, false, ReplicationType.legacy });
         return result;

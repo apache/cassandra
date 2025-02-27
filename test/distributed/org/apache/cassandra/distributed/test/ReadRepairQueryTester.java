@@ -123,7 +123,6 @@ public abstract class ReadRepairQueryTester extends TestBaseImpl
                               .withConfig(config -> config.set("read_request_timeout", "1m")
                                                           .set("write_request_timeout", "1m"))
                               .start());
-        cluster.schemaChange(withKeyspace("CREATE TYPE %s.udt (x int, y int)"));
     }
 
     @AfterClass
