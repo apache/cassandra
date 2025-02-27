@@ -42,6 +42,13 @@ else
   SED_INPLACE=(-i)
 fi
 
+# Capture the output into an array
+available_ports=()
+while IFS= read -r line; do
+  available_ports+=("$line")
+done < <(./.jenkins/get_available_ports.sh)
+available_ports_index=0
+
 # 4. List of parameters to update
 PARAMS=("storage_port" "ssl_storage_port" "native_transport_port")
 
@@ -56,8 +63,17 @@ for param in "${PARAMS[@]}"; do
     continue
   fi
 
-  # old value to old value + 1000 is reserved for jvm dtests
-  new_value=$((old_value + 15000 + x * 50 - RANDOM % 50))
+  # If results[results_index] exists (non-empty), use it; otherwise use fallback
+  if [ -n "${available_ports[available_ports_index]}" ]; then
+    new_value="${available_ports[available_ports_index]}"
+    # Move to the next index for future use
+    (( available_ports_index++ ))
+    echo "Using available_port provided by buildkite${new_value}"
+  else
+    # Fall back to random
+    # old value to old value + 1000 is reserved for jvm dtests
+    new_value=$((old_value + 15000 + x * 50 - RANDOM % 50))
+  fi
 
   # Use the OS-specific in-place sed argument
   sed "${SED_INPLACE[@]}" "s|^${param}:.*|${param}: ${new_value}|" "${CONFIG_FILE}"
