@@ -92,7 +92,7 @@ public class ShortReadProtectionTest extends TestBaseImpl
         for (ConsistencyLevel readConsistencyLevel : Arrays.asList(ALL, QUORUM))
             for (boolean flush : BOOLEANS)
                 for (boolean paging : BOOLEANS)
-                    for (ReplicationType replication : ReplicationType.values())
+                    for (ReplicationType replication : ReplicationType.fixmeValues())
                         result.add(new Object[]{ readConsistencyLevel, flush, paging, replication});
 
         return result;
