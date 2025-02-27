@@ -1,4 +1,5 @@
 5.1
+ * Paxos Repair: NoSuchElementException on DistributedSchema.getKeyspaceMetadata (CASSANDRA-20320)
  * Improve performance of DistributedSchema.validate for large schemas (CASSANDRA-20360)
  * Add JSON constraint (CASSANDRA-20273)
  * Prevent invalid constraint combinations (CASSANDRA-20330)
