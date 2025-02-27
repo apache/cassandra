@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 
-package org.apache.cassandra.service.reads.legacy;
+package org.apache.cassandra.service.reads;
 
 import java.util.ArrayDeque;
 import java.util.ArrayList;
@@ -70,7 +70,7 @@ import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.ClientWarn;
 import org.apache.cassandra.service.StorageProxy;
-import org.apache.cassandra.service.reads.ReadCallback;
+import org.apache.cassandra.service.reads.legacy.DataResolver;
 import org.apache.cassandra.service.reads.repair.NoopReadRepair;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.transport.Dispatcher;
@@ -120,7 +120,7 @@ public class ReplicaFilteringProtection<E extends Endpoints<E>>
      */
     private final List<Queue<PartitionBuilder>> originalPartitions;
 
-    ReplicaFilteringProtection(Keyspace keyspace,
+    public ReplicaFilteringProtection(Keyspace keyspace,
                                ReadCommand command,
                                ConsistencyLevel consistency,
                                Dispatcher.RequestTime requestTime,
@@ -177,7 +177,7 @@ public class ReplicaFilteringProtection<E extends Endpoints<E>>
      * {@link #queryProtectedPartitions(PartitionIterator, int)} will use the collected data to return a copy of the
      * data originally collected from the specified replica, completed with the potentially outdated rows.
      */
-    UnfilteredPartitionIterators.MergeListener mergeController()
+    public UnfilteredPartitionIterators.MergeListener mergeController()
     {
         return new UnfilteredPartitionIterators.MergeListener()
         {
@@ -334,7 +334,7 @@ public class ReplicaFilteringProtection<E extends Endpoints<E>>
      * @param source the source
      * @return the protected results for the specified replica
      */
-    UnfilteredPartitionIterator queryProtectedPartitions(PartitionIterator merged, int source)
+    public UnfilteredPartitionIterator queryProtectedPartitions(PartitionIterator merged, int source)
     {
         return new UnfilteredPartitionIterator()
         {
