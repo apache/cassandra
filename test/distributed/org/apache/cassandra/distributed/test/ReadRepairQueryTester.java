@@ -178,6 +178,28 @@ public abstract class ReadRepairQueryTester extends TestBaseImpl
         {
             // query only the selected columns with CL=ALL to trigger partial read repair on that column
             String columnsQuery = String.format("SELECT %s FROM %s %s", columns, qualifiedTableName, restriction);
+
+            if (replicationType.isLogged())
+            {
+                // for logged replication, entire mutations will be replicated, so unlike legacy read repair we'd expect the
+                // node that missed writes to be completely up to date with the node that was last written to. So here we
+                switch (lastMutatedNode)
+                {
+                    case 1:
+                        node2Rows = node1Rows;
+                        break;
+                    case 2:
+                        node1Rows = node2Rows;
+                        break;
+                    default:
+                        throw new AssertionError("Unhandled lastMutatedNode value: " + lastMutatedNode);
+                }
+
+                // we also expect all pending mutations to be reconciled in the initial read, and none to be reconciled on the verification step
+                columnsQueryRepairedRows = Math.max(columnsQueryRepairedRows, rowsQueryRepairedRows);
+                rowsQueryRepairedRows = 0;
+            }
+
             assertRowsDistributed(columnsQuery, columnsQueryRepairedRows, columnsQueryResults);
 
             // query entire rows to repair the rest of the columns, that might trigger new repairs for those columns
@@ -267,6 +289,25 @@ public abstract class ReadRepairQueryTester extends TestBaseImpl
          */
         void tearDown(long repairedRows, Object[][] node1Rows, Object[][] node2Rows)
         {
+            if (replicationType.isLogged())
+            {
+                // for logged replication, entire mutations will be replicated, so unlike legacy read repair we'd expect the
+                // node that missed writes to be completely up to date with the node that was last written to. So here we
+                switch (lastMutatedNode)
+                {
+                    case 1:
+                        node2Rows = node1Rows;
+                        break;
+                    case 2:
+                        node1Rows = node2Rows;
+                        break;
+                    default:
+                        throw new AssertionError("Unhandled lastMutatedNode value: " + lastMutatedNode);
+                }
+
+                // we also expect all pending mutations to be reconciled in the initial read, and none to be reconciled on the verification step
+                repairedRows = 0;
+            }
             verifyQuery("SELECT * FROM " + qualifiedTableName, repairedRows, node1Rows, node2Rows);
             for (int n = 1; n <= cluster.size(); n++)
             {

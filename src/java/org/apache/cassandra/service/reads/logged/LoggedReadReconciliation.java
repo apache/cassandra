@@ -36,6 +36,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Mutation;
 import org.apache.cassandra.db.MutationId;
 import org.apache.cassandra.db.ReadCommand;
@@ -342,6 +343,7 @@ public class LoggedReadReconciliation<E extends Endpoints<E>, P extends ReplicaP
     public void startRepair(ResponseResolver<E, P> resolver, Consumer<PartitionIterator> resultConsumer)
     {
         ReadRepairMetrics.logReconcile.mark();
+        ColumnFamilyStore.metricsFor(command.metadata().id).readRepairRequests.mark();
 
         if (!state.isInitialized())
         {
