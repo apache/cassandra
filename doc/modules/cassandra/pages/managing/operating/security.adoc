@@ -100,6 +100,28 @@ YAML!)
               -----END CERTIFICATE-----
 ----
 
+* Configuration: PEM private key's password specified via a file
+
+[source,yaml]
+----
+   client/server_encryption_options:
+     ssl_context_factory:
+        class_name: org.apache.cassandra.security.PEMBasedSslContextFactory
+        parameters:
+            private_key: |
+             -----BEGIN ENCRYPTED PRIVATE KEY----- OR -----BEGIN PRIVATE KEY-----
+             <your base64 encoded private key>
+             -----END ENCRYPTED PRIVATE KEY----- OR -----END PRIVATE KEY-----
+             -----BEGIN CERTIFICATE-----
+             <your base64 encoded certificate chain>
+             -----END CERTIFICATE-----
+            trusted_certificates: |
+              -----BEGIN CERTIFICATE-----
+              <your base64 encoded certificate>
+              -----END CERTIFICATE-----
+     keystore_password_file: "<file having your password for the encrypted private key>"
+----
+
 * Configuration: PEM keys/certs defined in files
 
 [source,yaml]
@@ -109,6 +131,18 @@ YAML!)
         class_name: org.apache.cassandra.security.PEMBasedSslContextFactory
      keystore: <file path to the keystore file in the PEM format with the private key and the certificate chain>
      keystore_password: "<your password if the private key is encrypted with a password>"
+     truststore: <file path to the truststore file in the PEM format>
+----
+
+* Configuration: PEM private key's password specified via a file
+
+[source,yaml]
+----
+   client/server_encryption_options:
+     ssl_context_factory:
+        class_name: org.apache.cassandra.security.PEMBasedSslContextFactory
+     keystore: <file path to the keystore file in the PEM format with the private key and the certificate chain>
+     keystore_password_file: "<file having your password for the encrypted private key>"
      truststore: <file path to the truststore file in the PEM format>
 ----
 
@@ -590,11 +624,27 @@ jmx_encryption_options:
     truststore_password: cassandra
 ----
 
+Below is an example of configuring JMX SSL in `cassandra.yaml` with password files for keystore and truststore.
+[source,yaml]
+----
+jmx_encryption_options:
+    enabled: true
+    cipher_suites: [TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384,TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256]
+    accepted_protocols: [TLSv1.2,TLSv1.3,TLSv1.1]
+    keystore: test/conf/cassandra_ssl_test.keystore
+    keystore_password_file: test/conf/keystore_passwordfile.txt
+    truststore: test/conf/cassandra_ssl_test.truststore
+    truststore_password: cassandra
+    truststore_password_file: test/conf/truststore_passwordfile.txt
+----
+
 Similar to `client/server_encryption_options`, you can specify PEM-based
 key material or customize the SSL configuration using
 `ssl_context_factory` in `jmx_encryption_options`.
 
-Below is an example of configuring PEM based key material,
+Below is an example of configuring PEM based key material. You can use `keystore_password_file`
+configuration with in-line PEM as documented priorly in case you have stored the password for the
+keystore in a file.
 [source,yaml]
 ----
 jmx_encryption_options:
