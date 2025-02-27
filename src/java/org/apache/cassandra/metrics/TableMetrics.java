@@ -57,7 +57,7 @@ import org.apache.cassandra.io.sstable.metadata.MetadataCollector;
 import org.apache.cassandra.metrics.Sampler.SamplerType;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.SchemaConstants;
-import org.apache.cassandra.service.reads.legacy.ReplicaFilteringProtection;
+import org.apache.cassandra.service.reads.ReplicaFilteringProtection;
 import org.apache.cassandra.utils.EstimatedHistogram;
 import org.apache.cassandra.utils.ExpMovingAverage;
 import org.apache.cassandra.utils.MovingAverage;

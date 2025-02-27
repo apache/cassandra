@@ -31,7 +31,7 @@ import org.apache.cassandra.distributed.api.IInvokableInstance;
 import org.apache.cassandra.distributed.api.SimpleQueryResult;
 import org.apache.cassandra.exceptions.OverloadedException;
 import org.apache.cassandra.service.StorageService;
-import org.apache.cassandra.service.reads.legacy.ReplicaFilteringProtection;
+import org.apache.cassandra.service.reads.ReplicaFilteringProtection;
 
 import static org.apache.cassandra.config.ReplicaFilteringProtectionOptions.DEFAULT_FAIL_THRESHOLD;
 import static org.apache.cassandra.config.ReplicaFilteringProtectionOptions.DEFAULT_WARN_THRESHOLD;

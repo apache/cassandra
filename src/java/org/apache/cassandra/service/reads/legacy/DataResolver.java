@@ -52,6 +52,7 @@ import org.apache.cassandra.locator.ReplicaPlan;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.reads.IReadResponse;
+import org.apache.cassandra.service.reads.ReplicaFilteringProtection;
 import org.apache.cassandra.service.reads.ShortReadProtection;
 import org.apache.cassandra.service.reads.repair.NoopReadRepair;
 import org.apache.cassandra.service.reads.repair.RepairedDataTracker;
