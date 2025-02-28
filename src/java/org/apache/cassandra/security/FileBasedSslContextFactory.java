@@ -308,7 +308,7 @@ public abstract class FileBasedSslContextFactory extends AbstractSslContextFacto
                 return password;
 
             if (StringUtils.isEmpty(passwordFilePath))
-                return password;
+                return null;
 
             File keystorePasswordFile = new File(passwordFilePath);
 
