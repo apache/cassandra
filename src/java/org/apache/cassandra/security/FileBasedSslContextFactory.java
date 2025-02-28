@@ -323,7 +323,7 @@ public abstract class FileBasedSslContextFactory extends AbstractSslContextFacto
                 // we expect a password to be on the first line
                 List<String> lines = FileUtils.readLines(keystorePasswordFile);
                 if (lines.isEmpty())
-                    return null;
+                    return "";
 
                 return lines.get(0);
             }
