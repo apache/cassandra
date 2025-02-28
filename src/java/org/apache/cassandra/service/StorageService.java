@@ -3838,6 +3838,9 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             // wait for miscellaneous tasks like sstable and commitlog segment deletion
             ColumnFamilyStore.shutdownPostFlushExecutor();
 
+            if (isFinalShutdown)
+                DiskErrorsHandlerService.get().close();
+
             try
             {
                 // we are not shutting down ScheduledExecutors#scheduledFastTasks to be still able to progress time

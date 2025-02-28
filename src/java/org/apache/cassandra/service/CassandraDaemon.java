@@ -224,7 +224,7 @@ public class CassandraDaemon
      */
     protected void setup()
     {
-        FileUtils.setFSErrorHandler(new DefaultFSErrorHandler());
+        DiskErrorsHandlerService.configure();
 
         // Since CASSANDRA-14793 the local system keyspaces data are not dispatched across the data directories
         // anymore to reduce the risks in case of disk failures. By consequence, the system need to ensure in case of

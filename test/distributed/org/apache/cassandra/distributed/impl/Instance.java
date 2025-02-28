@@ -109,7 +109,6 @@ import org.apache.cassandra.io.util.DataInputBuffer;
 import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.io.util.File;
-import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.io.util.PathUtils;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.metrics.CassandraMetricsRegistry;
@@ -124,7 +123,7 @@ import org.apache.cassandra.service.ActiveRepairService;
 import org.apache.cassandra.service.CassandraDaemon;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.ClientWarn;
-import org.apache.cassandra.service.DefaultFSErrorHandler;
+import org.apache.cassandra.service.DiskErrorsHandlerService;
 import org.apache.cassandra.service.QueryState;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.service.StorageServiceMBean;
@@ -715,7 +714,7 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
         logSystemInfo(inInstancelogger);
         Config.log(DatabaseDescriptor.getRawConfig());
 
-        FileUtils.setFSErrorHandler(new DefaultFSErrorHandler());
+        DiskErrorsHandlerService.configure();
         DatabaseDescriptor.createAllDirectories();
         CassandraDaemon.getInstanceForTesting().migrateSystemDataIfNeeded();
 
@@ -956,7 +955,8 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
                                 () -> shutdownAndWait(Collections.singletonList(ActiveRepairService.repairCommandExecutor())),
                                 () -> ActiveRepairService.instance().shutdownNowAndWait(1L, MINUTES),
                                 () -> EpochAwareDebounce.instance.close(),
-                                SnapshotManager.instance::close
+                                SnapshotManager.instance::close,
+                                DiskErrorsHandlerService::close
             );
 
             internodeMessagingStarted = false;

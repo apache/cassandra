@@ -32,8 +32,7 @@ import org.junit.rules.TemporaryFolder;
 
 import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.io.util.FileUtils;
-import org.apache.cassandra.service.DefaultFSErrorHandler;
+import org.apache.cassandra.service.DiskErrorsHandlerService;
 
 import static org.apache.cassandra.service.snapshot.TableSnapshotTest.createFolders;
 import static org.apache.cassandra.utils.FBUtilities.now;
@@ -50,7 +49,7 @@ public class MetadataSnapshotsTest
         CassandraRelevantProperties.SNAPSHOT_CLEANUP_PERIOD_SECONDS.setInt(3);
 
         DatabaseDescriptor.daemonInitialization();
-        FileUtils.setFSErrorHandler(new DefaultFSErrorHandler());
+        DiskErrorsHandlerService.configure();
     }
 
     @ClassRule

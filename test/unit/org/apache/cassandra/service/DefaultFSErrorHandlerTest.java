@@ -35,7 +35,6 @@ import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.gms.Gossiper;
-import org.apache.cassandra.io.FSErrorHandler;
 import org.apache.cassandra.io.FSReadError;
 import org.apache.cassandra.io.sstable.CorruptSSTableException;
 
@@ -46,7 +45,7 @@ import static org.junit.Assert.assertTrue;
 @RunWith(Parameterized.class)
 public class DefaultFSErrorHandlerTest
 {
-    private FSErrorHandler handler = new DefaultFSErrorHandler();
+    private DiskErrorsHandler handler = new DefaultDiskErrorsHandler();
     Config.DiskFailurePolicy oldDiskPolicy;
     Config.DiskFailurePolicy testDiskPolicy;
     private boolean gossipRunningFSError;

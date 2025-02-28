@@ -44,10 +44,8 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.EnumSet;
 import java.util.List;
-import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicLong;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -57,9 +55,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.io.FSError;
-import org.apache.cassandra.io.FSErrorHandler;
 import org.apache.cassandra.io.FSWriteError;
-import org.apache.cassandra.io.sstable.CorruptSSTableException;
 import org.apache.cassandra.utils.JVMStabilityInspector;
 import org.apache.cassandra.utils.SyncUtil;
 
@@ -78,7 +74,6 @@ public final class FileUtils
     public static final long ONE_TIB = 1024 * ONE_GIB;
 
     private static final DecimalFormat df = new DecimalFormat("#.##");
-    private static final AtomicReference<Optional<FSErrorHandler>> fsErrorHandler = new AtomicReference<>(Optional.empty());
 
     private static final Class clsDirectBuffer;
     private static final MethodHandle mhDirectBufferCleaner;
@@ -468,21 +463,6 @@ public final class FileUtils
         }
     }
 
-    public static void handleCorruptSSTable(CorruptSSTableException e)
-    {
-        fsErrorHandler.get().ifPresent(handler -> handler.handleCorruptSSTable(e));
-    }
-
-    public static void handleFSError(FSError e)
-    {
-        fsErrorHandler.get().ifPresent(handler -> handler.handleFSError(e));
-    }
-
-    public static void handleStartupFSError(Throwable t)
-    {
-        fsErrorHandler.get().ifPresent(handler -> handler.handleStartupFSError(t));
-    }
-
     /**
      * handleFSErrorAndPropagate will invoke the disk failure policy error handler,
      * which may or may not stop the daemon or transports. However, if we don't exit,
@@ -624,11 +604,6 @@ public final class FileUtils
 
             throw new RuntimeException(ex);
         }
-    }
-
-    public static void setFSErrorHandler(FSErrorHandler handler)
-    {
-        fsErrorHandler.getAndSet(Optional.ofNullable(handler));
     }
 
     /** @deprecated See CASSANDRA-16926 */
