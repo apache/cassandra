@@ -27,6 +27,7 @@ import java.util.TreeSet;
 import com.google.common.primitives.Ints;
 
 import org.junit.Assert;
+import org.junit.Assume;
 
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.MutationId;
@@ -40,6 +41,7 @@ import org.apache.cassandra.metrics.ReadRepairMetrics;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.replication.MutationTrackingService;
 import org.apache.cassandra.replication.simple.SimpleMutationSummary;
+import org.apache.cassandra.schema.ReplicationType;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.utils.ByteBufferUtil;
@@ -170,5 +172,11 @@ public class MutationTrackingUtils
     public static Object[][] rows(Object[][]... objs)
     {
         return objs;
+    }
+
+    public static void fixmeSkipIfLogged(ReplicationType replicationType, String reason)
+    {
+        Assume.assumeFalse(replicationType.isLogged());
+
     }
 }

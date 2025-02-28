@@ -197,6 +197,9 @@ public abstract class ReadRepairQueryTester extends TestBaseImpl
                 // we also expect all pending mutations to be reconciled in the initial read, and none to be reconciled on the verification step
                 columnsQueryRepairedRows = Math.max(columnsQueryRepairedRows, rowsQueryRepairedRows);
                 rowsQueryRepairedRows = 0;
+
+                // and all missing mutations should be reconciled as part of a single reconciliation, not one per-partition
+                columnsQueryRepairedRows = Math.min(columnsQueryRepairedRows, 1);
             }
 
             assertRowsDistributed(columnsQuery, columnsQueryRepairedRows, columnsQueryResults);
@@ -249,6 +252,12 @@ public abstract class ReadRepairQueryTester extends TestBaseImpl
         Tester deleteRows(String rowDeletion, long repairedRows, Object[][] node1Rows, Object[][] node2Rows)
         {
             mutate(1, rowDeletion);
+
+            // for range reads we still expect all missing mutations to be reconciled as part
+            // of a single reconciliation operation
+            if (replicationType.isLogged())
+                repairedRows = Math.min(repairedRows, 1);
+
             return verifyQuery(allColumnsQuery, repairedRows, node1Rows, node2Rows);
         }
 
@@ -285,10 +294,13 @@ public abstract class ReadRepairQueryTester extends TestBaseImpl
          * Verifies the final status of the nodes with an unrestricted query, to ensure that the main tested query
          * hasn't triggered any unexpected repairs. Then, it verifies that the node that hasn't been used as coordinator
          * hasn't triggered any unexpected repairs. Finally, it drops the table.
+         *
+         * The expectUnrepaired flag is meant for range query tests where logged replication table special casing
+         * doesn't apply since we do expect the final query to find and repair missing mutations
          */
-        void tearDown(long repairedRows, Object[][] node1Rows, Object[][] node2Rows)
+        void tearDown(long repairedRows, Object[][] node1Rows, Object[][] node2Rows, boolean expectUnrepaired)
         {
-            if (replicationType.isLogged())
+            if (replicationType.isLogged() && !expectUnrepaired)
             {
                 // for logged replication, entire mutations will be replicated, so unlike legacy read repair we'd expect the
                 // node that missed writes to be completely up to date with the node that was last written to. So here we
@@ -319,6 +331,11 @@ public abstract class ReadRepairQueryTester extends TestBaseImpl
                 assertEquals(message, 0, requests);
             }
             schemaChange("DROP TABLE " + qualifiedTableName);
+        }
+
+        void tearDown(long repairedRows, Object[][] node1Rows, Object[][] node2Rows)
+        {
+            tearDown(repairedRows, node1Rows, node2Rows, false);
         }
     }
 }
