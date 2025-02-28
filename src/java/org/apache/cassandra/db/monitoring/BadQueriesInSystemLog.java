@@ -75,6 +75,8 @@ public class BadQueriesInSystemLog extends BadQueryReporter
                 LargePartition op = (LargePartition) operationDetails;
                 for (ColumnFamilyStore cfs : op.cfs)
                 {
+                    if (cfs == null)
+                        continue;
                     if (queryType == BadQuery.BadQueryCategory.LARGE_PARTITION_READ) {
                         cfs.metric.largePartitionReadSize.inc(op.getSize());
                     }

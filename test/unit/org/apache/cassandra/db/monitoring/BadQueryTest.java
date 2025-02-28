@@ -47,6 +47,7 @@ import org.apache.cassandra.schema.IndexMetadata;
 import org.apache.cassandra.schema.Indexes;
 import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.schema.Schema;
+import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.MonitoringService;
 import org.apache.cassandra.transport.ProtocolVersion;
@@ -308,5 +309,21 @@ public class BadQueryTest extends CQLTester
         System.setProperty("cassandra.db_tier", "3");
         BadQuery.checkForTierMismatch("invalid tier", "");
         Assert.assertTrue(bq.getBadQueryCategoryQueues().get(BadQuery.BadQueryCategory.TIER_MISMATCH).size() == 2);
+    }
+
+    @Test
+    public void testNonExistsCFSForLargeReadsAndWrites()
+    {
+        if (!tracingEnabled)
+            return;
+        // in some edge cases, the CFS might be dropped and after enqueued and null is returned as the CFS objects
+        LargePartition op = new LargePartition(TableMetadata.builder(KEYSPACE, "nonexist")
+                                                            .addPartitionKeyColumn("k", IntegerType.instance)
+                                                            .addRegularColumn("v", IntegerType.instance)
+                                                            .id(TableId.generate()).build(),
+                                               "col",
+                                               100);
+        BadQuery.report(BadQuery.BadQueryCategory.LARGE_PARTITION_READ, op);
+        BadQuery.report(BadQuery.BadQueryCategory.LARGE_PARTITION_WRITE, op);
     }
 }
