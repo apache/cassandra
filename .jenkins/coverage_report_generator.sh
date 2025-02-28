@@ -21,6 +21,8 @@ echo "PHAB Diff ID: $PHAB_DIFF_ID"
 echo "Test PHAB Diff ID: $TEST_PHAB_DIFF_ID"
 
 FILE_PHAB_COMMENT="build/comment/phabricator-comment-utest-jvmdtest"
+DIFF_COVERAGE_REPORT_FILE="build/jacoco/diffCoverage/report.csv"
+COVERAGE_THRESHOLD=0.8
 
 python3 --version
 virtualenv --python=python3 venv
@@ -98,13 +100,25 @@ if [ "$result" == "true" ]; then
     ant build
     ant jacoco-report
 
+    # diff coverage
+    git diff $(git merge-base HEAD origin/master) -- src/java/org/apache/cassandra/ > test.diff
+    pushd .jenkins/code_coverage
+    ./gradlew test diffCoverage
+    popd
+
     ls build/jacoco
 
     # Phabricator comment
     if [[ ! -f "build/comment" ]]; then
         mkdir "build/comment"
     fi
-    comment=$(python3 ".jenkins/code_coverage/parse_jacoco_html.py" "-p" "build/jacoco/index.html" "-t" "utest+jvmdtest")
+
+    py_command="python3 .jenkins/code_coverage/parse_jacoco_report.py --path build/jacoco/report.csv --test utest+jvmdtest"
+    if [ -f "$DIFF_COVERAGE_REPORT_FILE" ]; then
+        py_command+=" --diff_path $DIFF_COVERAGE_REPORT_FILE --threshold $COVERAGE_THRESHOLD"
+    fi
+
+    comment=$($py_command)
     echo "$comment" >> "$FILE_PHAB_COMMENT"
     echo "" >> "$FILE_PHAB_COMMENT"
     BASE_NAMES=$(echo $BASE_NAMES | tr ' ' '\n' | sort | xargs)

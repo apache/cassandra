@@ -1,0 +1,35 @@
+buildscript {
+    repositories {
+        mavenLocal()
+        mavenCentral()
+        maven {
+            url = 'https://jitpack.io'
+        }
+    }
+    dependencies {
+        classpath 'com.github.form-com.diff-coverage-gradle:diff-coverage:0.9.4'
+    }
+}
+
+apply plugin: 'java'
+apply plugin: 'jacoco'
+apply plugin: 'com.form.diff-coverage'
+
+def baseDir = file("../../")
+
+diffCoverageReport {
+    diffSource.file = "$baseDir/test.diff"
+    jacocoExecFiles = files("$baseDir/build/jacoco/jacoco.exec")
+    srcDirs = files("$baseDir/src")
+    classesDirs = files("$baseDir/build/classes")
+
+    reports {
+        html = true
+        xml = true
+        csv = true
+        baseReportDir = "$baseDir/build/jacoco"
+    }
+    // more parameters: https://github.com/form-com/diff-coverage-gradle
+}
+
+diffCoverage.dependsOn += check

@@ -26,9 +26,6 @@
 
 import json
 import subprocess
-from typing import List, Set, Dict, Any
-import logging
-import requests
 import argparse
 import base64
 import random
