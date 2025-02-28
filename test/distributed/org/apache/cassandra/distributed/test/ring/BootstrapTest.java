@@ -334,9 +334,14 @@ public class BootstrapTest extends TestBaseImpl
 
             cluster.forEach(statusToBootstrap(newInstance));
 
+            long mark = cluster.get(newInstance.config().num()).logs().mark();
             cluster.run(asList(pullSchemaFrom(cluster.get(1)),
                                bootstrap()),
                         newInstance.config().num());
+            // wait bootstrap stream finished
+            cluster.get(newInstance.config().num()).logs().watchFor("Bootstrap completed for tokens");
+            // no truncation needed for normal node bootstrap
+            Assert.assertTrue(cluster.get(newInstance.config().num()).logs().grep(mark, "Truncating " + KEYSPACE + ".tbl").getResult().isEmpty());
 
             for (Map.Entry<Integer, Long> e : count(cluster).entrySet())
                 Assert.assertEquals("Node " + e.getKey() + " has incorrect row state",

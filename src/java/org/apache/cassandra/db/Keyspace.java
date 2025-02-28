@@ -315,14 +315,14 @@ public class Keyspace
     }
 
     /**
-     * Clear(trucate) all data for a given keyspace without taking snapshot
+     * Clear(trucate) all data for a given keyspace without taking snapshot if there is any sstable to be truncated
      * @param keyspace the keyspace name to be cleared
      */
-    public static void truncateBlockingWithoutSnapshot(String keyspace)
+    public static void truncateBlockingWithoutSnapshotIfDataExists(String keyspace)
     {
         for (ColumnFamilyStore store : Keyspace.open(keyspace).getColumnFamilyStores())
         {
-            store.truncateBlockingWithoutSnapshot();
+            store.truncateIfLiveSSTableExists();
         }
     }
 
