@@ -21,7 +21,9 @@ package org.apache.cassandra.distributed.test;
 import java.io.IOException;
 import java.util.Collection;
 import java.util.concurrent.Callable;
+import java.util.concurrent.TimeoutException;
 
+import org.junit.Assert;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
@@ -34,6 +36,7 @@ import org.apache.cassandra.distributed.api.ConsistencyLevel;
 import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.service.throttler.dynamic.CassandraResourceUtilization;
 import org.apache.cassandra.service.throttler.dynamic.TrafficType;
+import org.apache.cassandra.tools.NodeTool;
 import org.hamcrest.Matchers;
 
 import static net.bytebuddy.matcher.ElementMatchers.named;
@@ -67,7 +70,7 @@ public class RateLimiterTest extends TestBaseImpl
     }
 
     @Test
-    public void testPeerThrottlingPointReadTraffic()
+    public void testPeerThrottlingPointReadTraffic() throws TimeoutException
     {
         helperThrottlePeerTraffic("SELECT", String.format("SELECT * FROM %s.tbl WHERE pk=1 AND ck='1'", KEYSPACE), true);
     }
@@ -79,7 +82,7 @@ public class RateLimiterTest extends TestBaseImpl
     }
 
     @Test
-    public void testPeerThrottlingScanTraffic()
+    public void testPeerThrottlingScanTraffic() throws TimeoutException
     {
         helperThrottlePeerTraffic("SELECT", String.format("SELECT * FROM %s.tbl", KEYSPACE), true);
     }
@@ -91,7 +94,7 @@ public class RateLimiterTest extends TestBaseImpl
     }
 
     @Test
-    public void testPeerThrottlingWriteTraffic()
+    public void testPeerThrottlingWriteTraffic() throws TimeoutException
     {
         helperThrottlePeerTraffic("INSERT", String.format("INSERT INTO %s.tbl (pk, ck, v1, v2) VALUES (0, 'abc', 10, 20)", KEYSPACE), true);
     }
@@ -103,7 +106,7 @@ public class RateLimiterTest extends TestBaseImpl
     }
 
     @Test
-    public void testPeerThrottlingUpdateTraffic()
+    public void testPeerThrottlingUpdateTraffic() throws TimeoutException
     {
         helperThrottlePeerTraffic("UPDATE", String.format("UPDATE %s.tbl SET v2 = 11 WHERE pk = 0 AND ck = 'abc'", KEYSPACE), true);
     }
@@ -115,7 +118,7 @@ public class RateLimiterTest extends TestBaseImpl
     }
 
     @Test
-    public void testPeerThrottlingDeleteTraffic()
+    public void testPeerThrottlingDeleteTraffic() throws TimeoutException
     {
         helperThrottlePeerTraffic("DELETE", String.format("DELETE FROM %s.tbl WHERE pk = 0 AND ck = 'abc'", KEYSPACE), true);
     }
@@ -127,7 +130,7 @@ public class RateLimiterTest extends TestBaseImpl
     }
 
     @Test
-    public void testPeerThrottlingLWTTraffic()
+    public void testPeerThrottlingLWTTraffic() throws TimeoutException
     {
         helperThrottlePeerTraffic("LWT", String.format("UPDATE %s.tbl SET v2 = 11 WHERE pk = 0 AND ck = 'abc' IF v1 = 10", KEYSPACE), true);
     }
@@ -142,7 +145,7 @@ public class RateLimiterTest extends TestBaseImpl
     }
 
     @Test
-    public void testPeerThrottlingBatchTraffic()
+    public void testPeerThrottlingBatchTraffic() throws TimeoutException
     {
         helperThrottlePeerTraffic("BATCH", String.format("BEGIN BATCH\n" +
                                                          "UPDATE %s.tbl SET v1 = 10 where pk = 0 and ck = 'abc';\n" +
@@ -157,7 +160,7 @@ public class RateLimiterTest extends TestBaseImpl
     }
 
     @Test
-    public void testPeerDoNotThrottleSystemReadTraffic()
+    public void testPeerDoNotThrottleSystemReadTraffic() throws TimeoutException
     {
         helperThrottlePeerTraffic("SELECT_SYSTEM", "SELECT * FROM system.local LIMIT 1", false);
     }
@@ -169,7 +172,7 @@ public class RateLimiterTest extends TestBaseImpl
     }
 
     @Test
-    public void testPeerDoNotThrottleSystemSchemaReadTraffic()
+    public void testPeerDoNotThrottleSystemSchemaReadTraffic() throws TimeoutException
     {
         helperThrottlePeerTraffic("SELECT_SYSTEM_SCHEMA", "SELECT * FROM system_schema.tables LIMIT 1", false);
     }
@@ -181,7 +184,7 @@ public class RateLimiterTest extends TestBaseImpl
     }
 
     @Test
-    public void testPeerDoNotThrottleSystemDistributedReadTraffic()
+    public void testPeerDoNotThrottleSystemDistributedReadTraffic() throws TimeoutException
     {
         helperThrottlePeerTraffic("SELECT_SYSTEM_DISTRIBUTED", "SELECT * FROM system_distributed.repair_history LIMIT 1", false);
     }
@@ -193,7 +196,7 @@ public class RateLimiterTest extends TestBaseImpl
     }
 
     @Test
-    public void testPeerDoNotThrottleSystemAuthReadTraffic()
+    public void testPeerDoNotThrottleSystemAuthReadTraffic() throws TimeoutException
     {
         helperThrottlePeerTraffic("SELECT_SYSTEM_AUTH", "SELECT * FROM system_auth.roles LIMIT 1", false);
     }
@@ -205,7 +208,7 @@ public class RateLimiterTest extends TestBaseImpl
     }
 
     @Test
-    public void testPeerDoNotThrottleSystemTracesReadTraffic()
+    public void testPeerDoNotThrottleSystemTracesReadTraffic() throws TimeoutException
     {
         helperThrottlePeerTraffic("SELECT_SYSTEM_TRACES", "SELECT * FROM system_traces.events LIMIT 1", false);
     }
@@ -237,9 +240,11 @@ public class RateLimiterTest extends TestBaseImpl
         }
     }
 
-    private void helperThrottlePeerTraffic(String operation, String query, boolean shouldFail)
+    private void helperThrottlePeerTraffic(String operation, String query, boolean shouldFail) throws TimeoutException
     {
         int coordinatorNode = 1;
+        long mark = cluster2.get(coordinatorNode).logs().mark();
+        cluster2.get(coordinatorNode).nodetool("setlogginglevel", "org.apache.cassandra.service.StorageProxy", "ALL");
         try
         {
             cluster2.coordinator(coordinatorNode).execute(query, ConsistencyLevel.LOCAL_QUORUM);
@@ -252,8 +257,8 @@ public class RateLimiterTest extends TestBaseImpl
         {
             if (shouldFail)
             {
-                assertThat(t.getMessage(), containsString("from dynamic throttler: 127.0.0"));
-                assertThat(t.getMessage(), Matchers.not("from dynamic throttler: 127.0.0.1"));
+                cluster2.get(coordinatorNode).logs().watchFor("from dynamic throttler: 127.0.0");
+                Assert.assertTrue(cluster2.get(coordinatorNode).logs().grep(mark, "from dynamic throttler: 127.0.0.1").getResult().isEmpty());
             }
             else
             {

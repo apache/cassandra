@@ -85,6 +85,7 @@ public class RateLimiterTest extends CQLTester
     private static CassandraResourceUtilization originalCassandraRescourceUtilization = CassandraResourceUtilization.instance;
 
     private CassandraResourceUtilization mockCassResrcUtil;
+    boolean shouldCheckThrottleCalled;
 
     public RateLimiterTest()
     {
@@ -116,12 +117,14 @@ public class RateLimiterTest extends CQLTester
                                                           .throttle(eq(KEYSPACE), anySet(), any());
         doReturn(true).when(mockCassResrcUtil)
                       .throttleUserTraffic(eq(KEYSPACE), anySet(), any());
+        shouldCheckThrottleCalled = true;
     }
 
     @After
     public void resetUserThrottle()
     {
-        verify(mockCassResrcUtil).throttle(eq(KEYSPACE), anySet(), any());
+        if (shouldCheckThrottleCalled)
+            verify(mockCassResrcUtil).throttle(eq(KEYSPACE), anySet(), any());
         CassandraResourceUtilization.instance = originalCassandraRescourceUtilization;
     }
 
@@ -337,44 +340,24 @@ public class RateLimiterTest extends CQLTester
         }
     }
 
-    @Test(expected = OverloadedException.class)
+    @Test
     public void testDoThrowOverloadException()
     {
-        // The following function invocation is to avoid the following error during this unit test case because we mock
-        // "CassandraResourceUtilization.instance" for all test cases
-        // "Actually, there were zero interactions with this mock."
-        try
-        {
-            CassandraResourceUtilization.instance.throttle(KEYSPACE, SINGLETON_TABLE, TrafficType.CoordWrite);
-        }
-        catch (OverloadedException e)
-        {
-            // expected
-        }
-
+        // skip checking if throttle() is called
+        shouldCheckThrottleCalled = false;
         Map<InetAddressAndPort, RequestFailureReason> failureReasonByEndpoint = new HashMap<>();
         failureReasonByEndpoint.put(InetAddressAndPort.getLocalHost(), RequestFailureReason.TRAFFIC_THROTTLED);
-        throw StorageProxy.getOverloadExceptionIfNecessary(failureReasonByEndpoint);
+        Assert.assertTrue(StorageProxy.isFailureCausedByTrafficThrottled(failureReasonByEndpoint));
     }
 
     @Test
     public void testDoNotThrowOverloadException()
     {
-        // The following function invocation is to avoid the following error during this unit test case because we mock
-        // "CassandraResourceUtilization.instance" for all test cases
-        // "Actually, there were zero interactions with this mock."
-        try
-        {
-            CassandraResourceUtilization.instance.throttle(KEYSPACE, SINGLETON_TABLE, TrafficType.CoordWrite);
-        }
-        catch (OverloadedException e)
-        {
-            // expected
-        }
-
+        // skip checking if throttle() is called
+        shouldCheckThrottleCalled = false;
         Map<InetAddressAndPort, RequestFailureReason> failureReasonByEndpoint = new HashMap<>();
         failureReasonByEndpoint.put(InetAddressAndPort.getLocalHost(), RequestFailureReason.TIMEOUT);
-        Assert.assertNull(StorageProxy.getOverloadExceptionIfNecessary(failureReasonByEndpoint));
+        Assert.assertFalse(StorageProxy.isFailureCausedByTrafficThrottled(failureReasonByEndpoint));
     }
 
     private Mutation createMutation()

@@ -186,12 +186,10 @@ public class RangeCommandIterator extends AbstractIterator<RowIterator> implemen
         {
             rangeMetrics.failures.mark();
             StorageProxyMetricsManager.getMetrics(command.metadata().keyspace, consistencyLevel).rangeMetrics.failures.mark();
-            OverloadedException overloadedException = StorageProxy.getOverloadExceptionIfNecessary(e.failureReasonByEndpoint);
-            if (overloadedException != null)
+            if (StorageProxy.isFailureCausedByTrafficThrottled(e.failureReasonByEndpoint))
             {
                 rangeMetrics.rateLimiterThrottles.mark();
                 StorageProxyMetricsManager.getMetrics(command.metadata().keyspace, consistencyLevel).rangeMetrics.rateLimiterThrottles.mark();
-                throw overloadedException;
             }
             throw e;
         }

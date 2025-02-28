@@ -60,7 +60,7 @@ public class CassandraResourceUtilization
     private static final NoSpamLogger noSpam1m = NoSpamLogger.getLogger(logger, 1, TimeUnit.MINUTES);
 
     private static final DecimalFormat df = new DecimalFormat("0");
-    private static final String THROW_MESSAGE = "from dynamic throttler";
+    public static final String THROW_MESSAGE = "from dynamic throttler";
     // TODO: make this configurable
     private final IResourceUtilzation resourceUtilzation = new NativeResourceUtilization();
     protected static double MAX_THROTTLING = 1.0;
@@ -546,7 +546,12 @@ public class CassandraResourceUtilization
 
     public static OverloadedException buildOverloadeExceptionDuetoRateLimiter(String ip)
     {
-        return new OverloadedException(String.format(THROW_MESSAGE + ": %s", ip));
+        return new OverloadedException(buildErrorMessage(ip));
+    }
+
+    public static String buildErrorMessage(String ip)
+    {
+        return String.format(THROW_MESSAGE + ": %s", ip);
     }
 
     public static boolean isExceptionDuetoRateLimiter(OverloadedException e)

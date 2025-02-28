@@ -175,6 +175,7 @@ Merged from 3.0:
  * Fix CQLSH online help topic link (CASSANDRA-17534)
  * Remove unused suppressions (CASSANDRA-18724)
 Unreleased
+ * [SO-41010] Do not convert read/write failure exceptions to overloaded exceptions for resource rate limiter
  * [SO-40958] Reset bootstrap progress should only do truncation if there are live SSTables
  * [SO-40802] Fix LargePartition bad query type to get cfs by table metadata id
  * [SO-40690] Use LWTs for all auto_repair_history_v2 mutations
