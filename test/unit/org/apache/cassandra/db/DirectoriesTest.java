@@ -95,7 +95,7 @@ import org.apache.cassandra.schema.MockSchema;
 import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.schema.SchemaKeyspaceTables;
 import org.apache.cassandra.schema.TableMetadata;
-import org.apache.cassandra.service.DefaultFSErrorHandler;
+import org.apache.cassandra.service.DiskErrorsHandlerService;
 import org.apache.cassandra.service.snapshot.SnapshotLoader;
 import org.apache.cassandra.service.snapshot.SnapshotManifest;
 import org.apache.cassandra.service.snapshot.TableSnapshot;
@@ -151,7 +151,7 @@ public class DirectoriesTest
     public static void beforeClass()
     {
         DatabaseDescriptor.daemonInitialization();
-        FileUtils.setFSErrorHandler(new DefaultFSErrorHandler());
+        DiskErrorsHandlerService.configure();
     }
 
     @Before

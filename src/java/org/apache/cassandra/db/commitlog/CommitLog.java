@@ -57,8 +57,8 @@ import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.schema.CompressionParams;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.security.EncryptionContext;
+import org.apache.cassandra.service.DiskErrorsHandlerService;
 import org.apache.cassandra.service.StorageService;
-import org.apache.cassandra.utils.JVMStabilityInspector;
 import org.apache.cassandra.utils.MBeanWrapper;
 import org.apache.cassandra.utils.concurrent.UncheckedInterruptedException;
 
@@ -576,24 +576,7 @@ public class CommitLog implements CommitLogMBean
     @VisibleForTesting
     public static boolean handleCommitError(String message, Throwable t)
     {
-        JVMStabilityInspector.inspectCommitLogThrowable(t);
-        switch (DatabaseDescriptor.getCommitFailurePolicy())
-        {
-            // Needed here for unit tests to not fail on default assertion
-            case die:
-            case stop:
-                StorageService.instance.stopTransports();
-                //$FALL-THROUGH$
-            case stop_commit:
-                String errorMsg = String.format("%s. Commit disk failure policy is %s; terminating thread.", message, DatabaseDescriptor.getCommitFailurePolicy());
-                logger.error(addAdditionalInformationIfPossible(errorMsg), t);
-                return false;
-            case ignore:
-                logger.error(addAdditionalInformationIfPossible(message), t);
-                return true;
-            default:
-                throw new AssertionError(DatabaseDescriptor.getCommitFailurePolicy());
-        }
+        return DiskErrorsHandlerService.get().handleCommitError(message, t);
     }
 
     /**

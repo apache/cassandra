@@ -18,27 +18,43 @@
 
 package org.apache.cassandra.service;
 
-
+import java.nio.file.FileStore;
 import java.util.Set;
 
 import com.google.common.collect.ImmutableSet;
-
-import org.apache.cassandra.io.util.File;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.DisallowedDirectories;
 import org.apache.cassandra.db.Keyspace;
-import org.apache.cassandra.io.*;
+import org.apache.cassandra.io.FSDiskFullWriteError;
+import org.apache.cassandra.io.FSError;
+import org.apache.cassandra.io.FSNoDiskAvailableForWriteError;
+import org.apache.cassandra.io.FSReadError;
 import org.apache.cassandra.io.sstable.CorruptSSTableException;
+import org.apache.cassandra.io.util.File;
+import org.apache.cassandra.io.util.PathUtils;
 import org.apache.cassandra.utils.JVMStabilityInspector;
 
-public class DefaultFSErrorHandler implements FSErrorHandler
+public class DefaultDiskErrorsHandler implements DiskErrorsHandler
 {
-    private static final Logger logger = LoggerFactory.getLogger(DefaultFSErrorHandler.class);
+    private static final Logger logger = LoggerFactory.getLogger(DefaultDiskErrorsHandler.class);
 
     private static final Set<Class<?>> exceptionsSkippingDataRemoval = ImmutableSet.of(OutOfMemoryError.class);
+
+    @Override
+    public void init()
+    {
+        // intentionally empty
+    }
+
+    @Override
+    public void close() throws Exception
+    {
+        // intentionally empty
+    }
 
     @Override
     public void handleCorruptSSTable(CorruptSSTableException e)
@@ -102,22 +118,6 @@ public class DefaultFSErrorHandler implements FSErrorHandler
         }
     }
 
-    private boolean shouldMaybeRemoveData(Throwable error)
-    {
-        for (Throwable t = error; t != null; t = t.getCause())
-        {
-            for (Class<?> c : exceptionsSkippingDataRemoval)
-                if (c.isAssignableFrom(t.getClass()))
-                    return false;
-            for (Throwable s : t.getSuppressed())
-                for (Class<?> c : exceptionsSkippingDataRemoval)
-                    if (c.isAssignableFrom(s.getClass()))
-                        return false;
-        }
-
-        return true;
-    }
-
     @Override
     public void handleStartupFSError(Throwable t)
     {
@@ -134,5 +134,89 @@ public class DefaultFSErrorHandler implements FSErrorHandler
             default:
                 break;
         }
+    }
+
+    @Override
+    public boolean handleCommitError(String message, Throwable t)
+    {
+        JVMStabilityInspector.inspectCommitLogThrowable(t);
+        switch (DatabaseDescriptor.getCommitFailurePolicy())
+        {
+            // Needed here for unit tests to not fail on default assertion
+            case die:
+            case stop:
+                StorageService.instance.stopTransports();
+                //$FALL-THROUGH$
+            case stop_commit:
+                String errorMsg = String.format("%s. Commit disk failure policy is %s; terminating thread.", message, DatabaseDescriptor.getCommitFailurePolicy());
+                logger.error(addAdditionalInformationIfPossible(errorMsg), t);
+                return false;
+            case ignore:
+                logger.error(addAdditionalInformationIfPossible(message), t);
+                return true;
+            default:
+                throw new AssertionError(DatabaseDescriptor.getCommitFailurePolicy());
+        }
+    }
+
+    @Override
+    public void inspectDiskError(Throwable t)
+    {
+        if (t instanceof CorruptSSTableException)
+            handleCorruptSSTable((CorruptSSTableException) t);
+        else if (t instanceof FSError)
+            handleFSError((FSError) t);
+    }
+
+    @Override
+    public void inspectCommitLogError(Throwable t)
+    {
+        if (!StorageService.instance.isDaemonSetupCompleted())
+        {
+            logger.error("Exiting due to error while processing commit log during initialization.", t);
+            JVMStabilityInspector.killCurrentJVM(t, true);
+        }
+        else if (DatabaseDescriptor.getCommitFailurePolicy() == Config.CommitFailurePolicy.die)
+            JVMStabilityInspector.killCurrentJVM(t, false);
+    }
+
+    private boolean shouldMaybeRemoveData(Throwable error)
+    {
+        for (Throwable t = error; t != null; t = t.getCause())
+        {
+            for (Class<?> c : exceptionsSkippingDataRemoval)
+                if (c.isAssignableFrom(t.getClass()))
+                    return false;
+            for (Throwable s : t.getSuppressed())
+                for (Class<?> c : exceptionsSkippingDataRemoval)
+                    if (c.isAssignableFrom(s.getClass()))
+                        return false;
+        }
+
+        return true;
+    }
+
+    /**
+     * Add additional information to the error message if the commit directory does not have enough free space.
+     *
+     * @param msg the original error message
+     * @return the message with additional information if possible
+     */
+    private static String addAdditionalInformationIfPossible(String msg)
+    {
+        long unallocatedSpace = freeDiskSpace();
+        int segmentSize = DatabaseDescriptor.getCommitLogSegmentSize();
+
+        if (unallocatedSpace < segmentSize)
+        {
+            return String.format("%s. %d bytes required for next commitlog segment but only %d bytes available. Check %s to see if not enough free space is the reason for this error.",
+                                 msg, segmentSize, unallocatedSpace, DatabaseDescriptor.getCommitLogLocation());
+        }
+        return msg;
+    }
+
+    private static long freeDiskSpace()
+    {
+        return PathUtils.tryGetSpace(new File(DatabaseDescriptor.getCommitLogLocation()).toPath(), FileStore::getTotalSpace);
     }
 }

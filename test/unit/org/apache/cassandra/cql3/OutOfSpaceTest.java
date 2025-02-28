@@ -36,6 +36,8 @@ import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.gms.Gossiper;
 import org.apache.cassandra.io.FSWriteError;
 import org.apache.cassandra.schema.TableId;
+import org.apache.cassandra.service.CassandraDaemon;
+import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.JVMStabilityInspector;
 import org.apache.cassandra.utils.KillerForTests;
 
@@ -59,6 +61,8 @@ public class OutOfSpaceTest extends CQLTester
         DatabaseDescriptor.setPartitionerUnsafe(Murmur3Partitioner.instance);
         ServerTestUtils.prepareServerNoRegister();
         ServerTestUtils.markCMS();
+        StorageService.instance.registerDaemon(CassandraDaemon.getInstanceForTesting());
+        CassandraDaemon.getInstanceForTesting().completeSetup();
     }
 
     @Test

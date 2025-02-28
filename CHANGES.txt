@@ -1,4 +1,5 @@
 5.1
+ * Move all disk error logic to DiskErrorsHandler to enable pluggability (CASSANDRA-20363)
  * Fix marking an SSTable as suspected and BufferPool leakage in case of a corrupted SSTable read during a compaction (CASSANDRA-20396)
  * Add missed documentation for CREATE TABLE LIKE (CASSANDRA-20401)
  * Add OCTET_LENGTH constraint (CASSANDRA-20340)

@@ -48,6 +48,7 @@ import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.Replica;
 import org.apache.cassandra.locator.BaseProximity;
 import org.apache.cassandra.security.ThreadAwareSecurityManager;
+import org.apache.cassandra.service.DiskErrorsHandlerService;
 import org.apache.cassandra.service.EmbeddedCassandraService;
 import org.apache.cassandra.tcm.AtomicLongBackedProcessor;
 import org.apache.cassandra.tcm.ClusterMetadata;
@@ -177,6 +178,8 @@ public final class ServerTestUtils
         initCMS();
         SystemKeyspace.persistLocalMetadata();
         AuditLogManager.instance.initialize();
+
+        DiskErrorsHandlerService.configure();
 
         isServerPrepared = true;
     }
