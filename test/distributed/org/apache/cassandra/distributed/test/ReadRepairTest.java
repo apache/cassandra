@@ -72,6 +72,8 @@ import static org.apache.cassandra.distributed.shared.AssertUtils.assertEquals;
 import static org.apache.cassandra.distributed.shared.AssertUtils.assertRows;
 import static org.apache.cassandra.distributed.shared.AssertUtils.row;
 import static org.apache.cassandra.net.Verb.READ_RECONCILE_NOTIFY;
+import static org.apache.cassandra.net.Verb.READ_RECONCILE_RCV;
+import static org.apache.cassandra.net.Verb.READ_RECONCILE_SEND;
 import static org.apache.cassandra.net.Verb.READ_REPAIR_REQ;
 import static org.apache.cassandra.net.Verb.READ_REPAIR_RSP;
 import static org.apache.cassandra.net.Verb.READ_REQ;
@@ -213,7 +215,8 @@ public abstract class ReadRepairTest extends TestBaseImpl
         {
             List<Token> tokens = cluster.tokens();
 
-            cluster.schemaChange("CREATE TABLE " + KEYSPACE + ".tbl (pk int, ck int, v int, PRIMARY KEY (pk, ck)) WITH read_repair='blocking'");
+            createKeyspace(cluster);
+            cluster.schemaChange(withTable("CREATE TABLE %s (pk int, ck int, v int, PRIMARY KEY (pk, ck)) WITH read_repair='blocking'"));
 
             int i = 0;
             while (true)
@@ -226,7 +229,7 @@ public abstract class ReadRepairTest extends TestBaseImpl
             }
 
             // write only to #4
-            cluster.get(4).executeInternal("INSERT INTO " + KEYSPACE + ".tbl (pk, ck, v) VALUES (?, 1, 1)", i);
+            cluster.get(4).executeInternal(withTable("INSERT INTO %s (pk, ck, v) VALUES (?, 1, 1)"), i);
             // mark #2 as leaving in #4
 //            cluster.get(4).acceptsOnInstance((InetSocketAddress endpoint) -> {
 ////                StorageService.instance.getTokenMetadata().addLeavingEndpoint(InetAddressAndPort.getByAddressOverrideDefaults(endpoint.getAddress(), endpoint.getPort()));
@@ -239,13 +242,22 @@ public abstract class ReadRepairTest extends TestBaseImpl
             // (as a speculative repair in this case, as we prefer to send repair mutations to the initial
             // set of read replicas, which are 2 and 3 here).
             cluster.filters().verbs(READ_REQ.id).from(4).to(3).drop();
-            cluster.filters().verbs(READ_REPAIR_REQ.id).from(4).to(3).drop();
-            assertRows(cluster.coordinator(4).execute("SELECT * FROM " + KEYSPACE + ".tbl WHERE pk = ?",
+            if (replicationType().isLogged())
+            {
+                cluster.filters().verbs(READ_RECONCILE_SEND.id).from(4).to(3).drop();
+                cluster.filters().verbs(READ_RECONCILE_RCV.id).from(4).to(3).drop();
+            }
+            else
+            {
+                cluster.filters().verbs(READ_REPAIR_REQ.id).from(4).to(3).drop();
+            }
+
+            assertRows(cluster.coordinator(4).execute(withTable("SELECT * FROM %s WHERE pk = ?"),
                                                       ConsistencyLevel.QUORUM, i),
                        row(i, 1, 1));
 
             // verify that #1 receives the write
-            assertRows(cluster.get(1).executeInternal("SELECT * FROM " + KEYSPACE + ".tbl WHERE pk = ?", i),
+            assertRows(cluster.get(1).executeInternal(withTable("SELECT * FROM %s WHERE pk = ?"), i),
                        row(i, 1, 1));
         }
     }
@@ -272,7 +284,7 @@ public abstract class ReadRepairTest extends TestBaseImpl
             cluster.get(1).executeInternal(withTable("INSERT INTO %s (k, a, b) VALUES (?, ?, ?)"), row);
 
             // flush to ensure reads come from sstables
-            cluster.get(1).flush(KEYSPACE);
+            cluster.get(1).flush(keyspaceName);
 
             // at RF=1 it shouldn't matter which node we query, as the data should always come from the only replica
             String query = withTable("SELECT * FROM %s WHERE k = 1");
