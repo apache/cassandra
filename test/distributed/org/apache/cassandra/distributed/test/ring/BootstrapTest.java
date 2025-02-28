@@ -207,7 +207,12 @@ public class BootstrapTest extends TestBaseImpl
                                             .set("auto_bootstrap", true)
                                             .set(Constants.KEY_DTEST_FULL_STARTUP, true);
             IInvokableInstance newInstance = cluster.bootstrap(config);
+            long mark = cluster.get(newInstance.config().num()).logs().mark();
             newInstance.startup(cluster);
+            // wait bootstrap stream finished
+            cluster.get(newInstance.config().num()).logs().watchFor("Bootstrap completed for tokens");
+            // no truncation needed for normal node bootstrap
+            Assert.assertTrue(cluster.get(newInstance.config().num()).logs().grep(mark, "Truncating " + KEYSPACE + ".tbl").getResult().isEmpty());
 
             for (Map.Entry<Integer, Long> e : count(cluster).entrySet())
                 assertEquals("Node " + e.getKey() + " has incorrect row state",
