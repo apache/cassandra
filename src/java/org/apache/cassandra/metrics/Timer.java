@@ -77,5 +77,9 @@ public interface Timer extends Metered, Sampling
 
     void time(Runnable event);
 
-    Context time();
+    /* we have to implement another method instead of time() due to 2 reasons:
+     * 1) com.codahale.metrics.Timer.Context cannot be inhereted - it has only a package-private constructor
+     * 2) we want to avoid direct dependency to com.codahale.metrics.Timer.Context in other Cassandra classes
+     */
+    Context startTime();
 }

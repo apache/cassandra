@@ -165,7 +165,7 @@ public final class RemoteProcessor implements Processor
     private static Future<ClusterMetadata> fetchLogAndWaitInternal(CandidateIterator candidates,
                                                                    LocalLog log)
     {
-        try (Timer.Context ctx = TCMMetrics.instance.fetchCMSLogLatency.time())
+        try (Timer.Context ctx = TCMMetrics.instance.fetchCMSLogLatency.startTime())
         {
             Promise<LogState> remoteRequest = new AsyncPromise<>();
             Epoch currentEpoch = log.metadata().epoch;

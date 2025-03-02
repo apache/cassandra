@@ -146,7 +146,8 @@ public class ThreadLocalMeterTest
                 meterPair.codahaleMeter.mark();
                 assertMeter(meterPair.meter, meterPair.codahaleMeter);
             }
-            clock.setTime(clock.now() + random.nextLong(TimeUnit.SECONDS.toNanos(10)));
+            // note: Random.nextLong(long) is not available in Java 11
+            clock.setTime(clock.now() + random.nextInt((int)TimeUnit.SECONDS.toNanos(10)));
         }
 
         int NUMBER_OF_COUNTERS_PER_METER = 2;

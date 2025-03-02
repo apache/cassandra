@@ -117,7 +117,7 @@ public class ProgressBarrier
 
     public boolean await()
     {
-        try (Timer.Context ctx = TCMMetrics.instance.progressBarrierLatency.time())
+        try (Timer.Context ctx = TCMMetrics.instance.progressBarrierLatency.startTime())
         {
             if (waitFor.is(Epoch.EMPTY))
                 return true;

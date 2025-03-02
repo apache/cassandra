@@ -355,7 +355,7 @@ public abstract class CommitLogSegment
 
         if (flush || close)
         {
-            try (Timer.Context ignored = CommitLog.instance.metrics.waitingOnFlush.time())
+            try (Timer.Context ignored = CommitLog.instance.metrics.waitingOnFlush.startTime())
             {
                 flush(startMarker, sectionEnd);
             }
@@ -736,7 +736,7 @@ public abstract class CommitLogSegment
 
         void awaitDiskSync(Timer waitingOnCommit)
         {
-            try (Timer.Context ignored = waitingOnCommit.time())
+            try (Timer.Context ignored = waitingOnCommit.startTime())
             {
                 segment.waitForSync(position);
             }

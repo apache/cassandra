@@ -35,11 +35,11 @@ import com.codahale.metrics.Snapshot;
  * NOTE: Dropwizard Timer is a concrete class and there is no an interface for Dropwizard Timer logic,
  *   so we have to create an alternative hierarchy.
  */
-public class ThreadLocalTimer implements Timer
+public class ThreadLocalTimer extends com.codahale.metrics.Timer implements Timer
 {
     private final Meter meter;
     private final ThreadLocalHistogram histogram;
-    private final Clock clock;
+    private final Clock clock; // usually we need precise clocks for timing
 
     /**
      * Creates a new {@link Timer} using an {@link ExponentiallyDecayingReservoir} and the default
@@ -71,6 +71,7 @@ public class ThreadLocalTimer implements Timer
     }
 
     public ThreadLocalTimer(Meter meter, ThreadLocalHistogram histogram, Clock clock) {
+        super(null, null, clock);
         this.meter = meter;
         this.histogram = histogram;
         this.clock = clock;
@@ -151,14 +152,16 @@ public class ThreadLocalTimer implements Timer
         }
     }
 
-    /**
-     * Returns a new {@link Context}.
-     *
-     * @return a new {@link Context}
-     * @see Context
-     */
-    public Context time() {
-        return new Context(this, clock);
+    @Override
+    public com.codahale.metrics.Timer.Context time()
+    {
+        throw new UnsupportedOperationException("use startTime() instread");
+    }
+
+    @Override
+    public Timer.Context startTime()
+    {
+        return new Timer.Context(this, clock);
     }
 
     @Override

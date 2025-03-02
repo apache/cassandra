@@ -20,6 +20,7 @@ package org.apache.cassandra.metrics;
 
 import com.codahale.metrics.Reservoir;
 import com.codahale.metrics.Snapshot;
+import org.apache.cassandra.utils.ReflectionUtils;
 
 /**
  * An alternative to Dropwizard Histogram which implements the same kind of API.
@@ -27,9 +28,9 @@ import com.codahale.metrics.Snapshot;
  * The counter logic is implemented using {@link ThreadLocalMetrics} functionality.
  *
  * NOTE: Dropwizard Histogram is a concrete class and there is no an interface for Dropwizard Histogram logic,
- *   so we have to create an alternative hierarchy.
+ *   so we have to create an alternative API hierarchy.
  */
-public class ThreadLocalHistogram implements Histogram
+public class ThreadLocalHistogram extends com.codahale.metrics.Histogram implements Histogram
 {
     private final Reservoir reservoir;
     private final int countMetricId;
@@ -40,9 +41,11 @@ public class ThreadLocalHistogram implements Histogram
      * @param reservoir the reservoir to create a histogram from
      */
     public ThreadLocalHistogram(Reservoir reservoir) {
+        super(reservoir);
         this.reservoir = reservoir;
         this.countMetricId = ThreadLocalMetrics.allocateMetricId();
         ThreadLocalMetrics.destroyWhenUnreachable(this, countMetricId);
+        ReflectionUtils.setFieldToNull(this, "count"); // reduce metrics memory footprint
     }
 
     /**

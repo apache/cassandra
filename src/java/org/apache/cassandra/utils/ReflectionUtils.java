@@ -105,4 +105,36 @@ public class ReflectionUtils
             throw new RuntimeException(String.format("Could not clear map field %s in class %s", mapName, clazz), ex);
         }
     }
+
+    public static void setFieldToNull(Object object, String fieldName)
+    {
+        Class<?> clazz = object.getClass();
+        try
+        {
+            boolean set = false;
+            do
+            {
+                try
+                {
+                    Field field = clazz.getDeclaredField(fieldName);
+                    field.setAccessible(true);
+                    field.set(object, null);
+                    set = true;
+                }
+                catch (NoSuchFieldException e)
+                {
+                    // NOTHING TO DO
+                }
+                clazz = clazz.getSuperclass();
+
+            }
+            while (clazz != Object.class);
+            if (!set)
+                throw new RuntimeException(String.format("Could not find field %s in %s", fieldName, object.getClass()));
+        }
+        catch (IllegalAccessException e)
+        {
+            throw new RuntimeException(String.format("Could not set field %s in %s", fieldName, object.getClass()), e);
+        }
+    }
 }

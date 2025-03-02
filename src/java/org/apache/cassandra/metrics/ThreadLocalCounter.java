@@ -18,6 +18,8 @@
 
 package org.apache.cassandra.metrics;
 
+import org.apache.cassandra.utils.ReflectionUtils;
+
 /**
  * An alternative to Dropwizard Counter which implements the same kind of API.
  * it has more efficent inc/dec operations and consumes less memory.
@@ -26,7 +28,7 @@ package org.apache.cassandra.metrics;
  * NOTE: Dropwizard Counter is a concrete class and there is no an interface for Dropwizard Counter logic,
  *   so we have to create an alternative hierarchy.
 */
-public class ThreadLocalCounter implements Counter
+public class ThreadLocalCounter extends com.codahale.metrics.Counter implements Counter
 {
     private final int metricId;
 
@@ -34,6 +36,7 @@ public class ThreadLocalCounter implements Counter
     {
         this.metricId = metricId;
         ThreadLocalMetrics.destroyWhenUnreachable(this, metricId);
+        ReflectionUtils.setFieldToNull(this, "count"); // reduce metrics memory footprint
     }
 
     public ThreadLocalCounter()

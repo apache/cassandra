@@ -28,8 +28,10 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 import com.google.common.annotations.VisibleForTesting;
 
+import com.codahale.metrics.Clock;
 import org.apache.cassandra.concurrent.ScheduledExecutors;
 import org.apache.cassandra.utils.MonotonicClock;
+import org.apache.cassandra.utils.ReflectionUtils;
 
 import static java.lang.Math.exp;
 
@@ -45,7 +47,7 @@ import static java.lang.Math.exp;
  * NOTE: Dropwizard Meter is a class and there is no an interface for Dropwizard Meter logic,
  *   so we have to create an alternative hierarchy.
  */
-public class ThreadLocalMeter implements Meter
+public class ThreadLocalMeter extends com.codahale.metrics.Meter implements Meter
 {
     private static final int INTERVAL_SEC = 5;
     private static final long TICK_INTERVAL_NS = TimeUnit.SECONDS.toNanos(INTERVAL_SEC);
@@ -152,6 +154,7 @@ public class ThreadLocalMeter implements Meter
 
     public ThreadLocalMeter(MonotonicClock clock)
     {
+        super(null, Clock.defaultClock()); // reduce metrics memory footprint
         this.clock = clock;
         this.startTime = this.clock.now();
         this.lastTick = this.startTime;
@@ -160,6 +163,7 @@ public class ThreadLocalMeter implements Meter
         this.rateGroupId = allocateRateGroupOffset();
         allMeters.add(new WeakReference<>(this));
         ThreadLocalMetrics.destroyWhenUnreachable(this, new MeterCleaner(countMetricId, uncountedMetricId, rateGroupId));
+        ReflectionUtils.setFieldToNull(this, "count"); // reduce metrics memory footprint
     }
 
     private static class MeterCleaner implements ThreadLocalMetrics.MetricCleaner

@@ -89,7 +89,7 @@ public class PeerLogFetcher
 
         Promise<LogState> fetchRes = new AsyncPromise<>();
         logger.info("Fetching log from {}, at least {}", remote, awaitAtleast);
-        try (Timer.Context ctx = TCMMetrics.instance.fetchPeerLogLatency.time())
+        try (Timer.Context ctx = TCMMetrics.instance.fetchPeerLogLatency.startTime())
         {
             RemoteProcessor.sendWithCallbackAsync(fetchRes,
                                                   Verb.TCM_FETCH_PEER_LOG_REQ,

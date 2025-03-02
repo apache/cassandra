@@ -243,7 +243,7 @@ public class IndexSummaryManager<T extends SSTableReader & IndexSummarySupport<T
         Pair<Long, Map<TableId, LifecycleTransaction>> redistributionTransactionInfo = getRestributionTransactions();
         Map<TableId, LifecycleTransaction> transactions = redistributionTransactionInfo.right;
         long nonRedistributingOffHeapSize = redistributionTransactionInfo.left;
-        try (Timer.Context ctx = CompactionManager.instance.getMetrics().indexSummaryRedistributionTime.time())
+        try (Timer.Context ctx = CompactionManager.instance.getMetrics().indexSummaryRedistributionTime.startTime())
         {
             redistributeSummaries(new IndexSummaryRedistribution(transactions,
                                                                  nonRedistributingOffHeapSize,
