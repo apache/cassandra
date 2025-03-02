@@ -29,7 +29,7 @@ import org.apache.cassandra.utils.ReflectionUtils;
  */
 public class AtomicLongCounter extends com.codahale.metrics.Counter implements Counter
 {
-    private final AtomicLong count = new AtomicLong();
+    private final AtomicLong counter = new AtomicLong();
 
     public AtomicLongCounter()
     {
@@ -39,30 +39,30 @@ public class AtomicLongCounter extends com.codahale.metrics.Counter implements C
     @Override
     public void inc()
     {
-        count.incrementAndGet();
+        counter.incrementAndGet();
     }
 
     @Override
     public void inc(long n)
     {
-        count.addAndGet(n);
+        counter.addAndGet(n);
     }
 
     @Override
     public void dec()
     {
-        count.decrementAndGet();
+        counter.decrementAndGet();
     }
 
     @Override
     public void dec(long n)
     {
-        count.addAndGet(-n);
+        counter.addAndGet(-n);
     }
 
     @Override
     public long getCount()
     {
-        return count.get();
+        return counter.get();
     }
 }
