@@ -32,7 +32,6 @@ import org.junit.BeforeClass;
 import org.junit.Test;
 
 import com.codahale.metrics.Metric;
-import com.codahale.metrics.MetricRegistry;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.db.virtual.CollectionVirtualTableAdapter;
 
@@ -63,13 +62,12 @@ public class JmxVirtualTableMetricsTest extends CQLTester
     public void beforeTest()
     {
         metricToNameMap.clear();
-        MetricRegistry registry = new MetricRegistry();
 
-        metricToNameMap.put(MetricType.METER, registry.meter("meter"));
-        metricToNameMap.put(MetricType.COUNTER, registry.counter("counter"));
-        metricToNameMap.put(MetricType.HISTOGRAM, registry.histogram("histogram"));
-        metricToNameMap.put(MetricType.TIMER, registry.timer("timer"));
-        metricToNameMap.put(MetricType.GAUGE, registry.gauge("gauge", () -> gaugeValue::get));
+        metricToNameMap.put(MetricType.METER, CassandraMetricsRegistry.Metrics.meter("meter"));
+        metricToNameMap.put(MetricType.COUNTER, CassandraMetricsRegistry.Metrics.counter("counter"));
+        metricToNameMap.put(MetricType.HISTOGRAM, CassandraMetricsRegistry.Metrics.histogram("histogram"));
+        metricToNameMap.put(MetricType.TIMER, CassandraMetricsRegistry.Metrics.timer("timer"));
+        metricToNameMap.put(MetricType.GAUGE, CassandraMetricsRegistry.Metrics.gauge("gauge", () -> gaugeValue::get));
 
         CassandraMetricsRegistry.metricGroups.forEach(group -> {
             MetricNameFactory factory = new DefaultNameFactory(group, "jmx.virtual");

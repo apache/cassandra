@@ -98,6 +98,8 @@ public class ThreadLocalMeter extends com.codahale.metrics.Meter implements Mete
                                                                  TimeUnit.SECONDS);
     }
 
+    private static final Object ratesArrayGuard = new Object();
+
     private static volatile double[] rates = new double[RATES_COUNT * 16];
     static final AtomicInteger rateGroupIdGenerator = new AtomicInteger();
 
@@ -116,17 +118,19 @@ public class ThreadLocalMeter extends com.codahale.metrics.Meter implements Mete
         if (rateGroupId < 0)
         {
             rateGroupId = rateGroupIdGenerator.getAndAdd(RATES_COUNT);
-            double[] currentRates = rates;
-            if (currentRates.length < rateGroupId + RATES_COUNT)
+        }
+        synchronized (ratesArrayGuard)
+        {
+            if (rates.length < rateGroupId + RATES_COUNT)
             {
                 double[] newRates = new double[(int) (rateGroupId + RATES_COUNT)];
-                System.arraycopy(currentRates, 0, newRates, 0, currentRates.length);
+                System.arraycopy(rates, 0, newRates, 0, rates.length);
                 rates = newRates;
             }
+            rates[rateGroupId +  M1_RATE_OFFSET] = NON_INITIALIZED;
+            rates[rateGroupId +  M5_RATE_OFFSET] = NON_INITIALIZED;
+            rates[rateGroupId + M15_RATE_OFFSET] = NON_INITIALIZED;
         }
-        rates[rateGroupId +  M1_RATE_OFFSET] = NON_INITIALIZED;
-        rates[rateGroupId +  M5_RATE_OFFSET] = NON_INITIALIZED;
-        rates[rateGroupId + M15_RATE_OFFSET] = NON_INITIALIZED;
         return rateGroupId;
     }
 
@@ -249,22 +253,25 @@ public class ThreadLocalMeter extends com.codahale.metrics.Meter implements Mete
     }
 
     @VisibleForTesting
-    static synchronized void tickAll()
+    static void tickAll()
     {
-        List<WeakReference<ThreadLocalMeter>> emptyRefsToRemove = null;
-        for (WeakReference<ThreadLocalMeter> threadLocalMeterRef : allMeters)
+        synchronized (ratesArrayGuard)
         {
-            ThreadLocalMeter meter = threadLocalMeterRef.get();
-            if (meter != null)
-                meter.tickIfNessesary();
-            else
+            List<WeakReference<ThreadLocalMeter>> emptyRefsToRemove = null;
+            for (WeakReference<ThreadLocalMeter> threadLocalMeterRef : allMeters)
             {
-                if (emptyRefsToRemove == null)
-                    emptyRefsToRemove = new ArrayList<>();
-                emptyRefsToRemove.add(threadLocalMeterRef);
+                ThreadLocalMeter meter = threadLocalMeterRef.get();
+                if (meter != null)
+                    meter.tickIfNessesary();
+                else
+                {
+                    if (emptyRefsToRemove == null)
+                        emptyRefsToRemove = new ArrayList<>();
+                    emptyRefsToRemove.add(threadLocalMeterRef);
+                }
+                if (emptyRefsToRemove != null)
+                    allMeters.removeAll(emptyRefsToRemove);
             }
-            if (emptyRefsToRemove != null)
-                allMeters.removeAll(emptyRefsToRemove);
         }
     }
 

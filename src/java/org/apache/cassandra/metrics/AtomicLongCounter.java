@@ -20,14 +20,21 @@ package org.apache.cassandra.metrics;
 
 import java.util.concurrent.atomic.AtomicLong;
 
+import org.apache.cassandra.utils.ReflectionUtils;
+
 /**
  * This type of Counter is not very efficient for updates but fast to read.
  * It should be used only when getCount performance is critical
  * and we can sucrifice the cost to update it by multiple threads
  */
-public class AtomicLongCounter implements Counter
+public class AtomicLongCounter extends com.codahale.metrics.Counter implements Counter
 {
     private final AtomicLong count = new AtomicLong();
+
+    public AtomicLongCounter()
+    {
+        ReflectionUtils.setFieldToNull(this, "count");
+    }
 
     @Override
     public void inc()
