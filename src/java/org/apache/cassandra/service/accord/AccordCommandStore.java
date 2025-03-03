@@ -56,6 +56,7 @@ import accord.primitives.PartialTxn;
 import accord.primitives.RangeDeps;
 import accord.primitives.Ranges;
 import accord.primitives.RoutableKey;
+import accord.primitives.Status;
 import accord.primitives.Timestamp;
 import accord.primitives.TxnId;
 import accord.utils.Invariants;
@@ -216,10 +217,11 @@ public class AccordCommandStore extends CommandStore
         return commandsForRanges;
     }
 
-    public void markShardDurable(SafeCommandStore safeStore, TxnId globalSyncId, Ranges ranges)
+    @Override
+    public void markShardDurable(SafeCommandStore safeStore, TxnId globalSyncId, Ranges ranges, Status.Durability durability)
     {
         store.snapshot(ranges, globalSyncId);
-        super.markShardDurable(safeStore, globalSyncId, ranges);
+        super.markShardDurable(safeStore, globalSyncId, ranges, durability);
         commandsForRanges.gcBefore(globalSyncId, ranges);
     }
 

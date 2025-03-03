@@ -76,7 +76,7 @@ public class PaxosRows
 
     private static ColumnMetadata paxosColumn(String name, AbstractType<?> type)
     {
-        return ColumnMetadata.regularColumn(SchemaConstants.SYSTEM_KEYSPACE_NAME, SystemKeyspace.PAXOS, name, type);
+        return ColumnMetadata.regularColumn(SchemaConstants.SYSTEM_KEYSPACE_NAME, SystemKeyspace.PAXOS, name, type, ColumnMetadata.NO_UNIQUE_ID);
     }
 
     public static Ballot getPromise(Row row)

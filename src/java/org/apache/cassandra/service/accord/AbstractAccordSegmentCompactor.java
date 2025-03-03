@@ -30,6 +30,7 @@ import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
 import org.apache.cassandra.db.partitions.PartitionUpdate.SimpleBuilder;
+import org.apache.cassandra.exceptions.UnknownTableException;
 import org.apache.cassandra.io.sstable.SSTableTxnWriter;
 import org.apache.cassandra.io.util.DataInputBuffer;
 import org.apache.cassandra.io.util.DataOutputBuffer;
@@ -37,6 +38,9 @@ import org.apache.cassandra.journal.SegmentCompactor;
 import org.apache.cassandra.journal.StaticSegment;
 import org.apache.cassandra.journal.StaticSegment.KeyOrderReader;
 import org.apache.cassandra.service.accord.AccordJournalValueSerializers.FlyweightSerializer;
+import org.apache.cassandra.utils.NoSpamLogger;
+
+import static java.util.concurrent.TimeUnit.MINUTES;
 
 /**
  * Segment compactor: takes static segments and compacts them into a single SSTable.
@@ -44,6 +48,8 @@ import org.apache.cassandra.service.accord.AccordJournalValueSerializers.Flyweig
 public abstract class AbstractAccordSegmentCompactor<V> implements SegmentCompactor<JournalKey, V>
 {
     protected static final Logger logger = LoggerFactory.getLogger(AbstractAccordSegmentCompactor.class);
+    private static final NoSpamLogger.NoSpamLogStatement unknownTable = NoSpamLogger.getStatement(logger, "Unknown (probably dropped) TableId {} reading {}; skipping record", 1L, MINUTES);
+
     protected final int userVersion;
     protected final ColumnFamilyStore cfs;
 
@@ -151,6 +157,10 @@ public abstract class AbstractAccordSegmentCompactor<V> implements SegmentCompac
 
             maybeWritePartition(key, builder, serializer, firstDescriptor, firstOffset);
             switchPartitions();
+        }
+        catch (UnknownTableException e)
+        {
+            unknownTable.info(e.id, key);
         }
         catch (Throwable t)
         {

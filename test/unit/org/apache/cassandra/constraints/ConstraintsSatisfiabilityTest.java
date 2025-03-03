@@ -45,8 +45,8 @@ public class ConstraintsSatisfiabilityTest
 {
     private static final ColumnIdentifier columnIdentifier = new ColumnIdentifier("a_column", false);
     private static final ColumnIdentifier lengthFunctionIdentifier = new ColumnIdentifier("LENGTH", false);
-    private static final ColumnMetadata regularIntColumn = new ColumnMetadata("a", "b", columnIdentifier, IntegerType.instance, -1, ColumnMetadata.Kind.REGULAR, null);
-    private static final ColumnMetadata regularStringColumn = new ColumnMetadata("a", "b", columnIdentifier, UTF8Type.instance, -1, ColumnMetadata.Kind.REGULAR, null);
+    private static final ColumnMetadata regularIntColumn = new ColumnMetadata("a", "b", columnIdentifier, IntegerType.instance, ColumnMetadata.NO_UNIQUE_ID, -1, ColumnMetadata.Kind.REGULAR, null);
+    private static final ColumnMetadata regularStringColumn = new ColumnMetadata("a", "b", columnIdentifier, UTF8Type.instance, ColumnMetadata.NO_UNIQUE_ID, -1, ColumnMetadata.Kind.REGULAR, null);
 
     @Test
     public void testScalarSatisfiability() throws Throwable

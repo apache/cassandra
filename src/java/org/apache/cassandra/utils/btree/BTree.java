@@ -2401,7 +2401,7 @@ public class BTree
         /**
          * Are we empty, i.e. we have no contents in either {@link #buffer} or {@link #savedBuffer}
          */
-        final boolean isEmpty()
+        public final boolean isEmpty()
         {
             return count == 0 && savedNextKey == null;
         }
@@ -3334,7 +3334,7 @@ public class BTree
         }
 
         @Override
-        void reset()
+        public void reset()
         {
             Arrays.fill(leaf().buffer, null);
             leaf().count = 0;

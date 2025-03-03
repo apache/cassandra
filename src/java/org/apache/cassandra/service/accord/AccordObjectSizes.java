@@ -364,7 +364,6 @@ public class AccordObjectSizes
                 case TruncatedApply:
                 case TruncatedUnapplied:
                 case TruncatedApplyWithOutcome:
-                case TruncatedApplyWithOutcomeAndDeps:
                 case Vestigial:
                 case Erased:
                     return TRUNCATED;

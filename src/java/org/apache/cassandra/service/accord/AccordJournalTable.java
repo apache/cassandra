@@ -252,7 +252,7 @@ public class AccordJournalTable<K extends JournalKey, V> implements RangeSearche
 
         SyntheticColumn(String name, AbstractType<?> type)
         {
-            this.metadata = new ColumnMetadata("journal", "routes", new ColumnIdentifier(name, false), type, ColumnMetadata.NO_POSITION, ColumnMetadata.Kind.REGULAR, null);
+            this.metadata = new ColumnMetadata("journal", "routes", new ColumnIdentifier(name, false), type, ColumnMetadata.NO_UNIQUE_ID, ColumnMetadata.NO_POSITION, ColumnMetadata.Kind.REGULAR, null);
         }
     }
 

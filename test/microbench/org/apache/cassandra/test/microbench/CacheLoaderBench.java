@@ -115,7 +115,7 @@ public class CacheLoaderBench
             cfs.truncateBlocking();
             for (int i = 0; i < numSSTables ; i++)
             {
-                ColumnMetadata colDef = ColumnMetadata.regularColumn(cfs.metadata(), ByteBufferUtil.bytes("val"), AsciiType.instance);
+                ColumnMetadata colDef = ColumnMetadata.regularColumn(cfs.metadata(), ByteBufferUtil.bytes("val"), AsciiType.instance, ColumnMetadata.NO_UNIQUE_ID);
                 for (int k = 0; k < numKeysPerTable; k++)
                 {
                     RowUpdateBuilder rowBuilder = new RowUpdateBuilder(cfs.metadata(), System.currentTimeMillis() + random.nextInt(), "key" + k);

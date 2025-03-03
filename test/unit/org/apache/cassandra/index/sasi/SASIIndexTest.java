@@ -1791,7 +1791,7 @@ public class SASIIndexTest
         };
 
         // first let's check that we get 'false' for 'isLiteral' if we don't set the option with special comparator
-        ColumnMetadata columnA = ColumnMetadata.regularColumn(KS_NAME, CF_NAME, "special-A", stringType);
+        ColumnMetadata columnA = ColumnMetadata.regularColumn(KS_NAME, CF_NAME, "special-A", stringType, ColumnMetadata.NO_UNIQUE_ID);
 
         ColumnIndex indexA = new ColumnIndex(UTF8Type.instance, columnA, IndexMetadata.fromSchemaMetadata("special-index-A", IndexMetadata.Kind.CUSTOM, new HashMap<String, String>()
         {{
@@ -1802,7 +1802,7 @@ public class SASIIndexTest
         Assert.assertFalse(indexA.isLiteral());
 
         // now let's double-check that we do get 'true' when we set it
-        ColumnMetadata columnB = ColumnMetadata.regularColumn(KS_NAME, CF_NAME, "special-B", stringType);
+        ColumnMetadata columnB = ColumnMetadata.regularColumn(KS_NAME, CF_NAME, "special-B", stringType, ColumnMetadata.NO_UNIQUE_ID);
 
         ColumnIndex indexB = new ColumnIndex(UTF8Type.instance, columnB, IndexMetadata.fromSchemaMetadata("special-index-B", IndexMetadata.Kind.CUSTOM, new HashMap<String, String>()
         {{
@@ -1814,7 +1814,7 @@ public class SASIIndexTest
         Assert.assertTrue(indexB.isLiteral());
 
         // and finally we should also get a 'true' if it's built-in UTF-8/ASCII comparator
-        ColumnMetadata columnC = ColumnMetadata.regularColumn(KS_NAME, CF_NAME, "special-C", UTF8Type.instance);
+        ColumnMetadata columnC = ColumnMetadata.regularColumn(KS_NAME, CF_NAME, "special-C", UTF8Type.instance, ColumnMetadata.NO_UNIQUE_ID);
 
         ColumnIndex indexC = new ColumnIndex(UTF8Type.instance, columnC, IndexMetadata.fromSchemaMetadata("special-index-C", IndexMetadata.Kind.CUSTOM, new HashMap<String, String>()
         {{
@@ -1824,7 +1824,7 @@ public class SASIIndexTest
         Assert.assertTrue(indexC.isIndexed());
         Assert.assertTrue(indexC.isLiteral());
 
-        ColumnMetadata columnD = ColumnMetadata.regularColumn(KS_NAME, CF_NAME, "special-D", AsciiType.instance);
+        ColumnMetadata columnD = ColumnMetadata.regularColumn(KS_NAME, CF_NAME, "special-D", AsciiType.instance, ColumnMetadata.NO_UNIQUE_ID);
 
         ColumnIndex indexD = new ColumnIndex(UTF8Type.instance, columnD, IndexMetadata.fromSchemaMetadata("special-index-D", IndexMetadata.Kind.CUSTOM, new HashMap<String, String>()
         {{
@@ -1835,7 +1835,7 @@ public class SASIIndexTest
         Assert.assertTrue(indexD.isLiteral());
 
         // and option should supersedes the comparator type
-        ColumnMetadata columnE = ColumnMetadata.regularColumn(KS_NAME, CF_NAME, "special-E", UTF8Type.instance);
+        ColumnMetadata columnE = ColumnMetadata.regularColumn(KS_NAME, CF_NAME, "special-E", UTF8Type.instance, ColumnMetadata.NO_UNIQUE_ID);
 
         ColumnIndex indexE = new ColumnIndex(UTF8Type.instance, columnE, IndexMetadata.fromSchemaMetadata("special-index-E", IndexMetadata.Kind.CUSTOM, new HashMap<String, String>()
         {{
@@ -1850,7 +1850,8 @@ public class SASIIndexTest
         ColumnMetadata columnF = ColumnMetadata.regularColumn(KS_NAME,
                                                               CF_NAME,
                                                               "special-F",
-                                                              ListType.getInstance(UTF8Type.instance, false));
+                                                              ListType.getInstance(UTF8Type.instance, false),
+                                                              ColumnMetadata.NO_UNIQUE_ID);
 
         ColumnIndex indexF = new ColumnIndex(UTF8Type.instance, columnF, IndexMetadata.fromSchemaMetadata("special-index-F", IndexMetadata.Kind.CUSTOM, new HashMap<String, String>()
         {{

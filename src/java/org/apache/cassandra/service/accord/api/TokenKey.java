@@ -323,7 +323,10 @@ public final class TokenKey extends AccordRoutableKey implements RoutingKey, Ran
         @Override
         public int fixedKeyLengthForPrefix(Object prefix)
         {
-            return getPartitioner().accordFixedLength();
+            int size = getPartitioner().accordFixedLength();
+            if (size < 0)
+                return size;
+            return 2 + size;
         }
 
         @Override

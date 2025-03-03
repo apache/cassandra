@@ -133,7 +133,9 @@ public class AccordIncrementalRepairTest extends AccordTestBase
     {
         setupCluster(opt -> opt.withConfig(conf -> conf.with(Feature.NETWORK, Feature.GOSSIP)
                                                        .set("accord.recover_txn", "1s")
-                                                       .set("accord.shard_durability_target_splits", 16)
+                                                       .set("accord.retry_syncpoint", "1s*attempts")
+                                                       .set("accord.retry_durability", "1s*attempts")
+                                                       .set("accord.shard_durability_target_splits", 4)
         ), 3);
         for (IInvokableInstance instance : SHARED_CLUSTER)
             instance.runOnInstance(() -> AccordService.unsafeSetNewAccordService(new BarrierRecordingService(AccordService.instance())));

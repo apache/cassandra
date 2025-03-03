@@ -53,8 +53,8 @@ public class ComplexColumnData extends ColumnData implements Iterable<Cell<?>>
     private static final long EMPTY_SIZE = ObjectSizes.measure(new ComplexColumnData(ColumnMetadata.regularColumn("",
                                                                                                                   "",
                                                                                                                   "",
-                                                                                                                  SetType.getInstance(ByteType.instance,
-                                                                                                                                      true)),
+                                                                                                                  SetType.getInstance(ByteType.instance, true),
+                                                                                                                  ColumnMetadata.NO_UNIQUE_ID),
                                                                                      NO_CELLS,
                                                                                      DeletionTime.build(0, 0)));
 

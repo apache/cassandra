@@ -194,8 +194,8 @@ public class ColumnMetadataVersionComparatorTest
 
     private static int compare(AbstractType<?> left, AbstractType<?> right)
     {
-        ColumnMetadata v1 = ColumnMetadata.regularColumn("ks", "t", "c", left);
-        ColumnMetadata v2 = ColumnMetadata.regularColumn("ks", "t", "c", right);
+        ColumnMetadata v1 = ColumnMetadata.regularColumn("ks", "t", "c", left, ColumnMetadata.NO_UNIQUE_ID);
+        ColumnMetadata v2 = ColumnMetadata.regularColumn("ks", "t", "c", right, ColumnMetadata.NO_UNIQUE_ID);
         return ColumnMetadataVersionComparator.INSTANCE.compare(v1, v2);
     }
 }

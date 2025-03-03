@@ -312,7 +312,7 @@ public abstract class SAITester extends CQLTester.Fuzzed
 
     public static IndexTermType createIndexTermType(AbstractType<?> cellType)
     {
-        return IndexTermType.create(ColumnMetadata.regularColumn("sai", "internal", "val", cellType), Collections.emptyList(), IndexTarget.Type.SIMPLE);
+        return IndexTermType.create(ColumnMetadata.regularColumn("sai", "internal", "val", cellType, ColumnMetadata.NO_UNIQUE_ID), Collections.emptyList(), IndexTarget.Type.SIMPLE);
     }
 
     public IndexIdentifier createIndexIdentifier(String indexName)

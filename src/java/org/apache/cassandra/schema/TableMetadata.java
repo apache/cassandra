@@ -43,6 +43,7 @@ import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Sets;
 
+import accord.utils.Invariants;
 import org.apache.cassandra.auth.DataResource;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.constraints.ColumnConstraint;
@@ -89,6 +90,7 @@ import static java.lang.String.format;
 import static java.util.stream.Collectors.toList;
 import static java.util.stream.Collectors.toSet;
 import static org.apache.cassandra.db.TypeSizes.sizeof;
+import static org.apache.cassandra.schema.ColumnMetadata.NO_UNIQUE_ID;
 import static org.apache.cassandra.schema.IndexMetadata.isNameValid;
 
 @Unmetered
@@ -191,6 +193,8 @@ public class TableMetadata implements SchemaElement
     protected final ImmutableList<ColumnMetadata> partitionKeyColumns;
     protected final ImmutableList<ColumnMetadata> clusteringColumns;
     protected final RegularAndStaticColumns regularAndStaticColumns;
+    protected final RegularAndStaticColumns regularAndStaticAndDroppedColumns;
+    private final ColumnMetadata[] columnsById;
 
     public final Indexes indexes;
     public final Triggers triggers;
@@ -229,6 +233,18 @@ public class TableMetadata implements SchemaElement
         Collections.sort(builder.clusteringColumns);
         clusteringColumns = ImmutableList.copyOf(builder.clusteringColumns);
         regularAndStaticColumns = RegularAndStaticColumns.builder().addAll(builder.regularAndStaticColumns).build();
+        regularAndStaticAndDroppedColumns = RegularAndStaticColumns.builder()
+                                                                   .addAll(builder.regularAndStaticColumns)
+                                                                   .addAll(droppedColumns.values().stream().map(c -> c.column).filter(c -> !regularAndStaticColumns.contains(c))::iterator)
+                                                                   .build();
+
+        columnsById = new ColumnMetadata[regularAndStaticAndDroppedColumns.size() + partitionKeyColumns.size() + clusteringColumns.size()];
+        for (ColumnMetadata column : regularAndStaticAndDroppedColumns)
+            columnsById[column.uniqueId] = column;
+        for (ColumnMetadata column : partitionKeyColumns)
+            columnsById[column.uniqueId] = column;
+        for (ColumnMetadata column : clusteringColumns)
+            columnsById[column.uniqueId] = column;
         columns = ImmutableMap.copyOf(builder.columns);
 
         indexes = builder.indexes;
@@ -423,6 +439,11 @@ public class TableMetadata implements SchemaElement
         return regularAndStaticColumns;
     }
 
+    public RegularAndStaticColumns regularAndStaticAndDroppedColumns()
+    {
+        return regularAndStaticAndDroppedColumns;
+    }
+
     public Columns regularColumns()
     {
         return regularAndStaticColumns.regulars;
@@ -514,6 +535,11 @@ public class TableMetadata implements SchemaElement
         return columns.get(name);
     }
 
+    public ColumnMetadata getColumnById(int uniqueId)
+    {
+        return columnsById[uniqueId];
+    }
+
     public ColumnMetadata getDroppedColumn(ByteBuffer name)
     {
         DroppedColumn dropped = droppedColumns.get(name);
@@ -534,7 +560,7 @@ public class TableMetadata implements SchemaElement
             return null;
 
         if (isStatic && !dropped.column.isStatic())
-            return ColumnMetadata.staticColumn(this, name, dropped.column.type);
+            return ColumnMetadata.staticColumn(this, name, dropped.column.type, dropped.column.uniqueId);
 
         return dropped.column;
     }
@@ -892,6 +918,8 @@ public class TableMetadata implements SchemaElement
         private final List<ColumnMetadata> partitionKeyColumns = new ArrayList<>();
         private final List<ColumnMetadata> clusteringColumns = new ArrayList<>();
         private final List<ColumnMetadata> regularAndStaticColumns = new ArrayList<>();
+        private int maxAssignedUniqueId = NO_UNIQUE_ID;
+        private boolean assignUniqueIds = false;
 
         private Builder(String keyspace, String name, TableId id)
         {
@@ -923,10 +951,60 @@ public class TableMetadata implements SchemaElement
                     id = TableId.generate();
             }
 
+            if (assignUniqueIds)
+            {
+                int nextId = Math.max(0, maxAssignedUniqueId + 1);
+                for (int i = 0 ; i < partitionKeyColumns.size() ; ++i)
+                {
+                    ColumnMetadata prev = partitionKeyColumns.get(i);
+                    int expectedId = prev.position();
+                    Invariants.require(prev.uniqueId == expectedId || (prev.uniqueId == NO_UNIQUE_ID && nextId == expectedId));
+                    if (prev.uniqueId == NO_UNIQUE_ID)
+                        partitionKeyColumns.set(i, setUniqueId(prev, nextId++));
+                }
+                for (int i = 0 ; i < clusteringColumns.size() ; ++i)
+                {
+                    ColumnMetadata prev = clusteringColumns.get(i);
+                    int expectedId = partitionKeyColumns.size() + prev.position();
+                    Invariants.require(prev.uniqueId == expectedId || (prev.uniqueId == NO_UNIQUE_ID && nextId == expectedId));
+                    if (prev.uniqueId == NO_UNIQUE_ID)
+                        clusteringColumns.set(i, setUniqueId(prev, nextId++));
+                }
+                for (Map.Entry<ByteBuffer, DroppedColumn> e : droppedColumns.entrySet())
+                {
+                    Invariants.require(e.getValue().column.uniqueId != NO_UNIQUE_ID || maxAssignedUniqueId == NO_UNIQUE_ID);
+                    if (e.getValue().column.uniqueId == NO_UNIQUE_ID)
+                        e.setValue(new DroppedColumn(withUniqueId(e.getValue().column, nextId++), e.getValue().droppedTime));
+                }
+                for (int i = 0 ; i < regularAndStaticColumns.size() ; ++i)
+                {
+                    ColumnMetadata prev = regularAndStaticColumns.get(i);
+                    if (prev.uniqueId == NO_UNIQUE_ID)
+                    {
+                        DroppedColumn restoring = droppedColumns.get(prev.name.bytes);
+                        int uniqueId = restoring != null ? restoring.column.uniqueId : nextId++;
+                        regularAndStaticColumns.set(i, setUniqueId(prev, uniqueId));
+                    }
+                }
+            }
+
             if (Flag.isCQLTable(flags))
                 return new TableMetadata(this);
             else
                 return new CompactTableMetadata(this);
+        }
+
+        ColumnMetadata setUniqueId(ColumnMetadata prev, int uniqueId)
+        {
+            ColumnMetadata next = withUniqueId(prev, uniqueId);
+            ColumnMetadata replaced = columns.put(next.name.bytes, next);
+            Invariants.require(prev == replaced);
+            return next;
+        }
+
+        static ColumnMetadata withUniqueId(ColumnMetadata prev, int uniqueId)
+        {
+            return new ColumnMetadata(prev.ksName, prev.cfName, prev.name, prev.type, uniqueId, prev.position(), prev.kind, prev.getMask(), prev.getColumnConstraints());
         }
 
         public Builder id(TableId val)
@@ -1118,7 +1196,7 @@ public class TableMetadata implements SchemaElement
 
         public Builder addPartitionKeyColumn(ColumnIdentifier name, AbstractType<?> type, @Nullable ColumnMask mask, @Nonnull ColumnConstraints cqlConstraints)
         {
-            return addColumn(new ColumnMetadata(keyspace, this.name, name, type, partitionKeyColumns.size(), ColumnMetadata.Kind.PARTITION_KEY, mask, cqlConstraints));
+            return addColumn(new ColumnMetadata(keyspace, this.name, name, type, NO_UNIQUE_ID, partitionKeyColumns.size(), ColumnMetadata.Kind.PARTITION_KEY, mask, cqlConstraints));
         }
 
         public Builder addClusteringColumn(String name, AbstractType<?> type)
@@ -1143,7 +1221,7 @@ public class TableMetadata implements SchemaElement
 
         public Builder addClusteringColumn(ColumnIdentifier name, AbstractType<?> type, @Nullable ColumnMask mask, @Nonnull ColumnConstraints cqlConstraints)
         {
-            return addColumn(new ColumnMetadata(keyspace, this.name, name, type, clusteringColumns.size(), ColumnMetadata.Kind.CLUSTERING, mask, cqlConstraints));
+            return addColumn(new ColumnMetadata(keyspace, this.name, name, type, NO_UNIQUE_ID, clusteringColumns.size(), ColumnMetadata.Kind.CLUSTERING, mask, cqlConstraints));
         }
 
         public Builder addRegularColumn(String name, AbstractType<?> type)
@@ -1168,7 +1246,7 @@ public class TableMetadata implements SchemaElement
 
         public Builder addRegularColumn(ColumnIdentifier name, AbstractType<?> type, @Nullable ColumnMask mask, @Nonnull ColumnConstraints cqlConstraints)
         {
-            return addColumn(new ColumnMetadata(keyspace, this.name, name, type, ColumnMetadata.NO_POSITION, ColumnMetadata.Kind.REGULAR, mask, cqlConstraints));
+            return addColumn(new ColumnMetadata(keyspace, this.name, name, type, NO_UNIQUE_ID, ColumnMetadata.NO_POSITION, ColumnMetadata.Kind.REGULAR, mask, cqlConstraints));
         }
 
         public Builder addStaticColumn(String name, AbstractType<?> type)
@@ -1193,7 +1271,7 @@ public class TableMetadata implements SchemaElement
 
         public Builder addStaticColumn(ColumnIdentifier name, AbstractType<?> type, @Nullable ColumnMask mask, @Nonnull ColumnConstraints cqlConstraints)
         {
-            return addColumn(new ColumnMetadata(keyspace, this.name, name, type, ColumnMetadata.NO_POSITION, ColumnMetadata.Kind.STATIC, mask, cqlConstraints));
+            return addColumn(new ColumnMetadata(keyspace, this.name, name, type, NO_UNIQUE_ID, ColumnMetadata.NO_POSITION, ColumnMetadata.Kind.STATIC, mask, cqlConstraints));
         }
 
         public Builder addColumn(ColumnMetadata column)
@@ -1217,6 +1295,8 @@ public class TableMetadata implements SchemaElement
             }
 
             columns.put(column.name.bytes, column);
+            assignUniqueIds |= column.uniqueId == NO_UNIQUE_ID;
+            maxAssignedUniqueId = Math.max(maxAssignedUniqueId, column.uniqueId);
 
             return this;
         }
@@ -1231,6 +1311,11 @@ public class TableMetadata implements SchemaElement
         {
             this.droppedColumns.clear();
             this.droppedColumns.putAll(droppedColumns);
+            for (DroppedColumn column : droppedColumns.values())
+            {
+                assignUniqueIds |= column.column.uniqueId == NO_UNIQUE_ID;
+                maxAssignedUniqueId = Math.max(maxAssignedUniqueId, column.column.uniqueId);
+            }
             return this;
         }
 
@@ -1241,7 +1326,7 @@ public class TableMetadata implements SchemaElement
         {
             // As we play fast and loose with the removal timestamp, make sure this is misued for a non system table.
             assert SchemaConstants.isLocalSystemKeyspace(keyspace);
-            recordColumnDrop(ColumnMetadata.regularColumn(keyspace, this.name, name, type), Long.MAX_VALUE);
+            recordColumnDrop(ColumnMetadata.regularColumn(keyspace, this.name, name, type, NO_UNIQUE_ID), Long.MAX_VALUE);
             return this;
         }
 
@@ -1807,7 +1892,7 @@ public class TableMetadata implements SchemaElement
                 for (ColumnMetadata c : regularAndStaticColumns)
                 {
                     if (c.isStatic())
-                        columns.add(new ColumnMetadata(c.ksName, c.cfName, c.name, c.type, -1, ColumnMetadata.Kind.REGULAR, c.getMask(), c.getColumnConstraints()));
+                        columns.add(new ColumnMetadata(c.ksName, c.cfName, c.name, c.type, c.uniqueId, -1, ColumnMetadata.Kind.REGULAR, c.getMask(), c.getColumnConstraints()));
                 }
                 otherColumns = columns.iterator();
             }

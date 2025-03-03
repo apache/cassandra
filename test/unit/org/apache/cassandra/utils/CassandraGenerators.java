@@ -1224,7 +1224,7 @@ public final class CassandraGenerators
         ColumnIdentifier name = new ColumnIdentifier(str, true);
         int position = !kind.isPrimaryKeyKind() ? -1 : kindOffset;
         AbstractType<?> type = typeGen.generate(rnd);
-        return new ColumnMetadata(ks, table, name, type, position, kind, null);
+        return new ColumnMetadata(ks, table, name, type, ColumnMetadata.NO_UNIQUE_ID, position, kind, null);
     }
 
     public static Gen<ByteBuffer> partitionKeyDataGen(TableMetadata metadata)

@@ -33,6 +33,7 @@ import java.util.function.Function;
 import com.google.common.annotations.VisibleForTesting;
 
 import accord.primitives.Ranges;
+import accord.utils.Invariants;
 import org.apache.cassandra.db.CachedHashDecoratedKey;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.marshal.AbstractType;
@@ -412,14 +413,15 @@ public class RandomPartitioner implements IPartitioner
         return true;
     }
 
-    private static final byte[] EMPTY_BYTES = new byte[16];
+    private static final byte[] ZERO_BYTES = new byte[16];
 
     @Override
     public final void accordSerialize(Token token, DataOutputPlus out) throws IOException
     {
         byte[] bytes = increment(((BigIntegerToken)token).token.toByteArray());
+        Invariants.require(bytes.length <= 16);
         if (bytes.length < 16)
-            out.write(EMPTY_BYTES, 0, 16 - bytes.length);
+            out.write(ZERO_BYTES, 0, 16 - bytes.length);
         out.write(bytes);
     }
 
@@ -427,14 +429,16 @@ public class RandomPartitioner implements IPartitioner
     public final void accordSerialize(Token token, ByteBuffer out)
     {
         byte[] bytes = increment(((BigIntegerToken)token).token.toByteArray());
+        Invariants.require(bytes.length <= 16);
         if (bytes.length < 16)
-            out.put(EMPTY_BYTES, 0, 16 - bytes.length);
+            out.put(ZERO_BYTES, 0, 16 - bytes.length);
         out.put(bytes);
     }
 
     @Override
     public final Token accordDeserialize(DataInputPlus in, int length) throws IOException
     {
+        Invariants.require(length == 16);
         byte[] bytes = new byte[16];
         in.readFully(bytes);
         decrement(bytes);
@@ -462,11 +466,8 @@ public class RandomPartitioner implements IPartitioner
     {
         int i = bytes.length;
         while (--i >= 0 && ++bytes[i] == 0);
-        if (i == 0)
-        {
-            bytes = new byte[bytes.length + 1];
-            bytes[0] = (byte)1;
-        }
+        if (i == -1)
+            return ZERO_BYTES;
         return bytes;
     }
 

@@ -164,7 +164,7 @@ public class ColumnConditionTest
 
     private static boolean appliesSimpleCondition(ByteBuffer rowValue, Operator op, ByteBuffer conditionValue)
     {
-        ColumnMetadata definition = ColumnMetadata.regularColumn("ks", "cf", "c", Int32Type.instance);
+        ColumnMetadata definition = ColumnMetadata.regularColumn("ks", "cf", "c", Int32Type.instance, ColumnMetadata.NO_UNIQUE_ID);
         ColumnsExpression column = ColumnsExpression.singleColumn(definition);
         Terms terms = Terms.of(new Constants.Value(conditionValue));
         ColumnCondition condition = new ColumnCondition(column, op, terms);
@@ -175,7 +175,7 @@ public class ColumnConditionTest
     private static boolean appliesListCondition(List<ByteBuffer> rowValue, Operator op, List<ByteBuffer> conditionValue)
     {
         ListType<Integer> type = ListType.getInstance(Int32Type.instance, true);
-        ColumnMetadata definition = ColumnMetadata.regularColumn("ks", "cf", "c", type);
+        ColumnMetadata definition = ColumnMetadata.regularColumn("ks", "cf", "c", type, ColumnMetadata.NO_UNIQUE_ID);
         ColumnsExpression column = ColumnsExpression.singleColumn(definition);
         Term term = conditionValue == null ? Constants.NULL_VALUE : new MultiElements.Value(type, conditionValue);
         ColumnCondition condition = new ColumnCondition(column, op, Terms.of(term));
@@ -185,7 +185,7 @@ public class ColumnConditionTest
 
     private static boolean conditionContainsApplies(List<ByteBuffer> rowValue, Operator op, ByteBuffer conditionValue)
     {
-        ColumnMetadata definition = ColumnMetadata.regularColumn("ks", "cf", "c", ListType.getInstance(Int32Type.instance, true));
+        ColumnMetadata definition = ColumnMetadata.regularColumn("ks", "cf", "c", ListType.getInstance(Int32Type.instance, true), ColumnMetadata.NO_UNIQUE_ID);
         ColumnsExpression column = ColumnsExpression.singleColumn(definition);
         Terms terms = Terms.of(new Constants.Value(conditionValue));
         ColumnCondition condition = new ColumnCondition(column, op, terms);
@@ -195,7 +195,7 @@ public class ColumnConditionTest
 
     private static boolean conditionContainsApplies(Map<ByteBuffer, ByteBuffer> rowValue, Operator op, ByteBuffer conditionValue)
     {
-        ColumnMetadata definition = ColumnMetadata.regularColumn("ks", "cf", "c", MapType.getInstance(Int32Type.instance, Int32Type.instance, true));
+        ColumnMetadata definition = ColumnMetadata.regularColumn("ks", "cf", "c", MapType.getInstance(Int32Type.instance, Int32Type.instance, true), ColumnMetadata.NO_UNIQUE_ID);
         ColumnsExpression column = ColumnsExpression.singleColumn(definition);
         Terms terms = Terms.of(new Constants.Value(conditionValue));
         ColumnCondition condition = new ColumnCondition(column, op, terms);
@@ -206,7 +206,7 @@ public class ColumnConditionTest
     private static boolean appliesSetCondition(SortedSet<ByteBuffer> rowValue, Operator op, SortedSet<ByteBuffer> conditionValue)
     {
         SetType<Integer> type = SetType.getInstance(Int32Type.instance, true);
-        ColumnMetadata definition = ColumnMetadata.regularColumn("ks", "cf", "c", type);
+        ColumnMetadata definition = ColumnMetadata.regularColumn("ks", "cf", "c", type, ColumnMetadata.NO_UNIQUE_ID);
         ColumnsExpression column = ColumnsExpression.singleColumn(definition);
         Term term = conditionValue == null ? Constants.NULL_VALUE : new MultiElements.Value(type, new ArrayList<>(conditionValue));
         ColumnCondition condition = new ColumnCondition(column, op, Terms.of(term));
@@ -216,7 +216,7 @@ public class ColumnConditionTest
 
     private static boolean conditionContainsApplies(SortedSet<ByteBuffer> rowValue, Operator op, ByteBuffer conditionValue)
     {
-        ColumnMetadata definition = ColumnMetadata.regularColumn("ks", "cf", "c", SetType.getInstance(Int32Type.instance, true));
+        ColumnMetadata definition = ColumnMetadata.regularColumn("ks", "cf", "c", SetType.getInstance(Int32Type.instance, true), ColumnMetadata.NO_UNIQUE_ID);
         ColumnsExpression column = ColumnsExpression.singleColumn(definition);
         Terms terms = Terms.of(new Constants.Value(conditionValue));
         ColumnCondition condition = new ColumnCondition(column, op, terms);
@@ -235,7 +235,7 @@ public class ColumnConditionTest
 
     private boolean conditionUDTApplies(UserType ut, ByteBuffer rowValue, Operator op, ByteBuffer conditionValue)
     {
-        ColumnMetadata column = ColumnMetadata.regularColumn(KEYSPACE, "tbl", "c", ut);
+        ColumnMetadata column = ColumnMetadata.regularColumn(KEYSPACE, "tbl", "c", ut, ColumnMetadata.NO_UNIQUE_ID);
         ColumnCondition.ElementOrFieldAccessBound bounds = new ColumnCondition.ElementOrFieldAccessBound(column, UDT_FIELD_A.bytes, op, conditionValue);
         Row row;
         if (ut.isMultiCell())
@@ -269,7 +269,7 @@ public class ColumnConditionTest
     private static boolean appliesMapCondition(Map<ByteBuffer, ByteBuffer> rowValue, Operator op, SortedMap<ByteBuffer, ByteBuffer> conditionValue)
     {
         MapType<Integer, Integer> type = MapType.getInstance(Int32Type.instance, Int32Type.instance, true);
-        ColumnMetadata definition = ColumnMetadata.regularColumn("ks", "cf", "c", type);
+        ColumnMetadata definition = ColumnMetadata.regularColumn("ks", "cf", "c", type, ColumnMetadata.NO_UNIQUE_ID);
         Term term;
         if (conditionValue == null)
         {

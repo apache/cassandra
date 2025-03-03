@@ -190,6 +190,14 @@ public abstract class ColumnFilter
     }
 
     /**
+     * A filter that includes all columns for the provided table.
+     */
+    public static ColumnFilter allEver(TableMetadata metadata)
+    {
+        return new WildCardColumnFilter(metadata.regularAndStaticAndDroppedColumns());
+    }
+
+    /**
      * A filter that only fetches/queries the provided columns.
      * <p>
      * Note that this shouldn't be used for CQL queries in general as all columns should be queried to
