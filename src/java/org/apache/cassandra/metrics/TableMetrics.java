@@ -211,6 +211,14 @@ public class TableMetrics
     public final Counter repairsStarted;
     /** Number of completed repairs as coordinator on this table */
     public final Counter repairsCompleted;
+    public final Counter repairFailuresDueToInsufficientDisk;
+    public final Counter repairFailuresDueToPendingCompactions;
+    public final Counter repairFailuresDueToDownParticipants;
+    public final Counter sstableAcquisitionAttempts;
+    public final Counter sstableAcquisitionFailuresDueToLegacySSTables;
+    public final Counter sstableAcquisitionFailuresDueToPendingRepair;
+    public final Counter sstableAcquisitionFailuresDueToAntiCompaction;
+
     /** time spent anticompacting data before participating in a consistent repair */
     public final TableTimer anticompactionTime;
     /** time spent creating merkle trees */
@@ -1025,6 +1033,13 @@ public class TableMetrics
 
         repairsStarted = createTableCounter("RepairJobsStarted");
         repairsCompleted = createTableCounter("RepairJobsCompleted");
+        repairFailuresDueToInsufficientDisk = createTableCounter("RepairFailuresDueToInsufficientDisk");
+        repairFailuresDueToPendingCompactions = createTableCounter("RepairFailuresDueToPendingCompactions");
+        repairFailuresDueToDownParticipants = createTableCounter("RepairFailuresDueToDownParticipants");
+        sstableAcquisitionAttempts = createTableCounter("SSTableAcquisitionAttempts");
+        sstableAcquisitionFailuresDueToLegacySSTables = createTableCounter("SSTableAcquisitionFailuresDueToLegacySSTables");
+        sstableAcquisitionFailuresDueToPendingRepair = createTableCounter("SSTableAcquisitionFailuresDueToPendingRepair");
+        sstableAcquisitionFailuresDueToAntiCompaction = createTableCounter("SSTableAcquisitionFailuresDueToAntiCompaction");
 
         anticompactionTime = createTableTimer("AnticompactionTime", cfs.keyspace.metric.anticompactionTime);
         validationTime = createTableTimer("ValidationTime", cfs.keyspace.metric.validationTime);

@@ -24,6 +24,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
@@ -311,6 +312,9 @@ public class RepairSession extends AsyncFuture<RepairSessionResult> implements I
                 {
                     SystemDistributedKeyspace.failRepairs(getId(), state.keyspace, state.cfnames, e);
                 }
+                for (String cfname : state.cfnames)
+                    Optional.ofNullable(ColumnFamilyStore.getIfExists(state.keyspace, cfname))
+                            .ifPresent(cfs -> cfs.metric.repairFailuresDueToDownParticipants.inc());
                 return;
             }
         }
@@ -415,6 +419,12 @@ public class RepairSession extends AsyncFuture<RepairSessionResult> implements I
         // want to avoid print an error message twice
         if (!isFailed.compareAndSet(false, true))
             return;
+
+        for (String cfname : state.cfnames)
+        {
+            Optional.ofNullable(ColumnFamilyStore.getIfExists(state.keyspace, cfname))
+                    .ifPresent(cfs -> cfs.metric.repairFailuresDueToDownParticipants.inc());
+        }
 
         Exception exception = new IOException(String.format("Endpoint %s died", endpoint));
         logger.error("{} session completed with the following error", previewKind.logPrefix(getId()), exception);

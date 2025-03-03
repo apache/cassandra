@@ -70,6 +70,7 @@ import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.streaming.PreviewKind;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.concurrent.Refs;
+import org.hsqldb.Database;
 import org.mockito.Mock;
 
 import static org.apache.cassandra.repair.messages.RepairOption.DATACENTERS_KEY;
@@ -130,6 +131,7 @@ public class ActiveRepairServiceTest
         tmd.clearUnsafe();
         StorageService.instance.setTokens(Collections.singleton(tmd.partitioner.getRandomToken()));
         tmd.updateNormalToken(tmd.partitioner.getMinimumToken(), REMOTE);
+        DatabaseDescriptor.setRepairPendingCompactionRejectThreshold(Integer.MAX_VALUE);
         assert tmd.isMember(REMOTE);
 
         initMocks(this);
@@ -510,10 +512,25 @@ public class ActiveRepairServiceTest
     @Test(expected = RuntimeException.class)
     public void testPrepareForRepairThrowsExceptionForInsufficientDisk()
     {
+        long prevCount = store.metric.repairFailuresDueToInsufficientDisk.getCount();
         DiskUsageMonitor.instance = diskUsageMonitor;
         when(diskUsageMonitor.getDiskUsage()).thenReturn(1.5);
 
-        instance.prepareForRepair(TimeUUID.maxAtUnixMillis(0), null, null, opts(), false, null);
+        instance.prepareForRepair(TimeUUID.maxAtUnixMillis(0), null, null, opts(), false, List.of(store));
+
+        Assert.assertEquals(prevCount + 1, store.metric.repairFailuresDueToInsufficientDisk.getCount());
+    }
+
+
+    @Test(expected = RuntimeException.class)
+    public void testPrepareForRepairThrowsExceptionForPendingCompactions()
+    {
+        long prevCount = store.metric.repairFailuresDueToInsufficientDisk.getCount();
+        DatabaseDescriptor.setRepairPendingCompactionRejectThreshold(-1);
+
+        instance.prepareForRepair(TimeUUID.maxAtUnixMillis(0), null, null, opts(), false, List.of(store));
+
+        Assert.assertEquals(prevCount + 1, store.metric.repairFailuresDueToPendingCompactions.getCount());
     }
 
     private static class Task implements Runnable

@@ -73,6 +73,7 @@ import static org.apache.cassandra.repair.AutoRepairUtilsV2.RepairTurn.MY_TURN;
 import static org.apache.cassandra.repair.AutoRepairUtilsV2.RepairTurn.MY_TURN_DUE_TO_PRIORITY;
 import static org.apache.cassandra.repair.AutoRepairUtilsV2.RepairTurn.NOT_MY_TURN;
 import static org.apache.cassandra.repair.AutoRepairUtilsV2.RepairTurn.MY_TURN_FORCE_REPAIR;
+import static org.apache.cassandra.repair.AutoRepairUtilsV2.RepairTurn.NOT_MY_TURN_DUE_TO_PARALELLISM_LIMIT;
 
 /**
  * This class serves as a utility class for AutoRepairV2. It contains various helper APIs
@@ -164,7 +165,8 @@ public class AutoRepairUtilsV2
         MY_TURN,
         NOT_MY_TURN,
         MY_TURN_DUE_TO_PRIORITY,
-        MY_TURN_FORCE_REPAIR
+        MY_TURN_FORCE_REPAIR,
+        NOT_MY_TURN_DUE_TO_PARALELLISM_LIMIT,
     }
 
     public static void setup()
@@ -671,7 +673,7 @@ public class AutoRepairUtilsV2
                 return MY_TURN_FORCE_REPAIR;
             }
             // for some reason I was not done with the repair hence resume (maybe node restart in-between, etc.)
-            return currentRepairStatus.hostIdsWithOnGoingRepair.contains(myId) ? MY_TURN : NOT_MY_TURN;
+            return currentRepairStatus.hostIdsWithOnGoingRepair.contains(myId) ? MY_TURN : NOT_MY_TURN_DUE_TO_PARALELLISM_LIMIT;
         }
         catch (Exception e)
         {

@@ -120,6 +120,13 @@ public class KeyspaceMetrics
     public final Counter repairsStarted;
     /** Number of completed repairs as coordinator on this keyspace */
     public final Counter repairsCompleted;
+    public final Counter repairFailuresDueToInsufficientDisk;
+    public final Counter repairFailuresDueToPendingCompactions;
+    public final Counter repairFailuresDueToDownParticipants;
+    public final Counter sstableAcquisitionAttempts;
+    public final Counter sstableAcquisitionFailuresDueToLegacySSTables;
+    public final Counter sstableAcquisitionFailuresDueToPendingRepair;
+    public final Counter sstableAcquisitionFailuresDueToAntiCompaction;
     /** total time spent as a repair coordinator */
     public final Timer repairTime;
     /** total time spent preparing for repair */
@@ -272,7 +279,14 @@ public class KeyspaceMetrics
         additionalWrites = createKeyspaceCounter("AdditionalWrites", metric -> metric.additionalWrites.getCount());
         repairsStarted = createKeyspaceCounter("RepairJobsStarted", metric -> metric.repairsStarted.getCount());
         repairsCompleted = createKeyspaceCounter("RepairJobsCompleted", metric -> metric.repairsCompleted.getCount());
-        repairTime =createKeyspaceTimer("RepairTime");
+        repairFailuresDueToInsufficientDisk = createKeyspaceCounter("RepairFailuresDueToInsufficientDisk", metric -> metric.repairFailuresDueToInsufficientDisk.getCount());
+        repairFailuresDueToPendingCompactions = createKeyspaceCounter("RepairFailuresDueToPendingCompactions", metric -> metric.repairFailuresDueToPendingCompactions.getCount());
+        repairFailuresDueToDownParticipants = createKeyspaceCounter("RepairFailuresDueToDownParticipants", metric -> metric.repairFailuresDueToDownParticipants.getCount());
+        sstableAcquisitionAttempts = createKeyspaceCounter("SSTableAcquisitionAttempts", metric -> metric.sstableAcquisitionAttempts.getCount());
+        sstableAcquisitionFailuresDueToLegacySSTables = createKeyspaceCounter("SSTableAcquisitionFailuresDueToLegacySSTables", metric -> metric.sstableAcquisitionFailuresDueToLegacySSTables.getCount());
+        sstableAcquisitionFailuresDueToPendingRepair = createKeyspaceCounter("SSTableAcquisitionFailuresDueToPendingRepair", metric -> metric.sstableAcquisitionFailuresDueToPendingRepair.getCount());
+        sstableAcquisitionFailuresDueToAntiCompaction = createKeyspaceCounter("SSTableAcquisitionFailuresDueToAntiCompaction", metric -> metric.sstableAcquisitionFailuresDueToAntiCompaction.getCount());
+        repairTime = createKeyspaceTimer("RepairTime");
         repairPrepareTime = createKeyspaceTimer("RepairPrepareTime");
         anticompactionTime = createKeyspaceTimer("AntiCompactionTime");
         validationTime = createKeyspaceTimer("ValidationTime");

@@ -42,7 +42,13 @@ public class AutoRepairMetricsV2
     public Counter repairTurnMyTurn;
     public Counter repairTurnMyTurnDueToPriority;
     public Counter repairTurnMyTurnForceRepair;
+    public Counter repairTurnNotMyTurn;
+    public Counter repairTurnNotMyTurnDueToParalelismLimit;
     public Gauge<Integer> totalMVTablesConsideredForRepair;
+    public Counter repairEligilityCheck;
+    public Counter ineligibleForRepairDueToRepairCooldown;
+    public Counter ineligibleForRepairDueToNodeOrder;
+    public Counter ineligibleForRepairDueToDCLimits;
 
     public AutoRepairMetricsV2(RepairType repairType)
     {
@@ -108,6 +114,13 @@ public class AutoRepairMetricsV2
         repairTurnMyTurn = Metrics.counter(factory.createMetricName("RepairTurnMyTurn"));
         repairTurnMyTurnDueToPriority = Metrics.counter(factory.createMetricName("RepairTurnMyTurnDueToPriority"));
         repairTurnMyTurnForceRepair = Metrics.counter(factory.createMetricName("RepairTurnMyTurnForceRepair"));
+        repairTurnNotMyTurnDueToParalelismLimit = Metrics.counter(factory.createMetricName("RepairTurnNotMyTurnDueToParalelismLimit"));
+        repairTurnNotMyTurn = Metrics.counter(factory.createMetricName("RepairTurnNotMyTurn"));
+
+        repairEligilityCheck = Metrics.counter(factory.createMetricName("RepairEligilityCheck"));
+        ineligibleForRepairDueToRepairCooldown = Metrics.counter(factory.createMetricName("IneligibleForRepairDueToRepairCooldown"));
+        ineligibleForRepairDueToNodeOrder = Metrics.counter(factory.createMetricName("IneligibleForRepairDueToNodeOrder"));
+        ineligibleForRepairDueToDCLimits = Metrics.counter(factory.createMetricName("IneligibleForRepairDueToDCLimits"));
 
         totalMVTablesConsideredForRepair = Metrics.register(factory.createMetricName("TotalMVTablesConsideredForRepair"), new Gauge<Integer>()
         {
@@ -130,6 +143,12 @@ public class AutoRepairMetricsV2
                 break;
             case MY_TURN_DUE_TO_PRIORITY:
                 repairTurnMyTurnDueToPriority.inc();
+                break;
+            case NOT_MY_TURN:
+                repairTurnNotMyTurn.inc();
+                break;
+            case NOT_MY_TURN_DUE_TO_PARALELLISM_LIMIT:
+                repairTurnNotMyTurnDueToParalelismLimit.inc();
                 break;
             default:
                 throw new RuntimeException(String.format("Unrecoginized turn: %s", turn.name()));

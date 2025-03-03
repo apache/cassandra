@@ -35,6 +35,9 @@ import com.google.common.collect.Iterables;
 import com.google.common.util.concurrent.Uninterruptibles;
 
 import org.apache.cassandra.concurrent.FutureTask;
+import org.apache.cassandra.metrics.AutoRepairMetricsManager;
+import org.apache.cassandra.metrics.AutoRepairMetricsV2;
+import org.apache.cassandra.repair.AutoRepairConfig;
 import org.apache.cassandra.utils.TimeUUID;
 import org.apache.cassandra.utils.concurrent.Future;
 import org.apache.cassandra.utils.concurrent.FutureCombiner;
@@ -104,11 +107,13 @@ public class PendingAntiCompaction
     @VisibleForTesting
     static class AntiCompactionPredicate implements Predicate<SSTableReader>
     {
+        private final ColumnFamilyStore cfs;
         private final Collection<Range<Token>> ranges;
         private final TimeUUID prsid;
 
-        public AntiCompactionPredicate(Collection<Range<Token>> ranges, TimeUUID prsid)
+        public AntiCompactionPredicate(ColumnFamilyStore cfs, Collection<Range<Token>> ranges, TimeUUID prsid)
         {
+            this.cfs = cfs;
             this.ranges = ranges;
             this.prsid = prsid;
         }
@@ -129,6 +134,7 @@ public class PendingAntiCompaction
                 String message = String.format("Prepare phase failed because it encountered legacy sstables that don't " +
                                                "support pending repair, run upgradesstables before starting incremental " +
                                                "repairs, repair session (%s)", prsid);
+                cfs.metric.sstableAcquisitionFailuresDueToLegacySSTables.inc();
                 throw new SSTableAcquisitionException(message);
             }
 
@@ -142,6 +148,7 @@ public class PendingAntiCompaction
                                                    "intersecting sstables belonging to another incremental repair session (%s). This is " +
                                                    "caused by starting an incremental repair session before a previous one has completed. " +
                                                    "Check nodetool repair_admin for hung sessions and fix them.", prsid, metadata.pendingRepair);
+                    cfs.metric.sstableAcquisitionFailuresDueToPendingRepair.inc();
                     throw new SSTableAcquisitionException(message);
                 }
                 return false;
@@ -158,6 +165,7 @@ public class PendingAntiCompaction
                 sb.append("Conflicting anticompactions: ");
                 for (CompactionInfo ci : cis)
                     sb.append(ci.getTaskId() == null ? "no compaction id" : ci.getTaskId()).append(':').append(ci.getSSTables()).append(',');
+                cfs.metric.sstableAcquisitionFailuresDueToAntiCompaction.inc();
                 throw new SSTableAcquisitionException(sb.toString());
             }
             return true;
@@ -175,7 +183,7 @@ public class PendingAntiCompaction
         @VisibleForTesting
         public AcquisitionCallable(ColumnFamilyStore cfs, Collection<Range<Token>> ranges, TimeUUID sessionID, int acquireRetrySeconds, int acquireSleepMillis)
         {
-            this(cfs, sessionID, acquireRetrySeconds, acquireSleepMillis, new AntiCompactionPredicate(ranges, sessionID));
+            this(cfs, sessionID, acquireRetrySeconds, acquireSleepMillis, new AntiCompactionPredicate(cfs, ranges, sessionID));
         }
 
         @VisibleForTesting
@@ -232,6 +240,7 @@ public class PendingAntiCompaction
                 {
                     // Note that anticompactions are not disabled when running this. This is safe since runWithCompactionsDisabled
                     // is synchronized - acquireTuple and predicate can only be run by a single thread (for the given cfs).
+                    cfs.metric.sstableAcquisitionAttempts.inc();
                     return cfs.runWithCompactionsDisabled(this::acquireTuple, predicate, false, false, false);
                 }
                 catch (SSTableAcquisitionException e)

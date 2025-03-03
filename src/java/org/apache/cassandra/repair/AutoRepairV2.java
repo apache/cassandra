@@ -50,6 +50,8 @@ import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.gms.Gossiper;
+import org.apache.cassandra.metrics.AutoRepairMetricsManager;
+import org.apache.cassandra.metrics.AutoRepairMetricsV2;
 import org.apache.cassandra.repair.state.AutoRepairState;
 import org.apache.cassandra.repair.state.AutoRepairStateFactory;
 import org.apache.cassandra.schema.TableMetadata;
@@ -143,13 +145,16 @@ public class AutoRepairV2
         AutoRepairService.instance.checkCanRun(repairType);
 
         AutoRepairState repairState = repairStates.get(repairType);
+        AutoRepairMetricsV2 metrics = AutoRepairMetricsManager.getMetrics(repairType);
 
         try
         {
+            metrics.repairEligilityCheck.inc();
             String localDC = DatabaseDescriptor.getLocalDataCenter();
             if (config.getIgnoreDCs(repairType).contains(localDC))
             {
                 logger.info("Not running repair as this node belongs to datacenter {}", localDC);
+                metrics.ineligibleForRepairDueToDCLimits.inc();
                 return;
             }
 
@@ -159,9 +164,9 @@ public class AutoRepairV2
             //consistency level to use for local query
             UUID myId = Gossiper.instance.getHostId(FBUtilities.getBroadcastAddressAndPort());
             RepairTurn turn = AutoRepairUtilsV2.myTurnToRunRepair(repairType, myId);
+            repairState.recordTurn(turn);
             if (turn == MY_TURN || turn == MY_TURN_DUE_TO_PRIORITY || turn == MY_TURN_FORCE_REPAIR)
             {
-                repairState.recordTurn(turn);
                 // For normal auto repair, we will use primary range only repairs (Repair with -pr option).
                 // For some cases, we may set the primary_token_range_only flag to false then we will do repair
                 // without -pr. We may also do force repair for certain node that we want to repair all the data on one node
@@ -185,6 +190,7 @@ public class AutoRepairV2
                 {
                     logger.info("Too soon to run repair, last repair was done {} hour(s) ago",
                                 timeElapsedSinceLastRepairInHours);
+                    metrics.ineligibleForRepairDueToRepairCooldown.inc();
                     return;
                 }
 
@@ -454,6 +460,7 @@ public class AutoRepairV2
             else
             {
                 logger.info("Waiting for my turn...");
+                metrics.ineligibleForRepairDueToNodeOrder.inc();
             }
         }
         catch (Exception e)

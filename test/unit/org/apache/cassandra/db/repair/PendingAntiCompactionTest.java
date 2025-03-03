@@ -621,7 +621,7 @@ public class PendingAntiCompactionTest extends AbstractPendingAntiCompactionTest
         try
         {
             PendingAntiCompaction.AntiCompactionPredicate predicate =
-            new PendingAntiCompaction.AntiCompactionPredicate(Collections.singleton(new Range<>(new Murmur3Partitioner.LongToken(0), new Murmur3Partitioner.LongToken(100))),
+            new PendingAntiCompaction.AntiCompactionPredicate(cfs, Collections.singleton(new Range<>(new Murmur3Partitioner.LongToken(0), new Murmur3Partitioner.LongToken(100))),
                                                               nextTimeUUID());
             Set<SSTableReader> live = cfs.getLiveSSTables().stream().filter(predicate).collect(Collectors.toSet());
             if (shouldFail)
@@ -660,7 +660,7 @@ public class PendingAntiCompactionTest extends AbstractPendingAntiCompactionTest
         };
         try
         {
-            PendingAntiCompaction.AntiCompactionPredicate acp = new PendingAntiCompaction.AntiCompactionPredicate(FULL_RANGE, nextTimeUUID())
+            PendingAntiCompaction.AntiCompactionPredicate acp = new PendingAntiCompaction.AntiCompactionPredicate(cfs, FULL_RANGE, nextTimeUUID())
             {
                 @Override
                 public boolean apply(SSTableReader sstable)
@@ -704,7 +704,7 @@ public class PendingAntiCompactionTest extends AbstractPendingAntiCompactionTest
         };
         try
         {
-            PendingAntiCompaction.AntiCompactionPredicate acp = new PendingAntiCompaction.AntiCompactionPredicate(FULL_RANGE, nextTimeUUID())
+            PendingAntiCompaction.AntiCompactionPredicate acp = new PendingAntiCompaction.AntiCompactionPredicate(cfs, FULL_RANGE, nextTimeUUID())
             {
                 @Override
                 public boolean apply(SSTableReader sstable)

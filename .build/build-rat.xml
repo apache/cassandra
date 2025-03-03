@@ -96,7 +96,7 @@
                  <!-- Uber specific -->
                  <exclude NAME=".arcconfig"/>
                  <exclude NAME="METADATA"/>
-                 <exclude NAME=".jenkins/code_coverage/requirements.txt"/>
+                 <exclude NAME=".jenkins/**"/>
                  <exclude NAME="test/resources/**"/>
             </fileset>
         </rat:report>

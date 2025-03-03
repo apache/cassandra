@@ -621,9 +621,17 @@ public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFai
     public TimeUUID prepareForRepair(TimeUUID parentRepairSession, InetAddressAndPort coordinator, Set<InetAddressAndPort> endpoints, RepairOption options, boolean isForcedRepair, List<ColumnFamilyStore> columnFamilyStores)
     {
         if (!verifyDiskHeadroomThreshold(parentRepairSession, options.getPreviewKind(), options.isIncremental()))
+        {
+            for (ColumnFamilyStore cfs : columnFamilyStores)
+                cfs.metric.repairFailuresDueToInsufficientDisk.inc();
             failRepair(parentRepairSession, "Rejecting incoming repair, disk usage above threshold"); // failRepair throws exception
+        }
         if (!verifyCompactionsPendingThreshold(parentRepairSession, options.getPreviewKind()))
+        {
+            for (ColumnFamilyStore cfs : columnFamilyStores)
+                cfs.metric.repairFailuresDueToPendingCompactions.inc();
             failRepair(parentRepairSession, "Rejecting incoming repair, pending compactions above threshold"); // failRepair throws exception
+        }
 
         long repairedAt = getRepairedAt(options, isForcedRepair);
         registerParentRepairSession(parentRepairSession, coordinator, columnFamilyStores, options.getRanges(), options.isIncremental(), repairedAt, options.isGlobal(), options.getPreviewKind());
@@ -679,6 +687,8 @@ public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFai
                 }
                 else
                 {
+                    for (ColumnFamilyStore cfs : columnFamilyStores)
+                        cfs.metric.repairFailuresDueToDownParticipants.inc();
                     // bailout early to avoid potentially waiting for a long time.
                     failRepair(parentRepairSession, "Endpoint not alive: " + neighbour);
                 }
