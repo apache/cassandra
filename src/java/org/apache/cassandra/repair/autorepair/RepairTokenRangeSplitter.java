@@ -340,7 +340,7 @@ public class RepairTokenRangeSplitter implements IAutoRepairTokenRangeSplitter
                     return 1;
                 }
                 return Long.compare(cfs1.metric.totalDiskSpaceUsed.getCount(), cfs2.metric.totalDiskSpaceUsed.getCount());
-            }).toList();
+            }).collect(Collectors.toList());
         }
 
         for (String tableName : tablesToProcess)
