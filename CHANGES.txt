@@ -1,4 +1,5 @@
 5.1
+ * Allow empty placements when deserializing cluster metadata (CASSANDRA-20343)
  * Reduce heap pressure when initializing CMS (CASSANDRA-20267)
  * Paxos Repair: NoSuchElementException on DistributedSchema.getKeyspaceMetadata (CASSANDRA-20320)
  * Improve performance of DistributedSchema.validate for large schemas (CASSANDRA-20360)
