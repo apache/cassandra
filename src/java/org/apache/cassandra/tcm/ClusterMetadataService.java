@@ -55,6 +55,7 @@ import org.apache.cassandra.tcm.log.Entry;
 import org.apache.cassandra.tcm.log.LocalLog;
 import org.apache.cassandra.tcm.log.LogState;
 import org.apache.cassandra.tcm.membership.NodeId;
+import org.apache.cassandra.tcm.membership.NodeState;
 import org.apache.cassandra.tcm.membership.NodeVersion;
 import org.apache.cassandra.tcm.migration.Election;
 import org.apache.cassandra.tcm.migration.GossipProcessor;
@@ -343,6 +344,9 @@ public class ClusterMetadataService
                 continue;
             }
 
+            if (metadata.directory.peerState(entry.getKey()) == NodeState.LEFT)
+                continue;
+
             if (!version.isUpgraded())
             {
                 String msg = String.format("All nodes are not yet upgraded - %s is running %s", metadata.directory.endpoint(entry.getKey()), version);
@@ -356,7 +360,7 @@ public class ClusterMetadataService
             logger.info("First CMS node");
             Set<InetAddressAndPort> candidates = metadata
                                                  .directory
-                                                 .allAddresses()
+                                                 .allJoinedEndpoints()
                                                  .stream()
                                                  .filter(ep -> !FBUtilities.getBroadcastAddressAndPort().equals(ep) &&
                                                                !ignored.contains(ep))

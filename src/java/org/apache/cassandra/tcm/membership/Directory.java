@@ -156,7 +156,10 @@ public class Directory implements MetadataValue<Directory>
                                          UUID hostId)
     {
         NodeId id = new NodeId(nextId);
-        return with(addresses, id, hostId, location, version).withNodeState(id, state).withRackAndDC(id);
+        Directory updated = with(addresses, id, hostId, location, version).withNodeState(id, state);
+        if (state != NodeState.LEFT)
+            updated = updated.withRackAndDC(id);
+        return updated;
     }
 
     @VisibleForTesting

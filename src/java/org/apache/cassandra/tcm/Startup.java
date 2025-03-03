@@ -321,11 +321,21 @@ import static org.apache.cassandra.utils.FBUtilities.getBroadcastAddressAndPort;
         }
         Gossiper.instance.maybeInitializeLocalState(SystemKeyspace.incrementAndGetGeneration());
         for (Map.Entry<NodeId, NodeState> entry : initial.directory.states.entrySet())
-            Gossiper.instance.mergeNodeToGossip(entry.getKey(), initial);
+        {
+            InetAddressAndPort ep = initial.directory.addresses.get(entry.getKey()).broadcastAddress;
+            if (entry.getValue() != NodeState.LEFT)
+                Gossiper.instance.mergeNodeToGossip(entry.getKey(), initial);
+            else
+                Gossiper.runInGossipStageBlocking(() -> Gossiper.instance.endpointStateMap.put(ep, epStates.get(ep)));
+        }
 
         // double check that everything was added, can remove once we are confident
         ClusterMetadata cmGossip = fromEndpointStates(emptyFromSystemTables.schema, Gossiper.instance.getEndpointStates());
-        assert cmGossip.equals(initial) : cmGossip + " != " + initial;
+        if (!cmGossip.equals(initial))
+        {
+            cmGossip.dumpDiff(initial);
+            throw new AssertionError("Issue when populating gossip from cluster metadata");
+        }
     }
 
     public static void reinitializeWithClusterMetadata(String fileName, Function<Processor, Processor> wrapProcessor, Runnable initMessaging) throws IOException, StartupException
