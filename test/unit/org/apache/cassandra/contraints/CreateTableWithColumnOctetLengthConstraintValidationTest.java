@@ -497,7 +497,7 @@ public class CreateTableWithColumnOctetLengthConstraintValidationTest extends Cq
         catch (InvalidRequestException e)
         {
             assertTrue(e.getCause() instanceof InvalidRequestException);
-            assertTrue(e.getCause().getMessage().equals("Column 'pk' is not a number type."));
+            assertTrue(e.getCause().getMessage().contains("Constraint 'pk =' can be used only for columns of type"));
             assertTrue(e.getMessage().contains("Error setting schema for test"));
         }
     }

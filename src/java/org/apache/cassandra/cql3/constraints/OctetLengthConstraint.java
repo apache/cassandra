@@ -19,6 +19,7 @@
 package org.apache.cassandra.cql3.constraints;
 
 import java.nio.ByteBuffer;
+import java.util.List;
 import java.util.Set;
 
 import org.apache.cassandra.cql3.ColumnIdentifier;
@@ -33,7 +34,7 @@ import org.apache.cassandra.utils.ByteBufferUtil;
 
 public class OctetLengthConstraint extends ConstraintFunction
 {
-    private static final AbstractType<?>[] SUPPORTED_TYPES = new AbstractType[] { BytesType.instance, UTF8Type.instance, AsciiType.instance };
+    private static final List<AbstractType<?>> SUPPORTED_TYPES = List.of(BytesType.instance, UTF8Type.instance, AsciiType.instance);
 
     public OctetLengthConstraint(ColumnIdentifier columnName)
     {
@@ -56,9 +57,15 @@ public class OctetLengthConstraint extends ConstraintFunction
     }
 
     @Override
-    public Set<Operator> getSupportedOperators()
+    public List<Operator> getSupportedOperators()
     {
         return DEFAULT_FUNCTION_OPERATORS;
+    }
+
+    @Override
+    public List<AbstractType<?>> getSupportedTypes()
+    {
+        return SUPPORTED_TYPES;
     }
 
     @Override
