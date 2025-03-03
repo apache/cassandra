@@ -15,7 +15,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.apache.cassandra.io.sstable;
+package org.apache.cassandra.tools;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -55,6 +55,8 @@ import org.apache.cassandra.db.marshal.MapType;
 import org.apache.cassandra.db.marshal.SetType;
 import org.apache.cassandra.db.marshal.TupleType;
 import org.apache.cassandra.db.marshal.UserType;
+import org.apache.cassandra.io.sstable.Component;
+import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.format.SSTableFormat.Components;
 import org.apache.cassandra.io.sstable.format.SSTableFormat.Components.Types;
 import org.apache.cassandra.io.sstable.metadata.MetadataComponent;
@@ -82,7 +84,7 @@ public abstract class SSTableHeaderFix
     private static final boolean SKIP_AUTOMATIC_FIX_ON_UPGRADE = CASSANDRA_SKIP_AUTOMATIC_UDT_FIX.getBoolean();
 
     @VisibleForTesting
-    static void fixDroppedNonFrozenUDTIfUpgradeFrom30()
+    public static void fixDroppedNonFrozenUDTIfUpgradeFrom30()
     {
         String previousVersionString = FBUtilities.getPreviousReleaseVersionString();
         if (previousVersionString == null)
