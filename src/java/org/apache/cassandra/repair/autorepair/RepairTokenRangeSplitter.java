@@ -121,7 +121,7 @@ import static org.apache.cassandra.repair.autorepair.AutoRepairUtils.split;
  *     <li>
  *         <b>max_bytes_per_schedule</b>: The maximum number of bytes to cover an individual schedule. This serves
  *         as a mechanism for throttling the amount of work that can be done on each repair cycle. One may opt to
- *         reduce this value if the impact of repairs is causing too many load on the cluster, or increase it if
+ *         reduce this value if the impact of repairs is causing too much load on the cluster, or increase it if
  *         writes outpace the amount of data being repaired. Alternatively, one may want to choose tuning down or up
  *         the <code>min_repair_interval</code>.
  *     </li>
@@ -294,8 +294,16 @@ public class RepairTokenRangeSplitter implements IAutoRepairTokenRangeSplitter
                 return new KeyspaceRepairAssignments(priority, repairPlan.getKeyspaceName(), Collections.emptyList());
             }
 
-            Collection<Range<Token>> tokenRanges = getTokenRanges(primaryRangeOnly, repairPlan.getKeyspaceName());
-            List<SizedRepairAssignment> repairAssignments = getRepairAssignmentsForKeyspace(repairType, repairPlan.getKeyspaceName(), repairPlan.getTableNames(), tokenRanges);
+            List<Range<Token>> tokenRanges = getTokenRanges(primaryRangeOnly, repairPlan.getKeyspaceName());
+            // shuffle token ranges to unbias selection of ranges
+            Collections.shuffle(tokenRanges);
+            List<SizedRepairAssignment> repairAssignments = new ArrayList<>();
+            // Generate assignments for each range speparately
+            for (Range<Token> tokenRange : tokenRanges)
+            {
+                repairAssignments.addAll(getRepairAssignmentsForKeyspace(repairType, repairPlan.getKeyspaceName(), repairPlan.getTableNames(), tokenRange));
+            }
+
             FilteredRepairAssignments filteredRepairAssignments = filterRepairAssignments(priority, repairPlan.getKeyspaceName(), repairAssignments, bytesSoFar);
             bytesSoFar = filteredRepairAssignments.newBytesSoFar;
             return new KeyspaceRepairAssignments(priority, repairPlan.getKeyspaceName(), filteredRepairAssignments.repairAssignments);
@@ -303,7 +311,7 @@ public class RepairTokenRangeSplitter implements IAutoRepairTokenRangeSplitter
     }
 
     @VisibleForTesting
-    List<SizedRepairAssignment> getRepairAssignmentsForKeyspace(AutoRepairConfig.RepairType repairType, String keyspaceName, List<String> tableNames, Collection<Range<Token>> tokenRanges)
+    List<SizedRepairAssignment> getRepairAssignmentsForKeyspace(AutoRepairConfig.RepairType repairType, String keyspaceName, List<String> tableNames, Range<Token> tokenRange)
     {
         List<SizedRepairAssignment> repairAssignments = new ArrayList<>();
         // this is used for batching minimal single assignment tables together
@@ -313,9 +321,10 @@ public class RepairTokenRangeSplitter implements IAutoRepairTokenRangeSplitter
 
         // If we can repair by keyspace, sort the tables by size so can batch the smallest ones together
         boolean repairByKeyspace = config.getRepairByKeyspace(repairType);
+        List<String> tablesToProcess = tableNames;
         if (repairByKeyspace)
         {
-            tableNames.sort((t1, t2) -> {
+            tablesToProcess = tableNames.stream().sorted((t1, t2) -> {
                 ColumnFamilyStore cfs1 = ColumnFamilyStore.getIfExists(keyspaceName, t1);
                 ColumnFamilyStore cfs2 = ColumnFamilyStore.getIfExists(keyspaceName, t2);
                 // If for whatever reason the CFS is not retrievable, we can assume it has been deleted, so give the
@@ -331,12 +340,12 @@ public class RepairTokenRangeSplitter implements IAutoRepairTokenRangeSplitter
                     return 1;
                 }
                 return Long.compare(cfs1.metric.totalDiskSpaceUsed.getCount(), cfs2.metric.totalDiskSpaceUsed.getCount());
-            });
+            }).toList();
         }
 
-        for (String tableName : tableNames)
+        for (String tableName : tablesToProcess)
         {
-            List<SizedRepairAssignment> tableAssignments = getRepairAssignmentsForTable(keyspaceName, tableName, tokenRanges);
+            List<SizedRepairAssignment> tableAssignments = getRepairAssignmentsForTable(keyspaceName, tableName, tokenRange);
 
             if (tableAssignments.isEmpty())
                 continue;
@@ -519,9 +528,9 @@ public class RepairTokenRangeSplitter implements IAutoRepairTokenRangeSplitter
     }
 
     @VisibleForTesting
-    protected List<SizedRepairAssignment> getRepairAssignmentsForTable(String keyspaceName, String tableName, Collection<Range<Token>> tokenRanges)
+    protected List<SizedRepairAssignment> getRepairAssignmentsForTable(String keyspaceName, String tableName, Range<Token> tokenRange)
     {
-        List<SizeEstimate> sizeEstimates = getRangeSizeEstimate(keyspaceName, tableName, tokenRanges);
+        List<SizeEstimate> sizeEstimates = getRangeSizeEstimate(keyspaceName, tableName, tokenRange);
         return getRepairAssignments(sizeEstimates);
     }
 
@@ -632,7 +641,7 @@ public class RepairTokenRangeSplitter implements IAutoRepairTokenRangeSplitter
         return splits;
     }
 
-    private Collection<Range<Token>> getTokenRanges(boolean primaryRangeOnly, String keyspaceName)
+    private List<Range<Token>> getTokenRanges(boolean primaryRangeOnly, String keyspaceName)
     {
         // Collect all applicable token ranges
         Collection<Range<Token>> wrappedRanges;
@@ -654,18 +663,15 @@ public class RepairTokenRangeSplitter implements IAutoRepairTokenRangeSplitter
         return ranges;
     }
 
-    private List<SizeEstimate> getRangeSizeEstimate(String keyspace, String table, Collection<Range<Token>> tokenRanges)
+    private List<SizeEstimate> getRangeSizeEstimate(String keyspace, String table, Range<Token> tokenRange)
     {
         List<SizeEstimate> sizeEstimates = new ArrayList<>();
-        for (Range<Token> tokenRange : tokenRanges)
+        logger.debug("Calculating size estimate for {}.{} for range {}", keyspace, table, tokenRange);
+        try (Refs<SSTableReader> refs = getSSTableReaderRefs(repairType, keyspace, table, tokenRange))
         {
-            logger.debug("Calculating size estimate for {}.{} for range {}", keyspace, table, tokenRange);
-            try (Refs<SSTableReader> refs = getSSTableReaderRefs(repairType, keyspace, table, tokenRange))
-            {
-                SizeEstimate estimate = getSizesForRangeOfSSTables(repairType, keyspace, table, tokenRange, refs);
-                logger.debug("Generated size estimate {}", estimate);
-                sizeEstimates.add(estimate);
-            }
+            SizeEstimate estimate = getSizesForRangeOfSSTables(repairType, keyspace, table, tokenRange, refs);
+            logger.debug("Generated size estimate {}", estimate);
+            sizeEstimates.add(estimate);
         }
         return sizeEstimates;
     }
