@@ -74,6 +74,7 @@ import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.ClusterMetadataService;
 import org.apache.cassandra.tcm.membership.Directory;
 import org.apache.cassandra.tcm.membership.NodeVersion;
+import org.apache.cassandra.tcm.transformations.CustomTransformation;
 import org.apache.cassandra.tcm.transformations.ForceSnapshot;
 import org.apache.cassandra.utils.*;
 
@@ -270,6 +271,38 @@ public class PaxosRepairTest extends TestBaseImpl
             }));
         }
     }
+
+    @Test
+    public void epochBadDeserializationTest() throws Throwable
+    {
+        try (Cluster cluster = init(Cluster.build(3).withConfig(WITH_NETWORK).withoutVNodes().start()))
+        {
+            cluster.schemaChange("CREATE TABLE " + KEYSPACE + '.' + TABLE + " (pk text primary key, v int)");
+            cluster.get(1).runOnInstance(() -> {
+                // just execute transformations to get epoch bumped enough for the bug to occur
+                for (int i = 0; i < 75; i++)
+                    ClusterMetadataService.instance().commit(CustomTransformation.make("x"+i));
+            });
+            // and bump the epoch in the tablemetadata:
+            cluster.schemaChange("ALTER TABLE " + KEYSPACE + '.' + TABLE + " WITH comment='abc'");
+
+            cluster.verbs(PAXOS_COMMIT_REQ).drop();
+            try
+            {
+                cluster.coordinator(1).execute("INSERT INTO " + KEYSPACE + '.' + TABLE + " (pk, v) VALUES ('xyzxyzxyzxyzxyzxyzxyzxyz', 1) IF NOT EXISTS", ConsistencyLevel.QUORUM);
+                Assert.fail("expected write timeout");
+            }
+            catch (RuntimeException e)
+            {
+                // exception expected
+            }
+
+            cluster.filters().reset();
+            cluster.get(1).shutdown().get();
+            cluster.get(1).startup();
+        }
+    }
+
 
     @Ignore
     @Test
