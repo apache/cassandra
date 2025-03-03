@@ -636,8 +636,14 @@ public class KeySerializers
                 size += serializedSizeOfPrefix(prefix);
                 int fixedLength = fixedKeyLengthForPrefix(prefix);
                 if (fixedLength < 0)
-                    size += 4L * (i - prefixStart);
-                size += serializedSizeOfKeysWithoutPrefix(routables, prefixStart, i);
+                {
+                    size += 4L * recordCountToLengthCount(i - prefixStart);
+                    size += serializedSizeOfKeysWithoutPrefix(routables, prefixStart, i);
+                }
+                else
+                {
+                    size += fixedLength * (long)(i - prefixStart);
+                }
                 prefixStart = i;
                 prefix = nextPrefix;
             }

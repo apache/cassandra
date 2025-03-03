@@ -89,23 +89,23 @@ public interface DataInputPlus extends DataInput
         switch (bytes)
         {
             case 0: return 0;
-            case 1: return readByte();
-            case 2: return readShort();
+            case 1: return readByte() & 0xffL;
+            case 2: return readShort() & 0xffffL;
             case 3:
-                return ((long)readShort() << 8)
-                     |  (long)readByte();
+                return ((readShort() & 0xffffL) << 8)
+                     | (readByte() & 0xffL);
             case 4:
-                return readInt();
+                return (readInt() & 0xffffffffL);
             case 5:
-                return ((long)readInt() << 8)
-                     |  (long)readByte();
+                return ((readInt() & 0xffffffffL) << 8)
+                     | (readByte() & 0xffL);
             case 6:
-                return ((long)readInt() << 16)
-                     |  (long)readShort();
+                return ((readInt() & 0xffffffffL) << 16)
+                     | (readShort() & 0xffffL);
             case 7:
-                return ((long)readInt() << 24)
-                     | ((long)readShort() << 8)
-                     |  (long)readByte();
+                return ((readInt() & 0xffffffffL) << 24)
+                     | ((readShort() & 0xffffL) << 8)
+                     | (readByte() & 0xffL);
             case 8: return readLong();
             default: throw new IllegalArgumentException();
         }

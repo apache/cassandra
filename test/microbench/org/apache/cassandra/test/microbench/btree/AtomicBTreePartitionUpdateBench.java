@@ -565,6 +565,7 @@ public class AtomicBTreePartitionUpdateBench
                                                           "",
                                                           new ColumnIdentifier(prefix + i, true),
                                                           type,
+                                                          ColumnMetadata.NO_UNIQUE_ID,
                                                           kind != ColumnMetadata.Kind.REGULAR ? i : ColumnMetadata.NO_POSITION,
                                                           kind,
                                                           null))

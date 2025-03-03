@@ -114,8 +114,8 @@ public class AwaitSerializers
         }
     };
 
-    public static final IVersionedSerializer<AwaitOk> syncReply = new EnumSerializer<>(AwaitOk.class);
-    public static final IVersionedSerializer<RecoverAwaitOk> recoverReply = new EnumSerializer<>(RecoverAwaitOk.class);
+    public static final IVersionedSerializer<AwaitOk> syncReply = EncodeAsVInt32.of(AwaitOk.class);
+    public static final IVersionedSerializer<RecoverAwaitOk> recoverReply = EncodeAsVInt32.of(RecoverAwaitOk.class);
 
     public static final IVersionedSerializer<AsyncAwaitComplete> asyncReply = new IVersionedSerializer<>()
     {

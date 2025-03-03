@@ -281,7 +281,7 @@ public class SchemaCQLHelperTest extends CQLTester
                .speculativeRetry(SpeculativeRetryPolicy.fromString("always"))
                .additionalWritePolicy(SpeculativeRetryPolicy.fromString("always"))
                .extensions(ImmutableMap.of("ext1", ByteBuffer.wrap("val1".getBytes())))
-               .recordColumnDrop(ColumnMetadata.regularColumn(keyspace, table, "reg1", AsciiType.instance),
+               .recordColumnDrop(ColumnMetadata.regularColumn(keyspace, table, "reg1", AsciiType.instance, ColumnMetadata.NO_UNIQUE_ID),
                                  droppedTimestamp);
 
         SchemaLoader.createKeyspace(keyspace, KeyspaceParams.simple(1), builder);

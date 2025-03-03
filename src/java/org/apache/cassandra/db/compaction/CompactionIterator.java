@@ -68,6 +68,7 @@ import org.apache.cassandra.db.rows.WrappingUnfilteredRowIterator;
 import org.apache.cassandra.db.transform.DuplicateRowChecker;
 import org.apache.cassandra.db.transform.Transformation;
 import org.apache.cassandra.dht.Token;
+import org.apache.cassandra.exceptions.UnknownTableException;
 import org.apache.cassandra.index.transactions.CompactionTransaction;
 import org.apache.cassandra.index.transactions.IndexTransaction;
 import org.apache.cassandra.io.sstable.ISSTableScanner;
@@ -96,12 +97,15 @@ import org.apache.cassandra.service.accord.api.TokenKey;
 import org.apache.cassandra.service.accord.journal.AccordTopologyUpdate;
 import org.apache.cassandra.service.paxos.PaxosRepairHistory;
 import org.apache.cassandra.service.paxos.uncommitted.PaxosRows;
+import org.apache.cassandra.utils.NoSpamLogger;
+import org.apache.cassandra.utils.NoSpamLogger.NoSpamLogStatement;
 import org.apache.cassandra.utils.TimeUUID;
 
 import static accord.local.Cleanup.Input.PARTIAL;
 import static accord.local.Cleanup.NO;
 import static com.google.common.base.Preconditions.checkState;
 import static java.util.concurrent.TimeUnit.MICROSECONDS;
+import static java.util.concurrent.TimeUnit.MINUTES;
 import static org.apache.cassandra.config.Config.PaxosStatePurging.legacy;
 import static org.apache.cassandra.config.DatabaseDescriptor.paxosStatePurging;
 import static org.apache.cassandra.service.accord.AccordKeyspace.CFKAccessor;
@@ -125,6 +129,7 @@ import static org.apache.cassandra.service.accord.AccordKeyspace.CFKAccessor;
 public class CompactionIterator extends CompactionInfo.Holder implements UnfilteredPartitionIterator
 {
     private static final Logger logger = LoggerFactory.getLogger(CompactionIterator.class);
+    private static final NoSpamLogStatement unknownTable = NoSpamLogger.getStatement(logger, "Unknown (probably dropped) TableId {} reading {}; skipping record", 1L, MINUTES);
     private static final long UNFILTERED_TO_UPDATE_PROGRESS = 128;
 
     private final OperationType type;
@@ -839,7 +844,7 @@ public class CompactionIterator extends CompactionInfo.Holder implements Unfilte
         FlyweightSerializer<Object, Object> serializer = null;
         // Initialize topology serializer during compaction to avoid deserializing redundant epochs
         FlyweightSerializer<AccordTopologyUpdate, Object> topologySerializer;
-        Object[] firstClustering = null;
+        Object[] highestClustering = null;
         final int userVersion;
         long lastDescriptor = -1;
         int lastOffset = -1;
@@ -866,7 +871,7 @@ public class CompactionIterator extends CompactionInfo.Holder implements Unfilte
             builder = serializer.mergerFor(key);
             lastDescriptor = -1;
             lastOffset = -1;
-            firstClustering = null;
+            highestClustering = null;
         }
 
         @Override
@@ -893,7 +898,7 @@ public class CompactionIterator extends CompactionInfo.Holder implements Unfilte
                     try (DataOutputBuffer out = DataOutputBuffer.scratchBuffer.get())
                     {
                         serializer.reserialize(key, builder, out, userVersion);
-                        newVersion.row(firstClustering)
+                        newVersion.row(highestClustering)
                                   .add("record", out.asNewBuffer())
                                   .add("user_version", userVersion);
                     }
@@ -914,11 +919,11 @@ public class CompactionIterator extends CompactionInfo.Holder implements Unfilte
 
                 if (info != null && info.commandStoreId != key.commandStoreId) info = null;
                 if (info == null) info = infos.get(key.commandStoreId);
-                // TODO (required): should return null if commandStore has been removed
+                // TODO (required): should return null only if commandStore has been removed
                 if (info == null)
                     return partition;
                 DurableBefore durableBefore = infos.durableBefore;
-                Cleanup cleanup = commandBuilder.shouldCleanup(PARTIAL, agent, info.redundantBefore, durableBefore);
+                Cleanup cleanup = commandBuilder.maybeCleanup(PARTIAL, agent, info.redundantBefore, durableBefore);
                 if (cleanup != NO)
                 {
                     switch (cleanup)
@@ -932,21 +937,23 @@ public class CompactionIterator extends CompactionInfo.Holder implements Unfilte
                         case INVALIDATE:
                         case TRUNCATE_WITH_OUTCOME:
                         case VESTIGIAL:
-                            if (commandBuilder.maybeCleanup(PARTIAL, cleanup))
-                            {
-                                PartitionUpdate.SimpleBuilder newVersion = PartitionUpdate.simpleBuilder(AccordKeyspace.Journal, partition.partitionKey());
+                            PartitionUpdate.SimpleBuilder newVersion = PartitionUpdate.simpleBuilder(AccordKeyspace.Journal, partition.partitionKey());
 
-                                Row.SimpleBuilder rowBuilder = newVersion.row(firstClustering);
-                                rowBuilder.add("record", commandBuilder.asByteBuffer(userVersion))
-                                          .add("user_version", userVersion);
+                            Row.SimpleBuilder rowBuilder = newVersion.row(rows.get(rows.size() - 1).clustering().getBufferArray());
+                            rowBuilder.add("record", commandBuilder.asByteBuffer(userVersion))
+                                      .add("user_version", userVersion);
 
-                                return newVersion.build().unfilteredIterator();
-                            }
+                            return newVersion.build().unfilteredIterator();
                     }
                 }
 
                 return PartitionUpdate.multiRowUpdate(AccordKeyspace.Journal, partition.partitionKey(), rows)
                                       .unfilteredIterator();
+            }
+            catch (UnknownTableException e)
+            {
+                unknownTable.info(e.id, key);
+                return null;
             }
             catch (IOException e)
             {
@@ -960,12 +967,12 @@ public class CompactionIterator extends CompactionInfo.Holder implements Unfilte
             return row;
         }
 
-        protected void collect(Row row)
+        protected void collect(Row row) throws IOException
         {
             updateProgress();
             ByteBuffer record = row.getCell(recordColumn).buffer();
-            long descriptor = LongType.instance.compose(row.clustering().getBufferArray()[0]);
-            int offset = Int32Type.instance.compose(row.clustering().getBufferArray()[1]);
+            long descriptor = LongType.instance.compose(row.clustering().bufferAt(0));
+            int offset = Int32Type.instance.compose(row.clustering().bufferAt(1));
 
             if (lastOffset != -1)
             {
@@ -985,12 +992,8 @@ public class CompactionIterator extends CompactionInfo.Holder implements Unfilte
                     topologySerializer.deserialize(key, builder, in, userVersion);
                 else
                     serializer.deserialize(key, builder, in, userVersion);
-                if (firstClustering == null)
-                    firstClustering = row.clustering().getBufferArray();
-            }
-            catch (IOException e)
-            {
-                throw new RuntimeException(e);
+                if (highestClustering == null) // we iterate highest to lowest
+                    highestClustering = row.clustering().getBufferArray();
             }
         }
 

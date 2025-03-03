@@ -112,7 +112,7 @@ public class SegmentFlushTest
                                                                  Murmur3Partitioner.instance,
                                                                  SAITester.EMPTY_COMPARATOR);
 
-        ColumnMetadata column = ColumnMetadata.regularColumn("sai", "internal", "column", UTF8Type.instance);
+        ColumnMetadata column = ColumnMetadata.regularColumn("sai", "internal", "column", UTF8Type.instance, ColumnMetadata.NO_UNIQUE_ID);
 
         StorageAttachedIndex index = SAITester.createMockIndex(column);
 

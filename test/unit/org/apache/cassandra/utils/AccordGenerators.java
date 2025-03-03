@@ -75,11 +75,11 @@ import org.apache.cassandra.service.accord.txn.TxnWrite;
 import org.quicktheories.impl.JavaRandom;
 
 import static accord.local.CommandStores.RangesForEpoch;
-import static accord.local.RedundantStatus.LOCALLY_APPLIED_ONLY;
-import static accord.local.RedundantStatus.LOCALLY_WITNESSED_ONLY;
 import static accord.local.RedundantStatus.Property.GC_BEFORE;
 import static accord.local.RedundantStatus.Property.PRE_BOOTSTRAP;
-import static accord.local.RedundantStatus.SHARD_ONLY_APPLIED_ONLY;
+import static accord.local.RedundantStatus.SomeStatus.LOCALLY_APPLIED_ONLY;
+import static accord.local.RedundantStatus.SomeStatus.LOCALLY_WITNESSED_ONLY;
+import static accord.local.RedundantStatus.SomeStatus.SHARD_APPLIED_ONLY;
 import static accord.local.RedundantStatus.oneSlow;
 import static accord.primitives.Status.Durability.NotDurable;
 import static accord.primitives.Timestamp.Flag.SHARD_BOUND;
@@ -297,7 +297,6 @@ public class AccordGenerators
                     if (txnId.kind().awaitsOnlyDeps()) return Truncated.truncated(command, saveStatus, executeAt, null, null, null, txnId);
                     else return Truncated.truncated(command, saveStatus, executeAt, null, null, null, null);
 
-                case TruncatedApplyWithOutcomeAndDeps:
                 case TruncatedApplyWithOutcome:
                     if (txnId.kind().awaitsOnlyDeps()) return Truncated.truncated(command, saveStatus, executeAt, command.partialDeps(), txnId.is(Write) ? new Writes(txnId, executeAt, keysOrRanges,new TxnWrite(Collections.emptyList(), true)) : null, new TxnData(), txnId);
                     else return Truncated.truncated(command, saveStatus, executeAt, command.partialDeps(), txnId.is(Write) ? new Writes(txnId, executeAt, keysOrRanges, new TxnWrite(Collections.emptyList(), true)) : null, new TxnData(), null);
@@ -467,13 +466,13 @@ public class AccordGenerators
             if (rs.nextBoolean())
                 bounds.add(Bounds.create(range, txnIdGen.next(rs), LOCALLY_APPLIED_ONLY, null ));
             if (rs.nextBoolean())
-                bounds.add(Bounds.create(range, txnIdGen.next(rs), SHARD_ONLY_APPLIED_ONLY, null ));
+                bounds.add(Bounds.create(range, txnIdGen.next(rs), SHARD_APPLIED_ONLY, null ));
             if (rs.nextBoolean())
                 bounds.add(Bounds.create(range, txnIdGen.next(rs).addFlag(SHARD_BOUND), oneSlow(GC_BEFORE), null ));
             if (rs.nextBoolean())
                 bounds.add(Bounds.create(range, txnIdGen.next(rs), oneSlow(PRE_BOOTSTRAP), null ));
             if (rs.nextBoolean())
-                bounds.add(new Bounds(range, Long.MIN_VALUE, Long.MAX_VALUE, new TxnId[0], new int[0], txnIdGen.next(rs)));
+                bounds.add(new Bounds(range, Long.MIN_VALUE, Long.MAX_VALUE, new TxnId[0], new short[0], txnIdGen.next(rs)));
 
             Collections.shuffle(bounds);
             long endEpoch = emptyGen.next(rs) ? Long.MAX_VALUE : rs.nextLong(0, Long.MAX_VALUE);
@@ -488,7 +487,7 @@ public class AccordGenerators
             }
 
             long startEpoch = rs.nextLong(Math.min(minEpoch, endEpoch));
-            Bounds epochBounds = new Bounds(range, startEpoch, endEpoch, new TxnId[0], new int[0], null);
+            Bounds epochBounds = new Bounds(range, startEpoch, endEpoch, new TxnId[0], new short[0], null);
             if (result == null)
                 return epochBounds;
             return Bounds.reduce(result, epochBounds);

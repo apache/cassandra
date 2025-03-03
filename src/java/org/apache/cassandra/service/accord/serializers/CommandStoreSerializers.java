@@ -26,7 +26,6 @@ import java.util.function.IntFunction;
 import accord.api.RoutingKey;
 import accord.local.DurableBefore;
 import accord.local.RedundantBefore;
-import accord.local.RejectBefore;
 import accord.primitives.Range;
 import accord.primitives.Ranges;
 import accord.primitives.Timestamp;
@@ -110,7 +109,6 @@ public class CommandStoreSerializers
         }
     }
 
-    public static IVersionedSerializer<RejectBefore> rejectBefore = new ReducingRangeMapSerializer<>(CommandSerializers.nullableTxnId, TxnId[]::new, RejectBefore.SerializerSupport::create);
     public static IVersionedSerializer<DurableBefore> durableBefore = new ReducingRangeMapSerializer<>(NullableSerializer.wrap(new IVersionedSerializer<>()
     {
         @Override
@@ -152,12 +150,8 @@ public class CommandStoreSerializers
             {
                 CommandSerializers.txnId.serialize(bound, out, version);
             }
-            int prev = 0;
             for (int status : b.statuses)
-            {
-                out.writeUnsignedVInt32(status ^ prev);
-                prev = status;
-            }
+                out.writeShort(status);
         }
 
         @Override
@@ -174,10 +168,9 @@ public class CommandStoreSerializers
             TxnId[] bounds = new TxnId[count];
             for (int i = 0 ; i < bounds.length ; ++i)
                 bounds[i] = CommandSerializers.txnId.deserialize(in);
-            int[] statuses = new int[count * 2];
-            int prev = 0;
+            short[] statuses = new short[count * 2];
             for (int i = 0 ; i < statuses.length ; ++i)
-                statuses[i] = prev = in.readUnsignedVInt32() ^ prev;
+                statuses[i] = in.readShort();
 
             return new RedundantBefore.Bounds(range, startEpoch, endEpoch, bounds, statuses, staleUntilAtLeast);
         }
@@ -194,12 +187,7 @@ public class CommandStoreSerializers
             {
                 size += CommandSerializers.txnId.serializedSize(bound, version);
             }
-            int prev = 0;
-            for (int status : b.statuses)
-            {
-                size += TypeSizes.sizeofUnsignedVInt(status ^ prev);
-                prev = status;
-            }
+            size += 2L * b.statuses.length;
             return size;
         }
     };

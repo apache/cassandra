@@ -184,10 +184,8 @@ public interface SchemaProvider
         if (metadata != null)
             return metadata;
 
-        String message =
-            String.format("Couldn't find table with id %s. If a table was just created, this is likely due to the schema "
-                          + "not being fully propagated.  Please wait for schema agreement on table creation.",
-                          id);
+        String message = "Couldn't find table with id " + id + ". If a table was just created, this is likely due to the schema "
+                          + "not being fully propagated.  Please wait for schema agreement on table creation.";
         throw new UnknownTableException(message, id);
     }
 

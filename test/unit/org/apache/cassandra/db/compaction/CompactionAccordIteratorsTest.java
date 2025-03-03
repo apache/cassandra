@@ -43,7 +43,6 @@ import accord.local.Command;
 import accord.local.CommandStore;
 import accord.local.DurableBefore;
 import accord.local.RedundantBefore;
-import accord.local.RedundantStatus;
 import accord.local.StoreParticipants;
 import accord.local.cfk.CommandsForKey;
 import accord.local.cfk.Serialize;
@@ -91,6 +90,7 @@ import org.apache.cassandra.utils.Pair;
 
 import static accord.local.KeyHistory.SYNC;
 import static accord.local.PreLoadContext.contextFor;
+import static accord.local.RedundantStatus.SomeStatus.GC_BEFORE_AND_LOCALLY_APPLIED;
 import static accord.primitives.Routable.Domain.Range;
 import static accord.primitives.Timestamp.Flag.HLC_BOUND;
 import static accord.primitives.Timestamp.Flag.SHARD_BOUND;
@@ -230,7 +230,7 @@ public class CompactionAccordIteratorsTest
     {
         Ranges ranges = AccordTestUtils.fullRange(AccordTestUtils.keys(table, 42));
         txnId = txnId.as(Kind.ExclusiveSyncPoint, Range).addFlag(SHARD_BOUND);
-        return RedundantBefore.create(ranges, Long.MIN_VALUE, Long.MAX_VALUE, txnId, RedundantStatus.GC_BEFORE_AND_LOCALLY_APPLIED, LT_TXN_ID.as(Range));
+        return RedundantBefore.create(ranges, Long.MIN_VALUE, Long.MAX_VALUE, txnId, GC_BEFORE_AND_LOCALLY_APPLIED, LT_TXN_ID.as(Range));
     }
 
     enum DurableBeforeType

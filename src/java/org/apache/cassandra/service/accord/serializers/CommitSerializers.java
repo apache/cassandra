@@ -41,7 +41,7 @@ import static org.apache.cassandra.utils.NullableSerializer.serializedNullableSi
 
 public class CommitSerializers
 {
-    public static final IVersionedSerializer<Commit.Kind> kind = new EnumSerializer<>(Commit.Kind.class);
+    public static final IVersionedSerializer<Commit.Kind> kind = EncodeAsVInt32.of(Commit.Kind.class);
 
     public static final CommitSerializer request = new CommitSerializer();
     public static class CommitSerializer extends TxnRequestSerializer.WithUnsyncedSerializer<Commit>
@@ -54,7 +54,7 @@ public class CommitSerializers
             ExecuteAtSerializer.serialize(msg.txnId, msg.executeAt, out);
             CommandSerializers.nullablePartialTxn.serialize(msg.partialTxn, out, version);
             if (msg.kind.withDeps == Commit.WithDeps.HasDeps)
-                DepsSerializers.partialDeps.serialize(msg.scope, msg.partialDeps, out, version);
+                DepsSerializers.partialDeps.serialize(msg.partialDeps, out, version);
             serializeNullable(msg.route, out, version, KeySerializers.fullRoute);
         }
 
@@ -67,7 +67,7 @@ public class CommitSerializers
             PartialTxn partialTxn = CommandSerializers.nullablePartialTxn.deserialize(in, version);
             PartialDeps partialDeps = null;
             if (kind.withDeps == Commit.WithDeps.HasDeps)
-                partialDeps = DepsSerializers.partialDeps.deserialize(scope, in, version);
+                partialDeps = DepsSerializers.partialDeps.deserialize(in, version);
             FullRoute<?> route = deserializeNullable(in, version, KeySerializers.fullRoute);
             return Commit.SerializerSupport.create(txnId, scope, waitForEpoch, minEpoch, kind, ballot, executeAt, partialTxn, partialDeps, route);
         }
@@ -81,7 +81,7 @@ public class CommitSerializers
                    + CommandSerializers.nullablePartialTxn.serializedSize(msg.partialTxn, version);
 
             if (msg.kind.withDeps == Commit.WithDeps.HasDeps)
-                size += DepsSerializers.partialDeps.serializedSize(msg.scope, msg.partialDeps, version);
+                size += DepsSerializers.partialDeps.serializedSize(msg.partialDeps, version);
 
             size += serializedNullableSize(msg.route, version, KeySerializers.fullRoute);
             return size;

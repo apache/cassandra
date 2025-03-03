@@ -33,11 +33,7 @@ import accord.local.Node;
 import accord.local.StoreParticipants;
 import accord.primitives.Ballot;
 import accord.primitives.Known;
-import accord.primitives.Known.Definition;
 import accord.primitives.Known.KnownDeps;
-import accord.primitives.Known.KnownExecuteAt;
-import accord.primitives.Known.KnownRoute;
-import accord.primitives.Known.Outcome;
 import accord.primitives.PartialTxn;
 import accord.primitives.Participants;
 import accord.primitives.Route;
@@ -57,7 +53,6 @@ import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.service.accord.serializers.IVersionedWithKeysSerializer.AbstractWithKeysSerializer;
-import org.apache.cassandra.service.accord.serializers.SmallEnumSerializer.NullableSmallEnumSerializer;
 import org.apache.cassandra.service.accord.txn.AccordUpdate;
 import org.apache.cassandra.service.accord.txn.TxnQuery;
 import org.apache.cassandra.service.accord.txn.TxnRead;
@@ -72,11 +67,10 @@ public class CommandSerializers
     }
 
     public static final TimestampSerializer<TxnId> txnId = new TimestampSerializer<>(TxnId::fromBits);
-    public static final IVersionedSerializer<TxnId> nullableTxnId = NullableSerializer.wrap(txnId);
     public static final TimestampSerializer<Timestamp> timestamp = new TimestampSerializer<>(Timestamp::fromBits);
     public static final IVersionedSerializer<Timestamp> nullableTimestamp = NullableSerializer.wrap(timestamp);
     public static final BallotSerializer ballot = new BallotSerializer(); // permits null
-    public static final EnumSerializer<Txn.Kind> kind = new EnumSerializer<>(Txn.Kind.class);
+    public static final IVersionedSerializer<Txn.Kind> kind = EncodeAsVInt32.of(Txn.Kind.class);
     public static final StoreParticipantsSerializer participants = new StoreParticipantsSerializer();
 
     public static class ExecuteAtSerializer
@@ -679,9 +673,9 @@ public class CommandSerializers
         }
     }
 
-    public static final EnumSerializer<SaveStatus> saveStatus = new EnumSerializer<>(SaveStatus.class);
-    public static final EnumSerializer<Status> status = new EnumSerializer<>(Status.class);
-    public static final EnumSerializer<Durability> durability = new EnumSerializer<>(Durability.class);
+    public static final IVersionedSerializer<SaveStatus> saveStatus = EncodeAsVInt32.of(SaveStatus.class);
+    public static final IVersionedSerializer<Status> status = EncodeAsVInt32.of(Status.class);
+    public static final IVersionedSerializer<Durability> durability = EncodeAsVInt32.of(Durability.class);
 
     public static final IVersionedSerializer<Writes> writes = new IVersionedSerializer<>()
     {
@@ -722,35 +716,8 @@ public class CommandSerializers
     };
 
     public static final IVersionedSerializer<Writes> nullableWrites = NullableSerializer.wrap(writes);
+    public static final IVersionedSerializer<KnownDeps> knownDeps = EncodeAsVInt32.of(KnownDeps.class);
+    public static final IVersionedSerializer<Infer.InvalidIf> invalidIf = EncodeAsVInt32.of(Infer.InvalidIf.class);
 
-    public static final SmallEnumSerializer<KnownRoute> knownRoute = new SmallEnumSerializer<>(KnownRoute.class);
-    public static final SmallEnumSerializer<Definition> definition = new SmallEnumSerializer<>(Definition.class);
-    public static final SmallEnumSerializer<KnownExecuteAt> knownExecuteAt = new SmallEnumSerializer<>(KnownExecuteAt.class);
-    public static final SmallEnumSerializer<KnownDeps> knownDeps = new SmallEnumSerializer<>(KnownDeps.class);
-    public static final NullableSmallEnumSerializer<KnownDeps> nullableKnownDeps = new NullableSmallEnumSerializer<>(knownDeps);
-    public static final SmallEnumSerializer<Outcome> outcome = new SmallEnumSerializer<>(Outcome.class);
-    public static final SmallEnumSerializer<Infer.InvalidIf> invalidIf = new SmallEnumSerializer<>(Infer.InvalidIf.class);
-
-    public static final IVersionedSerializer<Known> known = new IVersionedSerializer<>()
-    {
-        @Override
-        public void serialize(Known known, DataOutputPlus out, int version) throws IOException
-        {
-            out.writeUnsignedVInt32(known.encoded);
-        }
-
-        @Override
-        public Known deserialize(DataInputPlus in, int version) throws IOException
-        {
-            return new Known(in.readUnsignedVInt32());
-        }
-
-        @Override
-        public long serializedSize(Known known, int version)
-        {
-            return TypeSizes.sizeofUnsignedVInt(known.encoded);
-        }
-    };
-
-    public static final IVersionedSerializer<Known> nullableKnown = NullableSerializer.wrap(known);
+    public static final IVersionedSerializer<Known> known = EncodeAsVInt32.withNulls(known -> known.encoded, Known::new);
 }

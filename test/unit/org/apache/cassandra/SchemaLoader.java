@@ -284,6 +284,7 @@ public class SchemaLoader
                                   cfName,
                                   ColumnIdentifier.getInterned(IntegerType.instance.fromString("42"), IntegerType.instance),
                                   UTF8Type.instance,
+                                  ColumnMetadata.NO_UNIQUE_ID,
                                   ColumnMetadata.NO_POSITION,
                                   ColumnMetadata.Kind.REGULAR,
                                   null);
@@ -295,6 +296,7 @@ public class SchemaLoader
                                   cfName,
                                   ColumnIdentifier.getInterned("fortytwo", true),
                                   UTF8Type.instance,
+                                  ColumnMetadata.NO_UNIQUE_ID,
                                   ColumnMetadata.NO_POSITION,
                                   ColumnMetadata.Kind.REGULAR,
                                   null);
@@ -302,7 +304,7 @@ public class SchemaLoader
 
     public static TableMetadata perRowIndexedCFMD(String ksName, String cfName)
     {
-        ColumnMetadata indexedColumn = ColumnMetadata.regularColumn(ksName, cfName, "indexed", AsciiType.instance);
+        ColumnMetadata indexedColumn = ColumnMetadata.regularColumn(ksName, cfName, "indexed", AsciiType.instance, ColumnMetadata.NO_UNIQUE_ID);
 
         TableMetadata.Builder builder =
             TableMetadata.builder(ksName, cfName)

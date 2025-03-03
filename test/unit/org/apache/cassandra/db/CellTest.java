@@ -88,6 +88,7 @@ public class CellTest
                                   "fakeTable",
                                   ColumnIdentifier.getInterned(name, false),
                                   type,
+                                  ColumnMetadata.NO_UNIQUE_ID,
                                   ColumnMetadata.NO_POSITION,
                                   ColumnMetadata.Kind.REGULAR,
                                   null);

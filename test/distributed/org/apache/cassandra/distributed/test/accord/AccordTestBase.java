@@ -385,6 +385,8 @@ public abstract class AccordTestBase extends TestBaseImpl
                                                            .set("cms_default_max_retries", 10_000)
                                                            .set("accord.ephemeral_read_enabled", "false")
                                                            .set("accord.shard_durability_target_splits", "4")
+                                                           .set("accord.retry_syncpoint", "1s*attempts")
+                                                           .set("accord.retry_durability", "1s*attempts")
                                                            .set("accord.command_store_shard_count", "2")
                                                            .set("accord.queue_shard_count", "2"))
                                          .withInstanceInitializer(EnforceUpdateDoesNotPerformRead::install);

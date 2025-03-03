@@ -89,14 +89,14 @@ public class DelimiterAnalyzerTest
     public void ensureIncompatibleInputOnCollectionTypeSkipped()
     {
         new DelimiterAnalyzer().validate(Collections.emptyMap(),
-                                         ColumnMetadata.regularColumn("a", "b", "c", SetType.getInstance(UTF8Type.instance, true)));
+                                         ColumnMetadata.regularColumn("a", "b", "c", SetType.getInstance(UTF8Type.instance, true), ColumnMetadata.NO_UNIQUE_ID));
     }
 
     @Test(expected = ConfigurationException.class)
     public void ensureIncompatibleInputSkipped()
     {
         new DelimiterAnalyzer().validate(Collections.emptyMap(),
-                                         ColumnMetadata.regularColumn("a", "b", "c", Int32Type.instance));
+                                         ColumnMetadata.regularColumn("a", "b", "c", Int32Type.instance, ColumnMetadata.NO_UNIQUE_ID));
     }
 
     @Test

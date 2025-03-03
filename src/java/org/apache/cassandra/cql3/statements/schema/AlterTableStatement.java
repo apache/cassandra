@@ -385,7 +385,7 @@ public abstract class AlterTableStatement extends AlterSchemaStatement
                 {
                     if (view.includeAllColumns)
                     {
-                        ColumnMetadata viewColumn = ColumnMetadata.regularColumn(view.metadata, name.bytes, type)
+                        ColumnMetadata viewColumn = ColumnMetadata.regularColumn(view.metadata, name.bytes, type, ColumnMetadata.NO_UNIQUE_ID)
                                                                   .withNewMask(mask);
                         viewsBuilder.put(viewsBuilder.get(view.name()).withAddedRegularColumn(viewColumn));
                     }

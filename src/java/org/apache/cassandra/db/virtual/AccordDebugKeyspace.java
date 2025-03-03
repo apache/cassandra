@@ -76,8 +76,9 @@ import static accord.local.RedundantStatus.Property.LOCALLY_APPLIED;
 import static accord.local.RedundantStatus.Property.LOCALLY_REDUNDANT;
 import static accord.local.RedundantStatus.Property.LOCALLY_SYNCED;
 import static accord.local.RedundantStatus.Property.LOCALLY_WITNESSED;
+import static accord.local.RedundantStatus.Property.MAJORITY_APPLIED;
 import static accord.local.RedundantStatus.Property.PRE_BOOTSTRAP;
-import static accord.local.RedundantStatus.Property.SHARD_ONLY_APPLIED;
+import static accord.local.RedundantStatus.Property.SHARD_APPLIED;
 import static java.lang.String.format;
 import static com.google.common.collect.ImmutableList.toImmutableList;
 import static org.apache.cassandra.schema.SchemaConstants.VIRTUAL_ACCORD_DEBUG;
@@ -512,7 +513,8 @@ public class AccordDebugKeyspace extends VirtualKeyspace
                           .column("start_epoch", entry.startEpoch)
                           .column("end_epoch", entry.endEpoch)
                           .column("gc_before", entry.maxBound(GC_BEFORE).toString())
-                          .column("shard_only_applied", entry.maxBound(SHARD_ONLY_APPLIED).toString())
+                          .column("shard_applied", entry.maxBound(SHARD_APPLIED).toString())
+                          .column("majority_applied", entry.maxBound(MAJORITY_APPLIED).toString())
                           .column("locally_applied", entry.maxBound(LOCALLY_APPLIED).toString())
                           .column("locally_synced", entry.maxBound(LOCALLY_SYNCED).toString())
                           .column("locally_redundant", entry.maxBound(LOCALLY_REDUNDANT).toString())

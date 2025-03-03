@@ -113,11 +113,11 @@ public class SchemaChangesTest
         assertNull(table.getColumn(ByteBuffer.wrap(new byte[]{ 5 })));
 
         // add one.
-        ColumnMetadata addIndexDef = ColumnMetadata.regularColumn(table, ByteBuffer.wrap(new byte[] { 5 }), BytesType.instance);
+        ColumnMetadata addIndexDef = ColumnMetadata.regularColumn(table, ByteBuffer.wrap(new byte[] { 5 }), BytesType.instance, ColumnMetadata.NO_UNIQUE_ID);
         builder.addColumn(addIndexDef);
 
         // remove one.
-        ColumnMetadata removeIndexDef = ColumnMetadata.regularColumn(table, ByteBuffer.wrap(new byte[] { 0 }), BytesType.instance);
+        ColumnMetadata removeIndexDef = ColumnMetadata.regularColumn(table, ByteBuffer.wrap(new byte[] { 0 }), BytesType.instance, ColumnMetadata.NO_UNIQUE_ID);
         builder.removeRegularOrStaticColumn(removeIndexDef.name);
 
         TableMetadata table2 = builder.build();

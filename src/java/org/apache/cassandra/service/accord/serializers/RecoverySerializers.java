@@ -201,11 +201,11 @@ public class RecoverySerializers
                 LatestDeps.LatestEntry e = t.valueAt(i);
                 if (e == null)
                 {
-                    CommandSerializers.nullableKnownDeps.serialize(null, out, version);
+                    CommandSerializers.knownDeps.serialize(null, out, version);
                 }
                 else
                 {
-                    CommandSerializers.nullableKnownDeps.serialize(e.known, out, version);
+                    CommandSerializers.knownDeps.serialize(e.known, out, version);
                     CommandSerializers.ballot.serialize(e.ballot, out, version);
                     DepsSerializers.nullableDeps.serialize(e.coordinatedDeps, out, version);
                     DepsSerializers.nullableDeps.serialize(e.localDeps, out, version);
@@ -223,7 +223,7 @@ public class RecoverySerializers
             for (int i = 0 ; i < size ; ++i)
             {
                 starts[i] = KeySerializers.routingKey.deserialize(in, version);
-                KnownDeps knownDeps = CommandSerializers.nullableKnownDeps.deserialize(in, version);
+                KnownDeps knownDeps = CommandSerializers.knownDeps.deserialize(in, version);
                 if (knownDeps == null)
                     continue;
 
@@ -249,11 +249,11 @@ public class RecoverySerializers
                 LatestDeps.LatestEntry e = t.valueAt(i);
                 if (e == null)
                 {
-                    size += CommandSerializers.nullableKnownDeps.serializedSize(null, version);
+                    size += CommandSerializers.knownDeps.serializedSize(null, version);
                 }
                 else
                 {
-                    size += CommandSerializers.nullableKnownDeps.serializedSize(e.known, version);
+                    size += CommandSerializers.knownDeps.serializedSize(e.known, version);
                     size += CommandSerializers.ballot.serializedSize(e.ballot, version);
                     size += DepsSerializers.nullableDeps.serializedSize(e.coordinatedDeps, version);
                     size += DepsSerializers.nullableDeps.serializedSize(e.localDeps, version);

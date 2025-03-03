@@ -163,7 +163,7 @@ public class Ballots
 
     private static ColumnMetadata paxosUUIDColumn(String name)
     {
-        return ColumnMetadata.regularColumn(SchemaConstants.SYSTEM_KEYSPACE_NAME, SystemKeyspace.PAXOS, name, TimeUUIDType.instance);
+        return ColumnMetadata.regularColumn(SchemaConstants.SYSTEM_KEYSPACE_NAME, SystemKeyspace.PAXOS, name, TimeUUIDType.instance, ColumnMetadata.NO_UNIQUE_ID);
     }
 
     /**

@@ -44,7 +44,6 @@ import accord.local.CommandStores.RangesForEpoch;
 import accord.local.DurableBefore;
 import accord.local.Node;
 import accord.local.RedundantBefore;
-import accord.local.RedundantStatus;
 import accord.local.StoreParticipants;
 import accord.primitives.Ballot;
 import accord.primitives.Deps;
@@ -105,6 +104,7 @@ import org.apache.cassandra.utils.concurrent.CountDownLatch;
 import org.assertj.core.api.Assertions;
 import org.mockito.Mockito;
 
+import static accord.local.RedundantStatus.SomeStatus.NONE;
 import static accord.utils.Property.commands;
 import static accord.utils.Property.stateful;
 import static accord.utils.SortedArrays.SortedArrayList.ofSorted;
@@ -457,7 +457,7 @@ public class RouteIndexTest extends CQLTester.InMemory
         private final Int2ObjectHashMap<Map<TableId, Long2ObjectHashMap<List<TxnId>>>> storeToTableToRoutingKeysToTxns = new Int2ObjectHashMap<>();
         private final Int2ObjectHashMap<Map<TableId, RangeTree<TokenKey, TokenRange, TxnId>>> storeToTableToRangesToTxns = new Int2ObjectHashMap<>();
         private final Int2ObjectHashMap<RangesForEpoch> storeRangesForEpochs = new Int2ObjectHashMap<>();
-        private final RedundantBefore emptyRedundantBefore = RedundantBefore.create(Ranges.of(TokenRange.fullRange(tableId, getPartitioner())), TxnId.NONE, RedundantStatus.NONE);
+        private final RedundantBefore emptyRedundantBefore = RedundantBefore.create(Ranges.of(TokenRange.fullRange(tableId, getPartitioner())), TxnId.NONE, NONE);
 
         private final int numStores;
         private final List<TableId> tables;

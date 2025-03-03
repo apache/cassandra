@@ -21,9 +21,7 @@ package org.apache.cassandra.service.accord.txn;
 import java.io.IOException;
 
 import accord.utils.Invariants;
-import org.apache.cassandra.db.filter.ColumnFilter;
 import org.apache.cassandra.db.partitions.FilteredPartition;
-import org.apache.cassandra.db.rows.DeserializationHelper;
 import org.apache.cassandra.db.rows.Row;
 import org.apache.cassandra.db.rows.RowIterator;
 import org.apache.cassandra.db.rows.UnfilteredRowIterator;
@@ -34,6 +32,9 @@ import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.schema.TableMetadata;
+
+import static org.apache.cassandra.db.SerializationHeader.StableHeaderSerializer.STABLE;
+import static org.apache.cassandra.db.rows.DeserializationHelper.Flag.FROM_REMOTE;
 
 public class TxnDataKeyValue extends FilteredPartition implements TxnDataValue
 {
@@ -68,7 +69,7 @@ public class TxnDataKeyValue extends FilteredPartition implements TxnDataValue
         return size;
     }
 
-    public static final TxnDataValueSerializer<TxnDataKeyValue> serializer = new TxnDataValueSerializer<TxnDataKeyValue>()
+    public static final TxnDataValueSerializer<TxnDataKeyValue> serializer = new TxnDataValueSerializer<>()
     {
         @Override
         public void serialize(TxnDataKeyValue value, DataOutputPlus out, int version) throws IOException
@@ -76,16 +77,16 @@ public class TxnDataKeyValue extends FilteredPartition implements TxnDataValue
             value.metadata().id.serializeCompact(out);
             try (UnfilteredRowIterator iterator = value.unfilteredIterator())
             {
-                UnfilteredRowIteratorSerializer.serializer.serialize(iterator, ColumnFilter.all(value.metadata()), out, version, value.rowCount());
+                UnfilteredRowIteratorSerializer.serializer.serialize(iterator, out, version, value.rowCount(), STABLE, null);
             }
         }
 
         @Override
         public TxnDataKeyValue deserialize(DataInputPlus in, int version) throws IOException
         {
-            // TODO (required): This needs to use the correct cluster metadata for schema change
             TableMetadata metadata = Schema.instance.getExistingTableMetadata(TableId.deserializeCompact(in));
-            try (UnfilteredRowIterator partition = UnfilteredRowIteratorSerializer.serializer.deserialize(in, version, metadata, ColumnFilter.all(metadata), DeserializationHelper.Flag.FROM_REMOTE))
+            UnfilteredRowIteratorSerializer.Header header = UnfilteredRowIteratorSerializer.serializer.deserializeHeader(metadata, in, version, FROM_REMOTE, STABLE, null);
+            try (UnfilteredRowIterator partition = UnfilteredRowIteratorSerializer.serializer.deserialize(in, version, metadata, FROM_REMOTE, header))
             {
                 return new TxnDataKeyValue(UnfilteredRowIterators.filter(partition, 0));
             }
@@ -98,7 +99,7 @@ public class TxnDataKeyValue extends FilteredPartition implements TxnDataValue
             long size = tableId.serializedCompactSize();
             try (UnfilteredRowIterator iterator = value.unfilteredIterator())
             {
-                return size + UnfilteredRowIteratorSerializer.serializer.serializedSize(iterator, ColumnFilter.all(value.metadata()), version, value.rowCount());
+                return size + UnfilteredRowIteratorSerializer.serializer.serializedSize(iterator, version, value.rowCount(), STABLE, null);
             }
         }
     };

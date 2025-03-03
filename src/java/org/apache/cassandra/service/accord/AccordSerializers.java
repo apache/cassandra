@@ -47,7 +47,6 @@ import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.utils.ByteBufferUtil;
-import org.apache.cassandra.utils.NullableSerializer;
 
 import static org.apache.cassandra.db.TypeSizes.sizeof;
 import static org.apache.cassandra.db.TypeSizes.sizeofUnsignedVInt;
@@ -129,9 +128,7 @@ public class AccordSerializers
         }
     };
 
-    public static final IVersionedSerializer<PartitionUpdate> nullablePartitionUpdateSerializer = NullableSerializer.wrap(partitionUpdateSerializer);
-
-    public static final IVersionedSerializer<ColumnMetadata> columnMetadataSerializer = new IVersionedSerializer<ColumnMetadata>()
+    public static final IVersionedSerializer<ColumnMetadata> columnMetadataSerializer = new IVersionedSerializer<>()
     {
         @Override
         public void serialize(ColumnMetadata column, DataOutputPlus out, int version) throws IOException

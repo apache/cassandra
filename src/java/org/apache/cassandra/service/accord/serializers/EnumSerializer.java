@@ -32,7 +32,6 @@ public class EnumSerializer<E extends Enum<E>> implements IVersionedSerializer<E
 {
     public static final EnumSerializer<SimpleReply> simpleReply = new EnumSerializer<>(SimpleReply.class);
 
-    // TODO: should use something other than ordinal for ser/deser
     final E[] values;
 
     public EnumSerializer(Class<E> clazz)

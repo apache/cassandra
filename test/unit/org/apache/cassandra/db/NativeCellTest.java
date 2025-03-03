@@ -118,6 +118,7 @@ public class NativeCellTest extends CQLTester
                                   "",
                                   ColumnIdentifier.getInterned(uuid.toString(), false),
                                     isComplex ? new SetType<>(BytesType.instance, true) : BytesType.instance,
+                                  ColumnMetadata.NO_UNIQUE_ID,
                                   -1,
                                   ColumnMetadata.Kind.REGULAR,
                                   null);

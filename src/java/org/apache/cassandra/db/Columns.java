@@ -60,6 +60,7 @@ public class Columns extends AbstractCollection<ColumnMetadata> implements Colle
                            "",
                            ColumnIdentifier.getInterned(ByteBufferUtil.EMPTY_BYTE_BUFFER, UTF8Type.instance),
                            SetType.getInstance(UTF8Type.instance, true),
+                           ColumnMetadata.NO_UNIQUE_ID,
                            ColumnMetadata.NO_POSITION,
                            ColumnMetadata.Kind.STATIC,
                            null);
@@ -69,6 +70,7 @@ public class Columns extends AbstractCollection<ColumnMetadata> implements Colle
                            "",
                            ColumnIdentifier.getInterned(ByteBufferUtil.EMPTY_BYTE_BUFFER, UTF8Type.instance),
                            SetType.getInstance(UTF8Type.instance, true),
+                           ColumnMetadata.NO_UNIQUE_ID,
                            ColumnMetadata.NO_POSITION,
                            ColumnMetadata.Kind.REGULAR,
                            null);
@@ -118,6 +120,12 @@ public class Columns extends AbstractCollection<ColumnMetadata> implements Colle
    }
 
    public static Columns from(BTree.Builder<ColumnMetadata> builder)
+   {
+       Object[] tree = builder.build();
+       return new Columns(tree, findFirstComplexIdx(tree));
+   }
+
+   public static Columns from(BTree.FastBuilder<ColumnMetadata> builder)
    {
        Object[] tree = builder.build();
        return new Columns(tree, findFirstComplexIdx(tree));
