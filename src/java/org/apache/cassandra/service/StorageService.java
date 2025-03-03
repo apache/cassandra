@@ -71,6 +71,7 @@ import com.google.common.collect.Maps;
 import com.google.common.collect.Ordering;
 import com.google.common.collect.Sets;
 import com.google.common.util.concurrent.Uninterruptibles;
+import org.apache.cassandra.replication.MutationTrackingService;
 import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -3815,6 +3816,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
             SnapshotManager.instance.shutdownAndWait(1L, MINUTES);
             HintsService.instance.shutdownBlocking();
+            MutationTrackingService.shutdownBlocking();
 
             // Interrupt ongoing compactions and shutdown CM to prevent further compactions.
             CompactionManager.instance.forceShutdown();

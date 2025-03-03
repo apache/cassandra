@@ -138,7 +138,7 @@ public class RowUpdateBuilder
     {
         PartitionUpdate.Builder update = new PartitionUpdate.Builder(metadata, makeKey(metadata, key), metadata.regularAndStaticColumns(), 0);
         deleteRow(update, timestamp, localDeletionTime, clusteringValues);
-        return new Mutation.PartitionUpdateCollector(update.metadata().keyspace, update.partitionKey()).add(update.build()).build();
+        return new Mutation.PartitionUpdateCollector(MutationId.none(), update.metadata().keyspace, update.partitionKey()).add(update.build()).build();
     }
 
     private static DecoratedKey makeKey(TableMetadata metadata, Object... partitionKey)

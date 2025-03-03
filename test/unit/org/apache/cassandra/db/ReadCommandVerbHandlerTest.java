@@ -170,7 +170,7 @@ public class ReadCommandVerbHandlerTest
         TrackingSinglePartitionReadCommand(TableMetadata metadata)
         {
             super(metadata.epoch,
-                  false,
+                  ResponseType.LEGACY_DATA,
                   0,
                   false,
                   metadata,

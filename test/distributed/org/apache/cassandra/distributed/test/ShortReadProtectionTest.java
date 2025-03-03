@@ -41,6 +41,7 @@ import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
 import org.apache.cassandra.distributed.api.IInvokableInstance;
 import org.apache.cassandra.distributed.shared.AssertUtils;
+import org.apache.cassandra.schema.ReplicationType;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
 import static com.google.common.collect.Iterators.toArray;
@@ -81,14 +82,19 @@ public class ShortReadProtectionTest extends TestBaseImpl
     @Parameterized.Parameter(2)
     public boolean paging;
 
-    @Parameterized.Parameters(name = "{index}: read_cl={0} flush={1} paging={2}")
+    @Parameterized.Parameter(3)
+    public ReplicationType replicationType;
+
+    @Parameterized.Parameters(name = "{index}: read_cl={0} flush={1} paging={2} replication={3}")
     public static Collection<Object[]> data()
     {
         List<Object[]> result = new ArrayList<>();
         for (ConsistencyLevel readConsistencyLevel : Arrays.asList(ALL, QUORUM))
             for (boolean flush : BOOLEANS)
                 for (boolean paging : BOOLEANS)
-                    result.add(new Object[]{ readConsistencyLevel, flush, paging });
+                    for (ReplicationType replication : ReplicationType.fixmeValues())
+                        result.add(new Object[]{ readConsistencyLevel, flush, paging, replication});
+
         return result;
     }
 
@@ -111,7 +117,7 @@ public class ShortReadProtectionTest extends TestBaseImpl
     @Before
     public void setupTester()
     {
-        tester = new Tester(readConsistencyLevel, flush, paging);
+        tester = new Tester(readConsistencyLevel, flush, paging, replicationType);
     }
 
     @After
@@ -417,15 +423,19 @@ public class ShortReadProtectionTest extends TestBaseImpl
         private final ConsistencyLevel readConsistencyLevel;
         private final boolean flush, paging;
         private final String qualifiedTableName;
+        private final ReplicationType replicationType;
 
+        private final String keyspaceName = "ks_" + seqNumber.getAndIncrement();
         private boolean flushed = false;
 
-        private Tester(ConsistencyLevel readConsistencyLevel, boolean flush, boolean paging)
+        private Tester(ConsistencyLevel readConsistencyLevel, boolean flush, boolean paging, ReplicationType replicationType)
         {
             this.readConsistencyLevel = readConsistencyLevel;
             this.flush = flush;
             this.paging = paging;
-            qualifiedTableName = KEYSPACE + ".t_" + seqNumber.getAndIncrement();
+            this.replicationType = replicationType;
+
+            qualifiedTableName = this.keyspaceName + ".tbl";
 
             assert readConsistencyLevel == ALL || readConsistencyLevel == QUORUM
             : "Only ALL and QUORUM consistency levels are supported";
@@ -433,6 +443,8 @@ public class ShortReadProtectionTest extends TestBaseImpl
 
         private Tester createTable(String query)
         {
+            cluster.schemaChange(String.format("CREATE KEYSPACE IF NOT EXISTS %s WITH REPLICATION={'class': 'SimpleStrategy', 'replication_factor': " + NUM_NODES + "} AND replication_type='%s'",
+                                               keyspaceName, replicationType.name()));
             cluster.schemaChange(format(query) + " WITH read_repair='NONE'");
             return this;
         }

@@ -65,7 +65,6 @@ import org.apache.cassandra.db.Mutation;
 import org.apache.cassandra.db.PartitionRangeReadCommand;
 import org.apache.cassandra.db.ReadCommand;
 import org.apache.cassandra.db.ReadExecutionController;
-import org.apache.cassandra.db.ReadResponse;
 import org.apache.cassandra.db.RejectException;
 import org.apache.cassandra.db.SinglePartitionReadCommand;
 import org.apache.cassandra.db.TruncateRequest;
@@ -130,6 +129,7 @@ import org.apache.cassandra.service.paxos.PaxosState;
 import org.apache.cassandra.service.paxos.v1.PrepareCallback;
 import org.apache.cassandra.service.paxos.v1.ProposeCallback;
 import org.apache.cassandra.service.reads.AbstractReadExecutor;
+import org.apache.cassandra.service.reads.IReadResponse;
 import org.apache.cassandra.service.reads.ReadCallback;
 import org.apache.cassandra.service.reads.range.RangeCommands;
 import org.apache.cassandra.service.reads.repair.ReadRepair;
@@ -887,6 +887,7 @@ public class StorageProxy implements StorageProxyMBean
         {
             for (IMutation mutation : mutations)
             {
+                // TODO: should the mutataion id be created here??
                 if (mutation instanceof CounterMutation)
                     responseHandlers.add(mutateCounter((CounterMutation)mutation, localDataCenter, requestTime));
                 else
@@ -967,7 +968,7 @@ public class StorageProxy implements StorageProxyMBean
     private static void hintMutations(Collection<? extends IMutation> mutations)
     {
         for (IMutation mutation : mutations)
-            if (!(mutation instanceof CounterMutation))
+            if (!(mutation instanceof CounterMutation) && mutation.id().isNone())
                 hintMutation((Mutation) mutation);
 
         Tracing.trace("Wrote hints to satisfy CL.ANY after no replicas acknowledged the write");
@@ -2159,11 +2160,11 @@ public class StorageProxy implements StorageProxyMBean
                 long deadline = requestTime.computeDeadline(verb.expiresAfterNanos());
                 command.setMonitoringTime(requestTime.startedAtNanos(), false, deadline - requestTime.startedAtNanos(), DatabaseDescriptor.getSlowQueryTimeout(NANOSECONDS));
 
-                ReadResponse response;
+                IReadResponse response;
                 try (ReadExecutionController controller = command.executionController(trackRepairedStatus);
                      UnfilteredPartitionIterator iterator = command.executeLocally(controller))
                 {
-                    response = command.createResponse(iterator, controller.getRepairedDataInfo());
+                    response = command.createResponse(iterator, controller.getRepairedDataInfo(), command.createMutationSummary(), controller.pendingRead());
                 }
                 catch (RejectException e)
                 {
@@ -2737,6 +2738,7 @@ public class StorageProxy implements StorageProxyMBean
                                    EndpointsForToken targets,
                                    AbstractWriteResponseHandler<IMutation> responseHandler)
     {
+        Preconditions.checkArgument(mutation.id().isNone());
         Replicas.assertFull(targets); // hints should not be written for transient replicas
         HintRunnable runnable = new HintRunnable(targets)
         {

@@ -30,6 +30,7 @@ import org.apache.cassandra.db.CounterMutation;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.IMutation;
 import org.apache.cassandra.db.Mutation;
+import org.apache.cassandra.db.MutationId;
 import org.apache.cassandra.db.RegularAndStaticColumns;
 import org.apache.cassandra.db.commitlog.CommitLogSegment;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
@@ -104,9 +105,9 @@ final class SingleTableUpdatesCollector implements UpdatesCollector
             if (metadata.isVirtual())
                 mutation = new VirtualMutation(builder.build());
             else if (metadata.isCounter())
-                mutation = new CounterMutation(new Mutation(builder.build()), counterConsistencyLevel);
+                mutation = new CounterMutation(new Mutation(MutationId.createFor(metadata), builder.build()), counterConsistencyLevel);
             else
-                mutation = new Mutation(builder.build());
+                mutation = new Mutation(MutationId.createFor(metadata), builder.build());
 
             mutation.validateIndexedColumns(state);
             mutation.validateSize(MessagingService.current_version, CommitLogSegment.ENTRY_OVERHEAD_SIZE);

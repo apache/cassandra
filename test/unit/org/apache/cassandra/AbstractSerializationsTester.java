@@ -39,6 +39,7 @@ public class AbstractSerializationsTester
         put("4.0", MessagingService.VERSION_40);
         put("5.0", MessagingService.VERSION_50);
         put("5.1", MessagingService.VERSION_51);
+        put("5.2", MessagingService.VERSION_52);
     }};
 
     protected static final boolean EXECUTE_WRITES = TEST_SERIALIZATION_WRITES.getBoolean();
