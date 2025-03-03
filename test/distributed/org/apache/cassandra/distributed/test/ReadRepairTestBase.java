@@ -81,7 +81,7 @@ import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
 import static org.apache.cassandra.utils.concurrent.Condition.newOneTimeCondition;
 import static org.junit.Assert.fail;
 
-public abstract class ReadRepairTest extends TestBaseImpl
+public abstract class ReadRepairTestBase extends TestBaseImpl
 {
     protected abstract ReplicationType replicationType();
 

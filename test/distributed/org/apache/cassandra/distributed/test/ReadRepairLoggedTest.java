@@ -20,7 +20,7 @@ package org.apache.cassandra.distributed.test;
 
 import org.apache.cassandra.schema.ReplicationType;
 
-public class ReadRepairLoggedTest extends ReadRepairTest
+public class ReadRepairLoggedTest extends ReadRepairTestBase
 {
     @Override
     protected ReplicationType replicationType()
