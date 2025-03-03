@@ -417,7 +417,7 @@ public class AutoRepairParameterizedTest extends CQLTester
         config.setMaterializedViewRepairEnabled(repairType, true);
 
         assertTrue(config.getMaterializedViewRepairEnabled(repairType));
-        assertEquals(List.of(MV), AutoRepairUtils.getAllMVs(repairType, keyspace, cfm));
+        assertEquals(Collections.singletonList(MV), AutoRepairUtils.getAllMVs(repairType, keyspace, cfm));
         config.setMaterializedViewRepairEnabled(repairType, false);
     }
 
