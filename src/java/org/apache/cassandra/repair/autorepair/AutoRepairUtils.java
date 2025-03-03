@@ -407,7 +407,7 @@ public class AutoRepairUtils
     }
 
     @VisibleForTesting
-    protected static TreeSet<UUID> getHostIdsInCurrentRing(RepairType repairType, Set<NodeAddresses> allNodesInRing)
+    protected static TreeSet<UUID> getHostIdsInCurrentRing(RepairType repairType, Collection<NodeAddresses> allNodesInRing)
     {
         TreeSet<UUID> hostIdsInCurrentRing = new TreeSet<>();
         for (NodeAddresses node : allNodesInRing)
@@ -436,7 +436,7 @@ public class AutoRepairUtils
 
     public static TreeSet<UUID> getHostIdsInCurrentRing(RepairType repairType)
     {
-        Set<NodeAddresses> allNodesInRing = ClusterMetadata.current().directory.addresses.values();
+        Collection<NodeAddresses> allNodesInRing = ClusterMetadata.current().directory.addresses.values();
         return getHostIdsInCurrentRing(repairType, allNodesInRing);
     }
 
@@ -485,7 +485,7 @@ public class AutoRepairUtils
     {
         try
         {
-            Set<NodeAddresses> allNodesInRing = ClusterMetadata.current().directory.addresses.values();
+            Collection<NodeAddresses> allNodesInRing = ClusterMetadata.current().directory.addresses.values();
             logger.info("Total nodes in ring {}", allNodesInRing.size());
             TreeSet<UUID> hostIdsInCurrentRing = getHostIdsInCurrentRing(repairType, allNodesInRing);
             logger.info("Total nodes qualified for repair {}", hostIdsInCurrentRing.size());
