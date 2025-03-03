@@ -335,7 +335,7 @@ public class RepairTokenRangeSplitterTest extends CQLTester
     {
         AutoRepairService.instance.getAutoRepairConfig().setRepairByKeyspace(RepairType.FULL, true);
 
-        final KeyspaceRepairPlan repairPlan = new KeyspaceRepairPlan("system_auth", AuthKeyspace.TABLE_NAMES.stream().toList());
+        final KeyspaceRepairPlan repairPlan = new KeyspaceRepairPlan("system_auth", new ArrayList<>(AuthKeyspace.TABLE_NAMES));
         final PrioritizedRepairPlan prioritizedRepairPlan = new PrioritizedRepairPlan(0, List.of(repairPlan));
 
         Iterator<KeyspaceRepairAssignments> keyspaceAssignments = repairRangeSplitter.getRepairAssignments(true, List.of(prioritizedRepairPlan));
@@ -363,7 +363,7 @@ public class RepairTokenRangeSplitterTest extends CQLTester
     {
         AutoRepairService.instance.getAutoRepairConfig().setRepairByKeyspace(RepairType.FULL, false);
 
-        final KeyspaceRepairPlan repairPlan = new KeyspaceRepairPlan("system_auth", AuthKeyspace.TABLE_NAMES.stream().toList());
+        final KeyspaceRepairPlan repairPlan = new KeyspaceRepairPlan("system_auth", new ArrayList<>(AuthKeyspace.TABLE_NAMES));
         final PrioritizedRepairPlan prioritizedRepairPlan = new PrioritizedRepairPlan(0, List.of(repairPlan));
 
         Iterator<KeyspaceRepairAssignments> keyspaceAssignments = repairRangeSplitter.getRepairAssignments(true, List.of(prioritizedRepairPlan));
