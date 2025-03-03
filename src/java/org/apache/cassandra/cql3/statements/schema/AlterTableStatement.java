@@ -714,17 +714,20 @@ public abstract class AlterTableStatement extends AlterSchemaStatement
     {
         final ColumnIdentifier columnName;
         final ColumnConstraints.Raw constraints;
+        final boolean ifColumnExists;
 
-        AlterConstraints(String keyspaceName, String tableName, boolean ifTableExists, ColumnIdentifier columnName, ColumnConstraints.Raw constraints)
+        AlterConstraints(String keyspaceName, String tableName, boolean ifTableExists, boolean ifColumnExists, ColumnIdentifier columnName, ColumnConstraints.Raw constraints)
         {
             super(keyspaceName, tableName, ifTableExists);
             this.columnName = columnName;
             this.constraints = constraints;
+            this.ifColumnExists = ifColumnExists;
         }
 
         @Override
         public KeyspaceMetadata apply(Epoch epoch, KeyspaceMetadata keyspace, TableMetadata table, ClusterMetadata metadata)
         {
+
             if (table.containtsColumn(columnName))
             {
                 ColumnMetadata column = table.getColumn(columnName);
@@ -740,6 +743,11 @@ public abstract class AlterTableStatement extends AlterSchemaStatement
                 newTable.validate();
 
                 return keyspace.withSwapped(keyspace.tables.withSwapped(newTable));
+            }
+            else
+            {
+                if (!ifColumnExists)
+                    throw ire("Column '%s' doesn't exist", columnName);
             }
             return keyspace;
         }
@@ -811,7 +819,7 @@ public abstract class AlterTableStatement extends AlterSchemaStatement
                 case        RENAME_COLUMNS: return new RenameColumns(keyspaceName, tableName, renamedColumns, ifTableExists, ifColumnExists);
                 case         ALTER_OPTIONS: return new AlterOptions(keyspaceName, tableName, attrs, ifTableExists);
                 case  DROP_COMPACT_STORAGE: return new DropCompactStorage(keyspaceName, tableName, ifTableExists);
-                case     ALTER_CONSTRAINTS: return new AlterConstraints(keyspaceName, tableName, ifTableExists, constraintName, constraints);
+                case     ALTER_CONSTRAINTS: return new AlterConstraints(keyspaceName, tableName, ifTableExists, ifColumnExists, constraintName, constraints);
             }
 
             throw new AssertionError();
@@ -856,7 +864,7 @@ public abstract class AlterTableStatement extends AlterSchemaStatement
             kind = Kind.DROP_COMPACT_STORAGE;
         }
 
-        public void alterConstraints(ColumnIdentifier name, ColumnConstraints.Raw rawConstraints)
+        public void constraint(ColumnIdentifier name, ColumnConstraints.Raw rawConstraints)
         {
             kind = Kind.ALTER_CONSTRAINTS;
             this.constraintName = name;
