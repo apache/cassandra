@@ -68,9 +68,23 @@ public class ViewManager
         this.keyspace = keyspace;
     }
 
+    public boolean updatesAffectView(IMutation mutation, boolean coordinatorBatchlog)
+    {
+        if (!enableCoordinatorBatchlog && coordinatorBatchlog)
+            return false;
+
+        if (viewsByName.isEmpty())
+            return false;
+
+        return updatesAffectView(Collections.singleton(mutation), coordinatorBatchlog);
+    }
+
     public boolean updatesAffectView(Collection<? extends IMutation> mutations, boolean coordinatorBatchlog)
     {
         if (!enableCoordinatorBatchlog && coordinatorBatchlog)
+            return false;
+
+        if (viewsByName.isEmpty())
             return false;
 
         ClusterMetadata metadata = ClusterMetadata.currentNullable();
@@ -83,7 +97,8 @@ public class ViewManager
                 if (coordinatorBatchlog && keyspace.getReplicationStrategy().getReplicationFactor().allReplicas == 1)
                     continue;
 
-                if (!forTable(update.metadata()).updatedViews(update, metadata).isEmpty())
+                TableViews tableViews = forTable(update.metadata());
+                if (tableViews.hasViews() && !tableViews.updatedViews(update, metadata).isEmpty())
                     return true;
             }
         }

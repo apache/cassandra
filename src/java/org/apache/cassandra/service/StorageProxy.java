@@ -880,24 +880,25 @@ public class StorageProxy implements StorageProxyMBean
         Tracing.trace("Determining replicas for mutation");
         final String localDataCenter = DatabaseDescriptor.getLocator().local().datacenter;
 
-        List<AbstractWriteResponseHandler<IMutation>> responseHandlers = new ArrayList<>(mutations.size());
+        AbstractWriteResponseHandler<IMutation>[] responseHandlers = new AbstractWriteResponseHandler[mutations.size()];
         WriteType plainWriteType = mutations.size() <= 1 ? WriteType.SIMPLE : WriteType.UNLOGGED_BATCH;
 
         try
         {
+            int j = 0;
             for (IMutation mutation : mutations)
             {
                 if (mutation instanceof CounterMutation)
-                    responseHandlers.add(mutateCounter((CounterMutation)mutation, localDataCenter, requestTime));
+                    responseHandlers[j++] = mutateCounter((CounterMutation)mutation, localDataCenter, requestTime);
                 else
-                    responseHandlers.add(performWrite(mutation, consistencyLevel, localDataCenter, standardWritePerformer, null, plainWriteType, requestTime));
+                    responseHandlers[j++] = performWrite(mutation, consistencyLevel, localDataCenter, standardWritePerformer, null, plainWriteType, requestTime);
             }
 
             // upgrade to full quorum any failed cheap quorums
             for (int i = 0 ; i < mutations.size() ; ++i)
             {
                 if (!(mutations.get(i) instanceof CounterMutation)) // at the moment, only non-counter writes support cheap quorums
-                    responseHandlers.get(i).maybeTryAdditionalReplicas(mutations.get(i), standardWritePerformer, localDataCenter);
+                    responseHandlers[i].maybeTryAdditionalReplicas(mutations.get(i), standardWritePerformer, localDataCenter);
             }
 
             // wait for writes.  throws TimeoutException if necessary
@@ -1275,14 +1276,28 @@ public class StorageProxy implements StorageProxyMBean
         {
             //We could potentially pass a callback into performWrite. And add callback provision for mutateCounter or mutateAtomically (sendToHintedEndPoints)
             //However, Trade off between write metric per CF accuracy vs performance hit due to callbacks. Similar issue exists with CoordinatorReadLatency metric.
-            Set<ColumnFamilyStore> uniqueColumnFamilyStores = new HashSet<>();
+            Set<ColumnFamilyStore> uniqueColumnFamilyStores = null;
+            // very frequently we update just a single table
+            // so an allocation of uniqueColumnFamilyStores set can be avoided
+            ColumnFamilyStore firstColumnFamilyStore = null;
             for (IMutation mutation : mutations)
             {
+                Keyspace keyspace = Keyspace.open(mutation.getKeyspaceName());
                 for (TableId tableId : mutation.getTableIds())
                 {
-                    ColumnFamilyStore store = Keyspace.open(mutation.getKeyspaceName()).getColumnFamilyStore(tableId);
-                    if (uniqueColumnFamilyStores.add(store))
+                    ColumnFamilyStore store = keyspace.getColumnFamilyStore(tableId);
+                    if (firstColumnFamilyStore == null)
+                    {
                         store.metric.coordinatorWriteLatency.update(latency, NANOSECONDS);
+                        firstColumnFamilyStore = store;
+                    }
+                    else if (!firstColumnFamilyStore.equals(store))
+                    {
+                        if (uniqueColumnFamilyStores == null)
+                            uniqueColumnFamilyStores = new HashSet<>();
+                        if (uniqueColumnFamilyStores.add(store))
+                            store.metric.coordinatorWriteLatency.update(latency, NANOSECONDS);
+                    }
                 }
             }
         }

@@ -1,4 +1,5 @@
 5.1
+ * Reduce memory allocations in miscellaneous places along the hot write path (CASSANDRA-20167)
  * Provide keystore_password_file and truststore_password_file options to read credentials from a file (CASSANDRA-13428)
  * Unregistering a node should also remove it from tokenMap if it is there and recalculate the placements (CASSANDRA-20346)
  * Fix PartitionUpdate.isEmpty deserialization issue to avoid potential EOFException (CASSANDRA-20345)

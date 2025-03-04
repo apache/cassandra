@@ -39,6 +39,7 @@ final class SEPWorker extends AtomicReference<SEPWorker.Work> implements Runnabl
     private static final boolean SET_THREAD_NAME = SET_SEP_THREAD_NAME.getBoolean();
 
     final Long workerId;
+    final String workerIdThreadSuffix;
     final Thread thread;
     final SharedExecutorPool pool;
 
@@ -55,6 +56,7 @@ final class SEPWorker extends AtomicReference<SEPWorker.Work> implements Runnabl
     {
         this.pool = pool;
         this.workerId = workerId;
+        this.workerIdThreadSuffix = '-' + workerId.toString();
         thread = new FastThreadLocalThread(threadGroup, this, threadGroup.getName() + "-Worker-" + workerId);
         thread.setDaemon(true);
         set(initialState);
@@ -122,7 +124,7 @@ final class SEPWorker extends AtomicReference<SEPWorker.Work> implements Runnabl
                 if (assigned == null)
                     continue;
                 if (SET_THREAD_NAME)
-                    Thread.currentThread().setName(assigned.name + '-' + workerId);
+                    Thread.currentThread().setName(assigned.name + workerIdThreadSuffix);
 
                 task = assigned.tasks.poll();
                 currentTask.lazySet(task);

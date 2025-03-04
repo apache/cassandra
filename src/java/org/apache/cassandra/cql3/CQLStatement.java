@@ -20,6 +20,8 @@ package org.apache.cassandra.cql3;
 import java.util.Collections;
 import java.util.List;
 
+import com.google.common.collect.ImmutableList;
+
 import org.apache.cassandra.audit.AuditLogContext;
 import org.apache.cassandra.cql3.functions.Function;
 import org.apache.cassandra.service.ClientState;
@@ -32,9 +34,9 @@ public interface CQLStatement
     /**
      * Returns all bind variables for the statement
      */
-    default List<ColumnSpecification> getBindVariables()
+    default ImmutableList<ColumnSpecification> getBindVariables()
     {
-        return Collections.emptyList();
+        return ImmutableList.of();
     }
 
     /**

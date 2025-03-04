@@ -20,7 +20,7 @@ package org.apache.cassandra.db;
 import java.io.IOException;
 import java.util.*;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicLongFieldUpdater;
 import java.util.function.Supplier;
 
 import com.google.common.base.Preconditions;
@@ -68,7 +68,10 @@ public class Mutation implements IMutation, Supplier<Mutation>
     // Time at which this mutation or the builder that built it was instantiated
     final long approxCreatedAtNanos;
     // keep track of when mutation has started waiting for a MV partition lock
-    final AtomicLong viewLockAcquireStart = new AtomicLong(0);
+
+    final static AtomicLongFieldUpdater<Mutation> viewLockAcquireStartUpdater =
+        AtomicLongFieldUpdater.newUpdater(Mutation.class, "viewLockAcquireStart");
+    volatile long viewLockAcquireStart;
 
     private final boolean cdcEnabled;
 
@@ -458,7 +461,7 @@ public class Mutation implements IMutation, Supplier<Mutation>
                     try (DataOutputBuffer dob = DataOutputBuffer.scratchBuffer.get())
                     {
                         serializeInternal(PartitionUpdate.serializer, mutation, dob, version);
-                        serialization = new CachedSerialization(dob.toByteArray());
+                        serialization = new CachedSerialization(dob.unsafeToByteArray());
                     }
                     catch (IOException e)
                     {
@@ -521,7 +524,7 @@ public class Mutation implements IMutation, Supplier<Mutation>
 
                 //Only cache serializations that don't hit the limit
                 if (!teeIn.isLimitReached())
-                    m.cachedSerializations[MessagingService.getVersionOrdinal(version)] = new CachedSerialization(dob.toByteArray());
+                    m.cachedSerializations[MessagingService.getVersionOrdinal(version)] = new CachedSerialization(dob.unsafeToByteArray());
 
                 return m;
             }

@@ -77,7 +77,7 @@ public class ClientWarn extends ExecutorLocals.Impl
     public List<String> getWarnings()
     {
         State state = get();
-        if (state == null || state.warnings.isEmpty())
+        if (state == null || state.warnings == null || state.warnings.isEmpty())
             return null;
         return state.warnings;
     }
@@ -92,10 +92,16 @@ public class ClientWarn extends ExecutorLocals.Impl
         private boolean collecting = true;
         // This must be a thread-safe list. Even though it's wrapped in a ThreadLocal, it's propagated to each thread
         // from shared state, so multiple threads can reference the same State.
-        private final List<String> warnings = new CopyOnWriteArrayList<>();
+        private volatile List<String> warnings;
 
         private void add(String warning)
         {
+            if (warnings == null)
+                synchronized (this) {
+                    if (warnings == null) {
+                        warnings = new CopyOnWriteArrayList<>();
+                    }
+                }
             if (collecting && warnings.size() < FBUtilities.MAX_UNSIGNED_SHORT)
                 warnings.add(maybeTruncate(warning));
         }

@@ -27,6 +27,7 @@ import javax.annotation.concurrent.ThreadSafe;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.MoreObjects;
 import com.google.common.base.Preconditions;
+import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Iterables;
 
@@ -176,9 +177,9 @@ public class SelectStatement implements CQLStatement.SingleKeyspaceCqlStatement
     }
 
     @Override
-    public List<ColumnSpecification> getBindVariables()
+    public ImmutableList<ColumnSpecification> getBindVariables()
     {
-        return bindVariables.getBindVariables();
+        return bindVariables.getImmutableBindVariables();
     }
 
     @Override

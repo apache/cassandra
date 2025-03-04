@@ -103,13 +103,13 @@ public class UpdateParameters
         if (clustering == Clustering.STATIC_CLUSTERING)
         {
             if (staticBuilder == null)
-                staticBuilder = BTreeRow.unsortedBuilder();
+                staticBuilder = BTreeRow.pooledUnsortedBuilder();
             builder = staticBuilder;
         }
         else
         {
             if (regularBuilder == null)
-                regularBuilder = BTreeRow.unsortedBuilder();
+                regularBuilder = BTreeRow.pooledUnsortedBuilder();
             builder = regularBuilder;
         }
 

@@ -1326,6 +1326,8 @@ public class SecondaryIndexManager implements IndexRegistry, INotificationConsum
     @Override
     public void validate(PartitionUpdate update, ClientState state) throws InvalidRequestException
     {
+        if (indexes.isEmpty())
+            return;
         for (Index index : indexes.values())
             index.validate(update, state);
     }

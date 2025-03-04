@@ -21,6 +21,7 @@ import java.nio.ByteBuffer;
 import java.util.*;
 
 import com.google.common.collect.HashMultiset;
+import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Iterables;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -103,6 +104,8 @@ public abstract class ModificationStatement implements CQLStatement.SingleKeyspa
 
     private final RegularAndStaticColumns requiresRead;
 
+    private final List<Function> functions;
+
     public ModificationStatement(StatementType type,
                                  VariableSpecifications bindVariables,
                                  TableMetadata metadata,
@@ -179,12 +182,13 @@ public abstract class ModificationStatement implements CQLStatement.SingleKeyspa
 
         this.conditionColumns = conditionColumnsBuilder.build();
         this.requiresRead = requiresReadBuilder.build();
+        this.functions = findAllFunctions();
     }
 
     @Override
-    public List<ColumnSpecification> getBindVariables()
+    public ImmutableList<ColumnSpecification> getBindVariables()
     {
-        return bindVariables.getBindVariables();
+        return bindVariables.getImmutableBindVariables();
     }
 
     @Override
@@ -196,8 +200,18 @@ public abstract class ModificationStatement implements CQLStatement.SingleKeyspa
     @Override
     public Iterable<Function> getFunctions()
     {
+        return functions;
+    }
+
+    private List<Function> findAllFunctions()
+    {
         List<Function> functions = new ArrayList<>();
         addFunctionsTo(functions);
+        if (functions.isEmpty())
+        {
+            functions = Collections.emptyList(); // to avoid a new Iterator object creation during each authorization
+        }
+
         return functions;
     }
 
@@ -518,8 +532,9 @@ public abstract class ModificationStatement implements CQLStatement.SingleKeyspa
         if (options.getConsistency() == null)
             throw new InvalidRequestException("Invalid empty consistency level");
 
-        Guardrails.writeConsistencyLevels.guard(EnumSet.of(options.getConsistency(), options.getSerialConsistency()),
-                                                queryState.getClientState());
+        if (Guardrails.writeConsistencyLevels.enabled(queryState.getClientState())) // to avoid EnumSet allocation
+            Guardrails.writeConsistencyLevels.guard(EnumSet.of(options.getConsistency(), options.getSerialConsistency()),
+                                                    queryState.getClientState());
 
         return hasConditions()
              ? executeWithCondition(queryState, options, requestTime)
@@ -768,10 +783,18 @@ public abstract class ModificationStatement implements CQLStatement.SingleKeyspa
                                                    Dispatcher.RequestTime requestTime)
     {
         List<ByteBuffer> keys = buildPartitionKeyNames(options, state);
-        HashMultiset<ByteBuffer> perPartitionKeyCounts = HashMultiset.create(keys);
-        SingleTableUpdatesCollector collector = new SingleTableUpdatesCollector(metadata, updatedColumns, perPartitionKeyCounts);
-        addUpdates(collector, keys, state, options, local, timestamp, nowInSeconds, requestTime);
-        return collector.toMutations(state);
+        if(keys.size() == 1)
+        {
+            SingleTableSinglePartitionUpdatesCollector collector = new SingleTableSinglePartitionUpdatesCollector(metadata, updatedColumns);
+            addUpdates(collector, keys, state, options, local, timestamp, nowInSeconds, requestTime);
+            return collector.toMutations(state);
+        } else
+        {
+            HashMultiset<ByteBuffer> perPartitionKeyCounts = HashMultiset.create(keys);
+            SingleTableUpdatesCollector collector = new SingleTableUpdatesCollector(metadata, updatedColumns, perPartitionKeyCounts);
+            addUpdates(collector, keys, state, options, local, timestamp, nowInSeconds, requestTime);
+            return collector.toMutations(state);
+        }
     }
 
     final void addUpdates(UpdatesCollector collector,
@@ -807,8 +830,12 @@ public abstract class ModificationStatement implements CQLStatement.SingleKeyspa
 
                 PartitionUpdate.Builder updateBuilder = collector.getPartitionUpdateBuilder(metadata(), dk, options.getConsistency());
 
-                for (Slice slice : slices)
-                    addUpdateForKey(updateBuilder, slice, params);
+                if (slices == Slices.ALL) // to avoid Slices iterator allocation for a common case
+                    addUpdateForKey(updateBuilder, Slice.ALL, params);
+                else
+                    for (Slice slice : slices)
+                        addUpdateForKey(updateBuilder, slice, params);
+
             }
         }
         else

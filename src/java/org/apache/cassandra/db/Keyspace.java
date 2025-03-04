@@ -453,11 +453,11 @@ public class Keyspace
 
         Lock[] locks = null;
 
-        boolean requiresViewUpdate = updateIndexes && viewManager.updatesAffectView(Collections.singleton(mutation), false);
+        boolean requiresViewUpdate = updateIndexes && viewManager.updatesAffectView(mutation, false);
 
         if (requiresViewUpdate)
         {
-            mutation.viewLockAcquireStart.compareAndSet(0L, currentTimeMillis());
+            Mutation.viewLockAcquireStartUpdater.compareAndSet(mutation, 0L, currentTimeMillis());
 
             // the order of lock acquisition doesn't matter (from a deadlock perspective) because we only use tryLock()
             Collection<TableId> tableIds = mutation.getTableIds();
@@ -534,7 +534,7 @@ public class Keyspace
                 }
             }
 
-            long acquireTime = currentTimeMillis() - mutation.viewLockAcquireStart.get();
+            long acquireTime = currentTimeMillis() - Mutation.viewLockAcquireStartUpdater.get(mutation);
             // Metrics are only collected for droppable write operations
             // Bulk non-droppable operations (e.g. commitlog replay, hint delivery) are not measured
             if (isDroppable)
@@ -553,10 +553,11 @@ public class Keyspace
                     logger.error("Attempting to mutate non-existant table {} ({}.{})", upd.metadata().id, upd.metadata().keyspace, upd.metadata().name);
                     continue;
                 }
-                AtomicLong baseComplete = new AtomicLong(Long.MAX_VALUE);
+                AtomicLong baseComplete = null;
 
                 if (requiresViewUpdate)
                 {
+                    baseComplete = new AtomicLong(Long.MAX_VALUE);
                     try
                     {
                         Tracing.trace("Creating materialized view mutations from base table replica");
