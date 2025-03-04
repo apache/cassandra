@@ -784,10 +784,10 @@ syntax_rules += r'''
                             ;
 
 <aggregateMathFunctions> ::= "COUNT" "(" star=( "*" | "1" ) ")"
-             | "AVG" "(" star=( "*" | "1" ) ")"
-             | "MIN" "(" star=( "*" | "1" ) ")"
-             | "MAX" "(" star=( "*" | "1" ) ")"
-             | "SUM" "(" star=( "*" | "1" ) ")"
+             | "AVG" "(" [colname]=<cident> ")"
+             | "MIN" "(" [colname]=<cident> ")"
+             | "MAX" "(" [colname]=<cident> ")"
+             | "SUM" "(" [colname]=<cident> ")"
              ;
 
 <scalarMathFunctions> ::= "ABS" "(" [colname]=<cident> ")"
