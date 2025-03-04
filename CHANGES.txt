@@ -175,6 +175,7 @@ Merged from 3.0:
  * Fix CQLSH online help topic link (CASSANDRA-17534)
  * Remove unused suppressions (CASSANDRA-18724)
 Unreleased
+4.1.3.20
  * [SO-40691] Implement additional metrics on repair failures
  * [SO-40802] Fix on BadQueriesInTable reporting on large partition
  * [SO-41010] Do not convert read/write failure exceptions to overloaded exceptions for resource rate limiter
