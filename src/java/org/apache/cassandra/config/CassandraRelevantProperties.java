@@ -21,7 +21,6 @@ package org.apache.cassandra.config;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
-
 import javax.annotation.Nullable;
 
 import com.google.common.primitives.Ints;
@@ -576,6 +575,7 @@ public enum CassandraRelevantProperties
      * can be also done manually for that particular case: {@code flush(SchemaConstants.SCHEMA_KEYSPACE_NAME);}. */
     TEST_FLUSH_LOCAL_SCHEMA_CHANGES("cassandra.test.flush_local_schema_changes", "true"),
     TEST_HARRY_SWITCH_AFTER("cassandra.test.harry.progression.switch-after", "1"),
+    TEST_INTERVAL_TREE_EXPENSIVE_CHECKS("cassandra.test.interval_tree_expensive_checks"),
     TEST_INVALID_LEGACY_SSTABLE_ROOT("invalid-legacy-sstable-root"),
     TEST_JVM_DTEST_DISABLE_SSL("cassandra.test.disable_ssl"),
     TEST_JVM_SHUTDOWN_MESSAGING_GRACEFULLY("cassandra.test.messagingService.gracefulShutdown", "false"),

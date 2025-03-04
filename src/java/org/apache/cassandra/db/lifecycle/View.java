@@ -17,6 +17,7 @@
  */
 package org.apache.cassandra.db.lifecycle;
 
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
@@ -296,7 +297,7 @@ public class View
     }
 
     // construct a function to change the liveset in a Snapshot
-    static Function<View, View> updateLiveSet(final Set<SSTableReader> remove, final Iterable<SSTableReader> add)
+    static Function<View, View> updateLiveSet(final Set<SSTableReader> remove, final Collection<SSTableReader> add)
     {
         if (remove.isEmpty() && Iterables.isEmpty(add))
             return Functions.identity();
@@ -306,7 +307,7 @@ public class View
             {
                 Map<SSTableReader, SSTableReader> sstableMap = replace(view.sstablesMap, remove, add);
                 return new View(view.liveMemtables, view.flushingMemtables, sstableMap, view.compactingMap,
-                                SSTableIntervalTree.build(sstableMap.keySet()));
+                                SSTableIntervalTree.update(view.intervalTree, remove, add));
             }
         };
     }
@@ -345,7 +346,7 @@ public class View
     }
 
     // called after flush: removes memtable from flushingMemtables, and inserts flushed into the live sstable set
-    static Function<View, View> replaceFlushed(final Memtable memtable, final Iterable<SSTableReader> flushed)
+    static Function<View, View> replaceFlushed(final Memtable memtable, final Collection<SSTableReader> flushed)
     {
         return new Function<View, View>()
         {
@@ -360,7 +361,7 @@ public class View
 
                 Map<SSTableReader, SSTableReader> sstableMap = replace(view.sstablesMap, emptySet(), flushed);
                 return new View(view.liveMemtables, flushingMemtables, sstableMap, view.compactingMap,
-                                SSTableIntervalTree.build(sstableMap.keySet()));
+                                    SSTableIntervalTree.update(view.intervalTree, null, flushed));
             }
         };
     }

@@ -38,6 +38,7 @@ import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
+import com.google.monitoring.runtime.instrumentation.common.collect.ImmutableList;
 import org.apache.cassandra.ServerTestUtils;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.BufferDecoratedKey;
@@ -62,6 +63,7 @@ import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.Interval;
 import org.apache.cassandra.utils.Overlaps;
 import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.concurrent.Transactional;
@@ -608,7 +610,7 @@ public class UnifiedCompactionStrategyTest
         List<SSTableReader> nonExpiredSSTables = createSStables(cfs.getPartitioner(), 0);
         strategy.addSSTables(expiredSSTables);
         strategy.addSSTables(nonExpiredSSTables.subList(0, 3));
-        dataTracker.addInitialSSTables(Iterables.concat(expiredSSTables, nonExpiredSSTables));
+        dataTracker.addInitialSSTables(ImmutableList.copyOf(Iterables.concat(expiredSSTables, nonExpiredSSTables)));
 
         long timestamp = expiredSSTables.get(expiredSSTables.size() - 1).getMaxLocalDeletionTime();
         long expirationPoint = timestamp + 1;
@@ -1050,6 +1052,7 @@ public class UnifiedCompactionStrategyTest
         when(ret.getMinTimestamp()).thenReturn(timestamp);
         when(ret.getFirst()).thenReturn(first);
         when(ret.getLast()).thenReturn(last);
+        when(ret.getInterval()).thenReturn(new Interval<>(first, last, ret));
         when(ret.isMarkedSuspect()).thenReturn(false);
         when(ret.isRepaired()).thenReturn(false);
         when(ret.getRepairedAt()).thenReturn(repairedAt);
