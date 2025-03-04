@@ -20,7 +20,6 @@ package org.apache.cassandra.cql3.constraints;
 
 import java.nio.ByteBuffer;
 import java.util.List;
-import java.util.Set;
 
 import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.cql3.Operator;
@@ -29,7 +28,6 @@ import org.apache.cassandra.db.marshal.AsciiType;
 import org.apache.cassandra.db.marshal.BytesType;
 import org.apache.cassandra.db.marshal.Int32Type;
 import org.apache.cassandra.db.marshal.UTF8Type;
-import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
 public class OctetLengthConstraint extends ConstraintFunction
@@ -66,24 +64,6 @@ public class OctetLengthConstraint extends ConstraintFunction
     public List<AbstractType<?>> getSupportedTypes()
     {
         return SUPPORTED_TYPES;
-    }
-
-    @Override
-    public void validate(ColumnMetadata columnMetadata)
-    {
-        boolean supported = false;
-        AbstractType<?> unwrapped = columnMetadata.type.unwrap();
-        for (AbstractType<?> supportedType : SUPPORTED_TYPES)
-        {
-            if (supportedType == unwrapped)
-            {
-                supported = true;
-                break;
-            }
-        }
-
-        if (!supported)
-            throw new InvalidConstraintDefinitionException("Column type " + columnMetadata.type.getClass() + " is not supported.");
     }
 
     @Override

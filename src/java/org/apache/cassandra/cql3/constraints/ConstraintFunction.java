@@ -79,7 +79,9 @@ public abstract class ConstraintFunction
      * Method that validates that a condition is valid. This method is called when the CQL constraint is created to determine
      * if the CQL statement is valid or needs to be rejected as invalid throwing a {@link InvalidConstraintDefinitionException}
      */
-    public abstract void validate(ColumnMetadata columnMetadata) throws InvalidConstraintDefinitionException;
+    public void validate(ColumnMetadata columnMetadata) throws InvalidConstraintDefinitionException
+    {
+    }
 
     /**
      * Return operators this function supports. By default, it returns an empty list, modelling unary function.

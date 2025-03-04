@@ -28,7 +28,6 @@ import org.apache.cassandra.db.marshal.AsciiType;
 import org.apache.cassandra.db.marshal.BytesType;
 import org.apache.cassandra.db.marshal.Int32Type;
 import org.apache.cassandra.db.marshal.UTF8Type;
-import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
 public class LengthConstraint extends ConstraintFunction
@@ -54,11 +53,6 @@ public class LengthConstraint extends ConstraintFunction
             throw new ConstraintViolationException("Column value does not satisfy value constraint for column '" + columnName + "'. "
                                                    + "It has a length of " + valueLength + " and it should be "
                                                    + relationType + ' ' + term);
-    }
-
-    @Override
-    public void validate(ColumnMetadata columnMetadata) throws InvalidConstraintDefinitionException
-    {
     }
 
     @Override
