@@ -21,7 +21,6 @@ package org.apache.cassandra.config;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
-
 import javax.annotation.Nullable;
 
 import com.google.common.primitives.Ints;
@@ -540,7 +539,9 @@ public enum CassandraRelevantProperties
      * faster. Note that this is disabled for unit tests but if an individual test requires schema to be flushed, it
      * can be also done manually for that particular case: {@code flush(SchemaConstants.SCHEMA_KEYSPACE_NAME);}. */
     TEST_FLUSH_LOCAL_SCHEMA_CHANGES("cassandra.test.flush_local_schema_changes", "true"),
+    TEST_HARRY_SWITCH_AFTER("cassandra.test.harry.progression.switch-after", "1"),
     TEST_IGNORE_SIGAR("cassandra.test.ignore_sigar"),
+    TEST_INTERVAL_TREE_EXPENSIVE_CHECKS("cassandra.test.interval_tree_expensive_checks"),
     TEST_INVALID_LEGACY_SSTABLE_ROOT("invalid-legacy-sstable-root"),
     TEST_JVM_DTEST_DISABLE_SSL("cassandra.test.disable_ssl"),
     TEST_LEGACY_SSTABLE_ROOT("legacy-sstable-root"),
@@ -616,7 +617,7 @@ public enum CassandraRelevantProperties
                 prev = next;
         }
     }
-    
+
     CassandraRelevantProperties(String key, String defaultVal)
     {
         this.key = key;

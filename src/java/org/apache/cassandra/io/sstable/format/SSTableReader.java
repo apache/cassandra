@@ -100,6 +100,7 @@ import org.apache.cassandra.service.ActiveRepairService;
 import org.apache.cassandra.utils.EstimatedHistogram;
 import org.apache.cassandra.utils.ExecutorUtils;
 import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.Interval;
 import org.apache.cassandra.utils.JVMStabilityInspector;
 import org.apache.cassandra.utils.NativeLibrary;
 import org.apache.cassandra.utils.OutputHandler;
@@ -112,6 +113,7 @@ import org.apache.cassandra.utils.concurrent.SharedCloseable;
 import org.apache.cassandra.utils.concurrent.UncheckedInterruptedException;
 
 import static org.apache.cassandra.concurrent.ExecutorFactory.Global.executorFactory;
+import static org.apache.cassandra.utils.TimeUUID.unixMicrosToRawTimestamp;
 import static org.apache.cassandra.utils.concurrent.BlockingQueues.newBlockingQueue;
 import static org.apache.cassandra.utils.concurrent.SharedCloseable.sharedCopyOrNull;
 
@@ -149,7 +151,7 @@ import static org.apache.cassandra.utils.concurrent.SharedCloseable.sharedCopyOr
  * <p>
  * TODO: fill in details about Tracker and lifecycle interactions for tools, and for compaction strategies
  */
-public abstract class SSTableReader extends SSTable implements UnfilteredSource, SelfRefCounted<SSTableReader>
+public abstract class SSTableReader extends SSTable implements UnfilteredSource, SelfRefCounted<SSTableReader>, Comparable<SSTableReader>
 {
     private static final Logger logger = LoggerFactory.getLogger(SSTableReader.class);
 
@@ -177,11 +179,25 @@ public abstract class SSTableReader extends SSTable implements UnfilteredSource,
     public static final Comparator<SSTableReader> maxTimestampAscending = Comparator.comparingLong(SSTableReader::getMaxTimestamp);
     public static final Comparator<SSTableReader> maxTimestampDescending = maxTimestampAscending.reversed();
 
-    // it's just an object, which we use regular Object equality on; we introduce a special class just for easy recognition
-    public static final class UniqueIdentifier
+    private static final TimeUUID.Generator.Factory<UniqueIdentifier> UNIQUE_IDENTIFIER_FACTORY = new TimeUUID.Generator.Factory<UniqueIdentifier>()
     {
+        @Override
+        public UniqueIdentifier atUnixMicrosWithLsb(long unixMicros, long clockSeqAndNode)
+        {
+            return new UniqueIdentifier(unixMicrosToRawTimestamp(unixMicros), clockSeqAndNode);
+        }
+    };
+
+    // it's just an object, which we use regular Object equality on; we introduce a special class just for easy recognition
+    // Also includes a TimeUUID to make these sortable
+    public static final class UniqueIdentifier extends TimeUUID
+    {
+        private UniqueIdentifier(long unixMicros, long clockSeqAndNode)
+        {
+            super(unixMicros, clockSeqAndNode);
+        }
     }
-    public final UniqueIdentifier instanceId = new UniqueIdentifier();
+    public final UniqueIdentifier instanceId = TimeUUID.Generator.nextTimeUUID(UNIQUE_IDENTIFIER_FACTORY);
 
     public static final Comparator<SSTableReader> firstKeyComparator = (o1, o2) -> o1.getFirst().compareTo(o2.getFirst());
     public static final Ordering<SSTableReader> firstKeyOrdering = Ordering.from(firstKeyComparator);
@@ -271,6 +287,7 @@ public abstract class SSTableReader extends SSTable implements UnfilteredSource,
     protected final DecoratedKey first;
     protected final DecoratedKey last;
     public final AbstractBounds<Token> bounds;
+    private final Interval<PartitionPosition, SSTableReader> interval;
 
     /**
      * Calculate approximate key count.
@@ -458,6 +475,7 @@ public abstract class SSTableReader extends SSTable implements UnfilteredSource,
         this.openReason = builder.getOpenReason();
         this.first = builder.getFirst();
         this.last = builder.getLast();
+        this.interval = Interval.create(first, last, this);
         this.bounds = first == null || last == null || AbstractBounds.strictlyWrapsAround(first.getToken(), last.getToken())
                       ? null // this will cause the validation to fail, but the reader is opened with no validation,
                              // e.g. for scrubbing, we should accept screwed bounds
@@ -477,6 +495,11 @@ public abstract class SSTableReader extends SSTable implements UnfilteredSource,
     public DecoratedKey getLast()
     {
         return last;
+    }
+
+    public Interval<PartitionPosition, SSTableReader> getInterval()
+    {
+        return interval;
     }
 
     @Override
@@ -1740,6 +1763,13 @@ public abstract class SSTableReader extends SSTable implements UnfilteredSource,
                                           OutputHandler outputHandler,
                                           boolean isOffline,
                                           IVerifier.Options options);
+
+    @Override
+    public int compareTo(SSTableReader other)
+    {
+        // Used in IntervalTree with the expecation that compareTo uniquely identifies an SSTableReader
+        return instanceId.compareTo(other.instanceId);
+    }
 
     /**
      * A method to be called by {@link #getPosition(PartitionPosition, Operator, boolean, SSTableReadsListener)}

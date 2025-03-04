@@ -47,6 +47,7 @@ import com.google.common.base.Predicates;
 import com.google.common.collect.ArrayListMultimap;
 import com.google.common.collect.Collections2;
 import com.google.common.collect.ConcurrentHashMultiset;
+import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
@@ -122,6 +123,7 @@ import static org.apache.cassandra.concurrent.ExecutorFactory.Global.executorFac
 import static org.apache.cassandra.concurrent.FutureTask.callable;
 import static org.apache.cassandra.config.DatabaseDescriptor.getConcurrentCompactors;
 import static org.apache.cassandra.db.compaction.CompactionManager.CompactionExecutor.compactionThreadGroup;
+import static org.apache.cassandra.db.lifecycle.SSTableIntervalTree.buildSSTableIntervalTree;
 import static org.apache.cassandra.service.ActiveRepairService.NO_PENDING_REPAIR;
 import static org.apache.cassandra.service.ActiveRepairService.UNREPAIRED_SSTABLE;
 import static org.apache.cassandra.utils.Clock.Global.nanoTime;
@@ -1090,8 +1092,7 @@ public class CompactionManager implements CompactionManagerMBean, ICompactionMan
     {
         final Set<SSTableReader> sstables = new HashSet<>();
         Iterable<SSTableReader> liveTables = cfs.getTracker().getView().select(SSTableSet.LIVE);
-        SSTableIntervalTree tree = SSTableIntervalTree.build(liveTables);
-
+        SSTableIntervalTree tree = buildSSTableIntervalTree(ImmutableList.copyOf(liveTables));
         for (Range<Token> tokenRange : tokenRangeCollection)
         {
             if (!AbstractBounds.strictlyWrapsAround(tokenRange.left, tokenRange.right))

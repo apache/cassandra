@@ -32,6 +32,7 @@ import java.util.Random;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Sets;
 import org.junit.After;
@@ -920,7 +921,7 @@ public class LeveledCompactionStrategyTest
         List<SSTableReader> l0sstables = new ArrayList<>();
         for (int i = 10; i < 20; i++)
             l0sstables.add(MockSchema.sstable(i, (i + 1) * 1024 * 1024, cfs));
-        try (LifecycleTransaction txn = LifecycleTransaction.offline(OperationType.COMPACTION, Iterables.concat(l0sstables, l1sstables)))
+        try (LifecycleTransaction txn = LifecycleTransaction.offline(OperationType.COMPACTION, ImmutableList.copyOf(Iterables.concat(l0sstables, l1sstables))))
         {
             Set<SSTableReader> nonExpired = Sets.difference(txn.originals(), Collections.emptySet());
             CompactionTask task = new LeveledCompactionTask(cfs, txn, 1, 0, 1024*1024, false);

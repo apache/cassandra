@@ -371,6 +371,16 @@ public class TimeUUID implements Serializable, Comparable<TimeUUID>
 
         private static final AtomicLong lastMicros = new AtomicLong();
 
+        public interface Factory<T extends TimeUUID>
+        {
+            T atUnixMicrosWithLsb(long unixMicros, long clockSeqAndNode);
+        }
+
+        public static <T extends TimeUUID> T nextTimeUUID(Factory<T> factory)
+        {
+            return factory.atUnixMicrosWithLsb(nextUnixMicros(), clockSeqAndNode);
+        }
+
         public static TimeUUID nextTimeUUID()
         {
             return atUnixMicrosWithLsb(nextUnixMicros(), clockSeqAndNode);
