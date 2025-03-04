@@ -26,7 +26,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CopyOnWriteArrayList;
-import java.util.concurrent.atomic.AtomicReference;
+import java.util.concurrent.locks.ReentrantLock;
 import javax.annotation.Nullable;
 
 import com.google.common.annotations.VisibleForTesting;
@@ -96,7 +96,10 @@ public class Tracker
 
     public final ColumnFamilyStore cfstore;
     public final TableMetadataRef metadata;
-    final AtomicReference<View> view;
+
+    // Constructing views update can be quite slow so locking generates less CPU/garbage compared to CAS
+    final ReentrantLock viewUpdateLock = new ReentrantLock(true);
+    volatile View view = null;
     public final boolean loadsstables;
 
     /**
@@ -108,7 +111,6 @@ public class Tracker
     {
         this.cfstore = Objects.requireNonNull(columnFamilyStore);
         this.metadata = columnFamilyStore.metadata;
-        this.view = new AtomicReference<>();
         this.loadsstables = loadsstables;
         this.reset(memtable);
     }
@@ -122,7 +124,6 @@ public class Tracker
     {
         this.cfstore = null;
         this.metadata = Objects.requireNonNull(metadata);
-        this.view = new AtomicReference<>();
         this.loadsstables = loadsstables;
         this.reset(memtable);
     }
@@ -185,15 +186,22 @@ public class Tracker
      */
     Pair<View, View> apply(Predicate<View> permit, Function<View, View> function)
     {
-        while (true)
+        View updated;
+        View cur;
+        viewUpdateLock.lock();
+        try
         {
-            View cur = view.get();
+            cur = view;
             if (!permit.apply(cur))
                 return null;
-            View updated = function.apply(cur);
-            if (view.compareAndSet(cur, updated))
-                return Pair.create(cur, updated);
+            updated = function.apply(cur);
+            view = updated;
         }
+        finally
+        {
+            viewUpdateLock.unlock();
+        }
+        return Pair.create(cur, updated);
     }
 
     Throwable updateSizeTracking(Iterable<SSTableReader> oldSSTables, Iterable<SSTableReader> newSSTables, Throwable accumulate)
@@ -246,12 +254,12 @@ public class Tracker
 
     // SETUP / CLEANUP
 
-    public void addInitialSSTables(Iterable<SSTableReader> sstables)
+    public void addInitialSSTables(Collection<SSTableReader> sstables)
     {
         addSSTablesInternal(sstables, OperationType.INITIAL_LOAD, true, false, true);
     }
 
-    public void addInitialSSTablesWithoutUpdatingSize(Iterable<SSTableReader> sstables)
+    public void addInitialSSTablesWithoutUpdatingSize(Collection<SSTableReader> sstables)
     {
         addSSTablesInternal(sstables, OperationType.INITIAL_LOAD, true, false, false);
     }
@@ -261,12 +269,12 @@ public class Tracker
         maybeFail(updateSizeTracking(emptySet(), sstables, null));
     }
 
-    public void addSSTables(Iterable<SSTableReader> sstables, OperationType operationType)
+    public void addSSTables(Collection<SSTableReader> sstables, OperationType operationType)
     {
         addSSTablesInternal(sstables, operationType, false, true, true);
     }
 
-    private void addSSTablesInternal(Iterable<SSTableReader> sstables,
+    private void addSSTablesInternal(Collection<SSTableReader> sstables,
                                      OperationType operationType,
                                      boolean isInitialSSTables,
                                      boolean maybeIncrementallyBackup,
@@ -287,11 +295,19 @@ public class Tracker
     @VisibleForTesting
     public void reset(Memtable memtable)
     {
-        view.set(new View(memtable != null ? singletonList(memtable) : Collections.emptyList(),
-                          Collections.emptyList(),
-                          Collections.emptyMap(),
-                          Collections.emptyMap(),
-                          SSTableIntervalTree.empty()));
+        viewUpdateLock.lock();
+        try
+        {
+            view = new View(memtable != null ? singletonList(memtable) : Collections.emptyList(),
+                            Collections.emptyList(),
+                            Collections.emptyMap(),
+                            Collections.emptyMap(),
+                            SSTableIntervalTree.empty());
+        }
+        finally
+        {
+            viewUpdateLock.unlock();
+        }
     }
 
     public Throwable dropOrUnloadSSTablesIfInvalid(String message, @Nullable Throwable accumulate)
@@ -440,12 +456,13 @@ public class Tracker
         // there may be multiple memtables in the list that would 'accept' us, however we only ever choose
         // the oldest such memtable, as accepts() only prevents us falling behind (i.e. ensures we don't
         // assign operations to a memtable that was retired/queued before we started)
-        for (Memtable memtable : view.get().liveMemtables)
+        View view = this.view;
+        for (Memtable memtable : view.liveMemtables)
         {
             if (memtable.accepts(opGroup, commitLogPosition))
                 return memtable;
         }
-        throw new AssertionError(view.get().liveMemtables.toString());
+        throw new AssertionError(view.liveMemtables.toString());
     }
 
     /**
@@ -472,7 +489,7 @@ public class Tracker
         apply(View.markFlushing(memtable));
     }
 
-    public void replaceFlushed(Memtable memtable, Iterable<SSTableReader> sstables, Optional<UUID> operationId)
+    public void replaceFlushed(Memtable memtable, Collection<SSTableReader> sstables, Optional<UUID> operationId)
     {
         assert !isDummy();
         if (Iterables.isEmpty(sstables))
@@ -511,29 +528,29 @@ public class Tracker
 
     public Set<SSTableReader> getCompacting()
     {
-        return view.get().compacting;
+        return view.compacting;
     }
 
     public Iterable<SSTableReader> getNoncompacting()
     {
-        return view.get().select(SSTableSet.NONCOMPACTING);
+        return view.select(SSTableSet.NONCOMPACTING);
     }
 
     public <S extends CompactionSSTable> Iterable<S> getNoncompacting(Iterable<S> candidates)
     {
-        return view.get().getNoncompacting(candidates);
+        return view.getNoncompacting(candidates);
     }
 
     public Set<SSTableReader> getLiveSSTables()
     {
-        return view.get().liveSSTables();
+        return view.liveSSTables();
     }
 
     // used by CNDB
     @Nullable
     public SSTableReader getLiveSSTable(String filename)
     {
-        return view.get().getLiveSSTable(filename);
+        return view.getLiveSSTable(filename);
     }
 
     public void maybeIncrementallyBackup(final Iterable<SSTableReader> sstables)
@@ -688,7 +705,7 @@ public class Tracker
 
     public View getView()
     {
-        return view.get();
+        return view;
     }
 
     @VisibleForTesting

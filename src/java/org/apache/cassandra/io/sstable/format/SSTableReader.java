@@ -142,8 +142,10 @@ import org.apache.cassandra.utils.ExecutorUtils;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.FilterFactory;
 import org.apache.cassandra.utils.IFilter;
+import org.apache.cassandra.utils.Interval;
 import org.apache.cassandra.utils.JVMStabilityInspector;
 import org.apache.cassandra.utils.Throwables;
+import org.apache.cassandra.utils.TimeUUID;
 import org.apache.cassandra.utils.concurrent.OpOrder;
 import org.apache.cassandra.utils.concurrent.Ref;
 import org.apache.cassandra.utils.concurrent.RefCounted;
@@ -210,7 +212,7 @@ import static org.apache.cassandra.db.Directories.SECONDARY_INDEX_NAME_SEPARATOR
  *
  * TODO: fill in details about Tracker and lifecycle interactions for tools, and for compaction strategies
  */
-public abstract class SSTableReader extends SSTable implements SelfRefCounted<SSTableReader>, CompactionSSTable
+public abstract class SSTableReader extends SSTable implements SelfRefCounted<SSTableReader>, CompactionSSTable, Comparable<SSTableReader>
 {
     private static final Logger logger = LoggerFactory.getLogger(SSTableReader.class);
 
@@ -231,8 +233,25 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
 
     public abstract boolean hasIndex();
 
+    private static final TimeUUID.Generator.Factory<UniqueIdentifier> UNIQUE_IDENTIFIER_FACTORY = new TimeUUID.Generator.Factory<UniqueIdentifier>()
+    {
+        @Override
+        public UniqueIdentifier fromUUID(UUID timeUUID)
+        {
+            return new UniqueIdentifier(timeUUID);
+        }
+    };
+
     // it's just an object, which we use regular Object equality on; we introduce a special class just for easy recognition
-    public static final class UniqueIdentifier {}
+    // Also includes a TimeUUID to make these sortable
+    public static final class UniqueIdentifier extends TimeUUID
+    {
+        private UniqueIdentifier(UUID timeUUID)
+        {
+            super(msbToRawTimestamp(timeUUID.getMostSignificantBits()), timeUUID.getLeastSignificantBits());
+        }
+    }
+    public final UniqueIdentifier instanceId = TimeUUID.Generator.nextTimeUUID(UNIQUE_IDENTIFIER_FACTORY);
 
     /**
      * maxDataAge is a timestamp in local server time (e.g. System.currentTimeMilli) which represents an upper bound
@@ -257,7 +276,6 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
     }
 
     public final OpenReason openReason;
-    public final UniqueIdentifier instanceId = new UniqueIdentifier();
 
     // indexfile and datafile: might be null before a call to load()
     protected final FileHandle ifile;
@@ -307,6 +325,8 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
     private RestorableMeter readMeter;
 
     private volatile double crcCheckChance;
+
+    private volatile Interval<PartitionPosition, SSTableReader> interval;
 
     public static <T extends SSTableReader> Iterable<T> selectOnlyBigTableReaders(Iterable<T> readers)
     {
@@ -777,6 +797,13 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
      */
     public abstract ScrubPartitionIterator scrubPartitionsIterator() throws IOException;
 
+    public Interval<PartitionPosition, SSTableReader> getInterval()
+    {
+        if (interval == null)
+            interval = Interval.create(getFirst(), getLast(), this); // races are benign; use getFirst/Last to allow overrides
+        return interval;
+    }
+
     public boolean equals(Object that)
     {
         return that instanceof SSTableReader && ((SSTableReader) that).descriptor.equals(this.descriptor);
@@ -785,6 +812,13 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
     public int hashCode()
     {
         return this.descriptor.hashCode();
+    }
+
+    @Override
+    public int compareTo(SSTableReader other)
+    {
+        // Used in IntervalTree with the expecation that compareTo uniquely identifies an SSTableReader
+        return instanceId.compareTo(other.instanceId);
     }
 
     public String getFilename()

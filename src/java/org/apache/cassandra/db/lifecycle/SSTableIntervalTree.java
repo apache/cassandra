@@ -24,8 +24,6 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 
-import com.google.common.collect.Iterables;
-
 import org.apache.cassandra.db.PartitionPosition;
 import org.apache.cassandra.db.compaction.CompactionSSTable;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
@@ -41,21 +39,50 @@ public class SSTableIntervalTree extends IntervalTree<PartitionPosition, SSTable
         super(intervals);
     }
 
+    private SSTableIntervalTree(Interval<PartitionPosition, SSTableReader>[] minOrder, Interval<PartitionPosition, SSTableReader>[] maxOrder)
+    {
+        super(minOrder, maxOrder);
+    }
+
+    @Override
+    protected SSTableIntervalTree create(Interval<PartitionPosition, SSTableReader>[] minOrder, Interval<PartitionPosition, SSTableReader>[] maxOrder)
+    {
+        return new SSTableIntervalTree(minOrder, maxOrder);
+    }
+
     public static SSTableIntervalTree empty()
     {
         return EMPTY;
     }
 
-    public static SSTableIntervalTree build(Iterable<SSTableReader> sstables)
+    public static SSTableIntervalTree buildSSTableIntervalTree(Collection<SSTableReader> sstables)
     {
+        if (sstables.isEmpty())
+            return EMPTY;
         return new SSTableIntervalTree(buildIntervals(sstables));
     }
 
-    public static <S extends CompactionSSTable> List<Interval<PartitionPosition, S>> buildIntervals(Iterable<? extends S> sstables)
+    public static <S extends CompactionSSTable> List<Interval<PartitionPosition, S>> buildIntervals(Collection<S> sstables)
     {
-        List<Interval<PartitionPosition, S>> intervals = new ArrayList<>(Iterables.size(sstables));
+        List<Interval<PartitionPosition, S>> intervals = new ArrayList<>(sstables.size());
         for (S sstable : sstables)
             intervals.add(Interval.create(sstable.getFirst(), sstable.getLast(), sstable));
         return intervals;
+    }
+
+    public static Interval<PartitionPosition, SSTableReader>[] buildIntervalsArray(Collection<SSTableReader> sstables)
+    {
+        if (sstables == null || sstables.isEmpty())
+            return IntervalTree.EMPTY_ARRAY;
+        Interval<PartitionPosition, SSTableReader>[] intervals = new Interval[sstables.size()];
+        int i = 0;
+        for (SSTableReader sstable : sstables)
+            intervals[i++] = sstable.getInterval();
+        return intervals;
+    }
+
+    public static SSTableIntervalTree update(SSTableIntervalTree tree, Collection<SSTableReader> removals, Collection<SSTableReader> additions)
+    {
+        return (SSTableIntervalTree) tree.update(buildIntervalsArray(removals), buildIntervalsArray(additions));
     }
 }

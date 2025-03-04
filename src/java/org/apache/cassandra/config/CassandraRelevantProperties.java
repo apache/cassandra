@@ -831,7 +831,9 @@ public enum CassandraRelevantProperties
     /**
      * A directory to the default system key location - used by transparent data encryption
      */
-    SYSTEM_KEY_DIRECTORY("cassandra.system_key_directory", "/etc/cassandra/conf");
+    SYSTEM_KEY_DIRECTORY("cassandra.system_key_directory", "/etc/cassandra/conf"),
+
+    TEST_INTERVAL_TREE_EXPENSIVE_CHECKS("cassandra.test.interval_tree_expensive_checks");
 
     CassandraRelevantProperties(String key, String defaultVal)
     {

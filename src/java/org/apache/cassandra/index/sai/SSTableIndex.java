@@ -61,7 +61,7 @@ import org.apache.cassandra.utils.Throwables;
 /**
  * SSTableIndex is created for each column index on individual sstable to track per-column indexer.
  */
-public class SSTableIndex
+public class SSTableIndex implements Comparable<SSTableIndex>
 {
     private static final Logger logger = LoggerFactory.getLogger(SSTableIndex.class);
 
@@ -399,5 +399,12 @@ public class SSTableIndex
     protected final KeyRangeIterator allSSTableKeys(AbstractBounds<PartitionPosition> keyRange) throws IOException
     {
         return PrimaryKeyMapIterator.create(sstableContext, keyRange);
+    }
+
+    @Override
+    public int compareTo(SSTableIndex index)
+    {
+        // SSTableReader is truly unique for comparison which is relied on in IntervalTree
+        return getSSTable().compareTo(index.getSSTable());
     }
 }

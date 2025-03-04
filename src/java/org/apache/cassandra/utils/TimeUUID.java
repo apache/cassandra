@@ -141,6 +141,16 @@ public class TimeUUID implements Comparable<TimeUUID>
 
     public static class Generator
     {
+        public interface Factory<T extends TimeUUID>
+        {
+            T fromUUID(UUID timeUUID);
+        }
+
+        public static <T extends TimeUUID> T nextTimeUUID(Factory<T> factory)
+        {
+            return factory.fromUUID(UUIDGen.getTimeUUID());
+        }
+
         public static TimeUUID nextTimeUUID()
         {
             return TimeUUID.fromUuid(UUIDGen.getTimeUUID());

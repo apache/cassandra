@@ -23,6 +23,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
+import com.google.common.collect.ImmutableList;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -135,7 +136,7 @@ public class SizeEstimatesRecorder implements SchemaChangeListener, Runnable
                     while (refs == null)
                     {
                         Iterable<SSTableReader> sstables = table.getTracker().getView().select(SSTableSet.CANONICAL);
-                        SSTableIntervalTree tree = SSTableIntervalTree.build(sstables);
+                        SSTableIntervalTree tree = SSTableIntervalTree.buildSSTableIntervalTree(ImmutableList.copyOf(sstables));
                         Range<PartitionPosition> r = Range.makeRowRange(unwrappedRange);
                         Iterable<SSTableReader> canonicalSSTables = View.sstablesInBounds(r.left, r.right, tree);
                         refs = Refs.tryRef(canonicalSSTables);

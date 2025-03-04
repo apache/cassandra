@@ -27,6 +27,7 @@ import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Stream;
 
+import com.google.common.collect.ImmutableList;
 import org.apache.commons.math3.random.JDKRandomGenerator;
 import org.junit.Ignore;
 
@@ -49,6 +50,7 @@ import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.schema.TableMetadataRef;
 import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.Interval;
 import org.mockito.Answers;
 import org.mockito.Mock;
 import org.mockito.Mockito;
@@ -180,7 +182,7 @@ public class BaseCompactionStrategyTest
      */
     void addSSTablesToStrategy(AbstractCompactionStrategy strategy, Iterable<SSTableReader> sstables)
     {
-        dataTracker.addInitialSSTables(sstables);
+        dataTracker.addInitialSSTables(ImmutableList.copyOf(sstables));
 
         if (strategy instanceof LegacyAbstractCompactionStrategy)
         {
@@ -246,6 +248,8 @@ public class BaseCompactionStrategyTest
         when(ret.getLast()).thenReturn(last);
         when(ret.isMarkedSuspect()).thenReturn(false);
         when(ret.isRepaired()).thenReturn(repaired);
+        when(ret.getInterval()).thenReturn(new Interval<>(first, last, ret));
+        when(ret.compareTo(any())).thenAnswer(invocationOnMock -> Integer.compare(ret.hashCode(), invocationOnMock.getArgument(0).hashCode()));
         when(ret.getRepairedAt()).thenReturn(repairedAt);
         when(ret.getPendingRepair()).thenReturn(pendingRepair);
         when(ret.isPendingRepair()).thenReturn(pendingRepair != null);

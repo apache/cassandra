@@ -1,4 +1,5 @@
 Future version (tbd)
+ * Improve IntervalTree build throughput (CASSANDRA-19596)
  * Clear BTree.FastBuilder saved overflow state on reset to prevent cross-table column contamination after schema disagreement (CASSANDRA-21216, CASSANDRA-21260)
  * Require only MODIFY permission on base when updating table with MV (STAR-564)
 Merged from 5.1:
