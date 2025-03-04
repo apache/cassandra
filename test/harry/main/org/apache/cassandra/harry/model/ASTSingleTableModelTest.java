@@ -26,6 +26,7 @@ import java.util.List;
 import java.util.TreeMap;
 import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
+import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -83,8 +84,36 @@ public class ASTSingleTableModelTest
             Select.Builder builder = Select.builder().table(metadata);
             for (var pk : metadata.partitionKeyColumns())
                 builder.value(new Symbol(pk), ZERO);
-            Select select = builder.build();
-            model.validate(expected, select);
+
+            model.validate(expected, builder.build());
+        }
+    }
+
+    @Test
+    public void singlePartitionLimit()
+    {
+        for (TableMetadata metadata : defaultTables())
+        {
+            if (metadata.clusteringColumns().isEmpty()) continue;
+            ASTSingleTableModel model = new ASTSingleTableModel(metadata);
+            Function<ByteBuffer, ColumnValue> update = bb -> partitionLevelUpdate(ZERO, bb);
+            ByteBuffer[][] expected = new ByteBuffer[][]{
+            insert(model, ZERO),
+            insert(model, update.apply(ONE)),
+            insert(model, update.apply(TWO)),
+            insert(model, update.apply(THREE)),
+            };
+
+            Select.Builder builder = Select.builder().table(metadata);
+            for (var pk : metadata.partitionKeyColumns())
+                builder.value(new Symbol(pk), ZERO);
+            // without limit
+            model.validate(expected, builder.build());
+            for (int limit = 1; limit <= expected.length; limit++)
+            {
+                builder.limit(limit);
+                model.validate(Arrays.copyOf(expected, limit), builder.build());
+            }
         }
     }
 
@@ -328,7 +357,38 @@ public class ASTSingleTableModelTest
                 modelModel.add(insert(model, value));
             }
 
-            model.validate(modelModel.all(), Select.builder(metadata).build());
+            var builder = Select.builder(metadata);
+            ByteBuffer[][] all = modelModel.all();
+            model.validate(all, builder.build());
+            for (int i = 1; i < all.length; i++)
+                model.validate(Arrays.copyOf(all, i), builder.limit(i).build());
+            model.validate(all, builder.limit(all.length).build());
+            model.validate(all, builder.limit(all.length + 1).build());
+        }
+    }
+
+    @Test
+    public void selectStarPerPartitionLimit()
+    {
+        List<ByteBuffer> values = Arrays.asList(ZERO, ONE, TWO, THREE);
+        for (TableMetadata metadata : defaultTables())
+        {
+            if (metadata.clusteringColumns().isEmpty()) continue;
+
+            ASTSingleTableModel model = new ASTSingleTableModel(metadata);
+            ModelModel modelModel = new ModelModel(model);
+            for (ByteBuffer pk : values)
+            {
+                for (ByteBuffer row : values)
+                    modelModel.add(insert(model, partitionLevelUpdate(pk, row)));
+            }
+
+            var builder = Select.builder(metadata);
+            model.validate(modelModel.all(), builder.build());
+            for (int i = 1; i < values.size(); i++)
+                model.validate(modelModel.allPerPartitionLimit(i), builder.perPartitionLimit(i).build());
+
+            model.validate(modelModel.all(), builder.perPartitionLimit(values.size()).build());
         }
     }
 
@@ -522,6 +582,20 @@ public class ASTSingleTableModelTest
         return insert(model, (i1, i2) -> value);
     }
 
+    private static ColumnValue partitionLevelUpdate(ByteBuffer partitionLevel, ByteBuffer rowLevel)
+    {
+        return (kind, offset) -> {
+            switch (kind)
+            {
+                case PARTITION_KEY:
+                case STATIC:
+                    return partitionLevel;
+                default:
+                    return rowLevel;
+            }
+        };
+    }
+
     private static ByteBuffer[] insert(ASTSingleTableModel model, ColumnValue fn)
     {
         TableMetadata metadata = model.factory.metadata;
@@ -615,6 +689,28 @@ public class ASTSingleTableModelTest
         public ByteBuffer[][] all()
         {
             return allWhere(i -> true);
+        }
+
+        public ByteBuffer[][] allPerPartitionLimit(int limit)
+        {
+            class State
+            {
+                BytesPartitionState.Ref current = null;
+                int count = 0;
+                boolean nextPartition(BytesPartitionState.Ref ref)
+                {
+                    current = ref;
+                    count = 0;
+                    return true;
+                }
+
+                boolean nextRow(ByteBuffer[] row)
+                {
+                    return ++count <= limit;
+                }
+            }
+            State state = new State();
+            return allWhere(state::nextPartition, state::nextRow);
         }
 
         public ByteBuffer[][] allEq(Symbol column, ByteBuffer value)

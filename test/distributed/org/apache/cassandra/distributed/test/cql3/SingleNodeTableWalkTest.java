@@ -357,7 +357,10 @@ public class SingleNodeTableWalkTest extends StatefulASTBase
         //TODO (coverage): partition is defined at the cluster level, so have to hard code in this model as the table is changed rather than cluster being recreated... this limits coverage
         return toGen(new TableMetadataBuilder()
                      .withTableKinds(TableMetadata.Kind.REGULAR)
-                     .withKnownMemtables()
+                     .withParams(b -> b.withKnownMemtables()
+                                       .withCaching()
+                                       .withCompaction()
+                                       .withCompression())
                      .withKeyspaceName(ks).withTableName("tbl")
                      .withSimpleColumnNames()
                      .withDefaultTypeGen(supportedTypes())

@@ -29,6 +29,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.NavigableSet;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.function.IntFunction;
@@ -52,9 +53,11 @@ import org.apache.cassandra.cql3.ast.Mutation;
 import org.apache.cassandra.cql3.ast.Select;
 import org.apache.cassandra.cql3.ast.StandardVisitors;
 import org.apache.cassandra.cql3.ast.Symbol;
+import org.apache.cassandra.cql3.ast.Value;
 import org.apache.cassandra.db.BufferClustering;
 import org.apache.cassandra.db.Clustering;
 import org.apache.cassandra.db.marshal.AbstractType;
+import org.apache.cassandra.db.marshal.Int32Type;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.harry.model.BytesPartitionState.PrimaryKey;
 import org.apache.cassandra.harry.util.StringUtils;
@@ -572,7 +575,7 @@ public class ASTSingleTableModel
     private SelectResult getRowsAsByteBuffer(Select select)
     {
         if (select.where.isEmpty())
-            return all();
+            return new SelectResult(getRowsAsByteBuffer(applyLimits(all(), select.perPartitionLimit, select.limit)), false);
         LookupContext ctx = context(select);
         List<PrimaryKey> primaryKeys;
         if (ctx.unmatchable)
@@ -598,11 +601,41 @@ public class ASTSingleTableModel
             // partial tested (handles many columns, tests are single column)
             primaryKeys = search(ctx);
         }
+        primaryKeys = applyLimits(primaryKeys, select.perPartitionLimit, select.limit);
         //TODO (correctness): now that we have the rows we need to handle the selections/aggregation/limit/group-by/etc.
         return new SelectResult(getRowsAsByteBuffer(primaryKeys), ctx.unordered);
     }
 
-    private SelectResult all()
+    private List<PrimaryKey> applyLimits(List<PrimaryKey> primaryKeys, Optional<Value> perPartitionLimitOpt, Optional<Value> limitOpt)
+    {
+        if (perPartitionLimitOpt.isPresent())
+        {
+            int limit = Int32Type.instance.compose(eval(perPartitionLimitOpt.get()));
+            var it = primaryKeys.iterator();
+            BytesPartitionState.Ref current = null;
+            int count = 0;
+            while (it.hasNext())
+            {
+                PrimaryKey next = it.next();
+                if (current == null || !current.equals(next.partition))
+                {
+                    current = next.partition;
+                    count = 0;
+                }
+                if (++count > limit)
+                    it.remove();
+            }
+        }
+        if (limitOpt.isPresent())
+        {
+            int limit = Int32Type.instance.compose(eval(limitOpt.get()));
+            if (primaryKeys.size() > limit)
+                primaryKeys = primaryKeys.subList(0, limit);
+        }
+        return primaryKeys;
+    }
+
+    private List<PrimaryKey> all()
     {
         List<PrimaryKey> primaryKeys = new ArrayList<>();
         for (var partition : partitions.values())
@@ -610,7 +643,7 @@ public class ASTSingleTableModel
             if (partition.staticOnly()) primaryKeys.add(partition.partitionRowRef());
             else partition.rows().stream().map(BytesPartitionState.Row::ref).forEach(primaryKeys::add);
         }
-        return new SelectResult(getRowsAsByteBuffer(primaryKeys), false);
+        return primaryKeys;
     }
 
     public ByteBuffer[][] getRowsAsByteBuffer(List<PrimaryKey> primaryKeys)

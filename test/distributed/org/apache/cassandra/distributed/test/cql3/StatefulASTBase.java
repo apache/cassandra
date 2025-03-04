@@ -99,8 +99,7 @@ public class StatefulASTBase extends TestBaseImpl
      */
     protected static boolean CQL_DEBUG_APPLY_OPERATOR = false;
 
-    protected static final Gen<Gen<Boolean>> BIND_OR_LITERAL_DISTRO = Gens.bools().mixedDistribution();
-    protected static final Gen<Gen<Boolean>> BETWEEN_EQ_DISTRO = Gens.bools().mixedDistribution();
+    protected static final Gen<Gen<Boolean>> BOOL_DISTRIBUTION = Gens.bools().mixedDistribution();
     protected static final Gen<Gen<Conditional.Where.Inequality>> LESS_THAN_DISTRO = Gens.mixedDistribution(Stream.of(Conditional.Where.Inequality.values())
                                                                                                                   .filter(i -> i == Conditional.Where.Inequality.LESS_THAN || i == Conditional.Where.Inequality.LESS_THAN_EQ)
                                                                                                                   .collect(Collectors.toList()));
@@ -196,6 +195,8 @@ public class StatefulASTBase extends TestBaseImpl
         protected final Session session;
         protected final Gen<Boolean> bindOrLiteralGen;
         protected final Gen<Boolean> betweenEqGen;
+        protected final Gen<Boolean> usePerPartitionLimitGen, useLimitGen;
+        protected final Gen.IntGen perPartitionLimitGen, limitGen;
         protected final Gen<Conditional.Where.Inequality> lessThanGen;
         protected final Gen<Conditional.Where.Inequality> greaterThanGen;
         protected final Gen<Conditional.Where.Inequality> rangeInequalityGen;
@@ -221,12 +222,15 @@ public class StatefulASTBase extends TestBaseImpl
             this.debug = CQL_DEBUG_APPLY_OPERATOR ? CompositeVisitor.of(StandardVisitors.APPLY_OPERATOR, StandardVisitors.DEBUG)
                                                   : StandardVisitors.DEBUG;
 
-            this.bindOrLiteralGen = BIND_OR_LITERAL_DISTRO.next(rs);
-            this.betweenEqGen = BETWEEN_EQ_DISTRO.next(rs);
+            this.bindOrLiteralGen = BOOL_DISTRIBUTION.next(rs);
+            this.betweenEqGen = BOOL_DISTRIBUTION.next(rs);
             this.lessThanGen = LESS_THAN_DISTRO.next(rs);
             this.greaterThanGen = GREATER_THAN_DISTRO.next(rs);
             this.rangeInequalityGen = RANGE_INEQUALITY_DISTRO.next(rs);
             this.fetchSizeGen = FETCH_SIZE_DISTRO.next(rs);
+            this.usePerPartitionLimitGen = BOOL_DISTRIBUTION.next(rs);
+            this.useLimitGen = BOOL_DISTRIBUTION.next(rs);
+            this.perPartitionLimitGen = this.limitGen = Gens.ints().between(1, 10);
 
             this.enoughMemtables = rs.pickInt(3, 10, 50);
             this.enoughSSTables = rs.pickInt(3, 10, 50);
@@ -260,18 +264,37 @@ public class StatefulASTBase extends TestBaseImpl
             return command(rs, select, null);
         }
 
+        protected boolean allowLimit()
+        {
+            return true;
+        }
+
+        protected boolean allowPerPartitionLimit()
+        {
+            return true;
+        }
+
+        protected boolean allowPaging()
+        {
+            return true;
+        }
+
         protected <S extends BaseState> Property.Command<S, Void, ?> command(RandomSource rs, Select select, @Nullable String annotate)
         {
+            if (allowPerPartitionLimit() && usePerPartitionLimitGen.next(rs))
+                select = select.withPerPartitionLimit(perPartitionLimitGen.nextInt(rs));
+            if (allowLimit() && useLimitGen.next(rs))
+                select = select.withLimit(limitGen.nextInt(rs));
             var inst = selectInstance(rs);
-            //TODO (coverage): don't limit this to all selects, only those doing range queries!
-            int fetchSize = fetchSizeGen.nextInt(rs);
+            int fetchSize = allowPaging() ? fetchSizeGen.nextInt(rs): Integer.MAX_VALUE;
             String postfix = "on " + inst;
             if (fetchSize != Integer.MAX_VALUE)
                 postfix += ", fetch size " + fetchSize;
             if (annotate == null) annotate = postfix;
             else                  annotate += ", " + postfix;
+            Select finalSelect = select;
             return new Property.SimpleCommand<>(humanReadable(select, annotate), s -> {
-                s.model.validate(s.executeQuery(inst, fetchSize, s.selectCl(), select), select);
+                s.model.validate(s.executeQuery(inst, fetchSize, s.selectCl(), finalSelect), finalSelect);
             });
         }
 
