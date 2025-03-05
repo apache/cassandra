@@ -1,4 +1,5 @@
 4.0.18
+ * Support null column value tombstones in FQL batch statements (CASSANDRA-20397)
 
 
 4.0.17
