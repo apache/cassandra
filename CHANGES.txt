@@ -1,4 +1,5 @@
 4.0.18
+ * Support null column value tombstones in FQL batch statements (CASSANDRA-20397)
  * Update Zstd library to 1.5.7-1 (CASSANDRA-20367)
  * Fix premature auto-failing of long-running repairs (CASSANDRA-20312)
 
