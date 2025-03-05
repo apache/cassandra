@@ -659,4 +659,22 @@ public interface GuardrailsMBean
      */
     void setMinimumReplicationFactorThreshold (int warn, int fail);
 
+    /**
+     * @return The threshold to warn when replication factor is greater than threshold.
+     */
+    int getMaximumReplicationFactorWarnThreshold();
+
+    /**
+     * @return The threshold to fail when replication factor is greater than threshold.
+     */
+    int getMaximumReplicationFactorFailThreshold();
+
+    /**
+     * @param warn the threshold to warn when the replication factor is greater than
+     *             threshold -1 means disabled.
+     * @param fail the threshold to fail when the replication factor is greater than
+     *             threshold -1 means disabled.
+     */
+    void setMaximumReplicationFactorThreshold (int warn, int fail);
+
 }

@@ -957,6 +957,13 @@ public class DatabaseDescriptor
                                                            conf.default_keyspace_rf, conf.minimum_replication_factor_fail_threshold));
         }
 
+        if (conf.maximum_replication_factor_fail_threshold > -1 &&
+            conf.default_keyspace_rf > conf.maximum_replication_factor_fail_threshold)
+        {
+            throw new ConfigurationException(String.format("default_keyspace_rf (%d) cannot be larger than maximum_replication_factor_fail_threshold (%d)",
+                                                           conf.default_keyspace_rf, conf.maximum_replication_factor_fail_threshold));
+        }
+
         if (conf.paxos_repair_parallelism <= 0)
             conf.paxos_repair_parallelism = Math.max(1, conf.concurrent_writes / 8);
 

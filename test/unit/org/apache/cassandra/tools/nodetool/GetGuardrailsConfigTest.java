@@ -83,6 +83,8 @@ public class GetGuardrailsConfigTest extends CQLTester
                                                "KeyspacesWarnThreshold: -1\n" +
                                                "MaterializedViewsPerTableFailThreshold: -1\n" +
                                                "MaterializedViewsPerTableWarnThreshold: -1\n" +
+                                               "MaximumReplicationFactorFailThreshold: -1\n" +
+                                               "MaximumReplicationFactorWarnThreshold: -1\n" +
                                                "MinimumReplicationFactorFailThreshold: -1\n" +
                                                "MinimumReplicationFactorWarnThreshold: -1\n" +
                                                "PageSizeFailThreshold: -1\n" +

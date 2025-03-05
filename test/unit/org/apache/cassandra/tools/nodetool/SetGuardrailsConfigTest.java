@@ -63,6 +63,7 @@ public class SetGuardrailsConfigTest extends CQLTester
                                                "setItemsPerCollectionThreshold\t[int, int]\n" +
                                                "setKeyspacesThreshold\t[int, int]\n" +
                                                "setMaterializedViewsPerTableThreshold\t[int, int]\n" +
+                                               "setMaximumReplicationFactorThreshold\t[int, int]\n" +
                                                "setMinimumReplicationFactorThreshold\t[int, int]\n" +
                                                "setPageSizeThreshold\t[int, int]\n" +
                                                "setPartitionKeysInSelectThreshold\t[int, int]\n" +
