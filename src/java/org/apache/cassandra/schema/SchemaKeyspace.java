@@ -128,6 +128,7 @@ public final class SchemaKeyspace
               + "additional_write_policy text,"
               + "cdc boolean,"
               + "read_repair text,"
+              + "auto_repair frozen<map<text, text>>,"
               + "PRIMARY KEY ((keyspace_name), table_name))");
 
     private static final TableMetadata Columns =
@@ -212,6 +213,7 @@ public final class SchemaKeyspace
               + "additional_write_policy text,"
               + "cdc boolean,"
               + "read_repair text,"
+              + "auto_repair frozen<map<text, text>>,"
               + "PRIMARY KEY ((keyspace_name), view_name))");
 
     private static final TableMetadata Indexes =
@@ -569,7 +571,7 @@ public final class SchemaKeyspace
         }
     }
 
-    private static void addTableParamsToRowBuilder(TableParams params, Row.SimpleBuilder builder)
+    public static void addTableParamsToRowBuilder(TableParams params, Row.SimpleBuilder builder)
     {
         builder.add("bloom_filter_fp_chance", params.bloomFilterFpChance)
                .add("comment", params.comment)
@@ -608,6 +610,13 @@ public final class SchemaKeyspace
         // incremental_backups is enabled, to avoid RTE in pre-4.2 versioned node during upgrades
         if (!params.incrementalBackups)
             builder.add("incremental_backups", false);
+
+        // As above, only add the auto_repair column if the scheduler is enabled
+        // to avoid RTE in pre-5.1 versioned node during upgrades
+        if (DatabaseDescriptor.getAutoRepairConfig().isAutoRepairSchedulingEnabled())
+        {
+            builder.add("auto_repair", params.autoRepair.asMap());
+        }
     }
 
     private static void addAlterTableToSchemaMutation(TableMetadata oldTable, TableMetadata newTable, Mutation.SimpleBuilder builder)
@@ -1079,6 +1088,12 @@ public final class SchemaKeyspace
         // incremental_backups column was introduced in 4.2
         if (row.has("incremental_backups"))
             builder.incrementalBackups(row.getBoolean("incremental_backups"));
+
+        // auto_repair column was introduced in 5.1
+        if (row.has("auto_repair"))
+        {
+            builder.automatedRepair(AutoRepairParams.fromMap(row.getFrozenTextMap("auto_repair")));
+        }
 
         return builder.build();
     }

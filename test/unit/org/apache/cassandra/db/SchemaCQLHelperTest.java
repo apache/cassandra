@@ -345,6 +345,7 @@ public class SchemaCQLHelperTest extends CQLTester
                             "    AND min_index_interval = 6\n" +
                             "    AND read_repair = 'BLOCKING'\n" +
                             "    AND speculative_retry = 'ALWAYS';"
+
                    ));
     }
 

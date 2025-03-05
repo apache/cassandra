@@ -113,6 +113,7 @@ import org.apache.cassandra.locator.ReconnectableSnitchHelper;
 import org.apache.cassandra.locator.SeedProvider;
 import org.apache.cassandra.locator.NodeProximity;
 import org.apache.cassandra.locator.SnitchAdapter;
+import org.apache.cassandra.repair.autorepair.AutoRepairConfig;
 import org.apache.cassandra.security.AbstractCryptoProvider;
 import org.apache.cassandra.security.EncryptionContext;
 import org.apache.cassandra.security.JREProvider;
@@ -4384,6 +4385,16 @@ public class DatabaseDescriptor
         conf.materialized_views_enabled = enableMaterializedViews;
     }
 
+    public static boolean isMaterializedViewsOnRepairEnabled()
+    {
+        return conf.materialized_views_on_repair_enabled;
+    }
+
+    public static void setMaterializedViewsOnRepairEnabled(boolean val)
+    {
+        conf.materialized_views_on_repair_enabled = val;
+    }
+
     public static boolean getSASIIndexesEnabled()
     {
         return conf.sasi_indexes_enabled;
@@ -5537,5 +5548,26 @@ public class DatabaseDescriptor
     public static void setPurgeableTobmstonesMetricGranularity(Config.TombstonesMetricGranularity granularity)
     {
         conf.tombstone_read_purgeable_metric_granularity = granularity;
+    }
+
+    public static AutoRepairConfig getAutoRepairConfig()
+    {
+        return conf.auto_repair;
+    }
+
+    public static double getIncrementalRepairDiskHeadroomRejectRatio()
+    {
+        return conf.incremental_repair_disk_headroom_reject_ratio;
+    }
+
+    public static void setIncrementalRepairDiskHeadroomRejectRatio(double value)
+    {
+        conf.incremental_repair_disk_headroom_reject_ratio = value;
+    }
+
+    @VisibleForTesting
+    public static void setPartitioner(String name)
+    {
+        partitioner = FBUtilities.newPartitioner(name);
     }
 }
