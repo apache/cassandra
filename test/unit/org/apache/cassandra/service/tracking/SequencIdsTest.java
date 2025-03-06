@@ -19,6 +19,8 @@ package org.apache.cassandra.service.tracking;
 
 import org.junit.Test;
 
+import org.apache.cassandra.db.MutationId;
+
 import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;

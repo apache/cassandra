@@ -15,76 +15,91 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package org.apache.cassandra.db;
 
 import java.io.IOException;
-import java.io.Serializable;
-import java.util.Objects;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicLong;
 
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.net.MessagingService;
-import org.apache.cassandra.schema.KeyspaceMetadata;
-import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableMetadata;
-import org.apache.cassandra.tcm.ClusterMetadata;
-import org.apache.cassandra.utils.Clock;
 
-public class MutationId implements Comparable<MutationId>, Serializable
+public class MutationId implements Comparable<MutationId>
 {
     private static final MutationId NONE = new MutationId(Integer.MIN_VALUE, Long.MIN_VALUE);
 
-    private static class LocalState
+    /**
+     * 4 byte TCM host id + 4 byte host log id packed into a long.
+     * Host log ID is unique within the host, allocated
+     * anew on host restart - one per token range replicated by the host,
+     * persisted on allocation, unique within the host.
+     */
+    public final long logId;
+
+    /**
+     * 4 byte offset + 4 byte timestamp packed into a long.
+     * Offest is incremented, the timestamp is monotonically non-decreasing.
+     * The offset alone is sufficient to identify the entry within a coordinator
+     * log, the timestamp is added for correlation purposes.
+     */
+    public final long sequenceId;
+
+    public MutationId(long logId, long sequenceId)
     {
-        private final int node = ClusterMetadata.current().myNodeId().id();
-        private final AtomicLong lastTimestamp = new AtomicLong();
-        private LocalState() {}
+        this.logId = logId;
+        this.sequenceId = sequenceId;
     }
 
-    private static class Holder
+    public long logId()
     {
-        private static final LocalState instance = new LocalState();
+        return logId;
     }
 
-    public final int node;
-    public final long timestamp;
-
-    private MutationId(int node, long timestamp)
+    public int hostId()
     {
-        this.node = node;
-        this.timestamp = timestamp;
+        return (int) (0xffffffffL & (logId >> 32));
     }
 
-    public boolean isNone()
+    public int hostLogId()
     {
-        return node == Integer.MIN_VALUE && timestamp == Long.MIN_VALUE;
+        return (int) (0xffffffffL & logId);
     }
 
-    @Override
-    public int compareTo(MutationId o)
+    public long sequenceId()
     {
-        int cmp = Long.compare(timestamp, o.timestamp);
-        if (cmp != 0)
-            return cmp;
-
-        return Integer.compare(node, o.node);
+        return sequenceId;
     }
 
-
-    public static MutationId create(int node, long timestamp)
+    public int offset()
     {
-        if (node == Integer.MIN_VALUE && timestamp == Long.MIN_VALUE)
-            return none();
-        return new MutationId(node, timestamp);
+        return offset(sequenceId);
+    }
+
+    public int timestamp()
+    {
+        return timestamp(sequenceId);
+    }
+
+    public static long sequenceId(int offset, int timestamp)
+    {
+        return ((long) offset << 32) | timestamp;
+    }
+
+    public static int offset(long sequenceId)
+    {
+        return (int) (0xffffffffL & (sequenceId >> 32));
+    }
+
+    public static int timestamp(long sequenceId)
+    {
+        return (int) (0xffffffffL & sequenceId);
     }
 
     // FIXME: used in place of figuring out if we should use a mutation id or not
     public static MutationId fixme()
     {
+        // FIXME: remove after the refactor
         return none();
     }
 
@@ -93,34 +108,27 @@ public class MutationId implements Comparable<MutationId>, Serializable
         return NONE;
     }
 
+    public boolean isNone()
+    {
+        return logId == Long.MIN_VALUE && sequenceId == Long.MIN_VALUE;
+    }
+
     public static MutationId createNext()
     {
-        LocalState state = Holder.instance;
-        long timestamp = TimeUnit.MILLISECONDS.toMicros(Clock.Global.currentTimeMillis());
-        while (true)
-        {
-            long lastMicros = state.lastTimestamp.get();
-            if (timestamp <= lastMicros)
-                timestamp = lastMicros + 1;
-
-            if (state.lastTimestamp.compareAndSet(lastMicros, timestamp))
-                return new MutationId(state.node, timestamp);
-        }
+        // FIXME: remove after the refactor
+        throw new UnsupportedOperationException();
     }
 
-    public static MutationId createFor(KeyspaceMetadata metadata)
+    public static MutationId createFor(TableMetadata table)
     {
-        return metadata.hasLoggedReplication() ? createNext() : none();
+        // FIXME: remove after the refactor
+        throw new UnsupportedOperationException();
     }
 
-    public static MutationId createForKeyspace(String keyspace)
+    public static MutationId createForKeyspace(String keyspaceName)
     {
-        return createFor(Schema.instance.getKeyspaceMetadata(keyspace));
-    }
-
-    public static MutationId createFor(TableMetadata metadata)
-    {
-        return metadata.hasLoggedReplication() ? createNext() : none();
+        // FIXME: remove after the refactor
+        throw new UnsupportedOperationException();
     }
 
     public static MutationId minNotNone(MutationId l, MutationId r)
@@ -134,23 +142,29 @@ public class MutationId implements Comparable<MutationId>, Serializable
     @Override
     public boolean equals(Object o)
     {
-        if (o == null || getClass() != o.getClass()) return false;
-        MutationId id = (MutationId) o;
-        return node == id.node && timestamp == id.timestamp;
+        if (this == o) return true;
+        if (!(o instanceof MutationId)) return false;
+        MutationId that = (MutationId) o;
+        return this.logId == that.logId && this.sequenceId == that.sequenceId;
     }
 
     @Override
     public int hashCode()
     {
-        return Objects.hash(node, timestamp);
+        return Long.hashCode(logId) + 31 * Long.hashCode(sequenceId);
     }
 
     @Override
     public String toString()
     {
-        if (isNone())
-            return "MutationId{NONE}";
-        return "MutationId{" + node + ':' + timestamp + '}';
+        return "MutationId{" + logId + ", " + sequenceId + '}';
+    }
+
+    @Override
+    public int compareTo(MutationId that)
+    {
+        int cmp = Long.compare(this.logId, that.logId);
+        return cmp != 0 ? cmp : Long.compare(this.sequenceId, that.sequenceId);
     }
 
     public static final IVersionedSerializer<MutationId> serializer = new IVersionedSerializer<>()
@@ -161,17 +175,19 @@ public class MutationId implements Comparable<MutationId>, Serializable
             if (version < MessagingService.VERSION_52)
                 return;
 
-            out.writeInt(id.node);
-            out.writeLong(id.timestamp);
+            out.writeLong(id.logId());
+            out.writeLong(id.sequenceId());
         }
 
         @Override
         public MutationId deserialize(DataInputPlus in, int version) throws IOException
         {
             if (version < MessagingService.VERSION_52)
-                return MutationId.none();
+                return none();
 
-            return create(in.readInt(), in.readLong());
+            long logId = in.readLong();
+            long sequenceId = in.readLong();
+            return new MutationId(logId, sequenceId);
         }
 
         @Override
@@ -180,7 +196,7 @@ public class MutationId implements Comparable<MutationId>, Serializable
             if (version < MessagingService.VERSION_52)
                 return 0;
 
-            return TypeSizes.sizeof(id.node) + TypeSizes.sizeof(id.timestamp);
+            return TypeSizes.sizeof(id.logId()) + TypeSizes.sizeof(id.sequenceId());
         }
     };
 }

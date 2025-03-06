@@ -19,8 +19,8 @@ package org.apache.cassandra.service.tracking;
 
 import java.util.Arrays;
 
-import static org.apache.cassandra.service.tracking.MutationId.offset;
-import static org.apache.cassandra.service.tracking.MutationId.timestamp;
+import static org.apache.cassandra.db.MutationId.offset;
+import static org.apache.cassandra.db.MutationId.timestamp;
 
 public class SequenceIds
 {

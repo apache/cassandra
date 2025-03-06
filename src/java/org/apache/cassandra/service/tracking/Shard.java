@@ -20,6 +20,7 @@ package org.apache.cassandra.service.tracking;
 import java.util.function.IntSupplier;
 
 import org.apache.cassandra.db.Mutation;
+import org.apache.cassandra.db.MutationId;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.service.tracking.CoordinatorLog.CoordinatorLogPrimary;
