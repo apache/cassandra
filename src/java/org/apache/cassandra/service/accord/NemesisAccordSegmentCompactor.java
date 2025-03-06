@@ -30,7 +30,9 @@ import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.SSTableTxnWriter;
 
 /**
+ * Nemesis compactor: a compactor that will distribute your keys over a large(r) number of SSTables.
  *
+ * For testing purposes only.
  */
 public class NemesisAccordSegmentCompactor<V> extends AbstractAccordSegmentCompactor<V>
 {
@@ -66,8 +68,7 @@ public class NemesisAccordSegmentCompactor<V> extends AbstractAccordSegmentCompa
         {
             Descriptor descriptor = cfs.newSSTableDescriptor(cfs.getDirectories().getDirectoryForNewSSTables());
             SerializationHeader header = new SerializationHeader(true, cfs.metadata(), cfs.metadata().regularAndStaticColumns(), EncodingStats.NO_STATS);
-            SSTableTxnWriter writer = SSTableTxnWriter.create(cfs, descriptor, 0, 0, null, false, header);
-            writers[i] = writer;
+            writers[i] = SSTableTxnWriter.create(cfs, descriptor, 0, 0, null, false, header);
         }
     }
 

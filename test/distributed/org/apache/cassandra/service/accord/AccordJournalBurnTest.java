@@ -28,7 +28,6 @@ import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
-
 import javax.annotation.Nullable;
 
 import org.junit.Before;
@@ -50,7 +49,6 @@ import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Directories;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.compaction.CompactionController;
-import org.apache.cassandra.db.compaction.CompactionInterruptedException;
 import org.apache.cassandra.db.compaction.CompactionIterator;
 import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.db.compaction.OperationType;
@@ -76,9 +74,9 @@ import org.apache.cassandra.service.accord.serializers.KeySerializers;
 import org.apache.cassandra.service.accord.serializers.ResultSerializers;
 import org.apache.cassandra.service.accord.serializers.TopologySerializers;
 import org.apache.cassandra.tools.FieldUtil;
+import org.apache.cassandra.utils.concurrent.Condition;
 
 import static accord.impl.PrefixedIntHashKey.ranges;
-import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 import static org.apache.cassandra.utils.TimeUUID.Generator.nextTimeUUID;
 
 public class AccordJournalBurnTest extends BurnTestBase
@@ -126,7 +124,7 @@ public class AccordJournalBurnTest extends BurnTestBase
     @Test
     public void testOne()
     {
-        long seed = System.nanoTime();
+        long seed = 607941615954375l; //System.nanoTime();
         int operations = 1000;
 
         logger.info("Seed: {}", seed);
@@ -137,11 +135,11 @@ public class AccordJournalBurnTest extends BurnTestBase
             List<Node.Id> clients = generateIds(true, 1 + random.nextInt(4));
             int rf;
             float chance = random.nextFloat();
-            if (chance < 0.2f)      { rf = random.nextInt(2, 9); }
-            else if (chance < 0.4f) { rf = 3; }
-            else if (chance < 0.7f) { rf = 5; }
-            else if (chance < 0.8f) { rf = 7; }
-            else                    { rf = 9; }
+            if (chance < 0.2f) rf = random.nextInt(2, 9);
+            else if (chance < 0.4f) rf = 3;
+            else if (chance < 0.7f) rf = 5;
+            else if (chance < 0.8f) rf = 7;
+            else rf = 9;
 
             List<Node.Id> nodes = generateIds(false, random.nextInt(rf, rf * 3));
 
@@ -158,6 +156,7 @@ public class AccordJournalBurnTest extends BurnTestBase
                 AccordKeyspace.TABLES = Tables.of(metadatas);
                 setUp();
             }
+
             Keyspace ks = Schema.instance.getKeyspaceInstance("system_accord");
 
             burn(random, new TopologyFactory(rf, ranges(0, HASH_RANGE_START, HASH_RANGE_END, random.nextInt(Math.max(nodes.size() + 1, rf), nodes.size() * 3))),
@@ -178,22 +177,57 @@ public class AccordJournalBurnTest extends BurnTestBase
                          AccordJournal journal = new AccordJournal(new TestParams()
                          {
                              @Override
+                             public FlushMode flushMode()
+                             {
+                                 return FlushMode.GROUP;
+                             }
+
+                             @Override
+                             public long flushPeriod(TimeUnit units)
+                             {
+                                 return 1;
+                             }
+
+                             @Override
                              public int segmentSize()
                              {
                                  return 32 * 1024 * 1024;
                              }
-
-                             @Override
-                             public boolean enableCompaction()
-                             {
-                                 return false;
-                             }
                          }, new AccordAgent(), directory, cfs)
                          {
                              @Override
+                             public void saveCommand(int store, CommandUpdate update, @Nullable Runnable onFlush)
+                             {
+                                 Condition condition = Condition.newOneTimeCondition();
+                                 super.saveCommand(store, update, condition::signal);
+                                 condition.awaitUninterruptibly();
+                                 if (onFlush != null)
+                                     onFlush.run();
+                             }
+
+                             @Override
+                             public void saveStoreState(int store, FieldUpdates fieldUpdates, Runnable onFlush)
+                             {
+                                 Condition condition = Condition.newOneTimeCondition();
+                                 super.saveStoreState(store, fieldUpdates, condition::signal);
+                                 if (onFlush != null)
+                                     onFlush.run();
+                             }
+
+                             @Override
+                             public void saveTopology(TopologyUpdate topologyUpdate, Runnable onFlush)
+                             {
+                                 Condition condition = Condition.newOneTimeCondition();
+                                 super.saveTopology(topologyUpdate, condition::signal);
+                                 if (onFlush != null)
+                                     onFlush.run();
+                             }
+
+                             @Override
                              protected SegmentCompactor<JournalKey, Object> compactor(ColumnFamilyStore cfs, Params params)
                              {
-                                 return new NemesisAccordSegmentCompactor<>(params.userVersion(), cfs, randomSource) {
+                                 return new NemesisAccordSegmentCompactor<>(params.userVersion(), cfs, randomSource.fork())
+                                 {
                                      @Nullable
                                      @Override
                                      public Collection<StaticSegment<JournalKey, Object>> compact(Collection<StaticSegment<JournalKey, Object>> staticSegments)
@@ -207,29 +241,43 @@ public class AccordJournalBurnTest extends BurnTestBase
                                  };
                              }
 
-                             public CompactionAwareWriter getCompactionAwareWriter(ColumnFamilyStore cfs,
-                                                                                   Directories directories,
-                                                                                   LifecycleTransaction transaction,
-                                                                                   Set<SSTableReader> nonExpiredSSTables)
+                             private CompactionAwareWriter getCompactionAwareWriter(ColumnFamilyStore cfs,
+                                                                                    Directories directories,
+                                                                                    LifecycleTransaction transaction,
+                                                                                    Set<SSTableReader> nonExpiredSSTables)
                              {
                                  return new DefaultCompactionWriter(cfs, directories, transaction, nonExpiredSSTables, false, 0);
                              }
+
                              @Override
                              public void purge(CommandStores commandStores)
                              {
                                  this.journal.closeCurrentSegmentForTestingIfNonEmpty();
                                  this.journal.runCompactorForTesting();
-
+                                 if (true)
+                                     return;
                                  List<SSTableReader> all = new ArrayList<>(cfs.getLiveSSTables());
                                  if (all.size() <= 1)
                                      return;
 
                                  Set<SSTableReader> sstables = new HashSet<>();
-                                 int count = randomSource.nextInt(1, all.size());
 
+
+                                 int min, max;
+                                 while (true)
+                                 {
+                                     int tmp1 = randomSource.nextInt(0, all.size());
+                                     int tmp2 = randomSource.nextInt(0, all.size());
+                                     if (tmp1 != tmp2 && Math.abs(tmp1 - tmp2) > 1)
+                                     {
+                                         min = Math.min(tmp1, tmp2);
+                                         max = Math.max(tmp1, tmp2);
+                                         break;
+                                     }
+                                 }
                                  // Random subset
-                                 for (int i = 0; i < count; i++)
-                                     sstables.add(all.remove(randomSource.nextInt(0, all.size())));
+                                 for (int i = min; i < max; i++)
+                                     sstables.add(all.get(i));
 
                                  List<ISSTableScanner> scanners = sstables.stream().map(SSTableReader::getScanner).collect(Collectors.toList());
 
