@@ -15,6 +15,7 @@ Merged from 4.0:
  * Equality check for Paxos.Electorate should not depend on collection types (CASSANDRA-19935)
  * Fix race condition in DecayingEstimatedHistogramReservoir during rescale (CASSANDRA-19365)
 Merged from 4.0:
+ * Support null column value tombstones in FQL batch statements (CASSANDRA-20397)
  * Tighten up permissions in dc authorizers (CASSANDRA-20225)
  * CBUtil serialization of UTF8 does not handle all UTF8 properly (CASSANDRA-20234)
  * Make hint expiry use request start time rather than timeout time for TTL (CASSANDRA-20014)

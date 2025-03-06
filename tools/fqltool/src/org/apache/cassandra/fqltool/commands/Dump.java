@@ -126,7 +126,7 @@ public class Dump implements Runnable
                     break;
 
                 case (FullQueryLogger.BATCH):
-                    dumpBatch(options, wireIn, sb);
+                    dumpBatch(wireIn, sb);
                     break;
 
                 default:
@@ -183,7 +183,7 @@ public class Dump implements Runnable
         sb.append(System.lineSeparator());
     }
 
-    private static void dumpBatch(QueryOptions options, WireIn wireIn, StringBuilder sb)
+    private static void dumpBatch(WireIn wireIn, StringBuilder sb)
     {
         sb.append("Batch type: ")
           .append(wireIn.read(FullQueryLogger.BATCH_TYPE).text())
@@ -203,7 +203,10 @@ public class Dump implements Runnable
             int numSubValues = in.int32();
             List<ByteBuffer> subValues = new ArrayList<>(numSubValues);
             for (int j = 0; j < numSubValues; j++)
-                subValues.add(ByteBuffer.wrap(in.bytes()));
+            {
+                byte[] valueBytes = in.bytes();
+                subValues.add(valueBytes == null ? null : ByteBuffer.wrap(valueBytes));
+            }
 
             sb.append("Query: ")
               .append(queries.get(i))
