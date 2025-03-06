@@ -89,7 +89,7 @@ public class AutoRepair
     protected final Map<AutoRepairConfig.RepairType, ScheduledExecutorPlus> repairRunnableExecutors;
 
     @VisibleForTesting
-    protected final Map<AutoRepairConfig.RepairType, AutoRepairState> repairStates;
+    public final Map<AutoRepairConfig.RepairType, AutoRepairState> repairStates;
 
     @VisibleForTesting
     // Auto-repair is likely to be run on multiple nodes independently, we want to avoid running multiple repair
