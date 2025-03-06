@@ -18,9 +18,18 @@
 
 package org.apache.cassandra.service.accord;
 
+import java.io.IOException;
 import java.nio.file.Files;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.stream.Collectors;
+
+import javax.annotation.Nullable;
 
 import org.junit.Before;
 import org.junit.Test;
@@ -38,9 +47,23 @@ import accord.utils.DefaultRandom;
 import accord.utils.RandomSource;
 import org.apache.cassandra.ServerTestUtils;
 import org.apache.cassandra.db.ColumnFamilyStore;
+import org.apache.cassandra.db.Directories;
 import org.apache.cassandra.db.Keyspace;
+import org.apache.cassandra.db.compaction.CompactionController;
+import org.apache.cassandra.db.compaction.CompactionInterruptedException;
+import org.apache.cassandra.db.compaction.CompactionIterator;
+import org.apache.cassandra.db.compaction.CompactionManager;
+import org.apache.cassandra.db.compaction.OperationType;
+import org.apache.cassandra.db.compaction.writers.CompactionAwareWriter;
+import org.apache.cassandra.db.compaction.writers.DefaultCompactionWriter;
+import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
 import org.apache.cassandra.dht.Murmur3Partitioner;
+import org.apache.cassandra.io.sstable.ISSTableScanner;
+import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.util.File;
+import org.apache.cassandra.journal.Params;
+import org.apache.cassandra.journal.SegmentCompactor;
+import org.apache.cassandra.journal.StaticSegment;
 import org.apache.cassandra.journal.TestParams;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableMetadata;
@@ -55,6 +78,8 @@ import org.apache.cassandra.service.accord.serializers.TopologySerializers;
 import org.apache.cassandra.tools.FieldUtil;
 
 import static accord.impl.PrefixedIntHashKey.ranges;
+import static org.apache.cassandra.utils.Clock.Global.nanoTime;
+import static org.apache.cassandra.utils.TimeUUID.Generator.nextTimeUUID;
 
 public class AccordJournalBurnTest extends BurnTestBase
 {
@@ -143,7 +168,7 @@ public class AccordJournalBurnTest extends BurnTestBase
                  operations,
                  10 + random.nextInt(30),
                  new RandomDelayQueue.Factory(random).get(),
-                 (node, agent) -> {
+                 (node, agent, randomSource) -> {
                      try
                      {
                          File directory = new File(Files.createTempDirectory(Integer.toString(counter.incrementAndGet())));
@@ -165,6 +190,80 @@ public class AccordJournalBurnTest extends BurnTestBase
                              }
                          }, new AccordAgent(), directory, cfs)
                          {
+                             @Override
+                             protected SegmentCompactor<JournalKey, Object> compactor(ColumnFamilyStore cfs, Params params)
+                             {
+                                 return new NemesisAccordSegmentCompactor<>(params.userVersion(), cfs, randomSource) {
+                                     @Nullable
+                                     @Override
+                                     public Collection<StaticSegment<JournalKey, Object>> compact(Collection<StaticSegment<JournalKey, Object>> staticSegments)
+                                     {
+                                         if (journalTable == null)
+                                             throw new IllegalStateException("Unsafe access to AccordJournal during <init>; journalTable was touched before it was published");
+                                         Collection<StaticSegment<JournalKey, Object>> result = super.compact(staticSegments);
+                                         journalTable.safeNotify(index -> index.remove(staticSegments));
+                                         return result;
+                                     }
+                                 };
+                             }
+
+                             public CompactionAwareWriter getCompactionAwareWriter(ColumnFamilyStore cfs,
+                                                                                   Directories directories,
+                                                                                   LifecycleTransaction transaction,
+                                                                                   Set<SSTableReader> nonExpiredSSTables)
+                             {
+                                 return new DefaultCompactionWriter(cfs, directories, transaction, nonExpiredSSTables, false, 0);
+                             }
+                             @Override
+                             public void purge(CommandStores commandStores)
+                             {
+                                 this.journal.closeCurrentSegmentForTestingIfNonEmpty();
+                                 this.journal.runCompactorForTesting();
+
+                                 List<SSTableReader> all = new ArrayList<>(cfs.getLiveSSTables());
+                                 if (all.size() <= 1)
+                                     return;
+
+                                 Set<SSTableReader> sstables = new HashSet<>();
+                                 int count = randomSource.nextInt(1, all.size());
+
+                                 // Random subset
+                                 for (int i = 0; i < count; i++)
+                                     sstables.add(all.remove(randomSource.nextInt(0, all.size())));
+
+                                 List<ISSTableScanner> scanners = sstables.stream().map(SSTableReader::getScanner).collect(Collectors.toList());
+
+                                 Collection<SSTableReader> newSStables;
+
+                                 try (LifecycleTransaction txn = cfs.getTracker().tryModify(sstables, OperationType.COMPACTION);
+                                      CompactionController controller = new CompactionController(cfs, sstables, 0);
+                                      CompactionIterator ci = new CompactionIterator(OperationType.COMPACTION, scanners, controller, 0, nextTimeUUID()))
+                                 {
+                                     CompactionManager.instance.active.beginCompaction(ci);
+                                     try (CompactionAwareWriter writer = getCompactionAwareWriter(cfs, cfs.getDirectories(), txn, sstables))
+                                     {
+                                         while (ci.hasNext())
+                                         {
+                                             writer.append(ci.next());
+                                             ci.setTargetDirectory(writer.getSStableDirectory().path());
+                                         }
+
+                                         // point of no return
+                                         newSStables = writer.finish();
+                                     }
+                                     catch (IOException e)
+                                     {
+                                         throw new RuntimeException(e);
+                                     }
+                                     finally
+                                     {
+                                         CompactionManager.instance.active.finishCompaction(ci);
+                                     }
+                                 }
+                             }
+
+
+                             @Override
                              public void replay(CommandStores commandStores)
                              {
                                  closeCurrentSegmentForTestingIfNonEmpty();

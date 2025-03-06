@@ -38,6 +38,7 @@ import accord.impl.TestAgent;
 import accord.impl.basic.InMemoryJournal;
 import accord.local.Node.Id;
 import accord.topology.Topology;
+import accord.utils.DefaultRandom;
 import accord.utils.SortedArrays.SortedArrayList;
 import accord.utils.async.AsyncResult;
 import org.agrona.collections.Int2ObjectHashMap;
@@ -206,7 +207,7 @@ public class AccordConfigurationServiceTest
     {
         ValidatingClusterMetadataService cms = ValidatingClusterMetadataService.createAndRegister(Version.MIN_ACCORD_VERSION);
 
-        InMemoryJournal journal = new InMemoryJournal(ID1, new TestAgent());
+        InMemoryJournal journal = new InMemoryJournal(ID1, new TestAgent(), new DefaultRandom());
         AccordConfigurationService service = new AccordConfigurationService(ID1, new Messaging(), new MockFailureDetector(), AccordConfigurationService.SystemTableDiskStateManager.instance, ScheduledExecutors.scheduledTasks);
         TestListener listener = new TestListener(service, true) {
             @Override
@@ -258,7 +259,7 @@ public class AccordConfigurationServiceTest
     public void truncateTest()
     {
         ValidatingClusterMetadataService cms = ValidatingClusterMetadataService.createAndRegister(Version.MIN_ACCORD_VERSION);
-        InMemoryJournal journal = new InMemoryJournal(ID1, new TestAgent());
+        InMemoryJournal journal = new InMemoryJournal(ID1, new TestAgent(), new DefaultRandom());
         AccordConfigurationService service = new AccordConfigurationService(ID1, new Messaging(), new MockFailureDetector(), AccordConfigurationService.SystemTableDiskStateManager.instance, ScheduledExecutors.scheduledTasks);
         TestListener serviceListener = new TestListener(service, true) {
             @Override
