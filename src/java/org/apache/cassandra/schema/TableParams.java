@@ -320,7 +320,7 @@ public final class TableParams
                .append("AND read_repair = ").appendWithSingleQuotes(readRepair.toString())
                .newLine()
                .append("AND speculative_retry = ").appendWithSingleQuotes(speculativeRetry.toString());
-        if (DatabaseDescriptor.getAutoRepairConfig().isAutoRepairSchedulingEnabled())
+        if (DatabaseDescriptor.getRawConfig() != null && DatabaseDescriptor.getAutoRepairConfig().isAutoRepairSchedulingEnabled())
         {
             builder.newLine()
                 .append("AND auto_repair = ").append(autoRepair.asMap());
