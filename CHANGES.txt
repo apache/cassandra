@@ -3,6 +3,8 @@
  * Fix WaitQueue.Signal.awaitUninterruptibly may block forever if invoking thread is interrupted (CASSANDRA-20084)
 Merged from 4.0:
  * Fix autocompletion for role names/user names (CASSANDRA-20175)
+ * Update Zstd library to 1.5.7-1 (CASSANDRA-20367)
+ * Fix premature auto-failing of long-running repairs (CASSANDRA-20312)
 
 
 4.1.8
