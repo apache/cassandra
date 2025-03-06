@@ -23,7 +23,6 @@ import java.util.Map;
 import java.util.Set;
 
 import org.apache.cassandra.cql3.constraints.ConstraintViolationException;
-import org.apache.cassandra.cql3.constraints.InvalidConstraintDefinitionException;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.junit.Test;
 
