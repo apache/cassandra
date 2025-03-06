@@ -421,7 +421,7 @@ public final class TableParams
         }
 
         builder.append("AND speculative_retry = ").appendWithSingleQuotes(speculativeRetry.toString());
-        if (DatabaseDescriptor.getAutoRepairConfig().isAutoRepairSchedulingEnabled())
+        if (DatabaseDescriptor.getRawConfig() != null && DatabaseDescriptor.getAutoRepairConfig().isAutoRepairSchedulingEnabled())
         {
             builder.newLine()
                 .append("AND auto_repair = ").append(autoRepair.asMap());
