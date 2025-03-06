@@ -22,9 +22,11 @@ import java.io.IOException;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
 import java.util.UUID;
+import java.util.concurrent.TimeUnit;
 
 import com.google.common.collect.ImmutableMap;
 
+import org.apache.cassandra.Util;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.schema.SystemDistributedKeyspace;
 
@@ -40,6 +42,7 @@ import org.apache.cassandra.repair.autorepair.AutoRepairConfig;
 import org.apache.cassandra.service.AutoRepairService;
 
 import static org.apache.cassandra.schema.SchemaConstants.DISTRIBUTED_KEYSPACE_NAME;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.junit.Assert.assertEquals;
 
 /**
@@ -111,23 +114,11 @@ public class AutoRepairSchedulerTest extends TestBaseImpl
         cluster.forEach(i -> i.runOnInstance(() -> {
             try
             {
-                while(true)
-                {
-                    if (AutoRepair.instance.repairStates.get(AutoRepairConfig.RepairType.FULL).getLastRepairTime() == 0
-                        || AutoRepair.instance.repairStates.get(AutoRepairConfig.RepairType.INCREMENTAL).getLastRepairTime() == 0)
-                    {
-                        try
-                        {
-                            Thread.sleep(5000);
-                        }
-                        catch (InterruptedException e)
-                        {
-                            throw new RuntimeException(e);
-                        }
-                        continue;
-                    }
-                    break;
-                }
+                Util.spinAssert("AutoRepair has not yet completed one repair cycle",
+                                greaterThan(0L),
+                                AutoRepair.instance.repairStates.get(AutoRepairConfig.RepairType.FULL)::getLastRepairTime,
+                                5,
+                                TimeUnit.MINUTES);
             }
             catch (Exception e)
             {
