@@ -728,9 +728,9 @@ public abstract class AlterTableStatement extends AlterSchemaStatement
         public KeyspaceMetadata apply(Epoch epoch, KeyspaceMetadata keyspace, TableMetadata table, ClusterMetadata metadata)
         {
 
-            if (table.containtsColumn(columnName))
+            ColumnMetadata column = table.getColumn(columnName);
+            if (column != null)
             {
-                ColumnMetadata column = table.getColumn(columnName);
                 ColumnConstraints oldConstraints = column.getColumnConstraints();
                 ColumnConstraints newConstraints = constraints == null ? ColumnConstraints.NO_OP : constraints.prepare();
                 if (Objects.equals(oldConstraints, newConstraints))
