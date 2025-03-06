@@ -18,17 +18,20 @@
 package org.apache.cassandra.service.tracking;
 
 import java.util.Comparator;
+import java.util.SortedSet;
+import java.util.TreeSet;
 
 import org.agrona.collections.Long2ObjectHashMap;
 import org.agrona.collections.LongArrayList;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
-import org.apache.cassandra.utils.btree.BTreeSet;
 
 class IdTokenIndex
 {
     private final Long2ObjectHashMap<Token> idToToken = new Long2ObjectHashMap<>();
-    private final BTreeSet<Entry> tokenToIds = BTreeSet.empty(Entry.comparator);
+    // FIXME: BTreeSet is missing some methods used by this class.
+//    private final BTreeSet<Entry> tokenToIds = BTreeSet.empty(Entry.comparator);
+    private final SortedSet<Entry> tokenToIds = new TreeSet<>(Entry.comparator);
 
     private static final class Entry
     {
