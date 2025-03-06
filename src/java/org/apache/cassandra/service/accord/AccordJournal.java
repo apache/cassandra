@@ -63,6 +63,7 @@ import org.apache.cassandra.journal.Compactor;
 import org.apache.cassandra.journal.Journal;
 import org.apache.cassandra.journal.Params;
 import org.apache.cassandra.journal.RecordPointer;
+import org.apache.cassandra.journal.SegmentCompactor;
 import org.apache.cassandra.journal.StaticSegment;
 import org.apache.cassandra.journal.ValueSerializer;
 import org.apache.cassandra.net.MessagingService;
@@ -78,7 +79,9 @@ import org.apache.cassandra.service.accord.serializers.WaitingOnSerializer;
 import org.apache.cassandra.utils.CloseableIterator;
 import org.apache.cassandra.utils.ExecutorUtils;
 
+import static accord.impl.CommandChange.Field.CLEANUP;
 import static accord.impl.CommandChange.anyFieldChanged;
+import static accord.impl.CommandChange.describeFlags;
 import static accord.impl.CommandChange.getFlags;
 import static accord.impl.CommandChange.isChanged;
 import static accord.impl.CommandChange.isNull;
@@ -100,8 +103,10 @@ public class AccordJournal implements accord.api.Journal, RangeSearcher.Supplier
 
     static final ThreadLocal<byte[]> keyCRCBytes = ThreadLocal.withInitial(() -> new byte[JournalKeySupport.TOTAL_SIZE]);
 
-    private final Journal<JournalKey, Object> journal;
-    private final AccordJournalTable<JournalKey, Object> journalTable;
+    @VisibleForTesting
+    protected final Journal<JournalKey, Object> journal;
+    @VisibleForTesting
+    protected final AccordJournalTable<JournalKey, Object> journalTable;
     private final Params params;
     private final AccordAgent agent;
     Node node;
@@ -118,18 +123,6 @@ public class AccordJournal implements accord.api.Journal, RangeSearcher.Supplier
     public AccordJournal(Params params, AccordAgent agent, File directory, ColumnFamilyStore cfs)
     {
         this.agent = agent;
-        AccordSegmentCompactor<Object> compactor = new AccordSegmentCompactor<>(params.userVersion(), cfs) {
-            @Nullable
-            @Override
-            public Collection<StaticSegment<JournalKey, Object>> compact(Collection<StaticSegment<JournalKey, Object>> staticSegments)
-            {
-                if (journalTable == null)
-                    throw new IllegalStateException("Unsafe access to AccordJournal during <init>; journalTable was touched before it was published");
-                Collection<StaticSegment<JournalKey, Object>> result = super.compact(staticSegments);
-                journalTable.safeNotify(index -> index.remove(staticSegments));
-                return result;
-            }
-        };
         this.journal = new Journal<>("AccordJournal", directory, params, JournalKey.SUPPORT,
                                      // In Accord, we are using streaming serialization, i.e. Reader/Writer interfaces instead of materializing objects
                                      new ValueSerializer<>()
@@ -146,9 +139,25 @@ public class AccordJournal implements accord.api.Journal, RangeSearcher.Supplier
                                              throw new UnsupportedOperationException();
                                          }
                                      },
-                                     compactor);
+                                     compactor(cfs, params));
         this.journalTable = new AccordJournalTable<>(journal, JournalKey.SUPPORT, cfs, params.userVersion());
         this.params = params;
+    }
+
+    protected SegmentCompactor<JournalKey, Object> compactor(ColumnFamilyStore cfs, Params params)
+    {
+        return new AccordSegmentCompactor<>(params.userVersion(), cfs) {
+            @Nullable
+            @Override
+            public Collection<StaticSegment<JournalKey, Object>> compact(Collection<StaticSegment<JournalKey, Object>> staticSegments)
+            {
+                if (journalTable == null)
+                    throw new IllegalStateException("Unsafe access to AccordJournal during <init>; journalTable was touched before it was published");
+                Collection<StaticSegment<JournalKey, Object>> result = super.compact(staticSegments);
+                journalTable.safeNotify(index -> index.remove(staticSegments));
+                return result;
+            }
+        };
     }
 
     @VisibleForTesting
@@ -594,6 +603,12 @@ public class AccordJournal implements accord.api.Journal, RangeSearcher.Supplier
         {
             return hasField(Field.PARTICIPANTS);
         }
+
+        @Override
+        public String toString()
+        {
+            return after.saveStatus() + " " + describeFlags(flags);
+        }
     }
 
     public static class Builder extends CommandChange.Builder
@@ -641,7 +656,9 @@ public class AccordJournal implements accord.api.Journal, RangeSearcher.Supplier
                 switch (field)
                 {
                     default: throw new UnhandledEnum(field);
-                    case CLEANUP: throw UnhandledEnum.invalid(field);
+                    case CLEANUP:
+                        out.writeByte(cleanup.ordinal());
+                        break;
                     case EXECUTE_AT:
                         Invariants.require(txnId != null);
                         Invariants.require(executeAt != null);
@@ -715,7 +732,7 @@ public class AccordJournal implements accord.api.Journal, RangeSearcher.Supplier
             {
                 // Since we are iterating in reverse order, we skip the fields that were
                 // set by entries writter later (i.e. already read ones).
-                if (isChanged(field, flags))
+                if (isChanged(field, flags) && field != CLEANUP)
                     skip(txnId, field, in, userVersion);
                 else
                     deserialize(field, in, userVersion);
@@ -780,6 +797,7 @@ public class AccordJournal implements accord.api.Journal, RangeSearcher.Supplier
         {
             switch (field)
             {
+                default: throw new UnhandledEnum(field);
                 case EXECUTE_AT:
                     ExecuteAtSerializer.skip(txnId, in);
                     break;

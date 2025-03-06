@@ -29,7 +29,6 @@ import java.util.function.BooleanSupplier;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.function.ToLongFunction;
-
 import javax.annotation.Nullable;
 
 import accord.api.Agent;
@@ -235,7 +234,7 @@ public class SimulatedAccordCommandStore implements AutoCloseable
             }
         };
 
-        this.journal = new DefaultJournal(nodeId, agent);
+        this.journal = new DefaultJournal(nodeId, agent, rs.fork());
         this.commandStore = new AccordCommandStore(0,
                                                    storeService,
                                                    agent,
@@ -466,9 +465,9 @@ public class SimulatedAccordCommandStore implements AutoCloseable
     private static class DefaultJournal extends InMemoryJournal implements RangeSearcher.Supplier
     {
         private final RouteInMemoryIndex<?> index = new RouteInMemoryIndex<>();
-        private DefaultJournal(Node.Id id, Agent agent)
+        private DefaultJournal(Node.Id id, Agent agent, RandomSource rs)
         {
-            super(id, agent);
+            super(id, agent, rs);
         }
 
         @Override

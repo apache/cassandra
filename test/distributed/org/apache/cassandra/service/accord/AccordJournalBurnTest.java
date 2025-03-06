@@ -18,11 +18,15 @@
 
 package org.apache.cassandra.service.accord;
 
+import java.io.IOException;
 import java.nio.file.Files;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.HashSet;
 import java.util.List;
-import java.util.concurrent.TimeUnit;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
-
+import java.util.stream.Collectors;
 import javax.annotation.Nullable;
 
 import org.junit.Before;
@@ -37,13 +41,27 @@ import accord.impl.basic.Cluster;
 import accord.impl.basic.RandomDelayQueue;
 import accord.local.CommandStores;
 import accord.local.Node;
+import accord.primitives.EpochSupplier;
 import accord.utils.DefaultRandom;
 import accord.utils.RandomSource;
 import org.apache.cassandra.ServerTestUtils;
 import org.apache.cassandra.db.ColumnFamilyStore;
+import org.apache.cassandra.db.Directories;
 import org.apache.cassandra.db.Keyspace;
+import org.apache.cassandra.db.compaction.CompactionController;
+import org.apache.cassandra.db.compaction.CompactionIterator;
+import org.apache.cassandra.db.compaction.CompactionManager;
+import org.apache.cassandra.db.compaction.OperationType;
+import org.apache.cassandra.db.compaction.writers.CompactionAwareWriter;
+import org.apache.cassandra.db.compaction.writers.DefaultCompactionWriter;
+import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
 import org.apache.cassandra.dht.Murmur3Partitioner;
+import org.apache.cassandra.io.sstable.ISSTableScanner;
+import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.util.File;
+import org.apache.cassandra.journal.Params;
+import org.apache.cassandra.journal.SegmentCompactor;
+import org.apache.cassandra.journal.StaticSegment;
 import org.apache.cassandra.journal.TestParams;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableMetadata;
@@ -56,9 +74,9 @@ import org.apache.cassandra.service.accord.serializers.KeySerializers;
 import org.apache.cassandra.service.accord.serializers.ResultSerializers;
 import org.apache.cassandra.service.accord.serializers.TopologySerializers;
 import org.apache.cassandra.tools.FieldUtil;
-import org.apache.cassandra.utils.concurrent.Condition;
 
 import static accord.impl.PrefixedIntHashKey.ranges;
+import static org.apache.cassandra.utils.TimeUUID.Generator.nextTimeUUID;
 
 public class AccordJournalBurnTest extends BurnTestBase
 {
@@ -116,11 +134,11 @@ public class AccordJournalBurnTest extends BurnTestBase
             List<Node.Id> clients = generateIds(true, 1 + random.nextInt(4));
             int rf;
             float chance = random.nextFloat();
-            if (chance < 0.2f)      { rf = random.nextInt(2, 9); }
-            else if (chance < 0.4f) { rf = 3; }
-            else if (chance < 0.7f) { rf = 5; }
-            else if (chance < 0.8f) { rf = 7; }
-            else                    { rf = 9; }
+            if (chance < 0.2f) rf = random.nextInt(2, 9);
+            else if (chance < 0.4f) rf = 3;
+            else if (chance < 0.7f) rf = 5;
+            else if (chance < 0.8f) rf = 7;
+            else rf = 9;
 
             List<Node.Id> nodes = generateIds(false, random.nextInt(rf, rf * 3));
 
@@ -135,6 +153,7 @@ public class AccordJournalBurnTest extends BurnTestBase
                 AccordKeyspace.TABLES = Tables.of(metadatas);
                 setUp();
             }
+
             Keyspace ks = Schema.instance.getKeyspaceInstance("system_accord");
 
             burn(random, new TopologyFactory(rf, ranges(0, HASH_RANGE_START, HASH_RANGE_END, random.nextInt(Math.max(nodes.size() + 1, rf), nodes.size() * 3))),
@@ -145,7 +164,7 @@ public class AccordJournalBurnTest extends BurnTestBase
                  operations,
                  10 + random.nextInt(30),
                  new RandomDelayQueue.Factory(random).get(),
-                 (node, agent) -> {
+                 (node, agent, randomSource) -> {
                      try
                      {
                          File directory = new File(Files.createTempDirectory(Integer.toString(counter.incrementAndGet())));
@@ -155,36 +174,17 @@ public class AccordJournalBurnTest extends BurnTestBase
                          AccordJournal journal = new AccordJournal(new TestParams()
                          {
                              @Override
-                             public FlushMode flushMode()
-                             {
-                                 return FlushMode.PERIODIC;
-                             }
-
-                             @Override
-                             public long flushPeriod(TimeUnit units)
-                             {
-                                 return 1;
-                             }
-
-                             @Override
                              public int segmentSize()
                              {
                                  return 32 * 1024 * 1024;
-                             }
-
-                             @Override
-                             public boolean enableCompaction()
-                             {
-                                 return false;
                              }
                          }, new AccordAgent(), directory, cfs)
                          {
                              @Override
                              public void saveCommand(int store, CommandUpdate update, @Nullable Runnable onFlush)
                              {
-                                 Condition condition = Condition.newOneTimeCondition();
-                                 super.saveCommand(store, update, condition::signal);
-                                 condition.awaitUninterruptibly();
+                                 // For the purpose of this test, we do not have to wait for flush, since we do not test durability and are using mmap
+                                 super.saveCommand(store, update, () -> {});
                                  if (onFlush != null)
                                      onFlush.run();
                              }
@@ -192,20 +192,104 @@ public class AccordJournalBurnTest extends BurnTestBase
                              @Override
                              public void saveStoreState(int store, FieldUpdates fieldUpdates, @Nullable Runnable onFlush)
                              {
-                                 Condition condition = Condition.newOneTimeCondition();
-                                 super.saveStoreState(store, fieldUpdates, condition::signal);
+                                 super.saveStoreState(store, fieldUpdates, () -> {});
                                  if (onFlush != null)
                                      onFlush.run();
                              }
 
                              @Override
-                             public void saveTopology(TopologyUpdate topologyUpdate, @Nullable Runnable onFlush)
+                             public void saveTopology(TopologyUpdate topologyUpdate, Runnable onFlush)
                              {
-                                 Condition condition = Condition.newOneTimeCondition();
-                                 super.saveTopology(topologyUpdate, condition::signal);
+                                 super.saveTopology(topologyUpdate, () -> {});
                                  if (onFlush != null)
                                      onFlush.run();
                              }
+
+                             @Override
+                             protected SegmentCompactor<JournalKey, Object> compactor(ColumnFamilyStore cfs, Params params)
+                             {
+                                 return new NemesisAccordSegmentCompactor<>(params.userVersion(), cfs, randomSource.fork())
+                                 {
+                                     @Nullable
+                                     @Override
+                                     public Collection<StaticSegment<JournalKey, Object>> compact(Collection<StaticSegment<JournalKey, Object>> staticSegments)
+                                     {
+                                         if (journalTable == null)
+                                             throw new IllegalStateException("Unsafe access to AccordJournal during <init>; journalTable was touched before it was published");
+                                         Collection<StaticSegment<JournalKey, Object>> result = super.compact(staticSegments);
+                                         journalTable.safeNotify(index -> index.remove(staticSegments));
+                                         return result;
+                                     }
+                                 };
+                             }
+
+                             private CompactionAwareWriter getCompactionAwareWriter(ColumnFamilyStore cfs,
+                                                                                    Directories directories,
+                                                                                    LifecycleTransaction transaction,
+                                                                                    Set<SSTableReader> nonExpiredSSTables)
+                             {
+                                 return new DefaultCompactionWriter(cfs, directories, transaction, nonExpiredSSTables, false, 0);
+                             }
+
+                             @Override
+                             public void purge(CommandStores commandStores, EpochSupplier minEpoch)
+                             {
+                                 this.journal.closeCurrentSegmentForTestingIfNonEmpty();
+                                 this.journal.runCompactorForTesting();
+
+                                 List<SSTableReader> all = new ArrayList<>(cfs.getLiveSSTables());
+                                 if (all.size() <= 1)
+                                     return;
+
+                                 Set<SSTableReader> sstables = new HashSet<>();
+
+                                 int min, max;
+                                 while (true)
+                                 {
+                                     int tmp1 = randomSource.nextInt(0, all.size());
+                                     int tmp2 = randomSource.nextInt(0, all.size());
+                                     if (tmp1 != tmp2 && Math.abs(tmp1 - tmp2) >= 1)
+                                     {
+                                         min = Math.min(tmp1, tmp2);
+                                         max = Math.max(tmp1, tmp2);
+                                         break;
+                                     }
+                                 }
+                                 // Random subset
+                                 for (int i = min; i < max; i++)
+                                     sstables.add(all.get(i));
+
+                                 List<ISSTableScanner> scanners = sstables.stream().map(SSTableReader::getScanner).collect(Collectors.toList());
+
+                                 Collection<SSTableReader> newSStables;
+
+                                 try (LifecycleTransaction txn = cfs.getTracker().tryModify(sstables, OperationType.COMPACTION);
+                                      CompactionController controller = new CompactionController(cfs, sstables, 0);
+                                      CompactionIterator ci = new CompactionIterator(OperationType.COMPACTION, scanners, controller, 0, nextTimeUUID()))
+                                 {
+                                     CompactionManager.instance.active.beginCompaction(ci);
+                                     try (CompactionAwareWriter writer = getCompactionAwareWriter(cfs, cfs.getDirectories(), txn, sstables))
+                                     {
+                                         while (ci.hasNext())
+                                         {
+                                             writer.append(ci.next());
+                                             ci.setTargetDirectory(writer.getSStableDirectory().path());
+                                         }
+
+                                         // point of no return
+                                         newSStables = writer.finish();
+                                     }
+                                     catch (IOException e)
+                                     {
+                                         throw new RuntimeException(e);
+                                     }
+                                     finally
+                                     {
+                                         CompactionManager.instance.active.finishCompaction(ci);
+                                     }
+                                 }
+                             }
+
 
                              @Override
                              public void replay(CommandStores commandStores)

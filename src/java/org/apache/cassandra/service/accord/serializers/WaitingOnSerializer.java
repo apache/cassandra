@@ -73,6 +73,7 @@ public class WaitingOnSerializer
         @Override
         public WaitingOn provide(TxnId txnId, PartialDeps deps, Timestamp executeAtLeast, long uniqueHlc)
         {
+            Invariants.nonNull(deps);
             RoutingKeys keys = deps.keyDeps.keys();
             RangeDeps directRangeDeps = deps.rangeDeps;
             int txnIdCount = directRangeDeps.txnIdCount();

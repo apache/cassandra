@@ -17,162 +17,50 @@
  */
 package org.apache.cassandra.service.accord;
 
-import java.io.IOException;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.PriorityQueue;
-
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
-import accord.utils.Invariants;
 import org.apache.cassandra.db.ColumnFamilyStore;
-import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.SerializationHeader;
-import org.apache.cassandra.db.partitions.PartitionUpdate;
-import org.apache.cassandra.db.partitions.PartitionUpdate.SimpleBuilder;
 import org.apache.cassandra.db.rows.EncodingStats;
 import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.SSTableTxnWriter;
-import org.apache.cassandra.io.util.DataInputBuffer;
-import org.apache.cassandra.io.util.DataOutputBuffer;
-import org.apache.cassandra.journal.SegmentCompactor;
-import org.apache.cassandra.journal.StaticSegment;
-import org.apache.cassandra.journal.StaticSegment.KeyOrderReader;
-import org.apache.cassandra.service.accord.AccordJournalValueSerializers.FlyweightSerializer;
 
 /**
  * Segment compactor: takes static segments and compacts them into a single SSTable.
  */
-public class AccordSegmentCompactor<V> implements SegmentCompactor<JournalKey, V>
+public class AccordSegmentCompactor<V> extends AbstractAccordSegmentCompactor<V>
 {
-    private static final Logger logger = LoggerFactory.getLogger(AccordSegmentCompactor.class);
-    private final int userVersion;
-    private final ColumnFamilyStore cfs;
+    private SSTableTxnWriter writer;
 
     public AccordSegmentCompactor(int userVersion, ColumnFamilyStore cfs)
     {
-        this.userVersion = userVersion;
-        this.cfs = cfs;
+        super(userVersion, cfs);
     }
 
     @Override
-    public Collection<StaticSegment<JournalKey, V>> compact(Collection<StaticSegment<JournalKey, V>> segments)
+    void initializeWriter()
     {
-        Invariants.require(segments.size() >= 2, () -> String.format("Can only compact 2 or more segments, but got %d", segments.size()));
-        logger.info("Compacting {} static segments: {}", segments.size(), segments);
-
-        PriorityQueue<KeyOrderReader<JournalKey>> readers = new PriorityQueue<>();
-        for (StaticSegment<JournalKey, V> segment : segments)
-        {
-            KeyOrderReader<JournalKey> reader = segment.keyOrderReader();
-            if (reader.advance())
-                readers.add(reader);
-            else
-                reader.close();
-        }
-
-        // nothing to compact (all segments empty, should never happen, but it is theoretically possible?) - exit early
-        // TODO: investigate how this comes to be, check if there is a cleanup issue
-        if (readers.isEmpty())
-            return Collections.emptyList();
-
         Descriptor descriptor = cfs.newSSTableDescriptor(cfs.getDirectories().getDirectoryForNewSSTables());
         SerializationHeader header = new SerializationHeader(true, cfs.metadata(), cfs.metadata().regularAndStaticColumns(), EncodingStats.NO_STATS);
 
-        try (SSTableTxnWriter writer = SSTableTxnWriter.create(cfs, descriptor, 0, 0, null, false, header))
-        {
-            JournalKey key = null;
-            Object builder = null;
-            FlyweightSerializer<Object, Object> serializer = null;
-            long firstDescriptor = -1, lastDescriptor = -1;
-            int firstOffset = -1, lastOffset = -1;
-            try
-            {
-                KeyOrderReader<JournalKey> reader;
-                while ((reader = readers.poll()) != null)
-                {
-                    if (key == null || !reader.key().equals(key))
-                    {
-                        maybeWritePartition(writer, key, builder, serializer, firstDescriptor, firstOffset);
-
-                        key = reader.key();
-                        serializer = (FlyweightSerializer<Object, Object>) key.type.serializer;
-                        builder = serializer.mergerFor(key);
-                        firstDescriptor = lastDescriptor = -1;
-                        firstOffset = lastOffset = -1;
-                    }
-
-                    boolean advanced;
-                    do
-                    {
-                        try (DataInputBuffer in = new DataInputBuffer(reader.record(), false))
-                        {
-                            if (lastDescriptor != -1)
-                            {
-                                Invariants.require(reader.descriptor.timestamp <= lastDescriptor,
-                                                      "Descriptors were accessed out of order: %d was accessed after %d", reader.descriptor.timestamp, lastDescriptor);
-                                Invariants.require(reader.descriptor.timestamp != lastDescriptor ||
-                                                      reader.offset() < lastOffset,
-                                                      "Offsets were accessed out of order: %d was accessed after %s", reader.offset(), lastOffset);
-                            }
-                            serializer.deserialize(key, builder, in, reader.descriptor.userVersion);
-                            lastDescriptor = reader.descriptor.timestamp;
-                            lastOffset = reader.offset();
-                            if (firstDescriptor == -1)
-                            {
-                                firstDescriptor = lastDescriptor;
-                                firstOffset = lastOffset;
-                            }
-                        }
-                    }
-                    while ((advanced = reader.advance()) && reader.key().equals(key));
-
-                    if (advanced) readers.offer(reader); // there is more to this reader, but not with this key
-                    else reader.close();
-                }
-
-                maybeWritePartition(writer, key, builder, serializer, firstDescriptor, firstOffset);
-            }
-            catch (Throwable t)
-            {
-                Throwable accumulate = writer.abort(t);
-                throw new RuntimeException(String.format("Caught exception while serializing. Last seen key: %s", key), accumulate);
-            }
-
-            cfs.addSSTables(writer.finish(true));
-            return Collections.emptyList();
-        }
+        this.writer = SSTableTxnWriter.create(cfs, descriptor, 0, 0, null, false, header);
     }
 
-    private JournalKey prevKey;
-    private DecoratedKey prevDecoratedKey;
-
-    private void maybeWritePartition(SSTableTxnWriter writer, JournalKey key, Object builder, FlyweightSerializer<Object, Object> serializer, long descriptor, int offset) throws IOException
+    @Override
+    SSTableTxnWriter writer()
     {
-        if (builder != null)
-        {
-            DecoratedKey decoratedKey = AccordKeyspace.JournalColumns.decorate(key);
+        return writer;
+    }
 
-            if (prevKey != null)
-            {
-                Invariants.requireArgument((decoratedKey.compareTo(prevDecoratedKey) >= 0 ? 1 : -1) == (JournalKey.SUPPORT.compare(key, prevKey) >= 0 ? 1 : -1),
-                                         String.format("Partition key and JournalKey didn't have matching order, which may imply a serialization issue.\n%s (%s)\n%s (%s)",
-                                                       key, decoratedKey, prevKey, prevDecoratedKey));
-            }
-            prevKey = key;
-            prevDecoratedKey = decoratedKey;
+    @Override
+    void finishAndAddWriter()
+    {
+        cfs.addSSTables(writer.finish(true));
+        writer.close();
+    }
 
-            SimpleBuilder partitionBuilder = PartitionUpdate.simpleBuilder(cfs.metadata(), decoratedKey);
-            try (DataOutputBuffer out = DataOutputBuffer.scratchBuffer.get())
-            {
-                serializer.reserialize(key, builder, out, userVersion);
-                partitionBuilder.row(descriptor, offset)
-                                .add("record", out.asNewBuffer())
-                                .add("user_version", userVersion);
-            }
-            writer.append(partitionBuilder.build().unfilteredIterator());
-        }
+    @Override
+    Throwable cleanupWriter(Throwable t)
+    {
+        return writer.abort(t);
     }
 }
 
