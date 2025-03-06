@@ -114,9 +114,14 @@ public class AutoRepairSchedulerTest extends TestBaseImpl
         cluster.forEach(i -> i.runOnInstance(() -> {
             try
             {
-                Util.spinAssert("AutoRepair has not yet completed one repair cycle",
+                Util.spinAssert("AutoRepair has not yet completed one FULL repair cycle",
                                 greaterThan(0L),
                                 AutoRepair.instance.repairStates.get(AutoRepairConfig.RepairType.FULL)::getLastRepairTime,
+                                5,
+                                TimeUnit.MINUTES);
+                Util.spinAssert("AutoRepair has not yet completed one INCREMENTAL repair cycle",
+                                greaterThan(0L),
+                                AutoRepair.instance.repairStates.get(AutoRepairConfig.RepairType.INCREMENTAL)::getLastRepairTime,
                                 5,
                                 TimeUnit.MINUTES);
             }
