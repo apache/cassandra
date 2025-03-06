@@ -622,7 +622,7 @@ public final class SchemaKeyspace
 
         // As above, only add the auto_repair column if the scheduler is enabled
         // to avoid RTE in pre-5.1 versioned node during upgrades
-        if (DatabaseDescriptor.getAutoRepairConfig().isAutoRepairSchedulingEnabled())
+        if (DatabaseDescriptor.getRawConfig() != null && DatabaseDescriptor.getAutoRepairConfig().isAutoRepairSchedulingEnabled())
         {
             builder.add("auto_repair", params.autoRepair.asMap());
         }
