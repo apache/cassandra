@@ -708,6 +708,55 @@ new columns (see `ALTER TABLE`) is a constant time operation. There is
 thus no need to try to anticipate future usage (or to cry when you
 haven’t) when creating a table.
 
+[[copyTableStmt]]
+=== CREATE TABLE LIKE
+
+_Syntax:_
+
+[source,bnf]
+include::cassandra:example$BNF/create_table_like.bnf[]
+
+_Sample:_
+
+[source,sql]
+----
+include::cassandra:example$CQL/create_table_like.cql[]
+----
+
+The `CREATE TABLE LIKE` statement creates a new empty table based on
+the definition of an already existing table. By default, the new table
+will have the same schema as the existing table.
+
+The statement allows changing the new table's options using the `WITH`
+keyword. Additionally, the new table can create indexes with the same
+schema as the existing table's indexes if the `INDEXES` keyword is specified.
+However, only SAI and legacy secondary indexes are supported. TRIGGER
+and MATERIALIZED VIEW are not supported at this time.
+
+Attempting to create a table that already exists will return an error
+unless the IF NOT EXISTS option is used. If this option is used, the
+statement will have no effect if the table already exists.
+
+[[copyTableStmt]]
+==== `<tablename>`
+
+Valid the newly created table names are the same as valid
+link:#createTableStmt[table names] (up to 32 characters long
+alphanumerical identifiers). If the table name is provided alone, the
+table is created within the current keyspace (see `USE`), but if it is
+prefixed by an existing keyspace name (see
+link:#copyTableStmt[`<tablename>`] grammar), it is created in the specified
+keyspace (but does *not* change the current keyspace).
+
+[[createTableLikeOptions]]
+==== `<like option>`
+
+The table options specified by `CREATE TABLE LIKE` statement are the same
+as the supported link:#createTableOptions[supported `<option>`] in the
+`CREATE TABLE` statement. And both are set throught keyword `WITH`.
+
+Indexs will be created together with table if `INDEXES` keyword is used.
+
 [[alterTableStmt]]
 ==== ALTER TABLE
 
