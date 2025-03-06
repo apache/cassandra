@@ -43,7 +43,6 @@ import org.apache.cassandra.repair.messages.RepairOption;
 import org.apache.cassandra.schema.AutoRepairParams;
 import org.apache.cassandra.schema.SystemDistributedKeyspace;
 import org.apache.cassandra.schema.TableParams;
-import org.apache.cassandra.service.StorageService;
 
 import org.junit.After;
 import org.junit.Assert;
