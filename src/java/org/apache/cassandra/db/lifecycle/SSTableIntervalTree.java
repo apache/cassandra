@@ -25,10 +25,13 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.PartitionPosition;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.utils.Interval;
 import org.apache.cassandra.utils.IntervalTree;
+
+import static com.google.common.base.Preconditions.checkState;
 
 public class SSTableIntervalTree extends IntervalTree<PartitionPosition, SSTableReader, Interval<PartitionPosition, SSTableReader>>
 {
@@ -75,8 +78,28 @@ public class SSTableIntervalTree extends IntervalTree<PartitionPosition, SSTable
             return IntervalTree.EMPTY_ARRAY;
         Interval<PartitionPosition, SSTableReader>[] intervals = new Interval[sstables.size()];
         int i = 0;
+        int missingIntervals = 0;
         for (SSTableReader sstable : sstables)
-            intervals[i++] = sstable.getInterval();
+        {
+            Interval<PartitionPosition, SSTableReader> interval = sstable.getInterval();
+            if (interval == null)
+            {
+                missingIntervals++;
+                continue;
+            }
+            intervals[i++] = interval;
+        }
+
+        // Offline (scrub) tools create SSTableReader without a first and last key and the old interval tree
+        // built a corrupt tree that couldn't be searched so continue to do that rather than complicate Tracker/View
+        if (missingIntervals > 0)
+        {
+            checkState(DatabaseDescriptor.isToolInitialized(), "Can only safely build an interval tree on sstables with missing first and last for offline tools");
+            Interval<PartitionPosition, SSTableReader>[] replacementIntervals = new Interval[intervals.length - missingIntervals];
+            System.arraycopy(intervals, 0, replacementIntervals, 0, replacementIntervals.length);
+            return replacementIntervals;
+        }
+
         return intervals;
     }
 

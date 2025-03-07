@@ -150,6 +150,7 @@
  * Add the ability to disable bulk loading of SSTables (CASSANDRA-18781)
  * Clean up obsolete functions and simplify cql_version handling in cqlsh (CASSANDRA-18787)
 Merged from 5.0:
+ * Ensure only offline tools can build IntervalTrees without first/last key fields (CASSANDRA-20407)
  * Improve IntervalTree build throughput (CASSANDRA-19596)
  * Avoid limit on RFP fetch in the case of an unresolved static row (CASSANDRA-20323)
  * Include materialized views to the output of DESCRIBE TABLE statements (CASSANDRA-20365)
