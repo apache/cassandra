@@ -17,6 +17,8 @@
  */
 package org.apache.cassandra.io.sstable.format;
 
+import java.io.IOError;
+import java.io.IOException;
 import java.util.Collection;
 import java.util.Iterator;
 import java.util.NoSuchElementException;
@@ -148,19 +150,39 @@ implements ISSTableScanner
 
     boolean advanceRange()
     {
-        if (!rangeIterator.hasNext())
-            return false;
+        try
+        {
+            if (!rangeIterator.hasNext())
+                return false;
 
-        bytesScannedInPreviousRanges += currentEndPosition - currentStartPosition;
+            bytesScannedInPreviousRanges += currentEndPosition - currentStartPosition;
 
-        PartitionPositionBounds nextRange = rangeIterator.next();
-        if (currentEndPosition > nextRange.lowerPosition)
-            throw new IllegalArgumentException("Ranges supplied to SSTableSimpleScanner must be non-overlapping and in ascending order.");
+            PartitionPositionBounds nextRange = rangeIterator.next();
+            if (currentEndPosition > nextRange.lowerPosition)
+                throw new IllegalArgumentException("Ranges supplied to SSTableSimpleScanner must be non-overlapping and in ascending order.");
 
-        currentEndPosition = nextRange.upperPosition;
-        currentStartPosition = nextRange.lowerPosition;
-        dfile.seek(currentStartPosition);
-        return true;
+            currentEndPosition = nextRange.upperPosition;
+            currentStartPosition = nextRange.lowerPosition;
+            dfile.seek(currentStartPosition);
+            return true;
+        }
+        catch (CorruptSSTableException e)
+        {
+            sstable.markSuspect();
+            throw e;
+        }
+        catch (IOError e)
+        {
+            if (e.getCause() instanceof IOException)
+            {
+                sstable.markSuspect();
+                throw new CorruptSSTableException((Exception)e.getCause(), sstable.getFilename());
+            }
+            else
+            {
+                throw e;
+            }
+        }
     }
 
     public UnfilteredRowIterator next()

@@ -161,8 +161,16 @@ public class ChunkCache implements CacheLoader<ChunkCache.Key, ChunkCache.Buffer
     {
         ByteBuffer buffer = bufferPool.get(key.file.chunkSize(), key.file.preferredBufferType());
         assert buffer != null;
-        key.file.readChunk(key.position, buffer);
-        return new Buffer(buffer, key.position);
+        try
+        {
+            key.file.readChunk(key.position, buffer);
+            return new Buffer(buffer, key.position);
+        }
+        catch (Throwable t)
+        {
+            bufferPool.put(buffer);
+            throw t;
+        }
     }
 
     @Override
