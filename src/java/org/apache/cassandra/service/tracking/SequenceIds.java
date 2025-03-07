@@ -18,6 +18,7 @@
 package org.apache.cassandra.service.tracking;
 
 import java.util.Arrays;
+import java.util.Objects;
 
 import static org.apache.cassandra.db.MutationId.offset;
 import static org.apache.cassandra.db.MutationId.timestamp;
@@ -33,6 +34,20 @@ public class SequenceIds
     {
         size = 0;
         bounds = new long[INITIAL_CAPACITY];
+    }
+
+    @Override
+    public boolean equals(Object o)
+    {
+        if (o == null || getClass() != o.getClass()) return false;
+        SequenceIds that = (SequenceIds) o;
+        return size == that.size && Objects.deepEquals(bounds, that.bounds);
+    }
+
+    @Override
+    public int hashCode()
+    {
+        return Objects.hash(Arrays.hashCode(bounds), size);
     }
 
     public int rangeCount()

@@ -41,6 +41,7 @@ public abstract class CoordinatorLog
     private final IdTokenIndex index;
 
     protected final SequenceIds[] witnessedIds;
+    protected final SequenceIds reconciledIds;
     protected final ReadWriteLock lock;
 
     CoordinatorLog(int localHostId, CoordinatorLogId logId, Participants participants)
@@ -55,6 +56,7 @@ public abstract class CoordinatorLog
         for (int i = 0; i < participants.size(); i++)
             ids[i] = new SequenceIds();
         witnessedIds = ids;
+        reconciledIds = new SequenceIds();
     }
 
     static CoordinatorLog create(int localHostId, CoordinatorLogId id, Participants participants)
@@ -101,6 +103,7 @@ public abstract class CoordinatorLog
             {
                 // if all replicas have now witnessed the id, remove in from the index
                 index.invalidate(mutationId.sequenceId());
+                reconciledIds.add(mutationId.sequenceId());
             }
         }
         finally
@@ -109,7 +112,7 @@ public abstract class CoordinatorLog
         }
     }
 
-    void witnessedMutationLocal(MutationId mutationId, Mutation mutation)
+    void witnessedMutationLocal(MutationId mutationId, Token token)
     {
         lock.writeLock().lock();
         try
@@ -130,7 +133,11 @@ public abstract class CoordinatorLog
             {
                 // if some replicas also haven't witnessed the mutation yet, we should update the token index;
                 // otherwise we are the last node to witness this mutation, and don't need to update the index
-                index.update(mutationId.sequenceId(), mutation.key().getToken());
+                index.update(mutationId.sequenceId(), token);
+            }
+            else
+            {
+                reconciledIds.add(mutationId.sequenceId());
             }
         }
         finally
@@ -139,16 +146,22 @@ public abstract class CoordinatorLog
         }
     }
 
+    void witnessedMutationLocal(MutationId mutationId, Mutation mutation)
+    {
+        witnessedMutationLocal(mutationId, mutation.key().getToken());
+    }
+
     /**
      * Look up unreconciled sequence ids of mutations witnessed by this host in this coordinataor log.
      * Adds the ids to the supplied collection, so it can be reused to aggregate lookups for multiple logs.
      */
-    boolean lookUpUnreconciled(Token token, LongArrayList into)
+    boolean lookUpUnreconciled(Token token, LongArrayList unreconciled, SequenceIds reconciled)
     {
         lock.readLock().lock();
         try
         {
-            return index.lookUp(token, into);
+            reconciled.addAll(reconciledIds, (s, e) -> {});
+            return index.lookUp(token, unreconciled);
         }
         finally
         {
@@ -160,11 +173,12 @@ public abstract class CoordinatorLog
      * Look up unreconciled sequence ids of mutations witnessed by this host in this coordinataor log.
      * Adds the ids to the supplied collection, so it can be reused to aggregate lookups for multiple logs.
      */
-    boolean lookUpUnreconciled(Range<Token> range, LongArrayList into)
+    boolean lookUpUnreconciled(Range<Token> range, LongArrayList into, SequenceIds reconciled)
     {
         lock.readLock().lock();
         try
         {
+            reconciled.addAll(reconciled, (s, e) -> {});
             return index.lookUp(range, into);
         }
         finally

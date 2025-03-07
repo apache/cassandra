@@ -1,0 +1,86 @@
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+package org.apache.cassandra.service.tracking;
+
+import org.agrona.collections.LongArrayList;
+import org.apache.cassandra.db.MutationId;
+import org.apache.cassandra.dht.Murmur3Partitioner;
+import org.apache.cassandra.dht.Token;
+import org.apache.cassandra.service.tracking.CoordinatorLog.CoordinatorLogPrimary;
+import org.junit.Assert;
+import org.junit.Test;
+
+import java.util.List;
+
+public class CoordinatorLogTest
+{
+    private static final int LOCAL_HOST_ID = 1;
+    private static final CoordinatorLogId LOG_ID = new CoordinatorLogId(LOCAL_HOST_ID, 1);
+    private static final Participants PARTICIPANTS = new Participants(List.of(LOCAL_HOST_ID, 2, 3));
+
+
+    private static Token tk(long t)
+    {
+        return new Murmur3Partitioner.LongToken(t);
+    }
+
+    private static LongArrayList toLongArrayList(MutationId... ids)
+    {
+        LongArrayList list = new LongArrayList();
+        for (MutationId id : ids)
+            list.add(id.sequenceId());
+
+        return list;
+    }
+
+    private static void assertUnreconciled(Token token, CoordinatorLog log, SequenceIds expectedReconciled, MutationId... expectedIds)
+    {
+        SequenceIds reconciled = new SequenceIds();
+        LongArrayList unreconciled = new LongArrayList();
+        log.lookUpUnreconciled(token, unreconciled, reconciled);
+
+        Assert.assertEquals(toLongArrayList(expectedIds), unreconciled);
+        Assert.assertEquals(expectedReconciled, reconciled);
+    }
+
+    @Test
+    public void remoteReconciliationTest()
+    {
+        Token tk = tk(1);
+        CoordinatorLogPrimary log = new CoordinatorLogPrimary(LOCAL_HOST_ID, LOG_ID, PARTICIPANTS);
+        MutationId[] ids = new MutationId[] {
+                log.nextId(),
+                log.nextId(),
+                log.nextId(),
+        };
+
+        for (MutationId id : ids)
+            log.witnessedMutationLocal(id, tk);
+
+        SequenceIds reconciled = new SequenceIds();
+        assertUnreconciled(tk, log, reconciled, ids);
+
+        log.witnessedMutationRemote(ids[0], PARTICIPANTS.get(1));
+        assertUnreconciled(tk, log, reconciled, ids);
+
+        log.witnessedMutationRemote(ids[0], PARTICIPANTS.get(2));
+        reconciled.add(ids[0].sequenceId());
+        assertUnreconciled(tk, log, reconciled, ids[1], ids[2]);
+    }
+}
