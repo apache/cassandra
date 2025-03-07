@@ -58,8 +58,11 @@ public class FixedSplitTokenRangeSplitterTest extends CQLTester
     private static final String TABLE1 = "tbl1";
     private static final String TABLE2 = "tbl2";
     private static final String TABLE3 = "tbl3";
+    private static final int numberOfSubRanges = 4;
 
-    private static final Map<String, String> splitterParams = Collections.singletonMap(FixedSplitTokenRangeSplitter.NUMBER_OF_SUBRANGES, Integer.toString(4));
+    private static final int totalTokenRanges = 3;
+    private static int numberOfSplits;
+    private static final Map<String, String> splitterParams = Collections.singletonMap(FixedSplitTokenRangeSplitter.NUMBER_OF_SUBRANGES, Integer.toString(numberOfSubRanges));
 
     @Parameterized.Parameter()
     public AutoRepairConfig.RepairType repairType;
@@ -81,16 +84,16 @@ public class FixedSplitTokenRangeSplitterTest extends CQLTester
         AutoRepairUtils.setup();
         SchemaLoader.prepareServer();
         SchemaLoader.createKeyspace(KEYSPACE, KeyspaceParams.simple(1));
+
+        numberOfSplits = numberOfSubRanges/totalTokenRanges;
     }
 
     @Test
     public void testTokenRangesSplitByTable()
     {
         AutoRepairService.instance.getAutoRepairConfig().setRepairByKeyspace(repairType, false);
-        int totalTokenRanges = 3;
         Collection<Range<Token>> tokens = StorageService.instance.getPrimaryRanges(KEYSPACE);
         assertEquals(totalTokenRanges, tokens.size());
-        int numberOfSplits = 4;
         List<String> tables = Arrays.asList(TABLE1, TABLE2, TABLE3);
         List<Range<Token>> expectedToken = new ArrayList<>();
         for (int i = 0; i<tables.size(); i++)
@@ -141,10 +144,8 @@ public class FixedSplitTokenRangeSplitterTest extends CQLTester
     public void testTokenRangesSplitByKeyspace()
     {
         AutoRepairService.instance.getAutoRepairConfig().setRepairByKeyspace(repairType, true);
-        int totalTokenRanges = 3;
         Collection<Range<Token>> tokens = StorageService.instance.getPrimaryRanges(KEYSPACE);
         assertEquals(totalTokenRanges, tokens.size());
-        int numberOfSplits = 4;
         List<String> tables = Arrays.asList(TABLE1, TABLE2, TABLE3);
         List<Range<Token>> expectedToken = new ArrayList<>();
         for (Range<Token> range : tokens)
@@ -180,7 +181,6 @@ public class FixedSplitTokenRangeSplitterTest extends CQLTester
     public void testTokenRangesNoSplitByDefault()
     {
         Collection<Range<Token>> tokens = StorageService.instance.getPrimaryRanges(KEYSPACE);
-        int totalTokenRanges = 3;
         assertEquals(totalTokenRanges, tokens.size());
         List<Range<Token>> expectedToken = new ArrayList<>(tokens);
 

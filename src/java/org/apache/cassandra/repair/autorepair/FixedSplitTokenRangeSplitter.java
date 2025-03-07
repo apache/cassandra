@@ -100,9 +100,11 @@ public class FixedSplitTokenRangeSplitter implements IAutoRepairTokenRangeSplitt
         boolean byKeyspace = config.getRepairByKeyspace(repairType);
         // collect all token ranges.
         List<Range<Token>> allRanges = new ArrayList<>();
+        // this is done to avoid micro splits in the case of vnodes
+        int splitsPerRange = Math.max(1, numberOfSubranges / tokens.size());
         for (Range<Token> token : tokens)
         {
-            allRanges.addAll(split(token, numberOfSubranges));
+            allRanges.addAll(split(token, splitsPerRange));
         }
 
         if (byKeyspace)
