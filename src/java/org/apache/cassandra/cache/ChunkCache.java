@@ -168,8 +168,7 @@ public class ChunkCache implements CacheLoader<ChunkCache.Key, ChunkCache.Buffer
         }
         catch (Throwable t)
         {
-            if (buffer != null)
-                bufferPool.put(buffer);
+            bufferPool.put(buffer);
             throw t;
         }
     }
