@@ -35,6 +35,7 @@ import accord.utils.Gen;
 import accord.utils.Gens;
 import accord.utils.RandomSource;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.config.StringRetryStrategy;
 import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.io.IVersionedSerializers;
 import org.apache.cassandra.io.util.DataOutputBuffer;
@@ -65,7 +66,7 @@ public class FetchMinEpochTest
 
     private static void boundedRetries(int retries)
     {
-        AccordWaitStrategies.setRetryFetchMinEpoch("0<=200ms*2^attempts<=60s,retries=" + retries);
+        AccordWaitStrategies.setRetryFetchMinEpoch(new StringRetryStrategy("0<=200ms*2^attempts<=60s,retries=" + retries));
     }
 
     @Test

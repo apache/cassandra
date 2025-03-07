@@ -23,6 +23,7 @@ import javax.annotation.Nullable;
 import accord.primitives.TxnId;
 import org.apache.cassandra.config.AccordSpec;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.config.StringRetryStrategy;
 import org.apache.cassandra.net.Verb;
 import org.apache.cassandra.service.RetryStrategy;
 import org.apache.cassandra.service.TimeoutStrategy;
@@ -96,6 +97,7 @@ public class AccordWaitStrategies
         setRecoverSyncPoint(config.recover_syncpoint);
         setRetrySyncPoint(config.retry_syncpoint);
         setRetryDurability(config.retry_durability);
+        setRetryBootstrap(config.retry_bootstrap);
         setRetryFetchMinEpoch(config.retry_fetch_min_epoch);
         setRetryFetchTopology(config.retry_fetch_topology);
     }
@@ -150,29 +152,34 @@ public class AccordWaitStrategies
         recoverTxn = RetryStrategy.parse(spec, rw(accordReadMetrics, accordWriteMetrics));
     }
 
-    public static void setRecoverSyncPoint(String spec)
+    public static void setRecoverSyncPoint(StringRetryStrategy spec)
     {
-        recoverSyncPoint = RetryStrategy.parse(spec, none());
+        recoverSyncPoint = spec.retry();
     }
 
-    public static void setRetrySyncPoint(String spec)
+    public static void setRetrySyncPoint(StringRetryStrategy spec)
     {
-        retrySyncPoint = RetryStrategy.parse(spec, none());
+        retrySyncPoint = spec.retry();
     }
 
-    public static void setRetryDurability(String spec)
+    public static void setRetryDurability(StringRetryStrategy spec)
     {
-        retryDurability = RetryStrategy.parse(spec, none());
+        retryDurability = spec.retry();
     }
 
-    public static void setRetryFetchMinEpoch(String spec)
+    public static void setRetryBootstrap(StringRetryStrategy spec)
     {
-        retryFetchMinEpoch = RetryStrategy.parse(spec, none());
+        retryBootstrap = spec.retry();
     }
 
-    public static void setRetryFetchTopology(String spec)
+    public static void setRetryFetchMinEpoch(StringRetryStrategy spec)
     {
-        retryFetchTopology = RetryStrategy.parse(spec, none());
+        retryFetchMinEpoch = spec.retry();
+    }
+
+    public static void setRetryFetchTopology(StringRetryStrategy spec)
+    {
+        retryFetchTopology = spec.retry();
     }
 
     static RetryStrategy recover(TxnId txnId)

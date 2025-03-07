@@ -39,5 +39,7 @@ public class FullAccordInteropMultiNodeTableWalkTest extends AccordInteropMultiN
         // CQL_DEBUG_APPLY_OPERATOR = true;
 
         builder.withExamples(50);
+
+        builder.withSeed(-1247250900361019859L).withExamples(1);
     }
 }

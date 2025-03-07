@@ -5181,26 +5181,10 @@ public class DatabaseDescriptor
         conf.accord.expire_txn = expireTxnDelay;
     }
 
-    public static String getAccordRecoverSyncPointDelay()
-    {
-        return conf.accord.recover_syncpoint;
-    }
-
-    public static void setAccordRecoverSyncPointDelay(String recoverSyncPointDelay)
-    {
-        AccordWaitStrategies.setRecoverSyncPoint(recoverSyncPointDelay);
-        conf.accord.recover_syncpoint = recoverSyncPointDelay;
-    }
-
     public static long getAccordFastPathUpdateDelayMillis()
     {
         DurationSpec.IntSecondsBound bound = conf.accord.fast_path_update_delay;
         return bound == null ? -1 : bound.to(TimeUnit.MILLISECONDS);
-    }
-
-    public static void setAccordFastPathUpdateDelaySeconds(long seconds)
-    {
-        conf.accord.fast_path_update_delay = new DurationSpec.IntSecondsBound(seconds);
     }
 
     public static long getAccordGCDelay(TimeUnit unit)
@@ -5213,19 +5197,9 @@ public class DatabaseDescriptor
         return conf.accord.shard_durability_target_splits;
     }
 
-    public static void setAccordShardDurabilityTargetSplits(int number)
-    {
-        conf.accord.shard_durability_target_splits = number;
-    }
-
     public static long getAccordScheduleDurabilityTxnIdLag(TimeUnit unit)
     {
         return conf.accord.durability_txnid_lag.to(unit);
-    }
-
-    public static void setAccordScheduleDurabilityTxnIdLagSeconds(long seconds)
-    {
-        conf.accord.durability_txnid_lag = new DurationSpec.IntSecondsBound(seconds);
     }
 
     public static long getAccordGlobalDurabilityCycle(TimeUnit unit)
@@ -5233,19 +5207,9 @@ public class DatabaseDescriptor
         return conf.accord.global_durability_cycle.to(unit);
     }
 
-    public static void setAccordGlobalDurabilityCycleSeconds(long seconds)
-    {
-        conf.accord.global_durability_cycle = new DurationSpec.IntSecondsBound(seconds);
-    }
-
     public static long getAccordShardDurabilityCycle(TimeUnit unit)
     {
         return conf.accord.shard_durability_cycle.to(unit);
-    }
-
-    public static void setAccordShardDurabilityCycleSeconds(long seconds)
-    {
-        conf.accord.shard_durability_cycle = new DurationSpec.IntSecondsBound(seconds);
     }
 
     public static boolean getAccordStateCacheListenerJFREnabled()

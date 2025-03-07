@@ -137,7 +137,7 @@ public class AccordSpec
     public DurationSpec.IntMillisecondsBound range_syncpoint_timeout = new DurationSpec.IntMillisecondsBound("3m");
     public DurationSpec.IntMillisecondsBound repair_timeout = new DurationSpec.IntMillisecondsBound("10m");
     public String recover_txn = "5s*attempts <= 60s";
-    public String recover_syncpoint = "60s <= 30s*attempts...60s*attempts <= 600s";
+    public StringRetryStrategy recover_syncpoint = new StringRetryStrategy("60s <= 30s*attempts...60s*attempts <= 600s");
     public String fetch_txn = "1s*attempts";
     public String fetch_syncpoint = "5s*attempts";
     public String expire_txn = "5s*attempts";
@@ -148,10 +148,11 @@ public class AccordSpec
     public String slow_syncpoint_preaccept = "10s";
     public String slow_txn_preaccept = "30ms <= p50*2 <= 100ms";
     public String slow_read = "30ms <= p50*2 <= 100ms";
-    public String retry_syncpoint = "10s*attempts <= 600s";
-    public String retry_durability = "10s*attempts <= 600s";
-    public String retry_fetch_min_epoch = "200ms...1s*attempts <= 1s,retries=3";
-    public String retry_fetch_topology = "200ms...1s*attempts <= 1s,retries=100";
+    public StringRetryStrategy retry_syncpoint = new StringRetryStrategy("10s*attempts <= 600s");
+    public StringRetryStrategy retry_durability = new StringRetryStrategy("10s*attempts <= 600s");
+    public StringRetryStrategy retry_bootstrap = new StringRetryStrategy("10s*attempts <= 600s");
+    public StringRetryStrategy retry_fetch_min_epoch = new StringRetryStrategy("200ms...1s*attempts <= 1s,retries=3");
+    public StringRetryStrategy retry_fetch_topology = new StringRetryStrategy("200ms...1s*attempts <= 1s,retries=100");
 
     public volatile DurationSpec.IntSecondsBound fast_path_update_delay = null;
 
