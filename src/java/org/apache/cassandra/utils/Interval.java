@@ -19,6 +19,8 @@ package org.apache.cassandra.utils;
 
 import com.google.common.base.Objects;
 
+import static com.google.common.base.Preconditions.checkNotNull;
+
 public class Interval<C, D>
 {
     public final C min;
@@ -27,6 +29,8 @@ public class Interval<C, D>
 
     public Interval(C min, C max, D data)
     {
+        checkNotNull(min, "min is null");
+        checkNotNull(max, "max is null");
         this.min = min;
         this.max = max;
         this.data = data;

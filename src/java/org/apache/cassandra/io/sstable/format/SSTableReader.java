@@ -475,7 +475,7 @@ public abstract class SSTableReader extends SSTable implements UnfilteredSource,
         this.openReason = builder.getOpenReason();
         this.first = builder.getFirst();
         this.last = builder.getLast();
-        this.interval = Interval.create(first, last, this);
+        this.interval = first == null || last == null ? null : Interval.create(first, last, this);
         this.bounds = first == null || last == null || AbstractBounds.strictlyWrapsAround(first.getToken(), last.getToken())
                       ? null // this will cause the validation to fail, but the reader is opened with no validation,
                              // e.g. for scrubbing, we should accept screwed bounds
