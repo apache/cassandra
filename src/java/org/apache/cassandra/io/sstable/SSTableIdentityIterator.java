@@ -76,6 +76,11 @@ public class SSTableIdentityIterator implements Comparable<SSTableIdentityIterat
             sstable.markSuspect();
             throw new CorruptSSTableException(e, file.getPath());
         }
+        catch (CorruptSSTableException e) // to ensure that we marked the sstable as suspected if CorruptSSTableException is thrown from lower levels
+        {
+            sstable.markSuspect();
+            throw e;
+        }
     }
 
     public static SSTableIdentityIterator create(SSTableReader sstable, FileDataInput dfile, long dataPosition, DecoratedKey key, boolean tombstoneOnly)
@@ -99,6 +104,11 @@ public class SSTableIdentityIterator implements Comparable<SSTableIdentityIterat
             sstable.markSuspect();
             throw new CorruptSSTableException(e, dfile.getPath());
         }
+        catch (CorruptSSTableException e) // to ensure that we marked the sstable as suspected if CorruptSSTableException is thrown from lower levels
+        {
+            sstable.markSuspect();
+            throw e;
+        }
     }
 
     public static SSTableIdentityIterator create(SSTableReader sstable, FileDataInput dfile, boolean tombstoneOnly)
@@ -120,6 +130,11 @@ public class SSTableIdentityIterator implements Comparable<SSTableIdentityIterat
         {
             sstable.markSuspect();
             throw new CorruptSSTableException(e, dfile.getPath());
+        }
+        catch (CorruptSSTableException e) // to ensure that we marked the sstable as suspected if CorruptSSTableException is thrown from lower levels
+        {
+            sstable.markSuspect();
+            throw e;
         }
     }
 
@@ -164,6 +179,11 @@ public class SSTableIdentityIterator implements Comparable<SSTableIdentityIterat
             sstable.markSuspect();
             throw new CorruptSSTableException(e, filename);
         }
+        catch (CorruptSSTableException e) // to ensure that we marked the sstable as suspected if CorruptSSTableException is thrown from lower levels
+        {
+            sstable.markSuspect();
+            throw e;
+        }
         catch (IOError e)
         {
             if (e.getCause() instanceof IOException)
@@ -191,6 +211,11 @@ public class SSTableIdentityIterator implements Comparable<SSTableIdentityIterat
         {
             sstable.markSuspect();
             throw new CorruptSSTableException(e, filename);
+        }
+        catch (CorruptSSTableException e) // to ensure that we marked the sstable as suspected if CorruptSSTableException is thrown from lower levels
+        {
+            sstable.markSuspect();
+            throw e;
         }
         catch (IOError e)
         {
@@ -239,6 +264,11 @@ public class SSTableIdentityIterator implements Comparable<SSTableIdentityIterat
         {
             sstable.markSuspect();
             throw new CorruptSSTableException(e, filename);
+        }
+        catch (CorruptSSTableException e) // to ensure that we marked the sstable as suspected if CorruptSSTableException is thrown from lower levels
+        {
+            sstable.markSuspect();
+            throw e;
         }
         catch (IOError e)
         {
