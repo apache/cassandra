@@ -285,12 +285,20 @@ public class View
             public View apply(View view)
             {
                 Map<SSTableReader, SSTableReader> sstableMap = replace(view.sstablesMap, remove, add);
-                Map<SSTableReader, SSTableReader> replacementMap = getReplacementMap(remove, add);
-                if (replacementMap.isEmpty())
-                    return new View(view.liveMemtables, view.flushingMemtables, sstableMap, view.compactingMap,
-                                    SSTableIntervalTree.build(sstableMap.keySet()));
-                // If we're able to map the SSTableReaders from remove and add set to make pairs with the same (first, last)
-                // ranges, then there is no need to rebuild the interval tree. Instead, we find and update the node.
+                return new View(view.liveMemtables, view.flushingMemtables, sstableMap, view.compactingMap,
+                                SSTableIntervalTree.build(sstableMap.keySet()));
+            }
+        };
+    }
+
+    // construct a function to replace the SSTable that have the same [first,last] intervals
+    static Function<View, View> replaceSSTable(final Set<SSTableReader> remove, final Iterable<SSTableReader> add, final Map<SSTableReader, SSTableReader> replacementMap)
+    {
+        return new Function<View, View>()
+        {
+            public View apply(View view)
+            {
+                Map<SSTableReader, SSTableReader> sstableMap = replace(view.sstablesMap, remove, add);
                 return new View(view.liveMemtables, view.flushingMemtables, sstableMap, view.compactingMap,
                                 view.intervalTree.copyAndReplaceSSTables(replacementMap));
             }
@@ -360,41 +368,5 @@ public class View
                 return t.compareTo(lessThan) < 0;
             }
         };
-    }
-
-    // Match the SSTableReaders from the existing ones to the new one to be added (with same ranges)
-    // Returns the map of toRemove <-> toAdd. Return empty map if such 1-1 replacement doesn't exist
-    private static Map<SSTableReader, SSTableReader> getReplacementMap(final Set<SSTableReader> remove, final Iterable<SSTableReader> add)
-    {
-        List<SSTableReader> toAdds = new ArrayList<>();
-        for (SSTableReader s : add)
-            toAdds.add(s);
-
-        if (remove.size() != toAdds.size())
-            return Collections.emptyMap();
-
-        List<SSTableReader> toRemoves = new ArrayList<>(remove);
-        // sort the SSTableReader list by (first, last, descriptor.id). The view is per cfs so id will be unique
-        Comparator<SSTableReader> comp = Comparator.comparing((SSTableReader s) -> s.first)
-                                                   .thenComparing(s -> s.last)
-                                                   .thenComparing(SSTableReader.idComparator);
-        toRemoves.sort(comp);
-        toAdds.sort(comp);
-
-        Map<SSTableReader, SSTableReader> replacementMap = new HashMap<>();
-        // toAdd and toRemove have the same size
-        for (int i = 0; i < toAdds.size(); i++)
-        {
-            SSTableReader toRemove = toRemoves.get(i);
-            SSTableReader toAdd = toAdds.get(i);
-            // optimization: here we don't check the descriptor. If we're able to match those to be removed with those
-            // to be added, we ensure that the pairs have the same (first, last) range
-            if (toRemove.first.equals(toAdd.first) && toRemove.last.equals(toAdd.last))
-                replacementMap.put(toRemove, toAdd);
-            else
-                // stop and return empty map if toAdd and toRemove can't match
-                return Collections.emptyMap();
-        }
-        return replacementMap;
     }
 }

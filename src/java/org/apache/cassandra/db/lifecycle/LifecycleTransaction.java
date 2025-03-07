@@ -45,6 +45,7 @@ import static com.google.common.collect.ImmutableSet.copyOf;
 import static com.google.common.collect.Iterables.*;
 import static java.util.Collections.singleton;
 import static org.apache.cassandra.db.lifecycle.Helpers.*;
+import static org.apache.cassandra.db.lifecycle.View.replaceSSTable;
 import static org.apache.cassandra.db.lifecycle.View.updateCompacting;
 import static org.apache.cassandra.db.lifecycle.View.updateLiveSet;
 import static org.apache.cassandra.utils.Throwables.maybeFail;
@@ -263,7 +264,15 @@ public class LifecycleTransaction extends Transactional.AbstractTransactional im
         // replace all updated readers with a version restored to its original state
         List<SSTableReader> restored = restoreUpdatedOriginals();
         List<SSTableReader> invalid = Lists.newArrayList(Iterables.concat(logged.update, logged.obsolete));
-        accumulate = tracker.apply(updateLiveSet(logged.update, restored), accumulate);
+
+        Map<SSTableReader, SSTableReader> replacementMap = Collections.emptyMap();
+        if (!isOffline())
+            replacementMap = getReplacementMap(logged.update, restored);
+        if (!replacementMap.isEmpty())
+            accumulate = tracker.apply(replaceSSTable(logged.update, restored, replacementMap), accumulate);
+        else
+            accumulate = tracker.apply(updateLiveSet(logged.update, restored), accumulate);
+
         accumulate = tracker.notifySSTablesChanged(invalid, restored, OperationType.COMPACTION, accumulate);
         // setReplaced immediately preceding versions that have not been obsoleted
         accumulate = setReplaced(logged.update, accumulate);
@@ -343,8 +352,15 @@ public class LifecycleTransaction extends Transactional.AbstractTransactional im
         // ensure any new readers are in the compacting set, since we aren't done with them yet
         // and don't want anyone else messing with them
         // apply atomically along with updating the live set of readers
-        tracker.apply(compose(updateCompacting(emptySet(), fresh),
-                              updateLiveSet(toUpdate, staged.update)));
+        Map<SSTableReader, SSTableReader> replacementMap = Collections.emptyMap();
+        if (!isOffline())
+            replacementMap = getReplacementMap(toUpdate, staged.update);
+        if (!replacementMap.isEmpty())
+            tracker.apply(compose(updateCompacting(emptySet(), fresh),
+                                  replaceSSTable(toUpdate, staged.update, replacementMap)));
+        else
+            tracker.apply(compose(updateCompacting(emptySet(), fresh),
+                                  updateLiveSet(toUpdate, staged.update)));
 
         // log the staged changes and our newly marked readers
         marked.addAll(fresh);
@@ -357,6 +373,42 @@ public class LifecycleTransaction extends Transactional.AbstractTransactional im
 
         staged.clear();
         return accumulate;
+    }
+
+    // Match the SSTableReaders from the existing ones to the new one to be added (with same ranges)
+    // Returns the map of toRemove <-> toAdd. Return empty map if such 1-1 replacement doesn't exist
+    private static Map<SSTableReader, SSTableReader> getReplacementMap(final Set<SSTableReader> remove, final Iterable<SSTableReader> add)
+    {
+        List<SSTableReader> toAdds = new ArrayList<>();
+        for (SSTableReader s : add)
+            toAdds.add(s);
+
+        if (remove.size() != toAdds.size())
+            return Collections.emptyMap();
+
+        List<SSTableReader> toRemoves = new ArrayList<>(remove);
+        // sort the SSTableReader list by (first, last, descriptor.id). The view is per cfs so id will be unique
+        Comparator<SSTableReader> comp = Comparator.comparing((SSTableReader s) -> s.first)
+                                                   .thenComparing(s -> s.last)
+                                                   .thenComparing(SSTableReader.idComparator);
+        toRemoves.sort(comp);
+        toAdds.sort(comp);
+
+        Map<SSTableReader, SSTableReader> replacementMap = new HashMap<>();
+        // toAdd and toRemove have the same size
+        for (int i = 0; i < toAdds.size(); i++)
+        {
+            SSTableReader toRemove = toRemoves.get(i);
+            SSTableReader toAdd = toAdds.get(i);
+            // optimization: here we don't check the descriptor. If we're able to match those to be removed with those
+            // to be added, we ensure that the pairs have the same (first, last) range
+            if (toRemove.first.equals(toAdd.first) && toRemove.last.equals(toAdd.last))
+                replacementMap.put(toRemove, toAdd);
+            else
+                // stop and return empty map if toAdd and toRemove can't match
+                return Collections.emptyMap();
+        }
+        return replacementMap;
     }
 
 
