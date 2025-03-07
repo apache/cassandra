@@ -1,8 +1,11 @@
 4.1.9
  * IntervalTree should support updateIntervals for checkpoint when ranges are unchanged (CASSANDRA-20158)
+ * Fix SimpleClient ability to release acquired capacity (CASSANDRA-20202)
  * Fix WaitQueue.Signal.awaitUninterruptibly may block forever if invoking thread is interrupted (CASSANDRA-20084)
 Merged from 4.0:
  * Fix autocompletion for role names/user names (CASSANDRA-20175)
+ * Update Zstd library to 1.5.7-1 (CASSANDRA-20367)
+ * Fix premature auto-failing of long-running repairs (CASSANDRA-20312)
 
 
 4.1.8
@@ -13,6 +16,7 @@ Merged from 4.0:
  * Equality check for Paxos.Electorate should not depend on collection types (CASSANDRA-19935)
  * Fix race condition in DecayingEstimatedHistogramReservoir during rescale (CASSANDRA-19365)
 Merged from 4.0:
+ * Support null column value tombstones in FQL batch statements (CASSANDRA-20397)
  * Tighten up permissions in dc authorizers (CASSANDRA-20225)
  * CBUtil serialization of UTF8 does not handle all UTF8 properly (CASSANDRA-20234)
  * Make hint expiry use request start time rather than timeout time for TTL (CASSANDRA-20014)
