@@ -2675,6 +2675,10 @@ storage_compatibility_mode: NONE
 #  # how quickly the fast path is reconfigured when nodes go up/down
 #  fast_path_update_delay: 5s
 
+# Prevents preparing a repair session or beginning a repair streaming session if pending compactions is over
+# the given value.  Defaults to disabled.
+# reject_repair_compaction_threshold: 1024
+
 # At least 20% of disk must be unused to run incremental repair. It is useful to avoid disks filling up during
 # incremental repair as anti-compaction during incremental repair may contribute to additional space temporarily.
 # if you want to disable this feature (the recommendation is not to, but if you want to disable it for whatever reason)
