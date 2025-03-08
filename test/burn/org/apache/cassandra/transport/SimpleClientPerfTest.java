@@ -102,7 +102,7 @@ public class SimpleClientPerfTest
                  new SizeCaps(10, 20, 5, 10),
                  () -> new SimpleClient(address.getHostAddress(),
                                         port, version, true,
-                                        new EncryptionOptions())
+                                        new EncryptionOptions.ClientEncryptionOptions())
                        .connect(false),
                  version);
     }
@@ -114,7 +114,7 @@ public class SimpleClientPerfTest
                  new SizeCaps(10, 20, 5, 10),
                  () -> new SimpleClient(address.getHostAddress(),
                                         port, version, true,
-                                        new EncryptionOptions())
+                                        new EncryptionOptions.ClientEncryptionOptions())
                        .connect(true),
                  version);
     }
@@ -126,7 +126,7 @@ public class SimpleClientPerfTest
                  new SizeCaps(1000, 2000, 5, 150),
                  () -> new SimpleClient(address.getHostAddress(),
                                         port, version, true,
-                                        new EncryptionOptions())
+                                        new EncryptionOptions.ClientEncryptionOptions())
                        .connect(false),
                  version);
     }
@@ -138,7 +138,7 @@ public class SimpleClientPerfTest
                  new SizeCaps(1000, 2000, 5, 150),
                  () -> new SimpleClient(address.getHostAddress(),
                                         port, version, true,
-                                        new EncryptionOptions())
+                                        new EncryptionOptions.ClientEncryptionOptions())
                        .connect(true),
                  version);
     }

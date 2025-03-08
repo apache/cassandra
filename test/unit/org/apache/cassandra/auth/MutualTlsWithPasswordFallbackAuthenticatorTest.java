@@ -50,8 +50,10 @@ public class MutualTlsWithPasswordFallbackAuthenticatorTest
         DatabaseDescriptor.daemonInitialization();
         SchemaLoader.loadSchema();
         Config config = DatabaseDescriptor.getRawConfig();
-        config.client_encryption_options = config.client_encryption_options.withEnabled(true)
-                                                                           .withRequireClientAuth(EncryptionOptions.ClientAuth.OPTIONAL);
+        config.client_encryption_options = new EncryptionOptions.ClientEncryptionOptions.Builder(config.client_encryption_options)
+                                           .withEnabled(true)
+                                           .withRequireClientAuth(EncryptionOptions.ClientEncryptionOptions.ClientAuth.OPTIONAL)
+                                           .build();
         Map<String, String> parameters = Collections.singletonMap("validator_class_name", "org.apache.cassandra.auth.SpiffeCertificateValidator");
         fallbackAuthenticator = new MutualTlsWithPasswordFallbackAuthenticator(parameters);
         fallbackAuthenticator.setup();

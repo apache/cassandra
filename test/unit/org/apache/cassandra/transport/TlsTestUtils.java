@@ -86,17 +86,18 @@ public class TlsTestUtils
     public static String CLIENT_TRUSTSTORE_PATH = "test/conf/cassandra_ssl_test.truststore";
     public static String CLIENT_TRUSTSTORE_PASSWORD = "cassandra";
 
-    public static EncryptionOptions getClientEncryptionOptions()
+    public static EncryptionOptions.ClientEncryptionOptions getClientEncryptionOptions()
     {
-        return new EncryptionOptions(new EncryptionOptions()
+        return new EncryptionOptions.ClientEncryptionOptions(new EncryptionOptions.ClientEncryptionOptions.Builder()
                               .withEnabled(true)
-                              .withRequireClientAuth(EncryptionOptions.ClientAuth.OPTIONAL)
+                              .withRequireClientAuth(EncryptionOptions.ClientEncryptionOptions.ClientAuth.OPTIONAL)
                               .withOptional(true)
                               .withKeyStore(SERVER_KEYSTORE_PATH)
                               .withKeyStorePassword(SERVER_KEYSTORE_PASSWORD)
                               .withTrustStore(SERVER_TRUSTSTORE_PATH)
                               .withTrustStorePassword(SERVER_TRUSTSTORE_PASSWORD)
-                              .withRequireEndpointVerification(false));
+                              .withRequireEndpointVerification(false)
+                              .build());
     }
 
     public static void configureWithMutualTlsWithPasswordFallbackAuthenticator(Config config)
@@ -129,7 +130,7 @@ public class TlsTestUtils
     {
         return RemoteEndpointAwareJdkSSLOptions.builder()
                                                .withSSLContext(getClientSslContextFactory(provideClientCert)
-                                                               .createJSSESslContext(EncryptionOptions.ClientAuth.OPTIONAL))
+                                                               .createJSSESslContext(EncryptionOptions.ClientEncryptionOptions.ClientAuth.OPTIONAL))
                                                .build();
     }
 
@@ -139,7 +140,7 @@ public class TlsTestUtils
         {
             return RemoteEndpointAwareJdkSSLOptions.builder()
                                                    .withSSLContext(getClientSslContextFactory(keystorePath, truststorePath)
-                                                                   .createJSSESslContext(EncryptionOptions.ClientAuth.OPTIONAL))
+                                                                   .createJSSESslContext(EncryptionOptions.ClientEncryptionOptions.ClientAuth.OPTIONAL))
                                                    .build();
         }
         catch (SSLException e)

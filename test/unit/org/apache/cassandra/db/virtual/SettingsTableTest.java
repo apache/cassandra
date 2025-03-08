@@ -31,6 +31,7 @@ import com.datastax.driver.core.ResultSet;
 import com.datastax.driver.core.Row;
 import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DurationSpec;
+import org.apache.cassandra.config.EncryptionOptions.ServerEncryptionOptions.Builder;
 import org.apache.cassandra.config.EncryptionOptions.ServerEncryptionOptions.InternodeEncryption;
 import org.apache.cassandra.config.JMXServerOptions;
 import org.apache.cassandra.config.ParameterizedClass;
@@ -38,7 +39,7 @@ import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.security.SSLFactory;
 import org.yaml.snakeyaml.introspector.Property;
 
-import static org.apache.cassandra.config.EncryptionOptions.ClientAuth.REQUIRED;
+import static org.apache.cassandra.config.EncryptionOptions.ClientEncryptionOptions.ClientAuth.REQUIRED;
 
 public class SettingsTableTest extends CQLTester
 {
@@ -176,52 +177,53 @@ public class SettingsTableTest extends CQLTester
         List<String> expectedNames = SettingsTable.PROPERTIES.keySet().stream().filter(n -> n.startsWith("server_encryption")).collect(Collectors.toList());
         Assert.assertEquals(expectedNames.size(), executeNet(all).all().size());
 
+        Builder serverEncryptionOptionsBuilder = new Builder(config.server_encryption_options);
         check(pre + "algorithm", null);
-        config.server_encryption_options = config.server_encryption_options.withAlgorithm("SUPERSSL");
+        config.server_encryption_options = serverEncryptionOptionsBuilder.withAlgorithm("SUPERSSL").build();
         check(pre + "algorithm", "SUPERSSL");
 
         check(pre + "cipher_suites", null);
-        config.server_encryption_options = config.server_encryption_options.withCipherSuites("c1", "c2");
+        config.server_encryption_options = serverEncryptionOptionsBuilder.withCipherSuites("c1", "c2").build();
         check(pre + "cipher_suites", "[c1, c2]");
 
         // name doesn't match yaml
         check(pre + "protocol", null);
-        config.server_encryption_options = config.server_encryption_options.withProtocol("TLSv5");
+        config.server_encryption_options = serverEncryptionOptionsBuilder.withProtocol("TLSv5").build();
         check(pre + "protocol", "[TLSv5]");
 
-        config.server_encryption_options = config.server_encryption_options.withProtocol("TLS");
+        config.server_encryption_options = serverEncryptionOptionsBuilder.withProtocol("TLS").build();
         check(pre + "protocol", SSLFactory.tlsInstanceProtocolSubstitution().toString());
 
-        config.server_encryption_options = config.server_encryption_options.withProtocol("TLS");
-        config.server_encryption_options = config.server_encryption_options.withAcceptedProtocols(ImmutableList.of("TLSv1.2","TLSv1.1"));
+        config.server_encryption_options = serverEncryptionOptionsBuilder.withProtocol("TLS").build();
+        config.server_encryption_options = serverEncryptionOptionsBuilder.withAcceptedProtocols(ImmutableList.of("TLSv1.2","TLSv1.1")).build();
         check(pre + "protocol", "[TLSv1.2, TLSv1.1]");
 
-        config.server_encryption_options = config.server_encryption_options.withProtocol("TLSv2");
-        config.server_encryption_options = config.server_encryption_options.withAcceptedProtocols(ImmutableList.of("TLSv1.2","TLSv1.1"));
+        config.server_encryption_options = serverEncryptionOptionsBuilder.withProtocol("TLSv2").build();
+        config.server_encryption_options = serverEncryptionOptionsBuilder.withAcceptedProtocols(ImmutableList.of("TLSv1.2","TLSv1.1")).build();
         check(pre + "protocol", "[TLSv1.2, TLSv1.1, TLSv2]"); // protocol goes after the explicit accept list if non-TLS
 
         check(pre + "optional", "false");
-        config.server_encryption_options = config.server_encryption_options.withOptional(true);
+        config.server_encryption_options = serverEncryptionOptionsBuilder.withOptional(true).build();
         check(pre + "optional", "true");
 
         // name doesn't match yaml
         check(pre + "client_auth", "false");
-        config.server_encryption_options = config.server_encryption_options.withRequireClientAuth(REQUIRED);
+        config.server_encryption_options = serverEncryptionOptionsBuilder.withRequireClientAuth(REQUIRED).build();
         check(pre + "client_auth", "true");
 
         // name doesn't match yaml
         check(pre + "endpoint_verification", "false");
-        config.server_encryption_options = config.server_encryption_options.withRequireEndpointVerification(true);
+        config.server_encryption_options = serverEncryptionOptionsBuilder.withRequireEndpointVerification(true).build();
         check(pre + "endpoint_verification", "true");
 
         check(pre + "internode_encryption", "none");
-        config.server_encryption_options = config.server_encryption_options.withInternodeEncryption(InternodeEncryption.all);
+        config.server_encryption_options = serverEncryptionOptionsBuilder.withInternodeEncryption(InternodeEncryption.all).build();
         check(pre + "internode_encryption", "all");
         check(pre + "enabled", "true");
 
         // name doesn't match yaml
         check(pre + "legacy_ssl_storage_port", "false");
-        config.server_encryption_options = config.server_encryption_options.withLegacySslStoragePort(true);
+        config.server_encryption_options = serverEncryptionOptionsBuilder.withLegacySslStoragePort(true).build();
         check(pre + "legacy_ssl_storage_port", "true");
     }
 

@@ -37,8 +37,8 @@ import io.netty.handler.ssl.SslContextBuilder;
 import io.netty.handler.ssl.SslProvider;
 import org.apache.cassandra.config.EncryptionOptions;
 
-import static org.apache.cassandra.config.EncryptionOptions.ClientAuth.NOT_REQUIRED;
-import static org.apache.cassandra.config.EncryptionOptions.ClientAuth.REQUIRED;
+import static org.apache.cassandra.config.EncryptionOptions.ClientEncryptionOptions.ClientAuth.NOT_REQUIRED;
+import static org.apache.cassandra.config.EncryptionOptions.ClientEncryptionOptions.ClientAuth.REQUIRED;
 
 import static org.apache.cassandra.config.CassandraRelevantProperties.DISABLE_TCACTIVE_OPENSSL;
 
@@ -68,7 +68,7 @@ abstract public class AbstractSslContextFactory implements ISslContextFactory
     protected final List<String> accepted_protocols;
     protected final String algorithm;
     protected final String store_type;
-    protected final EncryptionOptions.ClientAuth clientAuth;
+    protected final EncryptionOptions.ClientEncryptionOptions.ClientAuth clientAuth;
     protected final boolean require_endpoint_verification;
     /*
     ServerEncryptionOptions does not use the enabled flag at all instead using the existing
@@ -105,7 +105,7 @@ abstract public class AbstractSslContextFactory implements ISslContextFactory
         accepted_protocols = getStringList("accepted_protocols");
         algorithm = getString("algorithm");
         store_type = getString("store_type", "JKS");
-        clientAuth = parameters.get("require_client_auth") == null ? NOT_REQUIRED : EncryptionOptions.ClientAuth.from(getString("require_client_auth"));
+        clientAuth = parameters.get("require_client_auth") == null ? NOT_REQUIRED : EncryptionOptions.ClientEncryptionOptions.ClientAuth.from(getString("require_client_auth"));
         require_endpoint_verification = getBoolean("require_endpoint_verification", false);
         enabled = getBoolean("enabled");
         optional = getBoolean("optional");
@@ -158,7 +158,7 @@ abstract public class AbstractSslContextFactory implements ISslContextFactory
     }
 
     @Override
-    public SSLContext createJSSESslContext(EncryptionOptions.ClientAuth clientAuth) throws SSLException
+    public SSLContext createJSSESslContext(EncryptionOptions.ClientEncryptionOptions.ClientAuth clientAuth) throws SSLException
     {
         TrustManager[] trustManagers = null;
         if (clientAuth != NOT_REQUIRED)
@@ -186,7 +186,7 @@ abstract public class AbstractSslContextFactory implements ISslContextFactory
     }
 
     @Override
-    public SslContext createNettySslContext(EncryptionOptions.ClientAuth clientAuth, SocketType socketType,
+    public SslContext createNettySslContext(EncryptionOptions.ClientEncryptionOptions.ClientAuth clientAuth, SocketType socketType,
                                             CipherSuiteFilter cipherFilter) throws SSLException
     {
         /*
@@ -291,7 +291,7 @@ abstract public class AbstractSslContextFactory implements ISslContextFactory
      */
     abstract protected KeyManagerFactory buildOutboundKeyManagerFactory() throws SSLException;
 
-    private ClientAuth toNettyClientAuth(EncryptionOptions.ClientAuth clientAuth)
+    private ClientAuth toNettyClientAuth(EncryptionOptions.ClientEncryptionOptions.ClientAuth clientAuth)
     {
         switch (clientAuth)
         {

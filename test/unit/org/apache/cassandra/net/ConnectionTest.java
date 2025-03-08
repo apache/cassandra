@@ -57,6 +57,7 @@ import io.netty.channel.ChannelOutboundHandlerAdapter;
 import io.netty.channel.ChannelPromise;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.EncryptionOptions;
+import org.apache.cassandra.config.EncryptionOptions.ServerEncryptionOptions.Builder;
 import org.apache.cassandra.db.commitlog.CommitLog;
 import org.apache.cassandra.distributed.test.log.ClusterMetadataTestHelper;
 import org.apache.cassandra.exceptions.RequestFailure;
@@ -72,7 +73,7 @@ import org.apache.cassandra.utils.FBUtilities;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import static java.util.concurrent.TimeUnit.MINUTES;
 import static java.util.concurrent.TimeUnit.SECONDS;
-import static org.apache.cassandra.config.EncryptionOptions.ClientAuth.NOT_REQUIRED;
+import static org.apache.cassandra.config.EncryptionOptions.ClientEncryptionOptions.ClientAuth.NOT_REQUIRED;
 import static org.apache.cassandra.net.MessagingService.VERSION_40;
 import static org.apache.cassandra.net.NoPayload.noPayload;
 import static org.apache.cassandra.net.MessagingService.current_version;
@@ -176,17 +177,18 @@ public class ConnectionTest
         }
     }
 
-    static final EncryptionOptions.ServerEncryptionOptions encryptionOptions =
-            new EncryptionOptions.ServerEncryptionOptions()
+    static final EncryptionOptions.Builder<EncryptionOptions.ServerEncryptionOptions> encryptionOptionsBuilder =
+            new Builder()
             .withLegacySslStoragePort(true)
-            .withOptional(true)
             .withInternodeEncryption(EncryptionOptions.ServerEncryptionOptions.InternodeEncryption.all)
+            .withOptional(true)
             .withKeyStore(TlsTestUtils.SERVER_KEYSTORE_PATH)
             .withKeyStorePassword(TlsTestUtils.SERVER_KEYSTORE_PASSWORD)
             .withTrustStore(TlsTestUtils.SERVER_TRUSTSTORE_PATH)
             .withTrustStorePassword(TlsTestUtils.SERVER_TRUSTSTORE_PASSWORD)
             .withRequireClientAuth(NOT_REQUIRED)
             .withCipherSuites("TLS_RSA_WITH_AES_128_CBC_SHA");
+    static final EncryptionOptions.ServerEncryptionOptions encryptionOptions = encryptionOptionsBuilder.build();
 
     static final List<Function<Settings, Settings>> MODIFIERS = ImmutableList.of(
         settings -> settings.outbound(outbound -> outbound.withEncryption(encryptionOptions))
