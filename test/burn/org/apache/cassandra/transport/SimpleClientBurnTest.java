@@ -138,11 +138,11 @@ public class SimpleClientBurnTest
         Arrays.asList(
         () -> new SimpleClient(address.getHostAddress(),
                                port, ProtocolVersion.V5, true,
-                               new EncryptionOptions())
+                               new EncryptionOptions.ClientEncryptionOptions())
               .connect(false),
         () -> new SimpleClient(address.getHostAddress(),
                                port, ProtocolVersion.V4, false,
-                               new EncryptionOptions())
+                               new EncryptionOptions.ClientEncryptionOptions())
               .connect(false)
         );
 

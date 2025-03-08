@@ -39,8 +39,8 @@ import org.apache.cassandra.distributed.shared.WithProperties;
 import org.apache.cassandra.transport.TlsTestUtils;
 
 import static org.apache.cassandra.config.CassandraRelevantProperties.DISABLE_TCACTIVE_OPENSSL;
-import static org.apache.cassandra.config.EncryptionOptions.ClientAuth.NOT_REQUIRED;
-import static org.apache.cassandra.config.EncryptionOptions.ClientAuth.REQUIRED;
+import static org.apache.cassandra.config.EncryptionOptions.ClientEncryptionOptions.ClientAuth.NOT_REQUIRED;
+import static org.apache.cassandra.config.EncryptionOptions.ClientEncryptionOptions.ClientAuth.REQUIRED;
 import static org.apache.cassandra.security.PEMBasedSslContextFactory.ConfigKey.ENCODED_CERTIFICATES;
 import static org.apache.cassandra.security.PEMBasedSslContextFactory.ConfigKey.ENCODED_KEY;
 import static org.apache.cassandra.security.PEMBasedSslContextFactory.ConfigKey.KEY_PASSWORD;
@@ -215,12 +215,14 @@ public class PEMBasedSslContextFactoryTest
     {
         ParameterizedClass sslContextFactory = new ParameterizedClass(PEMBasedSslContextFactory.class.getSimpleName()
         , new HashMap<>());
-        EncryptionOptions options = new EncryptionOptions().withTrustStore(TlsTestUtils.SERVER_TRUSTSTORE_PEM_PATH)
-                                                           .withKeyStore(TlsTestUtils.SERVER_KEYSTORE_PATH_PEM)
-                                                           .withKeyStorePassword(TlsTestUtils.SERVER_KEYSTORE_PASSWORD)
-                                                           .withRequireClientAuth(NOT_REQUIRED)
-                                                           .withCipherSuites("TLS_RSA_WITH_AES_128_CBC_SHA")
-                                                           .withSslContextFactory(sslContextFactory);
+        EncryptionOptions.ClientEncryptionOptions options = new EncryptionOptions.ClientEncryptionOptions.Builder()
+                                                            .withTrustStore(TlsTestUtils.SERVER_TRUSTSTORE_PEM_PATH)
+                                                            .withKeyStore(TlsTestUtils.SERVER_KEYSTORE_PATH_PEM)
+                                                            .withKeyStorePassword(TlsTestUtils.SERVER_KEYSTORE_PASSWORD)
+                                                            .withRequireClientAuth(NOT_REQUIRED)
+                                                            .withCipherSuites("TLS_RSA_WITH_AES_128_CBC_SHA")
+                                                            .withSslContextFactory(sslContextFactory)
+                                                            .build();
         SslContext sslContext = SSLFactory.getOrCreateSslContext(options, REQUIRED, ISslContextFactory.SocketType.SERVER, "test");
         Assert.assertNotNull(sslContext);
         if (OpenSsl.isAvailable())
@@ -234,14 +236,16 @@ public class PEMBasedSslContextFactoryTest
     {
         ParameterizedClass sslContextFactory = new ParameterizedClass(PEMBasedSslContextFactory.class.getSimpleName()
         , new HashMap<>());
-        EncryptionOptions.ServerEncryptionOptions options = new EncryptionOptions.ServerEncryptionOptions().withTrustStore(TlsTestUtils.SERVER_TRUSTSTORE_PEM_PATH)
-                                                                                                           .withKeyStore(TlsTestUtils.SERVER_KEYSTORE_PATH_PEM)
-                                                                                                           .withKeyStorePassword(TlsTestUtils.SERVER_KEYSTORE_PASSWORD)
-                                                                                                           .withOutboundKeystore(TlsTestUtils.SERVER_KEYSTORE_PATH_PEM)
-                                                                                                           .withOutboundKeystorePassword(TlsTestUtils.SERVER_KEYSTORE_PASSWORD)
-                                                                                                           .withRequireClientAuth(NOT_REQUIRED)
-                                                                                                           .withCipherSuites("TLS_RSA_WITH_AES_128_CBC_SHA")
-                                                                                                           .withSslContextFactory(sslContextFactory);
+        EncryptionOptions.ServerEncryptionOptions options =
+        new EncryptionOptions.ServerEncryptionOptions.Builder().withOutboundKeystore(TlsTestUtils.SERVER_KEYSTORE_PATH_PEM)
+                                                               .withOutboundKeystorePassword(TlsTestUtils.SERVER_KEYSTORE_PASSWORD)
+                                                               .withTrustStore(TlsTestUtils.SERVER_TRUSTSTORE_PEM_PATH)
+                                                               .withKeyStore(TlsTestUtils.SERVER_KEYSTORE_PATH_PEM)
+                                                               .withKeyStorePassword(TlsTestUtils.SERVER_KEYSTORE_PASSWORD)
+                                                               .withRequireClientAuth(NOT_REQUIRED)
+                                                               .withCipherSuites("TLS_RSA_WITH_AES_128_CBC_SHA")
+                                                               .withSslContextFactory(sslContextFactory)
+                                                               .build();
         SslContext sslContext = SSLFactory.getOrCreateSslContext(options, REQUIRED, ISslContextFactory.SocketType.CLIENT, "test");
         Assert.assertNotNull(sslContext);
         if (OpenSsl.isAvailable())

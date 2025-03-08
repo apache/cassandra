@@ -84,23 +84,23 @@ public class EarlyAuthenticationTest extends CQLTester
         });
     }
 
-    private EncryptionOptions clientEncryptionOptions(boolean presentClientCertificate)
+    private EncryptionOptions.ClientEncryptionOptions clientEncryptionOptions(boolean presentClientCertificate)
     {
-        EncryptionOptions encryptionOptions = new EncryptionOptions()
-                                              .withEnabled(true)
-                                              .withRequireClientAuth(EncryptionOptions.ClientAuth.OPTIONAL)
-                                              .withTrustStore(TlsTestUtils.CLIENT_TRUSTSTORE_PATH)
-                                              .withTrustStorePassword(TlsTestUtils.CLIENT_TRUSTSTORE_PASSWORD)
-                                              .withSslContextFactory(new ParameterizedClass(SimpleClientSslContextFactory.class.getName()));
+        EncryptionOptions.ClientEncryptionOptions.Builder builder = new EncryptionOptions.ClientEncryptionOptions.Builder();
+        builder.withEnabled(true)
+               .withRequireClientAuth(EncryptionOptions.ClientEncryptionOptions.ClientAuth.OPTIONAL)
+               .withTrustStore(TlsTestUtils.CLIENT_TRUSTSTORE_PATH)
+               .withTrustStorePassword(TlsTestUtils.CLIENT_TRUSTSTORE_PASSWORD)
+               .withSslContextFactory(new ParameterizedClass(SimpleClientSslContextFactory.class.getName()));
 
         if (presentClientCertificate)
         {
-            encryptionOptions = encryptionOptions.withKeyStore(TlsTestUtils.CLIENT_SPIFFE_KEYSTORE_PATH)
-                             .withStoreType("JKS")
-                             .withKeyStorePassword(TlsTestUtils.CLIENT_SPIFFE_KEYSTORE_PASSWORD);
+            builder.withKeyStore(TlsTestUtils.CLIENT_SPIFFE_KEYSTORE_PATH)
+                                    .withStoreType("JKS")
+                                    .withKeyStorePassword(TlsTestUtils.CLIENT_SPIFFE_KEYSTORE_PASSWORD);
         }
 
-        return new EncryptionOptions(encryptionOptions);
+        return new EncryptionOptions.ClientEncryptionOptions(builder.build());
     }
 
     @Test
@@ -180,6 +180,5 @@ public class EarlyAuthenticationTest extends CQLTester
             }
         };
     }
-
 }
 

@@ -56,7 +56,7 @@ import org.apache.cassandra.security.ISslContextFactory;
 import org.apache.cassandra.security.SSLFactory;
 
 import static java.util.concurrent.TimeUnit.SECONDS;
-import static org.apache.cassandra.config.EncryptionOptions.ClientAuth.REQUIRED;
+import static org.apache.cassandra.config.EncryptionOptions.ClientEncryptionOptions.ClientAuth.REQUIRED;
 import static org.apache.cassandra.distributed.test.AbstractEncryptionOptionsImpl.ConnectResult.CONNECTING;
 import static org.apache.cassandra.distributed.test.AbstractEncryptionOptionsImpl.ConnectResult.UNINITIALIZED;
 import static org.apache.cassandra.utils.concurrent.Condition.newOneTimeCondition;
@@ -118,10 +118,13 @@ public class AbstractEncryptionOptionsImpl extends TestBaseImpl
         final int port;
         final List<String> acceptedProtocols;
         final List<String> cipherSuites;
-        final EncryptionOptions encryptionOptions = new EncryptionOptions()
-                                                    .withEnabled(true)
-                                                    .withKeyStore(validKeyStorePath).withKeyStorePassword(validKeyStorePassword)
-                                                    .withTrustStore(validTrustStorePath).withTrustStorePassword(validTrustStorePassword);
+        final EncryptionOptions.ClientEncryptionOptions encryptionOptions = new EncryptionOptions.ClientEncryptionOptions.Builder()
+                                                                            .withEnabled(true)
+                                                                            .withKeyStore(validKeyStorePath)
+                                                                            .withKeyStorePassword(validKeyStorePassword)
+                                                                            .withTrustStore(validTrustStorePath)
+                                                                            .withTrustStorePassword(validTrustStorePassword)
+                                                                            .build();
         private Throwable lastThrowable;
         private String lastProtocol;
         private String lastCipher;
@@ -202,7 +205,7 @@ public class AbstractEncryptionOptionsImpl extends TestBaseImpl
             setProtocolAndCipher(null, null);
 
             SslContext sslContext = SSLFactory.getOrCreateSslContext(
-            encryptionOptions.withAcceptedProtocols(acceptedProtocols).withCipherSuites(cipherSuites),
+            new EncryptionOptions.ClientEncryptionOptions.Builder(encryptionOptions).withAcceptedProtocols(acceptedProtocols).withCipherSuites(cipherSuites).build(),
             REQUIRED, ISslContextFactory.SocketType.CLIENT, "test");
 
             EventLoopGroup workerGroup = new NioEventLoopGroup();

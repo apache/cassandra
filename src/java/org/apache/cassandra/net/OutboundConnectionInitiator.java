@@ -66,9 +66,9 @@ import org.apache.cassandra.utils.memory.BufferPools;
 import static java.util.concurrent.TimeUnit.*;
 import static org.apache.cassandra.auth.IInternodeAuthenticator.InternodeConnectionDirection.OUTBOUND;
 import static org.apache.cassandra.auth.IInternodeAuthenticator.InternodeConnectionDirection.OUTBOUND_PRECONNECT;
-import static org.apache.cassandra.config.EncryptionOptions.ClientAuth.NOT_REQUIRED;
-import static org.apache.cassandra.config.EncryptionOptions.ClientAuth.OPTIONAL;
-import static org.apache.cassandra.config.EncryptionOptions.ClientAuth.REQUIRED;
+import static org.apache.cassandra.config.EncryptionOptions.ClientEncryptionOptions.ClientAuth.NOT_REQUIRED;
+import static org.apache.cassandra.config.EncryptionOptions.ClientEncryptionOptions.ClientAuth.OPTIONAL;
+import static org.apache.cassandra.config.EncryptionOptions.ClientEncryptionOptions.ClientAuth.REQUIRED;
 import static org.apache.cassandra.net.InternodeConnectionUtils.DISCARD_HANDLER_NAME;
 import static org.apache.cassandra.net.InternodeConnectionUtils.SSL_FACTORY_CONTEXT_DESCRIPTION;
 import static org.apache.cassandra.net.InternodeConnectionUtils.SSL_HANDLER_NAME;
@@ -245,7 +245,7 @@ public class OutboundConnectionInitiator<SuccessType extends OutboundConnectionI
 
         private SslContext getSslContext(SslFallbackConnectionType connectionType) throws IOException
         {
-            EncryptionOptions.ClientAuth requireClientAuth = NOT_REQUIRED;
+            EncryptionOptions.ClientEncryptionOptions.ClientAuth requireClientAuth = NOT_REQUIRED;
             if (connectionType == SslFallbackConnectionType.MTLS )
             {
                 requireClientAuth = REQUIRED;
