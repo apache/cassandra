@@ -81,6 +81,7 @@
 *** xref:tools/nodetool/nodetool.adoc[nodetool]
 *** xref:tools/sstable/index.adoc[SSTable tools]
 *** xref:tools/cassandra_stress.adoc[cassandra-stress]
+**** xref:cassandra:managing/operating/auto_repair.adoc[Auto Repair]
 
 ** xref:troubleshooting/index.adoc[Troubleshooting]
 *** xref:troubleshooting/finding_nodes.adoc[Finding misbehaving nodes]
@@ -104,4 +105,3 @@
 ** xref:faq/index.adoc[FAQ]
 
 ** xref:plugins/index.adoc[Plug-ins]
-

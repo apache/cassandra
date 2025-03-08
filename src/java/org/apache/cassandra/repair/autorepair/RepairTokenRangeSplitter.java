@@ -65,104 +65,27 @@ import org.apache.cassandra.utils.concurrent.Refs;
 import static org.apache.cassandra.repair.autorepair.AutoRepairUtils.split;
 
 /**
- * In Apache Cassandra, tuning repair ranges has four main goals:
+ * The default implementation of {@link IAutoRepairTokenRangeSplitter} that attempts to:
  * <ol>
- * <li>
- *     <b>Create smaller, consistent repair times</b>: Long repairs, such as those lasting 15 hours, can be problematic.
- *     If a node fails 14 hours into the repair, the entire process must be restarted. The goal is to reduce the impact
- *     of disturbances or failures. However, making the repairs too short can lead to overhead from repair orchestration
- *     becoming the main bottleneck.
- * </li>
- * <li>
- *     <b>Minimize the impact on hosts</b>: Repairs should not heavily affect the host systems. For incremental repairs,
- *     this might involve anti-compaction work. In full repairs, streaming large amounts of data—especially with wide
- *     partitions—can lead to issues with disk usage and higher compaction costs.
- * </li>
- * <li>
- *     <b>Reduce overstreaming</b>: The Merkle tree, which represents data within each partition and range,
- *     has a maximum size. If a repair covers too many partitions, the tree’s leaves represent larger data ranges.
- *     Even a small change in a leaf can trigger excessive data streaming, making the process inefficient.
- * </li>
- * <li>
- *     <b>Reduce number of repairs</b>: If there are many small tables, it's beneficial to batch these tables together
- *     under a single parent repair. This prevents the repair overhead from becoming a bottleneck, especially when
- *     dealing with hundreds of tables. Running individual repairs for each table can significantly impact performance
- *     and efficiency.
- * </li>
+ *     <li>Create smaller, consistent repair times</li>
+ *     <li>Minimize the impact on hosts</li>
+ *     <li>Reduce overstreaming</li>
+ *     <li>Reduce number of repairs</li>
  * </ol>
- * To manage these issues, the strategy involves estimating the size and number of partitions within a range and
- * splitting it accordingly to bound the size of the range splits. This is established by iterating over SSTable
- * index files to estimate the amount of bytes and partitions involved in the ranges being repaired and by what
- * repair type is being invoked.
- * <p/>
+ * <p>
+ * To achieve these goals, this implementation inspects SSTable metadata to estimate the bytes and number of partitions
+ * within a range and splits it accordingly to bound the size of the token ranges used for repair assignments.
+ * </p>
+ * <p>
+ * Refer to
+ * <a href="https://cassandra.apache.org/doc/latest/cassandra/managing/operating/auto_repair.html#repair-token-range-splitter">Auto Repair documentation for this implementation</a>
+ * for a more thorough breakdown of this implementation.
+ * </p>
+ * <p>
  * While this splitter has a lot of tuning parameters, the expectation is that the established default configuration
  * shall be sensible for all {@link org.apache.cassandra.repair.autorepair.AutoRepairConfig.RepairType}'s. The following
  * configuration parameters are offered.
- * <ul>
- *     <li>
- *         <b>bytes_per_assigment</b>: The target and maximum amount of bytes that should be included in a repair
- *         assignment. This is meant to scope the amount of work involved in a repair. For incremental repair, this
- *         involves the total number of bytes in all SSTables containing unrepaired data involving the ranges being
- *         repaired, including data that doesn't cover the range. This is to account for the amount of anticompaction
- *         that is expected. For all other repair types, this involves the amount of data covering the range being
- *         repaired.
- *     </li>
- *     <li>
- *         <b>partitions_per_assignment</b>: The maximum number of partitions that should be included in a repair
- *         assignment. This configuration exists to reduce excessive overstreaming by attempting to limit the number
- *         of partitions present in a merkle tree leaf node.
- *     </li>
- *     <li>
- *         <b>max_tables_per_assignment</b>: The maximum number of tables that can be included in a repair assignment.
- *         This aims to reduce the number of repairs, especially in cases where a large amount of tables exists for
- *         a keyspace. Note that the splitter will avoid batching tables together if they exceed the other
- *         configuration parameters such as <code>bytes_per_assignment</code> and <code>partitions_per_assignment</code>.
- *     </li>
- *     <li>
- *         <b>max_bytes_per_schedule</b>: The maximum number of bytes to cover an individual schedule. This serves
- *         as a mechanism for throttling the amount of work that can be done on each repair cycle. One may opt to
- *         reduce this value if the impact of repairs is causing too much load on the cluster, or increase it if
- *         writes outpace the amount of data being repaired. Alternatively, one may want to choose tuning down or up
- *         the <code>min_repair_interval</code>.
- *     </li>
- * </ul>
- * Given the impact of what each repair type accomplishes, different defaults are established per repair type.
- * <ul>
- *     <li>
- *         <b>full</b>:  Configured in a way that attempts to accomplish repairing all data in a schedule, with
- *         individual repairs targeting at most 200GiB of data and 1048576 partitions.
- *         <b>max_bytes_per_schedule</b> is set to a large value for full repair to attempt to repair all data per
- *         repair schedule.
- *         <ul>
- *             <li><b>bytes_per_assignment</b>: 200GiB</li>
- *             <li><b>partitions_per_assignment</b>: 1048576</li>
- *             <li><b>max_tables_per_assignment</b>: 64</li>
- *             <li><b>max_bytes_per_schedule</b>: 100TiB</li>
- *         </ul>
- *     </li>
- *     <li>
- *         <b>incremental</b>: Configured in a way that attempts to repair 50GiB of data per repair, and 100GiB per
- *         schedule. This attempts to throttle the amount of IR and anticompaction done per schedule after turning
- *         incremental on for the first time. You may want to consider increasing <code>max_bytes_per_schedule</code>
- *         more than this much data is written per <code>min_repair_interval</code>.
- *         <ul>
- *             <li><b>bytes_per_assignment</b>: 50GiB</li>
- *             <li><b>partitions_per_assignment</b>: 1048576</li>
- *             <li><b>max_tables_per_assignment</b>: 64</li>
- *             <li><b>max_bytes_per_schedule</b>: 100GiB</li>
- *         </ul>
- *     </li>
- *     <li>
- *         <b>preview_repaired</b>:  Configured in a way that attempts to accomplish previewing all data in a schedule,
- *         with previews targeting at most 200GiB of data and 1048576 partitions.
- *         <ul>
- *             <li><b>bytes_per_assignment</b>: 200GiB</li>
- *             <li><b>partitions_per_assignment</b>: 1048576</li>
- *             <li><b>max_tables_per_assignment</b>: 64</li>
- *             <li><b>max_bytes_per_schedule</b>: 100TiB</li>
- *         </ul>
- *     </li>
- * </ul>
+ * </p>
  */
 public class RepairTokenRangeSplitter implements IAutoRepairTokenRangeSplitter
 {
@@ -171,9 +94,25 @@ public class RepairTokenRangeSplitter implements IAutoRepairTokenRangeSplitter
     // Default max bytes to 100TiB, which is much more readable than Long.MAX_VALUE
     private static final DataStorageSpec.LongBytesBound MAX_BYTES = new DataStorageSpec.LongBytesBound(100_000, DataStorageSpec.DataStorageUnit.GIBIBYTES);
 
+    /**
+     * The target bytes that should be included in a repair assignment
+     */
     static final String BYTES_PER_ASSIGNMENT = "bytes_per_assignment";
+
+    /**
+     * Maximum number of partitions to include in a repair assignment
+     */
     static final String PARTITIONS_PER_ASSIGNMENT = "partitions_per_assignment";
+
+    /**
+     * Maximum number of tables to include in a repair assignment if {@link AutoRepairConfig.Options#repair_by_keyspace}
+     * is enabled.
+     */
     static final String MAX_TABLES_PER_ASSIGNMENT = "max_tables_per_assignment";
+
+    /**
+     * The maximum number of bytes to cover in an individual schedule
+     */
     static final String MAX_BYTES_PER_SCHEDULE = "max_bytes_per_schedule";
 
     static final List<String> PARAMETERS = Arrays.asList(BYTES_PER_ASSIGNMENT, PARTITIONS_PER_ASSIGNMENT, MAX_TABLES_PER_ASSIGNMENT, MAX_BYTES_PER_SCHEDULE);
@@ -193,23 +132,22 @@ public class RepairTokenRangeSplitter implements IAutoRepairTokenRangeSplitter
      * <p>
      * Defaults if not specified for the given repair type:
      * <li>
-     *     <ul><b>bytes_per_assignment</b>: 200GiB</ul>
-     *     <ul><b>partitions_per_assignment</b>: 2^repair_session_max_tree_depth</ul>
+     *     <ul><b>bytes_per_assignment</b>: 50GiB</ul>
+     *     <ul><b>partitions_per_assignment</b>: 1048576 (2^20)</ul>
      *     <ul><b>max_tables_per_assignment</b>: 64</ul>
      *     <ul><b>max_bytes_per_schedule</b>: 1000GiB</ul>
      * </li>
-     * It's expected that these defaults should work well for everything except incremental, so we confine
-     * bytes_per_assignment to 50GiB and max_bytes_per_schedule to 100GiB. This should strike a good balance
-     * between the amount of data that will be repaired during an initial migration to incremental repair and should
-     * move the entire repaired set from unrepaired to repaired at steady state, assuming not more the 100GiB of
-     * data is written to a node per min_repair_interval.
+     * It's expected that these defaults should work well for everything except incremental, where we
+     * max_bytes_per_schedule to 100GiB. This should strike a good balance between the amount of data that will be
+     * repaired during an initial migration to incremental repair and should move the entire repaired set from
+     * unrepaired to repaired at steady state, assuming not more the 100GiB of data is written to a node per
+     * min_repair_interval.
      */
     private static final Map<AutoRepairConfig.RepairType, RepairTypeDefaults> DEFAULTS_BY_REPAIR_TYPE = new EnumMap<AutoRepairConfig.RepairType, RepairTypeDefaults>(AutoRepairConfig.RepairType.class) {{
         put(AutoRepairConfig.RepairType.FULL, RepairTypeDefaults.builder(AutoRepairConfig.RepairType.FULL)
                                                                 .build());
-        // Restrict incremental repair to 50GB bytes per assignment to confine the amount of possible autocompaction.
+        // Restrict incremental repair to 100GB max bytes per schedule to confine the amount of possible autocompaction.
         put(AutoRepairConfig.RepairType.INCREMENTAL, RepairTypeDefaults.builder(AutoRepairConfig.RepairType.INCREMENTAL)
-                                                                       .withBytesPerAssignment(new DataStorageSpec.LongBytesBound("50GiB"))
                                                                        .withMaxBytesPerSchedule(new DataStorageSpec.LongBytesBound("100GiB"))
                                                                        .build());
         put(AutoRepairConfig.RepairType.PREVIEW_REPAIRED, RepairTypeDefaults.builder(AutoRepairConfig.RepairType.PREVIEW_REPAIRED)
@@ -957,8 +895,8 @@ public class RepairTokenRangeSplitter implements IAutoRepairTokenRangeSplitter
         static class RepairTypeDefaultsBuilder
         {
             private final AutoRepairConfig.RepairType repairType;
-            private DataStorageSpec.LongBytesBound bytesPerAssignment = new DataStorageSpec.LongBytesBound("200GiB");
-            // Aims to target at most 1 partitons per leaf assuming a merkle tree of depth 20  (2^20 = 1,048,576)
+            private DataStorageSpec.LongBytesBound bytesPerAssignment = new DataStorageSpec.LongBytesBound("50GiB");
+            // Aims to target at most 1 partitions per leaf assuming a merkle tree of depth 20  (2^20 = 1,048,576)
             private long partitionsPerAssignment = 1_048_576;
             private int maxTablesPerAssignment = 64;
             private DataStorageSpec.LongBytesBound maxBytesPerSchedule = MAX_BYTES;
@@ -968,6 +906,7 @@ public class RepairTokenRangeSplitter implements IAutoRepairTokenRangeSplitter
                 this.repairType = repairType;
             }
 
+            @SuppressWarnings("unused")
             public RepairTypeDefaultsBuilder withBytesPerAssignment(DataStorageSpec.LongBytesBound bytesPerAssignment)
             {
                 this.bytesPerAssignment = bytesPerAssignment;
