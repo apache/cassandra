@@ -52,7 +52,6 @@ import org.mockito.Mockito;
 import static accord.utils.Property.qt;
 import static org.apache.cassandra.net.MessageDelivery.RetryErrorMessage;
 import static org.apache.cassandra.net.MessageDelivery.RetryPredicate;
-import static org.apache.cassandra.service.RetryStrategy.randomizers;
 import static org.assertj.core.api.Assertions.assertThat;
 
 public class MessageDeliveryTest
