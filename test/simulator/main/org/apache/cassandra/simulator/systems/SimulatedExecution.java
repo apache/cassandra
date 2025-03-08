@@ -29,7 +29,7 @@ import org.apache.cassandra.simulator.Actions;
 import org.apache.cassandra.simulator.OrderOn;
 import org.apache.cassandra.simulator.systems.InterceptedExecution.InterceptedFutureTaskExecution;
 import org.apache.cassandra.simulator.systems.InterceptedExecution.InterceptedThreadStart;
-import org.apache.cassandra.simulator.systems.InterceptingExecutor.InterceptedScheduledFutureTask;
+import org.apache.cassandra.simulator.systems.InterceptingExecutor.InterceptableScheduledFuture;
 import org.apache.cassandra.utils.concurrent.Condition;
 import org.apache.cassandra.utils.concurrent.NotScheduledFuture;
 import org.apache.cassandra.utils.concurrent.RunnableFuture;
@@ -93,7 +93,7 @@ public class SimulatedExecution implements InterceptorOfExecution
             return task;
         }
 
-        public <T> ScheduledFuture<T> schedule(SimulatedAction.Kind kind, long delayNanos, long deadlineNanos, Callable<T> runnable, InterceptingExecutor executor)
+        public <T> ScheduledFuture<T> schedule(SimulatedAction.Kind kind, long delayNanos, long deadlineNanos, InterceptableScheduledFuture<T> task, InterceptingExecutor executor)
         {
             return new NotScheduledFuture<>();
         }
@@ -135,10 +135,9 @@ public class SimulatedExecution implements InterceptorOfExecution
             return task;
         }
 
-        public <V> ScheduledFuture<V> schedule(SimulatedAction.Kind kind, long delayNanos, long deadlineNanos, Callable<V> call, InterceptingExecutor executor)
+        public <V> ScheduledFuture<V> schedule(SimulatedAction.Kind kind, long delayNanos, long deadlineNanos, InterceptableScheduledFuture<V> task, InterceptingExecutor executor)
         {
             assert kind == SCHEDULED_TASK || kind == SCHEDULED_TIMEOUT || kind == SCHEDULED_DAEMON;
-            InterceptedScheduledFutureTask<V> task = new InterceptedScheduledFutureTask<>(delayNanos, call);
             InterceptedFutureTaskExecution<?> intercepted = new InterceptedFutureTaskExecution<>(kind, executor, task, deadlineNanos);
             task.onCancel(intercepted::cancel);
             intercept.interceptExecution(intercepted, executor.orderAppliesAfterScheduling());
