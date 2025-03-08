@@ -412,14 +412,6 @@ public class AutoRepairConfig implements Serializable
             options.put(RepairType.INCREMENTAL, getDefaultOptions());
             options.put(RepairType.PREVIEW_REPAIRED, getDefaultOptions());
 
-
-            options.get(RepairType.FULL).min_repair_interval = new DurationSpec.IntSecondsBound("24h");
-            // Incremental repairs operate over unrepaired data and should finish quickly. Running them more frequently keeps
-            // the unrepaired set smaller and thus causes repairs to operate over a smaller set of data, so a more frequent
-            // increase this interval to 24h or longer to reduce the impact of anticompaction caused by incremental repair.
-            options.get(RepairType.INCREMENTAL).min_repair_interval = new DurationSpec.IntSecondsBound("1h");
-            options.get(RepairType.PREVIEW_REPAIRED).min_repair_interval = new DurationSpec.IntSecondsBound("24h");
-
             return options;
         }
 
@@ -461,6 +453,7 @@ public class AutoRepairConfig implements Serializable
             opts.token_range_splitter = new ParameterizedClass(DEFAULT_SPLITTER.getName(), Collections.emptyMap());
             opts.initial_scheduler_delay = new DurationSpec.IntSecondsBound("5m");
             opts.repair_session_timeout = new DurationSpec.IntSecondsBound("3h");
+            opts.min_repair_interval = new DurationSpec.IntSecondsBound("24h");
 
             return opts;
         }

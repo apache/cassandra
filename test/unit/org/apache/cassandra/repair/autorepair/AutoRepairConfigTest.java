@@ -41,7 +41,6 @@ import org.apache.cassandra.repair.autorepair.AutoRepairConfig.Options;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
-import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
 /**
@@ -437,15 +436,7 @@ public class AutoRepairConfigTest extends CQLTester
         assertEquals(new ParameterizedClass(RepairTokenRangeSplitter.class.getName(), Collections.emptyMap()), options.token_range_splitter);
         assertEquals(new DurationSpec.IntSecondsBound("5m"), options.initial_scheduler_delay);
         assertEquals(new DurationSpec.IntSecondsBound("3h"), options.repair_session_timeout);
-
-        if (repairType == AutoRepairConfig.RepairType.INCREMENTAL)
-        {
-            assertEquals(new DurationSpec.IntSecondsBound("1h"), options.min_repair_interval);
-        }
-        else
-        {
-            assertEquals(new DurationSpec.IntSecondsBound("24h"), options.min_repair_interval);
-        }
+        assertEquals(new DurationSpec.IntSecondsBound("24h"), options.min_repair_interval);
     }
 
     @Test
@@ -466,6 +457,6 @@ public class AutoRepairConfigTest extends CQLTester
         assertEquals(new ParameterizedClass(RepairTokenRangeSplitter.class.getName(), Collections.emptyMap()), config.global_settings.token_range_splitter);
         assertEquals(new DurationSpec.IntSecondsBound("5m"), config.global_settings.initial_scheduler_delay);
         assertEquals(new DurationSpec.IntSecondsBound("3h"), config.global_settings.repair_session_timeout);
-        assertNull(config.global_settings.min_repair_interval);
+        assertEquals(new DurationSpec.IntSecondsBound("24h"), config.global_settings.min_repair_interval);
     }
 }
