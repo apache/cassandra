@@ -74,7 +74,7 @@ public class SimpleClient implements Closeable
 
     public final String host;
     public final int port;
-    private final EncryptionOptions encryptionOptions;
+    private final EncryptionOptions.ClientEncryptionOptions encryptionOptions;
     private final int largeMessageThreshold;
 
     protected final ResponseHandler responseHandler = new ResponseHandler();
@@ -92,7 +92,7 @@ public class SimpleClient implements Closeable
     {
         private final String host;
         private final int port;
-        private EncryptionOptions encryptionOptions = new EncryptionOptions();
+        private EncryptionOptions.ClientEncryptionOptions encryptionOptions = new EncryptionOptions.ClientEncryptionOptions();
         private ProtocolVersion version = ProtocolVersion.CURRENT;
         private boolean useBeta = false;
         private int largeMessageThreshold = FrameEncoder.Payload.MAX_SIZE;
@@ -103,7 +103,7 @@ public class SimpleClient implements Closeable
             this.port = port;
         }
 
-        public Builder encryption(EncryptionOptions options)
+        public Builder encryption(EncryptionOptions.ClientEncryptionOptions options)
         {
             this.encryptionOptions = options;
             return this;
@@ -149,22 +149,22 @@ public class SimpleClient implements Closeable
         this.largeMessageThreshold = builder.largeMessageThreshold;
     }
 
-    public SimpleClient(String host, int port, ProtocolVersion version, EncryptionOptions encryptionOptions)
+    public SimpleClient(String host, int port, ProtocolVersion version, EncryptionOptions.ClientEncryptionOptions encryptionOptions)
     {
         this(host, port, version, false, encryptionOptions);
     }
 
-    public SimpleClient(String host, int port, EncryptionOptions encryptionOptions)
+    public SimpleClient(String host, int port, EncryptionOptions.ClientEncryptionOptions encryptionOptions)
     {
         this(host, port, ProtocolVersion.CURRENT, encryptionOptions);
     }
 
     public SimpleClient(String host, int port, ProtocolVersion version)
     {
-        this(host, port, version, new EncryptionOptions());
+        this(host, port, version, new EncryptionOptions.ClientEncryptionOptions());
     }
 
-    public SimpleClient(String host, int port, ProtocolVersion version, boolean useBeta, EncryptionOptions encryptionOptions)
+    public SimpleClient(String host, int port, ProtocolVersion version, boolean useBeta, EncryptionOptions.ClientEncryptionOptions encryptionOptions)
     {
         this.host = host;
         this.port = port;
@@ -172,7 +172,7 @@ public class SimpleClient implements Closeable
             throw new IllegalArgumentException(String.format("Beta version of server used (%s), but USE_BETA flag is not set", version));
 
         this.version = version;
-        this.encryptionOptions = new EncryptionOptions(encryptionOptions).applyConfig();
+        this.encryptionOptions = encryptionOptions.applyConfig();
         this.largeMessageThreshold = FrameEncoder.Payload.MAX_SIZE -
                                         Math.max(FrameEncoderCrc.HEADER_AND_TRAILER_LENGTH,
                                                  FrameEncoderLZ4.HEADER_AND_TRAILER_LENGTH);
@@ -180,7 +180,7 @@ public class SimpleClient implements Closeable
 
     public SimpleClient(String host, int port)
     {
-        this(host, port, new EncryptionOptions());
+        this(host, port, new EncryptionOptions.ClientEncryptionOptions());
     }
 
     public SimpleClient connect(boolean useCompression) throws IOException

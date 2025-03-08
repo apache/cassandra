@@ -156,7 +156,7 @@ import static org.apache.cassandra.config.CassandraRelevantProperties.UNSAFE_SYS
 import static org.apache.cassandra.config.DataRateSpec.DataRateUnit.BYTES_PER_SECOND;
 import static org.apache.cassandra.config.DataRateSpec.DataRateUnit.MEBIBYTES_PER_SECOND;
 import static org.apache.cassandra.config.DataStorageSpec.DataStorageUnit.MEBIBYTES;
-import static org.apache.cassandra.config.EncryptionOptions.ClientAuth.REQUIRED;
+import static org.apache.cassandra.config.EncryptionOptions.ClientEncryptionOptions.ClientAuth.REQUIRED;
 import static org.apache.cassandra.db.ConsistencyLevel.ALL;
 import static org.apache.cassandra.db.ConsistencyLevel.EACH_QUORUM;
 import static org.apache.cassandra.db.ConsistencyLevel.LOCAL_QUORUM;
@@ -1088,10 +1088,10 @@ public class DatabaseDescriptor
         }
         else if (JMXServerOptions.isEnabledBySystemProperties())
         {
-            throw new ConfigurationException("Configure either jmx_server_options in cassandra.yaml and comment out " +
-                                             "configure_jmx function call in cassandra-env.sh or keep cassandra-env.sh " +
-                                             "to call configure_jmx function but you have to keep jmx_server_options " +
-                                             "in cassandra.yaml commented out.");
+                throw new ConfigurationException("Configure either jmx_server_options in cassandra.yaml and comment out " +
+                                                 "configure_jmx function call in cassandra-env.sh or keep cassandra-env.sh " +
+                                                 "to call configure_jmx function but you have to keep jmx_server_options " +
+                                                 "in cassandra.yaml commented out.");
         }
 
         conf.jmx_server_options.jmx_encryption_options.applyConfig();
@@ -3973,7 +3973,7 @@ public class DatabaseDescriptor
         conf.server_encryption_options = encryptionOptions;
     }
 
-    public static EncryptionOptions getNativeProtocolEncryptionOptions()
+    public static EncryptionOptions.ClientEncryptionOptions getNativeProtocolEncryptionOptions()
     {
         return conf.client_encryption_options;
     }
@@ -3984,7 +3984,7 @@ public class DatabaseDescriptor
     }
 
     @VisibleForTesting
-    public static void updateNativeProtocolEncryptionOptions(Function<EncryptionOptions, EncryptionOptions> update)
+    public static void updateNativeProtocolEncryptionOptions(Function<EncryptionOptions.ClientEncryptionOptions, EncryptionOptions.ClientEncryptionOptions> update)
     {
         conf.client_encryption_options = update.apply(conf.client_encryption_options);
     }

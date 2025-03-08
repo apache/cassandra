@@ -42,7 +42,7 @@ public class JMXAuthJMXServerOptionsTest extends AbstractJMXAuthTest
         String config = Paths.get(ClassLoader.getSystemResource("auth/cassandra-test-jaas.conf").toURI()).toString();
 
         return new JMXServerOptions(true, false, 9999, 0, true,
-                                    new EncryptionOptions(), "TestLogin", config, null, null,
+                                    new EncryptionOptions.ClientEncryptionOptions(), "TestLogin", config, null, null,
                                     NoSuperUserAuthorizationProxy.class.getName());
     }
 }

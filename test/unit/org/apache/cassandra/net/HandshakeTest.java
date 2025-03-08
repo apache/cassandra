@@ -39,6 +39,7 @@ import io.netty.channel.EventLoop;
 import io.netty.util.concurrent.Future;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.EncryptionOptions.ServerEncryptionOptions;
+import org.apache.cassandra.config.EncryptionOptions.ServerEncryptionOptions.Builder;
 import org.apache.cassandra.config.ParameterizedClass;
 import org.apache.cassandra.db.commitlog.CommitLog;
 import org.apache.cassandra.distributed.test.log.ClusterMetadataTestHelper;
@@ -49,9 +50,9 @@ import org.apache.cassandra.security.DefaultSslContextFactory;
 import org.apache.cassandra.transport.TlsTestUtils;
 import org.apache.cassandra.utils.concurrent.AsyncPromise;
 
+import static org.apache.cassandra.config.EncryptionOptions.ClientEncryptionOptions.ClientAuth.NOT_REQUIRED;
+import static org.apache.cassandra.config.EncryptionOptions.ClientEncryptionOptions.ClientAuth.REQUIRED;
 import static org.apache.cassandra.net.ConnectionType.SMALL_MESSAGES;
-import static org.apache.cassandra.config.EncryptionOptions.ClientAuth.NOT_REQUIRED;
-import static org.apache.cassandra.config.EncryptionOptions.ClientAuth.REQUIRED;
 import static org.apache.cassandra.net.MessagingService.current_version;
 import static org.apache.cassandra.net.MessagingService.minimum_version;
 import static org.apache.cassandra.net.OutboundConnectionInitiator.Result;
@@ -279,26 +280,28 @@ public class HandshakeTest
 
     private ServerEncryptionOptions getServerEncryptionOptions(SslFallbackConnectionType sslConnectionType, boolean optional)
     {
-        ServerEncryptionOptions serverEncryptionOptions = new ServerEncryptionOptions().withOptional(optional)
-                                                                                       .withKeyStore(TlsTestUtils.SERVER_KEYSTORE_PATH)
-                                                                                       .withKeyStorePassword(TlsTestUtils.SERVER_KEYSTORE_PASSWORD)
-                                                                                       .withOutboundKeystore(TlsTestUtils.SERVER_OUTBOUND_KEYSTORE_PATH)
-                                                                                       .withOutboundKeystorePassword(TlsTestUtils.SERVER_OUTBOUND_KEYSTORE_PASSWORD)
-                                                                                       .withTrustStore(TlsTestUtils.SERVER_TRUSTSTORE_PATH)
-                                                                                       .withTrustStorePassword(TlsTestUtils.SERVER_TRUSTSTORE_PASSWORD)
-                                                                                       .withSslContextFactory((new ParameterizedClass(DefaultSslContextFactory.class.getName(),
-                                                                                                                                      new HashMap<>())));
+        Builder serverEncryptionOptionsBuilder = new Builder();
+
+        serverEncryptionOptionsBuilder.withOutboundKeystore(TlsTestUtils.SERVER_OUTBOUND_KEYSTORE_PATH)
+                                      .withOutboundKeystorePassword(TlsTestUtils.SERVER_OUTBOUND_KEYSTORE_PASSWORD)
+                                      .withOptional(optional)
+                                      .withKeyStore(TlsTestUtils.SERVER_KEYSTORE_PATH)
+                                      .withKeyStorePassword(TlsTestUtils.SERVER_KEYSTORE_PASSWORD)
+                                      .withTrustStore(TlsTestUtils.SERVER_TRUSTSTORE_PATH).withTrustStorePassword(TlsTestUtils.SERVER_TRUSTSTORE_PASSWORD)
+                                      .withSslContextFactory((new ParameterizedClass(DefaultSslContextFactory.class.getName(),
+                                                                                      new HashMap<>())));
+
         if (sslConnectionType == SslFallbackConnectionType.MTLS)
         {
-            serverEncryptionOptions = serverEncryptionOptions.withInternodeEncryption(ServerEncryptionOptions.InternodeEncryption.all)
-                                                             .withRequireClientAuth(REQUIRED);
+            serverEncryptionOptionsBuilder.withInternodeEncryption(ServerEncryptionOptions.InternodeEncryption.all)
+                                          .withRequireClientAuth(REQUIRED);
         }
         else if (sslConnectionType == SslFallbackConnectionType.SSL)
         {
-            serverEncryptionOptions = serverEncryptionOptions.withInternodeEncryption(ServerEncryptionOptions.InternodeEncryption.all)
-                                                             .withRequireClientAuth(NOT_REQUIRED);
+            serverEncryptionOptionsBuilder.withInternodeEncryption(ServerEncryptionOptions.InternodeEncryption.all)
+                                          .withRequireClientAuth(NOT_REQUIRED);
         }
-        return serverEncryptionOptions;
+        return serverEncryptionOptionsBuilder.build();
     }
 
     private InboundSockets getInboundSocket(ServerEncryptionOptions serverEncryptionOptions)

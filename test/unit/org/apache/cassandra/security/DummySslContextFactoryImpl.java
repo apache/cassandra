@@ -44,7 +44,7 @@ public class DummySslContextFactoryImpl implements ISslContextFactory
     }
 
     @Override
-    public SSLContext createJSSESslContext(EncryptionOptions.ClientAuth clientAuth) throws SSLException
+    public SSLContext createJSSESslContext(EncryptionOptions.ClientEncryptionOptions.ClientAuth clientAuth) throws SSLException
     {
         return null;
     }
@@ -56,7 +56,7 @@ public class DummySslContextFactoryImpl implements ISslContextFactory
     }
 
     @Override
-    public SslContext createNettySslContext(EncryptionOptions.ClientAuth clientAuth, SocketType socketType,
+    public SslContext createNettySslContext(EncryptionOptions.ClientEncryptionOptions.ClientAuth clientAuth, SocketType socketType,
                                             CipherSuiteFilter cipherFilter) throws SSLException
     {
         return null;

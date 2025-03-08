@@ -72,7 +72,7 @@ public interface ISslContextFactory
      * @return JSSE's {@link SSLContext}
      * @throws SSLException in case the Ssl Context creation fails for some reason
      */
-    default SSLContext createJSSESslContext(EncryptionOptions.ClientAuth clientAuth) throws SSLException
+    default SSLContext createJSSESslContext(EncryptionOptions.ClientEncryptionOptions.ClientAuth clientAuth) throws SSLException
     {
         switch (clientAuth)
         {
@@ -112,7 +112,7 @@ public interface ISslContextFactory
      * @return Netty's {@link SslContext}
      * @throws SSLException in case the Ssl Context creation fails for some reason
      */
-    default SslContext createNettySslContext(EncryptionOptions.ClientAuth clientAuth, SocketType socketType,
+    default SslContext createNettySslContext(EncryptionOptions.ClientEncryptionOptions.ClientAuth clientAuth, SocketType socketType,
                                              CipherSuiteFilter cipherFilter) throws SSLException
     {
         switch (clientAuth)

@@ -49,7 +49,7 @@ import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.metrics.MutualTlsMetrics;
 import org.apache.cassandra.utils.NoSpamLogger;
 
-import static org.apache.cassandra.config.EncryptionOptions.ClientAuth.REQUIRED;
+import static org.apache.cassandra.config.EncryptionOptions.ClientEncryptionOptions.ClientAuth.REQUIRED;
 
 /**
  * Performs mTLS authentication for internode connections by extracting identities from the certificates of incoming

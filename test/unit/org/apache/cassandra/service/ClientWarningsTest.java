@@ -70,7 +70,7 @@ public class ClientWarningsTest extends CQLTester
         createTable("CREATE TABLE %s (pk int PRIMARY KEY, v text)");
 
         // v4 and higher
-        try (SimpleClient client = new SimpleClient(nativeAddr.getHostAddress(), nativePort, version, true, new EncryptionOptions()))
+        try (SimpleClient client = new SimpleClient(nativeAddr.getHostAddress(), nativePort, version, true, new EncryptionOptions.ClientEncryptionOptions()))
         {
             client.connect(false);
 
@@ -90,7 +90,7 @@ public class ClientWarningsTest extends CQLTester
         createTable("CREATE TABLE %s (pk int PRIMARY KEY, v text)");
 
         // v4 and higher
-        try (SimpleClient client = new SimpleClient(nativeAddr.getHostAddress(), nativePort, version, true, new EncryptionOptions()))
+        try (SimpleClient client = new SimpleClient(nativeAddr.getHostAddress(), nativePort, version, true, new EncryptionOptions.ClientEncryptionOptions()))
         {
             client.connect(false);
 
@@ -112,7 +112,7 @@ public class ClientWarningsTest extends CQLTester
         final int iterations = 10000;
         createTable("CREATE TABLE %s (pk int, ck int, v int, PRIMARY KEY (pk, ck))");
 
-        try (SimpleClient client = new SimpleClient(nativeAddr.getHostAddress(), nativePort, version, true, new EncryptionOptions()))
+        try (SimpleClient client = new SimpleClient(nativeAddr.getHostAddress(), nativePort, version, true, new EncryptionOptions.ClientEncryptionOptions()))
         {
             client.connect(false);
 

@@ -41,7 +41,7 @@ import org.apache.cassandra.config.EncryptionOptions;
 import org.apache.cassandra.security.SSLFactory;
 import org.apache.cassandra.stress.settings.StressSettings;
 
-import static org.apache.cassandra.config.EncryptionOptions.ClientAuth.REQUIRED;
+import static org.apache.cassandra.config.EncryptionOptions.ClientEncryptionOptions.ClientAuth.REQUIRED;
 
 public class JavaDriverClient
 {
@@ -60,7 +60,7 @@ public class JavaDriverClient
     public final int connectionsPerHost;
 
     private final ProtocolVersion protocolVersion;
-    private final EncryptionOptions encryptionOptions;
+    private final EncryptionOptions.ClientEncryptionOptions encryptionOptions;
     private Cluster cluster;
     private Session session;
     private final LoadBalancingPolicy loadBalancingPolicy;
@@ -69,15 +69,15 @@ public class JavaDriverClient
 
     public JavaDriverClient(StressSettings settings, String host, int port)
     {
-        this(settings, Collections.singletonList(host), port, new EncryptionOptions());
+        this(settings, Collections.singletonList(host), port, new EncryptionOptions.ClientEncryptionOptions());
     }
 
     public JavaDriverClient(StressSettings settings, List<String> hosts, int port)
     {
-        this(settings, hosts, port, new EncryptionOptions());
+        this(settings, hosts, port, new EncryptionOptions.ClientEncryptionOptions());
     }
 
-    public JavaDriverClient(StressSettings settings, List<String> hosts, int port, EncryptionOptions encryptionOptions)
+    public JavaDriverClient(StressSettings settings, List<String> hosts, int port, EncryptionOptions.ClientEncryptionOptions encryptionOptions)
     {
         this.protocolVersion = settings.mode.protocolVersion;
         this.hosts = hosts;
@@ -85,7 +85,7 @@ public class JavaDriverClient
         this.username = settings.mode.username;
         this.password = settings.mode.password;
         this.authProvider = settings.mode.authProvider;
-        this.encryptionOptions = new EncryptionOptions(encryptionOptions).applyConfig();
+        this.encryptionOptions = new EncryptionOptions.ClientEncryptionOptions(encryptionOptions).applyConfig();
         this.loadBalancingPolicy = loadBalancingPolicy(settings);
         this.connectionsPerHost = settings.mode.connectionsPerHost == null ? 8 : settings.mode.connectionsPerHost;
 
