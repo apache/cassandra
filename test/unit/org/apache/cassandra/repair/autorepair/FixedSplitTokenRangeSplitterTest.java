@@ -24,8 +24,8 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
-import java.util.Map;
 
+import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -58,19 +58,27 @@ public class FixedSplitTokenRangeSplitterTest extends CQLTester
     private static final String TABLE1 = "tbl1";
     private static final String TABLE2 = "tbl2";
     private static final String TABLE3 = "tbl3";
-    private static final int numberOfSubRanges = 4;
-
     private static final int totalTokenRanges = 3;
     private static int numberOfSplits;
-    private static final Map<String, String> splitterParams = Collections.singletonMap(FixedSplitTokenRangeSplitter.NUMBER_OF_SUBRANGES, Integer.toString(numberOfSubRanges));
 
-    @Parameterized.Parameter()
+    @Parameterized.Parameter(0)
     public AutoRepairConfig.RepairType repairType;
 
-    @Parameterized.Parameters(name = "repairType={0}")
-    public static Collection<AutoRepairConfig.RepairType> repairTypes()
+    @Parameterized.Parameter(1)
+    public int numberOfSubRange;
+
+    @Parameterized.Parameters(name = "repairType={0}, numberOfSubRange={1}")
+    public static Collection<Object[]> parameters()
     {
-        return Arrays.asList(AutoRepairConfig.RepairType.values());
+        List<Object[]> params = new ArrayList<>();
+        for (AutoRepairConfig.RepairType type : AutoRepairConfig.RepairType.values())
+        {
+            for (int subRange : Arrays.asList(4, 16, 64, 128))
+            {
+                params.add(new Object[]{ type, subRange });
+            }
+        }
+        return params;
     }
 
     @BeforeClass
@@ -84,8 +92,12 @@ public class FixedSplitTokenRangeSplitterTest extends CQLTester
         AutoRepairUtils.setup();
         SchemaLoader.prepareServer();
         SchemaLoader.createKeyspace(KEYSPACE, KeyspaceParams.simple(1));
+    }
 
-        numberOfSplits = numberOfSubRanges/totalTokenRanges;
+    @Before
+    public void before()
+    {
+        numberOfSplits = numberOfSubRange / totalTokenRanges;
     }
 
     @Test
@@ -106,7 +118,7 @@ public class FixedSplitTokenRangeSplitterTest extends CQLTester
 
         List<PrioritizedRepairPlan> plan = PrioritizedRepairPlan.buildSingleKeyspacePlan(repairType, KEYSPACE, TABLE1, TABLE2, TABLE3);
 
-        Iterator<KeyspaceRepairAssignments> keyspaceAssignments = new FixedSplitTokenRangeSplitter(repairType, splitterParams)
+        Iterator<KeyspaceRepairAssignments> keyspaceAssignments = new FixedSplitTokenRangeSplitter(repairType, Collections.singletonMap(FixedSplitTokenRangeSplitter.NUMBER_OF_SUBRANGES, Integer.toString(numberOfSubRange)))
                                                                   .getRepairAssignments(true, plan);
 
         // should be only 1 entry for the keyspace.
@@ -115,7 +127,7 @@ public class FixedSplitTokenRangeSplitterTest extends CQLTester
         assertFalse(keyspaceAssignments.hasNext());
 
         List<RepairAssignment> assignments = keyspace.getRepairAssignments();
-        assertEquals(totalTokenRanges*numberOfSplits*tables.size(), assignments.size());
+        assertEquals(totalTokenRanges * numberOfSplits * tables.size(), assignments.size());
         assertEquals(expectedToken.size(), assignments.size());
 
         int expectedTableIndex = -1;
@@ -129,9 +141,9 @@ public class FixedSplitTokenRangeSplitterTest extends CQLTester
 
         expectedTableIndex = -1;
         // should be a set of ranges for each table.
-        for (int i = 0; i<totalTokenRanges*numberOfSplits*tables.size(); i++)
+        for (int i = 0; i < totalTokenRanges * numberOfSplits * tables.size(); i++)
         {
-            if (i % (totalTokenRanges*numberOfSplits) == 0)
+            if (i % (totalTokenRanges * numberOfSplits) == 0)
             {
                 expectedTableIndex++;
             }
@@ -155,7 +167,7 @@ public class FixedSplitTokenRangeSplitterTest extends CQLTester
 
         List<PrioritizedRepairPlan> plan = PrioritizedRepairPlan.buildSingleKeyspacePlan(repairType, KEYSPACE, TABLE1, TABLE2, TABLE3);
 
-        Iterator<KeyspaceRepairAssignments> keyspaceAssignments = new FixedSplitTokenRangeSplitter(repairType, splitterParams)
+        Iterator<KeyspaceRepairAssignments> keyspaceAssignments = new FixedSplitTokenRangeSplitter(repairType, Collections.singletonMap(FixedSplitTokenRangeSplitter.NUMBER_OF_SUBRANGES, Integer.toString(numberOfSubRange)))
                                                                   .getRepairAssignments(true, plan);
 
         // should be only 1 entry for the keyspace.
@@ -166,11 +178,11 @@ public class FixedSplitTokenRangeSplitterTest extends CQLTester
         List<RepairAssignment> assignments = keyspace.getRepairAssignments();
         assertNotNull(assignments);
 
-        assertEquals(totalTokenRanges*numberOfSplits, assignments.size());
+        assertEquals(totalTokenRanges * numberOfSplits, assignments.size());
         assertEquals(expectedToken.size(), assignments.size());
 
         // should only be one set of ranges for the entire keyspace.
-        for (int i = 0; i<totalTokenRanges*numberOfSplits; i++)
+        for (int i = 0; i < totalTokenRanges * numberOfSplits; i++)
         {
             assertEquals(expectedToken.get(i), assignments.get(i).getTokenRange());
             assertEquals(tables, assignments.get(i).getTableNames());
