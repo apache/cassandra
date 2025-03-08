@@ -1866,6 +1866,11 @@ drop_compact_storage_enabled: false
 #    excluded_keyspaces: # comma separated list of keyspaces to exclude from the check
 #    excluded_tables: # comma separated list of keyspace.table pairs to exclude from the check
 
+
+# Prevents preparing a repair session or beginning a repair streaming session if pending compactions is over
+# the given value.  Defaults to disabled.
+# reject_repair_compaction_threshold: 1024
+
 # At least 20% of disk must be unused to run incremental repair. It is useful to avoid disks filling up during
 # incremental repair as anti-compaction during incremental repair may contribute to additional space temporarily.
 # if you want to disable this feature (the recommendation is not to, but if you want to disable it for whatever reason)
