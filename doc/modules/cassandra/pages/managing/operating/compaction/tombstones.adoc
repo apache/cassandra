@@ -24,6 +24,7 @@ This approach is used instead of removing values because of the distributed natu
 Once an object is marked as a tombstone, queries will ignore all values that are time-stamped previous to the tombstone insertion.
 
 == Zombies
+
 In a multi-node cluster, {cassandra} may store replicas of the same data on two or more nodes. 
 This helps prevent data loss, but it complicates the deletion process. 
 If a node receives a delete command for data it stores locally, the node tombstones the specified object and tries to pass the tombstone to other nodes containing replicas of that object. 
@@ -49,7 +50,7 @@ But if the node does not recover until after the grace period ends, {cassandra} 
 
 After the tombstone's grace period ends, {cassandra} deletes the tombstone during compaction.
 
-== Deletion
+== Deletion 
 
 After `gc_grace_seconds` has expired the tombstone may be removed (meaning there will no longer be any object that a certain piece of data was
 deleted). 
