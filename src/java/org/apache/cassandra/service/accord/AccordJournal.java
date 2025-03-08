@@ -79,6 +79,7 @@ import org.apache.cassandra.utils.ExecutorUtils;
 
 import static accord.impl.CommandChange.Field.CLEANUP;
 import static accord.impl.CommandChange.anyFieldChanged;
+import static accord.impl.CommandChange.describeFlags;
 import static accord.impl.CommandChange.getFlags;
 import static accord.impl.CommandChange.isChanged;
 import static accord.impl.CommandChange.isNull;
@@ -598,6 +599,12 @@ public class AccordJournal implements accord.api.Journal, RangeSearcher.Supplier
         public boolean hasParticipants()
         {
             return hasField(Field.PARTICIPANTS);
+        }
+
+        @Override
+        public String toString()
+        {
+            return after.saveStatus() + " " + describeFlags(flags);
         }
     }
 

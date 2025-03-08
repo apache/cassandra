@@ -139,6 +139,8 @@ public abstract class AbstractAccordSegmentCompactor<V> implements SegmentCompac
                     {
                         maybeWritePartition(key, builder, serializer, firstDescriptor, firstOffset);
                         builder = null;
+                        firstDescriptor = lastDescriptor = -1;
+                        firstOffset = lastOffset = -1;
                     }
                 }
                 while ((advanced = reader.advance()) && reader.key().equals(key));

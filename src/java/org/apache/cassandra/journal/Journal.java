@@ -39,6 +39,7 @@ import com.google.common.annotations.VisibleForTesting;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import accord.local.CommandStore;
 import accord.utils.Invariants;
 import com.codahale.metrics.Timer.Context;
 import org.apache.cassandra.concurrent.Interruptible;

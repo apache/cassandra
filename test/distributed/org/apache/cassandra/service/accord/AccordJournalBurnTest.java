@@ -124,7 +124,7 @@ public class AccordJournalBurnTest extends BurnTestBase
     @Test
     public void testOne()
     {
-        long seed = 607941615954375l; //System.nanoTime();
+        long seed = System.nanoTime();
         int operations = 1000;
 
         logger.info("Seed: {}", seed);
