@@ -18,6 +18,7 @@
 
 package org.apache.cassandra.utils;
 
+import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -36,17 +37,21 @@ import java.util.TreeMap;
 import java.util.concurrent.TimeUnit;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import javax.annotation.Nullable;
 
 import com.google.common.collect.Iterables;
 
+import accord.utils.Gens;
+import accord.utils.RandomSource;
 import org.apache.cassandra.cql3.KnownIssue;
 import org.apache.cassandra.cql3.ast.AssignmentOperator;
 import org.apache.cassandra.cql3.ast.Bind;
 import org.apache.cassandra.cql3.ast.CasCondition;
 import org.apache.cassandra.cql3.ast.Conditional;
+import org.apache.cassandra.cql3.ast.CreateIndexDDL;
 import org.apache.cassandra.cql3.ast.Expression;
 import org.apache.cassandra.cql3.ast.Literal;
 import org.apache.cassandra.cql3.ast.Mutation;
@@ -66,6 +71,8 @@ import org.apache.cassandra.db.marshal.LongType;
 import org.apache.cassandra.db.marshal.MapType;
 import org.apache.cassandra.db.marshal.SetType;
 import org.apache.cassandra.db.marshal.ShortType;
+
+import org.apache.cassandra.harry.model.ASTSingleTableModel;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.TableMetadata;
 import org.quicktheories.core.Gen;
@@ -73,11 +80,33 @@ import org.quicktheories.core.RandomnessSource;
 import org.quicktheories.generators.SourceDSL;
 import org.quicktheories.impl.Constraint;
 
+import static org.apache.cassandra.utils.AbstractTypeGenerators.getTypeSupport;
 import static org.apache.cassandra.utils.Generators.SYMBOL_GEN;
 
 public class ASTGenerators
 {
-    public static final EnumSet<KnownIssue> IGNORE_ISSUES = KnownIssue.ignoreAll();
+    public static final EnumSet<KnownIssue> IGNORED_ISSUES = KnownIssue.ignoreAll();
+
+    public static Gen<LinkedHashMap<Symbol, Object>> columnValues(List<Symbol> columns)
+    {
+        List<Gen<?>> gens = new ArrayList<>(columns.size());
+        for (int i = 0; i < columns.size(); i++)
+            gens.add(getTypeSupport(columns.get(i).type()).valueGen);
+        return rs -> {
+            LinkedHashMap<Symbol, Object> vs = new LinkedHashMap<>();
+            for (int i = 0; i < columns.size(); i++)
+                vs.put(columns.get(i), gens.get(i).generate(rs));
+            return vs;
+        };
+    }
+
+    public static Select select(TableMetadata metadata, LinkedHashMap<Symbol, Object> map)
+    {
+        Select.TableBasedBuilder builder = Select.builder(metadata);
+        for (var e : map.entrySet())
+            builder.value(e.getKey(), e.getValue());
+        return builder.build();
+    }
 
     static Gen<Value> valueGen(Object value, AbstractType<?> type)
     {
@@ -87,7 +116,7 @@ public class ASTGenerators
 
     static Gen<Value> valueGen(AbstractType<?> type)
     {
-        Gen<?> v = AbstractTypeGenerators.getTypeSupport(type).valueGen;
+        Gen<?> v = getTypeSupport(type).valueGen;
         return rnd -> valueGen(v.generate(rnd), type).generate(rnd);
     }
 
@@ -151,7 +180,7 @@ public class ASTGenerators
             //NOTE: see https://the-asf.slack.com/archives/CK23JSY2K/p1724819303058669 - varint didn't fail but serialized using int32 which causes equality mismatches for pk/ck lookups
             if ((e.type().unwrap() == ShortType.instance
                  || e.type().unwrap() == IntegerType.instance)
-                && IGNORE_ISSUES.contains(KnownIssue.SHORT_AND_VARINT_GET_INT_FUNCTIONS)) // seed=7525457176675272023L
+                && IGNORED_ISSUES.contains(KnownIssue.SHORT_AND_VARINT_GET_INT_FUNCTIONS)) // seed=7525457176675272023L
             {
                 left = new TypeHint(left);
                 right = new TypeHint(right);
@@ -173,7 +202,7 @@ public class ASTGenerators
         public ExpressionBuilder(AbstractType<?> type)
         {
             this.type = type.unwrap();
-            this.valueGen = AbstractTypeGenerators.getTypeSupport(this.type).valueGen;
+            this.valueGen = getTypeSupport(this.type).valueGen;
             this.allowedOperators = Operator.supportsOperators(this.type);
         }
 
@@ -181,6 +210,12 @@ public class ASTGenerators
         {
             if (!type.allowsEmpty()) return this;
             useEmpty = SourceDSL.integers().between(1, 100).map(i -> i < 10);
+            return this;
+        }
+
+        public ExpressionBuilder disallowEmpty()
+        {
+            useEmpty = i -> false;
             return this;
         }
 
@@ -287,7 +322,7 @@ public class ASTGenerators
             return this;
         }
 
-        public SelectGenBuilder withKeys(Gen<Map<Symbol, Object>> partitionKeys, Gen<Map<Symbol, Object>> clusteringKeys)
+        public SelectGenBuilder withKeys(Gen<? extends Map<Symbol, Object>> partitionKeys, Gen<? extends Map<Symbol, Object>> clusteringKeys)
         {
             keyGen = rs -> {
                 Map<Symbol, Expression> keys = new LinkedHashMap<>();
@@ -345,7 +380,7 @@ public class ASTGenerators
         {
             Map<ColumnMetadata, Gen<?>> gens = new LinkedHashMap<>();
             for (ColumnMetadata col : metadata.columnsInFixedOrder())
-                gens.put(col, AbstractTypeGenerators.getTypeSupport(col.type).valueGen);
+                gens.put(col, getTypeSupport(col.type).valueGen);
             return rnd -> {
                 Map<Symbol, Expression> output = new LinkedHashMap<>();
                 for (ColumnMetadata col : metadata.partitionKeyColumns())
@@ -377,7 +412,7 @@ public class ASTGenerators
         private boolean allowPartitionOnlyUpdate = true;
         private boolean allowPartitionOnlyInsert = true;
         private boolean allowUpdateMultipleClusteringKeys = true;
-        private EnumSet<KnownIssue> ignoreIssues = IGNORE_ISSUES;
+        private EnumSet<KnownIssue> ignoreIssues = IGNORED_ISSUES;
 
         public MutationGenBuilder(TableMetadata metadata)
         {
@@ -433,6 +468,18 @@ public class ASTGenerators
             return this;
         }
 
+        public MutationGenBuilder disallowEmpty()
+        {
+            columnExpressions.values().forEach(ExpressionBuilder::disallowEmpty);
+            return this;
+        }
+
+        public MutationGenBuilder disallowEmpty(Symbol symbol)
+        {
+            columnExpressions.get(symbol).disallowEmpty();
+            return this;
+        }
+
         public MutationGenBuilder allowNull(Symbol symbol)
         {
             columnExpressions.get(symbol).allowNull();
@@ -454,6 +501,13 @@ public class ASTGenerators
         {
             columnExpressions.values().forEach(e -> e.withLiteralOrBindGen(literalOrBindGen));
             return this;
+        }
+
+        public MutationGenBuilder withTxnSafe()
+        {
+            return withoutTimestamp()
+                   .withoutTtl()
+                   .withoutTransaction();
         }
 
         public MutationGenBuilder withoutTransaction()
@@ -658,7 +712,7 @@ public class ASTGenerators
                     }
                     case UPDATE:
                     {
-                        Mutation.UpdateBuilder builder = Mutation.update(metadata);
+                        Mutation.TableBasedUpdateBuilder builder = Mutation.update(metadata);
                         var ttl = ttlGen.generate(rnd);
                         if (ttl.isPresent())
                             builder.ttl(valueGen(ttl.getAsInt(), Int32Type.instance).generate(rnd));
@@ -673,7 +727,7 @@ public class ASTGenerators
                         if (!staticColumns.isEmpty() && allowPartitionOnlyUpdate && bool.generate(rnd))
                         {
                             var columnsToGenerate = new LinkedHashSet<>(subset(rnd, staticColumns));
-                            Conditional.EqBuilder<Mutation.UpdateBuilder> setBuilder = builder::set;
+                            Conditional.EqBuilder<Mutation.TableBasedUpdateBuilder> setBuilder = builder::set;
                             generateRemaining(rnd, bool, Mutation.Kind.UPDATE, isTransaction, typeToReference, setBuilder, columnsToGenerate);
 
                             if (isCas)
@@ -719,7 +773,7 @@ public class ASTGenerators
                             if (!staticColumns.isEmpty() && bool.generate(rnd))
                                 columnsToGenerate.addAll(subset(rnd, staticColumns));
                         }
-                        Conditional.EqBuilder<Mutation.UpdateBuilder> setBuilder = builder::set;
+                        Conditional.EqBuilder<Mutation.TableBasedUpdateBuilder> setBuilder = builder::set;
                         generateRemaining(rnd, bool, Mutation.Kind.UPDATE, isTransaction, typeToReference, setBuilder, columnsToGenerate);
                         return builder.build();
                     }
@@ -1001,9 +1055,7 @@ public class ASTGenerators
                         builder.addReturn(selectGen.generate(rnd));
                     }
                     MutationGenBuilder mutationBuilder = new MutationGenBuilder(metadata)
-                                                         .withoutCas()
-                                                         .withoutTimestamp()
-                                                         .withoutTtl()
+                                                         .withTxnSafe()
                                                          .withAllowUpdateMultipleClusteringKeys(false)
                                                          .withReferences(new ArrayList<>(builder.allowedReferences()));
                     if (!allowReferences)
@@ -1049,10 +1101,144 @@ public class ASTGenerators
         private static Gen<Conditional.Where> whereGen(Reference ref)
         {
             Gen<Conditional.Where.Inequality> kindGen = SourceDSL.arbitrary().enumValues(Conditional.Where.Inequality.class);
-            Gen<?> dataGen = AbstractTypeGenerators.getTypeSupport(ref.type()).valueGen;
+            Gen<?> dataGen = getTypeSupport(ref.type()).valueGen;
             return rnd -> {
                 Conditional.Where.Inequality kind = kindGen.generate(rnd);
                 return Conditional.Where.create(kind, ref, valueGen(dataGen.generate(rnd), ref.type()).generate(rnd));
+            };
+        }
+    }
+
+    public static MutationGenBuilder mutationBuilder(RandomSource rs,
+                                                     ASTSingleTableModel model,
+                                                     List<LinkedHashMap<Symbol, Object>> uniquePartitions,
+                                                     Function<Symbol, CreateIndexDDL.IndexedColumn> indexes)
+    {
+        return mutationBuilder(IGNORED_ISSUES, rs, model, uniquePartitions, indexes);
+    }
+
+    public static MutationGenBuilder mutationBuilder(EnumSet<KnownIssue> ignoredIssues,
+                                                     RandomSource rs,
+                                                     ASTSingleTableModel model,
+                                                     List<LinkedHashMap<Symbol, Object>> uniquePartitions,
+                                                     Function<Symbol, CreateIndexDDL.IndexedColumn> indexes)
+    {
+        var boolDistribution = Gens.bools().mixedDistribution();
+        TableMetadata metadata = model.factory.metadata;
+        MutationGenBuilder builder = new MutationGenBuilder(metadata)
+                                     .withTxnSafe()
+                                     .withPartitions(uniquePartitions.size() == 1
+                                                     ? SourceDSL.arbitrary().constant(uniquePartitions.get(0))
+                                                     : Generators.fromGen(Gens.mixedDistribution(uniquePartitions).next(rs)))
+                                     .withColumnExpressions(e -> e.withOperators(Generators.fromGen(boolDistribution.next(rs))))
+                                     .withIgnoreIssues(ignoredIssues);
+        if (ignoredIssues.contains(KnownIssue.SAI_EMPTY_TYPE))
+        {
+            model.factory.regularAndStaticColumns.stream()
+                                                 // exclude SAI indexed columns
+                                                 .filter(s -> indexes.apply(s) == null || indexes.apply(s).indexDDL.indexer != CreateIndexDDL.SAI)
+                                                 .forEach(builder::allowEmpty);
+        }
+        else
+        {
+            model.factory.regularAndStaticColumns.forEach(builder::allowEmpty);
+        }
+        model.factory.regularAndStaticColumns.forEach(builder::allowNull);
+        return builder;
+    }
+
+    public static class ModelBasedTxnGenBuilder
+    {
+        private final RandomSource rs; //TODO (now): refactor so ASTGenerators no longer is quicktheories, its too annoying to go back and forth...
+        private final TableMetadata metadata;
+        private final ASTSingleTableModel model;
+        private final Function<Symbol, CreateIndexDDL.IndexedColumn> indexes;
+        private final Gen<LinkedHashMap<Symbol, Object>> partitionKeyValuesGen;
+        private Gen<Boolean> bindOrLiteralGen = SourceDSL.booleans().all();
+        private boolean allowEmpty = true;
+
+        public ModelBasedTxnGenBuilder(RandomSource rs,
+                                       ASTSingleTableModel model,
+                                       Function<Symbol, CreateIndexDDL.IndexedColumn> indexes,
+                                       Gen<LinkedHashMap<Symbol, Object>> partitionKeyValuesGen)
+        {
+            this.rs = rs;
+            this.metadata = model.factory.metadata;
+            this.model = model;
+            this.indexes = indexes;
+            this.partitionKeyValuesGen = partitionKeyValuesGen;
+        }
+
+        public ModelBasedTxnGenBuilder disallowEmpty()
+        {
+            allowEmpty = false;
+            return this;
+        }
+
+        public ModelBasedTxnGenBuilder withBindOrLiteralGen(Gen<Boolean> bindOrLiteralGen)
+        {
+            this.bindOrLiteralGen = bindOrLiteralGen;
+            return this;
+        }
+
+        private Gen<Mutation> mutationGen(RandomSource rs, LinkedHashMap<Symbol, Object> pk)
+        {
+            MutationGenBuilder builder = mutationBuilder(IGNORED_ISSUES, rs, model, List.of(pk), indexes);
+            builder.withTxnSafe()
+                   //TODO (now, coverage): remove this as we should support
+                   // working around the bug to make progress
+                   .withAllowUpdateMultipleClusteringKeys(false);
+            if (!allowEmpty)
+                builder.disallowEmpty();
+            return builder.build();
+        }
+
+        private Value value(RandomnessSource rs, ByteBuffer bb, AbstractType<?> type)
+        {
+            return bindOrLiteralGen.generate(rs) ? new Bind(bb, type) : new Literal(bb, type);
+        }
+
+        public Gen<Txn> build()
+        {
+            Gen<Boolean> boolGen = SourceDSL.booleans().all();
+            return rnd -> {
+                var pk = partitionKeyValuesGen.generate(rnd);
+                var mutation = mutationGen(rs, pk).generate(rnd);
+
+                Select select = select(metadata, pk).withLimit(1);
+                var columns = model.columns(select);
+                Txn.Builder builder = Txn.builder();
+                builder.addLet("r1", select);
+                Reference ref = Reference.of(Symbol.unknownType("r1"));
+
+                builder.addReturn(select(metadata, pk));
+
+                Conditional.Builder condition = Conditional.builder();
+                for (var col : columns)
+                {
+                    if (boolGen.generate(rnd)) continue;
+                    Reference colRef = ref.add(col);
+                    if (boolGen.generate(rnd))
+                        condition.is(colRef, SourceDSL.arbitrary().enumValues(Conditional.Is.Kind.class).generate(rnd));
+                    if (boolGen.generate(rnd))
+                    {
+                        Expression lhs = colRef;
+                        Expression rhs = value(rnd, getTypeSupport(lhs.type()).bytesGen().generate(rnd), lhs.type());
+                        if (boolGen.generate(rnd))
+                        {
+                            var tmp = lhs;
+                            lhs = rhs;
+                            rhs = tmp;
+                        }
+                        Conditional.Where.Inequality inequality = SourceDSL.arbitrary().enumValues(Conditional.Where.Inequality.class).generate(rnd);
+                        condition.where(lhs, inequality, rhs);
+                    }
+                }
+                if (condition.isEmpty())
+                    condition.is("r1", Conditional.Is.Kind.NotNull);
+                builder.addIf(condition.build(), mutation);
+
+                return builder.build();
             };
         }
     }

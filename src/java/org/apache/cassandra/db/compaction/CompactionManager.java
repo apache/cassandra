@@ -1141,6 +1141,11 @@ public class CompactionManager implements CompactionManagerMBean, ICompactionMan
         FBUtilities.waitOnFutures(submitMaximal(cfStore, getDefaultGcBefore(cfStore, FBUtilities.nowInSeconds()), splitOutput, permittedParallelism));
     }
 
+    public List<Future<?>> submitMaximal(final ColumnFamilyStore cfStore, boolean splitOutput, int permittedParallelism)
+    {
+        return submitMaximal(cfStore, getDefaultGcBefore(cfStore, FBUtilities.nowInSeconds()), splitOutput, permittedParallelism);
+    }
+
     public List<Future<?>> submitMaximal(final ColumnFamilyStore cfStore, final long gcBefore, boolean splitOutput, int permittedParallelism)
     {
             return submitMaximal(cfStore, gcBefore, splitOutput, permittedParallelism, OperationType.MAJOR_COMPACTION);

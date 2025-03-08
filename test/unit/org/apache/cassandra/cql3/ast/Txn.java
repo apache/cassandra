@@ -156,7 +156,7 @@ public class Txn implements Statement
                 Statement update = m.visit(v);
                 if (!(update instanceof Mutation))
                     throw new IllegalArgumentException("Unable to use type " + update.getClass() + " where Mutation is expected");
-                updated |= update != m;
+                localUpdated |= update != m;
                 mutations.add((Mutation) update);
             }
             ifBlock = !localUpdated ? this.ifBlock : Optional.of(new If(c, mutations));
@@ -335,8 +335,8 @@ public class Txn implements Statement
 
     public static class If implements Element
     {
-        private final Conditional conditional;
-        private final List<Mutation> mutations;
+        public final Conditional conditional;
+        public final List<Mutation> mutations;
 
         public If(Conditional conditional, List<Mutation> mutations)
         {

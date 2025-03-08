@@ -24,12 +24,34 @@ import java.util.Map;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
+import accord.utils.Invariants;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
 public interface Statement extends Element
 {
     enum Kind { SELECT, MUTATION, TXN }
     Kind kind();
+
+    default Mutation asMutation()
+    {
+        if (kind() != Kind.MUTATION)
+            throw Invariants.illegalState("Unable to return Mutation; kind=%s", kind());
+        return (Mutation) this;
+    }
+
+    default Select asSelect()
+    {
+        if (kind() != Kind.SELECT)
+            throw Invariants.illegalState("Unable to return Select; kind=%s", kind());
+        return (Select) this;
+    }
+
+    default Txn asTxn()
+    {
+        if (kind() != Kind.TXN)
+            throw Invariants.illegalState("Unable to return Txn; kind=%s", kind());
+        return (Txn) this;
+    }
 
     default Object[] binds()
     {

@@ -274,7 +274,7 @@ public class SimulatedTime
                 nextDrift = nanosDriftSupplier.get(random);
                 from = global;
                 to = global + Math.max(baseDrift, nextDrift);
-                diffPerGlobal = (nextDrift - baseDrift) / (double)(to - from);
+                diffPerGlobal = to == from ? 1 : (nextDrift - baseDrift) / (double)(to - from);
                 listener.accept("SetNextDrift", nextDrift);
             }
 

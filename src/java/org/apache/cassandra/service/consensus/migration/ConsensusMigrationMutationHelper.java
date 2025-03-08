@@ -48,6 +48,7 @@ import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.schema.TableParams;
+import org.apache.cassandra.service.PreserveTimestamp;
 import org.apache.cassandra.service.accord.AccordService;
 import org.apache.cassandra.service.accord.IAccordService;
 import org.apache.cassandra.service.accord.IAccordService.IAccordResult;
@@ -234,12 +235,16 @@ public class ConsensusMigrationMutationHelper
         return new SplitMutation(accordMutation, normalMutation);
     }
 
-    public IAccordResult<TxnResult> mutateWithAccordAsync(ClusterMetadata cm, Mutation mutation, @Nullable ConsistencyLevel consistencyLevel, Dispatcher.RequestTime requestTime)
+    public IAccordResult<TxnResult> mutateWithAccordAsync(ClusterMetadata cm, Mutation mutation, @Nullable ConsistencyLevel consistencyLevel, Dispatcher.RequestTime requestTime, PreserveTimestamp preserveTimestamps)
     {
-        return mutateWithAccordAsync(cm, ImmutableList.of(mutation), consistencyLevel, requestTime);
+        return mutateWithAccordAsync(cm, ImmutableList.of(mutation), consistencyLevel, requestTime, preserveTimestamps);
     }
 
-    public static IAccordResult<TxnResult> mutateWithAccordAsync(ClusterMetadata cm, Collection<? extends IMutation> mutations, @Nullable ConsistencyLevel consistencyLevel, Dispatcher.RequestTime requestTime)
+    public static IAccordResult<TxnResult> mutateWithAccordAsync(ClusterMetadata cm,
+                                                                 Collection<? extends IMutation> mutations,
+                                                                 @Nullable ConsistencyLevel consistencyLevel,
+                                                                 Dispatcher.RequestTime requestTime,
+                                                                 PreserveTimestamp preserveTimestamps)
     {
         if (consistencyLevel != null && !IAccordService.SUPPORTED_COMMIT_CONSISTENCY_LEVELS.contains(consistencyLevel))
             throw new InvalidRequestException(consistencyLevel + " is not supported by Accord");
@@ -272,7 +277,7 @@ public class ConsensusMigrationMutationHelper
         // Potentially ignore commit consistency level if the TransactionalMode specifies full
         ConsistencyLevel clForCommit = consistencyLevelForCommit(cm, mutations, consistencyLevel);
         TableMetadatasAndKeys tablesAndKeys = new TableMetadatasAndKeys(tables, keyCollector.build());
-        TxnUpdate update = new TxnUpdate(tables, fragments, TxnCondition.none(), clForCommit, true);
+        TxnUpdate update = new TxnUpdate(tables, fragments, TxnCondition.none(), clForCommit, preserveTimestamps);
         Txn.InMemory txn = new Txn.InMemory(tablesAndKeys.keys, TxnRead.empty(Domain.Key), TxnQuery.NONE, update, tablesAndKeys);
         return AccordService.instance().coordinateAsync(minEpoch, txn, clForCommit, requestTime);
     }

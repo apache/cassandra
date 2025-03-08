@@ -367,6 +367,7 @@ public class SingleNodeTableWalkTest extends StatefulASTBase
             statefulBuilder.check(commands(() -> rs -> createState(rs, cluster))
                                   .add(StatefulASTBase::insert)
                                   .add(StatefulASTBase::fullTableScan)
+                                  .addIf(State::allowUsingTimestamp, StatefulASTBase::validateUsingTimestamp)
                                   .addIf(State::hasPartitions, this::selectExisting)
                                   .addAllIf(State::supportTokens,
                                             this::selectToken,

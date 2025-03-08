@@ -447,7 +447,7 @@ public class TxnWrite extends AbstractKeySorted<TxnWrite.Update> implements Writ
         if (isConditionMet)
         {
             AccordExecutor executor = ((AccordCommandStore) commandStore).executor();
-            boolean preserveTimestamps = txnUpdate.preserveTimestamps();
+            boolean preserveTimestamps = txnUpdate.preserveTimestamps().preserve;
             // Apply updates not specified fully by the client but built from fragments completed by data from reads.
             // This occurs, for example, when an UPDATE statement uses a value assigned by a LET statement.
             forEachWithKey(key, write -> results.add(write.write(executor, tables, preserveTimestamps, timestamp)));

@@ -58,7 +58,9 @@ public interface InterceptibleThreadFactory extends ThreadFactory
         @Override
         protected synchronized InterceptibleThread newThread(ThreadGroup threadGroup, Runnable runnable, String name)
         {
-            InterceptibleThread thread = new InterceptibleThread(threadGroup, runnable, name, extraToStringInfo, onTermination, parent.interceptorOfGlobalMethods, time);
+            // Can not use NamedThreadFactory.globalPrefix() as this method runs in the App class loader and not the Instance class loader; the ThreadGroup's name can act as a proxy for this.
+            String threadName = threadGroup.getName() + '_' + name;
+            InterceptibleThread thread = new InterceptibleThread(threadGroup, runnable, threadName, extraToStringInfo, onTermination, parent.interceptorOfGlobalMethods, time);
             if (parent.isClosed)
                 thread.trapInterrupts(false);
             return setupThread(thread);
@@ -79,7 +81,7 @@ public interface InterceptibleThreadFactory extends ThreadFactory
         @Override
         protected Thread newThread(ThreadGroup threadGroup, Runnable runnable, String name)
         {
-            return super.newThread(threadGroup, () -> { try { runnable.run(); } finally { onTermination.run();} }, name);
+            return super.newThread(threadGroup, () -> { try { runnable.run(); } finally { onTermination.run();} }, threadGroup.getName() + '_' + name);
         }
     }
 

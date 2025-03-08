@@ -141,6 +141,16 @@ public class ClusterSimulation<S extends Simulation> implements AutoCloseable
         RunnableActionScheduler create(RandomSource random);
     }
 
+    public interface FutureActionSchedulerFactory
+    {
+        FutureActionScheduler create(int nodeCount, SimulatedTime time, RandomSource random);
+    }
+
+    public interface PerVerbFutureActionSchedulersFactory
+    {
+        Map<Verb, FutureActionScheduler> create(int nodeCount, SimulatedTime time, RandomSource random);
+    }
+
     @SuppressWarnings("UnusedReturnValue")
     public static abstract class Builder<S extends Simulation>
     {
@@ -201,6 +211,8 @@ public class ClusterSimulation<S extends Simulation> implements AutoCloseable
         protected SimulatedTime.Listener timeListener = (i1, i2) -> {};
         protected LongConsumer onThreadLocalRandomCheck;
         protected String transactionalMode = "off";
+        protected FutureActionSchedulerFactory futureActionSchedulerFactory;
+        protected PerVerbFutureActionSchedulersFactory perVerbFutureActionSchedulersFactory;
 
         public Builder<S> failures(Failures failures)
         {
@@ -506,8 +518,16 @@ public class ClusterSimulation<S extends Simulation> implements AutoCloseable
             return this;
         }
 
+        public Builder<S> futureActionScheduler(FutureActionSchedulerFactory factory)
+        {
+            futureActionSchedulerFactory = factory;
+            return this;
+        }
+
         public FutureActionScheduler futureActionScheduler(int nodeCount, SimulatedTime time, RandomSource random)
         {
+            if (futureActionSchedulerFactory != null)
+                return futureActionSchedulerFactory.create(nodeCount, time, random);
             KindOfSequence kind = Choices.random(random, KindOfSequence.values())
                                          .choose(random);
             return new SimulatedFutureActionScheduler(kind, nodeCount, random, time,
@@ -517,8 +537,16 @@ public class ClusterSimulation<S extends Simulation> implements AutoCloseable
                                                       new SchedulerConfig(schedulerDelayChance, schedulerDelayNanos, schedulerLongDelayNanos));
         }
 
+        public Builder<S> perVerbFutureActionSchedulers(PerVerbFutureActionSchedulersFactory factory)
+        {
+            perVerbFutureActionSchedulersFactory = factory;
+            return this;
+        }
+
         public Map<Verb, FutureActionScheduler> perVerbFutureActionSchedulers(int nodeCount, SimulatedTime time, RandomSource random, FutureActionScheduler defaultScheduler)
         {
+            if (perVerbFutureActionSchedulersFactory != null)
+                return perVerbFutureActionSchedulersFactory.create(nodeCount, time, random);
             return Collections.emptyMap();
         }
 
@@ -716,7 +744,7 @@ public class ClusterSimulation<S extends Simulation> implements AutoCloseable
             {
                 int numInDc = (numOfNodes / numOfDcs) + (numOfNodes % numOfDcs > i ? 1 : 0);
                 numInDcs[i] = numInDc;
-                minRf[i] = 3;
+                minRf[i] = min(numInDc, 3);
                 maxRf[i] = min(numInDc, 9);
                 initialRf[i] = random.uniform(minRf[i], 1 + maxRf[i]);
                 nc += numInDc;

@@ -33,6 +33,24 @@ import static org.apache.cassandra.utils.LazyToString.lazy;
 
 public class Actions
 {
+    public static class EmptyAction extends Action
+    {
+        public EmptyAction(Object description)
+        {
+            super(description, Modifiers.NONE);
+        }
+
+        public EmptyAction(Object description, Modifiers self, Modifiers transitive)
+        {
+            super(description, self, transitive);
+        }
+
+        @Override
+        protected ActionList performSimple()
+        {
+            return ActionList.empty();
+        }
+    }
     public static class LambdaAction extends Action
     {
         private Supplier<ActionList> perform;
@@ -128,12 +146,12 @@ public class Actions
 
     public static Action empty(String message)
     {
-        return of(message, ActionList::empty);
+        return new EmptyAction(message);
     }
 
     public static Action empty(Modifiers modifiers, Object message)
     {
-        return of(modifiers, NONE, message, ActionList::empty);
+        return new EmptyAction(message, modifiers, NONE);
     }
 
     public static Action stream(int concurrency, Supplier<Action> actions) { return stream(new OrderOn.Strict(actions, concurrency), actions); }

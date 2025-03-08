@@ -48,6 +48,7 @@ import org.apache.cassandra.net.MockMessagingSpy;
 import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableMetadata;
+import org.apache.cassandra.service.PreserveTimestamp;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.service.accord.AccordResult;
 import org.apache.cassandra.service.accord.AccordTestUtils;
@@ -234,7 +235,7 @@ public class HintsServiceTest
                     }
 
                     @Override
-                    public IAccordResult<TxnResult> mutateWithAccordAsync(ClusterMetadata cm, Mutation mutation, @Nullable ConsistencyLevel consistencyLevel, Dispatcher.RequestTime requestTime)
+                    public IAccordResult<TxnResult> mutateWithAccordAsync(ClusterMetadata cm, Mutation mutation, @Nullable ConsistencyLevel consistencyLevel, Dispatcher.RequestTime requestTime, PreserveTimestamp preserveTimestamps)
                     {
                         accordTxnCount.incrementAndGet();
                         TxnId txnId = AccordTestUtils.txnId(42, 43, 44);

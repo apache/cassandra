@@ -94,7 +94,7 @@ public class AccordSpec
 
         /**
          * The queue is backed by submission to a single-threaded plain executor.
-         * This implementation does not honur the sharding model option.
+         * This implementation does not honor the sharding model option.
          *
          * Note: this isn't intended to be used by real clusters.
          */
@@ -176,6 +176,13 @@ public class AccordSpec
     public boolean ephemeralReadEnabled = true;
     public boolean state_cache_listener_jfr_enabled = true;
     public final JournalSpec journal = new JournalSpec();
+
+    public enum MixedTimeSourceHandling
+    {
+        reject, log, ignore
+    }
+
+    public volatile MixedTimeSourceHandling mixedTimeSourceHandling = MixedTimeSourceHandling.reject;
 
     public static class JournalSpec implements Params
     {

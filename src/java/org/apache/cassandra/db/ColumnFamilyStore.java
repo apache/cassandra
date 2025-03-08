@@ -2229,6 +2229,12 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
         CompactionManager.instance.performMaximal(this, splitOutput, permittedParallelism);
     }
 
+    @VisibleForTesting
+    public List<Future<?>> submitMajorCompaction(boolean splitOutput, int permittedParallelism)
+    {
+        return CompactionManager.instance.submitMaximal(this, splitOutput, permittedParallelism);
+    }
+
     @Override
     public void forceCompactionForTokenRange(Collection<Range<Token>> tokenRanges) throws ExecutionException, InterruptedException
     {

@@ -408,7 +408,7 @@ FROM [keyspace_name.] table_name
         }
 
         @Override
-        public T is(Symbol ref, Conditional.Is.Kind kind)
+        public T is(ReferenceExpression ref, Conditional.Is.Kind kind)
         {
             where.is(ref, kind);
             return (T) this;
