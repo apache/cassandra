@@ -1900,7 +1900,7 @@ drop_compact_storage_enabled: false
 #       # round on all nodes in less than this duration, it will not start a new repair round on a given node until
 #       # this much time has passed since the last repair completed. Consider increasing to a larger value to reduce
 #       # the impact of repairs, however note that one should attempt to run repairs at a smaller interval than
-#       # gc_grace_seconds to avoid zombies.
+#       # gc_grace_seconds to avoid potential data resurrection.
 #       min_repair_interval: 24h
 #       token_range_splitter:
 #         # Implementation of IAutoRepairTokenRangeSplitter; responsible for splitting token ranges
