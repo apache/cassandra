@@ -2403,7 +2403,7 @@ storage_compatibility_mode: NONE
 #       # round on all nodes in less than this duration, it will not start a new repair round on a given node until
 #       # this much time has passed since the last repair completed. Consider increasing to a larger value to reduce
 #       # the impact of repairs, however note that one should attempt to run repairs at a smaller interval than
-#       # gc_grace_seconds to avoid zombies.
+#       # gc_grace_seconds to avoid potential data resurrection.
 #       min_repair_interval: 24h
 #       token_range_splitter:
 #         # Implementation of IAutoRepairTokenRangeSplitter; responsible for splitting token ranges
@@ -2421,9 +2421,9 @@ storage_compatibility_mode: NONE
 #         #   parameters:
 #         #    param_key1: param_value1
 #         parameters:
-#           # The target and maximum amount of bytes that should be included in a repair
-#           # assignment. This scopes the amount of work involved in a repair and includes
-#           # the data covering the range being repaired.
+#           # The target and maximum amount of compressed bytes that should be included in a repair assignment.
+#           # This scopes the amount of work involved in a repair and includes the data covering the range being
+#           # repaired.
 #           bytes_per_assignment: 50GiB
 #           # The maximum number of bytes to cover in an individual schedule. This serves as
 #           # a mechanism to throttle the work done in each repair cycle. You may reduce this
@@ -2438,19 +2438,16 @@ storage_compatibility_mode: NONE
 #       # Incremental repairs operate over unrepaired data and should finish quickly. Running incremental repair
 #       # frequently keeps the unrepaired set smaller and thus causes repairs to operate over a smaller set of data,
 #       # so a more frequent schedule such as 1h is recommended.
-#       # NOTE: When turning on incremental repair for the first time with a decent amount of data it is adviable to
-#       # use a larger interval such as 24h or longer to reduce the impact of anticompaction caused by incremental
-#       # repair.  Once a majority of data has been repaired, one may consider reducing this to 1h to keep to unrepaired
-#       # set small.
-#       min_repair_interval: 24h
+#       min_repair_interval: 1h
 #       token_range_splitter:
 #         parameters:
-#           # Configured to attempt repairing 50GiB of data per repair.
+#           # Configured to attempt repairing 50GiB of compressed data per repair.
 #           # This throttles the amount of incremental repair and anticompaction done per schedule after incremental
 #           # repairs are turned on.
 #           bytes_per_assignment: 50GiB
-#           # Resricts the maximum number of bytes to cover in an individual schedule to 100GiB.
-#           # Consider increasing this if more data is written than this limit within the min_repair_interval.
+#           # Restricts the maximum number of bytes to cover in an individual schedule to the configured
+#           # max_bytes_per_schedule value (defaults to 100GiB for incremental).
+#           # Consider increasing this value if more data is written than this limit within the min_repair_interval.
 #           max_bytes_per_schedule: 100GiB
 #     preview_repaired:
 #       # Performs preview repair over repaired SSTables, useful to detect possible inconsistencies in the repaired
