@@ -23,17 +23,43 @@ GO_VERSION="1.23.1"
 GO_TAR="go${GO_VERSION}.linux-amd64.tar.gz"
 TMPDIR="${TMPDIR:-/tmp}"
 
-# Step 0: Download and install Go
-echo "Downloading Go $GO_VERSION..."
-wget -q "https://golang.org/dl/$GO_TAR" -O "$TMPDIR/$GO_TAR"
+check_go_version() {
+  if command -v go &>/dev/null; then
+    local installed_version=$(go version | awk '{print $3}' | sed 's/go//')
 
-echo "Installing Go..."
-tar -C "$TMPDIR" -xzf "$TMPDIR/$GO_TAR"
-rm "$TMPDIR/$GO_TAR"
+    if [ "$(printf '%s\n' "$GO_VERSION" "$installed_version" | sort -V | head -n1)" = "$GO_VERSION" ]; then
+      echo "Detected Go $installed_version (>= $GO_VERSION), skipping installation."
+      return 0
+    else
+      echo "Detected Go $installed_version (< $GO_VERSION), proceeding with installation."
+      return 1
+    fi
+  else
+    echo "Go env not found in your system, proceeding with installation."
+    return 1
+  fi
+}
 
-# Set Go environment variables
-export PATH="$PATH:$TMPDIR/go/bin"
-export GOPATH="$TMPDIR/go"
+if ! check_go_version; then
+  # Step 0: Download and install Go
+  echo "Downloading Go $GO_VERSION..."
+  wget --timeout=30 --tries=2 --waitretry=5 -q "https://golang.org/dl/$GO_TAR" -O "$TMPDIR/$GO_TAR"
+
+  if [ $? -ne 0 ]; then
+    echo "Network issue. manually install golang or use -Dant.gen-doc.skip=true to skip it"
+    exit 1
+  fi
+
+  echo "Installing Go $GO_VERSION..."
+  tar -C "$TMPDIR" -xzf "$TMPDIR/$GO_TAR"
+  rm "$TMPDIR/$GO_TAR"
+
+  # Set Go environment variables
+  export PATH="$PATH:$TMPDIR/go/bin"
+  export GOPATH="$TMPDIR/go"
+else
+  echo "Using system-installed Go."
+fi
 
 # Step 1: Building the parser
 echo "Building the cqlprotodoc..."
