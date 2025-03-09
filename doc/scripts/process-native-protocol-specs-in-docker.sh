@@ -20,33 +20,94 @@
 
 # Variables
 GO_VERSION="1.23.1"
-GO_TAR="go${GO_VERSION}.linux-amd64.tar.gz"
+
+GO_OS=linux
+
+if [ $(uname) = "Darwin" ]; then
+  GO_OS=darwin
+fi
+
+GO_PLATFORM=amd64
+
+if [ $(uname -m) = "aarch64" ]; then
+  GO_PLATFORM=arm64
+fi
+
+GO_TAR="go${GO_VERSION}.${GO_OS}-${GO_PLATFORM}.tar.gz"
 TMPDIR="${TMPDIR:-/tmp}"
 
-# Step 0: Download and install Go
-echo "Downloading Go $GO_VERSION..."
-wget -q "https://golang.org/dl/$GO_TAR" -O "$TMPDIR/$GO_TAR"
+check_go_version() {
+  if command -v go &>/dev/null; then
+    local installed_version=$(go version | awk '{print $3}' | sed 's/go//')
 
-echo "Installing Go..."
-tar -C "$TMPDIR" -xzf "$TMPDIR/$GO_TAR"
-rm "$TMPDIR/$GO_TAR"
+    if [ "$(printf '%s\n' "$GO_VERSION" "$installed_version" | sort -V | head -n1)" = "$GO_VERSION" ]; then
+      echo "Detected Go $installed_version (>= $GO_VERSION), skipping installation."
+      return 0
+    else
+      if [ -z $installed_version ]; then
+        echo "No Go installation detected, proceeding with installation."
+      else
+        echo "Detected Go $installed_version (< $GO_VERSION), proceeding with installation."
+      fi
+      return 1
+    fi
+  else
+    echo "Go env not found in your system, proceeding with installation."
+    return 1
+  fi
+}
 
-# Set Go environment variables
-export PATH="$PATH:$TMPDIR/go/bin"
-export GOPATH="$TMPDIR/go"
+if ! check_go_version; then
+
+  if ls $TMPDIR/go$GO_VERSION > /dev/null 2>&1; then
+    echo "Reusing cached installation in $TMPDIR/go$GO_VERSION"
+    export PATH="$PATH:$TMPDIR/go$GO_VERSION/go/bin"
+    export GOPATH="$TMPDIR/go$GO_VERSION/go/bin"
+    export GOROOT="$TMPDIR/go$GO_VERSION/go"
+  else
+    if ! ls $TMPDIR/$GO_TAR > /dev/null 2>&1; then
+      echo "Downloading Go $GO_VERSION..."
+
+      curl -L --fail --silent --retry 2 --retry-delay 5 --max-time 30 https://golang.org/dl/$GO_TAR -o $TMPDIR/$GO_TAR
+
+      if [ $? != "0" ]; then
+        echo "Network error. Specify '-Dant.gen-doc.skip=true' to skip if offline."
+        exit 1
+      fi
+    fi
+
+    echo "Installing Go $GO_VERSION..."
+    mkdir -p $TMPDIR/go$GO_VERSION
+    tar -C "$TMPDIR/go$GO_VERSION" -xzf "$TMPDIR/$GO_TAR"
+
+    # Set Go environment variables
+    export PATH="$PATH:$TMPDIR/go$GO_VERSION/go/bin"
+    export GOPATH="$TMPDIR/go$GO_VERSION/go/bin"
+    export GOROOT="$TMPDIR/go$GO_VERSION/go"
+  fi
+else
+  echo "Using system-installed Go."
+fi
 
 # Step 1: Building the parser
 echo "Building the cqlprotodoc..."
 DIR="$(pwd)"
 cd "${TMPDIR}"
 
+rm -rf "${TMPDIR}/cassandra-website"
 git clone -n --depth=1 --filter=tree:0 https://github.com/apache/cassandra-website
+
+if [ $? != "0" ]; then
+  echo "Error occured while cloning https://github.com/apache/cassandra-website"
+  exit 1
+fi
 
 cd "${TMPDIR}/cassandra-website"
 git sparse-checkout set --no-cone /cqlprotodoc
 git checkout
 cd "${TMPDIR}/cassandra-website/cqlprotodoc"
-go build -o "$TMPDIR"/cqlprotodoc
+rm -rf "${TMPDIR}/cqlprotodoc"
+$TMPDIR/go$GO_VERSION/go/bin/go build -o "$TMPDIR"/cqlprotodoc
 
 # Step 2: Process the spec files using the parser
 echo "Processing the .spec files..."
@@ -121,6 +182,6 @@ echo "    </script>" >> "$summary_file"
 # Step 3: Cleanup - Remove the Cassandra and parser directories
 echo "Cleaning up..."
 cd "${DIR}"
-rm -rf "${TMPDIR}/go" "${TMPDIR}/cassandra-website" "${TMPDIR}/cqlprotodoc" 2>/dev/null
+rm -rf "${TMPDIR}/cassandra-website" "${TMPDIR}/cqlprotodoc" 2>/dev/null
 
 echo "Script completed successfully."

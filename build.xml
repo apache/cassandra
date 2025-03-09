@@ -468,13 +468,13 @@
     </target>
 
     <target name="gen-asciidoc" description="Generate dynamic asciidoc pages" depends="jar" unless="ant.gen-doc.skip">
-        <exec executable="make" osfamily="unix" dir="${doc.dir}">
+        <exec executable="make" osfamily="unix" dir="${doc.dir}" failonerror="true">
             <arg value="gen-asciidoc"/>
         </exec>
     </target>
 
     <target name="gen-doc" description="Generate documentation" depends="gen-asciidoc,generate-cql-html" unless="ant.gen-doc.skip">
-        <exec executable="make" osfamily="unix" dir="${doc.dir}">
+        <exec executable="make" osfamily="unix" dir="${doc.dir}" failonerror="true">
             <arg value="html"/>
         </exec>
     </target>
@@ -548,7 +548,7 @@
         <copy todir="${basedir}/conf" file="${build.classes.main}/META-INF/hotspot_compiler"/>
     </target>
 
-    <target name="check" depends="_main-jar,build-test" description="Verifies the source code and dependencies. This task is intended to run on pre-commit and locally. It should verify mostly modified files compared to the upstream base branch." unless="check.skip">
+    <target name="check" depends="_main-jar,build-test,gen-doc" description="Verifies the source code and dependencies. This task is intended to run on pre-commit and locally. It should verify mostly modified files compared to the upstream base branch." unless="check.skip">
         <antcall target="rat-check" inheritrefs="true"/>
         <antcall target="checkstyle" inheritrefs="true"/>
         <antcall target="checkstyle-test" inheritrefs="true"/>
@@ -909,7 +909,7 @@
     </target>
 
     <!-- creates release tarballs -->
-    <target name="artifacts" depends="_artifacts-init,check,gen-doc,sources-jar"
+    <target name="artifacts" depends="_artifacts-init,check,sources-jar"
             description="Create Cassandra tarball and maven artifacts">
       <tar compression="gzip" longfile="gnu"
         destfile="${build.dir}/${final.name}-bin.tar.gz">
