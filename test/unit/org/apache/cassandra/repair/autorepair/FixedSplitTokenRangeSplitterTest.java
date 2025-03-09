@@ -22,12 +22,11 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Set;
+import java.util.TreeSet;
 
-import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -36,16 +35,18 @@ import org.junit.runners.Parameterized;
 import org.apache.cassandra.ServerTestUtils;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.QueryProcessor;
-import org.apache.cassandra.dht.Murmur3Partitioner;
+import org.apache.cassandra.dht.BootStrapper;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.index.sai.disk.format.Version;
 import org.apache.cassandra.service.AutoRepairService;
 import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.tcm.ClusterMetadata;
 
 import static org.apache.cassandra.config.CassandraRelevantProperties.SYSTEM_DISTRIBUTED_DEFAULT_RF;
 import static org.apache.cassandra.cql3.CQLTester.Fuzzed.setupSeed;
 import static org.apache.cassandra.cql3.CQLTester.Fuzzed.updateConfigs;
+import static org.apache.cassandra.repair.autorepair.FixedSplitTokenRangeSplitter.DEFAULT_SUBRANGES;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
@@ -61,24 +62,30 @@ public class FixedSplitTokenRangeSplitterTest
     private static final String TABLE1 = "tbl1";
     private static final String TABLE2 = "tbl2";
     private static final String TABLE3 = "tbl3";
-    private static final int totalTokenRanges = 3;
-    private static int numberOfSplits;
 
     @Parameterized.Parameter(0)
     public AutoRepairConfig.RepairType repairType;
 
     @Parameterized.Parameter(1)
-    public int numberOfSubRange;
+    public int numberOfSubRanges;
 
-    @Parameterized.Parameters(name = "repairType={0}, numberOfSubRange={1}")
+    @Parameterized.Parameter(2)
+    public int numTokens;
+
+    public static final int curTokenRange = 1;
+
+    @Parameterized.Parameters(name = "repairType={0}, numberOfSubRanges={1}, numTokens={2}")
     public static Collection<Object[]> parameters()
     {
         List<Object[]> params = new ArrayList<>();
         for (AutoRepairConfig.RepairType type : AutoRepairConfig.RepairType.values())
         {
-            for (int subRange : Arrays.asList(4, 16, 64, 128))
+            for (int subRange : Arrays.asList(1, 2, 4, 8, 16, 32, 64, 128, 256))
             {
-                params.add(new Object[]{ type, subRange });
+                for (int numToken : Arrays.asList(curTokenRange))
+                {
+                    params.add(new Object[]{ type, subRange, numToken });
+                }
             }
         }
         return params;
@@ -92,15 +99,8 @@ public class FixedSplitTokenRangeSplitterTest
         DatabaseDescriptor.setPartitioner("org.apache.cassandra.dht.Murmur3Partitioner");
         ServerTestUtils.prepareServerNoRegister();
 
-        Token t1 = new Murmur3Partitioner.LongToken(-9223372036854775808L);
-        Token t2 = new Murmur3Partitioner.LongToken(-3074457345618258603L);
-        Token t3 = new Murmur3Partitioner.LongToken(3074457345618258602L);
-        Set<Token> tokens = new HashSet<>();
-        tokens.add(t1);
-        tokens.add(t2);
-        tokens.add(t3);
-
-        ServerTestUtils.registerLocal(tokens);
+        Set<Token> tokens1 = BootStrapper.getRandomTokens(ClusterMetadata.current(), curTokenRange);
+        ServerTestUtils.registerLocal(tokens1);
         // Ensure that the on-disk format statics are loaded before the test run
         Version.LATEST.onDiskFormat();
         StorageService.instance.doAutoRepairSetup();
@@ -109,18 +109,13 @@ public class FixedSplitTokenRangeSplitterTest
         QueryProcessor.executeInternal(String.format("CREATE KEYSPACE %s WITH replication = {'class': 'SimpleStrategy', 'replication_factor': '1'}", KEYSPACE));
     }
 
-    @Before
-    public void before()
-    {
-        numberOfSplits = numberOfSubRange / totalTokenRanges;
-    }
-
     @Test
     public void testTokenRangesSplitByTable()
     {
+        int numberOfSplits = calcSplits(numberOfSubRanges);
         AutoRepairService.instance.getAutoRepairConfig().setRepairByKeyspace(repairType, false);
         Collection<Range<Token>> tokens = StorageService.instance.getPrimaryRanges(KEYSPACE);
-        assertEquals(totalTokenRanges, tokens.size());
+        assertEquals(numTokens, tokens.size());
         List<String> tables = Arrays.asList(TABLE1, TABLE2, TABLE3);
         List<Range<Token>> expectedToken = new ArrayList<>();
         for (int i = 0; i < tables.size(); i++)
@@ -133,7 +128,7 @@ public class FixedSplitTokenRangeSplitterTest
 
         List<PrioritizedRepairPlan> plan = PrioritizedRepairPlan.buildSingleKeyspacePlan(repairType, KEYSPACE, TABLE1, TABLE2, TABLE3);
 
-        Iterator<KeyspaceRepairAssignments> keyspaceAssignments = new FixedSplitTokenRangeSplitter(repairType, Collections.singletonMap(FixedSplitTokenRangeSplitter.NUMBER_OF_SUBRANGES, Integer.toString(numberOfSubRange)))
+        Iterator<KeyspaceRepairAssignments> keyspaceAssignments = new FixedSplitTokenRangeSplitter(repairType, Collections.singletonMap(FixedSplitTokenRangeSplitter.NUMBER_OF_SUBRANGES, Integer.toString(numberOfSubRanges)))
                                                                   .getRepairAssignments(true, plan);
 
         // should be only 1 entry for the keyspace.
@@ -142,37 +137,31 @@ public class FixedSplitTokenRangeSplitterTest
         assertFalse(keyspaceAssignments.hasNext());
 
         List<RepairAssignment> assignments = keyspace.getRepairAssignments();
-        assertEquals(totalTokenRanges * numberOfSplits * tables.size(), assignments.size());
+        assertEquals(numTokens * numberOfSplits * tables.size(), assignments.size());
         assertEquals(expectedToken.size(), assignments.size());
 
-        int expectedTableIndex = -1;
-        for (int i = 0; i < totalTokenRanges * numberOfSplits * tables.size(); i++)
+        int assignmentsPerTable = numTokens * numberOfSplits;
+        for (int i = 0; i < tables.size(); i++)
         {
-            if (i % (totalTokenRanges * numberOfSplits) == 0)
+            List<RepairAssignment> assignmentForATable = new ArrayList<>();
+            List<Range<Token>> expectedTokensForATable = new ArrayList<>();
+            for (int j = 0; j < assignmentsPerTable; j++)
             {
-                expectedTableIndex++;
+                assertEquals(Arrays.asList(tables.get(i)), assignments.get(i*assignmentsPerTable + j).getTableNames());
+                assignmentForATable.add(assignments.get(i*assignmentsPerTable+j));
+                expectedTokensForATable.add(expectedToken.get(i*assignmentsPerTable+j));
             }
-        }
-
-        expectedTableIndex = -1;
-        // should be a set of ranges for each table.
-        for (int i = 0; i < totalTokenRanges * numberOfSplits * tables.size(); i++)
-        {
-            if (i % (totalTokenRanges * numberOfSplits) == 0)
-            {
-                expectedTableIndex++;
-            }
-            assertEquals(expectedToken.get(i), assignments.get(i).getTokenRange());
-            assertEquals(Arrays.asList(tables.get(expectedTableIndex)), assignments.get(i).getTableNames());
+            compare(numberOfSplits, expectedTokensForATable, assignmentForATable);
         }
     }
 
     @Test
     public void testTokenRangesSplitByKeyspace()
     {
+        int numberOfSplits = calcSplits(numberOfSubRanges);
         AutoRepairService.instance.getAutoRepairConfig().setRepairByKeyspace(repairType, true);
         Collection<Range<Token>> tokens = StorageService.instance.getPrimaryRanges(KEYSPACE);
-        assertEquals(totalTokenRanges, tokens.size());
+        assertEquals(numTokens, tokens.size());
         List<String> tables = Arrays.asList(TABLE1, TABLE2, TABLE3);
         List<Range<Token>> expectedToken = new ArrayList<>();
         for (Range<Token> range : tokens)
@@ -182,7 +171,7 @@ public class FixedSplitTokenRangeSplitterTest
 
         List<PrioritizedRepairPlan> plan = PrioritizedRepairPlan.buildSingleKeyspacePlan(repairType, KEYSPACE, TABLE1, TABLE2, TABLE3);
 
-        Iterator<KeyspaceRepairAssignments> keyspaceAssignments = new FixedSplitTokenRangeSplitter(repairType, Collections.singletonMap(FixedSplitTokenRangeSplitter.NUMBER_OF_SUBRANGES, Integer.toString(numberOfSubRange)))
+        Iterator<KeyspaceRepairAssignments> keyspaceAssignments = new FixedSplitTokenRangeSplitter(repairType, Collections.singletonMap(FixedSplitTokenRangeSplitter.NUMBER_OF_SUBRANGES, Integer.toString(numberOfSubRanges)))
                                                                   .getRepairAssignments(true, plan);
 
         // should be only 1 entry for the keyspace.
@@ -193,23 +182,23 @@ public class FixedSplitTokenRangeSplitterTest
         List<RepairAssignment> assignments = keyspace.getRepairAssignments();
         assertNotNull(assignments);
 
-        assertEquals(totalTokenRanges * numberOfSplits, assignments.size());
+        assertEquals(numTokens * numberOfSplits, assignments.size());
         assertEquals(expectedToken.size(), assignments.size());
 
-        // should only be one set of ranges for the entire keyspace.
-        for (int i = 0; i < totalTokenRanges * numberOfSplits; i++)
-        {
-            assertEquals(expectedToken.get(i), assignments.get(i).getTokenRange());
-            assertEquals(tables, assignments.get(i).getTableNames());
-        }
+        compare(numberOfSplits, expectedToken, assignments);
     }
 
     @Test
-    public void testTokenRangesNoSplitByDefault()
+    public void testTokenRangesWithDefaultSplit()
     {
+        int numberOfSplits = calcSplits(DEFAULT_SUBRANGES);
         Collection<Range<Token>> tokens = StorageService.instance.getPrimaryRanges(KEYSPACE);
-        assertEquals(totalTokenRanges, tokens.size());
-        List<Range<Token>> expectedToken = new ArrayList<>(tokens);
+        assertEquals(numTokens, tokens.size());
+        List<Range<Token>> expectedToken = new ArrayList<>();
+        for (Range<Token> range : tokens)
+        {
+            expectedToken.addAll(AutoRepairUtils.split(range, numberOfSplits));
+        }
 
         List<PrioritizedRepairPlan> plan = PrioritizedRepairPlan.buildSingleKeyspacePlan(repairType, KEYSPACE, TABLE1);
 
@@ -224,10 +213,26 @@ public class FixedSplitTokenRangeSplitterTest
         assertNotNull(assignments);
 
         // should be 3 entries for the table which covers each token range.
-        assertEquals(totalTokenRanges, assignments.size());
-        for (int i = 0; i < totalTokenRanges; i++)
+        assertEquals(numTokens * numberOfSplits, assignments.size());
+
+        compare(numberOfSplits, expectedToken, assignments);
+    }
+
+    private void compare(int numberOfSplits, List<Range<Token>> expectedToken, List<RepairAssignment> assignments)
+    {
+        assertEquals(expectedToken.size(), assignments.size());
+        Set<Range<Token>> a = new TreeSet<>();
+        Set<Range<Token>> b = new TreeSet<>();
+        for (int i = 0; i < numTokens * numberOfSplits; i++)
         {
-            assertEquals(expectedToken.get(i), assignments.get(i).getTokenRange());
+            a.add(expectedToken.get(i));
+            b.add(assignments.get(i).getTokenRange());
         }
+        assertEquals(a, b);
+    }
+
+    private int calcSplits(int subRange)
+    {
+        return Math.max(1, subRange / numTokens);
     }
 }

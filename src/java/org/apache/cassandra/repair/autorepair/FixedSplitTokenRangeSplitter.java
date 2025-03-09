@@ -46,6 +46,17 @@ public class FixedSplitTokenRangeSplitter implements IAutoRepairTokenRangeSplitt
     private static final Logger logger = LoggerFactory.getLogger(FixedSplitTokenRangeSplitter.class);
 
     /**
+     * Selecting the default value is tricky. If we select a small number then individual repair would be heavy,
+     * on the other hand, if we select large then too many repair sessions would be created.
+     * <p>
+     * The default 64 is a good number for non v-nodes, but with v-nodes it can result in too many repair sessions
+     * because the number of repair sessions on a node =  number_of_subranges * num_token.
+     * <p>
+     * To keep it balances, 32 serves a good default that would cater to both v-nodes and non v-nodes.
+     */
+    public static final int DEFAULT_SUBRANGES = 32;
+
+    /**
      * The number of subranges to split each to-be-repaired token range into. Defaults to 1.
      * <p>
      * The higher this number, the smaller the repair sessions will be.
@@ -69,7 +80,7 @@ public class FixedSplitTokenRangeSplitter implements IAutoRepairTokenRangeSplitt
     {
         this.repairType = repairType;
 
-        numberOfSubranges = Integer.parseInt(parameters.getOrDefault(NUMBER_OF_SUBRANGES, "1"));
+        numberOfSubranges = Integer.parseInt(parameters.getOrDefault(NUMBER_OF_SUBRANGES, Integer.toString(DEFAULT_SUBRANGES)));
     }
 
     @Override
