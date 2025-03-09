@@ -36,7 +36,10 @@ traditionally not been run automatically by Cassandra.
 
 In the latest version of Cassandra, a new feature called
 xref:managing/operating/auto_repair.adoc[auto repair] was introduced to
-allow Cassandra to run repairs automatically on a schedule.
+allow Cassandra to submit and manage repairs automatically on a schedule.
+
+The introduction of this feature does not interfere with existing repair
+functionality enabled via nodetool.
 
 == Submitting Repairs Using Nodetool
 

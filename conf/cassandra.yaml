@@ -1918,9 +1918,9 @@ drop_compact_storage_enabled: false
 #         #   parameters:
 #         #    param_key1: param_value1
 #         parameters:
-#           # The target and maximum amount of bytes that should be included in a repair
-#           # assignment. This scopes the amount of work involved in a repair and includes
-#           # the data covering the range being repaired.
+#           # The target and maximum amount of compressed bytes that should be included in a repair assignment.
+#           # This scopes the amount of work involved in a repair and includes the data covering the range being
+#           # repaired.
 #           bytes_per_assignment: 50GiB
 #           # The maximum number of bytes to cover in an individual schedule. This serves as
 #           # a mechanism to throttle the work done in each repair cycle. You may reduce this
@@ -1934,18 +1934,18 @@ drop_compact_storage_enabled: false
 #       # Incremental repairs operate over unrepaired data and should finish quickly. Running incremental repair
 #       # frequently keeps the unrepaired set smaller and thus causes repairs to operate over a smaller set of data,
 #       # so a more frequent schedule such as 1h is recommended.
-#       # NOTE: When turning on incremental repair for the first time with a decent amount of data it is adviable to
-#       # use a larger interval such as 24h or longer to reduce the impact of anticompaction caused by incremental
-#       # repair.  Once a majority of data has been repaired, one may consider reducing this to 1h to keep the unrepaired
-#       # set small.
+#       # NOTE: Please consult
+#       # https://cassandra.apache.org/doc/latest/cassandra/managing/operating/auto_repair.html#enabling-ir
+#       # for guidance on enabling incremental repair on ane exiting cluster.
 #       min_repair_interval: 24h
 #       token_range_splitter:
 #         parameters:
-#           # Configured to attempt repairing 50GiB of data per repair.
+#           # Configured to attempt repairing 50GiB of compressed data per repair.
 #           # This throttles the amount of incremental repair and anticompaction done per schedule after incremental
 #           # repairs are turned on.
 #           bytes_per_assignment: 50GiB
-#           # Resricts the maximum number of bytes to cover in an individual schedule to the configured max_bytes_per_schedule value (defaults to 100GiB).
+#           # Restricts the maximum number of bytes to cover in an individual schedule to the configured
+#           # max_bytes_per_schedule value (defaults to 100GiB for incremental).
 #           # Consider increasing this value if more data is written than this limit within the min_repair_interval.
 #           max_bytes_per_schedule: 100GiB
 #     preview_repaired:
