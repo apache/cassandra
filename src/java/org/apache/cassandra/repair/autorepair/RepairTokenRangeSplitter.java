@@ -137,7 +137,7 @@ public class RepairTokenRangeSplitter implements IAutoRepairTokenRangeSplitter
      *     <ul><b>max_tables_per_assignment</b>: 64</ul>
      *     <ul><b>max_bytes_per_schedule</b>: 1000GiB</ul>
      * </li>
-     * It's expected that these defaults should work well for everything except incremental, where we
+     * It's expected that these defaults should work well for everything except incremental, where we set
      * max_bytes_per_schedule to 100GiB. This should strike a good balance between the amount of data that will be
      * repaired during an initial migration to incremental repair and should move the entire repaired set from
      * unrepaired to repaired at steady state, assuming not more the 100GiB of data is written to a node per
