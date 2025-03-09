@@ -106,7 +106,7 @@ public class RepairTokenRangeSplitter implements IAutoRepairTokenRangeSplitter
 
     /**
      * Maximum number of tables to include in a repair assignment if {@link AutoRepairConfig.Options#repair_by_keyspace}
-     * is enabled.
+     * is enabled
      */
     static final String MAX_TABLES_PER_ASSIGNMENT = "max_tables_per_assignment";
 
