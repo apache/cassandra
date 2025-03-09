@@ -147,7 +147,7 @@ public class RepairTokenRangeSplitter implements IAutoRepairTokenRangeSplitter
     {{
         put(AutoRepairConfig.RepairType.FULL, RepairTypeDefaults.builder(AutoRepairConfig.RepairType.FULL)
                                                                 .build());
-        // Restrict incremental repair to 100GB max bytes per schedule to confine the amount of possible autocompaction.
+        // Restrict incremental repair to 100GiB max bytes per schedule to confine the amount of possible autocompaction.
         put(AutoRepairConfig.RepairType.INCREMENTAL, RepairTypeDefaults.builder(AutoRepairConfig.RepairType.INCREMENTAL)
                                                                        .withMaxBytesPerSchedule(new DataStorageSpec.LongBytesBound("100GiB"))
                                                                        .build());
