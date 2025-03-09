@@ -2754,7 +2754,7 @@ storage_compatibility_mode: NONE
 #           # repairs are turned on.
 #           bytes_per_assignment: 50GiB
 #           # Resricts the maximum number of bytes to cover in an individual schedule to the configured max_bytes_per_schedule value (defaults to 100GiB).
-#           # Consider increasing this if more data is written than this limit within the min_repair_interval.
+#           # Consider increasing this value if more data is written than this limit within the min_repair_interval.
 #           max_bytes_per_schedule: 100GiB
 #     preview_repaired:
 #       # Performs preview repair over repaired SSTables, useful to detect possible inconsistencies in the repaired
