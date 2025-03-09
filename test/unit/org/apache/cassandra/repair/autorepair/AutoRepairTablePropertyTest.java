@@ -18,6 +18,7 @@
 
 package org.apache.cassandra.repair.autorepair;
 
+import java.util.HashMap;
 import java.util.Map;
 
 import org.junit.Test;
@@ -60,7 +61,13 @@ public class AutoRepairTablePropertyTest extends CQLTester
     {
         DatabaseDescriptor.getAutoRepairConfig().setAutoRepairSchedulingEnabled(autoRepairOn);
 
-        Map<String, String> systemSchemaTables = Map.of(SchemaKeyspaceTables.TABLES, "table_name", SchemaKeyspaceTables.VIEWS, "view_name");
+        Map<String, String> systemSchemaTables = new HashMap<String, String>()
+        {
+            {
+                put(SchemaKeyspaceTables.TABLES, "table_name");
+                put(SchemaKeyspaceTables.VIEWS, "view_name");
+            }
+        };
         for (Map.Entry<String, String> systemSchema : systemSchemaTables.entrySet())
         {
             ColumnFamilyStore tables = Keyspace.open(SchemaConstants.SCHEMA_KEYSPACE_NAME).getColumnFamilyStore(systemSchema.getKey());
