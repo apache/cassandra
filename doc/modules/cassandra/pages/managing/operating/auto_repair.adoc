@@ -38,7 +38,7 @@ xref:#fixed-split-token-range-splitter[FixedSplitTokenRangeSplitter].
 
 == Considerations
 
-Before enabling auto repair, please consult the xref:managing/operating/repair.adoc[Repair] guide to establish a base
+Before enabling Auto Repair, please consult the xref:managing/operating/repair.adoc[Repair] guide to establish a base
 understanding of repairs.
 
 === Full Repair
@@ -59,11 +59,48 @@ be eventually purged.
 Running incremental repair more frequently keeps the unrepaired set smaller and thus causes repairs to operate over
 a smaller set of data, so a shorter `min_repair_interval` such as `1h` is recommended for new clusters.
 
-NOTE: When turning on incremental repair for the first time on an existing cluser with a large amount of data it is
-advisable to use a larger interval such as `24h` or longer to reduce the impact of anticompaction caused by incremental
-repair.  Once the entire token range has been repaired, one may consider reducing this to a shorter interval.  It is
-strongly recommended to not enable incremental repair for an existing cluster unless full repair has previously
-actively run.
+==== Enabling Incremental Repair on existing clusters with a large amount of data
+[#enabling-ir]
+One should be careful when enabling incremental repair on a cluster for the first time. While
+xref:#repair-token-range-splitter[RepairTokenRangeSplitter] includes a default configuration to attempt to gracefully
+migrate to incremental repair over time, failure to take proper precaution could overwhelm the cluster with
+xref:managing/operating/compaction/overview.adoc#types-of-compaction[anticompactions].
+
+No matter how one goes about enabling and running incremental repair, it is recommended to run a cycle of full repairs
+for the entire cluster as pre-flight step to running incremental repair. This will put the cluster into a more
+consistent state which will reduce the amount of streaming between replicas when incremental repair initially runs.
+
+If you do not have strong data consistency requirements, one may consider using
+xref:managing/tools/sstable/sstablerepairedset.adoc[nodetool sstablerepairedset] to mark all SSTables as repaired
+before enabling incremental repair scheduling using Auto Repair. This will reduce the burden of initially running
+incremental repair because all existing data will be considered as repaired, so subsequent incremental repairs will
+only run against new data.
+
+If you do have strong data consistency requirements, then one must treat all data as initially unrepaired and run
+incremental repair against it.  Consult
+xref:#incremental-repair-defaults[RepairTokenRangeSplitter's Incremental repair defaults].
+
+In particular one should be mindful of the xref:managing/operating/compaction/overview.adoc[compaction strategy]
+you use for your tables and how it might impact incremental repair before running incremental repair for the first
+time:
+
+- *Large SSTables*: When using xref:managing/operating/compaction/stcs.adoc[SizeTieredCompactionStrategy] or any
+  compaction strategy which can create large SSTables including many partitions the amount of
+  xref:managing/operating/compaction/overview.adoc#types-of-compaction[anticompaction] that might be required could be
+  excessive. Using a small `bytes_per_assignment` might contribute to repeated anticompactions over the same
+  unrepaired data.
+- *Partitions overlapping many SSTables*: If partitions overlap between many SSTables, the amount of SSTables included
+  in a repair might be large.  Therefore it is important to consider that many SSTables may be included in a repair
+  session and must all be anticompacted. xref:managing/operating/compaction/lcs.adoc[LeveledCompactionStrategy] is less
+  susceptible to this issue as it prevents overlapping of partitions within levels outside of L0, but if SSTables
+  start accumulating in L0 between incremental repairs, the cost of anticompaction will increase.
+  xref:managing/operating/compaction/ucs#sharding[UnifiedCompactionStrategy's sharding] can also be used to avoid
+  partitions overlapping SSTables.
+
+The xref:#repair-token-range-splitter[token_range_splitter] configuration for incremental repair includes a default
+configuration that attempts to conservatively migrate 100GiB of compressed data every day per node. Depending on
+requirements, data set and capability of a cluster's hardware, one may consider tuning these values to be more
+aggressive or conservative.
 
 === Previewing Repaired Data
 
@@ -80,11 +117,11 @@ When enabled, the `BytesPreviewedDesynchronized` and `TokenRangesPreviewedDesync
 xref:cassandra:managing/operating/metrics.adoc#table-metrics[table metrics] can be used to detect inconsistencies in the
 repaired data set.
 
-== Configuring auto repair in cassandra.yaml
+== Configuring Auto Repair in cassandra.yaml
 
-Configuration for auto repair is managed in the `cassandra.yaml` file by the `auto_repair` property.
+Configuration for Auto Repair is managed in the `cassandra.yaml` file by the `auto_repair` property.
 
-A rich set of configuration exists for configuring auto repair with sensible defaults.  However, the expectation
+A rich set of configuration exists for configuring Auto Repair with sensible defaults.  However, the expectation
 is that some tuning might be needed particulary when it comes to tuning how often repair should run
 (`min_repair_interval`) and how repair assignments as created (`token_range_splitter`).
 
@@ -148,9 +185,9 @@ type by using `repair_type_overrides`.
 such as clusters with 5 nodes that finish repairs quickly. This means that if the scheduler completes one round on all
 nodes in less than this duration, it will not start a new repair round on a given node until this much time has
 passed since the last repair completed. Consider increasing to a larger value to reduce the impact of repairs,
-however *note that one should attempt to run repairs at a smaller interval than gc_grace_seconds to
-avoid xref:cassandra:managing/operating/compaction/tombstones.adoc#zombies[zombies]*.
-| class_name | org.apache.cassandra.repair.autorepair.RepairTokenRangeSplitter | Implementation of
+however note that one should attempt to run repairs at a smaller interval than gc_grace_seconds to
+avoid xref:cassandra:managing/operating/compaction/tombstones.adoc#zombies[data resurrection].
+| token_range_splitter.class_name | org.apache.cassandra.repair.autorepair.RepairTokenRangeSplitter | Implementation of
 IAutoRepairTokenRangeSplitter to use; responsible for splitting token ranges for repair assignments. Out of the box,
 Cassandra provides org.apache.cassandra.repair.autorepair.{RepairTokenRangeSplitter,FixedTokenRangeSplitter}.
 | repair_by_keyspace | true | If true, attempts to group tables in the same keyspace into one repair; otherwise,
@@ -183,20 +220,20 @@ in nodetool repair. General advice is to keep this true.
 `RepairTokenRangeSplitter` is the default implementation of `IAutoRepairTokenRangeSplitter` that attempts to create
 token range assignments meeting the following goals:
 
-1. *Create smaller, consistent repair times*: Long repairs, such as those lasting 15 hours, can be problematic. If a
+- *Create smaller, consistent repair times*: Long repairs, such as those lasting 15 hours, can be problematic. If a
 node fails 14 hours into the repair, the entire process must be restarted. The goal is to reduce the impact of
 disturbances or failures. However, making the repairs too short can lead to overhead from repair orchestration becoming
 the main bottleneck.
 
-2. *Minimize the impact on hosts*: Repairs should not heavily affect the host systems. For incremental repairs, this
+- *Minimize the impact on hosts*: Repairs should not heavily affect the host systems. For incremental repairs, this
 might involve anti-compaction work. In full repairs, streaming large amounts of data—especially with wide partitions
 can lead to issues with disk usage and higher compaction costs.
 
-3. *Reduce overstreaming*: The Merkle tree, which represents data within each partition and range, has a maximum size.
+- *Reduce overstreaming*: The Merkle tree, which represents data within each partition and range, has a maximum size.
 If a repair covers too many partitions, the tree’s leaves represent larger data ranges. Even a small change in a leaf
 can trigger excessive data streaming, making the process inefficient.
 
-4. *Reduce number of repairs*: If there are many small tables, it's beneficial to batch these tables together under a
+- *Reduce number of repairs*: If there are many small tables, it's beneficial to batch these tables together under a
 single parent repair. This prevents the repair overhead from becoming a bottleneck, especially when dealing with
 hundreds of tables. Running individual repairs for each table can significantly impact performance and efficiency.
 
@@ -281,7 +318,7 @@ conservative this top level configuration could be increased to a larger value t
 
 == Table configuration
 
-If auto repair is enabled in cassandra.yaml, the `auto_repair` property may be optionally configured at the table
+If Auto Repair is enabled in cassandra.yaml, the `auto_repair` property may be optionally configured at the table
 level, e.g.:
 
 [source,cql]
