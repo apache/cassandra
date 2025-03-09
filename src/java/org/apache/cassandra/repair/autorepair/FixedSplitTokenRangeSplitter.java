@@ -52,7 +52,7 @@ public class FixedSplitTokenRangeSplitter implements IAutoRepairTokenRangeSplitt
      * <p>
      * To keep it balances, 32 serves a good default that would cater to both v-nodes and non v-nodes.
      */
-    public static final int DEFAULT_SUBRANGES = 32;
+    public static final int DEFAULT_NUMBER_OF_SUBRANGES = 32;
 
     /**
      * The number of subranges to split each to-be-repaired token range into. Defaults to 1.
@@ -78,7 +78,7 @@ public class FixedSplitTokenRangeSplitter implements IAutoRepairTokenRangeSplitt
     {
         this.repairType = repairType;
 
-        numberOfSubranges = Integer.parseInt(parameters.getOrDefault(NUMBER_OF_SUBRANGES, Integer.toString(DEFAULT_SUBRANGES)));
+        numberOfSubranges = Integer.parseInt(parameters.getOrDefault(NUMBER_OF_SUBRANGES, Integer.toString(DEFAULT_NUMBER_OF_SUBRANGES)));
     }
 
     @Override
