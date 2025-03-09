@@ -2744,7 +2744,7 @@ storage_compatibility_mode: NONE
 #       # so a more frequent schedule such as 1h is recommended.
 #       # NOTE: When turning on incremental repair for the first time with a decent amount of data it is adviable to
 #       # use a larger interval such as 24h or longer to reduce the impact of anticompaction caused by incremental
-#       # repair.  Once a majority of data has been repaired, one may consider reducing this to 1h to keep to unrepaired
+#       # repair.  Once a majority of data has been repaired, one may consider reducing this to 1h to keep the unrepaired
 #       # set small.
 #       min_repair_interval: 24h
 #       token_range_splitter:
