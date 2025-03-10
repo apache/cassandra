@@ -269,7 +269,7 @@ public class CassandraDaemon
             disableAutoCompaction(Schema.instance.localKeyspaces().names());
             Startup.initialize(DatabaseDescriptor.getSeeds());
             // if we need to grab it earliier, go to tcm.Startup and add afterReplay() callbacks
-            Shards.insance.load(ClusterMetadata.current());
+            Shards.instance.load(ClusterMetadata.current());
             disableAutoCompaction(Schema.instance.distributedKeyspaces().names());
             CMSOperations.initJmx();
             if (ClusterMetadata.current().myNodeId() != null)

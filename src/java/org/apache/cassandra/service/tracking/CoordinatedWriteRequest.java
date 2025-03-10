@@ -84,7 +84,7 @@ public class CoordinatedWriteRequest
         Keyspace keyspace = Keyspace.open(keyspaceName);
         Token tk = mutation.key().getToken();
 
-        Shard shard = Shards.insance.lookUp(keyspaceName, tk);
+        Shard shard = Shards.instance.lookUp(keyspaceName, tk);
         mutation = mutation.withMutationId(shard.nextId());
 
         ReplicaPlan.ForWrite replicaPlan = ReplicaPlans.forWrite(keyspace, consistencyLevel, tk, ReplicaPlans.writeNormal);

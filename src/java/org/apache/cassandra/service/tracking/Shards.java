@@ -34,7 +34,7 @@ import org.apache.cassandra.tcm.ClusterMetadata;
 // TODO (expected): handle topology changes
 public class Shards
 {
-    public static final Shards insance = new Shards();
+    public static final Shards instance = new Shards();
 
     private final ConcurrentHashMap<String, KeyspaceShards> shards = new ConcurrentHashMap<>();
 
