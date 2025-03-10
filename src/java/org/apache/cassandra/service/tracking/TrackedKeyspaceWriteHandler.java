@@ -17,21 +17,15 @@
  */
 package org.apache.cassandra.service.tracking;
 
-import java.util.HashSet;
-import java.util.Set;
-
 import org.apache.cassandra.db.CassandraWriteContext;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.KeyspaceWriteHandler;
 import org.apache.cassandra.db.Mutation;
 import org.apache.cassandra.db.WriteContext;
-import org.apache.cassandra.db.commitlog.CommitLog;
 import org.apache.cassandra.db.commitlog.CommitLogPosition;
-import org.apache.cassandra.db.partitions.PartitionUpdate;
 import org.apache.cassandra.exceptions.RequestExecutionException;
 import org.apache.cassandra.replication.MutationTracker;
 import org.apache.cassandra.replication.MutationTrackingService;
-import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.utils.concurrent.OpOrder;
 
@@ -48,76 +42,16 @@ public class TrackedKeyspaceWriteHandler implements KeyspaceWriteHandler
             pendingWrite = MutationTrackingService.instance().startWrite(mutation);
 
             // write the mutation to the commitlog and memtables
-            CommitLogPosition position = null;
-            if (makeDurable)
-            {
-                position = addToCommitLog(mutation);
-            }
+            Tracing.trace("Appending to mutation journal");
+            CommitLogPosition position = MutationJournal.instance.write(mutation.id(), mutation);
             return new CassandraWriteContext(group, position, pendingWrite);
         }
         catch (Throwable t)
         {
             if (group != null)
-            {
                 group.close();
-            }
             if (pendingWrite != null)
-            {
                 pendingWrite.close();
-            }
-            throw t;
-        }
-    }
-
-    private CommitLogPosition addToCommitLog(Mutation mutation)
-    {
-        // Usually one of these will be true, so first check if that's the case.
-        boolean allSkipCommitlog = true;
-        boolean noneSkipCommitlog = true;
-        for (PartitionUpdate update : mutation.getPartitionUpdates())
-        {
-            if (update.metadata().params.memtable.factory().writesShouldSkipCommitLog())
-                noneSkipCommitlog = false;
-            else
-                allSkipCommitlog = false;
-        }
-
-        if (!noneSkipCommitlog)
-        {
-            if (allSkipCommitlog)
-                return null;
-            else
-            {
-                Set<TableId> ids = new HashSet<>();
-                for (PartitionUpdate update : mutation.getPartitionUpdates())
-                {
-                    if (update.metadata().params.memtable.factory().writesShouldSkipCommitLog())
-                        ids.add(update.metadata().id);
-                }
-                mutation = mutation.without(ids);
-            }
-        }
-        // Note: It may be a good idea to precalculate none/all for the set of all tables in the keyspace,
-        // or memoize the mutation.getTableIds()->ids map (needs invalidation on schema version change).
-
-        Tracing.trace("Appending to commitlog");
-        return CommitLog.instance.add(mutation);
-    }
-
-    private WriteContext createEmptyContext()
-    {
-        OpOrder.Group group = null;
-        try
-        {
-            group = Keyspace.writeOrder.start();
-            return new CassandraWriteContext(group, null, MutationTracker.PendingWrite.NOOP);
-        }
-        catch (Throwable t)
-        {
-            if (group != null)
-            {
-                group.close();
-            }
             throw t;
         }
     }
@@ -132,5 +66,20 @@ public class TrackedKeyspaceWriteHandler implements KeyspaceWriteHandler
     public WriteContext createContextForRead()
     {
         return createEmptyContext();
+    }
+
+    private WriteContext createEmptyContext()
+    {
+        OpOrder.Group group = Keyspace.writeOrder.start();
+        try
+        {
+            return new CassandraWriteContext(group, null, MutationTracker.PendingWrite.NOOP);
+        }
+        catch (Throwable t)
+        {
+            if (group != null)
+                group.close();
+            throw t;
+        }
     }
 }

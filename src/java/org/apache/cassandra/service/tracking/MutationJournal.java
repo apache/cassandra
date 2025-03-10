@@ -32,6 +32,7 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.Mutation;
 import org.apache.cassandra.db.MutationId;
 import org.apache.cassandra.db.TypeSizes;
+import org.apache.cassandra.db.commitlog.CommitLogPosition;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.io.util.File;
@@ -47,6 +48,8 @@ import org.apache.cassandra.utils.FBUtilities;
 
 public class MutationJournal
 {
+    public static final MutationJournal instance = new MutationJournal();
+
     private final Journal<MutationId, Mutation> journal;
 
     private MutationJournal()
@@ -70,9 +73,10 @@ public class MutationJournal
         journal.shutdown();
     }
 
-    public RecordPointer write(MutationId id, Mutation mutation)
+    public CommitLogPosition write(MutationId id, Mutation mutation)
     {
-        return journal.blockingWrite(id, mutation);
+        RecordPointer rp = journal.blockingWrite(id, mutation);
+        return new CommitLogPosition(rp.segment, rp.position);
     }
 
     @Nullable

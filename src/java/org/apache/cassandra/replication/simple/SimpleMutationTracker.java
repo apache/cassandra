@@ -50,6 +50,7 @@ import org.apache.cassandra.replication.MutationTracker;
 import org.apache.cassandra.replication.ReconciliationPlan;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableId;
+import org.apache.cassandra.service.tracking.MutationJournal;
 
 public class SimpleMutationTracker implements MutationTracker
 {
@@ -120,7 +121,6 @@ public class SimpleMutationTracker implements MutationTracker
     }
 
     private final ReadWriteLock lock = new ReentrantReadWriteLock();
-    private final Map<MutationId, Mutation> mutations = new HashMap<>();
     private final Map<TableId, TableIds> tableIds = new HashMap<TableId, TableIds>();
 
     private final Map<MutationId, Mutation> pendingMutations = new ConcurrentHashMap<MutationId, Mutation>();
@@ -167,13 +167,8 @@ public class SimpleMutationTracker implements MutationTracker
         lock.writeLock().lock();
         try
         {
-            if (mutations.containsKey(mutation.id()))
-                return;
-
             for (PartitionUpdate update : mutation.getPartitionUpdates())
                 tableIds.computeIfAbsent(update.metadata().id, k -> new TableIds()).add(mutation.key(), mutation.id());
-
-            mutations.put(mutation.id(), mutation);
         }
         finally
         {
@@ -240,12 +235,9 @@ public class SimpleMutationTracker implements MutationTracker
     @Override
     public List<Mutation> mutations(Collection<MutationId> ids)
     {
-        List<Mutation> result = new ArrayList<Mutation>(ids.size());
-        ids.forEach(id -> {
-            Mutation mutation = mutations.get(id);
-            Preconditions.checkArgument(mutation != null);
-            result.add(mutation);
-        });
+        List<Mutation> result = new ArrayList<>(ids.size());
+        MutationJournal.instance.readAll(ids, result);
+        Preconditions.checkArgument(ids.size() == result.size());
         return result;
     }
 }

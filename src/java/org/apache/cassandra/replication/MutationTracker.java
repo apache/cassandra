@@ -49,11 +49,7 @@ public interface MutationTracker
      */
     interface PendingWrite extends AutoCloseable
     {
-        static PendingWrite NOOP = new PendingWrite()
-        {
-            @Override
-            public void close() {}
-        };
+        PendingWrite NOOP = () -> {};
 
         @Override
         void close();
@@ -63,7 +59,7 @@ public interface MutationTracker
 
     interface PendingRead extends AutoCloseable
     {
-        static PendingRead NOOP = new PendingRead()
+        PendingRead NOOP = new PendingRead()
         {
             @Override
             public void close() {}
@@ -80,8 +76,6 @@ public interface MutationTracker
         /**
          * Returns mutations contained in the mutation summary that may not have been
          * applied to the memtable when it was read.
-         * @param summary
-         * @return
          */
         UnfilteredPartitionIterator augmentResponseWithPendingWrites(UnfilteredPartitionIterator iterator, MutationSummary summary);
     }
