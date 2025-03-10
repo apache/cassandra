@@ -22,15 +22,16 @@ import com.google.common.base.Preconditions;
 
 import org.apache.cassandra.db.commitlog.CommitLogPosition;
 import org.apache.cassandra.replication.MutationTracker;
+import org.apache.cassandra.replication.PendingWrite;
 import org.apache.cassandra.utils.concurrent.OpOrder;
 
 public class CassandraWriteContext implements WriteContext
 {
     private final OpOrder.Group opGroup;
     private final CommitLogPosition position;
-    private final MutationTracker.PendingWrite pendingWrite;
+    private final PendingWrite pendingWrite;
 
-    public CassandraWriteContext(OpOrder.Group opGroup, CommitLogPosition position, MutationTracker.PendingWrite pendingWrite)
+    public CassandraWriteContext(OpOrder.Group opGroup, CommitLogPosition position, PendingWrite pendingWrite)
     {
         Preconditions.checkArgument(opGroup != null);
         this.opGroup = opGroup;

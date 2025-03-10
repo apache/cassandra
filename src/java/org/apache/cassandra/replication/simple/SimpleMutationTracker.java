@@ -18,39 +18,20 @@
 
 package org.apache.cassandra.replication.simple;
 
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-import java.util.SortedSet;
-import java.util.TreeSet;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.locks.ReadWriteLock;
-import java.util.concurrent.locks.ReentrantReadWriteLock;
-
 import com.google.common.base.Preconditions;
-import com.google.common.collect.Sets;
-
-import org.slf4j.LoggerFactory;
-import org.slf4j.Logger;
-
-import org.apache.cassandra.db.DecoratedKey;
-import org.apache.cassandra.db.Mutation;
-import org.apache.cassandra.db.MutationId;
-import org.apache.cassandra.db.PartitionPosition;
-import org.apache.cassandra.db.ReadCommand;
+import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
-import org.apache.cassandra.db.partitions.UnfilteredPartitionIterator;
 import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.locator.InetAddressAndPort;
-import org.apache.cassandra.replication.MutationSummary;
-import org.apache.cassandra.replication.MutationTracker;
-import org.apache.cassandra.replication.ReconciliationPlan;
-import org.apache.cassandra.schema.Schema;
+import org.apache.cassandra.replication.*;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.service.tracking.MutationJournal;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import java.util.*;
+import java.util.concurrent.locks.ReadWriteLock;
+import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 public class SimpleMutationTracker implements MutationTracker
 {
@@ -76,55 +57,10 @@ public class SimpleMutationTracker implements MutationTracker
         }
     }
 
-    public class SimplePendingRead implements PendingRead
-    {
-        private final ReadCommand command;
-        private final Map<MutationId, Mutation> pendingWrites = new ConcurrentHashMap<>();
-
-        public SimplePendingRead(ReadCommand command)
-        {
-            this.command = command;
-        }
-
-        public void onNewWrite(Mutation mutation)
-        {
-            if (command.readsMutationContents(mutation))
-                pendingWrites.put(mutation.id(), mutation);
-        }
-
-        @Override
-        public void close()
-        {
-            pendingReads.remove(this);
-        }
-
-        public Set<MutationId> mutationIds()
-        {
-            return pendingWrites.keySet();
-        }
-
-        @Override
-        public UnfilteredPartitionIterator augmentResponseWithPendingWrites(UnfilteredPartitionIterator iterator, MutationSummary summary)
-        {
-            SimpleMutationSummary mutationSummary = (SimpleMutationSummary) summary;
-            if (pendingWrites.isEmpty() || mutationSummary.isEmpty())
-                return iterator;
-
-            List<Mutation> augmentingMutations = new ArrayList<>(pendingWrites.size());
-            for (Mutation mutation : pendingWrites.values())
-            {
-                if (mutationSummary.allIds.contains(mutation.id()))
-                    augmentingMutations.add(mutation);
-            }
-            return command.augmentResultWithMutations(iterator, augmentingMutations);
-        }
-    }
-
     private final ReadWriteLock lock = new ReentrantReadWriteLock();
     private final Map<TableId, TableIds> tableIds = new HashMap<TableId, TableIds>();
 
-    private final Map<MutationId, Mutation> pendingMutations = new ConcurrentHashMap<MutationId, Mutation>();
-    private final Set<SimplePendingRead> pendingReads = Sets.newConcurrentHashSet();
+    private final PendingWrites pendingWrites = new PendingWrites();
 
     @Override
     public void start()
@@ -135,33 +71,13 @@ public class SimpleMutationTracker implements MutationTracker
     @Override
     public PendingWrite startWrite(Mutation mutation)
     {
-        if (mutation.id().isNone())
-            return PendingWrite.NOOP;
-
-        pendingMutations.put(mutation.id(), mutation);
-        pendingReads.forEach(read -> read.onNewWrite(mutation));
-
-        return new PendingWrite()
-        {
-            @Override
-            public void close()
-            {
-                pendingMutations.remove(mutation.id());
-            }
-        };
+        return pendingWrites.startWrite(mutation);
     }
 
     @Override
     public PendingRead startRead(ReadCommand command)
     {
-        if (!Schema.instance.getKeyspaceMetadata(command.metadata().keyspace).hasLoggedReplication())
-            return PendingRead.NOOP;
-
-        SimplePendingRead pendingRead = new SimplePendingRead(command);
-        pendingReads.add(pendingRead);
-        pendingMutations.values().forEach(pendingRead::onNewWrite);
-
-        return pendingRead;
+        return pendingWrites.startRead(command);
     }
 
     @Override

@@ -32,6 +32,7 @@ import com.google.common.base.Preconditions;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Sets;
 
+import org.apache.cassandra.replication.PendingRead;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -481,7 +482,7 @@ public abstract class ReadCommand extends AbstractReadQuery
      */
     public abstract boolean isReversed();
 
-    public IReadResponse createResponse(UnfilteredPartitionIterator iterator, RepairedDataInfo rdi, MutationSummary summary, MutationTracker.PendingRead pendingRead)
+    public IReadResponse createResponse(UnfilteredPartitionIterator iterator, RepairedDataInfo rdi, MutationSummary summary, PendingRead pendingRead)
     {
         // validate that the sequence of RT markers is correct: open is followed by close, deletion times for both
         // ends equal, and there are no dangling RT bound in any partition.

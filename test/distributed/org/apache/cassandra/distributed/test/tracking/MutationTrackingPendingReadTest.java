@@ -22,6 +22,8 @@ import java.util.Collections;
 import java.util.Set;
 
 import com.google.common.collect.Iterables;
+import org.apache.cassandra.replication.PendingWrite;
+import org.apache.cassandra.replication.PendingWrites;
 import org.junit.Assert;
 import org.junit.Test;
 import org.slf4j.Logger;
@@ -48,10 +50,8 @@ import org.apache.cassandra.db.rows.UnfilteredRowIterator;
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
 import org.apache.cassandra.distributed.api.Feature;
-import org.apache.cassandra.replication.MutationTracker;
 import org.apache.cassandra.replication.MutationTrackingService;
 import org.apache.cassandra.replication.simple.SimpleMutationSummary;
-import org.apache.cassandra.replication.simple.SimpleMutationTracker.SimplePendingRead;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.reads.logged.LoggedReadResponse;
@@ -133,7 +133,7 @@ public class MutationTrackingPendingReadTest
                 LoggedReadResponse response;
                 SimpleMutationSummary summary;
                 SinglePartitionReadCommand command = SinglePartitionReadCommand.fullPartitionRead(metadata, nowInSeconds, dk);
-                try (MutationTracker.PendingWrite pendingWrite = MutationTrackingService.instance().startWrite(mutation))
+                try (PendingWrite pendingWrite = MutationTrackingService.instance().startWrite(mutation))
                 {
                     MutationTrackingService.instance().add(mutation);
 
@@ -212,7 +212,7 @@ public class MutationTrackingPendingReadTest
 
                 int nowInSeconds = (int) FBUtilities.nowInSeconds();
                 SinglePartitionReadCommand command = SinglePartitionReadCommand.fullPartitionRead(metadata, nowInSeconds, dk);
-                try (SimplePendingRead pendingRead = (SimplePendingRead) MutationTrackingService.instance().startRead(command))
+                try (PendingWrites.ListeningPendingRead pendingRead = (PendingWrites.ListeningPendingRead) MutationTrackingService.instance().startRead(command))
                 {
                     Assert.assertTrue(pendingRead.mutationIds().isEmpty());
 

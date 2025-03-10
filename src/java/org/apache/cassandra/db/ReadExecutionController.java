@@ -25,8 +25,8 @@ import com.google.common.base.Preconditions;
 
 import org.apache.cassandra.db.filter.DataLimits;
 import org.apache.cassandra.index.Index;
-import org.apache.cassandra.replication.MutationTracker;
 import org.apache.cassandra.replication.MutationTrackingService;
+import org.apache.cassandra.replication.PendingRead;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.utils.MonotonicClock;
 import org.apache.cassandra.utils.concurrent.OpOrder;
@@ -51,7 +51,7 @@ public class ReadExecutionController implements AutoCloseable
 
     private final RepairedDataInfo repairedDataInfo;
     private long oldestUnrepairedTombstone = Long.MAX_VALUE;
-    private final MutationTracker.PendingRead pendingRead;
+    private final PendingRead pendingRead;
 
     ReadExecutionController(ReadCommand command,
                             OpOrder.Group baseOp,
@@ -88,7 +88,7 @@ public class ReadExecutionController implements AutoCloseable
         pendingRead = command != null ? MutationTrackingService.instance().startRead(command) : null;
     }
 
-    public MutationTracker.PendingRead pendingRead()
+    public PendingRead pendingRead()
     {
         return pendingRead;
     }
