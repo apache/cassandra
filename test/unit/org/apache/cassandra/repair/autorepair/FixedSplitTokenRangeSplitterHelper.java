@@ -27,9 +27,6 @@ import java.util.List;
 import java.util.Set;
 import java.util.TreeSet;
 
-import org.junit.runner.RunWith;
-import org.junit.runners.Parameterized;
-
 import org.apache.cassandra.ServerTestUtils;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.QueryProcessor;
@@ -53,7 +50,6 @@ import static org.junit.Assert.assertTrue;
 /**
  * Helper class for for {@link FixedSplitTokenRangeSplitterNoVNodesTest} and {@link FixedSplitTokenRangeSplitterVNodesTest}
  */
-@RunWith(Parameterized.class)
 public class FixedSplitTokenRangeSplitterHelper
 {
     private static final String TABLE1 = "tbl1";
