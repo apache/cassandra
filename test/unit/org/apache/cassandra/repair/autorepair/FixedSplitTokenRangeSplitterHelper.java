@@ -30,11 +30,20 @@ import java.util.TreeSet;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 
+import org.apache.cassandra.ServerTestUtils;
+import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.cql3.QueryProcessor;
+import org.apache.cassandra.dht.BootStrapper;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
+import org.apache.cassandra.index.sai.disk.format.Version;
 import org.apache.cassandra.service.AutoRepairService;
 import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.tcm.ClusterMetadata;
 
+import static org.apache.cassandra.config.CassandraRelevantProperties.SYSTEM_DISTRIBUTED_DEFAULT_RF;
+import static org.apache.cassandra.cql3.CQLTester.Fuzzed.setupSeed;
+import static org.apache.cassandra.cql3.CQLTester.Fuzzed.updateConfigs;
 import static org.apache.cassandra.repair.autorepair.FixedSplitTokenRangeSplitter.DEFAULT_NUMBER_OF_SUBRANGES;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -51,6 +60,23 @@ public class FixedSplitTokenRangeSplitterHelper
     private static final String TABLE2 = "tbl2";
     private static final String TABLE3 = "tbl3";
     public static final String KEYSPACE = "ks";
+
+    public static void setupClass(int numTokens) throws Exception
+    {
+        setupSeed();
+        updateConfigs();
+        DatabaseDescriptor.setPartitioner("org.apache.cassandra.dht.Murmur3Partitioner");
+        ServerTestUtils.prepareServerNoRegister();
+
+        Set<Token> tokens = BootStrapper.getRandomTokens(ClusterMetadata.current(), numTokens);
+        ServerTestUtils.registerLocal(tokens);
+        // Ensure that the on-disk format statics are loaded before the test run
+        Version.LATEST.onDiskFormat();
+        StorageService.instance.doAutoRepairSetup();
+
+        SYSTEM_DISTRIBUTED_DEFAULT_RF.setInt(1);
+        QueryProcessor.executeInternal(String.format("CREATE KEYSPACE %s WITH replication = {'class': 'SimpleStrategy', 'replication_factor': '1'}", FixedSplitTokenRangeSplitterHelper.KEYSPACE));
+    }
 
     public static void testTokenRangesSplitByTable(int numTokens, int numberOfSubRanges, AutoRepairConfig.RepairType repairType)
     {
