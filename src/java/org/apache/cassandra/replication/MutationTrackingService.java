@@ -41,6 +41,11 @@ public class MutationTrackingService
         return tracker;
     }
 
+    public static void start()
+    {
+        tracker.start();
+    }
+
     public static ReadReconciliations reconciliations()
     {
         return reconciliations;

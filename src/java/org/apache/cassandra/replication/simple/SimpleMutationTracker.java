@@ -127,6 +127,12 @@ public class SimpleMutationTracker implements MutationTracker
     private final Set<SimplePendingRead> pendingReads = Sets.newConcurrentHashSet();
 
     @Override
+    public void start()
+    {
+
+    }
+
+    @Override
     public PendingWrite startWrite(Mutation mutation)
     {
         if (mutation.id().isNone())

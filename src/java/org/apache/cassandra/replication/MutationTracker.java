@@ -80,6 +80,8 @@ public interface MutationTracker
         UnfilteredPartitionIterator augmentResponseWithPendingWrites(UnfilteredPartitionIterator iterator, MutationSummary summary);
     }
 
+    void start();
+
     PendingRead startRead(ReadCommand command);
 
     void add(Mutation mutation);

@@ -38,6 +38,7 @@ import javax.management.remote.JMXConnectorServer;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableList;
+import org.apache.cassandra.replication.MutationTrackingService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -69,7 +70,6 @@ import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.Locator;
 import org.apache.cassandra.service.tracking.MutationJournal;
-import org.apache.cassandra.service.tracking.Shards;
 import org.apache.cassandra.tcm.CMSOperations;
 import org.apache.cassandra.tcm.ClusterMetadataService;
 import org.apache.cassandra.tcm.RegistrationStatus;
@@ -270,8 +270,7 @@ public class CassandraDaemon
         {
             disableAutoCompaction(Schema.instance.localKeyspaces().names());
             Startup.initialize(DatabaseDescriptor.getSeeds());
-            // if we need to grab it earliier, go to tcm.Startup and add afterReplay() callbacks
-            Shards.instance.load(ClusterMetadata.current());
+            MutationTrackingService.start();
             disableAutoCompaction(Schema.instance.distributedKeyspaces().names());
             CMSOperations.initJmx();
             if (ClusterMetadata.current().myNodeId() != null)
