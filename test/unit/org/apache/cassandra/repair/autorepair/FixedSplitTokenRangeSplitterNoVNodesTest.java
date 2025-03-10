@@ -22,25 +22,11 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
-import java.util.Set;
 
 import org.junit.BeforeClass;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
-
-import org.apache.cassandra.ServerTestUtils;
-import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.cql3.QueryProcessor;
-import org.apache.cassandra.dht.BootStrapper;
-import org.apache.cassandra.dht.Token;
-import org.apache.cassandra.index.sai.disk.format.Version;
-import org.apache.cassandra.service.StorageService;
-import org.apache.cassandra.tcm.ClusterMetadata;
-
-import static org.apache.cassandra.config.CassandraRelevantProperties.SYSTEM_DISTRIBUTED_DEFAULT_RF;
-import static org.apache.cassandra.cql3.CQLTester.Fuzzed.setupSeed;
-import static org.apache.cassandra.cql3.CQLTester.Fuzzed.updateConfigs;
 
 /**
  * Unit tests for a setup that does not have v-nodes {@link FixedSplitTokenRangeSplitter}
@@ -73,19 +59,7 @@ public class FixedSplitTokenRangeSplitterNoVNodesTest
     @BeforeClass
     public static void setupClass() throws Exception
     {
-        setupSeed();
-        updateConfigs();
-        DatabaseDescriptor.setPartitioner("org.apache.cassandra.dht.Murmur3Partitioner");
-        ServerTestUtils.prepareServerNoRegister();
-
-        Set<Token> tokens = BootStrapper.getRandomTokens(ClusterMetadata.current(), numTokens);
-        ServerTestUtils.registerLocal(tokens);
-        // Ensure that the on-disk format statics are loaded before the test run
-        Version.LATEST.onDiskFormat();
-        StorageService.instance.doAutoRepairSetup();
-
-        SYSTEM_DISTRIBUTED_DEFAULT_RF.setInt(1);
-        QueryProcessor.executeInternal(String.format("CREATE KEYSPACE %s WITH replication = {'class': 'SimpleStrategy', 'replication_factor': '1'}", FixedSplitTokenRangeSplitterHelper.KEYSPACE));
+        FixedSplitTokenRangeSplitterHelper.setupClass(numTokens);
     }
 
     @Test
