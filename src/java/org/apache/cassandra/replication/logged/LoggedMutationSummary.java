@@ -19,11 +19,11 @@
 package org.apache.cassandra.replication.logged;
 
 import org.agrona.collections.Long2ObjectHashMap;
-import org.agrona.collections.LongArrayList;
 import org.apache.cassandra.db.Digest;
 import org.apache.cassandra.replication.MutationSummary;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.service.tracking.CoordinatorLogId;
+import org.apache.cassandra.service.tracking.SequenceIdSet;
 import org.apache.cassandra.service.tracking.SequenceIds;
 
 import java.util.Arrays;
@@ -36,9 +36,9 @@ public class LoggedMutationSummary implements MutationSummary
         private static final Comparator<CoordinatorSummary> idComparator = (o1, o2) -> o1.logId.compareTo(o2.logId);
         public final CoordinatorLogId logId;
         public final SequenceIds reconciledIds;
-        public final LongArrayList unreconciledIds;
+        public final SequenceIdSet unreconciledIds;
 
-        public CoordinatorSummary(CoordinatorLogId logId, SequenceIds reconciledIds, LongArrayList unreconciledIds)
+        public CoordinatorSummary(CoordinatorLogId logId, SequenceIds reconciledIds, SequenceIdSet unreconciledIds)
         {
             this.logId = logId;
             this.reconciledIds = reconciledIds;
@@ -49,15 +49,14 @@ public class LoggedMutationSummary implements MutationSummary
         {
             digest.updateWithLong(logId.asLong());
             reconciledIds.digest(digest);
-            for (int i = 0; i < unreconciledIds.size(); i++)
-                digest.updateWithLong(unreconciledIds.getLong(i));
+            unreconciledIds.digest(digest);
         }
 
         public static class Builder
         {
             public final CoordinatorLogId logId;
             public final SequenceIds reconciledIds = new SequenceIds();
-            public final LongArrayList unreconciledIds = new LongArrayList();
+            public final SequenceIdSet unreconciledIds = new SequenceIdSet();
 
             public Builder(CoordinatorLogId logId)
             {

@@ -18,7 +18,6 @@
 
 package org.apache.cassandra.service.tracking;
 
-import org.agrona.collections.LongArrayList;
 import org.apache.cassandra.db.MutationId;
 import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.dht.Token;
@@ -40,11 +39,11 @@ public class CoordinatorLogTest
         return new Murmur3Partitioner.LongToken(t);
     }
 
-    private static LongArrayList toLongArrayList(MutationId... ids)
+    private static SequenceIdSet toSequenceIdSet(MutationId... ids)
     {
-        LongArrayList list = new LongArrayList();
+        SequenceIdSet list = new SequenceIdSet();
         for (MutationId id : ids)
-            list.add(id.sequenceId());
+            list.append(id.sequenceId());
 
         return list;
     }
@@ -52,10 +51,10 @@ public class CoordinatorLogTest
     private static void assertUnreconciled(Token token, CoordinatorLog log, SequenceIds expectedReconciled, MutationId... expectedIds)
     {
         SequenceIds reconciled = new SequenceIds();
-        LongArrayList unreconciled = new LongArrayList();
+        SequenceIdSet unreconciled = new SequenceIdSet();
         log.lookUpUnreconciled(token, unreconciled, reconciled);
 
-        Assert.assertEquals(toLongArrayList(expectedIds), unreconciled);
+        Assert.assertEquals(toSequenceIdSet(expectedIds), unreconciled);
         Assert.assertEquals(expectedReconciled, reconciled);
     }
 

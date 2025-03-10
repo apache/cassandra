@@ -21,6 +21,8 @@ package org.apache.cassandra.service.tracking;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
+import org.apache.cassandra.db.Digest;
+import org.apache.cassandra.db.MutationId;
 
 import java.util.Arrays;
 import java.util.Objects;
@@ -55,6 +57,23 @@ public class SequenceIdSet
         this(INITIAL_CAPACITY);
     }
 
+    public SequenceIdSet(long[] ids)
+    {
+        if (ids.length > 1)
+        {
+            long last = ids[0];
+            for (int i = 1; i < ids.length; i++)
+            {
+                long next = ids[i];
+                if (next <= last)
+                    throw new AssertionError(String.format("%s <= %s", next, last));
+                last = next;
+            }
+        }
+        this.ids = Arrays.copyOf(ids, ids.length);
+        this.expectedMaxSize = MAX_CAPACITY;
+    }
+
     @Override
     public boolean equals(Object o)
     {
@@ -67,6 +86,25 @@ public class SequenceIdSet
     public int hashCode()
     {
         return Objects.hash(Arrays.hashCode(ids), size);
+    }
+
+    @Override
+    public String toString()
+    {
+        StringBuilder builder = new StringBuilder("{");
+        int i = 0;
+        while (i < size)
+        {
+            long sequence = ids[i++];
+            builder.append('<')
+                   .append(MutationId.offset(sequence))
+                   .append(',')
+                   .append(MutationId.timestamp(sequence))
+                   .append('>');
+            if (i < size) builder.append(',');
+        }
+        builder.append('}');
+        return builder.toString();
     }
 
     @VisibleForTesting
@@ -84,6 +122,19 @@ public class SequenceIdSet
     public int size()
     {
         return size;
+    }
+
+    public void digest(Digest digest)
+    {
+        digest.updateWithInt(size);
+        for (int i = 0; i < size; i++)
+            digest.updateWithLong(ids[i]);
+    }
+
+    public void ensureAdditionalCapacity(int additional)
+    {
+        expectedMaxSize = Math.max(expectedMaxSize, size + additional);
+        ensureCapacity(size + additional);
     }
 
     private void ensureCapacity(int minCapacity)

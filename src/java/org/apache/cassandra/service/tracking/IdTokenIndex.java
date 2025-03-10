@@ -22,7 +22,6 @@ import java.util.SortedSet;
 import java.util.TreeSet;
 
 import org.agrona.collections.Long2ObjectHashMap;
-import org.agrona.collections.LongArrayList;
 import org.apache.cassandra.db.PartitionPosition;
 import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.dht.Range;
@@ -68,37 +67,43 @@ class IdTokenIndex
         tokenToIds.add(new Entry(token, sequenceId));
     }
 
-    boolean lookUp(Token token, LongArrayList into)
+    boolean lookUp(Token token, SequenceIdSet into)
     {
         boolean found = false;
-        for (Entry entry : tokenToIds.subSet(new Entry(token, 0), new Entry(token, Long.MAX_VALUE)))
+        SortedSet<Entry> subset = tokenToIds.subSet(new Entry(token, 0), new Entry(token, Long.MAX_VALUE));
+        into.ensureAdditionalCapacity(subset.size());
+        for (Entry entry : subset)
         {
-            into.addLong(entry.sequenceId);
+            into.append(entry.sequenceId);
             found = true;
         }
         return found;
     }
 
     // TODO (expected): handle wrap-around ranges
-    boolean lookUp(Range<Token> range, LongArrayList into)
+    boolean lookUp(Range<Token> range, SequenceIdSet into)
     {
         boolean found = false;
-        for (Entry entry : tokenToIds.subSet(new Entry(range.left, 0), new Entry(range.right, Long.MAX_VALUE)))
+        SortedSet<Entry> subset = tokenToIds.subSet(new Entry(range.left, 0), new Entry(range.right, Long.MAX_VALUE));
+        into.ensureAdditionalCapacity(subset.size());
+        for (Entry entry : subset)
         {
-            into.addLong(entry.sequenceId);
+            into.append(entry.sequenceId);
             found = true;
         }
         return found;
     }
 
-    boolean lookUp(AbstractBounds<PartitionPosition> range, LongArrayList into)
+    boolean lookUp(AbstractBounds<PartitionPosition> range, SequenceIdSet into)
     {
         boolean found = false;
         Entry start = new Entry(range.left.getToken(), range.inclusiveLeft() ? 0 : Long.MAX_VALUE);
         Entry end = new Entry(range.right.getToken(), range.inclusiveRight() ? Long.MAX_VALUE : 0);
-        for (Entry entry : tokenToIds.subSet(start, end))
+        SortedSet<Entry> subset = tokenToIds.subSet(start, end);
+        into.ensureAdditionalCapacity(subset.size());
+        for (Entry entry : subset)
         {
-            into.addLong(entry.sequenceId);
+            into.append(entry.sequenceId);
             found = true;
         }
         return found;
