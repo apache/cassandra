@@ -47,10 +47,10 @@ public class FixedSplitTokenRangeSplitter implements IAutoRepairTokenRangeSplitt
      * Selecting the default value is tricky. If we select a small number, individual repairs would be heavy.
      * On the other hand, if we select a large number, too many repair sessions would be created.
      * <p>
-     * The default value of 64 works well for non-vnodes, but with vnodes, it can result in too many repair sessions
-     * because the total number of repair sessions on a node is calculated as:
+     * The default value of 64 works well for non-vnodes, but with vnodes, it might result in too many repair sessions
+     * and to cap the number for vnodes, we use the following formula:
      * <p>
-     *      number_of_subranges * num_token
+     *      Math.max(1, numberOfSubranges / tokens.size())
      * <p>
      * To maintain balance, 32 serves as a good default that accommodates both vnodes and non-vnodes effectively.
      */
