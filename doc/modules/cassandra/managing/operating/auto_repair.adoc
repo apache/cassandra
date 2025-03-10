@@ -297,9 +297,9 @@ The following `parameters` apply for `FixedSplitTokenRangeSplitter` configuratio
 [cols=",,",options="header",]
 |===
 | Name | Default | Description
-| number_of_subranges | 64 | Number of evenly split subranges to create for each node that repair runs for.
+| number_of_subranges | 32 | Number of evenly split subranges to create for each node that repair runs for.
 If vnodes are configured using `num_tokens`, attempts to evenly subdivide subranges by each range.  For example, for
-`num_tokens: 16` and `number_of_subranges: 64`, 4 (64/16) repair assignments will be created for each token range.  At
+`num_tokens: 16` and `number_of_subranges: 32`, 2 (32/16) repair assignments will be created for each token range.  At
 least one repair assignment will be created for each token range.
 |===
 
