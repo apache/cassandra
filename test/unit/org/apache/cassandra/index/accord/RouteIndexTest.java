@@ -101,6 +101,7 @@ import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.LazyToString;
 import org.apache.cassandra.utils.RTree;
 import org.apache.cassandra.utils.RangeTree;
+import org.apache.cassandra.utils.concurrent.CountDownLatch;
 import org.assertj.core.api.Assertions;
 import org.mockito.Mockito;
 
@@ -589,7 +590,9 @@ public class RouteIndexTest extends CQLTester.InMemory
             Txn txn = toTxn(txnId, participants);
             AccordGenerators.CommandBuilder builder = new AccordGenerators.CommandBuilder(txnId, txn, txnId, txn.slice(participants.owns().toRanges(), true), PartialDeps.NONE, Ballot.ZERO, Ballot.ZERO, accord.local.Command.WaitingOn.none(txnId.domain(), Deps.NONE));
             var cmd = builder.build(saveStatus);
-            journal.get().saveCommand(storeId, new Journal.CommandUpdate(null, cmd), () -> {});
+            CountDownLatch latch = CountDownLatch.newCountDownLatch(1);
+            journal.get().saveCommand(storeId, new Journal.CommandUpdate(null, cmd), () -> latch.decrement());
+            latch.awaitThrowUncheckedOnInterrupt();
         }
 
         private static Txn toTxn(TxnId txnId, StoreParticipants participants)
