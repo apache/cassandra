@@ -77,6 +77,6 @@ public class FixedSplitTokenRangeSplitterVNodesTest
     @Test
     public void testTokenRangesWithDefaultSplit()
     {
-        FixedSplitTokenRangeSplitterHelper.testTokenRangesWithDefaultSplit(numTokens, numberOfSubRanges, repairType);
+        FixedSplitTokenRangeSplitterHelper.testTokenRangesWithDefaultSplit(numTokens, repairType);
     }
 }

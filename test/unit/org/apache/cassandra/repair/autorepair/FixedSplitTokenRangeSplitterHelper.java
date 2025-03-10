@@ -48,7 +48,7 @@ import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 
 /**
- * Helper class for for {@link FixedSplitTokenRangeSplitterNoVNodesTest} and {@link FixedSplitTokenRangeSplitterVNodesTest}
+ * Helper class for {@link FixedSplitTokenRangeSplitterNoVNodesTest} and {@link FixedSplitTokenRangeSplitterVNodesTest}
  */
 public class FixedSplitTokenRangeSplitterHelper
 {
@@ -111,7 +111,7 @@ public class FixedSplitTokenRangeSplitterHelper
             List<Range<Token>> expectedTokensForATable = new ArrayList<>();
             for (int j = 0; j < assignmentsPerTable; j++)
             {
-                assertEquals(Arrays.asList(tables.get(i)), assignments.get(i * assignmentsPerTable + j).getTableNames());
+                assertEquals(Collections.singletonList(tables.get(i)), assignments.get(i * assignmentsPerTable + j).getTableNames());
                 assignmentForATable.add(assignments.get(i * assignmentsPerTable + j));
                 expectedTokensForATable.add(expectedToken.get(i * assignmentsPerTable + j));
             }
@@ -125,7 +125,6 @@ public class FixedSplitTokenRangeSplitterHelper
         AutoRepairService.instance.getAutoRepairConfig().setRepairByKeyspace(repairType, true);
         Collection<Range<Token>> tokens = StorageService.instance.getPrimaryRanges(KEYSPACE);
         assertEquals(numTokens, tokens.size());
-        List<String> tables = Arrays.asList(TABLE1, TABLE2, TABLE3);
         List<Range<Token>> expectedToken = new ArrayList<>();
         for (Range<Token> range : tokens)
         {
@@ -151,7 +150,7 @@ public class FixedSplitTokenRangeSplitterHelper
         compare(numTokens, numberOfSplits, expectedToken, assignments);
     }
 
-    public static void testTokenRangesWithDefaultSplit(int numTokens, int numberOfSubRanges, AutoRepairConfig.RepairType repairType)
+    public static void testTokenRangesWithDefaultSplit(int numTokens, AutoRepairConfig.RepairType repairType)
     {
         int numberOfSplits = calcSplits(numTokens, DEFAULT_NUMBER_OF_SUBRANGES);
         Collection<Range<Token>> tokens = StorageService.instance.getPrimaryRanges(KEYSPACE);
