@@ -18,6 +18,7 @@
 
 package org.apache.cassandra.service.reads.logged;
 
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.function.Supplier;
 
@@ -70,7 +71,7 @@ public class LoggedResolver<E extends Endpoints<E>, P extends ReplicaPlan.ForRea
         if (snapshot.size() == 1)
             return true;
 
-        long digest = 0;
+        byte[] digest = null;
         boolean first = true;
         for (Message<IReadResponse> message : snapshot)
         {
@@ -78,7 +79,7 @@ public class LoggedResolver<E extends Endpoints<E>, P extends ReplicaPlan.ForRea
 
             if (first)
                 digest = response.summary.digest();
-            else if (digest != response.summary.digest())
+            else if (Arrays.equals(digest, response.summary.digest()))
                 return false;
 
             first = false;

@@ -18,6 +18,7 @@
 package org.apache.cassandra.service.tracking;
 
 import com.google.common.base.Preconditions;
+import org.apache.cassandra.db.Digest;
 import org.apache.cassandra.db.MutationId;
 
 import java.util.Arrays;
@@ -100,6 +101,13 @@ public class SequenceIds
 
         pos = -pos - 1;
         return ((pos - 1) % 2 == 0); // id falls within bounds of an existing range if the bound to the left is an open one
+    }
+
+    public void digest(Digest digest)
+    {
+        digest.updateWithInt(size);
+        for (int i = 0; i < size; i++)
+            digest.updateWithLong(bounds[i]);
     }
 
     public void addAll(SequenceIds other, RangeConsumer onAdded)

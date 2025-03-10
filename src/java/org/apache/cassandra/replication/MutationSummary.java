@@ -23,5 +23,5 @@ import org.apache.cassandra.schema.TableId;
 public interface MutationSummary
 {
     TableId tableId();
-    long digest();
+    byte[] digest();
 }
