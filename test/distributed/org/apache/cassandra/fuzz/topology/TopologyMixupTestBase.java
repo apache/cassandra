@@ -140,8 +140,9 @@ public abstract class TopologyMixupTestBase<S extends TopologyMixupTestBase.Sche
                 state -> state.cluster.get(toCoordinate).nodetoolResult("repair", state.schema.keyspace(), state.schema.table(), "--force").asserts().success());
     }
 
-    private static <S extends Schema> Command<State<S>, Void, ?> repairCommand(int toCoordinate, String ks, String... tables) {
-        return new SimpleCommand<>(state -> "nodetool repair " + ks + (tables.length == 0 ? "" : " " + Arrays.asList(tables)) + " from node" + toCoordinate + state.commandNamePostfix(),
+    private static <S extends Schema> Command<State<S>, Void, ?> repairCommand(@Nullable String reason, int toCoordinate, String ks, String... tables)
+    {
+        return new SimpleCommand<>(state -> "nodetool repair " + ks + (tables.length == 0 ? "" : " " + Arrays.asList(tables)) + (reason == null ? "" : " for " + reason) + " from node" + toCoordinate + state.commandNamePostfix(),
                 state -> {
                     if (tables.length == 0) {
                         state.cluster.get(toCoordinate).nodetoolResult("repair", ks, "--force").asserts().success();
@@ -154,6 +155,19 @@ public abstract class TopologyMixupTestBase<S extends TopologyMixupTestBase.Sche
                     args.add("--force");
                     state.cluster.get(toCoordinate).nodetoolResult(args.toArray(String[]::new)).asserts().success();
                 });
+    }
+
+    protected static <S extends Schema> Command<State<S>, Void, ?> repairFor(State<S> state, String reason)
+    {
+        List<Command<State<S>, Void, ?>> commands = new ArrayList<>();
+        //TODO (efficiency): rather than run on every instance, run on 1 per section of the ring?
+        for (int inst : state.topologyHistory.up())
+        {
+            commands.add(repairCommand(reason, inst, "system_auth"));
+            commands.add(repairCommand(reason, inst, "system_traces"));
+            commands.add(repairCommand(reason, inst, state.schema.keyspace(), state.schema.table()));
+        }
+        return multistep(commands);
     }
 
     private Command<State<S>, Void, ?> waitForCMSToQuiesce()
@@ -436,13 +450,13 @@ public abstract class TopologyMixupTestBase<S extends TopologyMixupTestBase.Sche
             switch (task)
             {
                 case AddNode:
-                    possible.put(ignore -> multistep(addNode(), awaitClusterStable()), 1);
+                    possible.put(ignore -> multistep(repairFor(state, "add node"), addNode(), awaitClusterStable()), 1);
                     break;
                 case RemoveNode:
                     possible.put(rs -> multistep(removeNodeRandomizedDispatch(rs, state), awaitClusterStable()), 1);
                     break;
                 case HostReplace:
-                    possible.put(rs -> multistep(hostReplace(rs, state), awaitClusterStable()), 1);
+                    possible.put(rs -> multistep(repairFor(state, "host replace"), hostReplace(rs, state), awaitClusterStable()), 1);
                     break;
                 case StartNode:
                     possible.put(rs -> startInstance(rs, state), 1);
@@ -632,19 +646,10 @@ public abstract class TopologyMixupTestBase<S extends TopologyMixupTestBase.Sche
                         if (next.checkPreconditions(state) == Property.PreCheckResult.Ignore)
                             return next;
                         commandsTransformers.remove(self);
-                        int[] up = state.topologyHistory.up();
                         List<Command<State<S>, Void, ?>> commands = new ArrayList<>();
                         commands.add(fixDistributedSchemas);
-                        for (String ks : Arrays.asList("system_auth", "system_traces"))
-                        {
-                            int coordinator = rs.pickInt(up);
-                            commands.add(repairCommand(coordinator, ks));
-                        }
                         commands.add(fixTestKeyspace);
-                        {
-                            int coordinator = rs.pickInt(up);
-                            commands.add(repairCommand(coordinator, KEYSPACE));
-                        }
+                        commands.add(repairFor(state, "set RF=" + TARGET_RF));
                         commands.add(reconfig);
                         commands.add(next);
                         return multistep(commands);
