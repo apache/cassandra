@@ -68,4 +68,7 @@ public interface AutoRepairServiceMBean
     public Set<String> getOnGoingRepairHostIds(String repairType);
 
     public void setAutoRepairTokenRangeSplitterParameter(String repairType, String key, String value);
+
+    public void setRepairByKeyspace(String repairType, boolean repairByKeyspace);
+
 }
