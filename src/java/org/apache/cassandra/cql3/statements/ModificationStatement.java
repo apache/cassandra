@@ -525,9 +525,10 @@ public abstract class ModificationStatement implements CQLStatement.SingleKeyspa
                          options.getTimestamp(queryState),
                          options.getNowInSeconds(queryState),
                          requestTime);
+
         if (!mutations.isEmpty())
         {
-            StorageProxy.mutateWithTriggers(mutations, cl, false, requestTime);
+            StorageProxy.mutateWithoutConditions(mutations, cl, false, requestTime);
 
             if (!SchemaConstants.isSystemKeyspace(metadata.keyspace))
                 ClientRequestSizeMetrics.recordRowAndColumnCountMetrics(mutations);

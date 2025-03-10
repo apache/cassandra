@@ -322,7 +322,7 @@ public class Commit
         //   and there might be edge cases where that locks up paxos execution or has other side effects. The downside of
         //   not making paxos mutation ids deterministic is that the same commit may create multiple mutation ids if a paxos
         //   operation is not fully committed, then re-committed on repair or the next operation
-        return new Mutation(MutationId.createFor(update.metadata()), update);
+        return new Mutation(MutationId.fixme(), update);
     }
 
     @Override

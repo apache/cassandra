@@ -219,13 +219,12 @@ final class BatchUpdatesCollector implements UpdatesCollector
         public Mutation build()
         {
             ImmutableMap.Builder<TableId, PartitionUpdate> updates = new ImmutableMap.Builder<>();
-            boolean createId = false;
             for (Map.Entry<TableId, PartitionUpdate.Builder> updateEntry : modifications.entrySet())
             {
                 PartitionUpdate update = updateEntry.getValue().build();
                 updates.put(updateEntry.getKey(), update);
             }
-            return new Mutation(MutationId.createForKeyspace(keyspaceName), keyspaceName, key, updates.build(), createdAt);
+            return new Mutation(MutationId.none(), keyspaceName, key, updates.build(), createdAt);
         }
 
         public PartitionUpdate.Builder get(TableId tableId)

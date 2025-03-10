@@ -23,7 +23,6 @@ import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.net.MessagingService;
-import org.apache.cassandra.schema.TableMetadata;
 
 public class MutationId implements Comparable<MutationId>
 {
@@ -99,8 +98,7 @@ public class MutationId implements Comparable<MutationId>
     // FIXME: used in place of figuring out if we should use a mutation id or not
     public static MutationId fixme()
     {
-        // FIXME: remove after the refactor
-        return none();
+        return none(); // FIXME: remove after the refactor
     }
 
     public static MutationId none()
@@ -111,24 +109,6 @@ public class MutationId implements Comparable<MutationId>
     public boolean isNone()
     {
         return logId == Long.MIN_VALUE && sequenceId == Long.MIN_VALUE;
-    }
-
-    public static MutationId createNext()
-    {
-        // FIXME: remove after the refactor
-        throw new UnsupportedOperationException();
-    }
-
-    public static MutationId createFor(TableMetadata table)
-    {
-        // FIXME: remove after the refactor
-        throw new UnsupportedOperationException();
-    }
-
-    public static MutationId createForKeyspace(String keyspaceName)
-    {
-        // FIXME: remove after the refactor
-        throw new UnsupportedOperationException();
     }
 
     public static MutationId minNotNone(MutationId l, MutationId r)

@@ -148,8 +148,7 @@ public abstract class SimpleBuilders
 
             if (updateBuilders.size() == 1)
             {
-                PartitionUpdate update = updateBuilders.values().iterator().next().build();
-                return new Mutation(MutationId.createFor(update.metadata()), update);
+                return new Mutation(updateBuilders.values().iterator().next().build());
             }
 
             Mutation.PartitionUpdateCollector mutationBuilder = new Mutation.PartitionUpdateCollector(mutationId, keyspaceName, key);
@@ -251,7 +250,7 @@ public abstract class SimpleBuilders
 
         public Mutation buildAsMutation()
         {
-            return new Mutation(MutationId.fixme(), build());
+            return new Mutation(build());
         }
 
         private static class RTBuilder implements RangeTombstoneBuilder

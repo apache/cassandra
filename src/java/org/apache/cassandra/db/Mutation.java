@@ -88,10 +88,9 @@ public class Mutation implements IMutation, Supplier<Mutation>
         this(id, update.metadata().keyspace, update.partitionKey(), ImmutableMap.of(update.metadata().id, update), approxTime.now(), update.metadata().params.cdc);
     }
 
-
     public Mutation(PartitionUpdate update)
     {
-        this(MutationId.fixme(), update);
+        this(MutationId.none(), update);
     }
 
     public Mutation(MutationId id, String keyspaceName, DecoratedKey key, ImmutableMap<TableId, PartitionUpdate> modifications, long approxCreatedAtNanos)
@@ -179,8 +178,6 @@ public class Mutation implements IMutation, Supplier<Mutation>
     @Override
     public Supplier<Mutation> hintOnFailure()
     {
-        if (!id().isNone())
-            return null;
         return this;
     }
 
@@ -231,11 +228,11 @@ public class Mutation implements IMutation, Supplier<Mutation>
         Set<TableId> updatedTables = new HashSet<>();
         String ks = null;
         DecoratedKey key = null;
-        MutationId id = MutationId.none();
         for (Mutation mutation : mutations)
         {
             updatedTables.addAll(mutation.modifications.keySet());
-            id = MutationId.minNotNone(id, mutation.id());
+            if (!mutation.id().isNone())
+                throw new IllegalArgumentException();
             if (ks != null && !ks.equals(mutation.keyspaceName))
                 throw new IllegalArgumentException();
             if (key != null && !key.equals(mutation.key))
@@ -261,7 +258,7 @@ public class Mutation implements IMutation, Supplier<Mutation>
             modifications.put(table, updates.size() == 1 ? updates.get(0) : PartitionUpdate.merge(updates));
             updates.clear();
         }
-        return new Mutation(id, ks, key, modifications.build(), approxTime.now());
+        return new Mutation(MutationId.none(), ks, key, modifications.build(), approxTime.now());
     }
 
     public Future<?> applyFuture()
