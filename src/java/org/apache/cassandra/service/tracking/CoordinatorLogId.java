@@ -17,7 +17,7 @@
  */
 package org.apache.cassandra.service.tracking;
 
-public class CoordinatorLogId
+public class CoordinatorLogId implements Comparable<CoordinatorLogId>
 {
     /** TCM host ID */
     public final int hostId;
@@ -39,7 +39,13 @@ public class CoordinatorLogId
         this.hostLogId = hostLogId;
     }
 
-    long asLong()
+    @Override
+    public int compareTo(CoordinatorLogId that)
+    {
+        return Long.compare(this.asLong(), that.asLong());
+    }
+
+    public long asLong()
     {
         return asLong(hostId, hostLogId);
     }

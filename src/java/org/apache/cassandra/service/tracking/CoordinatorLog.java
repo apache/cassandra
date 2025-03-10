@@ -24,6 +24,8 @@ import java.util.concurrent.locks.ReentrantReadWriteLock;
 import org.agrona.collections.LongArrayList;
 import org.apache.cassandra.db.Mutation;
 import org.apache.cassandra.db.MutationId;
+import org.apache.cassandra.db.PartitionPosition;
+import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 
@@ -174,6 +176,24 @@ public abstract class CoordinatorLog
      * Adds the ids to the supplied collection, so it can be reused to aggregate lookups for multiple logs.
      */
     boolean lookUpUnreconciled(Range<Token> range, LongArrayList into, SequenceIds reconciled)
+    {
+        lock.readLock().lock();
+        try
+        {
+            reconciled.addAll(reconciled, (s, e) -> {});
+            return index.lookUp(range, into);
+        }
+        finally
+        {
+            lock.readLock().unlock();
+        }
+    }
+
+    /**
+     * Look up unreconciled sequence ids of mutations witnessed by this host in this coordinataor log.
+     * Adds the ids to the supplied collection, so it can be reused to aggregate lookups for multiple logs.
+     */
+    boolean lookUpUnreconciled(AbstractBounds<PartitionPosition> range, LongArrayList into, SequenceIds reconciled)
     {
         lock.readLock().lock();
         try

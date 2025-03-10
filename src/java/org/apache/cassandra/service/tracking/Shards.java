@@ -21,9 +21,12 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Consumer;
 import java.util.function.IntSupplier;
 
 import org.agrona.collections.IntArrayList;
+import org.apache.cassandra.db.PartitionPosition;
+import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.locator.InetAddressAndPort;
@@ -46,14 +49,19 @@ public class Shards
             shards.put(keyspace.name, KeyspaceShards.make(keyspace, metadata, this::nextHostLogId));
     }
 
-    Shard lookUp(String keyspace, Range<Token> range)
+    public Shard lookUp(String keyspace, Range<Token> range)
     {
         return getOrCreate(keyspace).lookUp(range);
     }
 
-    Shard lookUp(String keyspace, Token token)
+    public Shard lookUp(String keyspace, Token token)
     {
         return getOrCreate(keyspace).lookUp(token);
+    }
+
+    public void forEachIntersectingShard(String keyspace, AbstractBounds<PartitionPosition> range, Consumer<Shard> consumer)
+    {
+        getOrCreate(keyspace).forEachIntersectingShard(range, consumer);
     }
 
     private KeyspaceShards getOrCreate(String keyspace)
@@ -78,6 +86,7 @@ public class Shards
     {
         private final String keyspace;
         private final Map<Range<Token>, Shard> shards;
+        private transient final Map<Range<PartitionPosition>, Shard> ppShards;
 
         static KeyspaceShards make(KeyspaceMetadata keyspace, ClusterMetadata cluster, IntSupplier logIdProvider)
         {
@@ -97,6 +106,9 @@ public class Shards
         {
             this.keyspace = keyspace;
             this.shards = shards;
+
+            this.ppShards = new HashMap<>();
+            shards.forEach((range, shard) -> ppShards.put(Range.makeRowRange(range), shard));
         }
 
         Shard lookUp(Range<Token> range)
@@ -110,6 +122,14 @@ public class Shards
             KeyspaceMetadata ksm = csm.schema.getKeyspaceMetadata(keyspace);
             Range<Token> range = ClusterMetadata.current().placements.get(ksm.params.replication).writes.forRange(token).range();
             return shards.get(range);
+        }
+
+        public void forEachIntersectingShard(AbstractBounds<PartitionPosition> bounds, Consumer<Shard> consumer)
+        {
+            ppShards.forEach((range, shard) -> {
+                if (range.intersects(bounds))
+                    consumer.accept(shard);
+            });
         }
     }
 }

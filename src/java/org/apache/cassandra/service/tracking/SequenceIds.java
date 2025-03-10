@@ -40,6 +40,12 @@ public class SequenceIds
         bounds = new long[INITIAL_CAPACITY];
     }
 
+    private SequenceIds(long[] bounds)
+    {
+        this.bounds = bounds;
+        this.size = bounds.length;
+    }
+
     @Override
     public boolean equals(Object o)
     {
@@ -52,6 +58,11 @@ public class SequenceIds
     public int hashCode()
     {
         return Objects.hash(Arrays.hashCode(bounds), size);
+    }
+
+    public SequenceIds copy()
+    {
+        return new SequenceIds(Arrays.copyOf(bounds, size));
     }
 
     public int rangeCount()
@@ -114,6 +125,11 @@ public class SequenceIds
     {
         for (int i = 0; i < other.size; i += 2)
             add(other.bounds[i], other.bounds[i + 1], onAdded);
+    }
+
+    public void addAll(SequenceIds other)
+    {
+        addAll(other, RangeConsumer.NONE);
     }
 
     public boolean add(long id)

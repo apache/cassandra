@@ -34,6 +34,7 @@ import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
 
 import org.apache.cassandra.db.DecoratedKey;
+import org.apache.cassandra.db.Digest;
 import org.apache.cassandra.db.MutationId;
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.dht.IPartitioner;
@@ -113,9 +114,9 @@ public class SimpleMutationSummary implements MutationSummary
     }
 
     @Override
-    public long digest()
+    public byte[] digest()
     {
-        return hashCode();
+        return Digest.forReadResponse().updateWithInt(hashCode()).digest();
     }
 
     public static SimpleMutationSummary of(TableId tableId, DecoratedKey key, SortedSet<MutationId> ids)

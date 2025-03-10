@@ -19,10 +19,14 @@ package org.apache.cassandra.service.tracking;
 
 import java.util.function.IntSupplier;
 
+import com.google.common.base.Preconditions;
 import org.apache.cassandra.db.Mutation;
 import org.apache.cassandra.db.MutationId;
+import org.apache.cassandra.db.PartitionPosition;
+import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
+import org.apache.cassandra.replication.logged.LoggedMutationSummary;
 import org.apache.cassandra.service.tracking.CoordinatorLog.CoordinatorLogPrimary;
 import org.apache.cassandra.tcm.Epoch;
 import org.jctools.maps.NonBlockingHashMapLong;
@@ -69,6 +73,30 @@ public class Shard
         get(logId).witnessedMutationsRemote(ranges, onHostId);
     }
 
+    public void addSummaryForKey(LoggedMutationSummary.Builder builder, Token token)
+    {
+        logs.forEach((key, log) -> {
+            LoggedMutationSummary.CoordinatorSummary.Builder summaryBuilder = builder.builderForLog(log.logId);
+            log.lookUpUnreconciled(token, summaryBuilder.unreconciledIds, summaryBuilder.reconciledIds);
+        });
+    }
+
+    public void addSummaryForRange(LoggedMutationSummary.Builder builder, Range<Token> range)
+    {
+        logs.forEach((key, log) -> {
+            LoggedMutationSummary.CoordinatorSummary.Builder summaryBuilder = builder.builderForLog(log.logId);
+            log.lookUpUnreconciled(range, summaryBuilder.unreconciledIds, summaryBuilder.reconciledIds);
+        });
+    }
+
+    public void addSummaryForRange(LoggedMutationSummary.Builder builder, AbstractBounds<PartitionPosition> range)
+    {
+        logs.forEach((key, log) -> {
+            LoggedMutationSummary.CoordinatorSummary.Builder summaryBuilder = builder.builderForLog(log.logId);
+            log.lookUpUnreconciled(range, summaryBuilder.unreconciledIds, summaryBuilder.reconciledIds);
+        });
+    }
+
     /**
      * Creates a new coordinator log for this host. Primarily on Shard init (node startup or topology change).
      * Also on keyspace creation.
@@ -81,6 +109,7 @@ public class Shard
 
     private CoordinatorLog get(MutationId mutationId)
     {
+        Preconditions.checkArgument(!mutationId.isNone());
         return get(mutationId.logId());
     }
 

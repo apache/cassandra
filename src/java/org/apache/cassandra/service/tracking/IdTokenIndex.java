@@ -23,6 +23,8 @@ import java.util.TreeSet;
 
 import org.agrona.collections.Long2ObjectHashMap;
 import org.agrona.collections.LongArrayList;
+import org.apache.cassandra.db.PartitionPosition;
+import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 
@@ -82,6 +84,19 @@ class IdTokenIndex
     {
         boolean found = false;
         for (Entry entry : tokenToIds.subSet(new Entry(range.left, 0), new Entry(range.right, Long.MAX_VALUE)))
+        {
+            into.addLong(entry.sequenceId);
+            found = true;
+        }
+        return found;
+    }
+
+    boolean lookUp(AbstractBounds<PartitionPosition> range, LongArrayList into)
+    {
+        boolean found = false;
+        Entry start = new Entry(range.left.getToken(), range.inclusiveLeft() ? 0 : Long.MAX_VALUE);
+        Entry end = new Entry(range.right.getToken(), range.inclusiveRight() ? Long.MAX_VALUE : 0);
+        for (Entry entry : tokenToIds.subSet(start, end))
         {
             into.addLong(entry.sequenceId);
             found = true;
