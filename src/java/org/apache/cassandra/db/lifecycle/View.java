@@ -17,14 +17,21 @@
  */
 package org.apache.cassandra.db.lifecycle;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Function;
 import com.google.common.base.Functions;
-import com.google.common.base.Objects;
 import com.google.common.base.Predicate;
-import com.google.common.collect.*;
+import com.google.common.collect.ImmutableList;
+import com.google.common.collect.Iterables;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.DecoratedKey;
@@ -350,9 +357,19 @@ public class View
                     return new View(view.liveMemtables, flushingMemtables, view.sstablesMap,
                                     view.compactingMap, view.intervalTree);
 
+                // here we're adding sstables only
                 Map<SSTableReader, SSTableReader> sstableMap = replace(view.sstablesMap, emptySet(), flushed);
-                return new View(view.liveMemtables, flushingMemtables, sstableMap, view.compactingMap,
-                                SSTableIntervalTree.build(sstableMap.keySet()));
+                if (DatabaseDescriptor.getAddSSTableReaderForIntervalTreeEnabled() &&
+                    !view.intervalTree.isEmpty())
+                {
+                    return new View(view.liveMemtables, flushingMemtables, sstableMap, view.compactingMap,
+                                    view.intervalTree.copyAndAddSSTables(sstableMap.keySet(), flushed));
+                }
+                else
+                {
+                    return new View(view.liveMemtables, flushingMemtables, sstableMap, view.compactingMap,
+                                    SSTableIntervalTree.build(sstableMap.keySet()));
+                }
             }
         };
     }

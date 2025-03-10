@@ -24,7 +24,6 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.io.ISerializer;
 import org.apache.cassandra.io.IVersionedSerializer;
-import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.utils.AsymmetricOrdering.Op;
@@ -54,15 +53,20 @@ public class IntervalTree<C extends Comparable<? super C>, D, I extends Interval
 
     private final IntervalNode head;
     private final int count;
+    // Tracks updates to ensure rebalancing occurs before the tree becomes too imbalanced
+    private final int updateCount;
 
-    protected IntervalTree(int count, IntervalNode head)
+    protected IntervalTree(int count, IntervalNode head, int cnt)
     {
         this.head = head;
         this.count = count;
+        this.updateCount = cnt;
     }
 
     protected IntervalTree(Collection<I> intervals)
     {
+        // rebuild
+        this.updateCount = 0;
         if (DatabaseDescriptor.isDaemonInitialized() &&
             DatabaseDescriptor.getUseNewBehaviorForIntervalTreeBuild())
         {
@@ -116,6 +120,11 @@ public class IntervalTree<C extends Comparable<? super C>, D, I extends Interval
     public int intervalCount()
     {
         return count;
+    }
+
+    public int updateCount()
+    {
+        return updateCount;
     }
 
     public boolean isEmpty()
@@ -189,6 +198,11 @@ public class IntervalTree<C extends Comparable<? super C>, D, I extends Interval
     protected IntervalNode copyAndReplace(Map<I, I> replacementMap)
     {
         return head.copyAndReplaceHelper(head, replacementMap);
+    }
+
+    protected IntervalNode copyAndAddIntervals(List<I> sstables)
+    {
+        return head.copyAndAddIntervalsHelper(head, sstables);
     }
 
     protected class IntervalNode
@@ -481,6 +495,55 @@ public class IntervalTree<C extends Comparable<? super C>, D, I extends Interval
                                     newIntersectsRight != null ? newIntersectsRight : node.intersectsRight,
                                     copyAndReplaceHelper(node.left, leftSegment),
                                     copyAndReplaceHelper(node.right, rightSegment));
+        }
+
+        private IntervalNode copyAndAddIntervalsHelper(IntervalNode node, List<I> intervals)
+        {
+            if (intervals.isEmpty())
+                return node;
+            if (node == null)
+                return new IntervalNode(intervals);
+
+            List<I> leftSegment = new ArrayList<>();
+            List<I> rightSegment = new ArrayList<>();
+            C newLow = node.low;
+            C newHigh = node.high;
+            List<I> newIntersectsLeft = null;
+            List<I> newIntersectsRight = null;
+            for (I i : intervals)
+            {
+                newLow = newLow.compareTo(i.min) < 0 ? newLow : i.min;
+                newHigh = newHigh.compareTo(i.max) > 0 ? newHigh : i.max;
+                if (i.max.compareTo(node.center) < 0)
+                {
+                    leftSegment.add(i);
+                }
+                else if (i.min.compareTo(node.center) > 0)
+                {
+                    rightSegment.add(i);
+                }
+                else
+                {
+                    // only init once if any interval resides in current node
+                    if (newIntersectsLeft == null)
+                    {
+                        newIntersectsLeft = new ArrayList<>(node.intersectsLeft);
+                        newIntersectsRight = new ArrayList<>(node.intersectsRight);
+                    }
+                    int leftIdx = Interval.<C, D>minOrdering().binarySearchAsymmetric(newIntersectsLeft, i.min, Op.CEIL);
+                    newIntersectsLeft.add(leftIdx, i);
+
+                    int rightIdx = Interval.<C, D>maxOrdering().binarySearchAsymmetric(newIntersectsRight, i.max, Op.HIGHER);
+                    newIntersectsRight.add(rightIdx, i);
+                }
+            }
+            return new IntervalNode(node.center,
+                                    newLow,
+                                    newHigh,
+                                    newIntersectsLeft != null ? newIntersectsLeft : node.intersectsLeft,
+                                    newIntersectsRight != null ? newIntersectsRight : node.intersectsRight,
+                                    copyAndAddIntervalsHelper(node.left, leftSegment),
+                                    copyAndAddIntervalsHelper(node.right, rightSegment));
         }
     }
 

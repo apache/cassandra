@@ -48,7 +48,6 @@ import org.apache.cassandra.io.util.DataOutputPlus;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotSame;
 import static org.junit.Assert.assertSame;
-import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
 @RunWith(Parameterized.class)
@@ -311,7 +310,7 @@ public class IntervalTreeTest
         Map<Interval<Integer, DummyObj>, Interval<Integer, DummyObj>> toUpdate = new HashMap();
         toUpdate.put(target1, newTarget1);
         toUpdate.put(target2, newTarget2);
-        it = new IntervalTree<>(it.intervalCount(), it.copyAndReplace(toUpdate));
+        it = new IntervalTree<>(it.intervalCount(), it.copyAndReplace(toUpdate), it.updateCount());
         assertEquals(3, it.search(Interval.create(4, 4)).size());
         assertEquals(4, it.search(Interval.create(4, 5)).size());
         assertEquals(8, it.search(Interval.create(-1, 10)).size());
@@ -340,5 +339,43 @@ public class IntervalTreeTest
         intersection2 = it.search(Interval.create(8, 9));
         assertNotSame(intersection1.get(0), data2);
         assertSame(intersection2.get(0), newData2);
+    }
+
+    @Test
+    public void testCopyAndAddIntervals()
+    {
+        List<Interval<Integer, Void>> intervals = new ArrayList<Interval<Integer, Void>>();
+
+        intervals.add(Interval.<Integer, Void>create(-300, -200));
+        intervals.add(Interval.<Integer, Void>create(-3, -2));
+        intervals.add(Interval.<Integer, Void>create(1, 2));
+        intervals.add(Interval.<Integer, Void>create(3, 6));
+        intervals.add(Interval.<Integer, Void>create(2, 4));
+        intervals.add(Interval.<Integer, Void>create(5, 7));
+        intervals.add(Interval.<Integer, Void>create(4, 6));
+        intervals.add(Interval.<Integer, Void>create(15, 20));
+        intervals.add(Interval.<Integer, Void>create(49, 60));
+
+
+        IntervalTree<Integer, Void, Interval<Integer, Void>> it = IntervalTree.build(intervals);
+
+        List<Interval<Integer, Void>> intervalsToAdd = new ArrayList<>();
+        intervalsToAdd.add(Interval.create(1, 3));
+        intervalsToAdd.add(Interval.create(8, 9));
+        intervalsToAdd.add(Interval.create(40, 50));
+
+        it = new IntervalTree<>(it.intervalCount() + intervalsToAdd.size(),
+                                it.copyAndAddIntervals(intervalsToAdd),
+                                it.updateCount() + 3);
+
+        assertEquals(3, it.search(Interval.<Integer, Void>create(4, 4)).size());
+        assertEquals(4, it.search(Interval.<Integer, Void>create(4, 5)).size());
+        assertEquals(7, it.search(Interval.<Integer, Void>create(-1, 10)).size());
+        assertEquals(0, it.search(Interval.<Integer, Void>create(-1, -1)).size());
+        assertEquals(5, it.search(Interval.<Integer, Void>create(1, 4)).size());
+        assertEquals(2, it.search(Interval.<Integer, Void>create(0, 1)).size());
+        assertEquals(0, it.search(Interval.<Integer, Void>create(10, 12)).size());
+
+        assertEquals(12, it.intervalCount());
     }
 }

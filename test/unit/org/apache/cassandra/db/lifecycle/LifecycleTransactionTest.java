@@ -66,15 +66,17 @@ public class LifecycleTransactionTest extends AbstractTransactionalTest
         MockSchema.cleanup();
     }
 
-    public LifecycleTransactionTest(Boolean replaceSSTableReaderForIntervalTreeEnabled)
+    public LifecycleTransactionTest(Boolean replaceSSTableReaderForIntervalTreeEnabled,
+                                    Boolean addSSTableReaderForIntervalTreeEnabled)
     {
         DatabaseDescriptor.setReplaceSSTableReaderForIntervalTreeEnabled(replaceSSTableReaderForIntervalTreeEnabled);
+        DatabaseDescriptor.setAddSSTableReaderForIntervalTreeEnabled(addSSTableReaderForIntervalTreeEnabled);
     }
 
     @Parameterized.Parameters()
-    public static List<Boolean> buildParameterizedVariants()
+    public static List<Object[]> buildParameterizedVariants()
     {
-        return Arrays.asList(true, false);
+        return Arrays.asList(new Object[][]{{true, false}, {false, true}, {false, false}});
     }
 
     @Before
@@ -83,6 +85,7 @@ public class LifecycleTransactionTest extends AbstractTransactionalTest
         incrementalBackups = DatabaseDescriptor.isIncrementalBackupsEnabled();
         DatabaseDescriptor.setIncrementalBackupsEnabled(false);
     }
+
     @After
     public void restoreIncrementalBackup()
     {

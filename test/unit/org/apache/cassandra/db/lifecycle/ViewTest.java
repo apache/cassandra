@@ -62,15 +62,17 @@ public class ViewTest
         MockSchema.cleanup();
     }
 
-    public ViewTest(Boolean replaceSSTableReaderForIntervalTreeEnabled)
+    public ViewTest(Boolean replaceSSTableReaderForIntervalTreeEnabled,
+                    Boolean addSSTableReaderForIntervalTreeEnabled)
     {
         DatabaseDescriptor.setReplaceSSTableReaderForIntervalTreeEnabled(replaceSSTableReaderForIntervalTreeEnabled);
+        DatabaseDescriptor.setAddSSTableReaderForIntervalTreeEnabled(addSSTableReaderForIntervalTreeEnabled);
     }
 
     @Parameterized.Parameters()
-    public static List<Boolean> buildParameterizedVariants()
+    public static List<Object[]> buildParameterizedVariants()
     {
-        return Arrays.asList(true, false);
+        return Arrays.asList(new Object[][]{{true, false}, {false, true}, {false, false}});
     }
 
     @Test
@@ -224,6 +226,40 @@ public class ViewTest
         Assert.assertEquals(1, cur.liveMemtables.size());
         Assert.assertEquals(memtable3, cur.getCurrentMemtable());
         Assert.assertEquals(1, cur.sstables.size());
+        Assert.assertEquals(sstable, cur.sstablesMap.get(sstable));
+    }
+
+    @Test
+    public void testFlushingWithNonEmptyInitView()
+    {
+        ColumnFamilyStore cfs = MockSchema.newCFS();
+        // init with 5 sstables
+        View initialView = fakeView(1, 5, cfs);
+        View cur = initialView;
+        Memtable memtable1 = initialView.getCurrentMemtable();
+        Memtable memtable2 = MockSchema.memtable(cfs);
+
+        cur = View.switchMemtable(memtable2).apply(cur);
+        Assert.assertEquals(2, cur.liveMemtables.size());
+        Assert.assertEquals(0, cur.flushingMemtables.size());
+        Assert.assertEquals(memtable1, cur.liveMemtables.get(0));
+        Assert.assertEquals(memtable2, cur.getCurrentMemtable());
+
+        testFailure(View.replaceFlushed(memtable2, null), cur);
+
+        cur = View.markFlushing(memtable1).apply(cur);
+        Assert.assertEquals(1, cur.liveMemtables.size());
+        Assert.assertEquals(1, cur.flushingMemtables.size());
+        Assert.assertEquals(memtable1, cur.flushingMemtables.get(0));
+        Assert.assertEquals(memtable2, cur.getCurrentMemtable());
+
+        // flush memtable1 to 6th sstable
+        SSTableReader sstable = MockSchema.sstable(6, cfs);
+        cur = View.replaceFlushed(memtable1, singleton(sstable)).apply(cur);
+        Assert.assertEquals(1, cur.liveMemtables.size());
+        Assert.assertEquals(0, cur.flushingMemtables.size());
+        Assert.assertEquals(memtable2, cur.getCurrentMemtable());
+        Assert.assertEquals(6, cur.sstables.size());
         Assert.assertEquals(sstable, cur.sstablesMap.get(sstable));
     }
 

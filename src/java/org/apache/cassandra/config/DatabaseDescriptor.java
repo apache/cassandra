@@ -5246,6 +5246,16 @@ public class DatabaseDescriptor
         conf.replace_sstable_reader_for_interval_tree_enabled = isEnabled;
     }
 
+    public static boolean getAddSSTableReaderForIntervalTreeEnabled()
+    {
+        return conf.add_sstable_reader_for_interval_tree_enabled;
+    }
+
+    public static void setAddSSTableReaderForIntervalTreeEnabled(boolean isEnabled)
+    {
+        conf.add_sstable_reader_for_interval_tree_enabled = isEnabled;
+    }
+
     public static boolean getDirectMaterializedViewModificationEnabled() {
         return conf.direct_materialized_view_modification_enabled;
     }

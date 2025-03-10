@@ -37,14 +37,16 @@ public class SSTableIntervalTree extends IntervalTree<PartitionPosition, SSTable
 {
     private static final SSTableIntervalTree EMPTY = new SSTableIntervalTree(null);
 
+    public static final int MAX_INTERVALS_ADDED_BEFORE_REBUILD = 100;
+
     SSTableIntervalTree(Collection<Interval<PartitionPosition, SSTableReader>> intervals)
     {
         super(intervals);
     }
 
-    SSTableIntervalTree(int count, IntervalNode head)
+    SSTableIntervalTree(int count, IntervalNode head, int cnt)
     {
-        super(count, head);
+        super(count, head, cnt);
     }
 
     public static SSTableIntervalTree empty()
@@ -77,7 +79,33 @@ public class SSTableIntervalTree extends IntervalTree<PartitionPosition, SSTable
             replacementIntervalsMap.put(Interval.create(entry.getKey().first, entry.getKey().last, entry.getKey()),
                                         Interval.create(entry.getValue().first, entry.getValue().last, entry.getValue()));
         }
-        return new SSTableIntervalTree(intervalCount(), copyAndReplace(replacementIntervalsMap));
+        return new SSTableIntervalTree(intervalCount(), copyAndReplace(replacementIntervalsMap), updateCount());
+    }
+
+    /**
+     * Creates a new SSTableIntervalTree with provided SSTableReaders added into the tree
+     * The new SSTableIntervalTree shares some {@code IntervalNode} instances with the original tree.
+     * Only the nodes along the paths to the node where SSTableReader is added are recreated, minimizing
+     * the extent of changes to the tree structure.
+     *
+     * Note: this will fall back to rebuild method after certain updates w/o rebuild, as the addInterval method
+     *       doesn't guarentee balanced interval tree. After any rebuild the tree will be built from scratch
+     *       and the tree will be balanced.
+     *
+     * @param allSSTables List of all SSTableReader(s) of the new tree
+     * @param toAdd List of SSTableReader(s) to be added within the tree
+     * @return A new SSTableIntervalTree, partially sharing structure with the original tree, but with the
+     *         SSTableReaders added into the tree (midpoints remain the same).
+     */
+    public SSTableIntervalTree copyAndAddSSTables(Iterable<SSTableReader> allSSTables, Iterable<SSTableReader> toAdd)
+    {
+        List<Interval<PartitionPosition, SSTableReader>> intervalsToAdd = buildIntervals(toAdd);
+        if (updateCount() + intervalsToAdd.size() >= MAX_INTERVALS_ADDED_BEFORE_REBUILD)
+            return new SSTableIntervalTree(buildIntervals(allSSTables));
+        else
+            return new SSTableIntervalTree(intervalCount() + intervalsToAdd.size(),
+                                           copyAndAddIntervals(intervalsToAdd),
+                                           updateCount() + intervalsToAdd.size());
     }
 
     public static List<Interval<PartitionPosition, SSTableReader>> buildIntervals(Iterable<SSTableReader> sstables)
