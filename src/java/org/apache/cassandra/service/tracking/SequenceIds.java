@@ -17,16 +17,19 @@
  */
 package org.apache.cassandra.service.tracking;
 
+import com.google.common.base.Preconditions;
+import org.apache.cassandra.db.MutationId;
+
 import java.util.Arrays;
 import java.util.Objects;
 
-import static org.apache.cassandra.db.MutationId.offset;
-import static org.apache.cassandra.db.MutationId.timestamp;
+import static org.apache.cassandra.db.MutationId.*;
 
 public class SequenceIds
 {
     private static final int INITIAL_CAPACITY = 16;
 
+    // even index is range start, odd index is range end (inclusive)
     private long[] bounds;
     private int size;
 
@@ -167,10 +170,205 @@ public class SequenceIds
         return true;
     }
 
+    private static int rangeStart(int range)
+    {
+        return range * 2;
+    }
+
+    private static int rangeEnd(int range)
+    {
+        return rangeStart(range) + 1;
+    }
+
+    private static long sequenceId(int sequence)
+    {
+        return MutationId.sequenceId(sequence, 0);
+    }
+
+    private enum AddAction
+    {
+        INSERT, MOVE, INCLUDE;
+
+        boolean move()
+        {
+            return this == MOVE;
+        }
+
+        boolean include()
+        {
+            return this == INCLUDE;
+        }
+
+        boolean insert()
+        {
+            return this == INSERT;
+        }
+
+        boolean isMoveOrInclude()
+        {
+            return this == MOVE || this == INCLUDE;
+        }
+    }
+
     public boolean add(long start, long end, RangeConsumer onAdded)
     {
-        // TODO (expected): implement once we have positions broadcasting going
-        throw new UnsupportedOperationException();
+        if (size == 0)
+        {
+            append(start, end);
+            return true;
+        }
+
+        if (start == end)
+        {
+            boolean added = add(start);
+            if (added)
+                onAdded.consume(start, end);
+            return added;
+        }
+
+        Preconditions.checkArgument(start < end);
+        int spos = Arrays.binarySearch(bounds, 0, size, start);
+        int epos = Arrays.binarySearch(bounds, 0, size, end);
+
+        if (spos >= 0 && spos % 2 == 0 && epos == spos + 1) return false; // matches an existing bound
+
+        if (spos < 0) spos = -spos - 1;
+        if (epos < 0) epos = -epos - 1;
+
+        int numRanges = rangeCount();
+        int sRange = Math.min(spos/2, numRanges - 1);
+        int eRange = Math.min(epos/2, numRanges - 1);
+
+        AddAction sMerge;
+        {
+            int sOffset = offset(start);
+            int rStart = offset(bounds[rangeStart(sRange)]);
+            int rEnd = offset(bounds[rangeEnd(sRange)]);
+            if (sOffset >= rStart)
+            {
+                // already included in the range or adjacent to range end
+                sMerge = sOffset <= rEnd + 1
+                        ? AddAction.INCLUDE  // included in the range
+                        : AddAction.INSERT; // past the end of the range
+            }
+            else if (sRange > 0 && sOffset == offset(bounds[rangeEnd(sRange-1)]) + 1)
+            {
+                // adjacent to the previous range, so say we're included in it to merge
+                sRange--;
+                sMerge = AddAction.INCLUDE;
+            }
+            else
+            {
+                sMerge = AddAction.MOVE;
+            }
+        }
+
+        AddAction eMerge;
+        {
+            int eOffset = offset(end);
+            int rStart = offset(bounds[rangeStart(eRange)]);
+            int rEnd = offset(bounds[rangeEnd(eRange)]);
+
+            if (eOffset <= rEnd)
+            {
+                if (eOffset >= rStart - 1)
+                {
+                    // included in the range or adjacent to range start
+                    eMerge = AddAction.INCLUDE;
+                }
+                else if (sRange == eRange - 1)
+                {
+                    // if we're before the start of this range, and the start is assigned to
+                    // the previous range, then we should just extend the previous range
+                    eRange--;
+                    eMerge = AddAction.MOVE;
+                }
+                else
+                {
+                    // before the start of the range
+                    eMerge = AddAction.INSERT;
+                }
+            }
+            else if (eRange < numRanges - 1 && eOffset == offset(bounds[rangeStart(eRange+1)]) - 1)
+            {
+                // adjacent to the next range, so say we're included in it to merge
+                eRange++;
+                eMerge = AddAction.INCLUDE;
+            }
+
+            else
+            {
+                eMerge = AddAction.MOVE;
+            }
+        }
+
+        // this range isn't adjacent and doesn't intersect any existing, so create a new range
+        if (sMerge.move() && eMerge.insert())
+        {
+            Preconditions.checkState(sRange == eRange);
+            onAdded.consume(start, end);
+            insert(rangeStart(sRange), start, end);
+            return true;
+        }
+
+        // this should only happen if we're adding a range to the very end of the set
+        if (sMerge.insert() && eMerge.move())
+        {
+            Preconditions.checkState(sRange == eRange);
+            Preconditions.checkState(sRange == numRanges - 1);
+            onAdded.consume(start, end);
+            append(start, end);
+            return true;
+        }
+
+        boolean adjusted = false;
+        if (sMerge.move())
+        {
+            onAdded.consume(start, sequenceId(offset(bounds[rangeStart(sRange)]) - 1));
+            bounds[rangeStart(sRange)] = start;
+            adjusted = true;
+        }
+
+        // combine existing ranges
+        if (sRange != eRange)
+        {
+            Preconditions.checkState(sMerge.isMoveOrInclude());
+            Preconditions.checkState(eMerge.isMoveOrInclude());
+
+            adjusted = true;
+            // report merged ranges
+            for (int i = sRange; i < eRange; i++)
+            {
+                int sEnd = offset(bounds[rangeEnd(i)]);
+                int eStart = offset(bounds[rangeStart(i + 1)]);
+                onAdded.consume(sequenceId(sEnd + 1), sequenceId(eStart - 1));
+            }
+
+            // move array back -
+            int dstIdx = rangeEnd(sRange);
+            int srcIdx = rangeEnd(eRange);
+            System.arraycopy(bounds, srcIdx, bounds, dstIdx, size - srcIdx);
+            while (eRange > sRange)
+            {
+                eRange--;
+                bounds[--size] = 0;
+                bounds[--size] = 0;
+            }
+        }
+
+        if (eMerge.move())
+        {
+            onAdded.consume(sequenceId(offset(bounds[rangeEnd(eRange)]) + 1), end);
+            bounds[rangeEnd(eRange)] = end;
+            adjusted = true;
+        }
+
+        return adjusted;
+    }
+
+    public boolean add(long start, long end)
+    {
+        return  add(start, end, RangeConsumer.NONE);
     }
 
     private void insert(int pos, long start, long end)
@@ -205,6 +403,8 @@ public class SequenceIds
 
     public interface RangeConsumer
     {
+        RangeConsumer NONE = (s, e) -> {};
+
         void consume(long start, long end);
     }
 }

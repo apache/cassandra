@@ -17,10 +17,17 @@
  */
 package org.apache.cassandra.service.tracking;
 
+import org.junit.Assert;
 import org.junit.Test;
 
 import org.apache.cassandra.db.MutationId;
 
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Objects;
+import java.util.function.Supplier;
+
+import static org.apache.cassandra.db.MutationId.offset;
 import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -28,6 +35,103 @@ import static org.junit.Assert.assertTrue;
 
 public class SequenceIdsTest
 {
+    private static class TestConsumer implements SequenceIds.RangeConsumer
+    {
+        static class OffsetRange
+        {
+            final int start;
+            final int end;
+
+            public OffsetRange(int start, int end)
+            {
+                this.start = start;
+                this.end = end;
+            }
+
+            @Override
+            public boolean equals(Object o)
+            {
+                if (o == null || getClass() != o.getClass()) return false;
+                OffsetRange range = (OffsetRange) o;
+                return start == range.start && end == range.end;
+            }
+
+            @Override
+            public int hashCode()
+            {
+                return Objects.hash(start, end);
+            }
+
+            @Override
+            public String toString()
+            {
+                return String.format("<%s,%s>", offset(start), offset(end));
+            }
+        }
+
+        final List<OffsetRange> ranges = new ArrayList<>();
+
+        @Override
+        public void consume(long start, long end)
+        {
+            consumerOffsets(offset(start), offset(end));
+        }
+
+        public void consumerOffsets(int start, int end)
+        {
+            ranges.add(new OffsetRange(start, end));
+        }
+
+        @Override
+        public boolean equals(Object o)
+        {
+            if (o == null || getClass() != o.getClass()) return false;
+            TestConsumer that = (TestConsumer) o;
+            return Objects.equals(ranges, that.ranges);
+        }
+
+        @Override
+        public int hashCode()
+        {
+            return Objects.hashCode(ranges);
+        }
+
+        @Override
+        public String toString()
+        {
+            return ranges.toString();
+        }
+
+        public TestConsumer assertOffsetsConsumed(int... expected)
+        {
+            Assert.assertTrue(expected.length % 2 == 0);
+            TestConsumer expectedConsumer = new TestConsumer();
+            for (int i = 0; i < expected.length; i+=2)
+                expectedConsumer.consumerOffsets(expected[i], expected[i+1]);
+
+            Assert.assertEquals(expectedConsumer, this);
+            return this;
+        }
+
+        public TestConsumer assertConsumed(long... expected)
+        {
+            int[] offsets = new int[expected.length];
+            for (int i = 0; i < expected.length; i++)
+                offsets[i] = offset(expected[i]);
+
+            return assertOffsetsConsumed(offsets);
+        }
+
+        void clear()
+        {
+            ranges.clear();
+        }
+
+        boolean isEmpty()
+        {
+            return ranges.isEmpty();
+        }
+    }
     @Test
     public void testEmptyAndAddExisting()
     {
@@ -148,6 +252,244 @@ public class SequenceIdsTest
         assertTrue(ids.add(id8));
         assertEquals(3, ids.rangeCount());
         assertEquals(3, ids.idCount());
+    }
+
+    @Test
+    public void testRangeAppend()
+    {
+        SequenceIds ids = new SequenceIds();
+        ids.add(id(5), id(7));
+        TestConsumer consumer = new TestConsumer();
+
+        // add overlapping range 1
+        assertTrue(ids.add(id(6), id(8), consumer));
+        assertEquals(1, ids.rangeCount());
+        assertEquals(4, ids.idCount());
+        consumer.assertOffsetsConsumed(8, 8).clear();
+
+        // add overlapping range 2
+        assertTrue(ids.add(id(8), id(9), consumer));
+        assertEquals(1, ids.rangeCount());
+        assertEquals(5, ids.idCount());
+        consumer.assertOffsetsConsumed(9, 9).clear();
+
+        // add adjacent range
+        assertTrue(ids.add(id(10), id(12), consumer));
+        assertEquals(1, ids.rangeCount());
+        assertEquals(8, ids.idCount());
+        consumer.assertOffsetsConsumed(10, 12).clear();
+
+        // add disjoint range
+        assertTrue(ids.add(id(14), id(16), consumer));
+        assertEquals(2, ids.rangeCount());
+        assertEquals(11, ids.idCount());
+        consumer.assertOffsetsConsumed(14, 16).clear();
+
+    }
+
+    @Test
+    public void testRangePrepend()
+    {
+        SequenceIds ids = new SequenceIds();
+        ids.add(id(10), id(12));
+        TestConsumer consumer = new TestConsumer();
+
+        assertEquals(1, ids.rangeCount());
+        assertEquals(3, ids.idCount());
+
+        // add overlapping range 1
+        assertTrue(ids.add(id(9), id(11), consumer));
+        assertEquals(1, ids.rangeCount());
+        assertEquals(4, ids.idCount());
+        consumer.assertOffsetsConsumed(9, 9).clear();
+
+        // add overlapping range 2
+        assertTrue(ids.add(id(8), id(9), consumer));
+        assertEquals(1, ids.rangeCount());
+        assertEquals(5, ids.idCount());
+        consumer.assertOffsetsConsumed(8, 8).clear();
+
+        // add adjacent range
+        assertTrue(ids.add(id(6), id(7), consumer));
+        assertEquals(1, ids.rangeCount());
+        assertEquals(7, ids.idCount());
+        consumer.assertOffsetsConsumed(6, 7).clear();
+
+        // add disjoint range
+        assertTrue(ids.add(id(0), id(3), consumer));
+        assertEquals(2, ids.rangeCount());
+        assertEquals(11, ids.idCount());
+        consumer.assertOffsetsConsumed(0, 3).clear();
+    }
+
+    @Test
+    public void testRangeAddition()
+    {
+        SequenceIds ids = new SequenceIds();
+        ids.add(id(5), id(7));
+
+        assertEquals(1, ids.rangeCount());
+        assertEquals(3, ids.idCount());
+
+    }
+
+    /**
+     * adding ranges fully contained in existing ranges should noop
+     */
+    @Test
+    public void testRangeInclusion()
+    {
+        SequenceIds ids = new SequenceIds();
+        TestConsumer consumer = new TestConsumer();
+        ids.add(id(0), id(3));
+        ids.add(id(7), id(10));
+        ids.add(id(15), id(17));
+
+        assertEquals(3, ids.rangeCount());
+        assertEquals(11, ids.idCount());
+
+        // fully contained in first
+        assertFalse(ids.add(id(0), id(2), consumer));
+        assertFalse(ids.add(id(1), id(2), consumer));
+        assertFalse(ids.add(id(1), id(3), consumer));
+        assertFalse(ids.add(id(0), id(3), consumer));
+
+
+        // fully contained in second
+        assertFalse(ids.add(id(7), id(9), consumer));
+        assertFalse(ids.add(id(8), id(9), consumer));
+        assertFalse(ids.add(id(8), id(10), consumer));
+        assertFalse(ids.add(id(7), id(10), consumer));
+
+        // fully contained in third
+        assertFalse(ids.add(id(16), id(16), consumer));
+        assertFalse(ids.add(id(16), id(17), consumer));
+        assertFalse(ids.add(id(15), id(16), consumer));
+        assertFalse(ids.add(id(15), id(17), consumer));
+
+        // nothing should have changed
+        assertEquals(3, ids.rangeCount());
+        assertEquals(11, ids.idCount());
+        assertTrue(consumer.isEmpty());
+    }
+
+    @Test
+    public void testRangeInsert()
+    {
+        Supplier<SequenceIds> sequenceIds = () -> {
+            SequenceIds ids0 = new SequenceIds();
+            ids0.add(id(0), id(3));
+            ids0.add(id(7), id(10));
+            ids0.add(id(15), id(17));
+
+            assertEquals(3, ids0.rangeCount());
+            assertEquals(11, ids0.idCount());
+            return ids0;
+        };
+
+        // disjoint insert
+        {
+            SequenceIds ids = sequenceIds.get();
+            TestConsumer consumer = new TestConsumer();
+
+            assertTrue(ids.add(id(12), id(13), consumer));
+            assertEquals(4, ids.rangeCount());
+            assertEquals(13, ids.idCount());
+            consumer.assertOffsetsConsumed(12, 13).clear();
+        }
+
+        // left adjacent insert
+        {
+            SequenceIds ids = sequenceIds.get();
+            TestConsumer consumer = new TestConsumer();
+
+            assertTrue(ids.add(id(5), id(6), consumer));
+            assertEquals(3, ids.rangeCount());
+            assertEquals(13, ids.idCount());
+            consumer.assertOffsetsConsumed(5, 6).clear();
+        }
+
+        // right adjacent insert
+        {
+            SequenceIds ids = sequenceIds.get();
+            TestConsumer consumer = new TestConsumer();
+
+            assertTrue(ids.add(id(11), id(12), consumer));
+            assertEquals(3, ids.rangeCount());
+            assertEquals(13, ids.idCount());
+            consumer.assertOffsetsConsumed(11, 12).clear();
+        }
+
+        // both adjacent insert
+        {
+            SequenceIds ids = sequenceIds.get();
+            TestConsumer consumer = new TestConsumer();
+
+            assertTrue(ids.add(id(11), id(14), consumer));
+            assertEquals(2, ids.rangeCount());
+            assertEquals(15, ids.idCount());
+            consumer.assertOffsetsConsumed(11, 14).clear();
+        }
+    }
+
+
+    @Test
+    public void testRangeMerging()
+    {
+        Supplier<SequenceIds> sequenceIds = () -> {
+            SequenceIds ids0 = new SequenceIds();
+            ids0.add(id(0), id(3));
+            ids0.add(id(7), id(10));
+            ids0.add(id(15), id(17));
+
+            assertEquals(3, ids0.rangeCount());
+            assertEquals(11, ids0.idCount());
+            return ids0;
+        };
+
+        // left merge
+        {
+            SequenceIds ids = sequenceIds.get();
+            TestConsumer consumer = new TestConsumer();
+
+            assertTrue(ids.add(id(5), id(8), consumer));
+            assertEquals(3, ids.rangeCount());
+            assertEquals(13, ids.idCount());
+            consumer.assertOffsetsConsumed(5, 6).clear();
+        }
+
+        // right merge
+        {
+            SequenceIds ids = sequenceIds.get();
+            TestConsumer consumer = new TestConsumer();
+
+            assertTrue(ids.add(id(8), id(12), consumer));
+            assertEquals(3, ids.rangeCount());
+            assertEquals(13, ids.idCount());
+            consumer.assertOffsetsConsumed(11, 12).clear();
+        }
+
+        // right and left merge
+        {
+            SequenceIds ids = sequenceIds.get();
+            TestConsumer consumer = new TestConsumer();
+
+            assertTrue(ids.add(id(6), id(11), consumer));
+            assertEquals(3, ids.rangeCount());
+            assertEquals(13, ids.idCount());
+            consumer.assertOffsetsConsumed(6, 6, 11, 11).clear();
+        }
+
+        // 2 range merge
+        {
+            SequenceIds ids = sequenceIds.get();
+            TestConsumer consumer = new TestConsumer();
+
+            assertTrue(ids.add(id(2), id(8), consumer));
+            assertEquals(2, ids.rangeCount());
+            assertEquals(14, ids.idCount());
+            consumer.assertOffsetsConsumed(4, 6).clear();
+        }
     }
 
     private long id(int offset)
