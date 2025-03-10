@@ -24,8 +24,8 @@ import org.apache.cassandra.db.Mutation;
 import org.apache.cassandra.db.WriteContext;
 import org.apache.cassandra.db.commitlog.CommitLogPosition;
 import org.apache.cassandra.exceptions.RequestExecutionException;
-import org.apache.cassandra.replication.MutationTracker;
 import org.apache.cassandra.replication.MutationTrackingService;
+import org.apache.cassandra.replication.PendingWrite;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.utils.concurrent.OpOrder;
 
@@ -35,7 +35,7 @@ public class TrackedKeyspaceWriteHandler implements KeyspaceWriteHandler
     public WriteContext beginWrite(Mutation mutation, boolean makeDurable) throws RequestExecutionException
     {
         OpOrder.Group group = null;
-        MutationTracker.PendingWrite pendingWrite = null;
+        PendingWrite pendingWrite = null;
         try
         {
             group = Keyspace.writeOrder.start();
@@ -73,7 +73,7 @@ public class TrackedKeyspaceWriteHandler implements KeyspaceWriteHandler
         OpOrder.Group group = Keyspace.writeOrder.start();
         try
         {
-            return new CassandraWriteContext(group, null, MutationTracker.PendingWrite.NOOP);
+            return new CassandraWriteContext(group, null, PendingWrite.NOOP);
         }
         catch (Throwable t)
         {
