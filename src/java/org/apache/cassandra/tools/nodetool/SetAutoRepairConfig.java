@@ -48,7 +48,8 @@ public class SetAutoRepairConfig extends NodeToolCmd
                   "|enabled|table_max_repair_time|priority_hosts|forcerepair_hosts|ignore_dcs" +
                   "|history_clear_delete_hosts_buffer_interval|repair_primary_token_range_only" +
                   "|parallel_repair_count|parallel_repair_percentage|materialized_view_repair_enabled|repair_max_retries" +
-                  "|repair_retry_backoff|repair_session_timeout|min_repair_task_duration|token_range_splitter.<property>]",
+                  "|repair_retry_backoff|repair_session_timeout|min_repair_task_duration" +
+                  "|repair_by_keyspace|token_range_splitter.<property>]",
     required = true)
     protected List<String> args = new ArrayList<>();
 
@@ -158,6 +159,9 @@ public class SetAutoRepairConfig extends NodeToolCmd
                 break;
             case "repair_session_timeout":
                 probe.setAutoRepairSessionTimeout(repairTypeStr, paramVal);
+                break;
+            case "repair_by_keyspace":
+                probe.setAutoRepairRepairByKeyspace(repairTypeStr, Boolean.parseBoolean(paramVal));
                 break;
             default:
                 throw new IllegalArgumentException("Unknown parameter: " + paramType);
