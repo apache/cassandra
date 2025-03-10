@@ -21,22 +21,22 @@ package org.apache.cassandra.distributed.test.repair;
 import java.io.IOException;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
-import java.util.concurrent.TimeUnit;
 import java.util.UUID;
 
 import com.google.common.collect.ImmutableMap;
-import com.google.common.util.concurrent.Uninterruptibles;
+
+import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.schema.SystemDistributedKeyspace;
+
 import org.junit.Assert;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
-import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
 import org.apache.cassandra.distributed.test.TestBaseImpl;
 import org.apache.cassandra.repair.autorepair.AutoRepair;
 import org.apache.cassandra.repair.autorepair.AutoRepairConfig;
-import org.apache.cassandra.schema.SystemDistributedKeyspace;
 import org.apache.cassandra.service.AutoRepairService;
 
 import static org.apache.cassandra.schema.SchemaConstants.DISTRIBUTED_KEYSPACE_NAME;
@@ -63,19 +63,19 @@ public class AutoRepairSchedulerTest extends TestBaseImpl
                                                              ImmutableMap.of(
                                                              "repair_type_overrides",
                                                              ImmutableMap.of(AutoRepairConfig.RepairType.FULL.getConfigName(),
-                                                                                 ImmutableMap.of(
-                                                                                 "initial_scheduler_delay", "5s",
-                                                                                 "enabled", "true",
-                                                                                 "parallel_repair_count", "1",
-                                                                                 "parallel_repair_percentage", "0",
-                                                                                 "min_repair_interval", "1s"),
+                                                                             ImmutableMap.of(
+                                                                             "initial_scheduler_delay", "5s",
+                                                                             "enabled", "true",
+                                                                             "parallel_repair_count", "1",
+                                                                             "parallel_repair_percentage", "0",
+                                                                             "min_repair_interval", "1s"),
                                                                              AutoRepairConfig.RepairType.INCREMENTAL.getConfigName(),
-                                                                                 ImmutableMap.of(
-                                                                                 "initial_scheduler_delay", "5s",
-                                                                                 "enabled", "true",
-                                                                                 "parallel_repair_count", "1",
-                                                                                 "parallel_repair_percentage", "0",
-                                                                                 "min_repair_interval", "1s"))))
+                                                                             ImmutableMap.of(
+                                                                             "initial_scheduler_delay", "5s",
+                                                                             "enabled", "true",
+                                                                             "parallel_repair_count", "1",
+                                                                             "parallel_repair_percentage", "0",
+                                                                             "min_repair_interval", "1s"))))
                                                         .set("auto_repair.enabled", "true")
                                                         .set("auto_repair.global_settings.repair_by_keyspace", "true")
                                                         .set("auto_repair.repair_task_min_duration", "0s")
@@ -105,9 +105,34 @@ public class AutoRepairSchedulerTest extends TestBaseImpl
                 throw new RuntimeException(e);
             }
         }));
-        // wait for a couple of minutes for repair to go through on all three nodes
-        Uninterruptibles.sleepUninterruptibly(2, TimeUnit.MINUTES);
 
+        // validate that the repair ran on all nodes
+        cluster.forEach(i -> i.runOnInstance(() -> {
+            try
+            {
+                while(true)
+                {
+                    if (AutoRepair.instance.repairStates.get(AutoRepairConfig.RepairType.FULL).getLastRepairTime() == 0
+                        || AutoRepair.instance.repairStates.get(AutoRepairConfig.RepairType.INCREMENTAL).getLastRepairTime() == 0)
+                    {
+                        try
+                        {
+                            Thread.sleep(5000);
+                        }
+                        catch (InterruptedException e)
+                        {
+                            throw new RuntimeException(e);
+                        }
+                        continue;
+                    }
+                    break;
+                }
+            }
+            catch (Exception e)
+            {
+                throw new RuntimeException(e);
+            }
+        }));
         validate(AutoRepairConfig.RepairType.FULL.toString());
         validate(AutoRepairConfig.RepairType.INCREMENTAL.toString());
     }

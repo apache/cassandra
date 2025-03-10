@@ -536,7 +536,7 @@ public final class SchemaKeyspace
         }
     }
 
-    private static void addTableParamsToRowBuilder(TableParams params, Row.SimpleBuilder builder)
+    public static void addTableParamsToRowBuilder(TableParams params, Row.SimpleBuilder builder)
     {
         builder.add("bloom_filter_fp_chance", params.bloomFilterFpChance)
                .add("comment", params.comment)
@@ -554,8 +554,7 @@ public final class SchemaKeyspace
                .add("compaction", params.compaction.asMap())
                .add("compression", params.compression.asMap())
                .add("read_repair", params.readRepair.toString())
-               .add("extensions", params.extensions)
-               .add("auto_repair", params.autoRepair.asMap());
+               .add("extensions", params.extensions);
 
         // Only add CDC-enabled flag to schema if it's enabled on the node. This is to work around RTE's post-8099 if a 3.8+
         // node sends table schema to a < 3.8 versioned node with an unknown column.
@@ -566,6 +565,14 @@ public final class SchemaKeyspace
         // in mixed operation with pre-4.1 versioned node during upgrades.
         if (params.memtable != MemtableParams.DEFAULT)
             builder.add("memtable", params.memtable.configurationKey());
+
+        // As above, only add the auto_repair column if the scheduler is enabled
+        // to avoid RTE in pre-5.1 versioned node during upgrades
+        if (DatabaseDescriptor.getRawConfig() != null
+            && DatabaseDescriptor.getAutoRepairConfig().isAutoRepairSchedulingEnabled())
+        {
+            builder.add("auto_repair", params.autoRepair.asMap());
+        }
     }
 
     private static void addAlterTableToSchemaMutation(TableMetadata oldTable, TableMetadata newTable, Mutation.SimpleBuilder builder)
@@ -957,7 +964,7 @@ public final class SchemaKeyspace
     @VisibleForTesting
     static TableParams createTableParamsFromRow(UntypedResultSet.Row row)
     {
-        return TableParams.builder()
+        TableParams.Builder builder = TableParams.builder()
                           .bloomFilterFpChance(row.getDouble("bloom_filter_fp_chance"))
                           .caching(CachingParams.fromMap(row.getFrozenTextMap("caching")))
                           .comment(row.getString("comment"))
@@ -978,9 +985,15 @@ public final class SchemaKeyspace
                                                      SpeculativeRetryPolicy.fromString(row.getString("additional_write_policy")) :
                                                      SpeculativeRetryPolicy.fromString("99PERCENTILE"))
                           .cdc(row.has("cdc") && row.getBoolean("cdc"))
-                          .readRepair(getReadRepairStrategy(row))
-                          .automatedRepair(AutoRepairParams.fromMap(row.getFrozenTextMap("auto_repair")))
-                          .build();
+                          .readRepair(getReadRepairStrategy(row));
+
+        // auto_repair column was introduced in 5.1
+        if (row.has("auto_repair"))
+        {
+            builder.automatedRepair(AutoRepairParams.fromMap(row.getFrozenTextMap("auto_repair")));
+        }
+
+        return builder.build();
     }
 
     private static List<ColumnMetadata> fetchColumns(String keyspace, String table, Types types)

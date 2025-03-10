@@ -84,12 +84,12 @@ public class AutoRepair
     public static DurationSpec.IntSecondsBound SLEEP_IF_REPAIR_FINISHES_QUICKLY = new DurationSpec.IntSecondsBound("5s");
 
     @VisibleForTesting
+    public final Map<AutoRepairConfig.RepairType, AutoRepairState> repairStates;
+
+    @VisibleForTesting
     protected final Map<AutoRepairConfig.RepairType, ScheduledExecutorPlus> repairExecutors;
 
     protected final Map<AutoRepairConfig.RepairType, ScheduledExecutorPlus> repairRunnableExecutors;
-
-    @VisibleForTesting
-    protected final Map<AutoRepairConfig.RepairType, AutoRepairState> repairStates;
 
     @VisibleForTesting
     // Auto-repair is likely to be run on multiple nodes independently, we want to avoid running multiple repair
