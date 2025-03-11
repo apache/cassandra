@@ -60,14 +60,17 @@
     </suppress>
 
     <!-- https://issues.apache.org/jira/browse/CASSANDRA-19142 -->
+    <!-- https://issues.apache.org/jira/browse/CASSANDRA-20412 -->
     <suppress>
         <packageUrl regex="true">^pkg:maven/ch\.qos\.logback/logback\-core@.*$</packageUrl>
         <cve>CVE-2023-6378</cve>
         <cve>CVE-2024-12798</cve>
+        <cve>CVE-2024-12801</cve>
     </suppress>
     <suppress>
         <packageUrl regex="true">^pkg:maven/ch\.qos\.logback/logback\-classic@.*$</packageUrl>
         <cve>CVE-2023-6378</cve>
         <cve>CVE-2024-12798</cve>
+        <cve>CVE-2024-12801</cve>
     </suppress>
 </suppressions>
