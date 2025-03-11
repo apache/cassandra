@@ -32,6 +32,7 @@ import java.util.concurrent.locks.Lock;
 import java.util.stream.Stream;
 
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.base.Preconditions;
 import com.google.common.collect.Iterables;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -58,6 +59,7 @@ import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.schema.SchemaProvider;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.schema.TableMetadata;
+import org.apache.cassandra.service.tracking.Shards;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.JVMStabilityInspector;
@@ -103,6 +105,7 @@ public class Keyspace
 
     public final ViewManager viewManager;
     private final KeyspaceWriteHandler writeHandler;
+    private final TrackedKeyspaceWriteHandler trackedWriteHandler;
     private final KeyspaceRepairManager repairManager;
     private final SchemaProvider schema;
     private final String name;
@@ -282,6 +285,7 @@ public class Keyspace
 
         this.repairManager = new CassandraKeyspaceRepairManager(this);
         this.writeHandler = new CassandraKeyspaceWriteHandler(this);
+        this.trackedWriteHandler = new TrackedKeyspaceWriteHandler(this);
     }
 
     public Keyspace(KeyspaceMetadata metadata)
@@ -293,6 +297,7 @@ public class Keyspace
         this.viewManager = new ViewManager(this);
         this.repairManager = new CassandraKeyspaceRepairManager(this);
         this.writeHandler = new CassandraKeyspaceWriteHandler(this);
+        this.trackedWriteHandler = new TrackedKeyspaceWriteHandler(this);
         this.metadataRef = new KeyspaceMetadataRef(metadata, schema);
     }
 
@@ -392,13 +397,9 @@ public class Keyspace
 
     public Future<?> applyFuture(Mutation mutation, boolean writeCommitLog, boolean updateIndexes)
     {
-        return applyInternal(mutation, writeCommitLog, updateIndexes, true, true, new AsyncPromise<>());
-    }
-
-    public Future<?> applyFuture(Mutation mutation, boolean writeCommitLog, boolean updateIndexes, boolean isDroppable,
-                                            boolean isDeferrable)
-    {
-        return applyInternal(mutation, writeCommitLog, updateIndexes, isDroppable, isDeferrable, new AsyncPromise<>());
+        return getMetadata().useMutationTracking()
+             ? applyInternalTracked(mutation, new AsyncPromise<>())
+             : applyInternal(mutation, writeCommitLog, updateIndexes, true, true, new AsyncPromise<>());
     }
 
     public void apply(Mutation mutation, boolean writeCommitLog, boolean updateIndexes)
@@ -428,7 +429,10 @@ public class Keyspace
                       boolean updateIndexes,
                       boolean isDroppable)
     {
-        applyInternal(mutation, makeDurable, updateIndexes, isDroppable, false, null);
+        if (getMetadata().useMutationTracking())
+            applyInternalTracked(mutation, null);
+        else
+            applyInternal(mutation, makeDurable, updateIndexes, isDroppable, false, null);
     }
 
     /**
@@ -448,6 +452,9 @@ public class Keyspace
                                                boolean isDeferrable,
                                                Promise<?> future)
     {
+
+        Preconditions.checkState(!getMetadata().useMutationTracking());
+
         if (TEST_FAIL_WRITES && getMetadata().name.equals(TEST_FAIL_WRITES_KS))
             throw new RuntimeException("Testing write failures");
 
@@ -591,6 +598,40 @@ public class Keyspace
                         lock.unlock();
             }
         }
+    }
+
+    /**
+     * Append the mutation to the mutation journal, then update memtables and indexes.
+     */
+    private Future<?> applyInternalTracked(Mutation mutation, Promise<?> future)
+    {
+        Preconditions.checkState(getMetadata().useMutationTracking());
+
+        if (TEST_FAIL_WRITES && getMetadata().name.equals(TEST_FAIL_WRITES_KS))
+            throw new RuntimeException("Testing write failures");
+
+        try (WriteContext ctx = trackedWriteHandler.beginWrite(mutation, true))
+        {
+            for (PartitionUpdate upd : mutation.getPartitionUpdates())
+            {
+                ColumnFamilyStore cfs = Schema.instance.getColumnFamilyStoreInstance(upd.metadata().id);
+                if (cfs == null)
+                {
+                    logger.error("Attempting to mutate non-existant table {} ({}.{})", upd.metadata().id, upd.metadata().keyspace, upd.metadata().name);
+                    continue;
+                }
+
+                cfs.getWriteHandler().write(upd, ctx, true);
+            }
+        }
+
+        Shards.instance.lookUp(mutation.getKeyspaceName(), mutation.key().getToken())
+                       .witnessedMutationLocal(mutation.id(), mutation);
+
+        if (future != null)
+            future.trySuccess(null);
+
+        return future;
     }
 
     public AbstractReplicationStrategy getReplicationStrategy()

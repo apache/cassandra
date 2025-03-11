@@ -41,6 +41,7 @@ public interface MutationTracker
 
     PendingRead startRead(ReadCommand command);
 
+    // TODO: ditch?
     void add(Mutation mutation);
 
     MutationSummary summaryForKey(TableId tableId, DecoratedKey key);

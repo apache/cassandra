@@ -31,14 +31,11 @@ import org.slf4j.LoggerFactory;
 import org.apache.cassandra.concurrent.DebuggableTask;
 import org.apache.cassandra.concurrent.Stage;
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.db.IMutation;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.Mutation;
 import org.apache.cassandra.db.WriteType;
-import org.apache.cassandra.db.WriteContext;
-import org.apache.cassandra.db.partitions.PartitionUpdate;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.exceptions.RequestFailureReason;
 import org.apache.cassandra.exceptions.WriteTimeoutException;
@@ -54,8 +51,6 @@ import org.apache.cassandra.net.MessageFlag;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.net.RequestCallback;
 import org.apache.cassandra.net.Verb;
-import org.apache.cassandra.replication.MutationTrackingService;
-import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.service.AbstractWriteResponseHandler;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.transport.Dispatcher;
@@ -219,7 +214,7 @@ public class CoordinatedWriteRequest
 
             try
             {
-                applyMutation(mutation);
+                mutation.apply();
                 handler.onResponse(null);
             }
             catch (Exception ex)
@@ -227,30 +222,6 @@ public class CoordinatedWriteRequest
                 if (!(ex instanceof WriteTimeoutException))
                     logger.error("Failed to apply mutation locally : ", ex);
                 handler.onFailure(FBUtilities.getBroadcastAddressAndPort(), RequestFailureReason.forException(ex));
-            }
-        }
-
-        /**
-         * Append the mutation to the mutation journal, then update memtables and indexes.
-         */
-        private void applyMutation(Mutation mutation)
-        {
-            try (WriteContext ctx = new TrackedKeyspaceWriteHandler().beginWrite(mutation, true))
-            {
-                MutationTrackingService.instance().add(mutation);
-
-                for (PartitionUpdate upd : mutation.getPartitionUpdates())
-                {
-                    ColumnFamilyStore cfs = Schema.instance.getColumnFamilyStoreInstance(upd.metadata().id);
-                    if (cfs == null)
-                    {
-                        logger.error("Attempting to mutate non-existant table {} ({}.{})", upd.metadata().id, upd.metadata().keyspace, upd.metadata().name);
-                        continue;
-                    }
-
-                    // TODO (expected): override
-                    cfs.getWriteHandler().write(upd, ctx, true);
-                }
             }
         }
 

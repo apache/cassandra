@@ -15,22 +15,25 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.apache.cassandra.service.tracking;
+package org.apache.cassandra.db;
 
-import org.apache.cassandra.db.CassandraWriteContext;
-import org.apache.cassandra.db.Keyspace;
-import org.apache.cassandra.db.KeyspaceWriteHandler;
-import org.apache.cassandra.db.Mutation;
-import org.apache.cassandra.db.WriteContext;
 import org.apache.cassandra.db.commitlog.CommitLogPosition;
 import org.apache.cassandra.exceptions.RequestExecutionException;
 import org.apache.cassandra.replication.MutationTrackingService;
 import org.apache.cassandra.replication.PendingWrite;
+import org.apache.cassandra.service.tracking.MutationJournal;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.utils.concurrent.OpOrder;
 
 public class TrackedKeyspaceWriteHandler implements KeyspaceWriteHandler
 {
+    private final Keyspace keyspace;
+
+    public TrackedKeyspaceWriteHandler(Keyspace keyspace)
+    {
+        this.keyspace = keyspace;
+    }
+
     @Override
     public WriteContext beginWrite(Mutation mutation, boolean makeDurable) throws RequestExecutionException
     {

@@ -113,7 +113,7 @@ public class PendingWrites
 
     public PendingRead startRead(ReadCommand command)
     {
-        if (!Schema.instance.getKeyspaceMetadata(command.metadata().keyspace).hasLoggedReplication())
+        if (!Schema.instance.getKeyspaceMetadata(command.metadata().keyspace).useMutationTracking())
             return PendingRead.NOOP;
 
         ListeningPendingRead pendingRead = new ListeningPendingRead(command);

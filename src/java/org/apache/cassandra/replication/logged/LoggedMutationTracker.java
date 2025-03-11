@@ -25,6 +25,7 @@ import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.replication.*;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableId;
+import org.apache.cassandra.service.tracking.MutationJournal;
 import org.apache.cassandra.service.tracking.Shard;
 import org.apache.cassandra.service.tracking.Shards;
 import org.apache.cassandra.tcm.ClusterMetadata;
@@ -33,12 +34,9 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
 
 public class LoggedMutationTracker implements MutationTracker
 {
-    private final Map<MutationId, Mutation> mutations = new ConcurrentHashMap<>();
-
     private final PendingWrites pendingWrites = new PendingWrites();
 
     @Override
@@ -63,10 +61,6 @@ public class LoggedMutationTracker implements MutationTracker
     @Override
     public void add(Mutation mutation)
     {
-        // FIXME (now): this should all be handled by the write path
-        Shard shard = Shards.instance.lookUp(mutation.getKeyspaceName(), mutation.key().getToken());
-        mutations.put(mutation.id(), mutation);
-        shard.witnessedMutationLocal(mutation.id(), mutation);
     }
 
     @Override
@@ -103,12 +97,9 @@ public class LoggedMutationTracker implements MutationTracker
     @Override
     public List<Mutation> mutations(Collection<MutationId> ids)
     {
-        List<Mutation> result = new ArrayList<Mutation>(ids.size());
-        ids.forEach(id -> {
-            Mutation mutation = mutations.get(id);
-            Preconditions.checkArgument(mutation != null);
-            result.add(mutation);
-        });
+        List<Mutation> result = new ArrayList<>(ids.size());
+        MutationJournal.instance.readAll(ids, result);
+        Preconditions.checkArgument(ids.size() == result.size());
         return result;
     }
 }

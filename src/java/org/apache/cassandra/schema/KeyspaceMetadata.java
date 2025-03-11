@@ -238,7 +238,7 @@ public final class KeyspaceMetadata implements SchemaElement
         return Optional.empty();
     }
 
-    public boolean hasLoggedReplication()
+    public boolean useMutationTracking()
     {
         return params.replicationType.isLogged();
     }
