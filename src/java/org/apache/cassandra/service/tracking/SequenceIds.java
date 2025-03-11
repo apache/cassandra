@@ -22,7 +22,6 @@ import org.apache.cassandra.db.Digest;
 import org.apache.cassandra.db.MutationId;
 
 import java.util.Arrays;
-import java.util.Objects;
 
 import static org.apache.cassandra.db.MutationId.*;
 
@@ -51,13 +50,21 @@ public class SequenceIds
     {
         if (o == null || getClass() != o.getClass()) return false;
         SequenceIds that = (SequenceIds) o;
-        return size == that.size && Objects.deepEquals(bounds, that.bounds);
+        if (this.size != that.size)
+            return false;
+        for (int i = 0; i < size; i++)
+            if (this.bounds[i] != that.bounds[i])
+                return false;
+        return true;
     }
 
     @Override
     public int hashCode()
     {
-        return Objects.hash(Arrays.hashCode(bounds), size);
+        int result = Integer.hashCode(size);
+        for (int i = 0; i < size; i++)
+            result = 31 * result + Long.hashCode(bounds[i]);
+        return result;
     }
 
     public SequenceIds copy()
