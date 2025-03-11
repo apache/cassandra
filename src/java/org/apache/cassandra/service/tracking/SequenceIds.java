@@ -641,8 +641,8 @@ public class SequenceIds
         long aSplit = SetSupport.NO_SPLIT_SENTINEL;
         while (aRange < aNumRanges && bRange < bNumRanges)
         {
-            long addStart = Long.MIN_VALUE;
-            long addEnd = Long.MIN_VALUE;
+            long addStart;
+            long addEnd;
 
             SetSupport.RangeOverlap rangeOverlap = SetSupport.calculateRangeOverlap(aSplit, a.bounds, aRange, b.bounds, bRange);
             switch (rangeOverlap)
@@ -700,11 +700,10 @@ public class SequenceIds
                         aSplit = SetSupport.NO_SPLIT_SENTINEL;
                         aRange++;
                     }
+                    break;
+                default:
+                    throw new IllegalStateException("Unhandled union op: " + rangeOverlap);
             }
-
-            // confirm we didn't forget to assign start and end values
-            Preconditions.checkState(addStart != Long.MIN_VALUE);
-            Preconditions.checkState(addEnd != Long.MIN_VALUE);
 
             // extend the tail if we can
             if (cRange > 0 && offset(addStart) <= offset(c[rangeEnd(cRange-1)]) + 1)
