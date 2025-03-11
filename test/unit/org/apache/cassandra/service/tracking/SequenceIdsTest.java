@@ -492,8 +492,51 @@ public class SequenceIdsTest
         }
     }
 
+    @Test
+    public void appendTest()
+    {
+        SequenceIds ids = new SequenceIds();
+        ids.append(id(5));
+        assertEquals(1, ids.rangeCount());
+        assertEquals(1, ids.idCount());
+
+        ids.append(id(6));
+        assertEquals(1, ids.rangeCount());
+        assertEquals(2, ids.idCount());
+
+        ids.append(id(8));
+        assertEquals(2, ids.rangeCount());
+        assertEquals(3, ids.idCount());
+
+        // insert before tail
+        try
+        {
+            ids.append(id(8));
+            Assert.fail();
+        }
+        catch (IllegalArgumentException e)
+        {
+            // expected
+            assertEquals(2, ids.rangeCount());
+            assertEquals(3, ids.idCount());
+        }
+
+        // insert before tail
+        try
+        {
+            ids.append(id(7));
+            Assert.fail();
+        }
+        catch (IllegalArgumentException e)
+        {
+            // expected
+            assertEquals(2, ids.rangeCount());
+            assertEquals(3, ids.idCount());
+        }
+    }
+
     private long id(int offset)
     {
-        return MutationId.sequenceId(offset, (int) currentTimeMillis() / 1000);
+        return MutationId.sequenceId(offset, (int) (currentTimeMillis() / 1000));
     }
 }

@@ -137,7 +137,17 @@ public class MutationId implements Comparable<MutationId>
     @Override
     public String toString()
     {
-        return "MutationId{" + logId + ", " + sequenceId + '}';
+        return "MutationId{" + logId + ", " + sequenceString(sequenceId) + '}';
+    }
+
+    public static String sequenceString(long sequence)
+    {
+        return '<' + Integer.toString(offset(sequence)) + ',' + Integer.toString(timestamp(sequence)) + '>';
+    }
+
+    public static StringBuilder sequenceString(StringBuilder sb, long sequence)
+    {
+        return sb.append('<').append(offset(sequence)).append(',').append(timestamp(sequence)).append('>');
     }
 
     @Override

@@ -399,7 +399,7 @@ public class SequenceIds
 
     public boolean add(long start, long end)
     {
-        return  add(start, end, RangeConsumer.NONE);
+        return add(start, end, RangeConsumer.NONE);
     }
 
     private void insert(int pos, long start, long end)
@@ -430,6 +430,24 @@ public class SequenceIds
         }
         bounds[size++] = start;
         bounds[size++] = end;
+    }
+
+    public void append(long id)
+    {
+        if (size == 0)
+        {
+            append(id, id);
+            return;
+        }
+
+        long tail = bounds[size - 1];
+        if (offset(id) <= offset(tail))
+            throw new IllegalArgumentException("Can't append " + MutationId.sequenceString(id) + " to " + MutationId.sequenceString(tail));
+
+        if (offset(id) == offset(tail) + 1)
+            bounds[size-1] = id;
+        else
+            append(id, id);
     }
 
     public interface RangeConsumer
