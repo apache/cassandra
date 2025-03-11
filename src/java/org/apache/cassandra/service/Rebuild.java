@@ -72,7 +72,7 @@ public class Rebuild
         isRebuilding.set(false);
     }
 
-    public static void rebuild(String sourceDc, String keyspace, String tokens, String specificSources, boolean excludeLocalDatacenterNodes)
+    public static void rebuild(String sourceDc, String keyspace, String tokens, Set<String> tables, String specificSources, boolean excludeLocalDatacenterNodes)
     {
         // check ongoing rebuild
         if (!isRebuilding.compareAndSet(false, true))
@@ -100,9 +100,16 @@ public class Rebuild
                 throw new IllegalArgumentException("Cannot specify tokens without keyspace.");
             }
 
-            logger.info("rebuild from dc: {}, {}, {}", sourceDc == null ? "(any dc)" : sourceDc,
+            // check the arguments
+            if (keyspace == null && (tables != null && !tables.isEmpty()))
+            {
+                throw new IllegalArgumentException("Cannot specify tables without keyspace.");
+            }
+
+            logger.info("rebuild from dc: {}, {}, {}, {}", sourceDc == null ? "(any dc)" : sourceDc,
                         keyspace == null ? "(All keyspaces)" : keyspace,
-                        tokens == null ? "(All tokens)" : tokens);
+                        tokens == null ? "(All tokens)" : tokens,
+                        tables == null || tables.isEmpty() ? "(All tables)" : tables);
 
             StorageService.instance.repairPaxosForTopologyChange("rebuild");
             ClusterMetadata metadata = ClusterMetadata.current();
@@ -117,7 +124,8 @@ public class Rebuild
                                                        DatabaseDescriptor.getStreamingConnectionsPerHost(),
                                                        rebuildMovements,
                                                        null,
-                                                       true);
+                                                       true,
+                                                       tables);
             if (sourceDc != null)
                 streamer.addSourceFilter(new RangeStreamer.SingleDatacenterFilter(metadata.locator, sourceDc));
 
