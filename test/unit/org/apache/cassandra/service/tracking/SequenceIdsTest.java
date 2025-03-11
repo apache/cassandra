@@ -132,6 +132,32 @@ public class SequenceIdsTest
             return ranges.isEmpty();
         }
     }
+
+    private static SequenceIds sequenceIds(int... bounds)
+    {
+        Assert.assertTrue(bounds.length % 2 == 0);
+        SequenceIds ids = new SequenceIds();
+        int keys = 0;
+        int last = 0;
+        for (int i=0; i<bounds.length; i+=2)
+        {
+            int start = bounds[i];
+            int end = bounds[i + 1];
+            keys += end - start + 1;
+            Assert.assertTrue(start <= end);
+            if (i > 0)
+                Assert.assertTrue(start > last + 1);
+
+            ids.add(sequenceId(start), sequenceId(end));
+            last = end;
+        }
+
+        Assert.assertEquals(bounds.length/2, ids.rangeCount());
+        Assert.assertEquals(keys, ids.idCount());
+        return ids;
+    }
+
+
     @Test
     public void testEmptyAndAddExisting()
     {
@@ -535,8 +561,130 @@ public class SequenceIdsTest
         }
     }
 
-    private long id(int offset)
+    @Test
+    public void unionTest()
+    {
+        // left union
+        Assert.assertEquals(sequenceIds(0, 3, 6, 10, 15, 17),
+                            SequenceIds.union(sequenceIds(0, 3, 7, 10, 15, 17),
+                                              sequenceIds(6, 9)));
+
+        // left adjacent union
+        Assert.assertEquals(sequenceIds(0, 3, 5, 10, 15, 17),
+                            SequenceIds.union(sequenceIds(0, 3, 7, 10, 15, 17),
+                                              sequenceIds(5, 6)));
+
+        // right union
+        Assert.assertEquals(sequenceIds(0, 3, 7, 11, 15, 17),
+                            SequenceIds.union(sequenceIds(0, 3, 7, 10, 15, 17),
+                                              sequenceIds(9, 11)));
+
+        // right adjacent
+        Assert.assertEquals(sequenceIds(0, 3, 7, 12, 15, 17),
+                            SequenceIds.union(sequenceIds(0, 3, 7, 10, 15, 17),
+                                              sequenceIds(11, 12)));
+
+        // superset union
+        Assert.assertEquals(sequenceIds(0, 3, 5, 12, 15, 17),
+                            SequenceIds.union(sequenceIds(0, 3, 7, 10, 15, 17),
+                                              sequenceIds(5, 12)));
+
+        // join union
+        Assert.assertEquals(sequenceIds(0, 10, 15, 17),
+                            SequenceIds.union(sequenceIds(0, 3, 7, 10, 15, 17),
+                                              sequenceIds(2, 8)));
+
+        // disjoint
+        Assert.assertEquals(sequenceIds(0, 10, 12, 13, 15, 17),
+                            SequenceIds.union(sequenceIds(0, 3, 7, 10, 15, 17),
+                                              sequenceIds(2, 8, 12, 13)));
+
+    }
+
+    @Test
+    public void differenceTest()
+    {
+        // noop
+        Assert.assertEquals(sequenceIds(0, 3, 7, 10, 15, 17),
+                            SequenceIds.difference(sequenceIds(0, 3, 7, 10, 15, 17),
+                                                   sequenceIds(5, 5)));
+        Assert.assertEquals(sequenceIds(0, 3, 7, 10, 15, 17),
+                            SequenceIds.difference(sequenceIds(0, 3, 7, 10, 15, 17),
+                                                   sequenceIds(5, 5, 20, 21)));
+
+        // noop before adjacent
+        Assert.assertEquals(sequenceIds(0, 3, 7, 10, 15, 17),
+                            SequenceIds.difference(sequenceIds(0, 3, 7, 10, 15, 17),
+                                                   sequenceIds(5, 6, 20, 21)));
+
+        Assert.assertEquals(sequenceIds(0, 3, 7, 10, 15, 17),
+                            SequenceIds.difference(sequenceIds(0, 3, 7, 10, 15, 17),
+                                                   sequenceIds(5, 6)));
+
+        // noop after adjacent
+        Assert.assertEquals(sequenceIds(0, 3, 7, 10, 15, 17),
+                            SequenceIds.difference(sequenceIds(0, 3, 7, 10, 15, 17),
+                                                   sequenceIds(4, 5, 20, 21)));
+
+        Assert.assertEquals(sequenceIds(0, 3, 7, 10, 15, 17),
+                            SequenceIds.difference(sequenceIds(0, 3, 7, 10, 15, 17),
+                                                   sequenceIds(4, 5)));
+
+        // before
+        Assert.assertEquals(sequenceIds(0, 3, 9, 10, 15, 17),
+                            SequenceIds.difference(sequenceIds(0, 3, 7, 10, 15, 17),
+                                                   sequenceIds(6, 8, 20, 21)));
+
+        Assert.assertEquals(sequenceIds(0, 3, 9, 10, 15, 17),
+                            SequenceIds.difference(sequenceIds(0, 3, 7, 10, 15, 17),
+                                                   sequenceIds(6, 8)));
+
+
+        // after
+        Assert.assertEquals(sequenceIds(0, 3, 7, 8, 15, 17),
+                            SequenceIds.difference(sequenceIds(0, 3, 7, 10, 15, 17),
+                                                   sequenceIds(9, 11, 20, 21)));
+
+        Assert.assertEquals(sequenceIds(0, 3, 7, 8, 15, 17),
+                            SequenceIds.difference(sequenceIds(0, 3, 7, 10, 15, 17),
+                                                   sequenceIds(9, 11)));
+
+        // both sides
+        Assert.assertEquals(sequenceIds(0, 3, 8, 9, 15, 17),
+                            SequenceIds.difference(sequenceIds(0, 3, 7, 10, 15, 17),
+                                                   sequenceIds(6, 7, 10, 12, 20, 21)));
+
+        Assert.assertEquals(sequenceIds(0, 3, 8, 9, 15, 17),
+                            SequenceIds.difference(sequenceIds(0, 3, 7, 10, 15, 17),
+                                                   sequenceIds(6, 7, 10, 12)));
+
+        // multi-split
+        Assert.assertEquals(sequenceIds(0, 3, 7, 8, 11, 11, 14, 15, 20, 22),
+                            SequenceIds.difference(sequenceIds(0, 3, 7, 15, 20, 22),
+                                                   sequenceIds(9, 10, 12, 13, 30, 31)));
+
+        Assert.assertEquals(sequenceIds(0, 3, 7, 8, 11, 11, 14, 15, 20, 22),
+                            SequenceIds.difference(sequenceIds(0, 3, 7, 15, 20, 22),
+                                                   sequenceIds(9, 10, 12, 13)));
+
+        // multi-split w/ edges
+        Assert.assertEquals(sequenceIds(0, 3, 8, 9, 11, 13, 20, 22),
+                            SequenceIds.difference(sequenceIds(0, 3, 7, 15, 20, 22),
+                                                   sequenceIds(6, 7, 10, 10, 14, 16, 30, 31)));
+
+        Assert.assertEquals(sequenceIds(0, 3, 8, 9, 11, 13, 20, 22),
+                            SequenceIds.difference(sequenceIds(0, 3, 7, 15, 20, 22),
+                                                   sequenceIds(6, 7, 10, 10, 14, 16)));
+
+    }
+
+    private static long id(int offset)
     {
         return MutationId.sequenceId(offset, (int) (currentTimeMillis() / 1000));
+    }
+
+    private static long sequenceId(int offset)
+    {
+        return MutationId.sequenceId(offset, 0);
     }
 }

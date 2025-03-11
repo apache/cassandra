@@ -45,17 +45,18 @@ public class SequenceIds
         this.size = bounds.length;
     }
 
+    private SequenceIds(long[] bounds, int size)
+    {
+        this.bounds = bounds;
+        this.size = size;
+    }
+
     @Override
     public boolean equals(Object o)
     {
         if (o == null || getClass() != o.getClass()) return false;
         SequenceIds that = (SequenceIds) o;
-        if (this.size != that.size)
-            return false;
-        for (int i = 0; i < size; i++)
-            if (this.bounds[i] != that.bounds[i])
-                return false;
-        return true;
+        return size == that.size && Arrays.equals(bounds, 0, size, that.bounds, 0, size);
     }
 
     @Override
@@ -448,6 +449,284 @@ public class SequenceIds
             bounds[size-1] = id;
         else
             append(id, id);
+    }
+
+    private static class SetSupport
+    {
+        private static final long NO_SPLIT_SENTINEL = Long.MIN_VALUE;
+
+        private enum RangeOverlap
+        {
+            BEFORE, BEFORE_ADJACENT, AFTER, AFTER_ADJACENT, INTERSECTING
+        }
+
+        private static RangeOverlap calculateRangeOverlap(long aSplit, long[] a, int aRange, long[] b, int bRange)
+        {
+            long aStart = aSplit != NO_SPLIT_SENTINEL ? aSplit : a[rangeStart(aRange)];
+            long aEnd = a[rangeEnd(aRange)];
+            Preconditions.checkState(aStart <= aEnd);
+
+            long bStart = b[rangeStart(bRange)];
+            long bEnd = b[rangeEnd(bRange)];
+            Preconditions.checkState(bStart <= bEnd);
+
+            if (aEnd < bStart)
+                return offset(aEnd) == offset(bStart) - 1 ? RangeOverlap.BEFORE_ADJACENT : RangeOverlap.BEFORE;
+
+            if (bEnd < aStart)
+                return offset(bEnd) == offset(aStart) - 1 ? RangeOverlap.AFTER_ADJACENT : RangeOverlap.AFTER;
+
+            return RangeOverlap.INTERSECTING;
+        }
+
+        private static RangeOverlap calculateRangeOverlap(long[] a, int aRange, long[] b, int bRange)
+        {
+            return calculateRangeOverlap(NO_SPLIT_SENTINEL, a, aRange, b, bRange);
+
+        }
+
+        private static long[] ensureCapacity(long[] ids, int capacity, int expectedMaxCapacity)
+        {
+            Preconditions.checkArgument(capacity > 0);
+            if (capacity <= ids.length)
+                return ids;
+
+            int newCapacity = capacity * 2;
+
+            // if we overflowed, set to max
+            if (newCapacity < 0)
+                newCapacity = Integer.MAX_VALUE;
+
+            if (newCapacity > expectedMaxCapacity && ids.length < expectedMaxCapacity)
+                newCapacity = expectedMaxCapacity;
+
+            long[] newIds = new long[newCapacity];
+            System.arraycopy(ids, 0, newIds, 0, ids.length);
+
+            return newIds;
+        }
+
+        private static SequenceIds addRemainder(long dstSplit, long[] dst, int dstRange, long[] src, int srcRange, int srcNumRanges)
+        {
+            int capacity = (dstRange + srcNumRanges - srcRange) * 2;
+            dst = ensureCapacity(dst, capacity, capacity);
+            while (srcRange < srcNumRanges)
+            {
+                long addStart = dstSplit != NO_SPLIT_SENTINEL ? dstSplit : src[rangeStart(srcRange)];
+                long addEnd = src[rangeEnd(srcRange)];
+                // extend last range if possible
+                if (dstRange > 0 && offset(addStart) <= offset(dst[rangeEnd(dstRange - 1)]) + 1)
+                {
+                    dst[rangeEnd(dstRange - 1)] = addEnd;
+                }
+                else
+                {
+                    dst[rangeStart(dstRange)] = addStart;
+                    dst[rangeEnd(dstRange)] = addEnd;
+                    dstRange++;
+                }
+                dstSplit = NO_SPLIT_SENTINEL;
+                srcRange++;
+            }
+            return new SequenceIds(dst, dstRange * 2);
+        }
+
+        private static SequenceIds addRemainder(long[] dst, int dstRange, long[] src, int srcRange, int srcNumRanges)
+        {
+            return addRemainder(NO_SPLIT_SENTINEL, dst, dstRange, src, srcRange, srcNumRanges);
+        }
+
+        private static long[] ensureCapacity(long[] ids, int capacity)
+        {
+            return ensureCapacity(ids, capacity, Integer.MAX_VALUE);
+        }
+    }
+
+    public static SequenceIds union(SequenceIds a, SequenceIds b)
+    {
+        int aNumRanges = a.rangeCount();
+        int bNumRanges = b.rangeCount();
+
+        if (aNumRanges == 0)
+            return b.copy();
+
+        if (bNumRanges == 0)
+            return a.copy();
+
+
+        int aRange = 0;
+        int bRange = 0;
+
+        int cRange = 0;
+        long[] c = new long[Math.max(aNumRanges, bNumRanges) * 2];
+
+        while (aRange < aNumRanges && bRange < bNumRanges)
+        {
+            long addStart;
+            long addEnd;
+            SetSupport.RangeOverlap rangeOverlap = SetSupport.calculateRangeOverlap(a.bounds, aRange, b.bounds, bRange);
+            switch (rangeOverlap)
+            {
+                case BEFORE:
+                    addStart = a.bounds[rangeStart(aRange)];
+                    addEnd = a.bounds[rangeEnd(aRange)];
+                    aRange++;
+                    break;
+                case AFTER:
+                    addStart = b.bounds[rangeStart(bRange)];
+                    addEnd = b.bounds[rangeEnd(bRange)];
+                    bRange++;
+                    break;
+                case BEFORE_ADJACENT:
+                case AFTER_ADJACENT:
+                case INTERSECTING:
+                    addStart = Math.min(a.bounds[rangeStart(aRange)], b.bounds[rangeStart(bRange)]);
+                    addEnd = Math.max(a.bounds[rangeEnd(aRange)], b.bounds[rangeEnd(bRange)]);
+                    aRange++;
+                    bRange++;
+                    break;
+                default:
+                    throw new IllegalStateException("Unhandled union op: " + rangeOverlap);
+            }
+
+            // extend the tail if we can
+            if (cRange > 0 && offset(addStart) <= offset(c[rangeEnd(cRange-1)]) + 1)
+            {
+                c[rangeEnd(cRange - 1)] = addEnd;
+            }
+            else
+            {
+                c = SetSupport.ensureCapacity(c, (cRange + 1) * 2);
+                c[rangeStart(cRange)] = addStart;
+                c[rangeEnd(cRange)] = addEnd;
+                cRange++;
+            }
+        }
+
+        if (aRange < aNumRanges)
+        {
+            Preconditions.checkState(bRange == bNumRanges);
+            return SetSupport.addRemainder(c, cRange, a.bounds, aRange, aNumRanges);
+        }
+
+        if (bRange < bNumRanges)
+        {
+            Preconditions.checkState(aRange == aNumRanges);
+            return SetSupport.addRemainder(c, cRange, b.bounds, bRange, bNumRanges);
+        }
+
+        return new SequenceIds(c, cRange * 2);
+    }
+
+    /**
+     * Subtract b from a
+     */
+    public static SequenceIds difference(SequenceIds a, SequenceIds b)
+    {
+        int aNumRanges = a.rangeCount();
+        int bNumRanges = b.rangeCount();
+
+        if (aNumRanges == 0)
+            return new SequenceIds();
+
+        if (bNumRanges == 0)
+            return a.copy();
+
+        int aRange = 0;
+        int bRange = 0;
+
+        int cRange = 0;
+        long[] c = new long[Math.max(aNumRanges, bNumRanges) * 2];
+
+        long aSplit = SetSupport.NO_SPLIT_SENTINEL;
+        while (aRange < aNumRanges && bRange < bNumRanges)
+        {
+            long addStart = Long.MIN_VALUE;
+            long addEnd = Long.MIN_VALUE;
+
+            SetSupport.RangeOverlap rangeOverlap = SetSupport.calculateRangeOverlap(aSplit, a.bounds, aRange, b.bounds, bRange);
+            switch (rangeOverlap)
+            {
+                case BEFORE:
+                case BEFORE_ADJACENT:
+                    addStart = aSplit != SetSupport.NO_SPLIT_SENTINEL ? aSplit : a.bounds[rangeStart(aRange)];
+                    addEnd = a.bounds[rangeEnd(aRange)];
+                    aSplit = SetSupport.NO_SPLIT_SENTINEL;
+                    aRange++;
+                    break;
+                case AFTER:
+                case AFTER_ADJACENT:
+                    aSplit = SetSupport.NO_SPLIT_SENTINEL;
+                    bRange++;
+                    continue;
+                case INTERSECTING:
+                    long aStart = aSplit != SetSupport.NO_SPLIT_SENTINEL ? aSplit : a.bounds[rangeStart(aRange)];
+                    long aEnd = a.bounds[rangeEnd(aRange)];
+                    long bStart = b.bounds[rangeStart(bRange)];
+                    long bEnd = b.bounds[rangeEnd(bRange)];
+
+                    if (bStart <= aStart)
+                    {
+                        if (bEnd >= aEnd)
+                        {
+                            // b consumes the entire a range
+                            aSplit = SetSupport.NO_SPLIT_SENTINEL;
+                            aRange++;
+                        }
+                        else
+                        {
+                            // set the split and start over, the next b range may intersect with the current range
+                            Preconditions.checkState(bEnd < aEnd);
+                            aSplit = sequenceId(offset(bEnd) + 1);
+                            bRange++;
+                        }
+                        continue;
+                    }
+
+                    // does not consume the start of the range
+                    Preconditions.checkState(bStart > aStart);
+                    addStart = aStart;
+                    addEnd = sequenceId(offset(bStart) - 1);
+
+                    if (bEnd < aEnd)
+                    {
+                        // b splits the range
+                        aSplit = sequenceId(offset(bEnd) + 1);
+                        bRange++;
+                    }
+                    else
+                    {
+                        // b consumes the rest of the a range
+                        aSplit = SetSupport.NO_SPLIT_SENTINEL;
+                        aRange++;
+                    }
+            }
+
+            // confirm we didn't forget to assign start and end values
+            Preconditions.checkState(addStart != Long.MIN_VALUE);
+            Preconditions.checkState(addEnd != Long.MIN_VALUE);
+
+            // extend the tail if we can
+            if (cRange > 0 && offset(addStart) <= offset(c[rangeEnd(cRange-1)]) + 1)
+            {
+                c[rangeEnd(cRange - 1)] = addEnd;
+            }
+            else
+            {
+                c = SetSupport.ensureCapacity(c, (cRange + 1) * 2);
+                c[rangeStart(cRange)] = addStart;
+                c[rangeEnd(cRange)] = addEnd;
+                cRange++;
+            }
+        }
+
+        if (aRange < aNumRanges)
+        {
+            Preconditions.checkState(bRange == bNumRanges);
+            return SetSupport.addRemainder(aSplit, c, cRange, a.bounds, aRange, aNumRanges);
+        }
+
+        return new SequenceIds(c, cRange * 2);
     }
 
     public interface RangeConsumer
