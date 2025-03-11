@@ -34,28 +34,28 @@ public class LoggedMutationSummary implements MutationSummary
     {
         private static final Comparator<CoordinatorSummary> idComparator = (o1, o2) -> o1.logId.compareTo(o2.logId);
         public final CoordinatorLogId logId;
-        public final SequenceIds reconciledIds;
-        public final SequenceIds unreconciledIds;
+        public final SequenceIds reconciled;
+        public final SequenceIds unreconciled;
 
-        public CoordinatorSummary(CoordinatorLogId logId, SequenceIds reconciledIds, SequenceIds unreconciledIds)
+        public CoordinatorSummary(CoordinatorLogId logId, SequenceIds reconciled, SequenceIds unreconciled)
         {
             this.logId = logId;
-            this.reconciledIds = reconciledIds;
-            this.unreconciledIds = unreconciledIds;
+            this.reconciled = reconciled;
+            this.unreconciled = unreconciled;
         }
 
         void digest(Digest digest)
         {
             digest.updateWithLong(logId.asLong());
-            reconciledIds.digest(digest);
-            unreconciledIds.digest(digest);
+            reconciled.digest(digest);
+            unreconciled.digest(digest);
         }
 
         public static class Builder
         {
             public final CoordinatorLogId logId;
-            public final SequenceIds reconciledIds = new SequenceIds();
-            public final SequenceIds unreconciledIds = new SequenceIds();
+            public final SequenceIds reconciled = new SequenceIds();
+            public final SequenceIds unreconciled = new SequenceIds();
 
             public Builder(CoordinatorLogId logId)
             {
@@ -64,7 +64,7 @@ public class LoggedMutationSummary implements MutationSummary
 
             public CoordinatorSummary build()
             {
-                return new CoordinatorSummary(logId, reconciledIds, unreconciledIds);
+                return new CoordinatorSummary(logId, reconciled, unreconciled);
             }
         }
     }

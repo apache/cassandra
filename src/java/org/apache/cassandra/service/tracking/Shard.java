@@ -77,7 +77,7 @@ public class Shard
     {
         logs.forEach((key, log) -> {
             LoggedMutationSummary.CoordinatorSummary.Builder summaryBuilder = builder.builderForLog(log.logId);
-            log.lookUpUnreconciled(token, summaryBuilder.unreconciledIds, summaryBuilder.reconciledIds);
+            log.lookUpUnreconciled(token, summaryBuilder.unreconciled, summaryBuilder.reconciled);
         });
     }
 
@@ -85,7 +85,7 @@ public class Shard
     {
         logs.forEach((key, log) -> {
             LoggedMutationSummary.CoordinatorSummary.Builder summaryBuilder = builder.builderForLog(log.logId);
-            log.lookUpUnreconciled(range, summaryBuilder.unreconciledIds, summaryBuilder.reconciledIds);
+            log.lookUpUnreconciled(range, summaryBuilder.unreconciled, summaryBuilder.reconciled);
         });
     }
 
@@ -93,7 +93,7 @@ public class Shard
     {
         logs.forEach((key, log) -> {
             LoggedMutationSummary.CoordinatorSummary.Builder summaryBuilder = builder.builderForLog(log.logId);
-            log.lookUpUnreconciled(range, summaryBuilder.unreconciledIds, summaryBuilder.reconciledIds);
+            log.lookUpUnreconciled(range, summaryBuilder.unreconciled, summaryBuilder.reconciled);
         });
     }
 

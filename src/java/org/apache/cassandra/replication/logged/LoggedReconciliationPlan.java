@@ -18,8 +18,8 @@
 
 package org.apache.cassandra.replication.logged;
 
+import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.ImmutableSet;
 import org.apache.cassandra.db.MutationId;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.replication.MutationSummary;
@@ -34,9 +34,48 @@ import java.util.Set;
 
 public class LoggedReconciliationPlan implements ReconciliationPlan
 {
-    private final ImmutableMap<InetAddressAndPort, ImmutableSet<MutationId>> txPlan;
+    private final ImmutableMap<InetAddressAndPort, PeerReconciliation> txPlan;
 
-    public LoggedReconciliationPlan(ImmutableMap<InetAddressAndPort, ImmutableSet<MutationId>> txPlan)
+    static class PeerReconciliation
+    {
+        private final ImmutableMap<CoordinatorLogId, SequenceIds> coordinatorIds;
+
+        public PeerReconciliation(ImmutableMap<CoordinatorLogId, SequenceIds> coordinatorIds)
+        {
+            this.coordinatorIds = coordinatorIds;
+        }
+
+        static class Builder
+        {
+            private final InetAddressAndPort to;
+            private final Map<CoordinatorLogId, SequenceIds> coordinatorIds = new HashMap<>();
+
+            public Builder(InetAddressAndPort to)
+            {
+                this.to = to;
+            }
+
+            void send(CoordinatorLogId logId, SequenceIds sequenceIds)
+            {
+                if (coordinatorIds.containsKey(logId))
+                {
+                    SequenceIds existing = coordinatorIds.get(logId);
+                    coordinatorIds.put(logId, SequenceIds.union(existing, sequenceIds));
+                }
+                else
+                {
+                    coordinatorIds.put(logId, sequenceIds);
+                }
+            }
+
+            PeerReconciliation build()
+            {
+                return new PeerReconciliation(ImmutableMap.copyOf(coordinatorIds));
+            }
+        }
+    }
+
+    public LoggedReconciliationPlan(ImmutableMap<InetAddressAndPort, PeerReconciliation> txPlan)
     {
         this.txPlan = txPlan;
     }
@@ -50,48 +89,110 @@ public class LoggedReconciliationPlan implements ReconciliationPlan
     @Override
     public Set<MutationId> idsFor(InetAddressAndPort node)
     {
-        return txPlan.get(node);
+        throw new UnsupportedOperationException();
+//        return txPlan.get(node);
     }
 
-    private static class Builder
+    private static class PlanBuilder
     {
         final InetAddressAndPort node;
-        final LoggedMutationSummary summary;
 
-        public Builder(InetAddressAndPort node, LoggedMutationSummary summary)
+        final LoggedMutationSummary summary;
+        final Map<InetAddressAndPort, PeerReconciliation.Builder> peerReconciliations = new HashMap<>();
+
+        public PlanBuilder(InetAddressAndPort node, LoggedMutationSummary summary)
         {
             this.node = node;
             this.summary = summary;
         }
 
-        public void unionReconciledSequences(Map<CoordinatorLogId, SequenceIds> unifiedReconciliations)
+        public void send(InetAddressAndPort to, CoordinatorLogId logId, SequenceIds sequenceIds)
         {
-            for (int i=0; i<summary.size(); i++)
+            peerReconciliations.computeIfAbsent(to, PeerReconciliation.Builder::new).send(logId, sequenceIds);
+        }
+
+        LoggedReconciliationPlan build()
+        {
+            ImmutableMap.Builder<InetAddressAndPort, PeerReconciliation> builder = ImmutableMap.builder();
+            peerReconciliations.forEach((to, peerReconciliation) -> builder.put(to, peerReconciliation.build()));
+            return new LoggedReconciliationPlan(builder.build());
+        }
+    }
+
+    private static class CoordinatorLogReconciliation
+    {
+        final CoordinatorLogId logId;
+        SequenceIds reconciled;
+        SequenceIds unreconciled;
+
+        Map<InetAddressAndPort, SequenceIds> unreconciledNodes = new HashMap<>();
+
+        CoordinatorLogReconciliation(CoordinatorLogId logId)
+        {
+            this.logId = logId;
+        }
+
+        void addPeerSummary(InetAddressAndPort peer, CoordinatorSummary summary)
+        {
+            Preconditions.checkArgument(summary.logId.equals(logId));
+            reconciled = SequenceIds.union(reconciled, summary.reconciled);
+            unreconciled = SequenceIds.union(unreconciled, summary.unreconciled);
+            unreconciledNodes.put(peer, summary.unreconciled);
+        }
+
+        void createPlan(Map<InetAddressAndPort, PlanBuilder> plan)
+        {
+            // remove reconciled ids
+            SequenceIds allIds = SequenceIds.difference(unreconciled, reconciled);
+            for (Map.Entry<InetAddressAndPort, SequenceIds> receiver : unreconciledNodes.entrySet())
             {
-                CoordinatorSummary coordinatorSummary = summary.get(i);
-                if (!unifiedReconciliations.containsKey(coordinatorSummary.logId))
-                    unifiedReconciliations.put(coordinatorSummary.logId, coordinatorSummary.reconciledIds.copy());
-                else
-                    unifiedReconciliations.get(coordinatorSummary.logId).addAll(coordinatorSummary.reconciledIds);
+                SequenceIds missing = SequenceIds.difference(allIds, receiver.getValue());
+                if (missing.isEmpty())
+                    continue;
+
+                // TODO: look into more intelligent ways to distribute mutation requests
+                for (Map.Entry<InetAddressAndPort, SequenceIds> sender : unreconciledNodes.entrySet())
+                {
+                    if (sender.getKey().equals(receiver.getKey()))
+                        continue;
+
+                    SequenceIds senderIds = sender.getValue();
+                    PlanBuilder senderPlan = plan.get(sender.getKey());
+
+                    SequenceIds requestedIds = SequenceIds.intersection(missing, senderIds);
+                    senderPlan.send(receiver.getKey(), logId, requestedIds);
+
+                    missing = SequenceIds.difference(missing, requestedIds);
+                    if (missing.rangeCount() == 0)
+                        break;
+                }
             }
         }
     }
 
     public static Map<InetAddressAndPort, ReconciliationPlan> calculateReconciliation(Map<InetAddressAndPort, MutationSummary> summaries)
     {
-        Map<InetAddressAndPort, Builder> plans = new HashMap<>();
-        summaries.forEach((node, summary)
-                                  -> plans.put(node, new Builder(node, (LoggedMutationSummary) summary))
-        );
+        Map<InetAddressAndPort, PlanBuilder> planBuilders = new HashMap<>();
+        Map<CoordinatorLogId, CoordinatorLogReconciliation> coordinatorReconciliations = new HashMap<>();
 
+        // organize data by peer and log id
+        summaries.forEach((node, summary0) -> {
 
-        // calculate the union of all log->reconcilied sequences
-        // this is used to prevent noop read reconciliations caused by races between replicas fully reconciliing
-        // a mutation and excluding it from their summary, and nodes including them in their summaries
-        Map<CoordinatorLogId, SequenceIds> unifiedReconciliations = new HashMap<>();
-        plans.forEach( (node, plan) -> plan.unionReconciledSequences(unifiedReconciliations));
+            LoggedMutationSummary summary = (LoggedMutationSummary) summary0;
+            planBuilders.put(node, new PlanBuilder(node, summary));
 
+            for (int i=0; i<summary.size(); i++)
+            {
+                CoordinatorSummary coordinatorSummary = summary.get(i);
+                CoordinatorLogReconciliation reconciliation = coordinatorReconciliations.computeIfAbsent(coordinatorSummary.logId, CoordinatorLogReconciliation::new);
+                reconciliation.addPeerSummary(node, coordinatorSummary);
+            }
+        });
 
-        throw new UnsupportedOperationException();
+        coordinatorReconciliations.values().forEach(planBuilder -> planBuilder.createPlan(planBuilders));
+
+        Map<InetAddressAndPort, ReconciliationPlan> plans = new HashMap<>();
+        planBuilders.forEach((node, planBuilder) -> plans.put(node, planBuilder.build()));
+        return plans;
     }
 }

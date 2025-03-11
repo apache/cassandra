@@ -78,6 +78,11 @@ public class SequenceIds
         return size / 2;
     }
 
+    public boolean isEmpty()
+    {
+        return size == 0;
+    }
+
     public int idCount()
     {
         int count = 0, i = 0;
