@@ -2,7 +2,10 @@
  * Fix SimpleClient ability to release acquired capacity (CASSANDRA-20202)
  * Fix WaitQueue.Signal.awaitUninterruptibly may block forever if invoking thread is interrupted (CASSANDRA-20084)
 Merged from 4.0:
+ * Suppress CVE-2024-12801 (CASSANDRA-20412)
+ * Suppress CVE-2024-12798 (CASSANDRA-20408)
  * Fix autocompletion for role names/user names (CASSANDRA-20175)
+ * Support null column value tombstones in FQL batch statements (CASSANDRA-20397)
  * Update Zstd library to 1.5.7-1 (CASSANDRA-20367)
  * Fix premature auto-failing of long-running repairs (CASSANDRA-20312)
 
