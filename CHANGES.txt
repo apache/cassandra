@@ -1,4 +1,5 @@
 5.1
+ * Improve constraints autocompletion (CASSANDRA-20341)
  * Add JVM version and Cassandra build date to nodetool version -v (CASSANDRA-19721)
  * Move all disk error logic to DiskErrorsHandler to enable pluggability (CASSANDRA-20363)
  * Fix marking an SSTable as suspected and BufferPool leakage in case of a corrupted SSTable read during a compaction (CASSANDRA-20396)

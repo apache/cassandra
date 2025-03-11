@@ -328,8 +328,14 @@ JUNK ::= /([ \t\r\f\v]+|(--|[/][/])[^\n\r]*([\n\r]|$)|[/][*].*?[*][/])/ ;
                     ;
 
 <constraint> ::= <cident> <cmp> <term>
-                | <functionArguments> <cmp> <term>
+               | <constraintFunction> <functionArguments> <cmp> <term>
                ;
+               
+<constraintFunction> ::= "LENGTH"
+                       | "OCTET_LENGTH"
+                       | "JSON"
+                       | "NOT_NULL"
+                       ;
 
 <column_mask> ::= "MASKED" "WITH" ( "DEFAULT" | <functionName> <selectionFunctionArguments> );
 
