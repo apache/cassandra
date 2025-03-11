@@ -15,17 +15,14 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package org.apache.cassandra.service.tracking;
 
+import java.util.Arrays;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import org.apache.cassandra.db.Digest;
 import org.apache.cassandra.db.MutationId;
-
-import java.util.Arrays;
-import java.util.Objects;
 
 /**
  * Sorted set of sequence of ids
@@ -85,7 +82,10 @@ public class SequenceIdSet
     @Override
     public int hashCode()
     {
-        return Objects.hash(Arrays.hashCode(ids), size);
+        int result = Integer.hashCode(size);
+        for (int i = 0; i < size; i++)
+            result = 31 * result + Long.hashCode(ids[i]);
+        return result;
     }
 
     @Override
