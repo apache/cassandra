@@ -5247,6 +5247,16 @@ public class DatabaseDescriptor
         return conf.sai_options.segment_write_buffer_size;
     }
 
+    public static boolean getPrioritizeSAIOverLegacyIndex()
+    {
+        return conf.sai_options.prioritize_over_legacy_index;
+    }
+
+    public static void setPrioritizeSAIOverLegacyIndex(boolean value)
+    {
+        conf.sai_options.prioritize_over_legacy_index = value;
+    }
+
     public static RepairRetrySpec getRepairRetrySpec()
     {
         return conf == null ? new RepairRetrySpec() : conf.repair.retries;
