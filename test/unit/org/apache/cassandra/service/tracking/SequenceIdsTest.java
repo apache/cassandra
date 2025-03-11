@@ -610,7 +610,7 @@ public class SequenceIdsTest
     private static void testDifference(SequenceIds expected, SequenceIds a, SequenceIds b)
     {
         SequenceIds bPlus = b.copy();
-        bPlus.add(50, 55);
+        bPlus.add(sequenceId(50), sequenceId(55));
 
         // check copy-remaining
         Assert.assertEquals(expected, SequenceIds.difference(a, b));
