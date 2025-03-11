@@ -1107,6 +1107,10 @@ class TestCqlshCompletion(CqlshCompletionCase):
         self.trycompletions('ALTER TABLE new_table ADD col int MASKED WITH ',
                             choices=['DEFAULT', self.cqlsh.keyspace + '.', 'system.'],
                             other_choices_ok=True)
+        self.trycompletions('ALTER TABLE new_table ADD col int C', immediate='HECK ')
+        self.trycompletions('ALTER TABLE new_table ADD col int CHECK ',
+                            choices=['<identifier', '<quotedName>', 'JSON', 'LENGTH', 'NOT_NULL', 'OCTET_LENGTH'],
+                            other_choices_ok=True)
         self.trycompletions('ALTER TABLE IF EXISTS new_table RENAME ', choices=['IF', '<quotedName>', '<identifier>'])
         self.trycompletions('ALTER TABLE new_table RENAME ', choices=['IF', '<quotedName>', '<identifier>'])
         self.trycompletions('ALTER TABLE IF EXISTS new_table DROP ', choices=['IF', '<quotedName>', '<identifier>'])
