@@ -25,6 +25,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
 
 import org.apache.cassandra.metrics.ClientMetricsManager;
 import org.apache.cassandra.db.monitoring.BadQuery;
@@ -58,6 +59,10 @@ public class InitialConnectionHandler extends ByteToMessageDecoder
 
     private static final String TIER = "TIER";
     private static final String SERVICE = "SERVICE";
+    private static final String CLIENT_IP_PORT = "CLIENT_IP_PORT";
+    private static final String  HOST_NAME = "HOST_NAME";
+    private static final String  REQUEST_TENANCY = "REQUEST_TENANCY";
+    private static final String CLIENT_PREFIX = "CLIENT_";
 
     final Envelope.Decoder decoder;
     final Connection.Factory factory;
@@ -156,15 +161,27 @@ public class InitialConnectionHandler extends ByteToMessageDecoder
                         promise = new VoidChannelPromise(ctx.channel(), false);
                     }
 
-                    String key = startup.options.getOrDefault(SERVICE, "") + "," + startup.options.getOrDefault("HOST_NAME", "");
+                    // Add the CLIENT_ prefix and client IP address and port to the context data(SO-41503)
+                    Map<String, String> optionsWithClientPrefix = startup.options.entrySet()
+                                                                           .stream()
+                                                                           .collect(Collectors.toMap(
+                                                                           entry -> CLIENT_PREFIX + entry.getKey(),
+                                                                           Map.Entry::getValue
+                                                                           ));
+                    InetSocketAddress clientSocketAddress = ((ServerConnection) connection).getClientState().getRemoteAddress();
+                    if (clientSocketAddress != null) {
+                        String clientIPPort = String.format("%s_%s", clientSocketAddress.getAddress().getHostAddress(), clientSocketAddress.getPort());
+                        optionsWithClientPrefix.put(CLIENT_IP_PORT, clientIPPort);
+                    }
+
+                    String key = startup.options.getOrDefault(SERVICE, "") + "," + startup.options.getOrDefault(HOST_NAME, "");
                     // Logging the client context data with NoSpamLogger
-                    NoSpamLogger.log(logger, NoSpamLogger.Level.INFO, key, 15, TimeUnit.MINUTES, "Client context data: {}", startup.options);
+                    NoSpamLogger.log(logger, NoSpamLogger.Level.INFO, key, 15, TimeUnit.MINUTES, "Client context data: {}", optionsWithClientPrefix);
                     // Send the client session metric
                     ClientMetricsManager.getSessionMetrics(
                         startup.options.getOrDefault(SERVICE, ""),
-                        startup.options.getOrDefault("REQUEST_TENANCY", ""),
-                        startup.options.getOrDefault(TIER, "")).sessions.mark();
-
+                        startup.options.getOrDefault(REQUEST_TENANCY, ""),
+                        startup.options.getOrDefault(TIER, "empty")).sessions.mark();
                     // Check for service vs cassandra tier mismatch
                     BadQuery.checkForTierMismatch(
                         startup.options.getOrDefault(TIER, "-1"),

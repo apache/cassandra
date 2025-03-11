@@ -175,6 +175,7 @@ Merged from 3.0:
  * Fix CQLSH online help topic link (CASSANDRA-17534)
  * Remove unused suppressions (CASSANDRA-18724)
 Unreleased
+ * [SO-41503] Add the client IP and port and the CLIENT_ prefix to the context data
  * [SO-38673] support copyAndAddIntervals in IntervalTree for faster replaceFlushed View update (CASSANDRA-20164)
  * Reduce info logging from automatic paxos repair (CASSANDRA-19445)
  * [SO-40416] Guardrail: maximum_replication_factor
