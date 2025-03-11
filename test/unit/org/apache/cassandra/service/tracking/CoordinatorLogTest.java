@@ -39,9 +39,9 @@ public class CoordinatorLogTest
         return new Murmur3Partitioner.LongToken(t);
     }
 
-    private static SequenceIdSet toSequenceIdSet(MutationId... ids)
+    private static SequenceIds toSequenceIdSet(MutationId... ids)
     {
-        SequenceIdSet list = new SequenceIdSet();
+        SequenceIds list = new SequenceIds();
         for (MutationId id : ids)
             list.append(id.sequenceId());
 
@@ -51,8 +51,11 @@ public class CoordinatorLogTest
     private static void assertUnreconciled(Token token, CoordinatorLog log, SequenceIds expectedReconciled, MutationId... expectedIds)
     {
         SequenceIds reconciled = new SequenceIds();
-        SequenceIdSet unreconciled = new SequenceIdSet();
+        SequenceIds unreconciled = new SequenceIds();
         log.lookUpUnreconciled(token, unreconciled, reconciled);
+
+        for (MutationId mid : expectedIds)
+            Assert.assertTrue(unreconciled.contains(mid.sequenceId()));
 
         Assert.assertEquals(toSequenceIdSet(expectedIds), unreconciled);
         Assert.assertEquals(expectedReconciled, reconciled);

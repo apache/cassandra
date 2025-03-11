@@ -156,7 +156,7 @@ public abstract class CoordinatorLog
      * Look up unreconciled sequence ids of mutations witnessed by this host in this coordinataor log.
      * Adds the ids to the supplied collection, so it can be reused to aggregate lookups for multiple logs.
      */
-    boolean lookUpUnreconciled(Token token, SequenceIdSet unreconciled, SequenceIds reconciled)
+    boolean lookUpUnreconciled(Token token, SequenceIds unreconciled, SequenceIds reconciled)
     {
         lock.readLock().lock();
         try
@@ -174,7 +174,7 @@ public abstract class CoordinatorLog
      * Look up unreconciled sequence ids of mutations witnessed by this host in this coordinataor log.
      * Adds the ids to the supplied collection, so it can be reused to aggregate lookups for multiple logs.
      */
-    boolean lookUpUnreconciled(Range<Token> range, SequenceIdSet into, SequenceIds reconciled)
+    boolean lookUpUnreconciled(Range<Token> range, SequenceIds into, SequenceIds reconciled)
     {
         lock.readLock().lock();
         try
@@ -192,7 +192,7 @@ public abstract class CoordinatorLog
      * Look up unreconciled sequence ids of mutations witnessed by this host in this coordinataor log.
      * Adds the ids to the supplied collection, so it can be reused to aggregate lookups for multiple logs.
      */
-    boolean lookUpUnreconciled(AbstractBounds<PartitionPosition> range, SequenceIdSet into, SequenceIds reconciled)
+    boolean lookUpUnreconciled(AbstractBounds<PartitionPosition> range, SequenceIds into, SequenceIds reconciled)
     {
         lock.readLock().lock();
         try

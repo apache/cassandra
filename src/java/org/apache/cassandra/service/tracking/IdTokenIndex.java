@@ -67,11 +67,10 @@ class IdTokenIndex
         tokenToIds.add(new Entry(token, sequenceId));
     }
 
-    boolean lookUp(Token token, SequenceIdSet into)
+    boolean lookUp(Token token, SequenceIds into)
     {
         boolean found = false;
         SortedSet<Entry> subset = tokenToIds.subSet(new Entry(token, 0), new Entry(token, Long.MAX_VALUE));
-        into.ensureAdditionalCapacity(subset.size());
         for (Entry entry : subset)
         {
             into.append(entry.sequenceId);
@@ -81,11 +80,10 @@ class IdTokenIndex
     }
 
     // TODO (expected): handle wrap-around ranges
-    boolean lookUp(Range<Token> range, SequenceIdSet into)
+    boolean lookUp(Range<Token> range, SequenceIds into)
     {
         boolean found = false;
         SortedSet<Entry> subset = tokenToIds.subSet(new Entry(range.left, 0), new Entry(range.right, Long.MAX_VALUE));
-        into.ensureAdditionalCapacity(subset.size());
         for (Entry entry : subset)
         {
             into.append(entry.sequenceId);
@@ -94,13 +92,12 @@ class IdTokenIndex
         return found;
     }
 
-    boolean lookUp(AbstractBounds<PartitionPosition> range, SequenceIdSet into)
+    boolean lookUp(AbstractBounds<PartitionPosition> range, SequenceIds into)
     {
         boolean found = false;
         Entry start = new Entry(range.left.getToken(), range.inclusiveLeft() ? 0 : Long.MAX_VALUE);
         Entry end = new Entry(range.right.getToken(), range.inclusiveRight() ? Long.MAX_VALUE : 0);
         SortedSet<Entry> subset = tokenToIds.subSet(start, end);
-        into.ensureAdditionalCapacity(subset.size());
         for (Entry entry : subset)
         {
             into.append(entry.sequenceId);

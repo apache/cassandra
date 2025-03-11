@@ -23,7 +23,6 @@ import org.apache.cassandra.db.Digest;
 import org.apache.cassandra.replication.MutationSummary;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.service.tracking.CoordinatorLogId;
-import org.apache.cassandra.service.tracking.SequenceIdSet;
 import org.apache.cassandra.service.tracking.SequenceIds;
 
 import java.util.Arrays;
@@ -36,9 +35,9 @@ public class LoggedMutationSummary implements MutationSummary
         private static final Comparator<CoordinatorSummary> idComparator = (o1, o2) -> o1.logId.compareTo(o2.logId);
         public final CoordinatorLogId logId;
         public final SequenceIds reconciledIds;
-        public final SequenceIdSet unreconciledIds;
+        public final SequenceIds unreconciledIds;
 
-        public CoordinatorSummary(CoordinatorLogId logId, SequenceIds reconciledIds, SequenceIdSet unreconciledIds)
+        public CoordinatorSummary(CoordinatorLogId logId, SequenceIds reconciledIds, SequenceIds unreconciledIds)
         {
             this.logId = logId;
             this.reconciledIds = reconciledIds;
@@ -56,7 +55,7 @@ public class LoggedMutationSummary implements MutationSummary
         {
             public final CoordinatorLogId logId;
             public final SequenceIds reconciledIds = new SequenceIds();
-            public final SequenceIdSet unreconciledIds = new SequenceIdSet();
+            public final SequenceIds unreconciledIds = new SequenceIds();
 
             public Builder(CoordinatorLogId logId)
             {
