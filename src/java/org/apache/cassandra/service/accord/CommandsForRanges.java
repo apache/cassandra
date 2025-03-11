@@ -22,8 +22,10 @@ import java.util.Iterator;
 import java.util.Map;
 import java.util.NavigableMap;
 import java.util.TreeMap;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
+import java.util.function.UnaryOperator;
 import javax.annotation.Nullable;
 
 import accord.local.Command;
@@ -62,7 +64,7 @@ public class CommandsForRanges extends TreeMap<Timestamp, Summary> implements Co
     {
         private final AccordCommandStore commandStore;
         private final RangeSearcher searcher;
-        private final NavigableMap<TxnId, Ranges> transitive = new TreeMap<>();
+        private AtomicReference<NavigableMap<TxnId, Ranges>> transitive = new AtomicReference<>(new TreeMap<>());
         private final ObjectHashSet<TxnId> cachedRangeTxns = new ObjectHashSet<>();
 
         public Manager(AccordCommandStore commandStore)
@@ -102,22 +104,46 @@ public class CommandsForRanges extends TreeMap<Timestamp, Summary> implements Co
             return new Loader(this, searchKeysOrRanges, redundantBefore, testKind, minTxnId, maxTxnId, findAsDep);
         }
 
+        private void updateTransitive(UnaryOperator<NavigableMap<TxnId, Ranges>> update)
+        {
+            while (true)
+            {
+                NavigableMap<TxnId, Ranges> prev = transitive.get();
+                NavigableMap<TxnId, Ranges> next = update.apply(prev);
+                if (next == null || prev == next)
+                    return;
+                if (transitive.compareAndSet(prev, next))
+                    return;
+            }
+        }
+
         public void mergeTransitive(TxnId txnId, Ranges ranges, BiFunction<? super Ranges, ? super Ranges, ? extends Ranges> remappingFunction)
         {
-            transitive.merge(txnId, ranges, remappingFunction);
+            updateTransitive(transitive -> {
+                NavigableMap<TxnId, Ranges> next = new TreeMap<>(transitive);
+                next.merge(txnId, ranges, remappingFunction);
+                return next;
+            });
         }
 
         public void gcBefore(TxnId gcBefore, Ranges ranges)
         {
-            Iterator<Map.Entry<TxnId, Ranges>> iterator = transitive.headMap(gcBefore).entrySet().iterator();
-            while (iterator.hasNext())
-            {
-                Map.Entry<TxnId, Ranges> e = iterator.next();
-                Ranges newRanges = e.getValue().without(ranges);
-                if (newRanges.isEmpty())
-                    iterator.remove();
-                e.setValue(newRanges);
-            }
+            updateTransitive(transitive -> {
+                NavigableMap<TxnId, Ranges> next = null;
+                Iterator<Map.Entry<TxnId, Ranges>> iterator = transitive.headMap(gcBefore).entrySet().iterator();
+                while (iterator.hasNext())
+                {
+                    Map.Entry<TxnId, Ranges> e = iterator.next();
+                    Ranges newRanges = e.getValue().without(ranges);
+                    if (!newRanges.isEmpty())
+                    {
+                        if (next == null)
+                            next = new TreeMap<>();
+                        next.put(e.getKey(), newRanges);
+                    }
+                }
+                return next;
+            });
         }
     }
 
@@ -144,13 +170,14 @@ public class CommandsForRanges extends TreeMap<Timestamp, Summary> implements Co
                         manager.searcher.search(manager.commandStore.id(), (TokenKey) key, minTxnId, maxTxnId).consume(forEach);
             }
 
-            if (!manager.transitive.isEmpty())
+            NavigableMap<TxnId, Ranges> transitive = manager.transitive.get();
+            if (!transitive.isEmpty())
             {
-                for (Map.Entry<TxnId, Ranges> e : manager.transitive.tailMap(minTxnId, true).entrySet())
-                {
-                    if (e.getValue().intersects(searchKeysOrRanges))
-                        forEach.accept(e.getKey());
-                }
+                    for (Map.Entry<TxnId, Ranges> e : transitive.tailMap(minTxnId, true).entrySet())
+                    {
+                        if (e.getValue().intersects(searchKeysOrRanges))
+                            forEach.accept(e.getKey());
+                    }
             }
         }
 
@@ -180,7 +207,7 @@ public class CommandsForRanges extends TreeMap<Timestamp, Summary> implements Co
                     return ifRelevant(cmd);
             }
 
-            Ranges ranges = manager.transitive.get(txnId);
+            Ranges ranges = manager.transitive.get().get(txnId);
             if (ranges == null)
                 return null;
 

@@ -61,7 +61,6 @@ import org.apache.cassandra.utils.Simulate;
 import org.apache.cassandra.utils.concurrent.AsyncPromise;
 import org.apache.cassandra.utils.concurrent.Future;
 
-import static accord.topology.TopologyManager.TopologyRange;
 import static org.apache.cassandra.service.accord.AccordTopology.tcmIdToAccord;
 import static org.apache.cassandra.utils.Simulate.With.MONITORS;
 
@@ -399,32 +398,30 @@ public class AccordConfigurationService extends AbstractConfigurationService<Acc
                 return;
             }
 
-            try
+            Set<InetAddressAndPort> peers = new HashSet<>(metadata.directory.allJoinedEndpoints());
+            peers.remove(FBUtilities.getBroadcastAddressAndPort());
+            if (peers.isEmpty())
             {
-                Set<InetAddressAndPort> peers = new HashSet<>(metadata.directory.allJoinedEndpoints());
-                peers.remove(FBUtilities.getBroadcastAddressAndPort());
-                if (peers.isEmpty())
-                {
-                    onResult.accept(Success, null);
-                    return;
-                }
-
-                // Fetching only one epoch here since later epochs might have already been requested concurrently
-                TopologyRange result = FetchTopologies.fetch(SharedContext.Global.instance, peers, epoch, epoch).get();
-                result.forEach(this::reportTopology, epoch, 1);
                 onResult.accept(Success, null);
+                return;
             }
-            catch (Throwable e)
-            {
-                if (currentEpoch() >= epoch)
-                {
-                    onResult.accept(Success, null);
-                    return;
-                }
-                if (e instanceof InterruptedException)
-                    Thread.currentThread().interrupt();
-                onResult.accept(null, e);
-            }
+
+            // Fetching only one epoch here since later epochs might have already been requested concurrently
+            FetchTopologies.fetch(SharedContext.Global.instance, peers, epoch, epoch)
+                           .addCallback((topologyRange, t) -> {
+                               if (t != null)
+                               {
+                                   if (currentEpoch() >= epoch)
+                                       onResult.accept(Success, null);
+                                   else
+                                       onResult.accept(null, t);
+                               }
+                               else
+                               {
+                                   topologyRange.forEach(this::reportTopology, epoch, 1);
+                                   onResult.accept(Success, null);
+                               }
+                           });
         });
     }
 

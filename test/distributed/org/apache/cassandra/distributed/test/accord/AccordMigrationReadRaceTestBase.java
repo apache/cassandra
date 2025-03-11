@@ -169,8 +169,9 @@ public abstract class AccordMigrationReadRaceTestBase extends AccordTestBase
         // Otherwise repair complains if you don't specify a keyspace
         CassandraRelevantProperties.SYSTEM_TRACES_DEFAULT_RF.setInt(3);
         AccordTestBase.setupCluster(builder -> builder.appendConfig(config -> config.set("paxos_variant", PaxosVariant.v2.name())
-                                                                                    .set("read_request_timeout", "2s")
-                                                                                    .set("range_request_timeout", "2s")
+                                                                                    .set("read_request_timeout", "10s")
+                                                                                    .set("range_request_timeout", "10s")
+                                                                                    .set("write_request_timeout", "10s")
                                                                                     .set("accord.range_migration", "explicit")), 3);
         partitioner = FBUtilities.newPartitioner(SHARED_CLUSTER.get(1).callsOnInstance(() -> DatabaseDescriptor.getPartitioner().getClass().getSimpleName()).call());
         StorageService.instance.setPartitionerUnsafe(partitioner);

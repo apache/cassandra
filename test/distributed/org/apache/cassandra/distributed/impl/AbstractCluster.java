@@ -1154,7 +1154,7 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster<I
                            .collect(Collectors.toList());
         try
         {
-            FBUtilities.waitOnFutures(futures, 1L, TimeUnit.MINUTES);
+            FBUtilities.waitOnFutures(futures, instances.size(), TimeUnit.MINUTES);
         }
         catch (Throwable t)
         {
