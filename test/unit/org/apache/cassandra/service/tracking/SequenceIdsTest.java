@@ -665,6 +665,56 @@ public class SequenceIdsTest
 
     }
 
+    private static void testIntersection(SequenceIds expected, SequenceIds a, SequenceIds b)
+    {
+        SequenceIds aPlus = a.copy();
+        aPlus.add(sequenceId(50), sequenceId(55));
+        SequenceIds bPlus = b.copy();
+        bPlus.add(sequenceId(50), sequenceId(55));
+
+        Assert.assertEquals(expected, SequenceIds.intersection(a, b));
+        Assert.assertEquals(expected, SequenceIds.intersection(aPlus, b));
+        Assert.assertEquals(expected, SequenceIds.intersection(a, bPlus));
+        Assert.assertEquals(expected, SequenceIds.intersection(b, a));
+        Assert.assertEquals(expected, SequenceIds.intersection(bPlus, a));
+        Assert.assertEquals(expected, SequenceIds.intersection(b, aPlus));
+    }
+
+    @Test
+    public void intersectionTest()
+    {
+        // disjoint test
+        testIntersection(sequenceIds(),
+                         sequenceIds(0, 3, 7, 10, 15, 17),
+                         sequenceIds(4, 6, 11, 14));
+
+        // left intersect test
+        testIntersection(sequenceIds(7, 9),
+                         sequenceIds(0, 3, 7, 10, 15, 17),
+                         sequenceIds(6, 9));
+
+
+        // right intersect test
+        testIntersection(sequenceIds(8, 10),
+                         sequenceIds(0, 3, 7, 10, 15, 17),
+                         sequenceIds(8, 11));
+
+        // superset test
+        testIntersection(sequenceIds(7, 10),
+                         sequenceIds(0, 3, 7, 10, 15, 17),
+                         sequenceIds(6, 11));
+
+        // multi-intersect test
+        testIntersection(sequenceIds(8, 9, 11, 13, 15, 16),
+                         sequenceIds(0, 3, 7, 17, 25, 30),
+                         sequenceIds(8, 9, 11, 13, 15, 16));
+
+        // multi-intersect test w/ ends
+        testIntersection(sequenceIds(7, 9, 11, 13, 16, 17),
+                         sequenceIds(0, 3, 7, 17, 25, 30),
+                         sequenceIds(6, 9, 11, 13, 16, 18));
+    }
+
     private static long id(int offset)
     {
         return MutationId.sequenceId(offset, (int) (currentTimeMillis() / 1000));

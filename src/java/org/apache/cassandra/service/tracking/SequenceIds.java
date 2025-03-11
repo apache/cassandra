@@ -460,13 +460,13 @@ public class SequenceIds
             BEFORE, BEFORE_ADJACENT, AFTER, AFTER_ADJACENT, INTERSECTING
         }
 
-        private static RangeOverlap calculateRangeOverlap(long aSplit, long[] a, int aRange, long[] b, int bRange)
+        private static RangeOverlap calculateRangeOverlap(long aSplit, long[] a, int aRange, long bSplit, long[] b, int bRange)
         {
             long aStart = aSplit != NO_SPLIT_SENTINEL ? aSplit : a[rangeStart(aRange)];
             long aEnd = a[rangeEnd(aRange)];
             Preconditions.checkState(aStart <= aEnd);
 
-            long bStart = b[rangeStart(bRange)];
+            long bStart = bSplit != NO_SPLIT_SENTINEL ? bSplit : b[rangeStart(bRange)];
             long bEnd = b[rangeEnd(bRange)];
             Preconditions.checkState(bStart <= bEnd);
 
@@ -481,7 +481,7 @@ public class SequenceIds
 
         private static RangeOverlap calculateRangeOverlap(long[] a, int aRange, long[] b, int bRange)
         {
-            return calculateRangeOverlap(NO_SPLIT_SENTINEL, a, aRange, b, bRange);
+            return calculateRangeOverlap(NO_SPLIT_SENTINEL, a, aRange, NO_SPLIT_SENTINEL, b, bRange);
 
         }
 
@@ -644,7 +644,7 @@ public class SequenceIds
             long addStart;
             long addEnd;
 
-            SetSupport.RangeOverlap rangeOverlap = SetSupport.calculateRangeOverlap(aSplit, a.bounds, aRange, b.bounds, bRange);
+            SetSupport.RangeOverlap rangeOverlap = SetSupport.calculateRangeOverlap(aSplit, a.bounds, aRange, SetSupport.NO_SPLIT_SENTINEL, b.bounds, bRange);
             switch (rangeOverlap)
             {
                 case BEFORE:
@@ -723,6 +723,96 @@ public class SequenceIds
         {
             Preconditions.checkState(bRange == bNumRanges);
             return SetSupport.addRemainder(aSplit, c, cRange, a.bounds, aRange, aNumRanges);
+        }
+
+        return new SequenceIds(c, cRange * 2);
+    }
+
+    public static SequenceIds intersection(SequenceIds a, SequenceIds b)
+    {
+        int aNumRanges = a.rangeCount();
+        int bNumRanges = b.rangeCount();
+
+        if (aNumRanges == 0)
+            return new SequenceIds();
+
+        if (bNumRanges == 0)
+            return a.copy();
+
+        int aRange = 0;
+        int bRange = 0;
+
+        int cRange = 0;
+        long[] c = new long[Math.max(aNumRanges, bNumRanges) * 2];
+
+        long aSplit = SetSupport.NO_SPLIT_SENTINEL;
+        long bSplit = SetSupport.NO_SPLIT_SENTINEL;
+        while (aRange < aNumRanges && bRange < bNumRanges)
+        {
+            long addStart;
+            long addEnd;
+
+            SetSupport.RangeOverlap rangeOverlap = SetSupport.calculateRangeOverlap(aSplit, a.bounds, aRange, bSplit, b.bounds, bRange);
+            switch (rangeOverlap)
+            {
+                case BEFORE:
+                case BEFORE_ADJACENT:
+                    aSplit = SetSupport.NO_SPLIT_SENTINEL;
+                    bSplit = SetSupport.NO_SPLIT_SENTINEL;
+                    aRange++;
+                    continue;
+                case AFTER:
+                case AFTER_ADJACENT:
+                    aSplit = SetSupport.NO_SPLIT_SENTINEL;
+                    bSplit = SetSupport.NO_SPLIT_SENTINEL;
+                    bRange++;
+                    continue;
+                case INTERSECTING:
+                    long aStart = aSplit != SetSupport.NO_SPLIT_SENTINEL ? aSplit : a.bounds[rangeStart(aRange)];
+                    long aEnd = a.bounds[rangeEnd(aRange)];
+                    long bStart = bSplit != SetSupport.NO_SPLIT_SENTINEL ? bSplit : b.bounds[rangeStart(bRange)];
+                    long bEnd = b.bounds[rangeEnd(bRange)];
+
+                    addStart = Math.max(aStart, bStart);
+                    addEnd = Math.min(aEnd, bEnd);
+
+                    if (aEnd < bEnd)
+                    {
+                        aSplit = SetSupport.NO_SPLIT_SENTINEL;
+                        bSplit = aEnd;
+                        aRange++;
+                    }
+                    else if (bEnd < aEnd)
+                    {
+                        aSplit = bEnd;
+                        bSplit = SetSupport.NO_SPLIT_SENTINEL;
+                        bRange++;
+                    }
+                    else
+                    {
+                        aSplit = SetSupport.NO_SPLIT_SENTINEL;
+                        bSplit = SetSupport.NO_SPLIT_SENTINEL;
+                        aRange++;
+                        bRange++;
+                    }
+                    break;
+
+                default:
+                    throw new IllegalStateException("Unhandled union op: " + rangeOverlap);
+            }
+
+            // extend the tail if we can, though it shouldn't be possible unless one of the input lists were malformed
+            if (cRange > 0 && offset(addStart) <= offset(c[rangeEnd(cRange-1)]) + 1)
+            {
+                c[rangeEnd(cRange - 1)] = addEnd;
+            }
+            else
+            {
+                c = SetSupport.ensureCapacity(c, (cRange + 1) * 2);
+                c[rangeStart(cRange)] = addStart;
+                c[rangeEnd(cRange)] = addEnd;
+                cRange++;
+            }
         }
 
         return new SequenceIds(c, cRange * 2);
