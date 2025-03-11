@@ -60,6 +60,7 @@ public class GrantAndRevokeTest extends CQLTester
         DatabaseDescriptor.setAuthorizer(new CassandraAuthorizer());
         DatabaseDescriptor.setRoleManager(new CassandraRoleManager());
         DatabaseDescriptor.setPermissionsValidity(0);
+        DatabaseDescriptor.setRolesValidity(0);
         CQLTester.setUpClass();
         requireNetworkWithoutDriver();
         DatabaseDescriptor.getRoleManager().setup();
