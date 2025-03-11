@@ -1,4 +1,5 @@
 5.0.4
+ * Prioritize legacy 2i over SAI for columns with multiple indexes (CASSANDRA-20334)
  * Ensure only offline tools can build IntervalTrees without first/last key fields (CASSANDRA-20407)
  * Improve IntervalTree build throughput (CASSANDRA-19596)
  * Avoid limit on RFP fetch in the case of an unresolved static row (CASSANDRA-20323)

@@ -1763,6 +1763,11 @@ transparent_data_encryption_options:
   ## is split between all SAI indexes being built so more indexes will mean smaller
   ## segment sizes.
   # segment_write_buffer_size: 1024MiB
+  #
+  ## When more than one index exists on a single column, this flag determines whether or not SAI
+  ## should take precedence over legacy table-backed indexes during reads. By default, legacy
+  ## indexes take precedence to maintain continuity during migration. 
+  # prioritize_over_legacy_index: false
 
 #####################
 # SAFETY THRESHOLDS #
