@@ -23,7 +23,6 @@ import org.junit.Test;
 import org.apache.cassandra.distributed.shared.WithProperties;
 import org.apache.cassandra.io.FSError;
 import org.apache.cassandra.io.sstable.CorruptSSTableException;
-import org.apache.cassandra.utils.JVMStabilityInspector;
 
 import static org.apache.cassandra.config.CassandraRelevantProperties.CUSTOM_DISK_ERROR_HANDLER;
 import static org.apache.cassandra.service.DiskErrorsHandlerService.get;
@@ -209,7 +208,7 @@ public class DiskErrorsHandlerTest
         }
 
         @Override
-        public void inspectCommitLogError(Throwable t, JVMStabilityInspector.Killer killer)
+        public void inspectCommitLogError(Throwable t)
         {
         }
 

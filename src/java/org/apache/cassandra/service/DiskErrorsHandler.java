@@ -22,7 +22,6 @@ import com.google.common.annotations.VisibleForTesting;
 
 import org.apache.cassandra.io.FSError;
 import org.apache.cassandra.io.sstable.CorruptSSTableException;
-import org.apache.cassandra.utils.JVMStabilityInspector;
 
 public interface DiskErrorsHandler extends AutoCloseable
 {
@@ -38,7 +37,7 @@ public interface DiskErrorsHandler extends AutoCloseable
 
     void inspectDiskError(Throwable t);
 
-    void inspectCommitLogError(Throwable t, JVMStabilityInspector.Killer killer);
+    void inspectCommitLogError(Throwable t);
 
     class NoOpDiskErrorHandler implements DiskErrorsHandler
     {
@@ -48,7 +47,7 @@ public interface DiskErrorsHandler extends AutoCloseable
         NoOpDiskErrorHandler() {}
 
         @Override
-        public void inspectCommitLogError(Throwable t, JVMStabilityInspector.Killer killer) {}
+        public void inspectCommitLogError(Throwable t) {}
 
         @Override
         public boolean handleCommitError(String message, Throwable t)

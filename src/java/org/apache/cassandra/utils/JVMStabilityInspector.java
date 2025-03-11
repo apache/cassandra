@@ -91,7 +91,7 @@ public final class JVMStabilityInspector
 
     public static void inspectCommitLogThrowable(Throwable t)
     {
-        inspectThrowable(t, ex -> DiskErrorsHandlerService.get().inspectCommitLogError(ex, killer));
+        inspectThrowable(t, ex -> DiskErrorsHandlerService.get().inspectCommitLogError(ex));
     }
 
     public static void inspectThrowable(Throwable t, Consumer<Throwable> fn) throws OutOfMemoryError

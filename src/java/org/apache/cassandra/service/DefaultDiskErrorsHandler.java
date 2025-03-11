@@ -169,15 +169,15 @@ public class DefaultDiskErrorsHandler implements DiskErrorsHandler
     }
 
     @Override
-    public void inspectCommitLogError(Throwable t, JVMStabilityInspector.Killer killer)
+    public void inspectCommitLogError(Throwable t)
     {
         if (!StorageService.instance.isDaemonSetupCompleted())
         {
             logger.error("Exiting due to error while processing commit log during initialization.", t);
-            killer.killCurrentJVM(t, true);
+            JVMStabilityInspector.killCurrentJVM(t, true);
         }
         else if (DatabaseDescriptor.getCommitFailurePolicy() == Config.CommitFailurePolicy.die)
-            killer.killCurrentJVM(t);
+            JVMStabilityInspector.killCurrentJVM(t, false);
     }
 
     private boolean shouldMaybeRemoveData(Throwable error)
