@@ -26,6 +26,7 @@ import java.util.TreeSet;
 
 import com.google.common.primitives.Ints;
 
+import org.apache.cassandra.replication.MutationSummary;
 import org.junit.Assert;
 import org.junit.Assume;
 
@@ -40,7 +41,6 @@ import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.metrics.ReadRepairMetrics;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.replication.MutationTrackingService;
-import org.apache.cassandra.replication.simple.SimpleMutationSummary;
 import org.apache.cassandra.schema.ReplicationType;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableMetadata;
@@ -78,28 +78,28 @@ public class MutationTrackingUtils
         }
     }
 
-    public static SimpleMutationSummary summaryForKey(String keyspaceName, String tableName, DecoratedKey dk)
+    public static MutationSummary summaryForKey(String keyspaceName, String tableName, DecoratedKey dk)
     {
         TableMetadata table = Schema.instance.getTableMetadata(keyspaceName, tableName);
-        return  (SimpleMutationSummary) MutationTrackingService.instance().summaryForKey(table.id, dk);
+        return MutationTrackingService.instance().summaryForKey(table.id, dk);
     }
 
-    public static SimpleMutationSummary summaryForKey(String keyspaceName, String tableName, int key)
+    public static MutationSummary summaryForKey(String keyspaceName, String tableName, int key)
     {
-        return  summaryForKey(keyspaceName, tableName, Murmur3Partitioner.instance.decorateKey(ByteBufferUtil.bytes(key)));
+        return summaryForKey(keyspaceName, tableName, Murmur3Partitioner.instance.decorateKey(ByteBufferUtil.bytes(key)));
     }
 
-    public static SimpleMutationSummary summaryForRange(String keyspaceName, String tableName, Range<Token> range)
+    public static MutationSummary summaryForRange(String keyspaceName, String tableName, Range<Token> range)
     {
         TableMetadata table = Schema.instance.getTableMetadata(keyspaceName, tableName);
-        return  (SimpleMutationSummary) MutationTrackingService.instance().summaryForRange(table.id, range);
+        return MutationTrackingService.instance().summaryForRange(table.id, range);
     }
 
     public static Set<MutationId> getIdsForKey(IInvokableInstance node, String keyspaceName, String tableName, int key)
     {
         byte[][] encodedIds = node.callOnInstance(() -> {
             DecoratedKey dk = Murmur3Partitioner.instance.decorateKey(ByteBufferUtil.bytes(key));
-            SimpleMutationSummary summary = summaryForKey(keyspaceName, tableName, dk);
+            MutationSummary summary = summaryForKey(keyspaceName, tableName, dk);
             SortedSet<MutationId> ids = summary.ids.get(dk);
             if (ids == null || ids.isEmpty())
                 return new byte[][] {};
@@ -123,7 +123,7 @@ public class MutationTrackingUtils
     {
         byte[][] encodedIds = node.callOnInstance(() -> {
             Range<Token> range = new Range<>(Murmur3Partitioner.instance.getMinimumToken(), Murmur3Partitioner.instance.getMinimumToken());
-            SimpleMutationSummary summary = summaryForRange(keyspaceName, tableName, range);
+            MutationSummary summary = summaryForRange(keyspaceName, tableName, range);
 
 
             TreeSet<MutationId> ids = new TreeSet<>();
@@ -145,7 +145,6 @@ public class MutationTrackingUtils
             result.add(decodeId(encodedId));
         return result;
     }
-
 
     public static void assertIdsForKey(IInvokableInstance node, String keyspaceName, String tableName, int key, Set<MutationId> expected)
     {

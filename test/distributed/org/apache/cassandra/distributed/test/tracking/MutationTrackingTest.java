@@ -38,7 +38,6 @@ import org.apache.cassandra.distributed.test.TestBaseImpl;
 import org.apache.cassandra.hints.HintsService;
 import org.apache.cassandra.metrics.StorageMetrics;
 import org.apache.cassandra.replication.MutationTrackingService;
-import org.apache.cassandra.replication.simple.SimpleMutationSummary;
 import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.schema.ReplicationType;
 import org.apache.cassandra.schema.Schema;
