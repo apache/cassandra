@@ -20,11 +20,16 @@ package org.apache.cassandra.replication.logged;
 
 import org.agrona.collections.Long2ObjectHashMap;
 import org.apache.cassandra.db.Digest;
+import org.apache.cassandra.db.TypeSizes;
+import org.apache.cassandra.io.IVersionedSerializer;
+import org.apache.cassandra.io.util.DataInputPlus;
+import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.replication.MutationSummary;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.service.tracking.CoordinatorLogId;
 import org.apache.cassandra.service.tracking.SequenceIds;
 
+import java.io.IOException;
 import java.util.Arrays;
 import java.util.Comparator;
 
@@ -67,6 +72,33 @@ public class LoggedMutationSummary implements MutationSummary
                 return new CoordinatorSummary(logId, reconciled, unreconciled);
             }
         }
+
+        public static final IVersionedSerializer<CoordinatorSummary> serializer = new IVersionedSerializer<CoordinatorSummary>()
+        {
+            @Override
+            public void serialize(CoordinatorSummary t, DataOutputPlus out, int version) throws IOException
+            {
+                CoordinatorLogId.serializer.serialize(t.logId, out, version);
+                SequenceIds.serializer.serialize(t.reconciled, out, version);
+                SequenceIds.serializer.serialize(t.unreconciled, out, version);
+            }
+
+            @Override
+            public CoordinatorSummary deserialize(DataInputPlus in, int version) throws IOException
+            {
+                return new CoordinatorSummary(CoordinatorLogId.serializer.deserialize(in, version),
+                                              SequenceIds.serializer.deserialize(in, version),
+                                              SequenceIds.serializer.deserialize(in, version));
+            }
+
+            @Override
+            public long serializedSize(CoordinatorSummary t, int version)
+            {
+                return CoordinatorLogId.serializer.serializedSize(t.logId, version)
+                        + SequenceIds.serializer.serializedSize(t.reconciled, version)
+                        + SequenceIds.serializer.serializedSize(t.unreconciled, version);
+            }
+        };
     }
 
     public static class Builder
@@ -152,4 +184,38 @@ public class LoggedMutationSummary implements MutationSummary
     {
         return summaries[i];
     }
+
+    public static final IVersionedSerializer<LoggedMutationSummary> serializer = new IVersionedSerializer<LoggedMutationSummary>()
+    {
+        @Override
+        public void serialize(LoggedMutationSummary summary, DataOutputPlus out, int version) throws IOException
+        {
+            summary.tableId.serialize(out);
+            out.writeInt(summary.summaries.length);
+            for (CoordinatorSummary coordinatorSummary : summary.summaries)
+                CoordinatorSummary.serializer.serialize(coordinatorSummary, out, version);
+        }
+
+        @Override
+        public LoggedMutationSummary deserialize(DataInputPlus in, int version) throws IOException
+        {
+            TableId tableId = TableId.deserialize(in);
+            int size = in.readInt();
+            CoordinatorSummary[] summaries = new CoordinatorSummary[size];
+            for (int i = 0; i < summaries.length; i++)
+                summaries[i] = CoordinatorSummary.serializer.deserialize(in, version);
+
+            return new LoggedMutationSummary(tableId, summaries);
+        }
+
+        @Override
+        public long serializedSize(LoggedMutationSummary summary, int version)
+        {
+            long size = summary.tableId.serializedSize();
+            size += TypeSizes.sizeof(summary.summaries.length);
+            for (CoordinatorSummary coordinatorSummary : summary.summaries)
+                size += CoordinatorSummary.serializer.serializedSize(coordinatorSummary, version);
+            return size;
+        }
+    };
 }

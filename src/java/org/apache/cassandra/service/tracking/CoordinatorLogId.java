@@ -17,6 +17,13 @@
  */
 package org.apache.cassandra.service.tracking;
 
+import org.apache.cassandra.db.TypeSizes;
+import org.apache.cassandra.io.IVersionedSerializer;
+import org.apache.cassandra.io.util.DataInputPlus;
+import org.apache.cassandra.io.util.DataOutputPlus;
+
+import java.io.IOException;
+
 public class CoordinatorLogId implements Comparable<CoordinatorLogId>
 {
     /** TCM host ID */
@@ -64,4 +71,26 @@ public class CoordinatorLogId implements Comparable<CoordinatorLogId>
     {
         return (int) coordinatorLogId;
     }
+
+    public static final IVersionedSerializer<CoordinatorLogId> serializer = new IVersionedSerializer<CoordinatorLogId>()
+    {
+        @Override
+        public void serialize(CoordinatorLogId logId, DataOutputPlus out, int version) throws IOException
+        {
+            out.writeInt(logId.hostId);
+            out.writeInt(logId.hostLogId);
+        }
+
+        @Override
+        public CoordinatorLogId deserialize(DataInputPlus in, int version) throws IOException
+        {
+            return new CoordinatorLogId(in.readInt(), in.readInt());
+        }
+
+        @Override
+        public long serializedSize(CoordinatorLogId logId, int version)
+        {
+            return TypeSizes.INT_SIZE + TypeSizes.INT_SIZE;
+        }
+    };
 }

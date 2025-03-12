@@ -20,7 +20,12 @@ package org.apache.cassandra.service.tracking;
 import com.google.common.base.Preconditions;
 import org.apache.cassandra.db.Digest;
 import org.apache.cassandra.db.MutationId;
+import org.apache.cassandra.db.TypeSizes;
+import org.apache.cassandra.io.IVersionedSerializer;
+import org.apache.cassandra.io.util.DataInputPlus;
+import org.apache.cassandra.io.util.DataOutputPlus;
 
+import java.io.IOException;
 import java.util.Arrays;
 
 import static org.apache.cassandra.db.MutationId.*;
@@ -829,4 +834,32 @@ public class SequenceIds
 
         void consume(long start, long end);
     }
+
+    public static final IVersionedSerializer<SequenceIds> serializer = new IVersionedSerializer<SequenceIds>()
+    {
+        @Override
+        public void serialize(SequenceIds ids, DataOutputPlus out, int version) throws IOException
+        {
+            out.writeInt(ids.size);
+            for (long id : ids.bounds)
+                out.writeLong(id);
+        }
+
+        @Override
+        public SequenceIds deserialize(DataInputPlus in, int version) throws IOException
+        {
+            int size = in.readInt();
+            Preconditions.checkArgument(size > 0 && size % 2 == 0);
+            long[] bounds = new long[size];
+            for (int i = 0; i < size; i++)
+                bounds[i] = in.readLong();
+            return new SequenceIds(bounds);
+        }
+
+        @Override
+        public long serializedSize(SequenceIds ids, int version)
+        {
+            return TypeSizes.INT_SIZE + (TypeSizes.LONG_SIZE * ids.size);
+        }
+    };
 }
