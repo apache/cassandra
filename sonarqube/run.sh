@@ -41,25 +41,10 @@ export COVERAGE_PATH="build/coverage"
 # Script that involves executing unit test and generating coverage report to be added here.
 # Coverage report file path should be added in sonarconfig.yaml in sonarqube.unit_test_coverage.location
 
-# use java 11
-export CASSANDRA_USE_JDK11=true
-
-# download ant 1.10
-wget http://artifactory.uber.internal:4587/artifactory/libs-release-local/org/apache/ant/apache-ant-1.10.12-bin.tar.gz
-tar xzvf apache-ant-1.10.12-bin.tar.gz
-ANT_HOME="$(readlink -f apache-ant-1.10.12)"
-export ANT_HOME
-
-# generic-udj is migrated to Debian 12, which is using Java 17 by default. We want to switch to Java 11
-JAVA_HOME="$(readlink -f $HOME/java_home/jdk_11)"
-export JAVA_HOME
-export PATH="$JAVA_HOME/bin:$PATH"
-java --version
-
-# update PATH
-export PATH="$ANT_HOME/bin:$JAVA_HOME/bin:$PATH"
-
-ant realclean
+# env setup (Java11, ant)
+source "$PROJECT_ROOT/.jenkins/env_setup.sh"
+j11Setup
+antSetup
 
 ant jacoco-run -Dtaskname=test
 

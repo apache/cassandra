@@ -26,12 +26,14 @@ echo "CASSANDRA_BRANCH: $CASSANDRA_BRANCH"
 echo "DTEST_BRANCH: $DTEST_BRANCH"
 echo "DTEST_GROUP_ID: $DTEST_GROUP_ID"
 
+# env setup (Java11)
+source "./.jenkins/env_setup.sh"
+j11Setup
+
+# clone dtest repo
 git clean -xdff
 git clone -b "${DTEST_BRANCH:-master}" \
     gitolite@code.uber.internal:infra/cassandra-dtest
-
-SCRIPT_DIR="$(dirname "$(readlink -e "$0")")"
-PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
 
 GRADLE_ARGS=("-PCQLGateway")
 
@@ -133,34 +135,9 @@ else
 fi
 export CASSANDRA_DIR
 
-## Download oracle jdk 8
-#wget http://artifactory.uber.internal:4587/artifactory/libs-release-local/oracle/server-jdk-linux-x64/1.8.0_111/server-jdk-linux-x64-1.8.0_111.tar.gz
-#tar xzvf server-jdk-linux-x64-1.8.0_111.tar.gz
-#JAVA_HOME="$(readlink -e jdk1.8.0_111)"
-#export JAVA_HOME
-
-# use java 11
-export CASSANDRA_USE_JDK11=true
-
-# generic-udj is migrated to Debian 12, which is using Java 17 by default. We want to switch to Java 11
-JAVA_HOME="$(readlink -f $HOME/java_home/jdk_11)"
-export JAVA_HOME
-export PATH="$JAVA_HOME/bin:$PATH"
-java --version
-
-JAVA_HOME=$(dirname $(dirname $(readlink -f $(which javac))))
-export JAVA_HOME
-
 # Set up Ant and build Cassandra from source if CASSANDRA_MESOS_VERSION is not set
 if [ "x$CASSANDRA_MESOS_VERSION" = "x" ] && [ "x$CASSANDRA_MESOS_BRANCH" = "x" ]; then
-    # download ant 1.10
-    wget http://artifactory.uber.internal:4587/artifactory/libs-release-local/org/apache/ant/apache-ant-1.10.12-bin.tar.gz
-    tar xzvf apache-ant-1.10.12-bin.tar.gz
-    ANT_HOME="$(readlink -f apache-ant-1.10.12)"
-    export ANT_HOME
-
-    # Update PATH
-    export PATH="$ANT_HOME/bin:$JAVA_HOME/bin:$PATH"
+    antSetup
 
     # Loop to prevent failure due to maven-ant-tasks not downloading a jar..
     for _ in $(seq 1 3); do

@@ -24,23 +24,13 @@ set -ex
 echo "BRANCH: $BRANCH"
 echo "RELEASE: $RELEASE"
 
-wget http://artifactory.uber.internal:4587/artifactory/libs-release-local/oracle/server-jdk-linux-x64/1.8.0_111/server-jdk-linux-x64-1.8.0_111.tar.gz
-tar xzvf server-jdk-linux-x64-1.8.0_111.tar.gz
-JAVA_HOME="$(readlink -f jdk1.8.0_111)"
-export JAVA_HOME
-export PATH="$JAVA_HOME/bin:$PATH"
+# env setup (Java8, ant)
+source "./.jenkins/env_setup.sh"
+j8Setup
+antSetup
 
 RELEASE_URL="http://artifactory.uber.internal:4587/artifactory/libs-release-local/"
 SNAPSHOT_URL="http://artifactory.uber.internal:4587/artifactory/cassandra-snapshots/"
-
-# set ant
-wget http://artifactory.uber.internal:4587/artifactory/libs-release-local/org/apache/ant/apache-ant-1.10.12-bin.tar.gz
-tar xzvf apache-ant-1.10.12-bin.tar.gz
-ANT_HOME="$(readlink -f apache-ant-1.10.12)"
-export ANT_HOME
-export PATH="$ANT_HOME/bin:$PATH"
-
-ant realclean
 
 ./build-shaded-cassandra-marmaray-jar.sh
 
