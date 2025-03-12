@@ -18,10 +18,12 @@
 
 package org.apache.cassandra.replication;
 
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 
+import com.google.common.base.Preconditions;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.Mutation;
 import org.apache.cassandra.db.PartitionPosition;
@@ -30,25 +32,73 @@ import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.replication.logged.LoggedMutationSummary;
+import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableId;
+import org.apache.cassandra.tcm.ClusterMetadata;
 
-public interface MutationTracker
+public class MutationTracker
 {
-    PendingWrite startWrite(Mutation mutation);
+    private final PendingWrites pendingWrites = new PendingWrites();
 
-    void start();
+    public void start()
+    {
+        // if we need to grab it earliier, go to tcm.Startup and add afterReplay() callbacks
+        Shards.instance.load(ClusterMetadata.current());
+    }
 
-    PendingRead startRead(ReadCommand command);
+    public PendingWrite startWrite(Mutation mutation)
+    {
+        return pendingWrites.startWrite(mutation);
+    }
+
+    public PendingRead startRead(ReadCommand command)
+    {
+        return pendingWrites.startRead(command);
+    }
 
     // TODO: ditch?
-    void add(Mutation mutation);
+    public void add(Mutation mutation)
+    {
+    }
 
-    MutationSummary summaryForKey(TableId tableId, DecoratedKey key);
-    MutationSummary summaryForRange(TableId tableId, AbstractBounds<PartitionPosition> range);
-    default MutationSummary summaryForRange(TableId tableId, Range<Token> range)
+    public MutationSummary summaryForKey(TableId tableId, DecoratedKey key)
+    {
+        String keyspace = Schema.instance.getTableMetadata(tableId).keyspace;
+
+        LoggedMutationSummary.Builder summaryBuilder = new LoggedMutationSummary.Builder(tableId);
+
+        Shard shard = Shards.instance.lookUp(keyspace, key.getToken());
+        shard.addSummaryForKey(summaryBuilder, key.getToken());
+
+        return summaryBuilder.build();
+    }
+
+    public MutationSummary summaryForRange(TableId tableId, AbstractBounds<PartitionPosition> range)
+    {
+        String keyspace = Schema.instance.getTableMetadata(tableId).keyspace;
+
+        LoggedMutationSummary.Builder summaryBuilder = new LoggedMutationSummary.Builder(tableId);
+
+        Shards.instance.forEachIntersectingShard(keyspace, range, shard -> shard.addSummaryForRange(summaryBuilder, range));
+
+        return summaryBuilder.build();
+    }
+
+    public MutationSummary summaryForRange(TableId tableId, Range<Token> range)
     {
         return summaryForRange(tableId, Range.makeRowRange(range));
     }
-    Map<InetAddressAndPort, ReconciliationPlan> calculateReconciliation(Map<InetAddressAndPort, MutationSummary> summaries);
-    List<Mutation> mutations(Collection<MutationId> ids);
+
+    public Map<InetAddressAndPort, ReconciliationPlan> calculateReconciliation(Map<InetAddressAndPort, MutationSummary> summaries)
+    {
+        throw new UnsupportedOperationException();
+    }
+    public List<Mutation> mutations(Collection<MutationId> ids)
+    {
+        List<Mutation> result = new ArrayList<>(ids.size());
+        MutationJournal.instance.readAll(ids, result);
+        Preconditions.checkArgument(ids.size() == result.size());
+        return result;
+    }
 }

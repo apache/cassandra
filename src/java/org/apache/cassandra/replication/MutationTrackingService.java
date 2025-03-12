@@ -24,13 +24,12 @@ import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.replication.simple.SimpleMutationSummary;
-import org.apache.cassandra.replication.simple.SimpleMutationTracker;
 import org.apache.cassandra.replication.simple.SimpleReconciliationPlan;
 import org.apache.cassandra.service.reads.logged.ReadReconciliations;
 
 public class MutationTrackingService
 {
-    private static final MutationTracker tracker = new SimpleMutationTracker();
+    private static final MutationTracker tracker = new MutationTracker();
 
     private static final ReadReconciliations reconciliations = new ReadReconciliations();
 
