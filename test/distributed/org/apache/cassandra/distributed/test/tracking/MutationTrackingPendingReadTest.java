@@ -22,6 +22,7 @@ import java.util.Collections;
 import java.util.Set;
 
 import com.google.common.collect.Iterables;
+import org.apache.cassandra.replication.MutationSummary;
 import org.apache.cassandra.replication.MutationTracker.ListeningPendingRead;
 import org.apache.cassandra.replication.MutationTracker.PendingWrite;
 import org.junit.Assert;
@@ -51,16 +52,13 @@ import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
 import org.apache.cassandra.distributed.api.Feature;
 import org.apache.cassandra.replication.MutationTrackingService;
-import org.apache.cassandra.replication.simple.SimpleMutationSummary;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.reads.logged.LoggedReadResponse;
 import org.apache.cassandra.utils.FBUtilities;
 
 import static java.lang.String.format;
-import static org.apache.cassandra.distributed.test.tracking.MutationTrackingUtils.assertIdsForKey;
-import static org.apache.cassandra.distributed.test.tracking.MutationTrackingUtils.getIdsForKey;
-import static org.apache.cassandra.distributed.test.tracking.MutationTrackingUtils.summaryForKey;
+import static org.apache.cassandra.distributed.test.tracking.MutationTrackingUtils.*;
 import static org.apache.cassandra.utils.ByteBufferUtil.bytes;
 
 public class MutationTrackingPendingReadTest
@@ -107,18 +105,19 @@ public class MutationTrackingPendingReadTest
 
             // insert a row at all, confirm it's present on all nodes
             cluster.coordinator(1).execute(format("INSERT INTO %s.%s (k, c, v) VALUES (1, 0, 0)", keyspaceName, tableName), ConsistencyLevel.ALL);
-            Set<MutationId> firstIds = getIdsForKey(cluster.get(1), keyspaceName, "tbl", 1);
 
-            cluster.forEach(node -> {
-                assertIdsForKey(node, keyspaceName, tableName, 1, firstIds);
-            });
+            MutationSummary firstSummary = summaryForKey(cluster.get(1), keyspaceName, "tbl", 1);
+            Assert.assertEquals(1, firstSummary.unreconciledIds());
+
+            cluster.forEach(node -> assertMatchingSummaryForKey(node, keyspaceName, "tbl", 1, firstSummary));
 
             cluster.get(1).runOnInstance(() -> {
 
                 TableMetadata metadata = Schema.instance.getTableMetadata(keyspaceName, tableName);
                 DecoratedKey dk = metadata.partitioner.decorateKey(bytes(1));
 
-                MutationId firstId = Iterables.getOnlyElement(summaryForKey(keyspaceName, tableName, dk).allIds);
+                MutationSummary secondSummary = summaryForKey(keyspaceName, tableName, dk);
+                Assert.assertEquals(1, secondSummary.unreconciledIds());
 
                 // create a mutation
                 SimpleBuilders.MutationBuilder builder = new SimpleBuilders.MutationBuilder(MutationId.none(), keyspaceName, dk);
@@ -131,7 +130,7 @@ public class MutationTrackingPendingReadTest
                 int nowInSeconds = (int) FBUtilities.nowInSeconds();
                 // apply it to the journal and open a pending write
                 LoggedReadResponse response;
-                SimpleMutationSummary summary;
+                MutationSummary summary;
                 SinglePartitionReadCommand command = SinglePartitionReadCommand.fullPartitionRead(metadata, nowInSeconds, dk);
                 try (PendingWrite pendingWrite = MutationTrackingService.instance().startWrite(mutation))
                 {
@@ -140,7 +139,7 @@ public class MutationTrackingPendingReadTest
                     try (ReadExecutionController controller = command.executionController(false);
                          UnfilteredPartitionIterator iterator = command.executeLocally(controller))
                     {
-                        summary = (SimpleMutationSummary) command.createMutationSummary();
+                        summary = command.createMutationSummary();
                         response = (LoggedReadResponse) command.createResponse(iterator, controller.getRepairedDataInfo(), summary, controller.pendingRead());
                     }
                 }
@@ -157,7 +156,8 @@ public class MutationTrackingPendingReadTest
                 }
 
                 // check that the summary does contain the unapplied mutation
-                Assert.assertEquals(Set.of(firstId, secondId), summary.allIds);
+                Assert.assertEquals(2, summary.unreconciledIds());
+                Assert.assertTrue(summary.contains(secondId));
 
                 // check that the returned data contains the unapplied mutation
                 try (UnfilteredPartitionIterator partitions = response.makeIterator(command))

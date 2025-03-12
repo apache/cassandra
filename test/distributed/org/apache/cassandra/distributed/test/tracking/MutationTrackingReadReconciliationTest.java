@@ -18,32 +18,25 @@
 
 package org.apache.cassandra.distributed.test.tracking;
 
-import java.util.Set;
-
-import com.google.common.collect.Iterables;
-import com.google.common.collect.Sets;
+import org.apache.cassandra.replication.CoordinatorLogId;
+import org.apache.cassandra.replication.MutationSummary;
 import org.junit.Assert;
 import org.junit.Test;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import org.apache.cassandra.replication.MutationId;
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
 import org.apache.cassandra.distributed.api.Feature;
 import org.apache.cassandra.distributed.test.TestBaseImpl;
+import org.apache.cassandra.replication.Offsets;
 import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.schema.ReplicationType;
 import org.apache.cassandra.schema.Schema;
 
 import static java.lang.String.format;
-import static org.apache.cassandra.distributed.test.tracking.MutationTrackingUtils.assertIdsForKey;
-import static org.apache.cassandra.distributed.test.tracking.MutationTrackingUtils.assertIdsForTable;
-import static org.apache.cassandra.distributed.test.tracking.MutationTrackingUtils.getIdsForKey;
-import static org.apache.cassandra.distributed.test.tracking.MutationTrackingUtils.getIdsForTable;
-import static org.apache.cassandra.distributed.test.tracking.MutationTrackingUtils.numLogReconciliations;
-import static org.apache.cassandra.distributed.test.tracking.MutationTrackingUtils.row;
+import static org.apache.cassandra.distributed.test.tracking.MutationTrackingUtils.*;
 
 public class MutationTrackingReadReconciliationTest extends TestBaseImpl
 {
@@ -81,27 +74,35 @@ public class MutationTrackingReadReconciliationTest extends TestBaseImpl
 
             // insert a row at all, confirm it's present on all nodes
             cluster.coordinator(1).execute(format("INSERT INTO %s.%s (k, c, v) VALUES (1, 0, 0)", keyspaceName, tableName), ConsistencyLevel.ALL);
-            Set<MutationId> firstIds = getIdsForKey(cluster.get(1), keyspaceName, "tbl", 1);
-            MutationId firstId = Iterables.getOnlyElement(firstIds);
 
-            cluster.get(2, 3).forEach(node -> {
-                assertIdsForKey(node, keyspaceName, tableName, 1, firstIds);
-            });
+            MutationSummary firstSummary = summaryForKey(cluster.get(1), keyspaceName, "tbl", 1);
+            Assert.assertEquals(1, firstSummary.unreconciledIds());
+            CoordinatorLogId logId = firstSummary.get(0).logId;
+            Offsets firstIds = firstSummary.get(logId).unreconciled;
+
+            cluster.get(2, 3).forEach(node -> assertMatchingSummaryForKey(node, keyspaceName, tableName, 1, firstSummary));
 
             // block messages to node 3 and perform a write at quorum
             cluster.filters().allVerbs().to(3).drop();
             cluster.filters().allVerbs().from(3).drop();
 
             cluster.coordinator(1).execute(format("INSERT INTO %s.%s (k, c, v) VALUES (1, 1, 1)", keyspaceName, tableName), ConsistencyLevel.QUORUM);
-            Set<MutationId> allIds = getIdsForKey(cluster.get(1), keyspaceName, "tbl", 1);
-            Assert.assertEquals(2, allIds.size());
-            Assert.assertTrue(allIds.contains(firstId));
-            MutationId secondId = Iterables.getOnlyElement(Sets.difference(allIds, firstIds));
-            Assert.assertNotEquals(secondId, firstId);
+
+            MutationSummary finalSummary = summaryForKey(cluster.get(1), keyspaceName, "tbl", 1);
+            Assert.assertEquals(1, finalSummary.size());
+            Offsets finalIds = finalSummary.get(logId).unreconciled;
+
+            Assert.assertEquals(2, finalSummary.unreconciledIds());
+            assertOffsetsIsSuperSet(finalIds, firstIds);;
+
+            Offsets secondIds = Offsets.difference(finalIds, firstIds);
+            Assert.assertEquals(1, secondIds.offsetCount());
+            Assert.assertEquals(0, Offsets.intersection(firstIds, secondIds).offsetCount());
+
 
             // second node should have the new id, third should not
-            assertIdsForKey(cluster.get(2), keyspaceName, tableName, 1, allIds);
-            assertIdsForKey(cluster.get(3), keyspaceName, tableName, 1, firstIds);
+            assertMatchingSummaryForKey(cluster.get(2), keyspaceName, tableName, 1, finalSummary);
+            assertMatchingSummaryForKey(cluster.get(3), keyspaceName, tableName, 1, firstSummary);
 
             // reverse the partition and do a read
             cluster.filters().reset();
@@ -114,7 +115,7 @@ public class MutationTrackingReadReconciliationTest extends TestBaseImpl
             Assert.assertEquals(row(row(1, 0, 0), row(1, 1, 1)), result);
 
             // check that node3 has the new ids
-            assertIdsForKey(cluster.get(3), keyspaceName, tableName, 1, allIds);
+            assertMatchingSummaryForKey(cluster.get(3), keyspaceName, tableName, 1, finalSummary);
         }
     }
 
@@ -150,11 +151,12 @@ public class MutationTrackingReadReconciliationTest extends TestBaseImpl
 
             // insert a row at all, confirm it's present on all nodes
             cluster.coordinator(1).execute(format("INSERT INTO %s.%s (k, c, v) VALUES (1, 0, 0)", keyspaceName, tableName), ConsistencyLevel.ALL);
-            Set<MutationId> firstIds = getIdsForKey(cluster.get(1), keyspaceName, "tbl", 1);
-            MutationId firstId = Iterables.getOnlyElement(firstIds);
+            MutationSummary firstSummary = summaryForKey(cluster.get(1), keyspaceName, "tbl", 1);
+            CoordinatorLogId logId = firstSummary.get(0).logId;
+            Offsets firstIds = firstSummary.get(logId).unreconciled;
 
             cluster.get(2, 3).forEach(node -> {
-                assertIdsForKey(node, keyspaceName, tableName, 1, firstIds);
+                assertMatchingSummaryForKey(node, keyspaceName, tableName, 1, firstSummary);
             });
 
             // block messages to node 3 and perform a write at quorum
@@ -162,15 +164,22 @@ public class MutationTrackingReadReconciliationTest extends TestBaseImpl
             cluster.filters().allVerbs().from(3).drop();
 
             cluster.coordinator(1).execute(format("INSERT INTO %s.%s (k, c, v) VALUES (1, 1, 1)", keyspaceName, tableName), ConsistencyLevel.QUORUM);
-            Set<MutationId> allIds = getIdsForKey(cluster.get(1), keyspaceName, "tbl", 1);
-            Assert.assertEquals(2, allIds.size());
-            Assert.assertTrue(allIds.contains(firstId));
-            MutationId secondId = Iterables.getOnlyElement(Sets.difference(allIds, firstIds));
-            Assert.assertNotEquals(secondId, firstId);
+
+            MutationSummary finalSummary = summaryForKey(cluster.get(1), keyspaceName, "tbl", 1);
+            Assert.assertEquals(1, finalSummary.size());
+            Offsets finalIds = finalSummary.get(logId).unreconciled;
+
+            Assert.assertEquals(2, finalSummary.unreconciledIds());
+            assertOffsetsIsSuperSet(finalIds, firstIds);;
+
+            Offsets secondIds = Offsets.difference(finalIds, firstIds);
+            Assert.assertEquals(1, secondIds.offsetCount());
+            Assert.assertEquals(0, Offsets.intersection(firstIds, secondIds).offsetCount());
+
 
             // second node should have the new id, third should not
-            assertIdsForKey(cluster.get(2), keyspaceName, tableName, 1, allIds);
-            assertIdsForKey(cluster.get(3), keyspaceName, tableName, 1, firstIds);
+            assertMatchingSummaryForKey(cluster.get(2), keyspaceName, tableName, 1, finalSummary);
+            assertMatchingSummaryForKey(cluster.get(3), keyspaceName, tableName, 1, firstSummary);
 
             // reverse the partition and do a read
             cluster.filters().reset();
@@ -183,7 +192,7 @@ public class MutationTrackingReadReconciliationTest extends TestBaseImpl
             Assert.assertEquals(row(row(1, 0, 0), row(1, 1, 1)), result);
 
             // check that node3 has the new ids
-            assertIdsForKey(cluster.get(3), keyspaceName, tableName, 1, allIds);
+            assertMatchingSummaryForKey(cluster.get(3), keyspaceName, tableName, 1, finalSummary);
         }
     }
 
@@ -218,11 +227,12 @@ public class MutationTrackingReadReconciliationTest extends TestBaseImpl
 
             // insert a row at all, confirm it's present on all nodes
             cluster.coordinator(1).execute(format("INSERT INTO %s.%s (k, c, v) VALUES (1, 0, 0)", keyspaceName, tableName), ConsistencyLevel.ALL);
-            Set<MutationId> firstIds = getIdsForTable(cluster.get(1), keyspaceName, "tbl");
-            MutationId firstId = Iterables.getOnlyElement(firstIds);
+
+            MutationSummary firstSummary = summaryForTable(cluster.get(1), keyspaceName, "tbl");
+            Assert.assertEquals(1, firstSummary.unreconciledIds());
 
             cluster.get(2, 3).forEach(node -> {
-                assertIdsForKey(node, keyspaceName, tableName, 1, firstIds);
+                assertMatchingSummaryForKey(node, keyspaceName, tableName, 1, firstSummary);
             });
 
             // block messages to node 3 and perform a write at quorum
@@ -231,13 +241,14 @@ public class MutationTrackingReadReconciliationTest extends TestBaseImpl
 
             cluster.coordinator(1).execute(format("INSERT INTO %s.%s (k, c, v) VALUES (1, 1, 1)", keyspaceName, tableName), ConsistencyLevel.QUORUM);
             cluster.coordinator(1).execute(format("INSERT INTO %s.%s (k, c, v) VALUES (2, 2, 2)", keyspaceName, tableName), ConsistencyLevel.QUORUM);
-            Set<MutationId> allIds = getIdsForTable(cluster.get(1), keyspaceName, "tbl");
-            Assert.assertEquals(3, allIds.size());
-            Assert.assertTrue(allIds.contains(firstId));
+
+            MutationSummary finalSummary = summaryForTable(cluster.get(1), keyspaceName, "tbl");
+            Assert.assertEquals(3, finalSummary.unreconciledIds());
+            assertSummaryIsUnreconciledSuperSet(finalSummary, firstSummary);
 
             // second node should have the new id, third should not
-            assertIdsForTable(cluster.get(2), keyspaceName, tableName, allIds);
-            assertIdsForTable(cluster.get(3), keyspaceName, tableName, firstIds);
+            assertMatchingSummaryForTable(cluster.get(2), keyspaceName, tableName, finalSummary);
+            assertMatchingSummaryForTable(cluster.get(3), keyspaceName, tableName, firstSummary);
 
             // reverse the partition and do a read, read should include coordinator (1)'s ID and replica (3), even though (3) is missing the ID
             cluster.filters().reset();
@@ -255,7 +266,7 @@ public class MutationTrackingReadReconciliationTest extends TestBaseImpl
             Assert.assertEquals(1, numLogReconciliations(cluster.get(1)));
 
             // check that node3 has the new ids
-            assertIdsForTable(cluster.get(3), keyspaceName, tableName, allIds);
+            assertMatchingSummaryForTable(cluster.get(3), keyspaceName, tableName, finalSummary);
         }
     }
 
@@ -287,11 +298,11 @@ public class MutationTrackingReadReconciliationTest extends TestBaseImpl
 
             // insert a row at all, confirm it's present on all nodes
             cluster.coordinator(1).execute(format("INSERT INTO %s.%s (k, c, v) VALUES (1, 0, 0)", keyspaceName, tableName), ConsistencyLevel.ALL);
-            Set<MutationId> firstIds = getIdsForTable(cluster.get(1), keyspaceName, "tbl");
-            MutationId firstId = Iterables.getOnlyElement(firstIds);
+            MutationSummary firstSummary = summaryForTable(cluster.get(1), keyspaceName, "tbl");
+            Assert.assertEquals(1, firstSummary.unreconciledIds());
 
             cluster.get(2, 3).forEach(node -> {
-                assertIdsForKey(node, keyspaceName, tableName, 1, firstIds);
+                assertMatchingSummaryForTable(node, keyspaceName, tableName, firstSummary);
             });
 
             // block messages to node 3 and perform a write at quorum
@@ -300,13 +311,14 @@ public class MutationTrackingReadReconciliationTest extends TestBaseImpl
 
             cluster.coordinator(1).execute(format("INSERT INTO %s.%s (k, c, v) VALUES (1, 1, 1)", keyspaceName, tableName), ConsistencyLevel.QUORUM);
             cluster.coordinator(1).execute(format("INSERT INTO %s.%s (k, c, v) VALUES (2, 2, 2)", keyspaceName, tableName), ConsistencyLevel.QUORUM);
-            Set<MutationId> allIds = getIdsForTable(cluster.get(1), keyspaceName, "tbl");
-            Assert.assertEquals(3, allIds.size());
-            Assert.assertTrue(allIds.contains(firstId));
+
+            MutationSummary finalSummary = summaryForTable(cluster.get(1), keyspaceName, "tbl");
+            Assert.assertEquals(3, finalSummary.unreconciledIds());
+            assertSummaryIsUnreconciledSuperSet(finalSummary, firstSummary);
 
             // second node should have the new id, third should not
-            assertIdsForTable(cluster.get(2), keyspaceName, tableName, allIds);
-            assertIdsForTable(cluster.get(3), keyspaceName, tableName, firstIds);
+            assertMatchingSummaryForTable(cluster.get(2), keyspaceName, tableName, finalSummary);
+            assertMatchingSummaryForTable(cluster.get(3), keyspaceName, tableName, firstSummary);
 
             // reverse the partition and do a read
             cluster.filters().reset();
@@ -319,7 +331,7 @@ public class MutationTrackingReadReconciliationTest extends TestBaseImpl
             Assert.assertEquals(row(row(1, 0, 0), row(1, 1, 1), row(2, 2, 2)), result);
 
             // check that node3 has the new ids
-            assertIdsForTable(cluster.get(3), keyspaceName, tableName, allIds);
+            assertMatchingSummaryForTable(cluster.get(3), keyspaceName, tableName, finalSummary);
         }
     }
 }

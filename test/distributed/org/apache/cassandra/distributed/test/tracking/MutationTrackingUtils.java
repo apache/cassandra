@@ -20,9 +20,8 @@ package org.apache.cassandra.distributed.test.tracking;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.util.Collection;
 import java.util.Set;
-import java.util.SortedSet;
-import java.util.TreeSet;
 
 import com.google.common.primitives.Ints;
 
@@ -40,7 +39,9 @@ import org.apache.cassandra.io.util.DataInputBuffer;
 import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.metrics.ReadRepairMetrics;
 import org.apache.cassandra.net.MessagingService;
+import org.apache.cassandra.replication.MutationSummary.CoordinatorSummary;
 import org.apache.cassandra.replication.MutationTrackingService;
+import org.apache.cassandra.replication.Offsets;
 import org.apache.cassandra.schema.ReplicationType;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableMetadata;
@@ -78,10 +79,65 @@ public class MutationTrackingUtils
         }
     }
 
+    public static byte[] encodeSummary(MutationSummary summary)
+    {
+        int size = Ints.checkedCast(MutationSummary.serializer.serializedSize(summary, VERSION));
+        ByteBuffer buffer = ByteBuffer.allocate(size);
+        try (DataOutputBuffer dob = new DataOutputBuffer(buffer))
+        {
+            MutationSummary.serializer.serialize(summary, dob, VERSION);
+            return buffer.array();
+        }
+        catch (IOException e)
+        {
+            throw new RuntimeException(e);
+        }
+    }
+
+    public static MutationSummary decodeSummary(byte[] bytes)
+    {
+        try (DataInputBuffer dib = new DataInputBuffer(bytes))
+        {
+            MutationSummary id = MutationSummary.serializer.deserialize(dib, VERSION);
+            Assert.assertEquals(MutationSummary.serializer.serializedSize(id, VERSION), bytes.length);
+            return id;
+        }
+        catch (IOException e)
+        {
+            throw new RuntimeException(e);
+        }
+    }
+
     public static MutationSummary summaryForKey(String keyspaceName, String tableName, DecoratedKey dk)
     {
         TableMetadata table = Schema.instance.getTableMetadata(keyspaceName, tableName);
         return MutationTrackingService.instance().summaryForKey(table.id, dk);
+    }
+
+    public static MutationSummary summaryForTable(String keyspaceName, String tableName)
+    {
+        Range<Token> range = new Range<>(Murmur3Partitioner.instance.getMinimumToken(), Murmur3Partitioner.instance.getMinimumToken());
+        return summaryForRange(keyspaceName, tableName, range);
+    }
+
+    public static MutationSummary summaryForKey(IInvokableInstance node, String keyspaceName, String tableName, int key)
+    {
+        byte[] encodedSummary = node.callOnInstance(() -> {
+            DecoratedKey dk = Murmur3Partitioner.instance.decorateKey(ByteBufferUtil.bytes(key));
+            MutationSummary summary = summaryForKey(keyspaceName, tableName, dk);
+            return encodeSummary(summary);
+        });
+
+        return decodeSummary(encodedSummary);
+    }
+
+    public static MutationSummary summaryForTable(IInvokableInstance node, String keyspaceName, String tableName)
+    {
+        byte[] encodedSummary = node.callOnInstance(() -> {
+            MutationSummary summary = summaryForTable(keyspaceName, tableName);
+            return encodeSummary(summary);
+        });
+        return decodeSummary(encodedSummary);
     }
 
     public static MutationSummary summaryForKey(String keyspaceName, String tableName, int key)
@@ -95,67 +151,71 @@ public class MutationTrackingUtils
         return MutationTrackingService.instance().summaryForRange(table.id, range);
     }
 
-    public static Set<MutationId> getIdsForKey(IInvokableInstance node, String keyspaceName, String tableName, int key)
+    public static void assertSummaryContents(MutationSummary summary, Collection<MutationId> expected)
     {
-        byte[][] encodedIds = node.callOnInstance(() -> {
-            DecoratedKey dk = Murmur3Partitioner.instance.decorateKey(ByteBufferUtil.bytes(key));
-            MutationSummary summary = summaryForKey(keyspaceName, tableName, dk);
-            SortedSet<MutationId> ids = summary.ids.get(dk);
-            if (ids == null || ids.isEmpty())
-                return new byte[][] {};
-
-            byte[][] result = new byte[ids.size()][];
-            int idx = 0;
-            for (MutationId id : ids)
-            {
-                result[idx++] = encodeId(id);
-            }
-            return result;
-        });
-
-        SortedSet<MutationId> result = new TreeSet<>();
-        for (byte[] encodedId : encodedIds)
-            result.add(decodeId(encodedId));
-        return result;
-    }
-
-    public static Set<MutationId> getIdsForTable(IInvokableInstance node, String keyspaceName, String tableName)
-    {
-        byte[][] encodedIds = node.callOnInstance(() -> {
-            Range<Token> range = new Range<>(Murmur3Partitioner.instance.getMinimumToken(), Murmur3Partitioner.instance.getMinimumToken());
-            MutationSummary summary = summaryForRange(keyspaceName, tableName, range);
-
-
-            TreeSet<MutationId> ids = new TreeSet<>();
-            summary.ids.values().forEach(ids::addAll);
-            if (ids == null || ids.isEmpty())
-                return new byte[][] {};
-
-            byte[][] result = new byte[ids.size()][];
-            int idx = 0;
-            for (MutationId id : ids)
-            {
-                result[idx++] = encodeId(id);
-            }
-            return result;
-        });
-
-        SortedSet<MutationId> result = new TreeSet<>();
-        for (byte[] encodedId : encodedIds)
-            result.add(decodeId(encodedId));
-        return result;
+        Assert.assertEquals(expected.size(), summary.unreconciledIds());
+        for (MutationId id : expected)
+        {
+            if (!summary.contains(id))
+                throw new AssertionError(String.format("%s doesn't contain %s", summary, id));
+        }
     }
 
     public static void assertIdsForKey(IInvokableInstance node, String keyspaceName, String tableName, int key, Set<MutationId> expected)
     {
-        Set<MutationId> actual = getIdsForKey(node, keyspaceName, tableName, key);
-        Assert.assertEquals(expected, actual);
+        MutationSummary summary = summaryForKey(node, keyspaceName, tableName, key);
+        assertSummaryContents(summary, expected);
+    }
+
+    public static void assertMatchingSummaryForKey(IInvokableInstance node, String keyspaceName, String tableName, int key, MutationSummary expected)
+    {
+        byte[] encodedExpected = encodeSummary(expected);
+        node.runOnInstance(() -> {
+            MutationSummary decodedExpected = decodeSummary(encodedExpected);
+            MutationSummary actual = summaryForKey(keyspaceName, tableName, key);
+            Assert.assertEquals(decodedExpected, actual);
+        });
+    }
+
+    public static void assertMatchingSummaryForTable(IInvokableInstance node, String keyspaceName, String tableName, MutationSummary expected)
+    {
+        byte[] encodedExpected = encodeSummary(expected);
+        node.runOnInstance(() -> {
+            MutationSummary decodedExpected = decodeSummary(encodedExpected);
+            MutationSummary actual = summaryForTable(keyspaceName, tableName);
+            Assert.assertEquals(decodedExpected, actual);
+        });
+    }
+
+    public static void assertOffsetsIsSuperSet(Offsets expectedSuperset, Offsets expectedSubset)
+    {
+        Offsets diff = Offsets.difference(expectedSubset, expectedSuperset);
+        if (!diff.isEmpty())
+        {
+            String msg = String.format("%s not a super set of %s\n", expectedSuperset, expectedSubset);
+            msg = msg + String.format("%s found in expected subset that are not in the expected superset", diff);
+            throw new AssertionError(msg);
+        }
+    }
+
+    public static void assertSummaryIsUnreconciledSuperSet(MutationSummary expectedSuperset, MutationSummary expectedSubset)
+    {
+        for (int i = 0; i < expectedSubset.size(); i++)
+        {
+            CoordinatorSummary subset = expectedSubset.get(i);
+            CoordinatorSummary superset = expectedSuperset.get(subset.logId);
+
+            if (superset == null)
+                throw new AssertionError(String.format("Coordinator summary for %s found in expected subset and not in expected superset", subset.logId));
+
+            assertOffsetsIsSuperSet(superset.unreconciled, subset.unreconciled);
+        }
     }
 
     public static void assertIdsForTable(IInvokableInstance node, String keyspaceName, String tableName, Set<MutationId> expected)
     {
-        Set<MutationId> actual = getIdsForTable(node, keyspaceName, tableName);
-        Assert.assertEquals(expected, actual);
+        MutationSummary summary = summaryForTable(node, keyspaceName, tableName);
+        assertSummaryContents(summary, expected);
     }
 
     public static long numLogReconciliations(IInvokableInstance node)

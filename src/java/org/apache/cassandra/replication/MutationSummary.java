@@ -29,6 +29,7 @@ import org.apache.cassandra.schema.TableId;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Comparator;
+import java.util.Objects;
 
 public class MutationSummary
 {
@@ -45,6 +46,35 @@ public class MutationSummary
             this.logId = logId;
             this.reconciled = reconciled;
             this.unreconciled = unreconciled;
+        }
+
+        @Override
+        public boolean equals(Object o)
+        {
+            if (o == null || getClass() != o.getClass()) return false;
+            CoordinatorSummary summary = (CoordinatorSummary) o;
+            return Objects.equals(logId, summary.logId) && Objects.equals(reconciled, summary.reconciled) && Objects.equals(unreconciled, summary.unreconciled);
+        }
+
+        @Override
+        public int hashCode()
+        {
+            return Objects.hash(logId, reconciled, unreconciled);
+        }
+
+        @Override
+        public String toString()
+        {
+            return "CoordinatorSummary{" +
+                    "logId=" + logId +
+                    ", reconciled=" + reconciled +
+                    ", unreconciled=" + unreconciled +
+                    '}';
+        }
+
+        public static Comparator<CoordinatorSummary> idComparator()
+        {
+            return idComparator;
         }
 
         boolean contains(int offset)
@@ -158,6 +188,29 @@ public class MutationSummary
         this.summaries = summaries;
     }
 
+    @Override
+    public boolean equals(Object o)
+    {
+        if (o == null || getClass() != o.getClass()) return false;
+        MutationSummary summary = (MutationSummary) o;
+        return Objects.equals(tableId, summary.tableId) && Objects.deepEquals(summaries, summary.summaries);
+    }
+
+    @Override
+    public int hashCode()
+    {
+        return Objects.hash(tableId, Arrays.hashCode(summaries));
+    }
+
+    @Override
+    public String toString()
+    {
+        return "MutationSummary{" +
+                "tableId=" + tableId +
+                ", summaries=" + Arrays.toString(summaries) +
+                '}';
+    }
+
     public TableId tableId()
     {
         return tableId;
@@ -176,13 +229,21 @@ public class MutationSummary
         return digest.digest();
     }
 
-    boolean contains(MutationId id)
+    public boolean contains(MutationId id)
     {
         CoordinatorSummary summary = coordinatorSummaryMap.get(id.logId);
         return summary != null && summary.contains(id.offset());
     }
 
-    int size()
+    public int unreconciledIds()
+    {
+        int count = 0;
+        for (CoordinatorSummary summary : summaries)
+            count += summary.unreconciled.offsetCount();
+        return count;
+    }
+
+    public int size()
     {
         return summaries.length;
     }
@@ -192,9 +253,14 @@ public class MutationSummary
         return size() == 0;
     }
 
-    CoordinatorSummary get(int i)
+    public CoordinatorSummary get(int i)
     {
         return summaries[i];
+    }
+
+    public CoordinatorSummary get(CoordinatorLogId logId)
+    {
+        return coordinatorSummaryMap.get(logId.asLong());
     }
 
     public static final IVersionedSerializer<MutationSummary> serializer = new IVersionedSerializer<>()

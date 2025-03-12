@@ -21,14 +21,13 @@ package org.apache.cassandra.distributed.test.tracking;
 import java.util.UUID;
 import java.util.concurrent.TimeoutException;
 
-import com.google.common.collect.Iterables;
+import org.apache.cassandra.replication.MutationSummary;
 import org.junit.Assert;
 import org.junit.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.db.DecoratedKey;
-import org.apache.cassandra.replication.MutationId;
 import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
@@ -47,8 +46,6 @@ import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.ClusterMetadataService;
 import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.utils.ByteBufferUtil;
-
-import static org.apache.cassandra.distributed.test.tracking.MutationTrackingUtils.*;
 
 public class MutationTrackingTest extends TestBaseImpl
 {
@@ -79,14 +76,12 @@ public class MutationTrackingTest extends TestBaseImpl
 
             cluster.coordinator(1).execute(withKeyspace("INSERT INTO %s.tbl (k, v) VALUES (1, 1)"), ConsistencyLevel.QUORUM);
 
-            MutationId id = decodeId(cluster.get(1).callOnInstance(() -> {
+            cluster.get(1).runOnInstance(() -> {
                 TableMetadata table = Schema.instance.getTableMetadata(keyspaceName, "tbl");
                 DecoratedKey dk = Murmur3Partitioner.instance.decorateKey(ByteBufferUtil.bytes(1));
-                SimpleMutationSummary summary = (SimpleMutationSummary) MutationTrackingService.instance().summaryForKey(table.id, dk);
-                return encodeId(Iterables.getOnlyElement(summary.ids.get(dk)));
-            }));
-
-            logger.info(">>> Mutation id: {}", id);
+                MutationSummary summary = MutationTrackingService.instance().summaryForKey(table.id, dk);
+                Assert.assertEquals(1, summary.unreconciledIds());
+            });
         }
     }
 
