@@ -25,8 +25,8 @@ import com.google.common.base.Preconditions;
 
 import org.apache.cassandra.db.filter.DataLimits;
 import org.apache.cassandra.index.Index;
+import org.apache.cassandra.replication.MutationTracker.PendingRead;
 import org.apache.cassandra.replication.MutationTrackingService;
-import org.apache.cassandra.replication.PendingRead;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.utils.MonotonicClock;
 import org.apache.cassandra.utils.concurrent.OpOrder;

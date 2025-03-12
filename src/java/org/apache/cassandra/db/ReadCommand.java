@@ -32,7 +32,7 @@ import com.google.common.base.Preconditions;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Sets;
 
-import org.apache.cassandra.replication.PendingRead;
+import org.apache.cassandra.replication.MutationTracker.PendingRead;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
