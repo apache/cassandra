@@ -313,7 +313,7 @@ public class AutoRepair
                     boolean success = false;
                     int retryCount = 0;
                     Future<?> f = null;
-                    while (retryCount <= config.getRepairMaxRetries())
+                    while (retryCount <= config.getRepairMaxRetries(repairType))
                     {
                         RepairCoordinator task = repairState.getRepairRunnable(keyspaceName,
                                                                             Lists.newArrayList(curRepairAssignment.getTableNames()),
@@ -336,14 +336,14 @@ public class AutoRepair
                         {
                             break;
                         }
-                        else if (retryCount < config.getRepairMaxRetries())
+                        else if (retryCount < config.getRepairMaxRetries(repairType))
                         {
                             boolean cancellationStatus = f.cancel(true);
                             logger.warn("Repair failed for range {}-{} for {} tables {} with cancellationStatus: {} retrying after {} seconds...",
                                         tokenRange.left, tokenRange.right,
                                         keyspaceName, curRepairAssignment.getTableNames(),
-                                        cancellationStatus, config.getRepairRetryBackoff().toSeconds());
-                            sleepFunc.accept(config.getRepairRetryBackoff().toSeconds(), TimeUnit.SECONDS);
+                                        cancellationStatus, config.getRepairRetryBackoff(repairType).toSeconds());
+                            sleepFunc.accept(config.getRepairRetryBackoff(repairType).toSeconds(), TimeUnit.SECONDS);
                         }
                         retryCount++;
                     }

@@ -87,12 +87,6 @@ public class SetAutoRepairConfig extends NodeToolCmd
             case "history_clear_delete_hosts_buffer_interval":
                 probe.setAutoRepairHistoryClearDeleteHostsBufferDuration(paramVal);
                 return;
-            case "repair_max_retries":
-                probe.setAutoRepairMaxRetriesCount(Integer.parseInt(paramVal));
-                return;
-            case "repair_retry_backoff":
-                probe.setAutoRepairRetryBackoff(paramVal);
-                return;
             case "min_repair_task_duration":
                 probe.setAutoRepairMinRepairTaskDuration(paramVal);
                 return;
@@ -162,6 +156,12 @@ public class SetAutoRepairConfig extends NodeToolCmd
                 break;
             case "repair_by_keyspace":
                 probe.setAutoRepairRepairByKeyspace(repairTypeStr, Boolean.parseBoolean(paramVal));
+                break;
+            case "repair_max_retries":
+                probe.setAutoRepairMaxRetriesCount(repairTypeStr, Integer.parseInt(paramVal));
+                break;
+            case "repair_retry_backoff":
+                probe.setAutoRepairRetryBackoff(repairTypeStr, paramVal);
                 break;
             default:
                 throw new IllegalArgumentException("Unknown parameter: " + paramType);

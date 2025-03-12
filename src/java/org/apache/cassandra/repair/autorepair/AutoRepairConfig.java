@@ -56,10 +56,6 @@ public class AutoRepairConfig implements Serializable
     // The scheduler needs to adjust its order when nodes leave the ring. Deleted hosts are tracked in metadata
     // for a specified duration to ensure they are indeed removed before adjustments are made to the schedule.
     public volatile DurationSpec.IntSecondsBound history_clear_delete_hosts_buffer_interval = new DurationSpec.IntSecondsBound("2h");
-    // Maximum number of retries for a repair session.
-    public volatile Integer repair_max_retries = 3;
-    // Backoff time before retrying a repair session.
-    public volatile DurationSpec.LongSecondsBound repair_retry_backoff = new DurationSpec.LongSecondsBound("30s");
     // Minimum duration for the execution of a single repair task. This prevents the scheduler from overwhelming
     // the node by scheduling too many repair tasks in a short period of time.
     public volatile DurationSpec.LongSecondsBound repair_task_min_duration = new DurationSpec.LongSecondsBound("5s");
@@ -167,26 +163,6 @@ public class AutoRepairConfig implements Serializable
     public void setAutoRepairHistoryClearDeleteHostsBufferInterval(String duration)
     {
         history_clear_delete_hosts_buffer_interval = new DurationSpec.IntSecondsBound(duration);
-    }
-
-    public int getRepairMaxRetries()
-    {
-        return repair_max_retries;
-    }
-
-    public void setRepairMaxRetries(int maxRetries)
-    {
-        repair_max_retries = maxRetries;
-    }
-
-    public DurationSpec.LongSecondsBound getRepairRetryBackoff()
-    {
-        return repair_retry_backoff;
-    }
-
-    public void setRepairRetryBackoff(String interval)
-    {
-        repair_retry_backoff = new DurationSpec.LongSecondsBound(interval);
     }
 
     public DurationSpec.LongSecondsBound getRepairTaskMinDuration()
@@ -360,6 +336,26 @@ public class AutoRepairConfig implements Serializable
         getOptions(repairType).repair_session_timeout = new DurationSpec.IntSecondsBound(repairSessionTimeout);
     }
 
+    public int getRepairMaxRetries(RepairType repairType)
+    {
+        return applyOverrides(repairType, opt -> opt.repair_max_retries);
+    }
+
+    public void setRepairMaxRetries(RepairType repairType, int maxRetries)
+    {
+        getOptions(repairType).repair_max_retries = maxRetries;
+    }
+
+    public DurationSpec.LongSecondsBound getRepairRetryBackoff(RepairType repairType)
+    {
+        return applyOverrides(repairType, opt -> opt.repair_retry_backoff);
+    }
+
+    public void setRepairRetryBackoff(RepairType repairType, String interval)
+    {
+        getOptions(repairType).repair_retry_backoff = new DurationSpec.LongSecondsBound(interval);
+    }
+
     @VisibleForTesting
     static IAutoRepairTokenRangeSplitter newAutoRepairTokenRangeSplitter(RepairType repairType, ParameterizedClass parameterizedClass) throws ConfigurationException
     {
@@ -505,6 +501,10 @@ public class AutoRepairConfig implements Serializable
         public volatile DurationSpec.IntSecondsBound initial_scheduler_delay;
         // Timeout for resuming stuck repair sessions.
         public volatile DurationSpec.IntSecondsBound repair_session_timeout;
+        // Maximum number of retries for a repair session.
+        public volatile Integer repair_max_retries = 3;
+        // Backoff time before retrying a repair session.
+        public volatile DurationSpec.LongSecondsBound repair_retry_backoff = new DurationSpec.LongSecondsBound("30s");
 
         public String toString()
         {
