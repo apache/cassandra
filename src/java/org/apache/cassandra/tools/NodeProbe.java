@@ -2193,16 +2193,6 @@ public class NodeProbe implements AutoCloseable
         autoRepairProxy.startScheduler();
     }
 
-    public void setAutoRepairMaxRetriesCount(int retries)
-    {
-        autoRepairProxy.setAutoRepairMaxRetriesCount(retries);
-    }
-
-    public void setAutoRepairRetryBackoff(String interval)
-    {
-        autoRepairProxy.setAutoRepairRetryBackoff(interval);
-    }
-
     public void setAutoRepairMinRepairTaskDuration(String duration)
     {
         autoRepairProxy.setAutoRepairMinRepairTaskDuration(duration);
@@ -2266,6 +2256,16 @@ public class NodeProbe implements AutoCloseable
     public void setAutoRepairRepairByKeyspace(String repairType, boolean enabled)
     {
         autoRepairProxy.setRepairByKeyspace(repairType, enabled);
+    }
+
+    public void setAutoRepairMaxRetriesCount(String repairType, int retries)
+    {
+        autoRepairProxy.setAutoRepairMaxRetriesCount(repairType, retries);
+    }
+
+    public void setAutoRepairRetryBackoff(String repairType, String interval)
+    {
+        autoRepairProxy.setAutoRepairRetryBackoff(repairType, interval);
     }
 }
 

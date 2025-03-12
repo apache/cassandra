@@ -95,25 +95,6 @@ public class SetAutoRepairConfigTest
             verify(probe, times(1)).setAutoRepairHistoryClearDeleteHostsBufferDuration("1s");
         }
 
-        @Test
-        public void testRepairMaxRetries()
-        {
-            cmd.args = ImmutableList.of("repair_max_retries", "2");
-
-            cmd.execute(probe);
-
-            verify(probe, times(1)).setAutoRepairMaxRetriesCount(2);
-        }
-
-        @Test
-        public void testRetryBackoffInSec()
-        {
-            cmd.args = ImmutableList.of("repair_retry_backoff", "3s");
-
-            cmd.execute(probe);
-
-            verify(probe, times(1)).setAutoRepairRetryBackoff("3s");
-        }
 
         @Test
         public void testMinRepairDuration()
@@ -125,7 +106,6 @@ public class SetAutoRepairConfigTest
             verify(probe, times(1)).setAutoRepairMinRepairTaskDuration("4s");
         }
 
-        @Test
         public void testStartScheduler()
         {
             cmd.args = ImmutableList.of("start_scheduler", "false");
@@ -286,7 +266,9 @@ public class SetAutoRepairConfigTest
             forEachRepairType("parallel_repair_percentage", "7", (type) -> verify(probe, times(1)).setAutoRepairParallelRepairPercentage(type.name(), 7)),
             forEachRepairType("materialized_view_repair_enabled", "true", (type) -> verify(probe, times(1)).setAutoRepairMaterializedViewRepairEnabled(type.name(), true)),
             forEachRepairType("ignore_dcs", "dc1,dc2", (type) -> verify(probe, times(1)).setAutoRepairIgnoreDCs(type.name(), ImmutableSet.of("dc1", "dc2"))),
-            forEachRepairType("token_range_splitter.max_bytes_per_schedule", "500GiB", (type) -> verify(probe, times(1)).setAutoRepairTokenRangeSplitterParameter(type.name(), "max_bytes_per_schedule", "500GiB"))
+            forEachRepairType("token_range_splitter.max_bytes_per_schedule", "500GiB", (type) -> verify(probe, times(1)).setAutoRepairTokenRangeSplitterParameter(type.name(), "max_bytes_per_schedule", "500GiB")),
+            forEachRepairType("repair_max_retries", "3", (type) -> verify(probe, times(1)).setAutoRepairMaxRetriesCount(type.name(), 3)),
+            forEachRepairType("repair_retry_backoff", "60s", (type) -> verify(probe, times(1)).setAutoRepairRetryBackoff(type.name(), "60s"))
             ).flatMap(Function.identity()).collect(Collectors.toList());
         }
 
