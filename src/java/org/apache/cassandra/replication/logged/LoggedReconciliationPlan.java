@@ -25,7 +25,7 @@ import org.apache.cassandra.replication.CoordinatorLogId;
 import org.apache.cassandra.replication.MutationSummary;
 import org.apache.cassandra.replication.Offsets;
 import org.apache.cassandra.replication.ReconciliationPlan;
-import org.apache.cassandra.replication.logged.LoggedMutationSummary.CoordinatorSummary;
+import org.apache.cassandra.replication.MutationSummary.CoordinatorSummary;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -92,10 +92,10 @@ public class LoggedReconciliationPlan implements ReconciliationPlan
     {
         final InetAddressAndPort node;
 
-        final LoggedMutationSummary summary;
+        final MutationSummary summary;
         final Map<InetAddressAndPort, PeerReconciliation.Builder> peerReconciliations = new HashMap<>();
 
-        public PlanBuilder(InetAddressAndPort node, LoggedMutationSummary summary)
+        public PlanBuilder(InetAddressAndPort node, MutationSummary summary)
         {
             this.node = node;
             this.summary = summary;
@@ -171,9 +171,8 @@ public class LoggedReconciliationPlan implements ReconciliationPlan
         Map<CoordinatorLogId, CoordinatorLogReconciliation> coordinatorReconciliations = new HashMap<>();
 
         // organize data by peer and log id
-        summaries.forEach((node, summary0) -> {
+        summaries.forEach((node, summary) -> {
 
-            LoggedMutationSummary summary = (LoggedMutationSummary) summary0;
             planBuilders.put(node, new PlanBuilder(node, summary));
 
             for (int i=0; i<summary.size(); i++)

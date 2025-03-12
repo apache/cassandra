@@ -23,7 +23,6 @@ import java.io.IOException;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
-import org.apache.cassandra.replication.simple.SimpleMutationSummary;
 import org.apache.cassandra.replication.simple.SimpleReconciliationPlan;
 import org.apache.cassandra.service.reads.logged.ReadReconciliations;
 
@@ -54,28 +53,6 @@ public class MutationTrackingService
     {
         reconciliations.shutdownBlocking();
     }
-
-    public static final IVersionedSerializer<MutationSummary> summarySerializer = new IVersionedSerializer<MutationSummary>()
-    {
-        @Override
-        public void serialize(MutationSummary summary, DataOutputPlus out, int version) throws IOException
-        {
-            SimpleMutationSummary.serializer.serialize((SimpleMutationSummary) summary, out, version);
-
-        }
-
-        @Override
-        public MutationSummary deserialize(DataInputPlus in, int version) throws IOException
-        {
-            return SimpleMutationSummary.serializer.deserialize(in, version);
-        }
-
-        @Override
-        public long serializedSize(MutationSummary summary, int version)
-        {
-            return SimpleMutationSummary.serializer.serializedSize((SimpleMutationSummary) summary, version);
-        }
-    };
 
     public static final IVersionedSerializer<ReconciliationPlan> reconciliationPlanSerializer = new IVersionedSerializer<ReconciliationPlan>()
     {

@@ -26,7 +26,6 @@ import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.replication.CoordinatorLog.CoordinatorLogPrimary;
-import org.apache.cassandra.replication.logged.LoggedMutationSummary;
 import org.apache.cassandra.tcm.Epoch;
 import org.jctools.maps.NonBlockingHashMapLong;
 
@@ -72,26 +71,26 @@ public class Shard
         get(logId).witnessedMutationsRemote(ranges, onHostId);
     }
 
-    public void addSummaryForKey(LoggedMutationSummary.Builder builder, Token token)
+    public void addSummaryForKey(MutationSummary.Builder builder, Token token)
     {
         logs.forEach((key, log) -> {
-            LoggedMutationSummary.CoordinatorSummary.Builder summaryBuilder = builder.builderForLog(log.logId);
+            MutationSummary.CoordinatorSummary.Builder summaryBuilder = builder.builderForLog(log.logId);
             log.lookUpUnreconciled(token, summaryBuilder.unreconciled, summaryBuilder.reconciled);
         });
     }
 
-    public void addSummaryForRange(LoggedMutationSummary.Builder builder, Range<Token> range)
+    public void addSummaryForRange(MutationSummary.Builder builder, Range<Token> range)
     {
         logs.forEach((key, log) -> {
-            LoggedMutationSummary.CoordinatorSummary.Builder summaryBuilder = builder.builderForLog(log.logId);
+            MutationSummary.CoordinatorSummary.Builder summaryBuilder = builder.builderForLog(log.logId);
             log.lookUpUnreconciled(range, summaryBuilder.unreconciled, summaryBuilder.reconciled);
         });
     }
 
-    public void addSummaryForRange(LoggedMutationSummary.Builder builder, AbstractBounds<PartitionPosition> range)
+    public void addSummaryForRange(MutationSummary.Builder builder, AbstractBounds<PartitionPosition> range)
     {
         logs.forEach((key, log) -> {
-            LoggedMutationSummary.CoordinatorSummary.Builder summaryBuilder = builder.builderForLog(log.logId);
+            MutationSummary.CoordinatorSummary.Builder summaryBuilder = builder.builderForLog(log.logId);
             log.lookUpUnreconciled(range, summaryBuilder.unreconciled, summaryBuilder.reconciled);
         });
     }

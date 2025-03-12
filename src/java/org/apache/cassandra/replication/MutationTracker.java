@@ -32,7 +32,6 @@ import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.locator.InetAddressAndPort;
-import org.apache.cassandra.replication.logged.LoggedMutationSummary;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.tcm.ClusterMetadata;
@@ -66,7 +65,7 @@ public class MutationTracker
     {
         String keyspace = Schema.instance.getTableMetadata(tableId).keyspace;
 
-        LoggedMutationSummary.Builder summaryBuilder = new LoggedMutationSummary.Builder(tableId);
+        MutationSummary.Builder summaryBuilder = new MutationSummary.Builder(tableId);
 
         Shard shard = Shards.instance.lookUp(keyspace, key.getToken());
         shard.addSummaryForKey(summaryBuilder, key.getToken());
@@ -78,7 +77,7 @@ public class MutationTracker
     {
         String keyspace = Schema.instance.getTableMetadata(tableId).keyspace;
 
-        LoggedMutationSummary.Builder summaryBuilder = new LoggedMutationSummary.Builder(tableId);
+        MutationSummary.Builder summaryBuilder = new MutationSummary.Builder(tableId);
 
         Shards.instance.forEachIntersectingShard(keyspace, range, shard -> shard.addSummaryForRange(summaryBuilder, range));
 

@@ -22,7 +22,6 @@ import com.google.common.collect.Sets;
 import org.apache.cassandra.db.Mutation;
 import org.apache.cassandra.db.ReadCommand;
 import org.apache.cassandra.db.partitions.UnfilteredPartitionIterator;
-import org.apache.cassandra.replication.simple.SimpleMutationSummary;
 import org.apache.cassandra.schema.Schema;
 
 import java.util.ArrayList;
@@ -75,14 +74,13 @@ public class PendingWrites
         @Override
         public UnfilteredPartitionIterator augmentResponseWithPendingWrites(UnfilteredPartitionIterator iterator, MutationSummary summary)
         {
-            SimpleMutationSummary mutationSummary = (SimpleMutationSummary) summary;
-            if (pendingWrites.isEmpty() || mutationSummary.isEmpty())
+            if (pendingWrites.isEmpty() || summary.isEmpty())
                 return iterator;
 
             List<Mutation> augmentingMutations = new ArrayList<>(pendingWrites.size());
             for (Mutation mutation : pendingWrites.values())
             {
-                if (mutationSummary.allIds.contains(mutation.id()))
+                if (summary.allIds.contains(mutation.id()))
                     augmentingMutations.add(mutation);
             }
             return command.augmentResultWithMutations(iterator, augmentingMutations);

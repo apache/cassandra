@@ -33,7 +33,6 @@ import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.replication.MutationSummary;
-import org.apache.cassandra.replication.MutationTrackingService;
 import org.apache.cassandra.replication.PendingRead;
 import org.apache.cassandra.service.reads.IReadResponse;
 import org.apache.cassandra.utils.ByteBufferUtil;
@@ -189,7 +188,7 @@ public class LoggedReadResponse implements IReadResponse
         public void serialize(LoggedReadResponse response, DataOutputPlus out, int version) throws IOException
         {
             out.writeBoolean(response.isDataResponse());
-            MutationTrackingService.summarySerializer.serialize(response.summary, out, version);
+            MutationSummary.serializer.serialize(response.summary, out, version);
             if (response.isDataResponse())
                 ByteBufferUtil.writeWithVIntLength(response.asDataResponse().data, out);
         }
@@ -198,7 +197,7 @@ public class LoggedReadResponse implements IReadResponse
         public LoggedReadResponse deserialize(DataInputPlus in, int version) throws IOException
         {
             boolean dataResponse = in.readBoolean();
-            MutationSummary summary = MutationTrackingService.summarySerializer.deserialize(in, version);
+            MutationSummary summary = MutationSummary.serializer.deserialize(in, version);
 
             if (!dataResponse)
                 return new LoggedReadResponse(summary);
@@ -211,7 +210,7 @@ public class LoggedReadResponse implements IReadResponse
         public long serializedSize(LoggedReadResponse response, int version)
         {
             long size = TypeSizes.BOOL_SIZE; // is data response
-            size += MutationTrackingService.summarySerializer.serializedSize(response.summary, version);
+            size += MutationSummary.serializer.serializedSize(response.summary, version);
             if (response.isDataResponse())
                 size += ByteBufferUtil.serializedSizeWithVIntLength(response.asDataResponse().data);
 
