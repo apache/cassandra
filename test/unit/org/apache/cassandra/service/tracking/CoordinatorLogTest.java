@@ -39,25 +39,24 @@ public class CoordinatorLogTest
         return new Murmur3Partitioner.LongToken(t);
     }
 
-    private static SequenceIds toSequenceIdSet(MutationId... ids)
+    private static Offsets toOffsets(MutationId... ids)
     {
-        SequenceIds list = new SequenceIds();
+        Offsets list = new Offsets();
         for (MutationId id : ids)
-            list.append(id.sequenceId());
-
+            list.append(id.offset());
         return list;
     }
 
-    private static void assertUnreconciled(Token token, CoordinatorLog log, SequenceIds expectedReconciled, MutationId... expectedIds)
+    private static void assertUnreconciled(Token token, CoordinatorLog log, Offsets expectedReconciled, MutationId... expectedIds)
     {
-        SequenceIds reconciled = new SequenceIds();
-        SequenceIds unreconciled = new SequenceIds();
+        Offsets reconciled = new Offsets();
+        Offsets unreconciled = new Offsets();
         log.lookUpUnreconciled(token, unreconciled, reconciled);
 
         for (MutationId mid : expectedIds)
-            Assert.assertTrue(unreconciled.contains(mid.sequenceId()));
+            Assert.assertTrue(unreconciled.contains(mid.offset()));
 
-        Assert.assertEquals(toSequenceIdSet(expectedIds), unreconciled);
+        Assert.assertEquals(toOffsets(expectedIds), unreconciled);
         Assert.assertEquals(expectedReconciled, reconciled);
     }
 
@@ -75,14 +74,14 @@ public class CoordinatorLogTest
         for (MutationId id : ids)
             log.witnessedMutationLocal(id, tk);
 
-        SequenceIds reconciled = new SequenceIds();
+        Offsets reconciled = new Offsets();
         assertUnreconciled(tk, log, reconciled, ids);
 
         log.witnessedMutationRemote(ids[0], PARTICIPANTS.get(1));
         assertUnreconciled(tk, log, reconciled, ids);
 
         log.witnessedMutationRemote(ids[0], PARTICIPANTS.get(2));
-        reconciled.add(ids[0].sequenceId());
+        reconciled.add(ids[0].offset());
         assertUnreconciled(tk, log, reconciled, ids[1], ids[2]);
     }
 }

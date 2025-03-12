@@ -39,10 +39,10 @@ public abstract class CoordinatorLog
     /**
      * Id <-> token index for unreconciled mutation ids.
      */
-    private final IdTokenIndex index;
+    private final OffsetTokenIndex index;
 
-    protected final SequenceIds[] witnessedIds;
-    protected final SequenceIds reconciledIds;
+    protected final Offsets[] witnessedIds;
+    protected final Offsets reconciledIds;
     protected final ReadWriteLock lock;
 
     CoordinatorLog(int localHostId, CoordinatorLogId logId, Participants participants)
@@ -50,14 +50,14 @@ public abstract class CoordinatorLog
         this.localHostId = localHostId;
         this.logId = logId;
         this.participants = participants;
-        this.index = new IdTokenIndex();
+        this.index = new OffsetTokenIndex();
         this.lock = new ReentrantReadWriteLock();
 
-        SequenceIds[] ids = new SequenceIds[participants.size()];
+        Offsets[] ids = new Offsets[participants.size()];
         for (int i = 0; i < participants.size(); i++)
-            ids[i] = new SequenceIds();
+            ids[i] = new Offsets();
         witnessedIds = ids;
-        reconciledIds = new SequenceIds();
+        reconciledIds = new Offsets();
     }
 
     static CoordinatorLog create(int localHostId, CoordinatorLogId id, Participants participants)
@@ -66,7 +66,7 @@ public abstract class CoordinatorLog
                                         : new CoordinatorLogReplica(localHostId, id, participants);
     }
 
-    void witnessedMutationsRemote(SequenceIds ranges, int onHostId)
+    void witnessedMutationsRemote(Offsets ranges, int onHostId)
     {
         lock.writeLock().lock();
         try
@@ -85,10 +85,10 @@ public abstract class CoordinatorLog
         lock.writeLock().lock();
         try
         {
-            if (!get(onHostId).add(mutationId.sequenceId()))
+            if (!get(onHostId).add(mutationId.offset()))
                 return; // already witnessed
 
-            if (!get(localHostId).contains(mutationId.sequenceId()))
+            if (!get(localHostId).contains(mutationId.offset()))
                 return; // local host hasn't witnessed -> hasn't indexed -> no index cleanup needed
 
             // see if any other replicas haven't witnessed the id yet
@@ -96,15 +96,15 @@ public abstract class CoordinatorLog
             for (int i = 0; i < participants.size() && allOtherReplicasWitnessed; i++)
             {
                 int hostId = participants.get(i);
-                if (hostId != onHostId && hostId != localHostId && !get(hostId).contains(mutationId.sequenceId()))
+                if (hostId != onHostId && hostId != localHostId && !get(hostId).contains(mutationId.offset()))
                     allOtherReplicasWitnessed = false;
             }
 
             if (allOtherReplicasWitnessed)
             {
                 // if all replicas have now witnessed the id, remove in from the index
-                index.invalidate(mutationId.sequenceId());
-                reconciledIds.add(mutationId.sequenceId());
+                index.invalidate(mutationId.offset());
+                reconciledIds.add(mutationId.offset());
             }
         }
         finally
@@ -118,7 +118,7 @@ public abstract class CoordinatorLog
         lock.writeLock().lock();
         try
         {
-            if (!get(localHostId).add(mutationId.sequenceId()))
+            if (!get(localHostId).add(mutationId.offset()))
                 return; // already witnessed
 
             // see if any other replicas haven't witnessed the id yet
@@ -126,7 +126,7 @@ public abstract class CoordinatorLog
             for (int i = 0; i < participants.size() && allOtherReplicasWitnessed; i++)
             {
                 int hostId = participants.get(i);
-                if (hostId != localHostId && !get(hostId).contains(mutationId.sequenceId()))
+                if (hostId != localHostId && !get(hostId).contains(mutationId.offset()))
                     allOtherReplicasWitnessed = false;
             }
 
@@ -134,11 +134,11 @@ public abstract class CoordinatorLog
             {
                 // if some replicas also haven't witnessed the mutation yet, we should update the token index;
                 // otherwise we are the last node to witness this mutation, and don't need to update the index
-                index.update(mutationId.sequenceId(), token);
+                index.update(mutationId.offset(), token);
             }
             else
             {
-                reconciledIds.add(mutationId.sequenceId());
+                reconciledIds.add(mutationId.offset());
             }
         }
         finally
@@ -156,7 +156,7 @@ public abstract class CoordinatorLog
      * Look up unreconciled sequence ids of mutations witnessed by this host in this coordinataor log.
      * Adds the ids to the supplied collection, so it can be reused to aggregate lookups for multiple logs.
      */
-    boolean lookUpUnreconciled(Token token, SequenceIds unreconciled, SequenceIds reconciled)
+    boolean lookUpUnreconciled(Token token, Offsets unreconciled, Offsets reconciled)
     {
         lock.readLock().lock();
         try
@@ -174,7 +174,7 @@ public abstract class CoordinatorLog
      * Look up unreconciled sequence ids of mutations witnessed by this host in this coordinataor log.
      * Adds the ids to the supplied collection, so it can be reused to aggregate lookups for multiple logs.
      */
-    boolean lookUpUnreconciled(Range<Token> range, SequenceIds into, SequenceIds reconciled)
+    boolean lookUpUnreconciled(Range<Token> range, Offsets into, Offsets reconciled)
     {
         lock.readLock().lock();
         try
@@ -192,7 +192,7 @@ public abstract class CoordinatorLog
      * Look up unreconciled sequence ids of mutations witnessed by this host in this coordinataor log.
      * Adds the ids to the supplied collection, so it can be reused to aggregate lookups for multiple logs.
      */
-    boolean lookUpUnreconciled(AbstractBounds<PartitionPosition> range, SequenceIds into, SequenceIds reconciled)
+    boolean lookUpUnreconciled(AbstractBounds<PartitionPosition> range, Offsets into, Offsets reconciled)
     {
         lock.readLock().lock();
         try
@@ -206,7 +206,7 @@ public abstract class CoordinatorLog
         }
     }
 
-    protected SequenceIds get(int hostId)
+    protected Offsets get(int hostId)
     {
         return witnessedIds[participants.indexOf(hostId)];
     }

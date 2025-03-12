@@ -145,11 +145,6 @@ public class MutationId implements Comparable<MutationId>
         return '<' + Integer.toString(offset(sequence)) + ',' + Integer.toString(timestamp(sequence)) + '>';
     }
 
-    public static StringBuilder sequenceString(StringBuilder sb, long sequence)
-    {
-        return sb.append('<').append(offset(sequence)).append(',').append(timestamp(sequence)).append('>');
-    }
-
     @Override
     public int compareTo(MutationId that)
     {

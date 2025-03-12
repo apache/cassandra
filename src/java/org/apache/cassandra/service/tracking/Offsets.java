@@ -19,7 +19,6 @@ package org.apache.cassandra.service.tracking;
 
 import com.google.common.base.Preconditions;
 import org.apache.cassandra.db.Digest;
-import org.apache.cassandra.db.MutationId;
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
@@ -28,29 +27,31 @@ import org.apache.cassandra.io.util.DataOutputPlus;
 import java.io.IOException;
 import java.util.Arrays;
 
-import static org.apache.cassandra.db.MutationId.*;
-
-public class SequenceIds
+public class Offsets
 {
     private static final int INITIAL_CAPACITY = 16;
 
     // even index is range start, odd index is range end (inclusive)
-    private long[] bounds;
+    private int[] bounds;
     private int size;
 
-    public SequenceIds()
+    public Offsets()
     {
-        size = 0;
-        bounds = new long[INITIAL_CAPACITY];
+        this(INITIAL_CAPACITY);
     }
 
-    private SequenceIds(long[] bounds)
+    public Offsets(int capacity)
     {
-        this.bounds = bounds;
-        this.size = bounds.length;
+        this.size = 0;
+        this.bounds = new int[capacity];
     }
 
-    private SequenceIds(long[] bounds, int size)
+    private Offsets(int[] bounds)
+    {
+        this(bounds, bounds.length);
+    }
+
+    private Offsets(int[] bounds, int size)
     {
         this.bounds = bounds;
         this.size = size;
@@ -60,7 +61,7 @@ public class SequenceIds
     public boolean equals(Object o)
     {
         if (o == null || getClass() != o.getClass()) return false;
-        SequenceIds that = (SequenceIds) o;
+        Offsets that = (Offsets) o;
         return size == that.size && Arrays.equals(bounds, 0, size, that.bounds, 0, size);
     }
 
@@ -69,13 +70,13 @@ public class SequenceIds
     {
         int result = Integer.hashCode(size);
         for (int i = 0; i < size; i++)
-            result = 31 * result + Long.hashCode(bounds[i]);
+            result = 31 * result + Integer.hashCode(bounds[i]);
         return result;
     }
 
-    public SequenceIds copy()
+    public Offsets copy()
     {
-        return new SequenceIds(Arrays.copyOf(bounds, size));
+        return new Offsets(Arrays.copyOf(bounds, size));
     }
 
     public int rangeCount()
@@ -83,21 +84,21 @@ public class SequenceIds
         return size / 2;
     }
 
-    public boolean isEmpty()
-    {
-        return size == 0;
-    }
-
-    public int idCount()
+    public int offsetCount()
     {
         int count = 0, i = 0;
         while (i < size)
         {
-            long start = bounds[i++];
-            long   end = bounds[i++];
-            count += offset(end) - offset(start) + 1;
+            int start = bounds[i++];
+            int   end = bounds[i++];
+            count += end - start + 1;
         }
         return count;
+    }
+
+    public boolean isEmpty()
+    {
+        return size == 0;
     }
 
     @Override
@@ -107,94 +108,89 @@ public class SequenceIds
         int i = 0;
         while (i < size)
         {
-            long start = bounds[i++];
-            long   end = bounds[i++];
-            builder.append('[')
-                   .append('<').append(offset(start)).append(',').append(timestamp(start)).append('>')
-                   .append(',')
-                   .append('<').append(offset(end)).append(',').append(timestamp(end)).append('>')
-                   .append(']');
+            int start = bounds[i++];
+            int   end = bounds[i++];
+            builder.append('[').append(start).append(',').append(end).append(']');
             if (i < size) builder.append(',');
         }
-        builder.append('}');
-        return builder.toString();
+        return builder.append('}').toString();
     }
 
-    public boolean contains(long id)
+    public boolean contains(int offset)
     {
         if (size == 0)
             return false;
 
-        int pos = Arrays.binarySearch(bounds, 0, size, id);
+        int pos = Arrays.binarySearch(bounds, 0, size, offset);
         if (pos >= 0) return true; // matches one of the bounds
 
         pos = -pos - 1;
-        return (pos - 1) % 2 == 0; // id falls within bounds of an existing range if the bound to the left is an open one
+        return (pos - 1) % 2 == 0; // offset falls within bounds of an existing range if the bound to the left is an open one
     }
 
     public void digest(Digest digest)
     {
         digest.updateWithInt(size);
         for (int i = 0; i < size; i++)
-            digest.updateWithLong(bounds[i]);
+            digest.updateWithInt(bounds[i]);
     }
 
-    public void addAll(SequenceIds other, RangeConsumer onAdded)
+    public void addAll(Offsets other, RangeConsumer onAdded)
     {
         for (int i = 0; i < other.size; i += 2)
             add(other.bounds[i], other.bounds[i + 1], onAdded);
     }
 
-    public void addAll(SequenceIds other)
+    public void addAll(Offsets other)
     {
         addAll(other, RangeConsumer.NONE);
     }
 
-    public boolean add(long id, RangeConsumer onAdded)
+    public boolean add(int offset, RangeConsumer onAdded)
     {
-        boolean added = add(id);
-        if (added) onAdded.consume(id, id);
+        boolean added = add(offset);
+        if (added) onAdded.consume(offset, offset);
         return added;
     }
 
-    public boolean add(long id)
+    public boolean add(int offset)
     {
         if (size == 0)
         {
-            append(id, id);
+            append(offset, offset);
             return true;
         }
 
-        int pos = Arrays.binarySearch(bounds, 0, size, id);
+        int pos = Arrays.binarySearch(bounds, 0, size, offset);
         if (pos >= 0) return false; // matches one of the bounds
 
         pos = -pos - 1;
         if (pos == size) // after all existing ranges
         {
-            if (offset(bounds[size - 1]) == offset(id) - 1)
-                bounds[size - 1] = id; // extend the last range
+            if (bounds[size - 1] == offset - 1)
+                bounds[size - 1] = offset; // extend the last range
             else
-                append(id, id); // append a new single-id range
+                append(offset, offset); // append a new single-offset range
 
             return true;
         }
         else if (pos == 0) // before all existing ranges
         {
-            if (offset(bounds[0]) == offset(id) + 1)
-                bounds[0] = id; // extend the first range
+            if (bounds[0] == offset + 1)
+                bounds[0] = offset; // extend the first range
             else
-                insert(0, id, id); // prepend a new single-id range
+                insert(0, offset, offset); // prepend a new single-offset range
 
             return true;
         }
-        else if ((pos - 1) % 2 == 0) // id falls within bounds of an existing range (bound to the left is an open bound)
+        else if ((pos - 1) % 2 == 0) // offset falls within bounds of an existing range (bound to the left is an open bound)
         {
             return false;
         }
 
         // between two existing ranges
-        boolean extendsPrev = offset(bounds[pos - 1]) == offset(id) - 1;
-        boolean extendsNext = offset(bounds[pos]) == offset(id) + 1;
+        boolean extendsPrev = bounds[pos - 1] == offset - 1;
+        boolean extendsNext = bounds[pos] == offset + 1;
 
         if (extendsPrev && extendsNext) // closes the gap between two adjacent ranges
         {
@@ -205,15 +201,15 @@ public class SequenceIds
         }
         else if (extendsPrev)
         {
-            bounds[pos - 1] = id;
+            bounds[pos - 1] = offset;
         }
         else if (extendsNext)
         {
-            bounds[pos] = id;
+            bounds[pos] = offset;
         }
         else
         {
-            insert(pos, id, id);
+            insert(pos, offset, offset);
         }
 
         return true;
@@ -227,11 +223,6 @@ public class SequenceIds
     private static int rangeEnd(int range)
     {
         return rangeStart(range) + 1;
-    }
-
-    private static long sequenceId(int offset)
-    {
-        return MutationId.sequenceId(offset, 0);
     }
 
     private enum AddAction
@@ -259,7 +250,7 @@ public class SequenceIds
         }
     }
 
-    public boolean add(long start, long end, RangeConsumer onAdded)
+    public boolean add(final int start, final int end, RangeConsumer onAdded)
     {
         Preconditions.checkArgument(start <= end);
 
@@ -286,17 +277,16 @@ public class SequenceIds
 
         AddAction sMerge;
         {
-            int sOffset = offset(start);
-            int rStart = offset(bounds[rangeStart(sRange)]);
-            int rEnd = offset(bounds[rangeEnd(sRange)]);
-            if (sOffset >= rStart)
+            int rStart = bounds[rangeStart(sRange)];
+            int rEnd = bounds[rangeEnd(sRange)];
+            if (start >= rStart)
             {
                 // already included in the range or adjacent to range end
-                sMerge = sOffset <= rEnd + 1
-                        ? AddAction.INCLUDE  // included in the range
-                        : AddAction.INSERT; // past the end of the range
+                sMerge = start <= rEnd + 1
+                       ? AddAction.INCLUDE // included in the range
+                       : AddAction.INSERT; // past the end of the range
             }
-            else if (sRange > 0 && sOffset == offset(bounds[rangeEnd(sRange-1)]) + 1)
+            else if (sRange > 0 && start == bounds[rangeEnd(sRange - 1)] + 1)
             {
                 // adjacent to the previous range, so say we're included in it to merge
                 sRange--;
@@ -310,13 +300,12 @@ public class SequenceIds
 
         AddAction eMerge;
         {
-            int eOffset = offset(end);
-            int rStart = offset(bounds[rangeStart(eRange)]);
-            int rEnd = offset(bounds[rangeEnd(eRange)]);
+            int rStart = bounds[rangeStart(eRange)];
+            int rEnd = bounds[rangeEnd(eRange)];
 
-            if (eOffset <= rEnd)
+            if (end <= rEnd)
             {
-                if (eOffset >= rStart - 1)
+                if (end >= rStart - 1)
                 {
                     // included in the range or adjacent to range start
                     eMerge = AddAction.INCLUDE;
@@ -334,7 +323,7 @@ public class SequenceIds
                     eMerge = AddAction.INSERT;
                 }
             }
-            else if (eRange < numRanges - 1 && eOffset == offset(bounds[rangeStart(eRange+1)]) - 1)
+            else if (eRange < numRanges - 1 && end == bounds[rangeStart(eRange + 1)] - 1)
             {
                 // adjacent to the next range, so say we're included in it to merge
                 eRange++;
@@ -369,7 +358,7 @@ public class SequenceIds
         boolean adjusted = false;
         if (sMerge.isMove())
         {
-            onAdded.consume(start, sequenceId(offset(bounds[rangeStart(sRange)]) - 1));
+            onAdded.consume(start, bounds[rangeStart(sRange)] - 1);
             bounds[rangeStart(sRange)] = start;
             adjusted = true;
         }
@@ -384,9 +373,9 @@ public class SequenceIds
             // report merged ranges
             for (int i = sRange; i < eRange; i++)
             {
-                int sEnd = offset(bounds[rangeEnd(i)]);
-                int eStart = offset(bounds[rangeStart(i + 1)]);
-                onAdded.consume(sequenceId(sEnd + 1), sequenceId(eStart - 1));
+                int sEnd = bounds[rangeEnd(i)];
+                int eStart = bounds[rangeStart(i + 1)];
+                onAdded.consume(sEnd + 1, eStart - 1);
             }
 
             // move array back -
@@ -403,7 +392,7 @@ public class SequenceIds
 
         if (eMerge.isMove())
         {
-            onAdded.consume(sequenceId(offset(bounds[rangeEnd(eRange)]) + 1), end);
+            onAdded.consume(bounds[rangeEnd(eRange)] + 1, end);
             bounds[rangeEnd(eRange)] = end;
             adjusted = true;
         }
@@ -411,16 +400,16 @@ public class SequenceIds
         return adjusted;
     }
 
-    public boolean add(long start, long end)
+    public boolean add(int start, int end)
     {
         return add(start, end, RangeConsumer.NONE);
     }
 
-    private void insert(int pos, long start, long end)
+    private void insert(int pos, int start, int end)
     {
         if (bounds.length == size)
         {
-            long[] newBounds = new long[bounds.length * 2];
+            int[] newBounds = new int[bounds.length * 2];
             System.arraycopy(bounds, 0, newBounds, 0, pos);
             System.arraycopy(bounds, pos, newBounds, pos + 2, size - pos);
             bounds = newBounds;
@@ -434,11 +423,11 @@ public class SequenceIds
         size += 2;
     }
 
-    private void append(long start, long end)
+    private void append(int start, int end)
     {
         if (bounds.length == size)
         {
-            long[] newBounds = new long[bounds.length * 2];
+            int[] newBounds = new int[bounds.length * 2];
             System.arraycopy(bounds, 0, newBounds, 0, bounds.length);
             bounds = newBounds;
         }
@@ -446,63 +435,63 @@ public class SequenceIds
         bounds[size++] = end;
     }
 
-    public void append(long id)
+    public void append(int offset)
     {
         if (size == 0)
         {
-            append(id, id);
+            append(offset, offset);
             return;
         }
 
-        long tail = bounds[size - 1];
-        if (offset(id) <= offset(tail))
-            throw new IllegalArgumentException("Can't append " + MutationId.sequenceString(id) + " to " + MutationId.sequenceString(tail));
+        int tail = bounds[size - 1];
+        if (offset <= tail)
+            throw new IllegalArgumentException("Can't append " + offset + " to " + tail);
 
-        if (offset(id) == offset(tail) + 1)
-            bounds[size-1] = id;
+        if (offset == tail + 1)
+            bounds[size-1] = offset;
         else
-            append(id, id);
+            append(offset, offset);
     }
 
     private static class SetSupport
     {
-        private static final long NO_SPLIT_SENTINEL = Long.MIN_VALUE;
+        private static final int NO_SPLIT_SENTINEL = Integer.MIN_VALUE;
 
         private enum RangeOverlap
         {
             BEFORE, BEFORE_ADJACENT, AFTER, AFTER_ADJACENT, INTERSECTING
         }
 
-        private static RangeOverlap calculateRangeOverlap(long aSplit, long[] a, int aRange, long bSplit, long[] b, int bRange)
+        private static RangeOverlap calculateRangeOverlap(int aSplit, int[] a, int aRange, int bSplit, int[] b, int bRange)
         {
-            long aStart = aSplit != NO_SPLIT_SENTINEL ? aSplit : a[rangeStart(aRange)];
-            long aEnd = a[rangeEnd(aRange)];
+            int aStart = aSplit != NO_SPLIT_SENTINEL ? aSplit : a[rangeStart(aRange)];
+            int aEnd = a[rangeEnd(aRange)];
             Preconditions.checkState(aStart <= aEnd);
 
-            long bStart = bSplit != NO_SPLIT_SENTINEL ? bSplit : b[rangeStart(bRange)];
-            long bEnd = b[rangeEnd(bRange)];
+            int bStart = bSplit != NO_SPLIT_SENTINEL ? bSplit : b[rangeStart(bRange)];
+            int bEnd = b[rangeEnd(bRange)];
             Preconditions.checkState(bStart <= bEnd);
 
             if (aEnd < bStart)
-                return offset(aEnd) == offset(bStart) - 1 ? RangeOverlap.BEFORE_ADJACENT : RangeOverlap.BEFORE;
+                return aEnd == bStart - 1 ? RangeOverlap.BEFORE_ADJACENT : RangeOverlap.BEFORE;
 
             if (bEnd < aStart)
-                return offset(bEnd) == offset(aStart) - 1 ? RangeOverlap.AFTER_ADJACENT : RangeOverlap.AFTER;
+                return bEnd == aStart - 1 ? RangeOverlap.AFTER_ADJACENT : RangeOverlap.AFTER;
 
             return RangeOverlap.INTERSECTING;
         }
 
-        private static RangeOverlap calculateRangeOverlap(long[] a, int aRange, long[] b, int bRange)
+        private static RangeOverlap calculateRangeOverlap(int[] a, int aRange, int[] b, int bRange)
         {
             return calculateRangeOverlap(NO_SPLIT_SENTINEL, a, aRange, NO_SPLIT_SENTINEL, b, bRange);
 
         }
 
-        private static long[] ensureCapacity(long[] ids, int capacity, int expectedMaxCapacity)
+        private static int[] ensureCapacity(int[] offsets, int capacity, int expectedMaxCapacity)
         {
             Preconditions.checkArgument(capacity > 0);
-            if (capacity <= ids.length)
-                return ids;
+            if (capacity <= offsets.length)
+                return offsets;
 
             int newCapacity = capacity * 2;
 
@@ -510,25 +499,25 @@ public class SequenceIds
             if (newCapacity < 0)
                 newCapacity = Integer.MAX_VALUE;
 
-            if (newCapacity > expectedMaxCapacity && ids.length < expectedMaxCapacity)
+            if (newCapacity > expectedMaxCapacity && offsets.length < expectedMaxCapacity)
                 newCapacity = expectedMaxCapacity;
 
-            long[] newIds = new long[newCapacity];
-            System.arraycopy(ids, 0, newIds, 0, ids.length);
+            int[] newOffsets = new int[newCapacity];
+            System.arraycopy(offsets, 0, newOffsets, 0, offsets.length);
 
-            return newIds;
+            return newOffsets;
         }
 
-        private static SequenceIds addRemainder(long dstSplit, long[] dst, int dstRange, long[] src, int srcRange, int srcNumRanges)
+        private static Offsets addRemainder(int dstSplit, int[] dst, int dstRange, int[] src, int srcRange, int srcNumRanges)
         {
             int capacity = (dstRange + srcNumRanges - srcRange) * 2;
             dst = ensureCapacity(dst, capacity, capacity);
             while (srcRange < srcNumRanges)
             {
-                long addStart = dstSplit != NO_SPLIT_SENTINEL ? dstSplit : src[rangeStart(srcRange)];
-                long addEnd = src[rangeEnd(srcRange)];
+                int addStart = dstSplit != NO_SPLIT_SENTINEL ? dstSplit : src[rangeStart(srcRange)];
+                int addEnd = src[rangeEnd(srcRange)];
                 // extend last range if possible
-                if (dstRange > 0 && offset(addStart) <= offset(dst[rangeEnd(dstRange - 1)]) + 1)
+                if (dstRange > 0 && addStart <= dst[rangeEnd(dstRange - 1)] + 1)
                 {
                     dst[rangeEnd(dstRange - 1)] = addEnd;
                 }
@@ -541,21 +530,21 @@ public class SequenceIds
                 dstSplit = NO_SPLIT_SENTINEL;
                 srcRange++;
             }
-            return new SequenceIds(dst, dstRange * 2);
+            return new Offsets(dst, dstRange * 2);
         }
 
-        private static SequenceIds addRemainder(long[] dst, int dstRange, long[] src, int srcRange, int srcNumRanges)
+        private static Offsets addRemainder(int[] dst, int dstRange, int[] src, int srcRange, int srcNumRanges)
         {
             return addRemainder(NO_SPLIT_SENTINEL, dst, dstRange, src, srcRange, srcNumRanges);
         }
 
-        private static long[] ensureCapacity(long[] ids, int capacity)
+        private static int[] ensureCapacity(int[] offsets, int capacity)
         {
-            return ensureCapacity(ids, capacity, Integer.MAX_VALUE);
+            return ensureCapacity(offsets, capacity, Integer.MAX_VALUE);
         }
     }
 
-    public static SequenceIds union(SequenceIds a, SequenceIds b)
+    public static Offsets union(Offsets a, Offsets b)
     {
         int aNumRanges = a.rangeCount();
         int bNumRanges = b.rangeCount();
@@ -566,17 +555,16 @@ public class SequenceIds
         if (bNumRanges == 0)
             return a.copy();
 
-
         int aRange = 0;
         int bRange = 0;
 
         int cRange = 0;
-        long[] c = new long[Math.max(aNumRanges, bNumRanges) * 2];
+        int[] c = new int[Math.max(aNumRanges, bNumRanges) * 2];
 
         while (aRange < aNumRanges && bRange < bNumRanges)
         {
-            long addStart;
-            long addEnd;
+            int addStart;
+            int addEnd;
             SetSupport.RangeOverlap rangeOverlap = SetSupport.calculateRangeOverlap(a.bounds, aRange, b.bounds, bRange);
             switch (rangeOverlap)
             {
@@ -603,7 +591,7 @@ public class SequenceIds
             }
 
             // extend the tail if we can
-            if (cRange > 0 && offset(addStart) <= offset(c[rangeEnd(cRange-1)]) + 1)
+            if (cRange > 0 && addStart <= c[rangeEnd(cRange-1)] + 1)
             {
                 c[rangeEnd(cRange - 1)] = addEnd;
             }
@@ -628,19 +616,19 @@ public class SequenceIds
             return SetSupport.addRemainder(c, cRange, b.bounds, bRange, bNumRanges);
         }
 
-        return new SequenceIds(c, cRange * 2);
+        return new Offsets(c, cRange * 2);
     }
 
     /**
      * Subtract b from a
      */
-    public static SequenceIds difference(SequenceIds a, SequenceIds b)
+    public static Offsets difference(Offsets a, Offsets b)
     {
         int aNumRanges = a.rangeCount();
         int bNumRanges = b.rangeCount();
 
         if (aNumRanges == 0)
-            return new SequenceIds();
+            return new Offsets();
 
         if (bNumRanges == 0)
             return a.copy();
@@ -649,13 +637,13 @@ public class SequenceIds
         int bRange = 0;
 
         int cRange = 0;
-        long[] c = new long[Math.max(aNumRanges, bNumRanges) * 2];
+        int[] c = new int[Math.max(aNumRanges, bNumRanges) * 2];
 
-        long aSplit = SetSupport.NO_SPLIT_SENTINEL;
+        int aSplit = SetSupport.NO_SPLIT_SENTINEL;
         while (aRange < aNumRanges && bRange < bNumRanges)
         {
-            long addStart;
-            long addEnd;
+            int addStart;
+            int addEnd;
 
             SetSupport.RangeOverlap rangeOverlap = SetSupport.calculateRangeOverlap(aSplit, a.bounds, aRange, SetSupport.NO_SPLIT_SENTINEL, b.bounds, bRange);
             switch (rangeOverlap)
@@ -673,10 +661,10 @@ public class SequenceIds
                     bRange++;
                     continue;
                 case INTERSECTING:
-                    long aStart = aSplit != SetSupport.NO_SPLIT_SENTINEL ? aSplit : a.bounds[rangeStart(aRange)];
-                    long aEnd = a.bounds[rangeEnd(aRange)];
-                    long bStart = b.bounds[rangeStart(bRange)];
-                    long bEnd = b.bounds[rangeEnd(bRange)];
+                    int aStart = aSplit != SetSupport.NO_SPLIT_SENTINEL ? aSplit : a.bounds[rangeStart(aRange)];
+                    int aEnd = a.bounds[rangeEnd(aRange)];
+                    int bStart = b.bounds[rangeStart(bRange)];
+                    int bEnd = b.bounds[rangeEnd(bRange)];
 
                     if (bStart <= aStart)
                     {
@@ -689,8 +677,7 @@ public class SequenceIds
                         else
                         {
                             // set the split and start over, the next b range may intersect with the current range
-                            Preconditions.checkState(bEnd < aEnd);
-                            aSplit = sequenceId(offset(bEnd) + 1);
+                            aSplit = bEnd + 1;
                             bRange++;
                         }
                         continue;
@@ -699,12 +686,12 @@ public class SequenceIds
                     // does not consume the start of the range
                     Preconditions.checkState(bStart > aStart);
                     addStart = aStart;
-                    addEnd = sequenceId(offset(bStart) - 1);
+                    addEnd = bStart - 1;
 
                     if (bEnd < aEnd)
                     {
                         // b splits the range
-                        aSplit = sequenceId(offset(bEnd) + 1);
+                        aSplit = bEnd + 1;
                         bRange++;
                     }
                     else
@@ -719,7 +706,7 @@ public class SequenceIds
             }
 
             // extend the tail if we can
-            if (cRange > 0 && offset(addStart) <= offset(c[rangeEnd(cRange-1)]) + 1)
+            if (cRange > 0 && addStart <= c[rangeEnd(cRange-1)] + 1)
             {
                 c[rangeEnd(cRange - 1)] = addEnd;
             }
@@ -738,16 +725,16 @@ public class SequenceIds
             return SetSupport.addRemainder(aSplit, c, cRange, a.bounds, aRange, aNumRanges);
         }
 
-        return new SequenceIds(c, cRange * 2);
+        return new Offsets(c, cRange * 2);
     }
 
-    public static SequenceIds intersection(SequenceIds a, SequenceIds b)
+    public static Offsets intersection(Offsets a, Offsets b)
     {
         int aNumRanges = a.rangeCount();
         int bNumRanges = b.rangeCount();
 
         if (aNumRanges == 0)
-            return new SequenceIds();
+            return new Offsets();
 
         if (bNumRanges == 0)
             return a.copy();
@@ -756,14 +743,14 @@ public class SequenceIds
         int bRange = 0;
 
         int cRange = 0;
-        long[] c = new long[Math.max(aNumRanges, bNumRanges) * 2];
+        int[] c = new int[Math.max(aNumRanges, bNumRanges) * 2];
 
-        long aSplit = SetSupport.NO_SPLIT_SENTINEL;
-        long bSplit = SetSupport.NO_SPLIT_SENTINEL;
+        int aSplit = SetSupport.NO_SPLIT_SENTINEL;
+        int bSplit = SetSupport.NO_SPLIT_SENTINEL;
         while (aRange < aNumRanges && bRange < bNumRanges)
         {
-            long addStart;
-            long addEnd;
+            int addStart;
+            int addEnd;
 
             SetSupport.RangeOverlap rangeOverlap = SetSupport.calculateRangeOverlap(aSplit, a.bounds, aRange, bSplit, b.bounds, bRange);
             switch (rangeOverlap)
@@ -781,10 +768,10 @@ public class SequenceIds
                     bRange++;
                     continue;
                 case INTERSECTING:
-                    long aStart = aSplit != SetSupport.NO_SPLIT_SENTINEL ? aSplit : a.bounds[rangeStart(aRange)];
-                    long aEnd = a.bounds[rangeEnd(aRange)];
-                    long bStart = bSplit != SetSupport.NO_SPLIT_SENTINEL ? bSplit : b.bounds[rangeStart(bRange)];
-                    long bEnd = b.bounds[rangeEnd(bRange)];
+                    int aStart = aSplit != SetSupport.NO_SPLIT_SENTINEL ? aSplit : a.bounds[rangeStart(aRange)];
+                    int aEnd = a.bounds[rangeEnd(aRange)];
+                    int bStart = bSplit != SetSupport.NO_SPLIT_SENTINEL ? bSplit : b.bounds[rangeStart(bRange)];
+                    int bEnd = b.bounds[rangeEnd(bRange)];
 
                     addStart = Math.max(aStart, bStart);
                     addEnd = Math.min(aEnd, bEnd);
@@ -815,7 +802,7 @@ public class SequenceIds
             }
 
             // extend the tail if we can, though it shouldn't be possible unless one of the input lists were malformed
-            if (cRange > 0 && offset(addStart) <= offset(c[rangeEnd(cRange-1)]) + 1)
+            if (cRange > 0 && addStart <= c[rangeEnd(cRange-1)] + 1)
             {
                 c[rangeEnd(cRange - 1)] = addEnd;
             }
@@ -828,41 +815,42 @@ public class SequenceIds
             }
         }
 
-        return new SequenceIds(c, cRange * 2);
+        return new Offsets(c, cRange * 2);
     }
 
     public interface RangeConsumer
     {
         RangeConsumer NONE = (s, e) -> {};
 
-        void consume(long start, long end);
+        void consume(int start, int end);
     }
 
-    public static final IVersionedSerializer<SequenceIds> serializer = new IVersionedSerializer<>()
+    // TODO (consider): delta-encoding + vints
+    public static final IVersionedSerializer<Offsets> serializer = new IVersionedSerializer<>()
     {
         @Override
-        public void serialize(SequenceIds ids, DataOutputPlus out, int version) throws IOException
+        public void serialize(Offsets offsets, DataOutputPlus out, int version) throws IOException
         {
-            out.writeInt(ids.size);
-            for (long id : ids.bounds)
-                out.writeLong(id);
+            out.writeInt(offsets.size);
+            for (int id : offsets.bounds)
+                out.writeInt(id);
         }
 
         @Override
-        public SequenceIds deserialize(DataInputPlus in, int version) throws IOException
+        public Offsets deserialize(DataInputPlus in, int version) throws IOException
         {
             int size = in.readInt();
             Preconditions.checkArgument(size >= 0 && size % 2 == 0);
-            long[] bounds = new long[size];
+            int[] bounds = new int[size];
             for (int i = 0; i < size; i++)
-                bounds[i] = in.readLong();
-            return new SequenceIds(bounds);
+                bounds[i] = in.readInt();
+            return new Offsets(bounds);
         }
 
         @Override
-        public long serializedSize(SequenceIds ids, int version)
+        public long serializedSize(Offsets offsets, int version)
         {
-            return TypeSizes.INT_SIZE + ((long) TypeSizes.LONG_SIZE * ids.size);
+            return TypeSizes.INT_SIZE + (long) TypeSizes.INT_SIZE * offsets.size;
         }
     };
 }

@@ -21,34 +21,32 @@ import java.util.Comparator;
 import java.util.SortedSet;
 import java.util.TreeSet;
 
-import org.agrona.collections.Long2ObjectHashMap;
+import org.agrona.collections.Int2ObjectHashMap;
 import org.apache.cassandra.db.PartitionPosition;
 import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 
-class IdTokenIndex
+class OffsetTokenIndex
 {
-    private final Long2ObjectHashMap<Token> idToToken = new Long2ObjectHashMap<>();
-    // FIXME: BTreeSet is missing some methods used by this class.
-//    private final BTreeSet<Entry> tokenToIds = BTreeSet.empty(Entry.comparator);
-    private final SortedSet<Entry> tokenToIds = new TreeSet<>(Entry.comparator);
+    private final Int2ObjectHashMap<Token> offsetToToken = new Int2ObjectHashMap<>();
+    private final SortedSet<Entry> tokenToOffsets = new TreeSet<>(Entry.comparator);
 
     private static final class Entry
     {
         private static final Comparator<Entry> comparator = (left, right) ->
         {
             int cmp = left.token.compareTo(right.token);
-            return (cmp != 0) ? cmp : Long.compare(left.sequenceId, right.sequenceId);
+            return (cmp != 0) ? cmp : Integer.compare(left.offset, right.offset);
         };
 
         final Token token;
-        final long sequenceId;
+        final int offset;
 
-        Entry(Token token, long sequenceId)
+        Entry(Token token, int offset)
         {
             this.token = token;
-            this.sequenceId = sequenceId;
+            this.offset = offset;
         }
 
         @Override
@@ -57,59 +55,59 @@ class IdTokenIndex
             if (!(o instanceof Entry))
                 return false;
             Entry that = (Entry) o;
-            return this.sequenceId == that.sequenceId && this.token.equals(that.token);
+            return this.offset == that.offset && this.token.equals(that.token);
         }
     }
 
-    void update(long sequenceId, Token token)
+    void update(int offset, Token token)
     {
-        idToToken.put(sequenceId, token);
-        tokenToIds.add(new Entry(token, sequenceId));
+        offsetToToken.put(offset, token);
+        tokenToOffsets.add(new Entry(token, offset));
     }
 
-    boolean lookUp(Token token, SequenceIds into)
+    boolean lookUp(Token token, Offsets into)
     {
         boolean found = false;
-        SortedSet<Entry> subset = tokenToIds.subSet(new Entry(token, 0), new Entry(token, Long.MAX_VALUE));
+        SortedSet<Entry> subset = tokenToOffsets.subSet(new Entry(token, 0), new Entry(token, Integer.MAX_VALUE));
         for (Entry entry : subset)
         {
-            into.append(entry.sequenceId);
+            into.append(entry.offset);
             found = true;
         }
         return found;
     }
 
     // TODO (expected): handle wrap-around ranges
-    boolean lookUp(Range<Token> range, SequenceIds into)
+    boolean lookUp(Range<Token> range, Offsets into)
     {
         boolean found = false;
-        SortedSet<Entry> subset = tokenToIds.subSet(new Entry(range.left, 0), new Entry(range.right, Long.MAX_VALUE));
+        SortedSet<Entry> subset = tokenToOffsets.subSet(new Entry(range.left, 0), new Entry(range.right, Integer.MAX_VALUE));
         for (Entry entry : subset)
         {
-            into.append(entry.sequenceId);
+            into.append(entry.offset);
             found = true;
         }
         return found;
     }
 
-    boolean lookUp(AbstractBounds<PartitionPosition> range, SequenceIds into)
+    boolean lookUp(AbstractBounds<PartitionPosition> range, Offsets into)
     {
         boolean found = false;
-        Entry start = new Entry(range.left.getToken(), range.inclusiveLeft() ? 0 : Long.MAX_VALUE);
-        Entry end = new Entry(range.right.getToken(), range.inclusiveRight() ? Long.MAX_VALUE : 0);
-        SortedSet<Entry> subset = tokenToIds.subSet(start, end);
+        Entry start = new Entry(range.left.getToken(), range.inclusiveLeft() ? 0 : Integer.MAX_VALUE);
+        Entry end = new Entry(range.right.getToken(), range.inclusiveRight() ? Integer.MAX_VALUE : 0);
+        SortedSet<Entry> subset = tokenToOffsets.subSet(start, end);
         for (Entry entry : subset)
         {
-            into.append(entry.sequenceId);
+            into.append(entry.offset);
             found = true;
         }
         return found;
     }
 
-    void invalidate(long sequenceId)
+    void invalidate(int offset)
     {
-        Token token = idToToken.remove(sequenceId);
+        Token token = offsetToToken.remove(offset);
         if (token != null)
-            tokenToIds.remove(new Entry(token, sequenceId));
+            tokenToOffsets.remove(new Entry(token, offset));
     }
 }

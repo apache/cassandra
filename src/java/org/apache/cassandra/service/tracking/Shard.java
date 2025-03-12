@@ -68,7 +68,7 @@ public class Shard
         get(id).witnessedMutationRemote(id, onHostId);
     }
 
-    public void witnessedMutationsRemote(long logId, SequenceIds ranges, int onHostId)
+    public void witnessedMutationsRemote(long logId, Offsets ranges, int onHostId)
     {
         get(logId).witnessedMutationsRemote(ranges, onHostId);
     }

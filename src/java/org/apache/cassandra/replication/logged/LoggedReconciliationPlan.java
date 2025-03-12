@@ -26,7 +26,7 @@ import org.apache.cassandra.replication.MutationSummary;
 import org.apache.cassandra.replication.ReconciliationPlan;
 import org.apache.cassandra.replication.logged.LoggedMutationSummary.CoordinatorSummary;
 import org.apache.cassandra.service.tracking.CoordinatorLogId;
-import org.apache.cassandra.service.tracking.SequenceIds;
+import org.apache.cassandra.service.tracking.Offsets;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -38,9 +38,9 @@ public class LoggedReconciliationPlan implements ReconciliationPlan
 
     static class PeerReconciliation
     {
-        private final ImmutableMap<CoordinatorLogId, SequenceIds> coordinatorIds;
+        private final ImmutableMap<CoordinatorLogId, Offsets> coordinatorIds;
 
-        public PeerReconciliation(ImmutableMap<CoordinatorLogId, SequenceIds> coordinatorIds)
+        public PeerReconciliation(ImmutableMap<CoordinatorLogId, Offsets> coordinatorIds)
         {
             this.coordinatorIds = coordinatorIds;
         }
@@ -48,19 +48,19 @@ public class LoggedReconciliationPlan implements ReconciliationPlan
         static class Builder
         {
             private final InetAddressAndPort to;
-            private final Map<CoordinatorLogId, SequenceIds> coordinatorIds = new HashMap<>();
+            private final Map<CoordinatorLogId, Offsets> coordinatorIds = new HashMap<>();
 
             public Builder(InetAddressAndPort to)
             {
                 this.to = to;
             }
 
-            void send(CoordinatorLogId logId, SequenceIds sequenceIds)
+            void send(CoordinatorLogId logId, Offsets sequenceIds)
             {
                 if (coordinatorIds.containsKey(logId))
                 {
-                    SequenceIds existing = coordinatorIds.get(logId);
-                    coordinatorIds.put(logId, SequenceIds.union(existing, sequenceIds));
+                    Offsets existing = coordinatorIds.get(logId);
+                    coordinatorIds.put(logId, Offsets.union(existing, sequenceIds));
                 }
                 else
                 {
@@ -106,7 +106,7 @@ public class LoggedReconciliationPlan implements ReconciliationPlan
             this.summary = summary;
         }
 
-        public void send(InetAddressAndPort to, CoordinatorLogId logId, SequenceIds sequenceIds)
+        public void send(InetAddressAndPort to, CoordinatorLogId logId, Offsets sequenceIds)
         {
             peerReconciliations.computeIfAbsent(to, PeerReconciliation.Builder::new).send(logId, sequenceIds);
         }
@@ -122,10 +122,10 @@ public class LoggedReconciliationPlan implements ReconciliationPlan
     private static class CoordinatorLogReconciliation
     {
         final CoordinatorLogId logId;
-        SequenceIds reconciled;
-        SequenceIds unreconciled;
+        Offsets reconciled;
+        Offsets unreconciled;
 
-        Map<InetAddressAndPort, SequenceIds> unreconciledNodes = new HashMap<>();
+        Map<InetAddressAndPort, Offsets> unreconciledNodes = new HashMap<>();
 
         CoordinatorLogReconciliation(CoordinatorLogId logId)
         {
@@ -135,34 +135,34 @@ public class LoggedReconciliationPlan implements ReconciliationPlan
         void addPeerSummary(InetAddressAndPort peer, CoordinatorSummary summary)
         {
             Preconditions.checkArgument(summary.logId.equals(logId));
-            reconciled = SequenceIds.union(reconciled, summary.reconciled);
-            unreconciled = SequenceIds.union(unreconciled, summary.unreconciled);
+            reconciled = Offsets.union(reconciled, summary.reconciled);
+            unreconciled = Offsets.union(unreconciled, summary.unreconciled);
             unreconciledNodes.put(peer, summary.unreconciled);
         }
 
         void createPlan(Map<InetAddressAndPort, PlanBuilder> plan)
         {
             // remove reconciled ids
-            SequenceIds allIds = SequenceIds.difference(unreconciled, reconciled);
-            for (Map.Entry<InetAddressAndPort, SequenceIds> receiver : unreconciledNodes.entrySet())
+            Offsets allIds = Offsets.difference(unreconciled, reconciled);
+            for (Map.Entry<InetAddressAndPort, Offsets> receiver : unreconciledNodes.entrySet())
             {
-                SequenceIds missing = SequenceIds.difference(allIds, receiver.getValue());
+                Offsets missing = Offsets.difference(allIds, receiver.getValue());
                 if (missing.isEmpty())
                     continue;
 
                 // TODO: look into more intelligent ways to distribute mutation requests
-                for (Map.Entry<InetAddressAndPort, SequenceIds> sender : unreconciledNodes.entrySet())
+                for (Map.Entry<InetAddressAndPort, Offsets> sender : unreconciledNodes.entrySet())
                 {
                     if (sender.getKey().equals(receiver.getKey()))
                         continue;
 
-                    SequenceIds senderIds = sender.getValue();
+                    Offsets senderIds = sender.getValue();
                     PlanBuilder senderPlan = plan.get(sender.getKey());
 
-                    SequenceIds requestedIds = SequenceIds.intersection(missing, senderIds);
+                    Offsets requestedIds = Offsets.intersection(missing, senderIds);
                     senderPlan.send(receiver.getKey(), logId, requestedIds);
 
-                    missing = SequenceIds.difference(missing, requestedIds);
+                    missing = Offsets.difference(missing, requestedIds);
                     if (missing.rangeCount() == 0)
                         break;
                 }

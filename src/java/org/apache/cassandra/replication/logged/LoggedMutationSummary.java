@@ -27,7 +27,7 @@ import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.replication.MutationSummary;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.service.tracking.CoordinatorLogId;
-import org.apache.cassandra.service.tracking.SequenceIds;
+import org.apache.cassandra.service.tracking.Offsets;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -39,10 +39,10 @@ public class LoggedMutationSummary implements MutationSummary
     {
         private static final Comparator<CoordinatorSummary> idComparator = (o1, o2) -> o1.logId.compareTo(o2.logId);
         public final CoordinatorLogId logId;
-        public final SequenceIds reconciled;
-        public final SequenceIds unreconciled;
+        public final Offsets reconciled;
+        public final Offsets unreconciled;
 
-        public CoordinatorSummary(CoordinatorLogId logId, SequenceIds reconciled, SequenceIds unreconciled)
+        public CoordinatorSummary(CoordinatorLogId logId, Offsets reconciled, Offsets unreconciled)
         {
             this.logId = logId;
             this.reconciled = reconciled;
@@ -59,8 +59,8 @@ public class LoggedMutationSummary implements MutationSummary
         public static class Builder
         {
             public final CoordinatorLogId logId;
-            public final SequenceIds reconciled = new SequenceIds();
-            public final SequenceIds unreconciled = new SequenceIds();
+            public final Offsets reconciled = new Offsets();
+            public final Offsets unreconciled = new Offsets();
 
             public Builder(CoordinatorLogId logId)
             {
@@ -79,24 +79,24 @@ public class LoggedMutationSummary implements MutationSummary
             public void serialize(CoordinatorSummary t, DataOutputPlus out, int version) throws IOException
             {
                 CoordinatorLogId.serializer.serialize(t.logId, out, version);
-                SequenceIds.serializer.serialize(t.reconciled, out, version);
-                SequenceIds.serializer.serialize(t.unreconciled, out, version);
+                Offsets.serializer.serialize(t.reconciled, out, version);
+                Offsets.serializer.serialize(t.unreconciled, out, version);
             }
 
             @Override
             public CoordinatorSummary deserialize(DataInputPlus in, int version) throws IOException
             {
                 return new CoordinatorSummary(CoordinatorLogId.serializer.deserialize(in, version),
-                                              SequenceIds.serializer.deserialize(in, version),
-                                              SequenceIds.serializer.deserialize(in, version));
+                                              Offsets.serializer.deserialize(in, version),
+                                              Offsets.serializer.deserialize(in, version));
             }
 
             @Override
             public long serializedSize(CoordinatorSummary t, int version)
             {
                 return CoordinatorLogId.serializer.serializedSize(t.logId, version)
-                        + SequenceIds.serializer.serializedSize(t.reconciled, version)
-                        + SequenceIds.serializer.serializedSize(t.unreconciled, version);
+                       + Offsets.serializer.serializedSize(t.reconciled, version)
+                       + Offsets.serializer.serializedSize(t.unreconciled, version);
             }
         };
     }
