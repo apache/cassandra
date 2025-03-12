@@ -24,16 +24,16 @@ import javax.annotation.Nonnull;
 
 import accord.primitives.RoutableKey;
 import org.apache.cassandra.dht.Token;
-import org.apache.cassandra.io.IVersionedSerializer;
+import org.apache.cassandra.io.UnversionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.schema.TableId;
 
 public abstract class AccordRoutableKey implements RoutableKey
 {
-    public interface AccordKeySerializer<K> extends IVersionedSerializer<K>
+    public interface AccordKeySerializer<K> extends UnversionedSerializer<K>
     {
-        void skip(DataInputPlus in, int version) throws IOException;
+        void skip(DataInputPlus in) throws IOException;
     }
 
     public interface AccordSearchableKeySerializer<K> extends AccordKeySerializer<K>
@@ -42,15 +42,16 @@ public abstract class AccordRoutableKey implements RoutableKey
         int fixedKeyLengthForPrefix(Object prefix);
         int serializedSizeOfPrefix(Object prefix);
         int serializedSizeWithoutPrefix(K key);
-        void serializePrefix(Object prefix, DataOutputPlus out, int version) throws IOException;
-        void serializeWithoutPrefixOrLength(K key, DataOutputPlus out, int version) throws IOException;
-        Object deserializePrefix(DataInputPlus in, int version) throws IOException;
-        K deserializeWithPrefix(Object prefix, int length, DataInputPlus in, int version) throws IOException;
+        void serializePrefix(Object prefix, DataOutputPlus out) throws IOException;
+        void serializeWithoutPrefixOrLength(K key, DataOutputPlus out) throws IOException;
+        Object deserializePrefix(DataInputPlus in) throws IOException;
+        K deserializeWithPrefix(Object prefix, int length, DataInputPlus in) throws IOException;
     }
 
     static final byte MAX_TABLE_SENTINEL = 0x48;
     static final byte NORMAL_SENTINEL = 0x28;
     static final byte BEFORE_TOKEN_SENTINEL = 0x24;
+    static final byte AFTER_TOKEN_SENTINEL = 0x2c;
     static final byte MIN_TABLE_SENTINEL = 0x18;
     static final int PREFIX_MASK = 0xF0;
     static final int SUFFIX_MASK = 0x0F;

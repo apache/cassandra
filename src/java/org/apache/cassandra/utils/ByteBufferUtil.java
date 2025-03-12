@@ -54,10 +54,9 @@ import org.apache.cassandra.db.marshal.ListType;
 import org.apache.cassandra.db.marshal.MapType;
 import org.apache.cassandra.db.marshal.SetType;
 import org.apache.cassandra.db.marshal.TimestampType;
-import org.apache.cassandra.io.IVersionedSerializer;
+import org.apache.cassandra.io.UnversionedSerializer;
 import org.apache.cassandra.io.compress.BufferType;
 import org.apache.cassandra.io.util.DataInputPlus;
-import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.io.util.FileUtils;
 
@@ -1020,19 +1019,6 @@ public class ByteBufferUtil
         }
     }
 
-    public static <T> ByteBuffer serialized(IVersionedSerializer<T> serializer, T value, int version)
-    {
-        try (DataOutputBuffer dob = new DataOutputBuffer())
-        {
-            serializer.serialize(value, dob, version);
-            return dob.buffer();
-        }
-        catch (IOException e)
-        {
-            throw new RuntimeException(e);
-        }
-    }
-
     public static void writeLeastSignificantBytes(long register, int bytes, ByteBuffer out)
     {
         writeMostSignificantBytes(register << ((8 - bytes)*8), bytes, out);
@@ -1131,26 +1117,26 @@ public class ByteBufferUtil
         }
     }
 
-    public static final IVersionedSerializer<ByteBuffer> byteBufferSerializer = new IVersionedSerializer<ByteBuffer>()
+    public static final UnversionedSerializer<ByteBuffer> byteBufferSerializer = new UnversionedSerializer<ByteBuffer>()
     {
         @Override
-        public void serialize(ByteBuffer bytes, DataOutputPlus out, int version) throws IOException
+        public void serialize(ByteBuffer bytes, DataOutputPlus out) throws IOException
         {
             writeWithVIntLength(bytes, out);
         }
 
         @Override
-        public ByteBuffer deserialize(DataInputPlus in, int version) throws IOException
+        public ByteBuffer deserialize(DataInputPlus in) throws IOException
         {
             return readWithVIntLength(in);
         }
 
         @Override
-        public long serializedSize(ByteBuffer bytes, int version)
+        public long serializedSize(ByteBuffer bytes)
         {
             return serializedSizeWithVIntLength(bytes);
         }
     };
 
-    public static final IVersionedSerializer<ByteBuffer> nullableByteBufferSerializer = NullableSerializer.wrap(byteBufferSerializer);
+    public static final UnversionedSerializer<ByteBuffer> nullableByteBufferSerializer = NullableSerializer.wrap(byteBufferSerializer);
 }

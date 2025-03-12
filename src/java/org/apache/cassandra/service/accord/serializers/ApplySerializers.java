@@ -31,7 +31,7 @@ import accord.primitives.TxnId;
 import accord.primitives.Writes;
 import accord.utils.Invariants;
 import org.apache.cassandra.db.TypeSizes;
-import org.apache.cassandra.io.IVersionedSerializer;
+import org.apache.cassandra.io.UnversionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.service.accord.serializers.CommandSerializers.ExecuteAtSerializer;
@@ -41,20 +41,20 @@ import static accord.primitives.Txn.Kind.Write;
 
 public class ApplySerializers
 {
-    private static final IVersionedSerializer<Apply.Kind> kind = new IVersionedSerializer<>()
+    private static final UnversionedSerializer<Apply.Kind> kind = new UnversionedSerializer<>()
     {
-        public void serialize(Apply.Kind kind, DataOutputPlus out, int version) throws IOException
+        public void serialize(Apply.Kind kind, DataOutputPlus out) throws IOException
         {
             Invariants.requireArgument(kind == Apply.Kind.Maximal || kind == Apply.Kind.Minimal);
             out.writeBoolean(kind == Apply.Kind.Maximal);
         }
 
-        public Apply.Kind deserialize(DataInputPlus in, int version) throws IOException
+        public Apply.Kind deserialize(DataInputPlus in) throws IOException
         {
             return in.readBoolean() ? Apply.Kind.Maximal : Apply.Kind.Minimal;
         }
 
-        public long serializedSize(Apply.Kind t, int version)
+        public long serializedSize(Apply.Kind t)
         {
             return TypeSizes.BOOL_SIZE;
         }
@@ -63,14 +63,14 @@ public class ApplySerializers
     public abstract static class ApplySerializer<A extends Apply> extends TxnRequestSerializer<A>
     {
         @Override
-        public void serializeBody(A apply, DataOutputPlus out, int version) throws IOException
+        public void serializeBody(A apply, DataOutputPlus out, Version version) throws IOException
         {
             out.writeVInt(apply.minEpoch - apply.waitForEpoch);
-            kind.serialize(apply.kind, out, version);
+            kind.serialize(apply.kind, out);
             ExecuteAtSerializer.serialize(apply.txnId, apply.executeAt, out);
-            DepsSerializers.partialDeps.serialize(apply.deps, out, version);
+            DepsSerializers.partialDeps.serialize(apply.deps, out);
             CommandSerializers.nullablePartialTxn.serialize(apply.txn, out, version);
-            KeySerializers.nullableFullRoute.serialize(apply.fullRoute, out, version);
+            KeySerializers.nullableFullRoute.serialize(apply.fullRoute, out);
             if (apply.txnId.is(Write))
                 CommandSerializers.writes.serialize(apply.writes, out, version);
         }
@@ -79,27 +79,27 @@ public class ApplySerializers
                                               Timestamp executeAt, PartialDeps deps, PartialTxn txn, FullRoute<?> fullRoute, Writes writes, Result result);
 
         @Override
-        public A deserializeBody(DataInputPlus in, int version, TxnId txnId, Route<?> scope, long waitForEpoch) throws IOException
+        public A deserializeBody(DataInputPlus in, Version version, TxnId txnId, Route<?> scope, long waitForEpoch) throws IOException
         {
             return deserializeApply(txnId, scope, waitForEpoch + in.readVInt(), waitForEpoch,
-                                    kind.deserialize(in, version),
+                                    kind.deserialize(in),
                                     ExecuteAtSerializer.deserialize(txnId, in),
-                                    DepsSerializers.partialDeps.deserialize(in, version),
+                                    DepsSerializers.partialDeps.deserialize(in),
                                     CommandSerializers.nullablePartialTxn.deserialize(in, version),
-                                    KeySerializers.nullableFullRoute.deserialize(in, version),
+                                    KeySerializers.nullableFullRoute.deserialize(in),
                                     (txnId.is(Write) ? CommandSerializers.writes.deserialize(in, version) : null),
                                     ResultSerializers.APPLIED);
         }
 
         @Override
-        public long serializedBodySize(A apply, int version)
+        public long serializedBodySize(A apply, Version version)
         {
             return   TypeSizes.sizeofVInt(apply.minEpoch - apply.waitForEpoch)
-                   + kind.serializedSize(apply.kind, version)
+                   + kind.serializedSize(apply.kind)
                    + ExecuteAtSerializer.serializedSize(apply.txnId, apply.executeAt)
-                   + DepsSerializers.partialDeps.serializedSize(apply.deps, version)
+                   + DepsSerializers.partialDeps.serializedSize(apply.deps)
                    + CommandSerializers.nullablePartialTxn.serializedSize(apply.txn, version)
-                   + KeySerializers.nullableFullRoute.serializedSize(apply.fullRoute, version)
+                   + KeySerializers.nullableFullRoute.serializedSize(apply.fullRoute)
                    + (apply.txnId.is(Write) ? CommandSerializers.writes.serializedSize(apply.writes, version) : 0);
         }
     }
@@ -114,24 +114,24 @@ public class ApplySerializers
         }
     };
 
-    public static final IVersionedSerializer<Apply.ApplyReply> reply = new IVersionedSerializer<>()
+    public static final UnversionedSerializer<Apply.ApplyReply> reply = new UnversionedSerializer<>()
     {
         private final Apply.ApplyReply[] replies = Apply.ApplyReply.values();
 
         @Override
-        public void serialize(Apply.ApplyReply t, DataOutputPlus out, int version) throws IOException
+        public void serialize(Apply.ApplyReply t, DataOutputPlus out) throws IOException
         {
             out.writeByte(t.ordinal());
         }
 
         @Override
-        public Apply.ApplyReply deserialize(DataInputPlus in, int version) throws IOException
+        public Apply.ApplyReply deserialize(DataInputPlus in) throws IOException
         {
             return replies[in.readByte()];
         }
 
         @Override
-        public long serializedSize(Apply.ApplyReply t, int version)
+        public long serializedSize(Apply.ApplyReply t)
         {
             return 1;
         }

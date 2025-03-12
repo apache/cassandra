@@ -22,6 +22,7 @@ import java.io.IOException;
 import java.util.Iterator;
 import java.util.Map;
 import java.util.NavigableMap;
+import java.util.Objects;
 import java.util.TreeMap;
 import java.util.function.Function;
 
@@ -34,7 +35,7 @@ import accord.utils.Invariants;
 import accord.utils.UnhandledEnum;
 import org.agrona.collections.Int2ObjectHashMap;
 import org.apache.cassandra.db.TypeSizes;
-import org.apache.cassandra.io.IVersionedSerializer;
+import org.apache.cassandra.io.UnversionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.service.accord.AccordConfigurationService;
@@ -42,6 +43,7 @@ import org.apache.cassandra.service.accord.AccordJournalValueSerializers;
 import org.apache.cassandra.service.accord.JournalKey;
 import org.apache.cassandra.service.accord.serializers.KeySerializers;
 import org.apache.cassandra.service.accord.serializers.TopologySerializers;
+import org.apache.cassandra.service.accord.serializers.Version;
 
 import static org.apache.cassandra.service.accord.JournalKey.Type.TOPOLOGY_UPDATE;
 
@@ -55,29 +57,23 @@ public interface AccordTopologyUpdate
     {
         return new NewTopology(update);
     }
-    class RangesForEpochSerializer implements IVersionedSerializer<CommandStores.RangesForEpoch>
+    class RangesForEpochSerializer implements UnversionedSerializer<CommandStores.RangesForEpoch>
     {
         public static final RangesForEpochSerializer instance = new RangesForEpochSerializer();
 
         @Override
-        public void serialize(CommandStores.RangesForEpoch from, DataOutputPlus out, int version) throws IOException
+        public void serialize(CommandStores.RangesForEpoch from, DataOutputPlus out) throws IOException
         {
             out.writeUnsignedVInt32(from.size());
-            from.forEach((epoch, ranges) -> {
-                try
-                {
-                    out.writeLong(epoch);
-                    KeySerializers.ranges.serialize(ranges, out, version);
-                }
-                catch (Throwable t)
-                {
-                    throw new IllegalStateException("Serialization error", t);
-                }
-            });
+            for (int i = 0; i < from.size(); i++)
+            {
+                out.writeLong(from.epochAtIndex(i));
+                KeySerializers.ranges.serialize(from.rangesAtIndex(i), out);
+            }
         }
 
         @Override
-        public CommandStores.RangesForEpoch deserialize(DataInputPlus in, int version) throws IOException
+        public CommandStores.RangesForEpoch deserialize(DataInputPlus in) throws IOException
         {
             int size = in.readUnsignedVInt32();
             Ranges[] ranges = new Ranges[size];
@@ -85,120 +81,130 @@ public interface AccordTopologyUpdate
             for (int i = 0; i < ranges.length; i++)
             {
                 epochs[i] = in.readLong();
-                ranges[i] = KeySerializers.ranges.deserialize(in, version);
+                ranges[i] = KeySerializers.ranges.deserialize(in);
             }
             Invariants.require(ranges.length == epochs.length);
             return new CommandStores.RangesForEpoch(epochs, ranges);
         }
 
         @Override
-        public long serializedSize(CommandStores.RangesForEpoch t, int version)
+        public long serializedSize(CommandStores.RangesForEpoch from)
         {
-            return TypeSizes.sizeofUnsignedVInt(t.size());
+            long size = TypeSizes.sizeofUnsignedVInt(from.size());
+            for (int i = 0; i < from.size(); i++)
+            {
+                size += TypeSizes.sizeof(from.epochAtIndex(i));
+                size += KeySerializers.ranges.serializedSize(from.rangesAtIndex(i));
+            }
+            return size;
         }
     }
 
-    class TopologyUpdateSerializer implements IVersionedSerializer<Journal.TopologyUpdate>
+    class TopologyUpdateSerializer implements UnversionedSerializer<Journal.TopologyUpdate>
     {
         public static final TopologyUpdateSerializer instance = new TopologyUpdateSerializer();
 
         @Override
-        public void serialize(Journal.TopologyUpdate from, DataOutputPlus out, int version) throws IOException
+        public void serialize(Journal.TopologyUpdate from, DataOutputPlus out) throws IOException
         {
             out.writeUnsignedVInt32(from.commandStores.size());
             for (Map.Entry<Integer, CommandStores.RangesForEpoch> e : from.commandStores.entrySet())
             {
                 out.writeUnsignedVInt32(e.getKey());
-                RangesForEpochSerializer.instance.serialize(e.getValue(), out, version);
+                RangesForEpochSerializer.instance.serialize(e.getValue(), out);
             }
-            TopologySerializers.topology.serialize(from.local, out, version);
-            TopologySerializers.topology.serialize(from.global, out, version);
+            //TODO (performance): local to what?  Rather than serializing local we can serialize the node its relative too?  that why when we deserialize we do globa.forNode(node)
+            // this also decreases the size as we don't have redundent shards
+            TopologySerializers.topology.serialize(from.local, out);
+            TopologySerializers.topology.serialize(from.global, out);
         }
 
         @Override
-        public Journal.TopologyUpdate deserialize(DataInputPlus in, int version) throws IOException
+        public Journal.TopologyUpdate deserialize(DataInputPlus in) throws IOException
         {
             int commandStoresSize = in.readUnsignedVInt32();
             Int2ObjectHashMap<CommandStores.RangesForEpoch> commandStores = new Int2ObjectHashMap<>();
             for (int j = 0; j < commandStoresSize; j++)
             {
                 int commandStoreId = in.readUnsignedVInt32();
-                CommandStores.RangesForEpoch rangesForEpoch = RangesForEpochSerializer.instance.deserialize(in, version);
+                CommandStores.RangesForEpoch rangesForEpoch = RangesForEpochSerializer.instance.deserialize(in);
                 commandStores.put(commandStoreId, rangesForEpoch);
             }
-            Topology local = TopologySerializers.topology.deserialize(in, version);
-            Topology global = TopologySerializers.topology.deserialize(in, version);
+            Topology local = TopologySerializers.topology.deserialize(in);
+            Topology global = TopologySerializers.topology.deserialize(in);
             return new Journal.TopologyUpdate(commandStores, local, global);
         }
 
         @Override
-        public long serializedSize(Journal.TopologyUpdate from, int version)
+        public long serializedSize(Journal.TopologyUpdate from)
         {
             long size = TypeSizes.sizeofUnsignedVInt(from.commandStores.size());
             for (Map.Entry<Integer, CommandStores.RangesForEpoch> e : from.commandStores.entrySet())
             {
                 size += TypeSizes.sizeofUnsignedVInt(e.getKey());
-                size += RangesForEpochSerializer.instance.serializedSize(e.getValue(), version);
+                size += RangesForEpochSerializer.instance.serializedSize(e.getValue());
             }
 
-            size += TopologySerializers.topology.serializedSize(from.local, version);
-            size += TopologySerializers.topology.serializedSize(from.global, version);
+            size += TopologySerializers.topology.serializedSize(from.local);
+            size += TopologySerializers.topology.serializedSize(from.global);
             return size;
         }
     }
 
-    class Serializer implements IVersionedSerializer<AccordTopologyUpdate>
+    class Serializer implements UnversionedSerializer<AccordTopologyUpdate>
     {
         public static Serializer instance = new Serializer();
 
-        public void serialize(AccordTopologyUpdate t, DataOutputPlus out, int version) throws IOException
+        @Override
+        public void serialize(AccordTopologyUpdate t, DataOutputPlus out) throws IOException
         {
             out.writeUnsignedVInt(t.epoch());
             out.writeUnsignedVInt32(t.kind().ordinal());
             switch (t.kind())
             {
                 case NewTopology:
-                    TopologyUpdateSerializer.instance.serialize(((NewTopology) t).update, out, version);
+                    TopologyUpdateSerializer.instance.serialize(((NewTopology) t).update, out);
                     break;
                 case Topologies:
                     TopologyImage image = (TopologyImage) t;
 
                     out.writeBoolean(image.update != null);
                     if (image.update != null)
-                        TopologyUpdateSerializer.instance.serialize(image.update, out, version);
+                        TopologyUpdateSerializer.instance.serialize(image.update, out);
                     if (image.syncStatus == null)
                         out.writeByte(Byte.MAX_VALUE);
                     else
                         out.writeByte(image.syncStatus.ordinal());
 
-                    KeySerializers.ranges.serialize(image.closed, out, version);
-                    KeySerializers.ranges.serialize(image.retired, out, version);
+                    KeySerializers.ranges.serialize(image.closed, out);
+                    KeySerializers.ranges.serialize(image.retired, out);
                     break;
                 default:
                     throw new UnhandledEnum(t.kind());
             }
         }
 
-        public AccordTopologyUpdate deserialize(DataInputPlus in, int version) throws IOException
+        @Override
+        public AccordTopologyUpdate deserialize(DataInputPlus in) throws IOException
         {
-            int epoch = in.readUnsignedVInt32();
+            long epoch = in.readUnsignedVInt();
             Kind kind = Kind.values()[in.readUnsignedVInt32()];
             switch (kind)
             {
                 case NewTopology:
-                    return new NewTopology(TopologyUpdateSerializer.instance.deserialize(in, version));
+                    return new NewTopology(TopologyUpdateSerializer.instance.deserialize(in));
                 case Topologies:
                 {
                     TopologyImage image = new TopologyImage(epoch);
                     if (in.readBoolean())
-                        image.update = TopologyUpdateSerializer.instance.deserialize(in, version);
+                        image.update = TopologyUpdateSerializer.instance.deserialize(in);
 
                     byte syncStateByte = in.readByte();
                     if (syncStateByte != Byte.MAX_VALUE)
                         image.syncStatus = AccordConfigurationService.SyncStatus.values()[syncStateByte];
 
-                    image.closed = KeySerializers.ranges.deserialize(in, version);
-                    image.retired = KeySerializers.ranges.deserialize(in, version);
+                    image.closed = KeySerializers.ranges.deserialize(in);
+                    image.retired = KeySerializers.ranges.deserialize(in);
                     return image;
                 }
                 default:
@@ -206,7 +212,8 @@ public interface AccordTopologyUpdate
             }
         }
 
-        public long serializedSize(AccordTopologyUpdate t, int version)
+        @Override
+        public long serializedSize(AccordTopologyUpdate t)
         {
             long size = TypeSizes.sizeofUnsignedVInt(t.epoch());
             size += TypeSizes.sizeofUnsignedVInt(t.kind().ordinal());
@@ -214,19 +221,19 @@ public interface AccordTopologyUpdate
             switch (t.kind())
             {
                 case NewTopology:
-                    size += TopologyUpdateSerializer.instance.serializedSize(((NewTopology) t).update, version);
+                    size += TopologyUpdateSerializer.instance.serializedSize(((NewTopology) t).update);
                     break;
                 case Topologies:
                     TopologyImage image = (TopologyImage) t;
 
                     size += TypeSizes.sizeof(image.update != null);
                     if (image.update != null)
-                        size += TopologyUpdateSerializer.instance.serializedSize(image.update, version);
+                        size += TopologyUpdateSerializer.instance.serializedSize(image.update);
 
                     size += Byte.BYTES;
 
-                    size += KeySerializers.ranges.serializedSize(image.closed, version);
-                    size += KeySerializers.ranges.serializedSize(image.retired, version);
+                    size += KeySerializers.ranges.serializedSize(image.closed);
+                    size += KeySerializers.ranges.serializedSize(image.retired);
                     break;
                 default:
                     throw new UnhandledEnum(t.kind());
@@ -288,11 +295,26 @@ public interface AccordTopologyUpdate
             accumulator.closed = accumulator.closed.with(closed);
             accumulator.retired = accumulator.retired.with(retired);
         }
+
+        @Override
+        public boolean equals(Object o)
+        {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            TopologyImage that = (TopologyImage) o;
+            return epoch == that.epoch && Objects.equals(update, that.update) && syncStatus == that.syncStatus && closed.equals(that.closed) && retired.equals(that.retired);
+        }
+
+        @Override
+        public int hashCode()
+        {
+            return Objects.hash(update, syncStatus, closed, retired, epoch);
+        }
     }
 
     class NewTopology implements AccordTopologyUpdate
     {
-        private final Journal.TopologyUpdate update;
+        public final Journal.TopologyUpdate update;
         private final long epoch;
 
         public NewTopology(Journal.TopologyUpdate update)
@@ -319,6 +341,21 @@ public interface AccordTopologyUpdate
             Invariants.require(accumulator.epoch == epoch);
             Invariants.require(accumulator.update == null);
             accumulator.update = update;
+        }
+
+        @Override
+        public boolean equals(Object o)
+        {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            NewTopology that = (NewTopology) o;
+            return epoch == that.epoch && update.equals(that.update);
+        }
+
+        @Override
+        public int hashCode()
+        {
+            return Objects.hash(update, epoch);
         }
     }
 
@@ -384,28 +421,28 @@ public interface AccordTopologyUpdate
         }
 
         @Override
-        public void serialize(JournalKey key, AccordTopologyUpdate from, DataOutputPlus out, int version) throws IOException
+        public void serialize(JournalKey key, AccordTopologyUpdate from, DataOutputPlus out, Version version) throws IOException
         {
             out.writeUnsignedVInt32(1);
-            Serializer.instance.serialize(from, out, version);
+            Serializer.instance.serialize(from, out);
         }
 
         @Override
-        public void reserialize(JournalKey key, Accumulator from, DataOutputPlus out, int version) throws IOException
+        public void reserialize(JournalKey key, Accumulator from, DataOutputPlus out, Version version) throws IOException
         {
             out.writeUnsignedVInt32(from.get().size());
             for (TopologyImage value : from.get().values())
-                Serializer.instance.serialize(value, out, version);
+                Serializer.instance.serialize(value, out);
         }
 
         @Override
-        public void deserialize(JournalKey key, Accumulator into, DataInputPlus in, int version) throws IOException
+        public void deserialize(JournalKey key, Accumulator into, DataInputPlus in, Version version) throws IOException
         {
             long minEpoch = this.minEpoch.epoch();
             int count = in.readUnsignedVInt32();
             while (--count >= 0)
             {
-                AccordTopologyUpdate update = Serializer.instance.deserialize(in, version);
+                AccordTopologyUpdate update = Serializer.instance.deserialize(in);
                 if (update.epoch() >= minEpoch)
                     into.update(update);
                 else

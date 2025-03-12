@@ -31,7 +31,7 @@ import accord.primitives.PartialTxn;
 import accord.primitives.Route;
 import accord.primitives.TxnId;
 import org.apache.cassandra.db.TypeSizes;
-import org.apache.cassandra.io.IVersionedSerializer;
+import org.apache.cassandra.io.UnversionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.service.accord.serializers.CommandSerializers.ExecuteAtSerializer;
@@ -45,7 +45,7 @@ public class PreacceptSerializers
     public static final IVersionedSerializer<PreAccept> request = new WithUnsyncedSerializer<>()
     {
         @Override
-        public void serializeBody(PreAccept msg, DataOutputPlus out, int version) throws IOException
+        public void serializeBody(PreAccept msg, DataOutputPlus out, Version version) throws IOException
         {
             int flags = (msg.partialDeps == null ? 0 : 1)
                         | (msg.route == null ? 0 : 2)
@@ -54,76 +54,76 @@ public class PreacceptSerializers
             out.writeByte(flags);
             CommandSerializers.partialTxn.serialize(msg.partialTxn, out, version);
             if (msg.partialDeps != null)
-                DepsSerializers.partialDeps.serialize(msg.partialDeps, out, version);
+                DepsSerializers.partialDeps.serialize(msg.partialDeps, out);
             if (msg.route != null)
-                KeySerializers.fullRoute.serialize(msg.route, out, version);
+                KeySerializers.fullRoute.serialize(msg.route, out);
             if (msg.acceptEpoch != msg.minEpoch)
                 out.writeUnsignedVInt(msg.acceptEpoch - msg.minEpoch);
         }
 
         @Override
-        public PreAccept deserializeBody(DataInputPlus in, int version, TxnId txnId, Route<?> scope, long waitForEpoch, long minEpoch) throws IOException
+        public PreAccept deserializeBody(DataInputPlus in, Version version, TxnId txnId, Route<?> scope, long waitForEpoch, long minEpoch) throws IOException
         {
             byte flags = in.readByte();
             PartialTxn partialTxn = CommandSerializers.partialTxn.deserialize(in, version);
-            @Nullable PartialDeps partialDeps = (flags & 1) == 0 ? null : DepsSerializers.partialDeps.deserialize(in, version);
-            @Nullable FullRoute<?> fullRoute = (flags & 2) == 0 ? null : KeySerializers.fullRoute.deserialize(in, version);
+            @Nullable PartialDeps partialDeps = (flags & 1) == 0 ? null : DepsSerializers.partialDeps.deserialize(in);
+            @Nullable FullRoute<?> fullRoute = (flags & 2) == 0 ? null : KeySerializers.fullRoute.deserialize(in);
             boolean hasCoordinatorVote = (flags & 4) != 0;
             long acceptEpoch = (flags & 8) == 0 ? minEpoch : in.readUnsignedVInt() + minEpoch;
             return PreAccept.SerializerSupport.create(txnId, scope, waitForEpoch, minEpoch, acceptEpoch, partialTxn, partialDeps, hasCoordinatorVote, fullRoute);
         }
 
         @Override
-        public long serializedBodySize(PreAccept msg, int version)
+        public long serializedBodySize(PreAccept msg, Version version)
         {
             return   TypeSizes.BYTE_SIZE
                    + CommandSerializers.partialTxn.serializedSize(msg.partialTxn, version)
-                   + (msg.partialDeps == null ? 0 : DepsSerializers.partialDeps.serializedSize(msg.partialDeps, version))
-                   + (msg.route == null ? 0 : KeySerializers.fullRoute.serializedSize(msg.route, version))
+                   + (msg.partialDeps == null ? 0 : DepsSerializers.partialDeps.serializedSize(msg.partialDeps))
+                   + (msg.route == null ? 0 : KeySerializers.fullRoute.serializedSize(msg.route))
                    + (msg.acceptEpoch == msg.minEpoch ? 0 : TypeSizes.sizeofUnsignedVInt(msg.acceptEpoch - msg.minEpoch));
         }
     };
 
-    public static final IVersionedSerializer<PreAcceptReply> reply = new IVersionedSerializer<>()
+    public static final UnversionedSerializer<PreAcceptReply> reply = new UnversionedSerializer<>()
     {
         @Override
-        public void serialize(PreAcceptReply reply, DataOutputPlus out, int version) throws IOException
+        public void serialize(PreAcceptReply reply, DataOutputPlus out) throws IOException
         {
             out.writeBoolean(reply.isOk());
             if (!reply.isOk())
                 return;
 
             PreAcceptOk preAcceptOk = (PreAcceptOk) reply;
-            CommandSerializers.txnId.serialize(preAcceptOk.txnId, out, version);
+            CommandSerializers.txnId.serialize(preAcceptOk.txnId, out);
             ExecuteAtSerializer.serialize(preAcceptOk.txnId, preAcceptOk.witnessedAt, out);
-            DepsSerializers.deps.serialize(preAcceptOk.deps, out, version);
+            DepsSerializers.deps.serialize(preAcceptOk.deps, out);
             out.writeUnsignedVInt32(preAcceptOk.flags.bits());
         }
 
         @Override
-        public PreAcceptReply deserialize(DataInputPlus in, int version) throws IOException
+        public PreAcceptReply deserialize(DataInputPlus in) throws IOException
         {
             if (!in.readBoolean())
                 return PreAccept.PreAcceptNack.INSTANCE;
 
-            TxnId txnId = CommandSerializers.txnId.deserialize(in, version);
+            TxnId txnId = CommandSerializers.txnId.deserialize(in);
             return new PreAcceptOk(txnId,
                                    ExecuteAtSerializer.deserialize(txnId, in),
-                                   DepsSerializers.deps.deserialize(in, version),
+                                   DepsSerializers.deps.deserialize(in),
                                    ExecuteFlags.get(in.readUnsignedVInt32()));
         }
 
         @Override
-        public long serializedSize(PreAcceptReply reply, int version)
+        public long serializedSize(PreAcceptReply reply)
         {
             long size = TypeSizes.sizeof(reply.isOk());
             if (!reply.isOk())
                 return size;
 
             PreAcceptOk preAcceptOk = (PreAcceptOk) reply;
-            size += CommandSerializers.txnId.serializedSize(preAcceptOk.txnId, version);
+            size += CommandSerializers.txnId.serializedSize(preAcceptOk.txnId);
             size += ExecuteAtSerializer.serializedSize(preAcceptOk.txnId, preAcceptOk.witnessedAt);
-            size += DepsSerializers.deps.serializedSize(preAcceptOk.deps, version);
+            size += DepsSerializers.deps.serializedSize(preAcceptOk.deps);
             size += TypeSizes.sizeofUnsignedVInt(preAcceptOk.flags.bits());
             return size;
         }

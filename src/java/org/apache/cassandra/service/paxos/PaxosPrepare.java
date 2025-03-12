@@ -1291,7 +1291,7 @@ public class PaxosPrepare extends PaxosRequestCallback<PaxosPrepare.Response> im
                     promised.supersededBy.serialize(out);
             }
             if (version >= MessagingService.VERSION_51)
-                ConsensusMigratedAt.serializer.serialize(response.maybeConsenusMigratedAt, out, version);
+                ConsensusMigratedAt.serializer.serialize(response.maybeConsenusMigratedAt, out);
         }
 
         public Response deserialize(DataInputPlus in, int version) throws IOException
@@ -1302,7 +1302,7 @@ public class PaxosPrepare extends PaxosRequestCallback<PaxosPrepare.Response> im
                 Ballot supersededBy = Ballot.deserialize(in);
                 ConsensusMigratedAt consensusMigratedAt = null;
                 if (version >= MessagingService.VERSION_51)
-                    consensusMigratedAt = ConsensusMigratedAt.serializer.deserialize(in, version);
+                    consensusMigratedAt = ConsensusMigratedAt.serializer.deserialize(in);
                 return new Rejected(supersededBy, consensusMigratedAt);
             }
             else
@@ -1320,7 +1320,7 @@ public class PaxosPrepare extends PaxosRequestCallback<PaxosPrepare.Response> im
                     supersededBy = Ballot.deserialize(in);
                 ConsensusMigratedAt consensusMigratedAt = null;
                 if (version >= MessagingService.VERSION_51)
-                    consensusMigratedAt = ConsensusMigratedAt.serializer.deserialize(in, version);
+                    consensusMigratedAt = ConsensusMigratedAt.serializer.deserialize(in);
                 return new Permitted(outcome, consensusMigratedAt, lowBound, acceptedNotCommitted, committed, readResponse, hasProposalStability, gossipInfo, electorateEpoch, supersededBy);
             }
         }
@@ -1344,7 +1344,7 @@ public class PaxosPrepare extends PaxosRequestCallback<PaxosPrepare.Response> im
                         + (permitted.outcome == PERMIT_READ ? Ballot.sizeInBytes() : 0);
             }
             if (version >= MessagingService.VERSION_51)
-                size += ConsensusMigratedAt.serializer.serializedSize(response.maybeConsenusMigratedAt, version);
+                size += ConsensusMigratedAt.serializer.serializedSize(response.maybeConsenusMigratedAt);
 
             return size;
         }

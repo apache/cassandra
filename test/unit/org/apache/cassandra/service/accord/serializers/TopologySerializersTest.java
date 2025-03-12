@@ -18,29 +18,43 @@
 
 package org.apache.cassandra.service.accord.serializers;
 
+import java.io.IOException;
+
 import org.junit.Test;
 
 import accord.local.Node;
+import accord.utils.AccordGens;
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.utils.SerializerTestUtils;
+import org.apache.cassandra.io.Serializers;
+import org.apache.cassandra.io.util.DataOutputBuffer;
+import org.apache.cassandra.utils.AccordGenerators;
+
+import static accord.utils.Property.qt;
 
 
 public class TopologySerializersTest
 {
     static
     {
-        DatabaseDescriptor.toolInitialization();
+        DatabaseDescriptor.clientInitialization();
     }
 
     @Test
-    public void nodeId()
+    public void nodeId() throws IOException
     {
-        SerializerTestUtils.assertSerializerIOEquality(new Node.Id(1234567890), TopologySerializers.nodeId);
+        qt().forAll(AccordGens.nodes()).check(n -> Serializers.testSerde(TopologySerializers.nodeId, n));
     }
 
     @Test
-    public void requestScopeTest()
+    public void topology()
     {
+        @SuppressWarnings({ "resource", "IOResourceOpenedButNotSafelyClosed" }) DataOutputBuffer output = new DataOutputBuffer();
+        qt().forAll(AccordGenerators.partitioner().flatMap(p -> AccordGenerators.topologyGen(p))).check(expected -> {
+            AccordGenerators.maybeUpdatePartitioner(expected.ranges());
+            Serializers.testSerde(output, TopologySerializers.topology, expected);
 
+            for (Node.Id node : expected.nodes())
+                Serializers.testSerde(output, TopologySerializers.topology, expected.forNode(node));
+        });
     }
 }

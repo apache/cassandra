@@ -42,7 +42,7 @@ import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.exceptions.RequestFailure;
 import org.apache.cassandra.gms.Gossiper;
 import org.apache.cassandra.gms.IFailureDetector;
-import org.apache.cassandra.io.IVersionedSerializer;
+import org.apache.cassandra.io.UnversionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.locator.InetAddressAndPort;
@@ -363,33 +363,33 @@ public class AccordSyncPropagator
 
     public static class Notification
     {
-        public static final IVersionedSerializer<Notification> serializer = new IVersionedSerializer<>()
+        public static final UnversionedSerializer<Notification> serializer = new UnversionedSerializer<Notification>()
         {
             @Override
-            public void serialize(Notification notification, DataOutputPlus out, int version) throws IOException
+            public void serialize(Notification notification, DataOutputPlus out) throws IOException
             {
                 out.writeLong(notification.epoch);
-                CollectionSerializers.serializeCollection(notification.syncComplete, out, version, TopologySerializers.nodeId);
-                KeySerializers.ranges.serialize(notification.closed, out, version);
-                KeySerializers.ranges.serialize(notification.retired, out, version);
+                CollectionSerializers.serializeCollection(notification.syncComplete, out, TopologySerializers.nodeId);
+                KeySerializers.ranges.serialize(notification.closed, out);
+                KeySerializers.ranges.serialize(notification.retired, out);
             }
 
             @Override
-            public Notification deserialize(DataInputPlus in, int version) throws IOException
+            public Notification deserialize(DataInputPlus in) throws IOException
             {
                 return new Notification(in.readLong(),
-                                        CollectionSerializers.deserializeList(in, version, TopologySerializers.nodeId),
-                                        KeySerializers.ranges.deserialize(in, version),
-                                        KeySerializers.ranges.deserialize(in, version));
+                                        CollectionSerializers.deserializeList(in, TopologySerializers.nodeId),
+                                        KeySerializers.ranges.deserialize(in),
+                                        KeySerializers.ranges.deserialize(in));
             }
 
             @Override
-            public long serializedSize(Notification notification, int version)
+            public long serializedSize(Notification notification)
             {
                 return TypeSizes.LONG_SIZE
-                       + CollectionSerializers.serializedCollectionSize(notification.syncComplete, version, TopologySerializers.nodeId)
-                       + KeySerializers.ranges.serializedSize(notification.closed, version)
-                       + KeySerializers.ranges.serializedSize(notification.retired, version);
+                        + CollectionSerializers.serializedCollectionSize(notification.syncComplete, TopologySerializers.nodeId)
+                        + KeySerializers.ranges.serializedSize(notification.closed)
+                        + KeySerializers.ranges.serializedSize(notification.retired);
             }
         };
 

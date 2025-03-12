@@ -31,7 +31,7 @@ import accord.primitives.Route;
 import accord.primitives.Timestamp;
 import accord.primitives.TxnId;
 import org.apache.cassandra.db.TypeSizes;
-import org.apache.cassandra.io.IVersionedSerializer;
+import org.apache.cassandra.io.UnversionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.service.accord.serializers.CommandSerializers.ExecuteAtSerializer;
@@ -49,69 +49,69 @@ public class AcceptSerializers
         private static final int IS_PARTIAL = 1;
 
         @Override
-        public void serializeBody(Accept accept, DataOutputPlus out, int version) throws IOException
+        public void serializeBody(Accept accept, DataOutputPlus out, Version version) throws IOException
         {
             out.writeByte((accept.kind.ordinal() << 1) | (accept.isPartialAccept ? IS_PARTIAL : 0));
-            CommandSerializers.ballot.serialize(accept.ballot, out, version);
+            CommandSerializers.ballot.serialize(accept.ballot, out);
             ExecuteAtSerializer.serialize(accept.txnId, accept.executeAt, out);
-            DepsSerializers.partialDeps.serialize(accept.partialDeps, out, version);
+            DepsSerializers.partialDeps.serialize(accept.partialDeps, out);
         }
 
         @Override
-        public Accept deserializeBody(DataInputPlus in, int version, TxnId txnId, Route<?> scope, long waitForEpoch, long minEpoch) throws IOException
+        public Accept deserializeBody(DataInputPlus in, Version version, TxnId txnId, Route<?> scope, long waitForEpoch, long minEpoch) throws IOException
         {
             int flags = in.readByte();
             Accept.Kind kind = kinds[(flags >>> 1) & 1];
             return create(txnId, scope, waitForEpoch, minEpoch,
                           kind,
-                          CommandSerializers.ballot.deserialize(in, version),
+                          CommandSerializers.ballot.deserialize(in),
                           ExecuteAtSerializer.deserialize(txnId, in),
-                          DepsSerializers.partialDeps.deserialize(in, version),
+                          DepsSerializers.partialDeps.deserialize(in),
                           (flags & IS_PARTIAL) != 0);
         }
 
         @Override
-        public long serializedBodySize(Accept accept, int version)
+        public long serializedBodySize(Accept accept, Version version)
         {
             return 1
-                   + CommandSerializers.ballot.serializedSize(accept.ballot, version)
+                   + CommandSerializers.ballot.serializedSize(accept.ballot)
                    + ExecuteAtSerializer.serializedSize(accept.txnId, accept.executeAt)
-                   + DepsSerializers.partialDeps.serializedSize(accept.partialDeps, version);
+                   + DepsSerializers.partialDeps.serializedSize(accept.partialDeps);
         }
-    };
+    }
 
-    public static final IVersionedSerializer<Accept.NotAccept> notAccept = new IVersionedSerializer<>()
+    public static final UnversionedSerializer<Accept.NotAccept> notAccept = new UnversionedSerializer<>()
     {
         @Override
-        public void serialize(Accept.NotAccept invalidate, DataOutputPlus out, int version) throws IOException
+        public void serialize(Accept.NotAccept invalidate, DataOutputPlus out) throws IOException
         {
-            CommandSerializers.status.serialize(invalidate.status, out, version);
-            CommandSerializers.ballot.serialize(invalidate.ballot, out, version);
-            CommandSerializers.txnId.serialize(invalidate.txnId, out, version);
-            KeySerializers.participants.serialize(invalidate.participants, out, version);
+            CommandSerializers.status.serialize(invalidate.status, out);
+            CommandSerializers.ballot.serialize(invalidate.ballot, out);
+            CommandSerializers.txnId.serialize(invalidate.txnId, out);
+            KeySerializers.participants.serialize(invalidate.participants, out);
         }
 
         @Override
-        public Accept.NotAccept deserialize(DataInputPlus in, int version) throws IOException
+        public Accept.NotAccept deserialize(DataInputPlus in) throws IOException
         {
-            return new Accept.NotAccept(CommandSerializers.status.deserialize(in, version),
-                                        CommandSerializers.ballot.deserialize(in, version),
-                                        CommandSerializers.txnId.deserialize(in, version),
-                                        KeySerializers.participants.deserialize(in, version));
+            return new Accept.NotAccept(CommandSerializers.status.deserialize(in),
+                                        CommandSerializers.ballot.deserialize(in),
+                                        CommandSerializers.txnId.deserialize(in),
+                                        KeySerializers.participants.deserialize(in));
         }
 
         @Override
-        public long serializedSize(Accept.NotAccept invalidate, int version)
+        public long serializedSize(Accept.NotAccept invalidate)
         {
-            return CommandSerializers.status.serializedSize(invalidate.status, version)
-                   + CommandSerializers.ballot.serializedSize(invalidate.ballot, version)
-                   + CommandSerializers.txnId.serializedSize(invalidate.txnId, version)
-                   + KeySerializers.participants.serializedSize(invalidate.participants, version);
+            return CommandSerializers.status.serializedSize(invalidate.status)
+                   + CommandSerializers.ballot.serializedSize(invalidate.ballot)
+                   + CommandSerializers.txnId.serializedSize(invalidate.txnId)
+                   + KeySerializers.participants.serializedSize(invalidate.participants);
         }
     };
 
-    public static final IVersionedSerializer<AcceptReply> reply = new ReplySerializer();
-    public static class ReplySerializer implements IVersionedSerializer<AcceptReply>
+    public static final UnversionedSerializer<AcceptReply> reply = new ReplySerializer();
+    public static class ReplySerializer implements UnversionedSerializer<AcceptReply>
     {
         // we have one spare bit at 0x04 for either another flag or more AcceptOutcome variants
         private static final int SUPERSEDED_BY        = 0x08;
@@ -120,7 +120,7 @@ public class AcceptSerializers
         private static final int DEPS                 = 0x40;
         private static final int FLAGS                = 0x80;
         @Override
-        public void serialize(AcceptReply reply, DataOutputPlus out, int version) throws IOException
+        public void serialize(AcceptReply reply, DataOutputPlus out) throws IOException
         {
             int flags =  reply.outcome.ordinal()
                       | (reply.supersededBy != null       ? SUPERSEDED_BY        : 0)
@@ -131,46 +131,46 @@ public class AcceptSerializers
 
             out.writeByte(flags);
             if (reply.supersededBy != null)
-                CommandSerializers.ballot.serialize(reply.supersededBy, out, version);
+                CommandSerializers.ballot.serialize(reply.supersededBy, out);
             if (reply.committedExecuteAt != null)
                 ExecuteAtSerializer.serialize(reply.committedExecuteAt, out);
             if (reply.successful != null)
-                KeySerializers.participants.serialize(reply.successful, out, version);
+                KeySerializers.participants.serialize(reply.successful, out);
             if (reply.deps != null)
-                DepsSerializers.deps.serialize(reply.deps, out, version);
+                DepsSerializers.deps.serialize(reply.deps, out);
             if (!reply.flags.isEmpty())
                 out.writeUnsignedVInt32(reply.flags.bits());
         }
 
         private final AcceptOutcome[] outcomes = AcceptOutcome.values();
         @Override
-        public AcceptReply deserialize(DataInputPlus in, int version) throws IOException
+        public AcceptReply deserialize(DataInputPlus in) throws IOException
         {
             int flags = in.readByte();
             AcceptOutcome outcome = outcomes[flags & 3];
-            Ballot supersededBy = (flags & SUPERSEDED_BY) == 0 ? null : CommandSerializers.ballot.deserialize(in, version);
+            Ballot supersededBy = (flags & SUPERSEDED_BY) == 0 ? null : CommandSerializers.ballot.deserialize(in);
             Timestamp committedExecuteAt = (flags & COMMITTED_EXECUTE_AT) == 0 ? null : ExecuteAtSerializer.deserialize(in);
-            Participants<?> successful = (flags & SUCCESSFUL) == 0 ? null : KeySerializers.participants.deserialize(in, version);
-            Deps deps = (flags & DEPS) == 0 ? null : DepsSerializers.deps.deserialize(in, version);
+            Participants<?> successful = (flags & SUCCESSFUL) == 0 ? null : KeySerializers.participants.deserialize(in);
+            Deps deps = (flags & DEPS) == 0 ? null : DepsSerializers.deps.deserialize(in);
             ExecuteFlags executeFlags = (flags & FLAGS) == 0 ? ExecuteFlags.none() : ExecuteFlags.get(in.readUnsignedVInt32());
             return new AcceptReply(outcome, supersededBy, successful, deps, committedExecuteAt, executeFlags);
         }
 
         @Override
-        public long serializedSize(AcceptReply reply, int version)
+        public long serializedSize(AcceptReply reply)
         {
             long size = TypeSizes.BYTE_SIZE;
             if (reply.supersededBy != null)
-                size += CommandSerializers.ballot.serializedSize(reply.supersededBy, version);
+                size += CommandSerializers.ballot.serializedSize(reply.supersededBy);
             if (reply.committedExecuteAt != null)
                 size += ExecuteAtSerializer.serializedSize(reply.committedExecuteAt);
             if (reply.successful != null)
-                size += KeySerializers.participants.serializedSize(reply.successful, version);
+                size += KeySerializers.participants.serializedSize(reply.successful);
             if (reply.deps != null)
-                size += DepsSerializers.deps.serializedSize(reply.deps, version);
+                size += DepsSerializers.deps.serializedSize(reply.deps);
             if (!reply.flags.isEmpty())
                 size += TypeSizes.sizeofUnsignedVInt(reply.flags.bits());
             return size;
         }
-    };
+    }
 }

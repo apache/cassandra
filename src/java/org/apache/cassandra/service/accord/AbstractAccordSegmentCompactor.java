@@ -41,6 +41,7 @@ import org.apache.cassandra.service.accord.AccordJournalValueSerializers.Flyweig
 import org.apache.cassandra.utils.NoSpamLogger;
 
 import static java.util.concurrent.TimeUnit.MINUTES;
+import org.apache.cassandra.service.accord.serializers.Version;
 
 /**
  * Segment compactor: takes static segments and compacts them into a single SSTable.
@@ -50,10 +51,10 @@ public abstract class AbstractAccordSegmentCompactor<V> implements SegmentCompac
     protected static final Logger logger = LoggerFactory.getLogger(AbstractAccordSegmentCompactor.class);
     private static final NoSpamLogger.NoSpamLogStatement unknownTable = NoSpamLogger.getStatement(logger, "Unknown (probably dropped) TableId {} reading {}; skipping record", 1L, MINUTES);
 
-    protected final int userVersion;
+    protected final Version userVersion;
     protected final ColumnFamilyStore cfs;
 
-    public AbstractAccordSegmentCompactor(int userVersion, ColumnFamilyStore cfs)
+    public AbstractAccordSegmentCompactor(Version userVersion, ColumnFamilyStore cfs)
     {
         this.userVersion = userVersion;
         this.cfs = cfs;
@@ -115,6 +116,8 @@ public abstract class AbstractAccordSegmentCompactor<V> implements SegmentCompac
                     firstOffset = lastOffset = -1;
                 }
 
+                Version realVersion = Version.fromVersion(reader.descriptor.userVersion);
+
                 boolean advanced;
                 do
                 {
@@ -131,7 +134,7 @@ public abstract class AbstractAccordSegmentCompactor<V> implements SegmentCompac
                                                reader.offset() < lastOffset,
                                                "Offsets were accessed out of order: %d was accessed after %s", reader.offset(), lastOffset);
                         }
-                        serializer.deserialize(key, builder, in, reader.descriptor.userVersion);
+                        serializer.deserialize(key, builder, in, realVersion);
                         lastDescriptor = reader.descriptor.timestamp;
                         lastOffset = reader.offset();
                         if (firstDescriptor == -1)
@@ -196,7 +199,7 @@ public abstract class AbstractAccordSegmentCompactor<V> implements SegmentCompac
                 serializer.reserialize(key, builder, out, userVersion);
                 partitionBuilder.row(descriptor, offset)
                                 .add("record", out.asNewBuffer())
-                                .add("user_version", userVersion);
+                                .add("user_version", userVersion.version);
             }
             writer().append(partitionBuilder.build().unfilteredIterator());
         }

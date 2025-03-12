@@ -18,24 +18,20 @@
 
 package org.apache.cassandra.service.accord.serializers;
 
-import java.util.List;
-
 import org.junit.Test;
 
 import accord.primitives.Deps;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Murmur3Partitioner;
-import org.apache.cassandra.io.IVersionedSerializers;
+import org.apache.cassandra.io.Serializers;
 import org.apache.cassandra.io.util.DataOutputBuffer;
-import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.SchemaProvider;
 import org.apache.cassandra.utils.AccordGenerators;
 import org.mockito.Mockito;
 
 import static accord.utils.Property.qt;
-import static org.apache.cassandra.net.MessagingService.Version.VERSION_51;
 
 public class DepsSerializersTest
 {
@@ -44,8 +40,6 @@ public class DepsSerializersTest
         DatabaseDescriptor.clientInitialization();
         DatabaseDescriptor.setPartitionerUnsafe(Murmur3Partitioner.instance);
     }
-
-    private static final List<MessagingService.Version> SUPPORTED_VERSIONS = VERSION_51.greaterThanOrEqual();
 
     @Test
     public void serde()
@@ -57,8 +51,7 @@ public class DepsSerializersTest
             DatabaseDescriptor.setPartitionerUnsafe(partitioner);
             Mockito.when(Schema.instance.getExistingTablePartitioner(Mockito.any())).thenReturn(partitioner);
             Deps deps = AccordGenerators.depsGen(partitioner).next(rs);
-            for (MessagingService.Version version : SUPPORTED_VERSIONS)
-                IVersionedSerializers.testSerde(buffer, DepsSerializers.deps, deps, version.value);
+            Serializers.testSerde(buffer, DepsSerializers.deps, deps);
         });
     }
 }

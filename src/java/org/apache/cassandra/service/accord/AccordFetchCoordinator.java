@@ -50,7 +50,8 @@ import accord.utils.Invariants;
 import accord.utils.async.AsyncChain;
 import accord.utils.async.AsyncChains;
 import org.apache.cassandra.db.TypeSizes;
-import org.apache.cassandra.io.IVersionedSerializer;
+import org.apache.cassandra.io.UnversionedSerializer;
+import org.apache.cassandra.io.VersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.locator.InetAddressAndPort;
@@ -58,7 +59,9 @@ import org.apache.cassandra.locator.RangesAtEndpoint;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.accord.serializers.CommandSerializers;
+import org.apache.cassandra.service.accord.serializers.IVersionedSerializer;
 import org.apache.cassandra.service.accord.serializers.KeySerializers;
+import org.apache.cassandra.service.accord.serializers.Version;
 import org.apache.cassandra.streaming.PreviewKind;
 import org.apache.cassandra.streaming.StreamCoordinator;
 import org.apache.cassandra.streaming.StreamManager;
@@ -92,47 +95,47 @@ public class AccordFetchCoordinator extends AbstractFetchCoordinator implements 
                 this.hasData = hasData;
             }
 
-            static final IVersionedSerializer<SessionInfo> serializer = new IVersionedSerializer<>()
+            static final UnversionedSerializer<SessionInfo> serializer = new UnversionedSerializer<>()
             {
-                public void serialize(SessionInfo info, DataOutputPlus out, int version) throws IOException
+                public void serialize(SessionInfo info, DataOutputPlus out) throws IOException
                 {
-                    TimeUUID.Serializer.instance.serialize(info.planId, out, version);
+                    TimeUUID.Serializer.instance.serialize(info.planId, out);
                     out.writeBoolean(info.hasData);
 
                 }
 
-                public SessionInfo deserialize(DataInputPlus in, int version) throws IOException
+                public SessionInfo deserialize(DataInputPlus in) throws IOException
                 {
-                    return new SessionInfo(TimeUUID.Serializer.instance.deserialize(in, version), in.readBoolean());
+                    return new SessionInfo(TimeUUID.Serializer.instance.deserialize(in), in.readBoolean());
                 }
 
-                public long serializedSize(SessionInfo info, int version)
+                public long serializedSize(SessionInfo info)
                 {
-                    return TimeUUID.Serializer.instance.serializedSize(info.planId, version) + TypeSizes.BOOL_SIZE;
+                    return TimeUUID.Serializer.instance.serializedSize(info.planId) + TypeSizes.BOOL_SIZE;
                 }
             };
         }
-        public static final IVersionedSerializer<StreamData> serializer = new IVersionedSerializer<>()
+        public static final UnversionedSerializer<StreamData> serializer = new UnversionedSerializer<>()
         {
             @Override
-            public void serialize(StreamData data, DataOutputPlus out, int version) throws IOException
+            public void serialize(StreamData data, DataOutputPlus out) throws IOException
             {
-                serializeMap(data.streams, out, version, TokenRange.serializer, SessionInfo.serializer);
+                serializeMap(data.streams, out, TokenRange.serializer, SessionInfo.serializer);
             }
 
             @Override
-            public StreamData deserialize(DataInputPlus in, int version) throws IOException
+            public StreamData deserialize(DataInputPlus in) throws IOException
             {
 
-                return new StreamData(ImmutableMap.copyOf(deserializeMap(in, version,
+                return new StreamData(ImmutableMap.copyOf(deserializeMap(in,
                                                                          TokenRange.serializer,
                                                                          SessionInfo.serializer)));
             }
 
             @Override
-            public long serializedSize(StreamData data, int version)
+            public long serializedSize(StreamData data)
             {
-                return serializedMapSize(data.streams, version, TokenRange.serializer, SessionInfo.serializer);
+                return serializedMapSize(data.streams, TokenRange.serializer, SessionInfo.serializer);
             }
         };
 
@@ -214,24 +217,24 @@ public class AccordFetchCoordinator extends AbstractFetchCoordinator implements 
         public static final IVersionedSerializer<StreamingRead> serializer = new IVersionedSerializer<StreamingRead>()
         {
             @Override
-            public void serialize(StreamingRead read, DataOutputPlus out, int version) throws IOException
+            public void serialize(StreamingRead read, DataOutputPlus out, Version version) throws IOException
             {
-                InetAddressAndPort.Serializer.inetAddressAndPortSerializer.serialize(read.to, out, version);
-                KeySerializers.ranges.serialize(read.ranges, out, version);
+                InetAddressAndPort.Serializer.inetAddressAndPortSerializer.serialize(read.to, out, version.messageVersion());
+                KeySerializers.ranges.serialize(read.ranges, out);
             }
 
             @Override
-            public StreamingRead deserialize(DataInputPlus in, int version) throws IOException
+            public StreamingRead deserialize(DataInputPlus in, Version version) throws IOException
             {
-                return new StreamingRead(InetAddressAndPort.Serializer.inetAddressAndPortSerializer.deserialize(in, version),
-                                         KeySerializers.ranges.deserialize(in, version));
+                return new StreamingRead(InetAddressAndPort.Serializer.inetAddressAndPortSerializer.deserialize(in, version.messageVersion()),
+                                         KeySerializers.ranges.deserialize(in));
             }
 
             @Override
-            public long serializedSize(StreamingRead read, int version)
+            public long serializedSize(StreamingRead read, Version version)
             {
-                return InetAddressAndPort.Serializer.inetAddressAndPortSerializer.serializedSize(read.to, version)
-                       + KeySerializers.ranges.serializedSize(read.ranges, version);
+                return InetAddressAndPort.Serializer.inetAddressAndPortSerializer.serializedSize(read.to, version.messageVersion())
+                       + KeySerializers.ranges.serializedSize(read.ranges);
             }
         };
 
@@ -302,47 +305,47 @@ public class AccordFetchCoordinator extends AbstractFetchCoordinator implements 
 
     public static class StreamingTxn
     {
-        private static final IVersionedSerializer<Read> read = new CastingSerializer<>(StreamingRead.class,
-                                                                                       StreamingRead.serializer);
+        private static final VersionedSerializer<Read, Version> read = CastingSerializer.create(StreamingRead.class,
+                                                                                                StreamingRead.serializer);
 
-        private static final IVersionedSerializer<Query> query = new IVersionedSerializer<>()
+        private static final UnversionedSerializer<Query> query = new UnversionedSerializer<>()
         {
             @Override
-            public void serialize(Query t, DataOutputPlus out, int version)
+            public void serialize(Query t, DataOutputPlus out)
             {
                 Invariants.requireArgument(t == noopQuery);
             }
 
             @Override
-            public Query deserialize(DataInputPlus in, int version)
+            public Query deserialize(DataInputPlus in)
             {
                 return noopQuery;
             }
 
             @Override
-            public long serializedSize(Query t, int version)
+            public long serializedSize(Query t)
             {
                 Invariants.requireArgument(t == noopQuery);
                 return 0;
             }
         };
 
-        private static final IVersionedSerializer<Update> update = new IVersionedSerializer<>()
+        private static final IVersionedSerializer<Update> update = new IVersionedSerializer<Update>()
         {
             @Override
-            public void serialize(Update t, DataOutputPlus out, int version)
+            public void serialize(Update t, DataOutputPlus out, Version version)
             {
                 Invariants.requireArgument(t == null);
             }
 
             @Override
-            public Update deserialize(DataInputPlus in, int version)
+            public Update deserialize(DataInputPlus in, Version version)
             {
                 return null;
             }
 
             @Override
-            public long serializedSize(Update t, int version)
+            public long serializedSize(Update t, Version version)
             {
                 Invariants.requireArgument(t == null);
                 return 0;

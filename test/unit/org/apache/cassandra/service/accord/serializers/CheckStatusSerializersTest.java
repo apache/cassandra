@@ -18,7 +18,6 @@
 
 package org.apache.cassandra.service.accord.serializers;
 
-import java.io.IOException;
 import java.util.Comparator;
 import java.util.List;
 
@@ -36,14 +35,11 @@ import accord.utils.Gen;
 import accord.utils.Gens;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.dht.Murmur3Partitioner;
-import org.apache.cassandra.io.IVersionedSerializer;
-import org.apache.cassandra.io.util.DataInputBuffer;
+import org.apache.cassandra.io.Serializers;
 import org.apache.cassandra.io.util.DataOutputBuffer;
-import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.service.accord.api.TokenKey;
 import org.apache.cassandra.utils.AccordGenerators;
 import org.apache.cassandra.utils.CassandraGenerators;
-import org.assertj.core.api.Assertions;
 
 import static accord.utils.Property.qt;
 import static org.apache.cassandra.utils.AccordGenerators.fromQT;
@@ -60,19 +56,7 @@ public class CheckStatusSerializersTest
     public void serde()
     {
         DataOutputBuffer buffer = new DataOutputBuffer();
-        qt().forAll(foundKnownMap()).check(map -> Assertions.assertThat(serde(CheckStatusSerializers.knownMap, MessagingService.Version.CURRENT.value, buffer, map)).isEqualTo(map));
-    }
-
-    private static <T> T serde(IVersionedSerializer<T> serializer, int version, DataOutputBuffer buffer, T value) throws IOException
-    {
-        buffer.clear();
-        long expectedSize = serializer.serializedSize(value, version);
-        serializer.serialize(value, buffer, version);
-        Assertions.assertThat(buffer.getLength()).isEqualTo(expectedSize);
-        try (DataInputBuffer in = new DataInputBuffer(buffer.unsafeGetBufferAndFlip(), false))
-        {
-            return serializer.deserialize(in, version);
-        }
+        qt().forAll(foundKnownMap()).check(map -> Serializers.testSerde(buffer, CheckStatusSerializers.knownMap, map));
     }
 
     private static Gen<KnownMap> foundKnownMap()
@@ -86,7 +70,7 @@ public class CheckStatusSerializersTest
             {
                 case Key:
                     // TODO (coverage): don't hard code murmur
-                    Gen<TokenKey> keyGen = AccordGenerators.routingKeyGen(fromQT(CassandraGenerators.TABLE_ID_GEN), Gens.constant(TokenKey.RoutingKeyKind.TOKEN), fromQT(CassandraGenerators.murmurToken()), Murmur3Partitioner.instance);
+                    Gen<TokenKey> keyGen = AccordGenerators.routingKeyGen(fromQT(CassandraGenerators.TABLE_ID_GEN), Gens.constant(AccordGenerators.RoutingKeyKind.TOKEN), fromQT(CassandraGenerators.murmurToken()), Murmur3Partitioner.instance);
                     TokenKey homeKey = keyGen.next(rs);
                     List<TokenKey> forOrdering = Gens.lists(keyGen).unique().ofSizeBetween(1, 10).next(rs);
                     forOrdering.sort(Comparator.naturalOrder());

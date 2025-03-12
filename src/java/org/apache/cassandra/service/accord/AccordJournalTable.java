@@ -73,6 +73,7 @@ import org.apache.cassandra.journal.KeySupport;
 import org.apache.cassandra.journal.RecordConsumer;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.service.accord.api.TokenKey;
+import org.apache.cassandra.service.accord.serializers.Version;
 import org.apache.cassandra.utils.CloseableIterator;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.JVMStabilityInspector;
@@ -98,9 +99,9 @@ public class AccordJournalTable<K extends JournalKey, V> implements RangeSearche
      */
     @Nullable
     private final RouteInMemoryIndex<Object> index;
-    private final int accordJournalVersion;
+    private final Version accordJournalVersion;
 
-    public AccordJournalTable(Journal<K, V> journal, KeySupport<K> keySupport, ColumnFamilyStore cfs, int accordJournalVersion)
+    public AccordJournalTable(Journal<K, V> journal, KeySupport<K> keySupport, ColumnFamilyStore cfs, Version accordJournalVersion)
     {
         this.journal = journal;
         this.cfs = cfs;
@@ -150,7 +151,7 @@ public class AccordJournalTable<K extends JournalKey, V> implements RangeSearche
 
     public interface Reader
     {
-        void read(DataInputPlus input, int userVersion) throws IOException;
+        void read(DataInputPlus input, Version userVersion) throws IOException;
     }
 
     private class RecordConsumerAdapter implements RecordConsumer<K>
@@ -174,7 +175,7 @@ public class AccordJournalTable<K extends JournalKey, V> implements RangeSearche
                 prevPosition = -1;
             Invariants.require(prevPosition == -1 || position < prevPosition,
                                "Records should always be iterated over in a reverse order, but %s was seen after %s", position, prevPosition);
-            readBuffer(buffer, reader, userVersion);
+            readBuffer(buffer, reader, Version.fromVersion(userVersion));
             prevSegment = segment;
             prevPosition = position;
         }
@@ -486,7 +487,7 @@ public class AccordJournalTable<K extends JournalKey, V> implements RangeSearche
         }
     }
 
-    public static void readBuffer(ByteBuffer buffer, Reader reader, int userVersion)
+    public static void readBuffer(ByteBuffer buffer, Reader reader, Version userVersion)
     {
         try (DataInputBuffer in = new DataInputBuffer(buffer, false))
         {

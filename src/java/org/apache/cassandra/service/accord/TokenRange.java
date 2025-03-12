@@ -29,7 +29,7 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.dht.Token;
-import org.apache.cassandra.io.IVersionedSerializer;
+import org.apache.cassandra.io.UnversionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.schema.TableId;
@@ -120,33 +120,33 @@ public class TokenRange extends Range.EndInclusive
 
     public static final Serializer serializer = new Serializer();
 
-    public static final class Serializer implements IVersionedSerializer<TokenRange>
+    public static final class Serializer implements UnversionedSerializer<TokenRange>
     {
         @Override
-        public void serialize(TokenRange range, DataOutputPlus out, int version) throws IOException
+        public void serialize(TokenRange range, DataOutputPlus out) throws IOException
         {
-            TokenKey.serializer.serialize(range.start(), out, version);
-            TokenKey.serializer.serialize(range.end(), out, version);
+            TokenKey.serializer.serialize(range.start(), out);
+            TokenKey.serializer.serialize(range.end(), out);
         }
 
-        public void skip(DataInputPlus in, int version) throws IOException
+        public void skip(DataInputPlus in) throws IOException
         {
-            TokenKey.serializer.skip(in, version);
-            TokenKey.serializer.skip(in, version);
-        }
-
-        @Override
-        public TokenRange deserialize(DataInputPlus in, int version) throws IOException
-        {
-            return TokenRange.create(TokenKey.serializer.deserialize(in, version),
-                                     TokenKey.serializer.deserialize(in, version));
+            TokenKey.serializer.skip(in);
+            TokenKey.serializer.skip(in);
         }
 
         @Override
-        public long serializedSize(TokenRange range, int version)
+        public TokenRange deserialize(DataInputPlus in) throws IOException
         {
-            return TokenKey.serializer.serializedSize(range.start(), version)
-                   + TokenKey.serializer.serializedSize(range.end(), version);
+            return TokenRange.create(TokenKey.serializer.deserialize(in),
+                                     TokenKey.serializer.deserialize(in));
+        }
+
+        @Override
+        public long serializedSize(TokenRange range)
+        {
+            return TokenKey.serializer.serializedSize(range.start())
+                   + TokenKey.serializer.serializedSize(range.end());
         }
     };
 }

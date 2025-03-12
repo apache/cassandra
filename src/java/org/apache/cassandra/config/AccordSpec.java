@@ -23,6 +23,7 @@ import java.util.concurrent.TimeUnit;
 import accord.utils.Invariants;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import org.apache.cassandra.journal.Params;
+import org.apache.cassandra.service.accord.serializers.Version;
 import org.apache.cassandra.service.consensus.TransactionalMode;
 
 import static org.apache.cassandra.config.AccordSpec.QueueShardModel.THREAD_POOL_PER_SHARD;
@@ -192,6 +193,7 @@ public class AccordSpec
         public DurationSpec periodicFlushLagBlock = new DurationSpec.IntMillisecondsBound("1500ms");
         public DurationSpec.IntMillisecondsBound compactionPeriod = new DurationSpec.IntMillisecondsBound("60000ms");
         private volatile long flushCombinedBlockPeriod = Long.MIN_VALUE;
+        public Version version = Version.DOWNGRADE_SAFE_VERSION;
 
         public void setFlushPeriod(DurationSpec newFlushPeriod)
         {
@@ -265,12 +267,7 @@ public class AccordSpec
         @Override
         public int userVersion()
         {
-            /*
-             * NOTE: when accord journal version gets bumped, expose it via yaml.
-             * This way operators can force previous version on upgrade, temporarily,
-             * to allow easier downgrades if something goes wrong.
-             */
-            return 1;
+            return version.version;
         }
     }
 }

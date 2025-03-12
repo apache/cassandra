@@ -29,7 +29,7 @@ import org.slf4j.LoggerFactory;
 import accord.topology.Topology;
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.exceptions.RequestFailure;
-import org.apache.cassandra.io.IVersionedSerializer;
+import org.apache.cassandra.io.UnversionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.locator.InetAddressAndPort;
@@ -61,23 +61,23 @@ public class FetchTopologies
     private final long minEpoch;
     private final long maxEpoch;
 
-    public static final IVersionedSerializer<FetchTopologies> serializer = new IVersionedSerializer<>()
+    public static final UnversionedSerializer<FetchTopologies> serializer = new UnversionedSerializer<>()
     {
         @Override
-        public void serialize(FetchTopologies t, DataOutputPlus out, int version) throws IOException
+        public void serialize(FetchTopologies t, DataOutputPlus out) throws IOException
         {
             out.writeUnsignedVInt(t.minEpoch);
             out.writeUnsignedVInt(t.maxEpoch);
         }
 
         @Override
-        public FetchTopologies deserialize(DataInputPlus in, int version) throws IOException
+        public FetchTopologies deserialize(DataInputPlus in) throws IOException
         {
             return new FetchTopologies(in.readUnsignedVInt(), in.readUnsignedVInt());
         }
 
         @Override
-        public long serializedSize(FetchTopologies t, int version)
+        public long serializedSize(FetchTopologies t)
         {
             return TypeSizes.sizeofUnsignedVInt(t.minEpoch) +
                    TypeSizes.sizeofUnsignedVInt(t.maxEpoch);
@@ -90,11 +90,10 @@ public class FetchTopologies
         this.maxEpoch = maxEpoch;
     }
 
-    // TODO (required): messaging version after version patch
-    public static final IVersionedSerializer<TopologyRange> responseSerializer = new IVersionedSerializer<>()
+    public static final UnversionedSerializer<TopologyRange> responseSerializer = new UnversionedSerializer<>()
     {
             @Override
-            public void serialize(TopologyRange t, DataOutputPlus out, int version) throws IOException
+            public void serialize(TopologyRange t, DataOutputPlus out) throws IOException
             {
                 out.writeUnsignedVInt(t.min);
                 out.writeUnsignedVInt(t.current);
@@ -102,11 +101,11 @@ public class FetchTopologies
                 out.writeUnsignedVInt32(t.topologies.size());
 
                 for (Topology topology : t.topologies)
-                    TopologySerializers.topology.serialize(topology, out, version);
+                    TopologySerializers.topology.serialize(topology, out);
             }
 
             @Override
-            public TopologyRange deserialize(DataInputPlus in, int version) throws IOException
+            public TopologyRange deserialize(DataInputPlus in) throws IOException
             {
                 long min = in.readUnsignedVInt();
                 long current = in.readUnsignedVInt();
@@ -114,19 +113,19 @@ public class FetchTopologies
                 int count = in.readUnsignedVInt32();
                 List<Topology> topologies = new ArrayList<>(count);
                 for (int i = 0; i < count; ++i)
-                    topologies.add(TopologySerializers.topology.deserialize(in, version));
+                    topologies.add(TopologySerializers.topology.deserialize(in));
                 return new TopologyRange(min, current, firstNonEmpty, topologies);
             }
 
             @Override
-            public long serializedSize(TopologyRange t, int version)
+            public long serializedSize(TopologyRange t)
             {
                 long size = TypeSizes.sizeofUnsignedVInt(t.min);
                 size += TypeSizes.sizeofUnsignedVInt(t.current);
                 size += TypeSizes.sizeofUnsignedVInt(t.firstNonEmpty);
                 size += TypeSizes.sizeofUnsignedVInt(t.topologies.size());
                 for (Topology topology : t.topologies)
-                    size += TopologySerializers.topology.serializedSize(topology, version);
+                    size += TopologySerializers.topology.serializedSize(topology);
                 return size;
             }
         };

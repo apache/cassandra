@@ -20,45 +20,90 @@ package org.apache.cassandra.utils;
 
 import java.io.IOException;
 
-import org.apache.cassandra.io.IVersionedSerializer;
+import org.apache.cassandra.io.UnversionedSerializer;
+import org.apache.cassandra.io.VersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 
 /**
  * Utility for serializing/deserializing from/into generic interface fields where we know (and require) the
  * generic fields to be implementation specific classes
- * @param <Generic>
- * @param <Specific>
  */
-public class CastingSerializer<Generic, Specific extends Generic> implements IVersionedSerializer<Generic>
+public class CastingSerializer
 {
-    private final Class<Specific> specificClass;
-    private final IVersionedSerializer<Specific> specificSerializer;
-
-    public CastingSerializer(Class<Specific> specificClass, IVersionedSerializer<Specific> specificSerializer)
+    public static <Generic, Specific extends Generic, Version> VersionedSerializer<Generic, Version> create(Class<Specific> specificClass, VersionedSerializer<Specific, Version> specificSerializer)
     {
-        this.specificClass = specificClass;
-        this.specificSerializer = specificSerializer;
+        return new Versioned<>(specificClass, specificSerializer);
     }
 
-    @Override
-    public void serialize(Generic generic, DataOutputPlus out, int version) throws IOException
+    public static <Generic, Specific extends Generic> UnversionedSerializer<Generic> create(Class<Specific> specificClass, UnversionedSerializer<Specific> specificSerializer)
     {
-        specificSerializer.serialize(specificClass.cast(generic), out, version);
+        return new Unversioned<>(specificClass, specificSerializer);
     }
 
-    @Override
-    public Generic deserialize(DataInputPlus in, int version) throws IOException
+    private static final class Versioned<Generic, Specific extends Generic, Version> implements VersionedSerializer<Generic, Version>
     {
-        Generic result = specificSerializer.deserialize(in, version);
-        if (result != null && !specificClass.isInstance(result))
-            throw new IllegalStateException("Expected instance of " + specificClass.getName());
-        return result;
+        private final Class<Specific> specificClass;
+        private final VersionedSerializer<Specific, Version> specificSerializer;
+
+        private Versioned(Class<Specific> specificClass, VersionedSerializer<Specific, Version> specificSerializer)
+        {
+            this.specificClass = specificClass;
+            this.specificSerializer = specificSerializer;
+        }
+
+        @Override
+        public void serialize(Generic generic, DataOutputPlus out, Version version) throws IOException
+        {
+            specificSerializer.serialize(specificClass.cast(generic), out, version);
+        }
+
+        @Override
+        public Generic deserialize(DataInputPlus in, Version version) throws IOException
+        {
+            Generic result = specificSerializer.deserialize(in, version);
+            if (result != null && !specificClass.isInstance(result))
+                throw new IllegalStateException("Expected instance of " + specificClass.getName());
+            return result;
+        }
+
+        @Override
+        public long serializedSize(Generic generic, Version version)
+        {
+            return specificSerializer.serializedSize(specificClass.cast(generic), version);
+        }
     }
 
-    @Override
-    public long serializedSize(Generic generic, int version)
+    private static final class Unversioned<Generic, Specific extends Generic> implements UnversionedSerializer<Generic>
     {
-        return specificSerializer.serializedSize(specificClass.cast(generic), version);
+        private final Class<Specific> specificClass;
+        private final UnversionedSerializer<Specific> specificSerializer;
+
+        private Unversioned(Class<Specific> specificClass, UnversionedSerializer<Specific> specificSerializer)
+        {
+            this.specificClass = specificClass;
+            this.specificSerializer = specificSerializer;
+        }
+
+        @Override
+        public void serialize(Generic generic, DataOutputPlus out) throws IOException
+        {
+            specificSerializer.serialize(specificClass.cast(generic), out);
+        }
+
+        @Override
+        public Generic deserialize(DataInputPlus in) throws IOException
+        {
+            Generic result = specificSerializer.deserialize(in);
+            if (result != null && !specificClass.isInstance(result))
+                throw new IllegalStateException("Expected instance of " + specificClass.getName());
+            return result;
+        }
+
+        @Override
+        public long serializedSize(Generic generic)
+        {
+            return specificSerializer.serializedSize(specificClass.cast(generic));
+        }
     }
 }

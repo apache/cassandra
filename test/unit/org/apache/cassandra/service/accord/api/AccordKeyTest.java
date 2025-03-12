@@ -18,6 +18,8 @@
 
 package org.apache.cassandra.service.accord.api;
 
+import java.io.IOException;
+
 import org.junit.Assert;
 import org.junit.BeforeClass;
 import org.junit.Test;
@@ -25,11 +27,11 @@ import org.junit.Test;
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.dht.IPartitioner;
+import org.apache.cassandra.io.Serializers;
 import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.utils.ByteBufferUtil;
-import org.apache.cassandra.utils.SerializerTestUtils;
 
 import static org.apache.cassandra.cql3.statements.schema.CreateTableStatement.parse;
 
@@ -54,19 +56,19 @@ public class AccordKeyTest
     }
 
     @Test
-    public void partitionKeyTest()
+    public void partitionKeyTest() throws IOException
     {
         DecoratedKey dk = partitioner(TABLE1).decorateKey(ByteBufferUtil.bytes(5));
         PartitionKey pk = new PartitionKey(TABLE1, dk);
-        SerializerTestUtils.assertSerializerIOEquality(pk, PartitionKey.serializer);
+        Serializers.testSerde(PartitionKey.serializer, pk);
     }
 
     @Test
-    public void tokenKeyTest()
+    public void tokenKeyTest() throws IOException
     {
         DecoratedKey dk = partitioner(TABLE1).decorateKey(ByteBufferUtil.bytes(5));
         TokenKey pk = new TokenKey(TABLE1, dk.getToken());
-        SerializerTestUtils.assertSerializerIOEquality(pk, TokenKey.serializer);
+        Serializers.testSerde(TokenKey.serializer, pk);
     }
 
     @Test

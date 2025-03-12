@@ -22,6 +22,7 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 
 import com.google.common.annotations.VisibleForTesting;
@@ -38,7 +39,7 @@ import accord.utils.Invariants;
 import accord.utils.async.AsyncResult;
 import org.agrona.collections.Int2ObjectHashMap;
 import org.apache.cassandra.db.TypeSizes;
-import org.apache.cassandra.io.IVersionedSerializer;
+import org.apache.cassandra.io.UnversionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.locator.InetAddressAndPort;
@@ -172,22 +173,38 @@ public class WatermarkCollector implements ConfigurationService.Listener
             this.retired = retired;
             this.synced = synced;
         }
+
+        @Override
+        public boolean equals(Object o)
+        {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            Snapshot snapshot = (Snapshot) o;
+            return closed.equals(snapshot.closed) && retired.equals(snapshot.retired) && synced.equals(snapshot.synced);
+        }
+
+        @Override
+        public int hashCode()
+        {
+            return Objects.hash(closed, retired, synced);
+        }
     }
 
-    public static final IVersionedSerializer<Snapshot> serializer = new IVersionedSerializer<>()
+    public static final UnversionedSerializer<Snapshot> serializer = new UnversionedSerializer<>()
     {
-        public void serialize(Snapshot t, DataOutputPlus out, int version) throws IOException
+        @Override
+        public void serialize(Snapshot t, DataOutputPlus out) throws IOException
         {
             out.writeUnsignedVInt32(t.closed.size());
             for (Map.Entry<Range, Long> e : t.closed.entrySet())
             {
-                TokenRange.serializer.serialize((TokenRange) e.getKey(), out, version);
+                TokenRange.serializer.serialize((TokenRange) e.getKey(), out);
                 out.writeUnsignedVInt(e.getValue());
             }
             out.writeUnsignedVInt32(t.retired.size());
             for (Map.Entry<Range, Long> e : t.retired.entrySet())
             {
-                TokenRange.serializer.serialize((TokenRange) e.getKey(), out, version);
+                TokenRange.serializer.serialize((TokenRange) e.getKey(), out);
                 out.writeUnsignedVInt(e.getValue());
             }
             out.writeUnsignedVInt32(t.synced.size());
@@ -199,20 +216,21 @@ public class WatermarkCollector implements ConfigurationService.Listener
         }
 
         // TODO (desired): we do not have to deserialize to report these values
-        public Snapshot deserialize(DataInputPlus in, int version) throws IOException
+        @Override
+        public Snapshot deserialize(DataInputPlus in) throws IOException
         {
             int closedSize = in.readUnsignedVInt32();
             Map<Range, Long> closed = new HashMap<>();
             for (int i = 0; i < closedSize; i++)
             {
-                closed.put(TokenRange.serializer.deserialize(in, version),
+                closed.put(TokenRange.serializer.deserialize(in),
                            in.readUnsignedVInt());
             }
             int retiredSize = in.readUnsignedVInt32();
             Map<Range, Long> retired = new HashMap<>();
             for (int i = 0; i < retiredSize; i++)
             {
-                retired.put(TokenRange.serializer.deserialize(in, version),
+                retired.put(TokenRange.serializer.deserialize(in),
                             in.readUnsignedVInt());
             }
             int syncedSize = in.readUnsignedVInt32();
@@ -225,19 +243,20 @@ public class WatermarkCollector implements ConfigurationService.Listener
             return new Snapshot(closed, retired, synced);
         }
 
-        public long serializedSize(Snapshot t, int version)
+        @Override
+        public long serializedSize(Snapshot t)
         {
             int size = 0;
             size += TypeSizes.sizeofUnsignedVInt(t.closed.size());
             for (Map.Entry<Range, Long> e : t.closed.entrySet())
             {
-                size += TokenRange.serializer.serializedSize((TokenRange) e.getKey(), version);
+                size += TokenRange.serializer.serializedSize((TokenRange) e.getKey());
                 size += TypeSizes.sizeofUnsignedVInt(e.getValue());
             }
             size += TypeSizes.sizeofUnsignedVInt(t.retired.size());
             for (Map.Entry<Range, Long> e : t.retired.entrySet())
             {
-                size += TokenRange.serializer.serializedSize((TokenRange) e.getKey(), version);
+                size += TokenRange.serializer.serializedSize((TokenRange) e.getKey());
                 size += TypeSizes.sizeofUnsignedVInt(e.getValue());
             }
             size += TypeSizes.sizeofUnsignedVInt(t.synced.size());

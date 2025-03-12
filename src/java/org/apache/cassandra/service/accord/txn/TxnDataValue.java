@@ -20,9 +20,10 @@ package org.apache.cassandra.service.accord.txn;
 
 import java.io.IOException;
 
-import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
+import org.apache.cassandra.service.accord.serializers.IVersionedSerializer;
+import org.apache.cassandra.service.accord.serializers.Version;
 
 import static org.apache.cassandra.db.TypeSizes.sizeof;
 
@@ -31,7 +32,8 @@ import static org.apache.cassandra.db.TypeSizes.sizeof;
  */
 public interface TxnDataValue
 {
-    interface TxnDataValueSerializer<T extends TxnDataValue> extends IVersionedSerializer<T> {}
+    interface TxnDataValueSerializer<T extends TxnDataValue> extends IVersionedSerializer<T>
+    {}
 
     enum Kind
     {
@@ -68,14 +70,14 @@ public interface TxnDataValue
     {
         @SuppressWarnings("unchecked")
         @Override
-        public void serialize(TxnDataValue txnDataValue, DataOutputPlus out, int version) throws IOException
+        public void serialize(TxnDataValue txnDataValue, DataOutputPlus out, Version version) throws IOException
         {
             out.writeByte(txnDataValue.kind().ordinal());
             txnDataValue.kind().serializer().serialize(txnDataValue, out, version);
         }
 
         @Override
-        public TxnDataValue deserialize(DataInputPlus in, int version) throws IOException
+        public TxnDataValue deserialize(DataInputPlus in, Version version) throws IOException
         {
             TxnDataValue.Kind kind = TxnDataValue.Kind.values()[in.readByte()];
             return (TxnDataValue)kind.serializer().deserialize(in, version);
@@ -83,7 +85,7 @@ public interface TxnDataValue
 
         @SuppressWarnings("unchecked")
         @Override
-        public long serializedSize(TxnDataValue txnDataValue, int version)
+        public long serializedSize(TxnDataValue txnDataValue, Version version)
         {
             return sizeof((byte)txnDataValue.kind().ordinal()) + txnDataValue.kind().serializer().serializedSize(txnDataValue, version);
         }

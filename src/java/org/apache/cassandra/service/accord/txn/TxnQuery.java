@@ -38,7 +38,7 @@ import org.apache.cassandra.db.PartitionRangeReadCommand;
 import org.apache.cassandra.db.SinglePartitionReadCommand;
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.db.partitions.PartitionIterator;
-import org.apache.cassandra.io.IVersionedSerializer;
+import org.apache.cassandra.io.UnversionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.metrics.ClientRequestsMetricsHolder;
@@ -227,17 +227,17 @@ public abstract class TxnQuery implements Query
         return SIZE;
     }
 
-    public static final IVersionedSerializer<TxnQuery> serializer = new IVersionedSerializer<TxnQuery>()
+    public static final UnversionedSerializer<TxnQuery> serializer = new UnversionedSerializer<TxnQuery>()
     {
         @Override
-        public void serialize(TxnQuery query, DataOutputPlus out, int version) throws IOException
+        public void serialize(TxnQuery query, DataOutputPlus out) throws IOException
         {
             Preconditions.checkArgument(query == null | query == ALL | query == NONE | query == CONDITION | query == UNSAFE_EMPTY | query == RANGE_QUERY);
             out.writeByte(query == null ? 0 : query.type());
         }
 
         @Override
-        public TxnQuery deserialize(DataInputPlus in, int version) throws IOException
+        public TxnQuery deserialize(DataInputPlus in) throws IOException
         {
             switch (in.readByte())
             {
@@ -252,7 +252,7 @@ public abstract class TxnQuery implements Query
         }
 
         @Override
-        public long serializedSize(TxnQuery query, int version)
+        public long serializedSize(TxnQuery query)
         {
             Preconditions.checkArgument(query == null | query == ALL | query == NONE | query == CONDITION | query == UNSAFE_EMPTY | query == RANGE_QUERY);
             return TypeSizes.sizeof((byte)2);

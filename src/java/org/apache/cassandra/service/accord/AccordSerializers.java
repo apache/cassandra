@@ -20,7 +20,6 @@ package org.apache.cassandra.service.accord;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.util.List;
 
 import org.apache.cassandra.cql3.terms.MultiElements;
 import org.apache.cassandra.cql3.terms.Term;
@@ -36,16 +35,17 @@ import org.apache.cassandra.db.marshal.SetType;
 import org.apache.cassandra.db.marshal.ValueAccessor;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
 import org.apache.cassandra.db.rows.DeserializationHelper;
-import org.apache.cassandra.io.IVersionedSerializer;
-import org.apache.cassandra.io.util.DataInputBuffer;
+import org.apache.cassandra.io.AsymmetricVersionedSerializer;
+import org.apache.cassandra.io.EmbeddedAsymmetricVersionedSerializer;
+import org.apache.cassandra.io.UnversionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
-import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.io.util.DataOutputPlus;
-import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.schema.TableMetadata;
+import org.apache.cassandra.service.accord.serializers.IVersionedSerializer;
+import org.apache.cassandra.service.accord.serializers.Version;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
 import static org.apache.cassandra.db.TypeSizes.sizeof;
@@ -56,41 +56,9 @@ import static org.apache.cassandra.db.marshal.CollectionType.Kind.SET;
 
 public class AccordSerializers
 {
-    public static <T> ByteBuffer serialize(T item, IVersionedSerializer<T> serializer)
+    public static <A, B> EmbeddedAsymmetricVersionedSerializer<A, B, Version> embedded(Version version, AsymmetricVersionedSerializer<A, B, Version> serializer)
     {
-        int version = MessagingService.current_version;
-        long size = serializer.serializedSize(item, version) + sizeofUnsignedVInt(version);
-        try (DataOutputBuffer out = new DataOutputBuffer((int) size))
-        {
-            out.writeUnsignedVInt32(version);
-            serializer.serialize(item, out, version);
-            return out.buffer(false);
-        }
-        catch (IOException e)
-        {
-            throw new RuntimeException(e);
-        }
-    }
-
-    public static <T> ByteBuffer[] serialize(List<T> items, IVersionedSerializer<T> serializer)
-    {
-        ByteBuffer[] result = new ByteBuffer[items.size()];
-        for (int i = 0, mi = items.size(); i < mi; i++)
-            result[i] = serialize(items.get(i), serializer);
-        return result;
-    }
-
-    public static <T> T deserialize(ByteBuffer bytes, IVersionedSerializer<T> serializer)
-    {
-        try (DataInputBuffer in = new DataInputBuffer(bytes, true))
-        {
-            int version = in.readUnsignedVInt32();
-            return serializer.deserialize(in, version);
-        }
-        catch (IOException e)
-        {
-            throw new RuntimeException(e);
-        }
+        return new EmbeddedAsymmetricVersionedSerializer<>(version, Version.Serializer.instance, serializer);
     }
 
     public static Term.Terminal deserializeCqlCollectionAsTerm(ByteBuffer buffer, AbstractType<?> type)
@@ -110,28 +78,28 @@ public class AccordSerializers
     public static final IVersionedSerializer<PartitionUpdate> partitionUpdateSerializer = new IVersionedSerializer<PartitionUpdate>()
     {
         @Override
-        public void serialize(PartitionUpdate upd, DataOutputPlus out, int version) throws IOException
+        public void serialize(PartitionUpdate upd, DataOutputPlus out, Version version) throws IOException
         {
-            PartitionUpdate.serializer.serialize(upd, out, version);
+            PartitionUpdate.serializer.serialize(upd, out, version.messageVersion());
         }
 
         @Override
-        public PartitionUpdate deserialize(DataInputPlus in, int version) throws IOException
+        public PartitionUpdate deserialize(DataInputPlus in, Version version) throws IOException
         {
-            return PartitionUpdate.serializer.deserialize(in, version, DeserializationHelper.Flag.FROM_REMOTE);
+            return PartitionUpdate.serializer.deserialize(in, version.messageVersion(), DeserializationHelper.Flag.FROM_REMOTE);
         }
 
         @Override
-        public long serializedSize(PartitionUpdate upd, int version)
+        public long serializedSize(PartitionUpdate upd, Version version)
         {
-            return PartitionUpdate.serializer.serializedSize(upd, version);
+            return PartitionUpdate.serializer.serializedSize(upd, version.messageVersion());
         }
     };
 
-    public static final IVersionedSerializer<ColumnMetadata> columnMetadataSerializer = new IVersionedSerializer<>()
+    public static final UnversionedSerializer<ColumnMetadata> columnMetadataSerializer = new UnversionedSerializer<ColumnMetadata>()
     {
         @Override
-        public void serialize(ColumnMetadata column, DataOutputPlus out, int version) throws IOException
+        public void serialize(ColumnMetadata column, DataOutputPlus out) throws IOException
         {
             out.writeUTF(column.ksName);
             out.writeUTF(column.cfName);
@@ -139,7 +107,7 @@ public class AccordSerializers
         }
 
         @Override
-        public ColumnMetadata deserialize(DataInputPlus in, int version) throws IOException
+        public ColumnMetadata deserialize(DataInputPlus in) throws IOException
         {
             String keyspace = in.readUTF();
             String table = in.readUTF();
@@ -148,7 +116,7 @@ public class AccordSerializers
         }
 
         @Override
-        public long serializedSize(ColumnMetadata column, int version)
+        public long serializedSize(ColumnMetadata column)
         {
             long size = 0;
             size += sizeof(column.ksName);
@@ -161,33 +129,33 @@ public class AccordSerializers
     public static final IVersionedSerializer<TableMetadata> tableMetadataSerializer = new IVersionedSerializer<TableMetadata>()
     {
         @Override
-        public void serialize(TableMetadata metadata, DataOutputPlus out, int version) throws IOException
+        public void serialize(TableMetadata metadata, DataOutputPlus out, Version version) throws IOException
         {
             metadata.id.serializeCompact(out);
         }
 
         @Override
-        public TableMetadata deserialize(DataInputPlus in, int version) throws IOException
+        public TableMetadata deserialize(DataInputPlus in, Version version) throws IOException
         {
             return Schema.instance.getTableMetadata(TableId.deserializeCompact(in));
         }
 
         @Override
-        public long serializedSize(TableMetadata metadata, int version)
+        public long serializedSize(TableMetadata metadata, Version version)
         {
             return metadata.id.serializedCompactSize();
         }
     };
 
-    public static final IVersionedSerializer<Clustering<?>> clusteringSerializer = new IVersionedSerializer<Clustering<?>>()
+    public static final UnversionedSerializer<Clustering<?>> clusteringSerializer = new UnversionedSerializer<Clustering<?>>()
     {
         @Override
-        public void serialize(Clustering<?> clustering, DataOutputPlus out, int version) throws IOException
+        public void serialize(Clustering<?> clustering, DataOutputPlus out) throws IOException
         {
             doSerialize(clustering, out);
         }
 
-        public <V> void doSerialize(Clustering<V> clustering, DataOutputPlus out) throws IOException
+        private  <V> void doSerialize(Clustering<V> clustering, DataOutputPlus out) throws IOException
         {
             if (clustering.kind() == ClusteringPrefix.Kind.STATIC_CLUSTERING)
             {
@@ -206,7 +174,7 @@ public class AccordSerializers
         }
 
         @Override
-        public Clustering<?> deserialize(DataInputPlus in, int version) throws IOException
+        public Clustering<?> deserialize(DataInputPlus in) throws IOException
         {
             Clustering<?> clustering;
             if (in.readBoolean())
@@ -229,41 +197,45 @@ public class AccordSerializers
         }
 
         @Override
-        public long serializedSize(Clustering<?> clustering, int version)
+        public long serializedSize(Clustering<?> clustering)
         {
             return computeSerializedSize(clustering);
         }
 
         private <V> long computeSerializedSize(Clustering<V> clustering)
         {
-            int size = sizeof(true) + sizeofUnsignedVInt(clustering.size());
-            ValueAccessor<V> accessor = clustering.accessor();
-            for (int i = 0; i < clustering.size(); i++)
+            int size = sizeof(true);
+            if (clustering.kind() != ClusteringPrefix.Kind.STATIC_CLUSTERING)
             {
-                int valueSize = accessor.size(clustering.get(i));
-                size += valueSize;
-                size += sizeofUnsignedVInt(valueSize);
+                size += sizeofUnsignedVInt(clustering.size());
+                ValueAccessor<V> accessor = clustering.accessor();
+                for (int i = 0; i < clustering.size(); i++)
+                {
+                    int valueSize = accessor.size(clustering.get(i));
+                    size += valueSize;
+                    size += sizeofUnsignedVInt(valueSize);
+                }
             }
             return size;
         }
     };
 
-    public static final IVersionedSerializer<ConsistencyLevel> consistencyLevelSerializer = new IVersionedSerializer<ConsistencyLevel>()
+    public static final UnversionedSerializer<ConsistencyLevel> consistencyLevelSerializer = new UnversionedSerializer<ConsistencyLevel>()
     {
         @Override
-        public void serialize(ConsistencyLevel t, DataOutputPlus out, int version) throws IOException
+        public void serialize(ConsistencyLevel t, DataOutputPlus out) throws IOException
         {
             out.writeByte(t.code);
         }
 
         @Override
-        public ConsistencyLevel deserialize(DataInputPlus in, int version) throws IOException
+        public ConsistencyLevel deserialize(DataInputPlus in) throws IOException
         {
             return ConsistencyLevel.fromCode(in.readByte());
         }
 
         @Override
-        public long serializedSize(ConsistencyLevel t, int version)
+        public long serializedSize(ConsistencyLevel t)
         {
             return 1;
         }

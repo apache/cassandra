@@ -32,7 +32,6 @@ import accord.local.DurableBefore;
 import accord.local.RedundantBefore;
 import accord.primitives.Deps;
 import accord.primitives.KeyDeps;
-import accord.primitives.Range;
 import accord.primitives.Ranges;
 import accord.primitives.Timestamp;
 import accord.primitives.TxnId;
@@ -46,7 +45,6 @@ import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.io.util.File;
-import org.apache.cassandra.journal.TestParams;
 import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.service.accord.api.AccordAgent;
@@ -92,14 +90,11 @@ public class AccordJournalCompactionTest
         NavigableMap<TxnId, Ranges> bootstrapBeganAtAccumulator = ImmutableSortedMap.of(TxnId.NONE, Ranges.EMPTY);
         RangesForEpoch rangesForEpochAccumulator = null;
 
-        Gen<RedundantBefore> redundantBeforeGen = AccordGenerators.redundantBefore(DatabaseDescriptor.getPartitioner());
         Gen<DurableBefore> durableBeforeGen = AccordGenerators.durableBeforeGen(DatabaseDescriptor.getPartitioner());
         Gen<NavigableMap<Timestamp, Ranges>> safeToReadGen = AccordGenerators.safeToReadGen(DatabaseDescriptor.getPartitioner());
         Gen<RangesForEpoch> rangesForEpochGen = AccordGenerators.rangesForEpoch(DatabaseDescriptor.getPartitioner());
-        Gen<Range> rangeGen = AccordGenerators.range(DatabaseDescriptor.getPartitioner());
-        Gen<Deps> historicalTransactionsGen = depsGen();
 
-        AccordJournal journal = new AccordJournal(new TestParams()
+        AccordJournal journal = new AccordJournal(new AccordJournalTestParams()
         {
             @Override
             public int segmentSize()

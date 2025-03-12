@@ -32,7 +32,6 @@ import accord.primitives.RoutingKeys;
 import accord.primitives.Unseekables;
 import net.nicoulaj.compilecommand.annotations.DontInline;
 import org.apache.cassandra.db.TypeSizes;
-import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 
@@ -51,7 +50,7 @@ public interface IVersionedWithKeysSerializer<K extends Routables<?>, T> extends
      * @param version protocol version
      * @throws IOException if serialization fails
      */
-    void serialize(K keys, T t, DataOutputPlus out, int version) throws IOException;
+    void serialize(K keys, T t, DataOutputPlus out, Version version) throws IOException;
 
     /**
      * Deserialize into the specified DataInputStream instance.
@@ -60,7 +59,7 @@ public interface IVersionedWithKeysSerializer<K extends Routables<?>, T> extends
      * @return the type that was deserialized
      * @throws IOException if deserialization fails
      */
-    T deserialize(K keys, DataInputPlus in, int version) throws IOException;
+    T deserialize(K keys, DataInputPlus in, Version version) throws IOException;
 
     /**
      * Calculate serialized size of object without actually serializing.
@@ -68,7 +67,7 @@ public interface IVersionedWithKeysSerializer<K extends Routables<?>, T> extends
      * @param version protocol version
      * @return serialized size of object t
      */
-    long serializedSize(K keys, T t, int version);
+    long serializedSize(K keys, T t, Version version);
 
     final class NullableWithKeysSerializer<K extends Routables<?>, T> implements IVersionedWithKeysSerializer<K, T>
     {
@@ -79,41 +78,41 @@ public interface IVersionedWithKeysSerializer<K extends Routables<?>, T> extends
         }
 
         @Override
-        public void serialize(T t, DataOutputPlus out, int version) throws IOException
+        public void serialize(T t, DataOutputPlus out, Version version) throws IOException
         {
             out.writeByte(t == null ? 0 : 1);
             if (t != null) wrapped.serialize(t, out, version);
         }
 
         @Override
-        public T deserialize(DataInputPlus in, int version) throws IOException
+        public T deserialize(DataInputPlus in, Version version) throws IOException
         {
             if (in.readByte() == 0) return null;
             return wrapped.deserialize(in, version);
         }
 
         @Override
-        public long serializedSize(T t, int version)
+        public long serializedSize(T t, Version version)
         {
             return t == null ? 1 : 1 + wrapped.serializedSize(t, version);
         }
 
         @Override
-        public void serialize(K keys, T t, DataOutputPlus out, int version) throws IOException
+        public void serialize(K keys, T t, DataOutputPlus out, Version version) throws IOException
         {
             out.writeByte(t == null ? 0 : 1);
             if (t != null) wrapped.serialize(keys, t, out, version);
         }
 
         @Override
-        public T deserialize(K keys, DataInputPlus in, int version) throws IOException
+        public T deserialize(K keys, DataInputPlus in, Version version) throws IOException
         {
             if (in.readByte() == 0) return null;
             return wrapped.deserialize(keys, in, version);
         }
 
         @Override
-        public long serializedSize(K keys, T t, int version)
+        public long serializedSize(K keys, T t, Version version)
         {
             return t == null ? 1 : 1 + wrapped.serializedSize(keys, t, version);
         }

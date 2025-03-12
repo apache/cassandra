@@ -132,11 +132,27 @@ public interface DataOutputPlus extends DataOutput
         }
     }
 
+    private static int numberOfBytes(long value)
+    {
+        return (64 + 7 - Long.numberOfLeadingZeros(value)) / 8;
+    }
+
     /**
      * An efficient way to write the type {@code bytes} of a long
      *
      * @param register - the long value to be written
-     * @param bytes - the number of bytes the register occupies. Valid values are between 1 and 8 inclusive.
+     * @throws IOException
+     */
+    default void writeLeastSignificantBytes(long register) throws IOException
+    {
+        writeLeastSignificantBytes(register, numberOfBytes(register));
+    }
+
+    /**
+     * An efficient way to write the type {@code bytes} of a long
+     *
+     * @param register - the long value to be written
+     * @param bytes - the number of bytes the register occupies. Valid values are between 0 and 8 inclusive.
      * @throws IOException
      */
     default void writeLeastSignificantBytes(long register, int bytes) throws IOException

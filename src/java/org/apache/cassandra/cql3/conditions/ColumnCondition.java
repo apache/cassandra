@@ -43,7 +43,7 @@ import org.apache.cassandra.db.rows.Cell;
 import org.apache.cassandra.db.rows.ColumnData;
 import org.apache.cassandra.db.rows.ComplexColumnData;
 import org.apache.cassandra.db.rows.Row;
-import org.apache.cassandra.io.IVersionedSerializer;
+import org.apache.cassandra.io.UnversionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.schema.ColumnMetadata;
@@ -178,14 +178,14 @@ public final class ColumnCondition
         return operator.buildCQLString(columnsExpression, values);
     }
 
-    private interface BoundSerializer<T extends Bound>
+    public interface BoundSerializer<T extends Bound>
     {
-        default void serialize(T bound, DataOutputPlus out, int version) throws IOException {}
-        Bound deserialize(DataInputPlus in, int version, ColumnMetadata column, Operator operator, ByteBuffer value) throws IOException;
-        default long serializedSize(T condition, int version) { return 0; }
+        default void serialize(T bound, DataOutputPlus out) throws IOException {}
+        Bound deserialize(DataInputPlus in, ColumnMetadata column, Operator operator, ByteBuffer value) throws IOException;
+        default long serializedSize(T condition) { return 0; }
     }
 
-    enum BoundKind
+    public enum BoundKind
     {
         Simple(0, SimpleBound.serializer),
         ElementOrFieldAccess(1, ElementOrFieldAccessBound.serializer),
@@ -193,7 +193,7 @@ public final class ColumnCondition
 
         private final int id;
         @SuppressWarnings("rawtypes")
-        private final BoundSerializer serializer;
+        public final BoundSerializer serializer;
 
         BoundKind(int id, BoundSerializer<?> serializer)
         {
@@ -201,7 +201,7 @@ public final class ColumnCondition
             this.serializer = serializer;
         }
 
-        static BoundKind valueOf(int id)
+        public static BoundKind valueOf(int id)
         {
             switch (id)
             {
@@ -215,9 +215,9 @@ public final class ColumnCondition
 
     public static abstract class Bound
     {
-        protected final ColumnMetadata column;
-        protected final Operator operator;
-        protected final ByteBuffer value;
+        public final ColumnMetadata column;
+        public final Operator operator;
+        public final ByteBuffer value;
 
         protected Bound(ColumnMetadata column, Operator operator, ByteBuffer value)
         {
@@ -231,42 +231,39 @@ public final class ColumnCondition
          */
         public abstract boolean appliesTo(Row row);
 
-        protected abstract BoundKind kind();
+        public abstract BoundKind kind();
 
-        public static final IVersionedSerializer<Bound> serializer = new IVersionedSerializer<>()
-        {
+        public static final UnversionedSerializer<Bound> serializer = new UnversionedSerializer<>() {
             @Override
-            @SuppressWarnings("unchecked")
-            public void serialize(Bound bound, DataOutputPlus out, int version) throws IOException
+            public void serialize(Bound bound, DataOutputPlus out) throws IOException
             {
-                columnMetadataSerializer.serialize(bound.column, out, version);
+                columnMetadataSerializer.serialize(bound.column, out);
                 bound.operator.writeToUnsignedVInt(out);
-                nullableByteBufferSerializer.serialize(bound.value, out, version);
-                BoundKind kind = bound.kind();
+                nullableByteBufferSerializer.serialize(bound.value, out);
+                ColumnCondition.BoundKind kind = bound.kind();
                 out.writeUnsignedVInt32(kind.ordinal());
-                kind.serializer.serialize(bound, out, version);
+                kind.serializer.serialize(bound, out);
             }
 
             @Override
-            public Bound deserialize(DataInputPlus in, int version) throws IOException
+            public Bound deserialize(DataInputPlus in) throws IOException
             {
-                ColumnMetadata column = columnMetadataSerializer.deserialize(in, version);
+                ColumnMetadata column = columnMetadataSerializer.deserialize(in);
                 Operator operator = Operator.readFromUnsignedVInt(in);
-                ByteBuffer value = nullableByteBufferSerializer.deserialize(in, version);
-                BoundKind boundKind = BoundKind.valueOf(in.readUnsignedVInt32());
-                return boundKind.serializer.deserialize(in, version, column, operator, value);
+                ByteBuffer value = nullableByteBufferSerializer.deserialize(in);
+                ColumnCondition.BoundKind boundKind = ColumnCondition.BoundKind.valueOf(in.readUnsignedVInt32());
+                return boundKind.serializer.deserialize(in, column, operator, value);
             }
 
             @Override
-            @SuppressWarnings("unchecked")
-            public long serializedSize(Bound bound, int version)
+            public long serializedSize(Bound bound)
             {
-                BoundKind kind = bound.kind();
-                return columnMetadataSerializer.serializedSize(bound.column, version)
+                ColumnCondition.BoundKind kind = bound.kind();
+                return columnMetadataSerializer.serializedSize(bound.column)
                        + bound.operator.sizeAsUnsignedVInt()
-                       + nullableByteBufferSerializer.serializedSize(bound.value, version)
+                       + nullableByteBufferSerializer.serializedSize(bound.value)
                        + sizeofUnsignedVInt(kind.ordinal())
-                       + kind.serializer.serializedSize(bound, version);
+                       + kind.serializer.serializedSize(bound);
             }
         };
     }
@@ -276,7 +273,7 @@ public final class ColumnCondition
      */
     public static class SimpleBound extends Bound
     {
-        private static final BoundSerializer<SimpleBound> serializer = (in, version, column, operator, value) -> new SimpleBound(column, operator, value);
+        private static final BoundSerializer<SimpleBound> serializer = (in, column, operator, value) -> new SimpleBound(column, operator, value);
 
         public SimpleBound(ColumnMetadata column, Operator operator, ByteBuffer value)
         {
@@ -301,7 +298,7 @@ public final class ColumnCondition
         }
 
         @Override
-        protected BoundKind kind()
+        public BoundKind kind()
         {
             return BoundKind.Simple;
         }
@@ -345,22 +342,22 @@ public final class ColumnCondition
         private static final BoundSerializer<ElementOrFieldAccessBound> serializer = new BoundSerializer<>()
         {
             @Override
-            public void serialize(ElementOrFieldAccessBound bound, DataOutputPlus out, int version) throws IOException
+            public void serialize(ElementOrFieldAccessBound bound, DataOutputPlus out) throws IOException
             {
-                nullableByteBufferSerializer.serialize(bound.keyOrIndex, out, version);
+                nullableByteBufferSerializer.serialize(bound.keyOrIndex, out);
             }
 
             @Override
-            public Bound deserialize(DataInputPlus in, int version, ColumnMetadata column, Operator operator, ByteBuffer value) throws IOException
+            public Bound deserialize(DataInputPlus in, ColumnMetadata column, Operator operator, ByteBuffer value) throws IOException
             {
-                ByteBuffer keyOrIndex = nullableByteBufferSerializer.deserialize(in, version);
+                ByteBuffer keyOrIndex = nullableByteBufferSerializer.deserialize(in);
                 return new ElementOrFieldAccessBound(column, keyOrIndex, operator, value);
             }
 
             @Override
-            public long serializedSize(ElementOrFieldAccessBound condition, int version)
+            public long serializedSize(ElementOrFieldAccessBound condition)
             {
-                return nullableByteBufferSerializer.serializedSize(condition.keyOrIndex, version);
+                return nullableByteBufferSerializer.serializedSize(condition.keyOrIndex);
             }
         };
         /**
@@ -385,7 +382,7 @@ public final class ColumnCondition
         }
 
         @Override
-        protected BoundKind kind()
+        public BoundKind kind()
         {
             return BoundKind.ElementOrFieldAccess;
         }
@@ -428,7 +425,7 @@ public final class ColumnCondition
      */
     public static final class MultiCellBound extends Bound
     {
-        private static final BoundSerializer<MultiCellBound> serializer = (in, version, column, operator, value) -> new MultiCellBound(column, operator, value);
+        private static final BoundSerializer<MultiCellBound> serializer = (in, column, operator, value) -> new MultiCellBound(column, operator, value);
 
         public MultiCellBound(ColumnMetadata column, Operator operator, ByteBuffer value)
         {
@@ -437,7 +434,7 @@ public final class ColumnCondition
         }
 
         @Override
-        protected BoundKind kind()
+        public BoundKind kind()
         {
             return BoundKind.MultiCell;
         }

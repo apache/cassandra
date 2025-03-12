@@ -21,7 +21,9 @@ package org.apache.cassandra.utils;
 import java.io.IOException;
 import java.util.function.IntFunction;
 
+import org.apache.cassandra.io.AsymmetricVersionedSerializer;
 import org.apache.cassandra.io.IVersionedSerializer;
+import org.apache.cassandra.io.UnversionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 
@@ -29,11 +31,34 @@ import static org.apache.cassandra.db.TypeSizes.sizeofUnsignedVInt;
 
 public class ArraySerializers
 {
+    public static <T> void serializeArray(T[] items, DataOutputPlus out, UnversionedSerializer<T> serializer) throws IOException
+    {
+        out.writeUnsignedVInt32(items.length);
+        for (T item : items)
+            serializer.serialize(item, out);
+    }
+
     public static <T> void serializeArray(T[] items, DataOutputPlus out, int version, IVersionedSerializer<T> serializer) throws IOException
     {
         out.writeUnsignedVInt32(items.length);
         for (T item : items)
             serializer.serialize(item, out, version);
+    }
+
+    public static <T, Version> void serializeArray(T[] items, DataOutputPlus out, Version version, AsymmetricVersionedSerializer<T, ?, Version> serializer) throws IOException
+    {
+        out.writeUnsignedVInt32(items.length);
+        for (T item : items)
+            serializer.serialize(item, out, version);
+    }
+
+    public static <T> T[] deserializeArray(DataInputPlus in, UnversionedSerializer<T> serializer, IntFunction<T[]> arrayFactory) throws IOException
+    {
+        int size = in.readUnsignedVInt32();
+        T[] items = arrayFactory.apply(size);
+        for (int i = 0; i < size; i++)
+            items[i] = serializer.deserialize(in);
+        return items;
     }
 
     public static <T> T[] deserializeArray(DataInputPlus in, int version, IVersionedSerializer<T> serializer, IntFunction<T[]> arrayFactory) throws IOException
@@ -45,7 +70,32 @@ public class ArraySerializers
         return items;
     }
 
+    public static <T, Version> T[] deserializeArray(DataInputPlus in, Version version, AsymmetricVersionedSerializer<?, T, Version> serializer, IntFunction<T[]> arrayFactory) throws IOException
+    {
+        int size = in.readUnsignedVInt32();
+        T[] items = arrayFactory.apply(size);
+        for (int i = 0; i < size; i++)
+            items[i] = serializer.deserialize(in, version);
+        return items;
+    }
+
+    public static <T> long serializedArraySize(T[] array, UnversionedSerializer<T> serializer)
+    {
+        long size = sizeofUnsignedVInt(array.length);
+        for (T item : array)
+            size += serializer.serializedSize(item);
+        return size;
+    }
+
     public static <T> long serializedArraySize(T[] array, int version, IVersionedSerializer<T> serializer)
+    {
+        long size = sizeofUnsignedVInt(array.length);
+        for (T item : array)
+            size += serializer.serializedSize(item, version);
+        return size;
+    }
+
+    public static <T, Version> long serializedArraySize(T[] array, Version version, AsymmetricVersionedSerializer<T, ?, Version> serializer)
     {
         long size = sizeofUnsignedVInt(array.length);
         for (T item : array)

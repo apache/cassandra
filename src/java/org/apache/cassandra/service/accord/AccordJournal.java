@@ -75,6 +75,7 @@ import org.apache.cassandra.service.accord.serializers.CommandSerializers;
 import org.apache.cassandra.service.accord.serializers.CommandSerializers.ExecuteAtSerializer;
 import org.apache.cassandra.service.accord.serializers.DepsSerializers;
 import org.apache.cassandra.service.accord.serializers.ResultSerializers;
+import org.apache.cassandra.service.accord.serializers.Version;
 import org.apache.cassandra.service.accord.serializers.WaitingOnSerializer;
 import org.apache.cassandra.utils.CloseableIterator;
 import org.apache.cassandra.utils.ExecutorUtils;
@@ -123,6 +124,7 @@ public class AccordJournal implements accord.api.Journal, RangeSearcher.Supplier
     public AccordJournal(Params params, AccordAgent agent, File directory, ColumnFamilyStore cfs)
     {
         this.agent = agent;
+        Version userVersion = Version.fromVersion(params.userVersion());
         this.journal = new Journal<>("AccordJournal", directory, params, JournalKey.SUPPORT,
                                      // In Accord, we are using streaming serialization, i.e. Reader/Writer interfaces instead of materializing objects
                                      new ValueSerializer<>()
@@ -139,14 +141,14 @@ public class AccordJournal implements accord.api.Journal, RangeSearcher.Supplier
                                              throw new UnsupportedOperationException();
                                          }
                                      },
-                                     compactor(cfs, params));
-        this.journalTable = new AccordJournalTable<>(journal, JournalKey.SUPPORT, cfs, params.userVersion());
+                                     compactor(cfs, userVersion));
+        this.journalTable = new AccordJournalTable<>(journal, JournalKey.SUPPORT, cfs, userVersion);
         this.params = params;
     }
 
-    protected SegmentCompactor<JournalKey, Object> compactor(ColumnFamilyStore cfs, Params params)
+    protected SegmentCompactor<JournalKey, Object> compactor(ColumnFamilyStore cfs, Version userVersion)
     {
-        return new AccordSegmentCompactor<>(params.userVersion(), cfs) {
+        return new AccordSegmentCompactor<>(userVersion, cfs) {
             @Nullable
             @Override
             public Collection<StaticSegment<JournalKey, Object>> compact(Collection<StaticSegment<JournalKey, Object>> staticSegments)
@@ -395,7 +397,7 @@ public class AccordJournal implements accord.api.Journal, RangeSearcher.Supplier
     private <T> RecordPointer appendInternal(JournalKey key, T write)
     {
         AccordJournalValueSerializers.FlyweightSerializer<T, ?> serializer = (AccordJournalValueSerializers.FlyweightSerializer<T, ?>) key.type.serializer;
-        return journal.asyncWrite(key, (out, userVersion) -> serializer.serialize(key, write, out, userVersion));
+        return journal.asyncWrite(key, (out, userVersion) -> serializer.serialize(key, write, out, Version.fromVersion(userVersion)));
     }
 
     @VisibleForTesting
@@ -473,7 +475,7 @@ public class AccordJournal implements accord.api.Journal, RangeSearcher.Supplier
         }
     }
 
-    public static @Nullable ByteBuffer asSerializedChange(Command before, Command after, int userVersion) throws IOException
+    public static @Nullable ByteBuffer asSerializedChange(Command before, Command after, Version userVersion) throws IOException
     {
         try (DataOutputBuffer out = new DataOutputBuffer())
         {
@@ -526,10 +528,15 @@ public class AccordJournal implements accord.api.Journal, RangeSearcher.Supplier
         @Override
         public void write(DataOutputPlus out, int userVersion) throws IOException
         {
+            write(out, Version.fromVersion(userVersion));
+        }
+
+        public void write(DataOutputPlus out, Version userVersion) throws IOException
+        {
             serialize(after, flags, out, userVersion);
         }
 
-        private static void serialize(Command command, int flags, DataOutputPlus out, int userVersion) throws IOException
+        private static void serialize(Command command, int flags, DataOutputPlus out, Version userVersion) throws IOException
         {
             Invariants.require(flags != 0);
             out.writeInt(flags);
@@ -562,10 +569,10 @@ public class AccordJournal implements accord.api.Journal, RangeSearcher.Supplier
                         out.writeByte(command.durability().ordinal());
                         break;
                     case ACCEPTED:
-                        CommandSerializers.ballot.serialize(command.acceptedOrCommitted(), out, userVersion);
+                        CommandSerializers.ballot.serialize(command.acceptedOrCommitted(), out);
                         break;
                     case PROMISED:
-                        CommandSerializers.ballot.serialize(command.promised(), out, userVersion);
+                        CommandSerializers.ballot.serialize(command.promised(), out);
                         break;
                     case PARTICIPANTS:
                         CommandSerializers.participants.serialize(command.participants(), out, userVersion);
@@ -574,7 +581,7 @@ public class AccordJournal implements accord.api.Journal, RangeSearcher.Supplier
                         CommandSerializers.partialTxn.serialize(command.partialTxn(), out, userVersion);
                         break;
                     case PARTIAL_DEPS:
-                        DepsSerializers.partialDeps.serialize(command.partialDeps(), out, userVersion);
+                        DepsSerializers.partialDeps.serialize(command.partialDeps(), out);
                         break;
                     case WAITING_ON:
                         Command.WaitingOn waitingOn = command.waitingOn();
@@ -584,7 +591,7 @@ public class AccordJournal implements accord.api.Journal, RangeSearcher.Supplier
                         CommandSerializers.writes.serialize(command.writes(), out, userVersion);
                         break;
                     case RESULT:
-                        ResultSerializers.result.serialize(command.result(), out, userVersion);
+                        ResultSerializers.result.serialize(command.result(), out);
                         break;
                     case CLEANUP:
                         throw new IllegalStateException();
@@ -627,7 +634,7 @@ public class AccordJournal implements accord.api.Journal, RangeSearcher.Supplier
         {
             super(txnId, load);
         }
-        public ByteBuffer asByteBuffer(int userVersion) throws IOException
+        public ByteBuffer asByteBuffer(Version userVersion) throws IOException
         {
             try (DataOutputBuffer out = new DataOutputBuffer())
             {
@@ -636,7 +643,7 @@ public class AccordJournal implements accord.api.Journal, RangeSearcher.Supplier
             }
         }
 
-        public void serialize(DataOutputPlus out, int userVersion) throws IOException
+        public void serialize(DataOutputPlus out, Version userVersion) throws IOException
         {
             Invariants.require(mask == 0);
             Invariants.require(flags != 0);
@@ -645,7 +652,7 @@ public class AccordJournal implements accord.api.Journal, RangeSearcher.Supplier
             serialize(flags, out, userVersion);
         }
 
-        private void serialize(int flags, DataOutputPlus out, int userVersion) throws IOException
+        private void serialize(int flags, DataOutputPlus out, Version userVersion) throws IOException
         {
             Invariants.require(flags != 0);
             out.writeInt(flags);
@@ -682,11 +689,11 @@ public class AccordJournal implements accord.api.Journal, RangeSearcher.Supplier
                         break;
                     case ACCEPTED:
                         Invariants.require(acceptedOrCommitted != null);
-                        CommandSerializers.ballot.serialize(acceptedOrCommitted, out, userVersion);
+                        CommandSerializers.ballot.serialize(acceptedOrCommitted, out);
                         break;
                     case PROMISED:
                         Invariants.require(promised != null);
-                        CommandSerializers.ballot.serialize(promised, out, userVersion);
+                        CommandSerializers.ballot.serialize(promised, out);
                         break;
                     case PARTICIPANTS:
                         Invariants.require(participants != null);
@@ -698,11 +705,11 @@ public class AccordJournal implements accord.api.Journal, RangeSearcher.Supplier
                         break;
                     case PARTIAL_DEPS:
                         Invariants.require(partialDeps != null);
-                        DepsSerializers.partialDeps.serialize(partialDeps, out, userVersion);
+                        DepsSerializers.partialDeps.serialize(partialDeps, out);
                         break;
                     case WAITING_ON:
                         Invariants.require(waitingOn != null);
-                        ((WaitingOnSerializer.Provider)waitingOn).reserialize(out, userVersion);
+                        ((WaitingOnSerializer.Provider)waitingOn).reserialize(out);
                         break;
                     case WRITES:
                         Invariants.require(writes != null);
@@ -710,13 +717,13 @@ public class AccordJournal implements accord.api.Journal, RangeSearcher.Supplier
                         break;
                     case RESULT:
                         Invariants.require(result != null);
-                        ResultSerializers.result.serialize(result, out, userVersion);
+                        ResultSerializers.result.serialize(result, out);
                         break;
                 }
             }
         }
 
-        public void deserializeNext(DataInputPlus in, int userVersion) throws IOException
+        public void deserializeNext(DataInputPlus in, Version userVersion) throws IOException
         {
             Invariants.require(txnId != null);
             int readFlags = in.readInt();
@@ -742,7 +749,7 @@ public class AccordJournal implements accord.api.Journal, RangeSearcher.Supplier
             this.flags |= readFlags & (~readFlags << 16);
         }
 
-        private void deserialize(Field field, DataInputPlus in, int userVersion) throws IOException
+        private void deserialize(Field field, DataInputPlus in, Version userVersion) throws IOException
         {
             switch (field)
             {
@@ -762,10 +769,10 @@ public class AccordJournal implements accord.api.Journal, RangeSearcher.Supplier
                     durability = Durability.values()[in.readByte()];
                     break;
                 case ACCEPTED:
-                    acceptedOrCommitted = CommandSerializers.ballot.deserialize(in, userVersion);
+                    acceptedOrCommitted = CommandSerializers.ballot.deserialize(in);
                     break;
                 case PROMISED:
-                    promised = CommandSerializers.ballot.deserialize(in, userVersion);
+                    promised = CommandSerializers.ballot.deserialize(in);
                     break;
                 case PARTICIPANTS:
                     participants = CommandSerializers.participants.deserialize(in, userVersion);
@@ -774,7 +781,7 @@ public class AccordJournal implements accord.api.Journal, RangeSearcher.Supplier
                     partialTxn = CommandSerializers.partialTxn.deserialize(in, userVersion);
                     break;
                 case PARTIAL_DEPS:
-                    partialDeps = DepsSerializers.partialDeps.deserialize(in, userVersion);
+                    partialDeps = DepsSerializers.partialDeps.deserialize(in);
                     break;
                 case WAITING_ON:
                     waitingOn = WaitingOnSerializer.deserializeProvider(txnId, in);
@@ -788,12 +795,12 @@ public class AccordJournal implements accord.api.Journal, RangeSearcher.Supplier
                         cleanup = newCleanup;
                     break;
                 case RESULT:
-                    result = ResultSerializers.result.deserialize(in, userVersion);
+                    result = ResultSerializers.result.deserialize(in);
                     break;
             }
         }
 
-        private static void skip(TxnId txnId, Field field, DataInputPlus in, int userVersion) throws IOException
+        private static void skip(TxnId txnId, Field field, DataInputPlus in, Version userVersion) throws IOException
         {
             switch (field)
             {
@@ -824,7 +831,7 @@ public class AccordJournal implements accord.api.Journal, RangeSearcher.Supplier
                     break;
                 case PARTIAL_DEPS:
                     // TODO (expected): skip
-                    DepsSerializers.partialDeps.deserialize(in, userVersion);
+                    DepsSerializers.partialDeps.deserialize(in);
                     break;
                 case WAITING_ON:
                     WaitingOnSerializer.skip(txnId, in);
@@ -835,7 +842,7 @@ public class AccordJournal implements accord.api.Journal, RangeSearcher.Supplier
                     break;
                 case RESULT:
                     // TODO (expected): skip
-                    ResultSerializers.result.deserialize(in, userVersion);
+                    ResultSerializers.result.deserialize(in);
                     break;
             }
         }

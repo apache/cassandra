@@ -34,7 +34,7 @@ import accord.utils.Invariants;
 import accord.utils.ReducingRangeMap;
 import accord.utils.TriFunction;
 import org.apache.cassandra.db.TypeSizes;
-import org.apache.cassandra.io.IVersionedSerializer;
+import org.apache.cassandra.io.UnversionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.utils.CollectionSerializers;
@@ -48,20 +48,21 @@ public class CommandStoreSerializers
 {
     private CommandStoreSerializers() {}
 
-    public static class ReducingRangeMapSerializer<T, R extends ReducingRangeMap<T>> implements IVersionedSerializer<R>
+    public static class ReducingRangeMapSerializer<T, R extends ReducingRangeMap<T>> implements UnversionedSerializer<R>
     {
-        final IVersionedSerializer<T> valueSerializer;
+        final UnversionedSerializer<T> valueSerializer;
         final IntFunction<T[]> newValueArray;
         final TriFunction<Boolean, RoutingKey[], T[], R> constructor;
 
-        public ReducingRangeMapSerializer(IVersionedSerializer<T> valueSerializer, IntFunction<T[]> newValueArray, TriFunction<Boolean, RoutingKey[], T[], R> constructor)
+        public ReducingRangeMapSerializer(UnversionedSerializer<T> valueSerializer, IntFunction<T[]> newValueArray, TriFunction<Boolean, RoutingKey[], T[], R> constructor)
         {
             this.valueSerializer = valueSerializer;
             this.newValueArray = newValueArray;
             this.constructor = constructor;
         }
 
-        public void serialize(R map, DataOutputPlus out, int version) throws IOException
+        @Override
+        public void serialize(R map, DataOutputPlus out) throws IOException
         {
             out.writeBoolean(map.inclusiveEnds());
             int mapSize = map.size();
@@ -69,14 +70,15 @@ public class CommandStoreSerializers
 
             for (int i=0; i<mapSize; i++)
             {
-                KeySerializers.routingKey.serialize(map.startAt(i), out, version);
-                valueSerializer.serialize(map.valueAt(i), out, version);
+                KeySerializers.routingKey.serialize(map.startAt(i), out);
+                valueSerializer.serialize(map.valueAt(i), out);
             }
             if (mapSize > 0)
-                KeySerializers.routingKey.serialize(map.startAt(mapSize), out, version);
+                KeySerializers.routingKey.serialize(map.startAt(mapSize), out);
         }
 
-        public R deserialize(DataInputPlus in, int version) throws IOException
+        @Override
+        public R deserialize(DataInputPlus in) throws IOException
         {
             boolean inclusiveEnds = in.readBoolean();
             int mapSize = in.readUnsignedVInt32();
@@ -84,62 +86,63 @@ public class CommandStoreSerializers
             T[] values = newValueArray.apply(mapSize);
             for (int i=0; i<mapSize; i++)
             {
-                keys[i] = KeySerializers.routingKey.deserialize(in, version);
-                values[i] = valueSerializer.deserialize(in, version);
+                keys[i] = KeySerializers.routingKey.deserialize(in);
+                values[i] = valueSerializer.deserialize(in);
             }
             if (mapSize > 0)
-                keys[mapSize] = KeySerializers.routingKey.deserialize(in, version);
+                keys[mapSize] = KeySerializers.routingKey.deserialize(in);
             return constructor.apply(inclusiveEnds, keys, values);
         }
 
-        public long serializedSize(R map, int version)
+        @Override
+        public long serializedSize(R map)
         {
             long size = TypeSizes.BOOL_SIZE;
             int mapSize = map.size();
             size += TypeSizes.sizeofUnsignedVInt(mapSize);
             for (int i=0; i<mapSize; i++)
             {
-                size += KeySerializers.routingKey.serializedSize(map.startAt(i), version);
-                size += valueSerializer.serializedSize(map.valueAt(i), version);
+                size += KeySerializers.routingKey.serializedSize(map.startAt(i));
+                size += valueSerializer.serializedSize(map.valueAt(i));
             }
             if (mapSize > 0)
-                size += KeySerializers.routingKey.serializedSize(map.startAt(mapSize), version);
+                size += KeySerializers.routingKey.serializedSize(map.startAt(mapSize));
 
             return size;
         }
     }
 
-    public static IVersionedSerializer<DurableBefore> durableBefore = new ReducingRangeMapSerializer<>(NullableSerializer.wrap(new IVersionedSerializer<>()
+    public static UnversionedSerializer<DurableBefore> durableBefore = new ReducingRangeMapSerializer<>(NullableSerializer.wrap(new UnversionedSerializer<>()
     {
         @Override
-        public void serialize(DurableBefore.Entry t, DataOutputPlus out, int version) throws IOException
+        public void serialize(DurableBefore.Entry t, DataOutputPlus out) throws IOException
         {
-            CommandSerializers.txnId.serialize(t.majorityBefore, out, version);
-            CommandSerializers.txnId.serialize(t.universalBefore, out, version);
+            CommandSerializers.txnId.serialize(t.majorityBefore, out);
+            CommandSerializers.txnId.serialize(t.universalBefore, out);
         }
 
         @Override
-        public DurableBefore.Entry deserialize(DataInputPlus in, int version) throws IOException
+        public DurableBefore.Entry deserialize(DataInputPlus in) throws IOException
         {
-            TxnId majorityBefore = CommandSerializers.txnId.deserialize(in, version);
-            TxnId universalBefore = CommandSerializers.txnId.deserialize(in, version);
+            TxnId majorityBefore = CommandSerializers.txnId.deserialize(in);
+            TxnId universalBefore = CommandSerializers.txnId.deserialize(in);
             return new DurableBefore.Entry(majorityBefore, universalBefore);
         }
 
         @Override
-        public long serializedSize(DurableBefore.Entry t, int version)
+        public long serializedSize(DurableBefore.Entry t)
         {
-            return   CommandSerializers.txnId.serializedSize(t.majorityBefore, version)
-                   + CommandSerializers.txnId.serializedSize(t.universalBefore, version);
+            return   CommandSerializers.txnId.serializedSize(t.majorityBefore)
+                   + CommandSerializers.txnId.serializedSize(t.universalBefore);
         }
     }), DurableBefore.Entry[]::new, DurableBefore.SerializerSupport::create);
 
-    public static final IVersionedSerializer<RedundantBefore.Bounds> redundantBeforeEntry = new IVersionedSerializer<>()
+    public static final UnversionedSerializer<RedundantBefore.Bounds> redundantBeforeEntry = new UnversionedSerializer<>()
     {
         @Override
-        public void serialize(RedundantBefore.Bounds b, DataOutputPlus out, int version) throws IOException
+        public void serialize(RedundantBefore.Bounds b, DataOutputPlus out) throws IOException
         {
-            KeySerializers.range.serialize(b.range, out, version);
+            KeySerializers.range.serialize(b.range, out);
             Invariants.require(b.startEpoch <= b.endEpoch);
             out.writeUnsignedVInt(b.startEpoch);
             if (b.endEpoch == Long.MAX_VALUE) out.writeUnsignedVInt(0L);
@@ -148,16 +151,16 @@ public class CommandStoreSerializers
             out.writeUnsignedVInt32(b.bounds.length);
             for (TxnId bound : b.bounds)
             {
-                CommandSerializers.txnId.serialize(bound, out, version);
+                CommandSerializers.txnId.serialize(bound, out);
             }
             for (int status : b.statuses)
                 out.writeShort(status);
         }
 
         @Override
-        public RedundantBefore.Bounds deserialize(DataInputPlus in, int version) throws IOException
+        public RedundantBefore.Bounds deserialize(DataInputPlus in) throws IOException
         {
-            Range range = KeySerializers.range.deserialize(in, version);
+            Range range = KeySerializers.range.deserialize(in);
             long startEpoch = in.readUnsignedVInt();
             long endEpoch = in.readUnsignedVInt();
             if (endEpoch == 0) endEpoch = Long.MAX_VALUE;
@@ -176,49 +179,52 @@ public class CommandStoreSerializers
         }
 
         @Override
-        public long serializedSize(RedundantBefore.Bounds b, int version)
+        public long serializedSize(RedundantBefore.Bounds b)
         {
-            long size = KeySerializers.range.serializedSize(b.range, version);
+            long size = KeySerializers.range.serializedSize(b.range);
             size += TypeSizes.sizeofUnsignedVInt(b.startEpoch);
             size += TypeSizes.sizeofUnsignedVInt(b.endEpoch == Long.MAX_VALUE ? 0 : 1 + b.endEpoch - b.startEpoch);
             size += serializedNullableSize(b.staleUntilAtLeast);
             size += TypeSizes.sizeofUnsignedVInt(b.bounds.length);
             for (TxnId bound : b.bounds)
             {
-                size += CommandSerializers.txnId.serializedSize(bound, version);
+                size += CommandSerializers.txnId.serializedSize(bound);
             }
             size += 2L * b.statuses.length;
             return size;
         }
     };
-    public static IVersionedSerializer<RedundantBefore> redundantBefore = new ReducingRangeMapSerializer<>(NullableSerializer.wrap(redundantBeforeEntry), RedundantBefore.Bounds[]::new, RedundantBefore.SerializerSupport::create);
+    public static UnversionedSerializer<RedundantBefore> redundantBefore = new ReducingRangeMapSerializer<>(NullableSerializer.wrap(redundantBeforeEntry), RedundantBefore.Bounds[]::new, RedundantBefore.SerializerSupport::create);
 
-    private static class TimestampToRangesSerializer<T extends Timestamp> implements IVersionedSerializer<NavigableMap<T, Ranges>>
+    private static class TimestampToRangesSerializer<T extends Timestamp> implements UnversionedSerializer<NavigableMap<T, Ranges>>
     {
-        private final IVersionedSerializer<T> timestampSerializer;
+        private final UnversionedSerializer<T> timestampSerializer;
 
-        public TimestampToRangesSerializer(IVersionedSerializer<T> timestampSerializer)
+        public TimestampToRangesSerializer(UnversionedSerializer<T> timestampSerializer)
         {
             this.timestampSerializer = timestampSerializer;
         }
 
-        public void serialize(NavigableMap<T, Ranges> map, DataOutputPlus out, int version) throws IOException
+        @Override
+        public void serialize(NavigableMap<T, Ranges> map, DataOutputPlus out) throws IOException
         {
-            CollectionSerializers.serializeMap(map, out, version, timestampSerializer, KeySerializers.ranges);
+            CollectionSerializers.serializeMap(map, out, timestampSerializer, KeySerializers.ranges);
         }
 
-        public NavigableMap<T, Ranges> deserialize(DataInputPlus in, int version) throws IOException
+        @Override
+        public NavigableMap<T, Ranges> deserialize(DataInputPlus in) throws IOException
         {
-            return CollectionSerializers.deserializeMap(in, version, timestampSerializer, KeySerializers.ranges, i -> new TreeMap<>());
+            return CollectionSerializers.deserializeMap(in, timestampSerializer, KeySerializers.ranges, i -> new TreeMap<>());
 
         }
 
-        public long serializedSize(NavigableMap<T, Ranges> map, int version)
+        @Override
+        public long serializedSize(NavigableMap<T, Ranges> map)
         {
-            return CollectionSerializers.serializedMapSize(map, version, timestampSerializer, KeySerializers.ranges);
+            return CollectionSerializers.serializedMapSize(map, timestampSerializer, KeySerializers.ranges);
         }
     }
 
-    public static final IVersionedSerializer<NavigableMap<TxnId, Ranges>> bootstrapBeganAt = new TimestampToRangesSerializer<>(CommandSerializers.txnId);
-    public static final IVersionedSerializer<NavigableMap<Timestamp, Ranges>> safeToRead = new TimestampToRangesSerializer<>(CommandSerializers.timestamp);
+    public static final UnversionedSerializer<NavigableMap<TxnId, Ranges>> bootstrapBeganAt = new TimestampToRangesSerializer<>(CommandSerializers.txnId);
+    public static final UnversionedSerializer<NavigableMap<Timestamp, Ranges>> safeToRead = new TimestampToRangesSerializer<>(CommandSerializers.timestamp);
 }

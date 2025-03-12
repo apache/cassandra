@@ -27,10 +27,11 @@ import com.google.common.base.Preconditions;
 
 import org.apache.cassandra.db.Clustering;
 import org.apache.cassandra.db.TypeSizes;
-import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.schema.TableMetadata;
+import org.apache.cassandra.service.accord.serializers.IVersionedSerializer;
+import org.apache.cassandra.service.accord.serializers.Version;
 
 import static org.apache.cassandra.utils.CollectionSerializers.deserializeList;
 import static org.apache.cassandra.utils.CollectionSerializers.serializeList;
@@ -89,7 +90,7 @@ public class TxnReferenceOperations
     static final IVersionedSerializer<TxnReferenceOperations> serializer = new IVersionedSerializer<TxnReferenceOperations>()
     {
         @Override
-        public void serialize(TxnReferenceOperations operations, DataOutputPlus out, int version) throws IOException
+        public void serialize(TxnReferenceOperations operations, DataOutputPlus out, Version version) throws IOException
         {
             out.writeBoolean(!operations.isEmpty());
             if (operations.isEmpty())
@@ -97,25 +98,25 @@ public class TxnReferenceOperations
             tableMetadataSerializer.serialize(operations.metadata, out, version);
             out.writeBoolean(operations.clustering != null);
             if (operations.clustering != null)
-                Clustering.serializer.serialize(operations.clustering, out, version, operations.metadata.comparator.subtypes());
+                Clustering.serializer.serialize(operations.clustering, out, version.messageVersion(), operations.metadata.comparator.subtypes());
             serializeList(operations.regulars, out, version, TxnReferenceOperation.serializer);
             serializeList(operations.statics, out, version, TxnReferenceOperation.serializer);
 
         }
 
         @Override
-        public TxnReferenceOperations deserialize(DataInputPlus in, int version) throws IOException
+        public TxnReferenceOperations deserialize(DataInputPlus in, Version version) throws IOException
         {
             if (!in.readBoolean())
                 return TxnReferenceOperations.empty();
             TableMetadata metadata = tableMetadataSerializer.deserialize(in, version);
-            Clustering<?> clustering = in.readBoolean() ? Clustering.serializer.deserialize(in, version, metadata.comparator.subtypes()) : null;
+            Clustering<?> clustering = in.readBoolean() ? Clustering.serializer.deserialize(in, version.messageVersion(), metadata.comparator.subtypes()) : null;
             return new TxnReferenceOperations(metadata, clustering, deserializeList(in, version, TxnReferenceOperation.serializer),
                                               deserializeList(in, version, TxnReferenceOperation.serializer));
         }
 
         @Override
-        public long serializedSize(TxnReferenceOperations operations, int version)
+        public long serializedSize(TxnReferenceOperations operations, Version version)
         {
             long size = TypeSizes.BOOL_SIZE;
             if (operations.isEmpty())
@@ -123,7 +124,7 @@ public class TxnReferenceOperations
             size += tableMetadataSerializer.serializedSize(operations.metadata, version);
             size += TypeSizes.BOOL_SIZE;
             if (operations.clustering != null)
-                size += Clustering.serializer.serializedSize(operations.clustering, version, operations.metadata.comparator.subtypes());
+                size += Clustering.serializer.serializedSize(operations.clustering, version.messageVersion(), operations.metadata.comparator.subtypes());
             size += serializedListSize(operations.regulars, version, TxnReferenceOperation.serializer);
             size +=  serializedListSize(operations.statics, version, TxnReferenceOperation.serializer);
             return size;

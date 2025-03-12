@@ -27,9 +27,11 @@ import org.apache.cassandra.db.EmptyIterators;
 import org.apache.cassandra.db.SinglePartitionReadCommand;
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.db.partitions.PartitionIterators;
-import org.apache.cassandra.io.IVersionedSerializer;
+import org.apache.cassandra.io.VersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
+import org.apache.cassandra.service.accord.serializers.IVersionedSerializer;
+import org.apache.cassandra.service.accord.serializers.Version;
 import org.apache.cassandra.utils.CollectionSerializers;
 import org.apache.cassandra.utils.Int32Serializer;
 import org.apache.cassandra.utils.NullableSerializer;
@@ -170,26 +172,27 @@ public class TxnData extends Int2ObjectHashMap<TxnDataValue> implements TxnResul
         return txn_data;
     }
 
+    private static final IVersionedSerializer<Integer> INT32_SERIALIZER = IVersionedSerializer.fromSerializer(Int32Serializer.serializer);
     public static final IVersionedSerializer<TxnData> serializer = new IVersionedSerializer<TxnData>()
     {
         @Override
-        public void serialize(TxnData data, DataOutputPlus out, int version) throws IOException
+        public void serialize(TxnData data, DataOutputPlus out, Version version) throws IOException
         {
-            CollectionSerializers.serializeMap(data, out, version, Int32Serializer.serializer, TxnDataValue.serializer);
+            CollectionSerializers.serializeMap(data, out, version, INT32_SERIALIZER, TxnDataValue.serializer);
         }
 
         @Override
-        public TxnData deserialize(DataInputPlus in, int version) throws IOException
+        public TxnData deserialize(DataInputPlus in, Version version) throws IOException
         {
-            return CollectionSerializers.deserializeMap(in, version, Int32Serializer.serializer, TxnDataValue.serializer, TxnData::newWithExpectedSize);
+            return CollectionSerializers.deserializeMap(in, version, INT32_SERIALIZER, TxnDataValue.serializer, TxnData::newWithExpectedSize);
         }
 
         @Override
-        public long serializedSize(TxnData data, int version)
+        public long serializedSize(TxnData data, Version version)
         {
-            return CollectionSerializers.serializedMapSize(data, version, Int32Serializer.serializer, TxnDataValue.serializer);
+            return CollectionSerializers.serializedMapSize(data, version, INT32_SERIALIZER, TxnDataValue.serializer);
         }
     };
 
-    public static final IVersionedSerializer<TxnData> nullableSerializer = NullableSerializer.wrap(serializer);
+    public static final VersionedSerializer<TxnData, Version> nullableSerializer = NullableSerializer.wrap(serializer);
 }

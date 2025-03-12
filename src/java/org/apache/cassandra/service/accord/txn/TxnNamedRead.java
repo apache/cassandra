@@ -23,7 +23,6 @@ import java.nio.ByteBuffer;
 import java.util.Objects;
 import java.util.concurrent.Callable;
 import java.util.concurrent.TimeUnit;
-import javax.annotation.Nullable;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -54,7 +53,6 @@ import org.apache.cassandra.db.rows.RowIterator;
 import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.dht.Token.KeyBound;
-import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.schema.TableId;
@@ -62,7 +60,9 @@ import org.apache.cassandra.service.accord.AccordObjectSizes;
 import org.apache.cassandra.service.accord.TokenRange;
 import org.apache.cassandra.service.accord.api.TokenKey;
 import org.apache.cassandra.service.accord.api.PartitionKey;
+import org.apache.cassandra.service.accord.serializers.IVersionedSerializer;
 import org.apache.cassandra.service.accord.serializers.KeySerializers;
+import org.apache.cassandra.service.accord.serializers.Version;
 import org.apache.cassandra.service.accord.txn.TxnData.TxnDataNameKind;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.Comparables;
@@ -79,16 +79,31 @@ public class TxnNamedRead extends AbstractSerialized<ReadCommand>
     @SuppressWarnings("unused")
     private static final Logger logger = LoggerFactory.getLogger(TxnNamedRead.class);
 
-    private static final long EMPTY_SIZE = ObjectSizes.measure(new TxnNamedRead(0, null, (ByteBuffer) null));
+    private static final long EMPTY_SIZE = ObjectSizes.measure(new TxnNamedRead(0, null, null, Version.LATEST));
 
     private final int name;
     private final Seekable key;
 
-    public TxnNamedRead(int name, @Nullable SinglePartitionReadCommand value)
+    public TxnNamedRead(int name, SinglePartitionReadCommand value)
     {
         super(value);
         this.name = name;
         this.key = new PartitionKey(value.metadata().id, value.partitionKey());
+    }
+
+    public TxnNamedRead(int name, AbstractBounds<PartitionPosition> range, PartitionRangeReadCommand value)
+    {
+        super(value);
+        TableId tableId = value.metadata().id;
+        this.name = name;
+        this.key = boundsAsAccordRange(range, tableId);
+    }
+
+    public TxnNamedRead(int name, Seekable key, ByteBuffer bytes, Version version)
+    {
+        super(bytes, version);
+        this.name = name;
+        this.key = key;
     }
 
     public static TokenRange boundsAsAccordRange(AbstractBounds<PartitionPosition> range, TableId tableId)
@@ -127,33 +142,18 @@ public class TxnNamedRead extends AbstractSerialized<ReadCommand>
         return TokenRange.create(startTokenKey, stopTokenKey);
     }
 
-    public TxnNamedRead(int name, AbstractBounds<PartitionPosition> range, PartitionRangeReadCommand value)
-    {
-        super(value);
-        TableId tableId = value.metadata().id;
-        this.name = name;
-        this.key = boundsAsAccordRange(range, tableId);
-    }
-
-    public TxnNamedRead(int name, Seekable key, ByteBuffer bytes)
-    {
-        super(bytes);
-        this.name = name;
-        this.key = key;
-    }
-
     public long estimatedSizeOnHeap()
     {
         long size = EMPTY_SIZE;
         size += AccordObjectSizes.seekable(key);
-        size += (bytes() != null ? ByteBufferUtil.estimatedSizeOnHeap(bytes()) : 0);
+        size += (unsafeBytes() != null ? ByteBufferUtil.estimatedSizeOnHeap(unsafeBytes()) : 0);
         return size;
     }
 
     @Override
     protected IVersionedSerializer<ReadCommand> serializer()
     {
-        return ReadCommand.serializer;
+        return readCommandSerializer;
     }
 
     @Override
@@ -226,7 +226,7 @@ public class TxnNamedRead extends AbstractSerialized<ReadCommand>
             return this;
 
         Invariants.require(((Range)key).contains(range));
-        return new TxnNamedRead(txnDataName(), range, bytes());
+        return new TxnNamedRead(txnDataName(), range, unsafeBytes(), version);
     }
 
     public TxnNamedRead merge(TxnNamedRead with)
@@ -241,7 +241,7 @@ public class TxnNamedRead extends AbstractSerialized<ReadCommand>
         RoutingKey start = Comparables.min(thisRange.start(), thatRange.start());
         RoutingKey end = Comparables.max(thisRange.end(), thatRange.end());
         Range range = thisRange.newRange(start, end);
-        return new TxnNamedRead(txnDataName(), range, bytes());
+        return new TxnNamedRead(txnDataName(), range, unsafeBytes(), version);
     }
 
     public static boolean readsWithoutReconciliation(ConsistencyLevel consistencyLevel)
@@ -433,15 +433,14 @@ public class TxnNamedRead extends AbstractSerialized<ReadCommand>
     static final IVersionedSerializer<TxnNamedRead> serializer = new IVersionedSerializer<>()
     {
         @Override
-        public void serialize(TxnNamedRead read, DataOutputPlus out, int version) throws IOException
+        public void serialize(TxnNamedRead read, DataOutputPlus out, Version version) throws IOException
         {
             out.writeInt(read.name);
-            KeySerializers.seekable.serialize(read.key, out, version);
-
-            if (read.bytes() != null)
+            KeySerializers.seekable.serialize(read.key, out);
+            if (!read.isNull())
             {
                 out.write(0);
-                writeWithVIntLength(read.bytes(), out);
+                writeWithVIntLength(read.bytes(version), out);
             }
             else
             {
@@ -450,24 +449,26 @@ public class TxnNamedRead extends AbstractSerialized<ReadCommand>
         }
 
         @Override
-        public TxnNamedRead deserialize(DataInputPlus in, int version) throws IOException
+        public TxnNamedRead deserialize(DataInputPlus in, Version version) throws IOException
         {
             int name = in.readInt();
-            Seekable key = KeySerializers.seekable.deserialize(in, version);
+            Seekable key = KeySerializers.seekable.deserialize(in);
             ByteBuffer bytes = in.readByte() == 1 ? null : readWithVIntLength(in);
-            return new TxnNamedRead(name, key, bytes);
+            return new TxnNamedRead(name, key, bytes, version);
         }
 
         @Override
-        public long serializedSize(TxnNamedRead read, int version)
+        public long serializedSize(TxnNamedRead read, Version version)
         {
             long size = 0;
             size += TypeSizes.sizeof(read.name);
-            size += KeySerializers.seekable.serializedSize(read.key, version);
+            size += KeySerializers.seekable.serializedSize(read.key);
             size += TypeSizes.BYTE_SIZE; // is null
-            if (read.bytes() != null)
-                size += serializedSizeWithVIntLength(read.bytes());
+            if (!read.isNull())
+                size += serializedSizeWithVIntLength(read.bytes(version));
             return size;
         }
     };
+
+    static final IVersionedSerializer<ReadCommand> readCommandSerializer = IVersionedSerializer.fromMessaging(ReadCommand.serializer);
 }

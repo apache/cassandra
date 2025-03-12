@@ -27,7 +27,7 @@ import accord.primitives.Deps;
 import accord.primitives.Route;
 import accord.primitives.TxnId;
 import org.apache.cassandra.db.TypeSizes;
-import org.apache.cassandra.io.IVersionedSerializer;
+import org.apache.cassandra.io.UnversionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 
@@ -36,48 +36,48 @@ public class GetEphmrlReadDepsSerializers
     public static final IVersionedSerializer<GetEphemeralReadDeps> request = new TxnRequestSerializer.WithUnsyncedSerializer<GetEphemeralReadDeps>()
     {
         @Override
-        public void serializeBody(GetEphemeralReadDeps msg, DataOutputPlus out, int version) throws IOException
+        public void serializeBody(GetEphemeralReadDeps msg, DataOutputPlus out, Version version) throws IOException
         {
             out.writeUnsignedVInt(msg.executionEpoch);
         }
 
         @Override
-        public GetEphemeralReadDeps deserializeBody(DataInputPlus in, int version, TxnId txnId, Route<?> scope, long waitForEpoch, long minEpoch) throws IOException
+        public GetEphemeralReadDeps deserializeBody(DataInputPlus in, Version version, TxnId txnId, Route<?> scope, long waitForEpoch, long minEpoch) throws IOException
         {
             long executionEpoch = in.readUnsignedVInt();
             return GetEphemeralReadDeps.SerializationSupport.create(txnId, scope, waitForEpoch, minEpoch, executionEpoch);
         }
 
         @Override
-        public long serializedBodySize(GetEphemeralReadDeps msg, int version)
+        public long serializedBodySize(GetEphemeralReadDeps msg, Version version)
         {
             return TypeSizes.sizeofUnsignedVInt(msg.executionEpoch);
         }
     };
 
-    public static final IVersionedSerializer<GetEphemeralReadDepsOk> reply = new IVersionedSerializer<GetEphemeralReadDepsOk>()
+    public static final UnversionedSerializer<GetEphemeralReadDepsOk> reply = new UnversionedSerializer<GetEphemeralReadDepsOk>()
     {
         @Override
-        public void serialize(GetEphemeralReadDepsOk reply, DataOutputPlus out, int version) throws IOException
+        public void serialize(GetEphemeralReadDepsOk reply, DataOutputPlus out) throws IOException
         {
-            DepsSerializers.deps.serialize(reply.deps, out, version);
+            DepsSerializers.deps.serialize(reply.deps, out);
             out.writeUnsignedVInt(reply.latestEpoch);
             out.writeUnsignedVInt32(reply.flags.bits());
         }
 
         @Override
-        public GetEphemeralReadDepsOk deserialize(DataInputPlus in, int version) throws IOException
+        public GetEphemeralReadDepsOk deserialize(DataInputPlus in) throws IOException
         {
-            Deps deps = DepsSerializers.deps.deserialize(in, version);
+            Deps deps = DepsSerializers.deps.deserialize(in);
             long latestEpoch = in.readUnsignedVInt();
             ExecuteFlags flags = ExecuteFlags.get(in.readUnsignedVInt32());
             return new GetEphemeralReadDepsOk(deps, latestEpoch, flags);
         }
 
         @Override
-        public long serializedSize(GetEphemeralReadDepsOk reply, int version)
+        public long serializedSize(GetEphemeralReadDepsOk reply)
         {
-            return DepsSerializers.deps.serializedSize(reply.deps, version)
+            return DepsSerializers.deps.serializedSize(reply.deps)
                    + TypeSizes.sizeofUnsignedVInt(reply.latestEpoch)
                    + TypeSizes.sizeofUnsignedVInt(reply.flags.bits());
         }

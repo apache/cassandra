@@ -24,18 +24,19 @@ import java.util.Objects;
 
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.db.marshal.AbstractType;
-import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
+import org.apache.cassandra.service.accord.serializers.IVersionedSerializer;
+import org.apache.cassandra.service.accord.serializers.Version;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
 public abstract class TxnReferenceValue
 {
     private interface Serializer<T extends TxnReferenceValue>
     {
-        void serialize(T t, DataOutputPlus out, int version) throws IOException;
-        T deserialize(DataInputPlus in, int version, Kind kind) throws IOException;
-        long serializedSize(T t, int version);
+        void serialize(T t, DataOutputPlus out, Version version) throws IOException;
+        T deserialize(DataInputPlus in, Version version, Kind kind) throws IOException;
+        long serializedSize(T t, Version version);
     }
 
     enum Kind
@@ -105,19 +106,19 @@ public abstract class TxnReferenceValue
         private static final Serializer<Constant> serializer = new Serializer<Constant>()
         {
             @Override
-            public void serialize(Constant constant, DataOutputPlus out, int version) throws IOException
+            public void serialize(Constant constant, DataOutputPlus out, Version version) throws IOException
             {
                 ByteBufferUtil.writeWithVIntLength(constant.value, out);
             }
 
             @Override
-            public Constant deserialize(DataInputPlus in, int version, Kind kind) throws IOException
+            public Constant deserialize(DataInputPlus in, Version version, Kind kind) throws IOException
             {
                 return new Constant(ByteBufferUtil.readWithVIntLength(in));
             }
 
             @Override
-            public long serializedSize(Constant constant, int version)
+            public long serializedSize(Constant constant, Version version)
             {
                 return ByteBufferUtil.serializedSizeWithVIntLength(constant.value);
             }
@@ -169,19 +170,19 @@ public abstract class TxnReferenceValue
         private static final Serializer<Substitution> serializer = new Serializer<Substitution>()
         {
             @Override
-            public void serialize(Substitution substitution, DataOutputPlus out, int version) throws IOException
+            public void serialize(Substitution substitution, DataOutputPlus out, Version version) throws IOException
             {
                 TxnReference.serializer.serialize(substitution.reference, out, version);
             }
 
             @Override
-            public Substitution deserialize(DataInputPlus in, int version, Kind kind) throws IOException
+            public Substitution deserialize(DataInputPlus in, Version version, Kind kind) throws IOException
             {
                 return new Substitution(TxnReference.serializer.deserialize(in, version));
             }
 
             @Override
-            public long serializedSize(Substitution substitution, int version)
+            public long serializedSize(Substitution substitution, Version version)
             {
                 return TxnReference.serializer.serializedSize(substitution.reference, version);
             }
@@ -192,14 +193,14 @@ public abstract class TxnReferenceValue
     {
         @SuppressWarnings("unchecked")
         @Override
-        public void serialize(TxnReferenceValue value, DataOutputPlus out, int version) throws IOException
+        public void serialize(TxnReferenceValue value, DataOutputPlus out, Version version) throws IOException
         {
             out.writeUnsignedVInt32(value.kind().ordinal());
             value.kind().serializer.serialize(value, out, version);
         }
 
         @Override
-        public TxnReferenceValue deserialize(DataInputPlus in, int version) throws IOException
+        public TxnReferenceValue deserialize(DataInputPlus in, Version version) throws IOException
         {
             Kind kind = Kind.values()[in.readUnsignedVInt32()];
             return kind.serializer.deserialize(in, version, kind);
@@ -207,7 +208,7 @@ public abstract class TxnReferenceValue
 
         @SuppressWarnings("unchecked")
         @Override
-        public long serializedSize(TxnReferenceValue value, int version)
+        public long serializedSize(TxnReferenceValue value, Version version)
         {
             return TypeSizes.sizeofUnsignedVInt(value.kind().ordinal()) + value.kind().serializer.serializedSize(value, version);
         }

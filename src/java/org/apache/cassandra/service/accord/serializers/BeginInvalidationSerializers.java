@@ -28,80 +28,80 @@ import accord.primitives.Participants;
 import accord.primitives.Route;
 import accord.primitives.SaveStatus;
 import org.apache.cassandra.db.TypeSizes;
-import org.apache.cassandra.io.IVersionedSerializer;
+import org.apache.cassandra.io.UnversionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 
 public class BeginInvalidationSerializers
 {
-    public static final IVersionedSerializer<BeginInvalidation> request = new IVersionedSerializer<>()
+    public static final UnversionedSerializer<BeginInvalidation> request = new UnversionedSerializer<>()
     {
         @Override
-        public void serialize(BeginInvalidation begin, DataOutputPlus out, int version) throws IOException
+        public void serialize(BeginInvalidation begin, DataOutputPlus out) throws IOException
         {
-            CommandSerializers.txnId.serialize(begin.txnId, out, version);
-            KeySerializers.participants.serialize(begin.participants, out, version);
-            CommandSerializers.ballot.serialize(begin.ballot, out, version);
+            CommandSerializers.txnId.serialize(begin.txnId, out);
+            KeySerializers.participants.serialize(begin.participants, out);
+            CommandSerializers.ballot.serialize(begin.ballot, out);
         }
 
         @Override
-        public BeginInvalidation deserialize(DataInputPlus in, int version) throws IOException
+        public BeginInvalidation deserialize(DataInputPlus in) throws IOException
         {
-            return new BeginInvalidation(CommandSerializers.txnId.deserialize(in, version),
-                                       KeySerializers.participants.deserialize(in, version),
-                                       CommandSerializers.ballot.deserialize(in, version));
+            return new BeginInvalidation(CommandSerializers.txnId.deserialize(in),
+                                       KeySerializers.participants.deserialize(in),
+                                       CommandSerializers.ballot.deserialize(in));
         }
 
         @Override
-        public long serializedSize(BeginInvalidation begin, int version)
+        public long serializedSize(BeginInvalidation begin)
         {
-            return CommandSerializers.txnId.serializedSize(begin.txnId, version)
-                   + KeySerializers.participants.serializedSize(begin.participants, version)
-                   + CommandSerializers.ballot.serializedSize(begin.ballot, version);
+            return CommandSerializers.txnId.serializedSize(begin.txnId)
+                   + KeySerializers.participants.serializedSize(begin.participants)
+                   + CommandSerializers.ballot.serializedSize(begin.ballot);
         }
     };
 
-    public static final IVersionedSerializer<InvalidateReply> reply = new IVersionedSerializer<>()
+    public static final UnversionedSerializer<InvalidateReply> reply = new UnversionedSerializer<>()
     {
         @Override
-        public void serialize(InvalidateReply reply, DataOutputPlus out, int version) throws IOException
+        public void serialize(InvalidateReply reply, DataOutputPlus out) throws IOException
         {
-            CommandSerializers.ballot.serialize(reply.supersededBy, out, version);
-            CommandSerializers.ballot.serialize(reply.accepted, out, version);
-            CommandSerializers.saveStatus.serialize(reply.maxStatus, out, version);
-            CommandSerializers.saveStatus.serialize(reply.maxKnowledgeStatus, out, version);
+            CommandSerializers.ballot.serialize(reply.supersededBy, out);
+            CommandSerializers.ballot.serialize(reply.accepted, out);
+            CommandSerializers.saveStatus.serialize(reply.maxStatus, out);
+            CommandSerializers.saveStatus.serialize(reply.maxKnowledgeStatus, out);
             out.writeBoolean(reply.acceptedFastPath);
-            KeySerializers.nullableParticipants.serialize(reply.truncated, out, version);
-            KeySerializers.nullableRoute.serialize(reply.route, out, version);
-            KeySerializers.nullableRoutingKey.serialize(reply.homeKey, out, version);
+            KeySerializers.nullableParticipants.serialize(reply.truncated, out);
+            KeySerializers.nullableRoute.serialize(reply.route, out);
+            KeySerializers.nullableRoutingKey.serialize(reply.homeKey, out);
         }
 
         @Override
-        public InvalidateReply deserialize(DataInputPlus in, int version) throws IOException
+        public InvalidateReply deserialize(DataInputPlus in) throws IOException
         {
             // TODO (expected): use headers instead of nullable+bool serializers
-            Ballot supersededBy = CommandSerializers.ballot.deserialize(in, version);
-            Ballot accepted = CommandSerializers.ballot.deserialize(in, version);
-            SaveStatus maxStatus = CommandSerializers.saveStatus.deserialize(in, version);
-            SaveStatus maxKnowledgeStatus = CommandSerializers.saveStatus.deserialize(in, version);
+            Ballot supersededBy = CommandSerializers.ballot.deserialize(in);
+            Ballot accepted = CommandSerializers.ballot.deserialize(in);
+            SaveStatus maxStatus = CommandSerializers.saveStatus.deserialize(in);
+            SaveStatus maxKnowledgeStatus = CommandSerializers.saveStatus.deserialize(in);
             boolean acceptedFastPath = in.readBoolean();
-            Participants<?> truncated = KeySerializers.nullableParticipants.deserialize(in, version);
-            Route<?> route = KeySerializers.nullableRoute.deserialize(in, version);
-            RoutingKey homeKey = KeySerializers.nullableRoutingKey.deserialize(in, version);
+            Participants<?> truncated = KeySerializers.nullableParticipants.deserialize(in);
+            Route<?> route = KeySerializers.nullableRoute.deserialize(in);
+            RoutingKey homeKey = KeySerializers.nullableRoutingKey.deserialize(in);
             return new InvalidateReply(supersededBy, accepted, maxStatus, maxKnowledgeStatus, acceptedFastPath, truncated, route, homeKey);
         }
 
         @Override
-        public long serializedSize(InvalidateReply reply, int version)
+        public long serializedSize(InvalidateReply reply)
         {
-            return CommandSerializers.ballot.serializedSize(reply.supersededBy, version)
-                 + CommandSerializers.ballot.serializedSize(reply.accepted, version)
-                 + CommandSerializers.saveStatus.serializedSize(reply.maxStatus, version)
-                 + CommandSerializers.saveStatus.serializedSize(reply.maxKnowledgeStatus, version)
+            return CommandSerializers.ballot.serializedSize(reply.supersededBy)
+                 + CommandSerializers.ballot.serializedSize(reply.accepted)
+                 + CommandSerializers.saveStatus.serializedSize(reply.maxStatus)
+                 + CommandSerializers.saveStatus.serializedSize(reply.maxKnowledgeStatus)
                  + TypeSizes.BOOL_SIZE
-                 + KeySerializers.nullableParticipants.serializedSize(reply.truncated, version)
-                 + KeySerializers.nullableRoute.serializedSize(reply.route, version)
-                 + KeySerializers.nullableRoutingKey.serializedSize(reply.homeKey, version);
+                 + KeySerializers.nullableParticipants.serializedSize(reply.truncated)
+                 + KeySerializers.nullableRoute.serializedSize(reply.route)
+                 + KeySerializers.nullableRoutingKey.serializedSize(reply.homeKey);
         }
     };
 }

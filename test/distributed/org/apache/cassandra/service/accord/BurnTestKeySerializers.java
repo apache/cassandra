@@ -41,14 +41,18 @@ import accord.primitives.Keys;
 import accord.primitives.Range;
 import accord.primitives.Seekables;
 import accord.primitives.TxnId;
-import org.apache.cassandra.io.IVersionedSerializer;
+import org.apache.cassandra.io.EmbeddedAsymmetricVersionedSerializer;
+import org.apache.cassandra.io.UnversionedSerializer;
+import org.apache.cassandra.io.VersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.service.accord.api.AccordRoutableKey;
 import org.apache.cassandra.service.accord.api.AccordRoutableKey.AccordSearchableKeySerializer;
 import org.apache.cassandra.service.accord.serializers.CommandSerializers;
+import org.apache.cassandra.service.accord.serializers.IVersionedSerializer;
 import org.apache.cassandra.service.accord.serializers.KeySerializers;
 import org.apache.cassandra.service.accord.serializers.TopologySerializers;
+import org.apache.cassandra.service.accord.serializers.Version;
 import org.apache.cassandra.utils.CastingSerializer;
 
 @SuppressWarnings("unchecked")
@@ -61,7 +65,8 @@ public class BurnTestKeySerializers
     (AccordSearchableKeySerializer<?>)
     new AccordSearchableKeySerializer<PrefixedIntHashKey>()
     {
-        public void serialize(PrefixedIntHashKey t, DataOutputPlus out, int version) throws IOException
+        @Override
+        public void serialize(PrefixedIntHashKey t, DataOutputPlus out) throws IOException
         {
             assert t instanceof PrefixedIntHashKey.Key;
             out.writeInt(t.prefix);
@@ -69,7 +74,8 @@ public class BurnTestKeySerializers
             out.writeInt(t.hash);
         }
 
-        public PrefixedIntHashKey deserialize(DataInputPlus in, int version) throws IOException
+        @Override
+        public PrefixedIntHashKey deserialize(DataInputPlus in) throws IOException
         {
             int prefix = in.readInt();
             int key = in.readInt();
@@ -77,12 +83,14 @@ public class BurnTestKeySerializers
             return PrefixedIntHashKey.key(prefix, key, hash);
         }
 
-        public long serializedSize(PrefixedIntHashKey t, int version)
+        @Override
+        public long serializedSize(PrefixedIntHashKey t)
         {
             return 3 * Integer.BYTES;
         }
 
-        public void skip(DataInputPlus in, int version) throws IOException
+        @Override
+        public void skip(DataInputPlus in) throws IOException
         {
             in.skipBytesFully(3 * Integer.BYTES);
         }
@@ -106,26 +114,26 @@ public class BurnTestKeySerializers
         }
 
         @Override
-        public void serializePrefix(Object prefix, DataOutputPlus out, int version) throws IOException
+        public void serializePrefix(Object prefix, DataOutputPlus out) throws IOException
         {
             out.writeInt((Integer) prefix);
         }
 
         @Override
-        public void serializeWithoutPrefixOrLength(PrefixedIntHashKey key, DataOutputPlus out, int version) throws IOException
+        public void serializeWithoutPrefixOrLength(PrefixedIntHashKey key, DataOutputPlus out) throws IOException
         {
             out.writeInt(key.hash);
             out.writeInt(key.key);
         }
 
         @Override
-        public Object deserializePrefix(DataInputPlus in, int version) throws IOException
+        public Object deserializePrefix(DataInputPlus in) throws IOException
         {
             return in.readInt();
         }
 
         @Override
-        public PrefixedIntHashKey deserializeWithPrefix(Object prefix, int length, DataInputPlus in, int version) throws IOException
+        public PrefixedIntHashKey deserializeWithPrefix(Object prefix, int length, DataInputPlus in) throws IOException
         {
             int key = in.readInt();
             int hash = in.readInt();
@@ -138,25 +146,25 @@ public class BurnTestKeySerializers
     (AccordSearchableKeySerializer<?>)
     new AccordSearchableKeySerializer<PrefixedIntHashKey.Hash>()
     {
-        public void serialize(PrefixedIntHashKey.Hash t, DataOutputPlus out, int version) throws IOException
+        public void serialize(PrefixedIntHashKey.Hash t, DataOutputPlus out) throws IOException
         {
             out.writeInt(t.prefix);
             out.writeInt(t.hash);
         }
 
-        public PrefixedIntHashKey.Hash deserialize(DataInputPlus in, int version) throws IOException
+        public PrefixedIntHashKey.Hash deserialize(DataInputPlus in) throws IOException
         {
             int prefix = in.readInt();
             int hash = in.readInt();
             return new PrefixedIntHashKey.Hash(prefix, hash);
         }
 
-        public long serializedSize(PrefixedIntHashKey.Hash t, int version)
+        public long serializedSize(PrefixedIntHashKey.Hash t)
         {
             return 2 * Integer.BYTES;
         }
 
-        public void skip(DataInputPlus in, int version) throws IOException
+        public void skip(DataInputPlus in) throws IOException
         {
             in.skipBytesFully(2 * Integer.BYTES);
         }
@@ -180,84 +188,87 @@ public class BurnTestKeySerializers
         }
 
         @Override
-        public void serializePrefix(Object prefix, DataOutputPlus out, int version) throws IOException
+        public void serializePrefix(Object prefix, DataOutputPlus out) throws IOException
         {
             out.writeInt((Integer) prefix);
         }
 
         @Override
-        public void serializeWithoutPrefixOrLength(PrefixedIntHashKey.Hash key, DataOutputPlus out, int version) throws IOException
+        public void serializeWithoutPrefixOrLength(PrefixedIntHashKey.Hash key, DataOutputPlus out) throws IOException
         {
             out.writeInt(key.hash);
         }
 
         @Override
-        public Object deserializePrefix(DataInputPlus in, int version) throws IOException
+        public Object deserializePrefix(DataInputPlus in) throws IOException
         {
             return in.readInt();
         }
 
         @Override
-        public PrefixedIntHashKey.Hash deserializeWithPrefix(Object prefix, int length, DataInputPlus in, int version) throws IOException
+        public PrefixedIntHashKey.Hash deserializeWithPrefix(Object prefix, int length, DataInputPlus in) throws IOException
         {
             int hash = in.readInt();
             return PrefixedIntHashKey.forHash((Integer)prefix, hash);
         }
     };
 
-    public static final IVersionedSerializer<Range> range =
-    (IVersionedSerializer<Range>)
-    (IVersionedSerializer<?>)
-    new IVersionedSerializer<PrefixedIntHashKey.Range>()
+    public static final UnversionedSerializer<Range> range =
+    (UnversionedSerializer<Range>)
+    (UnversionedSerializer<?>)
+    new UnversionedSerializer<PrefixedIntHashKey.Range>()
     {
         @Override
-        public void serialize(PrefixedIntHashKey.Range t, DataOutputPlus out, int version) throws IOException
+        public void serialize(PrefixedIntHashKey.Range t, DataOutputPlus out) throws IOException
         {
-            routingKey.serialize(t.start(), out, version);
-            routingKey.serialize(t.end(), out, version);
+            routingKey.serialize(t.start(), out);
+            routingKey.serialize(t.end(), out);
         }
 
         @Override
-        public PrefixedIntHashKey.Range deserialize(DataInputPlus in, int version) throws IOException
+        public PrefixedIntHashKey.Range deserialize(DataInputPlus in) throws IOException
         {
-            RoutingKey start = routingKey.deserialize(in, version);
-            RoutingKey end = routingKey.deserialize(in, version);
+            RoutingKey start = routingKey.deserialize(in);
+            RoutingKey end = routingKey.deserialize(in);
             return PrefixedIntHashKey.range((PrefixedIntHashKey.PrefixedIntRoutingKey) start, (PrefixedIntHashKey.PrefixedIntRoutingKey) end);
         }
 
         @Override
-        public long serializedSize(PrefixedIntHashKey.Range t, int version)
+        public long serializedSize(PrefixedIntHashKey.Range t)
         {
             throw new RuntimeException("not implemented");
         }
     };
 
-    public static final IVersionedSerializer<Read> read = new CastingSerializer<>(ListRead.class, new IVersionedSerializer<>()
+    public static final VersionedSerializer<Read, Version> read = CastingSerializer.create(ListRead.class, new IVersionedSerializer<>()
     {
-        public void serialize(ListRead t, DataOutputPlus out, int version) throws IOException
+        @Override
+        public void serialize(ListRead t, DataOutputPlus out, Version version) throws IOException
         {
             out.writeBoolean(t.isEphemeralRead);
-            KeySerializers.seekables.serialize(t.userReadKeys, out, version);
-            KeySerializers.seekables.serialize(t.keys, out, version);
+            KeySerializers.seekables.serialize(t.userReadKeys, out);
+            KeySerializers.seekables.serialize(t.keys, out);
         }
 
-        public ListRead deserialize(DataInputPlus in, int version) throws IOException
+        @Override
+        public ListRead deserialize(DataInputPlus in, Version version) throws IOException
         {
             boolean isEphemeralRead = in.readBoolean();
-            Seekables<?, ?> userReadKeys = KeySerializers.seekables.deserialize(in, version);
-            Seekables<?, ?> keys = KeySerializers.seekables.deserialize(in, version);
+            Seekables<?, ?> userReadKeys = KeySerializers.seekables.deserialize(in);
+            Seekables<?, ?> keys = KeySerializers.seekables.deserialize(in);
             return new ListRead(Function.identity(), isEphemeralRead, userReadKeys, keys);
         }
 
-        public long serializedSize(ListRead t, int version)
+        @Override
+        public long serializedSize(ListRead t, Version version)
         {
             throw new RuntimeException("not implemented");
         }
     });
 
-    public static final IVersionedSerializer<Query> query = new CastingSerializer<>(ListQuery.class, new IVersionedSerializer<>()
+    public static final UnversionedSerializer<Query> query = CastingSerializer.create(ListQuery.class, new UnversionedSerializer<>()
     {
-        public void serialize(ListQuery t, DataOutputPlus out, int version) throws IOException
+        public void serialize(ListQuery t, DataOutputPlus out) throws IOException
         {
             if (t == null)
             {
@@ -265,12 +276,12 @@ public class BurnTestKeySerializers
                 return;
             }
             out.writeByte(1);
-            TopologySerializers.NodeIdSerializer.serialize(t.client, out);
+            TopologySerializers.nodeId.serialize(t.client, out);
             out.writeLong(t.requestId);
             out.writeBoolean(t.isEphemeralRead);
         }
 
-        public ListQuery deserialize(DataInputPlus in, int version) throws IOException
+        public ListQuery deserialize(DataInputPlus in) throws IOException
         {
             switch (in.readByte())
             {
@@ -282,70 +293,70 @@ public class BurnTestKeySerializers
                     throw new AssertionError();
             }
 
-            Node.Id client = TopologySerializers.NodeIdSerializer.deserialize(in);
+            Node.Id client = TopologySerializers.nodeId.deserialize(in);
             long requestId = in.readLong();
             boolean isEphemeralRead = in.readBoolean();
             return new ListQuery(client, requestId, isEphemeralRead);
         }
 
-        public long serializedSize(ListQuery t, int version)
+        public long serializedSize(ListQuery t)
         {
             throw new RuntimeException("not implemented");
         }
     });
 
-    public static final IVersionedSerializer<Update> update = new CastingSerializer<>(ListUpdate.class, new IVersionedSerializer<>()
+    public static final VersionedSerializer<Update, Version> update = CastingSerializer.create(ListUpdate.class, new IVersionedSerializer<>()
     {
-        public void serialize(ListUpdate t, DataOutputPlus out, int version) throws IOException
+        public void serialize(ListUpdate t, DataOutputPlus out, Version version) throws IOException
         {
             out.writeInt(t.size());
             for (Map.Entry<Key, Integer> e : t.entrySet())
             {
-                KeySerializers.key.serialize(e.getKey(), out, version);
+                KeySerializers.key.serialize(e.getKey(), out);
                 out.writeInt(e.getValue());
             }
         }
 
-        public ListUpdate deserialize(DataInputPlus in, int version) throws IOException
+        public ListUpdate deserialize(DataInputPlus in, Version version) throws IOException
         {
             int size = in.readInt();
             ListUpdate listUpdate = new ListUpdate(Function.identity());
             for (int i = 0; i < size; i++)
             {
-                Key k = KeySerializers.key.deserialize(in, version);
+                Key k = KeySerializers.key.deserialize(in);
                 int v = in.readInt();
                 listUpdate.put(k, v);
             }
             return listUpdate;
         }
 
-        public long serializedSize(ListUpdate t, int version)
+        public long serializedSize(ListUpdate t, Version version)
         {
             throw new RuntimeException("not implemented");
         }
     });
 
-    public static final IVersionedSerializer<Write> write = new CastingSerializer<>(ListWrite.class, new IVersionedSerializer<>()
+    public static final VersionedSerializer<Write, Version> write = CastingSerializer.create(ListWrite.class, new IVersionedSerializer<>()
     {
-        public void serialize(ListWrite t, DataOutputPlus out, int version) throws IOException
+        public void serialize(ListWrite t, DataOutputPlus out, Version version) throws IOException
         {
             out.writeInt(t.size());
             for (Map.Entry<Key, int[]> e : t.entrySet())
             {
-                KeySerializers.key.serialize(e.getKey(), out, version);
+                KeySerializers.key.serialize(e.getKey(), out);
                 out.writeInt(e.getValue().length);
                 for (int v : e.getValue())
                     out.writeInt(v);
             }
         }
 
-        public ListWrite deserialize(DataInputPlus in, int version) throws IOException
+        public ListWrite deserialize(DataInputPlus in, Version version) throws IOException
         {
             int size = in.readInt();
             ListWrite write = new ListWrite(Function.identity());
             for (int i = 0; i < size; i++)
             {
-                Key k = KeySerializers.key.deserialize(in, version);
+                Key k = KeySerializers.key.deserialize(in);
                 int len = in.readInt();
                 int[] vals = new int[len];
                 for (int j = 0; j < len; j++)
@@ -355,22 +366,24 @@ public class BurnTestKeySerializers
             return write;
         }
 
-        public long serializedSize(ListWrite t, int version)
+        public long serializedSize(ListWrite t, Version version)
         {
             throw new RuntimeException("not implemented");
         }
     });
 
-    public static final IVersionedSerializer<Result> result = new CastingSerializer<>(ListResult.class, new IVersionedSerializer<>()
+    public static final UnversionedSerializer<Result> result = CastingSerializer.create(ListResult.class, new UnversionedSerializer<>()
     {
-        public void serialize(ListResult t, DataOutputPlus out, int version) throws IOException
-        {
-            TopologySerializers.NodeIdSerializer.serialize(t.client, out);
-            out.writeLong(t.requestId);
-            CommandSerializers.txnId.serialize(t.txnId, out, version);
+        private final EmbeddedAsymmetricVersionedSerializer<Update, Update, Version> unversionedUpdate = AccordSerializers.embedded(Version.LATEST, update);
 
-            KeySerializers.seekables.serialize(t.readKeys, out, version);
-            KeySerializers.keys.serialize(t.responseKeys, out, version);
+        public void serialize(ListResult t, DataOutputPlus out) throws IOException
+        {
+            TopologySerializers.nodeId.serialize(t.client, out);
+            out.writeLong(t.requestId);
+            CommandSerializers.txnId.serialize(t.txnId, out);
+
+            KeySerializers.seekables.serialize(t.readKeys, out);
+            KeySerializers.keys.serialize(t.responseKeys, out);
 
             out.writeInt(t.read.length);
             for (int[] ints : t.read)
@@ -382,18 +395,18 @@ public class BurnTestKeySerializers
 
             out.writeInt(t.update == null ? 0 : 1);
             if (t.update != null)
-                update.serialize(t.update, out, version);
+                unversionedUpdate.serialize(t.update, out);
 
             out.writeInt(t.status.ordinal());
         }
 
-        public ListResult deserialize(DataInputPlus in, int version) throws IOException
+        public ListResult deserialize(DataInputPlus in) throws IOException
         {
-            Node.Id client = TopologySerializers.NodeIdSerializer.deserialize(in);
+            Node.Id client = TopologySerializers.nodeId.deserialize(in);
             long requestId = in.readLong();
             TxnId txnId = CommandSerializers.txnId.deserialize(in);
-            Seekables<?, ?> readKeys = KeySerializers.seekables.deserialize(in, version);
-            Keys responseKeys = KeySerializers.keys.deserialize(in, version);
+            Seekables<?, ?> readKeys = KeySerializers.seekables.deserialize(in);
+            Keys responseKeys = KeySerializers.keys.deserialize(in);
             int[][] read = new int[in.readInt()][];
             for (int i = 0; i < read.length; i++)
             {
@@ -406,12 +419,12 @@ public class BurnTestKeySerializers
             }
             ListUpdate update = null;
             if (in.readInt() != 0)
-                update = (ListUpdate) BurnTestKeySerializers.update.deserialize(in, version);
+                update = (ListUpdate) unversionedUpdate.deserialize(in);
             ListResult.Status status = ListResult.Status.values()[in.readInt()];
             return new ListResult(status, client, requestId, txnId, readKeys, responseKeys, read, update);
         }
 
-        public long serializedSize(ListResult t, int version)
+        public long serializedSize(ListResult t)
         {
             throw new RuntimeException("not implemented");
         }

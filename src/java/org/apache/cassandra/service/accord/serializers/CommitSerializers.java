@@ -30,7 +30,7 @@ import accord.primitives.Route;
 import accord.primitives.Timestamp;
 import accord.primitives.TxnId;
 import org.apache.cassandra.db.TypeSizes;
-import org.apache.cassandra.io.IVersionedSerializer;
+import org.apache.cassandra.io.UnversionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.service.accord.serializers.CommandSerializers.ExecuteAtSerializer;
@@ -41,79 +41,79 @@ import static org.apache.cassandra.utils.NullableSerializer.serializedNullableSi
 
 public class CommitSerializers
 {
-    public static final IVersionedSerializer<Commit.Kind> kind = EncodeAsVInt32.of(Commit.Kind.class);
+    public static final UnversionedSerializer<Commit.Kind> kind = EncodeAsVInt32.of(Commit.Kind.class);
 
     public static final CommitSerializer request = new CommitSerializer();
     public static class CommitSerializer extends TxnRequestSerializer.WithUnsyncedSerializer<Commit>
     {
         @Override
-        public void serializeBody(Commit msg, DataOutputPlus out, int version) throws IOException
+        public void serializeBody(Commit msg, DataOutputPlus out, Version version) throws IOException
         {
-            kind.serialize(msg.kind, out, version);
-            CommandSerializers.ballot.serialize(msg.ballot, out, version);
+            kind.serialize(msg.kind, out);
+            CommandSerializers.ballot.serialize(msg.ballot, out);
             ExecuteAtSerializer.serialize(msg.txnId, msg.executeAt, out);
             CommandSerializers.nullablePartialTxn.serialize(msg.partialTxn, out, version);
             if (msg.kind.withDeps == Commit.WithDeps.HasDeps)
-                DepsSerializers.partialDeps.serialize(msg.partialDeps, out, version);
-            serializeNullable(msg.route, out, version, KeySerializers.fullRoute);
+                DepsSerializers.partialDeps.serialize(msg.partialDeps, out);
+            serializeNullable(msg.route, out, KeySerializers.fullRoute);
         }
 
         @Override
-        public Commit deserializeBody(DataInputPlus in, int version, TxnId txnId, Route<?> scope, long waitForEpoch, long minEpoch) throws IOException
+        public Commit deserializeBody(DataInputPlus in, Version version, TxnId txnId, Route<?> scope, long waitForEpoch, long minEpoch) throws IOException
         {
-            Commit.Kind kind = CommitSerializers.kind.deserialize(in, version);
-            Ballot ballot = CommandSerializers.ballot.deserialize(in, version);
+            Commit.Kind kind = CommitSerializers.kind.deserialize(in);
+            Ballot ballot = CommandSerializers.ballot.deserialize(in);
             Timestamp executeAt = ExecuteAtSerializer.deserialize(txnId, in);
             PartialTxn partialTxn = CommandSerializers.nullablePartialTxn.deserialize(in, version);
             PartialDeps partialDeps = null;
             if (kind.withDeps == Commit.WithDeps.HasDeps)
-                partialDeps = DepsSerializers.partialDeps.deserialize(in, version);
-            FullRoute<?> route = deserializeNullable(in, version, KeySerializers.fullRoute);
+                partialDeps = DepsSerializers.partialDeps.deserialize(in);
+            FullRoute<?> route = deserializeNullable(in, KeySerializers.fullRoute);
             return Commit.SerializerSupport.create(txnId, scope, waitForEpoch, minEpoch, kind, ballot, executeAt, partialTxn, partialDeps, route);
         }
 
         @Override
-        public long serializedBodySize(Commit msg, int version)
+        public long serializedBodySize(Commit msg, Version version)
         {
-            long size = kind.serializedSize(msg.kind, version)
-                   + CommandSerializers.ballot.serializedSize(msg.ballot, version)
+            long size = kind.serializedSize(msg.kind)
+                   + CommandSerializers.ballot.serializedSize(msg.ballot)
                    + ExecuteAtSerializer.serializedSize(msg.txnId, msg.executeAt)
                    + CommandSerializers.nullablePartialTxn.serializedSize(msg.partialTxn, version);
 
             if (msg.kind.withDeps == Commit.WithDeps.HasDeps)
-                size += DepsSerializers.partialDeps.serializedSize(msg.partialDeps, version);
+                size += DepsSerializers.partialDeps.serializedSize(msg.partialDeps);
 
-            size += serializedNullableSize(msg.route, version, KeySerializers.fullRoute);
+            size += serializedNullableSize(msg.route, KeySerializers.fullRoute);
             return size;
         }
     }
 
-    public static final IVersionedSerializer<Commit.Invalidate> invalidate = new IVersionedSerializer<>()
+    public static final UnversionedSerializer<Commit.Invalidate> invalidate = new UnversionedSerializer<>()
     {
         @Override
-        public void serialize(Commit.Invalidate invalidate, DataOutputPlus out, int version) throws IOException
+        public void serialize(Commit.Invalidate invalidate, DataOutputPlus out) throws IOException
         {
-            CommandSerializers.txnId.serialize(invalidate.txnId, out, version);
-            KeySerializers.participants.serialize(invalidate.scope, out, version);
+            CommandSerializers.txnId.serialize(invalidate.txnId, out);
+            KeySerializers.participants.serialize(invalidate.scope, out);
             out.writeUnsignedVInt(invalidate.waitForEpoch);
             out.writeUnsignedVInt(invalidate.invalidateUntilEpoch - invalidate.waitForEpoch);
         }
 
         @Override
-        public Commit.Invalidate deserialize(DataInputPlus in, int version) throws IOException
+        public Commit.Invalidate deserialize(DataInputPlus in) throws IOException
         {
-            TxnId txnId = CommandSerializers.txnId.deserialize(in, version);
-            Participants<?> scope = KeySerializers.participants.deserialize(in, version);
+            TxnId txnId = CommandSerializers.txnId.deserialize(in);
+            Participants<?> scope = KeySerializers.participants.deserialize(in);
             long waitForEpoch = in.readUnsignedVInt();
             long invalidateUntilEpoch = in.readUnsignedVInt() + waitForEpoch;
             return Commit.Invalidate.SerializerSupport.create(txnId, scope, waitForEpoch, invalidateUntilEpoch);
         }
 
         @Override
-        public long serializedSize(Commit.Invalidate invalidate, int version)
+        public long serializedSize(Commit.Invalidate invalidate)
         {
-            return CommandSerializers.txnId.serializedSize(invalidate.txnId, version)
-                   + KeySerializers.participants.serializedSize(invalidate.scope, version)
+            return CommandSerializers.txnId.serializedSize(invalidate.txnId)
+                   + KeySerializers.participants.serializedSize(invalidate.scope)
                    + TypeSizes.sizeofUnsignedVInt(invalidate.waitForEpoch)
                    + TypeSizes.sizeofUnsignedVInt(invalidate.invalidateUntilEpoch - invalidate.waitForEpoch);
         }

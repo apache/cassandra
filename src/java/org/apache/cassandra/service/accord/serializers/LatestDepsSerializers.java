@@ -31,17 +31,17 @@ import accord.primitives.Route;
 import accord.primitives.Timestamp;
 import accord.primitives.TxnId;
 import org.apache.cassandra.db.TypeSizes;
-import org.apache.cassandra.io.IVersionedSerializer;
+import org.apache.cassandra.io.UnversionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.service.accord.serializers.CommandSerializers.ExecuteAtSerializer;
 
 public class LatestDepsSerializers
 {
-    public static final IVersionedSerializer<LatestDeps> latestDeps = new IVersionedSerializer<>()
+    public static final UnversionedSerializer<LatestDeps> latestDeps = new UnversionedSerializer<>()
     {
         @Override
-        public void serialize(LatestDeps t, DataOutputPlus out, int version) throws IOException
+        public void serialize(LatestDeps t, DataOutputPlus out) throws IOException
         {
             out.writeUnsignedVInt32(t.size());
             if (t.size() == 0)
@@ -50,25 +50,25 @@ public class LatestDepsSerializers
             for (int i = 0 ; i < t.size() ; ++i)
             {
                 RoutingKey start = t.startAt(i);
-                KeySerializers.routingKey.serialize(start, out, version);
+                KeySerializers.routingKey.serialize(start, out);
                 LatestDeps.LatestEntry e = t.valueAt(i);
                 if (e == null)
                 {
-                    CommandSerializers.knownDeps.serialize(null, out, version);
+                    CommandSerializers.knownDeps.serialize(null, out);
                 }
                 else
                 {
-                    CommandSerializers.knownDeps.serialize(e.known, out, version);
-                    CommandSerializers.ballot.serialize(e.ballot, out, version);
-                    DepsSerializers.nullableDeps.serialize(e.coordinatedDeps, out, version);
-                    DepsSerializers.nullableDeps.serialize(e.localDeps, out, version);
+                    CommandSerializers.knownDeps.serialize(e.known, out);
+                    CommandSerializers.ballot.serialize(e.ballot, out);
+                    DepsSerializers.nullableDeps.serialize(e.coordinatedDeps, out);
+                    DepsSerializers.nullableDeps.serialize(e.localDeps, out);
                 }
             }
-            KeySerializers.routingKey.serialize(t.startAt(t.size()), out, version);
+            KeySerializers.routingKey.serialize(t.startAt(t.size()), out);
         }
 
         @Override
-        public LatestDeps deserialize(DataInputPlus in, int version) throws IOException
+        public LatestDeps deserialize(DataInputPlus in) throws IOException
         {
             int size = in.readUnsignedVInt32();
             if (size == 0)
@@ -78,23 +78,23 @@ public class LatestDepsSerializers
             LatestDeps.LatestEntry[] values = new LatestDeps.LatestEntry[size];
             for (int i = 0 ; i < size ; ++i)
             {
-                starts[i] = KeySerializers.routingKey.deserialize(in, version);
-                Known.KnownDeps knownDeps = CommandSerializers.knownDeps.deserialize(in, version);
+                starts[i] = KeySerializers.routingKey.deserialize(in);
+                Known.KnownDeps knownDeps = CommandSerializers.knownDeps.deserialize(in);
                 if (knownDeps == null)
                     continue;
 
-                Ballot ballot = CommandSerializers.ballot.deserialize(in, version);
-                Deps coordinatedDeps = DepsSerializers.nullableDeps.deserialize(in, version);
-                Deps localDeps = DepsSerializers.nullableDeps.deserialize(in, version);
+                Ballot ballot = CommandSerializers.ballot.deserialize(in);
+                Deps coordinatedDeps = DepsSerializers.nullableDeps.deserialize(in);
+                Deps localDeps = DepsSerializers.nullableDeps.deserialize(in);
                 values[i] = new LatestDeps.LatestEntry(knownDeps, ballot, coordinatedDeps, localDeps);
             }
-            starts[size] = KeySerializers.routingKey.deserialize(in, version);
+            starts[size] = KeySerializers.routingKey.deserialize(in);
 
             return LatestDeps.SerializerSupport.create(true, starts, values);
         }
 
         @Override
-        public long serializedSize(LatestDeps t, int version)
+        public long serializedSize(LatestDeps t)
         {
             long size = 0;
             size += TypeSizes.sizeofUnsignedVInt(t.size());
@@ -103,21 +103,21 @@ public class LatestDepsSerializers
             for (int i = 0 ; i < t.size() ; ++i)
             {
                 RoutingKey start = t.startAt(i);
-                size += KeySerializers.routingKey.serializedSize(start, version);
+                size += KeySerializers.routingKey.serializedSize(start);
                 LatestDeps.LatestEntry e = t.valueAt(i);
                 if (e == null)
                 {
-                    size += CommandSerializers.knownDeps.serializedSize(null, version);
+                    size += CommandSerializers.knownDeps.serializedSize(null);
                 }
                 else
                 {
-                    size += CommandSerializers.knownDeps.serializedSize(e.known, version);
-                    size += CommandSerializers.ballot.serializedSize(e.ballot, version);
-                    size += DepsSerializers.nullableDeps.serializedSize(e.coordinatedDeps, version);
-                    size += DepsSerializers.nullableDeps.serializedSize(e.localDeps, version);
+                    size += CommandSerializers.knownDeps.serializedSize(e.known);
+                    size += CommandSerializers.ballot.serializedSize(e.ballot);
+                    size += DepsSerializers.nullableDeps.serializedSize(e.coordinatedDeps);
+                    size += DepsSerializers.nullableDeps.serializedSize(e.localDeps);
                 }
             }
-            size += KeySerializers.routingKey.serializedSize(t.startAt(t.size()), version);
+            size += KeySerializers.routingKey.serializedSize(t.startAt(t.size()));
             return size;
         }
     };
@@ -125,13 +125,13 @@ public class LatestDepsSerializers
     public static final IVersionedSerializer<GetLatestDeps> request = new TxnRequestSerializer.WithUnsyncedSerializer<>()
     {
         @Override
-        public void serializeBody(GetLatestDeps msg, DataOutputPlus out, int version) throws IOException
+        public void serializeBody(GetLatestDeps msg, DataOutputPlus out, Version version) throws IOException
         {
             ExecuteAtSerializer.serialize(msg.executeAt, out);
         }
 
         @Override
-        public GetLatestDeps deserializeBody(DataInputPlus in, int version, TxnId txnId, Route<?> scope, long waitForEpoch, long minEpoch) throws IOException
+        public GetLatestDeps deserializeBody(DataInputPlus in, Version version, TxnId txnId, Route<?> scope, long waitForEpoch, long minEpoch) throws IOException
         {
             Ballot ballot = CommandSerializers.ballot.deserialize(in);
             Timestamp executeAt = ExecuteAtSerializer.deserialize(in);
@@ -139,30 +139,30 @@ public class LatestDepsSerializers
         }
 
         @Override
-        public long serializedBodySize(GetLatestDeps msg, int version)
+        public long serializedBodySize(GetLatestDeps msg, Version version)
         {
             return ExecuteAtSerializer.serializedSize(msg.executeAt);
         }
     };
 
-    public static final IVersionedSerializer<GetLatestDepsOk> reply = new IVersionedSerializer<>()
+    public static final UnversionedSerializer<GetLatestDepsOk> reply = new UnversionedSerializer<>()
     {
         @Override
-        public void serialize(GetLatestDepsOk reply, DataOutputPlus out, int version) throws IOException
+        public void serialize(GetLatestDepsOk reply, DataOutputPlus out) throws IOException
         {
-            latestDeps.serialize(reply.deps, out, version);
+            latestDeps.serialize(reply.deps, out);
         }
 
         @Override
-        public GetLatestDepsOk deserialize(DataInputPlus in, int version) throws IOException
+        public GetLatestDepsOk deserialize(DataInputPlus in) throws IOException
         {
-            return new GetLatestDepsOk(latestDeps.deserialize(in, version));
+            return new GetLatestDepsOk(latestDeps.deserialize(in));
         }
 
         @Override
-        public long serializedSize(GetLatestDepsOk reply, int version)
+        public long serializedSize(GetLatestDepsOk reply)
         {
-            return latestDeps.serializedSize(reply.deps, version);
+            return latestDeps.serializedSize(reply.deps);
         }
     };
 }

@@ -29,12 +29,10 @@ import accord.utils.SortedArrays.SortedArrayList;
 import accord.utils.TinyEnumSet;
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.db.marshal.ValueAccessor;
-import org.apache.cassandra.io.IVersionedSerializer;
+import org.apache.cassandra.io.UnversionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.service.accord.TokenRange;
-import org.apache.cassandra.tcm.serialization.MetadataSerializer;
-import org.apache.cassandra.tcm.serialization.Version;
 import org.apache.cassandra.utils.ArraySerializers;
 import org.apache.cassandra.utils.CollectionSerializers;
 
@@ -43,25 +41,14 @@ public class TopologySerializers
     private TopologySerializers() {}
 
     public static final NodeIdSerializer nodeId = new NodeIdSerializer();
-    public static class NodeIdSerializer implements IVersionedSerializer<Node.Id>, MetadataSerializer<Node.Id>
+    public static class NodeIdSerializer implements UnversionedSerializer<Node.Id>
     {
         private NodeIdSerializer() {}
 
-        public static void serialize(Node.Id id, DataOutputPlus out) throws IOException
+        @Override
+        public void serialize(Node.Id id, DataOutputPlus out) throws IOException
         {
             out.writeInt(id.id);
-        }
-
-        @Override
-        public void serialize(Node.Id id, DataOutputPlus out, int version) throws IOException
-        {
-            serialize(id, out);
-        }
-
-        @Override
-        public void serialize(Node.Id id, DataOutputPlus out, Version version) throws IOException
-        {
-            serialize(id, out);
         }
 
         public <V> int serialize(Node.Id id, V dst, ValueAccessor<V> accessor, int offset)
@@ -74,21 +61,10 @@ public class TopologySerializers
             out.putInt(id.id);
         }
 
-        public static Node.Id deserialize(DataInputPlus in) throws IOException
+        @Override
+        public Node.Id deserialize(DataInputPlus in) throws IOException
         {
             return new Node.Id(in.readInt());
-        }
-
-        @Override
-        public Node.Id deserialize(DataInputPlus in, int version) throws IOException
-        {
-            return deserialize(in);
-        }
-
-        @Override
-        public Node.Id deserialize(DataInputPlus in, Version version) throws IOException
-        {
-            return deserialize(in);
         }
 
         public <V> Node.Id deserialize(V src, ValueAccessor<V> accessor, int offset)
@@ -101,96 +77,85 @@ public class TopologySerializers
             return new Node.Id(src.getInt(position));
         }
 
-        public int serializedSize()
+        @Override
+        public long serializedSize(Node.Id id)
         {
             return TypeSizes.INT_SIZE;  // id.id
         }
+    }
 
-        @Override
-        public long serializedSize(Node.Id id, int version)
-        {
-            return serializedSize();
-        }
+    public static final UnversionedSerializer<Shard> shard = new ShardSerializer((UnversionedSerializer<Range>)
+                                                                      (UnversionedSerializer<?>)
+                                                                      TokenRange.serializer);
 
-        @Override
-        public long serializedSize(Node.Id t, Version version)
-        {
-            return serializedSize();
-        }
-    };
-
-    public static final IVersionedSerializer<Shard> shard = new ShardSerializer((IVersionedSerializer<Range>)
-                                                                                (IVersionedSerializer<?>)
-                                                                                TokenRange.serializer);
-
-    public static class ShardSerializer implements IVersionedSerializer<Shard>
+    public static class ShardSerializer implements UnversionedSerializer<Shard>
     {
-        protected IVersionedSerializer<Range> range;
+        protected UnversionedSerializer<Range> range;
 
-        public ShardSerializer(IVersionedSerializer<Range> range)
+        public ShardSerializer(UnversionedSerializer<Range> range)
         {
             this.range = range;
         }
 
         @Override
-        public void serialize(Shard shard, DataOutputPlus out, int version) throws IOException
+        public void serialize(Shard shard, DataOutputPlus out) throws IOException
         {
-            range.serialize(shard.range, out, version);
-            CollectionSerializers.serializeList(shard.nodes, out, version, nodeId);
-            CollectionSerializers.serializeList(shard.notInFastPath, out, version, nodeId);
-            CollectionSerializers.serializeList(shard.joining, out, version, nodeId);
+            range.serialize(shard.range, out);
+            CollectionSerializers.serializeList(shard.nodes, out, nodeId);
+            CollectionSerializers.serializeList(shard.notInFastPath, out, nodeId);
+            CollectionSerializers.serializeList(shard.joining, out, nodeId);
             out.writeUnsignedVInt32(shard.flags().bitset());
         }
 
         @Override
-        public Shard deserialize(DataInputPlus in, int version) throws IOException
+        public Shard deserialize(DataInputPlus in) throws IOException
         {
-            Range range = ShardSerializer.this.range.deserialize(in, version);
-            SortedArrayList<Node.Id> nodes = CollectionSerializers.deserializeSortedArrayList(in, version, nodeId, Node.Id[]::new);
-            SortedArrayList<Node.Id> notInFastPath = CollectionSerializers.deserializeSortedArrayList(in, version, nodeId, Node.Id[]::new);
-            SortedArrayList<Node.Id> joining = CollectionSerializers.deserializeSortedArrayList(in, version, nodeId, Node.Id[]::new);
+            Range range = ShardSerializer.this.range.deserialize(in);
+            SortedArrayList<Node.Id> nodes = CollectionSerializers.deserializeSortedArrayList(in, nodeId, Node.Id[]::new);
+            SortedArrayList<Node.Id> notInFastPath = CollectionSerializers.deserializeSortedArrayList(in, nodeId, Node.Id[]::new);
+            SortedArrayList<Node.Id> joining = CollectionSerializers.deserializeSortedArrayList(in, nodeId, Node.Id[]::new);
             int flags = in.readUnsignedVInt32();
             return Shard.SerializerSupport.create(range, nodes, notInFastPath, joining, new TinyEnumSet<>(flags));
         }
 
         @Override
-        public long serializedSize(Shard shard, int version)
+        public long serializedSize(Shard shard)
         {
-            long size = range.serializedSize(shard.range, version);
-            size += CollectionSerializers.serializedListSize(shard.nodes, version, nodeId);
-            size += CollectionSerializers.serializedListSize(shard.notInFastPath, version, nodeId);
-            size += CollectionSerializers.serializedListSize(shard.joining, version, nodeId);
+            long size = range.serializedSize(shard.range);
+            size += CollectionSerializers.serializedListSize(shard.nodes, nodeId);
+            size += CollectionSerializers.serializedListSize(shard.notInFastPath, nodeId);
+            size += CollectionSerializers.serializedListSize(shard.joining, nodeId);
             size += TypeSizes.sizeofUnsignedVInt(shard.flags().bitset());
             return size;
         }
-    };
+    }
 
-    public static final IVersionedSerializer<Topology> topology = new IVersionedSerializer<>()
+    public static final UnversionedSerializer<Topology> topology = new UnversionedSerializer<>()
     {
         @Override
-        public void serialize(Topology topology, DataOutputPlus out, int version) throws IOException
+        public void serialize(Topology topology, DataOutputPlus out) throws IOException
         {
             out.writeLong(topology.epoch());
-            ArraySerializers.serializeArray(topology.unsafeGetShards(), out, version, shard);
-            CollectionSerializers.serializeCollection(topology.staleIds(), out, version, TopologySerializers.nodeId);
+            CollectionSerializers.serializeList(topology.shards(), out, shard);
+            CollectionSerializers.serializeCollection(topology.staleIds(), out, TopologySerializers.nodeId);
         }
 
         @Override
-        public Topology deserialize(DataInputPlus in, int version) throws IOException
+        public Topology deserialize(DataInputPlus in) throws IOException
         {
             long epoch = in.readLong();
-            Shard[] shards = ArraySerializers.deserializeArray(in, version, shard, Shard[]::new);
-            SortedArrayList<Node.Id> staleIds = CollectionSerializers.deserializeSortedArrayList(in, version, TopologySerializers.nodeId, Node.Id[]::new);
+            Shard[] shards = ArraySerializers.deserializeArray(in, shard, Shard[]::new);
+            SortedArrayList<Node.Id> staleIds = CollectionSerializers.deserializeSortedArrayList(in, TopologySerializers.nodeId, Node.Id[]::new);
             return new Topology(epoch, staleIds, shards);
         }
 
         @Override
-        public long serializedSize(Topology topology, int version)
+        public long serializedSize(Topology topology)
         {
             long size = 0;
             size += TypeSizes.LONG_SIZE; // epoch
-            size += ArraySerializers.serializedArraySize(topology.unsafeGetShards(), version, shard);
-            size += CollectionSerializers.serializedCollectionSize(topology.staleIds(), version, TopologySerializers.nodeId);
+            size += CollectionSerializers.serializedListSize(topology.shards(), shard);
+            size += CollectionSerializers.serializedCollectionSize(topology.staleIds(), TopologySerializers.nodeId);
             return size;
         }
     };

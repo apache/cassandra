@@ -22,7 +22,7 @@ import java.io.IOException;
 import javax.annotation.Nullable;
 
 import org.apache.cassandra.db.TypeSizes;
-import org.apache.cassandra.io.IVersionedSerializer;
+import org.apache.cassandra.io.UnversionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.tcm.Epoch;
@@ -30,28 +30,28 @@ import org.apache.cassandra.utils.NullableSerializer;
 
 public class ConsensusMigratedAt
 {
-    public static final IVersionedSerializer<ConsensusMigratedAt> serializer = NullableSerializer.wrap(new IVersionedSerializer<ConsensusMigratedAt>()
+    public static final UnversionedSerializer<ConsensusMigratedAt> serializer = NullableSerializer.wrap(new UnversionedSerializer<ConsensusMigratedAt>()
     {
         @Override
-        public void serialize(ConsensusMigratedAt t, DataOutputPlus out, int version) throws IOException
+        public void serialize(ConsensusMigratedAt t, DataOutputPlus out) throws IOException
         {
-            Epoch.messageSerializer.serialize(t.migratedAtEpoch, out, version);
+            Epoch.serializer.serialize(t.migratedAtEpoch, out);
             out.writeByte(t.migratedAtTarget.value);
         }
 
         @Override
-        public ConsensusMigratedAt deserialize(DataInputPlus in, int version) throws IOException
+        public ConsensusMigratedAt deserialize(DataInputPlus in) throws IOException
         {
-            Epoch migratedAtEpoch = Epoch.messageSerializer.deserialize(in, version);
+            Epoch migratedAtEpoch = Epoch.serializer.deserialize(in);
             ConsensusMigrationTarget target = ConsensusMigrationTarget.fromValue(in.readByte());
             return new ConsensusMigratedAt(migratedAtEpoch, target);
         }
 
         @Override
-        public long serializedSize(ConsensusMigratedAt t, int version)
+        public long serializedSize(ConsensusMigratedAt t)
         {
             return TypeSizes.sizeof(ConsensusMigrationTarget.accord.value)
-                   + Epoch.messageSerializer.serializedSize(t.migratedAtEpoch, version);
+                   + Epoch.serializer.serializedSize(t.migratedAtEpoch);
         }
     });
 

@@ -50,11 +50,6 @@ import static org.apache.cassandra.config.DatabaseDescriptor.getPartitioner;
 
 public final class TokenKey extends AccordRoutableKey implements RoutingKey, RangeFactory
 {
-    public enum RoutingKeyKind
-    {
-        TOKEN, SENTINEL, MIN_TOKEN
-    }
-
     private static final long EMPTY_SIZE = ObjectSizes.measure(new TokenKey(null, null));
 
     @Override
@@ -66,7 +61,7 @@ public final class TokenKey extends AccordRoutableKey implements RoutingKey, Ran
     // we use the first 2 bits as a prefix, and the last 6 bits as a postfix comparison
     final byte sentinel;
     final Token token;
-    public TokenKey(TableId tableId, byte sentinel, Token token)
+    private TokenKey(TableId tableId, byte sentinel, Token token)
     {
         super(tableId);
         this.sentinel = sentinel;
@@ -109,6 +104,7 @@ public final class TokenKey extends AccordRoutableKey implements RoutingKey, Ran
     @VisibleForTesting
     public TokenKey before()
     {
+        Invariants.require(!isTokenSentinel(), "Unable to call .before() when already a token sentinel: %s", this);
         int lowestBit = Integer.lowestOneBit(sentinel);
         Invariants.require(lowestBit != 1);
         byte newSentinel = (byte)((sentinel ^ lowestBit) | (lowestBit >>> 1));
@@ -119,6 +115,7 @@ public final class TokenKey extends AccordRoutableKey implements RoutingKey, Ran
     @VisibleForTesting
     public TokenKey after()
     {
+        Invariants.require(!isTokenSentinel(), "Unable to call .after() when already a token sentinel: %s", this);
         int lowestBit = Integer.lowestOneBit(sentinel);
         // we can't use 0xf as we would not be able to disambiguate with variable length byte encoding escape
         Invariants.require((lowestBit != 1) && (sentinel & 0xf) != 0xe);
@@ -138,7 +135,7 @@ public final class TokenKey extends AccordRoutableKey implements RoutingKey, Ran
         if (isSentinel())
         {
             if (isTableSentinel()) suffix = isMin() ? "-Inf" : "+Inf";
-            else suffix = suffix + "(-epsilon)";
+            if (isTokenSentinel()) suffix = (isBefore() ? "before(" : "after(") + suffix + ')';
         }
         return suffix;
     }
@@ -147,16 +144,6 @@ public final class TokenKey extends AccordRoutableKey implements RoutingKey, Ran
     public String toString()
     {
         return prefix() + ":" + printableSuffix();
-    }
-
-    public boolean isMin()
-    {
-        return sentinel == MIN_TABLE_SENTINEL;
-    }
-
-    public boolean isMax()
-    {
-        return sentinel == MAX_TABLE_SENTINEL;
     }
 
     public long estimatedSizeOnHeap()
@@ -193,6 +180,20 @@ public final class TokenKey extends AccordRoutableKey implements RoutingKey, Ran
         return this;
     }
 
+    public boolean isMin()
+    {
+        //TODO (review): some code paths don't care if before/after are used, but some are not fully correct (range.isFullRange)
+//        return sentinel == MIN_TABLE_SENTINEL;
+        return (sentinel & PREFIX_MASK) == (MIN_TABLE_SENTINEL & PREFIX_MASK);
+    }
+
+    public boolean isMax()
+    {
+        //TODO (review): some code paths don't care if before/after are used, but some are not fully correct (range.isFullRange)
+//        return sentinel == MAX_TABLE_SENTINEL;
+        return (sentinel & PREFIX_MASK) == (MAX_TABLE_SENTINEL & PREFIX_MASK);
+    }
+
     public boolean isSentinel()
     {
         return sentinel != NORMAL_SENTINEL;
@@ -206,6 +207,16 @@ public final class TokenKey extends AccordRoutableKey implements RoutingKey, Ran
     public boolean isTokenSentinel()
     {
         return (sentinel & SUFFIX_MASK) != (NORMAL_SENTINEL & SUFFIX_MASK);
+    }
+
+    public boolean isBefore()
+    {
+        return (sentinel & SUFFIX_MASK) == (BEFORE_TOKEN_SENTINEL & SUFFIX_MASK);
+    }
+
+    public boolean isAfter()
+    {
+        return (sentinel & SUFFIX_MASK) == (AFTER_TOKEN_SENTINEL & SUFFIX_MASK);
     }
 
     public static TokenKey min(TableId table, IPartitioner partitioner)
@@ -231,7 +242,7 @@ public final class TokenKey extends AccordRoutableKey implements RoutingKey, Ran
         // types are byte comparable only after any length component
 
         @Override
-        public long serializedSize(TokenKey key, int version)
+        public long serializedSize(TokenKey key)
         {
             IPartitioner partitioner = key.token.getPartitioner();
             int size = 2 + key.table.serializedCompactComparableSize();
@@ -243,7 +254,7 @@ public final class TokenKey extends AccordRoutableKey implements RoutingKey, Ran
         }
 
         @Override
-        public void serialize(TokenKey key, DataOutputPlus out, int version) throws IOException
+        public void serialize(TokenKey key, DataOutputPlus out) throws IOException
         {
             IPartitioner partitioner = key.token.getPartitioner();
             int fixedLength = partitioner.accordFixedLength();
@@ -253,30 +264,30 @@ public final class TokenKey extends AccordRoutableKey implements RoutingKey, Ran
                 out.writeUnsignedVInt32(len);
             }
             key.table.serializeCompactComparable(out);
-            serializeWithoutPrefixOrLength(key, out, version);
+            serializeWithoutPrefixOrLength(key, out);
         }
 
         @Override
-        public TokenKey deserialize(DataInputPlus in, int version) throws IOException
+        public TokenKey deserialize(DataInputPlus in) throws IOException
         {
-            return deserialize(in, version, getPartitioner());
+            return deserialize(in, getPartitioner());
         }
 
-        public TokenKey deserialize(DataInputPlus in, int version, IPartitioner partitioner) throws IOException
+        public TokenKey deserialize(DataInputPlus in, IPartitioner partitioner) throws IOException
         {
             int len = partitioner.accordFixedLength();
             if (len < 0) len = in.readUnsignedVInt32();
-            TableId tableId = deserializePrefix(in, version);
-            return deserializeWithPrefix(tableId, len + 2, in, version, partitioner);
+            TableId tableId = deserializePrefix(in);
+            return deserializeWithPrefix(tableId, len + 2, in, partitioner);
         }
 
         @Override
-        public void skip(DataInputPlus in, int version) throws IOException
+        public void skip(DataInputPlus in) throws IOException
         {
-            skip(in, version, getPartitioner());
+            skip(in, getPartitioner());
         }
 
-        public void skip(DataInputPlus in, int version, IPartitioner partitioner) throws IOException
+        public void skip(DataInputPlus in, IPartitioner partitioner) throws IOException
         {
             int len = partitioner.accordFixedLength();
             if (len < 0) len = in.readUnsignedVInt32();
@@ -342,13 +353,13 @@ public final class TokenKey extends AccordRoutableKey implements RoutingKey, Ran
         }
 
         @Override
-        public void serializePrefix(Object prefix, DataOutputPlus out, int version) throws IOException
+        public void serializePrefix(Object prefix, DataOutputPlus out) throws IOException
         {
             ((TableId)prefix).serializeCompactComparable(out);
         }
 
         @Override
-        public void serializeWithoutPrefixOrLength(TokenKey key, DataOutputPlus out, int version) throws IOException
+        public void serializeWithoutPrefixOrLength(TokenKey key, DataOutputPlus out) throws IOException
         {
             out.write(key.prefixSentinel());
             key.token.getPartitioner().accordSerialize(key.token, out);
@@ -377,18 +388,18 @@ public final class TokenKey extends AccordRoutableKey implements RoutingKey, Ran
         }
 
         @Override
-        public TableId deserializePrefix(DataInputPlus in, int version) throws IOException
+        public TableId deserializePrefix(DataInputPlus in) throws IOException
         {
             return TableId.deserializeCompactComparable(in);
         }
 
         @Override
-        public TokenKey deserializeWithPrefix(Object tableId, int length, DataInputPlus in, int version) throws IOException
+        public TokenKey deserializeWithPrefix(Object tableId, int length, DataInputPlus in) throws IOException
         {
-            return deserializeWithPrefix(tableId, length, in, version, getPartitioner());
+            return deserializeWithPrefix(tableId, length, in, getPartitioner());
         }
 
-        public TokenKey deserializeWithPrefix(Object tableId, int length, DataInputPlus in, int version, IPartitioner partitioner) throws IOException
+        public TokenKey deserializeWithPrefix(Object tableId, int length, DataInputPlus in, IPartitioner partitioner) throws IOException
         {
             byte sentinel = in.readByte();
             Token token = partitioner.accordDeserialize(in, length - 2);

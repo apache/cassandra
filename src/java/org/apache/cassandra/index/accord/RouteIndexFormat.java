@@ -43,23 +43,21 @@ import org.apache.cassandra.db.rows.Cell;
 import org.apache.cassandra.db.rows.Row;
 import org.apache.cassandra.db.rows.Unfiltered;
 import org.apache.cassandra.index.accord.IndexDescriptor.IndexComponent;
-import org.apache.cassandra.io.IVersionedSerializer;
-import org.apache.cassandra.io.LocalVersionedSerializer;
-import org.apache.cassandra.io.MessageVersionProvider;
+import org.apache.cassandra.io.AsymmetricVersionedSerializer;
+import org.apache.cassandra.io.EmbeddedAsymmetricVersionedSerializer;
+import org.apache.cassandra.io.UnversionedSerializer;
 import org.apache.cassandra.io.sstable.SSTableFlushObserver;
 import org.apache.cassandra.io.util.ChecksumedRandomAccessReader;
 import org.apache.cassandra.io.util.ChecksumedSequentialWriter;
-import org.apache.cassandra.io.util.DataInputBuffer;
-import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.io.util.FileHandle;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.serializers.UUIDSerializer;
 import org.apache.cassandra.service.accord.AccordJournal;
 import org.apache.cassandra.service.accord.AccordJournalTable;
 import org.apache.cassandra.service.accord.AccordKeyspace;
-import org.apache.cassandra.service.accord.AccordSerializerVersion;
 import org.apache.cassandra.service.accord.JournalKey;
 import org.apache.cassandra.service.accord.serializers.KeySerializers;
+import org.apache.cassandra.service.accord.serializers.Version;
 import org.apache.cassandra.utils.ByteArrayUtil;
 import org.apache.cassandra.utils.Throwables;
 
@@ -71,20 +69,15 @@ public class RouteIndexFormat
 {
     public static final Supplier<Checksum> CHECKSUM_SUPPLIER = CRC32C::new;
 
-    static final LocalVersionedSerializer<Participants<?>> touches = localSerializer(KeySerializers.participants);
-    private static <T> LocalVersionedSerializer<T> localSerializer(IVersionedSerializer<T> serializer)
+    static final EmbeddedAsymmetricVersionedSerializer<Participants<?>, Participants<?>, Version> touches = localSerializer(KeySerializers.participants);
+    private static <T> EmbeddedAsymmetricVersionedSerializer<T, T, Version> localSerializer(UnversionedSerializer<T> serializer)
     {
-        return new LocalVersionedSerializer<>(AccordSerializerVersion.CURRENT, AccordSerializerVersion.serializer, serializer);
+        return new EmbeddedAsymmetricVersionedSerializer<>(Version.DOWNGRADE_SAFE_VERSION, Version.Serializer.instance, AsymmetricVersionedSerializer.from(serializer));
     }
 
     public static ByteBuffer serialize(Participants<?> value) throws IOException
     {
-        int size = Math.toIntExact(touches.serializedSize(value));
-        try (DataOutputBuffer buffer = new DataOutputBuffer(size))
-        {
-            touches.serialize(value, buffer);
-            return buffer.buffer(true);
-        }
+        return touches.serialize(value);
     }
 
     static Participants<?> deserializeTouches(ByteBuffer bytes) throws IOException
@@ -92,11 +85,7 @@ public class RouteIndexFormat
         if (bytes == null || ByteBufferAccessor.instance.isEmpty(bytes))
             return null;
 
-        try (DataInputBuffer in = new DataInputBuffer(bytes, true))
-        {
-            MessageVersionProvider versionProvider = touches.deserializeVersion(in);
-            return KeySerializers.participants.deserialize(in, versionProvider.messageVersion());
-        }
+        return touches.deserialize(bytes);
     }
 
     public interface Writer extends SSTableFlushObserver
@@ -158,7 +147,7 @@ public class RouteIndexFormat
         if (!recordLive)
             return null;
         ByteBuffer record = recordCell.buffer();
-        int user_version = Int32Type.instance.compose(user_versionCell.buffer());
+        Version user_version = Version.fromVersion(Int32Type.instance.compose(user_versionCell.buffer()));
         AccordJournal.Builder builder = extract(txnId, record, user_version);
         StoreParticipants participants = builder.participants();
         if (participants == null)
@@ -178,10 +167,10 @@ public class RouteIndexFormat
         }
     }
 
-    public static AccordJournal.Builder extract(TxnId txnId, ByteBuffer record, int user_version)
+    public static AccordJournal.Builder extract(TxnId txnId, ByteBuffer record, Version userVersion)
     {
         AccordJournal.Builder builder = new AccordJournal.Builder(txnId, AccordJournal.Load.ALL);
-        AccordJournalTable.readBuffer(record, builder::deserializeNext, user_version);
+        AccordJournalTable.readBuffer(record, builder::deserializeNext, userVersion);
         return builder;
     }
 

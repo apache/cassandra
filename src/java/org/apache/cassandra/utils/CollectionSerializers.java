@@ -34,7 +34,10 @@ import com.google.common.collect.Sets;
 import accord.utils.SortedArrays.SortedArrayList;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.IPartitionerDependentSerializer;
+import org.apache.cassandra.io.AsymmetricVersionedSerializer;
 import org.apache.cassandra.io.IVersionedSerializer;
+import org.apache.cassandra.io.UnversionedSerializer;
+import org.apache.cassandra.io.VersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.tcm.serialization.MetadataSerializer;
@@ -44,7 +47,21 @@ import static org.apache.cassandra.db.TypeSizes.sizeofUnsignedVInt;
 
 public class CollectionSerializers
 {
+    public static <V> void serializeCollection(Collection<V> values, DataOutputPlus out, UnversionedSerializer<V> valueSerializer) throws IOException
+    {
+        out.writeUnsignedVInt32(values.size());
+        for (V value : values)
+            valueSerializer.serialize(value, out);
+    }
+
     public static <V> void serializeCollection(Collection<V> values, DataOutputPlus out, int version, IVersionedSerializer<V> valueSerializer) throws IOException
+    {
+        out.writeUnsignedVInt32(values.size());
+        for (V value : values)
+            valueSerializer.serialize(value, out, version);
+    }
+
+    public static <V, Version> void serializeCollection(Collection<V> values, DataOutputPlus out, Version version, AsymmetricVersionedSerializer<V, ?, Version> valueSerializer) throws IOException
     {
         out.writeUnsignedVInt32(values.size());
         for (V value : values)
@@ -65,6 +82,14 @@ public class CollectionSerializers
             valueSerializer.serialize(value, out, version);
     }
 
+    public static <V, L extends List<V>> void serializeList(L values, DataOutputPlus out, UnversionedSerializer<V> valueSerializer) throws IOException
+    {
+        int size = values.size();
+        out.writeUnsignedVInt32(size);
+        for (int i = 0 ; i < size ; ++i)
+            valueSerializer.serialize(values.get(i), out);
+    }
+
     public static <V, L extends List<V>> void serializeList(L values, DataOutputPlus out, int version, IVersionedSerializer<V> valueSerializer) throws IOException
     {
         int size = values.size();
@@ -73,17 +98,33 @@ public class CollectionSerializers
             valueSerializer.serialize(values.get(i), out, version);
     }
 
-    public static <K, V> void serializeMap(Map<K, V> map, DataOutputPlus out, int version, IVersionedSerializer<K> keySerializer, IVersionedSerializer<V> valueSerializer) throws IOException
+    public static <V, L extends List<V>, Version> void serializeList(L values, DataOutputPlus out, Version version, AsymmetricVersionedSerializer<V, ?, Version> valueSerializer) throws IOException
+    {
+        int size = values.size();
+        out.writeUnsignedVInt32(size);
+        for (int i = 0 ; i < size ; ++i)
+            valueSerializer.serialize(values.get(i), out, version);
+    }
+
+    public static <V, L extends List<V>> void serializeList(L values, DataOutputPlus out, Version version, MetadataSerializer<V> valueSerializer) throws IOException
+    {
+        int size = values.size();
+        out.writeUnsignedVInt32(size);
+        for (int i = 0 ; i < size ; ++i)
+            valueSerializer.serialize(values.get(i), out, version);
+    }
+
+    public static <K, V> void serializeMap(Map<K, V> map, DataOutputPlus out, UnversionedSerializer<K> keySerializer, UnversionedSerializer<V> valueSerializer) throws IOException
     {
         out.writeUnsignedVInt32(map.size());
         for (Map.Entry<K, V> e : map.entrySet())
         {
-            keySerializer.serialize(e.getKey(), out, version);
-            valueSerializer.serialize(e.getValue(), out, version);
+            keySerializer.serialize(e.getKey(), out);
+            valueSerializer.serialize(e.getValue(), out);
         }
     }
 
-    public static <K, V> void serializeMap(Map<K, V> map, DataOutputPlus out, Version version, MetadataSerializer<K> keySerializer, MetadataSerializer<V> valueSerializer) throws IOException
+    public static <K, V> void serializeMap(Map<K, V> map, DataOutputPlus out, int version, IVersionedSerializer<K> keySerializer, IVersionedSerializer<V> valueSerializer) throws IOException
     {
         out.writeUnsignedVInt32(map.size());
         for (Map.Entry<K, V> e : map.entrySet())
@@ -103,16 +144,46 @@ public class CollectionSerializers
         }
     }
 
-    public static <V extends Comparable<? super V>> SortedArrayList<V> deserializeSortedArrayList(DataInputPlus in, int version, IVersionedSerializer<V> serializer, IntFunction<V[]> allocator) throws IOException
+    public static <K, V, Version> void serializeMap(Map<K, V> map, DataOutputPlus out, Version version, AsymmetricVersionedSerializer<K, ?, Version> keySerializer, AsymmetricVersionedSerializer<V, ?, Version> valueSerializer) throws IOException
+    {
+        out.writeUnsignedVInt32(map.size());
+        for (Map.Entry<K, V> e : map.entrySet())
+        {
+            keySerializer.serialize(e.getKey(), out, version);
+            valueSerializer.serialize(e.getValue(), out, version);
+        }
+    }
+
+    public static <K, V> void serializeMap(Map<K, V> map, DataOutputPlus out, Version version, MetadataSerializer<K> keySerializer, MetadataSerializer<V> valueSerializer) throws IOException
+    {
+        out.writeUnsignedVInt32(map.size());
+        for (Map.Entry<K, V> e : map.entrySet())
+        {
+            keySerializer.serialize(e.getKey(), out, version);
+            valueSerializer.serialize(e.getValue(), out, version);
+        }
+    }
+
+    public static <V extends Comparable<? super V>> SortedArrayList<V> deserializeSortedArrayList(DataInputPlus in, UnversionedSerializer<V> serializer, IntFunction<V[]> allocator) throws IOException
     {
         int size = in.readUnsignedVInt32();
         V[] array = allocator.apply(size);
         for (int i = 0 ; i < array.length ; ++i)
-            array[i] = serializer.deserialize(in, version);
+            array[i] = serializer.deserialize(in);
         return new SortedArrayList<>(array);
     }
 
+    public static <V> List<V> deserializeList(DataInputPlus in, UnversionedSerializer<V> serializer) throws IOException
+    {
+        return deserializeCollection(in, serializer, newArrayList());
+    }
+
     public static <V> List<V> deserializeList(DataInputPlus in, int version, IVersionedSerializer<V> serializer) throws IOException
+    {
+        return deserializeCollection(in, version, serializer, newArrayList());
+    }
+
+    public static <V, Version> List<V> deserializeList(DataInputPlus in, Version version, AsymmetricVersionedSerializer<?, V, Version> serializer) throws IOException
     {
         return deserializeCollection(in, version, serializer, newArrayList());
     }
@@ -127,6 +198,11 @@ public class CollectionSerializers
         return deserializeCollection(in, partitioner, version, serializer, newArrayList());
     }
 
+    public static <V> Set<V> deserializeSet(DataInputPlus in, UnversionedSerializer<V> serializer) throws IOException
+    {
+        return deserializeCollection(in, serializer, newHashSet());
+    }
+
     public static <V> Set<V> deserializeSet(DataInputPlus in, int version, IVersionedSerializer<V> serializer) throws IOException
     {
         return deserializeCollection(in, version, serializer, newHashSet());
@@ -137,28 +213,33 @@ public class CollectionSerializers
         return deserializeCollection(in, partitioner, version, serializer, newHashSet());
     }
 
+    public static <V, Version> Set<V> deserializeSet(DataInputPlus in, Version version, AsymmetricVersionedSerializer<?, V, Version> serializer) throws IOException
+    {
+        return deserializeCollection(in, version, serializer, newHashSet());
+    }
+
     public static <V> Set<V> deserializeSet(DataInputPlus in, Version version, MetadataSerializer<V> serializer) throws IOException
     {
         return deserializeCollection(in, version, serializer, newHashSet());
+    }
+
+    public static <K, V, M extends Map<K, V>> M deserializeMap(DataInputPlus in, UnversionedSerializer<K> keySerializer, UnversionedSerializer<V> valueSerializer, IntFunction<M> factory) throws IOException
+    {
+        int size = in.readUnsignedVInt32();
+        M result = factory.apply(size);
+        while (size-- > 0)
+        {
+            K key = keySerializer.deserialize(in);
+            V value = valueSerializer.deserialize(in);
+            result.put(key, value);
+        }
+        return result;
     }
 
     public static <K, V, M extends Map<K, V>> M deserializeMap(DataInputPlus in, int version, IVersionedSerializer<K> keySerializer, IVersionedSerializer<V> valueSerializer, IntFunction<M> factory) throws IOException
     {
         int size = in.readUnsignedVInt32();
         M result = factory.apply(size);
-        while (size-- > 0)
-        {
-            K key = keySerializer.deserialize(in, version);
-            V value = valueSerializer.deserialize(in, version);
-            result.put(key, value);
-        }
-        return result;
-    }
-
-    public static <K, V> Map<K,V> deserializeMap(DataInputPlus in, Version version, MetadataSerializer<K> keySerializer, MetadataSerializer<V> valueSerializer, IntFunction<Map<K,V>> factory) throws IOException
-    {
-        int size = in.readUnsignedVInt32();
-        Map<K,V> result = factory.apply(size);
         while (size-- > 0)
         {
             K key = keySerializer.deserialize(in, version);
@@ -181,20 +262,61 @@ public class CollectionSerializers
         return result;
     }
 
+    public static <K, V, M extends Map<K, V>, Version> M deserializeMap(DataInputPlus in, Version version, AsymmetricVersionedSerializer<?, K, Version> keySerializer, AsymmetricVersionedSerializer<?, V, Version> valueSerializer, IntFunction<M> factory) throws IOException
+    {
+        int size = in.readUnsignedVInt32();
+        M result = factory.apply(size);
+        while (size-- > 0)
+        {
+            K key = keySerializer.deserialize(in, version);
+            V value = valueSerializer.deserialize(in, version);
+            result.put(key, value);
+        }
+        return result;
+    }
+
+    public static <K, V, M extends Map<K, V>> M deserializeMap(DataInputPlus in, Version version, MetadataSerializer<K> keySerializer, MetadataSerializer<V> valueSerializer, IntFunction<M> factory) throws IOException
+    {
+        int size = in.readUnsignedVInt32();
+        M result = factory.apply(size);
+        while (size-- > 0)
+        {
+            K key = keySerializer.deserialize(in, version);
+            V value = valueSerializer.deserialize(in, version);
+            result.put(key, value);
+        }
+        return result;
+    }
+
+    public static <K, V> Map<K, V> deserializeMap(DataInputPlus in, UnversionedSerializer<K> keySerializer, UnversionedSerializer<V> valueSerializer) throws IOException
+    {
+        return deserializeMap(in, keySerializer, valueSerializer, Maps::newHashMapWithExpectedSize);
+    }
+
     public static <K, V> Map<K, V> deserializeMap(DataInputPlus in, int version, IVersionedSerializer<K> keySerializer, IVersionedSerializer<V> valueSerializer) throws IOException
     {
         return deserializeMap(in, version, keySerializer, valueSerializer, Maps::newHashMapWithExpectedSize);
     }
 
-    public static <V> long serializedCollectionSize(Collection<V> values, int version, IVersionedSerializer<V> valueSerializer)
+    public static <K, V, Version> Map<K, V> deserializeMap(DataInputPlus in, Version version, AsymmetricVersionedSerializer<?, K, Version> keySerializer, AsymmetricVersionedSerializer<?, V, Version> valueSerializer) throws IOException
+    {
+        return deserializeMap(in, version, keySerializer, valueSerializer, Maps::newHashMapWithExpectedSize);
+    }
+
+    public static <K, V> Map<K, V> deserializeMap(DataInputPlus in, Version version, MetadataSerializer<K> keySerializer, MetadataSerializer<V> valueSerializer) throws IOException
+    {
+        return deserializeMap(in, version, keySerializer, valueSerializer, Maps::newHashMapWithExpectedSize);
+    }
+
+    public static <V> long serializedCollectionSize(Collection<V> values, UnversionedSerializer<V> valueSerializer)
     {
         long size = sizeofUnsignedVInt(values.size());
         for (V value : values)
-            size += valueSerializer.serializedSize(value, version);
+            size += valueSerializer.serializedSize(value);
         return size;
     }
 
-    public static <V> long serializedCollectionSize(Collection<V> values, Version version, MetadataSerializer<V> valueSerializer)
+    public static <V> long serializedCollectionSize(Collection<V> values, int version, IVersionedSerializer<V> valueSerializer)
     {
         long size = sizeofUnsignedVInt(values.size());
         for (V value : values)
@@ -210,12 +332,64 @@ public class CollectionSerializers
         return size;
     }
 
+    public static <V, Version> long serializedCollectionSize(Collection<V> values, Version version, AsymmetricVersionedSerializer<V, ?, Version> valueSerializer)
+    {
+        long size = sizeofUnsignedVInt(values.size());
+        for (V value : values)
+            size += valueSerializer.serializedSize(value, version);
+        return size;
+    }
+
+    public static <V> long serializedCollectionSize(Collection<V> values, Version version, MetadataSerializer<V> valueSerializer)
+    {
+        long size = sizeofUnsignedVInt(values.size());
+        for (V value : values)
+            size += valueSerializer.serializedSize(value, version);
+        return size;
+    }
+
+    public static <V, L extends List<V>> long serializedListSize(L values, UnversionedSerializer<V> valueSerializer)
+    {
+        int items = values.size();
+        long size = sizeofUnsignedVInt(items);
+        for (int i = 0 ; i < items ; ++i)
+            size += valueSerializer.serializedSize(values.get(i));
+        return size;
+    }
+
     public static <V, L extends List<V>> long serializedListSize(L values, int version, IVersionedSerializer<V> valueSerializer)
     {
         int items = values.size();
         long size = sizeofUnsignedVInt(items);
         for (int i = 0 ; i < items ; ++i)
             size += valueSerializer.serializedSize(values.get(i), version);
+        return size;
+    }
+
+    public static <V, L extends List<V>, Version> long serializedListSize(L values, Version version, AsymmetricVersionedSerializer<V, ?, Version> valueSerializer)
+    {
+        int items = values.size();
+        long size = sizeofUnsignedVInt(items);
+        for (int i = 0 ; i < items ; ++i)
+            size += valueSerializer.serializedSize(values.get(i), version);
+        return size;
+    }
+
+    public static <V, L extends List<V>> long serializedListSize(L values, Version version, MetadataSerializer<V> valueSerializer)
+    {
+        int items = values.size();
+        long size = sizeofUnsignedVInt(items);
+        for (int i = 0 ; i < items ; ++i)
+            size += valueSerializer.serializedSize(values.get(i), version);
+        return size;
+    }
+
+    public static <K, V> long serializedMapSize(Map<K, V> map, UnversionedSerializer<K> keySerializer, UnversionedSerializer<V> valueSerializer)
+    {
+        long size = sizeofUnsignedVInt(map.size());
+        for (Map.Entry<K, V> e : map.entrySet())
+            size += keySerializer.serializedSize(e.getKey())
+                    + valueSerializer.serializedSize(e.getValue());
         return size;
     }
 
@@ -228,7 +402,7 @@ public class CollectionSerializers
         return size;
     }
 
-    public static <K, V> long serializedMapSize(Map<K, V> map, Version version, MetadataSerializer<K> keySerializer, MetadataSerializer<V> valueSerializer)
+    public static <K, V> long serializedMapSize(Map<K, V> map, int version, IVersionedSerializer<K> keySerializer, IPartitionerDependentSerializer<V> valueSerializer)
     {
         long size = sizeofUnsignedVInt(map.size());
         for (Map.Entry<K, V> e : map.entrySet())
@@ -237,7 +411,16 @@ public class CollectionSerializers
         return size;
     }
 
-    public static <K, V> long serializedMapSize(Map<K, V> map, int version, IVersionedSerializer<K> keySerializer, IPartitionerDependentSerializer<V> valueSerializer)
+    public static <K, V, Version> long serializedMapSize(Map<K, V> map, Version version, AsymmetricVersionedSerializer<K, ?, Version> keySerializer, AsymmetricVersionedSerializer<V, ?, Version> valueSerializer)
+    {
+        long size = sizeofUnsignedVInt(map.size());
+        for (Map.Entry<K, V> e : map.entrySet())
+            size += keySerializer.serializedSize(e.getKey(), version)
+                    + valueSerializer.serializedSize(e.getValue(), version);
+        return size;
+    }
+
+    public static <K, V> long serializedMapSize(Map<K, V> map, Version version, MetadataSerializer<K> keySerializer, MetadataSerializer<V> valueSerializer)
     {
         long size = sizeofUnsignedVInt(map.size());
         for (Map.Entry<K, V> e : map.entrySet())
@@ -270,6 +453,19 @@ public class CollectionSerializers
      * Private to push auto-complete to the convenience methods
      * Feel free to make public if there is a weird collection you want to use
      */
+    private static <V, C extends Collection<? super V>> C deserializeCollection(DataInputPlus in, UnversionedSerializer<V> serializer, IntFunction<C> factory) throws IOException
+    {
+        int size = in.readUnsignedVInt32();
+        C result = factory.apply(size);
+        while (size-- > 0)
+            result.add(serializer.deserialize(in));
+        return result;
+    }
+
+    /*
+     * Private to push auto-complete to the convenience methods
+     * Feel free to make public if there is a weird collection you want to use
+     */
     private static <V, C extends Collection<? super V>> C deserializeCollection(DataInputPlus in, int version, IVersionedSerializer<V> serializer, IntFunction<C> factory) throws IOException
     {
         int size = in.readUnsignedVInt32();
@@ -277,6 +473,57 @@ public class CollectionSerializers
         while (size-- > 0)
             result.add(serializer.deserialize(in, version));
         return result;
+    }
+
+    private static <V, C extends Collection<? super V>> C deserializeCollection(DataInputPlus in, IPartitioner partitioner, int version, IPartitionerDependentSerializer<V> serializer, IntFunction<C> factory) throws IOException
+    {
+        int size = in.readUnsignedVInt32();
+        C result = factory.apply(size);
+        while (size-- > 0)
+            result.add(serializer.deserialize(in, partitioner, version));
+        return result;
+    }
+
+    private static <V, C extends Collection<? super V>, Version> C deserializeCollection(DataInputPlus in, Version version, AsymmetricVersionedSerializer<?, V, Version> serializer, IntFunction<C> factory) throws IOException
+    {
+        int size = in.readUnsignedVInt32();
+        C result = factory.apply(size);
+        while (size-- > 0)
+            result.add(serializer.deserialize(in, version));
+        return result;
+    }
+
+    private static <V, C extends Collection<? super V>> C deserializeCollection(DataInputPlus in, Version version, MetadataSerializer<V> serializer, IntFunction<C> factory) throws IOException
+    {
+        int size = in.readUnsignedVInt32();
+        C result = factory.apply(size);
+        while (size-- > 0)
+            result.add(serializer.deserialize(in, version));
+        return result;
+    }
+
+    public static <V> UnversionedSerializer<List<V>> newListSerializer(UnversionedSerializer<V> itemSerializer)
+    {
+        return new UnversionedSerializer<List<V>>()
+        {
+            @Override
+            public void serialize(List<V> list, DataOutputPlus out) throws IOException
+            {
+                serializeList(list, out, itemSerializer);
+            }
+
+            @Override
+            public List<V> deserialize(DataInputPlus in) throws IOException
+            {
+                return deserializeList(in, itemSerializer);
+            }
+
+            @Override
+            public long serializedSize(List<V> t)
+            {
+                return serializedListSize(t, itemSerializer);
+            }
+        };
     }
 
     public static <V> IVersionedSerializer<List<V>> newListSerializer(IVersionedSerializer<V> itemSerializer)
@@ -303,22 +550,28 @@ public class CollectionSerializers
         };
     }
 
-    private static <V, C extends Collection<? super V>> C deserializeCollection(DataInputPlus in, IPartitioner partitioner, int version, IPartitionerDependentSerializer<V> serializer, IntFunction<C> factory) throws IOException
+    public static <T, Version> VersionedSerializer<List<T>, Version> newListSerializer(@Nonnull final VersionedSerializer<T, Version> serializer)
     {
-        int size = in.readUnsignedVInt32();
-        C result = factory.apply(size);
-        while (size-- > 0)
-            result.add(serializer.deserialize(in, partitioner, version));
-        return result;
-    }
+        return new VersionedSerializer<List<T>, Version>()
+        {
+            @Override
+            public void serialize(List<T> t, DataOutputPlus out, Version version) throws IOException
+            {
+                serializeCollection(t, out, version, serializer);
+            }
 
-    private static <V, C extends Collection<? super V>> C deserializeCollection(DataInputPlus in, Version version, MetadataSerializer<V> serializer, IntFunction<C> factory) throws IOException
-    {
-        int size = in.readUnsignedVInt32();
-        C result = factory.apply(size);
-        while (size-- > 0)
-            result.add(serializer.deserialize(in, version));
-        return result;
+            @Override
+            public List<T> deserialize(DataInputPlus in, Version version) throws IOException
+            {
+                return deserializeList(in, version, serializer);
+            }
+
+            @Override
+            public long serializedSize(List<T> t, Version version)
+            {
+                return serializedCollectionSize(t, version, serializer);
+            }
+        };
     }
 
     public static <T> IPartitionerDependentSerializer<Collection<T>> newCollectionSerializer(@Nonnull final IPartitionerDependentSerializer<T> serializer)
@@ -339,30 +592,6 @@ public class CollectionSerializers
 
             @Override
             public long serializedSize(Collection<T> t, int version)
-            {
-                return serializedCollectionSize(t, version, serializer);
-            }
-        };
-    }
-
-    public static <T> MetadataSerializer<List<T>> newListSerializer(@Nonnull final MetadataSerializer<T> serializer)
-    {
-        return new MetadataSerializer<List<T>>()
-        {
-            @Override
-            public void serialize(List<T> t, DataOutputPlus out, Version version) throws IOException
-            {
-                serializeCollection(t, out, version, serializer);
-            }
-
-            @Override
-            public List<T> deserialize(DataInputPlus in, Version version) throws IOException
-            {
-                return deserializeList(in, version, serializer);
-            }
-
-            @Override
-            public long serializedSize(List<T> t, Version version)
             {
                 return serializedCollectionSize(t, version, serializer);
             }

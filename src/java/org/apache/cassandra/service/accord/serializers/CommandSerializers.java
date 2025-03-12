@@ -49,7 +49,8 @@ import accord.primitives.Writes;
 import accord.utils.Invariants;
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.db.marshal.ValueAccessor;
-import org.apache.cassandra.io.IVersionedSerializer;
+import org.apache.cassandra.io.UnversionedSerializer;
+import org.apache.cassandra.io.VersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.service.accord.serializers.IVersionedWithKeysSerializer.AbstractWithKeysSerializer;
@@ -68,9 +69,9 @@ public class CommandSerializers
 
     public static final TimestampSerializer<TxnId> txnId = new TimestampSerializer<>(TxnId::fromBits);
     public static final TimestampSerializer<Timestamp> timestamp = new TimestampSerializer<>(Timestamp::fromBits);
-    public static final IVersionedSerializer<Timestamp> nullableTimestamp = NullableSerializer.wrap(timestamp);
+    public static final UnversionedSerializer<Timestamp> nullableTimestamp = NullableSerializer.wrap(timestamp);
     public static final BallotSerializer ballot = new BallotSerializer(); // permits null
-    public static final IVersionedSerializer<Txn.Kind> kind = EncodeAsVInt32.of(Txn.Kind.class);
+    public static final UnversionedSerializer<Txn.Kind> kind = EncodeAsVInt32.of(Txn.Kind.class);
     public static final StoreParticipantsSerializer participants = new StoreParticipantsSerializer();
 
     public static class ExecuteAtSerializer
@@ -325,7 +326,7 @@ public class CommandSerializers
         static final int WAITSON_IS_OWNS = 0x40;
 
         @Override
-        public void serialize(StoreParticipants t, DataOutputPlus out, int version) throws IOException
+        public void serialize(StoreParticipants t, DataOutputPlus out, Version version) throws IOException
         {
             boolean hasRoute = t.route() != null;
             boolean hasTouchedEqualsRoute = t.route() == t.hasTouched();
@@ -342,40 +343,40 @@ public class CommandSerializers
                           | (executesIsOwns ? EXECUTES_IS_OWNS : 0)
                           | (waitsOnIsOwns ? WAITSON_IS_OWNS : 0)
             );
-            if (hasRoute) KeySerializers.route.serialize(t.route(), out, version);
-            if (!hasTouchedEqualsRoute) KeySerializers.participants.serialize(t.hasTouched(), out, version);
-            if (!touchesEqualsHasTouched) KeySerializers.participants.serialize(t.touches(), out, version);
-            if (!ownsEqualsTouches) KeySerializers.participants.serialize(t.owns(), out, version);
-            if (!executesIsNull && !executesIsOwns) KeySerializers.participants.serialize(t.executes(), out, version);
-            if (!executesIsNull && !waitsOnIsOwns) KeySerializers.participants.serialize(t.waitsOn(), out, version);
+            if (hasRoute) KeySerializers.route.serialize(t.route(), out);
+            if (!hasTouchedEqualsRoute) KeySerializers.participants.serialize(t.hasTouched(), out);
+            if (!touchesEqualsHasTouched) KeySerializers.participants.serialize(t.touches(), out);
+            if (!ownsEqualsTouches) KeySerializers.participants.serialize(t.owns(), out);
+            if (!executesIsNull && !executesIsOwns) KeySerializers.participants.serialize(t.executes(), out);
+            if (!executesIsNull && !waitsOnIsOwns) KeySerializers.participants.serialize(t.waitsOn(), out);
         }
 
-        public void skip(DataInputPlus in, int version) throws IOException
+        public void skip(DataInputPlus in, Version version) throws IOException
         {
             int flags = in.readByte();
-            if (0 != (flags & HAS_ROUTE)) KeySerializers.route.skip(in, version);
-            if (0 == (flags & HAS_TOUCHED_EQUALS_ROUTE)) KeySerializers.participants.skip(in, version);
-            if (0 == (flags & TOUCHES_EQUALS_HAS_TOUCHED)) KeySerializers.participants.skip(in, version);
-            if (0 == (flags & OWNS_EQUALS_TOUCHES)) KeySerializers.participants.skip(in, version);
-            if (0 == (flags & (EXECUTES_IS_OWNS | EXECUTES_IS_NULL))) KeySerializers.participants.skip(in, version);
-            if (0 == (flags & (WAITSON_IS_OWNS | EXECUTES_IS_NULL))) KeySerializers.participants.skip(in, version);
+            if (0 != (flags & HAS_ROUTE)) KeySerializers.route.skip(in);
+            if (0 == (flags & HAS_TOUCHED_EQUALS_ROUTE)) KeySerializers.participants.skip(in);
+            if (0 == (flags & TOUCHES_EQUALS_HAS_TOUCHED)) KeySerializers.participants.skip(in);
+            if (0 == (flags & OWNS_EQUALS_TOUCHES)) KeySerializers.participants.skip(in);
+            if (0 == (flags & (EXECUTES_IS_OWNS | EXECUTES_IS_NULL))) KeySerializers.participants.skip(in);
+            if (0 == (flags & (WAITSON_IS_OWNS | EXECUTES_IS_NULL))) KeySerializers.participants.skip(in);
         }
 
         @Override
-        public StoreParticipants deserialize(DataInputPlus in, int version) throws IOException
+        public StoreParticipants deserialize(DataInputPlus in, Version version) throws IOException
         {
             int flags = in.readByte();
-            Route<?> route = 0 == (flags & HAS_ROUTE) ? null : KeySerializers.route.deserialize(in, version);
-            Participants<?> hasTouched = 0 != (flags & HAS_TOUCHED_EQUALS_ROUTE) ? route : KeySerializers.participants.deserialize(in, version);
-            Participants<?> touches = 0 != (flags & TOUCHES_EQUALS_HAS_TOUCHED) ? hasTouched : KeySerializers.participants.deserialize(in, version);
-            Participants<?> owns = 0 != (flags & OWNS_EQUALS_TOUCHES) ? touches : KeySerializers.participants.deserialize(in, version);
-            Participants<?> executes = 0 != (flags & EXECUTES_IS_NULL) ? null : 0 != (flags & EXECUTES_IS_OWNS) ? owns : KeySerializers.participants.deserialize(in, version);
-            Participants<?> waitsOn = 0 != (flags & EXECUTES_IS_NULL) ? null : 0 != (flags & WAITSON_IS_OWNS) ? owns : KeySerializers.participants.deserialize(in, version);
+            Route<?> route = 0 == (flags & HAS_ROUTE) ? null : KeySerializers.route.deserialize(in);
+            Participants<?> hasTouched = 0 != (flags & HAS_TOUCHED_EQUALS_ROUTE) ? route : KeySerializers.participants.deserialize(in);
+            Participants<?> touches = 0 != (flags & TOUCHES_EQUALS_HAS_TOUCHED) ? hasTouched : KeySerializers.participants.deserialize(in);
+            Participants<?> owns = 0 != (flags & OWNS_EQUALS_TOUCHES) ? touches : KeySerializers.participants.deserialize(in);
+            Participants<?> executes = 0 != (flags & EXECUTES_IS_NULL) ? null : 0 != (flags & EXECUTES_IS_OWNS) ? owns : KeySerializers.participants.deserialize(in);
+            Participants<?> waitsOn = 0 != (flags & EXECUTES_IS_NULL) ? null : 0 != (flags & WAITSON_IS_OWNS) ? owns : KeySerializers.participants.deserialize(in);
             return StoreParticipants.create(route, owns, executes, waitsOn, touches, hasTouched);
         }
 
         @Override
-        public long serializedSize(StoreParticipants t, int version)
+        public long serializedSize(StoreParticipants t, Version version)
         {
             boolean hasRoute = t.route() != null;
             boolean hasTouchedEqualsRoute = t.route() == t.hasTouched();
@@ -383,16 +384,16 @@ public class CommandSerializers
             boolean ownsEqualsTouches = t.owns() == t.touches();
             boolean executesIsNotNullAndNotOwns = t.executes() != null && t.owns() != t.executes();
             long size = 1;
-            if (hasRoute) size += KeySerializers.route.serializedSize(t.route(), version);
-            if (!hasTouchedEqualsRoute) size += KeySerializers.participants.serializedSize(t.hasTouched(), version);
-            if (!touchesEqualsHasTouched) size += KeySerializers.participants.serializedSize(t.touches(), version);
-            if (!ownsEqualsTouches) size += KeySerializers.participants.serializedSize(t.owns(), version);
-            if (executesIsNotNullAndNotOwns) size += KeySerializers.participants.serializedSize(t.executes(), version);
+            if (hasRoute) size += KeySerializers.route.serializedSize(t.route());
+            if (!hasTouchedEqualsRoute) size += KeySerializers.participants.serializedSize(t.hasTouched());
+            if (!touchesEqualsHasTouched) size += KeySerializers.participants.serializedSize(t.touches());
+            if (!ownsEqualsTouches) size += KeySerializers.participants.serializedSize(t.owns());
+            if (executesIsNotNullAndNotOwns) size += KeySerializers.participants.serializedSize(t.executes());
             return size;
         }
     }
 
-    public static class TimestampSerializer<T extends Timestamp> implements IVersionedSerializer<T>
+    public static class TimestampSerializer<T extends Timestamp> implements UnversionedSerializer<T>
     {
         interface Factory<T extends Timestamp>
         {
@@ -407,18 +408,11 @@ public class CommandSerializers
         }
 
         @Override
-        public void serialize(T ts, DataOutputPlus out, int version) throws IOException
-        {
-            out.writeLong(ts.msb);
-            out.writeLong(ts.lsb);
-            TopologySerializers.nodeId.serialize(ts.node, out, version);
-        }
-
         public void serialize(T ts, DataOutputPlus out) throws IOException
         {
             out.writeLong(ts.msb);
             out.writeLong(ts.lsb);
-            TopologySerializers.NodeIdSerializer.serialize(ts.node, out);
+            TopologySerializers.nodeId.serialize(ts.node, out);
         }
 
         public <V> int serialize(T ts, V dst, ValueAccessor<V> accessor, int offset)
@@ -445,18 +439,11 @@ public class CommandSerializers
         }
 
         @Override
-        public T deserialize(DataInputPlus in, int version) throws IOException
-        {
-            return factory.create(in.readLong(),
-                                  in.readLong(),
-                                  TopologySerializers.nodeId.deserialize(in, version));
-        }
-
         public T deserialize(DataInputPlus in) throws IOException
         {
             return factory.create(in.readLong(),
                                   in.readLong(),
-                                  TopologySerializers.NodeIdSerializer.deserialize(in));
+                                  TopologySerializers.nodeId.deserialize(in));
         }
 
         public <V> T deserialize(V src, ValueAccessor<V> accessor, int offset)
@@ -480,25 +467,25 @@ public class CommandSerializers
         }
 
         @Override
-        public long serializedSize(T ts, int version)
+        public long serializedSize(T ts)
         {
             return serializedSize();
         }
 
         public int serializedSize()
         {
-            return TypeSizes.LONG_SIZE +  // ts.msb
-                   TypeSizes.LONG_SIZE +  // ts.lsb
-                   TopologySerializers.nodeId.serializedSize();   // ts.node
+            return Math.toIntExact(TypeSizes.LONG_SIZE +  // ts.msb
+                                   TypeSizes.LONG_SIZE +  // ts.lsb
+                                   TopologySerializers.nodeId.serializedSize(null)); // ts.node
         }
     }
 
-    public static class BallotSerializer implements IVersionedSerializer<Ballot>
+    public static class BallotSerializer implements UnversionedSerializer<Ballot>
     {
         final TimestampSerializer<Ballot> wrapped = new TimestampSerializer<>(Ballot::fromBits);
 
         @Override
-        public void serialize(Ballot t, DataOutputPlus out, int version) throws IOException
+        public void serialize(Ballot t, DataOutputPlus out) throws IOException
         {
             if (t == null || t.equals(Ballot.ZERO) || t.equals(Ballot.MAX))
             {
@@ -507,16 +494,11 @@ public class CommandSerializers
             else
             {
                 out.writeByte(0);
-                wrapped.serialize(t, out, version);
+                wrapped.serialize(t, out);
             }
         }
 
         @Override
-        public Ballot deserialize(DataInputPlus in, int version) throws IOException
-        {
-            return deserialize(in);
-        }
-
         public Ballot deserialize(DataInputPlus in) throws IOException
         {
             int flags = in.readByte();
@@ -538,11 +520,6 @@ public class CommandSerializers
         }
 
         @Override
-        public long serializedSize(Ballot t, int version)
-        {
-            return serializedSize(t);
-        }
-
         public long serializedSize(Ballot t)
         {
             if (t == null || t.equals(Ballot.ZERO) || t.equals(Ballot.MAX))
@@ -554,11 +531,13 @@ public class CommandSerializers
     public static class PartialTxnSerializer extends AbstractWithKeysSerializer
     implements IVersionedSerializer<PartialTxn>
     {
-        private final IVersionedSerializer<Read> readSerializer;
-        private final IVersionedSerializer<Query> querySerializer;
-        private final IVersionedSerializer<Update> updateSerializer;
+        private final VersionedSerializer<Read, Version> readSerializer;
+        private final UnversionedSerializer<Query> querySerializer;
+        private final VersionedSerializer<Update, Version> updateSerializer;
 
-        public PartialTxnSerializer(IVersionedSerializer<Read> readSerializer, IVersionedSerializer<Query> querySerializer, IVersionedSerializer<Update> updateSerializer)
+        public PartialTxnSerializer(VersionedSerializer<Read, Version> readSerializer,
+                                    UnversionedSerializer<Query> querySerializer,
+                                    VersionedSerializer<Update, Version> updateSerializer)
         {
             this.readSerializer = readSerializer;
             this.querySerializer = querySerializer;
@@ -566,51 +545,51 @@ public class CommandSerializers
         }
 
         @Override
-        public void serialize(PartialTxn txn, DataOutputPlus out, int version) throws IOException
+        public void serialize(PartialTxn txn, DataOutputPlus out, Version version) throws IOException
         {
-            KeySerializers.seekables.serialize(txn.keys(), out, version);
+            KeySerializers.seekables.serialize(txn.keys(), out);
             serializeWithoutKeys(txn, out, version);
         }
 
         @Override
-        public PartialTxn deserialize(DataInputPlus in, int version) throws IOException
+        public PartialTxn deserialize(DataInputPlus in, Version version) throws IOException
         {
-            Seekables<?, ?> keys = KeySerializers.seekables.deserialize(in, version);
+            Seekables<?, ?> keys = KeySerializers.seekables.deserialize(in);
             return deserializeWithoutKeys(keys, in, version);
         }
 
         @Override
-        public long serializedSize(PartialTxn txn, int version)
+        public long serializedSize(PartialTxn txn, Version version)
         {
-            long size = KeySerializers.seekables.serializedSize(txn.keys(), version);
+            long size = KeySerializers.seekables.serializedSize(txn.keys());
             size += serializedSizeWithoutKeys(txn, version);
             return size;
         }
 
-        private void serializeWithoutKeys(PartialTxn txn, DataOutputPlus out, int version) throws IOException
+        private void serializeWithoutKeys(PartialTxn txn, DataOutputPlus out, Version version) throws IOException
         {
-            CommandSerializers.kind.serialize(txn.kind(), out, version);
+            CommandSerializers.kind.serialize(txn.kind(), out);
             readSerializer.serialize(txn.read(), out, version);
-            querySerializer.serialize(txn.query(), out, version);
+            querySerializer.serialize(txn.query(), out);
             out.writeBoolean(txn.update() != null);
             if (txn.update() != null)
                 updateSerializer.serialize(txn.update(), out, version);
         }
 
-        private PartialTxn deserializeWithoutKeys(Seekables<?, ?> keys, DataInputPlus in, int version) throws IOException
+        private PartialTxn deserializeWithoutKeys(Seekables<?, ?> keys, DataInputPlus in, Version version) throws IOException
         {
-            Txn.Kind kind = CommandSerializers.kind.deserialize(in, version);
+            Txn.Kind kind = CommandSerializers.kind.deserialize(in);
             Read read = readSerializer.deserialize(in, version);
-            Query query = querySerializer.deserialize(in, version);
+            Query query = querySerializer.deserialize(in);
             Update update = in.readBoolean() ? updateSerializer.deserialize(in, version) : null;
             return new PartialTxn.InMemory(kind, keys, read, query, update);
         }
 
-        private long serializedSizeWithoutKeys(PartialTxn txn, int version)
+        private long serializedSizeWithoutKeys(PartialTxn txn, Version version)
         {
-            long size = CommandSerializers.kind.serializedSize(txn.kind(), version);
+            long size = CommandSerializers.kind.serializedSize(txn.kind());
             size += readSerializer.serializedSize(txn.read(), version);
-            size += querySerializer.serializedSize(txn.query(), version);
+            size += querySerializer.serializedSize(txn.query());
             size += TypeSizes.sizeof(txn.update() != null);
             if (txn.update() != null)
                 size += updateSerializer.serializedSize(txn.update(), version);
@@ -618,13 +597,13 @@ public class CommandSerializers
         }
     }
 
-    public static final IVersionedSerializer<Read> read;
-    public static final IVersionedSerializer<Query> query;
-    public static final IVersionedSerializer<Update> update;
-    public static final IVersionedSerializer<Write> write;
+    public static final VersionedSerializer<Read, Version> read;
+    public static final UnversionedSerializer<Query> query;
+    public static final VersionedSerializer<Update, Version> update;
+    public static final VersionedSerializer<Write, Version> write;
 
-    public static final IVersionedSerializer<PartialTxn> partialTxn;
-    public static final IVersionedSerializer<PartialTxn> nullablePartialTxn;
+    public static final VersionedSerializer<PartialTxn, Version> partialTxn;
+    public static final VersionedSerializer<PartialTxn, Version> nullablePartialTxn;
 
     static
     {
@@ -642,26 +621,26 @@ public class CommandSerializers
     @VisibleForTesting
     public static class QuerySerializers
     {
-        public final IVersionedSerializer<Read> read;
-        public final IVersionedSerializer<Query> query;
-        public final IVersionedSerializer<Update> update;
-        public final IVersionedSerializer<Write> write;
+        public final VersionedSerializer<Read, Version> read;
+        public final UnversionedSerializer<Query> query;
+        public final VersionedSerializer<Update, Version> update;
+        public final VersionedSerializer<Write, Version> write;
 
-        public final IVersionedSerializer<PartialTxn> partialTxn;
-        public final IVersionedSerializer<PartialTxn> nullablePartialTxn;
+        public final VersionedSerializer<PartialTxn, Version> partialTxn;
+        public final VersionedSerializer<PartialTxn, Version> nullablePartialTxn;
 
         private QuerySerializers()
         {
-            this(new CastingSerializer<>(TxnRead.class, TxnRead.serializer),
-                 new CastingSerializer<>(TxnQuery.class, TxnQuery.serializer),
-                 new CastingSerializer<>(AccordUpdate.class, AccordUpdate.serializer),
-                 new CastingSerializer<>(TxnWrite.class, TxnWrite.serializer));
+            this(CastingSerializer.create(TxnRead.class, TxnRead.serializer),
+                 CastingSerializer.create(TxnQuery.class, TxnQuery.serializer),
+                 CastingSerializer.create(AccordUpdate.class, AccordUpdate.serializer),
+                 CastingSerializer.create(TxnWrite.class, TxnWrite.serializer));
         }
 
-        public QuerySerializers(IVersionedSerializer<Read> read,
-                                IVersionedSerializer<Query> query,
-                                IVersionedSerializer<Update> update,
-                                IVersionedSerializer<Write> write)
+        public QuerySerializers(VersionedSerializer<Read, Version> read,
+                                UnversionedSerializer<Query> query,
+                                VersionedSerializer<Update, Version> update,
+                                VersionedSerializer<Write, Version> write)
         {
             this.read = read;
             this.query = query;
@@ -673,18 +652,18 @@ public class CommandSerializers
         }
     }
 
-    public static final IVersionedSerializer<SaveStatus> saveStatus = EncodeAsVInt32.of(SaveStatus.class);
-    public static final IVersionedSerializer<Status> status = EncodeAsVInt32.of(Status.class);
-    public static final IVersionedSerializer<Durability> durability = EncodeAsVInt32.of(Durability.class);
+    public static final UnversionedSerializer<SaveStatus> saveStatus = EncodeAsVInt32.of(SaveStatus.class);
+    public static final UnversionedSerializer<Status> status = EncodeAsVInt32.of(Status.class);
+    public static final UnversionedSerializer<Durability> durability = EncodeAsVInt32.of(Durability.class);
 
     public static final IVersionedSerializer<Writes> writes = new IVersionedSerializer<>()
     {
         @Override
-        public void serialize(Writes writes, DataOutputPlus out, int version) throws IOException
+        public void serialize(Writes writes, DataOutputPlus out, Version version) throws IOException
         {
-            txnId.serialize(writes.txnId, out, version);
+            txnId.serialize(writes.txnId, out);
             ExecuteAtSerializer.serialize(writes.txnId, writes.executeAt, out);
-            KeySerializers.seekables.serialize(writes.keys, out, version);
+            KeySerializers.seekables.serialize(writes.keys, out);
             boolean hasWrites = writes.write != null;
             out.writeBoolean(hasWrites);
 
@@ -693,20 +672,20 @@ public class CommandSerializers
         }
 
         @Override
-        public Writes deserialize(DataInputPlus in, int version) throws IOException
+        public Writes deserialize(DataInputPlus in, Version version) throws IOException
         {
-            TxnId id = txnId.deserialize(in, version);
+            TxnId id = txnId.deserialize(in);
             return new Writes(id, ExecuteAtSerializer.deserialize(id, in),
-                              KeySerializers.seekables.deserialize(in, version),
+                              KeySerializers.seekables.deserialize(in),
                               in.readBoolean() ? CommandSerializers.write.deserialize(in, version) : null);
         }
 
         @Override
-        public long serializedSize(Writes writes, int version)
+        public long serializedSize(Writes writes, Version version)
         {
-            long size = txnId.serializedSize(writes.txnId, version);
+            long size = txnId.serializedSize(writes.txnId);
             size += ExecuteAtSerializer.serializedSize(writes.txnId, writes.executeAt);
-            size += KeySerializers.seekables.serializedSize(writes.keys, version);
+            size += KeySerializers.seekables.serializedSize(writes.keys);
             boolean hasWrites = writes.write != null;
             size += TypeSizes.sizeof(hasWrites);
             if (hasWrites)
@@ -715,9 +694,10 @@ public class CommandSerializers
         }
     };
 
-    public static final IVersionedSerializer<Writes> nullableWrites = NullableSerializer.wrap(writes);
-    public static final IVersionedSerializer<KnownDeps> knownDeps = EncodeAsVInt32.of(KnownDeps.class);
-    public static final IVersionedSerializer<Infer.InvalidIf> invalidIf = EncodeAsVInt32.of(Infer.InvalidIf.class);
+    public static final VersionedSerializer<Writes, Version> nullableWrites = NullableSerializer.wrap(writes);
+    public static final UnversionedSerializer<KnownDeps> knownDeps = EncodeAsVInt32.of(KnownDeps.class);
+    public static final UnversionedSerializer<Infer.InvalidIf> invalidIf = EncodeAsVInt32.of(Infer.InvalidIf.class);
 
-    public static final IVersionedSerializer<Known> known = EncodeAsVInt32.withNulls(known -> known.encoded, Known::new);
+    public static final UnversionedSerializer<Known> known = EncodeAsVInt32.withNulls(known -> known.encoded, Known::new);
+
 }

@@ -148,7 +148,7 @@ public class QuiescentChecker implements Model
                                               "\nExpected: %s" +
                                               "\nActual: %s",
                                               expectedRowState.toString(valueGenerators),
-                                              actualRowState);
+                                              actualRowState.toString(valueGenerators));
             }
 
             if (!vdsEqual(expectedRowState.vds, actualRowState.vds))

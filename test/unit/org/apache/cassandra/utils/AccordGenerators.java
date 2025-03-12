@@ -18,23 +18,28 @@
 
 package org.apache.cassandra.utils;
 
+import java.lang.reflect.Array;
 import java.math.BigInteger;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.EnumSet;
 import java.util.HashSet;
 import java.util.List;
 import java.util.NavigableMap;
 import java.util.Set;
+import java.util.TreeSet;
 import java.util.function.BiFunction;
 
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSortedMap;
+import com.google.common.collect.Sets;
 
 import accord.local.Command;
 import accord.local.Command.Truncated;
 import accord.local.ICommand;
 import accord.local.DurableBefore;
+import accord.local.Node;
 import accord.local.RedundantBefore;
 import accord.local.RedundantBefore.Bounds;
 import accord.local.StoreParticipants;
@@ -55,12 +60,17 @@ import accord.primitives.Timestamp;
 import accord.primitives.Txn;
 import accord.primitives.TxnId;
 import accord.primitives.Writes;
+import accord.topology.Shard;
+import accord.topology.Topology;
 import accord.utils.AccordGens;
 import accord.utils.Gen;
 import accord.utils.Gens;
 import accord.utils.RandomSource;
 import accord.utils.ReducingRangeMap;
+import accord.utils.SortedArrays.SortedArrayList;
+import accord.utils.TinyEnumSet;
 import accord.utils.TriFunction;
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.dht.AccordSplitter;
 import org.apache.cassandra.dht.IPartitioner;
@@ -93,6 +103,18 @@ public class AccordGenerators
 
     private AccordGenerators()
     {
+    }
+
+    public static boolean maybeUpdatePartitioner(Ranges ranges)
+    {
+        if (ranges.isEmpty()) return false;
+        for (Range range : ranges)
+        {
+            TokenRange tr = (TokenRange) range;
+            DatabaseDescriptor.setPartitionerUnsafe(tr.start().token().getPartitioner());
+            return true;
+        }
+        return false;
     }
 
     public static Gen<IPartitioner> partitioner()
@@ -298,7 +320,7 @@ public class AccordGenerators
                     else return Truncated.truncated(command, saveStatus, executeAt, null, null, null, null);
 
                 case TruncatedApplyWithOutcome:
-                    if (txnId.kind().awaitsOnlyDeps()) return Truncated.truncated(command, saveStatus, executeAt, command.partialDeps(), txnId.is(Write) ? new Writes(txnId, executeAt, keysOrRanges,new TxnWrite(Collections.emptyList(), true)) : null, new TxnData(), txnId);
+                    if (txnId.kind().awaitsOnlyDeps()) return Truncated.truncated(command, saveStatus, executeAt, command.partialDeps(), txnId.is(Write) ? new Writes(txnId, executeAt, keysOrRanges, new TxnWrite(Collections.emptyList(), true)) : null, new TxnData(), txnId);
                     else return Truncated.truncated(command, saveStatus, executeAt, command.partialDeps(), txnId.is(Write) ? new Writes(txnId, executeAt, keysOrRanges, new TxnWrite(Collections.emptyList(), true)) : null, new TxnData(), null);
 
                 case Erased:
@@ -326,7 +348,7 @@ public class AccordGenerators
         return rs -> new PartitionKey(tableIdGen.next(rs), key.next(rs));
     }
 
-    public static Gen<TokenKey> routingKeys(IPartitioner partitioner)
+    public static Gen<TokenKey> routingKeysGen(IPartitioner partitioner)
     {
         return routingKeyGen(fromQT(CassandraGenerators.TABLE_ID_GEN),
                              fromQT(CassandraGenerators.token(partitioner)),
@@ -335,20 +357,23 @@ public class AccordGenerators
 
     public static Gen<TokenKey> routingKeyGen(Gen<TableId> tableIdGen, Gen<Token> tokenGen, IPartitioner partitioner)
     {
-        return routingKeyGen(tableIdGen, Gens.enums().all(TokenKey.RoutingKeyKind.class), tokenGen, partitioner);
+        return routingKeyGen(tableIdGen, Gens.enums().all(RoutingKeyKind.class), tokenGen, partitioner);
     }
 
-    public static Gen<TokenKey> routingKeyGen(Gen<TableId> tableIdGen, Gen<TokenKey.RoutingKeyKind> kindGen, Gen<Token> tokenGen, IPartitioner partitioner)
+    public enum RoutingKeyKind
+    {
+        TOKEN, SENTINEL
+    }
+
+    public static Gen<TokenKey> routingKeyGen(Gen<TableId> tableIdGen, Gen<RoutingKeyKind> kindGen, Gen<Token> tokenGen, IPartitioner partitioner)
     {
         return rs -> {
             TableId tableId = tableIdGen.next(rs);
-            TokenKey.RoutingKeyKind kind = kindGen.next(rs);
+            RoutingKeyKind kind = kindGen.next(rs);
             switch (kind)
             {
                 case TOKEN:
                     return new TokenKey(tableId, tokenGen.next(rs));
-                case MIN_TOKEN:
-                    return TokenKey.before(tableId, tokenGen.next(rs));
                 case SENTINEL:
                     return rs.nextBoolean() ? TokenKey.min(tableId, partitioner) : TokenKey.max(tableId, partitioner);
                 default:
@@ -357,9 +382,23 @@ public class AccordGenerators
         };
     }
 
+    public static Gen<TokenKey> allowBeforeAndAfter(Gen<TokenKey> gen)
+    {
+        return gen.map((rs, key) -> {
+            if (key.isTokenSentinel()) return key;
+            switch (rs.nextInt(0, 3))
+            {
+                case 0:  return key;
+                case 1:  return key.before();
+                case 2:  return key.after();
+                default: throw new AssertionError();
+            }
+        });
+    }
+
     public static Gen<Range> range()
     {
-        return PARTITIONER_GEN.flatMap(partitioner -> range(fromQT(CassandraGenerators.TABLE_ID_GEN), fromQT(CassandraGenerators.token(partitioner)), partitioner));
+        return partitioner().flatMap(partitioner -> range(fromQT(CassandraGenerators.TABLE_ID_GEN), fromQT(CassandraGenerators.token(partitioner)), partitioner));
     }
 
     public static Gen<Range> range(IPartitioner partitioner)
@@ -370,20 +409,28 @@ public class AccordGenerators
     public static Gen<Range> range(Gen<TableId> tables, Gen<Token> tokenGen, IPartitioner partitioner)
     {
         return rs -> {
-            Gen<TokenKey> gen = routingKeyGen(Gens.constant(tables.next(rs)), tokenGen, partitioner);
+            Gen<TokenKey> gen = allowBeforeAndAfter(routingKeyGen(Gens.constant(tables.next(rs)), tokenGen, partitioner));
             TokenKey a = gen.next(rs);
             TokenKey b = gen.next(rs);
-            while (a.equals(b))
+            while (same(a, b))
                 b = gen.next(rs);
-            if (a.compareTo(b) < 0) return TokenRange.create(a, b);
-            else                    return TokenRange.create(b, a);
+            return a.compareTo(b) < 0 ? TokenRange.create(a, b) : TokenRange.create(b, a);
         };
+    }
+
+    private static boolean same(TokenKey a, TokenKey b)
+    {
+        if (a.equals(b)) return true;
+        // define +Inf == before(+Inf) as these are not actionable ranges
+        return a.isTableSentinel() && b.isTableSentinel()
+               && a.isMin() == b.isMin()
+               && a.isMax() == b.isMax();
     }
 
     public static Gen<Ranges> ranges()
     {
         // javac couldn't pick the right constructor with HashSet::new, so had to create new lambda...
-        return ranges(Gens.lists(fromQT(CassandraGenerators.TABLE_ID_GEN)).unique().ofSizeBetween(1, 10).map(l -> new HashSet<>(l)), PARTITIONER_GEN);
+        return ranges(Gens.lists(fromQT(CassandraGenerators.TABLE_ID_GEN)).unique().ofSizeBetween(1, 10).map(l -> new HashSet<>(l)), partitioner());
     }
 
     public static Gen<Ranges> ranges(Gen<Set<TableId>> tableIdGen, Gen<IPartitioner> partitionerGen)
@@ -417,6 +464,12 @@ public class AccordGenerators
         return ranges(Gens.lists(fromQT(CassandraGenerators.TABLE_ID_GEN)).unique().ofSizeBetween(1, 10).map(l -> new HashSet<>(l)), ignore -> partitioner);
     }
 
+    public static Gen<Ranges> ranges(TableId tableId, IPartitioner partitioner)
+    {
+        Set<TableId> tables = Collections.singleton(tableId);
+        return ranges(i -> tables, i -> partitioner);
+    }
+
     public static Gen<Ranges> rangesArbitrary(IPartitioner partitioner)
     {
         Gen<Range> rangeGen = range(partitioner);
@@ -430,14 +483,21 @@ public class AccordGenerators
         };
     }
 
+    public static Gen<Ranges> rangesSplitOrArbitrary(IPartitioner partitioner)
+    {
+        Gen<Ranges> split = ranges(partitioner);
+        Gen<Ranges> arbitrary = rangesArbitrary(partitioner);
+        return rs -> rs.nextBoolean() ? split.next(rs) : arbitrary.next(rs);
+    }
+
     public static Gen<KeyDeps> keyDepsGen(IPartitioner partitioner)
     {
-        return AccordGens.keyDeps(AccordGenerators.routingKeys(partitioner));
+        return AccordGens.keyDeps(AccordGenerators.routingKeysGen(partitioner));
     }
 
     public static Gen<KeyDeps> directKeyDepsGen(IPartitioner partitioner)
     {
-        return AccordGens.directKeyDeps(AccordGenerators.routingKeys(partitioner));
+        return AccordGens.directKeyDeps(AccordGenerators.routingKeysGen(partitioner));
     }
 
     public static Gen<RangeDeps> rangeDepsGen(IPartitioner partitioner)
@@ -558,6 +618,94 @@ public class AccordGenerators
             for (int i = 0; i < size; i++)
                 ranges[i] = rangesGen.next(rs);
             return new RangesForEpoch(epochs, ranges);
+        };
+    }
+
+    public static Gen<TinyEnumSet<Shard.Flag>> shardFlagsGen()
+    {
+        return rs -> {
+            if (rs.nextBoolean()) return Shard.NO_FLAGS;
+            EnumSet<Shard.Flag> flags = EnumSet.noneOf(Shard.Flag.class);
+            for (Shard.Flag v : Shard.Flag.values())
+            {
+                if (rs.nextBoolean())
+                    flags.add(v);
+            }
+            return new TinyEnumSet<>(flags.toArray(Shard.Flag[]::new));
+        };
+    }
+
+    public static <T extends Comparable<? super T>> Gen<SortedArrayList<T>> sortedArrayList(Class<T> klass, Gen.IntGen sizeGen, Gen<T> valueGen)
+    {
+        return rs -> {
+            int size = sizeGen.nextInt(rs);
+            if (size == 0) return SortedArrayList.ofSorted();
+            return SortedArrayList.copyUnsorted(Gens.lists(valueGen).unique().ofSize(size).next(rs), s -> (T[]) Array.newInstance(klass, s));
+        };
+    }
+
+    private static <T> Gen<List<T>> select(List<T> list, int size)
+    {
+        // This is better in Gens, but didn't want to alter Accord in this patch...
+        if (size < 0 || size > list.size())
+            throw new IllegalArgumentException("Unexpected size: " + size + ", list size is " + list.size());
+        if (size == 0) return i -> List.of();
+        if (size == list.size()) return i -> list;
+        return rs -> {
+            List<T> toSelect = new ArrayList<>(list);
+            List<T> selected = new ArrayList<>(size);
+            for (int i = 0; i < size; i++)
+            {
+                int idx = rs.nextInt(0, toSelect.size());
+                selected.add(toSelect.remove(idx));
+            }
+            return selected;
+        };
+    }
+
+    private static Gen<Shard> shardGen(Range range)
+    {
+        Gen<SortedArrayList<Node.Id>> nodesGen = sortedArrayList(Node.Id.class, Gens.ints().between(1, 10), AccordGens.nodes());
+        Gen<TinyEnumSet<Shard.Flag>> shardFlagsGen = shardFlagsGen();
+        return rs -> {
+            SortedArrayList<Node.Id> nodes = nodesGen.next(rs);
+            int maxFailures = Shard.maxToleratedFailures(nodes.size());
+            int slowQuorumSize = Shard.slowQuorumSize(nodes.size());
+            Set<Node.Id> fastPathElectorate = new TreeSet<>(select(nodes, nodes.size() == slowQuorumSize ? slowQuorumSize : rs.nextInt(slowQuorumSize, nodes.size())).next(rs));
+            List<Node.Id> nonFastPath = new ArrayList<>(Sets.difference(new HashSet<>(nodes), fastPathElectorate));
+            nonFastPath.sort(Comparator.naturalOrder());
+            Set<Node.Id> joining = new TreeSet<>(select(nonFastPath, nonFastPath.size() == 0 ? 0 : rs.nextInt(0, nonFastPath.size())).next(rs));
+            return Shard.create(range, nodes, fastPathElectorate, joining, shardFlagsGen.next(rs));
+        };
+    }
+
+    public static Gen<Topology> topologyGen(IPartitioner partitioner)
+    {
+        return topologyGen(AccordGens.epochs(), partitioner);
+    }
+
+    public static Gen<Topology> topologyGen(Gen.LongGen epochGen, IPartitioner partitioner)
+    {
+        return topologyGen(epochGen, ranges(partitioner));
+    }
+
+    public static Gen<Topology> topologyGen(Gen<Ranges> rangesGen)
+    {
+        return topologyGen(AccordGens.epochs(), rangesGen);
+    }
+
+    public static Gen<Topology> topologyGen(Gen.LongGen epochGen, Gen<Ranges> rangesGen)
+    {
+        return rs -> {
+            long epoch = epochGen.nextLong(rs);
+            Ranges ranges = rangesGen.next(rs);
+            if (ranges.isEmpty()) return new Topology(epoch, new Shard[0]);
+
+            List<Shard> shards = new ArrayList<>(ranges.size());
+            for (Range range : ranges)
+                shards.add(shardGen(range).next(rs));
+            //TODO (coverage): staleNodes
+            return new Topology(epoch, shards.toArray(Shard[]::new));
         };
     }
 

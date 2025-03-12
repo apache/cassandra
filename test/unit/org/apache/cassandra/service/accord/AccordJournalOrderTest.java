@@ -43,7 +43,6 @@ import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.dht.ByteOrderedPartitioner;
 import org.apache.cassandra.io.util.File;
-import org.apache.cassandra.journal.TestParams;
 import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableId;
@@ -75,7 +74,7 @@ public class AccordJournalOrderTest
     {
         if (new File(DatabaseDescriptor.getAccordJournalDirectory()).exists())
             ServerTestUtils.cleanupDirectory(DatabaseDescriptor.getAccordJournalDirectory());
-        AccordJournal accordJournal = new AccordJournal(TestParams.INSTANCE, new AccordAgent());
+        AccordJournal accordJournal = new AccordJournal(AccordJournalTestParams.INSTANCE, new AccordAgent());
         accordJournal.start(null);
         RandomSource randomSource = RandomSource.wrap(new Random(0));
         TxnId id1 = AccordGens.txnIds().next(randomSource);

@@ -26,6 +26,7 @@ import java.util.Set;
 import com.google.common.collect.Sets;
 
 import org.apache.cassandra.io.IVersionedSerializer;
+import org.apache.cassandra.io.UnversionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.tcm.serialization.MetadataSerializer;
@@ -176,34 +177,40 @@ public class Epoch implements Comparable<Epoch>, Serializable
         return epoch;
     }
 
-    public static class EpochSerializer implements MetadataSerializer<Epoch>
+    public static class EpochSerializer implements MetadataSerializer<Epoch>, UnversionedSerializer<Epoch>
     {
         // convenience methods for messageSerializer et al
+        @Override
         public void serialize(Epoch t, DataOutputPlus out) throws IOException
         {
             serialize(t, out, Version.V0);
         }
 
+        @Override
         public Epoch deserialize(DataInputPlus in) throws IOException
         {
             return deserialize(in, Version.V0);
         }
 
+        @Override
         public long serializedSize(Epoch t)
         {
             return serializedSize(t, Version.V0);
         }
 
+        @Override
         public void serialize(Epoch t, DataOutputPlus out, Version version) throws IOException
         {
             out.writeUnsignedVInt(t.epoch);
         }
 
+        @Override
         public Epoch deserialize(DataInputPlus in, Version version) throws IOException
         {
             return Epoch.create(in.readUnsignedVInt());
         }
 
+        @Override
         public long serializedSize(Epoch t, Version version)
         {
             return VIntCoding.computeUnsignedVIntSize(t.epoch);

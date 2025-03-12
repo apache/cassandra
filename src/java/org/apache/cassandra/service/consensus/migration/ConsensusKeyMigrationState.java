@@ -48,7 +48,7 @@ import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.db.WriteType;
 import org.apache.cassandra.exceptions.CasWriteTimeoutException;
 import org.apache.cassandra.exceptions.RetryOnDifferentSystemException;
-import org.apache.cassandra.io.IVersionedSerializer;
+import org.apache.cassandra.io.UnversionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.locator.EndpointsForToken;
@@ -118,31 +118,31 @@ public abstract class ConsensusKeyMigrationState
             this.consensusMigratedAt = consensusMigratedAt;
         }
 
-        public static final IVersionedSerializer<ConsensusKeyMigrationFinished> serializer = new IVersionedSerializer<ConsensusKeyMigrationFinished>()
+        public static final UnversionedSerializer<ConsensusKeyMigrationFinished> serializer = new UnversionedSerializer<ConsensusKeyMigrationFinished>()
         {
             @Override
-            public void serialize(ConsensusKeyMigrationFinished t, DataOutputPlus out, int version) throws IOException
+            public void serialize(ConsensusKeyMigrationFinished t, DataOutputPlus out) throws IOException
             {
-                UUIDSerializer.serializer.serialize(t.tableId, out, version);
+                UUIDSerializer.serializer.serialize(t.tableId, out);
                 ByteBufferUtil.writeWithVIntLength(t.partitionKey, out);
-                ConsensusMigratedAt.serializer.serialize(t.consensusMigratedAt, out, version);
+                ConsensusMigratedAt.serializer.serialize(t.consensusMigratedAt, out);
             }
 
             @Override
-            public ConsensusKeyMigrationFinished deserialize(DataInputPlus in, int version) throws IOException
+            public ConsensusKeyMigrationFinished deserialize(DataInputPlus in) throws IOException
             {
-                UUID tableId = UUIDSerializer.serializer.deserialize(in, version);
+                UUID tableId = UUIDSerializer.serializer.deserialize(in);
                 ByteBuffer partitionKey = ByteBufferUtil.readWithVIntLength(in);
-                ConsensusMigratedAt consensusMigratedAt = ConsensusMigratedAt.serializer.deserialize(in, version);
+                ConsensusMigratedAt consensusMigratedAt = ConsensusMigratedAt.serializer.deserialize(in);
                 return new ConsensusKeyMigrationFinished(tableId, partitionKey, consensusMigratedAt);
             }
 
             @Override
-            public long serializedSize(ConsensusKeyMigrationFinished t, int version)
+            public long serializedSize(ConsensusKeyMigrationFinished t)
             {
-                return UUIDSerializer.serializer.serializedSize(t.tableId, version)
+                return UUIDSerializer.serializer.serializedSize(t.tableId)
                        + ByteBufferUtil.serializedSizeWithVIntLength(t.partitionKey)
-                       + ConsensusMigratedAt.serializer.serializedSize(t.consensusMigratedAt, version);
+                       + ConsensusMigratedAt.serializer.serializedSize(t.consensusMigratedAt);
             }
         };
     }

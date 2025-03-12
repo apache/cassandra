@@ -26,86 +26,86 @@ import accord.primitives.FullRoute;
 import accord.primitives.SyncPoint;
 import accord.primitives.Timestamp;
 import accord.primitives.TxnId;
-import org.apache.cassandra.io.IVersionedSerializer;
+import org.apache.cassandra.io.UnversionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.service.accord.serializers.CommandSerializers.ExecuteAtSerializer;
 
 public class SetDurableSerializers
 {
-    public static final IVersionedSerializer<SetShardDurable> shardDurable = new IVersionedSerializer<>()
+    public static final UnversionedSerializer<SetShardDurable> shardDurable = new UnversionedSerializer<>()
     {
         @Override
-        public void serialize(SetShardDurable msg, DataOutputPlus out, int version) throws IOException
+        public void serialize(SetShardDurable msg, DataOutputPlus out) throws IOException
         {
-            syncPoint.serialize(msg.exclusiveSyncPoint, out, version);
-            CommandSerializers.durability.serialize(msg.durability, out, version);
+            syncPoint.serialize(msg.exclusiveSyncPoint, out);
+            CommandSerializers.durability.serialize(msg.durability, out);
         }
 
         @Override
-        public SetShardDurable deserialize(DataInputPlus in, int version) throws IOException
+        public SetShardDurable deserialize(DataInputPlus in) throws IOException
         {
-            return new SetShardDurable(syncPoint.deserialize(in, version),
-                                       CommandSerializers.durability.deserialize(in, version));
+            return new SetShardDurable(syncPoint.deserialize(in),
+                                       CommandSerializers.durability.deserialize(in));
         }
 
         @Override
-        public long serializedSize(SetShardDurable msg, int version)
+        public long serializedSize(SetShardDurable msg)
         {
-            return syncPoint.serializedSize(msg.exclusiveSyncPoint, version)
-                + CommandSerializers.durability.serializedSize(msg.durability, version);
+            return syncPoint.serializedSize(msg.exclusiveSyncPoint)
+                + CommandSerializers.durability.serializedSize(msg.durability);
         }
     };
 
-    public static final IVersionedSerializer<SetGloballyDurable> globallyDurable = new IVersionedSerializer<>()
+    public static final UnversionedSerializer<SetGloballyDurable> globallyDurable = new UnversionedSerializer<>()
     {
         @Override
-        public void serialize(SetGloballyDurable msg, DataOutputPlus out, int version) throws IOException
+        public void serialize(SetGloballyDurable msg, DataOutputPlus out) throws IOException
         {
-            CommandStoreSerializers.durableBefore.serialize(msg.durableBefore, out, version);
+            CommandStoreSerializers.durableBefore.serialize(msg.durableBefore, out);
         }
 
         @Override
-        public SetGloballyDurable deserialize(DataInputPlus in, int version) throws IOException
+        public SetGloballyDurable deserialize(DataInputPlus in) throws IOException
         {
-            return new SetGloballyDurable(CommandStoreSerializers.durableBefore.deserialize(in, version));
+            return new SetGloballyDurable(CommandStoreSerializers.durableBefore.deserialize(in));
         }
 
         @Override
-        public long serializedSize(SetGloballyDurable msg, int version)
+        public long serializedSize(SetGloballyDurable msg)
         {
-            return CommandStoreSerializers.durableBefore.serializedSize(msg.durableBefore, version);
+            return CommandStoreSerializers.durableBefore.serializedSize(msg.durableBefore);
         }
     };
 
-    public static final IVersionedSerializer<SyncPoint> syncPoint = new IVersionedSerializer<>()
+    public static final UnversionedSerializer<SyncPoint> syncPoint = new UnversionedSerializer<>()
     {
         @Override
-        public void serialize(SyncPoint sp, DataOutputPlus out, int version) throws IOException
+        public void serialize(SyncPoint sp, DataOutputPlus out) throws IOException
         {
-            CommandSerializers.txnId.serialize(sp.syncId, out, version);
+            CommandSerializers.txnId.serialize(sp.syncId, out);
             ExecuteAtSerializer.serialize(sp.syncId, sp.executeAt, out);
-            DepsSerializers.deps.serialize(sp.waitFor, out, version);
-            KeySerializers.fullRoute.serialize(sp.route, out, version);
+            DepsSerializers.deps.serialize(sp.waitFor, out);
+            KeySerializers.fullRoute.serialize(sp.route, out);
         }
 
         @Override
-        public SyncPoint deserialize(DataInputPlus in, int version) throws IOException
+        public SyncPoint deserialize(DataInputPlus in) throws IOException
         {
-            TxnId syncId = CommandSerializers.txnId.deserialize(in, version);
+            TxnId syncId = CommandSerializers.txnId.deserialize(in);
             Timestamp executeAt = ExecuteAtSerializer.deserialize(syncId, in);
-            Deps waitFor = DepsSerializers.deps.deserialize(in, version);
-            FullRoute<?> route = KeySerializers.fullRoute.deserialize(in, version);
+            Deps waitFor = DepsSerializers.deps.deserialize(in);
+            FullRoute<?> route = KeySerializers.fullRoute.deserialize(in);
             return SyncPoint.SerializationSupport.construct(syncId, executeAt, waitFor, route);
         }
 
         @Override
-        public long serializedSize(SyncPoint sp, int version)
+        public long serializedSize(SyncPoint sp)
         {
-            return   CommandSerializers.txnId.serializedSize(sp.syncId, version)
+            return   CommandSerializers.txnId.serializedSize(sp.syncId)
                    + ExecuteAtSerializer.serializedSize(sp.syncId, sp.executeAt)
-                   + DepsSerializers.deps.serializedSize(sp.waitFor, version)
-                   + KeySerializers.fullRoute.serializedSize(sp.route, version);
+                   + DepsSerializers.deps.serializedSize(sp.waitFor)
+                   + KeySerializers.fullRoute.serializedSize(sp.route);
         }
     };
 }

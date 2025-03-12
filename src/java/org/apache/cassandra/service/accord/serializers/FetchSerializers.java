@@ -27,7 +27,7 @@ import accord.messages.ReadData.CommitOrReadNack;
 import accord.messages.ReadData.ReadReply;
 import accord.primitives.Ranges;
 import org.apache.cassandra.db.TypeSizes;
-import org.apache.cassandra.io.IVersionedSerializer;
+import org.apache.cassandra.io.UnversionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.service.accord.AccordFetchCoordinator.AccordFetchRequest;
@@ -44,43 +44,43 @@ public class FetchSerializers
     public static final IVersionedSerializer<FetchRequest> request = new IVersionedSerializer<>()
     {
         @Override
-        public void serialize(FetchRequest request, DataOutputPlus out, int version) throws IOException
+        public void serialize(FetchRequest request, DataOutputPlus out, Version version) throws IOException
         {
             out.writeUnsignedVInt(request.executeAtEpoch);
-            CommandSerializers.txnId.serialize(request.txnId, out, version);
-            KeySerializers.ranges.serialize((Ranges) request.scope, out, version);
-            DepsSerializers.partialDeps.serialize(request.partialDeps, out, version);
+            CommandSerializers.txnId.serialize(request.txnId, out);
+            KeySerializers.ranges.serialize((Ranges) request.scope, out);
+            DepsSerializers.partialDeps.serialize(request.partialDeps, out);
             StreamingTxn.serializer.serialize(request.read, out, version);
         }
 
         @Override
-        public FetchRequest deserialize(DataInputPlus in, int version) throws IOException
+        public FetchRequest deserialize(DataInputPlus in, Version version) throws IOException
         {
             return new AccordFetchRequest(in.readUnsignedVInt(),
-                                          CommandSerializers.txnId.deserialize(in, version),
-                                          KeySerializers.ranges.deserialize(in, version),
-                                          DepsSerializers.partialDeps.deserialize(in, version),
+                                          CommandSerializers.txnId.deserialize(in),
+                                          KeySerializers.ranges.deserialize(in),
+                                          DepsSerializers.partialDeps.deserialize(in),
                                           StreamingTxn.serializer.deserialize(in, version));
         }
 
         @Override
-        public long serializedSize(FetchRequest request, int version)
+        public long serializedSize(FetchRequest request, Version version)
         {
             return TypeSizes.sizeofUnsignedVInt(request.executeAtEpoch)
-                   + CommandSerializers.txnId.serializedSize(request.txnId, version)
-                   + KeySerializers.ranges.serializedSize((Ranges) request.scope, version)
-                   + DepsSerializers.partialDeps.serializedSize(request.partialDeps, version)
+                   + CommandSerializers.txnId.serializedSize(request.txnId)
+                   + KeySerializers.ranges.serializedSize((Ranges) request.scope)
+                   + DepsSerializers.partialDeps.serializedSize(request.partialDeps)
                    + StreamingTxn.serializer.serializedSize(request.read, version);
         }
     };
 
-    public static final IVersionedSerializer<ReadReply> reply = new IVersionedSerializer<>()
+    public static final UnversionedSerializer<ReadReply> reply = new UnversionedSerializer<>()
     {
         final CommitOrReadNack[] nacks = CommitOrReadNack.values();
-        final IVersionedSerializer<Data> streamDataSerializer = new CastingSerializer<>(StreamData.class, StreamData.serializer);
+        final UnversionedSerializer<Data> streamDataSerializer = CastingSerializer.create(StreamData.class, StreamData.serializer);
 
         @Override
-        public void serialize(ReadReply reply, DataOutputPlus out, int version) throws IOException
+        public void serialize(ReadReply reply, DataOutputPlus out) throws IOException
         {
             if (!reply.isOk())
             {
@@ -90,34 +90,34 @@ public class FetchSerializers
 
             out.writeByte(0);
             FetchResponse response = (FetchResponse) reply;
-            serializeNullable(response.unavailable, out, version, KeySerializers.ranges);
-            serializeNullable(response.data, out, version, streamDataSerializer);
-            CommandSerializers.nullableTimestamp.serialize(response.safeToReadAfter, out, version);
+            serializeNullable(response.unavailable, out, KeySerializers.ranges);
+            serializeNullable(response.data, out, streamDataSerializer);
+            CommandSerializers.nullableTimestamp.serialize(response.safeToReadAfter, out);
         }
 
         @Override
-        public ReadReply deserialize(DataInputPlus in, int version) throws IOException
+        public ReadReply deserialize(DataInputPlus in) throws IOException
         {
             int id = in.readByte();
             if (id != 0)
                 return nacks[id - 1];
 
-            return new FetchResponse(deserializeNullable(in, version, KeySerializers.ranges),
-                                     deserializeNullable(in, version, streamDataSerializer),
-                                     CommandSerializers.nullableTimestamp.deserialize(in, version));
+            return new FetchResponse(deserializeNullable(in, KeySerializers.ranges),
+                                     deserializeNullable(in, streamDataSerializer),
+                                     CommandSerializers.nullableTimestamp.deserialize(in));
         }
 
         @Override
-        public long serializedSize(ReadReply reply, int version)
+        public long serializedSize(ReadReply reply)
         {
             if (!reply.isOk())
                 return TypeSizes.BYTE_SIZE;
 
             FetchResponse response = (FetchResponse) reply;
             return TypeSizes.BYTE_SIZE
-                   + serializedNullableSize(response.unavailable, version, KeySerializers.ranges)
-                   + serializedNullableSize(response.data, version, streamDataSerializer)
-                   + CommandSerializers.nullableTimestamp.serializedSize(response.safeToReadAfter, version);
+                   + serializedNullableSize(response.unavailable, KeySerializers.ranges)
+                   + serializedNullableSize(response.data, streamDataSerializer)
+                   + CommandSerializers.nullableTimestamp.serializedSize(response.safeToReadAfter);
         }
     };
 

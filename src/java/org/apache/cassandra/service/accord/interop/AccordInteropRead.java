@@ -51,7 +51,6 @@ import org.apache.cassandra.db.ReadCommandVerbHandler;
 import org.apache.cassandra.db.ReadResponse;
 import org.apache.cassandra.db.SinglePartitionReadCommand;
 import org.apache.cassandra.db.TypeSizes;
-import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.locator.InetAddressAndPort;
@@ -61,9 +60,11 @@ import org.apache.cassandra.service.accord.AccordMessageSink.AccordMessageType;
 import org.apache.cassandra.service.accord.TokenRange;
 import org.apache.cassandra.service.accord.api.TokenKey;
 import org.apache.cassandra.service.accord.serializers.CommandSerializers;
+import org.apache.cassandra.service.accord.serializers.IVersionedSerializer;
 import org.apache.cassandra.service.accord.serializers.KeySerializers;
 import org.apache.cassandra.service.accord.serializers.ReadDataSerializers;
 import org.apache.cassandra.service.accord.serializers.ReadDataSerializers.ReadDataSerializer;
+import org.apache.cassandra.service.accord.serializers.Version;
 import org.apache.cassandra.service.accord.txn.TxnNamedRead;
 import org.apache.cassandra.service.accord.txn.TxnRead;
 import org.apache.cassandra.utils.Pair;
@@ -79,31 +80,31 @@ public class AccordInteropRead extends ReadData
     public static final IVersionedSerializer<AccordInteropRead> requestSerializer = new ReadDataSerializer<AccordInteropRead>()
     {
         @Override
-        public void serialize(AccordInteropRead read, DataOutputPlus out, int version) throws IOException
+        public void serialize(AccordInteropRead read, DataOutputPlus out, Version version) throws IOException
         {
-            CommandSerializers.txnId.serialize(read.txnId, out, version);
-            KeySerializers.participants.serialize(read.scope, out, version);
+            CommandSerializers.txnId.serialize(read.txnId, out);
+            KeySerializers.participants.serialize(read.scope, out);
             out.writeUnsignedVInt(read.executeAtEpoch);
-            ReadCommand.serializer.serialize(read.command, out, version);
+            ReadCommand.serializer.serialize(read.command, out, version.messageVersion());
         }
 
         @Override
-        public AccordInteropRead deserialize(DataInputPlus in, int version) throws IOException
+        public AccordInteropRead deserialize(DataInputPlus in, Version version) throws IOException
         {
-            TxnId txnId = CommandSerializers.txnId.deserialize(in, version);
-            Participants<?> scope = KeySerializers.participants.deserialize(in, version);
+            TxnId txnId = CommandSerializers.txnId.deserialize(in);
+            Participants<?> scope = KeySerializers.participants.deserialize(in);
             long executeAtEpoch = in.readUnsignedVInt();
-            ReadCommand command = ReadCommand.serializer.deserialize(in, version);
+            ReadCommand command = ReadCommand.serializer.deserialize(in, version.messageVersion());
             return new AccordInteropRead(txnId, scope, executeAtEpoch, command);
         }
 
         @Override
-        public long serializedSize(AccordInteropRead read, int version)
+        public long serializedSize(AccordInteropRead read, Version version)
         {
-            return CommandSerializers.txnId.serializedSize(read.txnId, version)
-                   + KeySerializers.participants.serializedSize(read.scope, version)
+            return CommandSerializers.txnId.serializedSize(read.txnId)
+                   + KeySerializers.participants.serializedSize(read.scope)
                    + TypeSizes.sizeofUnsignedVInt(read.executeAtEpoch)
-                   + ReadCommand.serializer.serializedSize(read.command, version);
+                   + ReadCommand.serializer.serializedSize(read.command, version.messageVersion());
         }
     };
 
@@ -116,23 +117,23 @@ public class AccordInteropRead extends ReadData
         static final IVersionedSerializer<LocalReadData> serializer = new IVersionedSerializer<>()
         {
             @Override
-            public void serialize(LocalReadData data, DataOutputPlus out, int version) throws IOException
+            public void serialize(LocalReadData data, DataOutputPlus out, Version version) throws IOException
             {
                 data.ensureRemoteResponse();
-                ReadResponse.serializer.serialize(data.remoteResponse, out, version);
+                ReadResponse.serializer.serialize(data.remoteResponse, out, version.messageVersion());
             }
 
             @Override
-            public LocalReadData deserialize(DataInputPlus in, int version) throws IOException
+            public LocalReadData deserialize(DataInputPlus in, Version version) throws IOException
             {
-                return new LocalReadData(ReadResponse.serializer.deserialize(in, version));
+                return new LocalReadData(ReadResponse.serializer.deserialize(in, version.messageVersion()));
             }
 
             @Override
-            public long serializedSize(LocalReadData data, int version)
+            public long serializedSize(LocalReadData data, Version version)
             {
                 data.ensureRemoteResponse();
-                return ReadResponse.serializer.serializedSize(data.remoteResponse, version);
+                return ReadResponse.serializer.serializedSize(data.remoteResponse, version.messageVersion());
             }
         };
 

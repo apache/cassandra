@@ -40,6 +40,7 @@ import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.locator.Endpoints;
 import org.apache.cassandra.locator.Replica;
 import org.apache.cassandra.locator.ReplicaPlan;
+import org.apache.cassandra.service.accord.serializers.Version;
 import org.apache.cassandra.service.reads.ReadCoordinator;
 import org.apache.cassandra.service.reads.repair.BlockingReadRepair;
 
@@ -181,18 +182,18 @@ public class UnrecoverableRepairUpdate<E extends Endpoints<E>, P extends Replica
     public static final AccordUpdateSerializer<UnrecoverableRepairUpdate> serializer = new AccordUpdateSerializer<>()
     {
         @Override
-        public void serialize(UnrecoverableRepairUpdate update, DataOutputPlus out, int version)
+        public void serialize(UnrecoverableRepairUpdate update, DataOutputPlus out, Version version)
         {
         }
 
         @Override
-        public UnrecoverableRepairUpdate deserialize(DataInputPlus in, int version)
+        public UnrecoverableRepairUpdate deserialize(DataInputPlus in, Version version)
         {
             return null;
        }
 
         @Override
-        public long serializedSize(UnrecoverableRepairUpdate update, int version)
+        public long serializedSize(UnrecoverableRepairUpdate update, Version version)
         {
             return 0;
         }

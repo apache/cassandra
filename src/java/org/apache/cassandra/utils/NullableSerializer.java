@@ -22,11 +22,20 @@ import java.io.IOException;
 
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.io.IVersionedSerializer;
+import org.apache.cassandra.io.UnversionedSerializer;
+import org.apache.cassandra.io.VersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 
 public class NullableSerializer
 {
+    public static <T> void serializeNullable(T value, DataOutputPlus out, UnversionedSerializer<T> serializer) throws IOException
+    {
+        out.writeBoolean(value != null);
+        if (value != null)
+            serializer.serialize(value, out);
+    }
+
     public static <T> void serializeNullable(T value, DataOutputPlus out, int version, IVersionedSerializer<T> serializer) throws IOException
     {
         out.writeBoolean(value != null);
@@ -34,9 +43,33 @@ public class NullableSerializer
             serializer.serialize(value, out, version);
     }
 
+    public static <T, Version> void serializeNullable(T value, DataOutputPlus out, Version version, VersionedSerializer<T, Version> serializer) throws IOException
+    {
+        out.writeBoolean(value != null);
+        if (value != null)
+            serializer.serialize(value, out, version);
+    }
+
+    public static <T> T deserializeNullable(DataInputPlus in, UnversionedSerializer<T> serializer) throws IOException
+    {
+        return in.readBoolean() ? serializer.deserialize(in) : null;
+    }
+
     public static <T> T deserializeNullable(DataInputPlus in, int version, IVersionedSerializer<T> serializer) throws IOException
     {
         return in.readBoolean() ? serializer.deserialize(in, version) : null;
+    }
+
+    public static <T, Version> T deserializeNullable(DataInputPlus in, Version version, VersionedSerializer<T, Version> serializer) throws IOException
+    {
+        return in.readBoolean() ? serializer.deserialize(in, version) : null;
+    }
+
+    public static <T> long serializedNullableSize(T value, UnversionedSerializer<T> serializer)
+    {
+        return value != null
+               ? TypeSizes.sizeof(true) + serializer.serializedSize(value)
+               : TypeSizes.sizeof(false);
     }
 
     public static <T> long serializedNullableSize(T value, int version, IVersionedSerializer<T> serializer)
@@ -44,6 +77,37 @@ public class NullableSerializer
         return value != null
                 ? TypeSizes.sizeof(true) + serializer.serializedSize(value, version)
                 : TypeSizes.sizeof(false);
+    }
+
+    public static <T, Version> long serializedNullableSize(T value, Version version, VersionedSerializer<T, Version> serializer)
+    {
+        return value != null
+               ? TypeSizes.sizeof(true) + serializer.serializedSize(value, version)
+               : TypeSizes.sizeof(false);
+    }
+
+    public static <T> UnversionedSerializer<T> wrap(UnversionedSerializer<T> wrap)
+    {
+        return new UnversionedSerializer<>()
+        {
+            @Override
+            public void serialize(T t, DataOutputPlus out) throws IOException
+            {
+                serializeNullable(t, out, wrap);
+            }
+
+            @Override
+            public T deserialize(DataInputPlus in) throws IOException
+            {
+                return deserializeNullable(in, wrap);
+            }
+
+            @Override
+            public long serializedSize(T t)
+            {
+                return serializedNullableSize(t, wrap);
+            }
+        };
     }
 
     public static <T> IVersionedSerializer<T> wrap(IVersionedSerializer<T> wrap)
@@ -60,6 +124,29 @@ public class NullableSerializer
             }
 
             public long serializedSize(T t, int version)
+            {
+                return serializedNullableSize(t, version, wrap);
+            }
+        };
+    }
+
+    public static <T, Version> VersionedSerializer<T, Version> wrap(VersionedSerializer<T, Version> wrap)
+    {
+        return new VersionedSerializer<>() {
+            @Override
+            public void serialize(T t, DataOutputPlus out, Version version) throws IOException
+            {
+                serializeNullable(t, out, version, wrap);
+            }
+
+            @Override
+            public T deserialize(DataInputPlus in, Version version) throws IOException
+            {
+                return deserializeNullable(in, version, wrap);
+            }
+
+            @Override
+            public long serializedSize(T t, Version version)
             {
                 return serializedNullableSize(t, version, wrap);
             }

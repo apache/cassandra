@@ -32,54 +32,54 @@ import accord.primitives.SaveStatus;
 import accord.primitives.TxnId;
 import accord.utils.Invariants;
 import org.apache.cassandra.db.TypeSizes;
-import org.apache.cassandra.io.IVersionedSerializer;
+import org.apache.cassandra.io.UnversionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.utils.vint.VIntCoding;
 
 public class AwaitSerializers
 {
-    public static final IVersionedSerializer<Await> request = new RequestSerializer<>()
+    public static final UnversionedSerializer<Await> request = new RequestSerializer<>()
     {
         @Override
-        public Await deserialize(TxnId txnId, Participants<?> scope, BlockedUntil blockedUntil, boolean notifyProgressLog, long minAwaitEpoch, long maxAwaitEpoch, int callbackId, DataInputPlus in, int version)
+        public Await deserialize(TxnId txnId, Participants<?> scope, BlockedUntil blockedUntil, boolean notifyProgressLog, long minAwaitEpoch, long maxAwaitEpoch, int callbackId, DataInputPlus in)
         {
             return Await.SerializerSupport.create(txnId, scope, blockedUntil, notifyProgressLog, minAwaitEpoch, maxAwaitEpoch, callbackId);
         }
     };
 
-    public static final IVersionedSerializer<RecoverAwait> recoverRequest = new RequestSerializer<>()
+    public static final UnversionedSerializer<RecoverAwait> recoverRequest = new RequestSerializer<>()
     {
         @Override
-        public RecoverAwait deserialize(TxnId txnId, Participants<?> scope, BlockedUntil blockedUntil, boolean notifyProgressLog, long minAwaitEpoch, long maxAwaitEpoch, int callbackId, DataInputPlus in, int version) throws IOException
+        public RecoverAwait deserialize(TxnId txnId, Participants<?> scope, BlockedUntil blockedUntil, boolean notifyProgressLog, long minAwaitEpoch, long maxAwaitEpoch, int callbackId, DataInputPlus in) throws IOException
         {
-            TxnId recoverId = CommandSerializers.txnId.deserialize(in, version);
+            TxnId recoverId = CommandSerializers.txnId.deserialize(in);
             return RecoverAwait.SerializerSupport.create(txnId, scope, blockedUntil, notifyProgressLog, minAwaitEpoch, maxAwaitEpoch, callbackId, recoverId);
         }
 
         @Override
-        public void serialize(RecoverAwait await, DataOutputPlus out, int version) throws IOException
+        public void serialize(RecoverAwait await, DataOutputPlus out) throws IOException
         {
-            super.serialize(await, out, version);
-            CommandSerializers.txnId.serialize(await.recoverId, out, version);
+            super.serialize(await, out);
+            CommandSerializers.txnId.serialize(await.recoverId, out);
         }
 
         @Override
-        public long serializedSize(RecoverAwait await, int version)
+        public long serializedSize(RecoverAwait await)
         {
-            return super.serializedSize(await, version) + CommandSerializers.txnId.serializedSize(await.recoverId, version);
+            return super.serializedSize(await) + CommandSerializers.txnId.serializedSize(await.recoverId);
         }
     };
 
-    static abstract class RequestSerializer<A extends Await> implements IVersionedSerializer<A>
+    static abstract class RequestSerializer<A extends Await> implements UnversionedSerializer<A>
     {
-        abstract A deserialize(TxnId txnId, Participants<?> scope, BlockedUntil blockedUntil, boolean notifyProgressLog, long minAwaitEpoch, long maxAwaitEpoch, int callbackId, DataInputPlus in, int version) throws IOException;
+        abstract A deserialize(TxnId txnId, Participants<?> scope, BlockedUntil blockedUntil, boolean notifyProgressLog, long minAwaitEpoch, long maxAwaitEpoch, int callbackId, DataInputPlus in) throws IOException;
 
         @Override
-        public void serialize(A await, DataOutputPlus out, int version) throws IOException
+        public void serialize(A await, DataOutputPlus out) throws IOException
         {
-            CommandSerializers.txnId.serialize(await.txnId, out, version);
-            KeySerializers.participants.serialize(await.scope, out, version);
+            CommandSerializers.txnId.serialize(await.txnId, out);
+            KeySerializers.participants.serialize(await.scope, out);
             out.writeByte((await.blockedUntil.ordinal() << 1) | (await.notifyProgressLog ? 1 : 0));
             out.writeUnsignedVInt(await.maxAwaitEpoch - await.txnId.epoch());
             out.writeUnsignedVInt(await.maxAwaitEpoch - await.minAwaitEpoch);
@@ -88,10 +88,10 @@ public class AwaitSerializers
         }
 
         @Override
-        public A deserialize(DataInputPlus in, int version) throws IOException
+        public A deserialize(DataInputPlus in) throws IOException
         {
-            TxnId txnId = CommandSerializers.txnId.deserialize(in, version);
-            Participants<?> scope = KeySerializers.participants.deserialize(in, version);
+            TxnId txnId = CommandSerializers.txnId.deserialize(in);
+            Participants<?> scope = KeySerializers.participants.deserialize(in);
             int blockedAndNotify = in.readByte();
             BlockedUntil blockedUntil = BlockedUntil.forOrdinal(blockedAndNotify >>> 1);
             boolean notifyProgressLog = (blockedAndNotify & 1) == 1;
@@ -99,50 +99,50 @@ public class AwaitSerializers
             long minAwaitEpoch = maxAwaitEpoch - in.readUnsignedVInt();
             int callbackId = in.readUnsignedVInt32() - 1;
             Invariants.require(callbackId >= -1);
-            return deserialize(txnId, scope, blockedUntil, notifyProgressLog, minAwaitEpoch, maxAwaitEpoch, callbackId, in, version);
+            return deserialize(txnId, scope, blockedUntil, notifyProgressLog, minAwaitEpoch, maxAwaitEpoch, callbackId, in);
         }
 
         @Override
-        public long serializedSize(A await, int version)
+        public long serializedSize(A await)
         {
-            return CommandSerializers.txnId.serializedSize(await.txnId, version)
-                   + KeySerializers.participants.serializedSize(await.scope, version)
+            return CommandSerializers.txnId.serializedSize(await.txnId)
+                   + KeySerializers.participants.serializedSize(await.scope)
                    + TypeSizes.BYTE_SIZE
                    + VIntCoding.computeUnsignedVIntSize(await.maxAwaitEpoch - await.txnId.epoch())
                    + VIntCoding.computeUnsignedVIntSize(await.maxAwaitEpoch - await.minAwaitEpoch)
                    + VIntCoding.computeUnsignedVIntSize(await.callbackId + 1);
         }
-    };
+    }
 
-    public static final IVersionedSerializer<AwaitOk> syncReply = EncodeAsVInt32.of(AwaitOk.class);
-    public static final IVersionedSerializer<RecoverAwaitOk> recoverReply = EncodeAsVInt32.of(RecoverAwaitOk.class);
+    public static final UnversionedSerializer<AwaitOk> syncReply = EncodeAsVInt32.of(AwaitOk.class);
+    public static final UnversionedSerializer<RecoverAwaitOk> recoverReply = EncodeAsVInt32.of(RecoverAwaitOk.class);
 
-    public static final IVersionedSerializer<AsyncAwaitComplete> asyncReply = new IVersionedSerializer<>()
+    public static final UnversionedSerializer<AsyncAwaitComplete> asyncReply = new UnversionedSerializer<>()
     {
         @Override
-        public void serialize(AsyncAwaitComplete ok, DataOutputPlus out, int version) throws IOException
+        public void serialize(AsyncAwaitComplete ok, DataOutputPlus out) throws IOException
         {
-            CommandSerializers.txnId.serialize(ok.txnId, out, version);
-            KeySerializers.route.serialize(ok.route, out, version);
+            CommandSerializers.txnId.serialize(ok.txnId, out);
+            KeySerializers.route.serialize(ok.route, out);
             out.writeByte(ok.newStatus.ordinal());
             out.writeUnsignedVInt32(ok.callbackId);
         }
 
         @Override
-        public AsyncAwaitComplete deserialize(DataInputPlus in, int version) throws IOException
+        public AsyncAwaitComplete deserialize(DataInputPlus in) throws IOException
         {
-            TxnId txnId = CommandSerializers.txnId.deserialize(in, version);
-            Route<?> scope = KeySerializers.route.deserialize(in, version);
+            TxnId txnId = CommandSerializers.txnId.deserialize(in);
+            Route<?> scope = KeySerializers.route.deserialize(in);
             SaveStatus newStatus = SaveStatus.forOrdinal(in.readByte());
             int callbackId = in.readUnsignedVInt32();
             return new AsyncAwaitComplete(txnId, scope, newStatus, callbackId);
         }
 
         @Override
-        public long serializedSize(AsyncAwaitComplete ok, int version)
+        public long serializedSize(AsyncAwaitComplete ok)
         {
-            return CommandSerializers.txnId.serializedSize(ok.txnId, version)
-                   + KeySerializers.route.serializedSize(ok.route, version)
+            return CommandSerializers.txnId.serializedSize(ok.txnId)
+                   + KeySerializers.route.serializedSize(ok.route)
                    + TypeSizes.BYTE_SIZE
                    + VIntCoding.computeVIntSize(ok.callbackId);
         }

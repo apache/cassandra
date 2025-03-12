@@ -41,7 +41,6 @@ import accord.primitives.TxnId;
 import accord.topology.Topologies;
 import org.apache.cassandra.db.ReadCommand;
 import org.apache.cassandra.db.TypeSizes;
-import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.service.accord.AccordMessageSink.AccordMessageType;
@@ -49,8 +48,10 @@ import org.apache.cassandra.service.accord.serializers.CommandSerializers;
 import org.apache.cassandra.service.accord.serializers.CommandSerializers.ExecuteAtSerializer;
 import org.apache.cassandra.service.accord.serializers.CommitSerializers;
 import org.apache.cassandra.service.accord.serializers.DepsSerializers;
+import org.apache.cassandra.service.accord.serializers.IVersionedSerializer;
 import org.apache.cassandra.service.accord.serializers.KeySerializers;
 import org.apache.cassandra.service.accord.serializers.ReadDataSerializers.ReadDataSerializer;
+import org.apache.cassandra.service.accord.serializers.Version;
 
 import static accord.messages.Commit.WithDeps.HasDeps;
 import static accord.messages.Commit.WithDeps.NoDeps;
@@ -65,49 +66,49 @@ public class AccordInteropStableThenRead extends AccordInteropRead
     public static final IVersionedSerializer<AccordInteropStableThenRead> requestSerializer = new ReadDataSerializer<>()
     {
         @Override
-        public void serialize(AccordInteropStableThenRead read, DataOutputPlus out, int version) throws IOException
+        public void serialize(AccordInteropStableThenRead read, DataOutputPlus out, Version version) throws IOException
         {
-            CommandSerializers.txnId.serialize(read.txnId, out, version);
-            KeySerializers.participants.serialize(read.scope, out, version);
-            CommitSerializers.kind.serialize(read.kind, out, version);
+            CommandSerializers.txnId.serialize(read.txnId, out);
+            KeySerializers.participants.serialize(read.scope, out);
+            CommitSerializers.kind.serialize(read.kind, out);
             out.writeUnsignedVInt(read.minEpoch);
             ExecuteAtSerializer.serialize(read.txnId, read.executeAt, out);
             if (read.kind.withTxn != NoTxn)
                 CommandSerializers.nullablePartialTxn.serialize(read.partialTxn, out, version);
             if (read.kind.withDeps == HasDeps)
-                DepsSerializers.partialDeps.serialize(read.partialDeps, out, version);
+                DepsSerializers.partialDeps.serialize(read.partialDeps, out);
             if (read.kind.withTxn == HasTxn)
-                KeySerializers.fullRoute.serialize(read.route, out, version);
-            ReadCommand.serializer.serialize(read.command, out, version);
+                KeySerializers.fullRoute.serialize(read.route, out);
+            ReadCommand.serializer.serialize(read.command, out, version.messageVersion());
         }
 
         @Override
-        public AccordInteropStableThenRead deserialize(DataInputPlus in, int version) throws IOException
+        public AccordInteropStableThenRead deserialize(DataInputPlus in, Version version) throws IOException
         {
-            TxnId txnId = CommandSerializers.txnId.deserialize(in, version);
-            Participants<?> scope = KeySerializers.participants.deserialize(in, version);
-            Commit.Kind kind = CommitSerializers.kind.deserialize(in, version);
+            TxnId txnId = CommandSerializers.txnId.deserialize(in);
+            Participants<?> scope = KeySerializers.participants.deserialize(in);
+            Commit.Kind kind = CommitSerializers.kind.deserialize(in);
             long minEpoch = in.readUnsignedVInt();
             Timestamp executeAt = ExecuteAtSerializer.deserialize(txnId, in);
             PartialTxn partialTxn = kind.withTxn == NoTxn ? null : CommandSerializers.nullablePartialTxn.deserialize(in, version);
-            PartialDeps partialDeps = kind.withDeps == NoDeps ? null : DepsSerializers.partialDeps.deserialize(in, version);
-            FullRoute < ?> route = kind.withTxn == HasTxn ? KeySerializers.fullRoute.deserialize(in, version) : null;
-            ReadCommand command = ReadCommand.serializer.deserialize(in, version);
+            PartialDeps partialDeps = kind.withDeps == NoDeps ? null : DepsSerializers.partialDeps.deserialize(in);
+            FullRoute < ?> route = kind.withTxn == HasTxn ? KeySerializers.fullRoute.deserialize(in) : null;
+            ReadCommand command = ReadCommand.serializer.deserialize(in, version.messageVersion());
             return new AccordInteropStableThenRead(txnId, scope, kind, minEpoch, executeAt, partialTxn, partialDeps, route, command);
         }
 
         @Override
-        public long serializedSize(AccordInteropStableThenRead read, int version)
+        public long serializedSize(AccordInteropStableThenRead read, Version version)
         {
-            return CommandSerializers.txnId.serializedSize(read.txnId, version)
-                   + KeySerializers.participants.serializedSize(read.scope, version)
-                   + CommitSerializers.kind.serializedSize(read.kind, version)
+            return CommandSerializers.txnId.serializedSize(read.txnId)
+                   + KeySerializers.participants.serializedSize(read.scope)
+                   + CommitSerializers.kind.serializedSize(read.kind)
                    + TypeSizes.sizeofUnsignedVInt(read.minEpoch)
                    + ExecuteAtSerializer.serializedSize(read.txnId, read.executeAt)
                    + (read.kind.withTxn == NoTxn ? 0 : CommandSerializers.nullablePartialTxn.serializedSize(read.partialTxn, version))
-                   + (read.kind.withDeps != HasDeps ? 0 : DepsSerializers.partialDeps.serializedSize(read.partialDeps, version))
-                   + (read.kind.withTxn != HasTxn ? 0 : KeySerializers.fullRoute.serializedSize(read.route, version))
-                   + ReadCommand.serializer.serializedSize(read.command, version);
+                   + (read.kind.withDeps != HasDeps ? 0 : DepsSerializers.partialDeps.serializedSize(read.partialDeps))
+                   + (read.kind.withTxn != HasTxn ? 0 : KeySerializers.fullRoute.serializedSize(read.route))
+                   + ReadCommand.serializer.serializedSize(read.command, version.messageVersion());
         }
     };
 

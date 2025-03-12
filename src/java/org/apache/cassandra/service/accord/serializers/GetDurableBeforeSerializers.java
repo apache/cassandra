@@ -21,50 +21,50 @@ import java.io.IOException;
 
 import accord.messages.GetDurableBefore;
 import accord.messages.GetDurableBefore.DurableBeforeReply;
-import org.apache.cassandra.io.IVersionedSerializer;
+import org.apache.cassandra.io.UnversionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 
 public class GetDurableBeforeSerializers
 {
-    public static final IVersionedSerializer<GetDurableBefore> request = new IVersionedSerializer<GetDurableBefore>()
+    public static final UnversionedSerializer<GetDurableBefore> request = new UnversionedSerializer<GetDurableBefore>()
     {
         @Override
-        public void serialize(GetDurableBefore msg, DataOutputPlus out, int version) throws IOException
+        public void serialize(GetDurableBefore msg, DataOutputPlus out) throws IOException
         {
         }
 
         @Override
-        public GetDurableBefore deserialize(DataInputPlus in, int version) throws IOException
+        public GetDurableBefore deserialize(DataInputPlus in) throws IOException
         {
             return new GetDurableBefore();
         }
 
         @Override
-        public long serializedSize(GetDurableBefore msg, int version)
+        public long serializedSize(GetDurableBefore msg)
         {
             return 0;
         }
     };
 
-    public static final IVersionedSerializer<DurableBeforeReply> reply = new IVersionedSerializer<DurableBeforeReply>()
+    public static final UnversionedSerializer<DurableBeforeReply> reply = new UnversionedSerializer<DurableBeforeReply>()
     {
         @Override
-        public void serialize(DurableBeforeReply msg, DataOutputPlus out, int version) throws IOException
+        public void serialize(DurableBeforeReply msg, DataOutputPlus out) throws IOException
         {
-            CommandStoreSerializers.durableBefore.serialize(msg.durableBeforeMap, out, version);
+            CommandStoreSerializers.durableBefore.serialize(msg.durableBeforeMap, out);
         }
 
         @Override
-        public DurableBeforeReply deserialize(DataInputPlus in, int version) throws IOException
+        public DurableBeforeReply deserialize(DataInputPlus in) throws IOException
         {
-            return new DurableBeforeReply(CommandStoreSerializers.durableBefore.deserialize(in, version));
+            return new DurableBeforeReply(CommandStoreSerializers.durableBefore.deserialize(in));
         }
 
         @Override
-        public long serializedSize(DurableBeforeReply msg, int version)
+        public long serializedSize(DurableBeforeReply msg)
         {
-            return CommandStoreSerializers.durableBefore.serializedSize(msg.durableBeforeMap, version);
+            return CommandStoreSerializers.durableBefore.serializedSize(msg.durableBeforeMap);
         }
     };
 }

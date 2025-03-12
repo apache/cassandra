@@ -128,7 +128,7 @@ public final class PartitionKey extends AccordRoutableKey implements Key
         private Serializer() {}
 
         @Override
-        public void serialize(PartitionKey key, DataOutputPlus out, int version) throws IOException
+        public void serialize(PartitionKey key, DataOutputPlus out) throws IOException
         {
             key.table().serializeCompact(out);
             ByteBufferUtil.writeWithShortLength(key.partitionKey().getKey(), out);
@@ -149,14 +149,14 @@ public final class PartitionKey extends AccordRoutableKey implements Key
         }
 
         @Override
-        public void skip(DataInputPlus in, int version) throws IOException
+        public void skip(DataInputPlus in) throws IOException
         {
             TableId.skipCompact(in);
             ByteBufferUtil.skipShortLength(in);
         }
 
         @Override
-        public PartitionKey deserialize(DataInputPlus in, int version) throws IOException
+        public PartitionKey deserialize(DataInputPlus in) throws IOException
         {
             TableId tableId = TableId.deserializeCompact(in).intern();
             DecoratedKey key = getPartitioner().decorateKey(ByteBufferUtil.readWithShortLength(in));
@@ -176,11 +176,6 @@ public final class PartitionKey extends AccordRoutableKey implements Key
         }
 
         @Override
-        public long serializedSize(PartitionKey key, int version)
-        {
-            return serializedSize(key);
-        }
-
         public long serializedSize(PartitionKey key)
         {
             return key.table().serializedCompactSize() + ByteBufferUtil.serializedSizeWithShortLength(key.partitionKey().getKey());
