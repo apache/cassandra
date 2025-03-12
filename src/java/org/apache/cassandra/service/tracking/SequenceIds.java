@@ -129,7 +129,7 @@ public class SequenceIds
         if (pos >= 0) return true; // matches one of the bounds
 
         pos = -pos - 1;
-        return ((pos - 1) % 2 == 0); // id falls within bounds of an existing range if the bound to the left is an open one
+        return (pos - 1) % 2 == 0; // id falls within bounds of an existing range if the bound to the left is an open one
     }
 
     public void digest(Digest digest)
@@ -148,6 +148,13 @@ public class SequenceIds
     public void addAll(SequenceIds other)
     {
         addAll(other, RangeConsumer.NONE);
+    }
+
+    public boolean add(long id, RangeConsumer onAdded)
+    {
+        boolean added = add(id);
+        if (added) onAdded.consume(id, id);
+        return added;
     }
 
     public boolean add(long id)
@@ -222,26 +229,26 @@ public class SequenceIds
         return rangeStart(range) + 1;
     }
 
-    private static long sequenceId(int sequence)
+    private static long sequenceId(int offset)
     {
-        return MutationId.sequenceId(sequence, 0);
+        return MutationId.sequenceId(offset, 0);
     }
 
     private enum AddAction
     {
         INSERT, MOVE, INCLUDE;
 
-        boolean move()
+        boolean isMove()
         {
             return this == MOVE;
         }
 
-        boolean include()
+        boolean isInclude()
         {
             return this == INCLUDE;
         }
 
-        boolean insert()
+        boolean isInsert()
         {
             return this == INSERT;
         }
@@ -254,6 +261,8 @@ public class SequenceIds
 
     public boolean add(long start, long end, RangeConsumer onAdded)
     {
+        Preconditions.checkArgument(start <= end);
+
         if (size == 0)
         {
             append(start, end);
@@ -261,14 +270,8 @@ public class SequenceIds
         }
 
         if (start == end)
-        {
-            boolean added = add(start);
-            if (added)
-                onAdded.consume(start, end);
-            return added;
-        }
+            return add(start, onAdded);
 
-        Preconditions.checkArgument(start < end);
         int spos = Arrays.binarySearch(bounds, 0, size, start);
         int epos = Arrays.binarySearch(bounds, 0, size, end);
 
@@ -345,7 +348,7 @@ public class SequenceIds
         }
 
         // this range isn't adjacent and doesn't intersect any existing, so create a new range
-        if (sMerge.move() && eMerge.insert())
+        if (sMerge.isMove() && eMerge.isInsert())
         {
             Preconditions.checkState(sRange == eRange);
             onAdded.consume(start, end);
@@ -354,7 +357,7 @@ public class SequenceIds
         }
 
         // this should only happen if we're adding a range to the very end of the set
-        if (sMerge.insert() && eMerge.move())
+        if (sMerge.isInsert() && eMerge.isMove())
         {
             Preconditions.checkState(sRange == eRange);
             Preconditions.checkState(sRange == numRanges - 1);
@@ -364,7 +367,7 @@ public class SequenceIds
         }
 
         boolean adjusted = false;
-        if (sMerge.move())
+        if (sMerge.isMove())
         {
             onAdded.consume(start, sequenceId(offset(bounds[rangeStart(sRange)]) - 1));
             bounds[rangeStart(sRange)] = start;
@@ -398,7 +401,7 @@ public class SequenceIds
             }
         }
 
-        if (eMerge.move())
+        if (eMerge.isMove())
         {
             onAdded.consume(sequenceId(offset(bounds[rangeEnd(eRange)]) + 1), end);
             bounds[rangeEnd(eRange)] = end;
@@ -835,7 +838,7 @@ public class SequenceIds
         void consume(long start, long end);
     }
 
-    public static final IVersionedSerializer<SequenceIds> serializer = new IVersionedSerializer<SequenceIds>()
+    public static final IVersionedSerializer<SequenceIds> serializer = new IVersionedSerializer<>()
     {
         @Override
         public void serialize(SequenceIds ids, DataOutputPlus out, int version) throws IOException
@@ -849,7 +852,7 @@ public class SequenceIds
         public SequenceIds deserialize(DataInputPlus in, int version) throws IOException
         {
             int size = in.readInt();
-            Preconditions.checkArgument(size > 0 && size % 2 == 0);
+            Preconditions.checkArgument(size >= 0 && size % 2 == 0);
             long[] bounds = new long[size];
             for (int i = 0; i < size; i++)
                 bounds[i] = in.readLong();
@@ -859,7 +862,7 @@ public class SequenceIds
         @Override
         public long serializedSize(SequenceIds ids, int version)
         {
-            return TypeSizes.INT_SIZE + (TypeSizes.LONG_SIZE * ids.size);
+            return TypeSizes.INT_SIZE + ((long) TypeSizes.LONG_SIZE * ids.size);
         }
     };
 }
