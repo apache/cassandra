@@ -22,8 +22,8 @@ import java.util.Collections;
 import java.util.Set;
 
 import com.google.common.collect.Iterables;
-import org.apache.cassandra.replication.PendingWrite;
-import org.apache.cassandra.replication.PendingWrites;
+import org.apache.cassandra.replication.MutationTracker.ListeningPendingRead;
+import org.apache.cassandra.replication.MutationTracker.PendingWrite;
 import org.junit.Assert;
 import org.junit.Test;
 import org.slf4j.Logger;
@@ -212,7 +212,7 @@ public class MutationTrackingPendingReadTest
 
                 int nowInSeconds = (int) FBUtilities.nowInSeconds();
                 SinglePartitionReadCommand command = SinglePartitionReadCommand.fullPartitionRead(metadata, nowInSeconds, dk);
-                try (PendingWrites.ListeningPendingRead pendingRead = (PendingWrites.ListeningPendingRead) MutationTrackingService.instance().startRead(command))
+                try (ListeningPendingRead pendingRead = (ListeningPendingRead) MutationTrackingService.instance().startRead(command))
                 {
                     Assert.assertTrue(pendingRead.mutationIds().isEmpty());
 
