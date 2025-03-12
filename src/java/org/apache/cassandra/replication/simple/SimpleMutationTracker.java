@@ -15,23 +15,22 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package org.apache.cassandra.replication.simple;
 
+import java.util.*;
+import java.util.concurrent.locks.ReadWriteLock;
+import java.util.concurrent.locks.ReentrantReadWriteLock;
+
 import com.google.common.base.Preconditions;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
 import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.replication.*;
 import org.apache.cassandra.schema.TableId;
-import org.apache.cassandra.service.tracking.MutationJournal;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
-import java.util.*;
-import java.util.concurrent.locks.ReadWriteLock;
-import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 public class SimpleMutationTracker implements MutationTracker
 {
@@ -39,7 +38,7 @@ public class SimpleMutationTracker implements MutationTracker
 
     public static class KeyIds
     {
-        private final SortedSet<MutationId> mutationIds = new TreeSet<MutationId>();
+        private final SortedSet<MutationId> mutationIds = new TreeSet<>();
 
         private void add(MutationId id)
         {
@@ -49,7 +48,7 @@ public class SimpleMutationTracker implements MutationTracker
 
     public static class TableIds
     {
-        private final Map<DecoratedKey, KeyIds> tableIds = new HashMap<DecoratedKey, KeyIds>();
+        private final Map<DecoratedKey, KeyIds> tableIds = new HashMap<>();
 
         public void add(DecoratedKey key, MutationId mutationId)
         {
@@ -58,14 +57,13 @@ public class SimpleMutationTracker implements MutationTracker
     }
 
     private final ReadWriteLock lock = new ReentrantReadWriteLock();
-    private final Map<TableId, TableIds> tableIds = new HashMap<TableId, TableIds>();
+    private final Map<TableId, TableIds> tableIds = new HashMap<>();
 
     private final PendingWrites pendingWrites = new PendingWrites();
 
     @Override
     public void start()
     {
-
     }
 
     @Override

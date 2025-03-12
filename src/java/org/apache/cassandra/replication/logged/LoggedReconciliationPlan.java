@@ -15,18 +15,17 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package org.apache.cassandra.replication.logged;
 
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableMap;
 import org.apache.cassandra.db.MutationId;
 import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.replication.CoordinatorLogId;
 import org.apache.cassandra.replication.MutationSummary;
+import org.apache.cassandra.replication.Offsets;
 import org.apache.cassandra.replication.ReconciliationPlan;
 import org.apache.cassandra.replication.logged.LoggedMutationSummary.CoordinatorSummary;
-import org.apache.cassandra.service.tracking.CoordinatorLogId;
-import org.apache.cassandra.service.tracking.Offsets;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -55,17 +54,13 @@ public class LoggedReconciliationPlan implements ReconciliationPlan
                 this.to = to;
             }
 
-            void send(CoordinatorLogId logId, Offsets sequenceIds)
+            void send(CoordinatorLogId logId, Offsets offsets)
             {
-                if (coordinatorIds.containsKey(logId))
-                {
-                    Offsets existing = coordinatorIds.get(logId);
-                    coordinatorIds.put(logId, Offsets.union(existing, sequenceIds));
-                }
+                Offsets existing = coordinatorIds.get(logId);
+                if (existing != null)
+                    coordinatorIds.put(logId, Offsets.union(existing, offsets));
                 else
-                {
-                    coordinatorIds.put(logId, sequenceIds);
-                }
+                    coordinatorIds.put(logId, offsets);
             }
 
             PeerReconciliation build()

@@ -15,7 +15,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.apache.cassandra.service.tracking;
+package org.apache.cassandra.replication;
 
 import java.util.function.IntSupplier;
 
@@ -26,8 +26,8 @@ import org.apache.cassandra.db.PartitionPosition;
 import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
+import org.apache.cassandra.replication.CoordinatorLog.CoordinatorLogPrimary;
 import org.apache.cassandra.replication.logged.LoggedMutationSummary;
-import org.apache.cassandra.service.tracking.CoordinatorLog.CoordinatorLogPrimary;
 import org.apache.cassandra.tcm.Epoch;
 import org.jctools.maps.NonBlockingHashMapLong;
 

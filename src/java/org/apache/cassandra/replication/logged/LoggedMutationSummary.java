@@ -15,8 +15,11 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package org.apache.cassandra.replication.logged;
+
+import java.io.IOException;
+import java.util.Arrays;
+import java.util.Comparator;
 
 import org.agrona.collections.Long2ObjectHashMap;
 import org.apache.cassandra.db.Digest;
@@ -24,20 +27,17 @@ import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
+import org.apache.cassandra.replication.CoordinatorLogId;
 import org.apache.cassandra.replication.MutationSummary;
+import org.apache.cassandra.replication.Offsets;
 import org.apache.cassandra.schema.TableId;
-import org.apache.cassandra.service.tracking.CoordinatorLogId;
-import org.apache.cassandra.service.tracking.Offsets;
-
-import java.io.IOException;
-import java.util.Arrays;
-import java.util.Comparator;
 
 public class LoggedMutationSummary implements MutationSummary
 {
     public static class CoordinatorSummary
     {
-        private static final Comparator<CoordinatorSummary> idComparator = (o1, o2) -> o1.logId.compareTo(o2.logId);
+        private static final Comparator<CoordinatorSummary> idComparator = Comparator.comparing(o -> o.logId);
+
         public final CoordinatorLogId logId;
         public final Offsets reconciled;
         public final Offsets unreconciled;
@@ -73,7 +73,7 @@ public class LoggedMutationSummary implements MutationSummary
             }
         }
 
-        public static final IVersionedSerializer<CoordinatorSummary> serializer = new IVersionedSerializer<CoordinatorSummary>()
+        public static final IVersionedSerializer<CoordinatorSummary> serializer = new IVersionedSerializer<>()
         {
             @Override
             public void serialize(CoordinatorSummary t, DataOutputPlus out, int version) throws IOException
@@ -185,7 +185,7 @@ public class LoggedMutationSummary implements MutationSummary
         return summaries[i];
     }
 
-    public static final IVersionedSerializer<LoggedMutationSummary> serializer = new IVersionedSerializer<LoggedMutationSummary>()
+    public static final IVersionedSerializer<LoggedMutationSummary> serializer = new IVersionedSerializer<>()
     {
         @Override
         public void serialize(LoggedMutationSummary summary, DataOutputPlus out, int version) throws IOException

@@ -15,24 +15,23 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+package org.apache.cassandra.replication;
 
-package org.apache.cassandra.service.tracking;
+import java.util.List;
+
+import org.junit.Assert;
+import org.junit.Test;
 
 import org.apache.cassandra.db.MutationId;
 import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.dht.Token;
-import org.apache.cassandra.service.tracking.CoordinatorLog.CoordinatorLogPrimary;
-import org.junit.Assert;
-import org.junit.Test;
-
-import java.util.List;
+import org.apache.cassandra.replication.CoordinatorLog.CoordinatorLogPrimary;
 
 public class CoordinatorLogTest
 {
     private static final int LOCAL_HOST_ID = 1;
     private static final CoordinatorLogId LOG_ID = new CoordinatorLogId(LOCAL_HOST_ID, 1);
     private static final Participants PARTICIPANTS = new Participants(List.of(LOCAL_HOST_ID, 2, 3));
-
 
     private static Token tk(long t)
     {
