@@ -47,6 +47,11 @@ public class MutationSummary
             this.unreconciled = unreconciled;
         }
 
+        boolean contains(int offset)
+        {
+            return reconciled.contains(offset) || unreconciled.contains(offset);
+        }
+
         void digest(Digest digest)
         {
             digest.updateWithLong(logId.asLong());
@@ -134,21 +139,21 @@ public class MutationSummary
 
     private final TableId tableId;
     private final CoordinatorSummary[] summaries;
+    private transient final Long2ObjectHashMap<CoordinatorSummary> coordinatorSummaryMap = new Long2ObjectHashMap<>();
 
     private MutationSummary(TableId tableId, CoordinatorSummary[] summaries)
     {
-        if (summaries.length > 1)
+        long lastId = 0;
+        for (int i=0; i<summaries.length; i++)
         {
-            // validate order
-            long lastId = summaries[0].logId.asLong();
-            for (int i=1; i < summaries.length; i++)
-            {
-                long thisId = summaries[i].logId.asLong();
-                if (thisId <=lastId)
-                    throw new IllegalArgumentException("duplicated or unsorted log id found");
-                lastId = thisId;
-            }
+            long thisId = summaries[i].logId.asLong();
+            if (i > 0 && thisId <= lastId)
+                throw new IllegalArgumentException("duplicated or unsorted log id found");
+
+            coordinatorSummaryMap.put(thisId, summaries[i]);
+            lastId = thisId;
         }
+
         this.tableId = tableId;
         this.summaries = summaries;
     }
@@ -171,9 +176,20 @@ public class MutationSummary
         return digest.digest();
     }
 
+    boolean contains(MutationId id)
+    {
+        CoordinatorSummary summary = coordinatorSummaryMap.get(id.logId);
+        return summary != null && summary.contains(id.offset());
+    }
+
     int size()
     {
         return summaries.length;
+    }
+
+    boolean isEmpty()
+    {
+        return size() == 0;
     }
 
     CoordinatorSummary get(int i)
