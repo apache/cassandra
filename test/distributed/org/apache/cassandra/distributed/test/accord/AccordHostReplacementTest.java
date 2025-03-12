@@ -55,6 +55,8 @@ public class AccordHostReplacementTest extends TestBaseImpl
         Cluster.Builder clusterBuilder = Cluster.build(3)
                                                 .withConfig(c -> c.with(Feature.values())
                                                                   .set("accord.command_store_shard_count", "1")
+                                                                  .set("write_request_timeout", "10s")
+                                                                  .set("read_request_timeout", "10s")
                                                                   .set("accord.queue_shard_count", "1")
                                                 );
         TokenSupplier tokenRing = TokenSupplier.evenlyDistributedTokens(3, clusterBuilder.getTokenCount());
