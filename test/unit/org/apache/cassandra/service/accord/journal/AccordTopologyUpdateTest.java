@@ -35,12 +35,17 @@ import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.io.Serializers;
 import org.apache.cassandra.io.util.DataOutputBuffer;
+import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.utils.AccordGenerators;
 
 import static accord.utils.Property.qt;
 
 public class AccordTopologyUpdateTest
 {
+    private static final long[] EPOCHS = new long[0];
+    private static final Ranges[] RANGES = new Ranges[0];
+    private static final TableId TBL1 = TableId.fromRaw(0, 0);
+
     static
     {
         DatabaseDescriptor.clientInitialization();
@@ -84,14 +89,17 @@ public class AccordTopologyUpdateTest
 
     private static Gen<CommandStores.RangesForEpoch> rangesForEpochGen()
     {
+        return AccordGenerators.partitioner().flatMap(p -> rangesForEpochGen(AccordGenerators.rangesSplitOrArbitrary(p)));
+    }
+
+    private static Gen<CommandStores.RangesForEpoch> rangesForEpochGen(Gen<Ranges> rangesGen)
+    {
         Gen.IntGen sizeGen = Gens.ints().between(0, 10);
         Gen.LongGen epochGen = AccordGens.epochs();
-        Gen<IPartitioner> partitionerGen = AccordGenerators.partitioner();
         return rs -> {
             int size = sizeGen.nextInt(rs);
             if (size == 0)
-                return new CommandStores.RangesForEpoch(new long[0], new Ranges[0]);
-            Gen<Ranges> rangesGen = AccordGenerators.rangesSplitOrArbitrary(partitionerGen.next(rs));
+                return new CommandStores.RangesForEpoch(EPOCHS, RANGES);
             long epoch = epochGen.nextLong(rs);
             long[] epochs = new long[size];
             Ranges[] ranges = new Ranges[size];
@@ -106,10 +114,12 @@ public class AccordTopologyUpdateTest
 
     private static Gen<Journal.TopologyUpdate> topologyUpdateGen()
     {
-        Gen<CommandStores.RangesForEpoch> rangesForEpochGen = rangesForEpochGen();
+        Gen<IPartitioner> partitionerGen = AccordGenerators.partitioner();
         return rs -> {
-            IPartitioner partitioner = AccordGenerators.partitioner().next(rs);
-            Topology topology = AccordGenerators.topologyGen(partitioner).next(rs);
+            IPartitioner partitioner = partitionerGen.next(rs);
+            Gen<Ranges> rangesGen = AccordGenerators.ranges(TBL1, partitioner);
+            Gen<CommandStores.RangesForEpoch> rangesForEpochGen = rangesForEpochGen(rangesGen);
+            Topology topology = AccordGenerators.topologyGen(rangesGen).next(rs);
 
             Int2ObjectHashMap<CommandStores.RangesForEpoch> commandStores = new Int2ObjectHashMap<>();
             for (Node.Id node : topology.nodes())
@@ -154,11 +164,11 @@ public class AccordTopologyUpdateTest
     {
         if (expected.size() > 0)
         {
-            outter: for (int i = 0; i < expected.size(); i++)
+            for (int i = 0; i < expected.size(); i++)
             {
                 Ranges ranges = expected.rangesAtIndex(i);
                 if (AccordGenerators.maybeUpdatePartitioner(ranges))
-                    break outter;
+                    return;
             }
         }
     }

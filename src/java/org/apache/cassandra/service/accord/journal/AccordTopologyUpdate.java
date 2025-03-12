@@ -22,6 +22,7 @@ import java.io.IOException;
 import java.util.Iterator;
 import java.util.Map;
 import java.util.NavigableMap;
+import java.util.Objects;
 import java.util.TreeMap;
 import java.util.function.Function;
 
@@ -63,17 +64,11 @@ public interface AccordTopologyUpdate
         public void serialize(CommandStores.RangesForEpoch from, DataOutputPlus out) throws IOException
         {
             out.writeUnsignedVInt32(from.size());
-            from.forEach((epoch, ranges) -> {
-                try
-                {
-                    out.writeLong(epoch);
-                    KeySerializers.ranges.serialize(ranges, out);
-                }
-                catch (Throwable t)
-                {
-                    throw new IllegalStateException("Serialization error", t);
-                }
-            });
+            for (int i = 0; i < from.size(); i++)
+            {
+                out.writeLong(from.epochAtIndex(i));
+                KeySerializers.ranges.serialize(from.rangesAtIndex(i), out);
+            }
         }
 
         @Override
@@ -97,11 +92,8 @@ public interface AccordTopologyUpdate
             long size = TypeSizes.sizeofUnsignedVInt(from.size());
             for (int i = 0; i < from.size(); i++)
             {
-                long epoch = from.epochAtIndex(i);
-                size += TypeSizes.sizeof(epoch);
-
-                Ranges ranges = from.rangesAtIndex(i);
-                size += KeySerializers.ranges.serializedSize(ranges);
+                size += TypeSizes.sizeof(from.epochAtIndex(i));
+                size += KeySerializers.ranges.serializedSize(from.rangesAtIndex(i));
             }
             return size;
         }
@@ -192,7 +184,7 @@ public interface AccordTopologyUpdate
         @Override
         public AccordTopologyUpdate deserialize(DataInputPlus in) throws IOException
         {
-            int epoch = in.readUnsignedVInt32();
+            long epoch = in.readUnsignedVInt();
             Kind kind = Kind.values()[in.readUnsignedVInt32()];
             switch (kind)
             {
@@ -300,6 +292,21 @@ public interface AccordTopologyUpdate
             accumulator.closed = accumulator.closed.with(closed);
             accumulator.retired = accumulator.retired.with(retired);
         }
+
+        @Override
+        public boolean equals(Object o)
+        {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            TopologyImage that = (TopologyImage) o;
+            return epoch == that.epoch && Objects.equals(update, that.update) && syncStatus == that.syncStatus && closed.equals(that.closed) && retired.equals(that.retired);
+        }
+
+        @Override
+        public int hashCode()
+        {
+            return Objects.hash(update, syncStatus, closed, retired, epoch);
+        }
     }
 
     class NewTopology implements AccordTopologyUpdate
@@ -331,6 +338,21 @@ public interface AccordTopologyUpdate
             Invariants.require(accumulator.epoch == epoch);
             Invariants.require(accumulator.update == null);
             accumulator.update = update;
+        }
+
+        @Override
+        public boolean equals(Object o)
+        {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            NewTopology that = (NewTopology) o;
+            return epoch == that.epoch && update.equals(that.update);
+        }
+
+        @Override
+        public int hashCode()
+        {
+            return Objects.hash(update, epoch);
         }
     }
 

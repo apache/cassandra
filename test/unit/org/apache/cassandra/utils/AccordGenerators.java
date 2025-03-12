@@ -462,6 +462,12 @@ public class AccordGenerators
         return ranges(Gens.lists(fromQT(CassandraGenerators.TABLE_ID_GEN)).unique().ofSizeBetween(1, 10).map(l -> new HashSet<>(l)), ignore -> partitioner);
     }
 
+    public static Gen<Ranges> ranges(TableId tableId, IPartitioner partitioner)
+    {
+        Set<TableId> tables = Collections.singleton(tableId);
+        return ranges(i -> tables, i -> partitioner);
+    }
+
     public static Gen<Ranges> rangesArbitrary(IPartitioner partitioner)
     {
         Gen<Range> rangeGen = range(partitioner);
@@ -678,7 +684,16 @@ public class AccordGenerators
 
     public static Gen<Topology> topologyGen(Gen.LongGen epochGen, IPartitioner partitioner)
     {
-        Gen<Ranges> rangesGen = ranges(partitioner);
+        return topologyGen(epochGen, ranges(partitioner));
+    }
+
+    public static Gen<Topology> topologyGen(Gen<Ranges> rangesGen)
+    {
+        return topologyGen(AccordGens.epochs(), rangesGen);
+    }
+
+    public static Gen<Topology> topologyGen(Gen.LongGen epochGen, Gen<Ranges> rangesGen)
+    {
         return rs -> {
             long epoch = epochGen.nextLong(rs);
             Ranges ranges = rangesGen.next(rs);
