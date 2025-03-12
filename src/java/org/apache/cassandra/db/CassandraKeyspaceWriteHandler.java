@@ -43,7 +43,7 @@ public class CassandraKeyspaceWriteHandler implements KeyspaceWriteHandler
     public WriteContext beginWrite(Mutation mutation, boolean makeDurable) throws RequestExecutionException
     {
         OpOrder.Group group = null;
-        PendingWrite pendingWrite = null;
+        PendingWrite pendingWrite = PendingWrite.NOOP;
         try
         {
             group = Keyspace.writeOrder.start();
