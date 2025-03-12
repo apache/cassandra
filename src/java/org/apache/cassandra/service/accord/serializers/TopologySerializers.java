@@ -136,7 +136,7 @@ public class TopologySerializers
         public void serialize(Topology topology, DataOutputPlus out) throws IOException
         {
             out.writeLong(topology.epoch());
-            ArraySerializers.serializeArray(topology.unsafeGetShards(), out, shard);
+            CollectionSerializers.serializeList(topology.shards(), out, shard);
             CollectionSerializers.serializeCollection(topology.staleIds(), out, TopologySerializers.nodeId);
         }
 
@@ -154,7 +154,7 @@ public class TopologySerializers
         {
             long size = 0;
             size += TypeSizes.LONG_SIZE; // epoch
-            size += ArraySerializers.serializedArraySize(topology.unsafeGetShards(), shard);
+            size += CollectionSerializers.serializedListSize(topology.shards(), shard);
             size += CollectionSerializers.serializedCollectionSize(topology.staleIds(), TopologySerializers.nodeId);
             return size;
         }
