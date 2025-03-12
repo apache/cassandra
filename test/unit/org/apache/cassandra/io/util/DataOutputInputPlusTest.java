@@ -30,14 +30,14 @@ public class DataOutputInputPlusTest
     @Test
     public void leastSignificantBytes()
     {
-        DataOutputBuffer output = new DataOutputBuffer();
+        @SuppressWarnings({ "resource", "IOResourceOpenedButNotSafelyClosed" }) DataOutputBuffer output = new DataOutputBuffer();
         qt().forAll(Gens.longs().all()).check(expected -> {
             output.clear();
 
             int expectedSize = numberOfBytes(expected);
             output.writeLeastSignificantBytes(expected, expectedSize);
             Assertions.assertThat(output.getLength()).describedAs("The serialized size and bytes written do not match").isEqualTo(expectedSize);
-            DataInputBuffer in = new DataInputBuffer(output.unsafeGetBufferAndFlip(), false);
+            @SuppressWarnings({ "resource", "IOResourceOpenedButNotSafelyClosed" }) DataInputBuffer in = new DataInputBuffer(output.unsafeGetBufferAndFlip(), false);
             long read = in.readLeastSignificantBytes(expectedSize);
             Assertions.assertThat(read).describedAs("The deserialized output does not match the serialized input").isEqualTo(expected);
         });
