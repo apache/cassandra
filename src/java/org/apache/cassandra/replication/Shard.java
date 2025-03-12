@@ -21,7 +21,6 @@ import java.util.function.IntSupplier;
 
 import com.google.common.base.Preconditions;
 import org.apache.cassandra.db.Mutation;
-import org.apache.cassandra.db.MutationId;
 import org.apache.cassandra.db.PartitionPosition;
 import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.dht.Range;

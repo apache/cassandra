@@ -35,7 +35,7 @@ import com.google.common.collect.Sets;
 
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.Digest;
-import org.apache.cassandra.db.MutationId;
+import org.apache.cassandra.replication.MutationId;
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.io.IVersionedSerializer;

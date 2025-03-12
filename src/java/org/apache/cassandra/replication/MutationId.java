@@ -15,10 +15,11 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.apache.cassandra.db;
+package org.apache.cassandra.replication;
 
 import java.io.IOException;
 
+import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
@@ -111,14 +112,6 @@ public class MutationId implements Comparable<MutationId>
         return logId == Long.MIN_VALUE && sequenceId == Long.MIN_VALUE;
     }
 
-    public static MutationId minNotNone(MutationId l, MutationId r)
-    {
-        if (l.isNone() || r.isNone())
-            return l.isNone() ? r : l;
-
-        return l.compareTo(r) < 0 ? l : r;
-    }
-
     @Override
     public boolean equals(Object o)
     {
@@ -137,12 +130,7 @@ public class MutationId implements Comparable<MutationId>
     @Override
     public String toString()
     {
-        return "MutationId{" + logId + ", " + sequenceString(sequenceId) + '}';
-    }
-
-    public static String sequenceString(long sequence)
-    {
-        return '<' + Integer.toString(offset(sequence)) + ',' + Integer.toString(timestamp(sequence)) + '>';
+        return "MutationId{" + hostId() + ", " + hostLogId() + ", " + offset() + ", " + timestamp() + '}';
     }
 
     @Override

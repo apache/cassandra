@@ -22,7 +22,6 @@ import java.util.List;
 import org.junit.Assert;
 import org.junit.Test;
 
-import org.apache.cassandra.db.MutationId;
 import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.replication.CoordinatorLog.CoordinatorLogPrimary;

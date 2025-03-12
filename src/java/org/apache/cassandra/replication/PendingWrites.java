@@ -20,7 +20,6 @@ package org.apache.cassandra.replication;
 
 import com.google.common.collect.Sets;
 import org.apache.cassandra.db.Mutation;
-import org.apache.cassandra.db.MutationId;
 import org.apache.cassandra.db.ReadCommand;
 import org.apache.cassandra.db.partitions.UnfilteredPartitionIterator;
 import org.apache.cassandra.replication.simple.SimpleMutationSummary;

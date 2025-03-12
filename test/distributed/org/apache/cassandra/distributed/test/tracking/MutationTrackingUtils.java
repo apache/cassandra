@@ -30,7 +30,7 @@ import org.junit.Assert;
 import org.junit.Assume;
 
 import org.apache.cassandra.db.DecoratedKey;
-import org.apache.cassandra.db.MutationId;
+import org.apache.cassandra.replication.MutationId;
 import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
