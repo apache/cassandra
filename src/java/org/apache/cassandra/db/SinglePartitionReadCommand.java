@@ -881,8 +881,7 @@ public class SinglePartitionReadCommand extends ReadCommand implements SinglePar
         return UnfilteredPartitionIterators.merge(partitions, UnfilteredPartitionIterators.MergeListener.NOOP);
     }
 
-    @Override
-    public MutationSummary createMutationSummary()
+    protected MutationSummary createMutationSummaryInternal()
     {
         return MutationTrackingService.instance().summaryForKey(metadata().id, partitionKey);
     }

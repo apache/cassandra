@@ -472,7 +472,15 @@ public abstract class ReadCommand extends AbstractReadQuery
      */
     public abstract UnfilteredPartitionIterator augmentResultWithMutations(UnfilteredPartitionIterator result, Collection<Mutation> mutations);
 
-    public abstract MutationSummary createMutationSummary();
+    protected abstract MutationSummary createMutationSummaryInternal();
+
+    public MutationSummary createMutationSummary()
+    {
+        if (!responseType.isLogged())
+            return null;
+
+        return createMutationSummaryInternal();
+    }
 
     /**
      * Whether the underlying {@code ClusteringIndexFilter} is reversed or not.

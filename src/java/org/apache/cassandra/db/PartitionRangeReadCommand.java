@@ -433,7 +433,7 @@ public class PartitionRangeReadCommand extends ReadCommand implements PartitionR
     }
 
     @Override
-    public MutationSummary createMutationSummary()
+    protected MutationSummary createMutationSummaryInternal()
     {
         return MutationTrackingService.instance().summaryForRange(metadata().id, dataRange.keyRange);
     }
