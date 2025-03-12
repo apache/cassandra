@@ -185,7 +185,7 @@ public class Config
     public volatile DurationSpec.IntMillisecondsBound cms_default_retry_backoff = null;
     @Deprecated(since="5.1")
     public volatile DurationSpec.IntMillisecondsBound cms_default_max_retry_backoff = null;
-    public String cms_retry_delay = "0 <= 50ms*1*attempts <= 10s,retries=10";
+    public String cms_retry_delay = "0 <= 50ms*1*attempts <= 1s,retries=10";
 
     /**
      * How often we should snapshot the cluster metadata.
