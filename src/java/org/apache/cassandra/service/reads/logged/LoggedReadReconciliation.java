@@ -54,7 +54,6 @@ import org.apache.cassandra.net.Verb;
 import org.apache.cassandra.replication.MutationSummary;
 import org.apache.cassandra.replication.MutationTrackingService;
 import org.apache.cassandra.replication.ReconciliationPlan;
-import org.apache.cassandra.replication.simple.SimpleReconciliationPlan;
 import org.apache.cassandra.service.reads.IReadResponse;
 import org.apache.cassandra.service.reads.ResponseResolver;
 import org.apache.cassandra.service.reads.repair.ReadRepair;
@@ -366,7 +365,7 @@ public class LoggedReadReconciliation<E extends Endpoints<E>, P extends ReplicaP
             }
         }
 
-        Map<InetAddressAndPort, ReconciliationPlan> plans = SimpleReconciliationPlan.calculateReconciliation(summaries);
+        Map<InetAddressAndPort, ReconciliationPlan> plans = ReconciliationPlan.calculateReconciliation(summaries);
 
         Preconditions.checkState(dataNode != null);
         Preconditions.checkState(dataResponse != null);

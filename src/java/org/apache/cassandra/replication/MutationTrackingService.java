@@ -18,12 +18,6 @@
 
 package org.apache.cassandra.replication;
 
-import java.io.IOException;
-
-import org.apache.cassandra.io.IVersionedSerializer;
-import org.apache.cassandra.io.util.DataInputPlus;
-import org.apache.cassandra.io.util.DataOutputPlus;
-import org.apache.cassandra.replication.simple.SimpleReconciliationPlan;
 import org.apache.cassandra.service.reads.logged.ReadReconciliations;
 
 public class MutationTrackingService
@@ -53,25 +47,4 @@ public class MutationTrackingService
     {
         reconciliations.shutdownBlocking();
     }
-
-    public static final IVersionedSerializer<ReconciliationPlan> reconciliationPlanSerializer = new IVersionedSerializer<ReconciliationPlan>()
-    {
-        @Override
-        public void serialize(ReconciliationPlan plan, DataOutputPlus out, int version) throws IOException
-        {
-            SimpleReconciliationPlan.serializer.serialize((SimpleReconciliationPlan) plan, out, version);
-        }
-
-        @Override
-        public ReconciliationPlan deserialize(DataInputPlus in, int version) throws IOException
-        {
-            return SimpleReconciliationPlan.serializer.deserialize(in, version);
-        }
-
-        @Override
-        public long serializedSize(ReconciliationPlan plan, int version)
-        {
-            return SimpleReconciliationPlan.serializer.serializedSize((SimpleReconciliationPlan) plan, version);
-        }
-    };
 }

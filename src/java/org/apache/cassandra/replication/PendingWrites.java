@@ -24,8 +24,8 @@ import org.apache.cassandra.db.ReadCommand;
 import org.apache.cassandra.db.partitions.UnfilteredPartitionIterator;
 import org.apache.cassandra.schema.Schema;
 
-import java.util.ArrayList;
-import java.util.List;
+//import java.util.ArrayList;
+//import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
@@ -74,16 +74,17 @@ public class PendingWrites
         @Override
         public UnfilteredPartitionIterator augmentResponseWithPendingWrites(UnfilteredPartitionIterator iterator, MutationSummary summary)
         {
-            if (pendingWrites.isEmpty() || summary.isEmpty())
-                return iterator;
-
-            List<Mutation> augmentingMutations = new ArrayList<>(pendingWrites.size());
-            for (Mutation mutation : pendingWrites.values())
-            {
-                if (summary.allIds.contains(mutation.id()))
-                    augmentingMutations.add(mutation);
-            }
-            return command.augmentResultWithMutations(iterator, augmentingMutations);
+            throw new UnsupportedOperationException("FIXME");
+//            if (pendingWrites.isEmpty() || summary.isEmpty())
+//                return iterator;
+//
+//            List<Mutation> augmentingMutations = new ArrayList<>(pendingWrites.size());
+//            for (Mutation mutation : pendingWrites.values())
+//            {
+//                if (summary.allIds.contains(mutation.id()))
+//                    augmentingMutations.add(mutation);
+//            }
+//            return command.augmentResultWithMutations(iterator, augmentingMutations);
         }
     }
 
