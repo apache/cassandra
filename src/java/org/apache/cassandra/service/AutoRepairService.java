@@ -100,8 +100,6 @@ public class AutoRepairService implements AutoRepairServiceMBean
         StringBuilder sb = new StringBuilder();
         sb.append("repair scheduler configuration:");
         appendConfig(sb, "repair_check_interval", config.getRepairCheckInterval());
-        appendConfig(sb, "repair_max_retries", config.getRepairMaxRetries());
-        appendConfig(sb, "repair_retry_backoff", config.getRepairRetryBackoff());
         appendConfig(sb, "repair_task_min_duration", config.getRepairTaskMinDuration());
         appendConfig(sb, "history_clear_delete_hosts_buffer_interval", config.getAutoRepairHistoryClearDeleteHostsBufferInterval());
         for (RepairType repairType : RepairType.values())
@@ -160,18 +158,6 @@ public class AutoRepairService implements AutoRepairServiceMBean
     public void setAutoRepairHistoryClearDeleteHostsBufferDuration(String duration)
     {
         config.setAutoRepairHistoryClearDeleteHostsBufferInterval(duration);
-    }
-
-    @Override
-    public void setAutoRepairMaxRetriesCount(int retries)
-    {
-        config.setRepairMaxRetries(retries);
-    }
-
-    @Override
-    public void setAutoRepairRetryBackoff(String interval)
-    {
-        config.setRepairRetryBackoff(interval);
     }
 
     @Override
@@ -261,6 +247,18 @@ public class AutoRepairService implements AutoRepairServiceMBean
         config.setRepairByKeyspace(RepairType.parse(repairType), repairByKeyspace);
     }
 
+    @Override
+    public void setAutoRepairMaxRetriesCount(String repairType, int retries)
+    {
+        config.setRepairMaxRetries(RepairType.parse(repairType), retries);
+    }
+
+    @Override
+    public void setAutoRepairRetryBackoff(String repairType, String interval)
+    {
+        config.setRepairRetryBackoff(RepairType.parse(repairType), interval);
+    }
+
     private String formatRepairTypeConfig(RepairType repairType, AutoRepairConfig config)
     {
         StringBuilder sb = new StringBuilder();
@@ -288,6 +286,8 @@ public class AutoRepairService implements AutoRepairServiceMBean
             appendConfig(sb , "initial_scheduler_delay", config.getInitialSchedulerDelay(repairType));
             appendConfig(sb , "repair_session_timeout", config.getRepairSessionTimeout(repairType));
             appendConfig(sb , "force_repair_new_node", config.getForceRepairNewNode(repairType));
+            appendConfig(sb , "repair_max_retries", config.getRepairMaxRetries(repairType));
+            appendConfig(sb , "repair_retry_backoff", config.getRepairRetryBackoff(repairType));
 
             final ParameterizedClass splitterClass = config.getTokenRangeSplitter(repairType);
             final String splitterClassName =  splitterClass.class_name != null ? splitterClass.class_name : AutoRepairConfig.DEFAULT_SPLITTER.getName();
