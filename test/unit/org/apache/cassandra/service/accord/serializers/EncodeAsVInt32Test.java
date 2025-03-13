@@ -30,12 +30,12 @@ import static accord.utils.Property.qt;
 public class EncodeAsVInt32Test
 {
     private static final Gen.IntGen ENUM_RANGE = Gens.ints().between(0, Integer.MAX_VALUE - 1);
-    private static final EncodeAsVInt32<Integer> serializer = EncodeAsVInt32.withoutNulls(Integer::intValue, Integer::valueOf);
 
     @Test
     public void withNulls()
     {
         @SuppressWarnings({ "resource", "IOResourceOpenedButNotSafelyClosed" }) DataOutputBuffer output = new DataOutputBuffer();
+        EncodeAsVInt32<Integer> serializer = EncodeAsVInt32.withNulls(Integer::intValue, Integer::valueOf);
         qt().forAll(ENUM_RANGE).check(expected -> Serializers.testSerde(output, serializer, expected));
     }
 
@@ -43,6 +43,7 @@ public class EncodeAsVInt32Test
     public void withoutNulls()
     {
         @SuppressWarnings({ "resource", "IOResourceOpenedButNotSafelyClosed" }) DataOutputBuffer output = new DataOutputBuffer();
+        EncodeAsVInt32<Integer> serializer = EncodeAsVInt32.withoutNulls(Integer::intValue, Integer::valueOf);
         qt().forAll(Gens.ints().all()).check(expected -> Serializers.testSerde(output, serializer, expected));
     }
 }
