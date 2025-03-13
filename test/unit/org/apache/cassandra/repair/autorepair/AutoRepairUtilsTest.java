@@ -212,7 +212,7 @@ public class AutoRepairUtilsTest extends CQLTester
         SchemaConstants.DISTRIBUTED_KEYSPACE_NAME, SystemDistributedKeyspace.AUTO_REPAIR_PRIORITY,
         repairType.toString(), regularRepair));
 
-        CurrentRepairStatus status = AutoRepairUtils.getCurrentRepairStatus(repairType);
+        CurrentRepairStatus status = AutoRepairUtils.getCurrentRepairStatus(repairType, AutoRepairUtils.getAutoRepairHistory(repairType), hostId);
 
         assertNotNull(status);
         assertEquals(1, status.historiesWithoutOnGoingRepair.size());
@@ -223,6 +223,7 @@ public class AutoRepairUtilsTest extends CQLTester
         assertTrue(status.hostIdsWithOnGoingForceRepair.contains(forceRepair));
         assertEquals(1, status.priority.size());
         assertTrue(status.priority.contains(regularRepair));
+        assertEquals(hostId, status.myRepairHistory.hostId);
     }
 
     @Test

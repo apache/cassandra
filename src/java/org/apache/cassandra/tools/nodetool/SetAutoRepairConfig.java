@@ -47,7 +47,9 @@ public class SetAutoRepairConfig extends NodeToolCmd
                   "[start_scheduler|number_of_repair_threads|min_repair_interval|sstable_upper_threshold" +
                   "|enabled|table_max_repair_time|priority_hosts|forcerepair_hosts|ignore_dcs" +
                   "|history_clear_delete_hosts_buffer_interval|repair_primary_token_range_only" +
-                  "|parallel_repair_count|parallel_repair_percentage|materialized_view_repair_enabled|repair_max_retries" +
+                  "|parallel_repair_count|parallel_repair_percentage" +
+                  "|allow_parallel_replica_repair|allow_parallel_repair_across_schedules" +
+                  "|materialized_view_repair_enabled|repair_max_retries" +
                   "|repair_retry_backoff|repair_session_timeout|min_repair_task_duration" +
                   "|repair_by_keyspace|token_range_splitter.<property>]",
     required = true)
@@ -147,6 +149,12 @@ public class SetAutoRepairConfig extends NodeToolCmd
                 break;
             case "parallel_repair_percentage":
                 probe.setAutoRepairParallelRepairPercentage(repairTypeStr, Integer.parseInt(paramVal));
+                break;
+            case "allow_parallel_replica_repair":
+                probe.setAutoRepairAllowParallelReplicaRepair(repairTypeStr, Boolean.parseBoolean(paramVal));
+                break;
+            case "allow_parallel_replica_repair_across_schedules":
+                probe.setAutoRepairAllowParallelReplicaRepairAcrossSchedules(repairTypeStr, Boolean.parseBoolean(paramVal));
                 break;
             case "materialized_view_repair_enabled":
                 probe.setAutoRepairMaterializedViewRepairEnabled(repairTypeStr, Boolean.parseBoolean(paramVal));

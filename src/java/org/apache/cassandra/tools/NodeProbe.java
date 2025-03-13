@@ -2223,6 +2223,16 @@ public class NodeProbe implements AutoCloseable
         autoRepairProxy.setParallelRepairCount(repairType, count);
     }
 
+    public void setAutoRepairAllowParallelReplicaRepair(String repairType, boolean enabled)
+    {
+        autoRepairProxy.setAllowParallelReplicaRepair(repairType, enabled);
+    }
+
+    public void setAutoRepairAllowParallelReplicaRepairAcrossSchedules(String repairType, boolean enabled)
+    {
+        autoRepairProxy.setAllowParallelReplicaRepairAcrossSchedules(repairType, enabled);
+    }
+
     public void setAutoRepairPrimaryTokenRangeOnly(String repairType, boolean primaryTokenRangeOnly)
     {
         autoRepairProxy.setPrimaryTokenRangeOnly(repairType, primaryTokenRangeOnly);

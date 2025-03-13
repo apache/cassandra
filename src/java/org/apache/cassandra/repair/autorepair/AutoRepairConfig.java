@@ -274,6 +274,26 @@ public class AutoRepairConfig implements Serializable
         getOptions(repairType).parallel_repair_count = count;
     }
 
+    public boolean getAllowParallelReplicaRepair(RepairType repairType)
+    {
+        return applyOverrides(repairType, opt -> opt.allow_parallel_replica_repair);
+    }
+
+    public void setAllowParallelReplicaRepair(RepairType repairType, boolean enabled)
+    {
+        getOptions(repairType).allow_parallel_replica_repair = enabled;
+    }
+
+    public boolean getAllowParallelReplicaRepairAcrossSchedules(RepairType repairType)
+    {
+        return applyOverrides(repairType, opt -> opt.allow_parallel_replica_repair_across_schedules);
+    }
+
+    public void setAllowParallelReplicaRepairAcrossSchedules(RepairType repairType, boolean enabled)
+    {
+        getOptions(repairType).allow_parallel_replica_repair_across_schedules = enabled;
+    }
+
     public boolean getMaterializedViewRepairEnabled(RepairType repairType)
     {
         return applyOverrides(repairType, opt -> opt.materialized_view_repair_enabled);
@@ -439,6 +459,8 @@ public class AutoRepairConfig implements Serializable
             opts.number_of_repair_threads = 1;
             opts.parallel_repair_count = 3;
             opts.parallel_repair_percentage = 3;
+            opts.allow_parallel_replica_repair = false;
+            opts.allow_parallel_replica_repair_across_schedules = true;
             opts.sstable_upper_threshold = 10000;
             opts.ignore_dcs = new HashSet<>();
             opts.repair_primary_token_range_only = true;
@@ -466,6 +488,15 @@ public class AutoRepairConfig implements Serializable
         // Percentage of nodes in the cluster running repair in parallel. If parallel_repair_count is set, the larger value
         // is used. Recommendation is that the repair cycle on the cluster should finish within gc_grace_seconds.
         public volatile Integer parallel_repair_percentage;
+        // Whether to allow a node to take its turn running repair while one or more of its replicas are running repair.
+        // Defaults to false, as running repairs concurrently on replicas can increase load and also cause
+        // anticompaction conflicts while running incremental repair.
+        public volatile Boolean allow_parallel_replica_repair;
+        // An addition to allow_parallel_replica_repair that also blocks repairs when replicas (including this node itself)
+        // are repairing in any schedule. For example, if a replica is executing full repairs, a value of false will
+        // prevent starting incremental repairs for this node. Defaults to true and is only evaluated when
+        // allow_parallel_replica_repair is false.
+        public volatile Boolean allow_parallel_replica_repair_across_schedules;
         // Threshold to skip repairing tables with too many SSTables. Defaults to 10,000 SSTables to avoid penalizing good
         // tables.
         public volatile Integer sstable_upper_threshold;
@@ -513,6 +544,8 @@ public class AutoRepairConfig implements Serializable
                    ", number_of_repair_threads=" + number_of_repair_threads +
                    ", parallel_repair_count=" + parallel_repair_count +
                    ", parallel_repair_percentage=" + parallel_repair_percentage +
+                   ", allow_parallel_replica_repair=" + allow_parallel_replica_repair +
+                   ", allow_parallel_replica_repair_across_schedules=" + allow_parallel_replica_repair_across_schedules +
                    ", sstable_upper_threshold=" + sstable_upper_threshold +
                    ", min_repair_interval=" + min_repair_interval +
                    ", ignore_dcs=" + ignore_dcs +
