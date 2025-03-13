@@ -130,7 +130,7 @@ public class SingleNodeTableWalkTest extends StatefulASTBase
             }
         }
         Select select = builder.build();
-        return state.command(rs, select, (wholePartition ? "Whole Partition" : "Single Row"));
+        return state.command(rs, select, (wholePartition ? "By Partition Key" : "By Primary Key"));
     }
 
     public Property.Command<State, Void, ?> selectToken(RandomSource rs, State state)
