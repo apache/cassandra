@@ -56,6 +56,7 @@ public class GrantAndRevokeTest extends CQLTester
     {
         ServerTestUtils.daemonInitialization();
         DatabaseDescriptor.setPermissionsValidity(0);
+        DatabaseDescriptor.setRolesValidity(0);
         requireAuthentication();
         requireNetwork();
     }
