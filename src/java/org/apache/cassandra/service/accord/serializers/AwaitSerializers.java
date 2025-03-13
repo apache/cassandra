@@ -32,14 +32,14 @@ import accord.primitives.SaveStatus;
 import accord.primitives.TxnId;
 import accord.utils.Invariants;
 import org.apache.cassandra.db.TypeSizes;
-import org.apache.cassandra.io.Serializer;
+import org.apache.cassandra.io.UnversionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.utils.vint.VIntCoding;
 
 public class AwaitSerializers
 {
-    public static final Serializer<Await> request = new RequestSerializer<>()
+    public static final UnversionedSerializer<Await> request = new RequestSerializer<>()
     {
         @Override
         public Await deserialize(TxnId txnId, Participants<?> scope, BlockedUntil blockedUntil, boolean notifyProgressLog, long minAwaitEpoch, long maxAwaitEpoch, int callbackId, DataInputPlus in)
@@ -48,7 +48,7 @@ public class AwaitSerializers
         }
     };
 
-    public static final Serializer<RecoverAwait> recoverRequest = new RequestSerializer<>()
+    public static final UnversionedSerializer<RecoverAwait> recoverRequest = new RequestSerializer<>()
     {
         @Override
         public RecoverAwait deserialize(TxnId txnId, Participants<?> scope, BlockedUntil blockedUntil, boolean notifyProgressLog, long minAwaitEpoch, long maxAwaitEpoch, int callbackId, DataInputPlus in) throws IOException
@@ -71,7 +71,7 @@ public class AwaitSerializers
         }
     };
 
-    static abstract class RequestSerializer<A extends Await> implements Serializer<A>
+    static abstract class RequestSerializer<A extends Await> implements UnversionedSerializer<A>
     {
         abstract A deserialize(TxnId txnId, Participants<?> scope, BlockedUntil blockedUntil, boolean notifyProgressLog, long minAwaitEpoch, long maxAwaitEpoch, int callbackId, DataInputPlus in) throws IOException;
 
@@ -114,10 +114,10 @@ public class AwaitSerializers
         }
     }
 
-    public static final Serializer<AwaitOk> syncReply = EncodeAsVInt32.of(AwaitOk.class);
-    public static final Serializer<RecoverAwaitOk> recoverReply = EncodeAsVInt32.of(RecoverAwaitOk.class);
+    public static final UnversionedSerializer<AwaitOk> syncReply = EncodeAsVInt32.of(AwaitOk.class);
+    public static final UnversionedSerializer<RecoverAwaitOk> recoverReply = EncodeAsVInt32.of(RecoverAwaitOk.class);
 
-    public static final Serializer<AsyncAwaitComplete> asyncReply = new Serializer<>()
+    public static final UnversionedSerializer<AsyncAwaitComplete> asyncReply = new UnversionedSerializer<>()
     {
         @Override
         public void serialize(AsyncAwaitComplete ok, DataOutputPlus out) throws IOException

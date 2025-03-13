@@ -43,7 +43,7 @@ import org.apache.cassandra.db.rows.Cell;
 import org.apache.cassandra.db.rows.ColumnData;
 import org.apache.cassandra.db.rows.ComplexColumnData;
 import org.apache.cassandra.db.rows.Row;
-import org.apache.cassandra.io.Serializer;
+import org.apache.cassandra.io.UnversionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.schema.ColumnMetadata;
@@ -233,7 +233,7 @@ public final class ColumnCondition
 
         public abstract BoundKind kind();
 
-        public static final Serializer<Bound> serializer = new Serializer<>() {
+        public static final UnversionedSerializer<Bound> serializer = new UnversionedSerializer<>() {
             @Override
             public void serialize(Bound bound, DataOutputPlus out) throws IOException
             {

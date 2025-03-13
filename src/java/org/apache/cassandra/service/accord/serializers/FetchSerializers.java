@@ -27,7 +27,7 @@ import accord.messages.ReadData.CommitOrReadNack;
 import accord.messages.ReadData.ReadReply;
 import accord.primitives.Ranges;
 import org.apache.cassandra.db.TypeSizes;
-import org.apache.cassandra.io.Serializer;
+import org.apache.cassandra.io.UnversionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.service.accord.AccordFetchCoordinator.AccordFetchRequest;
@@ -74,10 +74,10 @@ public class FetchSerializers
         }
     };
 
-    public static final Serializer<ReadReply> reply = new Serializer<>()
+    public static final UnversionedSerializer<ReadReply> reply = new UnversionedSerializer<>()
     {
         final CommitOrReadNack[] nacks = CommitOrReadNack.values();
-        final Serializer<Data> streamDataSerializer = CastingSerializer.create(StreamData.class, StreamData.serializer);
+        final UnversionedSerializer<Data> streamDataSerializer = CastingSerializer.create(StreamData.class, StreamData.serializer);
 
         @Override
         public void serialize(ReadReply reply, DataOutputPlus out) throws IOException

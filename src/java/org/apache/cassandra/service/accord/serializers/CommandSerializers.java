@@ -49,7 +49,7 @@ import accord.primitives.Writes;
 import accord.utils.Invariants;
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.db.marshal.ValueAccessor;
-import org.apache.cassandra.io.Serializer;
+import org.apache.cassandra.io.UnversionedSerializer;
 import org.apache.cassandra.io.VersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
@@ -69,9 +69,9 @@ public class CommandSerializers
 
     public static final TimestampSerializer<TxnId> txnId = new TimestampSerializer<>(TxnId::fromBits);
     public static final TimestampSerializer<Timestamp> timestamp = new TimestampSerializer<>(Timestamp::fromBits);
-    public static final Serializer<Timestamp> nullableTimestamp = NullableSerializer.wrap(timestamp);
+    public static final UnversionedSerializer<Timestamp> nullableTimestamp = NullableSerializer.wrap(timestamp);
     public static final BallotSerializer ballot = new BallotSerializer(); // permits null
-    public static final Serializer<Txn.Kind> kind = EncodeAsVInt32.of(Txn.Kind.class);
+    public static final UnversionedSerializer<Txn.Kind> kind = EncodeAsVInt32.of(Txn.Kind.class);
     public static final StoreParticipantsSerializer participants = new StoreParticipantsSerializer();
 
     public static class ExecuteAtSerializer
@@ -393,7 +393,7 @@ public class CommandSerializers
         }
     }
 
-    public static class TimestampSerializer<T extends Timestamp> implements Serializer<T>
+    public static class TimestampSerializer<T extends Timestamp> implements UnversionedSerializer<T>
     {
         interface Factory<T extends Timestamp>
         {
@@ -480,7 +480,7 @@ public class CommandSerializers
         }
     }
 
-    public static class BallotSerializer implements Serializer<Ballot>
+    public static class BallotSerializer implements UnversionedSerializer<Ballot>
     {
         final TimestampSerializer<Ballot> wrapped = new TimestampSerializer<>(Ballot::fromBits);
 
@@ -532,11 +532,11 @@ public class CommandSerializers
     implements IVersionedSerializer<PartialTxn>
     {
         private final VersionedSerializer<Read, Version> readSerializer;
-        private final Serializer<Query> querySerializer;
+        private final UnversionedSerializer<Query> querySerializer;
         private final VersionedSerializer<Update, Version> updateSerializer;
 
         public PartialTxnSerializer(VersionedSerializer<Read, Version> readSerializer,
-                                    Serializer<Query> querySerializer,
+                                    UnversionedSerializer<Query> querySerializer,
                                     VersionedSerializer<Update, Version> updateSerializer)
         {
             this.readSerializer = readSerializer;
@@ -598,7 +598,7 @@ public class CommandSerializers
     }
 
     public static final VersionedSerializer<Read, Version> read;
-    public static final Serializer<Query> query;
+    public static final UnversionedSerializer<Query> query;
     public static final VersionedSerializer<Update, Version> update;
     public static final VersionedSerializer<Write, Version> write;
 
@@ -622,7 +622,7 @@ public class CommandSerializers
     public static class QuerySerializers
     {
         public final VersionedSerializer<Read, Version> read;
-        public final Serializer<Query> query;
+        public final UnversionedSerializer<Query> query;
         public final VersionedSerializer<Update, Version> update;
         public final VersionedSerializer<Write, Version> write;
 
@@ -638,7 +638,7 @@ public class CommandSerializers
         }
 
         public QuerySerializers(VersionedSerializer<Read, Version> read,
-                                Serializer<Query> query,
+                                UnversionedSerializer<Query> query,
                                 VersionedSerializer<Update, Version> update,
                                 VersionedSerializer<Write, Version> write)
         {
@@ -652,9 +652,9 @@ public class CommandSerializers
         }
     }
 
-    public static final Serializer<SaveStatus> saveStatus = EncodeAsVInt32.of(SaveStatus.class);
-    public static final Serializer<Status> status = EncodeAsVInt32.of(Status.class);
-    public static final Serializer<Durability> durability = EncodeAsVInt32.of(Durability.class);
+    public static final UnversionedSerializer<SaveStatus> saveStatus = EncodeAsVInt32.of(SaveStatus.class);
+    public static final UnversionedSerializer<Status> status = EncodeAsVInt32.of(Status.class);
+    public static final UnversionedSerializer<Durability> durability = EncodeAsVInt32.of(Durability.class);
 
     public static final IVersionedSerializer<Writes> writes = new IVersionedSerializer<>()
     {
@@ -695,9 +695,9 @@ public class CommandSerializers
     };
 
     public static final VersionedSerializer<Writes, Version> nullableWrites = NullableSerializer.wrap(writes);
-    public static final Serializer<KnownDeps> knownDeps = EncodeAsVInt32.of(KnownDeps.class);
-    public static final Serializer<Infer.InvalidIf> invalidIf = EncodeAsVInt32.of(Infer.InvalidIf.class);
+    public static final UnversionedSerializer<KnownDeps> knownDeps = EncodeAsVInt32.of(KnownDeps.class);
+    public static final UnversionedSerializer<Infer.InvalidIf> invalidIf = EncodeAsVInt32.of(Infer.InvalidIf.class);
 
-    public static final Serializer<Known> known = EncodeAsVInt32.withNulls(known -> known.encoded, Known::new);
+    public static final UnversionedSerializer<Known> known = EncodeAsVInt32.withNulls(known -> known.encoded, Known::new);
 
 }

@@ -42,7 +42,7 @@ import accord.primitives.Range;
 import accord.primitives.Seekables;
 import accord.primitives.TxnId;
 import org.apache.cassandra.io.EmbeddedAsymmetricVersionedSerializer;
-import org.apache.cassandra.io.Serializer;
+import org.apache.cassandra.io.UnversionedSerializer;
 import org.apache.cassandra.io.VersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
@@ -213,10 +213,10 @@ public class BurnTestKeySerializers
         }
     };
 
-    public static final Serializer<Range> range =
-    (Serializer<Range>)
-    (Serializer<?>)
-    new Serializer<PrefixedIntHashKey.Range>()
+    public static final UnversionedSerializer<Range> range =
+    (UnversionedSerializer<Range>)
+    (UnversionedSerializer<?>)
+    new UnversionedSerializer<PrefixedIntHashKey.Range>()
     {
         @Override
         public void serialize(PrefixedIntHashKey.Range t, DataOutputPlus out) throws IOException
@@ -266,7 +266,7 @@ public class BurnTestKeySerializers
         }
     });
 
-    public static final Serializer<Query> query = CastingSerializer.create(ListQuery.class, new Serializer<>()
+    public static final UnversionedSerializer<Query> query = CastingSerializer.create(ListQuery.class, new UnversionedSerializer<>()
     {
         public void serialize(ListQuery t, DataOutputPlus out) throws IOException
         {
@@ -372,7 +372,7 @@ public class BurnTestKeySerializers
         }
     });
 
-    public static final Serializer<Result> result = CastingSerializer.create(ListResult.class, new Serializer<>()
+    public static final UnversionedSerializer<Result> result = CastingSerializer.create(ListResult.class, new UnversionedSerializer<>()
     {
         private final EmbeddedAsymmetricVersionedSerializer<Update, Update, Version> unversionedUpdate = AccordSerializers.embedded(Version.LATEST, update);
 

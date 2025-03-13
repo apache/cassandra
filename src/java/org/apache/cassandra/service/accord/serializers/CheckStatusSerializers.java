@@ -42,7 +42,7 @@ import accord.primitives.Timestamp;
 import accord.primitives.TxnId;
 import accord.primitives.Writes;
 import org.apache.cassandra.db.TypeSizes;
-import org.apache.cassandra.io.Serializer;
+import org.apache.cassandra.io.UnversionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.service.accord.serializers.CommandSerializers.ExecuteAtSerializer;
@@ -52,7 +52,7 @@ import static org.apache.cassandra.service.accord.serializers.CommandSerializers
 
 public class CheckStatusSerializers
 {
-    public static final Serializer<KnownMap> knownMap = new Serializer<>()
+    public static final UnversionedSerializer<KnownMap> knownMap = new UnversionedSerializer<>()
     {
         @Override
         public void serialize(KnownMap knownMap, DataOutputPlus out) throws IOException
@@ -119,7 +119,7 @@ public class CheckStatusSerializers
         }
     };
 
-    public static final Serializer<CheckStatus> request = new Serializer<>()
+    public static final UnversionedSerializer<CheckStatus> request = new UnversionedSerializer<>()
     {
         final CheckStatus.IncludeInfo[] infos = CheckStatus.IncludeInfo.values();
 

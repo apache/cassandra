@@ -39,7 +39,7 @@ import accord.utils.Invariants;
 import accord.utils.async.AsyncResult;
 import org.agrona.collections.Int2ObjectHashMap;
 import org.apache.cassandra.db.TypeSizes;
-import org.apache.cassandra.io.Serializer;
+import org.apache.cassandra.io.UnversionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.locator.InetAddressAndPort;
@@ -190,7 +190,7 @@ public class WatermarkCollector implements ConfigurationService.Listener
         }
     }
 
-    public static final Serializer<Snapshot> serializer = new Serializer<>()
+    public static final UnversionedSerializer<Snapshot> serializer = new UnversionedSerializer<>()
     {
         @Override
         public void serialize(Snapshot t, DataOutputPlus out) throws IOException

@@ -31,7 +31,7 @@ public class Serializers
     // When using a shard buffer the following is the recommend thing to copy/paste
     // @SuppressWarnings({ "resource", "IOResourceOpenedButNotSafelyClosed" }) DataOutputBuffer output = new DataOutputBuffer();
 
-    public static <T> void testSerde(DataOutputBuffer output, AsymmetricSerializer<T, T> serializer, T input) throws IOException
+    public static <T> void testSerde(DataOutputBuffer output, AsymmetricUnversionedSerializer<T, T> serializer, T input) throws IOException
     {
         output.clear();
         long expectedSize = serializer.serializedSize(input);
@@ -42,7 +42,7 @@ public class Serializers
         Assertions.assertThat(read).describedAs("The deserialized output does not match the serialized input; difference %s", new LazyToString(() -> ReflectionUtils.recursiveEquals(read, input).toString())).isEqualTo(input);
     }
 
-    public static <T> void testSerde(AsymmetricSerializer<T, T> serializer, T input) throws IOException
+    public static <T> void testSerde(AsymmetricUnversionedSerializer<T, T> serializer, T input) throws IOException
     {
         try (DataOutputBuffer output = new DataOutputBuffer(Math.toIntExact(serializer.serializedSize(input))))
         {

@@ -20,11 +20,11 @@ package org.apache.cassandra.utils;
 import java.io.IOException;
 
 import org.apache.cassandra.io.IVersionedSerializer;
-import org.apache.cassandra.io.Serializer;
+import org.apache.cassandra.io.UnversionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 
-public class BooleanSerializer implements Serializer<Boolean>
+public class BooleanSerializer implements UnversionedSerializer<Boolean>
 {
     public static BooleanSerializer serializer = new BooleanSerializer();
     public static IVersionedSerializer<Boolean> messagingSerializer = IVersionedSerializer.from(serializer);

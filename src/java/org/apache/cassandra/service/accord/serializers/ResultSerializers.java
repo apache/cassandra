@@ -20,7 +20,7 @@ package org.apache.cassandra.service.accord.serializers;
 
 import accord.api.Result;
 import accord.primitives.ProgressToken;
-import org.apache.cassandra.io.Serializer;
+import org.apache.cassandra.io.UnversionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 
@@ -36,7 +36,7 @@ public class ResultSerializers
         }
     };
 
-    public static final Serializer<Result> result = new Serializer<>()
+    public static final UnversionedSerializer<Result> result = new UnversionedSerializer<>()
     {
         public void serialize(Result t, DataOutputPlus out) { }
         public Result deserialize(DataInputPlus in)

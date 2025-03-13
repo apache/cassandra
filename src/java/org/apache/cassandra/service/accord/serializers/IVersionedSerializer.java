@@ -20,7 +20,7 @@ package org.apache.cassandra.service.accord.serializers;
 
 import java.io.IOException;
 
-import org.apache.cassandra.io.Serializer;
+import org.apache.cassandra.io.UnversionedSerializer;
 import org.apache.cassandra.io.VersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
@@ -51,7 +51,7 @@ public interface IVersionedSerializer<T> extends VersionedSerializer<T, Version>
         };
     }
 
-    static <T> IVersionedSerializer<T> fromSerializer(Serializer<T> delegate)
+    static <T> IVersionedSerializer<T> fromSerializer(UnversionedSerializer<T> delegate)
     {
         return new IVersionedSerializer<T>()
         {

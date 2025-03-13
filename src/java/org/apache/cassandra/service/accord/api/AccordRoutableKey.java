@@ -24,14 +24,14 @@ import javax.annotation.Nonnull;
 
 import accord.primitives.RoutableKey;
 import org.apache.cassandra.dht.Token;
-import org.apache.cassandra.io.Serializer;
+import org.apache.cassandra.io.UnversionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.schema.TableId;
 
 public abstract class AccordRoutableKey implements RoutableKey
 {
-    public interface AccordKeySerializer<K> extends Serializer<K>
+    public interface AccordKeySerializer<K> extends UnversionedSerializer<K>
     {
         void skip(DataInputPlus in) throws IOException;
     }

@@ -22,11 +22,11 @@ import java.io.IOException;
 
 import accord.messages.SimpleReply;
 import org.apache.cassandra.db.TypeSizes;
-import org.apache.cassandra.io.Serializer;
+import org.apache.cassandra.io.UnversionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 
-public class EnumSerializer<E extends Enum<E>> implements Serializer<E>
+public class EnumSerializer<E extends Enum<E>> implements UnversionedSerializer<E>
 {
     public static final EnumSerializer<SimpleReply> simpleReply = new EnumSerializer<>(SimpleReply.class);
 

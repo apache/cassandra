@@ -18,6 +18,6 @@
 
 package org.apache.cassandra.io;
 
-public interface Serializer<T> extends AsymmetricSerializer<T, T>
+public interface UnversionedSerializer<T> extends AsymmetricUnversionedSerializer<T, T>
 {
 }

@@ -22,11 +22,11 @@ import java.io.IOException;
 
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.io.IVersionedSerializer;
-import org.apache.cassandra.io.Serializer;
+import org.apache.cassandra.io.UnversionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 
-public class Int32Serializer implements Serializer<Integer>, IVersionedSerializer<Integer>
+public class Int32Serializer implements UnversionedSerializer<Integer>, IVersionedSerializer<Integer>
 {
     public static final Int32Serializer serializer = new Int32Serializer();
 

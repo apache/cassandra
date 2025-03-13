@@ -23,7 +23,7 @@ import java.util.function.IntFunction;
 
 import org.apache.cassandra.io.AsymmetricVersionedSerializer;
 import org.apache.cassandra.io.IVersionedSerializer;
-import org.apache.cassandra.io.Serializer;
+import org.apache.cassandra.io.UnversionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 
@@ -31,7 +31,7 @@ import static org.apache.cassandra.db.TypeSizes.sizeofUnsignedVInt;
 
 public class ArraySerializers
 {
-    public static <T> void serializeArray(T[] items, DataOutputPlus out, Serializer<T> serializer) throws IOException
+    public static <T> void serializeArray(T[] items, DataOutputPlus out, UnversionedSerializer<T> serializer) throws IOException
     {
         out.writeUnsignedVInt32(items.length);
         for (T item : items)
@@ -52,7 +52,7 @@ public class ArraySerializers
             serializer.serialize(item, out, version);
     }
 
-    public static <T> T[] deserializeArray(DataInputPlus in, Serializer<T> serializer, IntFunction<T[]> arrayFactory) throws IOException
+    public static <T> T[] deserializeArray(DataInputPlus in, UnversionedSerializer<T> serializer, IntFunction<T[]> arrayFactory) throws IOException
     {
         int size = in.readUnsignedVInt32();
         T[] items = arrayFactory.apply(size);
@@ -79,7 +79,7 @@ public class ArraySerializers
         return items;
     }
 
-    public static <T> long serializedArraySize(T[] array, Serializer<T> serializer)
+    public static <T> long serializedArraySize(T[] array, UnversionedSerializer<T> serializer)
     {
         long size = sizeofUnsignedVInt(array.length);
         for (T item : array)

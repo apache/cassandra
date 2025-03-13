@@ -31,14 +31,14 @@ import accord.primitives.Route;
 import accord.primitives.Timestamp;
 import accord.primitives.TxnId;
 import org.apache.cassandra.db.TypeSizes;
-import org.apache.cassandra.io.Serializer;
+import org.apache.cassandra.io.UnversionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.service.accord.serializers.CommandSerializers.ExecuteAtSerializer;
 
 public class LatestDepsSerializers
 {
-    public static final Serializer<LatestDeps> latestDeps = new Serializer<>()
+    public static final UnversionedSerializer<LatestDeps> latestDeps = new UnversionedSerializer<>()
     {
         @Override
         public void serialize(LatestDeps t, DataOutputPlus out) throws IOException
@@ -145,7 +145,7 @@ public class LatestDepsSerializers
         }
     };
 
-    public static final Serializer<GetLatestDepsOk> reply = new Serializer<>()
+    public static final UnversionedSerializer<GetLatestDepsOk> reply = new UnversionedSerializer<>()
     {
         @Override
         public void serialize(GetLatestDepsOk reply, DataOutputPlus out) throws IOException

@@ -45,7 +45,7 @@ import org.apache.cassandra.db.rows.Unfiltered;
 import org.apache.cassandra.index.accord.IndexDescriptor.IndexComponent;
 import org.apache.cassandra.io.AsymmetricVersionedSerializer;
 import org.apache.cassandra.io.EmbeddedAsymmetricVersionedSerializer;
-import org.apache.cassandra.io.Serializer;
+import org.apache.cassandra.io.UnversionedSerializer;
 import org.apache.cassandra.io.sstable.SSTableFlushObserver;
 import org.apache.cassandra.io.util.ChecksumedRandomAccessReader;
 import org.apache.cassandra.io.util.ChecksumedSequentialWriter;
@@ -70,7 +70,7 @@ public class RouteIndexFormat
     public static final Supplier<Checksum> CHECKSUM_SUPPLIER = CRC32C::new;
 
     static final EmbeddedAsymmetricVersionedSerializer<Participants<?>, Participants<?>, Version> touches = localSerializer(KeySerializers.participants);
-    private static <T> EmbeddedAsymmetricVersionedSerializer<T, T, Version> localSerializer(Serializer<T> serializer)
+    private static <T> EmbeddedAsymmetricVersionedSerializer<T, T, Version> localSerializer(UnversionedSerializer<T> serializer)
     {
         return new EmbeddedAsymmetricVersionedSerializer<>(Version.DOWNGRADE_SAFE_VERSION, Version.Serializer.instance, AsymmetricVersionedSerializer.from(serializer));
     }

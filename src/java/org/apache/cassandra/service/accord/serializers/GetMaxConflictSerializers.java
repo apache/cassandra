@@ -25,13 +25,13 @@ import accord.messages.GetMaxConflict.GetMaxConflictOk;
 import accord.primitives.Route;
 import accord.primitives.Timestamp;
 import org.apache.cassandra.db.TypeSizes;
-import org.apache.cassandra.io.Serializer;
+import org.apache.cassandra.io.UnversionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 
 public class GetMaxConflictSerializers
 {
-    public static final Serializer<GetMaxConflict> request = new Serializer<>()
+    public static final UnversionedSerializer<GetMaxConflict> request = new UnversionedSerializer<>()
     {
         @Override
         public void serialize(GetMaxConflict msg, DataOutputPlus out) throws IOException
@@ -62,7 +62,7 @@ public class GetMaxConflictSerializers
         }
     };
 
-    public static final Serializer<GetMaxConflictOk> reply = new Serializer<>()
+    public static final UnversionedSerializer<GetMaxConflictOk> reply = new UnversionedSerializer<>()
     {
         @Override
         public void serialize(GetMaxConflictOk reply, DataOutputPlus out) throws IOException

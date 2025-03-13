@@ -25,6 +25,7 @@ import java.util.List;
 
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.io.MessageVersionProvider;
+import org.apache.cassandra.io.UnversionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.net.MessagingService;
@@ -108,7 +109,7 @@ public enum Version implements MessageVersionProvider
         return values;
     }
 
-    public enum Serializer implements org.apache.cassandra.io.Serializer<Version>
+    public enum Serializer implements UnversionedSerializer<Version>
     {
         instance;
 

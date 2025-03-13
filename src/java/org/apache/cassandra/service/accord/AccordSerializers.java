@@ -37,7 +37,7 @@ import org.apache.cassandra.db.partitions.PartitionUpdate;
 import org.apache.cassandra.db.rows.DeserializationHelper;
 import org.apache.cassandra.io.AsymmetricVersionedSerializer;
 import org.apache.cassandra.io.EmbeddedAsymmetricVersionedSerializer;
-import org.apache.cassandra.io.Serializer;
+import org.apache.cassandra.io.UnversionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.schema.ColumnMetadata;
@@ -96,7 +96,7 @@ public class AccordSerializers
         }
     };
 
-    public static final Serializer<ColumnMetadata> columnMetadataSerializer = new Serializer<ColumnMetadata>()
+    public static final UnversionedSerializer<ColumnMetadata> columnMetadataSerializer = new UnversionedSerializer<ColumnMetadata>()
     {
         @Override
         public void serialize(ColumnMetadata column, DataOutputPlus out) throws IOException
@@ -147,7 +147,7 @@ public class AccordSerializers
         }
     };
 
-    public static final Serializer<Clustering<?>> clusteringSerializer = new Serializer<Clustering<?>>()
+    public static final UnversionedSerializer<Clustering<?>> clusteringSerializer = new UnversionedSerializer<Clustering<?>>()
     {
         @Override
         public void serialize(Clustering<?> clustering, DataOutputPlus out) throws IOException
@@ -220,7 +220,7 @@ public class AccordSerializers
         }
     };
 
-    public static final Serializer<ConsistencyLevel> consistencyLevelSerializer = new Serializer<ConsistencyLevel>()
+    public static final UnversionedSerializer<ConsistencyLevel> consistencyLevelSerializer = new UnversionedSerializer<ConsistencyLevel>()
     {
         @Override
         public void serialize(ConsistencyLevel t, DataOutputPlus out) throws IOException

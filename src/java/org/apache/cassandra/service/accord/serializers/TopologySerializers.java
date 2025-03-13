@@ -29,7 +29,7 @@ import accord.utils.SortedArrays.SortedArrayList;
 import accord.utils.TinyEnumSet;
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.db.marshal.ValueAccessor;
-import org.apache.cassandra.io.Serializer;
+import org.apache.cassandra.io.UnversionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.service.accord.TokenRange;
@@ -41,7 +41,7 @@ public class TopologySerializers
     private TopologySerializers() {}
 
     public static final NodeIdSerializer nodeId = new NodeIdSerializer();
-    public static class NodeIdSerializer implements Serializer<Node.Id>
+    public static class NodeIdSerializer implements UnversionedSerializer<Node.Id>
     {
         private NodeIdSerializer() {}
 
@@ -84,15 +84,15 @@ public class TopologySerializers
         }
     }
 
-    public static final Serializer<Shard> shard = new ShardSerializer((Serializer<Range>)
-                                                                      (Serializer<?>)
+    public static final UnversionedSerializer<Shard> shard = new ShardSerializer((UnversionedSerializer<Range>)
+                                                                      (UnversionedSerializer<?>)
                                                                       TokenRange.serializer);
 
-    public static class ShardSerializer implements Serializer<Shard>
+    public static class ShardSerializer implements UnversionedSerializer<Shard>
     {
-        protected Serializer<Range> range;
+        protected UnversionedSerializer<Range> range;
 
-        public ShardSerializer(Serializer<Range> range)
+        public ShardSerializer(UnversionedSerializer<Range> range)
         {
             this.range = range;
         }
@@ -130,7 +130,7 @@ public class TopologySerializers
         }
     }
 
-    public static final Serializer<Topology> topology = new Serializer<>()
+    public static final UnversionedSerializer<Topology> topology = new UnversionedSerializer<>()
     {
         @Override
         public void serialize(Topology topology, DataOutputPlus out) throws IOException

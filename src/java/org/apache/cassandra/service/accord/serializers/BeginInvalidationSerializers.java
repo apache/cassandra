@@ -28,13 +28,13 @@ import accord.primitives.Participants;
 import accord.primitives.Route;
 import accord.primitives.SaveStatus;
 import org.apache.cassandra.db.TypeSizes;
-import org.apache.cassandra.io.Serializer;
+import org.apache.cassandra.io.UnversionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 
 public class BeginInvalidationSerializers
 {
-    public static final Serializer<BeginInvalidation> request = new Serializer<>()
+    public static final UnversionedSerializer<BeginInvalidation> request = new UnversionedSerializer<>()
     {
         @Override
         public void serialize(BeginInvalidation begin, DataOutputPlus out) throws IOException
@@ -61,7 +61,7 @@ public class BeginInvalidationSerializers
         }
     };
 
-    public static final Serializer<InvalidateReply> reply = new Serializer<>()
+    public static final UnversionedSerializer<InvalidateReply> reply = new UnversionedSerializer<>()
     {
         @Override
         public void serialize(InvalidateReply reply, DataOutputPlus out) throws IOException

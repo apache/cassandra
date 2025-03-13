@@ -29,6 +29,7 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.dht.Token;
+import org.apache.cassandra.io.UnversionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.schema.TableId;
@@ -119,7 +120,7 @@ public class TokenRange extends Range.EndInclusive
 
     public static final Serializer serializer = new Serializer();
 
-    public static final class Serializer implements org.apache.cassandra.io.Serializer<TokenRange>
+    public static final class Serializer implements UnversionedSerializer<TokenRange>
     {
         @Override
         public void serialize(TokenRange range, DataOutputPlus out) throws IOException

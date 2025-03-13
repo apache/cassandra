@@ -20,7 +20,7 @@ package org.apache.cassandra.utils;
 
 import java.io.IOException;
 
-import org.apache.cassandra.io.Serializer;
+import org.apache.cassandra.io.UnversionedSerializer;
 import org.apache.cassandra.io.VersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
@@ -36,7 +36,7 @@ public class CastingSerializer
         return new Versioned<>(specificClass, specificSerializer);
     }
 
-    public static <Generic, Specific extends Generic> Serializer<Generic> create(Class<Specific> specificClass, Serializer<Specific> specificSerializer)
+    public static <Generic, Specific extends Generic> UnversionedSerializer<Generic> create(Class<Specific> specificClass, UnversionedSerializer<Specific> specificSerializer)
     {
         return new Unversioned<>(specificClass, specificSerializer);
     }
@@ -74,12 +74,12 @@ public class CastingSerializer
         }
     }
 
-    private static final class Unversioned<Generic, Specific extends Generic> implements Serializer<Generic>
+    private static final class Unversioned<Generic, Specific extends Generic> implements UnversionedSerializer<Generic>
     {
         private final Class<Specific> specificClass;
-        private final Serializer<Specific> specificSerializer;
+        private final UnversionedSerializer<Specific> specificSerializer;
 
-        private Unversioned(Class<Specific> specificClass, Serializer<Specific> specificSerializer)
+        private Unversioned(Class<Specific> specificClass, UnversionedSerializer<Specific> specificSerializer)
         {
             this.specificClass = specificClass;
             this.specificSerializer = specificSerializer;

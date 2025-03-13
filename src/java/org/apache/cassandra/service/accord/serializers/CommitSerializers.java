@@ -30,7 +30,7 @@ import accord.primitives.Route;
 import accord.primitives.Timestamp;
 import accord.primitives.TxnId;
 import org.apache.cassandra.db.TypeSizes;
-import org.apache.cassandra.io.Serializer;
+import org.apache.cassandra.io.UnversionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.service.accord.serializers.CommandSerializers.ExecuteAtSerializer;
@@ -41,7 +41,7 @@ import static org.apache.cassandra.utils.NullableSerializer.serializedNullableSi
 
 public class CommitSerializers
 {
-    public static final Serializer<Commit.Kind> kind = EncodeAsVInt32.of(Commit.Kind.class);
+    public static final UnversionedSerializer<Commit.Kind> kind = EncodeAsVInt32.of(Commit.Kind.class);
 
     public static final CommitSerializer request = new CommitSerializer();
     public static class CommitSerializer extends TxnRequestSerializer.WithUnsyncedSerializer<Commit>
@@ -88,7 +88,7 @@ public class CommitSerializers
         }
     }
 
-    public static final Serializer<Commit.Invalidate> invalidate = new Serializer<>()
+    public static final UnversionedSerializer<Commit.Invalidate> invalidate = new UnversionedSerializer<>()
     {
         @Override
         public void serialize(Commit.Invalidate invalidate, DataOutputPlus out) throws IOException

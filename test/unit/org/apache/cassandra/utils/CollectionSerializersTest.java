@@ -25,7 +25,7 @@ import org.junit.Test;
 import accord.utils.Gens;
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.io.IVersionedSerializer;
-import org.apache.cassandra.io.Serializer;
+import org.apache.cassandra.io.UnversionedSerializer;
 import org.apache.cassandra.io.VersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputBuffer;
@@ -51,7 +51,7 @@ public class CollectionSerializersTest
         //   16384 takes 3 bytes
         // 2097152 takes 4 bytes
         qt().forAll(Gens.lists(i -> cached).ofSizeBetween(0, 2_097_152)).check(list -> {
-            testSerde(output, newListSerializer((Serializer<Integer>) IntSerializer.instance), list);
+            testSerde(output, newListSerializer((UnversionedSerializer<Integer>) IntSerializer.instance), list);
             testSerde(output, newListSerializer((IVersionedSerializer<Integer>) IntSerializer.instance), list, 0);
             testSerde(output, newListSerializer((VersionedSerializer<Integer, Version>) IntSerializer.instance), list, Version.V1);
         });
@@ -62,7 +62,7 @@ public class CollectionSerializersTest
         V1
     }
 
-    public enum IntSerializer implements Serializer<Integer>, IVersionedSerializer<Integer>, VersionedSerializer<Integer, Version>
+    public enum IntSerializer implements UnversionedSerializer<Integer>, IVersionedSerializer<Integer>, VersionedSerializer<Integer, Version>
     {
         instance;
 

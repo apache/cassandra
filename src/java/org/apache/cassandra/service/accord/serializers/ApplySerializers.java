@@ -31,7 +31,7 @@ import accord.primitives.TxnId;
 import accord.primitives.Writes;
 import accord.utils.Invariants;
 import org.apache.cassandra.db.TypeSizes;
-import org.apache.cassandra.io.Serializer;
+import org.apache.cassandra.io.UnversionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.service.accord.serializers.CommandSerializers.ExecuteAtSerializer;
@@ -41,7 +41,7 @@ import static accord.primitives.Txn.Kind.Write;
 
 public class ApplySerializers
 {
-    private static final Serializer<Apply.Kind> kind = new Serializer<>()
+    private static final UnversionedSerializer<Apply.Kind> kind = new UnversionedSerializer<>()
     {
         public void serialize(Apply.Kind kind, DataOutputPlus out) throws IOException
         {
@@ -114,7 +114,7 @@ public class ApplySerializers
         }
     };
 
-    public static final Serializer<Apply.ApplyReply> reply = new Serializer<>()
+    public static final UnversionedSerializer<Apply.ApplyReply> reply = new UnversionedSerializer<>()
     {
         private final Apply.ApplyReply[] replies = Apply.ApplyReply.values();
 

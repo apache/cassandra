@@ -27,7 +27,7 @@ import accord.primitives.Deps;
 import accord.primitives.Route;
 import accord.primitives.TxnId;
 import org.apache.cassandra.db.TypeSizes;
-import org.apache.cassandra.io.Serializer;
+import org.apache.cassandra.io.UnversionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 
@@ -55,7 +55,7 @@ public class GetEphmrlReadDepsSerializers
         }
     };
 
-    public static final Serializer<GetEphemeralReadDepsOk> reply = new Serializer<GetEphemeralReadDepsOk>()
+    public static final UnversionedSerializer<GetEphemeralReadDepsOk> reply = new UnversionedSerializer<GetEphemeralReadDepsOk>()
     {
         @Override
         public void serialize(GetEphemeralReadDepsOk reply, DataOutputPlus out) throws IOException

@@ -48,7 +48,7 @@ import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.db.WriteType;
 import org.apache.cassandra.exceptions.CasWriteTimeoutException;
 import org.apache.cassandra.exceptions.RetryOnDifferentSystemException;
-import org.apache.cassandra.io.Serializer;
+import org.apache.cassandra.io.UnversionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.locator.EndpointsForToken;
@@ -118,7 +118,7 @@ public abstract class ConsensusKeyMigrationState
             this.consensusMigratedAt = consensusMigratedAt;
         }
 
-        public static final Serializer<ConsensusKeyMigrationFinished> serializer = new Serializer<ConsensusKeyMigrationFinished>()
+        public static final UnversionedSerializer<ConsensusKeyMigrationFinished> serializer = new UnversionedSerializer<ConsensusKeyMigrationFinished>()
         {
             @Override
             public void serialize(ConsensusKeyMigrationFinished t, DataOutputPlus out) throws IOException

@@ -31,7 +31,7 @@ import accord.primitives.PartialTxn;
 import accord.primitives.Route;
 import accord.primitives.TxnId;
 import org.apache.cassandra.db.TypeSizes;
-import org.apache.cassandra.io.Serializer;
+import org.apache.cassandra.io.UnversionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.service.accord.serializers.CommandSerializers.ExecuteAtSerializer;
@@ -84,7 +84,7 @@ public class PreacceptSerializers
         }
     };
 
-    public static final Serializer<PreAcceptReply> reply = new Serializer<>()
+    public static final UnversionedSerializer<PreAcceptReply> reply = new UnversionedSerializer<>()
     {
         @Override
         public void serialize(PreAcceptReply reply, DataOutputPlus out) throws IOException

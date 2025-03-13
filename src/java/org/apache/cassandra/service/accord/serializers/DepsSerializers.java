@@ -30,7 +30,7 @@ import accord.primitives.Range;
 import accord.primitives.RangeDeps;
 import accord.primitives.RoutingKeys;
 import accord.primitives.TxnId;
-import org.apache.cassandra.io.Serializer;
+import org.apache.cassandra.io.UnversionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.service.accord.TokenRange;
@@ -44,16 +44,16 @@ import static org.apache.cassandra.db.TypeSizes.sizeofUnsignedVInt;
 
 public class DepsSerializers
 {
-    public static final Serializer<Range> tokenRange;
+    public static final UnversionedSerializer<Range> tokenRange;
     public static final DepsSerializer<Deps> deps;
-    public static final Serializer<Deps> nullableDeps;
+    public static final UnversionedSerializer<Deps> nullableDeps;
     public static final DepsSerializer<PartialDeps> partialDeps;
-    public static final Serializer<PartialDeps> nullablePartialDeps;
+    public static final UnversionedSerializer<PartialDeps> nullablePartialDeps;
 
     static
     {
         // We use a separate class for initialization to make it easier for BurnTest to plug its own serializers.
-        Impl serializers = new Impl((Serializer<Range>) (Serializer<?>) TokenRange.serializer);
+        Impl serializers = new Impl((UnversionedSerializer<Range>) (UnversionedSerializer<?>) TokenRange.serializer);
         tokenRange = serializers.tokenRange;
         deps = serializers.deps;
         nullableDeps = serializers.nullableDeps;
@@ -61,10 +61,10 @@ public class DepsSerializers
         nullablePartialDeps = serializers.nullablePartialDeps;
     }
 
-    public static abstract class DepsSerializer<D extends Deps> implements Serializer<D>
+    public static abstract class DepsSerializer<D extends Deps> implements UnversionedSerializer<D>
     {
-        protected Serializer<Range> tokenRange;
-        public DepsSerializer(Serializer<Range> tokenRange)
+        protected UnversionedSerializer<Range> tokenRange;
+        public DepsSerializer(UnversionedSerializer<Range> tokenRange)
         {
             this.tokenRange = tokenRange;
         }
@@ -189,13 +189,13 @@ public class DepsSerializers
     @VisibleForTesting
     public static class Impl
     {
-        final Serializer<Range> tokenRange;
+        final UnversionedSerializer<Range> tokenRange;
         final DepsSerializer<Deps> deps;
-        final Serializer<Deps> nullableDeps;
+        final UnversionedSerializer<Deps> nullableDeps;
         final DepsSerializer<PartialDeps> partialDeps;
-        final Serializer<PartialDeps> nullablePartialDeps;
+        final UnversionedSerializer<PartialDeps> nullablePartialDeps;
 
-        public Impl(Serializer<Range> tokenRange)
+        public Impl(UnversionedSerializer<Range> tokenRange)
         {
             this.tokenRange = tokenRange;
             this.deps = new DepsSerializer<>(tokenRange)

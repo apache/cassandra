@@ -23,14 +23,14 @@ import java.io.IOException;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 
-public class EmbeddedAsymmetricVersionedSerializer<In, Out, Version> implements IVersionedAsymmetricSerializer<In, Out>, AsymmetricSerializer<In, Out>
+public class EmbeddedAsymmetricVersionedSerializer<In, Out, Version> implements IVersionedAsymmetricSerializer<In, Out>, AsymmetricUnversionedSerializer<In, Out>
 {
     private final Version version;
-    private final Serializer<Version> versionSerializer;
+    private final UnversionedSerializer<Version> versionSerializer;
     private final AsymmetricVersionedSerializer<In, Out, Version> delegate;
 
     public EmbeddedAsymmetricVersionedSerializer(Version version,
-                                                 Serializer<Version> versionSerializer,
+                                                 UnversionedSerializer<Version> versionSerializer,
                                                  AsymmetricVersionedSerializer<In, Out, Version> delegate)
     {
         this.version = version;

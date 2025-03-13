@@ -50,7 +50,7 @@ import accord.utils.Invariants;
 import accord.utils.async.AsyncChain;
 import accord.utils.async.AsyncChains;
 import org.apache.cassandra.db.TypeSizes;
-import org.apache.cassandra.io.Serializer;
+import org.apache.cassandra.io.UnversionedSerializer;
 import org.apache.cassandra.io.VersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
@@ -95,7 +95,7 @@ public class AccordFetchCoordinator extends AbstractFetchCoordinator implements 
                 this.hasData = hasData;
             }
 
-            static final Serializer<SessionInfo> serializer = new Serializer<>()
+            static final UnversionedSerializer<SessionInfo> serializer = new UnversionedSerializer<>()
             {
                 public void serialize(SessionInfo info, DataOutputPlus out) throws IOException
                 {
@@ -115,7 +115,7 @@ public class AccordFetchCoordinator extends AbstractFetchCoordinator implements 
                 }
             };
         }
-        public static final Serializer<StreamData> serializer = new Serializer<>()
+        public static final UnversionedSerializer<StreamData> serializer = new UnversionedSerializer<>()
         {
             @Override
             public void serialize(StreamData data, DataOutputPlus out) throws IOException
@@ -308,7 +308,7 @@ public class AccordFetchCoordinator extends AbstractFetchCoordinator implements 
         private static final VersionedSerializer<Read, Version> read = CastingSerializer.create(StreamingRead.class,
                                                                                                 StreamingRead.serializer);
 
-        private static final Serializer<Query> query = new Serializer<>()
+        private static final UnversionedSerializer<Query> query = new UnversionedSerializer<>()
         {
             @Override
             public void serialize(Query t, DataOutputPlus out)

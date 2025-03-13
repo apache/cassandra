@@ -29,7 +29,7 @@ import org.slf4j.LoggerFactory;
 import accord.topology.Topology;
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.exceptions.RequestFailure;
-import org.apache.cassandra.io.Serializer;
+import org.apache.cassandra.io.UnversionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.locator.InetAddressAndPort;
@@ -61,7 +61,7 @@ public class FetchTopologies
     private final long minEpoch;
     private final long maxEpoch;
 
-    public static final Serializer<FetchTopologies> serializer = new Serializer<>()
+    public static final UnversionedSerializer<FetchTopologies> serializer = new UnversionedSerializer<>()
     {
         @Override
         public void serialize(FetchTopologies t, DataOutputPlus out) throws IOException
@@ -91,7 +91,7 @@ public class FetchTopologies
     }
 
     // TODO (required): messaging version after version patch
-    public static final Serializer<TopologyRange> responseSerializer = new Serializer<>()
+    public static final UnversionedSerializer<TopologyRange> responseSerializer = new UnversionedSerializer<>()
     {
             @Override
             public void serialize(TopologyRange t, DataOutputPlus out) throws IOException

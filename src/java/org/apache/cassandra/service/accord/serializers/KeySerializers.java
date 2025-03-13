@@ -54,7 +54,7 @@ import accord.primitives.Unseekables;
 import accord.primitives.Unseekables.UnseekablesKind;
 import accord.utils.Invariants;
 import org.apache.cassandra.db.TypeSizes;
-import org.apache.cassandra.io.Serializer;
+import org.apache.cassandra.io.UnversionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.service.accord.TokenRange;
@@ -69,30 +69,30 @@ import static accord.utils.ArrayBuffers.cachedInts;
 public class KeySerializers
 {
     public static final AccordKeySerializer<Key> key;
-    public static final Serializer<RoutingKey> routingKey;
+    public static final UnversionedSerializer<RoutingKey> routingKey;
 
-    public static final Serializer<RoutingKey> nullableRoutingKey;
+    public static final UnversionedSerializer<RoutingKey> nullableRoutingKey;
     public static final AbstractSearchableKeysSerializer<RoutingKey, RoutingKeys> routingKeys;
-    public static final Serializer<Keys> keys;
+    public static final UnversionedSerializer<Keys> keys;
 
     public static final AbstractSearchableKeysSerializer<?, PartialKeyRoute> partialKeyRoute;
     public static final AbstractSearchableKeysSerializer<?, FullKeyRoute> fullKeyRoute;
 
-    public static final Serializer<Range> range;
+    public static final UnversionedSerializer<Range> range;
     public static final AbstractRangesSerializer<Ranges> ranges;
     public static final AbstractRangesSerializer<PartialRangeRoute> partialRangeRoute;
     public static final AbstractRangesSerializer<FullRangeRoute> fullRangeRoute;
 
     public static final AbstractRoutablesSerializer<Route<?>> route;
-    public static final Serializer<Route<?>> nullableRoute;
-    public static final Serializer<PartialRoute<?>> partialRoute;
+    public static final UnversionedSerializer<Route<?>> nullableRoute;
+    public static final UnversionedSerializer<PartialRoute<?>> partialRoute;
 
     public static final AbstractRoutablesSerializer<FullRoute<?>> fullRoute;
-    public static final Serializer<Seekables<?, ?>> seekables;
-    public static final Serializer<FullRoute<?>> nullableFullRoute;
+    public static final UnversionedSerializer<Seekables<?, ?>> seekables;
+    public static final UnversionedSerializer<FullRoute<?>> nullableFullRoute;
     public static final AbstractRoutablesSerializer<Unseekables<?>> unseekables;
     public static final AbstractRoutablesSerializer<Participants<?>> participants;
-    public static final Serializer<Participants<?>> nullableParticipants;
+    public static final UnversionedSerializer<Participants<?>> nullableParticipants;
 
     static
     {
@@ -129,39 +129,39 @@ public class KeySerializers
         final AccordKeySerializer<Key> key;
         final AccordSearchableKeySerializer<RoutingKey> routingKey;
 
-        final Serializer<RoutingKey> nullableRoutingKey;
+        final UnversionedSerializer<RoutingKey> nullableRoutingKey;
         final AbstractSearchableKeysSerializer<RoutingKey, RoutingKeys> routingKeys;
-        final Serializer<Keys> keys;
+        final UnversionedSerializer<Keys> keys;
 
         final AbstractSearchableKeysSerializer<?, PartialKeyRoute> partialKeyRoute;
         final AbstractSearchableKeysSerializer<?, FullKeyRoute> fullKeyRoute;
 
-        final Serializer<Range> range;
+        final UnversionedSerializer<Range> range;
         final AbstractRangesSerializer<Ranges> ranges;
         final AbstractRangesSerializer<PartialRangeRoute> partialRangeRoute;
         final AbstractRangesSerializer<FullRangeRoute> fullRangeRoute;
 
         final AbstractRoutablesSerializer<Route<?>> route;
-        final Serializer<Route<?>> nullableRoute;
-        final Serializer<PartialRoute<?>> partialRoute;
+        final UnversionedSerializer<Route<?>> nullableRoute;
+        final UnversionedSerializer<PartialRoute<?>> partialRoute;
 
         final AbstractRoutablesSerializer<FullRoute<?>> fullRoute;
         final AbstractSeekablesSerializer seekables;
-        final Serializer<FullRoute<?>> nullableFullRoute;
+        final UnversionedSerializer<FullRoute<?>> nullableFullRoute;
         final AbstractRoutablesSerializer<Unseekables<?>> unseekables;
         final AbstractRoutablesSerializer<Participants<?>> participants;
-        final Serializer<Participants<?>> nullableParticipants;
+        final UnversionedSerializer<Participants<?>> nullableParticipants;
         private Impl()
         {
             this((AccordKeySerializer<Key>) (AccordKeySerializer<?>) PartitionKey.serializer,
                  (AccordSearchableKeySerializer<RoutingKey>) (AccordSearchableKeySerializer<?>) TokenKey.serializer,
-                 (Serializer<Range>) (Serializer<?>) TokenRange.serializer);
+                 (UnversionedSerializer<Range>) (UnversionedSerializer<?>) TokenRange.serializer);
         }
 
         @VisibleForTesting
         public Impl(AccordKeySerializer<Key> key,
                     AccordSearchableKeySerializer<RoutingKey> routingKey,
-                    Serializer<Range> range)
+                    UnversionedSerializer<Range> range)
         {
             this.key = key;
             this.routingKey = routingKey;
@@ -303,7 +303,7 @@ public class KeySerializers
         }
     }
 
-    public static class AbstractRoutablesSerializer<RS extends Unseekables<?>> implements Serializer<RS>
+    public static class AbstractRoutablesSerializer<RS extends Unseekables<?>> implements UnversionedSerializer<RS>
     {
         final EnumSet<UnseekablesKind> permitted;
         final AbstractSearchableKeysSerializer<RoutingKey, RoutingKeys> routingKeys;
@@ -424,7 +424,7 @@ public class KeySerializers
         }
     }
 
-    public static final Serializer<Seekable> seekable = new Serializer<>()
+    public static final UnversionedSerializer<Seekable> seekable = new UnversionedSerializer<>()
     {
         @Override
         public void serialize(Seekable seekable, DataOutputPlus out) throws IOException
@@ -469,12 +469,12 @@ public class KeySerializers
         }
     };
 
-    public static class AbstractSeekablesSerializer implements Serializer<Seekables<?, ?>>
+    public static class AbstractSeekablesSerializer implements UnversionedSerializer<Seekables<?, ?>>
     {
-        final Serializer<Keys> keys;
+        final UnversionedSerializer<Keys> keys;
         final AbstractRangesSerializer<Ranges> ranges;
 
-        public AbstractSeekablesSerializer(Serializer<Keys> keys, AbstractRangesSerializer<Ranges> ranges)
+        public AbstractSeekablesSerializer(UnversionedSerializer<Keys> keys, AbstractRangesSerializer<Ranges> ranges)
         {
             this.keys = keys;
             this.ranges = ranges;
@@ -525,7 +525,7 @@ public class KeySerializers
 
     // this serializer is designed to permits using the collection in its serialized form with minimal in-memory state.
     // it also saves some memory by avoiding duplicating prefixes (which happens to also assist faster lookups)
-    public abstract static class AbstractKeysSerializer<K extends RoutableKey, KS extends AbstractKeys<K>> implements Serializer<KS>
+    public abstract static class AbstractKeysSerializer<K extends RoutableKey, KS extends AbstractKeys<K>> implements UnversionedSerializer<KS>
     {
         final AccordKeySerializer<K> keySerializer;
         final IntFunction<K[]> allocate;
@@ -574,7 +574,7 @@ public class KeySerializers
 
     // this serializer is designed to permits using the collection in its serialized form with minimal in-memory state.
     // it also saves some memory by avoiding duplicating prefixes (which happens to also assist faster lookups)
-    public abstract static class AbstractSearchableSerializer<K extends RoutableKey, R extends Routable, RS extends Routables<R>> implements Serializer<RS>
+    public abstract static class AbstractSearchableSerializer<K extends RoutableKey, R extends Routable, RS extends Routables<R>> implements UnversionedSerializer<RS>
     {
         final AccordSearchableKeySerializer<K> keySerializer;
         final IntFunction<R[]> allocate;
@@ -769,7 +769,7 @@ public class KeySerializers
 
     // this serializer is designed to permits using the collection in its serialized form with minimal in-memory state.
     // it also saves some memory by avoiding duplicating prefixes (which happens to also assist faster lookups)
-    public abstract static class AbstractSearchableKeysSerializer<K extends RoutableKey, KS extends AbstractKeys<K>> extends AbstractSearchableSerializer<K, K, KS> implements Serializer<KS>
+    public abstract static class AbstractSearchableKeysSerializer<K extends RoutableKey, KS extends AbstractKeys<K>> extends AbstractSearchableSerializer<K, K, KS> implements UnversionedSerializer<KS>
     {
         public AbstractSearchableKeysSerializer(AccordSearchableKeySerializer<K> keySerializer, IntFunction<K[]> allocate)
         {
@@ -824,7 +824,7 @@ public class KeySerializers
         }
     }
 
-    public abstract static class AbstractRangesSerializer<RS extends AbstractRanges> extends AbstractSearchableSerializer<RoutingKey, Range, RS> implements Serializer<RS>
+    public abstract static class AbstractRangesSerializer<RS extends AbstractRanges> extends AbstractSearchableSerializer<RoutingKey, Range, RS> implements UnversionedSerializer<RS>
     {
         public AbstractRangesSerializer(AccordSearchableKeySerializer<RoutingKey> keySerializer)
         {

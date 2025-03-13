@@ -54,7 +54,7 @@ import org.apache.cassandra.db.marshal.ListType;
 import org.apache.cassandra.db.marshal.MapType;
 import org.apache.cassandra.db.marshal.SetType;
 import org.apache.cassandra.db.marshal.TimestampType;
-import org.apache.cassandra.io.Serializer;
+import org.apache.cassandra.io.UnversionedSerializer;
 import org.apache.cassandra.io.compress.BufferType;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
@@ -1117,7 +1117,7 @@ public class ByteBufferUtil
         }
     }
 
-    public static final Serializer<ByteBuffer> byteBufferSerializer = new Serializer<ByteBuffer>()
+    public static final UnversionedSerializer<ByteBuffer> byteBufferSerializer = new UnversionedSerializer<ByteBuffer>()
     {
         @Override
         public void serialize(ByteBuffer bytes, DataOutputPlus out) throws IOException
@@ -1138,5 +1138,5 @@ public class ByteBufferUtil
         }
     };
 
-    public static final Serializer<ByteBuffer> nullableByteBufferSerializer = NullableSerializer.wrap(byteBufferSerializer);
+    public static final UnversionedSerializer<ByteBuffer> nullableByteBufferSerializer = NullableSerializer.wrap(byteBufferSerializer);
 }

@@ -27,7 +27,7 @@ import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.io.util.DataOutputPlus;
 
-public interface AsymmetricSerializer<In, Out>
+public interface AsymmetricUnversionedSerializer<In, Out>
 {
     void serialize(In t, DataOutputPlus out) throws IOException;
     default ByteBuffer serialize(In t) throws IOException

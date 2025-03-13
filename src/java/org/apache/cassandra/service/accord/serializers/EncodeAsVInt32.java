@@ -26,12 +26,12 @@ import javax.annotation.Nullable;
 
 import com.google.common.primitives.Ints;
 
-import org.apache.cassandra.io.Serializer;
+import org.apache.cassandra.io.UnversionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.utils.vint.VIntCoding;
 
-public abstract class EncodeAsVInt32<T> implements Serializer<T>
+public abstract class EncodeAsVInt32<T> implements UnversionedSerializer<T>
 {
     /**
      * Creates a serializer that uses vint to store the encoded value.

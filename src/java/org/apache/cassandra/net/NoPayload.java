@@ -18,7 +18,7 @@
 package org.apache.cassandra.net;
 
 import org.apache.cassandra.io.IVersionedSerializer;
-import org.apache.cassandra.io.Serializer;
+import org.apache.cassandra.io.UnversionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 
@@ -51,7 +51,7 @@ public class NoPayload
             return 0;
         }
     };
-    public static final Serializer<NoPayload> unversionedSerializer = new Serializer<NoPayload>()
+    public static final UnversionedSerializer<NoPayload> unversionedSerializer = new UnversionedSerializer<NoPayload>()
     {
         public void serialize(NoPayload noPayload, DataOutputPlus out)
         {

@@ -75,7 +75,7 @@ public interface AsymmetricVersionedSerializer<In, Out, Version>
     }
     long serializedSize(In t, Version version);
 
-    static <In, Out, Version> AsymmetricVersionedSerializer<In, Out, Version> from(AsymmetricSerializer<In, Out> delegate)
+    static <In, Out, Version> AsymmetricVersionedSerializer<In, Out, Version> from(AsymmetricUnversionedSerializer<In, Out> delegate)
     {
         return new AsymmetricVersionedSerializer<>()
         {

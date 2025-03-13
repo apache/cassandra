@@ -22,14 +22,14 @@ import java.io.IOException;
 
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.io.IVersionedSerializer;
-import org.apache.cassandra.io.Serializer;
+import org.apache.cassandra.io.UnversionedSerializer;
 import org.apache.cassandra.io.VersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 
 public class NullableSerializer
 {
-    public static <T> void serializeNullable(T value, DataOutputPlus out, Serializer<T> serializer) throws IOException
+    public static <T> void serializeNullable(T value, DataOutputPlus out, UnversionedSerializer<T> serializer) throws IOException
     {
         out.writeBoolean(value != null);
         if (value != null)
@@ -50,7 +50,7 @@ public class NullableSerializer
             serializer.serialize(value, out, version);
     }
 
-    public static <T> T deserializeNullable(DataInputPlus in, Serializer<T> serializer) throws IOException
+    public static <T> T deserializeNullable(DataInputPlus in, UnversionedSerializer<T> serializer) throws IOException
     {
         return in.readBoolean() ? serializer.deserialize(in) : null;
     }
@@ -65,7 +65,7 @@ public class NullableSerializer
         return in.readBoolean() ? serializer.deserialize(in, version) : null;
     }
 
-    public static <T> long serializedNullableSize(T value, Serializer<T> serializer)
+    public static <T> long serializedNullableSize(T value, UnversionedSerializer<T> serializer)
     {
         return value != null
                ? TypeSizes.sizeof(true) + serializer.serializedSize(value)
@@ -86,9 +86,9 @@ public class NullableSerializer
                : TypeSizes.sizeof(false);
     }
 
-    public static <T> Serializer<T> wrap(Serializer<T> wrap)
+    public static <T> UnversionedSerializer<T> wrap(UnversionedSerializer<T> wrap)
     {
-        return new Serializer<>()
+        return new UnversionedSerializer<>()
         {
             @Override
             public void serialize(T t, DataOutputPlus out) throws IOException

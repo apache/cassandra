@@ -26,7 +26,7 @@ import java.util.Set;
 import com.google.common.collect.Sets;
 
 import org.apache.cassandra.io.IVersionedSerializer;
-import org.apache.cassandra.io.Serializer;
+import org.apache.cassandra.io.UnversionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.tcm.serialization.MetadataSerializer;
@@ -175,7 +175,7 @@ public class Epoch implements Comparable<Epoch>, Serializable
         return epoch;
     }
 
-    public static class EpochSerializer implements MetadataSerializer<Epoch>, Serializer<Epoch>
+    public static class EpochSerializer implements MetadataSerializer<Epoch>, UnversionedSerializer<Epoch>
     {
         // convenience methods for messageSerializer et al
         @Override

@@ -55,7 +55,7 @@ import org.apache.cassandra.gms.GossipShutdown;
 import org.apache.cassandra.gms.GossipShutdownVerbHandler;
 import org.apache.cassandra.hints.HintMessage;
 import org.apache.cassandra.hints.HintVerbHandler;
-import org.apache.cassandra.io.AsymmetricSerializer;
+import org.apache.cassandra.io.AsymmetricUnversionedSerializer;
 import org.apache.cassandra.io.AsymmetricVersionedSerializer;
 import org.apache.cassandra.io.IVersionedAsymmetricSerializer;
 import org.apache.cassandra.repair.RepairMessageVerbHandler;
@@ -641,7 +641,7 @@ public enum Verb
         return AccordSerializers.embedded(Version.CLUSTER_SAFE_VERSION, delegate);
     }
 
-    private static <A, B> IVersionedAsymmetricSerializer<A, B> accordEmbedded(AsymmetricSerializer<A, B> delegate)
+    private static <A, B> IVersionedAsymmetricSerializer<A, B> accordEmbedded(AsymmetricUnversionedSerializer<A, B> delegate)
     {
         return accordEmbedded(AsymmetricVersionedSerializer.from(delegate));
     }

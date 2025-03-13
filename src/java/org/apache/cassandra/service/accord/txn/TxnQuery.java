@@ -38,7 +38,7 @@ import org.apache.cassandra.db.PartitionRangeReadCommand;
 import org.apache.cassandra.db.SinglePartitionReadCommand;
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.db.partitions.PartitionIterator;
-import org.apache.cassandra.io.Serializer;
+import org.apache.cassandra.io.UnversionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.metrics.ClientRequestsMetricsHolder;
@@ -227,7 +227,7 @@ public abstract class TxnQuery implements Query
         return SIZE;
     }
 
-    public static final Serializer<TxnQuery> serializer = new Serializer<TxnQuery>()
+    public static final UnversionedSerializer<TxnQuery> serializer = new UnversionedSerializer<TxnQuery>()
     {
         @Override
         public void serialize(TxnQuery query, DataOutputPlus out) throws IOException

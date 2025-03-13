@@ -34,7 +34,7 @@ import accord.utils.Invariants;
 import accord.utils.ReducingRangeMap;
 import accord.utils.TriFunction;
 import org.apache.cassandra.db.TypeSizes;
-import org.apache.cassandra.io.Serializer;
+import org.apache.cassandra.io.UnversionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.utils.CollectionSerializers;
@@ -48,13 +48,13 @@ public class CommandStoreSerializers
 {
     private CommandStoreSerializers() {}
 
-    public static class ReducingRangeMapSerializer<T, R extends ReducingRangeMap<T>> implements Serializer<R>
+    public static class ReducingRangeMapSerializer<T, R extends ReducingRangeMap<T>> implements UnversionedSerializer<R>
     {
-        final Serializer<T> valueSerializer;
+        final UnversionedSerializer<T> valueSerializer;
         final IntFunction<T[]> newValueArray;
         final TriFunction<Boolean, RoutingKey[], T[], R> constructor;
 
-        public ReducingRangeMapSerializer(Serializer<T> valueSerializer, IntFunction<T[]> newValueArray, TriFunction<Boolean, RoutingKey[], T[], R> constructor)
+        public ReducingRangeMapSerializer(UnversionedSerializer<T> valueSerializer, IntFunction<T[]> newValueArray, TriFunction<Boolean, RoutingKey[], T[], R> constructor)
         {
             this.valueSerializer = valueSerializer;
             this.newValueArray = newValueArray;
@@ -112,7 +112,7 @@ public class CommandStoreSerializers
         }
     }
 
-    public static Serializer<DurableBefore> durableBefore = new ReducingRangeMapSerializer<>(NullableSerializer.wrap(new Serializer<>()
+    public static UnversionedSerializer<DurableBefore> durableBefore = new ReducingRangeMapSerializer<>(NullableSerializer.wrap(new UnversionedSerializer<>()
     {
         @Override
         public void serialize(DurableBefore.Entry t, DataOutputPlus out) throws IOException
@@ -137,7 +137,7 @@ public class CommandStoreSerializers
         }
     }), DurableBefore.Entry[]::new, DurableBefore.SerializerSupport::create);
 
-    public static final Serializer<RedundantBefore.Bounds> redundantBeforeEntry = new Serializer<>()
+    public static final UnversionedSerializer<RedundantBefore.Bounds> redundantBeforeEntry = new UnversionedSerializer<>()
     {
         @Override
         public void serialize(RedundantBefore.Bounds b, DataOutputPlus out) throws IOException
@@ -194,13 +194,13 @@ public class CommandStoreSerializers
             return size;
         }
     };
-    public static Serializer<RedundantBefore> redundantBefore = new ReducingRangeMapSerializer<>(NullableSerializer.wrap(redundantBeforeEntry), RedundantBefore.Bounds[]::new, RedundantBefore.SerializerSupport::create);
+    public static UnversionedSerializer<RedundantBefore> redundantBefore = new ReducingRangeMapSerializer<>(NullableSerializer.wrap(redundantBeforeEntry), RedundantBefore.Bounds[]::new, RedundantBefore.SerializerSupport::create);
 
-    private static class TimestampToRangesSerializer<T extends Timestamp> implements Serializer<NavigableMap<T, Ranges>>
+    private static class TimestampToRangesSerializer<T extends Timestamp> implements UnversionedSerializer<NavigableMap<T, Ranges>>
     {
-        private final Serializer<T> timestampSerializer;
+        private final UnversionedSerializer<T> timestampSerializer;
 
-        public TimestampToRangesSerializer(Serializer<T> timestampSerializer)
+        public TimestampToRangesSerializer(UnversionedSerializer<T> timestampSerializer)
         {
             this.timestampSerializer = timestampSerializer;
         }
@@ -225,6 +225,6 @@ public class CommandStoreSerializers
         }
     }
 
-    public static final Serializer<NavigableMap<TxnId, Ranges>> bootstrapBeganAt = new TimestampToRangesSerializer<>(CommandSerializers.txnId);
-    public static final Serializer<NavigableMap<Timestamp, Ranges>> safeToRead = new TimestampToRangesSerializer<>(CommandSerializers.timestamp);
+    public static final UnversionedSerializer<NavigableMap<TxnId, Ranges>> bootstrapBeganAt = new TimestampToRangesSerializer<>(CommandSerializers.txnId);
+    public static final UnversionedSerializer<NavigableMap<Timestamp, Ranges>> safeToRead = new TimestampToRangesSerializer<>(CommandSerializers.timestamp);
 }

@@ -42,7 +42,7 @@ import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.exceptions.RequestFailure;
 import org.apache.cassandra.gms.Gossiper;
 import org.apache.cassandra.gms.IFailureDetector;
-import org.apache.cassandra.io.Serializer;
+import org.apache.cassandra.io.UnversionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.locator.InetAddressAndPort;
@@ -363,7 +363,7 @@ public class AccordSyncPropagator
 
     public static class Notification
     {
-        public static final Serializer<Notification> serializer = new Serializer<Notification>()
+        public static final UnversionedSerializer<Notification> serializer = new UnversionedSerializer<Notification>()
         {
             @Override
             public void serialize(Notification notification, DataOutputPlus out) throws IOException

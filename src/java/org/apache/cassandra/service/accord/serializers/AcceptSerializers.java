@@ -31,7 +31,7 @@ import accord.primitives.Route;
 import accord.primitives.Timestamp;
 import accord.primitives.TxnId;
 import org.apache.cassandra.db.TypeSizes;
-import org.apache.cassandra.io.Serializer;
+import org.apache.cassandra.io.UnversionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.service.accord.serializers.CommandSerializers.ExecuteAtSerializer;
@@ -80,7 +80,7 @@ public class AcceptSerializers
         }
     }
 
-    public static final Serializer<Accept.NotAccept> notAccept = new Serializer<>()
+    public static final UnversionedSerializer<Accept.NotAccept> notAccept = new UnversionedSerializer<>()
     {
         @Override
         public void serialize(Accept.NotAccept invalidate, DataOutputPlus out) throws IOException
@@ -110,8 +110,8 @@ public class AcceptSerializers
         }
     };
 
-    public static final Serializer<AcceptReply> reply = new ReplySerializer();
-    public static class ReplySerializer implements Serializer<AcceptReply>
+    public static final UnversionedSerializer<AcceptReply> reply = new ReplySerializer();
+    public static class ReplySerializer implements UnversionedSerializer<AcceptReply>
     {
         // we have one spare bit at 0x04 for either another flag or more AcceptOutcome variants
         private static final int SUPERSEDED_BY        = 0x08;

@@ -21,13 +21,13 @@ import java.io.IOException;
 
 import accord.messages.GetDurableBefore;
 import accord.messages.GetDurableBefore.DurableBeforeReply;
-import org.apache.cassandra.io.Serializer;
+import org.apache.cassandra.io.UnversionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 
 public class GetDurableBeforeSerializers
 {
-    public static final Serializer<GetDurableBefore> request = new Serializer<GetDurableBefore>()
+    public static final UnversionedSerializer<GetDurableBefore> request = new UnversionedSerializer<GetDurableBefore>()
     {
         @Override
         public void serialize(GetDurableBefore msg, DataOutputPlus out) throws IOException
@@ -47,7 +47,7 @@ public class GetDurableBeforeSerializers
         }
     };
 
-    public static final Serializer<DurableBeforeReply> reply = new Serializer<DurableBeforeReply>()
+    public static final UnversionedSerializer<DurableBeforeReply> reply = new UnversionedSerializer<DurableBeforeReply>()
     {
         @Override
         public void serialize(DurableBeforeReply msg, DataOutputPlus out) throws IOException

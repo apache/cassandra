@@ -26,14 +26,14 @@ import accord.primitives.FullRoute;
 import accord.primitives.SyncPoint;
 import accord.primitives.Timestamp;
 import accord.primitives.TxnId;
-import org.apache.cassandra.io.Serializer;
+import org.apache.cassandra.io.UnversionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.service.accord.serializers.CommandSerializers.ExecuteAtSerializer;
 
 public class SetDurableSerializers
 {
-    public static final Serializer<SetShardDurable> shardDurable = new Serializer<>()
+    public static final UnversionedSerializer<SetShardDurable> shardDurable = new UnversionedSerializer<>()
     {
         @Override
         public void serialize(SetShardDurable msg, DataOutputPlus out) throws IOException
@@ -57,7 +57,7 @@ public class SetDurableSerializers
         }
     };
 
-    public static final Serializer<SetGloballyDurable> globallyDurable = new Serializer<>()
+    public static final UnversionedSerializer<SetGloballyDurable> globallyDurable = new UnversionedSerializer<>()
     {
         @Override
         public void serialize(SetGloballyDurable msg, DataOutputPlus out) throws IOException
@@ -78,7 +78,7 @@ public class SetDurableSerializers
         }
     };
 
-    public static final Serializer<SyncPoint> syncPoint = new Serializer<>()
+    public static final UnversionedSerializer<SyncPoint> syncPoint = new UnversionedSerializer<>()
     {
         @Override
         public void serialize(SyncPoint sp, DataOutputPlus out) throws IOException

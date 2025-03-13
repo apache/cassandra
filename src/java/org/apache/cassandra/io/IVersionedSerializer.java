@@ -24,7 +24,7 @@ import org.apache.cassandra.io.util.DataOutputPlus;
 
 public interface IVersionedSerializer<T> extends IVersionedAsymmetricSerializer<T, T>
 {
-    static <T> IVersionedSerializer<T> from(Serializer<T> delegate)
+    static <T> IVersionedSerializer<T> from(UnversionedSerializer<T> delegate)
     {
         return new IVersionedSerializer<T>()
         {

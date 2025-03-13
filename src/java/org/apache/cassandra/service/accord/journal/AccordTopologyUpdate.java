@@ -35,6 +35,7 @@ import accord.utils.Invariants;
 import accord.utils.UnhandledEnum;
 import org.agrona.collections.Int2ObjectHashMap;
 import org.apache.cassandra.db.TypeSizes;
+import org.apache.cassandra.io.UnversionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.service.accord.AccordConfigurationService;
@@ -56,7 +57,7 @@ public interface AccordTopologyUpdate
     {
         return new NewTopology(update);
     }
-    class RangesForEpochSerializer implements org.apache.cassandra.io.Serializer<CommandStores.RangesForEpoch>
+    class RangesForEpochSerializer implements UnversionedSerializer<CommandStores.RangesForEpoch>
     {
         public static final RangesForEpochSerializer instance = new RangesForEpochSerializer();
 
@@ -99,7 +100,7 @@ public interface AccordTopologyUpdate
         }
     }
 
-    class TopologyUpdateSerializer implements org.apache.cassandra.io.Serializer<Journal.TopologyUpdate>
+    class TopologyUpdateSerializer implements UnversionedSerializer<Journal.TopologyUpdate>
     {
         public static final TopologyUpdateSerializer instance = new TopologyUpdateSerializer();
 
@@ -150,7 +151,7 @@ public interface AccordTopologyUpdate
         }
     }
 
-    class Serializer implements org.apache.cassandra.io.Serializer<AccordTopologyUpdate>
+    class Serializer implements UnversionedSerializer<AccordTopologyUpdate>
     {
         public static Serializer instance = new Serializer();
 

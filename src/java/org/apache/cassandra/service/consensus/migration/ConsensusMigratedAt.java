@@ -22,7 +22,7 @@ import java.io.IOException;
 import javax.annotation.Nullable;
 
 import org.apache.cassandra.db.TypeSizes;
-import org.apache.cassandra.io.Serializer;
+import org.apache.cassandra.io.UnversionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.tcm.Epoch;
@@ -30,7 +30,7 @@ import org.apache.cassandra.utils.NullableSerializer;
 
 public class ConsensusMigratedAt
 {
-    public static final Serializer<ConsensusMigratedAt> serializer = NullableSerializer.wrap(new Serializer<ConsensusMigratedAt>()
+    public static final UnversionedSerializer<ConsensusMigratedAt> serializer = NullableSerializer.wrap(new UnversionedSerializer<ConsensusMigratedAt>()
     {
         @Override
         public void serialize(ConsensusMigratedAt t, DataOutputPlus out) throws IOException
