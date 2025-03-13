@@ -27,7 +27,6 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 import java.util.function.IntSupplier;
 
-import com.google.common.base.Preconditions;
 import com.google.common.collect.Sets;
 
 import org.agrona.collections.IntArrayList;
@@ -90,14 +89,16 @@ public class MutationTrackingService
 
     public PendingWrite startWrite(Mutation mutation)
     {
-        Preconditions.checkArgument(!mutation.id().isNone());
+        if (mutation.id().isNone())
+            return PendingWrite.NOOP;
         return getOrCreate(mutation.getKeyspaceName()).startWrite(mutation);
     }
 
     public PendingRead startRead(ReadCommand command)
     {
+        if (!command.responseType().isTracked())
+            return PendingRead.NOOP;
         //noinspection DataFlowIssue
-        Preconditions.checkArgument(Schema.instance.getKeyspaceMetadata(command.metadata().keyspace).useMutationTracking());
         return getOrCreate(command.metadata().keyspace).startRead(command);
     }
 
