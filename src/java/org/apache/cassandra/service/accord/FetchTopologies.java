@@ -90,7 +90,6 @@ public class FetchTopologies
         this.maxEpoch = maxEpoch;
     }
 
-    // TODO (required): messaging version after version patch
     public static final UnversionedSerializer<TopologyRange> responseSerializer = new UnversionedSerializer<>()
     {
             @Override
