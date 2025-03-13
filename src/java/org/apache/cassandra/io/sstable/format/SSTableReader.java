@@ -179,7 +179,7 @@ public abstract class SSTableReader extends SSTable implements UnfilteredSource,
     public static final Comparator<SSTableReader> maxTimestampAscending = Comparator.comparingLong(SSTableReader::getMaxTimestamp);
     public static final Comparator<SSTableReader> maxTimestampDescending = maxTimestampAscending.reversed();
 
-    private static final TimeUUID.Generator.Factory<UniqueIdentifier> UNIQUE_IDENTIFIER_FACTORY = new TimeUUID.Generator.Factory<UniqueIdentifier>()
+    public static final TimeUUID.Generator.Factory<UniqueIdentifier> UNIQUE_IDENTIFIER_FACTORY = new TimeUUID.Generator.Factory<UniqueIdentifier>()
     {
         @Override
         public UniqueIdentifier atUnixMicrosWithLsb(long unixMicros, long clockSeqAndNode)
@@ -197,6 +197,7 @@ public abstract class SSTableReader extends SSTable implements UnfilteredSource,
             super(unixMicros, clockSeqAndNode);
         }
     }
+
     public final UniqueIdentifier instanceId = TimeUUID.Generator.nextTimeUUID(UNIQUE_IDENTIFIER_FACTORY);
 
     public static final Comparator<SSTableReader> firstKeyComparator = (o1, o2) -> o1.getFirst().compareTo(o2.getFirst());
@@ -1769,11 +1770,17 @@ public abstract class SSTableReader extends SSTable implements UnfilteredSource,
                                           boolean isOffline,
                                           IVerifier.Options options);
 
+    public UniqueIdentifier instanceId()
+    {
+        return instanceId;
+    }
+
     @Override
     public int compareTo(SSTableReader other)
     {
         // Used in IntervalTree with the expecation that compareTo uniquely identifies an SSTableReader
-        return instanceId.compareTo(other.instanceId);
+        // Use accessor for instanceId for mocks
+        return instanceId().compareTo(other.instanceId());
     }
 
     /**

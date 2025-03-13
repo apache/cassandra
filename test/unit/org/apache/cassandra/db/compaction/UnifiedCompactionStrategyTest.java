@@ -58,11 +58,13 @@ import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Interval;
 import org.apache.cassandra.utils.Overlaps;
 import org.apache.cassandra.utils.Pair;
+import org.apache.cassandra.utils.TimeUUID;
 import org.mockito.Answers;
 import org.mockito.Mock;
 import org.mockito.Mockito;
 import org.mockito.MockitoAnnotations;
 
+import static org.apache.cassandra.io.sstable.format.SSTableReader.UNIQUE_IDENTIFIER_FACTORY;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
@@ -851,6 +853,8 @@ public class UnifiedCompactionStrategyTest
         when(ret.getFirst()).thenReturn(first);
         when(ret.getLast()).thenReturn(last);
         when(ret.getInterval()).thenReturn(new Interval<>(first, last, ret));
+        when(ret.instanceId()).thenReturn(TimeUUID.Generator.nextTimeUUID(UNIQUE_IDENTIFIER_FACTORY));
+        when(ret.compareTo(any())).thenCallRealMethod();
         when(ret.isMarkedSuspect()).thenReturn(false);
         when(ret.isRepaired()).thenReturn(false);
         when(ret.getRepairedAt()).thenReturn(repairedAt);
