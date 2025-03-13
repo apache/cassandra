@@ -78,7 +78,7 @@ public class TrackedResolver<E extends Endpoints<E>, P extends ReplicaPlan.ForRe
 
             if (first)
                 digest = response.summary.digest();
-            else if (Arrays.equals(digest, response.summary.digest()))
+            else if (!Arrays.equals(digest, response.summary.digest()))
                 return false;
 
             first = false;

@@ -30,6 +30,7 @@ import java.util.function.Consumer;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.Sets;
 
+import org.apache.cassandra.replication.ReconciliationPlan.PeerReconciliation;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -194,7 +195,7 @@ public class TrackedReadReconciliation<E extends Endpoints<E>, P extends Replica
                     for (InetAddressAndPort to : plan.nodes())
                     {
                         int syncId = nextSyncId++;
-                        PendingSync sync = new PendingSync(syncId, from, to, plan, to.equals(dataNode));
+                        PendingSync sync = new PendingSync(syncId, from, to, plan.peerReconciliation(to), to.equals(dataNode));
                         pendingSync.put(syncId, sync);
                         syncs++;
                         if (sync.mirrorToCoordinator)
@@ -305,10 +306,10 @@ public class TrackedReadReconciliation<E extends Endpoints<E>, P extends Replica
         final int syncId;
         final InetAddressAndPort from;
         final InetAddressAndPort to;
-        final ReconciliationPlan plan;
+        final PeerReconciliation plan;
         final boolean mirrorToCoordinator;
 
-        public PendingSync(int syncId, InetAddressAndPort from, InetAddressAndPort to, ReconciliationPlan plan, boolean mirrorToCoordinator)
+        public PendingSync(int syncId, InetAddressAndPort from, InetAddressAndPort to, PeerReconciliation plan, boolean mirrorToCoordinator)
         {
             this.syncId = syncId;
             this.from = from;
@@ -319,8 +320,7 @@ public class TrackedReadReconciliation<E extends Endpoints<E>, P extends Replica
 
         public ReadReconcileSend.PeerSync toPeerSync()
         {
-            throw new UnsupportedOperationException("TODO");
-//            return new ReadReconcileSend.PeerSync(syncId, to, ImmutableSet.copyOf(ids), mirrorToCoordinator);
+            return new ReadReconcileSend.PeerSync(syncId, to, plan, mirrorToCoordinator);
         }
     }
 

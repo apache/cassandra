@@ -120,7 +120,7 @@ public class Offsets
             int   end = bounds[i+1];
             for (int offset=start; offset <= end; offset++)
             {
-                consumer.accept(new MutationId(logId.asLong(), MutationId.offset(offset)));
+                consumer.accept(new MutationId(logId.asLong(), MutationId.sequenceId(offset, 0)));
             }
         }
     }
@@ -571,6 +571,12 @@ public class Offsets
 
     public static Offsets union(Offsets a, Offsets b)
     {
+        if (a == null)
+            return b;
+
+        if (b == null)
+            return a;
+
         Preconditions.checkArgument(a.logId.equals(b.logId));
         CoordinatorLogId logId = a.logId;
 

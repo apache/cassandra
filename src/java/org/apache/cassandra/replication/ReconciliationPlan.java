@@ -128,6 +128,11 @@ public class ReconciliationPlan
         return txPlan.keySet();
     }
 
+    public PeerReconciliation peerReconciliation(InetAddressAndPort to)
+    {
+        return txPlan.get(to);
+    }
+
     public Set<MutationId> idsFor(InetAddressAndPort node)
     {
         return txPlan.get(node).ids();
