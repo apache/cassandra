@@ -106,6 +106,7 @@ public class SetAutoRepairConfigTest
             verify(probe, times(1)).setAutoRepairMinRepairTaskDuration("4s");
         }
 
+        @Test
         public void testStartScheduler()
         {
             cmd.args = ImmutableList.of("start_scheduler", "false");

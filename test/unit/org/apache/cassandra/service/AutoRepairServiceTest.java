@@ -105,7 +105,7 @@ public class AutoRepairServiceTest
         {
             autoRepairService.setAutoRepairMaxRetriesCount(AutoRepairConfig.RepairType.INCREMENTAL.name(), 101);
 
-            assertEquals(101, config.getRepairMaxRetries(AutoRepairConfig.RepairType.INCREMENTAL.name(), ));
+            assertEquals(101, config.getRepairMaxRetries(AutoRepairConfig.RepairType.INCREMENTAL));
         }
 
         @Test
