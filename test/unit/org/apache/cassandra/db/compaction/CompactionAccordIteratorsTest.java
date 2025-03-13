@@ -374,7 +374,7 @@ public class CompactionAccordIteratorsTest
                 nextInputScanners.add(scanners.remove(random.nextInt(scanners.size())));
             }
             try (CompactionController controller = new CompactionController(ColumnFamilyStore.getIfExists(ACCORD_KEYSPACE_NAME, cfs.name), Collections.emptySet(), 0);
-                 CompactionIterator compactionIterator = new CompactionIterator(OperationType.COMPACTION, nextInputScanners, controller, FBUtilities.nowInSeconds(), null, ActiveCompactionsTracker.NOOP, null, () -> mockAccordService))
+                 CompactionIterator compactionIterator = new CompactionIterator(OperationType.COMPACTION, nextInputScanners, controller, FBUtilities.nowInSeconds(), null, ActiveCompactionsTracker.NOOP, null, mockAccordService))
             {
                 while (compactionIterator.hasNext())
                 {

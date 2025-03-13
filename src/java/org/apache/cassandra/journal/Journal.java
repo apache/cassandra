@@ -456,7 +456,7 @@ public class Journal<K, V> implements Shutdownable
     {
         try (DataOutputBuffer dob = DataOutputBuffer.scratchBuffer.get())
         {
-            valueSerializer.serialize(id, record, dob, params.userVersion());
+            valueSerializer.serialize(id, record, dob, params.userVersion().version);
             ActiveSegment<K, V>.Allocation alloc = allocate(dob.getLength());
             alloc.writeInternal(id, dob.unsafeGetBufferAndFlip());
             flusher.flushAndAwaitDurable(alloc);
@@ -486,7 +486,7 @@ public class Journal<K, V> implements Shutdownable
     {
         try (DataOutputBuffer dob = DataOutputBuffer.scratchBuffer.get())
         {
-            writer.write(dob, params.userVersion());
+            writer.write(dob, params.userVersion().version);
             ActiveSegment<K, V>.Allocation alloc = allocate(dob.getLength());
             alloc.write(id, dob.unsafeGetBufferAndFlip());
             return flusher.flush(alloc);
@@ -672,7 +672,7 @@ public class Journal<K, V> implements Shutdownable
 
     private ActiveSegment<K, V> createSegment()
     {
-        Descriptor descriptor = Descriptor.create(directory, nextSegmentId.getAndIncrement(), params.userVersion());
+        Descriptor descriptor = Descriptor.create(directory, nextSegmentId.getAndIncrement(), params.userVersion().version);
         return ActiveSegment.create(descriptor, params, keySupport);
     }
 

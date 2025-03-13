@@ -19,6 +19,8 @@ package org.apache.cassandra.journal;
 
 import java.util.concurrent.TimeUnit;
 
+import org.apache.cassandra.service.accord.serializers.Version;
+
 public interface Params
 {
     enum FlushMode { BATCH, GROUP, PERIODIC }
@@ -58,5 +60,5 @@ public interface Params
     /**
      * @return user provided version to use for key and value serialization
      */
-    int userVersion();
+    Version userVersion();
 }

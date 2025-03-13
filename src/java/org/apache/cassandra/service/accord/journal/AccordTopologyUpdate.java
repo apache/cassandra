@@ -45,8 +45,6 @@ import org.apache.cassandra.service.accord.serializers.KeySerializers;
 import org.apache.cassandra.service.accord.serializers.TopologySerializers;
 import org.apache.cassandra.service.accord.serializers.Version;
 
-import static org.apache.cassandra.service.accord.JournalKey.Type.TOPOLOGY_UPDATE;
-
 public interface AccordTopologyUpdate
 {
     Kind kind();
@@ -368,6 +366,12 @@ public interface AccordTopologyUpdate
         }
 
         @Override
+        public void reset(JournalKey key)
+        {
+            accumulated = new TreeMap<>();
+        }
+
+        @Override
         public void update(AccordTopologyUpdate newValue)
         {
             super.update(newValue);
@@ -414,9 +418,8 @@ public interface AccordTopologyUpdate
         }
 
         @Override
-        public Accumulator mergerFor(JournalKey key)
+        public Accumulator mergerFor()
         {
-            Invariants.require(key.type == TOPOLOGY_UPDATE);
             return new Accumulator();
         }
 

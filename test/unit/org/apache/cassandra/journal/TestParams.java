@@ -68,8 +68,8 @@ public class TestParams implements Params
     }
 
     @Override
-    public int userVersion()
+    public Version userVersion()
     {
-        return Version.LATEST.version;
+        return Version.LATEST;
     }
 }

@@ -31,7 +31,6 @@ import java.util.function.Predicate;
 import java.util.function.ToLongFunction;
 import javax.annotation.Nullable;
 
-import accord.api.Agent;
 import accord.api.Journal;
 import accord.api.LocalListeners;
 import accord.api.ProgressLog;
@@ -234,7 +233,7 @@ public class SimulatedAccordCommandStore implements AutoCloseable
             }
         };
 
-        this.journal = new DefaultJournal(nodeId, agent, rs.fork());
+        this.journal = new DefaultJournal(nodeId, rs.fork());
         this.commandStore = new AccordCommandStore(0,
                                                    storeService,
                                                    agent,
@@ -465,9 +464,9 @@ public class SimulatedAccordCommandStore implements AutoCloseable
     private static class DefaultJournal extends InMemoryJournal implements RangeSearcher.Supplier
     {
         private final RouteInMemoryIndex<?> index = new RouteInMemoryIndex<>();
-        private DefaultJournal(Node.Id id, Agent agent, RandomSource rs)
+        private DefaultJournal(Node.Id id, RandomSource rs)
         {
-            super(id, agent, rs);
+            super(id, rs);
         }
 
         @Override
