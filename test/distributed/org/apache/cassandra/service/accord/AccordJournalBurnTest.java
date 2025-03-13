@@ -43,14 +43,15 @@ import accord.local.CommandStores;
 import accord.local.Node;
 import accord.primitives.EpochSupplier;
 import accord.utils.DefaultRandom;
+import accord.utils.Invariants;
 import accord.utils.RandomSource;
 import org.apache.cassandra.ServerTestUtils;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Directories;
 import org.apache.cassandra.db.Keyspace;
+import org.apache.cassandra.db.compaction.ActiveCompactionsTracker;
 import org.apache.cassandra.db.compaction.CompactionController;
 import org.apache.cassandra.db.compaction.CompactionIterator;
-import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.db.compaction.OperationType;
 import org.apache.cassandra.db.compaction.writers.CompactionAwareWriter;
 import org.apache.cassandra.db.compaction.writers.DefaultCompactionWriter;
@@ -61,11 +62,12 @@ import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.journal.SegmentCompactor;
 import org.apache.cassandra.journal.StaticSegment;
+import org.apache.cassandra.journal.TestParams;
 import org.apache.cassandra.schema.Schema;
+import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.schema.Tables;
 import org.apache.cassandra.service.StorageService;
-import org.apache.cassandra.service.accord.api.AccordAgent;
 import org.apache.cassandra.service.accord.serializers.CommandSerializers;
 import org.apache.cassandra.service.accord.serializers.DepsSerializers;
 import org.apache.cassandra.service.accord.serializers.KeySerializers;
@@ -163,22 +165,30 @@ public class AccordJournalBurnTest extends BurnTestBase
                  operations,
                  10 + random.nextInt(30),
                  new RandomDelayQueue.Factory(random).get(),
-                 (node, agent, randomSource) -> {
+                 (nodeId, randomSource) -> {
                      try
                      {
                          File directory = new File(Files.createTempDirectory(Integer.toString(counter.incrementAndGet())));
                          directory.deleteRecursiveOnExit();
-                         ColumnFamilyStore cfs = ks.getColumnFamilyStore("journal_" + node);
+                         ColumnFamilyStore cfs = ks.getColumnFamilyStore("journal_" + nodeId);
                          cfs.disableAutoCompaction();
-                         AccordJournal journal = new AccordJournal(new AccordJournalTestParams()
+                         AccordJournal journal = new AccordJournal(new TestParams()
                          {
                              @Override
                              public int segmentSize()
                              {
-                                 return 32 * 1024 * 1024;
+                                 return 1 * 1024 * 1024;
                              }
-                         }, new AccordAgent(), directory, cfs)
+                         }, directory, cfs)
                          {
+                             @Override
+                             public AccordJournal start(Node node)
+                             {
+                                 super.start(node);
+                                 unsafeSetStarted();
+                                 return this;
+                             }
+
                              @Override
                              public void saveCommand(int store, CommandUpdate update, @Nullable Runnable onFlush)
                              {
@@ -236,45 +246,48 @@ public class AccordJournalBurnTest extends BurnTestBase
                                  this.journal.closeCurrentSegmentForTestingIfNonEmpty();
                                  this.journal.runCompactorForTesting();
 
-                                 List<SSTableReader> all = new ArrayList<>(cfs.getLiveSSTables());
+                                 Set<SSTableReader> orig = cfs.getLiveSSTables();
+                                 List<SSTableReader> all = new ArrayList<>(orig);
                                  if (all.size() <= 1)
                                      return;
 
-                                 Set<SSTableReader> sstables = new HashSet<>();
-
-                                 int min, max;
-                                 while (true)
+                                 Set<SSTableReader> selected = new HashSet<>();
+                                 int count = all.size();
+                                 int removeCount = random.nextInt(1, count);
+                                 while (removeCount-- > 0)
                                  {
-                                     int tmp1 = randomSource.nextInt(0, all.size());
-                                     int tmp2 = randomSource.nextInt(0, all.size());
-                                     if (tmp1 != tmp2 && Math.abs(tmp1 - tmp2) >= 1)
-                                     {
-                                         min = Math.min(tmp1, tmp2);
-                                         max = Math.max(tmp1, tmp2);
-                                         break;
-                                     }
+                                     int removeIndex = random.nextInt(count);
+                                     SSTableReader reader = all.get(removeIndex);
+                                     if (reader == null)
+                                         continue;
+                                     all.set(removeIndex, null);
+                                     selected.add(reader);
+                                     --count;
                                  }
-                                 // Random subset
-                                 for (int i = min; i < max; i++)
-                                     sstables.add(all.get(i));
 
-                                 List<ISSTableScanner> scanners = sstables.stream().map(SSTableReader::getScanner).collect(Collectors.toList());
+                                 if (selected.isEmpty())
+                                     return;
+                                 List<ISSTableScanner> scanners = selected.stream().map(SSTableReader::getScanner).collect(Collectors.toList());
 
                                  Collection<SSTableReader> newSStables;
 
-                                 try (LifecycleTransaction txn = cfs.getTracker().tryModify(sstables, OperationType.COMPACTION);
-                                      CompactionController controller = new CompactionController(cfs, sstables, 0);
-                                      CompactionIterator ci = new CompactionIterator(OperationType.COMPACTION, scanners, controller, 0, nextTimeUUID()))
+                                 try (LifecycleTransaction txn = cfs.getTracker().tryModify(selected, OperationType.COMPACTION);
+                                      CompactionController controller = new CompactionController(cfs, selected, 0);
+                                      CompactionIterator ci = new CompactionIterator(OperationType.COMPACTION,
+                                                                                     scanners,
+                                                                                     controller,
+                                                                                     0,
+                                                                                     nextTimeUUID(),
+                                                                                     ActiveCompactionsTracker.NOOP, null,
+                                                                                     () -> getCompactionInfo(node, cfs.getTableId()),
+                                                                                     () -> Version.V1))
                                  {
-                                     CompactionManager.instance.active.beginCompaction(ci);
-                                     try (CompactionAwareWriter writer = getCompactionAwareWriter(cfs, cfs.getDirectories(), txn, sstables))
+                                     try (CompactionAwareWriter writer = getCompactionAwareWriter(cfs, cfs.getDirectories(), txn, selected))
                                      {
                                          while (ci.hasNext())
-                                         {
                                              writer.append(ci.next());
-                                             ci.setTargetDirectory(writer.getSStableDirectory().path());
-                                         }
 
+                                         ci.setTargetDirectory(writer.getSStableDirectory().path());
                                          // point of no return
                                          newSStables = writer.finish();
                                      }
@@ -282,11 +295,9 @@ public class AccordJournalBurnTest extends BurnTestBase
                                      {
                                          throw new RuntimeException(e);
                                      }
-                                     finally
-                                     {
-                                         CompactionManager.instance.active.finishCompaction(ci);
-                                     }
                                  }
+
+                                 Invariants.require(!orig.equals(cfs.getLiveSSTables()));
                              }
 
 
@@ -299,8 +310,6 @@ public class AccordJournalBurnTest extends BurnTestBase
                              }
                          };
 
-                         journal.start(null);
-                         journal.unsafeSetStarted();
                          return journal;
                      }
                      catch (Throwable t)
@@ -316,4 +325,18 @@ public class AccordJournalBurnTest extends BurnTestBase
             throw SimulationException.wrap(seed, t);
         }
     }
+
+    public static IAccordService.AccordCompactionInfos getCompactionInfo(Node node, TableId tableId)
+    {
+        IAccordService.AccordCompactionInfos compactionInfos = new IAccordService.AccordCompactionInfos(node.durableBefore(), node.topology().minEpoch());
+        node.commandStores().forEachCommandStore(commandStore -> {
+            compactionInfos.put(commandStore.id(), new IAccordService.AccordCompactionInfo(commandStore.id(),
+                                                                                           commandStore.unsafeGetRedundantBefore(),
+                                                                                           commandStore.unsafeGetRangesForEpoch(),
+                                                                                           tableId));
+        });
+        return compactionInfos;
+    }
+
+
 }

@@ -45,9 +45,9 @@ import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.io.util.File;
+import org.apache.cassandra.journal.TestParams;
 import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.service.StorageService;
-import org.apache.cassandra.service.accord.api.AccordAgent;
 import org.apache.cassandra.utils.AccordGenerators;
 
 import static accord.api.Journal.FieldUpdates;
@@ -94,7 +94,7 @@ public class AccordJournalCompactionTest
         Gen<NavigableMap<Timestamp, Ranges>> safeToReadGen = AccordGenerators.safeToReadGen(DatabaseDescriptor.getPartitioner());
         Gen<RangesForEpoch> rangesForEpochGen = AccordGenerators.rangesForEpoch(DatabaseDescriptor.getPartitioner());
 
-        AccordJournal journal = new AccordJournal(new AccordJournalTestParams()
+        AccordJournal journal = new AccordJournal(new TestParams()
         {
             @Override
             public int segmentSize()
@@ -107,7 +107,7 @@ public class AccordJournalCompactionTest
             {
                 return false;
             }
-        }, new AccordAgent());
+        });
         try
         {
             journal.start(null);

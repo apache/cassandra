@@ -220,9 +220,11 @@ public class AccordCommandStore extends CommandStore
     @Override
     public void markShardDurable(SafeCommandStore safeStore, TxnId globalSyncId, Ranges ranges, Status.Durability durability)
     {
-        store.snapshot(ranges, globalSyncId);
+        if (durability.compareTo(Status.Durability.UniversalOrInvalidated) >= 0)
+            store.snapshot(ranges, globalSyncId);
         super.markShardDurable(safeStore, globalSyncId, ranges, durability);
-        commandsForRanges.gcBefore(globalSyncId, ranges);
+        if (durability.compareTo(Status.Durability.UniversalOrInvalidated) >= 0)
+            commandsForRanges.gcBefore(globalSyncId, ranges);
     }
 
     @Override

@@ -353,7 +353,7 @@ public class AccordTestUtils
             ServerTestUtils.cleanupDirectory(DatabaseDescriptor.getAccordJournalDirectory());
         AccordSpec.JournalSpec spec = new AccordSpec.JournalSpec();
         spec.flushPeriod = new DurationSpec.IntSecondsBound(1);
-        AccordJournal journal = new AccordJournal(spec, agent);
+        AccordJournal journal = new AccordJournal(spec);
         journal.start(null);
 
         CommandStore.EpochUpdateHolder holder = new CommandStore.EpochUpdateHolder();

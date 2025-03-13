@@ -34,7 +34,6 @@ import org.apache.cassandra.service.accord.journal.AccordTopologyUpdate;
 import org.apache.cassandra.service.accord.serializers.CommandStoreSerializers;
 import org.apache.cassandra.service.accord.serializers.Version;
 
-import static accord.api.Journal.Load.ALL;
 import static accord.local.CommandStores.RangesForEpoch;
 
 // TODO (required): test with large collection values, and perhaps split out some fields if they have a tendency to grow larger
@@ -42,9 +41,14 @@ import static accord.local.CommandStores.RangesForEpoch;
 // TODO (required): versioning
 public class AccordJournalValueSerializers
 {
-    public interface FlyweightSerializer<ENTRY, IMAGE>
+    public interface FlyweightImage
     {
-        IMAGE mergerFor(JournalKey key);
+        void reset(JournalKey key);
+    }
+
+    public interface FlyweightSerializer<ENTRY, IMAGE extends FlyweightImage>
+    {
+        IMAGE mergerFor();
 
         void serialize(JournalKey key, ENTRY from, DataOutputPlus out, Version userVersion) throws IOException;
 
@@ -57,9 +61,9 @@ public class AccordJournalValueSerializers
     implements FlyweightSerializer<AccordJournal.Writer, AccordJournal.Builder>
     {
         @Override
-        public AccordJournal.Builder mergerFor(JournalKey journalKey)
+        public AccordJournal.Builder mergerFor()
         {
-            return new AccordJournal.Builder(journalKey.id, ALL);
+            return new AccordJournal.Builder();
         }
 
         @Override
@@ -91,7 +95,7 @@ public class AccordJournalValueSerializers
         }
     }
 
-    public abstract static class Accumulator<A, V>
+    public abstract static class Accumulator<A, V> implements FlyweightImage
     {
         protected A accumulated;
 
@@ -115,10 +119,19 @@ public class AccordJournalValueSerializers
 
     public static class IdentityAccumulator<T> extends Accumulator<T, T>
     {
+        final T initial;
         boolean hasRead;
         public IdentityAccumulator(T initial)
         {
             super(initial);
+            this.initial = initial;
+        }
+
+        @Override
+        public void reset(JournalKey key)
+        {
+            hasRead = false;
+            accumulated = initial;
         }
 
         @Override
@@ -135,7 +148,7 @@ public class AccordJournalValueSerializers
     implements FlyweightSerializer<RedundantBefore, IdentityAccumulator<RedundantBefore>>
     {
         @Override
-        public IdentityAccumulator<RedundantBefore> mergerFor(JournalKey journalKey)
+        public IdentityAccumulator<RedundantBefore> mergerFor()
         {
             return new IdentityAccumulator<>(RedundantBefore.EMPTY);
         }
@@ -185,6 +198,12 @@ public class AccordJournalValueSerializers
         }
 
         @Override
+        public void reset(JournalKey key)
+        {
+            accumulated = DurableBefore.EMPTY;
+        }
+
+        @Override
         protected DurableBefore accumulate(DurableBefore oldValue, DurableBefore newValue)
         {
             return DurableBefore.merge(oldValue, newValue);
@@ -194,7 +213,7 @@ public class AccordJournalValueSerializers
     public static class DurableBeforeSerializer
     implements FlyweightSerializer<DurableBefore, DurableBeforeAccumulator>
     {
-        public DurableBeforeAccumulator mergerFor(JournalKey journalKey)
+        public DurableBeforeAccumulator mergerFor()
         {
             return new DurableBeforeAccumulator();
         }
@@ -231,7 +250,7 @@ public class AccordJournalValueSerializers
     implements FlyweightSerializer<NavigableMap<TxnId, Ranges>, IdentityAccumulator<NavigableMap<TxnId, Ranges>>>
     {
         @Override
-        public IdentityAccumulator<NavigableMap<TxnId, Ranges>> mergerFor(JournalKey key)
+        public IdentityAccumulator<NavigableMap<TxnId, Ranges>> mergerFor()
         {
             return new IdentityAccumulator<>(ImmutableSortedMap.of(TxnId.NONE, Ranges.EMPTY));
         }
@@ -259,7 +278,7 @@ public class AccordJournalValueSerializers
     implements FlyweightSerializer<NavigableMap<Timestamp, Ranges>, IdentityAccumulator<NavigableMap<Timestamp, Ranges>>>
     {
         @Override
-        public IdentityAccumulator<NavigableMap<Timestamp, Ranges>> mergerFor(JournalKey key)
+        public IdentityAccumulator<NavigableMap<Timestamp, Ranges>> mergerFor()
         {
             return new IdentityAccumulator<>(ImmutableSortedMap.of(Timestamp.NONE, Ranges.EMPTY));
         }
@@ -287,7 +306,7 @@ public class AccordJournalValueSerializers
     implements FlyweightSerializer<RangesForEpoch, Accumulator<RangesForEpoch, RangesForEpoch>>
     {
         public static final RangesForEpochSerializer instance = new RangesForEpochSerializer();
-        public IdentityAccumulator<RangesForEpoch> mergerFor(JournalKey key)
+        public IdentityAccumulator<RangesForEpoch> mergerFor()
         {
             return new IdentityAccumulator<>(null);
         }

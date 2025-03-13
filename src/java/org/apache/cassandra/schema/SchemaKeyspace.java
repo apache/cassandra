@@ -62,6 +62,7 @@ import static org.apache.cassandra.config.CassandraRelevantProperties.IGNORE_COR
 import static org.apache.cassandra.config.CassandraRelevantProperties.TEST_FLUSH_LOCAL_SCHEMA_CHANGES;
 import static org.apache.cassandra.cql3.QueryProcessor.executeInternal;
 import static org.apache.cassandra.cql3.QueryProcessor.executeOnceInternal;
+import static org.apache.cassandra.schema.ColumnMetadata.NO_UNIQUE_ID;
 import static org.apache.cassandra.schema.SchemaKeyspaceTables.*;
 import static org.apache.cassandra.utils.LocalizeString.toLowerCaseLocalized;
 import static org.apache.cassandra.utils.LocalizeString.toUpperCaseLocalized;
@@ -143,7 +144,6 @@ public final class SchemaKeyspace
               + "clustering_order text,"
               + "column_name_bytes blob,"
               + "kind text,"
-              + "unique_id int,"
               + "position int,"
               + "type text,"
               + "PRIMARY KEY ((keyspace_name), table_name, column_name))");
@@ -172,7 +172,6 @@ public final class SchemaKeyspace
               + "dropped_time timestamp,"
               + "kind text,"
               + "type text,"
-              + "unique_id int,"
               + "PRIMARY KEY ((keyspace_name), table_name, column_name))");
 
     private static final TableMetadata Triggers =
@@ -735,7 +734,6 @@ public final class SchemaKeyspace
                .add("column_name_bytes", column.name.bytes)
                .add("kind", toLowerCaseLocalized(column.kind.toString()))
                .add("position", column.position())
-               .add("unique_id", column.uniqueId)
                .add("clustering_order", toLowerCaseLocalized(column.clusteringOrder().toString()))
                .add("type", type.asCQL3Type().toString());
 
@@ -1120,7 +1118,6 @@ public final class SchemaKeyspace
 
         ColumnMetadata.Kind kind = ColumnMetadata.Kind.valueOf(toUpperCaseLocalized(row.getString("kind")));
 
-        int uniqueId = row.getInt("unique_id", ColumnMetadata.NO_UNIQUE_ID);
         int position = row.getInt("position");
         ClusteringOrder order = ClusteringOrder.valueOf(toUpperCaseLocalized(row.getString("clustering_order")));
 
@@ -1176,7 +1173,7 @@ public final class SchemaKeyspace
             mask = new ColumnMask((ScalarFunction) function, values);
         }
 
-        return new ColumnMetadata(keyspace, table, name, type, uniqueId, position, kind, mask);
+        return new ColumnMetadata(keyspace, table, name, type, NO_UNIQUE_ID, position, kind, mask);
     }
 
     private static Map<ByteBuffer, DroppedColumn> fetchDroppedColumns(String keyspace, String table)
@@ -1196,7 +1193,6 @@ public final class SchemaKeyspace
         String keyspace = row.getString("keyspace_name");
         String table = row.getString("table_name");
         String name = row.getString("column_name");
-        int uniqueId = row.getInt("unique_id", ColumnMetadata.NO_UNIQUE_ID);
         /*
          * we never store actual UDT names in dropped column types (so that we can safely drop types if nothing refers to
          * them anymore), so before storing dropped columns in schema we expand UDTs to tuples. See expandUserTypes method.
@@ -1209,7 +1205,7 @@ public final class SchemaKeyspace
         assert kind == ColumnMetadata.Kind.REGULAR || kind == ColumnMetadata.Kind.STATIC
             : "Unexpected dropped column kind: " + kind;
 
-        ColumnMetadata column = new ColumnMetadata(keyspace, table, ColumnIdentifier.getInterned(name, true), type, uniqueId, ColumnMetadata.NO_POSITION, kind, null);
+        ColumnMetadata column = new ColumnMetadata(keyspace, table, ColumnIdentifier.getInterned(name, true), type, NO_UNIQUE_ID, ColumnMetadata.NO_POSITION, kind, null);
         long droppedTime = TimeUnit.MILLISECONDS.toMicros(row.getLong("dropped_time"));
         return new DroppedColumn(column, droppedTime);
     }
