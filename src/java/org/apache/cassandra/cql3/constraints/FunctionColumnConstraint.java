@@ -78,7 +78,8 @@ public class FunctionColumnConstraint extends AbstractFunctionConstraint<Functio
     public enum Functions
     {
         LENGTH(LengthConstraint::new),
-        OCTET_LENGTH(OctetLengthConstraint::new);
+        OCTET_LENGTH(OctetLengthConstraint::new),
+        REGEXP(RegexpConstraint::new);
 
         private final Function<ColumnIdentifier, ConstraintFunction> functionCreator;
 
@@ -157,7 +158,7 @@ public class FunctionColumnConstraint extends AbstractFunctionConstraint<Functio
     {
         validateArgs(columnMetadata);
         validateTypes(columnMetadata);
-        function.validate(columnMetadata);
+        function.validate(columnMetadata, term);
     }
 
     @Override

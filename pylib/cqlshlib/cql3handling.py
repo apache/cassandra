@@ -334,6 +334,7 @@ JUNK ::= /([ \t\r\f\v]+|(--|[/][/])[^\n\r]*([\n\r]|$)|[/][*].*?[*][/])/ ;
 
 <constraintComparableFunction> ::= "LENGTH"
                                  | "OCTET_LENGTH"
+                                 | "REGEXP"
                                  ;
 
 <constraintStandaloneFunction> ::= "JSON"

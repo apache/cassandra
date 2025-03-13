@@ -49,7 +49,7 @@ public class NotNullConstraint extends ConstraintFunction
     }
 
     @Override
-    public void validate(ColumnMetadata columnMetadata) throws InvalidConstraintDefinitionException
+    public void validate(ColumnMetadata columnMetadata, String term) throws InvalidConstraintDefinitionException
     {
         if (columnMetadata.isPrimaryKeyColumn())
             throw new InvalidConstraintDefinitionException(format("%s constraint can not be specified on a %s key column '%s'",

@@ -124,7 +124,7 @@ public class UnaryFunctionColumnConstraint extends AbstractFunctionConstraint<Un
     {
         validateArgs(columnMetadata);
         validateTypes(columnMetadata);
-        function.validate(columnMetadata);
+        function.validate(columnMetadata, term);
     }
 
     @Override

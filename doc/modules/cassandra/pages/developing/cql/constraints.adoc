@@ -192,3 +192,34 @@ INSERT INTO ks.tb (id, val) VALUES (1, 'abc');
 constraint as it is not a valid JSON."
 
 ----
+
+=== REGEXP constraint
+
+Defines a constraint which checks text-like values againt a regular expression.
+
+----
+CREATE TABLE ks.tb (
+    id int primary key,
+    value CHECK REGEXP(value) = 'a.*b'
+)
+----
+
+----
+cassandra@cqlsh> INSERT INTO ks.tb (id , value ) VALUES ( 1, 'asdadasdabb');
+cassandra@cqlsh> INSERT INTO ks.tb (id , value ) VALUES ( 1, 'aaaaa');
+... [Invalid query] message="Value does not match regular expression 'a.*b'"
+----
+
+Negation can be also used:
+
+----
+ALTER TABLE ks.tb ALTER value CHECK REGEXP(value) != 'a.*b';
+----
+
+which would logically invert the condition:
+
+----
+cassandra@cqlsh> INSERT INTO ks.tb (id , value ) VALUES ( 1, 'asdadasdabb');
+... [Invalid query] message="Value does match regular expression 'a.*b'"
+cassandra@cqlsh> INSERT INTO ks.tb (id , value ) VALUES ( 1, 'aaaaa');
+----
