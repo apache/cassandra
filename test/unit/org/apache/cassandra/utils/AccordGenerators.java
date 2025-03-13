@@ -412,7 +412,6 @@ public class AccordGenerators
             Gen<TokenKey> gen = allowBeforeAndAfter(routingKeyGen(Gens.constant(tables.next(rs)), tokenGen, partitioner));
             TokenKey a = gen.next(rs);
             TokenKey b = gen.next(rs);
-            // define +Inf == before(+Inf) as these are not actionable ranges
             while (same(a, b))
                 b = gen.next(rs);
             return a.compareTo(b) < 0 ? TokenRange.create(a, b) : TokenRange.create(b, a);
@@ -422,7 +421,10 @@ public class AccordGenerators
     private static boolean same(TokenKey a, TokenKey b)
     {
         if (a.equals(b)) return true;
-        return a.isMin() == b.isMin() && a.isMax() == b.isMax();
+        // define +Inf == before(+Inf) as these are not actionable ranges
+        return a.isTableSentinel() && b.isTableSentinel()
+               && a.isMin() == b.isMin()
+               && a.isMax() == b.isMax();
     }
 
     public static Gen<Ranges> ranges()
