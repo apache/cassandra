@@ -30,10 +30,10 @@ public class UUIDSerializer implements IVersionedSerializer<UUID>, UnversionedSe
 {
     public static UUIDSerializer serializer = new UUIDSerializer();
 
+    @Override
     public void serialize(UUID uuid, DataOutputPlus out, int version) throws IOException
     {
-        out.writeLong(uuid.getMostSignificantBits());
-        out.writeLong(uuid.getLeastSignificantBits());
+        serialize(uuid, out);
     }
 
     @Override
@@ -43,9 +43,10 @@ public class UUIDSerializer implements IVersionedSerializer<UUID>, UnversionedSe
         out.writeLong(uuid.getLeastSignificantBits());
     }
 
+    @Override
     public UUID deserialize(DataInputPlus in, int version) throws IOException
     {
-        return new UUID(in.readLong(), in.readLong());
+        return deserialize(in);
     }
 
     @Override
@@ -54,9 +55,10 @@ public class UUIDSerializer implements IVersionedSerializer<UUID>, UnversionedSe
         return new UUID(in.readLong(), in.readLong());
     }
 
+    @Override
     public long serializedSize(UUID uuid, int version)
     {
-        return TypeSizes.sizeof(uuid.getMostSignificantBits()) + TypeSizes.sizeof(uuid.getLeastSignificantBits());
+        return serializedSize(uuid);
     }
 
     @Override
