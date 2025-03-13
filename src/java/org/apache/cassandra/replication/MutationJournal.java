@@ -159,28 +159,28 @@ public class MutationJournal
         public int serializedSize(int userVersion)
         {
             return TypeSizes.LONG_SIZE  // logId
-                 + TypeSizes.LONG_SIZE; // sequenceId
+                 + TypeSizes.INT_SIZE; // offset
         }
 
         @Override
         public void serialize(MutationId id, DataOutputPlus out, int userVersion) throws IOException
         {
             out.writeLong(id.logId());
-            out.writeLong(id.sequenceId());
+            out.writeInt(id.offset());
         }
 
         @Override
         public void serialize(MutationId id, ByteBuffer out, int userVersion) throws IOException
         {
             out.putLong(id.logId());
-            out.putLong(id.sequenceId());
+            out.putInt(id.offset());
         }
 
         @Override
         public MutationId deserialize(DataInputPlus in, int userVersion) throws IOException
         {
             long logId = in.readLong();
-            long sequenceId = in.readLong();
+            long sequenceId = MutationId.sequenceId(in.readInt(), 0);
             return new MutationId(logId, sequenceId);
         }
 
@@ -188,7 +188,7 @@ public class MutationJournal
         public MutationId deserialize(ByteBuffer buffer, int position, int userVersion)
         {
             long logId = buffer.getLong(position + LOG_ID_OFFSET);
-            long sequenceId = buffer.getLong(position + SEQUENCE_ID_OFFSET);
+            long sequenceId = MutationId.sequenceId(buffer.getInt(position + SEQUENCE_ID_OFFSET), 0);
             return new MutationId(logId, sequenceId);
         }
 
@@ -196,7 +196,7 @@ public class MutationJournal
         public MutationId deserialize(ByteBuffer buffer, int userVersion)
         {
             long logId = buffer.getLong();
-            long sequenceId = buffer.getLong();
+            long sequenceId = MutationId.sequenceId(buffer.getInt(), 0);
             return new MutationId(logId, sequenceId);
         }
 
@@ -204,21 +204,21 @@ public class MutationJournal
         public void updateChecksum(Checksum crc, MutationId id, int userVersion)
         {
             FBUtilities.updateChecksumLong(crc, id.logId());
-            FBUtilities.updateChecksumLong(crc, id.sequenceId());
+            FBUtilities.updateChecksumInt(crc, id.offset());
         }
 
         @Override
         public int compareWithKeyAt(MutationId id, ByteBuffer buffer, int position, int userVersion)
         {
             int cmp = Long.compare(id.logId(), buffer.getLong(position + LOG_ID_OFFSET));
-            return cmp != 0 ? cmp : Long.compare(id.sequenceId(), buffer.getLong(position + SEQUENCE_ID_OFFSET));
+            return cmp != 0 ? cmp : Integer.compare(id.offset(), buffer.getInt(position + SEQUENCE_ID_OFFSET));
         }
 
         @Override
         public int compare(MutationId id1, MutationId id2)
         {
             int cmp = Long.compare(id1.logId(), id2.logId());
-            return cmp != 0 ? cmp : Long.compare(id1.sequenceId(), id2.sequenceId());
+            return cmp != 0 ? cmp : Integer.compare(id1.offset(), id2.offset());
         }
     }
 
