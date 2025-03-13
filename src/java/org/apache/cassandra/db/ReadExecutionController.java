@@ -25,7 +25,7 @@ import com.google.common.base.Preconditions;
 
 import org.apache.cassandra.db.filter.DataLimits;
 import org.apache.cassandra.index.Index;
-import org.apache.cassandra.replication.MutationTracker.PendingRead;
+import org.apache.cassandra.replication.MutationTrackingService.PendingRead;
 import org.apache.cassandra.replication.MutationTrackingService;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.utils.MonotonicClock;
@@ -73,7 +73,7 @@ public class ReadExecutionController implements AutoCloseable
 
         if (trackRepairedStatus)
         {
-            Preconditions.checkArgument(!command.responseType().isTracked(), "Tracking repaired status is not supported for logged reads");
+            Preconditions.checkArgument(!command.responseType().isTracked(), "Tracking repaired status is not supported for tracked reads");
             DataLimits.Counter repairedReadCount = command.limits().newCounter(command.nowInSec(),
                                                                                false,
                                                                                command.selectsFullPartition(),
@@ -85,7 +85,7 @@ public class ReadExecutionController implements AutoCloseable
             repairedDataInfo = RepairedDataInfo.NO_OP_REPAIRED_DATA_INFO;
         }
 
-        pendingRead = command != null ? MutationTrackingService.instance.tracker().startRead(command) : null;
+        pendingRead = command != null ? MutationTrackingService.instance.startRead(command) : null;
     }
 
     public PendingRead pendingRead()

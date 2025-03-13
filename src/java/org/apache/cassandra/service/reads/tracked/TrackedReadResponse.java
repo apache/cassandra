@@ -32,7 +32,7 @@ import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.replication.MutationSummary;
-import org.apache.cassandra.replication.MutationTracker.PendingRead;
+import org.apache.cassandra.replication.MutationTrackingService.PendingRead;
 import org.apache.cassandra.service.reads.IReadResponse;
 import org.apache.cassandra.utils.ByteBufferUtil;
 

@@ -17,17 +17,25 @@
  */
 package org.apache.cassandra.replication;
 
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 import java.util.function.IntSupplier;
 
+import com.google.common.base.Preconditions;
+import com.google.common.collect.Sets;
+
 import org.agrona.collections.IntArrayList;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.Mutation;
 import org.apache.cassandra.db.PartitionPosition;
+import org.apache.cassandra.db.ReadCommand;
+import org.apache.cassandra.db.partitions.UnfilteredPartitionIterator;
 import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
@@ -42,18 +50,12 @@ import org.apache.cassandra.tcm.ClusterMetadata;
 // TODO (expected): handle topology changes
 public class MutationTrackingService
 {
-    private final MutationTracker tracker = new MutationTracker();
     private final ReadReconciliations reconciliations = new ReadReconciliations();
     private final ConcurrentHashMap<String, KeyspaceShards> shards = new ConcurrentHashMap<>();
 
     public static final MutationTrackingService instance = new MutationTrackingService();
 
     private MutationTrackingService() {}
-
-    public MutationTracker tracker()
-    {
-        return tracker;
-    }
 
     public ReadReconciliations reconciliations()
     {
@@ -71,7 +73,6 @@ public class MutationTrackingService
                 shards.put(keyspace.name, KeyspaceShards.make(keyspace, metadata, this::nextHostLogId));
     }
 
-
     public void shutdownBlocking() throws InterruptedException
     {
         reconciliations.shutdownBlocking();
@@ -79,24 +80,29 @@ public class MutationTrackingService
 
     public MutationSummary summaryForKey(TableId tableId, DecoratedKey key)
     {
-        String keyspace = Schema.instance.getTableMetadata(tableId).keyspace;
-        MutationSummary.Builder builder = new MutationSummary.Builder(tableId);
-        lookUpShard(keyspace, key.getToken()).addSummaryForKey(builder, key.getToken());
-        return builder.build();
+        return getOrCreate(tableId).summaryForKey(tableId, key);
     }
 
     public MutationSummary summaryForRange(TableId tableId, AbstractBounds<PartitionPosition> range)
     {
-        String keyspace = Schema.instance.getTableMetadata(tableId).keyspace;
-
-        MutationSummary.Builder builder = new MutationSummary.Builder(tableId);
-        forEachIntersectingShard(keyspace, range, shard -> shard.addSummaryForRange(builder, range));
-        return builder.build();
+        return getOrCreate(tableId).summaryForRange(tableId, range);
     }
 
     public MutationSummary summaryForRange(TableId tableId, Range<Token> range)
     {
         return summaryForRange(tableId, Range.makeRowRange(range));
+    }
+
+    public PendingWrite startWrite(Mutation mutation)
+    {
+        Preconditions.checkArgument(!mutation.id().isNone());
+        return getOrCreate(mutation.getKeyspaceName()).startWrite(mutation);
+    }
+
+    public PendingRead startRead(ReadCommand command)
+    {
+        Preconditions.checkArgument(Schema.instance.getKeyspaceMetadata(command.metadata().keyspace).useMutationTracking());
+        return getOrCreate(command.metadata().keyspace).startRead(command);
     }
 
     public Shard lookUpShard(String keyspace, Range<Token> range)
@@ -117,6 +123,12 @@ public class MutationTrackingService
     public void witnessedLocalMutation(Mutation mutation)
     {
         lookUpShard(mutation.getKeyspaceName(), mutation.key().getToken()).witnessedLocalMutation(mutation.id(), mutation);
+    }
+
+    private KeyspaceShards getOrCreate(TableId tableId)
+    {
+        //noinspection DataFlowIssue
+        return getOrCreate(Schema.instance.getTableMetadata(tableId).keyspace);
     }
 
     private KeyspaceShards getOrCreate(String keyspace)
@@ -143,6 +155,10 @@ public class MutationTrackingService
         private final Map<Range<Token>, Shard> shards;
 
         private transient final Map<Range<PartitionPosition>, Shard> ppShards;
+
+        // TODO: do not hold onto mutation objects - extract the relevant fields, or fetch from journal if needed
+        private final Map<MutationId, Mutation> pendingMutations = new ConcurrentHashMap<>();
+        private final Set<ListeningPendingRead> pendingReads = Sets.newConcurrentHashSet();
 
         static KeyspaceShards make(KeyspaceMetadata keyspace, ClusterMetadata cluster, IntSupplier logIdProvider)
         {
@@ -179,12 +195,110 @@ public class MutationTrackingService
             return shards.get(range);
         }
 
+        MutationSummary summaryForKey(TableId tableId, DecoratedKey key)
+        {
+            MutationSummary.Builder builder = new MutationSummary.Builder(tableId);
+            lookUp(key.getToken()).addSummaryForKey(builder, key.getToken());
+            return builder.build();
+        }
+
+        MutationSummary summaryForRange(TableId tableId, AbstractBounds<PartitionPosition> range)
+        {
+            MutationSummary.Builder builder = new MutationSummary.Builder(tableId);
+            forEachIntersectingShard(range, shard -> shard.addSummaryForRange(builder, range));
+            return builder.build();
+        }
+
         public void forEachIntersectingShard(AbstractBounds<PartitionPosition> bounds, Consumer<Shard> consumer)
         {
             ppShards.forEach((range, shard) -> {
                 if (range.intersects(bounds))
                     consumer.accept(shard);
             });
+        }
+
+        PendingWrite startWrite(Mutation mutation)
+        {
+            pendingMutations.put(mutation.id(), mutation);
+            pendingReads.forEach(read -> read.onNewWrite(mutation));
+            return () -> pendingMutations.remove(mutation.id());
+        }
+
+        PendingRead startRead(ReadCommand command)
+        {
+            ListeningPendingRead pendingRead = new ListeningPendingRead(command, pendingReads);
+            pendingReads.add(pendingRead);
+            pendingMutations.values().forEach(pendingRead::onNewWrite);
+            return pendingRead;
+        }
+    }
+
+    public interface PendingWrite extends AutoCloseable
+    {
+        PendingWrite NOOP = () -> {};
+
+        @Override
+        void close();
+    }
+
+    public interface PendingRead extends AutoCloseable
+    {
+        PendingRead NOOP = (iterator, summary) -> iterator;
+
+        @Override
+        default void close()
+        {
+        }
+
+        /**
+         * Returns mutations contained in the mutation summary that may not have been
+         * applied to the memtable when it was read.
+         */
+        UnfilteredPartitionIterator augmentResponseWithPendingWrites(UnfilteredPartitionIterator iterator, MutationSummary summary);
+    }
+
+    public static class ListeningPendingRead implements PendingRead
+    {
+        private final ReadCommand command;
+        private final Set<ListeningPendingRead> pendingReads;
+
+        // TODO: do not hold onto mutation objects - extract the relevant fields, or fetch from journal if needed
+        private final Map<MutationId, Mutation> pendingWrites = new ConcurrentHashMap<>();
+
+        private ListeningPendingRead(ReadCommand command, Set<ListeningPendingRead> pendingReads)
+        {
+            this.command = command;
+            this.pendingReads = pendingReads;
+        }
+
+        public void onNewWrite(Mutation mutation)
+        {
+            if (command.readsMutationContents(mutation))
+                pendingWrites.put(mutation.id(), mutation);
+        }
+
+        @Override
+        public void close()
+        {
+            pendingReads.remove(this);
+        }
+
+        public Set<MutationId> mutationIds()
+        {
+            return pendingWrites.keySet();
+        }
+
+        @Override
+        public UnfilteredPartitionIterator augmentResponseWithPendingWrites(UnfilteredPartitionIterator iterator, MutationSummary summary)
+        {
+            if (pendingWrites.isEmpty() || summary.isEmpty())
+                return iterator;
+
+            List<Mutation> augmentingMutations = new ArrayList<>(pendingWrites.size());
+            for (Mutation mutation : pendingWrites.values())
+                if (summary.contains(mutation.id()))
+                    augmentingMutations.add(mutation);
+            return command.augmentResultWithMutations(iterator, augmentingMutations);
         }
     }
 }

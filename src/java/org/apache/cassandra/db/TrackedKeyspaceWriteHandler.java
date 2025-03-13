@@ -19,7 +19,7 @@ package org.apache.cassandra.db;
 
 import org.apache.cassandra.db.commitlog.CommitLogPosition;
 import org.apache.cassandra.exceptions.RequestExecutionException;
-import org.apache.cassandra.replication.MutationTracker.PendingWrite;
+import org.apache.cassandra.replication.MutationTrackingService.PendingWrite;
 import org.apache.cassandra.replication.MutationTrackingService;
 import org.apache.cassandra.replication.MutationJournal;
 import org.apache.cassandra.tracing.Tracing;
@@ -42,7 +42,7 @@ public class TrackedKeyspaceWriteHandler implements KeyspaceWriteHandler
         try
         {
             group = Keyspace.writeOrder.start();
-            pendingWrite = MutationTrackingService.instance.tracker().startWrite(mutation);
+            pendingWrite = MutationTrackingService.instance.startWrite(mutation);
 
             // write the mutation to the commitlog and memtables
             Tracing.trace("Appending to mutation journal");

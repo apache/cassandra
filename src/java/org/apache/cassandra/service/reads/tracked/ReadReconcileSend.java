@@ -24,6 +24,7 @@ import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
 
+import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableSet;
 
@@ -41,7 +42,7 @@ import org.apache.cassandra.net.IVerbHandler;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.net.Verb;
-import org.apache.cassandra.replication.MutationTrackingService;
+import org.apache.cassandra.replication.MutationJournal;
 import org.apache.cassandra.utils.CollectionSerializer;
 
 /**
@@ -136,7 +137,9 @@ public class ReadReconcileSend
             for (PeerSync sync : message.payload.syncTasks)
             {
                 // TODO (expected): do not deser just to serialize again, if same messaging versions (common case)
-                List<Mutation> mutations = MutationTrackingService.instance.tracker().mutations(sync.ids);
+                List<Mutation> mutations = new ArrayList<>(sync.ids.size());
+                MutationJournal.instance.readAll(sync.ids, mutations);
+                Preconditions.checkArgument(sync.ids.size() == mutations.size());
 
                 boolean mirrorToCoordinator = sync.mirrorToCoordinator;
                 ReadReconcileReceive.Kind kind = ReadReconcileReceive.Kind.REPLICA;
