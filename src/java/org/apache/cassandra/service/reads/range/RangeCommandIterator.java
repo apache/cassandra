@@ -50,8 +50,8 @@ import org.apache.cassandra.service.StorageProxy;
 import org.apache.cassandra.service.reads.legacy.DataResolver;
 import org.apache.cassandra.service.reads.ReadCallback;
 import org.apache.cassandra.service.reads.legacy.LegacyReadRepair;
-import org.apache.cassandra.service.reads.logged.LoggedReadReconciliation;
-import org.apache.cassandra.service.reads.logged.LoggedResolver;
+import org.apache.cassandra.service.reads.tracked.TrackedReadReconciliation;
+import org.apache.cassandra.service.reads.tracked.TrackedResolver;
 import org.apache.cassandra.service.reads.repair.ReadRepair;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.transport.Dispatcher;
@@ -188,7 +188,7 @@ public class RangeCommandIterator extends AbstractIterator<RowIterator> implemen
         // only if there are multiple full replicas to compare results from.
         boolean trackRepairedStatus = DatabaseDescriptor.getRepairedDataTrackingForRangeReadsEnabled()
                                       && replicaPlan.contacts().filter(Replica::isFull).size() > 1
-                                      && !command.responseType().isLogged();
+                                      && !command.responseType().isTracked();
 
         ReplicaPlan.SharedForRangeRead sharedReplicaPlan = ReplicaPlan.shared(replicaPlan);
         LegacyReadRepair<EndpointsForRange, ReplicaPlan.ForRangeRead> readRepair = command.metadata().params.readRepair.create(command, sharedReplicaPlan, requestTime);
@@ -217,8 +217,8 @@ public class RangeCommandIterator extends AbstractIterator<RowIterator> implemen
     private SingleRangeResponse queryLogged(PartitionRangeReadCommand rangeCommand, ReplicaPlan.ForRangeRead replicaPlan, boolean isFirst)
     {
         ReplicaPlan.SharedForRangeRead sharedReplicaPlan = ReplicaPlan.shared(replicaPlan);
-        LoggedReadReconciliation<EndpointsForRange, ReplicaPlan.ForRangeRead> reconciliation = LoggedReadReconciliation.create(command, sharedReplicaPlan, requestTime);
-        LoggedResolver<EndpointsForRange, ReplicaPlan.ForRangeRead> resolver = new LoggedResolver<>(rangeCommand, sharedReplicaPlan, requestTime);
+        TrackedReadReconciliation<EndpointsForRange, ReplicaPlan.ForRangeRead> reconciliation = TrackedReadReconciliation.create(command, sharedReplicaPlan, requestTime);
+        TrackedResolver<EndpointsForRange, ReplicaPlan.ForRangeRead> resolver = new TrackedResolver<>(rangeCommand, sharedReplicaPlan, requestTime);
 
         ReadCallback<EndpointsForRange, ReplicaPlan.ForRangeRead> handler = new ReadCallback<>(resolver, rangeCommand, sharedReplicaPlan, requestTime);
 
@@ -249,7 +249,7 @@ public class RangeCommandIterator extends AbstractIterator<RowIterator> implemen
             }
         }
         Preconditions.checkState(dataRequestSent);
-        return new SingleRangeResponse.Logged(handler, reconciliation, resolver);
+        return new SingleRangeResponse.Tracked(handler, reconciliation, resolver);
     }
 
     /**
@@ -265,7 +265,7 @@ public class RangeCommandIterator extends AbstractIterator<RowIterator> implemen
     {
         PartitionRangeReadCommand rangeCommand = command.forSubRange(replicaPlan.range(), isFirst);
 
-        if (command.responseType().isLogged())
+        if (command.responseType().isTracked())
         {
             return queryLogged(rangeCommand, replicaPlan, isFirst);
         }

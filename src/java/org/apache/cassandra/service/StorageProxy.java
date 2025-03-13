@@ -1224,7 +1224,7 @@ public class StorageProxy implements StorageProxyMBean
         writeMetrics.mutationSize.update(size);
         writeMetricsForLevel(consistencyLevel).mutationSize.update(size);
 
-        boolean isTracked = Schema.instance.getKeyspaceMetadata(mutations.get(0).getKeyspaceName()).params.replicationType.isLogged();
+        boolean isTracked = Schema.instance.getKeyspaceMetadata(mutations.get(0).getKeyspaceName()).params.replicationType.isTracked();
         if (isTracked)
         {
             if (mutations.stream().anyMatch(m -> m instanceof CounterMutation))

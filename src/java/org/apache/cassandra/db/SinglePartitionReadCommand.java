@@ -407,7 +407,7 @@ public class SinglePartitionReadCommand extends ReadCommand implements SinglePar
     protected SinglePartitionReadCommand copyAsTransientQuery()
     {
         return create(serializedAtEpoch(),
-                      ResponseType.LEGACY_DATA,
+                      ResponseType.UNTRACKED_DATA,
                       0,
                       true,
                       metadata(),
@@ -499,7 +499,7 @@ public class SinglePartitionReadCommand extends ReadCommand implements SinglePar
 
     protected UnfilteredPartitionIterator queryStorage(final ColumnFamilyStore cfs, ReadExecutionController executionController)
     {
-        if (responseType() == ResponseType.LOGGED_SUMMARY)
+        if (responseType() == ResponseType.TRACKED_SUMMARY)
             return EmptyIterators.unfilteredPartition(metadata());
 
         // skip the row cache and go directly to sstables/memtable if repaired status of

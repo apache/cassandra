@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 
-package org.apache.cassandra.service.reads.logged;
+package org.apache.cassandra.service.reads.tracked;
 
 import java.util.List;
 import java.util.Map;
@@ -74,9 +74,9 @@ public class ReadReconciliations implements Shutdownable
     {
         final long id = nextReconciliationId();
         final long expiresAtNanos;
-        final LoggedReadReconciliation<?, ?> reconciliation;
+        final TrackedReadReconciliation<?, ?> reconciliation;
 
-        public Info(long expiresAtNanos, LoggedReadReconciliation<?, ?> reconciliation)
+        public Info(long expiresAtNanos, TrackedReadReconciliation<?, ?> reconciliation)
         {
             this.expiresAtNanos = expiresAtNanos;
             this.reconciliation = reconciliation;
@@ -111,7 +111,7 @@ public class ReadReconciliations implements Shutdownable
         executor.scheduleWithFixedDelay(this::expire, expirationInterval, expirationInterval, NANOSECONDS);
     }
 
-    public long newReconciliation(LoggedReadReconciliation<?, ?> reconciliation, long expiresAtNanos)
+    public long newReconciliation(TrackedReadReconciliation<?, ?> reconciliation, long expiresAtNanos)
     {
         long now = preciseTime.now();
         Info info = new Info(expiresAtNanos, reconciliation);

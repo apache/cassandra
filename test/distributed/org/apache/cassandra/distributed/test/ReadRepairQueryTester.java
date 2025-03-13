@@ -110,7 +110,7 @@ public abstract class ReadRepairQueryTester extends TestBaseImpl
                 for (boolean paging : BOOLEANS)
                     for (ReplicationType replication : ReplicationType.values())
                         result.add(new Object[]{ ReadRepairStrategy.BLOCKING, coordinator, flush, paging, replication });
-        result.add(new Object[]{ ReadRepairStrategy.NONE, 1, false, false, ReplicationType.legacy});
+        result.add(new Object[]{ ReadRepairStrategy.NONE, 1, false, false, ReplicationType.untracked });
         return result;
     }
 
@@ -178,7 +178,7 @@ public abstract class ReadRepairQueryTester extends TestBaseImpl
             // query only the selected columns with CL=ALL to trigger partial read repair on that column
             String columnsQuery = String.format("SELECT %s FROM %s %s", columns, qualifiedTableName, restriction);
 
-            if (replicationType.isLogged())
+            if (replicationType.isTracked())
             {
                 // for logged replication, entire mutations will be replicated, so unlike legacy read repair we'd expect the
                 // node that missed writes to be completely up to date with the node that was last written to. So here we
@@ -255,7 +255,7 @@ public abstract class ReadRepairQueryTester extends TestBaseImpl
 
             // for range reads we still expect all missing mutations to be reconciled as part
             // of a single reconciliation operation
-            if (replicationType.isLogged())
+            if (replicationType.isTracked())
                 repairedRows = Math.min(repairedRows, 1);
 
             return verifyQuery(allColumnsQuery, repairedRows, node1Rows, node2Rows);
@@ -300,7 +300,7 @@ public abstract class ReadRepairQueryTester extends TestBaseImpl
          */
         void tearDown(long repairedRows, Object[][] node1Rows, Object[][] node2Rows, boolean expectUnrepaired)
         {
-            if (replicationType.isLogged() && !expectUnrepaired)
+            if (replicationType.isTracked() && !expectUnrepaired)
             {
                 // for logged replication, entire mutations will be replicated, so unlike legacy read repair we'd expect the
                 // node that missed writes to be completely up to date with the node that was last written to. So here we

@@ -15,8 +15,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
-package org.apache.cassandra.service.reads.logged;
+package org.apache.cassandra.service.reads.tracked;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -38,7 +37,6 @@ import org.slf4j.LoggerFactory;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Mutation;
-import org.apache.cassandra.replication.MutationId;
 import org.apache.cassandra.db.ReadCommand;
 import org.apache.cassandra.db.partitions.PartitionIterator;
 import org.apache.cassandra.db.partitions.UnfilteredPartitionIterator;
@@ -51,6 +49,7 @@ import org.apache.cassandra.metrics.ReadRepairMetrics;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.net.Verb;
+import org.apache.cassandra.replication.MutationId;
 import org.apache.cassandra.replication.MutationSummary;
 import org.apache.cassandra.replication.MutationTrackingService;
 import org.apache.cassandra.replication.ReconciliationPlan;
@@ -62,21 +61,21 @@ import org.apache.cassandra.utils.concurrent.AsyncFuture;
 import org.apache.cassandra.utils.concurrent.AsyncPromise;
 import org.apache.cassandra.utils.concurrent.UncheckedInterruptedException;
 
-public class LoggedReadReconciliation<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<E, P>> implements ReadRepair<E, P>
+public class TrackedReadReconciliation<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<E, P>> implements ReadRepair<E, P>
 {
-    private static final Logger logger = LoggerFactory.getLogger(LoggedReadReconciliation.class);
+    private static final Logger logger = LoggerFactory.getLogger(TrackedReadReconciliation.class);
 
     private static class Data extends AsyncFuture<Void>
     {
         final ReadCommand command;
         final private InetAddressAndPort dataNode;
-        final private LoggedReadResponse.Data dataResponse;
+        final private TrackedReadResponse.Data dataResponse;
         final int blockFor;
         final Set<MutationId> outstandingMutations;
         final Consumer<PartitionIterator> resultConsumer;
         final Map<MutationId, Mutation> mutations = new HashMap<>();
 
-        public Data(ReadCommand command, InetAddressAndPort dataNode, LoggedReadResponse.Data dataResponse, Set<MutationId> outstandingMutations, Consumer<PartitionIterator> resultConsumer)
+        public Data(ReadCommand command, InetAddressAndPort dataNode, TrackedReadResponse.Data dataResponse, Set<MutationId> outstandingMutations, Consumer<PartitionIterator> resultConsumer)
         {
             this.command = command;
             this.dataNode = dataNode;
@@ -181,7 +180,7 @@ public class LoggedReadReconciliation<E extends Endpoints<E>, P extends ReplicaP
             final int blockFor;
             final Data data;
 
-            private Pending(long reconciliationId, Map<InetAddressAndPort, ReconciliationPlan> plans, ReadCommand command, InetAddressAndPort dataNode, LoggedReadResponse.Data dataResponse, Consumer<PartitionIterator> resultConsumer)
+            private Pending(long reconciliationId, Map<InetAddressAndPort, ReconciliationPlan> plans, ReadCommand command, InetAddressAndPort dataNode, TrackedReadResponse.Data dataResponse, Consumer<PartitionIterator> resultConsumer)
             {
                 this.reconciliationId = reconciliationId;
                 this.plans = plans;
@@ -331,7 +330,7 @@ public class LoggedReadReconciliation<E extends Endpoints<E>, P extends ReplicaP
 
     private State state = State.INITIALIZED;
 
-    public LoggedReadReconciliation(ReadCommand command, ReplicaPlan.Shared<E, P> replicaPlan, Dispatcher.RequestTime requestTime)
+    public TrackedReadReconciliation(ReadCommand command, ReplicaPlan.Shared<E, P> replicaPlan, Dispatcher.RequestTime requestTime)
     {
         this.command = command;
         this.replicaPlan = replicaPlan;
@@ -350,12 +349,12 @@ public class LoggedReadReconciliation<E extends Endpoints<E>, P extends ReplicaP
         }
 
         InetAddressAndPort dataNode = null;
-        LoggedReadResponse.Data dataResponse = null;
+        TrackedReadResponse.Data dataResponse = null;
 
         Map<InetAddressAndPort, MutationSummary> summaries = new HashMap<>();
         for (Message<IReadResponse> message : resolver.getMessages().snapshot())
         {
-            LoggedReadResponse response = LoggedReadResponse.fromResponse(message.payload);
+            TrackedReadResponse response = TrackedReadResponse.fromResponse(message.payload);
             summaries.put(message.from(), response.summary);
             if (dataResponse == null && response.isDataResponse())
             {
@@ -409,9 +408,9 @@ public class LoggedReadReconciliation<E extends Endpoints<E>, P extends ReplicaP
     }
 
     public static <E extends Endpoints<E>, P extends ReplicaPlan.ForRead<E, P>>
-    LoggedReadReconciliation<E, P> create(ReadCommand command, ReplicaPlan.Shared<E, P> replicaPlan, Dispatcher.RequestTime requestTime)
+    TrackedReadReconciliation<E, P> create(ReadCommand command, ReplicaPlan.Shared<E, P> replicaPlan, Dispatcher.RequestTime requestTime)
     {
-        return new LoggedReadReconciliation<>(command, replicaPlan, requestTime);
+        return new TrackedReadReconciliation<>(command, replicaPlan, requestTime);
     }
 
     @Override

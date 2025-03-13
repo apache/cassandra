@@ -27,7 +27,7 @@ import org.apache.cassandra.locator.EndpointsForRange;
 import org.apache.cassandra.locator.ReplicaPlan;
 import org.apache.cassandra.service.reads.legacy.DataResolver;
 import org.apache.cassandra.service.reads.ReadCallback;
-import org.apache.cassandra.service.reads.logged.LoggedResolver;
+import org.apache.cassandra.service.reads.tracked.TrackedResolver;
 import org.apache.cassandra.service.reads.repair.ReadRepair;
 import org.apache.cassandra.utils.AbstractIterator;
 import org.apache.cassandra.utils.concurrent.AsyncPromise;
@@ -94,11 +94,11 @@ abstract class SingleRangeResponse extends AbstractIterator<RowIterator> impleme
         }
     }
 
-    static class Logged extends SingleRangeResponse
+    static class Tracked extends SingleRangeResponse
     {
-        private final LoggedResolver<EndpointsForRange, ReplicaPlan.ForRangeRead> resolver;
+        private final TrackedResolver<EndpointsForRange, ReplicaPlan.ForRangeRead> resolver;
 
-        public Logged(ReadCallback<EndpointsForRange, ReplicaPlan.ForRangeRead> handler, ReadRepair<EndpointsForRange, ReplicaPlan.ForRangeRead> readRepair, LoggedResolver<EndpointsForRange, ReplicaPlan.ForRangeRead> resolver)
+        public Tracked(ReadCallback<EndpointsForRange, ReplicaPlan.ForRangeRead> handler, ReadRepair<EndpointsForRange, ReplicaPlan.ForRangeRead> readRepair, TrackedResolver<EndpointsForRange, ReplicaPlan.ForRangeRead> resolver)
         {
             super(handler, readRepair);
             this.resolver = resolver;

@@ -35,7 +35,7 @@ import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableId;
-import org.apache.cassandra.service.reads.logged.ReadReconciliations;
+import org.apache.cassandra.service.reads.tracked.ReadReconciliations;
 import org.apache.cassandra.tcm.ClusterMetadata;
 
 // TODO (expected): persistence (handle restarts)

@@ -28,7 +28,7 @@ public class ReadRepairLegacyTest extends ReadRepairTestBase
     @Override
     protected ReplicationType replicationType()
     {
-        return ReplicationType.legacy;
+        return ReplicationType.untracked;
     }
 
     /**

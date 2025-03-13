@@ -15,8 +15,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
-package org.apache.cassandra.service.reads.logged;
+package org.apache.cassandra.service.reads.tracked;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -37,11 +36,11 @@ import org.apache.cassandra.replication.MutationTracker.PendingRead;
 import org.apache.cassandra.service.reads.IReadResponse;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
-public class LoggedReadResponse implements IReadResponse
+public class TrackedReadResponse implements IReadResponse
 {
     public final MutationSummary summary;
 
-    public LoggedReadResponse(MutationSummary summary)
+    public TrackedReadResponse(MutationSummary summary)
     {
         this.summary = summary;
     }
@@ -56,7 +55,7 @@ public class LoggedReadResponse implements IReadResponse
         throw new IllegalArgumentException("Not a data response");
     }
 
-    public static abstract class Data extends LoggedReadResponse
+    public static abstract class Data extends TrackedReadResponse
     {
         private final ByteBuffer data;
 
@@ -164,28 +163,28 @@ public class LoggedReadResponse implements IReadResponse
         return Kind.LOGGED;
     }
 
-    public static LoggedReadResponse createDataResponse(UnfilteredPartitionIterator partitionIterator, ReadCommand command, MutationSummary summary, PendingRead pendingRead)
+    public static TrackedReadResponse createDataResponse(UnfilteredPartitionIterator partitionIterator, ReadCommand command, MutationSummary summary, PendingRead pendingRead)
     {
         partitionIterator = pendingRead.augmentResponseWithPendingWrites(partitionIterator, summary);
         return new LocalData(IReadResponse.serializeData(partitionIterator, command.columnFilter()), summary);
     }
 
-    public static LoggedReadResponse createSummaryResponse(MutationSummary summary)
+    public static TrackedReadResponse createSummaryResponse(MutationSummary summary)
     {
-        return new LoggedReadResponse(summary);
+        return new TrackedReadResponse(summary);
     }
 
-    public static LoggedReadResponse fromResponse(IReadResponse response)
+    public static TrackedReadResponse fromResponse(IReadResponse response)
     {
         if (response.kind() != Kind.LOGGED)
             throw new IllegalArgumentException("Response kind must be " + Kind.LOGGED + ", got " + response.kind());
-        return (LoggedReadResponse) response;
+        return (TrackedReadResponse) response;
     }
 
-    public static final IVersionedSerializer<LoggedReadResponse> serializer = new IVersionedSerializer<LoggedReadResponse>()
+    public static final IVersionedSerializer<TrackedReadResponse> serializer = new IVersionedSerializer<>()
     {
         @Override
-        public void serialize(LoggedReadResponse response, DataOutputPlus out, int version) throws IOException
+        public void serialize(TrackedReadResponse response, DataOutputPlus out, int version) throws IOException
         {
             out.writeBoolean(response.isDataResponse());
             MutationSummary.serializer.serialize(response.summary, out, version);
@@ -194,20 +193,20 @@ public class LoggedReadResponse implements IReadResponse
         }
 
         @Override
-        public LoggedReadResponse deserialize(DataInputPlus in, int version) throws IOException
+        public TrackedReadResponse deserialize(DataInputPlus in, int version) throws IOException
         {
             boolean dataResponse = in.readBoolean();
             MutationSummary summary = MutationSummary.serializer.deserialize(in, version);
 
             if (!dataResponse)
-                return new LoggedReadResponse(summary);
+                return new TrackedReadResponse(summary);
 
             ByteBuffer data = ByteBufferUtil.readWithVIntLength(in);
             return new RemoteData(version, data, summary);
         }
 
         @Override
-        public long serializedSize(LoggedReadResponse response, int version)
+        public long serializedSize(TrackedReadResponse response, int version)
         {
             long size = TypeSizes.BOOL_SIZE; // is data response
             size += MutationSummary.serializer.serializedSize(response.summary, version);

@@ -60,13 +60,13 @@ public class MutationTrackingReadReconciliationTest extends TestBaseImpl
             String tableName = "tbl";
             cluster.schemaChange(format("CREATE KEYSPACE %s WITH replication = " +
                                         "{'class': 'SimpleStrategy', 'replication_factor': 3} " +
-                                        "AND replication_type='logged';", keyspaceName));
+                                        "AND replication_type='tracked';", keyspaceName));
 
             cluster.forEach(node -> {
                 logger.info(">>> {}", node);
                 node.runOnInstance(() -> {
                     KeyspaceMetadata ksm = Schema.instance.getKeyspaceMetadata(keyspaceName);
-                    Assert.assertEquals(ReplicationType.logged, ksm.params.replicationType);
+                    Assert.assertEquals(ReplicationType.tracked, ksm.params.replicationType);
                 });
             });
 
@@ -137,13 +137,13 @@ public class MutationTrackingReadReconciliationTest extends TestBaseImpl
             String tableName = "tbl";
             cluster.schemaChange(format("CREATE KEYSPACE %s WITH replication = " +
                                         "{'class': 'SimpleStrategy', 'replication_factor': 3} " +
-                                        "AND replication_type='logged';", keyspaceName));
+                                        "AND replication_type='tracked';", keyspaceName));
 
             cluster.forEach(node -> {
                 logger.info(">>> {}", node);
                 node.runOnInstance(() -> {
                     KeyspaceMetadata ksm = Schema.instance.getKeyspaceMetadata(keyspaceName);
-                    Assert.assertEquals(ReplicationType.logged, ksm.params.replicationType);
+                    Assert.assertEquals(ReplicationType.tracked, ksm.params.replicationType);
                 });
             });
 
@@ -214,12 +214,12 @@ public class MutationTrackingReadReconciliationTest extends TestBaseImpl
             String tableName = "tbl";
             cluster.schemaChange(format("CREATE KEYSPACE %s WITH replication = " +
                                         "{'class': 'SimpleStrategy', 'replication_factor': 3} " +
-                                        "AND replication_type='logged';", keyspaceName));
+                                        "AND replication_type='tracked';", keyspaceName));
 
             cluster.forEach(node -> {
                 node.runOnInstance(() -> {
                     KeyspaceMetadata ksm = Schema.instance.getKeyspaceMetadata(keyspaceName);
-                    Assert.assertEquals(ReplicationType.logged, ksm.params.replicationType);
+                    Assert.assertEquals(ReplicationType.tracked, ksm.params.replicationType);
                 });
             });
 
@@ -284,13 +284,13 @@ public class MutationTrackingReadReconciliationTest extends TestBaseImpl
             String tableName = "tbl";
             cluster.schemaChange(format("CREATE KEYSPACE %s WITH replication = " +
                                         "{'class': 'SimpleStrategy', 'replication_factor': 3} " +
-                                        "AND replication_type='logged';", keyspaceName));
+                                        "AND replication_type='tracked';", keyspaceName));
 
             cluster.forEach(node -> {
                 logger.info(">>> {}", node);
                 node.runOnInstance(() -> {
                     KeyspaceMetadata ksm = Schema.instance.getKeyspaceMetadata(keyspaceName);
-                    Assert.assertEquals(ReplicationType.logged, ksm.params.replicationType);
+                    Assert.assertEquals(ReplicationType.tracked, ksm.params.replicationType);
                 });
             });
 

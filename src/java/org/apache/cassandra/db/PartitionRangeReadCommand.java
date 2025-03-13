@@ -163,7 +163,7 @@ public class PartitionRangeReadCommand extends ReadCommand implements PartitionR
     public static PartitionRangeReadCommand allDataRead(TableMetadata metadata, long nowInSec)
     {
         return create(metadata.epoch,
-                      ResponseType.LEGACY_DATA,
+                      ResponseType.UNTRACKED_DATA,
                       0,
                       false,
                       metadata,
@@ -259,7 +259,7 @@ public class PartitionRangeReadCommand extends ReadCommand implements PartitionR
     protected PartitionRangeReadCommand copyAsTransientQuery()
     {
         return create(serializedAtEpoch(),
-                      ResponseType.LEGACY_DATA,
+                      ResponseType.UNTRACKED_DATA,
                       0,
                       true,
                       metadata(),
@@ -329,7 +329,7 @@ public class PartitionRangeReadCommand extends ReadCommand implements PartitionR
     @VisibleForTesting
     public UnfilteredPartitionIterator queryStorage(final ColumnFamilyStore cfs, ReadExecutionController controller)
     {
-        if (responseType() == ResponseType.LOGGED_SUMMARY)
+        if (responseType() == ResponseType.TRACKED_SUMMARY)
             return EmptyIterators.unfilteredPartition(metadata());
 
         ColumnFamilyStore.ViewFragment view = cfs.select(View.selectLive(dataRange().keyRange()));

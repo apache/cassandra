@@ -34,7 +34,7 @@ public class ReadRepairInQueriesTest extends ReadRepairQueryTester
     @Before
     public void setup()
     {
-        MutationTrackingUtils.fixmeSkipIfLogged(replicationType, "Fix read repair for logged IN queries");
+        MutationTrackingUtils.fixmeSkipIfTracked(replicationType, "Fix read repair for logged IN queries");
     }
 
     /**

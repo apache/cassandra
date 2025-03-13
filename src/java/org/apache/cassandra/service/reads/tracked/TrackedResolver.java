@@ -15,8 +15,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
-package org.apache.cassandra.service.reads.logged;
+package org.apache.cassandra.service.reads.tracked;
 
 import java.util.Arrays;
 import java.util.Collection;
@@ -34,11 +33,11 @@ import org.apache.cassandra.service.reads.IReadResponse;
 import org.apache.cassandra.service.reads.ResponseResolver;
 import org.apache.cassandra.transport.Dispatcher;
 
-public class LoggedResolver<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<E, P>> extends ResponseResolver<E, P>
+public class TrackedResolver<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<E, P>> extends ResponseResolver<E, P>
 {
     private volatile Message<IReadResponse> dataResponse;
 
-    public LoggedResolver(ReadCommand command, Supplier<? extends P> replicaPlan, Dispatcher.RequestTime requestTime)
+    public TrackedResolver(ReadCommand command, Supplier<? extends P> replicaPlan, Dispatcher.RequestTime requestTime)
     {
         super(command, replicaPlan, requestTime);
     }
@@ -53,7 +52,7 @@ public class LoggedResolver<E extends Endpoints<E>, P extends ReplicaPlan.ForRea
     @Override
     public void onResponseReceived(Message<IReadResponse> message)
     {
-        if (dataResponse == null && message.payload instanceof LoggedReadResponse.Data)
+        if (dataResponse == null && message.payload instanceof TrackedReadResponse.Data)
             dataResponse = message;
     }
 
@@ -75,7 +74,7 @@ public class LoggedResolver<E extends Endpoints<E>, P extends ReplicaPlan.ForRea
         boolean first = true;
         for (Message<IReadResponse> message : snapshot)
         {
-            LoggedReadResponse response = LoggedReadResponse.fromResponse(message.payload);
+            TrackedReadResponse response = TrackedReadResponse.fromResponse(message.payload);
 
             if (first)
                 digest = response.summary.digest();

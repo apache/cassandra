@@ -28,9 +28,9 @@ import org.apache.cassandra.tcm.serialization.Version;
 
 public enum ReplicationType
 {
-    legacy, logged;
+    untracked, tracked;
 
-    public static final MetadataSerializer<ReplicationType> serializer = new MetadataSerializer<ReplicationType>()
+    public static final MetadataSerializer<ReplicationType> serializer = new MetadataSerializer<>()
     {
         @Override
         public void serialize(ReplicationType t, DataOutputPlus out, Version version) throws IOException
@@ -40,10 +40,10 @@ public enum ReplicationType
 
             switch (t)
             {
-                case legacy:
+                case untracked:
                     out.writeByte(0);
                     break;
-                case logged:
+                case tracked:
                     out.writeByte(1);
                     break;
                 default:
@@ -55,16 +55,16 @@ public enum ReplicationType
         public ReplicationType deserialize(DataInputPlus in, Version version) throws IOException
         {
             if (version.isBefore(Version.V7))
-                return legacy;
+                return untracked;
 
             byte t = in.readByte();
 
             switch (t)
             {
                 case 0:
-                    return legacy;
+                    return untracked;
                 case 1:
-                    return logged;
+                    return tracked;
                 default:
                     throw new IllegalArgumentException("Unsupported replication type: " + t);
             }
@@ -79,14 +79,14 @@ public enum ReplicationType
         }
     };
 
-    public boolean isLogged()
+    public boolean isTracked()
     {
-        return this == logged;
+        return this == tracked;
     }
 
-    // FIXME: used in lieu of adding support for logged reads in parameterized tests, fix usages of this method
+    // FIXME: used in lieu of adding support for tracked reads in parameterized tests, fix usages of this method
     public static ReplicationType[] fixmeValues()
     {
-        return new ReplicationType[]{legacy};
+        return new ReplicationType[]{ untracked };
     }
 }

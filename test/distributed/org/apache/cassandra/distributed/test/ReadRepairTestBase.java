@@ -160,7 +160,7 @@ public abstract class ReadRepairTestBase extends TestBaseImpl
             cluster.get(1).executeInternal(withTable("INSERT INTO %s (pk, ck, v) VALUES (1, 1, 1)"));
             cluster.get(2).executeInternal(withTable("INSERT INTO %s (pk, ck, v) VALUES (1, 1, 1)"));
             assertRows(cluster.get(3).executeInternal(withTable("SELECT * FROM %s WHERE pk = 1")));
-            cluster.verbs(replicationType().isLogged() ? READ_RECONCILE_NOTIFY : READ_REPAIR_RSP).to(1).drop();
+            cluster.verbs(replicationType().isTracked() ? READ_RECONCILE_NOTIFY : READ_REPAIR_RSP).to(1).drop();
             final long start = currentTimeMillis();
             try
             {
@@ -242,7 +242,7 @@ public abstract class ReadRepairTestBase extends TestBaseImpl
             // (as a speculative repair in this case, as we prefer to send repair mutations to the initial
             // set of read replicas, which are 2 and 3 here).
             cluster.filters().verbs(READ_REQ.id).from(4).to(3).drop();
-            if (replicationType().isLogged())
+            if (replicationType().isTracked())
             {
                 cluster.filters().verbs(READ_RECONCILE_SEND.id).from(4).to(3).drop();
                 cluster.filters().verbs(READ_RECONCILE_RCV.id).from(4).to(3).drop();
@@ -269,7 +269,7 @@ public abstract class ReadRepairTestBase extends TestBaseImpl
     @Test
     public void alterRFAndRunReadRepair() throws Throwable
     {
-        MutationTrackingUtils.fixmeSkipIfLogged(replicationType(), "RF changes not supported");
+        MutationTrackingUtils.fixmeSkipIfTracked(replicationType(), "RF changes not supported");
         try (Cluster cluster = builder().withNodes(2).start())
         {
             cluster.schemaChange(format("CREATE KEYSPACE %s WITH replication = " +

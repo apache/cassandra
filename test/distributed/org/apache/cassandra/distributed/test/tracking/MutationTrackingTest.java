@@ -63,7 +63,7 @@ public class MutationTrackingTest extends TestBaseImpl
 
             cluster.schemaChange(withKeyspace("CREATE KEYSPACE %s WITH replication = " +
                                               "{'class': 'SimpleStrategy', 'replication_factor': 3} " +
-                                              "AND replication_type='logged';"));
+                                              "AND replication_type='tracked';"));
 
             cluster.schemaChange(withKeyspace("CREATE TABLE %s.tbl (k int primary key, v int);"));
 
@@ -71,7 +71,7 @@ public class MutationTrackingTest extends TestBaseImpl
             cluster.get(1).runOnInstance(() -> {
 
                 KeyspaceMetadata keyspace = Schema.instance.getKeyspaceMetadata(keyspaceName);
-                Assert.assertEquals(ReplicationType.logged, keyspace.params.replicationType);
+                Assert.assertEquals(ReplicationType.tracked, keyspace.params.replicationType);
             });
 
             cluster.coordinator(1).execute(withKeyspace("INSERT INTO %s.tbl (k, v) VALUES (1, 1)"), ConsistencyLevel.QUORUM);
@@ -99,7 +99,7 @@ public class MutationTrackingTest extends TestBaseImpl
             String keyspaceName = KEYSPACE;
             cluster.schemaChange(withKeyspace("CREATE KEYSPACE %s WITH replication = " +
                                               "{'class': 'SimpleStrategy', 'replication_factor': 3} " +
-                                              "AND replication_type='logged';"));
+                                              "AND replication_type='tracked';"));
 
             cluster.schemaChange(withKeyspace("CREATE TABLE %s.tbl (k int primary key, v int);"));
 

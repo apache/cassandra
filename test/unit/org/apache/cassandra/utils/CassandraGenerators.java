@@ -392,7 +392,7 @@ public final class CassandraGenerators
                 AbstractReplicationStrategy replication = replicationGen.generate(rs).withKeyspace(nameGen).build().generate(rs);
                 ReplicationParams replicationParams = ReplicationParams.fromStrategy(replication);
                 boolean durableWrites = durableWritesGen.generate(rs);
-                KeyspaceParams params = new KeyspaceParams(durableWrites, replicationParams, ReplicationType.legacy);
+                KeyspaceParams params = new KeyspaceParams(durableWrites, replicationParams, ReplicationType.untracked);
                 Tables tables = Tables.none();
                 Views views = Views.none();
                 Types types = Types.none();

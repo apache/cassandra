@@ -270,7 +270,7 @@ public class RepairedDataVerifierTest
 
     private ReadCommand command(int key)
     {
-        return new StubReadCommand(key, metadata, ReadCommand.ResponseType.LEGACY_DATA);
+        return new StubReadCommand(key, metadata, ReadCommand.ResponseType.UNTRACKED_DATA);
     }
 
     private static class StubReadCommand extends SinglePartitionReadCommand

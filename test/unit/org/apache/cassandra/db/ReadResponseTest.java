@@ -215,12 +215,12 @@ public class ReadResponseTest
 
     private ReadCommand digestCommand(int key, TableMetadata metadata)
     {
-        return new StubReadCommand(key, metadata, ReadCommand.ResponseType.LEGACY_DIGEST);
+        return new StubReadCommand(key, metadata, ReadCommand.ResponseType.UNTRACKED_DIGEST);
     }
 
     private ReadCommand command(int key, TableMetadata metadata)
     {
-        return new StubReadCommand(key, metadata, ReadCommand.ResponseType.LEGACY_DATA);
+        return new StubReadCommand(key, metadata, ReadCommand.ResponseType.UNTRACKED_DATA);
     }
 
     private static class StubRepairedDataInfo extends RepairedDataInfo

@@ -54,7 +54,7 @@ import org.apache.cassandra.distributed.api.Feature;
 import org.apache.cassandra.replication.MutationTrackingService;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableMetadata;
-import org.apache.cassandra.service.reads.logged.LoggedReadResponse;
+import org.apache.cassandra.service.reads.tracked.TrackedReadResponse;
 import org.apache.cassandra.utils.FBUtilities;
 
 import static java.lang.String.format;
@@ -98,7 +98,7 @@ public class MutationTrackingPendingReadTest
             String tableName = "tbl";
             cluster.schemaChange(format("CREATE KEYSPACE %s WITH replication = " +
                                         "{'class': 'SimpleStrategy', 'replication_factor': 3} " +
-                                        "AND replication_type='logged';", keyspaceName));
+                                        "AND replication_type='tracked';", keyspaceName));
 
             cluster.schemaChange(format("CREATE TABLE %s.%s (k int, c int, v int, primary key (k, c));", keyspaceName, tableName));
 
@@ -129,7 +129,7 @@ public class MutationTrackingPendingReadTest
 
                 int nowInSeconds = (int) FBUtilities.nowInSeconds();
                 // apply it to the journal and open a pending write
-                LoggedReadResponse response;
+                TrackedReadResponse response;
                 MutationSummary summary;
                 SinglePartitionReadCommand command = SinglePartitionReadCommand.fullPartitionRead(metadata, nowInSeconds, dk);
                 try (PendingWrite pendingWrite = MutationTrackingService.instance.tracker().startWrite(mutation))
@@ -138,7 +138,7 @@ public class MutationTrackingPendingReadTest
                          UnfilteredPartitionIterator iterator = command.executeLocally(controller))
                     {
                         summary = command.createMutationSummary();
-                        response = (LoggedReadResponse) command.createResponse(iterator, controller.getRepairedDataInfo(), summary, controller.pendingRead());
+                        response = (TrackedReadResponse) command.createResponse(iterator, controller.getRepairedDataInfo(), summary, controller.pendingRead());
                     }
                 }
 
@@ -193,7 +193,7 @@ public class MutationTrackingPendingReadTest
             String tableName = "tbl";
             cluster.schemaChange(format("CREATE KEYSPACE %s WITH replication = " +
                                         "{'class': 'SimpleStrategy', 'replication_factor': 3} " +
-                                        "AND replication_type='logged';", keyspaceName));
+                                        "AND replication_type='tracked';", keyspaceName));
 
             cluster.schemaChange(format("CREATE TABLE %s.%s (k int, c int, v int, primary key (k, c));", keyspaceName, tableName));
 

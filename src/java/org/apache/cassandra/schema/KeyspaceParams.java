@@ -52,7 +52,7 @@ public final class KeyspaceParams
     public static boolean DEFAULT_LOCAL_DURABLE_WRITES = true;
 
 
-    public static final ReplicationType DEFAULT_REPLICATION_TYPE = ReplicationType.legacy;
+    public static final ReplicationType DEFAULT_REPLICATION_TYPE = ReplicationType.untracked;
 
     public enum Option
     {
@@ -85,12 +85,12 @@ public final class KeyspaceParams
 
     public static KeyspaceParams create(boolean durableWrites, Map<String, String> replication)
     {
-        return create(durableWrites, replication, ReplicationType.legacy);
+        return create(durableWrites, replication, ReplicationType.untracked);
     }
 
     public static KeyspaceParams local()
     {
-        return new KeyspaceParams(DEFAULT_LOCAL_DURABLE_WRITES, ReplicationParams.local(), ReplicationType.legacy);
+        return new KeyspaceParams(DEFAULT_LOCAL_DURABLE_WRITES, ReplicationParams.local(), ReplicationType.untracked);
     }
 
     public static KeyspaceParams simple(int replicationFactor, ReplicationType replicationType)
@@ -100,17 +100,17 @@ public final class KeyspaceParams
 
     public static KeyspaceParams simple(int replicationFactor)
     {
-        return simple(replicationFactor, ReplicationType.legacy);
+        return simple(replicationFactor, ReplicationType.untracked);
     }
 
     public static KeyspaceParams simple(String replicationFactor)
     {
-        return new KeyspaceParams(true, ReplicationParams.simple(replicationFactor), ReplicationType.legacy);
+        return new KeyspaceParams(true, ReplicationParams.simple(replicationFactor), ReplicationType.untracked);
     }
 
     public static KeyspaceParams simpleTransient(int replicationFactor)
     {
-        return new KeyspaceParams(false, ReplicationParams.simple(replicationFactor), ReplicationType.legacy);
+        return new KeyspaceParams(false, ReplicationParams.simple(replicationFactor), ReplicationType.untracked);
     }
 
     public static KeyspaceParams nts(ReplicationType replicationType, Object... args)
@@ -121,7 +121,7 @@ public final class KeyspaceParams
 
     public static KeyspaceParams nts(Object... args)
     {
-        return nts(ReplicationType.legacy, args);
+        return nts(ReplicationType.untracked, args);
     }
 
     public void validate(String name, ClientState state, ClusterMetadata metadata)

@@ -108,7 +108,7 @@ public final class KeyspaceMetadata implements SchemaElement
 
     public static KeyspaceMetadata virtual(String name, Tables tables)
     {
-        return new KeyspaceMetadata(name, Kind.VIRTUAL, KeyspaceParams.local(), tables.withKeyspaceReplicationType(ReplicationType.legacy), Views.none(), Types.none(), UserFunctions.none());
+        return new KeyspaceMetadata(name, Kind.VIRTUAL, KeyspaceParams.local(), tables.withKeyspaceReplicationType(ReplicationType.untracked), Views.none(), Types.none(), UserFunctions.none());
     }
 
     public KeyspaceMetadata withSwapped(KeyspaceParams params)
@@ -240,7 +240,7 @@ public final class KeyspaceMetadata implements SchemaElement
 
     public boolean useMutationTracking()
     {
-        return params.replicationType.isLogged();
+        return params.replicationType.isTracked();
     }
 
     @Override

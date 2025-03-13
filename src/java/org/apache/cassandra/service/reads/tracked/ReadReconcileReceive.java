@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 
-package org.apache.cassandra.service.reads.logged;
+package org.apache.cassandra.service.reads.tracked;
 
 import java.io.IOException;
 import java.util.ArrayList;

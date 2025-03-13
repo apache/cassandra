@@ -945,17 +945,17 @@ public final class SchemaKeyspace
         if (row.has(KeyspaceParams.Option.REPLICATION_TYPE.toString()))
         {
             String replicationTypeName = row.getString(KeyspaceParams.Option.REPLICATION_TYPE.toString());
-            replicationType = replicationTypeName != null ? ReplicationType.valueOf(replicationTypeName) : ReplicationType.legacy;
+            replicationType = replicationTypeName != null ? ReplicationType.valueOf(replicationTypeName) : ReplicationType.untracked;
         }
         else
         {
-            replicationType = ReplicationType.legacy;
+            replicationType = ReplicationType.untracked;
         }
 
         Map<String, String> replication = row.getFrozenTextMap(KeyspaceParams.Option.REPLICATION.toString());
         KeyspaceParams params = KeyspaceParams.create(durableWrites, replication, replicationType);
         if (keyspaceName.equals(SchemaConstants.METADATA_KEYSPACE_NAME))
-            params = new KeyspaceParams(params.durableWrites, params.replication.asMeta(), ReplicationType.legacy);
+            params = new KeyspaceParams(params.durableWrites, params.replication.asMeta(), ReplicationType.untracked);
 
         return params;
     }

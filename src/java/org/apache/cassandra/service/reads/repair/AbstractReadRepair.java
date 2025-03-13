@@ -138,7 +138,7 @@ implements LegacyReadRepair<E, P>
          * for a time.
          */
         boolean trackRepairedStatus = DatabaseDescriptor.getRepairedDataTrackingForPartitionReadsEnabled()
-                                      && !command.responseType().isLogged();
+                                      && !command.responseType().isTracked();
 
         // Do a full data read to resolve the correct response (and repair node that need be)
         DataResolver<E, P> resolver = new DataResolver<>(command, replicaPlan, this, requestTime, trackRepairedStatus);

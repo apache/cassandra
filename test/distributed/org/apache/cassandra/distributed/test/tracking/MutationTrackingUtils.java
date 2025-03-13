@@ -234,8 +234,8 @@ public class MutationTrackingUtils
         return objs;
     }
 
-    public static void fixmeSkipIfLogged(ReplicationType replicationType, String reason)
+    public static void fixmeSkipIfTracked(ReplicationType replicationType, String reason)
     {
-        Assume.assumeFalse(replicationType.isLogged());
+        Assume.assumeFalse(replicationType.isTracked());
     }
 }

@@ -43,8 +43,8 @@ import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.service.StorageProxy.LocalReadRunnable;
 import org.apache.cassandra.service.reads.legacy.DigestResolver;
-import org.apache.cassandra.service.reads.logged.LoggedReadReconciliation;
-import org.apache.cassandra.service.reads.logged.LoggedResolver;
+import org.apache.cassandra.service.reads.tracked.TrackedReadReconciliation;
+import org.apache.cassandra.service.reads.tracked.TrackedResolver;
 import org.apache.cassandra.service.reads.repair.ReadRepair;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tracing.TraceState;
@@ -87,7 +87,7 @@ public abstract class AbstractReadExecutor
         this.replicaPlan = ReplicaPlan.shared(replicaPlan);
         this.initialDataRequestCount = initialDataRequestCount;
 
-        if (command.responseType().isLegacy())
+        if (command.responseType().isUntracked())
         {
             // FIXME: tighten up alter table validation so you can't adjust read repair type for logged tables
             this.readRepair = command.metadata().params.readRepair.create(command, this.replicaPlan, requestTime);
@@ -95,9 +95,9 @@ public abstract class AbstractReadExecutor
         }
         else
         {
-            Preconditions.checkArgument(command.responseType().isLogged());
-            this.readRepair = LoggedReadReconciliation.create(command, this.replicaPlan, requestTime);
-            this.resolver = new LoggedResolver<>(command, this.replicaPlan, requestTime);
+            Preconditions.checkArgument(command.responseType().isTracked());
+            this.readRepair = TrackedReadReconciliation.create(command, this.replicaPlan, requestTime);
+            this.resolver = new TrackedResolver<>(command, this.replicaPlan, requestTime);
         }
         this.handler = new ReadCallback<>(resolver, command, this.replicaPlan, requestTime);
 
@@ -149,7 +149,7 @@ public abstract class AbstractReadExecutor
 
     private void makeRequests(ReadCommand readCommand, Iterable<Replica> replicas)
     {
-        assert !readCommand.acceptsTransient() || !readCommand.responseType().isLogged() : "TODO";
+        assert !readCommand.acceptsTransient() || !readCommand.responseType().isTracked() : "TODO";
         boolean hasLocalEndpoint = false;
         Message<ReadCommand> message = null;
 

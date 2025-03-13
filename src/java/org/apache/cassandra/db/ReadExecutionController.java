@@ -73,7 +73,7 @@ public class ReadExecutionController implements AutoCloseable
 
         if (trackRepairedStatus)
         {
-            Preconditions.checkArgument(!command.responseType().isLogged(), "Tracking repaired status is not supported for logged reads");
+            Preconditions.checkArgument(!command.responseType().isTracked(), "Tracking repaired status is not supported for logged reads");
             DataLimits.Counter repairedReadCount = command.limits().newCounter(command.nowInSec(),
                                                                                false,
                                                                                command.selectsFullPartition(),

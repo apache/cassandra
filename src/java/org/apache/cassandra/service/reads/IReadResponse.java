@@ -35,7 +35,7 @@ import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.net.MessagingService;
-import org.apache.cassandra.service.reads.logged.LoggedReadResponse;
+import org.apache.cassandra.service.reads.tracked.TrackedReadResponse;
 
 public interface IReadResponse
 {
@@ -119,7 +119,7 @@ public interface IReadResponse
                     ReadResponse.serializer.serialize((ReadResponse) response, out, version);
                     break;
                 case LOGGED:
-                    LoggedReadResponse.serializer.serialize((LoggedReadResponse) response, out, version);
+                    TrackedReadResponse.serializer.serialize((TrackedReadResponse) response, out, version);
                     break;
                 default:
                     throw new IllegalStateException("Unhandled kind: " + response.kind());
@@ -136,7 +136,7 @@ public interface IReadResponse
                 case LEGACY:
                     return ReadResponse.serializer.deserialize(in, version);
                 case LOGGED:
-                    return LoggedReadResponse.serializer.deserialize(in, version);
+                    return TrackedReadResponse.serializer.deserialize(in, version);
                 default:
                     throw new IllegalStateException("Unhandled kind: " + kind);
             }
@@ -156,7 +156,7 @@ public interface IReadResponse
                 case LEGACY:
                     return size + ReadResponse.serializer.serializedSize((ReadResponse) response, version);
                 case LOGGED:
-                    return size + LoggedReadResponse.serializer.serializedSize((LoggedReadResponse) response, version);
+                    return size + TrackedReadResponse.serializer.serializedSize((TrackedReadResponse) response, version);
                 default:
                     throw new IllegalStateException("Unhandled kind: " + response.kind());
             }

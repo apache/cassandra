@@ -94,7 +94,7 @@ public class MessageSerializationPropertyTest implements Serializable
         if (message.verb() == Verb.READ_REQ && version.value < MessagingService.VERSION_52)
         {
             ReadCommand command = (ReadCommand) message.payload;
-            return command.responseType().isLogged();
+            return command.responseType().isTracked();
         }
         return false;
     }
