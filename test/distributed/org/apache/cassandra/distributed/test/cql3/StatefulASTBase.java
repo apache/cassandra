@@ -196,7 +196,7 @@ public class StatefulASTBase extends TestBaseImpl
         protected final Session session;
         protected final Gen<Boolean> bindOrLiteralGen;
         protected final Gen<Boolean> betweenEqGen;
-        protected final Gen<Boolean> usePerPartitionLimitGen, useLimitGen;
+        protected final Gen<Boolean> useFetchSizeGen, usePerPartitionLimitGen, useLimitGen;
         protected final Gen.IntGen perPartitionLimitGen, limitGen;
         protected final Gen<Conditional.Where.Inequality> lessThanGen;
         protected final Gen<Conditional.Where.Inequality> greaterThanGen;
@@ -229,6 +229,7 @@ public class StatefulASTBase extends TestBaseImpl
             this.greaterThanGen = GREATER_THAN_DISTRO.next(rs);
             this.rangeInequalityGen = RANGE_INEQUALITY_DISTRO.next(rs);
             this.fetchSizeGen = FETCH_SIZE_DISTRO.next(rs);
+            this.useFetchSizeGen = BOOL_DISTRIBUTION.next(rs);
             this.usePerPartitionLimitGen = BOOL_DISTRIBUTION.next(rs);
             this.useLimitGen = BOOL_DISTRIBUTION.next(rs);
             this.perPartitionLimitGen = LIMIT_DISTRO.next(rs);
@@ -283,12 +284,14 @@ public class StatefulASTBase extends TestBaseImpl
 
         protected <S extends BaseState> Property.Command<S, Void, ?> command(RandomSource rs, Select select, @Nullable String annotate)
         {
+            var inst = selectInstance(rs);
             if (allowPerPartitionLimit() && usePerPartitionLimitGen.next(rs))
                 select = select.withPerPartitionLimit(perPartitionLimitGen.nextInt(rs));
             if (allowLimit() && useLimitGen.next(rs))
                 select = select.withLimit(limitGen.nextInt(rs));
-            var inst = selectInstance(rs);
-            int fetchSize = allowPaging() ? fetchSizeGen.nextInt(rs) : Integer.MAX_VALUE;
+            int fetchSize = allowPaging() && useFetchSizeGen.next(rs)
+                            ? fetchSizeGen.nextInt(rs)
+                            : Integer.MAX_VALUE;
             String postfix = "on " + inst;
             if (fetchSize != Integer.MAX_VALUE)
                 postfix += ", fetch size " + fetchSize;
