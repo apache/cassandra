@@ -33,6 +33,11 @@ import org.apache.cassandra.utils.vint.VIntCoding;
 
 public abstract class EncodeAsVInt32<T> implements Serializer<T>
 {
+    /**
+     * Creates a serializer that uses vint to store the encoded value.
+     *
+     * Negative ints cause undefined behavior and are unsafe to use; this logic is only safe for 0 and posotive values
+     */
     public static <T> EncodeAsVInt32<T> withNulls(ToIntFunction<? super T> encode, IntFunction<? extends T> decode)
     {
         return new WithNulls<>(encode, decode);
