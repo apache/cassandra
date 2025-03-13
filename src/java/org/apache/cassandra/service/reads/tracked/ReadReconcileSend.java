@@ -18,21 +18,9 @@
 
 package org.apache.cassandra.service.reads.tracked;
 
-import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.HashSet;
-import java.util.List;
-
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableList;
-import com.google.common.collect.ImmutableSet;
-
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import org.apache.cassandra.db.Mutation;
-import org.apache.cassandra.replication.MutationId;
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
@@ -42,8 +30,17 @@ import org.apache.cassandra.net.IVerbHandler;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.net.Verb;
+import org.apache.cassandra.replication.MutationId;
 import org.apache.cassandra.replication.MutationJournal;
+import org.apache.cassandra.replication.ReconciliationPlan.PeerReconciliation;
 import org.apache.cassandra.utils.CollectionSerializer;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Set;
 
 /**
  * Instructs a node to send mutations to other node
@@ -56,14 +53,14 @@ public class ReadReconcileSend
     {
         final int syncId;
         final InetAddressAndPort to;
-        final ImmutableSet<MutationId> ids;
+        final PeerReconciliation plan;
         final boolean mirrorToCoordinator;
 
-        public PeerSync(int syncId, InetAddressAndPort to, ImmutableSet<MutationId> ids, boolean mirrorToCoordinator)
+        public PeerSync(int syncId, InetAddressAndPort to, PeerReconciliation plan, boolean mirrorToCoordinator)
         {
             this.syncId = syncId;
             this.to = to;
-            this.ids = ids;
+            this.plan = plan;
             this.mirrorToCoordinator = mirrorToCoordinator;
         }
 
@@ -73,7 +70,7 @@ public class ReadReconcileSend
             return "PeerSync{" +
                    "syncId=" + syncId +
                    ", to=" + to +
-                   ", ids=" + ids +
+                   ", plan=" + plan +
                    ", mirrorToCoordinator=" + mirrorToCoordinator +
                    '}';
         }
@@ -85,7 +82,7 @@ public class ReadReconcileSend
             {
                 out.writeInt(sync.syncId);
                 InetAddressAndPort.Serializer.inetAddressAndPortSerializer.serialize(sync.to, out, version);
-                CollectionSerializer.serializeCollection(MutationId.serializer, sync.ids, out, version);
+                PeerReconciliation.serializer.serialize(sync.plan, out, version);
                 out.writeBoolean(sync.mirrorToCoordinator);
             }
 
@@ -94,7 +91,7 @@ public class ReadReconcileSend
             {
                 return new PeerSync(in.readInt(),
                                     InetAddressAndPort.Serializer.inetAddressAndPortSerializer.deserialize(in, version),
-                                    ImmutableSet.copyOf((Collection<? extends MutationId>) CollectionSerializer.deserializeCollection(MutationId.serializer, s -> new HashSet<>(), in, version)),
+                                    PeerReconciliation.serializer.deserialize(in, version),
                                     in.readBoolean());
             }
 
@@ -103,7 +100,7 @@ public class ReadReconcileSend
             {
                 return TypeSizes.sizeof(sync.syncId)
                        + InetAddressAndPort.Serializer.inetAddressAndPortSerializer.serializedSize(sync.to, version)
-                       + CollectionSerializer.serializedSizeCollection(MutationId.serializer, sync.ids, version)
+                       + PeerReconciliation.serializer.serializedSize(sync.plan, version)
                        + TypeSizes.sizeof(sync.mirrorToCoordinator);
             }
         };
@@ -137,9 +134,11 @@ public class ReadReconcileSend
             for (PeerSync sync : message.payload.syncTasks)
             {
                 // TODO (expected): do not deser just to serialize again, if same messaging versions (common case)
-                List<Mutation> mutations = new ArrayList<>(sync.ids.size());
-                MutationJournal.instance.readAll(sync.ids, mutations);
-                Preconditions.checkArgument(sync.ids.size() == mutations.size());
+                // TODO (expected): don't materialize mutation ids, look up from offset collections
+                Set<MutationId> ids = sync.plan.ids();
+                List<Mutation> mutations = new ArrayList<>(ids.size());
+                MutationJournal.instance.readAll(ids, mutations);  // FIXME: these ids will be missing their time component
+                Preconditions.checkArgument(ids.size() == mutations.size());
 
                 boolean mirrorToCoordinator = sync.mirrorToCoordinator;
                 ReadReconcileReceive.Kind kind = ReadReconcileReceive.Kind.REPLICA;

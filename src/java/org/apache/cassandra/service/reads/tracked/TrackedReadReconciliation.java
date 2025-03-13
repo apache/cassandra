@@ -28,7 +28,6 @@ import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 
 import com.google.common.base.Preconditions;
-import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Sets;
 
 import org.slf4j.Logger;
@@ -195,12 +194,12 @@ public class TrackedReadReconciliation<E extends Endpoints<E>, P extends Replica
                     for (InetAddressAndPort to : plan.nodes())
                     {
                         int syncId = nextSyncId++;
-                        Set<MutationId> ids = plan.idsFor(to);
-                        PendingSync sync = new PendingSync(syncId, from, to, ids, to.equals(dataNode));
+                        PendingSync sync = new PendingSync(syncId, from, to, plan, to.equals(dataNode));
                         pendingSync.put(syncId, sync);
                         syncs++;
                         if (sync.mirrorToCoordinator)
-                            outstandingMutations.addAll(ids);
+                            // TODO: should we use offsets here?
+                            outstandingMutations.addAll(plan.idsFor(to));
                     }
                 }
 
@@ -306,21 +305,22 @@ public class TrackedReadReconciliation<E extends Endpoints<E>, P extends Replica
         final int syncId;
         final InetAddressAndPort from;
         final InetAddressAndPort to;
-        final Set<MutationId> ids;
+        final ReconciliationPlan plan;
         final boolean mirrorToCoordinator;
 
-        public PendingSync(int syncId, InetAddressAndPort from, InetAddressAndPort to, Set<MutationId> ids, boolean mirrorToCoordinator)
+        public PendingSync(int syncId, InetAddressAndPort from, InetAddressAndPort to, ReconciliationPlan plan, boolean mirrorToCoordinator)
         {
             this.syncId = syncId;
             this.from = from;
             this.to = to;
-            this.ids = ids;
+            this.plan = plan;
             this.mirrorToCoordinator = mirrorToCoordinator;
         }
 
         public ReadReconcileSend.PeerSync toPeerSync()
         {
-            return new ReadReconcileSend.PeerSync(syncId, to, ImmutableSet.copyOf(ids), mirrorToCoordinator);
+            throw new UnsupportedOperationException("TODO");
+//            return new ReadReconcileSend.PeerSync(syncId, to, ImmutableSet.copyOf(ids), mirrorToCoordinator);
         }
     }
 
