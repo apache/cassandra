@@ -56,17 +56,17 @@ public class Shard
         return currentLocalLog.nextId();
     }
 
-    public void witnessedMutationLocal(MutationId id, Mutation mutation)
+    public void witnessedLocalMutation(MutationId id, Mutation mutation)
     {
         get(id).witnessedMutationLocal(id, mutation);
     }
 
-    public void witnessedMutationRemote(MutationId id, int onHostId)
+    public void witnessedRemoteMutation(MutationId id, int onHostId)
     {
         get(id).witnessedMutationRemote(id, onHostId);
     }
 
-    public void witnessedMutationsRemote(long logId, Offsets ranges, int onHostId)
+    public void witnessedRemoteMutations(long logId, Offsets ranges, int onHostId)
     {
         get(logId).witnessedMutationsRemote(ranges, onHostId);
     }

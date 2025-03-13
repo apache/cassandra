@@ -135,7 +135,8 @@ public class ReadReconcileSend
             ReadReconcileSend payload = message.payload;
             for (PeerSync sync : message.payload.syncTasks)
             {
-                List<Mutation> mutations = MutationTrackingService.instance().mutations(sync.ids);
+                // TODO (expected): do not deser just to serialize again, if same messaging versions (common case)
+                List<Mutation> mutations = MutationTrackingService.instance.tracker().mutations(sync.ids);
 
                 boolean mirrorToCoordinator = sync.mirrorToCoordinator;
                 ReadReconcileReceive.Kind kind = ReadReconcileReceive.Kind.REPLICA;

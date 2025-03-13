@@ -132,10 +132,8 @@ public class MutationTrackingPendingReadTest
                 LoggedReadResponse response;
                 MutationSummary summary;
                 SinglePartitionReadCommand command = SinglePartitionReadCommand.fullPartitionRead(metadata, nowInSeconds, dk);
-                try (PendingWrite pendingWrite = MutationTrackingService.instance().startWrite(mutation))
+                try (PendingWrite pendingWrite = MutationTrackingService.instance.tracker().startWrite(mutation))
                 {
-                    MutationTrackingService.instance().add(mutation);
-
                     try (ReadExecutionController controller = command.executionController(false);
                          UnfilteredPartitionIterator iterator = command.executeLocally(controller))
                     {
@@ -212,7 +210,7 @@ public class MutationTrackingPendingReadTest
 
                 int nowInSeconds = (int) FBUtilities.nowInSeconds();
                 SinglePartitionReadCommand command = SinglePartitionReadCommand.fullPartitionRead(metadata, nowInSeconds, dk);
-                try (ListeningPendingRead pendingRead = (ListeningPendingRead) MutationTrackingService.instance().startRead(command))
+                try (ListeningPendingRead pendingRead = (ListeningPendingRead) MutationTrackingService.instance.tracker().startRead(command))
                 {
                     Assert.assertTrue(pendingRead.mutationIds().isEmpty());
 

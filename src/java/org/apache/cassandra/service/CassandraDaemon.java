@@ -270,7 +270,7 @@ public class CassandraDaemon
         {
             disableAutoCompaction(Schema.instance.localKeyspaces().names());
             Startup.initialize(DatabaseDescriptor.getSeeds());
-            MutationTrackingService.start();
+            MutationTrackingService.instance.start();
             disableAutoCompaction(Schema.instance.distributedKeyspaces().names());
             CMSOperations.initJmx();
             if (ClusterMetadata.current().myNodeId() != null)

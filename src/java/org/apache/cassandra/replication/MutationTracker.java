@@ -23,24 +23,16 @@ import java.util.concurrent.ConcurrentHashMap;
 
 import com.google.common.base.Preconditions;
 import com.google.common.collect.Sets;
-import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.Mutation;
-import org.apache.cassandra.db.PartitionPosition;
 import org.apache.cassandra.db.ReadCommand;
 import org.apache.cassandra.db.partitions.UnfilteredPartitionIterator;
-import org.apache.cassandra.dht.AbstractBounds;
-import org.apache.cassandra.dht.Range;
-import org.apache.cassandra.dht.Token;
-import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.schema.Schema;
-import org.apache.cassandra.schema.TableId;
-import org.apache.cassandra.tcm.ClusterMetadata;
 
 public class MutationTracker
 {
     public interface PendingRead extends AutoCloseable
     {
-        static PendingRead NOOP = new PendingRead()
+        PendingRead NOOP = new PendingRead()
         {
             @Override
             public void close()
@@ -110,30 +102,16 @@ public class MutationTracker
         }
     }
 
-
     public interface PendingWrite extends AutoCloseable
     {
-        static PendingWrite NOOP = new PendingWrite()
-        {
-            @Override
-            public void close()
-            {
-            }
-        };
+        PendingWrite NOOP = () -> {};
 
         @Override
         void close();
     }
 
-    private final Map<MutationId, Mutation> pendingMutations = new ConcurrentHashMap<MutationId, Mutation>();
+    private final Map<MutationId, Mutation> pendingMutations = new ConcurrentHashMap<>();
     private final Set<ListeningPendingRead> pendingReads = Sets.newConcurrentHashSet();
-
-    public void start()
-    {
-        // if we need to grab it earliier, go to tcm.Startup and add afterReplay() callbacks
-        Shards.instance.load(ClusterMetadata.current());
-    }
-
 
     public PendingWrite startWrite(Mutation mutation)
     {
@@ -143,14 +121,7 @@ public class MutationTracker
         pendingMutations.put(mutation.id(), mutation);
         pendingReads.forEach(read -> read.onNewWrite(mutation));
 
-        return new PendingWrite()
-        {
-            @Override
-            public void close()
-            {
-                pendingMutations.remove(mutation.id());
-            }
-        };
+        return () -> pendingMutations.remove(mutation.id());
     }
 
     public PendingRead startRead(ReadCommand command)
@@ -165,43 +136,6 @@ public class MutationTracker
         return pendingRead;
     }
 
-    // TODO: ditch?
-    public void add(Mutation mutation)
-    {
-    }
-
-    public MutationSummary summaryForKey(TableId tableId, DecoratedKey key)
-    {
-        String keyspace = Schema.instance.getTableMetadata(tableId).keyspace;
-
-        MutationSummary.Builder summaryBuilder = new MutationSummary.Builder(tableId);
-
-        Shard shard = Shards.instance.lookUp(keyspace, key.getToken());
-        shard.addSummaryForKey(summaryBuilder, key.getToken());
-
-        return summaryBuilder.build();
-    }
-
-    public MutationSummary summaryForRange(TableId tableId, AbstractBounds<PartitionPosition> range)
-    {
-        String keyspace = Schema.instance.getTableMetadata(tableId).keyspace;
-
-        MutationSummary.Builder summaryBuilder = new MutationSummary.Builder(tableId);
-
-        Shards.instance.forEachIntersectingShard(keyspace, range, shard -> shard.addSummaryForRange(summaryBuilder, range));
-
-        return summaryBuilder.build();
-    }
-
-    public MutationSummary summaryForRange(TableId tableId, Range<Token> range)
-    {
-        return summaryForRange(tableId, Range.makeRowRange(range));
-    }
-
-    public Map<InetAddressAndPort, ReconciliationPlan> calculateReconciliation(Map<InetAddressAndPort, MutationSummary> summaries)
-    {
-        throw new UnsupportedOperationException();
-    }
     public List<Mutation> mutations(Collection<MutationId> ids)
     {
         List<Mutation> result = new ArrayList<>(ids.size());

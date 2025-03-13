@@ -883,7 +883,7 @@ public class SinglePartitionReadCommand extends ReadCommand implements SinglePar
 
     protected MutationSummary createMutationSummaryInternal()
     {
-        return MutationTrackingService.instance().summaryForKey(metadata().id, partitionKey);
+        return MutationTrackingService.instance.summaryForKey(metadata().id, partitionKey);
     }
 
     @Override

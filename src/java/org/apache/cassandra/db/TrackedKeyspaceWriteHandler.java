@@ -42,7 +42,7 @@ public class TrackedKeyspaceWriteHandler implements KeyspaceWriteHandler
         try
         {
             group = Keyspace.writeOrder.start();
-            pendingWrite = MutationTrackingService.instance().startWrite(mutation);
+            pendingWrite = MutationTrackingService.instance.tracker().startWrite(mutation);
 
             // write the mutation to the commitlog and memtables
             Tracing.trace("Appending to mutation journal");

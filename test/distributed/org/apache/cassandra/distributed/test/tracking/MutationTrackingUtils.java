@@ -50,6 +50,7 @@ import org.apache.cassandra.utils.ByteBufferUtil;
 public class MutationTrackingUtils
 {
     private static final int VERSION = MessagingService.current_version;
+
     public static byte[] encodeId(MutationId id)
     {
         int size = Ints.checkedCast(MutationId.serializer.serializedSize(id, VERSION));
@@ -111,7 +112,7 @@ public class MutationTrackingUtils
     public static MutationSummary summaryForKey(String keyspaceName, String tableName, DecoratedKey dk)
     {
         TableMetadata table = Schema.instance.getTableMetadata(keyspaceName, tableName);
-        return MutationTrackingService.instance().summaryForKey(table.id, dk);
+        return MutationTrackingService.instance.summaryForKey(table.id, dk);
     }
 
     public static MutationSummary summaryForTable(String keyspaceName, String tableName)
@@ -148,7 +149,7 @@ public class MutationTrackingUtils
     public static MutationSummary summaryForRange(String keyspaceName, String tableName, Range<Token> range)
     {
         TableMetadata table = Schema.instance.getTableMetadata(keyspaceName, tableName);
-        return MutationTrackingService.instance().summaryForRange(table.id, range);
+        return MutationTrackingService.instance.summaryForRange(table.id, range);
     }
 
     public static void assertSummaryContents(MutationSummary summary, Collection<MutationId> expected)
@@ -236,6 +237,5 @@ public class MutationTrackingUtils
     public static void fixmeSkipIfLogged(ReplicationType replicationType, String reason)
     {
         Assume.assumeFalse(replicationType.isLogged());
-
     }
 }

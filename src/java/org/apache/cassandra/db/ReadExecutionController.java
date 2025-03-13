@@ -85,7 +85,7 @@ public class ReadExecutionController implements AutoCloseable
             repairedDataInfo = RepairedDataInfo.NO_OP_REPAIRED_DATA_INFO;
         }
 
-        pendingRead = command != null ? MutationTrackingService.instance().startRead(command) : null;
+        pendingRead = command != null ? MutationTrackingService.instance.tracker().startRead(command) : null;
     }
 
     public PendingRead pendingRead()

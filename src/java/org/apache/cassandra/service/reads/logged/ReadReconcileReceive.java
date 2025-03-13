@@ -190,7 +190,7 @@ public class ReadReconcileReceive
             }
             if (receive.kind.applyToRead())
             {
-                MutationTrackingService.reconciliations().addMutationsToRead(receive.reconciliationId, receive.mutations);
+                MutationTrackingService.instance.reconciliations().addMutationsToRead(receive.reconciliationId, receive.mutations);
             }
         }
     };
