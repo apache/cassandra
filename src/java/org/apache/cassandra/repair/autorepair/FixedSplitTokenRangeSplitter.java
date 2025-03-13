@@ -44,19 +44,25 @@ public class FixedSplitTokenRangeSplitter implements IAutoRepairTokenRangeSplitt
     private static final Logger logger = LoggerFactory.getLogger(FixedSplitTokenRangeSplitter.class);
 
     /**
-     * The number of subranges to split each to-be-repaired token range into. Defaults to 1.
+     * Selecting the default value is tricky. If we select a small number, individual repairs would be heavy.
+     * On the other hand, if we select a large number, too many repair sessions would be created.
      * <p>
-     * The higher this number, the smaller the repair sessions will be.
+     * If vnodes are configured using <code>num_tokens</code>, attempts to evenly subdivide subranges by each range
+     * using the following formula:
      * <p>
-     * If you are using vnodes, say 256, then the repair will always go one vnode range at a time.  This parameter,
-     * additionally, will let us further subdivide a given vnode range into subranges.
+     *      Math.max(1, numberOfSubranges / tokens.size())
      * <p>
-     * With the value "1" and vnodes of 256, a given table on a node will undergo the repair 256 times. But with a
-     * value "2", the same table on a node will undergo a repair 512 times because every vnode range will be further
-     * divided by two.
+     * To maintain balance, 32 serves as a good default that accommodates both vnodes and non-vnodes effectively.
+     */
+    public static final int DEFAULT_NUMBER_OF_SUBRANGES = 32;
+
+    /**
+     * Number of evenly split subranges to create for each node that repair runs for.
      * <p>
-     * If you do not use vnodes or the number of vnodes is pretty small, say 8, setting this value to a higher number,
-     * such as 16, will be useful to repair on a smaller range, and the chance of succeeding is higher.
+     * If vnodes are configured using <code>num_tokens</code>, attempts to evenly subdivide subranges by each range.
+     * For example, for <code>num_tokens: 16</code> and <code>number_of_subranges: 32</code>, <code>2 (32/16)</code>
+     * repair assignments will be created for each token range.  At least one repair assignment will be
+     * created for each token range.
      */
     static final String NUMBER_OF_SUBRANGES = "number_of_subranges";
 
@@ -67,7 +73,7 @@ public class FixedSplitTokenRangeSplitter implements IAutoRepairTokenRangeSplitt
     {
         this.repairType = repairType;
 
-        numberOfSubranges = Integer.parseInt(parameters.getOrDefault(NUMBER_OF_SUBRANGES, "1"));
+        numberOfSubranges = Integer.parseInt(parameters.getOrDefault(NUMBER_OF_SUBRANGES, Integer.toString(DEFAULT_NUMBER_OF_SUBRANGES)));
     }
 
     @Override
@@ -100,9 +106,11 @@ public class FixedSplitTokenRangeSplitter implements IAutoRepairTokenRangeSplitt
         boolean byKeyspace = config.getRepairByKeyspace(repairType);
         // collect all token ranges.
         List<Range<Token>> allRanges = new ArrayList<>();
+        // this is done to avoid micro splits in the case of vnodes
+        int splitsPerRange = Math.max(1, numberOfSubranges / tokens.size());
         for (Range<Token> token : tokens)
         {
-            allRanges.addAll(split(token, numberOfSubranges));
+            allRanges.addAll(split(token, splitsPerRange));
         }
 
         if (byKeyspace)

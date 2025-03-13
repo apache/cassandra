@@ -255,6 +255,12 @@ public class AutoRepairService implements AutoRepairServiceMBean
         config.getTokenRangeSplitterInstance(RepairType.parse(repairType)).setParameter(key, value);
     }
 
+    @Override
+    public void setRepairByKeyspace(String repairType, boolean repairByKeyspace)
+    {
+        config.setRepairByKeyspace(RepairType.parse(repairType), repairByKeyspace);
+    }
+
     private String formatRepairTypeConfig(RepairType repairType, AutoRepairConfig config)
     {
         StringBuilder sb = new StringBuilder();
