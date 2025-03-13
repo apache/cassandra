@@ -710,65 +710,46 @@ public abstract class AlterTableStatement extends AlterSchemaStatement
         }
     }
 
-    public static class DropConstraints extends AlterTableStatement
-    {
-        final ColumnIdentifier columnName;
-
-        DropConstraints(String keyspaceName, String tableName, boolean ifTableExists, ColumnIdentifier columnName)
-        {
-            super(keyspaceName, tableName, ifTableExists);
-            this.columnName = columnName;
-        }
-
-        @Override
-        public KeyspaceMetadata apply(Epoch epoch, KeyspaceMetadata keyspace, TableMetadata table, ClusterMetadata metadata)
-        {
-            ColumnMetadata columnMetadata = table.getColumn(columnName);
-            columnMetadata.removeColumnConstraints();
-
-            TableMetadata.Builder tableBuilder = table.unbuild().epoch(epoch);
-            Views.Builder viewsBuilder = keyspace.views.unbuild();
-            TableMetadata tableMetadata = tableBuilder.build();
-            tableMetadata.validate();
-
-            return keyspace.withSwapped(keyspace.tables.withSwapped(tableMetadata))
-                           .withSwapped(viewsBuilder.build());
-        }
-    }
-
     public static class AlterConstraints extends AlterTableStatement
     {
         final ColumnIdentifier columnName;
-        final ColumnConstraints constraints;
+        final ColumnConstraints.Raw constraints;
+        final boolean ifColumnExists;
 
-        AlterConstraints(String keyspaceName, String tableName, boolean ifTableExists, ColumnIdentifier columnName, ColumnConstraints constraints)
+        AlterConstraints(String keyspaceName, String tableName, boolean ifTableExists, boolean ifColumnExists, ColumnIdentifier columnName, ColumnConstraints.Raw constraints)
         {
             super(keyspaceName, tableName, ifTableExists);
             this.columnName = columnName;
             this.constraints = constraints;
+            this.ifColumnExists = ifColumnExists;
         }
 
         @Override
         public KeyspaceMetadata apply(Epoch epoch, KeyspaceMetadata keyspace, TableMetadata table, ClusterMetadata metadata)
         {
-            TableMetadata.Builder tableBuilder = table.unbuild().epoch(epoch);
 
-            for (ColumnMetadata column : tableBuilder.columns())
+            ColumnMetadata column = table.getColumn(columnName);
+            if (column != null)
             {
-                if (column.name == columnName)
-                {
-                    constraints.validate(column);
-                    column.setColumnConstraints(constraints);
-                    break;
-                }
+                ColumnConstraints oldConstraints = column.getColumnConstraints();
+                ColumnConstraints newConstraints = constraints == null ? ColumnConstraints.NO_OP : constraints.prepare();
+                if (Objects.equals(oldConstraints, newConstraints))
+                    return keyspace;
+                newConstraints.validate(column);
+                TableMetadata.Builder tableBuilder = table.unbuild().epoch(epoch);
+                tableBuilder.alterColumnConstraints(columnName, newConstraints);
+
+                TableMetadata newTable = tableBuilder.build();
+                newTable.validate();
+
+                return keyspace.withSwapped(keyspace.tables.withSwapped(newTable));
             }
-
-            Views.Builder viewsBuilder = keyspace.views.unbuild();
-            TableMetadata tableMetadata = tableBuilder.build();
-            tableMetadata.validate();
-
-            return keyspace.withSwapped(keyspace.tables.withSwapped(tableMetadata))
-                           .withSwapped(viewsBuilder.build());
+            else
+            {
+                if (!ifColumnExists)
+                    throw ire("Column '%s' doesn't exist", columnName);
+            }
+            return keyspace;
         }
     }
 
@@ -783,7 +764,6 @@ public abstract class AlterTableStatement extends AlterSchemaStatement
             RENAME_COLUMNS,
             ALTER_OPTIONS,
             DROP_COMPACT_STORAGE,
-            DROP_CONSTRAINTS,
             ALTER_CONSTRAINTS
         }
 
@@ -792,7 +772,7 @@ public abstract class AlterTableStatement extends AlterSchemaStatement
         private boolean ifColumnExists;
         private boolean ifColumnNotExists;
         private ColumnIdentifier constraintName;
-        private ColumnConstraints constraints;
+        private ColumnConstraints.Raw constraints;
 
         private Kind kind;
 
@@ -839,8 +819,7 @@ public abstract class AlterTableStatement extends AlterSchemaStatement
                 case        RENAME_COLUMNS: return new RenameColumns(keyspaceName, tableName, renamedColumns, ifTableExists, ifColumnExists);
                 case         ALTER_OPTIONS: return new AlterOptions(keyspaceName, tableName, attrs, ifTableExists);
                 case  DROP_COMPACT_STORAGE: return new DropCompactStorage(keyspaceName, tableName, ifTableExists);
-                case      DROP_CONSTRAINTS: return new DropConstraints(keyspaceName, tableName, ifTableExists, constraintName);
-                case     ALTER_CONSTRAINTS: return new AlterConstraints(keyspaceName, tableName, ifTableExists, constraintName, constraints);
+                case     ALTER_CONSTRAINTS: return new AlterConstraints(keyspaceName, tableName, ifTableExists, ifColumnExists, constraintName, constraints);
             }
 
             throw new AssertionError();
@@ -885,17 +864,11 @@ public abstract class AlterTableStatement extends AlterSchemaStatement
             kind = Kind.DROP_COMPACT_STORAGE;
         }
 
-        public void dropConstraints(ColumnIdentifier name)
-        {
-            kind = Kind.DROP_CONSTRAINTS;
-            this.constraintName = name;
-        }
-
-        public void alterConstraints(ColumnIdentifier name, ColumnConstraints.Raw rawConstraints)
+        public void constraint(ColumnIdentifier name, ColumnConstraints.Raw rawConstraints)
         {
             kind = Kind.ALTER_CONSTRAINTS;
             this.constraintName = name;
-            this.constraints = rawConstraints.prepare();
+            this.constraints = rawConstraints;
         }
 
         public void timestamp(long timestamp)

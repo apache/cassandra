@@ -455,6 +455,7 @@ public class TableMetadata implements SchemaElement
     {
         return columns.get(name.bytes);
     }
+
     /**
      * Returns the column of the provided name if it exists, but throws a user-visible exception if that column doesn't
      * exist.
@@ -1288,6 +1289,19 @@ public class TableMetadata implements SchemaElement
                 throw new IllegalArgumentException();
 
             ColumnMetadata newColumn = column.withNewMask(mask);
+
+            updateColumn(column, newColumn);
+
+            return this;
+        }
+
+        public Builder alterColumnConstraints(ColumnIdentifier name, ColumnConstraints constraints)
+        {
+            ColumnMetadata column = columns.get(name.bytes);
+            if (column == null)
+                throw new IllegalArgumentException();
+
+            ColumnMetadata newColumn = column.withNewColumnConstraints(constraints);
 
             updateColumn(column, newColumn);
 

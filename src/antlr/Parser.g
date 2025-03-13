@@ -989,8 +989,8 @@ alterTableStatement returns [AlterTableStatement.Raw stmt]
       | K_ALTER ( K_IF K_EXISTS { $stmt.ifColumnExists(true); } )? id=cident
               ( mask=columnMask { $stmt.mask(id, mask); }
               | K_DROP K_MASKED { $stmt.mask(id, null); }
-              | K_DROP K_CHECK { $stmt.dropConstraints(id); }
-              | (constraints=columnConstraints) { $stmt.alterConstraints(id, constraints); })
+              | K_DROP K_CHECK { $stmt.constraint(id, null); }
+              | (constraints=columnConstraints) { $stmt.constraint(id, constraints); })
 
       | K_ADD ( K_IF K_NOT K_EXISTS { $stmt.ifColumnNotExists(true); } )?
               (        id=ident  v=comparatorType  b=isStaticColumn (m=columnMask)? { $stmt.add(id,  v,  b, m);  }

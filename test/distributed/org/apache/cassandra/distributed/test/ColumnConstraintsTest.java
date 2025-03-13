@@ -23,7 +23,6 @@ import java.util.Map;
 import java.util.Set;
 
 import org.apache.cassandra.cql3.constraints.ConstraintViolationException;
-import org.apache.cassandra.cql3.constraints.InvalidConstraintDefinitionException;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.junit.Test;
 
@@ -52,7 +51,12 @@ public class ColumnConstraintsTest extends TestBaseImpl
         {
             assertThrowsInvalidConstraintException(cluster, String.format("CREATE TABLE %s (pk int, ck1 text CHECK ck1 < 100, ck2 int, v int, " +
                                                                           "PRIMARY KEY ((pk), ck1, ck2));", tableName),
-                                                   "Column 'ck1' is not a number type.");
+                                                   "Constraint 'ck1 <' can be used only for columns of type " +
+                                                   "[org.apache.cassandra.db.marshal.ByteType, org.apache.cassandra.db.marshal.CounterColumnType, " +
+                                                   "org.apache.cassandra.db.marshal.DecimalType, org.apache.cassandra.db.marshal.DoubleType, " +
+                                                   "org.apache.cassandra.db.marshal.FloatType, org.apache.cassandra.db.marshal.Int32Type, " +
+                                                   "org.apache.cassandra.db.marshal.IntegerType, org.apache.cassandra.db.marshal.LongType, " +
+                                                   "org.apache.cassandra.db.marshal.ShortType] but it was class org.apache.cassandra.db.marshal.UTF8Type");
 
             assertThrowsInvalidConstraintException(cluster, String.format("CREATE TABLE %s (pk int, ck1 int CHECK LENGTH(ck1) < 100, ck2 int, v int, " +
                                                                           "PRIMARY KEY ((pk), ck1, ck2));", tableName),
@@ -320,6 +324,6 @@ public class ColumnConstraintsTest extends TestBaseImpl
         assertThatThrownBy(() -> cluster.schemaChange(statement))
                   .describedAs(description)
                   .has(new Condition<Throwable>(t -> t.getClass().getCanonicalName()
-                                                      .equals(InvalidConstraintDefinitionException.class.getCanonicalName()), description));
+                                                      .equals(InvalidRequestException.class.getCanonicalName()), description));
     }
 }

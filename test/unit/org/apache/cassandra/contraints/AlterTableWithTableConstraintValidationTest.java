@@ -20,6 +20,8 @@ package org.apache.cassandra.contraints;
 
 import org.junit.Test;
 
+import org.apache.cassandra.exceptions.InvalidRequestException;
+
 
 public class AlterTableWithTableConstraintValidationTest extends CqlConstraintValidationTester
 {
@@ -221,5 +223,20 @@ public class AlterTableWithTableConstraintValidationTest extends CqlConstraintVa
         createTable("CREATE TABLE %s (pk text, ck1 int CHECK ck1 < 100, ck2 int, PRIMARY KEY ((pk), ck1, ck2));");
         // It works
         execute("ALTER TABLE %s WITH cdc = true");
+    }
+
+    @Test
+    public void testCreateTableAddConstraintWithIfExists() throws Throwable
+    {
+        createTable("CREATE TABLE %s (pk int, ck1 int, ck2 int, v int, PRIMARY KEY ((pk),ck1, ck2)) WITH CLUSTERING ORDER BY (ck1 ASC);");
+        execute("ALTER TABLE %s ALTER IF EXISTS foo CHECK foo < 100");
+    }
+
+    @Test
+    public void testCreateTableAddConstraintWithNonExistingColumn() throws Throwable
+    {
+        createTable("CREATE TABLE %s (pk int, ck1 int, ck2 int, v int, PRIMARY KEY ((pk),ck1, ck2)) WITH CLUSTERING ORDER BY (ck1 ASC);");
+        String expectedErrorMessage = "Column 'foo' doesn't exist";
+        assertInvalidThrowMessage(expectedErrorMessage, InvalidRequestException.class, "ALTER TABLE %s ALTER foo CHECK foo < 100");
     }
 }
