@@ -288,7 +288,7 @@ public class StatefulASTBase extends TestBaseImpl
             if (allowLimit() && useLimitGen.next(rs))
                 select = select.withLimit(limitGen.nextInt(rs));
             var inst = selectInstance(rs);
-            int fetchSize = allowPaging() ? fetchSizeGen.nextInt(rs): Integer.MAX_VALUE;
+            int fetchSize = allowPaging() ? fetchSizeGen.nextInt(rs) : Integer.MAX_VALUE;
             String postfix = "on " + inst;
             if (fetchSize != Integer.MAX_VALUE)
                 postfix += ", fetch size " + fetchSize;
