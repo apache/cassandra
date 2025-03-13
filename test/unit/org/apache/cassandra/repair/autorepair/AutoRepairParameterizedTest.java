@@ -276,6 +276,8 @@ public class AutoRepairParameterizedTest extends CQLTester
         //if repair was done then lastRepairTime should be non-zero
         Assert.assertTrue(String.format("Expected lastRepairTime > 0, actual value lastRepairTime %d",
                                         lastRepairTime), lastRepairTime > 0);
+        // repair start lag sec should be reset  on a successful repair
+        assertEquals(0, AutoRepairMetricsManager.getMetrics(repairType).repairStartLagSec.getValue().intValue());
     }
 
     @Test

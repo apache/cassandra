@@ -53,6 +53,10 @@ public interface AutoRepairServiceMBean
 
     public void setParallelRepairCount(String repairType, int count);
 
+    public void setAllowParallelReplicaRepair(String repairType, boolean enabled);
+
+    public void setAllowParallelReplicaRepairAcrossSchedules(String repairType, boolean enabled);
+
     public void setMVRepairEnabled(String repairType, boolean enabled);
 
     public boolean isAutoRepairDisabled();
