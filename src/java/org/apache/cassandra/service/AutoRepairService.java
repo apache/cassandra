@@ -203,6 +203,18 @@ public class AutoRepairService implements AutoRepairServiceMBean
     }
 
     @Override
+    public void setAllowParallelReplicaRepair(String repairType, boolean enabled)
+    {
+        config.setAllowParallelReplicaRepair(RepairType.parse(repairType), enabled);
+    }
+
+    @Override
+    public void setAllowParallelReplicaRepairAcrossSchedules(String repairType, boolean enabled)
+    {
+        config.setAllowParallelReplicaRepairAcrossSchedules(RepairType.parse(repairType), enabled);
+    }
+
+    @Override
     public void setMVRepairEnabled(String repairType, boolean enabled)
     {
         config.setMaterializedViewRepairEnabled(RepairType.parse(repairType), enabled);
@@ -223,7 +235,7 @@ public class AutoRepairService implements AutoRepairServiceMBean
             return Collections.emptySet();
         }
         Set<String> hostIds = new HashSet<>();
-        AutoRepairUtils.CurrentRepairStatus currentRepairStatus = new AutoRepairUtils.CurrentRepairStatus(histories, AutoRepairUtils.getPriorityHostIds(RepairType.parse(repairType)));
+        AutoRepairUtils.CurrentRepairStatus currentRepairStatus = new AutoRepairUtils.CurrentRepairStatus(histories, AutoRepairUtils.getPriorityHostIds(RepairType.parse(repairType)), null);
         for (UUID id : currentRepairStatus.hostIdsWithOnGoingRepair)
         {
             hostIds.add(id.toString());
@@ -273,21 +285,23 @@ public class AutoRepairService implements AutoRepairServiceMBean
                 appendConfig(sb, "priority_hosts", Joiner.on(',').skipNulls().join(priorityHosts));
             }
 
-            appendConfig(sb , "min_repair_interval", config.getRepairMinInterval(repairType));
-            appendConfig(sb , "repair_by_keyspace", config.getRepairByKeyspace(repairType));
-            appendConfig(sb , "number_of_repair_threads", config.getRepairThreads(repairType));
-            appendConfig(sb , "sstable_upper_threshold", config.getRepairSSTableCountHigherThreshold(repairType));
-            appendConfig(sb , "table_max_repair_time", config.getAutoRepairTableMaxRepairTime(repairType));
-            appendConfig(sb , "ignore_dcs", config.getIgnoreDCs(repairType));
-            appendConfig(sb , "repair_primary_token_range_only", config.getRepairPrimaryTokenRangeOnly(repairType));
-            appendConfig(sb , "parallel_repair_count", config.getParallelRepairCount(repairType));
-            appendConfig(sb , "parallel_repair_percentage", config.getParallelRepairPercentage(repairType));
-            appendConfig(sb , "materialized_view_repair_enabled", config.getMaterializedViewRepairEnabled(repairType));
-            appendConfig(sb , "initial_scheduler_delay", config.getInitialSchedulerDelay(repairType));
-            appendConfig(sb , "repair_session_timeout", config.getRepairSessionTimeout(repairType));
-            appendConfig(sb , "force_repair_new_node", config.getForceRepairNewNode(repairType));
-            appendConfig(sb , "repair_max_retries", config.getRepairMaxRetries(repairType));
-            appendConfig(sb , "repair_retry_backoff", config.getRepairRetryBackoff(repairType));
+            appendConfig(sb, "min_repair_interval", config.getRepairMinInterval(repairType));
+            appendConfig(sb, "repair_by_keyspace", config.getRepairByKeyspace(repairType));
+            appendConfig(sb, "number_of_repair_threads", config.getRepairThreads(repairType));
+            appendConfig(sb, "sstable_upper_threshold", config.getRepairSSTableCountHigherThreshold(repairType));
+            appendConfig(sb, "table_max_repair_time", config.getAutoRepairTableMaxRepairTime(repairType));
+            appendConfig(sb, "ignore_dcs", config.getIgnoreDCs(repairType));
+            appendConfig(sb, "repair_primary_token_range_only", config.getRepairPrimaryTokenRangeOnly(repairType));
+            appendConfig(sb, "parallel_repair_count", config.getParallelRepairCount(repairType));
+            appendConfig(sb, "parallel_repair_percentage", config.getParallelRepairPercentage(repairType));
+            appendConfig(sb, "allow_parallel_replica_repair", config.getAllowParallelReplicaRepair(repairType));
+            appendConfig(sb, "allow_parallel_replica_repair_across_schedules", config.getAllowParallelReplicaRepairAcrossSchedules(repairType));
+            appendConfig(sb, "materialized_view_repair_enabled", config.getMaterializedViewRepairEnabled(repairType));
+            appendConfig(sb, "initial_scheduler_delay", config.getInitialSchedulerDelay(repairType));
+            appendConfig(sb, "repair_session_timeout", config.getRepairSessionTimeout(repairType));
+            appendConfig(sb, "force_repair_new_node", config.getForceRepairNewNode(repairType));
+            appendConfig(sb, "repair_max_retries", config.getRepairMaxRetries(repairType));
+            appendConfig(sb, "repair_retry_backoff", config.getRepairRetryBackoff(repairType));
 
             final ParameterizedClass splitterClass = config.getTokenRangeSplitter(repairType);
             final String splitterClassName =  splitterClass.class_name != null ? splitterClass.class_name : AutoRepairConfig.DEFAULT_SPLITTER.getName();

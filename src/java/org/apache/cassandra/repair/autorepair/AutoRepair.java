@@ -154,6 +154,14 @@ public class AutoRepair
         repairExecutors.get(repairType).submit(() -> repair(repairType));
     }
 
+    /**
+     * @return The current observed system time in ms.
+     */
+    public long currentTimeMs()
+    {
+        return timeFunc.get();
+    }
+
     // repair runs a repair session of the given type synchronously.
     public void repair(AutoRepairConfig.RepairType repairType)
     {
@@ -179,6 +187,13 @@ public class AutoRepair
 
             //consistency level to use for local query
             UUID myId = StorageService.instance.getHostIdForEndpoint(FBUtilities.getBroadcastAddressAndPort());
+
+            // If it's too soon to run repair, don't bother checking if it's our turn.
+            if (tooSoonToRunRepair(repairType, repairState, config, myId))
+            {
+                return;
+            }
+
             RepairTurn turn = AutoRepairUtils.myTurnToRunRepair(repairType, myId);
             if (turn == MY_TURN || turn == MY_TURN_DUE_TO_PRIORITY || turn == MY_TURN_FORCE_REPAIR)
             {
@@ -189,10 +204,6 @@ public class AutoRepair
                 // When doing force repair, we want to repair without -pr.
                 boolean primaryRangeOnly = config.getRepairPrimaryTokenRangeOnly(repairType)
                                            && turn != MY_TURN_FORCE_REPAIR;
-                if (tooSoonToRunRepair(repairType, repairState, config, myId))
-                {
-                    return;
-                }
 
                 long startTime = timeFunc.get();
                 logger.info("My host id: {}, my turn to run repair...repair primary-ranges only? {}", myId,
@@ -387,7 +398,8 @@ public class AutoRepair
             // we should check for the node's repair history in the DB
             repairState.setLastRepairTime(AutoRepairUtils.getLastRepairTimeForNode(repairType, myId));
         }
-        /** check if it is too soon to run repair. one of the reason we
+        /*
+         * check if it is too soon to run repair. one of the reason we
          * should not run frequent repair is that repair triggers
          * memtable flush
          */

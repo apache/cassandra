@@ -388,8 +388,12 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
     public RangesAtEndpoint getReplicas(String keyspaceName, InetAddressAndPort endpoint)
     {
-        return Keyspace.open(keyspaceName).getReplicationStrategy()
-                       .getAddressReplicas(ClusterMetadata.current(), endpoint);
+        return getReplicas(Keyspace.open(keyspaceName).getReplicationStrategy(), endpoint);
+    }
+
+    public RangesAtEndpoint getReplicas(AbstractReplicationStrategy replicationStrategy, InetAddressAndPort endpoint)
+    {
+        return replicationStrategy.getAddressReplicas(ClusterMetadata.current(), endpoint);
     }
 
     public List<Range<Token>> getLocalRanges(String ks)

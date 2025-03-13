@@ -27,9 +27,13 @@ import java.util.concurrent.TimeUnit;
 import com.google.common.collect.ImmutableMap;
 
 import org.apache.cassandra.Util;
-import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.config.DurationSpec;
+import org.apache.cassandra.distributed.api.TokenSupplier;
+import org.apache.cassandra.metrics.AutoRepairMetrics;
+import org.apache.cassandra.metrics.AutoRepairMetricsManager;
 import org.apache.cassandra.schema.SystemDistributedKeyspace;
 
+import org.junit.AfterClass;
 import org.junit.Assert;
 import org.junit.BeforeClass;
 import org.junit.Test;
@@ -46,7 +50,7 @@ import static org.hamcrest.Matchers.greaterThan;
 import static org.junit.Assert.assertEquals;
 
 /**
- * Unit tests for {@link org.apache.cassandra.repair.autorepair.AutoRepair}
+ * Distributed tests for {@link org.apache.cassandra.repair.autorepair.AutoRepair} scheduler
  */
 public class AutoRepairSchedulerTest extends TestBaseImpl
 {
@@ -61,31 +65,55 @@ public class AutoRepairSchedulerTest extends TestBaseImpl
         // Create SimpleDateFormat object with the given pattern
         sdf = new SimpleDateFormat(pattern);
         sdf.setLenient(false);
-        cluster = Cluster.build(3).withConfig(config -> config
-                                                        .set("auto_repair",
-                                                             ImmutableMap.of(
-                                                             "repair_type_overrides",
-                                                             ImmutableMap.of(AutoRepairConfig.RepairType.FULL.getConfigName(),
-                                                                             ImmutableMap.of(
-                                                                             "initial_scheduler_delay", "5s",
-                                                                             "enabled", "true",
-                                                                             "parallel_repair_count", "1",
-                                                                             "parallel_repair_percentage", "0",
-                                                                             "min_repair_interval", "1s"),
-                                                                             AutoRepairConfig.RepairType.INCREMENTAL.getConfigName(),
-                                                                             ImmutableMap.of(
-                                                                             "initial_scheduler_delay", "5s",
-                                                                             "enabled", "true",
-                                                                             "parallel_repair_count", "1",
-                                                                             "parallel_repair_percentage", "0",
-                                                                             "min_repair_interval", "1s"))))
-                                                        .set("auto_repair.enabled", "true")
-                                                        .set("auto_repair.global_settings.repair_by_keyspace", "true")
-                                                        .set("auto_repair.repair_task_min_duration", "0s")
-                                                        .set("auto_repair.repair_check_interval", "10s")).start();
+        // Configure a 3-node cluster with num_tokens: 4 and auto_repair enabled
+        cluster = Cluster.build(3)
+                         .withTokenCount(4)
+                         .withTokenSupplier(TokenSupplier.evenlyDistributedTokens(3, 4))
+                         .withConfig(config -> config
+                                               .set("num_tokens", 4)
+                                               .set("auto_repair",
+                                                    ImmutableMap.of(
+                                                    "repair_type_overrides",
+                                                    ImmutableMap.of(AutoRepairConfig.RepairType.FULL.getConfigName(),
+                                                                    ImmutableMap.of(
+                                                                    "initial_scheduler_delay", "5s",
+                                                                    "enabled", "true",
+                                                                    "parallel_repair_count", "2",
+                                                                    // Allow parallel replica repair to allow replicas
+                                                                    // to execute full repair at same time.
+                                                                    "allow_parallel_replica_repair", "true",
+                                                                    "min_repair_interval", "15s"),
+                                                                    AutoRepairConfig.RepairType.INCREMENTAL.getConfigName(),
+                                                                    ImmutableMap.of(
+                                                                    "initial_scheduler_delay", "5s",
+                                                                    "enabled", "true",
+                                                                    // Set parallel repair count to 3 to provoke
+                                                                    // contention between replicas when scheduling.
+                                                                    "parallel_repair_count", "3",
+                                                                    // Disallow parallel replica repair to prevent
+                                                                    // replicas from issuing incremental repair at
+                                                                    // same time.
+                                                                    "allow_parallel_replica_repair", "false",
+                                                                    // Run more aggressively since full repair is
+                                                                    // less restrictive about when it can run repair,
+                                                                    // so need to check more frequently to allow
+                                                                    // incremental to get an attempt in.
+                                                                    "min_repair_interval", "5s"))))
+                                               .set("auto_repair.enabled", "true")
+                                               .set("auto_repair.global_settings.repair_by_keyspace", "true")
+                                               .set("auto_repair.global_settings.repair_retry_backoff", "5s")
+                                               .set("auto_repair.repair_task_min_duration", "0s")
+                                               .set("auto_repair.repair_check_interval", "5s"))
+                         .start();
 
         cluster.schemaChange("CREATE KEYSPACE IF NOT EXISTS " + KEYSPACE + " WITH replication = {'class': 'SimpleStrategy', 'replication_factor': 3};");
         cluster.schemaChange(withKeyspace("CREATE TABLE %s.tbl (pk int, ck text, v1 int, v2 int, PRIMARY KEY (pk, ck)) WITH read_repair='NONE'"));
+    }
+
+    @AfterClass
+    public static void tearDown()
+    {
+        cluster.close();
     }
 
     @Test
@@ -98,10 +126,7 @@ public class AutoRepairSchedulerTest extends TestBaseImpl
         cluster.forEach(i -> i.runOnInstance(() -> {
             try
             {
-                DatabaseDescriptor.setCDCOnRepairEnabled(false);
-                DatabaseDescriptor.setMaterializedViewsOnRepairEnabled(false);
-                AutoRepairService.instance.setup();
-                DatabaseDescriptor.setCDCOnRepairEnabled(false);
+                AutoRepairService.setup();
                 AutoRepair.instance.setup();
             }
             catch (Exception e)
@@ -112,17 +137,39 @@ public class AutoRepairSchedulerTest extends TestBaseImpl
 
         // validate that the repair ran on all nodes
         cluster.forEach(i -> i.runOnInstance(() -> {
-            Util.spinAssert("AutoRepair has not yet completed one FULL repair cycle",
-                            greaterThan(0L),
-                            AutoRepair.instance.repairStates.get(AutoRepairConfig.RepairType.FULL)::getLastRepairTime,
-                            5,
-                            TimeUnit.MINUTES);
+            // Reduce sleeping if repair finishes quickly to speed up test but make it non-zero to provoke some
+            // contention.
+            AutoRepair.SLEEP_IF_REPAIR_FINISHES_QUICKLY = new DurationSpec.IntSecondsBound("1s");
+
+            AutoRepairMetrics incrementalMetrics = AutoRepairMetricsManager.getMetrics(AutoRepairConfig.RepairType.INCREMENTAL);
             Util.spinAssert("AutoRepair has not yet completed one INCREMENTAL repair cycle",
                             greaterThan(0L),
-                            AutoRepair.instance.repairStates.get(AutoRepairConfig.RepairType.INCREMENTAL)::getLastRepairTime,
+                            () -> incrementalMetrics.nodeRepairTimeInSec.getValue().longValue(),
                             5,
                             TimeUnit.MINUTES);
+
+            // Expect some contention on incremental repair.
+            Util.spinAssert("AutoRepair has not observed any replica contention in INCREMENTAL repair",
+                            greaterThan(0L),
+                            incrementalMetrics.repairDelayedByReplica::getCount,
+                            5,
+                            TimeUnit.MINUTES);
+            // Do not expect any contention across schedules since allow_parallel_replica_repairs across schedules
+            // was not configured.
+            assertEquals(0L, incrementalMetrics.repairDelayedBySchedule.getCount());
+
+            AutoRepairMetrics fullMetrics = AutoRepairMetricsManager.getMetrics(AutoRepairConfig.RepairType.FULL);
+            Util.spinAssert("AutoRepair has not yet completed one FULL repair cycle",
+                            greaterThan(0L),
+                            () -> fullMetrics.nodeRepairTimeInSec.getValue().longValue(),
+                            5,
+                            TimeUnit.MINUTES);
+
+            // No repair contention should be observed for full repair since allow_parallel_replica_repair was true
+            assertEquals(0L, fullMetrics.repairDelayedByReplica.getCount());
+            assertEquals(0L, fullMetrics.repairDelayedBySchedule.getCount());
         }));
+
         validate(AutoRepairConfig.RepairType.FULL.toString());
         validate(AutoRepairConfig.RepairType.INCREMENTAL.toString());
     }
@@ -137,7 +184,7 @@ public class AutoRepairSchedulerTest extends TestBaseImpl
             // repair_type
             Assert.assertEquals(repairType, row[0].toString());
             // host_id
-            UUID.fromString(row[1].toString());
+            Assert.assertNotNull(UUID.fromString(row[1].toString()));
             // ensure there is a legit repair_start_ts and repair_finish_ts
             sdf.parse(row[2].toString());
             sdf.parse(row[3].toString());
