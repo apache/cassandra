@@ -164,9 +164,6 @@ for each repair type (full, incremental, and preview_repaired), and based on tha
 | repair_check_interval | 5m | Time interval between successive checks to see if ongoing repairs are complete or if it
 is time to schedule repairs.
 | repair_max_retries | 3 | Maximum number of retries for a repair session.
-| repair_retry_backoff | 30s | Backoff time before retrying a repair session.
-| repair_task_min_duration | 5s | Minimum duration for the execution of a single repair task. This prevents the
-scheduler from overwhelming the node by scheduling too many repair tasks in a short period of time.
 | history_clear_delete_hosts_buffer_interval | 2h | The scheduler needs to adjust its order when nodes leave the ring.
 Deleted hosts are tracked in metadata for a specified duration to ensure they are indeed removed before adjustments
 are made to the schedule.
@@ -212,6 +209,9 @@ centers. Useful if you have keyspaces that are not replicated in certain data ce
 schedule in certain data centers.
 | repair_primary_token_range_only | true | Repair only the primary ranges owned by a node. Equivalent to the -pr option
 in nodetool repair. General advice is to keep this true.
+| repair_retry_backoff | 30s | Backoff time before retrying a repair session.
+| repair_task_min_duration | 5s | Minimum duration for the execution of a single repair task. This prevents the
+scheduler from overwhelming the node by scheduling too many repair tasks in a short period of time.
 |===
 
 === `RepairTokenRangeSplitter` configuration
@@ -352,8 +352,6 @@ $> nodetool getautorepairconfig
 repair scheduler configuration:
 	repair_check_interval: 5m
 	repair_max_retries: 3
-	repair_retry_backoff: 30s
-	repair_task_min_duration: 5s
 	history_clear_delete_hosts_buffer_interval: 2h
 configuration for repair_type: full
 	enabled: true
@@ -370,6 +368,8 @@ configuration for repair_type: full
 	initial_scheduler_delay: 5m
 	repair_session_timeout: 3h
 	force_repair_new_node: false
+	repair_retry_backoff: 30s
+	repair_task_min_duration: 5s
 	token_range_splitter: org.apache.cassandra.repair.autorepair.RepairTokenRangeSplitter
 	token_range_splitter.bytes_per_assignment: 50GiB
 	token_range_splitter.partitions_per_assignment: 1048576
@@ -390,6 +390,8 @@ configuration for repair_type: incremental
 	initial_scheduler_delay: 5m
 	repair_session_timeout: 3h
 	force_repair_new_node: false
+	repair_retry_backoff: 30s
+	repair_task_min_duration: 5s
 	token_range_splitter: org.apache.cassandra.repair.autorepair.RepairTokenRangeSplitter
 	token_range_splitter.bytes_per_assignment: 50GiB
 	token_range_splitter.partitions_per_assignment: 1048576
