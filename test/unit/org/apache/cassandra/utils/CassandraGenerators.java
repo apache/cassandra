@@ -614,6 +614,11 @@ public final class CassandraGenerators
             }
             return options;
         };
+        //TODO (coverage): doesn't look to validate > 1, what does that even mean?
+        private Gen<Float> tombstoneThreshold = SourceDSL.floats().between(0, 1);
+        private Gen<Boolean> uncheckedTombstoneCompaction = SourceDSL.booleans().all();
+        private Gen<Boolean> onlyPurgeRepairedTombstones = SourceDSL.booleans().all();
+
         public Gen<CompactionParams> build()
         {
             return rnd -> {
@@ -626,6 +631,12 @@ public final class CassandraGenerators
                     options.put(CompactionParams.Option.MIN_THRESHOLD.toString(), Long.toString(rnd.next(Constraint.between(2, 4))));
                     options.put(CompactionParams.Option.MAX_THRESHOLD.toString(), Long.toString(rnd.next(Constraint.between(5, 32))));
                 }
+                if (nextBoolean(rnd))
+                    options.put(AbstractCompactionStrategy.TOMBSTONE_THRESHOLD_OPTION, tombstoneThreshold.generate(rnd).toString());
+                if (nextBoolean(rnd))
+                    options.put(AbstractCompactionStrategy.UNCHECKED_TOMBSTONE_COMPACTION_OPTION, uncheckedTombstoneCompaction.generate(rnd).toString());
+                if (nextBoolean(rnd))
+                    options.put(AbstractCompactionStrategy.ONLY_PURGE_REPAIRED_TOMBSTONES, onlyPurgeRepairedTombstones.generate(rnd).toString());
                 switch (algo)
                 {
                     case SizeTiered:
