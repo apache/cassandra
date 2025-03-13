@@ -167,10 +167,10 @@ public class RouteIndexFormat
         }
     }
 
-    public static AccordJournal.Builder extract(TxnId txnId, ByteBuffer record, Version user_version)
+    public static AccordJournal.Builder extract(TxnId txnId, ByteBuffer record, Version userVersion)
     {
         AccordJournal.Builder builder = new AccordJournal.Builder(txnId, AccordJournal.Load.ALL);
-        AccordJournalTable.readBuffer(record, builder::deserializeNext, user_version);
+        AccordJournalTable.readBuffer(record, builder::deserializeNext, userVersion);
         return builder;
     }
 
