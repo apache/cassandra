@@ -70,15 +70,15 @@ public class CoordinatorLogTest
         };
 
         for (MutationId id : ids)
-            log.witnessedMutationLocal(id, tk);
+            log.witnessedLocalMutation(id, tk);
 
         Offsets reconciled = new Offsets();
         assertUnreconciled(tk, log, reconciled, ids);
 
-        log.witnessedMutationRemote(ids[0], PARTICIPANTS.get(1));
+        log.witnessedRemoteMutation(ids[0], PARTICIPANTS.get(1));
         assertUnreconciled(tk, log, reconciled, ids);
 
-        log.witnessedMutationRemote(ids[0], PARTICIPANTS.get(2));
+        log.witnessedRemoteMutation(ids[0], PARTICIPANTS.get(2));
         reconciled.add(ids[0].offset());
         assertUnreconciled(tk, log, reconciled, ids[1], ids[2]);
     }

@@ -57,11 +57,6 @@ public class MutationTrackingService
 
     private MutationTrackingService() {}
 
-    public ReadReconciliations reconciliations()
-    {
-        return reconciliations;
-    }
-
     // TODO (expected): implement a TCM ChangeListener
     public void start()
     {
@@ -78,6 +73,34 @@ public class MutationTrackingService
         reconciliations.shutdownBlocking();
     }
 
+    public ReadReconciliations reconciliations()
+    {
+        return reconciliations;
+    }
+
+    MutationId nextMutationId(String keyspace, Token token)
+    {
+        return getOrCreate(keyspace).nextMutationId(token);
+    }
+
+    public void witnessedLocalMutation(Mutation mutation)
+    {
+        getOrCreate(mutation.getKeyspaceName()).witnessedLocalMutation(mutation);
+    }
+
+    public PendingWrite startWrite(Mutation mutation)
+    {
+        Preconditions.checkArgument(!mutation.id().isNone());
+        return getOrCreate(mutation.getKeyspaceName()).startWrite(mutation);
+    }
+
+    public PendingRead startRead(ReadCommand command)
+    {
+        //noinspection DataFlowIssue
+        Preconditions.checkArgument(Schema.instance.getKeyspaceMetadata(command.metadata().keyspace).useMutationTracking());
+        return getOrCreate(command.metadata().keyspace).startRead(command);
+    }
+
     public MutationSummary summaryForKey(TableId tableId, DecoratedKey key)
     {
         return getOrCreate(tableId).summaryForKey(tableId, key);
@@ -91,38 +114,6 @@ public class MutationTrackingService
     public MutationSummary summaryForRange(TableId tableId, Range<Token> range)
     {
         return summaryForRange(tableId, Range.makeRowRange(range));
-    }
-
-    public PendingWrite startWrite(Mutation mutation)
-    {
-        Preconditions.checkArgument(!mutation.id().isNone());
-        return getOrCreate(mutation.getKeyspaceName()).startWrite(mutation);
-    }
-
-    public PendingRead startRead(ReadCommand command)
-    {
-        Preconditions.checkArgument(Schema.instance.getKeyspaceMetadata(command.metadata().keyspace).useMutationTracking());
-        return getOrCreate(command.metadata().keyspace).startRead(command);
-    }
-
-    public Shard lookUpShard(String keyspace, Range<Token> range)
-    {
-        return getOrCreate(keyspace).lookUp(range);
-    }
-
-    public Shard lookUpShard(String keyspace, Token token)
-    {
-        return getOrCreate(keyspace).lookUp(token);
-    }
-
-    public void forEachIntersectingShard(String keyspace, AbstractBounds<PartitionPosition> range, Consumer<Shard> consumer)
-    {
-        getOrCreate(keyspace).forEachIntersectingShard(range, consumer);
-    }
-
-    public void witnessedLocalMutation(Mutation mutation)
-    {
-        lookUpShard(mutation.getKeyspaceName(), mutation.key().getToken()).witnessedLocalMutation(mutation.id(), mutation);
     }
 
     private KeyspaceShards getOrCreate(TableId tableId)
@@ -182,17 +173,29 @@ public class MutationTrackingService
             shards.forEach((range, shard) -> ppShards.put(Range.makeRowRange(range), shard));
         }
 
-        Shard lookUp(Range<Token> range)
+        MutationId nextMutationId(Token token)
         {
-            return shards.get(range);
+            return lookUp(token).nextId();
         }
 
-        Shard lookUp(Token token)
+        void witnessedLocalMutation(Mutation mutation)
         {
-            ClusterMetadata csm = ClusterMetadata.current();
-            KeyspaceMetadata ksm = csm.schema.getKeyspaceMetadata(keyspace);
-            Range<Token> range = ClusterMetadata.current().placements.get(ksm.params.replication).writes.forRange(token).range();
-            return shards.get(range);
+            lookUp(mutation.key().getToken()).witnessedLocalMutation(mutation);
+        }
+
+        PendingWrite startWrite(Mutation mutation)
+        {
+            pendingMutations.put(mutation.id(), mutation);
+            pendingReads.forEach(read -> read.onNewWrite(mutation));
+            return () -> pendingMutations.remove(mutation.id());
+        }
+
+        PendingRead startRead(ReadCommand command)
+        {
+            ListeningPendingRead pendingRead = new ListeningPendingRead(command, pendingReads);
+            pendingReads.add(pendingRead);
+            pendingMutations.values().forEach(pendingRead::onNewWrite);
+            return pendingRead;
         }
 
         MutationSummary summaryForKey(TableId tableId, DecoratedKey key)
@@ -209,7 +212,7 @@ public class MutationTrackingService
             return builder.build();
         }
 
-        public void forEachIntersectingShard(AbstractBounds<PartitionPosition> bounds, Consumer<Shard> consumer)
+        void forEachIntersectingShard(AbstractBounds<PartitionPosition> bounds, Consumer<Shard> consumer)
         {
             ppShards.forEach((range, shard) -> {
                 if (range.intersects(bounds))
@@ -217,19 +220,12 @@ public class MutationTrackingService
             });
         }
 
-        PendingWrite startWrite(Mutation mutation)
+        Shard lookUp(Token token)
         {
-            pendingMutations.put(mutation.id(), mutation);
-            pendingReads.forEach(read -> read.onNewWrite(mutation));
-            return () -> pendingMutations.remove(mutation.id());
-        }
-
-        PendingRead startRead(ReadCommand command)
-        {
-            ListeningPendingRead pendingRead = new ListeningPendingRead(command, pendingReads);
-            pendingReads.add(pendingRead);
-            pendingMutations.values().forEach(pendingRead::onNewWrite);
-            return pendingRead;
+            ClusterMetadata csm = ClusterMetadata.current();
+            KeyspaceMetadata ksm = csm.schema.getKeyspaceMetadata(keyspace);
+            Range<Token> range = ClusterMetadata.current().placements.get(ksm.params.replication).writes.forRange(token).range();
+            return shards.get(range);
         }
     }
 

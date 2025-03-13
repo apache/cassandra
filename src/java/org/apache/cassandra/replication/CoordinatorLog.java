@@ -65,7 +65,7 @@ public abstract class CoordinatorLog
                                         : new CoordinatorLogReplica(localHostId, id, participants);
     }
 
-    void witnessedMutationsRemote(Offsets ranges, int onHostId)
+    void witnessedRemoteMutations(Offsets ranges, int onHostId)
     {
         lock.writeLock().lock();
         try
@@ -79,7 +79,7 @@ public abstract class CoordinatorLog
         }
     }
 
-    void witnessedMutationRemote(MutationId mutationId, int onHostId)
+    void witnessedRemoteMutation(MutationId mutationId, int onHostId)
     {
         lock.writeLock().lock();
         try
@@ -112,7 +112,7 @@ public abstract class CoordinatorLog
         }
     }
 
-    void witnessedMutationLocal(MutationId mutationId, Token token)
+    void witnessedLocalMutation(MutationId mutationId, Token token)
     {
         lock.writeLock().lock();
         try
@@ -146,9 +146,9 @@ public abstract class CoordinatorLog
         }
     }
 
-    void witnessedMutationLocal(MutationId mutationId, Mutation mutation)
+    void witnessedLocalMutation(Mutation mutation)
     {
-        witnessedMutationLocal(mutationId, mutation.key().getToken());
+        witnessedLocalMutation(mutation.id(), mutation.key().getToken());
     }
 
     /**
