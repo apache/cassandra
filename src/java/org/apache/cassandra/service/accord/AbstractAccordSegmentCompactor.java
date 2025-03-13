@@ -26,10 +26,20 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import accord.utils.Invariants;
+import accord.utils.btree.BTree;
+import accord.utils.btree.BulkIterator;
+import accord.utils.btree.UpdateFunction;
+import org.apache.cassandra.db.BufferClustering;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.DecoratedKey;
+import org.apache.cassandra.db.LivenessInfo;
+import org.apache.cassandra.db.marshal.Int32Type;
+import org.apache.cassandra.db.marshal.LongType;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
-import org.apache.cassandra.db.partitions.PartitionUpdate.SimpleBuilder;
+import org.apache.cassandra.db.rows.BTreeRow;
+import org.apache.cassandra.db.rows.BufferCell;
+import org.apache.cassandra.db.rows.ColumnData;
+import org.apache.cassandra.db.rows.Row;
 import org.apache.cassandra.exceptions.UnknownTableException;
 import org.apache.cassandra.io.sstable.SSTableTxnWriter;
 import org.apache.cassandra.io.util.DataInputBuffer;
@@ -37,6 +47,8 @@ import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.journal.SegmentCompactor;
 import org.apache.cassandra.journal.StaticSegment;
 import org.apache.cassandra.journal.StaticSegment.KeyOrderReader;
+import org.apache.cassandra.service.ClientState;
+import org.apache.cassandra.service.accord.AccordJournalValueSerializers.FlyweightImage;
 import org.apache.cassandra.service.accord.AccordJournalValueSerializers.FlyweightSerializer;
 import org.apache.cassandra.utils.NoSpamLogger;
 
@@ -51,12 +63,17 @@ public abstract class AbstractAccordSegmentCompactor<V> implements SegmentCompac
     protected static final Logger logger = LoggerFactory.getLogger(AbstractAccordSegmentCompactor.class);
     private static final NoSpamLogger.NoSpamLogStatement unknownTable = NoSpamLogger.getStatement(logger, "Unknown (probably dropped) TableId {} reading {}; skipping record", 1L, MINUTES);
 
+    static final Object[] rowTemplate = BTree.build(BulkIterator.of(new Object[2]), 2, UpdateFunction.noOp);
+
     protected final Version userVersion;
+    protected final ColumnData userVersionCell;
     protected final ColumnFamilyStore cfs;
+    protected final long timestamp = ClientState.getTimestamp();
 
     public AbstractAccordSegmentCompactor(Version userVersion, ColumnFamilyStore cfs)
     {
         this.userVersion = userVersion;
+        this.userVersionCell = BufferCell.live(AccordKeyspace.JournalColumns.user_version, timestamp, Int32Type.instance.decompose(userVersion.version));
         this.cfs = cfs;
     }
 
@@ -96,8 +113,8 @@ public abstract class AbstractAccordSegmentCompactor<V> implements SegmentCompac
         initializeWriter();
 
         JournalKey key = null;
-        Object builder = null;
-        FlyweightSerializer<Object, Object> serializer = null;
+        FlyweightImage builder = null;
+        FlyweightSerializer<Object, FlyweightImage> serializer = null;
         long firstDescriptor = -1, lastDescriptor = -1;
         int firstOffset = -1, lastOffset = -1;
         try
@@ -110,8 +127,9 @@ public abstract class AbstractAccordSegmentCompactor<V> implements SegmentCompac
                     maybeWritePartition(key, builder, serializer, firstDescriptor, firstOffset);
                     switchPartitions();
                     key = reader.key();
-                    serializer = (FlyweightSerializer<Object, Object>) key.type.serializer;
-                    builder = serializer.mergerFor(key);
+                    serializer = (FlyweightSerializer<Object, FlyweightImage>) key.type.serializer;
+                    builder = serializer.mergerFor();
+                    builder.reset(key);
                     firstDescriptor = lastDescriptor = -1;
                     firstOffset = lastOffset = -1;
                 }
@@ -122,7 +140,10 @@ public abstract class AbstractAccordSegmentCompactor<V> implements SegmentCompac
                 do
                 {
                     if (builder == null)
-                        builder = serializer.mergerFor(key);
+                    {
+                        builder = serializer.mergerFor();
+                        builder.reset(key);
+                    }
 
                     try (DataInputBuffer in = new DataInputBuffer(reader.record(), false))
                     {
@@ -178,30 +199,27 @@ public abstract class AbstractAccordSegmentCompactor<V> implements SegmentCompac
     private JournalKey prevKey;
     private DecoratedKey prevDecoratedKey;
 
-    private void maybeWritePartition(JournalKey key, Object builder, FlyweightSerializer<Object, Object> serializer, long descriptor, int offset) throws IOException
+    private void maybeWritePartition(JournalKey key, FlyweightImage builder, FlyweightSerializer<Object, FlyweightImage> serializer, long descriptor, int offset) throws IOException
     {
         if (builder != null)
         {
             DecoratedKey decoratedKey = AccordKeyspace.JournalColumns.decorate(key);
-
-            if (prevKey != null)
-            {
-                Invariants.requireArgument((decoratedKey.compareTo(prevDecoratedKey) >= 0 ? 1 : -1) == (JournalKey.SUPPORT.compare(key, prevKey) >= 0 ? 1 : -1),
-                                           String.format("Partition key and JournalKey didn't have matching order, which may imply a serialization issue.\n%s (%s)\n%s (%s)",
-                                                         key, decoratedKey, prevKey, prevDecoratedKey));
-            }
+            Invariants.requireArgument(prevKey == null || ((decoratedKey.compareTo(prevDecoratedKey) >= 0 ? 1 : -1) == (JournalKey.SUPPORT.compare(key, prevKey) >= 0 ? 1 : -1)),
+                                       "Partition key and JournalKey didn't have matching order, which may imply a serialization issue.\n%s (%s)\n%s (%s)",
+                                       key, decoratedKey, prevKey, prevDecoratedKey);
             prevKey = key;
             prevDecoratedKey = decoratedKey;
 
-            SimpleBuilder partitionBuilder = PartitionUpdate.simpleBuilder(cfs.metadata(), decoratedKey);
+            Object[] rowData = rowTemplate.clone();
             try (DataOutputBuffer out = DataOutputBuffer.scratchBuffer.get())
             {
                 serializer.reserialize(key, builder, out, userVersion);
-                partitionBuilder.row(descriptor, offset)
-                                .add("record", out.asNewBuffer())
-                                .add("user_version", userVersion.version);
+                rowData[0] = BufferCell.live(AccordKeyspace.JournalColumns.record, timestamp, out.asNewBuffer());
             }
-            writer().append(partitionBuilder.build().unfilteredIterator());
+            rowData[1] = userVersionCell;
+            Row row = BTreeRow.create(BufferClustering.make(LongType.instance.decompose(descriptor), Int32Type.instance.decompose(offset)), LivenessInfo.EMPTY, Row.Deletion.LIVE, rowData);
+            PartitionUpdate update = PartitionUpdate.singleRowUpdate(AccordKeyspace.Journal, decoratedKey, row);
+            writer().append(update.unfilteredIterator());
         }
     }
 }

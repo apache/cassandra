@@ -21,6 +21,7 @@ package org.apache.cassandra.service.accord;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Set;
@@ -552,6 +553,7 @@ public class AccordKeyspace
         public static final ColumnMetadata id = getColumn(Journal, "id");
         public static final ColumnMetadata record = getColumn(Journal, "record");
         public static final ColumnMetadata user_version = getColumn(Journal, "user_version");
+        public static final RegularAndStaticColumns regular = new RegularAndStaticColumns(Columns.NONE, Columns.from(Arrays.asList(record, user_version)));
 
         public static DecoratedKey decorate(JournalKey key)
         {

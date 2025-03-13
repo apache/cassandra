@@ -296,7 +296,7 @@ public class AccordService implements IAccordService, Shutdownable
         final RequestCallbacks callbacks = new RequestCallbacks(time);
         this.scheduler = new AccordScheduler();
         this.dataStore = new AccordDataStore();
-        this.journal = new AccordJournal(DatabaseDescriptor.getAccord().journal, agent);
+        this.journal = new AccordJournal(DatabaseDescriptor.getAccord().journal);
         this.configService = new AccordConfigurationService(localId);
         this.fastPathCoordinator = AccordFastPathCoordinator.create(localId, configService);
         this.messageSink = new AccordMessageSink(agent, configService, callbacks);

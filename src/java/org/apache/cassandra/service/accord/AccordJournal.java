@@ -67,9 +67,9 @@ import org.apache.cassandra.journal.SegmentCompactor;
 import org.apache.cassandra.journal.StaticSegment;
 import org.apache.cassandra.journal.ValueSerializer;
 import org.apache.cassandra.net.MessagingService;
+import org.apache.cassandra.service.accord.AccordJournalValueSerializers.FlyweightImage;
 import org.apache.cassandra.service.accord.AccordJournalValueSerializers.IdentityAccumulator;
 import org.apache.cassandra.service.accord.JournalKey.JournalKeySupport;
-import org.apache.cassandra.service.accord.api.AccordAgent;
 import org.apache.cassandra.service.accord.journal.AccordTopologyUpdate;
 import org.apache.cassandra.service.accord.serializers.CommandSerializers;
 import org.apache.cassandra.service.accord.serializers.CommandSerializers.ExecuteAtSerializer;
@@ -109,21 +109,19 @@ public class AccordJournal implements accord.api.Journal, RangeSearcher.Supplier
     @VisibleForTesting
     protected final AccordJournalTable<JournalKey, Object> journalTable;
     private final Params params;
-    private final AccordAgent agent;
     Node node;
 
     enum Status { INITIALIZED, STARTING, REPLAY, STARTED, TERMINATING, TERMINATED }
     private volatile Status status = Status.INITIALIZED;
 
-    public AccordJournal(Params params, AccordAgent agent)
+    public AccordJournal(Params params)
     {
-        this(params, agent, new File(DatabaseDescriptor.getAccordJournalDirectory()), Keyspace.open(AccordKeyspace.metadata().name).getColumnFamilyStore(AccordKeyspace.JOURNAL));
+        this(params, new File(DatabaseDescriptor.getAccordJournalDirectory()), Keyspace.open(AccordKeyspace.metadata().name).getColumnFamilyStore(AccordKeyspace.JOURNAL));
     }
 
     @VisibleForTesting
-    public AccordJournal(Params params, AccordAgent agent, File directory, ColumnFamilyStore cfs)
+    public AccordJournal(Params params, File directory, ColumnFamilyStore cfs)
     {
-        this.agent = agent;
         Version userVersion = Version.fromVersion(params.userVersion());
         this.journal = new Journal<>("AccordJournal", directory, params, JournalKey.SUPPORT,
                                      // In Accord, we are using streaming serialization, i.e. Reader/Writer interfaces instead of materializing objects
@@ -232,7 +230,7 @@ public class AccordJournal implements accord.api.Journal, RangeSearcher.Supplier
     public Command loadCommand(int commandStoreId, TxnId txnId, RedundantBefore redundantBefore, DurableBefore durableBefore)
     {
         Builder builder = load(commandStoreId, txnId);
-        builder.maybeCleanup(FULL, agent, redundantBefore, durableBefore);
+        builder.maybeCleanup(true, FULL, redundantBefore, durableBefore);
         return builder.construct(redundantBefore);
     }
 
@@ -243,7 +241,7 @@ public class AccordJournal implements accord.api.Journal, RangeSearcher.Supplier
         if (builder.isEmpty())
             return null;
 
-        Cleanup cleanup = builder.shouldCleanup(FULL, node.agent(), redundantBefore, durableBefore);
+        Cleanup cleanup = builder.shouldCleanup(FULL, redundantBefore, durableBefore);
         switch (cleanup)
         {
             case VESTIGIAL:
@@ -384,9 +382,9 @@ public class AccordJournal implements accord.api.Journal, RangeSearcher.Supplier
         return loadDiffs(commandStoreId, txnId, Load.ALL);
     }
 
-    private <BUILDER> BUILDER readAll(JournalKey key)
+    private <BUILDER extends FlyweightImage> BUILDER readAll(JournalKey key)
     {
-        BUILDER builder = (BUILDER) key.type.serializer.mergerFor(key);
+        BUILDER builder = (BUILDER) key.type.serializer.mergerFor();
         // TODO: this can be further improved to avoid allocating lambdas
         AccordJournalValueSerializers.FlyweightSerializer<?, BUILDER> serializer = (AccordJournalValueSerializers.FlyweightSerializer<?, BUILDER>) key.type.serializer;
         // TODO (expected): for those where we store an image, read only the first entry we find in DESC order
@@ -618,11 +616,16 @@ public class AccordJournal implements accord.api.Journal, RangeSearcher.Supplier
         }
     }
 
-    public static class Builder extends CommandChange.Builder
+    public static class Builder extends CommandChange.Builder implements FlyweightImage
     {
         public Builder()
         {
-            super(null, Load.ALL);
+            this(Load.ALL);
+        }
+
+        public Builder(Load load)
+        {
+            super(null, load);
         }
 
         public Builder(TxnId txnId)
@@ -634,6 +637,12 @@ public class AccordJournal implements accord.api.Journal, RangeSearcher.Supplier
         {
             super(txnId, load);
         }
+
+        public void reset(JournalKey key)
+        {
+            reset(key.id);
+        }
+
         public ByteBuffer asByteBuffer(Version userVersion) throws IOException
         {
             try (DataOutputBuffer out = new DataOutputBuffer())
@@ -728,11 +737,11 @@ public class AccordJournal implements accord.api.Journal, RangeSearcher.Supplier
             Invariants.require(txnId != null);
             int readFlags = in.readInt();
             Invariants.require(readFlags != 0);
-            nextCalled = true;
+            hasUpdate = true;
             count++;
 
             // batch-apply any new nulls
-            setNulls(readFlags);
+            setNulls(false, readFlags);
             // iterator sets low 16 bits; low readFlag bits are nulls, so masking with ~readFlags restricts to non-null changed fields
             int iterable = toIterableSetFields(readFlags) & ~readFlags;
             for (Field field = nextSetField(iterable) ; field != null; field = nextSetField(iterable = unsetIterable(field, iterable)))
