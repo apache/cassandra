@@ -2768,10 +2768,6 @@ storage_compatibility_mode: NONE
 #   # Time interval between successive checks to see if ongoing repairs are complete or if it is time to schedule
 #   # repairs.
 #   repair_check_interval: 5m
-#   # Maximum number of retries for a repair session.
-#   repair_max_retries: 3
-#   # Backoff time before retrying a repair session.
-#   repair_retry_backoff: 30s
 #   # Minimum duration for the execution of a single repair task. This prevents the scheduler from overwhelming
 #   # the node by scheduling too many repair tasks in a short period of time.
 #   repair_task_min_duration: 5s
@@ -2813,6 +2809,10 @@ storage_compatibility_mode: NONE
 #     # Repair only the primary ranges owned by a node. Equivalent to the -pr option in nodetool repair. Defaults
 #     # to true. General advice is to keep this true.
 #     repair_primary_token_range_only: true
+#     # Maximum number of retries for a repair session.
+#     repair_max_retries: 3
+#     # Backoff time before retrying a repair session.
+#     repair_retry_backoff: 30s
 #     token_range_splitter:
 #       # Splitter implementation to generate repair assignments. Defaults to RepairTokenRangeSplitter.
 #       class_name: org.apache.cassandra.repair.autorepair.RepairTokenRangeSplitter
