@@ -29,16 +29,16 @@ import org.apache.cassandra.db.rows.UnfilteredRowIterator;
 import org.apache.cassandra.db.rows.UnfilteredRowIterators;
 import org.apache.cassandra.locator.Endpoints;
 import org.apache.cassandra.locator.ReplicaPlan;
-import org.apache.cassandra.service.reads.legacy.LegacyReadRepair;
+import org.apache.cassandra.service.reads.untracked.UntrackedReadRepair;
 
 public class PartitionIteratorMergeListener<E extends Endpoints<E>>
         implements UnfilteredPartitionIterators.MergeListener
 {
     private final ReplicaPlan.ForRead<E, ?> replicaPlan;
     private final ReadCommand command;
-    private final LegacyReadRepair readRepair;
+    private final UntrackedReadRepair readRepair;
 
-    public PartitionIteratorMergeListener(ReplicaPlan.ForRead<E, ?> replicaPlan, ReadCommand command, LegacyReadRepair readRepair)
+    public PartitionIteratorMergeListener(ReplicaPlan.ForRead<E, ?> replicaPlan, ReadCommand command, UntrackedReadRepair readRepair)
     {
         this.replicaPlan = replicaPlan;
         this.command = command;

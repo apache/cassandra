@@ -47,9 +47,9 @@ import org.apache.cassandra.metrics.ClientRangeRequestMetrics;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.service.StorageProxy;
-import org.apache.cassandra.service.reads.legacy.DataResolver;
+import org.apache.cassandra.service.reads.untracked.DataResolver;
 import org.apache.cassandra.service.reads.ReadCallback;
-import org.apache.cassandra.service.reads.legacy.LegacyReadRepair;
+import org.apache.cassandra.service.reads.untracked.UntrackedReadRepair;
 import org.apache.cassandra.service.reads.tracked.TrackedReadReconciliation;
 import org.apache.cassandra.service.reads.tracked.TrackedResolver;
 import org.apache.cassandra.service.reads.repair.ReadRepair;
@@ -191,7 +191,7 @@ public class RangeCommandIterator extends AbstractIterator<RowIterator> implemen
                                       && !command.responseType().isTracked();
 
         ReplicaPlan.SharedForRangeRead sharedReplicaPlan = ReplicaPlan.shared(replicaPlan);
-        LegacyReadRepair<EndpointsForRange, ReplicaPlan.ForRangeRead> readRepair = command.metadata().params.readRepair.create(command, sharedReplicaPlan, requestTime);
+        UntrackedReadRepair<EndpointsForRange, ReplicaPlan.ForRangeRead> readRepair = command.metadata().params.readRepair.create(command, sharedReplicaPlan, requestTime);
         DataResolver<EndpointsForRange, ReplicaPlan.ForRangeRead> resolver = new DataResolver<>(rangeCommand, sharedReplicaPlan,  readRepair, requestTime, trackRepairedStatus);
         ReadCallback<EndpointsForRange, ReplicaPlan.ForRangeRead> handler =
         new ReadCallback<>(resolver, rangeCommand, sharedReplicaPlan, requestTime);
@@ -211,7 +211,7 @@ public class RangeCommandIterator extends AbstractIterator<RowIterator> implemen
             }
         }
 
-        return new SingleRangeResponse.Legacy(resolver, handler, readRepair);
+        return new SingleRangeResponse.Untracked(resolver, handler, readRepair);
     }
 
     private SingleRangeResponse queryLogged(PartitionRangeReadCommand rangeCommand, ReplicaPlan.ForRangeRead replicaPlan, boolean isFirst)

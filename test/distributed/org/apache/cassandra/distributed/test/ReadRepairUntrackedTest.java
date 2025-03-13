@@ -23,7 +23,7 @@ import org.junit.Test;
 import org.apache.cassandra.schema.ReplicationType;
 import org.apache.cassandra.service.reads.repair.ReadRepairStrategy;
 
-public class ReadRepairLegacyTest extends ReadRepairTestBase
+public class ReadRepairUntrackedTest extends ReadRepairTestBase
 {
     @Override
     protected ReplicationType replicationType()

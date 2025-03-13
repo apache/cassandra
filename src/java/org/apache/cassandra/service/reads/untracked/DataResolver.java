@@ -15,7 +15,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.apache.cassandra.service.reads.legacy;
+package org.apache.cassandra.service.reads.untracked;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -61,18 +61,18 @@ import org.apache.cassandra.transport.Dispatcher;
 
 import static com.google.common.collect.Iterables.*;
 
-public class DataResolver<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<E, P>> extends LegacyResolver<E, P>
+public class DataResolver<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<E, P>> extends UntrackedResolver<E, P>
 {
     private final boolean enforceStrictLiveness;
-    private final LegacyReadRepair<E, P> readRepair;
+    private final UntrackedReadRepair<E, P> readRepair;
     private final boolean trackRepairedStatus;
 
-    public DataResolver(ReadCommand command, Supplier<? extends P> replicaPlan, LegacyReadRepair<E, P> readRepair, Dispatcher.RequestTime requestTime)
+    public DataResolver(ReadCommand command, Supplier<? extends P> replicaPlan, UntrackedReadRepair<E, P> readRepair, Dispatcher.RequestTime requestTime)
     {
         this(command, replicaPlan, readRepair, requestTime, false);
     }
 
-    public DataResolver(ReadCommand command, Supplier<? extends P> replicaPlan, LegacyReadRepair<E, P> readRepair, Dispatcher.RequestTime requestTime, boolean trackRepairedStatus)
+    public DataResolver(ReadCommand command, Supplier<? extends P> replicaPlan, UntrackedReadRepair<E, P> readRepair, Dispatcher.RequestTime requestTime, boolean trackRepairedStatus)
     {
         super(command, replicaPlan, requestTime);
         this.enforceStrictLiveness = command.metadata().enforceStrictLiveness();

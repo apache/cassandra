@@ -25,7 +25,7 @@ import org.apache.cassandra.db.rows.RowIterator;
 import org.apache.cassandra.exceptions.ReadTimeoutException;
 import org.apache.cassandra.locator.EndpointsForRange;
 import org.apache.cassandra.locator.ReplicaPlan;
-import org.apache.cassandra.service.reads.legacy.DataResolver;
+import org.apache.cassandra.service.reads.untracked.DataResolver;
 import org.apache.cassandra.service.reads.ReadCallback;
 import org.apache.cassandra.service.reads.tracked.TrackedResolver;
 import org.apache.cassandra.service.reads.repair.ReadRepair;
@@ -77,11 +77,11 @@ abstract class SingleRangeResponse extends AbstractIterator<RowIterator> impleme
             result.close();
     }
 
-    static class Legacy extends SingleRangeResponse
+    static class Untracked extends SingleRangeResponse
     {
         private final DataResolver<EndpointsForRange, ReplicaPlan.ForRangeRead> resolver;
 
-        public Legacy(DataResolver<EndpointsForRange, ReplicaPlan.ForRangeRead> resolver, ReadCallback<EndpointsForRange, ReplicaPlan.ForRangeRead> handler, ReadRepair<EndpointsForRange, ReplicaPlan.ForRangeRead> readRepair)
+        public Untracked(DataResolver<EndpointsForRange, ReplicaPlan.ForRangeRead> resolver, ReadCallback<EndpointsForRange, ReplicaPlan.ForRangeRead> handler, ReadRepair<EndpointsForRange, ReplicaPlan.ForRangeRead> readRepair)
         {
             super(handler, readRepair);
             this.resolver = resolver;

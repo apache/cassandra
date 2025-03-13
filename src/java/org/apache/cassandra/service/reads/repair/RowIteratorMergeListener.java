@@ -52,7 +52,7 @@ import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.Replica;
 import org.apache.cassandra.locator.ReplicaPlan;
 import org.apache.cassandra.schema.ColumnMetadata;
-import org.apache.cassandra.service.reads.legacy.LegacyReadRepair;
+import org.apache.cassandra.service.reads.untracked.UntrackedReadRepair;
 
 public class RowIteratorMergeListener<E extends Endpoints<E>>
         implements UnfilteredRowIterators.MergeListener
@@ -80,9 +80,9 @@ public class RowIteratorMergeListener<E extends Endpoints<E>>
     // For each source, record if there is an open range to send as repair, and from where.
     private final ClusteringBound<?>[] markerToRepair;
 
-    private final LegacyReadRepair<E, ?> readRepair;
+    private final UntrackedReadRepair<E, ?> readRepair;
 
-    public RowIteratorMergeListener(DecoratedKey partitionKey, RegularAndStaticColumns columns, boolean isReversed, ReplicaPlan.ForRead<E, ?> readPlan, ReadCommand command, LegacyReadRepair<E, ?> readRepair)
+    public RowIteratorMergeListener(DecoratedKey partitionKey, RegularAndStaticColumns columns, boolean isReversed, ReplicaPlan.ForRead<E, ?> readPlan, ReadCommand command, UntrackedReadRepair<E, ?> readRepair)
     {
         this.partitionKey = partitionKey;
         this.columns = columns;

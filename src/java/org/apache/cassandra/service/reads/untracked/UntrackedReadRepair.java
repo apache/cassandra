@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 
-package org.apache.cassandra.service.reads.legacy;
+package org.apache.cassandra.service.reads.untracked;
 
 import java.util.Map;
 
@@ -28,7 +28,7 @@ import org.apache.cassandra.locator.Replica;
 import org.apache.cassandra.locator.ReplicaPlan;
 import org.apache.cassandra.service.reads.repair.ReadRepair;
 
-public interface LegacyReadRepair<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<E, P>> extends ReadRepair<E, P>
+public interface UntrackedReadRepair<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<E, P>> extends ReadRepair<E, P>
 {
 
     /**

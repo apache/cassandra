@@ -36,10 +36,10 @@ import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.Replica;
 import org.apache.cassandra.locator.ReplicaPlan;
 import org.apache.cassandra.service.reads.ResponseResolver;
-import org.apache.cassandra.service.reads.legacy.LegacyReadRepair;
+import org.apache.cassandra.service.reads.untracked.UntrackedReadRepair;
 
 public class TestableReadRepair<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<E, P>>
-implements LegacyReadRepair<E, P>
+implements UntrackedReadRepair<E, P>
 {
     public final Map<InetAddressAndPort, Mutation> sent = new HashMap<>();
 

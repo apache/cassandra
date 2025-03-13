@@ -15,7 +15,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.apache.cassandra.service.reads.legacy;
+package org.apache.cassandra.service.reads.untracked;
 
 import java.nio.ByteBuffer;
 import java.util.Collection;
@@ -42,7 +42,7 @@ import org.apache.cassandra.utils.ByteBufferUtil;
 import static com.google.common.collect.Iterables.any;
 import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 
-public class DigestResolver<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<E, P>> extends LegacyResolver<E, P>
+public class DigestResolver<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<E, P>> extends UntrackedResolver<E, P>
 {
     private volatile Message<IReadResponse> dataResponse;
 

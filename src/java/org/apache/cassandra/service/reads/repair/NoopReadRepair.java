@@ -30,12 +30,12 @@ import org.apache.cassandra.locator.Endpoints;
 import org.apache.cassandra.locator.Replica;
 import org.apache.cassandra.locator.ReplicaPlan;
 import org.apache.cassandra.service.reads.ResponseResolver;
-import org.apache.cassandra.service.reads.legacy.LegacyReadRepair;
+import org.apache.cassandra.service.reads.untracked.UntrackedReadRepair;
 
 /**
  * Bypasses the read repair path for short read protection and testing
  */
-public class NoopReadRepair<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<E, P>> implements LegacyReadRepair<E, P>
+public class NoopReadRepair<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<E, P>> implements UntrackedReadRepair<E, P>
 {
     public static final NoopReadRepair instance = new NoopReadRepair();
 

@@ -25,7 +25,7 @@ import org.apache.cassandra.exceptions.ReadTimeoutException;
 import org.apache.cassandra.locator.Endpoints;
 import org.apache.cassandra.locator.ReplicaPlan;
 import org.apache.cassandra.service.reads.ResponseResolver;
-import org.apache.cassandra.service.reads.legacy.LegacyReadRepair;
+import org.apache.cassandra.service.reads.untracked.UntrackedReadRepair;
 import org.apache.cassandra.transport.Dispatcher;
 
 public interface ReadRepair<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<E, P>>
@@ -33,7 +33,7 @@ public interface ReadRepair<E extends Endpoints<E>, P extends ReplicaPlan.ForRea
     public interface Factory
     {
         <E extends Endpoints<E>, P extends ReplicaPlan.ForRead<E, P>>
-        LegacyReadRepair<E, P> create(ReadCommand command, ReplicaPlan.Shared<E, P> replicaPlan, Dispatcher.RequestTime requestTime);
+        UntrackedReadRepair<E, P> create(ReadCommand command, ReplicaPlan.Shared<E, P> replicaPlan, Dispatcher.RequestTime requestTime);
     }
 
     /**
