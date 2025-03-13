@@ -28,9 +28,7 @@ import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.schema.TableId;
 
 import java.io.IOException;
-import java.util.Arrays;
-import java.util.Comparator;
-import java.util.Objects;
+import java.util.*;
 
 public class MutationSummary
 {
@@ -106,6 +104,11 @@ public class MutationSummary
                 unreconciled = new Offsets(logId);
             }
 
+            boolean isEmpty()
+            {
+                return reconciled.isEmpty() && unreconciled.isEmpty();
+            }
+
             public CoordinatorSummary build()
             {
                 return new CoordinatorSummary(reconciled, unreconciled);
@@ -161,29 +164,31 @@ public class MutationSummary
 
         public MutationSummary build()
         {
-            int i=0;
-            CoordinatorSummary[] summaries = new CoordinatorSummary[builders.size()];
+            List<CoordinatorSummary> summaries = new ArrayList<>(builders.size());
             for (CoordinatorSummary.Builder builder : builders.values())
-                summaries[i++] = builder.build();
-            Arrays.sort(summaries, CoordinatorSummary.idComparator);
+                if (!builder.isEmpty())
+                    summaries.add(builder.build());
+
+            summaries.sort(CoordinatorSummary.idComparator());
             return new MutationSummary(tableId, summaries);
         }
     }
 
     private final TableId tableId;
-    private final CoordinatorSummary[] summaries;
+    private final List<CoordinatorSummary> summaries;
     private transient final Long2ObjectHashMap<CoordinatorSummary> coordinatorSummaryMap = new Long2ObjectHashMap<>();
 
-    private MutationSummary(TableId tableId, CoordinatorSummary[] summaries)
+    private MutationSummary(TableId tableId, List<CoordinatorSummary> summaries)
     {
         long lastId = 0;
-        for (int i=0; i<summaries.length; i++)
+        for (int i=0, mi=summaries.size(); i<mi; i++)
         {
-            long thisId = summaries[i].logId().asLong();
+            CoordinatorSummary summary = summaries.get(i);
+            long thisId = summary.logId().asLong();
             if (i > 0 && thisId <= lastId)
                 throw new IllegalArgumentException("duplicated or unsorted log id found");
 
-            coordinatorSummaryMap.put(thisId, summaries[i]);
+            coordinatorSummaryMap.put(thisId, summary);
             lastId = thisId;
         }
 
@@ -202,7 +207,7 @@ public class MutationSummary
     @Override
     public int hashCode()
     {
-        return Objects.hash(tableId, Arrays.hashCode(summaries));
+        return Objects.hash(tableId, summaries);
     }
 
     @Override
@@ -210,7 +215,7 @@ public class MutationSummary
     {
         return "MutationSummary{" +
                 "tableId=" + tableId +
-                ", summaries=" + Arrays.toString(summaries) +
+                ", summaries=" + summaries.toString() +
                 '}';
     }
 
@@ -224,7 +229,7 @@ public class MutationSummary
         Digest digest = Digest.forReadResponse();
         digest.updateWithLong(tableId.asUUID().getMostSignificantBits());
         digest.updateWithLong(tableId.asUUID().getLeastSignificantBits());
-        digest.updateWithInt(summaries.length);
+        digest.updateWithInt(summaries.size());
 
         for (CoordinatorSummary summary : summaries)
             summary.digest(digest);
@@ -248,7 +253,7 @@ public class MutationSummary
 
     public int size()
     {
-        return summaries.length;
+        return summaries.size();
     }
 
     boolean isEmpty()
@@ -258,7 +263,7 @@ public class MutationSummary
 
     public CoordinatorSummary get(int i)
     {
-        return summaries[i];
+        return summaries.get(i);
     }
 
     public CoordinatorSummary get(CoordinatorLogId logId)
@@ -272,18 +277,19 @@ public class MutationSummary
         public void serialize(MutationSummary summary, DataOutputPlus out, int version) throws IOException
         {
             summary.tableId.serialize(out);
-            out.writeInt(summary.summaries.length);
-            for (CoordinatorSummary coordinatorSummary : summary.summaries)
-                CoordinatorSummary.serializer.serialize(coordinatorSummary, out, version);
+            out.writeInt(summary.summaries.size());
+            for (int i=0,mi=summary.summaries.size(); i<mi; i++)
+                CoordinatorSummary.serializer.serialize(summary.summaries.get(i), out, version);
         }
 
         @Override
         public MutationSummary deserialize(DataInputPlus in, int version) throws IOException
         {
             TableId tableId = TableId.deserialize(in);
-            CoordinatorSummary[] summaries = new CoordinatorSummary[in.readInt()];
-            for (int i = 0; i < summaries.length; i++)
-                summaries[i] = CoordinatorSummary.serializer.deserialize(in, version);
+            int size = in.readInt();
+            List<CoordinatorSummary> summaries = new ArrayList<>(size);
+            for (int i = 0; i < size; i++)
+                summaries.add(CoordinatorSummary.serializer.deserialize(in, version));
 
             return new MutationSummary(tableId, summaries);
         }
@@ -292,9 +298,9 @@ public class MutationSummary
         public long serializedSize(MutationSummary summary, int version)
         {
             long size = summary.tableId.serializedSize();
-            size += TypeSizes.sizeof(summary.summaries.length);
-            for (CoordinatorSummary coordinatorSummary : summary.summaries)
-                size += CoordinatorSummary.serializer.serializedSize(coordinatorSummary, version);
+            size += TypeSizes.sizeof(summary.summaries.size());
+            for (int i=0,mi=summary.summaries.size(); i<mi; i++)
+                size += CoordinatorSummary.serializer.serializedSize(summary.summaries.get(i), version);
             return size;
         }
     };
