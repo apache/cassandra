@@ -178,7 +178,7 @@ public abstract class CoordinatorLog
         lock.readLock().lock();
         try
         {
-            reconciled.addAll(reconciled, (s, e) -> {});
+            reconciled.addAll(reconciledIds, (s, e) -> {});
             return index.lookUp(range, into);
         }
         finally
@@ -196,7 +196,7 @@ public abstract class CoordinatorLog
         lock.readLock().lock();
         try
         {
-            reconciled.addAll(reconciled, (s, e) -> {});
+            reconciled.addAll(reconciledIds, (s, e) -> {});
             return index.lookUp(range, into);
         }
         finally
