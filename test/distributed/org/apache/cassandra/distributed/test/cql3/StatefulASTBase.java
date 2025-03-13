@@ -110,6 +110,7 @@ public class StatefulASTBase extends TestBaseImpl
                                                                                                                          .filter(i -> i != Conditional.Where.Inequality.EQUAL && i != Conditional.Where.Inequality.NOT_EQUAL)
                                                                                                                          .collect(Collectors.toList()));
     protected static final Gen<Gen.IntGen> FETCH_SIZE_DISTRO = Gens.mixedDistribution(new int[] {1, 10, 100, 1000, 5000});
+    protected static final Gen<Gen.IntGen> LIMIT_DISTRO = Gens.mixedDistribution(1, 1001);
 
     static
     {
@@ -230,7 +231,8 @@ public class StatefulASTBase extends TestBaseImpl
             this.fetchSizeGen = FETCH_SIZE_DISTRO.next(rs);
             this.usePerPartitionLimitGen = BOOL_DISTRIBUTION.next(rs);
             this.useLimitGen = BOOL_DISTRIBUTION.next(rs);
-            this.perPartitionLimitGen = this.limitGen = Gens.ints().between(1, 10);
+            this.perPartitionLimitGen = LIMIT_DISTRO.next(rs);
+            this.limitGen = LIMIT_DISTRO.next(rs);
 
             this.enoughMemtables = rs.pickInt(3, 10, 50);
             this.enoughSSTables = rs.pickInt(3, 10, 50);
