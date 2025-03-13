@@ -47,6 +47,8 @@ import javax.management.Notification;
 import javax.management.NotificationListener;
 
 import com.google.common.annotations.VisibleForTesting;
+
+import org.apache.cassandra.replication.MutationJournal;
 import org.apache.cassandra.replication.MutationTrackingService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -720,6 +722,7 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
         CassandraDaemon.getInstanceForTesting().migrateSystemDataIfNeeded();
 
         CommitLog.instance.start();
+        MutationJournal.instance.start();
 
         SnapshotManager.instance.start(false);
         SnapshotManager.instance.clearExpiredSnapshots();
@@ -752,6 +755,7 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
                                 registerInboundFilter(cluster);
                                 registerOutboundFilter(cluster);
         });
+        MutationTrackingService.instance.start();
         CassandraDaemon.disableAutoCompaction(Schema.instance.distributedKeyspaces().names());
         QueryProcessor.registerStatementInvalidatingListener();
         TestChangeListener.register();
