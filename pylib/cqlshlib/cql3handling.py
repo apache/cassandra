@@ -331,7 +331,7 @@ JUNK ::= /([ \t\r\f\v]+|(--|[/][/])[^\n\r]*([\n\r]|$)|[/][*].*?[*][/])/ ;
                | <constraintComparableFunction> <functionArguments> <cmp> <term>
                | <constraintStandaloneFunction> <functionArguments>
                ;
-               
+
 <constraintComparableFunction> ::= "LENGTH"
                                  | "OCTET_LENGTH"
                                  ;
