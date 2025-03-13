@@ -79,7 +79,7 @@ public abstract class ConstraintFunction
      * Method that validates that a condition is valid. This method is called when the CQL constraint is created to determine
      * if the CQL statement is valid or needs to be rejected as invalid throwing a {@link InvalidConstraintDefinitionException}
      */
-    public void validate(ColumnMetadata columnMetadata) throws InvalidConstraintDefinitionException
+    public void validate(ColumnMetadata columnMetadata, String term) throws InvalidConstraintDefinitionException
     {
     }
 
