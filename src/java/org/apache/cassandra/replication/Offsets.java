@@ -17,6 +17,7 @@
  */
 package org.apache.cassandra.replication;
 
+import com.google.common.base.Objects;
 import com.google.common.base.Preconditions;
 import org.apache.cassandra.db.Digest;
 import org.apache.cassandra.db.TypeSizes;
@@ -26,33 +27,37 @@ import org.apache.cassandra.io.util.DataOutputPlus;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.function.Consumer;
 
 public class Offsets
 {
     private static final int INITIAL_CAPACITY = 16;
 
+    private final CoordinatorLogId logId;
     // even index is range start, odd index is range end (inclusive)
     private int[] bounds;
     private int size;
 
-    public Offsets()
+    public Offsets(CoordinatorLogId logId)
     {
-        this(INITIAL_CAPACITY);
+        this(logId, INITIAL_CAPACITY);
     }
 
-    public Offsets(int capacity)
+    public Offsets(CoordinatorLogId logId, int capacity)
     {
+        this.logId = logId;
         this.size = 0;
         this.bounds = new int[capacity];
     }
 
-    private Offsets(int[] bounds)
+    private Offsets(CoordinatorLogId logId, int[] bounds)
     {
-        this(bounds, bounds.length);
+        this(logId, bounds, bounds.length);
     }
 
-    private Offsets(int[] bounds, int size)
+    private Offsets(CoordinatorLogId logId, int[] bounds, int size)
     {
+        this.logId = logId;
         this.bounds = bounds;
         this.size = size;
     }
@@ -62,13 +67,14 @@ public class Offsets
     {
         if (o == null || getClass() != o.getClass()) return false;
         Offsets that = (Offsets) o;
-        return size == that.size && Arrays.equals(bounds, 0, size, that.bounds, 0, size);
+        return size == that.size && Objects.equal(logId, that.logId) && Arrays.equals(bounds, 0, size, that.bounds, 0, size);
     }
 
     @Override
     public int hashCode()
     {
-        int result = Integer.hashCode(size);
+        int result = Long.hashCode(logId.hashCode());
+        result = 31 * result + Integer.hashCode(size);
         for (int i = 0; i < size; i++)
             result = 31 * result + Integer.hashCode(bounds[i]);
         return result;
@@ -76,7 +82,12 @@ public class Offsets
 
     public Offsets copy()
     {
-        return new Offsets(Arrays.copyOf(bounds, size));
+        return new Offsets(logId, Arrays.copyOf(bounds, size));
+    }
+
+    public CoordinatorLogId logId()
+    {
+        return logId;
     }
 
     public int rangeCount()
@@ -99,6 +110,19 @@ public class Offsets
     public boolean isEmpty()
     {
         return size == 0;
+    }
+
+    public void forEachId(Consumer<MutationId> consumer)
+    {
+        for (int i = 0; i < size; i+=2)
+        {
+            int start = bounds[i];
+            int   end = bounds[i+1];
+            for (int offset=start; offset <= end; offset++)
+            {
+                consumer.accept(new MutationId(logId.asLong(), MutationId.offset(offset)));
+            }
+        }
     }
 
     @Override
@@ -130,6 +154,7 @@ public class Offsets
 
     public void digest(Digest digest)
     {
+        digest.updateWithLong(logId.asLong());
         digest.updateWithInt(size);
         for (int i = 0; i < size; i++)
             digest.updateWithInt(bounds[i]);
@@ -508,7 +533,7 @@ public class Offsets
             return newOffsets;
         }
 
-        private static Offsets addRemainder(int dstSplit, int[] dst, int dstRange, int[] src, int srcRange, int srcNumRanges)
+        private static Offsets addRemainder(CoordinatorLogId logId, int dstSplit, int[] dst, int dstRange, int[] src, int srcRange, int srcNumRanges)
         {
             int capacity = (dstRange + srcNumRanges - srcRange) * 2;
             dst = ensureCapacity(dst, capacity, capacity);
@@ -530,12 +555,12 @@ public class Offsets
                 dstSplit = NO_SPLIT_SENTINEL;
                 srcRange++;
             }
-            return new Offsets(dst, dstRange * 2);
+            return new Offsets(logId, dst, dstRange * 2);
         }
 
-        private static Offsets addRemainder(int[] dst, int dstRange, int[] src, int srcRange, int srcNumRanges)
+        private static Offsets addRemainder(CoordinatorLogId logId, int[] dst, int dstRange, int[] src, int srcRange, int srcNumRanges)
         {
-            return addRemainder(NO_SPLIT_SENTINEL, dst, dstRange, src, srcRange, srcNumRanges);
+            return addRemainder(logId, NO_SPLIT_SENTINEL, dst, dstRange, src, srcRange, srcNumRanges);
         }
 
         private static int[] ensureCapacity(int[] offsets, int capacity)
@@ -546,6 +571,9 @@ public class Offsets
 
     public static Offsets union(Offsets a, Offsets b)
     {
+        Preconditions.checkArgument(a.logId.equals(b.logId));
+        CoordinatorLogId logId = a.logId;
+
         int aNumRanges = a.rangeCount();
         int bNumRanges = b.rangeCount();
 
@@ -607,16 +635,16 @@ public class Offsets
         if (aRange < aNumRanges)
         {
             Preconditions.checkState(bRange == bNumRanges);
-            return SetSupport.addRemainder(c, cRange, a.bounds, aRange, aNumRanges);
+            return SetSupport.addRemainder(logId, c, cRange, a.bounds, aRange, aNumRanges);
         }
 
         if (bRange < bNumRanges)
         {
             Preconditions.checkState(aRange == aNumRanges);
-            return SetSupport.addRemainder(c, cRange, b.bounds, bRange, bNumRanges);
+            return SetSupport.addRemainder(logId, c, cRange, b.bounds, bRange, bNumRanges);
         }
 
-        return new Offsets(c, cRange * 2);
+        return new Offsets(logId, c, cRange * 2);
     }
 
     /**
@@ -624,11 +652,13 @@ public class Offsets
      */
     public static Offsets difference(Offsets a, Offsets b)
     {
+        Preconditions.checkArgument(a.logId.equals(b.logId));
+        CoordinatorLogId logId = a.logId;
         int aNumRanges = a.rangeCount();
         int bNumRanges = b.rangeCount();
 
         if (aNumRanges == 0)
-            return new Offsets();
+            return new Offsets(logId);
 
         if (bNumRanges == 0)
             return a.copy();
@@ -722,19 +752,22 @@ public class Offsets
         if (aRange < aNumRanges)
         {
             Preconditions.checkState(bRange == bNumRanges);
-            return SetSupport.addRemainder(aSplit, c, cRange, a.bounds, aRange, aNumRanges);
+            return SetSupport.addRemainder(logId, aSplit, c, cRange, a.bounds, aRange, aNumRanges);
         }
 
-        return new Offsets(c, cRange * 2);
+        return new Offsets(logId, c, cRange * 2);
     }
 
     public static Offsets intersection(Offsets a, Offsets b)
     {
+        Preconditions.checkArgument(a.logId.equals(b.logId));
+        CoordinatorLogId logId = a.logId;
+
         int aNumRanges = a.rangeCount();
         int bNumRanges = b.rangeCount();
 
         if (aNumRanges == 0)
-            return new Offsets();
+            return new Offsets(logId);
 
         if (bNumRanges == 0)
             return a.copy();
@@ -815,7 +848,7 @@ public class Offsets
             }
         }
 
-        return new Offsets(c, cRange * 2);
+        return new Offsets(logId, c, cRange * 2);
     }
 
     public interface RangeConsumer
@@ -831,26 +864,31 @@ public class Offsets
         @Override
         public void serialize(Offsets offsets, DataOutputPlus out, int version) throws IOException
         {
+            CoordinatorLogId.serializer.serialize(offsets.logId, out, version);
             out.writeInt(offsets.size);
-            for (int id : offsets.bounds)
-                out.writeInt(id);
+            for (int i=0; i<offsets.size; i++)
+                out.writeInt(offsets.bounds[i]);
         }
 
         @Override
         public Offsets deserialize(DataInputPlus in, int version) throws IOException
         {
+            CoordinatorLogId logId = CoordinatorLogId.serializer.deserialize(in, version);
             int size = in.readInt();
             Preconditions.checkArgument(size >= 0 && size % 2 == 0);
             int[] bounds = new int[size];
             for (int i = 0; i < size; i++)
                 bounds[i] = in.readInt();
-            return new Offsets(bounds);
+            return new Offsets(logId, bounds);
         }
 
         @Override
         public long serializedSize(Offsets offsets, int version)
         {
-            return TypeSizes.INT_SIZE + (long) TypeSizes.INT_SIZE * offsets.size;
+            long size = CoordinatorLogId.serializer.serializedSize(offsets.logId, version);
+            size += TypeSizes.INT_SIZE;
+            size += (long) TypeSizes.INT_SIZE * offsets.size;
+            return size;
         }
     };
 }

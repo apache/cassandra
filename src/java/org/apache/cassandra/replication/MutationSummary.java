@@ -18,6 +18,7 @@
 
 package org.apache.cassandra.replication;
 
+import com.google.common.base.Preconditions;
 import org.agrona.collections.Long2ObjectHashMap;
 import org.apache.cassandra.db.Digest;
 import org.apache.cassandra.db.TypeSizes;
@@ -35,15 +36,14 @@ public class MutationSummary
 {
     public static class CoordinatorSummary
     {
-        private static final Comparator<CoordinatorSummary> idComparator = Comparator.comparing(o -> o.logId);
+        private static final Comparator<CoordinatorSummary> idComparator = Comparator.comparing(o -> o.logId());
 
-        public final CoordinatorLogId logId;
         public final Offsets reconciled;
         public final Offsets unreconciled;
 
-        public CoordinatorSummary(CoordinatorLogId logId, Offsets reconciled, Offsets unreconciled)
+        public CoordinatorSummary(Offsets reconciled, Offsets unreconciled)
         {
-            this.logId = logId;
+            Preconditions.checkArgument(reconciled.logId().equals(unreconciled.logId()));
             this.reconciled = reconciled;
             this.unreconciled = unreconciled;
         }
@@ -53,23 +53,28 @@ public class MutationSummary
         {
             if (o == null || getClass() != o.getClass()) return false;
             CoordinatorSummary summary = (CoordinatorSummary) o;
-            return Objects.equals(logId, summary.logId) && Objects.equals(reconciled, summary.reconciled) && Objects.equals(unreconciled, summary.unreconciled);
+            return Objects.equals(reconciled, summary.reconciled) && Objects.equals(unreconciled, summary.unreconciled);
         }
 
         @Override
         public int hashCode()
         {
-            return Objects.hash(logId, reconciled, unreconciled);
+            return Objects.hash(reconciled, unreconciled);
         }
 
         @Override
         public String toString()
         {
             return "CoordinatorSummary{" +
-                    "logId=" + logId +
+                    "logId=" + logId() +
                     ", reconciled=" + reconciled +
                     ", unreconciled=" + unreconciled +
                     '}';
+        }
+
+        public CoordinatorLogId logId()
+        {
+            return reconciled.logId();
         }
 
         public static Comparator<CoordinatorSummary> idComparator()
@@ -84,7 +89,6 @@ public class MutationSummary
 
         void digest(Digest digest)
         {
-            digest.updateWithLong(logId.asLong());
             reconciled.digest(digest);
             unreconciled.digest(digest);
         }
@@ -92,17 +96,19 @@ public class MutationSummary
         public static class Builder
         {
             public final CoordinatorLogId logId;
-            public final Offsets reconciled = new Offsets();
-            public final Offsets unreconciled = new Offsets();
+            public final Offsets reconciled;
+            public final Offsets unreconciled;
 
             public Builder(CoordinatorLogId logId)
             {
                 this.logId = logId;
+                reconciled = new Offsets(logId);
+                unreconciled = new Offsets(logId);
             }
 
             public CoordinatorSummary build()
             {
-                return new CoordinatorSummary(logId, reconciled, unreconciled);
+                return new CoordinatorSummary(reconciled, unreconciled);
             }
         }
 
@@ -111,7 +117,6 @@ public class MutationSummary
             @Override
             public void serialize(CoordinatorSummary t, DataOutputPlus out, int version) throws IOException
             {
-                CoordinatorLogId.serializer.serialize(t.logId, out, version);
                 Offsets.serializer.serialize(t.reconciled, out, version);
                 Offsets.serializer.serialize(t.unreconciled, out, version);
             }
@@ -119,17 +124,15 @@ public class MutationSummary
             @Override
             public CoordinatorSummary deserialize(DataInputPlus in, int version) throws IOException
             {
-                return new CoordinatorSummary(CoordinatorLogId.serializer.deserialize(in, version),
-                                              Offsets.serializer.deserialize(in, version),
+                return new CoordinatorSummary(Offsets.serializer.deserialize(in, version),
                                               Offsets.serializer.deserialize(in, version));
             }
 
             @Override
             public long serializedSize(CoordinatorSummary t, int version)
             {
-                return CoordinatorLogId.serializer.serializedSize(t.logId, version)
-                        + Offsets.serializer.serializedSize(t.reconciled, version)
-                        + Offsets.serializer.serializedSize(t.unreconciled, version);
+                return Offsets.serializer.serializedSize(t.reconciled, version)
+                     + Offsets.serializer.serializedSize(t.unreconciled, version);
             }
         };
     }
@@ -176,7 +179,7 @@ public class MutationSummary
         long lastId = 0;
         for (int i=0; i<summaries.length; i++)
         {
-            long thisId = summaries[i].logId.asLong();
+            long thisId = summaries[i].logId().asLong();
             if (i > 0 && thisId <= lastId)
                 throw new IllegalArgumentException("duplicated or unsorted log id found");
 

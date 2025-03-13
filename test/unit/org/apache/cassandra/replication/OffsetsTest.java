@@ -31,6 +31,7 @@ import static org.junit.Assert.assertTrue;
 
 public class OffsetsTest
 {
+    private static final CoordinatorLogId LOG_ID = new CoordinatorLogId(0, 0);
     private static class TestConsumer implements Offsets.RangeConsumer
     {
         static class OffsetRange
@@ -130,7 +131,7 @@ public class OffsetsTest
     private static Offsets offsets(int... bounds)
     {
         Assert.assertTrue(bounds.length % 2 == 0);
-        Offsets ids = new Offsets();
+        Offsets ids = new Offsets(LOG_ID);
         int keys = 0;
         int last = 0;
         for (int i=0; i<bounds.length; i+=2)
@@ -155,7 +156,7 @@ public class OffsetsTest
     @Test
     public void testEmptyAndAddExisting()
     {
-        Offsets offsets = new Offsets();
+        Offsets offsets = new Offsets(LOG_ID);
         assertEquals(0, offsets.rangeCount());
         assertEquals(0, offsets.offsetCount());
 
@@ -171,7 +172,7 @@ public class OffsetsTest
     @Test
     public void testAppend()
     {
-        Offsets offsets = new Offsets();
+        Offsets offsets = new Offsets(LOG_ID);
 
         assertTrue(offsets.add(10));
         assertEquals(1, offsets.rangeCount());
@@ -191,7 +192,7 @@ public class OffsetsTest
     @Test
     public void testPrepend()
     {
-        Offsets offsets = new Offsets();
+        Offsets offsets = new Offsets(LOG_ID);
 
         assertTrue(offsets.add(10));
         assertEquals(1, offsets.rangeCount());
@@ -211,7 +212,7 @@ public class OffsetsTest
     @Test
     public void testClosesGaps()
     {
-        Offsets offsets = new Offsets();
+        Offsets offsets = new Offsets(LOG_ID);
 
         assertTrue(offsets.add(10));
         assertEquals(1, offsets.rangeCount());
@@ -241,7 +242,7 @@ public class OffsetsTest
     @Test
     public void testCreatesMoreGaps()
     {
-        Offsets offsets = new Offsets();
+        Offsets offsets = new Offsets(LOG_ID);
 
         assertTrue(offsets.add(10));
         assertEquals(1, offsets.rangeCount());
@@ -261,7 +262,7 @@ public class OffsetsTest
     @Test
     public void testRangeAppend()
     {
-        Offsets offsets = new Offsets();
+        Offsets offsets = new Offsets(LOG_ID);
         offsets.add(5, 7);
         TestConsumer consumer = new TestConsumer();
 
@@ -294,7 +295,7 @@ public class OffsetsTest
     @Test
     public void testRangePrepend()
     {
-        Offsets offsets = new Offsets();
+        Offsets offsets = new Offsets(LOG_ID);
         offsets.add(10, 12);
         TestConsumer consumer = new TestConsumer();
 
@@ -329,7 +330,7 @@ public class OffsetsTest
     @Test
     public void testRangeAddition()
     {
-        Offsets offsets = new Offsets();
+        Offsets offsets = new Offsets(LOG_ID);
         offsets.add(5, 7);
 
         assertEquals(1, offsets.rangeCount());
@@ -342,7 +343,7 @@ public class OffsetsTest
     @Test
     public void testRangeInclusion()
     {
-        Offsets offsets = new Offsets();
+        Offsets offsets = new Offsets(LOG_ID);
         TestConsumer consumer = new TestConsumer();
         offsets.add(0, 3);
         offsets.add(7, 10);
@@ -380,7 +381,7 @@ public class OffsetsTest
     public void testRangeInsert()
     {
         Supplier<Offsets> sequenceIds = () -> {
-            Offsets ids0 = new Offsets();
+            Offsets ids0 = new Offsets(LOG_ID);
             ids0.add(0, 3);
             ids0.add(7, 10);
             ids0.add(15, 17);
@@ -440,7 +441,7 @@ public class OffsetsTest
     public void testRangeMerging()
     {
         Supplier<Offsets> sequenceIds = () -> {
-            Offsets ids0 = new Offsets();
+            Offsets ids0 = new Offsets(LOG_ID);
             ids0.add(0, 3);
             ids0.add(7, 10);
             ids0.add(15, 17);
@@ -498,7 +499,7 @@ public class OffsetsTest
     @Test
     public void appendTest()
     {
-        Offsets ids = new Offsets();
+        Offsets ids = new Offsets(LOG_ID);
         ids.append(5);
         assertEquals(1, ids.rangeCount());
         assertEquals(1, ids.offsetCount());

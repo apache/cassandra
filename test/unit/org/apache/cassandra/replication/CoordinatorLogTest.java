@@ -39,7 +39,7 @@ public class CoordinatorLogTest
 
     private static Offsets toOffsets(MutationId... ids)
     {
-        Offsets list = new Offsets();
+        Offsets list = new Offsets(LOG_ID);
         for (MutationId id : ids)
             list.append(id.offset());
         return list;
@@ -47,8 +47,8 @@ public class CoordinatorLogTest
 
     private static void assertUnreconciled(Token token, CoordinatorLog log, Offsets expectedReconciled, MutationId... expectedIds)
     {
-        Offsets reconciled = new Offsets();
-        Offsets unreconciled = new Offsets();
+        Offsets reconciled = new Offsets(LOG_ID);
+        Offsets unreconciled = new Offsets(LOG_ID);
         log.lookUpUnreconciled(token, unreconciled, reconciled);
 
         for (MutationId mid : expectedIds)
@@ -72,7 +72,7 @@ public class CoordinatorLogTest
         for (MutationId id : ids)
             log.witnessedLocalMutation(id, tk);
 
-        Offsets reconciled = new Offsets();
+        Offsets reconciled = new Offsets(LOG_ID);
         assertUnreconciled(tk, log, reconciled, ids);
 
         log.witnessedRemoteMutation(ids[0], PARTICIPANTS.get(1));

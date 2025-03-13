@@ -54,9 +54,9 @@ public abstract class CoordinatorLog
 
         Offsets[] ids = new Offsets[participants.size()];
         for (int i = 0; i < participants.size(); i++)
-            ids[i] = new Offsets();
+            ids[i] = new Offsets(logId);
         witnessedIds = ids;
-        reconciledIds = new Offsets();
+        reconciledIds = new Offsets(logId);
     }
 
     static CoordinatorLog create(int localHostId, CoordinatorLogId id, Participants participants)

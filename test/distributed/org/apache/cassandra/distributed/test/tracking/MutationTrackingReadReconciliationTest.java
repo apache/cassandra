@@ -77,7 +77,7 @@ public class MutationTrackingReadReconciliationTest extends TestBaseImpl
 
             MutationSummary firstSummary = summaryForKey(cluster.get(1), keyspaceName, "tbl", 1);
             Assert.assertEquals(1, firstSummary.unreconciledIds());
-            CoordinatorLogId logId = firstSummary.get(0).logId;
+            CoordinatorLogId logId = firstSummary.get(0).logId();
             Offsets firstIds = firstSummary.get(logId).unreconciled;
 
             cluster.get(2, 3).forEach(node -> assertMatchingSummaryForKey(node, keyspaceName, tableName, 1, firstSummary));
@@ -152,7 +152,7 @@ public class MutationTrackingReadReconciliationTest extends TestBaseImpl
             // insert a row at all, confirm it's present on all nodes
             cluster.coordinator(1).execute(format("INSERT INTO %s.%s (k, c, v) VALUES (1, 0, 0)", keyspaceName, tableName), ConsistencyLevel.ALL);
             MutationSummary firstSummary = summaryForKey(cluster.get(1), keyspaceName, "tbl", 1);
-            CoordinatorLogId logId = firstSummary.get(0).logId;
+            CoordinatorLogId logId = firstSummary.get(0).logId();
             Offsets firstIds = firstSummary.get(logId).unreconciled;
 
             cluster.get(2, 3).forEach(node -> {

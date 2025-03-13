@@ -23,6 +23,7 @@ import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 
 import java.io.IOException;
+import java.util.Objects;
 
 public class CoordinatorLogId implements Comparable<CoordinatorLogId>
 {
@@ -44,6 +45,29 @@ public class CoordinatorLogId implements Comparable<CoordinatorLogId>
     {
         this.hostId = hostId;
         this.hostLogId = hostLogId;
+    }
+
+    @Override
+    public String toString()
+    {
+        return "CoordinatorLogId{" +
+                "hostId=" + hostId +
+                ", hostLogId=" + hostLogId +
+                '}';
+    }
+
+    @Override
+    public boolean equals(Object o)
+    {
+        if (o == null || getClass() != o.getClass()) return false;
+        CoordinatorLogId logId = (CoordinatorLogId) o;
+        return hostId == logId.hostId && hostLogId == logId.hostLogId;
+    }
+
+    @Override
+    public int hashCode()
+    {
+        return Objects.hash(hostId, hostLogId);
     }
 
     @Override
