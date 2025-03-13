@@ -820,6 +820,7 @@ public class Config
 
     public volatile SubnetGroups client_error_reporting_exclusions = new SubnetGroups();
     public volatile SubnetGroups internode_error_reporting_exclusions = new SubnetGroups();
+    public volatile boolean invalid_legacy_protocol_magic_no_spam_enabled = false;
 
     public volatile int keyspaces_warn_threshold = -1;
     public volatile int keyspaces_fail_threshold = -1;

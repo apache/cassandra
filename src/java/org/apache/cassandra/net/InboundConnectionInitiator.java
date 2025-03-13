@@ -23,9 +23,11 @@ import java.net.SocketAddress;
 import java.util.List;
 import java.util.NoSuchElementException;
 import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.base.Throwables;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -56,6 +58,7 @@ import org.apache.cassandra.security.SSLFactory;
 import org.apache.cassandra.streaming.StreamDeserializingTask;
 import org.apache.cassandra.streaming.StreamingChannel;
 import org.apache.cassandra.streaming.async.NettyStreamingChannel;
+import org.apache.cassandra.utils.NoSpamLogger;
 import org.apache.cassandra.utils.memory.BufferPools;
 
 import static java.lang.Math.*;
@@ -68,6 +71,8 @@ import static org.apache.cassandra.net.SocketFactory.newSslHandler;
 public class InboundConnectionInitiator
 {
     private static final Logger logger = LoggerFactory.getLogger(InboundConnectionInitiator.class);
+
+    private static final NoSpamLogger noSpam5m = NoSpamLogger.getLogger(logger, 5, TimeUnit.MINUTES);
 
     private static class Initializer extends ChannelInitializer<SocketChannel>
     {
@@ -396,6 +401,8 @@ public class InboundConnectionInitiator
 
             if (reportingExclusion)
                 logger.debug("Excluding internode exception for {}; address contained in internode_error_reporting_exclusions", remoteAddress, cause);
+            else if (cause != null && Throwables.getRootCause(cause) instanceof Message.InvalidLegacyProtocolMagic && DatabaseDescriptor.getInvalidLegacyProtocolMagicNoSpamEnabled())
+                noSpam5m.warn("Failed to properly handshake with peer {}. Closing the channel. Invalid legacy protocol magic.", ((InetSocketAddress) channel.remoteAddress()).getHostName());
             else
                 logger.error("Failed to properly handshake with peer {}. Closing the channel.", remoteAddress, cause);
 
