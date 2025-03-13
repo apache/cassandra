@@ -28,11 +28,13 @@ import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 
+import org.apache.cassandra.cql3.CQLTester;
+
 /**
  * Unit tests for a setup that has v-nodes {@link FixedSplitTokenRangeSplitter}
  */
 @RunWith(Parameterized.class)
-public class FixedSplitTokenRangeSplitterVNodesTest
+public class FixedSplitTokenRangeSplitterVNodesTest extends CQLTester
 {
     private static final int numTokens = 16;
 
