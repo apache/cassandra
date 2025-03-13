@@ -281,8 +281,7 @@ public class MutationSummary
         public MutationSummary deserialize(DataInputPlus in, int version) throws IOException
         {
             TableId tableId = TableId.deserialize(in);
-            int size = in.readInt();
-            CoordinatorSummary[] summaries = new CoordinatorSummary[size];
+            CoordinatorSummary[] summaries = new CoordinatorSummary[in.readInt()];
             for (int i = 0; i < summaries.length; i++)
                 summaries[i] = CoordinatorSummary.serializer.deserialize(in, version);
 

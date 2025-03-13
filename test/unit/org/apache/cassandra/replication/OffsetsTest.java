@@ -17,11 +17,15 @@
  */
 package org.apache.cassandra.replication;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 import java.util.function.Supplier;
 
+import org.apache.cassandra.io.IVersionedSerializers;
+import org.apache.cassandra.io.util.DataOutputBuffer;
+import org.apache.cassandra.net.MessagingService;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -691,5 +695,14 @@ public class OffsetsTest
         testIntersection(offsets(7, 9, 11, 13, 16, 17),
                          offsets(0, 3, 7, 17, 25, 30),
                          offsets(6, 9, 11, 13, 16, 18));
+    }
+
+    @Test
+    public void serializerTest() throws IOException
+    {
+
+        DataOutputBuffer buffer = new DataOutputBuffer();
+        IVersionedSerializers.testSerde(buffer, Offsets.serializer, offsets(0, 3, 7, 10, 15, 17), MessagingService.current_version);
+
     }
 }

@@ -87,6 +87,7 @@ public class MutationTrackingUtils
         try (DataOutputBuffer dob = new DataOutputBuffer(buffer))
         {
             MutationSummary.serializer.serialize(summary, dob, VERSION);
+            Assert.assertEquals(size, buffer.position());
             return buffer.array();
         }
         catch (IOException e)
@@ -99,9 +100,9 @@ public class MutationTrackingUtils
     {
         try (DataInputBuffer dib = new DataInputBuffer(bytes))
         {
-            MutationSummary id = MutationSummary.serializer.deserialize(dib, VERSION);
-            Assert.assertEquals(MutationSummary.serializer.serializedSize(id, VERSION), bytes.length);
-            return id;
+            MutationSummary summary = MutationSummary.serializer.deserialize(dib, VERSION);
+            Assert.assertEquals(MutationSummary.serializer.serializedSize(summary, VERSION), bytes.length);
+            return summary;
         }
         catch (IOException e)
         {
@@ -204,10 +205,10 @@ public class MutationTrackingUtils
         for (int i = 0; i < expectedSubset.size(); i++)
         {
             CoordinatorSummary subset = expectedSubset.get(i);
-            CoordinatorSummary superset = expectedSuperset.get(subset.logId);
+            CoordinatorSummary superset = expectedSuperset.get(subset.logId());
 
             if (superset == null)
-                throw new AssertionError(String.format("Coordinator summary for %s found in expected subset and not in expected superset", subset.logId));
+                throw new AssertionError(String.format("Coordinator summary for %s found in expected subset and not in expected superset", subset.logId()));
 
             assertOffsetsIsSuperSet(superset.unreconciled, subset.unreconciled);
         }
