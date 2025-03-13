@@ -1350,4 +1350,7 @@ public interface StorageServiceMBean extends NotificationEmitter
 
     boolean getEnforceNativeDeadlineForHints();
     void setEnforceNativeDeadlineForHints(boolean value);
+
+    boolean getPrioritizeSAIOverLegacyIndex();
+    void setPrioritizeSAIOverLegacyIndex(boolean value);
 }

@@ -5517,4 +5517,16 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     {
         DatabaseDescriptor.setEnforceNativeDeadlineForHints(value);
     }
+
+    @Override
+    public boolean getPrioritizeSAIOverLegacyIndex()
+    {
+        return DatabaseDescriptor.getPrioritizeSAIOverLegacyIndex();
+    }
+
+    @Override
+    public void setPrioritizeSAIOverLegacyIndex(boolean value)
+    {
+        DatabaseDescriptor.setPrioritizeSAIOverLegacyIndex(value);
+    }
 }
