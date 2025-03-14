@@ -36,6 +36,7 @@ import org.junit.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import accord.api.Agent;
 import accord.api.Key;
 import accord.api.Result;
 import accord.local.CheckedCommands;
@@ -75,6 +76,7 @@ import org.apache.cassandra.db.rows.UnfilteredRowIterator;
 import org.apache.cassandra.distributed.shared.WithProperties;
 import org.apache.cassandra.io.sstable.ISSTableScanner;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
+import org.apache.cassandra.journal.TestParams;
 import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.schema.TableMetadata;
@@ -265,7 +267,9 @@ public class CompactionAccordIteratorsTest
         IAccordService.AccordCompactionInfo compactionInfo = new IAccordService.AccordCompactionInfo(commandStore.id(), redundantBefore, commandStore.unsafeGetRangesForEpoch(), ((AccordCommandStore)commandStore).tableId());
         IAccordService.AccordCompactionInfos compactionInfos = new IAccordService.AccordCompactionInfos(durableBefore, 0);
         compactionInfos.put(commandStore.id(), compactionInfo);
+        when(mockAccordService.agent()).thenReturn(mock(Agent.class));
         when(mockAccordService.getCompactionInfo()).thenReturn(compactionInfos);
+        when(mockAccordService.journalConfiguration()).thenReturn(new TestParams());
         return mockAccordService;
     }
 
