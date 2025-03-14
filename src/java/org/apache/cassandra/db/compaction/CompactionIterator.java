@@ -191,9 +191,8 @@ public class CompactionIterator extends CompactionInfo.Holder implements Unfilte
                               IAccordService accord)
     {
         this(type, scanners, controller, nowInSec, compactionId, activeCompactions, topPartitionCollector,
-             accord == null ? null : accord.agent(),
              () -> accord.getCompactionInfo(),
-             accord == null ? null : accord.journalConfiguration().userVersion());
+             () -> accord.journalConfiguration().userVersion());
     }
 
     @VisibleForTesting
@@ -204,9 +203,8 @@ public class CompactionIterator extends CompactionInfo.Holder implements Unfilte
                               TimeUUID compactionId,
                               ActiveCompactionsTracker activeCompactions,
                               TopPartitionTracker.Collector topPartitionCollector,
-                              Agent agent,
                               Supplier<AccordCompactionInfos> compactionInfos,
-                              Version accordVersion)
+                              Supplier<Version> accordVersion)
     {
         this.controller = controller;
         this.type = type;
@@ -232,13 +230,13 @@ public class CompactionIterator extends CompactionInfo.Holder implements Unfilte
         if (topPartitionCollector != null) // need to count tombstones before they are purged
             merged = Transformation.apply(merged, new TopPartitionTracker.TombstoneCounter(topPartitionCollector, nowInSec));
         merged = Transformation.apply(merged, new GarbageSkipper(controller));
-        Transformation<UnfilteredRowIterator> purger = purger(controller.cfs, agent, compactionInfos, accordVersion);
+        Transformation<UnfilteredRowIterator> purger = purger(controller.cfs, compactionInfos, accordVersion);
         merged = Transformation.apply(merged, purger);
         merged = DuplicateRowChecker.duringCompaction(merged, type);
         compacted = Transformation.apply(merged, new AbortableUnfilteredPartitionTransformation(this));
     }
 
-    private Transformation<UnfilteredRowIterator> purger(ColumnFamilyStore cfs, Agent agent, Supplier<AccordCompactionInfos> compactionInfos, Version version)
+    private Transformation<UnfilteredRowIterator> purger(ColumnFamilyStore cfs, Supplier<AccordCompactionInfos> compactionInfos, Supplier<Version> version)
     {
         if (isPaxos(cfs) && paxosStatePurging() != legacy)
             return new PaxosPurger();
@@ -247,9 +245,8 @@ public class CompactionIterator extends CompactionInfo.Holder implements Unfilte
         if (!requiresAccordSpecificPurger(cfs))
             return new Purger(controller, nowInSec);
 
-        Invariants.require(agent != null);
         if (isAccordJournal(cfs))
-            return new AccordJournalPurger(agent, compactionInfos, version, cfs);
+            return new AccordJournalPurger(compactionInfos.get(), version.get(), cfs);
         if (isAccordCommandsForKey(cfs))
             return new AccordCommandsForKeyPurger(AccordKeyspace.CFKAccessor, compactionInfos);
 
@@ -863,7 +860,6 @@ public class CompactionIterator extends CompactionInfo.Holder implements Unfilte
         final AccordCompactionInfos infos;
         final ColumnMetadata recordColumn;
         final ColumnMetadata versionColumn;
-        final Agent agent;
 
         JournalKey key;
         AccordRowCompactor<?> compactor;
@@ -871,12 +867,11 @@ public class CompactionIterator extends CompactionInfo.Holder implements Unfilte
         FlyweightSerializer<AccordTopologyUpdate, FlyweightImage> topologySerializer;
         final Version userVersion;
 
-        public AccordJournalPurger(Agent agent, Supplier<AccordCompactionInfos> compactionInfos, Version version, ColumnFamilyStore cfs)
+        public AccordJournalPurger(AccordCompactionInfos compactionInfos, Version version, ColumnFamilyStore cfs)
         {
             this.userVersion = version;
 
-            this.agent = agent;
-            this.infos = compactionInfos.get();
+            this.infos = compactionInfos;
             this.recordColumn = cfs.metadata().getColumn(ColumnIdentifier.getInterned("record", false));
             this.versionColumn = cfs.metadata().getColumn(ColumnIdentifier.getInterned("user_version", false));
             this.topologySerializer = (FlyweightSerializer<AccordTopologyUpdate, FlyweightImage>) (FlyweightSerializer) new AccordTopologyUpdate.AccumulatingSerializer(() -> infos.minEpoch);
@@ -892,7 +887,7 @@ public class CompactionIterator extends CompactionInfo.Holder implements Unfilte
                 switch (key.type)
                 {
                     case COMMAND_DIFF:
-                        compactor = new AccordCommandRowCompactor(infos, agent, userVersion, nowInSec);
+                        compactor = new AccordCommandRowCompactor(infos, userVersion, nowInSec);
                         break;
                     case TOPOLOGY_UPDATE:
                         compactor = new AccordMergingCompactor(topologySerializer, userVersion);
@@ -1047,7 +1042,6 @@ public class CompactionIterator extends CompactionInfo.Holder implements Unfilte
         static final Object[] rowTemplate = BTree.build(BulkIterator.of(new Object[2]), 2, UpdateFunction.noOp);
         final long timestamp = ClientState.getTimestamp();
         final AccordCompactionInfos infos;
-        final Agent agent;
         final Version userVersion;
         final ColumnData userVersionCell;
         final long nowInSec;
@@ -1057,11 +1051,10 @@ public class CompactionIterator extends CompactionInfo.Holder implements Unfilte
         final ArrayDeque<AccordCommandRowEntry> reuseEntries = new ArrayDeque<>();
         AccordCompactionInfo info;
 
-        AccordCommandRowCompactor(AccordCompactionInfos infos, Agent agent, Version userVersion, long nowInSec)
+        AccordCommandRowCompactor(AccordCompactionInfos infos, Version userVersion, long nowInSec)
         {
             super((FlyweightSerializer<Object, AccordJournal.Builder>) JournalKey.Type.COMMAND_DIFF.serializer);
             this.infos = infos;
-            this.agent = agent;
             this.userVersion = userVersion;
             this.userVersionCell = BufferCell.live(AccordKeyspace.JournalColumns.user_version, timestamp, Int32Type.instance.decompose(userVersion.version));
             this.nowInSec = nowInSec;

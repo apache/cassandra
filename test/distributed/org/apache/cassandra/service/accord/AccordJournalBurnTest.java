@@ -279,7 +279,8 @@ public class AccordJournalBurnTest extends BurnTestBase
                                                                                      0,
                                                                                      nextTimeUUID(),
                                                                                      ActiveCompactionsTracker.NOOP, null,
-                                                                                     node.agent(), () -> getCompactionInfo(node, cfs.getTableId()), Version.V1))
+                                                                                     () -> getCompactionInfo(node, cfs.getTableId()),
+                                                                                     () -> Version.V1))
                                  {
                                      try (CompactionAwareWriter writer = getCompactionAwareWriter(cfs, cfs.getDirectories(), txn, selected))
                                      {
