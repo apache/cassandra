@@ -69,8 +69,14 @@ public class CommandChangeTest
     @Test
     public void allNull()
     {
-        int flags = getFlags(null, null);
-        assertMissing(flags, ALL);
+        int flags = getFlags(null, Command.NotDefined.uninitialised(TxnId.NONE));
+        EnumSet<Field> missing = EnumSet.allOf(Field.class);
+        missing.remove(Field.SAVE_STATUS);
+        missing.remove(Field.PARTICIPANTS);
+        missing.remove(Field.PROMISED);
+        missing.remove(Field.ACCEPTED);
+        missing.remove(Field.DURABILITY);
+        assertMissing(flags, missing);
     }
 
     @Test
