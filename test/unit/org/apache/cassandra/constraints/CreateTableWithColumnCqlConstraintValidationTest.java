@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 
-package org.apache.cassandra.contraints;
+package org.apache.cassandra.constraints;
 
 
 import java.util.Arrays;
