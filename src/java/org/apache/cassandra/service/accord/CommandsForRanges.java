@@ -106,7 +106,15 @@ public class CommandsForRanges extends TreeMap<Timestamp, Summary> implements Co
 
         private void updateTransitive(UnaryOperator<NavigableMap<TxnId, Ranges>> update)
         {
-            transitive.updateAndGet(update);
+            while (true)
+            {
+                NavigableMap<TxnId, Ranges> prev = transitive.get();
+                NavigableMap<TxnId, Ranges> next = update.apply(prev);
+                if (next == null || prev == next)
+                    return;
+                if (transitive.compareAndSet(prev, next))
+                    return;
+            }
         }
 
         public void mergeTransitive(TxnId txnId, Ranges ranges, BiFunction<? super Ranges, ? super Ranges, ? extends Ranges> remappingFunction)
@@ -121,14 +129,18 @@ public class CommandsForRanges extends TreeMap<Timestamp, Summary> implements Co
         public void gcBefore(TxnId gcBefore, Ranges ranges)
         {
             updateTransitive(transitive -> {
-                NavigableMap<TxnId, Ranges> next = new TreeMap<>();
+                NavigableMap<TxnId, Ranges> next = null;
                 Iterator<Map.Entry<TxnId, Ranges>> iterator = transitive.headMap(gcBefore).entrySet().iterator();
                 while (iterator.hasNext())
                 {
                     Map.Entry<TxnId, Ranges> e = iterator.next();
                     Ranges newRanges = e.getValue().without(ranges);
                     if (!newRanges.isEmpty())
+                    {
+                        if (next == null)
+                            next = new TreeMap<>();
                         next.put(e.getKey(), newRanges);
+                    }
                 }
                 return next;
             });
