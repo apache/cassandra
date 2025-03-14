@@ -26,6 +26,7 @@ import org.apache.cassandra.config.DurationSpec;
 import org.apache.cassandra.service.RetryStrategy;
 import org.apache.cassandra.service.TimeoutStrategy.LatencySourceFactory;
 import org.apache.cassandra.service.WaitStrategy;
+import org.apache.cassandra.utils.Clock;
 
 import static com.google.common.util.concurrent.Uninterruptibles.sleepUninterruptibly;
 import static org.apache.cassandra.utils.Clock.Global.nanoTime;
@@ -85,12 +86,12 @@ public class Retry implements WaitStrategy
     }
 
     @Override
-    public long computeWaitUntil(int attempts)
+    public long computeWaitUntil(Clock clock, int attempts)
     {
         long wait = computeWaitInternal(attempts, TimeUnit.NANOSECONDS);
         if (wait < 0)
             return -1;
-        long now = nanoTime();
+        long now = clock.nanoTime();
         if (now >= deadlineNanos)
             return -1;
         return Math.min(deadlineNanos, wait + now);

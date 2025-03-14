@@ -19,13 +19,13 @@
 package org.apache.cassandra.config;
 
 import java.util.Objects;
+import java.util.concurrent.TimeUnit;
+import java.util.function.DoubleSupplier;
 
 import javax.annotation.Nullable;
 
 import org.apache.cassandra.config.DurationSpec.LongMillisecondsBound;
 import org.apache.cassandra.repair.SharedContext;
-import org.apache.cassandra.service.RetryStrategy;
-import org.apache.cassandra.service.TimeoutStrategy.LatencySourceFactory;
 import org.apache.cassandra.service.WaitStrategy;
 
 public class RetrySpec
@@ -161,7 +161,7 @@ public class RetrySpec
     {
         if (!spec.isEnabled())
             return WaitStrategy.None.INSTANCE;
-        return RetryStrategy.parse(spec.baseSleepTime.toMilliseconds() + "ms * 2^attempts <= " + spec.maxSleepTime.toMilliseconds() + "ms,retries=" + (spec.maxAttempts.value - 1), LatencySourceFactory.none());
+        return new ExponentialWait(spec.maxAttempts.value, spec.baseSleepTime.toMilliseconds(), spec.maxSleepTime.toMilliseconds(), ctx.random().get()::nextDouble);
     }
 
     @Override
@@ -172,5 +172,40 @@ public class RetrySpec
                ", baseSleepTime=" + baseSleepTime +
                ", maxSleepTime=" + maxSleepTime +
                '}';
+    }
+
+    private static class ExponentialWait implements WaitStrategy
+    {
+        private final int maxAttempts;
+        private final long baseSleepTimeMillis;
+        private final long maxSleepMillis;
+        private final DoubleSupplier randomSource;
+
+        private ExponentialWait(int maxAttempts, long baseSleepTimeMillis, long maxSleepMillis, DoubleSupplier randomSource)
+        {
+            this.maxAttempts = maxAttempts;
+            this.baseSleepTimeMillis = baseSleepTimeMillis;
+            this.maxSleepMillis = maxSleepMillis;
+            this.randomSource = randomSource;
+        }
+
+        @Override
+        public long computeWait(int attempts, TimeUnit units)
+        {
+            // this logic assumes attempts starts at 0, but it starts at 1, so roll back
+            attempts--;
+            if (attempts >= maxAttempts)
+                return -1;
+            long baseTimeMillis = baseSleepTimeMillis * (1L << attempts);
+            // it's possible that this overflows, so fall back to max;
+            if (baseTimeMillis <= 0)
+                baseTimeMillis = maxSleepMillis;
+            // now make sure this is capped to target max
+            baseTimeMillis = Math.min(baseTimeMillis, maxSleepMillis);
+
+            // Add jitter, the value ranges from .5x to 1.5x the target wait
+            long result = (long) (baseTimeMillis * (randomSource.getAsDouble() + 0.5));
+            return TimeUnit.MILLISECONDS.convert(result, units);
+        }
     }
 }

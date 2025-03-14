@@ -173,7 +173,7 @@ public interface MessageDelivery
             @Override
             public void onFailure(InetAddressAndPort from, RequestFailure failure)
             {
-                long retryDelay = backoff.computeWait(attempt + 1, NANOSECONDS);
+                long retryDelay = backoff.computeWait(attempt, NANOSECONDS);
                 // TODO (required): we already have a separate retry predicate, retries should not be taken into consideration when retrying
                 if (retryDelay < 0)
                 {

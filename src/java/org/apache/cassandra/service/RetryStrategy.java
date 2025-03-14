@@ -37,7 +37,6 @@ import javax.annotation.Nullable;
 
 import static java.util.concurrent.TimeUnit.*;
 import static org.apache.cassandra.service.TimeoutStrategy.parseInMicros;
-import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 
 /**
  * <p>A strategy for making retry timing decisions for operations.
@@ -214,14 +213,6 @@ public class RetryStrategy implements WaitStrategy
         Invariants.require(maxAttempts >= 1);
     }
 
-    public long computeWaitUntil(int attempts)
-    {
-        long wait = computeWait(attempts, NANOSECONDS);
-        if (wait < 0)
-            return -1;
-        return nanoTime() + wait;
-    }
-
     public long computeWait(int attempt, TimeUnit units)
     {
         if (attempt > maxAttempts)
@@ -238,7 +229,8 @@ public class RetryStrategy implements WaitStrategy
             long max = this.max.getMicros(attempt);
             result = min >= max ? min : waitRandomizer.wait(min, max, attempt);
         }
-
+        // it's possible that the logic overflows, so fall back to max
+        if (result < 0) result = maxMaxMicros;
         if (result > maxMaxMicros) result = maxMaxMicros;
         if (result < minMinMicros) result = minMinMicros;
         return units.convert(result, MICROSECONDS);

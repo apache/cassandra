@@ -39,7 +39,6 @@ import static java.lang.Integer.parseInt;
 import static java.lang.Math.max;
 import static java.lang.Math.pow;
 import static java.util.concurrent.TimeUnit.MICROSECONDS;
-import static java.util.concurrent.TimeUnit.NANOSECONDS;
 import static java.util.concurrent.TimeUnit.SECONDS;
 import static org.apache.cassandra.config.DatabaseDescriptor.getCasContentionTimeout;
 import static org.apache.cassandra.config.DatabaseDescriptor.getReadRpcTimeout;
@@ -280,12 +279,6 @@ public class TimeoutStrategy implements WaitStrategy
         if (wait < minMicros) wait = minMicros;
         else if (wait > maxMicros) wait = maxMicros;
         return units.convert(wait, MICROSECONDS);
-    }
-
-    public long computeWaitUntil(int attempts)
-    {
-        long nanos = computeWait(attempts, NANOSECONDS);
-        return nanoTime() + nanos;
     }
 
     private static LatencySupplier parseLatencySupplier(Matcher m, LatencySourceFactory latenciesFactory)

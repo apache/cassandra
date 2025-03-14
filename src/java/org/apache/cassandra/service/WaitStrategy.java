@@ -20,10 +20,26 @@ package org.apache.cassandra.service;
 
 import java.util.concurrent.TimeUnit;
 
+import org.apache.cassandra.utils.Clock;
+
+import static java.util.concurrent.TimeUnit.NANOSECONDS;
+
 public interface WaitStrategy
 {
+    default long computeWaitUntil(int attempts)
+    {
+        return computeWaitUntil(Clock.Global.clock(), attempts);
+    }
+
     // a value of below 0 means give up
-    long computeWaitUntil(int attempts);
+    default long computeWaitUntil(Clock clock, int attempts)
+    {
+        long wait = computeWait(attempts, NANOSECONDS);
+        if (wait < 0)
+            return -1;
+        return clock.nanoTime() + wait;
+    }
+
     // a value of below 0 means give up
     long computeWait(int attempts, TimeUnit units);
 
@@ -38,10 +54,9 @@ public interface WaitStrategy
         }
 
         @Override
-        public long computeWaitUntil(int attempts)
+        public long computeWaitUntil(Clock clock, int attempts)
         {
             return -1;
         }
     }
-
 }

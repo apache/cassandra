@@ -29,6 +29,7 @@ import org.apache.cassandra.metrics.TCMMetrics;
 import org.apache.cassandra.service.WaitStrategy;
 import org.apache.cassandra.tcm.log.Entry;
 import org.apache.cassandra.tcm.log.LogState;
+import org.apache.cassandra.utils.Clock;
 
 import static java.util.concurrent.TimeUnit.NANOSECONDS;
 import static org.apache.cassandra.config.DatabaseDescriptor.getCmsAwaitTimeout;
@@ -66,9 +67,9 @@ public interface Processor
         return Retry.withNoTimeLimit(retryMeter, new WaitStrategy()
         {
             @Override
-            public long computeWaitUntil(int attempts)
+            public long computeWaitUntil(Clock clock, int attempts)
             {
-                return nanoTime() + timeoutNanos;
+                return clock.nanoTime() + timeoutNanos;
             }
 
             @Override
@@ -94,7 +95,7 @@ public interface Processor
     {
         return fetchLogAndWait(null); // wait for the highest possible epoch
     }
-;
+
     default ClusterMetadata fetchLogAndWait(Epoch waitFor)
     {
         return fetchLogAndWait(waitFor,
