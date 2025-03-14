@@ -16,78 +16,66 @@
  * limitations under the License.
  */
 
-package org.apache.cassandra.contraints;
+package org.apache.cassandra.constraints;
 
 import org.junit.Test;
 
 import org.apache.cassandra.cql3.ColumnIdentifier;
-import org.apache.cassandra.cql3.Operator;
 import org.apache.cassandra.cql3.constraints.ColumnConstraints;
-import org.apache.cassandra.cql3.constraints.FunctionColumnConstraint.Raw;
-import org.apache.cassandra.cql3.constraints.InvalidConstraintDefinitionException;
-import org.apache.cassandra.cql3.constraints.RegexpConstraint;
+import org.apache.cassandra.cql3.constraints.UnaryFunctionColumnConstraint.Raw;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.AsciiType;
 import org.apache.cassandra.db.marshal.IntegerType;
 import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.schema.ColumnMetadata;
-import org.assertj.core.api.ThrowableAssert;
+import org.assertj.core.api.ThrowableAssert.ThrowingCallable;
 
 import static java.util.List.of;
+import static org.apache.cassandra.cql3.constraints.JsonConstraint.FUNCTION_NAME;
 import static org.apache.cassandra.schema.ColumnMetadata.Kind.REGULAR;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-public class RegexpConstraintTest
+public class JsonConstraintTest
 {
     private static final ColumnIdentifier columnIdentifier = new ColumnIdentifier("a_column", false);
-    private static final ColumnIdentifier regexpFunctionIdentifier = new ColumnIdentifier(RegexpConstraint.FUNCTION_NAME, false);
+    private static final ColumnIdentifier jsonFunctionIdentifier = new ColumnIdentifier(FUNCTION_NAME, false);
     private static final ColumnMetadata regularStringColumn = getColumnOfType(UTF8Type.instance);
     private static final ColumnMetadata regularAsciiColumn = getColumnOfType(AsciiType.instance);
 
-    private static final ColumnConstraints regexp = new ColumnConstraints(of(new Raw(regexpFunctionIdentifier, columnIdentifier, Operator.EQ, "'a..b'").prepare()));
-    private static final ColumnConstraints negatedRegexp = new ColumnConstraints(of(new Raw(regexpFunctionIdentifier, columnIdentifier, Operator.NEQ, "'a..b'").prepare()));
+    private static final ColumnConstraints json = new ColumnConstraints(of(new Raw(jsonFunctionIdentifier, columnIdentifier).prepare()));
 
     @Test
-    public void testRegexpConstraint() throws Throwable
+    public void testJsonConstraint() throws Throwable
     {
-        run(regexp, "acdb");
-        run(regexp, "aaaaaaa", "Value does not match regular expression 'a..b'");
-        run(negatedRegexp, "acdb", "Value does match regular expression 'a..b'");
-        run(negatedRegexp, "aaaaa");
-    }
-
-    @Test
-    public void testInvalidPattern()
-    {
-        ColumnConstraints invalid = new ColumnConstraints(of(new Raw(regexpFunctionIdentifier, columnIdentifier, Operator.EQ, "'*abc'").prepare()));
-        assertThatThrownBy(() -> invalid.validate(regularStringColumn))
-        .hasMessage("String '*abc' is not a valid regular expression")
-        .isInstanceOf(InvalidConstraintDefinitionException.class);
+        run("{}");
+        run("{\"a\": 5, \"b\": \"1\", \"c\": [1,2,3]}");
+        run("nonsense", "Value for column 'a_column' violated JSON constraint as it is not a valid JSON.");
+        run("", "Column value does not satisfy value constraint for column 'a_column' as it is null.");
     }
 
     @Test
     public void testInvalidTypes()
     {
-        assertThatThrownBy(() -> regexp.validate(getColumnOfType(IntegerType.instance)))
-        .hasMessage("Constraint 'REGEXP' can be used only for columns of type " +
+        assertThatThrownBy(() -> json.validate(getColumnOfType(IntegerType.instance)))
+        .hasMessage("Constraint 'JSON' can be used only for columns of type " +
                     "[org.apache.cassandra.db.marshal.UTF8Type, org.apache.cassandra.db.marshal.AsciiType] " +
                     "but it was class org.apache.cassandra.db.marshal.IntegerType");
     }
 
-    private void run(ColumnConstraints regexp, String input) throws Throwable
+    private void run(String jsonToCheck) throws Throwable
     {
-        run(regexp, input, null);
+        run(jsonToCheck, null);
     }
 
-    private void run(ColumnConstraints regexp, String input, String exceptionMessage) throws Throwable
+    private void run(String jsonToCheck, String exceptionMessage) throws Throwable
     {
-        ThrowableAssert.ThrowingCallable callable = () ->
+        ThrowingCallable callable = () ->
         {
-            regexp.validate(regularStringColumn);
-            regexp.evaluate(regularStringColumn.type, regularStringColumn.type.fromString(input));
+            json.validate(regularStringColumn);
+            json.evaluate(regularStringColumn.type, regularAsciiColumn.type.fromString(jsonToCheck));
 
-            regexp.validate(regularAsciiColumn);
-            regexp.evaluate(regularAsciiColumn.type, regularAsciiColumn.type.fromString(input));
+            json.validate(regularAsciiColumn);
+            json.evaluate(regularAsciiColumn.type, regularAsciiColumn.type.fromString(jsonToCheck));
         };
 
         if (exceptionMessage == null)
