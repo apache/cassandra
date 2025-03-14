@@ -27,6 +27,7 @@ source "./.jenkins/env_setup.sh"
 j11Setup
 antSetup
 
+ant realclean
 ant build
 cd "$PROJECT_DIR"
 

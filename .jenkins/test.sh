@@ -32,6 +32,7 @@ source "./.jenkins/env_setup.sh"
 j11Setup
 antSetup
 
+ant realclean
 # update ports
 ./.jenkins/update_ports_for_unit_tests.sh
 

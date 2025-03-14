@@ -49,5 +49,4 @@ antSetup() {
     export ANT_HOME
     export PATH="$ANT_HOME/bin:$JAVA_HOME/bin:$PATH"
   fi
-  ant realclean
 }

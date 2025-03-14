@@ -46,6 +46,7 @@ source "$PROJECT_ROOT/.jenkins/env_setup.sh"
 j11Setup
 antSetup
 
+ant realclean
 ant jacoco-run -Dtaskname=test
 
 

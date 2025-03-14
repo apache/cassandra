@@ -29,6 +29,7 @@ source "./.jenkins/env_setup.sh"
 j8Setup
 antSetup
 
+ant realclean
 RELEASE_URL="http://artifactory.uber.internal:4587/artifactory/libs-release-local/"
 SNAPSHOT_URL="http://artifactory.uber.internal:4587/artifactory/cassandra-snapshots/"
 

@@ -29,6 +29,7 @@ source "./.jenkins/env_setup.sh"
 j11Setup
 antSetup
 
+ant realclean
 ant build
 
 if [ "$RELEASE" = "true" ]; then
