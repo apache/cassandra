@@ -149,6 +149,8 @@ public class TableMetrics
     public final Gauge<Long> bloomFilterDiskSpaceUsed;
     /** Off heap memory used by bloom filter */
     public final Gauge<Long> bloomFilterOffHeapMemoryUsed;
+    /** Index summary not fully sampled */
+    public final Counter indexSummaryNotFullySampled;
     /** Off heap memory used by index summary */
     public final Gauge<Long> indexSummaryOffHeapMemoryUsed;
     /** Off heap memory used by compression meta data*/
@@ -931,6 +933,7 @@ public class TableMetrics
                 return total;
             }
         });
+        indexSummaryNotFullySampled = createTableCounter("IndexSummaryNotFullySampled");
         indexSummaryOffHeapMemoryUsed = createTableGauge("IndexSummaryOffHeapMemoryUsed", new Gauge<Long>()
         {
             public Long getValue()

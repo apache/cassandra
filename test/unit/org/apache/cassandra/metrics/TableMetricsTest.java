@@ -19,11 +19,14 @@
 package org.apache.cassandra.metrics;
 
 import java.io.IOException;
+import java.nio.ByteBuffer;
+import java.util.Random;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import org.junit.AfterClass;
+import org.junit.Assume;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
@@ -32,12 +35,19 @@ import com.datastax.driver.core.Cluster;
 import com.datastax.driver.core.PreparedStatement;
 import com.datastax.driver.core.Session;
 import org.apache.cassandra.ServerTestUtils;
+import org.apache.cassandra.Util;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamilyStore;
+import org.apache.cassandra.db.DecoratedKey;
+import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.exceptions.ConfigurationException;
+import org.apache.cassandra.io.sstable.IndexSummary;
+import org.apache.cassandra.io.sstable.IndexSummaryBuilder;
 import org.apache.cassandra.service.EmbeddedCassandraService;
 
+import static org.apache.cassandra.io.sstable.Downsampling.BASE_SAMPLING_LEVEL;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 
 public class TableMetricsTest
@@ -145,6 +155,44 @@ public class TableMetricsTest
 
         assertEquals(10, cfs.metric.coordinatorWriteLatency.getCount());
         assertGreaterThan(cfs.metric.coordinatorWriteLatency.getMeanRate(), 0);
+    }
+
+    @Test
+    public void testIndexSummaryNotFullySampled() throws IOException
+    {
+        // On Circle CI we normally don't have enough off-heap memory for this test so ignore it
+        Assume.assumeTrue(System.getenv("CIRCLECI") == null);
+
+        ColumnFamilyStore cfs = recreateTable();
+
+        assertEquals(0, cfs.metric.indexSummaryNotFullySampled.getCount());
+
+
+        final int numKeys = 1000000;
+        final int keySize = 3000;
+        final int minIndexInterval = 1;
+        final Random random = new Random();
+        IPartitioner partitioner = Util.testPartitioner();
+
+        try (IndexSummaryBuilder builder = new IndexSummaryBuilder(numKeys, minIndexInterval, BASE_SAMPLING_LEVEL))
+        {
+            for (int i = 0; i < numKeys; i++)
+            {
+                byte[] randomBytes = new byte[keySize];
+                random.nextBytes(randomBytes);
+                DecoratedKey key = partitioner.decorateKey(ByteBuffer.wrap(randomBytes));
+                builder.maybeAddEntry(key, i, cfs.metadata);
+            }
+
+            try (IndexSummary indexSummary = builder.build(partitioner))
+            {
+                assertNotNull(indexSummary);
+                assertEquals(numKeys, indexSummary.getMaxNumberOfEntries());
+                assertEquals(numKeys + 1, indexSummary.getEstimatedKeyCount());
+            }
+        }
+
+        assertEquals(1, cfs.metric.indexSummaryNotFullySampled.getCount());
     }
 
     @Test

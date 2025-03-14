@@ -1020,7 +1020,7 @@ public abstract class SSTableReader extends SSTable implements UnfilteredSource,
                 long indexPosition;
                 while ((indexPosition = primaryIndex.getFilePointer()) != indexSize)
                 {
-                    summaryBuilder.maybeAddEntry(decorateKey(ByteBufferUtil.readWithShortLength(primaryIndex)), indexPosition);
+                    summaryBuilder.maybeAddEntry(decorateKey(ByteBufferUtil.readWithShortLength(primaryIndex)), indexPosition, metadata);
                     RowIndexEntry.Serializer.skip(primaryIndex, descriptor.version);
                 }
 

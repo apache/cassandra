@@ -583,7 +583,7 @@ public class BigTableWriter extends SSTableWriter
             if (logger.isTraceEnabled())
                 logger.trace("wrote index entry: {} at {}", indexEntry, indexStart);
 
-            summary.maybeAddEntry(key, indexStart, indexEnd, dataEnd);
+            summary.maybeAddEntry(key, indexStart, indexEnd, dataEnd, metadata);
         }
 
         /**

@@ -213,7 +213,7 @@ public abstract class SSTableReaderBuilder
                     // if summary was already read from disk we don't want to re-populate it using primary index
                     if (!summaryLoaded)
                     {
-                        summaryBuilder.maybeAddEntry(decoratedKey, indexPosition);
+                        summaryBuilder.maybeAddEntry(decoratedKey, indexPosition, metadataRef);
                     }
                 }
 

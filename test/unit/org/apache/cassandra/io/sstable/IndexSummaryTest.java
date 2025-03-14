@@ -36,6 +36,8 @@ import org.apache.cassandra.dht.RandomPartitioner;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.io.util.FileUtils;
+import org.apache.cassandra.schema.TableMetadata;
+import org.apache.cassandra.schema.TableMetadataRef;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.Pair;
 
@@ -44,6 +46,7 @@ import static org.apache.cassandra.io.sstable.IndexSummaryBuilder.entriesAtSampl
 import static org.apache.cassandra.io.sstable.Downsampling.BASE_SAMPLING_LEVEL;
 import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 import static org.junit.Assert.*;
+import static org.mockito.Mockito.mock;
 
 public class IndexSummaryTest
 {
@@ -95,7 +98,7 @@ public class IndexSummaryTest
                 random.nextBytes(randomBytes);
                 DecoratedKey key = partitioner.decorateKey(ByteBuffer.wrap(randomBytes));
                 keys.add(key);
-                builder.maybeAddEntry(key, i);
+                builder.maybeAddEntry(key, i, null);
             }
 
             try(IndexSummary indexSummary = builder.build(partitioner))
@@ -133,7 +136,45 @@ public class IndexSummaryTest
                 byte[] randomBytes = new byte[keySize];
                 random.nextBytes(randomBytes);
                 DecoratedKey key = partitioner.decorateKey(ByteBuffer.wrap(randomBytes));
-                builder.maybeAddEntry(key, i);
+                builder.maybeAddEntry(key, i, null);
+            }
+
+            try (IndexSummary indexSummary = builder.build(partitioner))
+            {
+                assertNotNull(indexSummary);
+                assertEquals(numKeys, indexSummary.getMaxNumberOfEntries());
+                assertEquals(numKeys + 1, indexSummary.getEstimatedKeyCount());
+            }
+        }
+    }
+
+    /**
+     * Test an index summary whose total size is bigger than 2GiB,
+     * the index summary builder should log an error but it should still
+     * create an index summary, albeit one that does not cover the entire sstable.
+     * This test also tests that the index summary builder can handle an exception
+     * while attempting to emit a metric.
+     */
+    @Test
+    public void testLargeIndexSummaryWithMetricException() throws IOException
+    {
+        // On Circle CI we normally don't have enough off-heap memory for this test so ignore it
+        Assume.assumeTrue(System.getenv("CIRCLECI") == null);
+
+        final int numKeys = 1000000;
+        final int keySize = 3000;
+        final int minIndexInterval = 1;
+
+        TableMetadataRef metadata = TableMetadataRef.forOfflineTools(mock(TableMetadata.class));
+
+        try (IndexSummaryBuilder builder = new IndexSummaryBuilder(numKeys, minIndexInterval, BASE_SAMPLING_LEVEL))
+        {
+            for (int i = 0; i < numKeys; i++)
+            {
+                byte[] randomBytes = new byte[keySize];
+                random.nextBytes(randomBytes);
+                DecoratedKey key = partitioner.decorateKey(ByteBuffer.wrap(randomBytes));
+                builder.maybeAddEntry(key, i, metadata);
             }
 
             try (IndexSummary indexSummary = builder.build(partitioner))
@@ -170,7 +211,7 @@ public class IndexSummaryTest
                 byte[] randomBytes = new byte[keySize];
                 random.nextBytes(randomBytes);
                 DecoratedKey key = partitioner.decorateKey(ByteBuffer.wrap(randomBytes));
-                builder.maybeAddEntry(key, i);
+                builder.maybeAddEntry(key, i, null);
             }
 
             try (IndexSummary indexSummary = builder.build(partitioner))
@@ -242,7 +283,7 @@ public class IndexSummaryTest
         IPartitioner p = new RandomPartitioner();
         try (IndexSummaryBuilder builder = new IndexSummaryBuilder(1, 1, BASE_SAMPLING_LEVEL))
         {
-            builder.maybeAddEntry(p.decorateKey(ByteBufferUtil.EMPTY_BYTE_BUFFER), 0);
+            builder.maybeAddEntry(p.decorateKey(ByteBufferUtil.EMPTY_BYTE_BUFFER), 0, null);
             IndexSummary summary = builder.build(p);
             assertEquals(1, summary.size());
             assertEquals(0, summary.getPosition(0));
@@ -274,7 +315,7 @@ public class IndexSummaryTest
             }
             Collections.sort(list);
             for (int i = 0; i < size; i++)
-                builder.maybeAddEntry(list.get(i), i);
+                builder.maybeAddEntry(list.get(i), i, null);
             IndexSummary summary = builder.build(partitioner);
             return Pair.create(list, summary);
         }

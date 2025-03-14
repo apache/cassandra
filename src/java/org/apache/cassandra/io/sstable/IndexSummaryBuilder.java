@@ -26,11 +26,14 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.Config;
+import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.DecoratedKey;
+import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.io.util.Memory;
 import org.apache.cassandra.io.util.SafeMemoryWriter;
+import org.apache.cassandra.schema.TableMetadataRef;
 
 import static org.apache.cassandra.io.sstable.Downsampling.BASE_SAMPLING_LEVEL;
 
@@ -184,9 +187,9 @@ public class IndexSummaryBuilder implements AutoCloseable
         return lastReadableBoundary;
     }
 
-    public IndexSummaryBuilder maybeAddEntry(DecoratedKey decoratedKey, long indexStart) throws IOException
+    public IndexSummaryBuilder maybeAddEntry(DecoratedKey decoratedKey, long indexStart, TableMetadataRef metadata) throws IOException
     {
-        return maybeAddEntry(decoratedKey, indexStart, 0, 0);
+        return maybeAddEntry(decoratedKey, indexStart, 0, 0, metadata);
     }
 
     /**
@@ -197,7 +200,7 @@ public class IndexSummaryBuilder implements AutoCloseable
      * @param dataEnd the position in the data file we need to be able to read to (exclusive) to read this record
      *                a value of 0 indicates we are not tracking readable boundaries
      */
-    public IndexSummaryBuilder maybeAddEntry(DecoratedKey decoratedKey, long indexStart, long indexEnd, long dataEnd) throws IOException
+    public IndexSummaryBuilder maybeAddEntry(DecoratedKey decoratedKey, long indexStart, long indexEnd, long dataEnd, TableMetadataRef metadata) throws IOException
     {
         if (keysWritten == nextSamplePosition)
         {
@@ -213,6 +216,22 @@ public class IndexSummaryBuilder implements AutoCloseable
                 // we cannot fully sample this sstable due to too much memory in the index summary, so let's tell the user
                 logger.error("Memory capacity of index summary exceeded (2GiB), index summary will not cover full sstable, " +
                              "you should increase min_sampling_level");
+
+                // increment indexSummaryNotFullySampled metric
+                try
+                {
+                    if(metadata == null) {
+                        logger.error("Failed to increment indexSummaryNotFullySampled metric, metadata is null");
+                    }
+                    else
+                    {
+                        ColumnFamilyStore cfs = Keyspace.openAndGetStore(metadata);
+                        cfs.metric.indexSummaryNotFullySampled.inc();
+                    }
+                }
+                catch (Exception e) {
+                    logger.error("Failed to increment indexSummaryNotFullySampled metric", e);
+                }
             }
         }
         else if (dataEnd != 0 && keysWritten + 1 == nextSamplePosition)
