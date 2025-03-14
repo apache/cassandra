@@ -73,7 +73,7 @@ public class OffsetsTest
         final List<OffsetRange> ranges = new ArrayList<>();
 
         @Override
-        public void consume(int start, int end)
+        public void consume(CoordinatorLogId logId, int start, int end)
         {
             consumerOffsets(start, end);
         }
@@ -703,6 +703,5 @@ public class OffsetsTest
 
         DataOutputBuffer buffer = new DataOutputBuffer();
         IVersionedSerializers.testSerde(buffer, Offsets.serializer, offsets(0, 3, 7, 10, 15, 17), MessagingService.current_version);
-
     }
 }

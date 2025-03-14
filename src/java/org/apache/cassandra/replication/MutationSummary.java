@@ -15,8 +15,10 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package org.apache.cassandra.replication;
+
+import java.io.IOException;
+import java.util.*;
 
 import com.google.common.base.Preconditions;
 import org.agrona.collections.Long2ObjectHashMap;
@@ -27,14 +29,12 @@ import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.schema.TableId;
 
-import java.io.IOException;
-import java.util.*;
-
 public class MutationSummary
 {
     public static class CoordinatorSummary
     {
-        private static final Comparator<CoordinatorSummary> idComparator = Comparator.comparing(o -> o.logId());
+        private static final Comparator<CoordinatorSummary> idComparator =
+            (l, r) -> CoordinatorLogId.comparator.compare(l.logId(), r.logId());
 
         public final Offsets reconciled;
         public final Offsets unreconciled;
@@ -51,7 +51,7 @@ public class MutationSummary
         {
             if (o == null || getClass() != o.getClass()) return false;
             CoordinatorSummary summary = (CoordinatorSummary) o;
-            return Objects.equals(reconciled, summary.reconciled) && Objects.equals(unreconciled, summary.unreconciled);
+            return reconciled.equals(summary.reconciled) && unreconciled.equals(summary.unreconciled);
         }
 
         @Override
@@ -73,11 +73,6 @@ public class MutationSummary
         public CoordinatorLogId logId()
         {
             return reconciled.logId();
-        }
-
-        public static Comparator<CoordinatorSummary> idComparator()
-        {
-            return idComparator;
         }
 
         boolean contains(int offset)
@@ -169,7 +164,7 @@ public class MutationSummary
                 if (!builder.isEmpty())
                     summaries.add(builder.build());
 
-            summaries.sort(CoordinatorSummary.idComparator());
+            summaries.sort(CoordinatorSummary.idComparator);
             return new MutationSummary(tableId, summaries);
         }
     }
@@ -201,22 +196,19 @@ public class MutationSummary
     {
         if (o == null || getClass() != o.getClass()) return false;
         MutationSummary summary = (MutationSummary) o;
-        return Objects.equals(tableId, summary.tableId) && Objects.deepEquals(summaries, summary.summaries);
+        return tableId.equals(summary.tableId) && summaries.equals(summary.summaries);
     }
 
     @Override
     public int hashCode()
     {
-        return Objects.hash(tableId, summaries);
+        return tableId.hashCode() + 31 * summaries.hashCode();
     }
 
     @Override
     public String toString()
     {
-        return "MutationSummary{" +
-                "tableId=" + tableId +
-                ", summaries=" + summaries.toString() +
-                '}';
+        return "MutationSummary{tableId=" + tableId + ", summaries=" + summaries + '}';
     }
 
     public TableId tableId()
@@ -239,7 +231,7 @@ public class MutationSummary
 
     public boolean contains(MutationId id)
     {
-        CoordinatorSummary summary = coordinatorSummaryMap.get(id.logId);
+        CoordinatorSummary summary = coordinatorSummaryMap.get(id.logId());
         return summary != null && summary.contains(id.offset());
     }
 

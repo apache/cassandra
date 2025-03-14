@@ -71,7 +71,7 @@ public abstract class CoordinatorLog
         try
         {
             // TODO (expected): implement index update logic once we have positions broadcasting going
-            get(onHostId).addAll(ranges, (start, end) -> {});
+            get(onHostId).addAll(ranges);
         }
         finally
         {
@@ -160,7 +160,7 @@ public abstract class CoordinatorLog
         lock.readLock().lock();
         try
         {
-            reconciled.addAll(reconciledIds, (s, e) -> {});
+            reconciled.addAll(reconciledIds);
             return index.lookUp(token, unreconciled);
         }
         finally
@@ -178,7 +178,7 @@ public abstract class CoordinatorLog
         lock.readLock().lock();
         try
         {
-            reconciled.addAll(reconciledIds, (s, e) -> {});
+            reconciled.addAll(reconciledIds);
             return index.lookUp(range, into);
         }
         finally
@@ -196,7 +196,7 @@ public abstract class CoordinatorLog
         lock.readLock().lock();
         try
         {
-            reconciled.addAll(reconciledIds, (s, e) -> {});
+            reconciled.addAll(reconciledIds);
             return index.lookUp(range, into);
         }
         finally

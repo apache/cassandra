@@ -27,7 +27,6 @@ import org.apache.cassandra.io.util.DataOutputPlus;
 
 import java.io.IOException;
 import java.util.Arrays;
-import java.util.function.Consumer;
 
 public class Offsets
 {
@@ -73,7 +72,7 @@ public class Offsets
     @Override
     public int hashCode()
     {
-        int result = Long.hashCode(logId.hashCode());
+        int result = logId.hashCode();
         result = 31 * result + Integer.hashCode(size);
         for (int i = 0; i < size; i++)
             result = 31 * result + Integer.hashCode(bounds[i]);
@@ -112,16 +111,14 @@ public class Offsets
         return size == 0;
     }
 
-    public void forEachId(Consumer<MutationId> consumer)
+    public void forEachOffset(OffsetConsumer consumer)
     {
-        for (int i = 0; i < size; i+=2)
+        for (int i = 0; i < size; i += 2)
         {
             int start = bounds[i];
-            int   end = bounds[i+1];
-            for (int offset=start; offset <= end; offset++)
-            {
-                consumer.accept(new MutationId(logId.asLong(), MutationId.sequenceId(offset, 0)));
-            }
+            int   end = bounds[i + 1];
+            for (int offset = start; offset <= end; offset++)
+                consumer.accept(logId, offset);
         }
     }
 
@@ -174,7 +171,7 @@ public class Offsets
     public boolean add(int offset, RangeConsumer onAdded)
     {
         boolean added = add(offset);
-        if (added) onAdded.consume(offset, offset);
+        if (added) onAdded.consume(logId, offset, offset);
         return added;
     }
 
@@ -365,7 +362,7 @@ public class Offsets
         if (sMerge.isMove() && eMerge.isInsert())
         {
             Preconditions.checkState(sRange == eRange);
-            onAdded.consume(start, end);
+            onAdded.consume(logId, start, end);
             insert(rangeStart(sRange), start, end);
             return true;
         }
@@ -375,7 +372,7 @@ public class Offsets
         {
             Preconditions.checkState(sRange == eRange);
             Preconditions.checkState(sRange == numRanges - 1);
-            onAdded.consume(start, end);
+            onAdded.consume(logId, start, end);
             append(start, end);
             return true;
         }
@@ -383,7 +380,7 @@ public class Offsets
         boolean adjusted = false;
         if (sMerge.isMove())
         {
-            onAdded.consume(start, bounds[rangeStart(sRange)] - 1);
+            onAdded.consume(logId, start, bounds[rangeStart(sRange)] - 1);
             bounds[rangeStart(sRange)] = start;
             adjusted = true;
         }
@@ -400,7 +397,7 @@ public class Offsets
             {
                 int sEnd = bounds[rangeEnd(i)];
                 int eStart = bounds[rangeStart(i + 1)];
-                onAdded.consume(sEnd + 1, eStart - 1);
+                onAdded.consume(logId, sEnd + 1, eStart - 1);
             }
 
             // move array back -
@@ -417,7 +414,7 @@ public class Offsets
 
         if (eMerge.isMove())
         {
-            onAdded.consume(bounds[rangeEnd(eRange)] + 1, end);
+            onAdded.consume(logId, bounds[rangeEnd(eRange)] + 1, end);
             bounds[rangeEnd(eRange)] = end;
             adjusted = true;
         }
@@ -857,11 +854,16 @@ public class Offsets
         return new Offsets(logId, c, cRange * 2);
     }
 
+    public interface OffsetConsumer
+    {
+        void accept(CoordinatorLogId logId, int offset);
+    }
+
     public interface RangeConsumer
     {
-        RangeConsumer NONE = (s, e) -> {};
+        RangeConsumer NONE = (log, start, end) -> {};
 
-        void consume(int start, int end);
+        void consume(CoordinatorLogId logId, int startOffset, int endOffset);
     }
 
     // TODO (consider): delta-encoding + vints
@@ -872,7 +874,7 @@ public class Offsets
         {
             CoordinatorLogId.serializer.serialize(offsets.logId, out, version);
             out.writeInt(offsets.size);
-            for (int i=0; i<offsets.size; i++)
+            for (int i = 0; i < offsets.size; i++)
                 out.writeInt(offsets.bounds[i]);
         }
 

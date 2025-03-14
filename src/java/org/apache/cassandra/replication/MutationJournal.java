@@ -49,7 +49,7 @@ public class MutationJournal
 {
     public static final MutationJournal instance = new MutationJournal();
 
-    private final Journal<MutationId, Mutation> journal;
+    private final Journal<ShortMutationId, Mutation> journal;
 
     private MutationJournal()
     {
@@ -72,26 +72,26 @@ public class MutationJournal
         journal.shutdown();
     }
 
-    public CommitLogPosition write(MutationId id, Mutation mutation)
+    public CommitLogPosition write(ShortMutationId id, Mutation mutation)
     {
         RecordPointer rp = journal.blockingWrite(id, mutation);
         return new CommitLogPosition(rp.segment, rp.position);
     }
 
     @Nullable
-    public Mutation read(MutationId id)
+    public Mutation read(ShortMutationId id)
     {
         return journal.readLast(id);
     }
 
-    public boolean read(MutationId id, RecordConsumer<MutationId> consumer)
+    public boolean read(ShortMutationId id, RecordConsumer<ShortMutationId> consumer)
     {
         return journal.readLast(id, consumer);
     }
 
-    public void readAll(Iterable<MutationId> ids, Collection<Mutation> into)
+    public void readAll(Iterable<ShortMutationId> ids, Collection<Mutation> into)
     {
-        for (MutationId id : ids)
+        for (ShortMutationId id : ids)
         {
             Mutation mutation = read(id);
             Preconditions.checkState(mutation != null);
@@ -150,10 +150,10 @@ public class MutationJournal
         }
     }
 
-    static class MutationIdSupport implements KeySupport<MutationId>
+    static class MutationIdSupport implements KeySupport<ShortMutationId>
     {
         static final int LOG_ID_OFFSET = 0;
-        static final int SEQUENCE_ID_OFFSET = LOG_ID_OFFSET + TypeSizes.LONG_SIZE;
+        static final int OFFSET_OFFSET = LOG_ID_OFFSET + TypeSizes.LONG_SIZE;
 
         @Override
         public int serializedSize(int userVersion)
@@ -163,75 +163,75 @@ public class MutationJournal
         }
 
         @Override
-        public void serialize(MutationId id, DataOutputPlus out, int userVersion) throws IOException
+        public void serialize(ShortMutationId id, DataOutputPlus out, int userVersion) throws IOException
         {
             out.writeLong(id.logId());
             out.writeInt(id.offset());
         }
 
         @Override
-        public void serialize(MutationId id, ByteBuffer out, int userVersion) throws IOException
+        public void serialize(ShortMutationId id, ByteBuffer out, int userVersion) throws IOException
         {
             out.putLong(id.logId());
             out.putInt(id.offset());
         }
 
         @Override
-        public MutationId deserialize(DataInputPlus in, int userVersion) throws IOException
+        public ShortMutationId deserialize(DataInputPlus in, int userVersion) throws IOException
         {
             long logId = in.readLong();
-            long sequenceId = MutationId.sequenceId(in.readInt(), 0);
-            return new MutationId(logId, sequenceId);
+            int offset = in.readInt();
+            return new ShortMutationId(logId, offset);
         }
 
         @Override
-        public MutationId deserialize(ByteBuffer buffer, int position, int userVersion)
+        public ShortMutationId deserialize(ByteBuffer buffer, int position, int userVersion)
         {
             long logId = buffer.getLong(position + LOG_ID_OFFSET);
-            long sequenceId = MutationId.sequenceId(buffer.getInt(position + SEQUENCE_ID_OFFSET), 0);
-            return new MutationId(logId, sequenceId);
+            int offset = buffer.getInt(position + OFFSET_OFFSET);
+            return new ShortMutationId(logId, offset);
         }
 
         @Override
-        public MutationId deserialize(ByteBuffer buffer, int userVersion)
+        public ShortMutationId deserialize(ByteBuffer buffer, int userVersion)
         {
             long logId = buffer.getLong();
-            long sequenceId = MutationId.sequenceId(buffer.getInt(), 0);
-            return new MutationId(logId, sequenceId);
+            int offset = buffer.getInt();
+            return new ShortMutationId(logId, offset);
         }
 
         @Override
-        public void updateChecksum(Checksum crc, MutationId id, int userVersion)
+        public void updateChecksum(Checksum crc, ShortMutationId id, int userVersion)
         {
             FBUtilities.updateChecksumLong(crc, id.logId());
             FBUtilities.updateChecksumInt(crc, id.offset());
         }
 
         @Override
-        public int compareWithKeyAt(MutationId id, ByteBuffer buffer, int position, int userVersion)
+        public int compareWithKeyAt(ShortMutationId id, ByteBuffer buffer, int position, int userVersion)
         {
             int cmp = Long.compare(id.logId(), buffer.getLong(position + LOG_ID_OFFSET));
-            return cmp != 0 ? cmp : Integer.compare(id.offset(), buffer.getInt(position + SEQUENCE_ID_OFFSET));
+            return cmp != 0 ? cmp : Integer.compare(id.offset(), buffer.getInt(position + OFFSET_OFFSET));
         }
 
         @Override
-        public int compare(MutationId id1, MutationId id2)
+        public int compare(ShortMutationId id1, ShortMutationId id2)
         {
             int cmp = Long.compare(id1.logId(), id2.logId());
             return cmp != 0 ? cmp : Integer.compare(id1.offset(), id2.offset());
         }
     }
 
-    static class MutationSerializer implements ValueSerializer<MutationId, Mutation>
+    static class MutationSerializer implements ValueSerializer<ShortMutationId, Mutation>
     {
         @Override
-        public void serialize(MutationId id, Mutation mutation, DataOutputPlus out, int userVersion) throws IOException
+        public void serialize(ShortMutationId id, Mutation mutation, DataOutputPlus out, int userVersion) throws IOException
         {
             Mutation.serializer.serialize(mutation, out, userVersion);
         }
 
         @Override
-        public Mutation deserialize(MutationId id, DataInputPlus in, int userVersion) throws IOException
+        public Mutation deserialize(ShortMutationId id, DataInputPlus in, int userVersion) throws IOException
         {
             return Mutation.serializer.deserialize(in, userVersion);
         }

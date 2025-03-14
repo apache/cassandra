@@ -23,18 +23,19 @@ import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 
 import java.io.IOException;
-import java.util.Objects;
+import java.util.Comparator;
 
-public class CoordinatorLogId implements Comparable<CoordinatorLogId>
+public class CoordinatorLogId
 {
     /** TCM host ID */
-    public final int hostId;
+    protected final int hostId;
 
     /**
      * Host log ID (unique within the host).
      * Allocated anew on host restart - one per token range replicated by the host.
+     * Persisted on allocation, unique within the host.
      */
-    public final int hostLogId;
+    protected final int hostLogId;
 
     CoordinatorLogId(long id)
     {
@@ -47,33 +48,14 @@ public class CoordinatorLogId implements Comparable<CoordinatorLogId>
         this.hostLogId = hostLogId;
     }
 
-    @Override
-    public String toString()
+    public int hostId()
     {
-        return "CoordinatorLogId{" +
-                "hostId=" + hostId +
-                ", hostLogId=" + hostLogId +
-                '}';
+        return hostId;
     }
 
-    @Override
-    public boolean equals(Object o)
+    public int hostLogId()
     {
-        if (o == null || getClass() != o.getClass()) return false;
-        CoordinatorLogId logId = (CoordinatorLogId) o;
-        return hostId == logId.hostId && hostLogId == logId.hostLogId;
-    }
-
-    @Override
-    public int hashCode()
-    {
-        return Objects.hash(hostId, hostLogId);
-    }
-
-    @Override
-    public int compareTo(CoordinatorLogId that)
-    {
-        return Long.compare(this.asLong(), that.asLong());
+        return hostLogId;
     }
 
     public long asLong()
@@ -96,7 +78,29 @@ public class CoordinatorLogId implements Comparable<CoordinatorLogId>
         return (int) coordinatorLogId;
     }
 
-    public static final IVersionedSerializer<CoordinatorLogId> serializer = new IVersionedSerializer<CoordinatorLogId>()
+    @Override
+    public String toString()
+    {
+        return "CoordinatorLogId{" + hostId + ", " + hostLogId + '}';
+    }
+
+    @Override
+    public boolean equals(Object o)
+    {
+        if (o == null || getClass() != o.getClass()) return false;
+        CoordinatorLogId logId = (CoordinatorLogId) o;
+        return hostId == logId.hostId && hostLogId == logId.hostLogId;
+    }
+
+    @Override
+    public int hashCode()
+    {
+        return Integer.hashCode(hostLogId) + 31 * Integer.hashCode(hostId);
+    }
+
+    public static final Comparator<CoordinatorLogId> comparator = (l, r) -> Long.compareUnsigned(l.asLong(), r.asLong());
+
+    public static final IVersionedSerializer<CoordinatorLogId> serializer = new IVersionedSerializer<>()
     {
         @Override
         public void serialize(CoordinatorLogId logId, DataOutputPlus out, int version) throws IOException
@@ -108,13 +112,15 @@ public class CoordinatorLogId implements Comparable<CoordinatorLogId>
         @Override
         public CoordinatorLogId deserialize(DataInputPlus in, int version) throws IOException
         {
-            return new CoordinatorLogId(in.readInt(), in.readInt());
+            int hostId = in.readInt();
+            int hostLogId = in.readInt();
+            return new CoordinatorLogId(hostId, hostLogId);
         }
 
         @Override
         public long serializedSize(CoordinatorLogId logId, int version)
         {
-            return TypeSizes.INT_SIZE + TypeSizes.INT_SIZE;
+            return TypeSizes.sizeof(logId.hostId) + TypeSizes.sizeof(logId.hostLogId);
         }
     };
 }

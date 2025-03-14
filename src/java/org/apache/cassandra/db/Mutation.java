@@ -500,13 +500,14 @@ public class Mutation implements IMutation, Supplier<Mutation>
         }
 
         static void serializeInternal(PartitionUpdate.PartitionUpdateSerializer serializer,
-                                         Mutation mutation,
-                                         DataOutputPlus out,
-                                         int version) throws IOException
+                                      Mutation mutation,
+                                      DataOutputPlus out,
+                                      int version) throws IOException
         {
             Map<TableId, PartitionUpdate> modifications = mutation.modifications;
 
-            MutationId.serializer.serialize(mutation.id, out, version);
+            if (version >= MessagingService.VERSION_52)
+                MutationId.serializer.serialize(mutation.id, out, version);
 
             /* serialize the modifications in the mutation */
             int size = modifications.size();
@@ -527,7 +528,9 @@ public class Mutation implements IMutation, Supplier<Mutation>
             {
                 teeIn = new TeeDataInputPlus(in, dob, CACHEABLE_MUTATION_SIZE_LIMIT);
 
-                MutationId id = MutationId.serializer.deserialize(teeIn, version);
+                MutationId id = version >= MessagingService.VERSION_52
+                              ? MutationId.serializer.deserialize(teeIn, version)
+                              : MutationId.none();
 
                 int size = teeIn.readUnsignedVInt32();
                 assert size > 0;
@@ -626,7 +629,8 @@ public class Mutation implements IMutation, Supplier<Mutation>
             long size = this.size;
             if (size == 0L)
             {
-                size = MutationId.serializer.serializedSize(mutation.id, version);
+                if (version >= MessagingService.VERSION_52)
+                    size += MutationId.serializer.serializedSize(mutation.id, version);
                 size += TypeSizes.sizeofUnsignedVInt(mutation.modifications.size());
                 for (PartitionUpdate partitionUpdate : mutation.modifications.values())
                     size += serializer.serializedSize(partitionUpdate, version);

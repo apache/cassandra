@@ -15,7 +15,6 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package org.apache.cassandra.replication;
 
 import java.io.IOException;
@@ -46,14 +45,14 @@ public class ReconciliationPlan
             this.coordinatorIds = coordinatorIds;
         }
 
-        public Set<MutationId> ids()
+        public Set<ShortMutationId> ids()
         {
             int size = 0;
             for (Offsets offsets : coordinatorIds.values())
                 size += offsets.offsetCount();
-            Set<MutationId> ids = Sets.newHashSetWithExpectedSize(size);
+            Set<ShortMutationId> ids = Sets.newHashSetWithExpectedSize(size);
             for (Offsets offsets : coordinatorIds.values())
-                offsets.forEachId(ids::add);
+                offsets.forEachOffset((logId, offset) -> ids.add(new ShortMutationId(logId, offset)));
             return ids;
         }
 
@@ -90,7 +89,6 @@ public class ReconciliationPlan
                 out.writeInt(reconciliation.coordinatorIds.size());
                 for (Offsets offsets : reconciliation.coordinatorIds.values())
                     Offsets.serializer.serialize(offsets, out, version);
-
             }
 
             @Override
@@ -133,7 +131,7 @@ public class ReconciliationPlan
         return txPlan.get(to);
     }
 
-    public Set<MutationId> idsFor(InetAddressAndPort node)
+    public Set<ShortMutationId> idsFor(InetAddressAndPort node)
     {
         return txPlan.get(node).ids();
     }

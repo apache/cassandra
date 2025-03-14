@@ -15,11 +15,18 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package org.apache.cassandra.service.reads.tracked;
 
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Set;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableList;
+
 import org.apache.cassandra.db.Mutation;
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.io.IVersionedSerializer;
@@ -30,17 +37,10 @@ import org.apache.cassandra.net.IVerbHandler;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.net.Verb;
-import org.apache.cassandra.replication.MutationId;
 import org.apache.cassandra.replication.MutationJournal;
 import org.apache.cassandra.replication.ReconciliationPlan.PeerReconciliation;
+import org.apache.cassandra.replication.ShortMutationId;
 import org.apache.cassandra.utils.CollectionSerializer;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
-import java.io.IOException;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Set;
 
 /**
  * Instructs a node to send mutations to other node
@@ -124,10 +124,10 @@ public class ReadReconcileSend
                '}';
     }
 
-    public static final IVerbHandler<ReadReconcileSend> verbHandler = new IVerbHandler<ReadReconcileSend>()
+    public static final IVerbHandler<ReadReconcileSend> verbHandler = new IVerbHandler<>()
     {
         @Override
-        public void doVerb(Message<ReadReconcileSend> message) throws IOException
+        public void doVerb(Message<ReadReconcileSend> message)
         {
             // TODO: check epoch and tokens?
             ReadReconcileSend payload = message.payload;
@@ -135,9 +135,9 @@ public class ReadReconcileSend
             {
                 // TODO (expected): do not deser just to serialize again, if same messaging versions (common case)
                 // TODO (expected): don't materialize mutation ids, look up from offset collections
-                Set<MutationId> ids = sync.plan.ids();
+                Set<ShortMutationId> ids = sync.plan.ids();
                 List<Mutation> mutations = new ArrayList<>(ids.size());
-                MutationJournal.instance.readAll(ids, mutations);  // FIXME: these ids will be missing their time component
+                MutationJournal.instance.readAll(ids, mutations);
                 Preconditions.checkArgument(ids.size() == mutations.size());
 
                 boolean mirrorToCoordinator = sync.mirrorToCoordinator;
@@ -163,7 +163,7 @@ public class ReadReconcileSend
         }
     };
 
-    public static final IVersionedSerializer<ReadReconcileSend> serializer = new IVersionedSerializer<ReadReconcileSend>()
+    public static final IVersionedSerializer<ReadReconcileSend> serializer = new IVersionedSerializer<>()
     {
         @Override
         public void serialize(ReadReconcileSend send, DataOutputPlus out, int version) throws IOException

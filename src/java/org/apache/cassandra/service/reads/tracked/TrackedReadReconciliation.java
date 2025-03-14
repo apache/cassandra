@@ -49,10 +49,10 @@ import org.apache.cassandra.metrics.ReadRepairMetrics;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.net.Verb;
-import org.apache.cassandra.replication.MutationId;
 import org.apache.cassandra.replication.MutationSummary;
 import org.apache.cassandra.replication.MutationTrackingService;
 import org.apache.cassandra.replication.ReconciliationPlan;
+import org.apache.cassandra.replication.ShortMutationId;
 import org.apache.cassandra.service.reads.IReadResponse;
 import org.apache.cassandra.service.reads.ResponseResolver;
 import org.apache.cassandra.service.reads.repair.ReadRepair;
@@ -71,11 +71,15 @@ public class TrackedReadReconciliation<E extends Endpoints<E>, P extends Replica
         final private InetAddressAndPort dataNode;
         final private TrackedReadResponse.Data dataResponse;
         final int blockFor;
-        final Set<MutationId> outstandingMutations;
+        final Set<ShortMutationId> outstandingMutations;
         final Consumer<PartitionIterator> resultConsumer;
-        final Map<MutationId, Mutation> mutations = new HashMap<>();
+        final Map<ShortMutationId, Mutation> mutations = new HashMap<>();
 
-        public Data(ReadCommand command, InetAddressAndPort dataNode, TrackedReadResponse.Data dataResponse, Set<MutationId> outstandingMutations, Consumer<PartitionIterator> resultConsumer)
+        public Data(ReadCommand command,
+                    InetAddressAndPort dataNode,
+                    TrackedReadResponse.Data dataResponse,
+                    Set<ShortMutationId> outstandingMutations,
+                    Consumer<PartitionIterator> resultConsumer)
         {
             this.command = command;
             this.dataNode = dataNode;
@@ -185,7 +189,7 @@ public class TrackedReadReconciliation<E extends Endpoints<E>, P extends Replica
                 this.reconciliationId = reconciliationId;
                 this.plans = plans;
 
-                Set<MutationId> outstandingMutations = new HashSet<>();
+                Set<ShortMutationId> outstandingMutations = new HashSet<>();
                 int syncs = 0;
                 int nextSyncId = 0;
                 for (Map.Entry<InetAddressAndPort, ReconciliationPlan> entry : plans.entrySet())
@@ -199,8 +203,10 @@ public class TrackedReadReconciliation<E extends Endpoints<E>, P extends Replica
                         pendingSync.put(syncId, sync);
                         syncs++;
                         if (sync.mirrorToCoordinator)
+                        {
                             // TODO: should we use offsets here?
                             outstandingMutations.addAll(plan.idsFor(to));
+                        }
                     }
                 }
 

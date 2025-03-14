@@ -18,67 +18,44 @@
 package org.apache.cassandra.replication;
 
 import java.io.IOException;
+import java.util.Comparator;
 
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
-import org.apache.cassandra.net.MessagingService;
 
-public class MutationId implements Comparable<MutationId>
+/**
+ * Full mutation id, with the addition of timestamp component.
+ * <p>
+ * equals() and hashCode() are intentionally not overridden by this class, since log id and offset alone
+ * are meant to uniquely identify a mutation.
+ */
+public class MutationId extends ShortMutationId
 {
     private static final MutationId NONE = new MutationId(Integer.MIN_VALUE, Long.MIN_VALUE);
 
     /**
-     * 4 byte TCM host id + 4 byte host log id packed into a long.
-     * Host log ID is unique within the host, allocated
-     * anew on host restart - one per token range replicated by the host,
-     * persisted on allocation, unique within the host.
-     */
-    public final long logId;
-
-    /**
-     * 4 byte offset + 4 byte timestamp packed into a long.
-     * Offest is incremented, the timestamp is monotonically non-decreasing.
+     * 4 byte timestamp. The timestamp is monotonically non-decreasing.
      * The offset alone is sufficient to identify the entry within a coordinator
      * log, the timestamp is added for correlation purposes.
      */
-    public final long sequenceId;
+    protected final int timestamp;
 
     public MutationId(long logId, long sequenceId)
     {
-        this.logId = logId;
-        this.sequenceId = sequenceId;
-    }
-
-    public long logId()
-    {
-        return logId;
-    }
-
-    public int hostId()
-    {
-        return (int) (0xffffffffL & (logId >> 32));
-    }
-
-    public int hostLogId()
-    {
-        return (int) (0xffffffffL & logId);
+        super(logId, offset(sequenceId));
+        this.timestamp = timestamp(sequenceId);
     }
 
     public long sequenceId()
     {
-        return sequenceId;
-    }
-
-    public int offset()
-    {
-        return offset(sequenceId);
+        return sequenceId(offset, timestamp);
     }
 
     public int timestamp()
     {
-        return timestamp(sequenceId);
+        return timestamp;
     }
 
     public static long sequenceId(int offset, int timestamp)
@@ -99,7 +76,7 @@ public class MutationId implements Comparable<MutationId>
     // FIXME: used in place of figuring out if we should use a mutation id or not
     public static MutationId fixme()
     {
-        return none(); // FIXME: remove after the refactor
+        return none();
     }
 
     public static MutationId none()
@@ -109,22 +86,7 @@ public class MutationId implements Comparable<MutationId>
 
     public boolean isNone()
     {
-        return logId == Long.MIN_VALUE && sequenceId == Long.MIN_VALUE;
-    }
-
-    @Override
-    public boolean equals(Object o)
-    {
-        if (this == o) return true;
-        if (!(o instanceof MutationId)) return false;
-        MutationId that = (MutationId) o;
-        return this.logId == that.logId && this.sequenceId == that.sequenceId;
-    }
-
-    @Override
-    public int hashCode()
-    {
-        return Long.hashCode(logId) + 31 * Long.hashCode(sequenceId);
+        return this == NONE;
     }
 
     @Override
@@ -133,21 +95,17 @@ public class MutationId implements Comparable<MutationId>
         return "MutationId{" + hostId() + ", " + hostLogId() + ", " + offset() + ", " + timestamp() + '}';
     }
 
-    @Override
-    public int compareTo(MutationId that)
-    {
-        int cmp = Long.compare(this.logId, that.logId);
-        return cmp != 0 ? cmp : Long.compare(this.sequenceId, that.sequenceId);
-    }
+    /**
+     * The comparator is intentionally not overridden by this class, since log id and offset alone
+     * are meant to uniquely identify a mutation, and only offset determines the order within a log.
+     */
+    public static final Comparator<MutationId> comparator = ShortMutationId.comparator::compare;
 
     public static final IVersionedSerializer<MutationId> serializer = new IVersionedSerializer<>()
     {
         @Override
         public void serialize(MutationId id, DataOutputPlus out, int version) throws IOException
         {
-            if (version < MessagingService.VERSION_52)
-                return;
-
             out.writeLong(id.logId());
             out.writeLong(id.sequenceId());
         }
@@ -155,9 +113,6 @@ public class MutationId implements Comparable<MutationId>
         @Override
         public MutationId deserialize(DataInputPlus in, int version) throws IOException
         {
-            if (version < MessagingService.VERSION_52)
-                return none();
-
             long logId = in.readLong();
             long sequenceId = in.readLong();
             return new MutationId(logId, sequenceId);
@@ -166,9 +121,6 @@ public class MutationId implements Comparable<MutationId>
         @Override
         public long serializedSize(MutationId id, int version)
         {
-            if (version < MessagingService.VERSION_52)
-                return 0;
-
             return TypeSizes.sizeof(id.logId()) + TypeSizes.sizeof(id.sequenceId());
         }
     };
