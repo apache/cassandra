@@ -229,8 +229,6 @@ public class RetryStrategy implements WaitStrategy
             long max = this.max.getMicros(attempt);
             result = min >= max ? min : waitRandomizer.wait(min, max, attempt);
         }
-        // it's possible that the logic overflows, so fall back to max
-        if (result < 0) result = maxMaxMicros;
         if (result > maxMaxMicros) result = maxMaxMicros;
         if (result < minMinMicros) result = minMinMicros;
         return units.convert(result, MICROSECONDS);
