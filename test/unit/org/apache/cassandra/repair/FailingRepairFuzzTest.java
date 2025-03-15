@@ -52,7 +52,7 @@ public class FailingRepairFuzzTest extends FuzzTestBase
     public void failingRepair()
     {
         // to avoid unlucky timing issues, retry until success; given enough retries we should eventually become success
-        DatabaseDescriptor.getRepairRetrySpec().maxRetries = new RetrySpec.MaxRetry(Integer.MAX_VALUE);
+        DatabaseDescriptor.getRepairRetrySpec().maxAttempts = new RetrySpec.MaxAttempt(Integer.MAX_VALUE);
         Gen<RepairJobStage> stageGen = Gens.enums().all(RepairJobStage.class);
         qt().withPure(false).withExamples(10).check(rs -> {
             Cluster cluster = new Cluster(rs);

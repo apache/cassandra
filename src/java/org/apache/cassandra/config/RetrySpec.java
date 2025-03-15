@@ -38,20 +38,20 @@ import static org.apache.cassandra.service.TimeoutStrategy.modifiers;
 
 public class RetrySpec
 {
-    public static class MaxRetry
+    public static class MaxAttempt
     {
-        public static final MaxRetry DISABLED = new MaxRetry();
+        public static final MaxAttempt DISABLED = new MaxAttempt();
 
         public final int value;
 
-        public MaxRetry(int value)
+        public MaxAttempt(int value)
         {
             if (value < 1)
                 throw new IllegalArgumentException("max attempt must be positive; but given " + value);
             this.value = value;
         }
 
-        private MaxRetry()
+        private MaxAttempt()
         {
             value = 0;
         }
@@ -63,7 +63,7 @@ public class RetrySpec
             if (o == null) return false;
             if (o instanceof Integer) return this.value == ((Integer) o).intValue();
             if (getClass() != o.getClass()) return false;
-            MaxRetry that = (MaxRetry) o;
+            MaxAttempt that = (MaxAttempt) o;
             return value == that.value;
         }
 
@@ -84,14 +84,14 @@ public class RetrySpec
     {
         public Partial()
         {
-            this.maxRetries = null;
+            this.maxAttempts = null;
             this.baseSleepTime = null;
             this.maxSleepTime = null;
         }
 
         public RetrySpec withDefaults(RetrySpec defaultValues)
         {
-            MaxRetry maxAttempts = nonNull(this.maxRetries, defaultValues.getMaxRetries(), DEFAULT_MAX_RETRIES);
+            MaxAttempt maxAttempts = nonNull(this.maxAttempts, defaultValues.getMaxAttempts(), DEFAULT_MAX_RETRIES);
             LongMillisecondsBound baseSleepTime = nonNull(this.baseSleepTime, defaultValues.getBaseSleepTime(), DEFAULT_BASE_SLEEP);
             LongMillisecondsBound maxSleepTime = nonNull(this.maxSleepTime, defaultValues.getMaxSleepTime(), DEFAULT_MAX_SLEEP);
             return new RetrySpec(maxAttempts, baseSleepTime, maxSleepTime);
@@ -107,7 +107,7 @@ public class RetrySpec
         }
     }
 
-    public static final MaxRetry DEFAULT_MAX_RETRIES = MaxRetry.DISABLED;
+    public static final MaxAttempt DEFAULT_MAX_RETRIES = MaxAttempt.DISABLED;
     public static final LongMillisecondsBound DEFAULT_BASE_SLEEP = new LongMillisecondsBound("200ms");
     public static final LongMillisecondsBound DEFAULT_MAX_SLEEP = new LongMillisecondsBound("1s");
 
@@ -116,7 +116,7 @@ public class RetrySpec
      * <p/>
      * To disable, set to 0.
      */
-    public MaxRetry maxRetries = DEFAULT_MAX_RETRIES; // 2 retries, 1 original request; so 3 total
+    public MaxAttempt maxAttempts = DEFAULT_MAX_RETRIES; // 2 retries, 1 original request; so 3 total
     public LongMillisecondsBound baseSleepTime = DEFAULT_BASE_SLEEP;
     public LongMillisecondsBound maxSleepTime = DEFAULT_MAX_SLEEP;
 
@@ -124,34 +124,34 @@ public class RetrySpec
     {
     }
 
-    public RetrySpec(MaxRetry maxRetries, LongMillisecondsBound baseSleepTime, LongMillisecondsBound maxSleepTime)
+    public RetrySpec(MaxAttempt maxAttempts, LongMillisecondsBound baseSleepTime, LongMillisecondsBound maxSleepTime)
     {
-        this.maxRetries = maxRetries;
+        this.maxAttempts = maxAttempts;
         this.baseSleepTime = baseSleepTime;
         this.maxSleepTime = maxSleepTime;
     }
 
     public boolean isEnabled()
     {
-        return maxRetries != MaxRetry.DISABLED;
+        return maxAttempts != MaxAttempt.DISABLED;
     }
 
     public void setEnabled(boolean enabled)
     {
         if (!enabled)
         {
-            maxRetries = MaxRetry.DISABLED;
+            maxAttempts = MaxAttempt.DISABLED;
         }
-        else if (maxRetries == MaxRetry.DISABLED)
+        else if (maxAttempts == MaxAttempt.DISABLED)
         {
-            maxRetries = new MaxRetry(2);
+            maxAttempts = new MaxAttempt(2);
         }
     }
 
     @Nullable
-    public MaxRetry getMaxRetries()
+    public MaxAttempt getMaxAttempts()
     {
-        return !isEnabled() ? null : maxRetries;
+        return !isEnabled() ? null : maxAttempts;
     }
 
     @Nullable
@@ -169,14 +169,14 @@ public class RetrySpec
     {
         if (!spec.isEnabled())
             return WaitStrategy.None.INSTANCE;
-        return doublingWaitStrategy(spec.maxRetries.value, spec.baseSleepTime.to(MICROSECONDS), spec.maxSleepTime.to(MICROSECONDS), ctx.random().get());
+        return doublingWaitStrategy(spec.maxAttempts.value, spec.baseSleepTime.to(MICROSECONDS), spec.maxSleepTime.to(MICROSECONDS), ctx.random().get());
     }
 
     @Override
     public String toString()
     {
         return "RetrySpec{" +
-               "maxAttempts=" + maxRetries +
+               "maxAttempts=" + maxAttempts +
                ", baseSleepTime=" + baseSleepTime +
                ", maxSleepTime=" + maxSleepTime +
                '}';

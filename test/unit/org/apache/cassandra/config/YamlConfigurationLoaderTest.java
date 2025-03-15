@@ -67,10 +67,10 @@ public class YamlConfigurationLoaderTest
     {
         RepairRetrySpec repair_retries = loadRepairRetry(ImmutableMap.of("max_attempts", "3"));
         assertThat(repair_retries.isEnabled()).isTrue();
-        assertThat(repair_retries.getMaxRetries()).isEqualTo(3);
+        assertThat(repair_retries.getMaxAttempts()).isEqualTo(3);
         RetrySpec spec = repair_retries.getMerkleTreeResponseSpec();
         assertThat(spec.isEnabled()).isTrue();
-        assertThat(spec.getMaxRetries()).isEqualTo(3);
+        assertThat(spec.getMaxAttempts()).isEqualTo(3);
     }
 
     @Test
@@ -82,13 +82,13 @@ public class YamlConfigurationLoaderTest
                                                 "max_sleep_time", "10s")
         ));
         assertThat(repair_retries.isEnabled()).isFalse();
-        assertThat(repair_retries.getMaxRetries()).isNull();
+        assertThat(repair_retries.getMaxAttempts()).isNull();
         assertThat(repair_retries.baseSleepTime).isEqualTo(RetrySpec.DEFAULT_BASE_SLEEP);
         assertThat(repair_retries.maxSleepTime).isEqualTo(RetrySpec.DEFAULT_MAX_SLEEP);
 
         RetrySpec spec = repair_retries.getMerkleTreeResponseSpec();
         assertThat(spec.isEnabled()).isTrue();
-        assertThat(spec.maxRetries).isEqualTo(10);
+        assertThat(spec.maxAttempts).isEqualTo(10);
         assertThat(spec.baseSleepTime).isEqualTo(RetrySpec.DEFAULT_MAX_SLEEP);
         assertThat(spec.maxSleepTime).isEqualTo(new DurationSpec.LongMillisecondsBound("10s"));
     }

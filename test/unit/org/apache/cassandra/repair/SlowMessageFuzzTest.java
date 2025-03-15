@@ -37,7 +37,7 @@ public class SlowMessageFuzzTest extends FuzzTestBase
     public void slowMessages()
     {
         // to avoid unlucky timing issues, retry until success; given enough retries we should eventually become success
-        DatabaseDescriptor.getRepairRetrySpec().maxRetries = new RetrySpec.MaxRetry(Integer.MAX_VALUE);
+        DatabaseDescriptor.getRepairRetrySpec().maxAttempts = new RetrySpec.MaxAttempt(Integer.MAX_VALUE);
         qt().withPure(false).withExamples(10).check(rs -> {
             cleanupRepairTables();
             Cluster cluster = new Cluster(rs);
