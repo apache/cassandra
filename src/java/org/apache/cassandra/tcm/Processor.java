@@ -33,7 +33,6 @@ import org.apache.cassandra.utils.Clock;
 
 import static java.util.concurrent.TimeUnit.NANOSECONDS;
 import static org.apache.cassandra.config.DatabaseDescriptor.getCmsAwaitTimeout;
-import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 
 public interface Processor
 {

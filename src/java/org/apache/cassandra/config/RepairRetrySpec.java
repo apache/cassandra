@@ -27,7 +27,7 @@ public class RepairRetrySpec extends RetrySpec
     public boolean isMerkleTreeRetriesEnabled()
     {
         RetrySpec.Partial partial = merkle_tree_response;
-        if (partial == null || partial.maxAttempts == null)
+        if (partial == null || partial.maxRetries == null)
             return isEnabled();
         return partial.isEnabled();
     }

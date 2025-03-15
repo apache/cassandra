@@ -202,7 +202,7 @@ public class RetryStrategy implements WaitStrategy
     public final @Nonnull Wait max;
     public final int maxAttempts;
 
-    protected RetryStrategy(WaitRandomizer waitRandomizer, long minMinMicros, Wait min, Wait max, long maxMaxMicros, int retries)
+    public RetryStrategy(WaitRandomizer waitRandomizer, long minMinMicros, Wait min, Wait max, long maxMaxMicros, int retries)
     {
         this.waitRandomizer = waitRandomizer;
         this.minMinMicros = minMinMicros;

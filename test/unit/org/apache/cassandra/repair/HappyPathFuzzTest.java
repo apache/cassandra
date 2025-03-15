@@ -43,7 +43,7 @@ public class HappyPathFuzzTest extends FuzzTestBase
     public void happyPath()
     {
         // disable all retries, no delays/drops are possible
-        DatabaseDescriptor.getRepairRetrySpec().maxAttempts = RetrySpec.MaxAttempt.DISABLED;
+        DatabaseDescriptor.getRepairRetrySpec().maxRetries = RetrySpec.MaxRetry.DISABLED;
         Map<String, LongArrayList> repairTypeRuntimes = new HashMap<>();
         long realStartNanos = System.nanoTime();
         qt().withPure(false).withExamples(10).check(rs -> {

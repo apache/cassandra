@@ -19,31 +19,39 @@
 package org.apache.cassandra.config;
 
 import java.util.Objects;
-import java.util.concurrent.TimeUnit;
-import java.util.function.DoubleSupplier;
+import java.util.Random;
 
 import javax.annotation.Nullable;
 
+import accord.utils.DefaultRandom;
 import org.apache.cassandra.config.DurationSpec.LongMillisecondsBound;
 import org.apache.cassandra.repair.SharedContext;
+import org.apache.cassandra.service.RetryStrategy;
+import org.apache.cassandra.service.TimeoutStrategy;
+import org.apache.cassandra.service.TimeoutStrategy.LatencySupplier.Constant;
+import org.apache.cassandra.service.TimeoutStrategy.Wait.Modifying;
 import org.apache.cassandra.service.WaitStrategy;
+
+import static java.util.concurrent.TimeUnit.MICROSECONDS;
+import static org.apache.cassandra.service.RetryStrategy.randomizers;
+import static org.apache.cassandra.service.TimeoutStrategy.modifiers;
 
 public class RetrySpec
 {
-    public static class MaxAttempt
+    public static class MaxRetry
     {
-        public static final MaxAttempt DISABLED = new MaxAttempt();
+        public static final MaxRetry DISABLED = new MaxRetry();
 
         public final int value;
 
-        public MaxAttempt(int value)
+        public MaxRetry(int value)
         {
             if (value < 1)
                 throw new IllegalArgumentException("max attempt must be positive; but given " + value);
             this.value = value;
         }
 
-        private MaxAttempt()
+        private MaxRetry()
         {
             value = 0;
         }
@@ -55,7 +63,7 @@ public class RetrySpec
             if (o == null) return false;
             if (o instanceof Integer) return this.value == ((Integer) o).intValue();
             if (getClass() != o.getClass()) return false;
-            MaxAttempt that = (MaxAttempt) o;
+            MaxRetry that = (MaxRetry) o;
             return value == that.value;
         }
 
@@ -76,14 +84,14 @@ public class RetrySpec
     {
         public Partial()
         {
-            this.maxAttempts = null;
+            this.maxRetries = null;
             this.baseSleepTime = null;
             this.maxSleepTime = null;
         }
 
         public RetrySpec withDefaults(RetrySpec defaultValues)
         {
-            MaxAttempt maxAttempts = nonNull(this.maxAttempts, defaultValues.getMaxAttempts(), DEFAULT_MAX_ATTEMPTS);
+            MaxRetry maxAttempts = nonNull(this.maxRetries, defaultValues.getMaxRetries(), DEFAULT_MAX_RETRIES);
             LongMillisecondsBound baseSleepTime = nonNull(this.baseSleepTime, defaultValues.getBaseSleepTime(), DEFAULT_BASE_SLEEP);
             LongMillisecondsBound maxSleepTime = nonNull(this.maxSleepTime, defaultValues.getMaxSleepTime(), DEFAULT_MAX_SLEEP);
             return new RetrySpec(maxAttempts, baseSleepTime, maxSleepTime);
@@ -99,7 +107,7 @@ public class RetrySpec
         }
     }
 
-    public static final MaxAttempt DEFAULT_MAX_ATTEMPTS = MaxAttempt.DISABLED;
+    public static final MaxRetry DEFAULT_MAX_RETRIES = MaxRetry.DISABLED;
     public static final LongMillisecondsBound DEFAULT_BASE_SLEEP = new LongMillisecondsBound("200ms");
     public static final LongMillisecondsBound DEFAULT_MAX_SLEEP = new LongMillisecondsBound("1s");
 
@@ -108,7 +116,7 @@ public class RetrySpec
      * <p/>
      * To disable, set to 0.
      */
-    public MaxAttempt maxAttempts = DEFAULT_MAX_ATTEMPTS; // 2 retries, 1 original request; so 3 total
+    public MaxRetry maxRetries = DEFAULT_MAX_RETRIES; // 2 retries, 1 original request; so 3 total
     public LongMillisecondsBound baseSleepTime = DEFAULT_BASE_SLEEP;
     public LongMillisecondsBound maxSleepTime = DEFAULT_MAX_SLEEP;
 
@@ -116,34 +124,34 @@ public class RetrySpec
     {
     }
 
-    public RetrySpec(MaxAttempt maxAttempts, LongMillisecondsBound baseSleepTime, LongMillisecondsBound maxSleepTime)
+    public RetrySpec(MaxRetry maxRetries, LongMillisecondsBound baseSleepTime, LongMillisecondsBound maxSleepTime)
     {
-        this.maxAttempts = maxAttempts;
+        this.maxRetries = maxRetries;
         this.baseSleepTime = baseSleepTime;
         this.maxSleepTime = maxSleepTime;
     }
 
     public boolean isEnabled()
     {
-        return maxAttempts != MaxAttempt.DISABLED;
+        return maxRetries != MaxRetry.DISABLED;
     }
 
     public void setEnabled(boolean enabled)
     {
         if (!enabled)
         {
-            maxAttempts = MaxAttempt.DISABLED;
+            maxRetries = MaxRetry.DISABLED;
         }
-        else if (maxAttempts == MaxAttempt.DISABLED)
+        else if (maxRetries == MaxRetry.DISABLED)
         {
-            maxAttempts = new MaxAttempt(2);
+            maxRetries = new MaxRetry(2);
         }
     }
 
     @Nullable
-    public MaxAttempt getMaxAttempts()
+    public MaxRetry getMaxRetries()
     {
-        return !isEnabled() ? null : maxAttempts;
+        return !isEnabled() ? null : maxRetries;
     }
 
     @Nullable
@@ -161,51 +169,31 @@ public class RetrySpec
     {
         if (!spec.isEnabled())
             return WaitStrategy.None.INSTANCE;
-        return new ExponentialWait(spec.maxAttempts.value, spec.baseSleepTime.toMilliseconds(), spec.maxSleepTime.toMilliseconds(), ctx.random().get()::nextDouble);
+        return doublingWaitStrategy(spec.maxRetries.value, spec.baseSleepTime.to(MICROSECONDS), spec.maxSleepTime.to(MICROSECONDS), ctx.random().get());
     }
 
     @Override
     public String toString()
     {
         return "RetrySpec{" +
-               "maxAttempts=" + maxAttempts +
+               "maxAttempts=" + maxRetries +
                ", baseSleepTime=" + baseSleepTime +
                ", maxSleepTime=" + maxSleepTime +
                '}';
     }
 
-    private static class ExponentialWait implements WaitStrategy
+    // note: maxAttempts here excludes the initial attempt, so we are permitted this many retries
+    private static WaitStrategy doublingWaitStrategy(int maxRetries, long baseSleepTimeMicros, long maxSleepMicros, Random random)
     {
-        private final int maxAttempts;
-        private final long baseSleepTimeMillis;
-        private final long maxSleepMillis;
-        private final DoubleSupplier randomSource;
+        return new RetryStrategy(randomizers(new DefaultRandom(random)).uniform(),
+                                 0,
+                                 doublingWait(baseSleepTimeMicros / 2),
+                                 doublingWait(baseSleepTimeMicros + (baseSleepTimeMicros / 2)),
+                                 maxSleepMicros, maxRetries);
+    }
 
-        private ExponentialWait(int maxAttempts, long baseSleepTimeMillis, long maxSleepMillis, DoubleSupplier randomSource)
-        {
-            this.maxAttempts = maxAttempts;
-            this.baseSleepTimeMillis = baseSleepTimeMillis;
-            this.maxSleepMillis = maxSleepMillis;
-            this.randomSource = randomSource;
-        }
-
-        @Override
-        public long computeWait(int attempts, TimeUnit units)
-        {
-            // this logic assumes attempts starts at 0, but it starts at 1, so roll back
-            attempts--;
-            if (attempts >= maxAttempts)
-                return -1;
-            long baseTimeMillis = baseSleepTimeMillis * (1L << attempts);
-            // it's possible that this overflows, so fall back to max;
-            if (baseTimeMillis <= 0)
-                baseTimeMillis = maxSleepMillis;
-            // now make sure this is capped to target max
-            baseTimeMillis = Math.min(baseTimeMillis, maxSleepMillis);
-
-            // Add jitter, the value ranges from .5x to 1.5x the target wait
-            long result = (long) (baseTimeMillis * (randomSource.getAsDouble() + 0.5));
-            return TimeUnit.MILLISECONDS.convert(result, units);
-        }
+    private static TimeoutStrategy.Wait doublingWait(long baseSleepTimeMicros)
+    {
+        return new Modifying(new Constant(baseSleepTimeMicros), modifiers.doubleByRetries());
     }
 }

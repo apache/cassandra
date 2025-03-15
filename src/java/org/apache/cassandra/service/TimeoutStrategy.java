@@ -84,19 +84,39 @@ public class TimeoutStrategy implements WaitStrategy
     static final Pattern WAIT = Pattern.compile(
                 "\\s*(?<const>0|[0-9]+[mu]?s)" +
                 "|\\s*((p(?<perc>[0-9]+)(\\((?<rw>r|w|rw|wr)\\))?)?|(?<constbase>0|[0-9]+[mu]?s))" +
-                    "\\s*(([*]\\s*(?<mod>[0-9.]+))?\\s*(?<modkind>[*^]\\s*attempts)?)?\\s*");
+                    "\\s*(([*]\\s*(?<mod>[0-9.]+))?\\s*(?<modkind>[*^]\\s*(<?count>attempts|retries))?)?\\s*");
     static final Pattern TIME = Pattern.compile(
                 "0|[0-9]+[mu]?s");
 
     // Factories can be useful for testing purposes, to supply custom implementations of selectors and modifiers.
-    final static LatencyModifierFactory modifiers = new LatencyModifierFactory(){};
+    public static final LatencyModifierFactory modifiers = new LatencyModifierFactory(){};
 
-    interface LatencyModifierFactory
+    public interface LatencyModifierFactory
     {
         default LatencyModifier identity() { return (l, a) -> l; }
         default LatencyModifier multiply(double constant) { return (l, a) -> saturatedCast(l * constant); }
         default LatencyModifier multiplyByAttempts(double multiply) { return (l, a) -> saturatedCast(l * multiply * a); }
-        default LatencyModifier multiplyByAttemptsExp(double base) { return (l, a) -> saturatedCast(l * pow(base, a)); }
+        default LatencyModifier multiplyByRetries(double multiply) { return (l, a) -> saturatedCast(l * multiply * (a - 1)); }
+        default LatencyModifier multiplyByAttemptsExp(double base)
+        {
+            if (base == 2) return doubleByAttempts();
+            return (l, a) -> saturatedCast(l * pow(base, a));
+        }
+        default LatencyModifier multiplyByRetriesExp(double base)
+        {
+            if (base == 2) return doubleByRetries();
+            return (l, a) -> saturatedCast(l * pow(base, a - 1));
+        }
+        default LatencyModifier doubleByAttempts() { return doubleByCount(1); }
+        default LatencyModifier doubleByRetries() { return doubleByCount(0); }
+
+        private static LatencyModifier doubleByCount(int shiftOffset)
+        {
+            return (l, a) -> {
+                long result = l << (a + shiftOffset);
+                return result <= 0 ? Long.MAX_VALUE : result;
+            };
+        }
     }
 
     public interface Wait
@@ -115,7 +135,7 @@ public class TimeoutStrategy implements WaitStrategy
             final LatencySupplier supplier;
             final LatencyModifier modifier;
 
-            Modifying(LatencySupplier supplier, LatencyModifier modifier)
+            public Modifying(LatencySupplier supplier, LatencyModifier modifier)
             {
                 this.supplier = supplier;
                 this.modifier = modifier;
@@ -308,9 +328,9 @@ public class TimeoutStrategy implements WaitStrategy
             return modifiers.multiply(modifier);
 
         if (modkind.startsWith("*"))
-            return modifiers.multiplyByAttempts(modifier);
+            return m.group("count").equals("attempts") ? modifiers.multiplyByAttempts(modifier) : modifiers.multiplyByRetries(modifier);
         else if (modkind.startsWith("^"))
-            return modifiers.multiplyByAttemptsExp(modifier);
+            return m.group("count").equals("attempts") ? modifiers.multiplyByAttemptsExp(modifier) : modifiers.multiplyByRetriesExp(modifier);
         else
             throw new IllegalArgumentException("Unrecognised attempt modifier: " + modkind);
     }
