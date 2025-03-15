@@ -28,7 +28,7 @@ import org.apache.cassandra.utils.concurrent.LockWithAsyncSignal;
 // WARNING: experimental - needs more testing
 class AccordExecutorAsyncSubmit extends AccordExecutorAbstractSemiSyncSubmit
 {
-    private final AccordExecutorInfiniteLoops loops;
+    private final AccordExecutorLoops loops;
     private final LockWithAsyncSignal lock;
 
     public AccordExecutorAsyncSubmit(int executorId, Mode mode, int threads, IntFunction<String> name, AccordCacheMetrics metrics, ExecutorFunctionFactory loadExecutor, ExecutorFunctionFactory saveExecutor, ExecutorFunctionFactory rangeLoadExecutor, Agent agent)
@@ -40,7 +40,7 @@ class AccordExecutorAsyncSubmit extends AccordExecutorAbstractSemiSyncSubmit
     {
         super(lock, executorId, metrics, loadExecutor, saveExecutor, rangeLoadExecutor, agent);
         this.lock = lock;
-        this.loops = new AccordExecutorInfiniteLoops(mode, threads, name, this::task);
+        this.loops = new AccordExecutorLoops(mode, threads, name, this::task);
     }
 
     @Override
@@ -58,7 +58,7 @@ class AccordExecutorAsyncSubmit extends AccordExecutorAbstractSemiSyncSubmit
     }
 
     @Override
-    void notifyWorkAsync()
+    void notifyWork()
     {
         lock.signal();
     }
@@ -73,18 +73,6 @@ class AccordExecutorAsyncSubmit extends AccordExecutorAbstractSemiSyncSubmit
     boolean isOwningThread()
     {
         return lock.isOwner(Thread.currentThread());
-    }
-
-    @Override
-    public void shutdown()
-    {
-        loops.shutdown();
-    }
-
-    @Override
-    public Object shutdownNow()
-    {
-        return loops.shutdownNow();
     }
 
     @Override

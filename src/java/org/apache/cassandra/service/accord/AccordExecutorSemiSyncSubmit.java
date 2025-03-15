@@ -29,7 +29,7 @@ import org.apache.cassandra.metrics.AccordCacheMetrics;
 // WARNING: experimental - needs more testing
 class AccordExecutorSemiSyncSubmit extends AccordExecutorAbstractSemiSyncSubmit
 {
-    private final AccordExecutorInfiniteLoops loops;
+    private final AccordExecutorLoops loops;
     private final ReentrantLock lock;
     private final Condition hasWork;
 
@@ -43,7 +43,7 @@ class AccordExecutorSemiSyncSubmit extends AccordExecutorAbstractSemiSyncSubmit
         super(lock, executorId, metrics, loadExecutor, saveExecutor, rangeLoadExecutor, agent);
         this.lock = lock;
         this.hasWork = lock.newCondition();
-        this.loops = new AccordExecutorInfiniteLoops(mode, threads, name, this::task);
+        this.loops = new AccordExecutorLoops(mode, threads, name, this::task);
     }
 
     @Override
@@ -60,7 +60,7 @@ class AccordExecutorSemiSyncSubmit extends AccordExecutorAbstractSemiSyncSubmit
     }
 
     @Override
-    void notifyWorkAsync()
+    void notifyWork()
     {
         // we check running both sides of tryLock for ordering guarantees
         boolean hadRunning = isHeldByExecutor;
@@ -87,18 +87,6 @@ class AccordExecutorSemiSyncSubmit extends AccordExecutorAbstractSemiSyncSubmit
     boolean isOwningThread()
     {
         return lock.isHeldByCurrentThread();
-    }
-
-    @Override
-    public void shutdown()
-    {
-        loops.shutdown();
-    }
-
-    @Override
-    public Object shutdownNow()
-    {
-        return loops.shutdownNow();
     }
 
     @Override

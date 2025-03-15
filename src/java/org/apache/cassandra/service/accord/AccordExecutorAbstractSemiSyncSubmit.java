@@ -23,10 +23,7 @@ import java.util.concurrent.locks.Lock;
 import accord.api.Agent;
 import accord.utils.QuadFunction;
 import accord.utils.QuintConsumer;
-import org.apache.cassandra.concurrent.Interruptible;
 import org.apache.cassandra.metrics.AccordCacheMetrics;
-
-import static org.apache.cassandra.service.accord.AccordExecutor.Mode.RUN_WITH_LOCK;
 
 abstract class AccordExecutorAbstractSemiSyncSubmit extends AccordExecutorAbstractLockLoop
 {
@@ -35,20 +32,14 @@ abstract class AccordExecutorAbstractSemiSyncSubmit extends AccordExecutorAbstra
         super(lock, executorId, metrics, loadExecutor, saveExecutor, rangeLoadExecutor, agent);
     }
 
-    abstract void notifyWorkAsync();
     abstract void awaitExclusive() throws InterruptedException;
-
-    Interruptible.Task task(Mode mode)
-    {
-        return mode == RUN_WITH_LOCK ? this::runWithLock : this::runWithoutLock;
-    }
 
     <P1s, P1a, P2, P3, P4> void submitExternal(QuintConsumer<AccordExecutor, P1s, P2, P3, P4> sync, QuadFunction<P1a, P2, P3, P4, Object> async, P1s p1s, P1a p1a, P2 p2, P3 p3, P4 p4)
     {
         if (!lock.tryLock())
         {
             submitted.push(async.apply(p1a, p2, p3, p4));
-            notifyWorkAsync();
+            notifyWork();
             return;
         }
 
