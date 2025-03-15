@@ -215,7 +215,7 @@ public class RetryStrategy implements WaitStrategy
 
     public long computeWait(int attempt, TimeUnit units)
     {
-        if (attempt > maxAttempts)
+        if (attempt >= maxAttempts)
             return -1;
 
         long result;
