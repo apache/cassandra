@@ -105,6 +105,16 @@ public class LockWithAsyncSignal implements Lock
 
     public void await() throws InterruptedException
     {
+        await(LockWithAsyncSignal::awaitDeferThrow);
+    }
+
+    public void awaitUninterruptibly()
+    {
+        await(LockWithAsyncSignal::awaitUninterruptibly);
+    }
+
+    private <T extends Throwable> void await(AwaitFunction<T> await) throws T
+    {
         Thread thread = Thread.currentThread();
         int restoreDepth = depth;
         Invariants.require(owner == thread);
@@ -112,7 +122,7 @@ public class LockWithAsyncSignal implements Lock
         depth = 0;
         owner = null;
 
-        awaitLock(true, thread, restoreDepth, LockWithAsyncSignal::awaitDeferThrow);
+        awaitLock(true, thread, restoreDepth, await);
     }
 
     public void unlock()

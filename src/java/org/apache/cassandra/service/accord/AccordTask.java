@@ -26,6 +26,7 @@ import java.util.Set;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
@@ -61,6 +62,7 @@ import org.apache.cassandra.service.accord.AccordExecutor.Task;
 import org.apache.cassandra.service.accord.AccordExecutor.TaskQueue;
 import org.apache.cassandra.service.accord.AccordKeyspace.CommandsForKeyAccessor;
 import org.apache.cassandra.service.accord.api.TokenKey;
+import org.apache.cassandra.utils.Clock;
 import org.apache.cassandra.utils.NoSpamLogger;
 import org.apache.cassandra.utils.concurrent.Condition;
 
@@ -190,6 +192,7 @@ public abstract class AccordTask<R> extends Task implements Runnable, Function<S
     private State state = INITIALIZED;
     private final PreLoadContext preLoadContext;
     private final String loggingId;
+    private static final AtomicLong nextLoggingId = new AtomicLong(Clock.Global.currentTimeMillis());
 
     // TODO (expected): merge all of these maps into one
     @Nullable Object2ObjectHashMap<TxnId, AccordSafeCommand> commands;
@@ -221,7 +224,7 @@ public abstract class AccordTask<R> extends Task implements Runnable, Function<S
     public AccordTask(AccordCommandStore commandStore, PreLoadContext preLoadContext)
     {
         super(commandStore);
-        this.loggingId = "0x" + Integer.toHexString(System.identityHashCode(this));
+        this.loggingId = "0x" + Long.toHexString(nextLoggingId.incrementAndGet());
         this.preLoadContext = preLoadContext;
 
         if (logger.isTraceEnabled())

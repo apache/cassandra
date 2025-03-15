@@ -23,23 +23,23 @@ import java.util.concurrent.locks.Lock;
 import accord.api.Agent;
 import accord.utils.QuadFunction;
 import accord.utils.QuintConsumer;
-import org.apache.cassandra.concurrent.Interruptible;
 import org.apache.cassandra.metrics.AccordCacheMetrics;
 import org.apache.cassandra.utils.concurrent.ConcurrentLinkedStack;
 
-import static org.apache.cassandra.concurrent.Interruptible.State.NORMAL;
 import static org.apache.cassandra.service.accord.AccordExecutor.Mode.RUN_WITH_LOCK;
 
 abstract class AccordExecutorAbstractLockLoop extends AccordExecutor
 {
     final ConcurrentLinkedStack<Object> submitted = new ConcurrentLinkedStack<>();
     boolean isHeldByExecutor;
+    boolean shutdown;
 
     AccordExecutorAbstractLockLoop(Lock lock, int executorId, AccordCacheMetrics metrics, ExecutorFunctionFactory loadExecutor, ExecutorFunctionFactory saveExecutor, ExecutorFunctionFactory rangeLoadExecutor, Agent agent)
     {
         super(lock, executorId, metrics, loadExecutor, saveExecutor, rangeLoadExecutor, agent);
     }
 
+    abstract void notifyWork();
     abstract void notifyWorkExclusive();
     abstract void awaitExclusive() throws InterruptedException;
     abstract boolean isInLoop();
@@ -129,67 +129,73 @@ abstract class AccordExecutorAbstractLockLoop extends AccordExecutor
         ++running;
     }
 
-    Interruptible.Task task(Mode mode)
+    Runnable task(Mode mode)
     {
         return mode == RUN_WITH_LOCK ? this::runWithLock : this::runWithoutLock;
     }
 
-    protected void runWithLock(Interruptible.State state) throws InterruptedException
+    protected void runWithLock()
     {
-        lock.lockInterruptibly();
-        try
+        while (true)
         {
-            resumeExclusive();
-            enterLockExclusive();
-            while (true)
+            lock.lock();
+            try
             {
-                Task task = pollWaitingToRunExclusive();
+                resumeExclusive();
+                enterLockExclusive();
+                while (true)
+                {
+                    Task task = pollWaitingToRunExclusive();
 
-                if (task != null)
-                {
-                    --tasks;
-                    try
+                    if (task != null)
                     {
-                        task.preRunExclusive();
-                        task.run();
+                        --tasks;
+                        try
+                        {
+                            task.preRunExclusive();
+                            task.run();
+                        }
+                        catch (Throwable t)
+                        {
+                            task.fail(t);
+                        }
+                        finally
+                        {
+                            task.cleanupExclusive();
+                        }
                     }
-                    catch (Throwable t)
+                    else
                     {
-                        task.fail(t);
-                    }
-                    finally
-                    {
-                        task.cleanupExclusive();
-                    }
-                }
-                else
-                {
-                    if (state != NORMAL)
-                    {
+                        if (shutdown)
+                        {
+                            pauseExclusive();
+                            exitLockExclusive();
+                            notifyWorkExclusive(); // always notify on shutdown
+                            return;
+                        }
+
                         pauseExclusive();
-                        exitLockExclusive();
-                        return;
+                        awaitExclusive();
+                        resumeExclusive();
                     }
-
-                    pauseExclusive();
-                    awaitExclusive();
-                    resumeExclusive();
                 }
             }
-        }
-        catch (Throwable t)
-        {
-            pauseExclusive();
-            exitLockExclusive();
-            throw t;
-        }
-        finally
-        {
-            lock.unlock();
+            catch (Throwable t)
+            {
+                pauseExclusive();
+                exitLockExclusive();
+
+                try { agent.onUncaughtException(t); }
+                catch (Throwable t2) { }
+            }
+            finally
+            {
+                lock.unlock();
+            }
         }
     }
 
-    protected void runWithoutLock(Interruptible.State state) throws InterruptedException
+    protected void runWithoutLock()
     {
         Task task = null;
         while (true)
@@ -210,9 +216,10 @@ abstract class AccordExecutorAbstractLockLoop extends AccordExecutor
                         break;
                     }
 
-                    if (state != NORMAL)
+                    if (shutdown)
                     {
                         exitLockExclusive();
+                        notifyWorkExclusive();
                         return;
                     }
 
@@ -233,11 +240,12 @@ abstract class AccordExecutorAbstractLockLoop extends AccordExecutor
                     catch (Throwable t2) { t.addSuppressed(t2); }
                     try { agent.onUncaughtException(t); }
                     catch (Throwable t2) { /* nothing we can sensibly do after already reporting */ }
+                    task = null;
                 }
                 if (isHeldByExecutor)
                     pauseExclusive();
                 exitLockExclusive();
-                throw t;
+                continue;
             }
             finally
             {
@@ -265,5 +273,19 @@ abstract class AccordExecutorAbstractLockLoop extends AccordExecutor
                 }
             }
         }
+    }
+
+    @Override
+    public void shutdown()
+    {
+        shutdown = true;
+        notifyWork();
+    }
+
+    @Override
+    public Object shutdownNow()
+    {
+        shutdown();
+        return null;
     }
 }

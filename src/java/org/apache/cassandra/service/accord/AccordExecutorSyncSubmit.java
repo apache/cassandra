@@ -31,7 +31,7 @@ import org.apache.cassandra.metrics.AccordCacheMetrics;
 
 class AccordExecutorSyncSubmit extends AccordExecutorAbstractLockLoop
 {
-    private final AccordExecutorInfiniteLoops loops;
+    private final AccordExecutorLoops loops;
     private final ReentrantLock lock;
     private final Condition hasWork;
 
@@ -55,7 +55,7 @@ class AccordExecutorSyncSubmit extends AccordExecutorAbstractLockLoop
         super(lock, executorId, metrics, loadExecutor, saveExecutor, rangeLoadExecutor, agent);
         this.lock = lock;
         this.hasWork = lock.newCondition();
-        this.loops = new AccordExecutorInfiniteLoops(mode, threads, name, this::task);
+        this.loops = new AccordExecutorLoops(mode, threads, name, this::task);
     }
 
     @Override
@@ -77,6 +77,20 @@ class AccordExecutorSyncSubmit extends AccordExecutorAbstractLockLoop
     }
 
     @Override
+    void notifyWork()
+    {
+        lock.lock();
+        try
+        {
+            hasWork.signal();
+        }
+        finally
+        {
+            lock.unlock();
+        }
+    }
+
+    @Override
     void notifyWorkExclusive()
     {
         hasWork.signal();
@@ -93,18 +107,6 @@ class AccordExecutorSyncSubmit extends AccordExecutorAbstractLockLoop
         {
             lock.unlock();
         }
-    }
-
-    @Override
-    public void shutdown()
-    {
-        loops.shutdown();
-    }
-
-    @Override
-    public Object shutdownNow()
-    {
-        return loops.shutdownNow();
     }
 
     @Override
