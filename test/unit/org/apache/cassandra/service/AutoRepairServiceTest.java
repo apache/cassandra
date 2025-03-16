@@ -103,17 +103,17 @@ public class AutoRepairServiceTest
         @Test
         public void testsetAutoRepairMaxRetriesCount()
         {
-            autoRepairService.setAutoRepairMaxRetriesCount(101);
+            autoRepairService.setAutoRepairMaxRetriesCount(AutoRepairConfig.RepairType.INCREMENTAL.name(), 101);
 
-            assertEquals(101, config.getRepairMaxRetries());
+            assertEquals(101, config.getRepairMaxRetries(AutoRepairConfig.RepairType.INCREMENTAL));
         }
 
         @Test
         public void testsetAutoRepairRetryBackoffInSec()
         {
-            autoRepairService.setAutoRepairRetryBackoff("102s");
+            autoRepairService.setAutoRepairRetryBackoff(AutoRepairConfig.RepairType.INCREMENTAL.name(), "102s");
 
-            assertEquals(102, config.getRepairRetryBackoff().toSeconds());
+            assertEquals(102, config.getRepairRetryBackoff(AutoRepairConfig.RepairType.INCREMENTAL).toSeconds());
         }
 
         @Test(expected = ConfigurationException.class)
