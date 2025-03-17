@@ -23,6 +23,10 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Queue;
 
+import org.apache.cassandra.auth.CassandraAuthorizer;
+import org.apache.cassandra.auth.CassandraRoleManager;
+import org.apache.cassandra.auth.PasswordAuthenticator;
+
 import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;
@@ -69,11 +73,11 @@ public class AuditLoggerAuthTest
     public static void setup() throws Exception
     {
         OverrideConfigurationLoader.override((config) -> {
-            config.authenticator = new ParameterizedClass("PasswordAuthenticator");
-            config.role_manager = new ParameterizedClass("CassandraRoleManager");
-            config.authorizer = new ParameterizedClass("CassandraAuthorizer");
+            config.authenticator = new ParameterizedClass(PasswordAuthenticator.class.getName());
+            config.role_manager = new ParameterizedClass(CassandraRoleManager.class.getName());
+            config.authorizer = new ParameterizedClass(CassandraAuthorizer.class.getName());
             config.audit_logging_options.enabled = true;
-            config.audit_logging_options.logger = new ParameterizedClass("InMemoryAuditLogger", null);
+            config.audit_logging_options.logger = new ParameterizedClass(InMemoryAuditLogger.class.getName());
         });
 
         SUPERUSER_SETUP_DELAY_MS.setLong(0);
