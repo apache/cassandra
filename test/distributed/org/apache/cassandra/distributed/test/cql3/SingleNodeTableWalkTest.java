@@ -130,7 +130,7 @@ public class SingleNodeTableWalkTest extends StatefulASTBase
             }
         }
         Select select = builder.build();
-        return state.command(rs, select, (wholePartition ? "Whole Partition" : "Single Row"));
+        return state.command(rs, select, (wholePartition ? "By Partition Key" : "By Primary Key"));
     }
 
     public Property.Command<State, Void, ?> selectToken(RandomSource rs, State state)
@@ -357,7 +357,10 @@ public class SingleNodeTableWalkTest extends StatefulASTBase
         //TODO (coverage): partition is defined at the cluster level, so have to hard code in this model as the table is changed rather than cluster being recreated... this limits coverage
         return toGen(new TableMetadataBuilder()
                      .withTableKinds(TableMetadata.Kind.REGULAR)
-                     .withKnownMemtables()
+                     .withParams(b -> b.withKnownMemtables()
+                                       .withCaching()
+                                       .withCompaction()
+                                       .withCompression())
                      .withKeyspaceName(ks).withTableName("tbl")
                      .withSimpleColumnNames()
                      .withDefaultTypeGen(supportedTypes())

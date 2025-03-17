@@ -26,9 +26,9 @@ public final class SizeTieredCompactionStrategyOptions
     protected static final long DEFAULT_MIN_SSTABLE_SIZE = 50L * 1024L * 1024L;
     protected static final double DEFAULT_BUCKET_LOW = 0.5;
     protected static final double DEFAULT_BUCKET_HIGH = 1.5;
-    protected static final String MIN_SSTABLE_SIZE_KEY = "min_sstable_size";
-    protected static final String BUCKET_LOW_KEY = "bucket_low";
-    protected static final String BUCKET_HIGH_KEY = "bucket_high";
+    public static final String MIN_SSTABLE_SIZE_KEY = "min_sstable_size";
+    public static final String BUCKET_LOW_KEY = "bucket_low";
+    public static final String BUCKET_HIGH_KEY = "bucket_high";
 
     protected long minSSTableSize;
     protected double bucketLow;

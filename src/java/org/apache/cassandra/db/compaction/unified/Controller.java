@@ -50,7 +50,7 @@ public class Controller
      * The scaling parameters W, one per bucket index and separated by a comma.
      * Higher indexes will use the value of the last index with a W specified.
      */
-    final static String SCALING_PARAMETERS_OPTION = "scaling_parameters";
+    public final static String SCALING_PARAMETERS_OPTION = "scaling_parameters";
     private final static String DEFAULT_SCALING_PARAMETERS =
         CassandraRelevantProperties.UCS_SCALING_PARAMETER.getString();
 
@@ -58,7 +58,7 @@ public class Controller
      * The minimum sstable size. Sharded writers split sstables over shard only if they are at least as large as the
      * minimum size.
      */
-    static final String MIN_SSTABLE_SIZE_OPTION = "min_sstable_size";
+    public static final String MIN_SSTABLE_SIZE_OPTION = "min_sstable_size";
 
     private static final String DEFAULT_MIN_SSTABLE_SIZE = CassandraRelevantProperties.UCS_MIN_SSTABLE_SIZE.getString();
 
@@ -66,9 +66,9 @@ public class Controller
      * Override for the flush size in MB. The database should be able to calculate this from executing flushes, this
      * should only be necessary in rare cases.
      */
-    static final String FLUSH_SIZE_OVERRIDE_OPTION = "flush_size_override";
+    public static final String FLUSH_SIZE_OVERRIDE_OPTION = "flush_size_override";
 
-    static final String BASE_SHARD_COUNT_OPTION = "base_shard_count";
+    public static final String BASE_SHARD_COUNT_OPTION = "base_shard_count";
     /**
      * Default base shard count, used when a base count is not explicitly supplied. This value applies as long as the
      * table is not a system one, and directories are not defined.
@@ -79,10 +79,10 @@ public class Controller
     public static final int DEFAULT_BASE_SHARD_COUNT =
         CassandraRelevantProperties.UCS_BASE_SHARD_COUNT.getInt();
 
-    static final String TARGET_SSTABLE_SIZE_OPTION = "target_sstable_size";
+    public static final String TARGET_SSTABLE_SIZE_OPTION = "target_sstable_size";
     public static final long DEFAULT_TARGET_SSTABLE_SIZE =
         CassandraRelevantProperties.UCS_TARGET_SSTABLE_SIZE.getSizeInBytes();
-    static final long MIN_TARGET_SSTABLE_SIZE = 1L << 20;
+    public static final long MIN_TARGET_SSTABLE_SIZE = 1L << 20;
 
     /**
      * Provision for growth of the constructed SSTables as the size of the data grows. By default, the target SSTable
@@ -109,7 +109,7 @@ public class Controller
      * base count of 4, the number of SSTables will be 4 (~256GiB each) for a growth value of 1, 128 (~8GiB each) for
      * a growth value of 0.333, and 64 (~16GiB each) for a growth value of 0.5.
      */
-    static final String SSTABLE_GROWTH_OPTION = "sstable_growth";
+    public static final String SSTABLE_GROWTH_OPTION = "sstable_growth";
     private static final double DEFAULT_SSTABLE_GROWTH = CassandraRelevantProperties.UCS_SSTABLE_GROWTH.getDouble();
 
     /**
@@ -127,7 +127,7 @@ public class Controller
      *
      * If the fanout factor is larger than the maximum number of sstables, the strategy will ignore the latter.
      */
-    static final String MAX_SSTABLES_TO_COMPACT_OPTION = "max_sstables_to_compact";
+    public static final String MAX_SSTABLES_TO_COMPACT_OPTION = "max_sstables_to_compact";
 
     static final String ALLOW_UNSAFE_AGGRESSIVE_SSTABLE_EXPIRATION_OPTION = "unsafe_aggressive_sstable_expiration";
     static final boolean ALLOW_UNSAFE_AGGRESSIVE_SSTABLE_EXPIRATION =
@@ -147,7 +147,7 @@ public class Controller
      * that overlap with participating (LCS-like, higher concurrency during upgrades but some double compaction),
      * TRANSITIVE to include overlaps of overlaps (likely to trigger whole level compactions, safest).
      */
-    static final String OVERLAP_INCLUSION_METHOD_OPTION = "overlap_inclusion_method";
+    public static final String OVERLAP_INCLUSION_METHOD_OPTION = "overlap_inclusion_method";
     static final Overlaps.InclusionMethod DEFAULT_OVERLAP_INCLUSION_METHOD =
         CassandraRelevantProperties.UCS_OVERLAP_INCLUSION_METHOD.getEnum(Overlaps.InclusionMethod.TRANSITIVE);
 

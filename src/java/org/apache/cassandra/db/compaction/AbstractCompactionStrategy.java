@@ -72,10 +72,10 @@ public abstract class AbstractCompactionStrategy
     protected static final boolean DEFAULT_UNCHECKED_TOMBSTONE_COMPACTION_OPTION = false;
     protected static final boolean DEFAULT_LOG_ALL_OPTION = false;
 
-    protected static final String TOMBSTONE_THRESHOLD_OPTION = "tombstone_threshold";
+    public static final String TOMBSTONE_THRESHOLD_OPTION = "tombstone_threshold";
     protected static final String TOMBSTONE_COMPACTION_INTERVAL_OPTION = "tombstone_compaction_interval";
     // disable range overlap check when deciding if an SSTable is candidate for tombstone compaction (CASSANDRA-6563)
-    protected static final String UNCHECKED_TOMBSTONE_COMPACTION_OPTION = "unchecked_tombstone_compaction";
+    public static final String UNCHECKED_TOMBSTONE_COMPACTION_OPTION = "unchecked_tombstone_compaction";
     protected static final String LOG_ALL_OPTION = "log_all";
     protected static final String COMPACTION_ENABLED = "enabled";
     public static final String ONLY_PURGE_REPAIRED_TOMBSTONES = "only_purge_repaired_tombstones";
