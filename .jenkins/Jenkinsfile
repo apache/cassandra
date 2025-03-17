@@ -221,7 +221,7 @@ def tasks() {
     // Disable splits for all but proper stages
     !(axis['split'] > 1 && !stepsMap.findAll { entry -> entry.value.splits >= axis['split'] }.keySet().contains(axis['step'])) &&
     // run only the build types on non-amd64
-    !(axis['arch'] != 'amd64' && stepsMap.findAll { entry -> 'build' == entry.value.type }.keySet().contains(axis['step']))
+    !(axis['arch'] != 'amd64' && !stepsMap.findAll { entry -> 'build' == entry.value.type }.keySet().contains(axis['step']))
   }
 
   def Map tasks = [
@@ -337,7 +337,7 @@ def build(command, cell) {
               test -f .jenkins/Jenkinsfile || { echo "Invalid git fork/branch"; exit 1; }
               grep -q "Jenkins CI declaration" .jenkins/Jenkinsfile || { echo "Only Cassandra 5.0+ supported"; exit 1; }
              """
-          fetchDockerImages(['almalinux-build', 'bullseye-build', 'centos7-build'])
+          fetchDockerImages(['almalinux-build', 'bullseye-build'])
           def cell_suffix = "_jdk${cell.jdk}_${cell.arch}"
           def logfile = "stage-logs/${JOB_NAME}_${BUILD_NUMBER}_${cell.step}${cell_suffix}_attempt${attempt}.log.xz"
           def script_vars = "#!/bin/bash \n set -o pipefail ; " // pipe to tee needs pipefail
