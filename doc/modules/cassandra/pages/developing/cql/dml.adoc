@@ -72,25 +72,11 @@ include::cassandra:example$CQL/as.cql[]
 [NOTE]
 ====
 Currently, aliases aren't recognized in the `WHERE` or `ORDER BY` clauses in the statement.
-You must use the orignal column name instead.
+You must use the original column name instead.
 ====
 
-[[writetime-and-ttl-function]]
-==== `WRITETIME`, `MAXWRITETIME` and `TTL` function
-
-Selection supports three special functions that aren't allowed anywhere
-else: `WRITETIME`, `MAXWRITETIME` and `TTL`.
-All functions take only one argument, a column name. If the column is a collection or UDT, it's possible to add element
-selectors, such as `WRITETTIME(phones[2..4])` or `WRITETTIME(user.name)`.
-These functions retrieve meta-information that is stored internally for each column:
-
-* `WRITETIME` stores the timestamp of the value of the column.
-* `MAXWRITETIME` stores the largest timestamp of the value of the column. For non-collection and non-UDT columns, `MAXWRITETIME`
-is equivalent to `WRITETIME`. In the other cases, it returns the largest timestamp of the values in the column.
-* `TTL` stores the remaining time to live (in seconds) for the value of the column if it is set to expire; otherwise the value is `null`.
-
-The `WRITETIME` and `TTL` functions can be used on multi-cell columns such as non-frozen collections or non-frozen
-user-defined types. In that case, the functions will return the list of timestamps or TTLs for each selected cell.
+Selection supports four special functions: `WRITETIME`, `MINWRITETIME`, `MAXWRITETIME` and `TTL`.
+See the xref:cassandra:developing/cql/functions.adoc#writetime-and-ttl-functions[functions] section for details.
 
 [[where-clause]]
 === The `WHERE` clause
@@ -120,7 +106,7 @@ include::cassandra:example$CQL/where.cql[]
 ----
 
 But the following one is not, as it does not select a contiguous set of
-rows (and we suppose no secondary indexes are set):
+rows (assuming no secondary indexes):
 
 [source,cql]
 ----
@@ -133,7 +119,7 @@ Rows will be selected based on the token of the `PARTITION_KEY` rather than on t
 ====
 The token of a key depends on the partitioner in use, and that
 in particular the `RandomPartitioner` won't yield a meaningful order.
-Also note that ordering partitioners always order token values by bytes (so
+Also note that the `ByteOrderedPartitioner` always orders token values by bytes (so
 even if the partition key is of type int, `token(-1) > token(0)` in
 particular).
 ====
@@ -216,7 +202,7 @@ or the reverse
 
 The `LIMIT` option to a `SELECT` statement limits the number of rows
 returned by a query. The `PER PARTITION LIMIT` option limits the
-number of rows returned for a given partition by the query. Both types of limits can used in the same statement.
+number of rows returned for a given partition by the query. Both types of limits can be used in the same statement.
 
 [[allow-filtering]]
 === Allowing filtering
@@ -246,7 +232,7 @@ The first query returns all rows, because all users are selected.
 The second query returns only the rows defined by the secondary index, a per-node implementation; the results will
 depend on the number of nodes in the cluster, and is indirectly proportional to the amount of data stored.
 The number of nodes will always be multiple number of magnitude lower than the number of user profiles stored.
-Both queries may return very large result sets, but the addition of a `LIMIT` clause can reduced the latency.
+Both queries may return very large result sets, but the addition of a `LIMIT` clause would reduce the latency.
 
 The following query will be rejected:
 
@@ -283,10 +269,10 @@ include::cassandra:example$CQL/insert_statement.cql[]
 
 The `INSERT` statement writes one or more columns for a given row in a
 table.
-Since a row is identified by its `PRIMARY KEY`, at least one columns must be specified.
+Since a row is identified by its `PRIMARY KEY`, at least one column must be specified.
 The list of columns to insert must be supplied with the `VALUES` syntax.
 When using the `JSON` syntax, `VALUES` are optional.
-See the section on xref:cassandra:developing/cql/dml.adoc#cql-json[JSON support] for more detail.
+See the section on xref:cassandra:developing/cql/json.adoc[JSON support] for more detail.
 All updates for an `INSERT` are applied atomically and in isolation.
 
 Unlike in SQL, `INSERT` does not check the prior existence of the row by default.
@@ -297,7 +283,9 @@ The `IF NOT EXISTS` condition can restrict the insertion if the row does not exi
 However, note that using `IF NOT EXISTS` will incur a non-negligible performance cost, because Paxos is used,
 so this should be used sparingly.
 
-Please refer to the xref:cassandra:developing/cql/dml.adoc#update-parameters[UPDATE] section for informations on the `update_parameter`.
+When using xref:cassandra:developing/cql/definitions.adoc#prepared-statements[Prepared Statements] bind_markers can be used instead of actual values.
+
+Please refer to the xref:cassandra:developing/cql/dml.adoc#upsert-parameters[INSERT PARAMETERS] section for information on the `insert_parameter`.
 Also note that `INSERT` does not support counters, while `UPDATE` does.
 
 [[update-statement]]
@@ -308,13 +296,6 @@ Updating a row is done using an `UPDATE` statement:
 [source, bnf]
 ----
 include::cassandra:example$BNF/update_statement.bnf[]
-----
-
-For instance:
-
-[source,cql]
-----
-include::cassandra:example$CQL/update_statement.cql[]
 ----
 
 The `UPDATE` statement writes one or more columns for a given row in a
@@ -333,15 +314,15 @@ However, like the `IF NOT EXISTS` condition, a non-negligible performance cost c
 Regarding the `SET` assignment:
 
 * `c = c + 3` will increment/decrement counters, the only operation allowed.
-The column name after the '=' sign *must* be the same than the one before the '=' sign.
+The column name after the '=' sign *must* be the same as the one before the '=' sign.
 Increment/decrement is only allowed on counters.
-See the section on xref:cassandra:developing/cql/dml.adoc#counters[counters] for details.
+See the section on xref:cassandra:developing/cql/counter-column.adoc[counters] for details.
 * `id = id + <some-collection>` and `id[value1] = value2` are for collections.
 See the xref:cassandra:developing/cql/types.adoc#collections[collections] for details.
 * `id.field = 3` is for setting the value of a field on a non-frozen user-defined types.
 See the xref:cassandra:developing/cql/types.adoc#udts[UDTs] for details.
 
-=== Update parameters
+=== [[upsert-parameters]]Insert and Update parameters
 
 `UPDATE` and `INSERT` statements support the following parameters:
 
@@ -361,6 +342,14 @@ of `null` is equivalent to inserting with a TTL of 0.
 the coordinator will use the current time (in microseconds) at the start
 of statement execution as the timestamp. This is usually a suitable
 default.
+
+For instance:
+
+[source,cql]
+----
+include::cassandra:example$CQL/update_statement.cql[]
+----
+
 
 [[delete_statement]]
 == DELETE
@@ -389,7 +378,7 @@ may be deleted with one statement by using an `IN` operator. A range of
 rows may be deleted using an inequality operator (such as `>=`).
 
 `DELETE` supports the `TIMESTAMP` option with the same semantics as in
-xref:cassandra:developing/cql/dml.adoc#update-parameters[updates].
+xref:cassandra:developing/cql/dml.adoc#upsert-parameters[updates].
 
 In a `DELETE` statement, all deletions within the same partition key are
 applied atomically and in isolation.
@@ -455,7 +444,7 @@ only isolated within a single partition).
 
 There is a performance penalty for batch atomicity when a batch spans
 multiple partitions. If you do not want to incur this penalty, you can
-tell Cassandra to skip the batchlog with the `UNLOGGED` option. If the
+tell Cassandra to skip the batch log with the `UNLOGGED` option. If the
 `UNLOGGED` option is used, a failed batch might leave the batch only
 partly applied.
 

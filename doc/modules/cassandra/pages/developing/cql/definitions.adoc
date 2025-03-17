@@ -172,6 +172,7 @@ this documentation (see links above):
 include::cassandra:example$BNF/cql_statement.bnf[]
 ----
 
+[[prepared-statements]]
 == Prepared Statements
 
 CQL supports _prepared statements_. Prepared statements are an
