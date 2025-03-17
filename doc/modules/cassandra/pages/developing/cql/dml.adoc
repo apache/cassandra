@@ -76,15 +76,17 @@ You must use the orignal column name instead.
 ====
 
 [[writetime-and-ttl-function]]
-==== `WRITETIME`, `MAXWRITETIME` and `TTL` function
+==== `WRITETIME`, `MINWRITETIME`, `MAXWRITETIME` and `TTL` function
 
-Selection supports three special functions that aren't allowed anywhere
-else: `WRITETIME`, `MAXWRITETIME` and `TTL`.
+Selection supports four special functions that aren't allowed anywhere
+else: `WRITETIME`, `MINWRITETIME`, `MAXWRITETIME` and `TTL`.
 All functions take only one argument, a column name. If the column is a collection or UDT, it's possible to add element
 selectors, such as `WRITETTIME(phones[2..4])` or `WRITETTIME(user.name)`.
 These functions retrieve meta-information that is stored internally for each column:
 
 * `WRITETIME` stores the timestamp of the value of the column.
+* `MINWRITETIME` stores the smallest timestamp of the value of the column. For non-collection and non-UDT columns, `MINWRITETIME`
+is equivalent to `WRITETIME`. In the other cases, it returns the smallest timestamp of the values in the column.
 * `MAXWRITETIME` stores the largest timestamp of the value of the column. For non-collection and non-UDT columns, `MAXWRITETIME`
 is equivalent to `WRITETIME`. In the other cases, it returns the largest timestamp of the values in the column.
 * `TTL` stores the remaining time to live (in seconds) for the value of the column if it is set to expire; otherwise the value is `null`.
@@ -297,7 +299,9 @@ The `IF NOT EXISTS` condition can restrict the insertion if the row does not exi
 However, note that using `IF NOT EXISTS` will incur a non-negligible performance cost, because Paxos is used,
 so this should be used sparingly.
 
-Please refer to the xref:cassandra:developing/cql/dml.adoc#update-parameters[UPDATE] section for informations on the `update_parameter`.
+When using xref:cassandra:developing/cql/definitions.adoc#prepared-statements[Prepared Statements] bind_markers can be used instead of actual values.
+
+Please refer to the xref:cassandra:developing/cql/dml.adoc#upsert-parameters[INSERT PARAMETERS] section for informations on the `insert_parameter`.
 Also note that `INSERT` does not support counters, while `UPDATE` does.
 
 [[update-statement]]
@@ -308,13 +312,6 @@ Updating a row is done using an `UPDATE` statement:
 [source, bnf]
 ----
 include::cassandra:example$BNF/update_statement.bnf[]
-----
-
-For instance:
-
-[source,cql]
-----
-include::cassandra:example$CQL/update_statement.cql[]
 ----
 
 The `UPDATE` statement writes one or more columns for a given row in a
@@ -341,7 +338,7 @@ See the xref:cassandra:developing/cql/types.adoc#collections[collections] for de
 * `id.field = 3` is for setting the value of a field on a non-frozen user-defined types.
 See the xref:cassandra:developing/cql/types.adoc#udts[UDTs] for details.
 
-=== Update parameters
+=== [[upsert-parameters]]Insert and Update parameters
 
 `UPDATE` and `INSERT` statements support the following parameters:
 
@@ -361,6 +358,14 @@ of `null` is equivalent to inserting with a TTL of 0.
 the coordinator will use the current time (in microseconds) at the start
 of statement execution as the timestamp. This is usually a suitable
 default.
+
+For instance:
+
+[source,cql]
+----
+include::cassandra:example$CQL/update_statement.cql[]
+----
+
 
 [[delete_statement]]
 == DELETE
@@ -389,7 +394,7 @@ may be deleted with one statement by using an `IN` operator. A range of
 rows may be deleted using an inequality operator (such as `>=`).
 
 `DELETE` supports the `TIMESTAMP` option with the same semantics as in
-xref:cassandra:developing/cql/dml.adoc#update-parameters[updates].
+xref:cassandra:developing/cql/dml.adoc#upsert-parameters[updates].
 
 In a `DELETE` statement, all deletions within the same partition key are
 applied atomically and in isolation.

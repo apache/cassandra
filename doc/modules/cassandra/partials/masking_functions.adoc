@@ -14,7 +14,7 @@ Examples:
 
 | `mask_default(value)` 
 | Replaces its argument by an arbitrary, fixed default value of the same type.
-This will be `\***\***` for text values, zero for numeric values, `false` for booleans, etc.
+This will be `$$****$$` for text values, zero for numeric values, `false` for booleans, etc.
 
 Variable-length multi-valued types such as lists, sets and maps are masked as empty collections.
 
@@ -22,7 +22,7 @@ Fixed-length multi-valued types such as tuples, user-defined types (UDTs) and ve
 
 Examples:
 
-`mask_default('Alice')` -> `'\****'`
+`mask_default('Alice')` -> `'$$****$$'`
 
 `mask_default(123)` -> `0`
 
@@ -43,32 +43,36 @@ Examples:
 | `mask_inner(value, begin, end, [padding])` 
 | Returns a copy of the first `text`, `varchar` or `ascii` argument, replacing each character except the first and last ones by a padding character. 
 The second and third arguments are the size of the exposed prefix and suffix. 
-The optional fourth argument is the padding character, `\*` by default.
+The optional fourth argument is the padding character, `*` by default.
 
 Examples:
 
-`mask_inner('Alice', 1, 2)` -> `'A**ce'`
+`mask_inner('Alice', 1, 2)` -> `'A$$**$$ce'`
 
-`mask_inner('Alice', 1, null)` -> `'A****'`
+`mask_inner('Alice', 1, null)` -> `'A$$****$$'`
 
-`mask_inner('Alice', null, 2)` -> `'***ce'`
+`mask_inner('Alice', null, 2)` -> `'$$***$$ce'`
 
-`mask_inner('Alice', 2, 1, '\#')` -> `'Al##e'`
+`mask_inner('Alice', 2, 1, '$$#$$')` -> `'Al##e'`
+
+`mask_inner('078-05-1120', 0, 4)` -> `'$$*******$$1120'`
 
 | `mask_outer(value, begin, end, [padding])` 
 | Returns a copy of the first `text`, `varchar` or `ascii` argument, replacing the first and last character by a padding character. 
 The second and third arguments are the size of the exposed prefix and suffix. 
-The optional fourth argument is the padding character, `\*` by default.
+The optional fourth argument is the padding character, `*` by default.
 
 Examples:
 
-`mask_outer('Alice', 1, 2)` -> `'*li**'`
+`mask_outer('Alice', 1, 2)` -> `'$$*$$li$$**$$'`
 
-`mask_outer('Alice', 1, null)` -> `'*lice'`
+`mask_outer('Alice', 1, null)` -> `'$$*$$lice'`
 
-`mask_outer('Alice', null, 2)` -> `'Ali**'`
+`mask_outer('Alice', null, 2)` -> `'Ali$$**$$'`
 
-`mask_outer('Alice', 2, 1, '\#')` -> `'##ic#'`
+`mask_outer('Alice', 2, 1, '$$#$$')` -> `'$$##$$ic$$#$$'`
+
+`mask_outer('11:39:33', 2, 2, '0')` -> `'00:39:00'`
 
 | `mask_hash(value, [algorithm])` 
 | Returns a `blob` containing the hash of the first argument. 

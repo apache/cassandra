@@ -92,9 +92,9 @@ into its own datatype.
 The conversions rely strictly on Java's semantics. For example, the
 double value 1 will be converted to the text value '1.0'. For instance:
 
-[source,cql]
+[source,sql]
 ----
-SELECT avg(cast(count as double)) FROM myTable
+SELECT avg(cast(count as double)) FROM myTable;
 ----
 
 ==== Token
@@ -114,7 +114,7 @@ The type of the arguments of the `token` depend on the partition key column type
 
 For example, consider the following table:
 
-[source,cql]
+[source,sql]
 ----
 include::cassandra:example$CQL/create_table_simple.cql[]
 ----
@@ -139,7 +139,7 @@ that this method is useful for insertion but is largely non-sensical in
 
 For example, a query of the form:
 
-[source,cql]
+[source,sql]
 ----
 include::cassandra:example$CQL/timeuuid_now.cql[]
 ----
@@ -157,7 +157,7 @@ The `max_timeuuid` works similarly, but returns the _largest_ possible `timeuuid
 
 For example:
 
-[source,cql]
+[source,sql]
 ----
 include::cassandra:example$CQL/timeuuid_min_max.cql[]
 ----
@@ -195,7 +195,7 @@ time where the function is invoked:
 
 For example the last two days of data can be retrieved using:
 
-[source,cql]
+[source,sql]
 ----
 include::cassandra:example$CQL/current_date.cql[]
 ----
@@ -369,7 +369,7 @@ The actual return value of the `Long.MAX_VALUE` will be 9223372036854776000 due 
 There are three ways how to call this function.
 Let's have this table:
 
-[source,cql]
+[source,sql]
 ----
 cqlsh> select * from ks.tb;
 
@@ -387,12 +387,12 @@ cqlsh> select * from ks.tb;
 
 with schema
 
-[source,cql]
+[source,sql]
 ----
 CREATE TABLE ks.tb (
     id int PRIMARY KEY,
     val bigint
-)
+);
 ----
 
 Imagine that we wanted to look at `val` values as if they were in mebibytes. We would like to have more human-friendly output in order to not visually divide the values by 1024 in order to get them in respective bigger units. The following function call may take just a column itself as an argument, and it will
@@ -403,7 +403,7 @@ automatically convert it.
 The default source unit for `format_bytes` function is _bytes_, (`B`).
 ====
 
-[source,cql]
+[source,sql]
 ----
 cqlsh> select format_bytes(val) from ks.tb;
 
@@ -421,7 +421,7 @@ cqlsh> select format_bytes(val) from ks.tb;
 The second way to call `format_bytes` functions is to specify into what size unit we would like to see all
 values to be converted to. For example, we want all size to be represented in mebibytes, hence we do:
 
-[source,cql]
+[source,sql]
 ----
 cqlsh> select format_bytes(val, 'MiB') from ks.tb;
 
@@ -439,7 +439,7 @@ cqlsh> select format_bytes(val, 'MiB') from ks.tb;
 Lastly, we can specify a source unit and a target unit. A source unit tells what unit that column is logically of, the target unit tells what unit we want these values to be converted to. For example,
 if we know that our column is logically in kibibytes and we want them to be converted into mebibytes, we would do:
 
-[source,cql]
+[source,sql]
 ----
 cqlsh> select format_bytes(val, 'Kib', 'MiB') from ks.tb;
 
@@ -470,7 +470,7 @@ Return values can be max of `Double.MAX_VALUE`, If the conversion produces overf
 The default source unit for `format_time` function is _milliseconds_, (`ms`).
 ====
 
-[source,cql]
+[source,sql]
 ----
 cqlsh> select format_time(val) from ks.tb;
 
@@ -487,7 +487,7 @@ cqlsh> select format_time(val) from ks.tb;
 
 We may specify what unit we want that value to be converted to, give the column's values are in millseconds:
 
-[source,cql]
+[source,sql]
 ----
 cqlsh> select format_time(val, 'm') from ks.tb;
 
@@ -504,7 +504,7 @@ cqlsh> select format_time(val, 'm') from ks.tb;
 
 Lastly, we can specify both source and target values:
 
-[source,cql]
+[source,sql]
 ----
 cqlsh> select format_time(val, 's', 'h') from ks.tb;
 
@@ -537,7 +537,7 @@ already in progress. For more information - CASSANDRA-17281, CASSANDRA-18252.
 
 For example:
 
-[source,cql]
+[source,sql]
 ----
 include::cassandra:example$CQL/function_overload.cql[]
 ----
@@ -558,14 +558,14 @@ Note the use the double dollar-sign syntax to enclose the UDF source code.
 
 For example:
 
-[source,cql]
+[source,sql]
 ----
 include::cassandra:example$CQL/function_dollarsign.cql[]
 ----
 
 The implicitly available `udfContext` field (or binding for script UDFs) provides the necessary functionality to create new UDT and tuple values:
 
-[source,cql]
+[source,sql]
 ----
 include::cassandra:example$CQL/function_udfcontext.cql[]
 ----
@@ -598,7 +598,7 @@ include::cassandra:example$BNF/create_function_statement.bnf[]
 
 For example:
 
-[source,cql]
+[source,sql]
 ----
 include::cassandra:example$CQL/create_function.cql[]
 ----
@@ -635,7 +635,7 @@ include::cassandra:example$BNF/drop_function_statement.bnf[]
 
 For example:
 
-[source,cql]
+[source,sql]
 ----
 include::cassandra:example$CQL/drop_function.cql[]
 ----
@@ -661,14 +661,14 @@ The `count` function can be used to count the rows returned by a query.
 
 For example:
 
-[source,cql]
+[source,sql]
 ----
 include::cassandra:example$CQL/count.cql[]
 ----
 
 It also can count the non-null values of a given column:
 
-[source,cql]
+[source,sql]
 ----
 include::cassandra:example$CQL/count_nonnull.cql[]
 ----
@@ -679,7 +679,7 @@ The `max` and `min` functions compute the maximum and the minimum value returned
 
 For example:
 
-[source,cql]
+[source,sql]
 ----
 include::cassandra:example$CQL/min_max.cql[]
 ----
@@ -692,7 +692,7 @@ The returned value is of the same type as the input collection elements, so ther
 
 For example:
 
-[source,cql]
+[source,sql]
 ----
 include::cassandra:example$CQL/sum.cql[]
 ----
@@ -701,7 +701,7 @@ The returned value is of the same type as the input values, so there is a risk o
 values exceeds the maximum value that the type can represent. You can use type casting to cast the input values as a
 type large enough to contain the type. For example:
 
-[source,cql]
+[source,sql]
 ----
 include::cassandra:example$CQL/sum_with_cast.cql[]
 ----
@@ -712,7 +712,7 @@ The `avg` function computes the average of all the values returned by a query fo
 
 For example:
 
-[source,cql]
+[source,sql]
 ----
 include::cassandra:example$CQL/avg.cql[]
 ----
@@ -723,7 +723,7 @@ The returned value is of the same type as the input values, which might include 
 For example `collection_avg([1, 2])` returns `1` instead of `1.5`.
 You can use type casting to cast to a type with the desired decimal precision. For example:
 
-[source,cql]
+[source,sql]
 ----
 include::cassandra:example$CQL/avg_with_cast.cql[]
 ----
@@ -747,7 +747,7 @@ overload can appear after creation of the aggregate.
 A complete working example for user-defined aggregates (assuming that a
 keyspace has been selected using the `USE` statement):
 
-[source,cql]
+[source,sql]
 ----
 include::cassandra:example$CQL/uda.cql[]
 ----
@@ -800,7 +800,7 @@ include::cassandra:example$BNF/drop_aggregate_statement.bnf[]
 
 For instance:
 
-[source,cql]
+[source,sql]
 ----
 include::cassandra:example$CQL/drop_aggregate.cql[]
 ----
@@ -811,3 +811,21 @@ different signature.
 
 The `DROP AGGREGATE` command with the optional `IF EXISTS` keywords drops an aggregate if it exists, and does nothing if a function with the
 signature does not exist.
+
+[[writetime-function]]
+==== `WRITETIME`, `MINWRITETIME` and `MAXWRITETIME` function
+
+Selection supports three special functions that aren't allowed anywhere
+else: `WRITETIME`, `MINWRITETIME` and `MAXWRITETIME`.
+All functions take only one argument, a column name. If the column is a collection or UDT, it's possible to add element
+selectors, such as `WRITETTIME(phones[2..4])` or `WRITETTIME(user.name)`.
+These functions retrieve meta-information that is stored internally for each column:
+
+* `WRITETIME` stores the timestamp of the value of the column.
+* `MINWRITETIME` stores the smallest timestamp of the value of the column. For non-collection and non-UDT columns, `MINWRITETIME`
+is equivalent to `WRITETIME`. In the other cases, it returns the smallest timestamp of the values in the column.
+* `MAXWRITETIME` stores the largest timestamp of the value of the column. For non-collection and non-UDT columns, `MAXWRITETIME`
+is equivalent to `WRITETIME`. In the other cases, it returns the largest timestamp of the values in the column.
+
+The `WRITETIME` function can be used on multi-cell columns such as non-frozen collections or non-frozen
+user-defined types. In that case, the function will return the list of timestamps for each selected cell.
