@@ -53,16 +53,38 @@ public class InternodeErrorExclusionTest extends TestBaseImpl
                                                        .set("internode_error_reporting_exclusions", ImmutableMap.of("subnets", Arrays.asList("127.0.0.1"))))
                                       .start())
         {
-            try (SimpleClient client = SimpleClient.builder("127.0.0.1", 7012).build())
-            {
-                client.connect(true);
-                Assert.fail("Connection should fail");
-            }
-            catch (Exception e)
-            {
-                // expected
-            }
+
+            causeException();
             assertThat(cluster.get(1).logs().watchFor("address contained in internode_error_reporting_exclusions").getResult()).hasSize(1);
+        }
+    }
+
+    @Test
+    public void testNoSpammingInvalidLegacyProtocolMagicException() throws Throwable
+    {
+        try (Cluster cluster = Cluster.build(1)
+                                      .withConfig(c -> c
+                                                       .with(Feature.NETWORK)
+                                                       .set("invalid_legacy_protocol_magic_no_spam_enabled", true))
+                                      .start())
+        {
+            causeException();
+            causeException();
+            // we used no spam logger so the second message will not be emitted (the size is still 1).
+            assertThat(cluster.get(1).logs().watchFor("Failed to properly handshake with peer localhost. Closing the channel. Invalid legacy protocol magic.").getResult()).hasSize(1);
+        }
+    }
+
+    private void causeException()
+    {
+        try (SimpleClient client = SimpleClient.builder("127.0.0.1", 7012).build())
+        {
+            client.connect(true);
+            Assert.fail("Connection should fail");
+        }
+        catch (Exception e)
+        {
+            // expected
         }
     }
 }

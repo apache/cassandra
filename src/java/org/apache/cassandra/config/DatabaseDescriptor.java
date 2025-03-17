@@ -4830,6 +4830,11 @@ public class DatabaseDescriptor
         return conf.internode_error_reporting_exclusions;
     }
 
+    public static boolean getInvalidLegacyProtocolMagicNoSpamEnabled()
+    {
+        return conf.invalid_legacy_protocol_magic_no_spam_enabled;
+    }
+
     public static boolean getReadThresholdsEnabled()
     {
         return conf.read_thresholds_enabled;
