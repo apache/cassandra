@@ -214,7 +214,7 @@ public final class ThreadAwareSecurityManager extends SecurityManager
 
         // required by JavaDriver 2.2.0-rc3 and 3.0.0-a2 or newer
         // code in com.datastax.driver.core.CodecUtils uses Guava stuff, which in turns requires this permission
-        // Evaluate removing this once the driver is removed as a dependency (see CASSANDRA-20326).
+        // TODO: Evaluate removing this once the driver is removed as a dependency (see CASSANDRA-20326).
         if (CHECK_MEMBER_ACCESS_PERMISSION.equals(perm))
             return;
 
