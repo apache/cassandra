@@ -267,17 +267,28 @@ public class StatefulASTBase extends TestBaseImpl
             return command(rs, select, null);
         }
 
-        protected boolean allowLimit()
+        protected boolean allowLimit(Select select)
+        {
+            //TODO (coverage): allow this in the model!
+            // LIMIT with IN clause on partition columns is non-deterministic which is not currently supported by the model
+            if (select.where.isEmpty()) return true;
+            return !select.where.get()
+                                .streamRecursive(true)
+                                .filter(e -> e instanceof Conditional.In)
+                                .anyMatch(e -> {
+                                    var in = (Conditional.In) e;
+                                    // when expression is size 1, then this is deterministic
+                                    if (in.expressions.size() == 1) return false;
+                                    return model.factory.partitionColumns.contains(in.ref);
+                                });
+        }
+
+        protected boolean allowPerPartitionLimit(Select select)
         {
             return true;
         }
 
-        protected boolean allowPerPartitionLimit()
-        {
-            return true;
-        }
-
-        protected boolean allowPaging()
+        protected boolean allowPaging(Select select)
         {
             return true;
         }
@@ -285,11 +296,11 @@ public class StatefulASTBase extends TestBaseImpl
         protected <S extends BaseState> Property.Command<S, Void, ?> command(RandomSource rs, Select select, @Nullable String annotate)
         {
             var inst = selectInstance(rs);
-            if (allowPerPartitionLimit() && usePerPartitionLimitGen.next(rs))
+            if (allowPerPartitionLimit(select) && usePerPartitionLimitGen.next(rs))
                 select = select.withPerPartitionLimit(perPartitionLimitGen.nextInt(rs));
-            if (allowLimit() && useLimitGen.next(rs))
+            if (allowLimit(select) && useLimitGen.next(rs))
                 select = select.withLimit(limitGen.nextInt(rs));
-            int fetchSize = allowPaging() && useFetchSizeGen.next(rs)
+            int fetchSize = allowPaging(select) && useFetchSizeGen.next(rs)
                             ? fetchSizeGen.nextInt(rs)
                             : Integer.MAX_VALUE;
             String postfix = "on " + inst;
