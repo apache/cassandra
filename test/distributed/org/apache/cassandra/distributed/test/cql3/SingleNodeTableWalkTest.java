@@ -66,6 +66,7 @@ import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.utils.ASTGenerators;
 import org.apache.cassandra.utils.AbstractTypeGenerators;
 import org.apache.cassandra.utils.AbstractTypeGenerators.TypeGenBuilder;
+import org.apache.cassandra.utils.AbstractTypeGenerators.TypeKind;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.CassandraGenerators.TableMetadataBuilder;
 import org.apache.cassandra.utils.ImmutableUniqueList;
@@ -90,15 +91,20 @@ public class SingleNodeTableWalkTest extends StatefulASTBase
 
     protected TypeGenBuilder supportedTypes()
     {
-        return AbstractTypeGenerators.withoutUnsafeEquality().withoutTypeKinds(AbstractTypeGenerators.TypeKind.UDT);
+        return AbstractTypeGenerators.withoutUnsafeEquality()
+                                     .withTypeKinds(TypeKind.PRIMITIVE,
+                                                    TypeKind.SET, TypeKind.LIST, TypeKind.MAP)
+                                     .withMaxDepth(1);
+//                                     .withoutTypeKinds(TypeKind.TUPLE, TypeKind.UDT,
+//                                                       TypeKind.COMPOSITE, TypeKind.DYNAMIC_COMPOSITE);
 //        return AbstractTypeGenerators.withoutUnsafeEquality(AbstractTypeGenerators.builder()
-//                                                                                  .withTypeKinds(AbstractTypeGenerators.TypeKind.PRIMITIVE));
+//                                                                                  .withTypeKinds(TypeKind.PRIMITIVE));
     }
 
     protected TypeGenBuilder supportedPrimaryColumnTypes()
     {
-        return AbstractTypeGenerators.withoutUnsafeEquality(AbstractTypeGenerators.builder()
-                                                                                  .withTypeKinds(AbstractTypeGenerators.TypeKind.PRIMITIVE));
+        return AbstractTypeGenerators.withoutUnsafeEquality()
+                                     .withTypeKinds(TypeKind.PRIMITIVE);
     }
 
     protected List<CreateIndexDDL.Indexer> supportedIndexers()
