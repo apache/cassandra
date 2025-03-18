@@ -60,6 +60,8 @@ import org.apache.cassandra.utils.btree.BTreeSearchIterator;
 import org.apache.cassandra.utils.btree.UpdateFunction;
 import org.apache.cassandra.utils.memory.Cloner;
 
+import static org.apache.cassandra.utils.btree.BTree.STOP_SENTINEL_VALUE;
+
 /**
  * Immutable implementation of a Row object.
  */
@@ -399,9 +401,9 @@ public class BTreeRow extends AbstractRow
 
     public boolean hasComplexDeletion()
     {
-        long result = accumulate((cd, v) -> ((ComplexColumnData) cd).complexDeletion().isLive() ? 0 : Cell.MAX_DELETION_TIME,
+        long result = accumulate((cd, v) -> ((ComplexColumnData) cd).complexDeletion().isLive() ? 0 : STOP_SENTINEL_VALUE,
                                  COLUMN_COMPARATOR, isStatic() ? FIRST_COMPLEX_STATIC : FIRST_COMPLEX_REGULAR, 0L);
-        return result == Cell.MAX_DELETION_TIME;
+        return result == STOP_SENTINEL_VALUE;
     }
 
     public Row markCounterLocalToBeCleared()
