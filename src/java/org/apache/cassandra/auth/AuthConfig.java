@@ -135,6 +135,13 @@ public final class AuthConfig
             return ParameterizedClass.newInstance(authCls, List.of("", authPackage));
         }
 
-        return ParameterizedClass.newInstance(new ParameterizedClass(defaultCls.getName()), List.of());
+        try
+        {
+            return defaultCls.newInstance();
+        }
+        catch (InstantiationException | IllegalAccessException  e)
+        {
+            throw new ConfigurationException("Failed to instantiate " + defaultCls.getName(), e);
+        }
     }
 }
