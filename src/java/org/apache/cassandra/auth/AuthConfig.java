@@ -135,6 +135,15 @@ public final class AuthConfig
             return ParameterizedClass.newInstance(authCls, List.of("", authPackage));
         }
 
-        return ParameterizedClass.newInstance(new ParameterizedClass(defaultCls.getName()), List.of());
+        // for now, this has to stay and can not be replaced by ParameterizedClass.newInstance as above
+        // due to that failing for simulator dtests. See CASSANDRA-20450 for more information.
+        try
+        {
+            return defaultCls.newInstance();
+        }
+        catch (InstantiationException | IllegalAccessException  e)
+        {
+            throw new ConfigurationException("Failed to instantiate " + defaultCls.getName(), e);
+        }
     }
 }
