@@ -91,7 +91,11 @@ public class ExpressionEvaluator
                 if (lhsOpt.isEmpty() || rhsOpt.isEmpty())
                     return Optional.empty();
                 Object lhs = lhsOpt.get();
+                if (lhs instanceof ByteBuffer)
+                    lhs = e.left.type().compose((ByteBuffer) lhs);
                 Object rhs = rhsOpt.get();
+                if (rhs instanceof ByteBuffer)
+                    rhs = e.right.type().compose((ByteBuffer) rhs);
                 if (lhs instanceof Byte)
                     return of((byte) (((Byte) lhs) - ((Byte) rhs)));
                 if (lhs instanceof Short)
@@ -108,6 +112,12 @@ public class ExpressionEvaluator
                     return of(((BigInteger) lhs).subtract((BigInteger) rhs));
                 if (lhs instanceof BigDecimal)
                     return of(((BigDecimal) lhs).subtract((BigDecimal) rhs));
+                if (lhs instanceof Set)
+                {
+                    Set<Object> accum = new HashSet<>((Set<Object>) lhs);
+                    accum.removeAll((Set<Object>) rhs);
+                    return of(accum);
+                }
                 throw new UnsupportedOperationException("Unexpected type: " + lhs.getClass());
             }
             case MULTIPLY:
