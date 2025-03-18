@@ -37,7 +37,13 @@ public class MultiNodeTableWalkWithoutReadRepairTest extends MultiNodeTableWalkB
         // CQL operations may have opertors such as +, -, and / (example 4 + 4), to "apply" them to get a constant value
          CQL_DEBUG_APPLY_OPERATOR = true;
 
-         builder.withSeed(2772645953614578715L).withExamples(1); // += on map type
+//         builder.withSeed(2772645953614578715L).withExamples(1); // Fixed: += on map type
+//        builder.withSeed(3447991911091931691L).withExamples(1); // Fixed: NPE deflating keys
+//        builder.withSeed(-7718863789281418201L).withExamples(1); // Fixed: eval of Optional.empty (missed updating static code path)
+//        builder.withSeed(880881107305966245L).withExamples(1); // Fixed: -= not handling BB
+//        builder.withSeed(-2989523031488301677L).withExamples(1); // Fixed: += map with value present
+//        builder.withSeed(3447985801999894413L).withExamples(1); // -= list with value
+        builder.withSeed(-2687302456481776596L).withExamples(1); // row mismatch
 
 
          // All seeds here were with supported types including UDTs, UDTs were excluded for the time being so these seeds won't repo
