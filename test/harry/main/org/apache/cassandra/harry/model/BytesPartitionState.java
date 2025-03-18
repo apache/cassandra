@@ -145,7 +145,7 @@ public class BytesPartitionState
                 // <3 UDT
                 if (value != null && !value.hasRemaining() && column.type().isUDT())
                 {
-                    vds[i] = MagicConstants.UNSET_DESCR;
+                    vds[i] = MagicConstants.NIL_DESCR;
                     continue;
                 }
                 long vd = factory.valueCache.deflate(new Value(column.type(), value));
