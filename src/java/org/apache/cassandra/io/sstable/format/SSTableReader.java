@@ -1907,7 +1907,7 @@ public abstract class SSTableReader extends SSTable implements UnfilteredSource,
     @Override
     public int compareTo(SSTableReader other)
     {
-        // Used in IntervalTree with the expecation that compareTo uniquely identifies an SSTableReader
+        // Used in IntervalTree with the expectation that compareTo uniquely identifies an SSTableReader
         // Use accessor for instanceId for mocks
         return instanceId().compareTo(other.instanceId());
     }
