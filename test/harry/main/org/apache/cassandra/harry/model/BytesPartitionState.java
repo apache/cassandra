@@ -142,8 +142,7 @@ public class BytesPartitionState
             if (values.containsKey(column))
             {
                 ByteBuffer value = values.get(column);
-                // <3 UDT
-                if (value != null && !value.hasRemaining() && column.type().isUDT())
+                if (value == null || !value.hasRemaining() && column.type().isUDT())
                 {
                     vds[i] = MagicConstants.NIL_DESCR;
                     continue;
@@ -568,8 +567,8 @@ public class BytesPartitionState
 
         private Value(AbstractType<?> type, ByteBuffer value)
         {
-            this.type = type;
-            this.value = value;
+            this.type = Objects.requireNonNull(type);
+            this.value = Objects.requireNonNull(value);
         }
 
         @Override
