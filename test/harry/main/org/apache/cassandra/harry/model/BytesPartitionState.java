@@ -125,6 +125,12 @@ public class BytesPartitionState
         long cd = factory.clusteringCache.deflate(clustering);
         long[] vds = toDescriptor(factory.regularColumns, values);
         state.writeRegular(cd, vds, MagicConstants.NO_TIMESTAMP, writePrimaryKeyLiveness);
+
+        // UDT's have the ability to "update" that triggers a delete; this allows creating an "empty" row.
+        // When an empty row exists without liveness info, then purge the row
+        var row = state.rows.get(cd);
+        if (row.isEmpty() && !row.hasPrimaryKeyLivenessInfo)
+            state.delete(cd, MagicConstants.NO_TIMESTAMP);
     }
 
     private long[] toDescriptor(ImmutableUniqueList<Symbol> positions, Map<Symbol, ByteBuffer> values)
