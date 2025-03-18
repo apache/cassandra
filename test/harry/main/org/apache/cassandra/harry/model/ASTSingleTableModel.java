@@ -249,7 +249,10 @@ public class ASTSingleTableModel
                 // static columns to add in.  If we are doing something like += to a row that doesn't exist, we still update statics...
                 Map<Symbol, ByteBuffer> write = new HashMap<>();
                 for (Symbol col : Sets.intersection(factory.staticColumns.asSet(), set.keySet()))
-                    write.put(col, eval(set.get(col)));
+                {
+                    ByteBuffer current = partition.staticRow().get(col);
+                    write.put(col, eval(col, current, set.get(col)));
+                }
                 partition.setStaticColumns(write);
             }
             // table has clustering but non are in the write, so only pk/static can be updated
