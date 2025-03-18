@@ -49,9 +49,8 @@ import org.apache.cassandra.net.ForwardingInfo;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessageFlag;
 import org.apache.cassandra.net.MessagingService;
-import org.apache.cassandra.net.RequestCallback;
 import org.apache.cassandra.net.Verb;
-import org.apache.cassandra.service.AbstractWriteResponseHandler;
+import org.apache.cassandra.service.TrackedWriteResponseHandler;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.transport.Dispatcher;
 import org.apache.cassandra.utils.FBUtilities;
@@ -62,9 +61,9 @@ import static java.util.concurrent.TimeUnit.NANOSECONDS;
 import static org.apache.cassandra.metrics.ClientRequestsMetricsHolder.writeMetrics;
 import static org.apache.cassandra.net.Verb.MUTATION_REQ;
 
-public class CoordinatedWriteRequest
+public class TrackedWriteRequest
 {
-    private static final Logger logger = LoggerFactory.getLogger(CoordinatedWriteRequest.class);
+    private static final Logger logger = LoggerFactory.getLogger(TrackedWriteRequest.class);
 
     /**
      * Coordinate write of a tracked mutation. Assumes the replica is a coordinator.
@@ -73,43 +72,42 @@ public class CoordinatedWriteRequest
      * @param consistencyLevel the consistency level for the write operation
      * @param requestTime object holding times when request got enqueued and started execution
      */
-    public AbstractWriteResponseHandler<IMutation> perform(Mutation mutation,
-                                                           ConsistencyLevel consistencyLevel,
-                                                           Dispatcher.RequestTime requestTime)
+    public TrackedWriteResponseHandler perform(
+        Mutation mutation, ConsistencyLevel consistencyLevel, Dispatcher.RequestTime requestTime)
     {
         Tracing.trace("Determining replicas for mutation");
-        String localDataCenter = DatabaseDescriptor.getLocator().local().datacenter;
 
         String keyspaceName = mutation.getKeyspaceName();
         Keyspace keyspace = Keyspace.open(keyspaceName);
-        Token tk = mutation.key().getToken();
+        Token token = mutation.key().getToken();
 
-        MutationId id = MutationTrackingService.instance.nextMutationId(keyspaceName, tk);
+        MutationId id = MutationTrackingService.instance.nextMutationId(keyspaceName, token);
         mutation = mutation.withMutationId(id);
 
-        ReplicaPlan.ForWrite replicaPlan = ReplicaPlans.forWrite(keyspace, consistencyLevel, tk, ReplicaPlans.writeNormal);
+        ReplicaPlan.ForWrite plan = ReplicaPlans.forWrite(keyspace, consistencyLevel, token, ReplicaPlans.writeNormal);
 
-        if (replicaPlan.lookup(FBUtilities.getBroadcastAddressAndPort()) != null)
+        if (plan.lookup(FBUtilities.getBroadcastAddressAndPort()) != null)
             writeMetrics.localRequests.mark();
         else
             writeMetrics.remoteRequests.mark();
 
-        AbstractReplicationStrategy rs = replicaPlan.replicationStrategy();
+        AbstractReplicationStrategy rs = plan.replicationStrategy();
 
-        AbstractWriteResponseHandler<IMutation> responseHandler =
-            rs.getWriteResponseHandler(replicaPlan, null, WriteType.SIMPLE, null, requestTime);
+        TrackedWriteResponseHandler handler =
+            TrackedWriteResponseHandler.wrap(rs.getWriteResponseHandler(plan, null, WriteType.SIMPLE, null, requestTime),
+                                             keyspaceName,
+                                             mutation.key().getToken(),
+                                             id);
+        applyLocallyAndSendToReplicas(mutation, plan, handler);
 
-        sendToReplicas(mutation, replicaPlan, responseHandler, localDataCenter, requestTime);
-        return responseHandler;
+        return handler;
     }
 
-    public void sendToReplicas(Mutation mutation,
-                               ReplicaPlan.ForWrite plan,
-                               AbstractWriteResponseHandler<IMutation> responseHandler,
-                               String localDataCenter,
-                               Dispatcher.RequestTime requestTime)
+    public void applyLocallyAndSendToReplicas(Mutation mutation, ReplicaPlan.ForWrite plan, TrackedWriteResponseHandler handler)
     {
-        boolean insertLocal = false;
+        String localDataCenter = DatabaseDescriptor.getLocator().local().datacenter;
+
+        boolean applyLocally = false;
 
         // this DC replicas
         List<Replica> localDCReplicas = null;
@@ -133,18 +131,18 @@ public class CoordinatedWriteRequest
         {
             if (!plan.isAlive(destination))
             {
-                responseHandler.expired(); // immediately mark the response as expired since the request will not be sent
+                handler.expired(); // immediately mark the response as expired since the request will not be sent
                 continue;
             }
 
             if (destination.isSelf())
             {
-                insertLocal = true;
+                applyLocally = true;
                 continue;
             }
 
             if (message == null)
-                message = Message.outWithFlags(MUTATION_REQ, mutation, requestTime, singletonList(MessageFlag.CALL_BACK_ON_FAILURE));
+                message = Message.outWithFlags(MUTATION_REQ, mutation, handler.getRequestTime(), singletonList(MessageFlag.CALL_BACK_ON_FAILURE));
 
             String dc = DatabaseDescriptor.getLocator().location(destination.endpoint()).datacenter;
 
@@ -166,44 +164,42 @@ public class CoordinatedWriteRequest
             }
         }
 
-        Preconditions.checkState(insertLocal); // the coordinator is always a replica
-        applyMutationLocally(mutation, responseHandler, requestTime);
+        Preconditions.checkState(applyLocally); // the coordinator is always a replica
+        applyMutationLocally(mutation, handler);
 
         if (localDCReplicas != null)
             for (Replica destination : localDCReplicas)
-                MessagingService.instance().sendWriteWithCallback(message, destination, responseHandler);
+                MessagingService.instance().sendWriteWithCallback(message, destination, handler);
 
         if (remoteDCReplicas != null)
         {
             // for each datacenter, send the message to one node to relay the write to other replicas
             for (List<Replica> dcReplicas : remoteDCReplicas.values())
-                sendMessagesToRemoteDC(message, EndpointsForToken.copyOf(mutation.key().getToken(), dcReplicas), responseHandler);
+                sendMessagesToRemoteDC(message, EndpointsForToken.copyOf(mutation.key().getToken(), dcReplicas), handler);
         }
     }
 
-    private void applyMutationLocally(Mutation mutation, RequestCallback<?> handler, Dispatcher.RequestTime requestTime)
+    private void applyMutationLocally(Mutation mutation, TrackedWriteResponseHandler handler)
     {
-        Stage.MUTATION.maybeExecuteImmediately(new LocalMutationRunnable(mutation, handler, requestTime));
+        Stage.MUTATION.maybeExecuteImmediately(new LocalMutationRunnable(mutation, handler));
     }
 
     private static class LocalMutationRunnable implements DebuggableTask.RunnableDebuggableTask
     {
-        private final Dispatcher.RequestTime requestTime;
         private final Mutation mutation;
-        private final RequestCallback<?> handler;
+        private final TrackedWriteResponseHandler handler;
 
-        LocalMutationRunnable(Mutation mutation, RequestCallback<?> handler, Dispatcher.RequestTime requestTime)
+        LocalMutationRunnable(Mutation mutation, TrackedWriteResponseHandler handler)
         {
             this.mutation = mutation;
             this.handler = handler;
-            this.requestTime = requestTime;
         }
 
         @Override
         public final void run()
         {
             long now = MonotonicClock.Global.approxTime.now();
-            long deadline = requestTime.computeDeadline(MUTATION_REQ.expiresAfterNanos());
+            long deadline = handler.getRequestTime().computeDeadline(MUTATION_REQ.expiresAfterNanos());
 
             if (now > deadline)
             {
@@ -228,13 +224,13 @@ public class CoordinatedWriteRequest
         @Override
         public long creationTimeNanos()
         {
-            return requestTime.enqueuedAtNanos();
+            return handler.getRequestTime().enqueuedAtNanos();
         }
 
         @Override
         public long startTimeNanos()
         {
-            return requestTime.startedAtNanos();
+            return handler.getRequestTime().startedAtNanos();
         }
 
         @Override
@@ -251,7 +247,7 @@ public class CoordinatedWriteRequest
      */
     private void sendMessagesToRemoteDC(Message<? extends IMutation> message,
                                         EndpointsForToken targets,
-                                        AbstractWriteResponseHandler<IMutation> handler)
+                                        TrackedWriteResponseHandler handler)
     {
         final Replica target;
 

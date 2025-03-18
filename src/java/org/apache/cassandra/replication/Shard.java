@@ -20,12 +20,13 @@ package org.apache.cassandra.replication;
 import java.util.function.IntSupplier;
 
 import com.google.common.base.Preconditions;
-import org.apache.cassandra.db.Mutation;
 import org.apache.cassandra.db.PartitionPosition;
 import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
+import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.replication.CoordinatorLog.CoordinatorLogPrimary;
+import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.Epoch;
 import org.jctools.maps.NonBlockingHashMapLong;
 
@@ -56,14 +57,15 @@ public class Shard
         return currentLocalLog.nextId();
     }
 
-    public void witnessedLocalMutation(Mutation mutation)
+    public void witnessedLocalMutation(MutationId mutationId, Token token)
     {
-        get(mutation.id()).witnessedLocalMutation(mutation);
+        get(mutationId).witnessedLocalMutation(mutationId, token);
     }
 
-    public void witnessedRemoteMutation(MutationId id, int onHostId)
+    public void witnessedRemoteMutation(MutationId mutationId, InetAddressAndPort onHost)
     {
-        get(id).witnessedRemoteMutation(id, onHostId);
+        int onHostId = ClusterMetadata.current().directory.peerId(onHost).id();
+        get(mutationId).witnessedRemoteMutation(mutationId, onHostId);
     }
 
     public void witnessedRemoteMutations(long logId, Offsets ranges, int onHostId)

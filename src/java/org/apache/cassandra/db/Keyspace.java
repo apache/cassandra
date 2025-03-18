@@ -53,7 +53,6 @@ import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.locator.AbstractReplicationStrategy;
 import org.apache.cassandra.metrics.KeyspaceMetrics;
 import org.apache.cassandra.repair.KeyspaceRepairManager;
-import org.apache.cassandra.replication.MutationTrackingService;
 import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.SchemaConstants;
@@ -624,8 +623,6 @@ public class Keyspace
                 cfs.getWriteHandler().write(upd, ctx, true);
             }
         }
-
-        MutationTrackingService.instance.witnessedLocalMutation(mutation);
 
         if (future != null)
             future.trySuccess(null);

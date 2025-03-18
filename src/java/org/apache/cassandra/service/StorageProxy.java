@@ -116,7 +116,7 @@ import org.apache.cassandra.net.MessageFlag;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.net.RequestCallback;
 import org.apache.cassandra.net.Verb;
-import org.apache.cassandra.replication.CoordinatedWriteRequest;
+import org.apache.cassandra.replication.TrackedWriteRequest;
 import org.apache.cassandra.schema.PartitionDenylist;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.SchemaConstants;
@@ -878,7 +878,7 @@ public class StorageProxy implements StorageProxyMBean
     {
         try
         {
-            new CoordinatedWriteRequest().perform(mutation, consistencyLevel, requestTime).get();
+            new TrackedWriteRequest().perform(mutation, consistencyLevel, requestTime).get();
         }
         catch (WriteTimeoutException|WriteFailureException ex)
         {

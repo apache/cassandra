@@ -82,9 +82,14 @@ public class MutationTrackingService
         return getOrCreate(keyspace).nextMutationId(token);
     }
 
-    public void witnessedLocalMutation(Mutation mutation)
+    public void witnessedLocalMutation(String keyspace, Token token, MutationId mutationId)
     {
-        getOrCreate(mutation.getKeyspaceName()).witnessedLocalMutation(mutation);
+        getOrCreate(keyspace).witnessedLocalMutation(token, mutationId);
+    }
+
+    public void witnessedRemoteMutation(String keyspace, Token token, MutationId mutationId, InetAddressAndPort onHost)
+    {
+        getOrCreate(keyspace).witnessedRemoteMutation(token, mutationId, onHost);
     }
 
     public PendingWrite startWrite(Mutation mutation)
@@ -98,7 +103,6 @@ public class MutationTrackingService
     {
         if (!command.responseType().isTracked())
             return PendingRead.NOOP;
-        //noinspection DataFlowIssue
         return getOrCreate(command.metadata().keyspace).startRead(command);
     }
 
@@ -179,9 +183,14 @@ public class MutationTrackingService
             return lookUp(token).nextId();
         }
 
-        void witnessedLocalMutation(Mutation mutation)
+        void witnessedLocalMutation(Token token, MutationId mutationId)
         {
-            lookUp(mutation.key().getToken()).witnessedLocalMutation(mutation);
+            lookUp(token).witnessedLocalMutation(mutationId, token);
+        }
+
+        void witnessedRemoteMutation(Token token, MutationId mutationId, InetAddressAndPort onHost)
+        {
+            lookUp(token).witnessedRemoteMutation(mutationId, onHost);
         }
 
         PendingWrite startWrite(Mutation mutation)
