@@ -770,12 +770,12 @@ public class ASTGenerators
                     }
                 }
             }
-            if (kind == Mutation.Kind.UPDATE && isTransaction)
+            if (kind == Mutation.Kind.UPDATE)
             {
                 for (Symbol c : new ArrayList<>(columnsToGenerate))
                 {
                     var useOperator = columnExpressions.get(c).useOperator;
-                    EnumSet<AssignmentOperator.Kind> additionOperatorAllowed = AssignmentOperator.supportsOperators(c.type());
+                    EnumSet<AssignmentOperator.Kind> additionOperatorAllowed = AssignmentOperator.supportsOperators(c.type(), isTransaction);
                     if (!additionOperatorAllowed.isEmpty() && useOperator.generate(rnd))
                     {
                         Expression expression = columnExpressions.get(c).build().generate(rnd);

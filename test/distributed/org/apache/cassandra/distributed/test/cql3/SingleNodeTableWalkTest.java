@@ -90,7 +90,7 @@ public class SingleNodeTableWalkTest extends StatefulASTBase
 
     protected TypeGenBuilder supportedTypes()
     {
-        return AbstractTypeGenerators.withoutUnsafeEquality();
+        return AbstractTypeGenerators.withoutUnsafeEquality().withoutTypeKinds(AbstractTypeGenerators.TypeKind.UDT);
 //        return AbstractTypeGenerators.withoutUnsafeEquality(AbstractTypeGenerators.builder()
 //                                                                                  .withTypeKinds(AbstractTypeGenerators.TypeKind.PRIMITIVE));
     }

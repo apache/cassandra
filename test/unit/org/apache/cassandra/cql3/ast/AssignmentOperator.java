@@ -53,10 +53,26 @@ public class AssignmentOperator implements Expression
         this.right = right;
     }
 
-    public static EnumSet<Kind> supportsOperators(AbstractType<?> type)
+    public static EnumSet<Kind> supportsOperators(AbstractType<?> type, boolean isTransaction)
     {
         type = type.unwrap();
         EnumSet<Kind> result = EnumSet.noneOf(Kind.class);
+        if (!isTransaction)
+        {
+            if (type instanceof CollectionType && type.isMultiCell())
+            {
+                if (type instanceof SetType || type instanceof ListType)
+                    return EnumSet.of(Kind.ADD, Kind.SUBTRACT);
+                if (type instanceof MapType)
+                {
+                    // map supports subtract, but not map - map; only map - set!
+                    // since this is annoying to support, for now dropping -
+                    return EnumSet.of(Kind.ADD);
+                }
+                throw new AssertionError("Unexpected collection type: " + type);
+            }
+            return result;
+        }
         for (Operator.Kind supported : Operator.supportsOperators(type))
         {
             Kind kind = toKind(supported);

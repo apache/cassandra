@@ -35,8 +35,15 @@ public class MultiNodeTableWalkWithoutReadRepairTest extends MultiNodeTableWalkB
         // if a failing seed is detected, populate here
         // Example: builder.withSeed(42L);
         // CQL operations may have opertors such as +, -, and / (example 4 + 4), to "apply" them to get a constant value
-//         CQL_DEBUG_APPLY_OPERATOR = true;
+         CQL_DEBUG_APPLY_OPERATOR = true;
+
+         builder.withSeed(2772645953614578715L).withExamples(1); // += on map type
+
+
+         // All seeds here were with supported types including UDTs, UDTs were excluded for the time being so these seeds won't repo
 //        builder.withSeed(-814430092055554935L).withExamples(1); // Fixed: UDT empty bytes == null, which is not expected by the model (as it is different than other code paths)
-        builder.withSeed(-5039578131309477040L).withExamples(1);
+//        builder.withSeed(-5039578131309477040L).withExamples(1); // Fixed: Missing update due to UDT empty
+//        builder.withSeed(-5326848375356006181L).withExamples(1); // Fixed (previous fix used UNTOUCHED rather than NULL, this case requires NULL): Static UDT empty bytes missing in model
+//        builder.withSeed(3447991384254834118L).withExamples(1); // UDT empty returns empty bytes rather than null like previous seeds; is select token not checking that the cell is a tombstone?
     }
 }

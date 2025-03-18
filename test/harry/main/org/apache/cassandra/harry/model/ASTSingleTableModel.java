@@ -44,13 +44,16 @@ import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
 
 import accord.utils.Invariants;
+import org.apache.cassandra.cql3.ast.AssignmentOperator;
 import org.apache.cassandra.cql3.ast.Conditional;
 import org.apache.cassandra.cql3.ast.Conditional.Where.Inequality;
 import org.apache.cassandra.cql3.ast.Element;
 import org.apache.cassandra.cql3.ast.Expression;
 import org.apache.cassandra.cql3.ast.ExpressionEvaluator;
 import org.apache.cassandra.cql3.ast.FunctionCall;
+import org.apache.cassandra.cql3.ast.Literal;
 import org.apache.cassandra.cql3.ast.Mutation;
+import org.apache.cassandra.cql3.ast.Operator;
 import org.apache.cassandra.cql3.ast.Select;
 import org.apache.cassandra.cql3.ast.StandardVisitors;
 import org.apache.cassandra.cql3.ast.Symbol;
@@ -58,6 +61,7 @@ import org.apache.cassandra.cql3.ast.Value;
 import org.apache.cassandra.db.BufferClustering;
 import org.apache.cassandra.db.Clustering;
 import org.apache.cassandra.db.marshal.AbstractType;
+import org.apache.cassandra.db.marshal.CollectionType;
 import org.apache.cassandra.db.marshal.Int32Type;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.harry.model.BytesPartitionState.PrimaryKey;
@@ -255,7 +259,10 @@ public class ASTSingleTableModel
             {
                 Map<Symbol, ByteBuffer> write = new HashMap<>();
                 for (Symbol col : Sets.intersection(factory.regularColumns.asSet(), set.keySet()))
-                    write.put(col, eval(set.get(col)));
+                {
+                    ByteBuffer current = partition.get(cd, col);
+                    write.put(col, eval(col, current, set.get(col)));
+                }
 
                 partition.setColumns(cd, write, false);
             }
@@ -892,6 +899,31 @@ public class ASTSingleTableModel
             }
         }
         return current.stream().map(BufferClustering::new).collect(Collectors.toList());
+    }
+
+    private static ByteBuffer eval(Symbol col, @Nullable ByteBuffer current, Expression e)
+    {
+        if (!(e instanceof AssignmentOperator)) return eval(e);
+        // multi cell collections have the property that they do update even if the current value is null
+        boolean isFancy = col.type().isCollection() && col.type().isMultiCell();
+        if (current == null && !isFancy) return null; // null + ? == null
+        var assignment = (AssignmentOperator) e;
+        if (isFancy && current == null)
+        {
+            return assignment.kind == AssignmentOperator.Kind.SUBTRACT
+                   // if it doesn't exist, then there is nothing to subtract
+                   ? null
+                   : eval(assignment.right);
+        }
+        switch (assignment.kind)
+        {
+            case ADD:
+                return eval(new Operator(Operator.Kind.ADD, new Literal(current, e.type()), assignment.right));
+            case SUBTRACT:
+                return eval(new Operator(Operator.Kind.SUBTRACT, new Literal(current, e.type()), assignment.right));
+            default:
+                throw new UnsupportedOperationException(assignment.kind + ": " + assignment.toCQL());
+        }
     }
 
     private static ByteBuffer eval(Expression e)

@@ -210,6 +210,13 @@ public class BytesPartitionState
         return toRow(rowState);
     }
 
+    @Nullable
+    public ByteBuffer get(Clustering<ByteBuffer> clustering, Symbol column)
+    {
+        Row row = get(clustering);
+        return row == null ? null : row.get(column);
+    }
+
     private Row toRow(PartitionState.RowState rowState)
     {
         Clustering<ByteBuffer> clustering;
