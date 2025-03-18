@@ -1,4 +1,5 @@
 5.1
+ * Split out truncation record lock (CASSANDRA-20480)
  * Throw new IndexBuildInProgressException when queries fail during index build, instead of IndexNotAvailableException (CASSANDRA-20402)
  * Fix Paxos repair interrupts running transactions (CASSANDRA-20469)
  * Various fixes in constraint framework (CASSANDRA-20481)

@@ -606,6 +606,8 @@ public final class SystemKeyspace
 
     private static volatile Map<TableId, Pair<CommitLogPosition, Long>> truncationRecords;
 
+    private static final Object truncationRecordLock = new Object();
+
     public enum BootstrapState
     {
         NEEDS_BOOTSTRAP,
@@ -801,27 +803,33 @@ public final class SystemKeyspace
         return status;
     }
 
-    public static synchronized void saveTruncationRecord(ColumnFamilyStore cfs, long truncatedAt, CommitLogPosition position)
+    public static void saveTruncationRecord(ColumnFamilyStore cfs, long truncatedAt, CommitLogPosition position)
     {
-        String req = "UPDATE system.%s SET truncated_at = truncated_at + ? WHERE key = '%s'";
-        executeInternal(format(req, LOCAL, LOCAL), truncationAsMapEntry(cfs, truncatedAt, position));
-        truncationRecords = null;
-        forceBlockingFlush(LOCAL);
+        synchronized (truncationRecordLock)
+        {
+            String req = "UPDATE system.%s SET truncated_at = truncated_at + ? WHERE key = '%s'";
+            executeInternal(format(req, LOCAL, LOCAL), truncationAsMapEntry(cfs, truncatedAt, position));
+            truncationRecords = null;
+            forceBlockingFlush(LOCAL);
+        }
     }
 
     /**
      * This method is used to remove information about truncation time for specified column family
      */
-    public static synchronized void removeTruncationRecord(TableId id)
+    public static void removeTruncationRecord(TableId id)
     {
-        Pair<CommitLogPosition, Long> truncationRecord = getTruncationRecord(id);
-        if (truncationRecord == null)
-            return;
+        synchronized (truncationRecordLock)
+        {
+            Pair<CommitLogPosition, Long> truncationRecord = getTruncationRecord(id);
+            if (truncationRecord == null)
+                return;
 
-        String req = "DELETE truncated_at[?] from system.%s WHERE key = '%s'";
-        executeInternal(format(req, LOCAL, LOCAL), id.asUUID());
-        truncationRecords = null;
-        forceBlockingFlush(LOCAL);
+            String req = "DELETE truncated_at[?] from system.%s WHERE key = '%s'";
+            executeInternal(format(req, LOCAL, LOCAL), id.asUUID());
+            truncationRecords = null;
+            forceBlockingFlush(LOCAL);
+        }
     }
 
     private static Map<UUID, ByteBuffer> truncationAsMapEntry(ColumnFamilyStore cfs, long truncatedAt, CommitLogPosition position)
@@ -850,11 +858,14 @@ public final class SystemKeyspace
         return record == null ? Long.MIN_VALUE : record.right;
     }
 
-    private static synchronized Pair<CommitLogPosition, Long> getTruncationRecord(TableId id)
+    private static Pair<CommitLogPosition, Long> getTruncationRecord(TableId id)
     {
-        if (truncationRecords == null)
-            truncationRecords = readTruncationRecords();
-        return truncationRecords.get(id);
+        synchronized (truncationRecordLock)
+        {
+            if (truncationRecords == null)
+                truncationRecords = readTruncationRecords();
+            return truncationRecords.get(id);
+        }
     }
 
     private static Map<TableId, Pair<CommitLogPosition, Long>> readTruncationRecords()
