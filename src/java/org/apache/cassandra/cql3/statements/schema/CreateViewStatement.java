@@ -105,6 +105,9 @@ public final class CreateViewStatement extends AlterSchemaStatement
     @Override
     public void validate(ClientState state)
     {
+        if (!DatabaseDescriptor.getMaterializedViewsEnabled())
+            throw ire("Materialized views are disabled. Enable in cassandra.yaml to use.");
+
         super.validate(state);
 
         // save the query state to use it for guardrails validation in #apply
@@ -114,13 +117,9 @@ public final class CreateViewStatement extends AlterSchemaStatement
     @Override
     public Keyspaces apply(ClusterMetadata metadata)
     {
-        if (!DatabaseDescriptor.getMaterializedViewsEnabled())
-            throw ire("Materialized views are disabled. Enable in cassandra.yaml to use.");
-
         /*
          * Basic dependency validations
          */
-
         Keyspaces schema = metadata.schema.getKeyspaces();
         KeyspaceMetadata keyspace = schema.getNullable(keyspaceName);
         if (null == keyspace)
