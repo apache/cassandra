@@ -21,7 +21,9 @@ package org.apache.cassandra.cql3.ast;
 import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.nio.ByteBuffer;
+import java.util.HashSet;
 import java.util.Optional;
+import java.util.Set;
 
 import org.apache.cassandra.db.marshal.AbstractType;
 
@@ -37,7 +39,7 @@ public class ExpressionEvaluator
             return tryEval(((TypeHint) e).e);
         if (e instanceof Operator)
             return tryEval((Operator) e);
-        return Optional.empty();
+        throw new UnsupportedOperationException("Unexpected expression type " + e.getClass() + ": " + e.toCQL());
     }
 
     public static Optional<Object> tryEval(Operator e)
@@ -51,7 +53,11 @@ public class ExpressionEvaluator
                 if (lhsOpt.isEmpty() || rhsOpt.isEmpty())
                     return Optional.empty();
                 Object lhs = lhsOpt.get();
+                if (lhs instanceof ByteBuffer)
+                    lhs = e.left.type().compose((ByteBuffer) lhs);
                 Object rhs = rhsOpt.get();
+                if (rhs instanceof ByteBuffer)
+                    rhs = e.right.type().compose((ByteBuffer) rhs);
                 if (lhs instanceof Byte)
                     return of((byte) (((Byte) lhs) + ((Byte) rhs)));
                 if (lhs instanceof Short)
@@ -70,6 +76,12 @@ public class ExpressionEvaluator
                     return of(((BigDecimal) lhs).add((BigDecimal) rhs));
                 if (lhs instanceof String)
                     return of(lhs.toString() + rhs.toString());
+                if (lhs instanceof Set)
+                {
+                    Set<Object> accum = new HashSet<>((Set<Object>) lhs);
+                    accum.addAll((Set<Object>) rhs);
+                    return of(accum);
+                }
                 throw new UnsupportedOperationException("Unexpected type: " + lhs.getClass());
             }
             case SUBTRACT:
