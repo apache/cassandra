@@ -135,7 +135,14 @@ public class BytesPartitionState
             Symbol column = positions.get(i);
             if (values.containsKey(column))
             {
-                long vd = factory.valueCache.deflate(new Value(column.type(), values.get(column)));
+                ByteBuffer value = values.get(column);
+                // <3 UDT
+                if (value != null && !value.hasRemaining() && column.type().isUDT())
+                {
+                    vds[i] = MagicConstants.UNSET_DESCR;
+                    continue;
+                }
+                long vd = factory.valueCache.deflate(new Value(column.type(), value));
                 vds[i] = vd;
             }
             else
