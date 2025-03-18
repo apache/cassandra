@@ -333,6 +333,23 @@ public class View
         };
     }
 
+    // construct a function to replace the SSTable that have the same [first,last] intervals
+    static Function<View, View> replaceSSTables(final Set<SSTableReader> remove, final Iterable<SSTableReader> add, final Map<SSTableReader, SSTableReader> replacementMap, TableMetrics.TableLatencyMetrics sstableIntervalTreeLatency)
+    {
+        return new Function<View, View>()
+        {
+            public View apply(View view)
+            {
+                Map<SSTableReader, SSTableReader> sstableMap = replace(view.sstablesMap, remove, add);
+                long treeBuildStart = System.nanoTime();
+                SSTableIntervalTree sstableIntervalTree = SSTableIntervalTree.replace(view.intervalTree, replacementMap);
+                if (sstableIntervalTreeLatency != null)
+                    sstableIntervalTreeLatency.addNano(System.nanoTime() - treeBuildStart);
+                return new View(view.liveMemtables, view.flushingMemtables, sstableMap, view.compactingMap, sstableIntervalTree);
+            }
+        };
+    }
+
     // called prior to initiating flush: add newMemtable to liveMemtables, making it the latest memtable
     static Function<View, View> switchMemtable(final Memtable newMemtable)
     {
@@ -382,7 +399,7 @@ public class View
 
                 Map<SSTableReader, SSTableReader> sstableMap = replace(view.sstablesMap, emptySet(), flushed);
                 long treeBuildStart = System.nanoTime();
-                SSTableIntervalTree sstableIntervalTree = SSTableIntervalTree.update(view.intervalTree, null, flushed);
+                SSTableIntervalTree sstableIntervalTree = SSTableIntervalTree.addSSTables(view.intervalTree, flushed);
                 if (sstableIntervalTreeLatency != null)
                     sstableIntervalTreeLatency.addNano(System.nanoTime() - treeBuildStart);
                 return new View(view.liveMemtables, flushingMemtables, sstableMap, view.compactingMap, sstableIntervalTree);
