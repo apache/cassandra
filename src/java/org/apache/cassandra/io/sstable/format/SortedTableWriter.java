@@ -435,7 +435,7 @@ public abstract class SortedTableWriter<P extends SortedTablePartitionWriter, I 
         }
     }
 
-    protected static abstract class AbstractIndexWriter extends AbstractTransactional implements Transactional
+    public static abstract class AbstractIndexWriter extends AbstractTransactional implements Transactional
     {
         protected final Descriptor descriptor;
         protected final TableMetadataRef metadata;
