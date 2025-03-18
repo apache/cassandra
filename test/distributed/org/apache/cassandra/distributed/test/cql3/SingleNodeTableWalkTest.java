@@ -90,6 +90,13 @@ public class SingleNodeTableWalkTest extends StatefulASTBase
 
     protected TypeGenBuilder supportedTypes()
     {
+        return AbstractTypeGenerators.withoutUnsafeEquality();
+//        return AbstractTypeGenerators.withoutUnsafeEquality(AbstractTypeGenerators.builder()
+//                                                                                  .withTypeKinds(AbstractTypeGenerators.TypeKind.PRIMITIVE));
+    }
+
+    protected TypeGenBuilder supportedPrimaryColumnTypes()
+    {
         return AbstractTypeGenerators.withoutUnsafeEquality(AbstractTypeGenerators.builder()
                                                                                   .withTypeKinds(AbstractTypeGenerators.TypeKind.PRIMITIVE));
     }
@@ -364,6 +371,7 @@ public class SingleNodeTableWalkTest extends StatefulASTBase
                      .withKeyspaceName(ks).withTableName("tbl")
                      .withSimpleColumnNames()
                      .withDefaultTypeGen(supportedTypes())
+                     .withPrimaryColumnTypeGen(supportedPrimaryColumnTypes())
                      .withPartitioner(Murmur3Partitioner.instance)
                      .build())
                .next(rs);

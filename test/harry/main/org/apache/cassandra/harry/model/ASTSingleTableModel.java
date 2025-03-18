@@ -21,6 +21,7 @@ package org.apache.cassandra.harry.model;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.BitSet;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
@@ -923,6 +924,25 @@ public class ASTSingleTableModel
             for (int i = 0; i < values.length; i++)
                 human.add(asCQL(columns.get(i)));
             return human;
+        }
+
+        public BitSet diff(Row other)
+        {
+            if (!columns.equals(other.columns))
+                throw new UnsupportedOperationException("Columns do not match: expected " + columns + " but given " + other.columns);
+            int maxLength = Math.max(values.length, other.values.length);
+            int minLength = Math.min(values.length, other.values.length);
+            BitSet set = new BitSet(maxLength);
+            for (int i = 0; i < minLength; i++)
+            {
+                ByteBuffer a = values[i];
+                ByteBuffer b = other.values[i];
+                if (!Objects.equals(a, b))
+                    set.set(i);
+            }
+            for (int i = minLength; i < maxLength; i++)
+                set.set(i);
+            return set;
         }
 
         @Override

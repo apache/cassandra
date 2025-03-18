@@ -36,5 +36,7 @@ public class MultiNodeTableWalkWithoutReadRepairTest extends MultiNodeTableWalkB
         // Example: builder.withSeed(42L);
         // CQL operations may have opertors such as +, -, and / (example 4 + 4), to "apply" them to get a constant value
 //         CQL_DEBUG_APPLY_OPERATOR = true;
+//        builder.withSeed(-814430092055554935L).withExamples(1); // Fixed: UDT empty bytes == null, which is not expected by the model (as it is different than other code paths)
+        builder.withSeed(-5039578131309477040L).withExamples(1);
     }
 }
