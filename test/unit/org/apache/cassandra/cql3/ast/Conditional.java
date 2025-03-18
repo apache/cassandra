@@ -433,7 +433,7 @@ public interface Conditional extends Expression
             return sub.isEmpty();
         }
 
-        private Builder add(Conditional conditional)
+        public Builder add(Conditional conditional)
         {
             sub.add(conditional);
             return this;

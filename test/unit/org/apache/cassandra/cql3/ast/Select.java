@@ -378,6 +378,13 @@ FROM [keyspace_name.] table_name
             return (T) this;
         }
 
+        public T where(Conditional conditional)
+        {
+            where = new Conditional.Builder();
+            where.add(conditional);
+            return (T) this;
+        }
+
         @Override
         public T where(Expression ref, Conditional.Where.Inequality kind, Expression expression)
         {

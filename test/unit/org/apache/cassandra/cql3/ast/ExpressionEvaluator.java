@@ -21,8 +21,10 @@ package org.apache.cassandra.cql3.ast;
 import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.nio.ByteBuffer;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
@@ -84,6 +86,12 @@ public class ExpressionEvaluator
                     accum.addAll((Set<Object>) rhs);
                     return of(accum);
                 }
+                if (lhs instanceof List)
+                {
+                    List<Object> accum = new ArrayList<>((List<Object>) lhs);
+                    accum.addAll((List<Object>) rhs);
+                    return of(accum);
+                }
                 if (lhs instanceof Map)
                 {
                     Map<Object, Object> accum = new HashMap<>((Map<Object, Object>) lhs);
@@ -124,6 +132,12 @@ public class ExpressionEvaluator
                 {
                     Set<Object> accum = new HashSet<>((Set<Object>) lhs);
                     accum.removeAll((Set<Object>) rhs);
+                    return of(accum);
+                }
+                if (lhs instanceof List)
+                {
+                    List<Object> accum = new ArrayList<>((List<Object>) lhs);
+                    accum.removeAll((List<Object>) rhs);
                     return of(accum);
                 }
                 if (lhs instanceof Map)
