@@ -21,7 +21,9 @@ package org.apache.cassandra.cql3.ast;
 import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.nio.ByteBuffer;
+import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 
@@ -82,6 +84,12 @@ public class ExpressionEvaluator
                     accum.addAll((Set<Object>) rhs);
                     return of(accum);
                 }
+                if (lhs instanceof Map)
+                {
+                    Map<Object, Object> accum = new HashMap<>((Map<Object, Object>) lhs);
+                    accum.putAll((Map<Object, Object>) rhs);
+                    return of(accum);
+                }
                 throw new UnsupportedOperationException("Unexpected type: " + lhs.getClass());
             }
             case SUBTRACT:
@@ -116,6 +124,13 @@ public class ExpressionEvaluator
                 {
                     Set<Object> accum = new HashSet<>((Set<Object>) lhs);
                     accum.removeAll((Set<Object>) rhs);
+                    return of(accum);
+                }
+                if (lhs instanceof Map)
+                {
+                    // rhs is a Set<Object> as CQL doesn't allow removing if the key and value both match
+                    Map<Object, Object> accum = new HashMap<>((Map<Object, Object>) lhs);
+                    ((Set<Object>) rhs).forEach(accum::remove);
                     return of(accum);
                 }
                 throw new UnsupportedOperationException("Unexpected type: " + lhs.getClass());
