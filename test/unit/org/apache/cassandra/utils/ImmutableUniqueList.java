@@ -32,6 +32,8 @@ import org.agrona.collections.Object2IntHashMap;
 
 public class ImmutableUniqueList<T> extends AbstractList<T> implements RandomAccess
 {
+    private static final ImmutableUniqueList<Object> EMPTY = ImmutableUniqueList.builder().build();
+
     private final T[] values;
     private final Object2IntHashMap<T> indexLookup;
     private transient AsSet asSet = null;
@@ -44,6 +46,16 @@ public class ImmutableUniqueList<T> extends AbstractList<T> implements RandomAcc
     public static <T> Builder<T> builder()
     {
         return new Builder<>();
+    }
+
+    public static <T> Builder<T> builder(int expectedSize)
+    {
+        return new Builder<>(expectedSize);
+    }
+
+    public static <T> ImmutableUniqueList<T> empty()
+    {
+        return (ImmutableUniqueList<T>) EMPTY;
     }
 
     public AsSet asSet()
@@ -85,9 +97,19 @@ public class ImmutableUniqueList<T> extends AbstractList<T> implements RandomAcc
 
     public static final class Builder<T> extends AbstractSet<T>
     {
-        private final List<T> values = new ArrayList<>();
+        private final List<T> values;
         private final Object2IntHashMap<T> indexLookup = new Object2IntHashMap<>(-1);
         private int idx;
+
+        public Builder()
+        {
+            this.values = new ArrayList<>();
+        }
+
+        public Builder(int expectedSize)
+        {
+            this.values = new ArrayList<>(expectedSize);
+        }
 
         public Builder<T> mayAddAll(Collection<? extends T> values)
         {
