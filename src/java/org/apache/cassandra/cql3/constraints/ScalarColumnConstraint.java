@@ -26,6 +26,7 @@ import com.google.common.annotations.VisibleForTesting;
 
 import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.cql3.Operator;
+import org.apache.cassandra.cql3.functions.types.ParseUtils;
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.ByteType;
@@ -37,6 +38,9 @@ import org.apache.cassandra.db.marshal.Int32Type;
 import org.apache.cassandra.db.marshal.IntegerType;
 import org.apache.cassandra.db.marshal.LongType;
 import org.apache.cassandra.db.marshal.ShortType;
+import org.apache.cassandra.db.marshal.SimpleDateType;
+import org.apache.cassandra.db.marshal.TimeType;
+import org.apache.cassandra.db.marshal.TimestampType;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.schema.ColumnMetadata;
@@ -56,7 +60,7 @@ public class ScalarColumnConstraint extends AbstractFunctionConstraint<ScalarCol
     private static final List<AbstractType<?>> SUPPORTED_TYPES =
     List.of(ByteType.instance, CounterColumnType.instance, DecimalType.instance, DoubleType.instance,
             FloatType.instance, Int32Type.instance, IntegerType.instance, LongType.instance,
-            ShortType.instance);
+            ShortType.instance, TimeType.instance, SimpleDateType.instance, TimestampType.instance);
 
     @VisibleForTesting
     public static final List<Operator> SUPPORTED_OPERATORS = List.of(EQ, NEQ, GTE, GT, LTE, LT);
@@ -91,6 +95,8 @@ public class ScalarColumnConstraint extends AbstractFunctionConstraint<ScalarCol
         }
     }
 
+    private ByteBuffer value;
+
     private ScalarColumnConstraint(ColumnIdentifier param, Operator relationType, String term)
     {
         super(param, relationType, term);
@@ -111,16 +117,6 @@ public class ScalarColumnConstraint extends AbstractFunctionConstraint<ScalarCol
     @Override
     protected void internalEvaluate(AbstractType<?> valueType, ByteBuffer columnValue)
     {
-        ByteBuffer value;
-        try
-        {
-            value = valueType.fromString(term);
-        }
-        catch (NumberFormatException exception)
-        {
-            throw new ConstraintViolationException(columnName + " and " + term + " need to be numbers.");
-        }
-
         if (!relationType.isSatisfiedBy(valueType, columnValue, value))
             throw new ConstraintViolationException("Column value does not satisfy value constraint for column '" + columnName + "'. "
                                                    + "It should be " + columnName + " " + relationType + " " + term);
@@ -130,6 +126,15 @@ public class ScalarColumnConstraint extends AbstractFunctionConstraint<ScalarCol
     public void validate(ColumnMetadata columnMetadata) throws InvalidConstraintDefinitionException
     {
         validateTypes(columnMetadata);
+
+        try
+        {
+            value = columnMetadata.type.fromString(ParseUtils.unquote(term));
+        }
+        catch (Throwable t)
+        {
+            throw new ConstraintViolationException("Cannot parse constraint value from " + term + " for column '" + columnName + '\'');
+        }
     }
 
     @Override

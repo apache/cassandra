@@ -1,4 +1,5 @@
 5.1
+ * Add support for time, date, timestamp types in scalar constraint (CASSANDRA-20274)
  * Add regular expression constraint (CASSANDRA-20275)
  * Improve constraints autocompletion (CASSANDRA-20341)
  * Add JVM version and Cassandra build date to nodetool version -v (CASSANDRA-19721)

@@ -12,7 +12,7 @@ The main syntax to define a constraint is as follows:
 
 [source,bnf]
 ----
-CREATE TABLE keyspace.table (
+CREATE TABLE ks.tb (
 	name text,
 	i int CHECK (condition) (AND (condition))*
 	...,
@@ -48,7 +48,7 @@ For example, we can define constraints that ensure that i is bigger or equal tha
 
 [source,bnf]
 ----
-CREATE TABLE keyspace.table (
+CREATE TABLE ks.tb (
 	name text,
 	i int CHECK i < 1000 AND i > 100
 	...,
@@ -58,13 +58,43 @@ CREATE TABLE keyspace.table (
 Altering that constraint can be done with:
 
 ----
-ALTER TABLE keyspace.table ALTER i CHECK i >= 500;
+ALTER TABLE ks.tb ALTER i CHECK i >= 500;
 ----
 
 Finally, the constraint can be removed:
 
 ----
-ALTER TABLE keyspace.table ALTER i DROP CHECK;
+ALTER TABLE ks.tb ALTER i DROP CHECK;
+----
+
+This constraint also works for `time`, `date` and `timestamp` types. For example, a user
+can express constraints like this:
+
+----
+CREATE TABLE ks.tb
+	name text,
+	dob date CHECK dob > '1900-01-01'
+    ...
+)
+----
+
+Hence, we can enforce that date of birth is later than January 1st, 1900.
+
+----
+INSERT INTO ks.tb (name, dob) VALUES ( 'Joe Doe', '1899-08-06');
+... [Invalid query] message="Column value does not satisfy value constraint for column 'dob'. It should be dob > '1900-01-01'"
+-- this passes as it is > January 1st, 1900
+INSERT INTO ks.tb (name, dob) VALUES ( 'Joe Doe', '1976-12-06');
+----
+
+A user can also use ranges on time-related columns with `>` and `<` operators, e.g.
+
+----
+CREATE TABLE ks.tb
+	name text,
+	afternoon time CHECK afternoon >= '12:00:00' AND afternoon <= '23:59:59';
+    ...
+)
 ----
 
 === LENGTH CONSTRAINT
@@ -74,7 +104,7 @@ Defines a condition that checks the length of text or binary type.
 For example, we can create a constraint that checks that name can't be longer than 256 characters:
 
 ----
-CREATE TABLE keyspace.table (
+CREATE TABLE ks.tb (
 	name text CHECK LENGTH(name) < 256
 	...,
 );
@@ -83,13 +113,13 @@ CREATE TABLE keyspace.table (
 Altering that constraint can be done with:
 
 ----
-ALTER TABLE keyspace.table ALTER name LENGTH(name) < 512;
+ALTER TABLE ks.tb ALTER name LENGTH(name) < 512;
 ----
 
 Finally, the constraint can be removed:
 
 ----
-ALTER TABLE keyspace.table ALTER name DROP CHECK;
+ALTER TABLE ks.tb ALTER name DROP CHECK;
 ----
 
 === OCTET_LENGTH CONSTRAINT
@@ -99,7 +129,7 @@ Defines a condition that checks the size in bytes of text or binary type.
 For example, we can create a constraint that checks that name can't be bigger than 256 characters:
 
 ----
-CREATE TABLE keyspace.table (
+CREATE TABLE ks.tb (
 	name text CHECK OCTET_LENGTH(name) < 2
 	...,
 );
@@ -107,12 +137,12 @@ CREATE TABLE keyspace.table (
 
 Inserting a valid row:
 ----
-INSERT INTO keyspace.table (name) VALUES ("f")
+INSERT INTO ks.tb (name) VALUES ("f")
 ----
 
 Inserting an invalid row:
 ----
-INSERT INTO keyspace.table (name) VALUES ("fooooooo")
+INSERT INTO ks.tb (name) VALUES ("fooooooo")
 
 ERROR: Column value does not satisfy value constraint for column 'name'. It has a length of 8 and
 and it should be should be < 2
@@ -152,8 +182,8 @@ A column which has `NOT_NULL` constraint has to be specified in every modificati
 The constraint can be removed:
 
 ----
-ALTER TABLE keyspace.table ALTER col1 DROP CHECK;
-ALTER TABLE keyspace.table ALTER col2 DROP CHECK;
+ALTER TABLE ks.tb ALTER col1 DROP CHECK;
+ALTER TABLE ks.tb ALTER col2 DROP CHECK;
 ----
 
 We can not remove the value of a column where `NOT_NULL` constraint is present:

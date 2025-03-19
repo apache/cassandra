@@ -25,6 +25,7 @@ import java.util.Set;
 import java.util.TreeSet;
 
 import org.apache.cassandra.cql3.Operator;
+import org.apache.cassandra.cql3.functions.types.ParseUtils;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.utils.Pair;
 
@@ -146,8 +147,8 @@ public abstract class AbstractFunctionSatisfiabilityChecker<CONSTRAINT_TYPE exte
         }
         else
         {
-            ByteBuffer firstTermBuffer = columnMetadata.type.fromString(firstTerm);
-            ByteBuffer secondTermBuffer = columnMetadata.type.fromString(secondTerm);
+            ByteBuffer firstTermBuffer = columnMetadata.type.fromString(ParseUtils.unquote(firstTerm));
+            ByteBuffer secondTermBuffer = columnMetadata.type.fromString(ParseUtils.unquote(secondTerm));
 
             boolean firstSatisfaction = firstRelation.isSatisfiedBy(columnMetadata.type, secondTermBuffer, firstTermBuffer);
             boolean secondSatisfaction = secondRelation.isSatisfiedBy(columnMetadata.type, firstTermBuffer, secondTermBuffer);
