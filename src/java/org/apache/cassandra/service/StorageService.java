@@ -333,8 +333,17 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
     public RangesAtEndpoint getLocalReplicas(String keyspaceName)
     {
-        return Keyspace.open(keyspaceName).getReplicationStrategy()
-                .getAddressReplicas(FBUtilities.getBroadcastAddressAndPort());
+        return getReplicas(keyspaceName, FBUtilities.getBroadcastAddressAndPort());
+    }
+
+    public RangesAtEndpoint getReplicas(String keyspaceName, InetAddressAndPort endpoint)
+    {
+        return getReplicas(Keyspace.open(keyspaceName).getReplicationStrategy(), endpoint);
+    }
+
+    public RangesAtEndpoint getReplicas(AbstractReplicationStrategy replicationStrategy, InetAddressAndPort endpoint)
+    {
+        return replicationStrategy.getAddressReplicas(tokenMetadata.cloneOnlyTokenMap(), endpoint);
     }
 
     public List<Range<Token>> getLocalRanges(String ks)
@@ -1347,7 +1356,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         }
     }
 
-    private void doAutoRepairSetup()
+    public void doAutoRepairSetup()
     {
         AutoRepairService.setup();
         if (DatabaseDescriptor.getAutoRepairConfig().isAutoRepairSchedulingEnabled())

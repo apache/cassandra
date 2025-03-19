@@ -21,22 +21,33 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Comparator;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
+
+import javax.annotation.Nullable;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.MoreObjects;
 import com.google.common.collect.Lists;
+import com.google.common.collect.Sets;
 
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Splitter;
 import org.apache.cassandra.dht.Token;
+import org.apache.cassandra.locator.EndpointsByRange;
+import org.apache.cassandra.locator.EndpointsForRange;
 import org.apache.cassandra.locator.LocalStrategy;
 
 import org.slf4j.Logger;
@@ -56,6 +67,9 @@ import org.apache.cassandra.gms.Gossiper;
 import org.apache.cassandra.locator.AbstractReplicationStrategy;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.NetworkTopologyStrategy;
+import org.apache.cassandra.locator.RangesAtEndpoint;
+import org.apache.cassandra.locator.Replica;
+import org.apache.cassandra.metrics.AutoRepairMetricsManager;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.schema.SystemDistributedKeyspace;
@@ -257,9 +271,10 @@ public class AutoRepairUtils
         public Set<UUID> hostIdsWithOnGoingRepair;  // hosts that is running repair
         public Set<UUID> hostIdsWithOnGoingForceRepair; // hosts that is running repair because of force repair
         Set<UUID> priority;
+        public AutoRepairHistory myRepairHistory;
         List<AutoRepairHistory> historiesWithoutOnGoingRepair;  // hosts that is NOT running repair
 
-        public CurrentRepairStatus(List<AutoRepairHistory> repairHistories, Set<UUID> priority)
+        public CurrentRepairStatus(List<AutoRepairHistory> repairHistories, Set<UUID> priority, UUID myId)
         {
             hostIdsWithOnGoingRepair = new HashSet<>();
             hostIdsWithOnGoingForceRepair = new HashSet<>();
@@ -282,8 +297,17 @@ public class AutoRepairUtils
                 {
                     historiesWithoutOnGoingRepair.add(history);
                 }
+                if (history.hostId.equals(myId))
+                {
+                    myRepairHistory = history;
+                }
             }
             this.priority = priority;
+        }
+
+        public Set<UUID> getAllHostsWithOngoingRepair()
+        {
+            return Sets.union(hostIdsWithOnGoingRepair, hostIdsWithOnGoingForceRepair);
         }
 
         public String toString()
@@ -293,6 +317,7 @@ public class AutoRepairUtils
                               add("hostIdsWithOnGoingForceRepair", hostIdsWithOnGoingForceRepair).
                               add("historiesWithoutOnGoingRepair", historiesWithoutOnGoingRepair).
                               add("priority", priority).
+                              add("myRepairHistory", myRepairHistory).
                               toString();
         }
     }
@@ -307,7 +332,7 @@ public class AutoRepairUtils
         repairHistoryResult = UntypedResultSet.create(repairStatusRows.result);
 
         List<AutoRepairHistory> repairHistories = new ArrayList<>();
-        if (repairHistoryResult.size() > 0)
+        if (!repairHistoryResult.isEmpty())
         {
             for (UntypedResultSet.Row row : repairHistoryResult)
             {
@@ -319,7 +344,7 @@ public class AutoRepairUtils
                 long lastRepairFinishTime = row.getLong(COL_REPAIR_FINISH_TS, 0);
                 Set<UUID> deleteHosts = row.getSet(COL_DELETE_HOSTS, UUIDType.instance);
                 long deleteHostsUpdateTime = row.getLong(COL_DELETE_HOSTS_UPDATE_TIME, 0);
-                Boolean forceRepair = row.has(COL_FORCE_REPAIR) ? row.getBoolean(COL_FORCE_REPAIR) : false;
+                boolean forceRepair = row.has(COL_FORCE_REPAIR) && row.getBoolean(COL_FORCE_REPAIR);
                 repairHistories.add(new AutoRepairHistory(hostId, repairTurn, lastRepairStartTime, lastRepairFinishTime,
                                                           deleteHosts, deleteHostsUpdateTime, forceRepair));
             }
@@ -369,12 +394,6 @@ public class AutoRepairUtils
         logger.info("Set force repair repair type: {}, node: {}", repairType, hostId);
     }
 
-    public static CurrentRepairStatus getCurrentRepairStatus(RepairType repairType)
-    {
-        List<AutoRepairHistory> autoRepairHistories = getAutoRepairHistory(repairType);
-        return getCurrentRepairStatus(repairType, autoRepairHistories);
-    }
-
     public static long getLastRepairTimeForNode(RepairType repairType, UUID hostId)
     {
         ResultMessage.Rows rows = selectLastRepairTimeForNode.execute(QueryState.forInternalCalls(),
@@ -391,13 +410,12 @@ public class AutoRepairUtils
         return repairTime.one().getLong(COL_REPAIR_FINISH_TS);
     }
 
-    public static CurrentRepairStatus getCurrentRepairStatus(RepairType repairType, List<AutoRepairHistory> autoRepairHistories)
+    @VisibleForTesting
+    public static CurrentRepairStatus getCurrentRepairStatus(RepairType repairType, List<AutoRepairHistory> autoRepairHistories, UUID myId)
     {
         if (autoRepairHistories != null)
         {
-            CurrentRepairStatus status = new CurrentRepairStatus(autoRepairHistories, getPriorityHostIds(repairType));
-
-            return status;
+            return new CurrentRepairStatus(autoRepairHistories, getPriorityHostIds(repairType), myId);
         }
         return null;
     }
@@ -414,7 +432,8 @@ public class AutoRepairUtils
                 logger.info("Ignore node {} because its datacenter is {}", node, nodeDC);
                 continue;
             }
-            /** Check if endpoint state exists in gossip or not. If it
+            /*
+             * Check if endpoint state exists in gossip or not. If it
              * does not then this maybe a ghost node so ignore it
              */
             if (Gossiper.instance.isAlive(node))
@@ -441,6 +460,252 @@ public class AutoRepairUtils
     {
         List<AutoRepairHistory> autoRepairHistories = getAutoRepairHistory(repairType);
         return getHostWithLongestUnrepairTime(autoRepairHistories);
+    }
+
+    /**
+     * Convenience method to resolve the broadcast address of a host id
+     *
+     * @return broadcast address if it exists, otherwise null.
+     */
+    @Nullable
+    private static InetAddressAndPort getBroadcastAddress(UUID hostId)
+    {
+        return StorageService.instance.getEndpointForHostId(hostId);
+    }
+
+    /**
+     * @return Map of broadcast address to host id, if a broadcast address cannot be found for a host, it is
+     * not included in the map.
+     */
+    private static Map<InetAddressAndPort, UUID> getBroadcastAddressToHostIdMap(Set<UUID> hosts)
+    {
+        // Get a mapping of endpoint : host id
+        Map<InetAddressAndPort, UUID> broadcastAddressMap = new HashMap<>(hosts.size());
+        for (UUID hostId : hosts)
+        {
+            InetAddressAndPort broadcastAddress = getBroadcastAddress(hostId);
+            if (broadcastAddress == null)
+            {
+                logger.warn("Could not resolve broadcast address from host id {} in ClusterMetadata can't accurately " +
+                            "determine if this node is a replica of the local node.", hostId);
+            }
+            else
+            {
+                broadcastAddressMap.put(broadcastAddress, hostId);
+            }
+        }
+        return broadcastAddressMap;
+    }
+
+    /**
+     * @return Mapping of unique replication strategy to keyspaces using that strategy that we care about repairing.
+     */
+    private static Map<AbstractReplicationStrategy, List<String>> getReplicationStrategies()
+    {
+        // Collect all unique replication strategies among all keyspaces.
+        Map<AbstractReplicationStrategy, List<String>> replicationStrategies = new HashMap<>();
+        for (Keyspace keyspace : Keyspace.all())
+        {
+            if (AutoRepairUtils.shouldConsiderKeyspace(keyspace))
+            {
+                replicationStrategies.computeIfAbsent(keyspace.getReplicationStrategy(), k -> new ArrayList<>())
+                                     .add(keyspace.getName());
+            }
+        }
+        return replicationStrategies;
+    }
+
+    /**
+     * Collects all hosts being repaired among all active repair schedules and their schedule if
+     * {@link AutoRepairConfig#getAllowParallelReplicaRepairAcrossSchedules(RepairType)} is true for this repairType.
+     * Accepts the currently evaluated repairType's schedule as an optimization to avoid grabbing its repair status an
+     * additional time.
+     *
+     * @param myRepairType   The repair type schedule being evaluated.
+     * @param myRepairStatus The repair status for that repair type.
+     * @return All hosts among active schedules currently being repaired.
+     */
+    private static Map<UUID, RepairType> getHostsBeingRepaired(RepairType myRepairType, CurrentRepairStatus myRepairStatus)
+    {
+        AutoRepairConfig config = AutoRepairService.instance.getAutoRepairConfig();
+
+        Map<UUID, RepairType> hostsBeingRepaired = myRepairStatus.getAllHostsWithOngoingRepair().stream()
+                                                                 .collect(Collectors.toMap((h) -> h, (v) -> myRepairType));
+
+        // If we don't allow repairing across schedules, iterate over other enabled schedules and include hosts
+        // actively being repaired.
+        if (!config.getAllowParallelReplicaRepairAcrossSchedules(myRepairType))
+        {
+            for (RepairType repairType : RepairType.values())
+            {
+                if (myRepairType == repairType)
+                    continue;
+
+                if (config.isAutoRepairEnabled(repairType))
+                {
+                    CurrentRepairStatus repairStatus = getCurrentRepairStatus(repairType, getAutoRepairHistory(repairType), null);
+                    if (repairStatus != null)
+                    {
+                        for (UUID hostId : repairStatus.getAllHostsWithOngoingRepair())
+                        {
+                            hostsBeingRepaired.putIfAbsent(hostId, repairType);
+                        }
+                    }
+                }
+            }
+        }
+        return hostsBeingRepaired;
+    }
+
+    /**
+     * Identifies the most eligible host to repair for nodes preceding or equal to this nodes' lastRepairFinishTime.
+     * The criteria for this is to find the node with the oldest last repair finish time of which none of its replicas
+     * are currently under repair.
+     *
+     * @return The most eligible host to repair or null if no candidates before and including this nodes' current repair status.
+     */
+    @VisibleForTesting
+    public static AutoRepairHistory getMostEligibleHostToRepair(RepairType repairType, CurrentRepairStatus currentRepairStatus, UUID myId)
+    {
+        // 0. If this repairType allows parallel replica repair, short circuit and return the host with the longest unrepair time
+        AutoRepairConfig config = AutoRepairService.instance.getAutoRepairConfig();
+        if (config.getAllowParallelReplicaRepair(repairType))
+        {
+            return getHostWithLongestUnrepairTime(currentRepairStatus.historiesWithoutOnGoingRepair);
+        }
+
+        // 1. Sort repair histories from oldest completed to newest
+        Stream<AutoRepairHistory> finishedRepairHistories = currentRepairStatus.historiesWithoutOnGoingRepair
+                                                            .stream()
+                                                            .sorted(Comparator.comparingLong(h -> h.lastRepairFinishTime));
+
+        // 2. Optimization: Truncate repair histories after myId so we don't evaluate anything more recent as if we
+        // aren't interested in anything that isn't this node.
+        final AtomicBoolean myHistoryFound = new AtomicBoolean(false);
+        finishedRepairHistories = finishedRepairHistories
+                                  .filter(history -> {
+                                      if (myHistoryFound.get()) return false; // Stop processing after finding myId
+                                      myHistoryFound.set(history.hostId.equals(myId));
+                                      return true;
+                                  });
+
+        // If there are any hosts with ongoing repair, filter the repair histories to not include nodes whose replicas
+        // are ongoing repair.
+        Map<UUID, RepairType> hostsBeingRepairedToRepairType = getHostsBeingRepaired(repairType, currentRepairStatus);
+
+        // 3. If I am already actively being repaired in another schedule, defer submitting repairs;  if already
+        // repairing for this type, return node so it can take its turn.
+        RepairType alreadyRepairingType = hostsBeingRepairedToRepairType.get(myId);
+        if (alreadyRepairingType != null)
+        {
+            if (repairType != alreadyRepairingType)
+            {
+                logger.info("Deferring repair because I am already actively repairing in schedule {}", hostsBeingRepairedToRepairType.get(myId));
+                AutoRepairMetricsManager.getMetrics(repairType).repairDelayedBySchedule.inc();
+                return null;
+            }
+            else if (currentRepairStatus.myRepairHistory != null)
+            {
+                // if the repair type matches this repair, assume the node was restarted while repairing, return node
+                // so it can take its turn.
+                logAlreadyMyTurn();
+                return currentRepairStatus.myRepairHistory;
+            }
+        }
+
+        if (!hostsBeingRepairedToRepairType.isEmpty())
+        {
+            // 4. Extract InetAddresses for each UUID as replicas are identified by their address.
+            Map<InetAddressAndPort, UUID> hostsBeingRepaired = getBroadcastAddressToHostIdMap(hostsBeingRepairedToRepairType.keySet());
+
+            // 5. Collect unique replication strategies and group them up with their keyspaces.
+            Map<AbstractReplicationStrategy, List<String>> replicationStrategies = getReplicationStrategies();
+
+            // 6. Filter out repair histories who have a replica being repaired, note that this is lazy, given the stream
+            //    is completed using findFirst, it should stop as soon as the matching criteria is met.
+            finishedRepairHistories = finishedRepairHistories.filter((history) -> !hasReplicaWithOngoingRepair(history,
+                                                                                                               myId,
+                                                                                                               repairType,
+                                                                                                               hostsBeingRepaired,
+                                                                                                               hostsBeingRepairedToRepairType,
+                                                                                                               replicationStrategies));
+        }
+
+        // 7. Select the first (oldest lastRepairFinishTime) repair history without replicas being repaired
+        return finishedRepairHistories.findFirst().orElse(null);
+    }
+
+
+    /**
+     * @param eligibleHistory       History of node to check
+     * @param myId                  Host id of this node, if the repair history is for this node, additional logging will take place.
+     * @param myRepairType          repair type being evaluated
+     * @param hostsBeingRepaired    Hosts being repaired.
+     * @param hostIdToRepairType    mapping of hosts being repaired to the repair type its being repaired for.
+     * @param replicationStrategies Mapping of unique replication strategies to keyspaces having that strategy.
+     * @return Whether the host for the given eligibleRepairHistory has any replicas in hostsBeingRepaired.
+     */
+    private static boolean hasReplicaWithOngoingRepair(AutoRepairHistory eligibleHistory,
+                                                       UUID myId,
+                                                       RepairType myRepairType,
+                                                       Map<InetAddressAndPort, UUID> hostsBeingRepaired,
+                                                       Map<UUID, RepairType> hostIdToRepairType,
+                                                       Map<AbstractReplicationStrategy, List<String>> replicationStrategies)
+    {
+        // If no broadcast address found for this host id in cluster metadata, just skip it, a node should always
+        // see itself in cluster metadata.
+        InetAddressAndPort eligibleBroadcastAddress = getBroadcastAddress(eligibleHistory.hostId);
+        if (eligibleBroadcastAddress == null)
+        {
+            return true;
+        }
+
+        // For each replication strategy, determine if host being repaired is a replica of the local node.
+        for (Map.Entry<AbstractReplicationStrategy, List<String>> entry : replicationStrategies.entrySet())
+        {
+            AbstractReplicationStrategy replicationStrategy = entry.getKey();
+            EndpointsByRange endpointsByRange = replicationStrategy.getRangeAddresses(StorageService.instance.getTokenMetadata());
+
+            // get ranges of the eligible address for the given replication strategy.
+            RangesAtEndpoint rangesAtEndpoint = StorageService.instance.getReplicas(replicationStrategy, eligibleBroadcastAddress);
+            for (Replica replica : rangesAtEndpoint)
+            {
+                // get the endpoints involved in this range.
+                EndpointsForRange endpointsForRange = endpointsByRange.get(replica.range());
+                // For each host in this range...
+                for (InetAddressAndPort inetAddressAndPort : endpointsForRange.endpoints())
+                {
+                    // If the address of the node in the range belongs to a host being repaired, return true.
+                    UUID hostId = hostsBeingRepaired.get(inetAddressAndPort);
+                    if (hostId != null)
+                    {
+                        // log if the repair history matches the current running node.
+                        InetAddressAndPort myBroadcastAddress = getBroadcastAddress(myId);
+                        if (myBroadcastAddress != null && myBroadcastAddress.equals(eligibleBroadcastAddress))
+                        {
+                            logger.info("Deferring repair because replica {} ({}) with shared ranges for " +
+                                        "{} keyspace(s) (e.g. {}) is currently taking its turn for schedule {}",
+                                        hostId, inetAddressAndPort, entry.getValue().size(), entry.getValue().get(0),
+                                        hostIdToRepairType.get(hostId));
+                            AutoRepairMetricsManager.getMetrics(myRepairType).repairDelayedByReplica.inc();
+                        }
+                        else if (logger.isDebugEnabled())
+                        {
+                            logger.debug("Not considering node {} ({}) for repair as it has replica {} ({}) with " +
+                                         "shared ranges for {} keyspace(s) (e.g. {}) which is currently taking its " +
+                                         "turn for schedule {}",
+                                         eligibleHistory.hostId, eligibleBroadcastAddress,
+                                         hostId, inetAddressAndPort, entry.getValue().size(), entry.getValue().get(0),
+                                         hostIdToRepairType.get(hostId));
+                        }
+                        return true;
+                    }
+                }
+            }
+        }
+
+        // No replicas found of eligible host.
+        return false;
     }
 
     private static AutoRepairHistory getHostWithLongestUnrepairTime(List<AutoRepairHistory> autoRepairHistories)
@@ -476,6 +741,12 @@ public class AutoRepairUtils
         return Math.max(1, value);
     }
 
+    private static void logAlreadyMyTurn()
+    {
+        logger.warn("This node already was considered to having an ongoing repair for this repair type, must have " +
+                    "been restarted, taking my turn back");
+    }
+
     @VisibleForTesting
     public static RepairTurn myTurnToRunRepair(RepairType repairType, UUID myId)
     {
@@ -489,7 +760,7 @@ public class AutoRepairUtils
             List<AutoRepairHistory> autoRepairHistories = getAutoRepairHistory(repairType);
             Set<UUID> autoRepairHistoryIds = new HashSet<>();
 
-            // 1. Remove any node that is not part of group based on goissip info
+            // 1. Remove any node that is not part of group based on gossip info
             if (autoRepairHistories != null)
             {
                 for (AutoRepairHistory nodeHistory : autoRepairHistories)
@@ -497,7 +768,7 @@ public class AutoRepairUtils
                     autoRepairHistoryIds.add(nodeHistory.hostId);
                     // clear delete_hosts if the node's delete hosts is not growing for more than two hours
                     AutoRepairConfig config = AutoRepairService.instance.getAutoRepairConfig();
-                    if (nodeHistory.deleteHosts.size() > 0
+                    if (!nodeHistory.deleteHosts.isEmpty()
                         && config.getAutoRepairHistoryClearDeleteHostsBufferInterval().toSeconds() < TimeUnit.MILLISECONDS.toSeconds(
                     currentTimeMillis() - nodeHistory.deleteHostsUpdateTime
                     ))
@@ -534,11 +805,14 @@ public class AutoRepairUtils
                 }
             }
 
-            //get current repair status
-            CurrentRepairStatus currentRepairStatus = getCurrentRepairStatus(repairType, autoRepairHistories);
+            // get updated current repair status
+            CurrentRepairStatus currentRepairStatus = getCurrentRepairStatus(repairType, getAutoRepairHistory(repairType), myId);
             if (currentRepairStatus != null)
             {
-                logger.info("Latest repair status {}", currentRepairStatus);
+                if (logger.isDebugEnabled())
+                {
+                    logger.debug("Latest repair status {}", currentRepairStatus);
+                }
                 //check if I am forced to run repair
                 for (AutoRepairHistory history : currentRepairStatus.historiesWithoutOnGoingRepair)
                 {
@@ -549,8 +823,25 @@ public class AutoRepairUtils
                 }
             }
 
+            // check if node was already indicated as having an ongoing repair, this may happen when a node restarts
+            // before finishing repairing.
+            if (currentRepairStatus != null && currentRepairStatus.getAllHostsWithOngoingRepair().contains(myId))
+            {
+                logAlreadyMyTurn();
+
+                // use the previously chosen turn.
+                if (currentRepairStatus.myRepairHistory != null && currentRepairStatus.myRepairHistory.repairTurn != null)
+                {
+                    return RepairTurn.valueOf(currentRepairStatus.myRepairHistory.repairTurn);
+                }
+                else
+                {
+                    return MY_TURN;
+                }
+            }
+
             int parallelRepairNumber = getMaxNumberOfNodeRunAutoRepair(repairType,
-                                                                              autoRepairHistories == null ? 0 : autoRepairHistories.size());
+                                                                       autoRepairHistories == null ? 0 : autoRepairHistories.size());
             logger.info("Will run repairs concurrently on {} node(s)", parallelRepairNumber);
             if (currentRepairStatus == null || parallelRepairNumber > currentRepairStatus.hostIdsWithOnGoingRepair.size())
             {
@@ -563,16 +854,17 @@ public class AutoRepairUtils
                 {
                     // try to fetch again
                     autoRepairHistories = getAutoRepairHistory(repairType);
-                    currentRepairStatus = getCurrentRepairStatus(repairType, autoRepairHistories);
-                    if (autoRepairHistories == null || currentRepairStatus == null)
+                    if (autoRepairHistories == null)
                     {
                         logger.error("No record found");
                         return NOT_MY_TURN;
                     }
+
+                    currentRepairStatus = getCurrentRepairStatus(repairType, autoRepairHistories, myId);
                 }
 
                 UUID priorityHostId = null;
-                if (currentRepairStatus != null && currentRepairStatus.priority != null)
+                if (currentRepairStatus.priority != null)
                 {
                     for (UUID priorityID : currentRepairStatus.priority)
                     {
@@ -593,21 +885,37 @@ public class AutoRepairUtils
                 if (priorityHostId != null && !myId.equals(priorityHostId))
                 {
                     logger.info("Priority list is not empty and I'm not the first node in the list, not my turn." +
-                                "First node in priority list is {}", StorageService.instance.getTokenMetadata().getEndpointForHostId(priorityHostId));
+                                "First node in priority list is {}", getBroadcastAddress(priorityHostId));
                     return NOT_MY_TURN;
                 }
+
                 if (myId.equals(priorityHostId))
                 {
                     //I have a priority for repair hence its my turn now
                     return MY_TURN_DUE_TO_PRIORITY;
                 }
-                // get the longest unrepaired node from the nodes which are not running repair
-                AutoRepairHistory defaultNodeToBeRepaired = getHostWithLongestUnrepairTime(currentRepairStatus.historiesWithoutOnGoingRepair);
-                //check who is next, which is helpful for debugging
-                logger.info("Next node to be repaired for repair type {} by default: {}", repairType, defaultNodeToBeRepaired);
-                if (defaultNodeToBeRepaired != null && defaultNodeToBeRepaired.hostId.equals(myId))
+
+                // Determine if this node is the most eligible host to repair.
+                AutoRepairHistory nodeToBeRepaired = getMostEligibleHostToRepair(repairType, currentRepairStatus, myId);
+                if (nodeToBeRepaired != null)
                 {
-                    return MY_TURN;
+                    if (nodeToBeRepaired.hostId.equals(myId))
+                    {
+                        logger.info("This node is selected to be repaired for repair type {}", repairType);
+                        return MY_TURN;
+                    }
+
+                    // log which node is next, which is helpful for debugging
+                    logger.info("Next node to be repaired for repair type {}: {} ({})", repairType,
+                                getBroadcastAddress(nodeToBeRepaired.hostId),
+                                nodeToBeRepaired);
+                }
+
+                // If this node is not identified as most eligible, set the repair lag time.
+                if (currentRepairStatus.myRepairHistory != null)
+                {
+                    AutoRepairMetricsManager.getMetrics(repairType)
+                                            .recordRepairStartLag(currentRepairStatus.myRepairHistory.lastRepairFinishTime);
                 }
             }
             else if (currentRepairStatus.hostIdsWithOnGoingForceRepair.contains(myId))
@@ -652,7 +960,6 @@ public class AutoRepairUtils
                                                                                                     ByteBufferUtil.bytes(repairType.toString()),
                                                                                                     ByteBufferUtil.bytes(myId)
                                                                                  )), Dispatcher.RequestTime.forImmediateExecution());
-        // Do not remove beblow log, the log is used by dtest
         logger.info("Auto repair finished for {}", myId);
     }
 
@@ -752,7 +1059,7 @@ public class AutoRepairUtils
         repairPriorityResult = UntypedResultSet.create(repairPriorityRows.result);
 
         Set<UUID> priorities = null;
-        if (repairPriorityResult.size() > 0)
+        if (!repairPriorityResult.isEmpty())
         {
             // there should be only one row
             UntypedResultSet.Row row = repairPriorityResult.one();
@@ -770,7 +1077,13 @@ public class AutoRepairUtils
         Set<InetAddressAndPort> hosts = new HashSet<>();
         for (UUID hostId : getPriorityHostIds(repairType))
         {
-            hosts.add(StorageService.instance.getTokenMetadata().getEndpointForHostId(hostId));
+            InetAddressAndPort broadcastAddress = getBroadcastAddress(hostId);
+            if (broadcastAddress == null)
+            {
+                logger.warn("Could not resolve broadcastAddress for {}, skipping considering it as a priority host", hostId);
+                continue;
+            }
+            hosts.add(broadcastAddress);
         }
         return hosts;
     }

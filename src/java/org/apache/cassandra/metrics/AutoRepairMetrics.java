@@ -23,7 +23,9 @@ import com.google.common.annotations.VisibleForTesting;
 import org.apache.cassandra.repair.autorepair.AutoRepairConfig.RepairType;
 import org.apache.cassandra.repair.autorepair.AutoRepairUtils;
 import org.apache.cassandra.repair.autorepair.AutoRepair;
+import org.apache.cassandra.service.AutoRepairService;
 
+import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import static org.apache.cassandra.metrics.CassandraMetricsRegistry.Metrics;
 
 /**
@@ -35,6 +37,7 @@ public class AutoRepairMetrics
     public final Gauge<Integer> nodeRepairTimeInSec;
     public final Gauge<Integer> clusterRepairTimeInSec;
     public final Gauge<Integer> longestUnrepairedSec;
+    public final Gauge<Integer> repairStartLagSec;
     public final Gauge<Integer> succeededTokenRangesCount;
     public final Gauge<Integer> failedTokenRangesCount;
     public final Gauge<Integer> skippedTokenRangesCount;
@@ -44,8 +47,16 @@ public class AutoRepairMetrics
     public Counter repairTurnMyTurn;
     public Counter repairTurnMyTurnDueToPriority;
     public Counter repairTurnMyTurnForceRepair;
+    public Counter repairDelayedByReplica;
+    public Counter repairDelayedBySchedule;
+
+    private final RepairType repairType;
+
+    private volatile int repairStartLagSecVal;
+
     public AutoRepairMetrics(RepairType repairType)
     {
+        this.repairType = repairType;
         AutoRepairMetricsFactory factory = new AutoRepairMetricsFactory(repairType);
 
         repairsInProgress = Metrics.register(factory.createMetricName("RepairsInProgress"), new Gauge<Integer>()
@@ -96,6 +107,14 @@ public class AutoRepairMetrics
             }
         });
 
+        repairStartLagSec = Metrics.register(factory.createMetricName("RepairStartLagSec"), new Gauge<Integer>()
+        {
+            public Integer getValue()
+            {
+                return repairStartLagSecVal;
+            }
+        });
+
         succeededTokenRangesCount = Metrics.register(factory.createMetricName("SucceededTokenRangesCount"), new Gauge<Integer>()
         {
             public Integer getValue()
@@ -115,6 +134,9 @@ public class AutoRepairMetrics
         repairTurnMyTurn = Metrics.counter(factory.createMetricName("RepairTurnMyTurn"));
         repairTurnMyTurnDueToPriority = Metrics.counter(factory.createMetricName("RepairTurnMyTurnDueToPriority"));
         repairTurnMyTurnForceRepair = Metrics.counter(factory.createMetricName("RepairTurnMyTurnForceRepair"));
+
+        repairDelayedByReplica = Metrics.counter(factory.createMetricName("RepairDelayedByReplica"));
+        repairDelayedBySchedule = Metrics.counter(factory.createMetricName("RepairDelayedBySchedule"));
 
         totalMVTablesConsideredForRepair = Metrics.register(factory.createMetricName("TotalMVTablesConsideredForRepair"), new Gauge<Integer>()
         {
@@ -149,6 +171,23 @@ public class AutoRepairMetrics
             default:
                 throw new RuntimeException(String.format("Unrecoginized turn: %s", turn.name()));
         }
+        this.repairStartLagSecVal = 0;
+    }
+
+    /**
+     * Record perceived lag in scheduling repair.
+     * <p/>
+     * Takes the current time and subtracts it from the given last repair finish time.  It then compares the difference
+     * with the min repair interval for this repair type, and if that value is greater than 0, records it.
+     */
+    public void recordRepairStartLag(long lastFinishTimeInMs)
+    {
+        long now = AutoRepair.instance.currentTimeMs();
+        long deltaFinish = now - lastFinishTimeInMs;
+        long deltaMinRepairInterval = deltaFinish - AutoRepairService.instance
+                                                    .getAutoRepairConfig().getRepairMinInterval(repairType)
+                                                    .toMilliseconds();
+        this.repairStartLagSecVal = deltaMinRepairInterval > 0 ? (int) MILLISECONDS.toSeconds(deltaMinRepairInterval) : 0;
     }
 
     @VisibleForTesting

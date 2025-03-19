@@ -20,7 +20,6 @@ package org.apache.cassandra.repair.autorepair;
 
 import java.util.HashSet;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Collections;
 import java.util.Set;
 
@@ -155,7 +154,7 @@ public class AutoRepairConfigTest extends CQLTester
     {
         config.setRepairThreads(repairType, 5);
 
-        assert config.getOptions(repairType).number_of_repair_threads == 5;
+        assertEquals(5, config.getOptions(repairType).number_of_repair_threads.intValue());
     }
 
     @Test
@@ -183,7 +182,7 @@ public class AutoRepairConfigTest extends CQLTester
     {
         config.setRepairMinInterval(repairType, "5s");
 
-        assert config.getOptions(repairType).min_repair_interval.toSeconds() == 5;
+        assertEquals(5, config.getOptions(repairType).min_repair_interval.toSeconds());
     }
 
     @Test
@@ -201,7 +200,7 @@ public class AutoRepairConfigTest extends CQLTester
     {
         config.setAutoRepairHistoryClearDeleteHostsBufferInterval("5s");
 
-        assert Objects.equals(config.history_clear_delete_hosts_buffer_interval, new DurationSpec.IntSecondsBound("5s"));
+        assertEquals(new DurationSpec.IntSecondsBound("5s"), config.history_clear_delete_hosts_buffer_interval);
     }
 
     @Test
@@ -219,7 +218,7 @@ public class AutoRepairConfigTest extends CQLTester
     {
         config.setRepairSSTableCountHigherThreshold(repairType, 5);
 
-        assert config.getOptions(repairType).sstable_upper_threshold == 5;
+        assertEquals(5, config.getOptions(repairType).sstable_upper_threshold.intValue());
     }
 
     @Test
@@ -237,8 +236,8 @@ public class AutoRepairConfigTest extends CQLTester
     {
         config.setAutoRepairTableMaxRepairTime(repairType, "5s");
 
-        assert config.getOptions(repairType).table_max_repair_time.toSeconds() == 5;
-    }
+    assertEquals(5, config.getOptions(repairType).table_max_repair_time.toSeconds());
+}
 
     @Test
     public void testGetIgnoreDCs()
@@ -291,7 +290,7 @@ public class AutoRepairConfigTest extends CQLTester
     {
         config.setParallelRepairPercentage(repairType, 5);
 
-        assert config.getOptions(repairType).parallel_repair_percentage == 5;
+        assertEquals(5, config.getOptions(repairType).parallel_repair_percentage.intValue());
     }
 
     @Test
@@ -309,7 +308,55 @@ public class AutoRepairConfigTest extends CQLTester
     {
         config.setParallelRepairCount(repairType, 5);
 
-        assert config.getOptions(repairType).parallel_repair_count == 5;
+        assertEquals(5, config.getOptions(repairType).parallel_repair_count.intValue());
+    }
+
+    @Test
+    public void testGetAllowParallelReplicaRepair()
+    {
+        // should default to false
+        assertFalse(config.global_settings.allow_parallel_replica_repair);
+        assertFalse(config.getAllowParallelReplicaRepair(repairType));
+
+        // setting global to true should also cause repair type config to inherit.
+        config.global_settings.allow_parallel_replica_repair = true;
+        assertTrue(config.getAllowParallelReplicaRepair(repairType));
+
+    }
+
+    @Test
+    public void testSetAllowParallelReplicaRepair()
+    {
+        // should default to false
+        assertFalse(config.getAllowParallelReplicaRepair(repairType));
+
+        // setting explicitly for repair type should update it
+        config.setAllowParallelReplicaRepair(repairType, true);
+        assertTrue(config.getAllowParallelReplicaRepair(repairType));
+    }
+
+    @Test
+    public void testGetAllowParallelReplicaRepairAcrossSchedules()
+    {
+        // should default to true
+        assertTrue(config.global_settings.allow_parallel_replica_repair_across_schedules);
+        assertTrue(config.getAllowParallelReplicaRepairAcrossSchedules(repairType));
+
+        // setting global to true should also cause repair type config to inherit.
+        config.global_settings.allow_parallel_replica_repair_across_schedules = false;
+        assertFalse(config.getAllowParallelReplicaRepairAcrossSchedules(repairType));
+
+    }
+
+    @Test
+    public void testSetAllowParallelReplicaRepairAcrossSchedules()
+    {
+        // should default to true
+        assertTrue(config.getAllowParallelReplicaRepairAcrossSchedules(repairType));
+
+        // setting explicitly for repair type should update it
+        config.setAllowParallelReplicaRepairAcrossSchedules(repairType, false);
+        assertFalse(config.getAllowParallelReplicaRepairAcrossSchedules(repairType));
     }
 
     @Test
@@ -396,7 +443,7 @@ public class AutoRepairConfigTest extends CQLTester
     {
         config.setInitialSchedulerDelay(repairType, "5s");
 
-        assert config.getOptions(repairType).initial_scheduler_delay.toSeconds() == 5;
+        assertEquals(5, config.getOptions(repairType).initial_scheduler_delay.toSeconds());
     }
 
     @Test
@@ -414,7 +461,7 @@ public class AutoRepairConfigTest extends CQLTester
     {
         config.setRepairSessionTimeout(repairType, "1h");
 
-        assert config.getOptions(repairType).repair_session_timeout.toSeconds() == 3600;
+        assertEquals(3600, config.getOptions(repairType).repair_session_timeout.toSeconds());
     }
 
     @Test
