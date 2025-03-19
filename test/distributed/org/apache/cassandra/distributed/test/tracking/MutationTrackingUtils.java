@@ -21,16 +21,17 @@ package org.apache.cassandra.distributed.test.tracking;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.Collection;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Set;
 
 import com.google.common.primitives.Ints;
 
-import org.apache.cassandra.replication.MutationSummary;
+import org.apache.cassandra.replication.*;
 import org.junit.Assert;
 import org.junit.Assume;
 
 import org.apache.cassandra.db.DecoratedKey;
-import org.apache.cassandra.replication.MutationId;
 import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
@@ -40,8 +41,6 @@ import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.metrics.ReadRepairMetrics;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.replication.MutationSummary.CoordinatorSummary;
-import org.apache.cassandra.replication.MutationTrackingService;
-import org.apache.cassandra.replication.Offsets;
 import org.apache.cassandra.schema.ReplicationType;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableMetadata;
@@ -153,6 +152,23 @@ public class MutationTrackingUtils
         return MutationTrackingService.instance.summaryForRange(table.id, range);
     }
 
+    public static Offsets summaryIdSpace(CoordinatorSummary summary)
+    {
+        return Offsets.union(summary.reconciled, summary.unreconciled);
+    }
+
+    public static Map<CoordinatorLogId, Offsets> summaryIdSpace(MutationSummary summary)
+    {
+        Map<CoordinatorLogId, Offsets> idSpace = new HashMap<>();
+        for (int i=0; i<summary.size(); i++)
+        {
+            CoordinatorSummary coordinatorSummary = summary.get(i);
+            idSpace.put(coordinatorSummary.logId(), summaryIdSpace(coordinatorSummary));
+        }
+
+        return idSpace;
+    }
+
     public static void assertSummaryContents(MutationSummary summary, Collection<MutationId> expected)
     {
         Assert.assertEquals(expected.size(), summary.unreconciledIds());
@@ -176,6 +192,19 @@ public class MutationTrackingUtils
             MutationSummary decodedExpected = decodeSummary(encodedExpected);
             MutationSummary actual = summaryForKey(keyspaceName, tableName, key);
             Assert.assertEquals(decodedExpected, actual);
+        });
+    }
+
+    /**
+     * Checks that nodes have seen the same ids, regardless of whether they agree on their reconciliation status
+     */
+    public static void assertMatchingSummaryIdSpaceForKey(IInvokableInstance node, String keyspaceName, String tableName, int key, MutationSummary expected)
+    {
+        byte[] encodedExpected = encodeSummary(expected);
+        node.runOnInstance(() -> {
+            MutationSummary decodedExpected = decodeSummary(encodedExpected);
+            MutationSummary actual = summaryForKey(keyspaceName, tableName, key);
+            Assert.assertEquals(summaryIdSpace(decodedExpected), summaryIdSpace(actual));
         });
     }
 
