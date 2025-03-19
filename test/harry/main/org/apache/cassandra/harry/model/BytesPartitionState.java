@@ -142,7 +142,7 @@ public class BytesPartitionState
             if (values.containsKey(column))
             {
                 ByteBuffer value = values.get(column);
-                if (value == null || !value.hasRemaining() && column.type().isUDT())
+                if (value == null || !value.hasRemaining() && (column.type().isUDT() && column.type().isMultiCell()))
                 {
                     vds[i] = MagicConstants.NIL_DESCR;
                     continue;
