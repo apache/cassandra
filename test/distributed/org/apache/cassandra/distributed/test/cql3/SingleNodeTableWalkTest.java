@@ -448,7 +448,7 @@ public class SingleNodeTableWalkTest extends StatefulASTBase
                                                                   .withoutTransaction()
                                                                   .withoutTtl()
                                                                   .withoutTimestamp()
-                                                                  .withPartitions(SourceDSL.arbitrary().pick(uniquePartitions))
+                                                                  .withPartitions(Generators.fromGen(Gens.mixedDistribution(uniquePartitions).next(rs)))
                                                                   .withColumnExpressions(e -> e.withOperators(Generators.fromGen(BOOLEAN_DISTRIBUTION.next(rs))));
             if (IGNORED_ISSUES.contains(KnownIssue.SAI_EMPTY_TYPE))
             {
@@ -477,7 +477,7 @@ public class SingleNodeTableWalkTest extends StatefulASTBase
 
             searchableColumns = (metadata.partitionKeyColumns().size() > 1 ? model.factory.selectionOrder : nonPartitionColumns)
                                 .stream()
-                                .filter(indexes::containsKey)
+                                .filter(this::isSearchable)
                                 .collect(Collectors.toList());
         }
 
