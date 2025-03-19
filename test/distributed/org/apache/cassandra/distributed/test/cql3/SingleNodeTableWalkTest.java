@@ -81,6 +81,13 @@ import static org.apache.cassandra.utils.Generators.toGen;
 public class SingleNodeTableWalkTest extends StatefulASTBase
 {
     private static final Gen<Gen<Boolean>> BOOLEAN_DISTRIBUTION = Gens.bools().mixedDistribution();
+    private static Gen<Gen<TypeKind>> TYPE_KIND_DISTRIBUTION = Gens.mixedDistribution(TypeKind.PRIMITIVE,
+                                                                                      TypeKind.SET, TypeKind.LIST, TypeKind.MAP,
+                                                                                      TypeKind.VECTOR);
+    private static Gen<Gen<AbstractType<?>>> PRIMITIVE_DISTRIBUTION = Gens.mixedDistribution(AbstractTypeGenerators.knownPrimitiveTypes()
+                                                                                                                   .stream()
+                                                                                                                   .filter(t -> !AbstractTypeGenerators.isUnsafeEquality(t))
+                                                                                                                   .collect(Collectors.toList()));
     private static final Logger logger = LoggerFactory.getLogger(SingleNodeTableWalkTest.class);
 
     protected void preCheck(Cluster cluster, Property.StatefulBuilder builder)
@@ -91,22 +98,19 @@ public class SingleNodeTableWalkTest extends StatefulASTBase
         // CQL_DEBUG_APPLY_OPERATOR = true;
     }
 
-    protected TypeGenBuilder supportedTypes()
+    protected TypeGenBuilder supportedTypes(RandomSource rs)
     {
-        return AbstractTypeGenerators.withoutUnsafeEquality()
-                                     .withTypeKinds(TypeKind.PRIMITIVE,
-                                                    TypeKind.SET, TypeKind.LIST, TypeKind.MAP)
+        return AbstractTypeGenerators.builder()
+                                     .withTypeKinds(Generators.fromGen(TYPE_KIND_DISTRIBUTION.next(rs)))
+                                     .withPrimitives(Generators.fromGen(PRIMITIVE_DISTRIBUTION.next(rs)))
                                      .withMaxDepth(1);
-//                                     .withoutTypeKinds(TypeKind.TUPLE, TypeKind.UDT,
-//                                                       TypeKind.COMPOSITE, TypeKind.DYNAMIC_COMPOSITE);
-//        return AbstractTypeGenerators.withoutUnsafeEquality(AbstractTypeGenerators.builder()
-//                                                                                  .withTypeKinds(TypeKind.PRIMITIVE));
     }
 
-    protected TypeGenBuilder supportedPrimaryColumnTypes()
+    protected TypeGenBuilder supportedPrimaryColumnTypes(RandomSource rs)
     {
-        return AbstractTypeGenerators.withoutUnsafeEquality()
-                                     .withTypeKinds(TypeKind.PRIMITIVE);
+        return AbstractTypeGenerators.builder()
+                                     .withTypeKinds(TypeKind.PRIMITIVE)
+                                     .withPrimitives(Generators.fromGen(PRIMITIVE_DISTRIBUTION.next(rs)));
     }
 
     protected List<CreateIndexDDL.Indexer> supportedIndexers()
@@ -378,8 +382,8 @@ public class SingleNodeTableWalkTest extends StatefulASTBase
                                        .withCompression())
                      .withKeyspaceName(ks).withTableName("tbl")
                      .withSimpleColumnNames()
-                     .withDefaultTypeGen(supportedTypes())
-                     .withPrimaryColumnTypeGen(supportedPrimaryColumnTypes())
+                     .withDefaultTypeGen(supportedTypes(rs))
+                     .withPrimaryColumnTypeGen(supportedPrimaryColumnTypes(rs))
                      .withPartitioner(Murmur3Partitioner.instance)
                      .build())
                .next(rs);

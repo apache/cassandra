@@ -165,12 +165,13 @@ public final class AbstractTypeGenerators
     ).collect(Collectors.toMap(t -> t.type, t -> t));
     // NOTE not supporting reversed as CQL doesn't allow nested reversed types
     // when generating part of the clustering key, it would be good to allow reversed types as the top level
-    private static final Gen<AbstractType<?>> PRIMITIVE_TYPE_GEN;
-    static
+    private static final Gen<AbstractType<?>> PRIMITIVE_TYPE_GEN = SourceDSL.arbitrary().pick(knownPrimitiveTypes());
+
+    public static List<AbstractType<?>> knownPrimitiveTypes()
     {
         ArrayList<AbstractType<?>> types = new ArrayList<>(PRIMITIVE_TYPE_DATA_GENS.keySet());
         types.sort(Comparator.comparing(a -> a.getClass().getName()));
-        PRIMITIVE_TYPE_GEN = SourceDSL.arbitrary().pick(types);
+        return types;
     }
 
     private static final Set<Class<? extends AbstractType>> NON_PRIMITIVE_TYPES = ImmutableSet.<Class<? extends AbstractType>>builder()
@@ -242,6 +243,14 @@ public final class AbstractTypeGenerators
         TypeSupport<?> original = PRIMITIVE_TYPE_DATA_GENS.get(type);
         PRIMITIVE_TYPE_DATA_GENS.put(type, support);
         return () -> PRIMITIVE_TYPE_DATA_GENS.put(type, original);
+    }
+
+    public static boolean isUnsafeEquality(AbstractType<?> type)
+    {
+        return type == EmptyType.instance
+               || type == DurationType.instance
+               || type == DecimalType.instance
+               || type == CounterColumnType.instance;
     }
 
     public static TypeGenBuilder withoutUnsafeEquality(TypeGenBuilder builder)
@@ -403,6 +412,13 @@ public final class AbstractTypeGenerators
         {
             // any previous filters will be ignored...
             primitiveGen = SourceDSL.arbitrary().pick(ArrayUtils.add(remaining, first));
+            return this;
+        }
+
+        public TypeGenBuilder withPrimitives(Gen<AbstractType<?>> gen)
+        {
+            // any previous filters will be ignored...
+            primitiveGen = Objects.requireNonNull(gen);
             return this;
         }
 
