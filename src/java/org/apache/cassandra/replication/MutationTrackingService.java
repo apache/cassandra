@@ -225,7 +225,10 @@ public class MutationTrackingService
         void forEachIntersectingShard(AbstractBounds<PartitionPosition> bounds, Consumer<Shard> consumer)
         {
             ppShards.forEach((range, shard) -> {
-                if (range.intersects(bounds))
+                // TODO (expected): partial workaround - is there a better way to do this?
+                //  SELECT * statements create Bounds[min,min], (PartitionKeyRestrictions.java:L174) not Range(min,min],
+                //  which Ranges generally won't intersect with (Range.java:L148), so contains is used here to make it work
+                if (bounds.contains(range.right) || range.intersects(bounds))
                     consumer.accept(shard);
             });
         }

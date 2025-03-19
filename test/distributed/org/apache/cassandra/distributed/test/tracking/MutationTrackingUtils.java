@@ -218,6 +218,16 @@ public class MutationTrackingUtils
         });
     }
 
+    public static void assertMatchingSummaryIdSpaceForTable(IInvokableInstance node, String keyspaceName, String tableName, MutationSummary expected)
+    {
+        byte[] encodedExpected = encodeSummary(expected);
+        node.runOnInstance(() -> {
+            MutationSummary decodedExpected = decodeSummary(encodedExpected);
+            MutationSummary actual = summaryForTable(keyspaceName, tableName);
+            Assert.assertEquals(summaryIdSpace(decodedExpected), summaryIdSpace(actual));
+        });
+    }
+
     public static void assertOffsetsIsSuperSet(Offsets expectedSuperset, Offsets expectedSubset)
     {
         Offsets diff = Offsets.difference(expectedSubset, expectedSuperset);
@@ -240,6 +250,20 @@ public class MutationTrackingUtils
                 throw new AssertionError(String.format("Coordinator summary for %s found in expected subset and not in expected superset", subset.logId()));
 
             assertOffsetsIsSuperSet(superset.unreconciled, subset.unreconciled);
+        }
+    }
+
+    public static void assertSummaryIdSpaceIsSuperSet(MutationSummary expectedSuperset, MutationSummary expectedSubset)
+    {
+        for (int i = 0; i < expectedSubset.size(); i++)
+        {
+            CoordinatorSummary subset = expectedSubset.get(i);
+            CoordinatorSummary superset = expectedSuperset.get(subset.logId());
+
+            if (superset == null)
+                throw new AssertionError(String.format("Coordinator summary for %s found in expected subset and not in expected superset", subset.logId()));
+
+            assertOffsetsIsSuperSet(summaryIdSpace(superset), summaryIdSpace(subset));
         }
     }
 

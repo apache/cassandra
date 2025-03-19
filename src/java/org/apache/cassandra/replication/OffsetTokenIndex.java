@@ -77,31 +77,49 @@ class OffsetTokenIndex
         return found;
     }
 
-    // TODO (expected): handle wrap-around ranges
-    boolean lookUp(Range<Token> range, Offsets into)
+    private boolean addSubset(SortedSet<Entry> subset, Offsets into)
     {
         boolean found = false;
-        SortedSet<Entry> subset = tokenToOffsets.subSet(new Entry(range.left, 0), new Entry(range.right, Integer.MAX_VALUE));
-        for (Entry entry : subset)
+        for (Entry entry : tokenToOffsets)
         {
-            into.append(entry.offset);
+            into.add(entry.offset);
             found = true;
         }
         return found;
     }
 
+    private boolean lookUp(Entry start, Entry end, Offsets into)
+    {
+        int cmp = start.token.compareTo(end.token);
+        if (cmp == 0)
+        {
+            // full range
+            return addSubset(tokenToOffsets, into);
+        }
+        else if (cmp > 0)
+        {
+            // wrap around range
+            boolean lFound = addSubset(tokenToOffsets.headSet(end), into);
+            boolean rFound = addSubset(tokenToOffsets.tailSet(start), into);
+            return lFound || rFound;
+        }
+        else
+        {
+            // contiguous range
+            return addSubset(tokenToOffsets.subSet(start, end), into);
+        }
+    }
+
+    boolean lookUp(Range<Token> range, Offsets into)
+    {
+        return lookUp(new Entry(range.left, 0), new Entry(range.right, Integer.MAX_VALUE), into);
+    }
+
     boolean lookUp(AbstractBounds<PartitionPosition> range, Offsets into)
     {
-        boolean found = false;
         Entry start = new Entry(range.left.getToken(), range.inclusiveLeft() ? 0 : Integer.MAX_VALUE);
         Entry end = new Entry(range.right.getToken(), range.inclusiveRight() ? Integer.MAX_VALUE : 0);
-        SortedSet<Entry> subset = tokenToOffsets.subSet(start, end);
-        for (Entry entry : subset)
-        {
-            into.append(entry.offset);
-            found = true;
-        }
-        return found;
+        return lookUp(start, end, into);
     }
 
     void invalidate(int offset)
