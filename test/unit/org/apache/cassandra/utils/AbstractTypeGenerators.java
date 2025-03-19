@@ -792,10 +792,8 @@ public final class AbstractTypeGenerators
 
         static UserTypeFieldsGen random()
         {
-            return (rnd, size) -> {
-                Gen<FieldIdentifier> fieldNameGen = IDENTIFIER_GEN.map(FieldIdentifier::forQuoted);
-                return Generators.uniqueList(fieldNameGen, i -> size).generate(rnd);
-            };
+            Gen<FieldIdentifier> fieldNameGen = IDENTIFIER_GEN.map(FieldIdentifier::forQuoted);
+            return (rnd, size) -> Generators.uniqueList(fieldNameGen, i -> size).generate(rnd);
         }
 
         static UserTypeFieldsGen simpleNames()
