@@ -50,7 +50,7 @@ public class StandardVisitors
         public Expression visit(Expression e)
         {
             if (!(e instanceof Operator)) return e;
-            return new Bind(ExpressionEvaluator.tryEval((Operator) e).get(), e.type());
+            return new Bind(ExpressionEvaluator.eval((Operator) e), e.type());
         }
     };
 

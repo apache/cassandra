@@ -61,7 +61,6 @@ import org.apache.cassandra.cql3.ast.Value;
 import org.apache.cassandra.db.BufferClustering;
 import org.apache.cassandra.db.Clustering;
 import org.apache.cassandra.db.marshal.AbstractType;
-import org.apache.cassandra.db.marshal.CollectionType;
 import org.apache.cassandra.db.marshal.Int32Type;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.harry.model.BytesPartitionState.PrimaryKey;
@@ -929,9 +928,10 @@ public class ASTSingleTableModel
         }
     }
 
+    @Nullable
     private static ByteBuffer eval(Expression e)
     {
-        return ExpressionEvaluator.tryEvalEncoded(e).get();
+        return ExpressionEvaluator.evalEncoded(e);
     }
 
     private static class Row
