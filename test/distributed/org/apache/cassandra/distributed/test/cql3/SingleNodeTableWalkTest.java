@@ -81,11 +81,11 @@ import static org.apache.cassandra.utils.Generators.toGen;
 public class SingleNodeTableWalkTest extends StatefulASTBase
 {
     private static final Gen<Gen<Boolean>> BOOLEAN_DISTRIBUTION = Gens.bools().mixedDistribution();
-    //TODO (coverage): TUPLE, UDT, COMPOSITE, DYNAMIC_COMPOSITE
+    //TODO (coverage): COMPOSITE, DYNAMIC_COMPOSITE
     private static Gen<Gen<TypeKind>> TYPE_KIND_DISTRIBUTION = Gens.mixedDistribution(TypeKind.PRIMITIVE,
 //                                                                                      TypeKind.SET, TypeKind.LIST, TypeKind.MAP,
-//                                                                                      TypeKind.VECTOR
                                                                                       TypeKind.TUPLE, TypeKind.UDT
+//                                                                                      TypeKind.VECTOR
     );
     private static Gen<Gen<AbstractType<?>>> PRIMITIVE_DISTRIBUTION = Gens.mixedDistribution(AbstractTypeGenerators.knownPrimitiveTypes()
                                                                                                                    .stream()
@@ -99,6 +99,11 @@ public class SingleNodeTableWalkTest extends StatefulASTBase
         // Example: builder.withSeed(42L);
         // CQL operations may have opertors such as +, -, and / (example 4 + 4), to "apply" them to get a constant value
         // CQL_DEBUG_APPLY_OPERATOR = true;
+
+        builder.withExamples(Integer.MAX_VALUE);
+//        builder.withSeed(3447967420606880724L).withExamples(1); // Fixed: frozen tuple < ?
+//        builder.withSeed(1729461182980694001L).withExamples(1); // Fixed: frozen udt returns <empty> rather than null
+        builder.withSeed(-257286112445818522L).withExamples(1); // Has the right rows but in the wrong order?
     }
 
     protected TypeGenBuilder supportedTypes(RandomSource rs)
