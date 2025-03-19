@@ -19,6 +19,7 @@ Merged from 4.1:
  * Fix SimpleClient ability to release acquired capacity (CASSANDRA-20202)
  * Fix WaitQueue.Signal.awaitUninterruptibly may block forever if invoking thread is interrupted (CASSANDRA-20084)
 Merged from 4.0:
+ * Update zstd-jni to 1.5.7-2 (CASSANDRA-20453)
  * Suppress CVE-2024-12801 (CASSANDRA-20412)
  * Suppress CVE-2024-12798 (CASSANDRA-20408)
  * Support null column value tombstones in FQL batch statements (CASSANDRA-20397)
