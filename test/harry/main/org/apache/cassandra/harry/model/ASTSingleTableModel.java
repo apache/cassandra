@@ -503,6 +503,45 @@ public class ASTSingleTableModel
             if (actual.isEmpty()) sb.append("No rows returned");
             else sb.append("Missing rows:\n").append(table(columns, missing));
         }
+        if (!unexpected.isEmpty() && unexpected.size() == missing.size())
+        {
+            // good chance a column differs
+            StringBuilder finalSb = sb;
+            Runnable runOnce = new Runnable()
+            {
+                boolean ran = false;
+                @Override
+                public void run()
+                {
+                    if (ran) return;;
+                    finalSb.append("\nPossible column conflicts:");
+                    ran = true;
+                }
+            };
+            for (var e : missing)
+            {
+                Row smallest = null;
+                BitSet smallestDiff = null;
+                for (var a : unexpected)
+                {
+                    BitSet diff = e.diff(a);
+                    if (smallestDiff == null || diff.cardinality() < smallestDiff.cardinality())
+                    {
+                        smallest = a;
+                        smallestDiff = diff;
+                    }
+                }
+                // if every column differs then ignore
+                if (smallestDiff.cardinality() == e.values.length)
+                    continue;
+                runOnce.run();
+                sb.append("\n\tExpected: ").append(e);
+                sb.append("\n\tDiff (expected over actual):\n");
+                Row eSmall = e.select(smallestDiff);
+                Row aSmall = smallest.select(smallestDiff);
+                sb.append(table(eSmall.columns, Arrays.asList(eSmall, aSmall)));
+            }
+        }
         if (sb != null)
         {
             sb.append("\nExpected:\n").append(table(columns, expected));
@@ -936,6 +975,8 @@ public class ASTSingleTableModel
 
     private static class Row
     {
+        private static final Row EMPTY = new Row(ImmutableUniqueList.empty(), ByteBufferUtil.EMPTY_ARRAY);
+
         private final ImmutableUniqueList<Symbol> columns;
         private final ByteBuffer[] values;
 
@@ -943,6 +984,8 @@ public class ASTSingleTableModel
         {
             this.columns = columns;
             this.values = values;
+            if (columns.size() != values.length)
+                throw new IllegalArgumentException("Columns " + columns + " should have the same size as values, but had " + values.length);
         }
 
         public String asCQL(Symbol symbol)
@@ -950,7 +993,9 @@ public class ASTSingleTableModel
             int offset = columns.indexOf(symbol);
             assert offset >= 0;
             ByteBuffer b = values[offset];
-            return (b == null || ByteBufferUtil.EMPTY_BYTE_BUFFER.equals(b)) ? "null" : symbol.type().asCQL3Type().toCQLLiteral(b);
+            if (b == null) return "null";
+            if (ByteBufferUtil.EMPTY_BYTE_BUFFER.equals(b)) return "<empty>";
+            return symbol.type().asCQL3Type().toCQLLiteral(b);
         }
 
         public List<String> asCQL()
@@ -978,6 +1023,21 @@ public class ASTSingleTableModel
             for (int i = minLength; i < maxLength; i++)
                 set.set(i);
             return set;
+        }
+
+        public Row select(BitSet selection)
+        {
+            if (selection.isEmpty()) return EMPTY;
+            var names = ImmutableUniqueList.<Symbol>builder(selection.cardinality());
+            ByteBuffer[] copy = new ByteBuffer[selection.cardinality()];
+            int offset = 0;
+            for (int i = 0; i < this.values.length; i++)
+            {
+                if (!selection.get(i)) continue;
+                names.add(this.columns.get(i));
+                copy[offset++] = this.values[i];
+            }
+            return new Row(names.build(), copy);
         }
 
         @Override
