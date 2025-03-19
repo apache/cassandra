@@ -563,7 +563,7 @@
         <dependencyManagement>
           <dependency groupId="org.xerial.snappy" artifactId="snappy-java" version="1.1.10.4"/>
           <dependency groupId="org.lz4" artifactId="lz4-java" version="1.8.0"/>
-          <dependency groupId="com.github.luben" artifactId="zstd-jni" version="1.5.7-1"/>
+          <dependency groupId="com.github.luben" artifactId="zstd-jni" version="1.5.7-2"/>
           <dependency groupId="com.google.guava" artifactId="guava" version="27.0-jre">
             <exclusion groupId="com.google.code.findbugs" artifactId="jsr305" />
             <exclusion groupId="org.codehaus.mojo" artifactId="animal-sniffer-annotations" />
