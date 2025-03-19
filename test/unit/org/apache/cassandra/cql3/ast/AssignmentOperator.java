@@ -57,42 +57,25 @@ public class AssignmentOperator implements Expression
     {
         type = type.unwrap();
         EnumSet<Kind> result = EnumSet.noneOf(Kind.class);
-        if (!isTransaction)
+        if (type instanceof CollectionType && type.isMultiCell())
         {
-            if (type instanceof CollectionType && type.isMultiCell())
+            if (type instanceof SetType || type instanceof ListType)
+                return EnumSet.of(Kind.ADD, Kind.SUBTRACT);
+            if (type instanceof MapType)
             {
-                if (type instanceof SetType || type instanceof ListType)
-                    return EnumSet.of(Kind.ADD, Kind.SUBTRACT);
-                if (type instanceof MapType)
-                {
-                    // map supports subtract, but not map - map; only map - set!
-                    // since this is annoying to support, for now dropping -
-                    return EnumSet.of(Kind.ADD);
-                }
-                throw new AssertionError("Unexpected collection type: " + type);
+                // map supports subtract, but not map - map; only map - set!
+                // since this is annoying to support, for now dropping -
+                return EnumSet.of(Kind.ADD);
             }
-            return result;
+            throw new AssertionError("Unexpected collection type: " + type);
         }
+        if (!isTransaction)
+            return result; // only multi-cell collections can be updated outside of transactions
         for (Operator.Kind supported : Operator.supportsOperators(type))
         {
             Kind kind = toKind(supported);
             if (kind != null)
                 result.add(kind);
-        }
-        if (result.isEmpty())
-        {
-            if (type instanceof CollectionType && type.isMultiCell())
-            {
-                if (type instanceof SetType || type instanceof ListType)
-                    return EnumSet.of(Kind.ADD, Kind.SUBTRACT);
-                if (type instanceof MapType)
-                {
-                    // map supports subtract, but not map - map; only map - set!
-                    // since this is annoying to support, for now dropping -
-                    return EnumSet.of(Kind.ADD);
-                }
-                throw new AssertionError("Unexpected collection type: " + type);
-            }
         }
         return result;
     }
