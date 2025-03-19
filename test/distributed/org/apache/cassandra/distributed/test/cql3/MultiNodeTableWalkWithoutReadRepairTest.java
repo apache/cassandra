@@ -36,26 +36,5 @@ public class MultiNodeTableWalkWithoutReadRepairTest extends MultiNodeTableWalkB
         // Example: builder.withSeed(42L);
         // CQL operations may have opertors such as +, -, and / (example 4 + 4), to "apply" them to get a constant value
          CQL_DEBUG_APPLY_OPERATOR = true;
-//         builder.withExamples(Integer.MAX_VALUE);
-
-         // Each column has its own distribution for sollecting booleans, so old seeds no longer repo
-//         builder.withSeed(4410116151423022241L).withExamples(1); // Fixed: -= can produce empty collection, which should be null rather than {}
-
-//        builder.withSeed(3447985801999894413L).withExamples(1); // -= list with value
-//        builder.withSeed(-2687302456481776596L).withExamples(1); // Fixed by CASSANDRA-20449: row mismatch
-
-        // All seeds here are when the allowed types were larger, the test limited to collections + primitives above
-//         builder.withSeed(2772645953614578715L).withExamples(1); // Fixed: += on map type
-//        builder.withSeed(3447991911091931691L).withExamples(1); // Fixed: NPE deflating keys
-//        builder.withSeed(-7718863789281418201L).withExamples(1); // Fixed: eval of Optional.empty (missed updating static code path)
-//        builder.withSeed(880881107305966245L).withExamples(1); // Fixed: -= not handling BB
-//        builder.withSeed(-2989523031488301677L).withExamples(1); // Fixed: += map with value present
-
-
-         // All seeds here were with supported types including UDTs, UDTs were excluded for the time being so these seeds won't repo
-//        builder.withSeed(-814430092055554935L).withExamples(1); // Fixed: UDT empty bytes == null, which is not expected by the model (as it is different than other code paths)
-//        builder.withSeed(-5039578131309477040L).withExamples(1); // Fixed: Missing update due to UDT empty
-//        builder.withSeed(-5326848375356006181L).withExamples(1); // Fixed (previous fix used UNTOUCHED rather than NULL, this case requires NULL): Static UDT empty bytes missing in model
-//        builder.withSeed(3447991384254834118L).withExamples(1); // UDT empty returns empty bytes rather than null like previous seeds; is select token not checking that the cell is a tombstone?
     }
 }

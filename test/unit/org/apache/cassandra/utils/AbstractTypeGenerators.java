@@ -26,7 +26,6 @@ import java.util.Comparator;
 import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -290,6 +289,7 @@ public final class AbstractTypeGenerators
         private Predicate<AbstractType<?>> typeFilter = null;
         private Gen<String> udtName = null;
         private Gen<Boolean> multiCellGen = BOOLEAN_GEN;
+        private UserTypeFieldsGen fieldNamesGen = UserTypeFieldsGen.random();
 
         public TypeGenBuilder()
         {
@@ -298,19 +298,27 @@ public final class AbstractTypeGenerators
         public TypeGenBuilder(TypeGenBuilder other)
         {
             maxDepth = other.maxDepth;
-            kinds = other.kinds == null ? null : EnumSet.copyOf(other.kinds);
+            kinds = other.kinds;
             typeKindGen = other.typeKindGen;
             defaultSizeGen = other.defaultSizeGen;
             vectorSizeGen = other.vectorSizeGen;
             tupleSizeGen = other.tupleSizeGen;
-            udtName = other.udtName;
             udtSizeGen = other.udtSizeGen;
+            compositeSizeGen = other.compositeSizeGen;
             primitiveGen = other.primitiveGen;
+            compositeElementGen = other.compositeElementGen;
             userTypeKeyspaceGen = other.userTypeKeyspaceGen;
             defaultSetKeyFunc = other.defaultSetKeyFunc;
-            compositeElementGen = other.compositeElementGen;
-            compositeSizeGen = other.compositeSizeGen;
             typeFilter = other.typeFilter;
+            udtName = other.udtName;
+            multiCellGen = other.multiCellGen;
+            fieldNamesGen = other.fieldNamesGen;
+        }
+
+        public TypeGenBuilder withUserTypeFields(UserTypeFieldsGen fieldNamesGen)
+        {
+            this.fieldNamesGen = fieldNamesGen;
+            return this;
         }
 
         public TypeGenBuilder withMultiCell(Gen<Boolean> multiCellGen)
@@ -525,7 +533,7 @@ public final class AbstractTypeGenerators
                     case TUPLE:
                         return tupleTypeGen(atBottom ? primitiveGen : buildRecursive(maxDepth, level - 1, typeKindGen, SourceDSL.arbitrary().constant(false)), tupleSizeGen != null ? tupleSizeGen : defaultSizeGen).generate(rnd);
                     case UDT:
-                        return userTypeGen(next.get(), udtSizeGen != null ? udtSizeGen : defaultSizeGen, userTypeKeyspaceGen, udtName, multiCellGen).generate(rnd);
+                        return userTypeGen(fieldNamesGen, next.get(), udtSizeGen != null ? udtSizeGen : defaultSizeGen, userTypeKeyspaceGen, udtName, multiCellGen).generate(rnd);
                     case VECTOR:
                     {
                         Gen<Integer> sizeGen = vectorSizeGen != null ? vectorSizeGen : defaultSizeGen;
@@ -778,27 +786,49 @@ public final class AbstractTypeGenerators
         OVERRIDE_KEYSPACE.remove();
     }
 
+    public interface UserTypeFieldsGen
+    {
+        List<FieldIdentifier> generate(RandomnessSource rnd, int size);
+
+        static UserTypeFieldsGen random()
+        {
+            return (rnd, size) -> {
+                Gen<FieldIdentifier> fieldNameGen = IDENTIFIER_GEN.map(FieldIdentifier::forQuoted);
+                return Generators.uniqueList(fieldNameGen, i -> size).generate(rnd);
+            };
+        }
+
+        static UserTypeFieldsGen simpleNames()
+        {
+            return (rnd, size) -> {
+                List<FieldIdentifier> output = new ArrayList<>(size);
+                for (int i = 0; i < size; i++)
+                    output.add(FieldIdentifier.forUnquoted("f" + i));
+                return output;
+            };
+        }
+    }
+
     public static Gen<UserType> userTypeGen(Gen<AbstractType<?>> elementGen, Gen<Integer> sizeGen, Gen<String> ksGen, Gen<String> nameGen, Gen<Boolean> multiCellGen)
     {
-        Gen<FieldIdentifier> fieldNameGen = IDENTIFIER_GEN.map(FieldIdentifier::forQuoted);
+        return userTypeGen(UserTypeFieldsGen.random(), elementGen, sizeGen, ksGen, nameGen, multiCellGen);
+    }
+
+    public static Gen<UserType> userTypeGen(UserTypeFieldsGen fieldNamesGen, Gen<AbstractType<?>> elementGen, Gen<Integer> sizeGen, Gen<String> ksGen, Gen<String> nameGen, Gen<Boolean> multiCellGen)
+    {
         return rnd -> {
             boolean multiCell = multiCellGen.generate(rnd);
             int numElements = sizeGen.generate(rnd);
             List<AbstractType<?>> fieldTypes = new ArrayList<>(numElements);
-            LinkedHashSet<FieldIdentifier> fieldNames = new LinkedHashSet<>(numElements);
+            List<FieldIdentifier> fieldNames = fieldNamesGen.generate(rnd, numElements);
             String ks = OVERRIDE_KEYSPACE.get();
             if (ks == null)
                 ks = ksGen.generate(rnd);
             String name = nameGen.generate(rnd);
             ByteBuffer nameBB = AsciiType.instance.decompose(name);
 
-            Gen<FieldIdentifier> distinctNameGen = filter(fieldNameGen, 30, e -> !fieldNames.contains(e));
-            // UDTs don't allow duplicate names, so make sure all names are unique
             for (int i = 0; i < numElements; i++)
             {
-                FieldIdentifier fieldName = distinctNameGen.generate(rnd);
-                fieldNames.add(fieldName);
-
                 AbstractType<?> element = elementGen.generate(rnd);
                 element = multiCell ? element.freeze() : element.unfreeze();
                 // a UDT cannot contain a non-frozen UDT; as defined by CreateType
@@ -806,7 +836,7 @@ public final class AbstractTypeGenerators
                     element = element.freeze();
                 fieldTypes.add(element);
             }
-            return new UserType(ks, nameBB, new ArrayList<>(fieldNames), fieldTypes, multiCell);
+            return new UserType(ks, nameBB, fieldNames, fieldTypes, multiCell);
         };
     }
 

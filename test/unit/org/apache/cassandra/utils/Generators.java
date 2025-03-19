@@ -27,7 +27,6 @@ import java.sql.Timestamp;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.Date;
 import java.util.HashSet;
 import java.util.List;
@@ -38,6 +37,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.function.Predicate;
 
 import com.google.common.collect.Range;
+import com.google.common.collect.Sets;
 import org.apache.commons.lang3.ArrayUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -494,13 +494,20 @@ public final class Generators
         };
     }
 
-    public static <T extends Comparable<? super T>> Gen<List<T>> uniqueList(Gen<T> gen, Gen<Integer> sizeGen)
+    public static <T> Gen<List<T>> uniqueList(Gen<T> gen, Gen<Integer> sizeGen)
     {
-        return set(gen, sizeGen).map(t -> {
-            List<T> list = new ArrayList<>(t);
-            list.sort(Comparator.naturalOrder());
-            return list;
-        });
+        return rnd -> {
+            int size = sizeGen.generate(rnd);
+            Set<T> set = Sets.newHashSetWithExpectedSize(size);
+            List<T> output = new ArrayList<>(size);
+            for (int i = 0; i < size; i++)
+            {
+                T value;
+                while (!set.add(value = gen.generate(rnd))) {}
+                output.add(value);
+            }
+            return output;
+        };
     }
 
     public static <T> Gen<T> cached(Gen<T> gen)

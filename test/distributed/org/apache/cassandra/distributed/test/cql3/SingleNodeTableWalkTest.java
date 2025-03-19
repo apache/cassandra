@@ -81,9 +81,12 @@ import static org.apache.cassandra.utils.Generators.toGen;
 public class SingleNodeTableWalkTest extends StatefulASTBase
 {
     private static final Gen<Gen<Boolean>> BOOLEAN_DISTRIBUTION = Gens.bools().mixedDistribution();
+    //TODO (coverage): TUPLE, UDT, COMPOSITE, DYNAMIC_COMPOSITE
     private static Gen<Gen<TypeKind>> TYPE_KIND_DISTRIBUTION = Gens.mixedDistribution(TypeKind.PRIMITIVE,
-                                                                                      TypeKind.SET, TypeKind.LIST, TypeKind.MAP,
-                                                                                      TypeKind.VECTOR);
+//                                                                                      TypeKind.SET, TypeKind.LIST, TypeKind.MAP,
+//                                                                                      TypeKind.VECTOR
+                                                                                      TypeKind.TUPLE, TypeKind.UDT
+    );
     private static Gen<Gen<AbstractType<?>>> PRIMITIVE_DISTRIBUTION = Gens.mixedDistribution(AbstractTypeGenerators.knownPrimitiveTypes()
                                                                                                                    .stream()
                                                                                                                    .filter(t -> !AbstractTypeGenerators.isUnsafeEquality(t))
@@ -103,6 +106,7 @@ public class SingleNodeTableWalkTest extends StatefulASTBase
         return AbstractTypeGenerators.builder()
                                      .withTypeKinds(Generators.fromGen(TYPE_KIND_DISTRIBUTION.next(rs)))
                                      .withPrimitives(Generators.fromGen(PRIMITIVE_DISTRIBUTION.next(rs)))
+                                     .withUserTypeFields(AbstractTypeGenerators.UserTypeFieldsGen.simpleNames())
                                      .withMaxDepth(1);
     }
 
@@ -481,7 +485,8 @@ public class SingleNodeTableWalkTest extends StatefulASTBase
         {
             // See org.apache.cassandra.cql3.Operator.validateFor
             // multi cell collections can only be searched if you search their elements, not the collection as a whole
-            return !(symbol.type().isCollection() && symbol.type().isMultiCell());
+            //TODO (coverage): can you query for UDT fields?  its a single cell so you "should"?
+            return !(symbol.type().isMultiCell() && (symbol.type().isCollection() || symbol.type().isUDT()));
         }
 
         @Override
