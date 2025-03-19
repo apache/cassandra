@@ -72,11 +72,11 @@ include::cassandra:example$CQL/as.cql[]
 [NOTE]
 ====
 Currently, aliases aren't recognized in the `WHERE` or `ORDER BY` clauses in the statement.
-You must use the orignal column name instead.
+You must use the original column name instead.
 ====
 
 Selection supports four special functions: `WRITETIME`, `MINWRITETIME`, `MAXWRITETIME` and `TTL`.
-See the xref:cassandra:developing/cql/functions.adoc#writetime-and-ttl-fucntions[functions] section for details.
+See the xref:cassandra:developing/cql/functions.adoc#writetime-and-ttl-functions[functions] section for details.
 
 [[where-clause]]
 === The `WHERE` clause
@@ -106,7 +106,7 @@ include::cassandra:example$CQL/where.cql[]
 ----
 
 But the following one is not, as it does not select a contiguous set of
-rows (and we suppose no secondary indexes are set):
+rows (assuming no secondary indexes):
 
 [source,cql]
 ----
@@ -119,7 +119,7 @@ Rows will be selected based on the token of the `PARTITION_KEY` rather than on t
 ====
 The token of a key depends on the partitioner in use, and that
 in particular the `RandomPartitioner` won't yield a meaningful order.
-Also note that ordering partitioners always order token values by bytes (so
+Also note that the `ByteOrderedPartitioner` always orders token values by bytes (so
 even if the partition key is of type int, `token(-1) > token(0)` in
 particular).
 ====
@@ -202,7 +202,7 @@ or the reverse
 
 The `LIMIT` option to a `SELECT` statement limits the number of rows
 returned by a query. The `PER PARTITION LIMIT` option limits the
-number of rows returned for a given partition by the query. Both types of limits can used in the same statement.
+number of rows returned for a given partition by the query. Both types of limits can be used in the same statement.
 
 [[allow-filtering]]
 === Allowing filtering
@@ -232,7 +232,7 @@ The first query returns all rows, because all users are selected.
 The second query returns only the rows defined by the secondary index, a per-node implementation; the results will
 depend on the number of nodes in the cluster, and is indirectly proportional to the amount of data stored.
 The number of nodes will always be multiple number of magnitude lower than the number of user profiles stored.
-Both queries may return very large result sets, but the addition of a `LIMIT` clause can reduced the latency.
+Both queries may return very large result sets, but the addition of a `LIMIT` clause would reduce the latency.
 
 The following query will be rejected:
 
@@ -269,10 +269,10 @@ include::cassandra:example$CQL/insert_statement.cql[]
 
 The `INSERT` statement writes one or more columns for a given row in a
 table.
-Since a row is identified by its `PRIMARY KEY`, at least one columns must be specified.
+Since a row is identified by its `PRIMARY KEY`, at least one column must be specified.
 The list of columns to insert must be supplied with the `VALUES` syntax.
 When using the `JSON` syntax, `VALUES` are optional.
-See the section on xref:cassandra:developing/cql/dml.adoc#cql-json[JSON support] for more detail.
+See the section on xref:cassandra:developing/cql/json.adoc[JSON support] for more detail.
 All updates for an `INSERT` are applied atomically and in isolation.
 
 Unlike in SQL, `INSERT` does not check the prior existence of the row by default.
@@ -285,7 +285,7 @@ so this should be used sparingly.
 
 When using xref:cassandra:developing/cql/definitions.adoc#prepared-statements[Prepared Statements] bind_markers can be used instead of actual values.
 
-Please refer to the xref:cassandra:developing/cql/dml.adoc#upsert-parameters[INSERT PARAMETERS] section for informations on the `insert_parameter`.
+Please refer to the xref:cassandra:developing/cql/dml.adoc#upsert-parameters[INSERT PARAMETERS] section for information on the `insert_parameter`.
 Also note that `INSERT` does not support counters, while `UPDATE` does.
 
 [[update-statement]]
@@ -314,9 +314,9 @@ However, like the `IF NOT EXISTS` condition, a non-negligible performance cost c
 Regarding the `SET` assignment:
 
 * `c = c + 3` will increment/decrement counters, the only operation allowed.
-The column name after the '=' sign *must* be the same than the one before the '=' sign.
+The column name after the '=' sign *must* be the same as the one before the '=' sign.
 Increment/decrement is only allowed on counters.
-See the section on xref:cassandra:developing/cql/dml.adoc#counters[counters] for details.
+See the section on xref:cassandra:developing/cql/counter-column.adoc[counters] for details.
 * `id = id + <some-collection>` and `id[value1] = value2` are for collections.
 See the xref:cassandra:developing/cql/types.adoc#collections[collections] for details.
 * `id.field = 3` is for setting the value of a field on a non-frozen user-defined types.
@@ -444,7 +444,7 @@ only isolated within a single partition).
 
 There is a performance penalty for batch atomicity when a batch spans
 multiple partitions. If you do not want to incur this penalty, you can
-tell Cassandra to skip the batchlog with the `UNLOGGED` option. If the
+tell Cassandra to skip the batch log with the `UNLOGGED` option. If the
 `UNLOGGED` option is used, a failed batch might leave the batch only
 partly applied.
 
