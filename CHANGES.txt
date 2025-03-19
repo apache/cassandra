@@ -202,6 +202,7 @@ Merged from 4.1:
  * Enforce CQL message size limit on multiframe messages (CASSANDRA-20052)
  * Fix race condition in DecayingEstimatedHistogramReservoir during rescale (CASSANDRA-19365)
 Merged from 4.0:
+ * Update zstd-jni to 1.5.7-2 (CASSANDRA-20453)
  * Suppress CVE-2024-12801 (CASSANDRA-20412)
  * Suppress CVE-2024-12798 (CASSANDRA-20408)
  * Support null column value tombstones in FQL batch statements (CASSANDRA-20397)
