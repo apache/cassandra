@@ -20,8 +20,10 @@ package org.apache.cassandra.db.commitlog;
 
 import java.io.File;
 import java.nio.ByteBuffer;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
 import java.util.Random;
-import java.util.UUID;
 
 import com.google.common.collect.ImmutableMap;
 import org.junit.Assert;
@@ -40,7 +42,7 @@ import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.db.marshal.AsciiType;
 import org.apache.cassandra.db.marshal.BytesType;
 import org.apache.cassandra.schema.KeyspaceParams;
-import org.apache.cassandra.schema.TableId;
+import org.apache.cassandra.service.StorageService;
 import org.jboss.byteman.contrib.bmunit.BMRule;
 import org.jboss.byteman.contrib.bmunit.BMUnitRunner;
 
@@ -85,15 +87,23 @@ public class CommitlogShutdownTest
         // force creating several commitlog files
         for (int i = 0; i < 10; i++)
         {
-            CommitLog.instance.add(m);
+            m.apply();
         }
 
-        // schedule discarding completed segments and immediately issue a shutdown
-        TableId tableId = m.getTableIds().iterator().next();
-        CommitLog.instance.discardCompletedSegments(tableId, CommitLogPosition.NONE, CommitLog.instance.getCurrentPosition());
-        CommitLog.instance.shutdownBlocking();
+        StorageService.instance.drain();
 
-        // the shutdown should block until all logs except the currently active one and perhaps a new, empty one are gone
-        Assert.assertTrue(new File(DatabaseDescriptor.getCommitLogLocation()).listFiles().length <= 2);
+        List<CommitLogSegment> segmentsToCheck = new ArrayList<>(CommitLog.instance.segmentManager.getActiveSegments());
+        // remove the last, potentially active segment from the check
+        if (!segmentsToCheck.isEmpty())
+            segmentsToCheck.remove(segmentsToCheck.size() - 1);
+
+        for (CommitLogSegment segment : segmentsToCheck)
+        {
+            Assert.assertFalse("An unused segment is left after drain: " + segment.getName()
+                               + ", dirty tables: " + segment.dirtyString()
+                               + ", total segments: " + CommitLog.instance.segmentManager.getActiveSegments().size()
+                               + ", commit log files: " + Arrays.toString(new File(DatabaseDescriptor.getCommitLogLocation()).listFiles()),
+                               segment.isUnused());
+        }
     }
 }
