@@ -513,7 +513,7 @@ public class ASTSingleTableModel
                 @Override
                 public void run()
                 {
-                    if (ran) return;;
+                    if (ran) return;
                     finalSb.append("\nPossible column conflicts:");
                     ran = true;
                 }
@@ -780,7 +780,7 @@ public class ASTSingleTableModel
         for (Expression e : conditions)
         {
             ByteBuffer expected = eval(e);
-            if (expected.equals(value))
+            if (expected != null && expected.equals(value))
                 return true;
         }
         return false;
