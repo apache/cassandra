@@ -225,7 +225,7 @@ public class SingleNodeTableWalkTest extends StatefulASTBase
             builder.value(pk, key.bufferAt(pks.indexOf(pk)));
 
 
-        List<Symbol> searchableColumns = state.nonPartitionColumns;
+        List<Symbol> searchableColumns = state.searchableNonPartitionColumns;
         Symbol symbol = rs.pick(searchableColumns);
 
         TreeMap<ByteBuffer, List<BytesPartitionState.PrimaryKey>> universe = state.model.index(ref, symbol);
@@ -413,7 +413,7 @@ public class SingleNodeTableWalkTest extends StatefulASTBase
     {
         protected final LinkedHashMap<Symbol, IndexedColumn> indexes;
         private final Gen<Mutation> mutationGen;
-        private final List<Symbol> nonPartitionColumns;
+        private final List<Symbol> searchableNonPartitionColumns;
         private final List<Symbol> searchableColumns;
         private final List<Symbol> nonPkIndexedColumns;
 
@@ -459,16 +459,29 @@ public class SingleNodeTableWalkTest extends StatefulASTBase
             }
             this.mutationGen = toGen(mutationGenBuilder.build());
 
-            nonPartitionColumns = ImmutableList.<Symbol>builder()
-                                               .addAll(model.factory.clusteringColumns)
-                                               .addAll(model.factory.staticColumns)
-                                               .addAll(model.factory.regularColumns)
-                                               .build();
+            var nonPartitionColumns = ImmutableList.<Symbol>builder()
+                                                   .addAll(model.factory.clusteringColumns)
+                                                   .addAll(model.factory.staticColumns)
+                                                   .addAll(model.factory.regularColumns)
+                                                   .build();
+            searchableNonPartitionColumns = nonPartitionColumns.stream()
+                                                               .filter(this::isSearchable)
+                                                               .collect(Collectors.toList());
             nonPkIndexedColumns = nonPartitionColumns.stream()
                                                      .filter(indexes::containsKey)
                                                      .collect(Collectors.toList());
 
-            searchableColumns = metadata.partitionKeyColumns().size() > 1 ?  model.factory.selectionOrder : nonPartitionColumns;
+            searchableColumns = (metadata.partitionKeyColumns().size() > 1 ? model.factory.selectionOrder : nonPartitionColumns)
+                                .stream()
+                                .filter(indexes::containsKey)
+                                .collect(Collectors.toList());
+        }
+
+        private boolean isSearchable(Symbol symbol)
+        {
+            // See org.apache.cassandra.cql3.Operator.validateFor
+            // multi cell collections can only be searched if you search their elements, not the collection as a whole
+            return !(symbol.type().isCollection() && symbol.type().isMultiCell());
         }
 
         @Override
@@ -554,7 +567,7 @@ public class SingleNodeTableWalkTest extends StatefulASTBase
 
         public boolean allowPartitionQuery()
         {
-            return !(model.isEmpty() || nonPartitionColumns.isEmpty());
+            return !(model.isEmpty() || searchableNonPartitionColumns.isEmpty());
         }
 
         @Override
