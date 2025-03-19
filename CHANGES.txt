@@ -154,6 +154,7 @@
  * Add the ability to disable bulk loading of SSTables (CASSANDRA-18781)
  * Clean up obsolete functions and simplify cql_version handling in cqlsh (CASSANDRA-18787)
 Merged from 5.0:
+ * Serialization can lose complex deletions in a mutation with multiple collections in a row (CASSANDRA-20449)
  * Improve error messages when initializing auth classes (CASSANDRA-20368)
  * Prioritize legacy 2i over SAI for columns with multiple indexes (CASSANDRA-20334)
  * Ensure only offline tools can build IntervalTrees without first/last key fields (CASSANDRA-20407)
