@@ -253,7 +253,7 @@ public class Journal<K, V> implements Shutdownable
         try
         {
             Invariants.checkState(state.compareAndSet(State.NORMAL, State.SHUTDOWN),
-                                  "Unexpected journal state while trying to shut down", state);
+                                  "Unexpected journal state while trying to shut down: %s", state);
             allocator.shutdown();
             wakeAllocator(); // Wake allocator to force it into shutdown
             // TODO (expected): why are we awaitingTermination here when we have a separate method for it?
