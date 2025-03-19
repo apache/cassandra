@@ -147,8 +147,7 @@ public class BytesPartitionState
                     vds[i] = MagicConstants.NIL_DESCR;
                     continue;
                 }
-                long vd = factory.valueCache.deflate(new Value(column.type(), value));
-                vds[i] = vd;
+                vds[i] = factory.valueCache.deflate(new Value(column.type(), value));
             }
             else
             {
