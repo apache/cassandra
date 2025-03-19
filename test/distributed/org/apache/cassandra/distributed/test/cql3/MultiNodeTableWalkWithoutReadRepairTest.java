@@ -36,6 +36,10 @@ public class MultiNodeTableWalkWithoutReadRepairTest extends MultiNodeTableWalkB
         // Example: builder.withSeed(42L);
         // CQL operations may have opertors such as +, -, and / (example 4 + 4), to "apply" them to get a constant value
          CQL_DEBUG_APPLY_OPERATOR = true;
+//         builder.withExamples(Integer.MAX_VALUE);
+
+         // Each column has its own distribution for sollecting booleans, so old seeds no longer repo
+//         builder.withSeed(4410116151423022241L).withExamples(1); // Fixed: -= can produce empty collection, which should be null rather than {}
 
 //        builder.withSeed(3447985801999894413L).withExamples(1); // -= list with value
 //        builder.withSeed(-2687302456481776596L).withExamples(1); // Fixed by CASSANDRA-20449: row mismatch

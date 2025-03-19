@@ -69,6 +69,7 @@ import org.apache.cassandra.utils.AbstractTypeGenerators.TypeGenBuilder;
 import org.apache.cassandra.utils.AbstractTypeGenerators.TypeKind;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.CassandraGenerators.TableMetadataBuilder;
+import org.apache.cassandra.utils.Generators;
 import org.apache.cassandra.utils.ImmutableUniqueList;
 import org.quicktheories.generators.SourceDSL;
 
@@ -79,6 +80,7 @@ import static org.apache.cassandra.utils.Generators.toGen;
 
 public class SingleNodeTableWalkTest extends StatefulASTBase
 {
+    private static final Gen<Gen<Boolean>> BOOLEAN_DISTRIBUTION = Gens.bools().mixedDistribution();
     private static final Logger logger = LoggerFactory.getLogger(SingleNodeTableWalkTest.class);
 
     protected void preCheck(Cluster cluster, Property.StatefulBuilder builder)
@@ -438,7 +440,8 @@ public class SingleNodeTableWalkTest extends StatefulASTBase
                                                                   .withoutTransaction()
                                                                   .withoutTtl()
                                                                   .withoutTimestamp()
-                                                                  .withPartitions(SourceDSL.arbitrary().pick(uniquePartitions));
+                                                                  .withPartitions(SourceDSL.arbitrary().pick(uniquePartitions))
+                                                                  .withColumnExpressions(e -> e.withOperators(Generators.fromGen(BOOLEAN_DISTRIBUTION.next(rs))));
             if (IGNORED_ISSUES.contains(KnownIssue.SAI_EMPTY_TYPE))
             {
                 model.factory.regularAndStaticColumns.stream()

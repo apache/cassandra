@@ -42,6 +42,8 @@ import org.apache.commons.lang3.ArrayUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import accord.utils.DefaultRandom;
+import accord.utils.RandomSource;
 import org.apache.cassandra.cql3.ReservedKeywords;
 import org.quicktheories.core.Gen;
 import org.quicktheories.core.RandomnessSource;
@@ -609,6 +611,14 @@ public final class Generators
         return rs -> {
             JavaRandom r = new JavaRandom(rs.asJdkRandom());
             return qt.generate(r);
+        };
+    }
+
+    public static <T> org.quicktheories.core.Gen<T> fromGen(accord.utils.Gen<T> accord)
+    {
+        return rnd -> {
+            RandomSource rs = new DefaultRandom(rnd.next(Constraint.none()));
+            return accord.next(rs);
         };
     }
 
