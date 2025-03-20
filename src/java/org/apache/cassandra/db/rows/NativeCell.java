@@ -28,6 +28,7 @@ import org.apache.cassandra.utils.ObjectSizes;
 import org.apache.cassandra.utils.concurrent.OpOrder;
 import org.apache.cassandra.utils.memory.MemoryUtil;
 import org.apache.cassandra.utils.memory.NativeAllocator;
+import org.apache.cassandra.utils.memory.NativeEndianMemoryUtil;
 
 public class NativeCell extends AbstractCell<ByteBuffer>
 {
@@ -101,11 +102,11 @@ public class NativeCell extends AbstractCell<ByteBuffer>
 
         // cellpath? : timestamp : ttl : localDeletionTime : length : <data> : [cell path length] : [<cell path data>]
         peer = allocator.allocate((int) size, writeOp);
-        MemoryUtil.setByte(peer + HAS_CELLPATH, (byte)(path == null ? 0 : 1));
-        MemoryUtil.setLong(peer + TIMESTAMP, timestamp);
-        MemoryUtil.setInt(peer + TTL, ttl);
-        MemoryUtil.setInt(peer + DELETION, localDeletionTimeUnsignedInteger);
-        MemoryUtil.setInt(peer + LENGTH, value.remaining());
+        NativeEndianMemoryUtil.setByte(peer + HAS_CELLPATH, (byte)(path == null ? 0 : 1));
+        NativeEndianMemoryUtil.setLong(peer + TIMESTAMP, timestamp);
+        NativeEndianMemoryUtil.setInt(peer + TTL, ttl);
+        NativeEndianMemoryUtil.setInt(peer + DELETION, localDeletionTimeUnsignedInteger);
+        NativeEndianMemoryUtil.setInt(peer + LENGTH, value.remaining());
         MemoryUtil.setBytes(peer + VALUE, value);
 
         if (path != null)
@@ -114,7 +115,7 @@ public class NativeCell extends AbstractCell<ByteBuffer>
             assert pathbuffer.order() == ByteOrder.BIG_ENDIAN;
 
             long offset = peer + VALUE + value.remaining();
-            MemoryUtil.setInt(offset, pathbuffer.remaining());
+            NativeEndianMemoryUtil.setInt(offset, pathbuffer.remaining());
             MemoryUtil.setBytes(offset + 4, pathbuffer);
         }
     }
@@ -126,17 +127,17 @@ public class NativeCell extends AbstractCell<ByteBuffer>
 
     public long timestamp()
     {
-        return MemoryUtil.getLong(peer + TIMESTAMP);
+        return NativeEndianMemoryUtil.getLong(peer + TIMESTAMP);
     }
 
     public int ttl()
     {
-        return MemoryUtil.getInt(peer + TTL);
+        return NativeEndianMemoryUtil.getInt(peer + TTL);
     }
 
     public ByteBuffer value()// FIXME: add native accessor
     {
-        int length = MemoryUtil.getInt(peer + LENGTH);
+        int length = NativeEndianMemoryUtil.getInt(peer + LENGTH);
         return MemoryUtil.getByteBuffer(peer + VALUE, length, ByteOrder.BIG_ENDIAN);
     }
 
@@ -147,7 +148,7 @@ public class NativeCell extends AbstractCell<ByteBuffer>
 
     public int valueSize()
     {
-        return MemoryUtil.getInt(peer + LENGTH);
+        return NativeEndianMemoryUtil.getInt(peer + LENGTH);
     }
 
     public CellPath path()
@@ -155,8 +156,8 @@ public class NativeCell extends AbstractCell<ByteBuffer>
         if (!hasPath())
             return null;
 
-        long offset = peer + VALUE + MemoryUtil.getInt(peer + LENGTH);
-        int size = MemoryUtil.getInt(offset);
+        long offset = peer + VALUE + NativeEndianMemoryUtil.getInt(peer + LENGTH);
+        int size = NativeEndianMemoryUtil.getInt(offset);
         return CellPath.create(MemoryUtil.getByteBuffer(offset + 4, size, ByteOrder.BIG_ENDIAN));
     }
 
@@ -194,20 +195,20 @@ public class NativeCell extends AbstractCell<ByteBuffer>
 
     public long offHeapSize()
     {
-        long size = offHeapSizeWithoutPath(MemoryUtil.getInt(peer + LENGTH));
+        long size = offHeapSizeWithoutPath(NativeEndianMemoryUtil.getInt(peer + LENGTH));
         if (hasPath())
-            size += 4 + MemoryUtil.getInt(peer + size);
+            size += 4 + NativeEndianMemoryUtil.getInt(peer + size);
         return size;
     }
 
     private boolean hasPath()
     {
-        return MemoryUtil.getByte(peer+ HAS_CELLPATH) != 0;
+        return NativeEndianMemoryUtil.getByte(peer + HAS_CELLPATH) != 0;
     }
 
     @Override
     protected int localDeletionTimeAsUnsignedInt()
     {
-        return MemoryUtil.getInt(peer + DELETION);
+        return NativeEndianMemoryUtil.getInt(peer + DELETION);
     }
 }
