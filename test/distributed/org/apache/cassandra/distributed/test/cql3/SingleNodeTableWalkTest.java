@@ -71,7 +71,6 @@ import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.CassandraGenerators.TableMetadataBuilder;
 import org.apache.cassandra.utils.Generators;
 import org.apache.cassandra.utils.ImmutableUniqueList;
-import org.quicktheories.generators.SourceDSL;
 
 import static accord.utils.Property.commands;
 import static accord.utils.Property.stateful;
@@ -99,6 +98,7 @@ public class SingleNodeTableWalkTest extends StatefulASTBase
         // Example: builder.withSeed(42L);
         // CQL operations may have opertors such as +, -, and / (example 4 + 4), to "apply" them to get a constant value
         // CQL_DEBUG_APPLY_OPERATOR = true;
+        builder.withExamples(Integer.MAX_VALUE);
     }
 
     protected TypeGenBuilder supportedTypes(RandomSource rs)
@@ -562,6 +562,8 @@ public class SingleNodeTableWalkTest extends StatefulASTBase
             List<Symbol> allowedColumns = searchableColumns;
             if (hasMultiNodeMultiColumnAllowFilteringWithLocalWritesIssue())
                 allowedColumns = nonPkIndexedColumns;
+            if (IGNORED_ISSUES.contains(KnownIssue.SAI_AND_VECTOR_COLUMNS) && !indexes.isEmpty())
+                allowedColumns = allowedColumns.stream().filter(s -> !s.type().isVector()).collect(Collectors.toList());
             return allowedColumns;
         }
 
