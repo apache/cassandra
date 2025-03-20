@@ -117,10 +117,13 @@ public class MutationTrackingPendingReadTest
                 DecoratedKey dk = metadata.partitioner.decorateKey(bytes(1));
 
                 MutationSummary secondSummary = summaryForKey(keyspaceName, tableName, dk);
+
+                // FIXME: on 1 all will be seen as reconciled because of remote response triggering a witness
                 Assert.assertEquals(1, secondSummary.unreconciledIds());
 
                 // create a mutation
-                SimpleBuilders.MutationBuilder builder = new SimpleBuilders.MutationBuilder(MutationId.none(), keyspaceName, dk);
+                MutationId id = MutationTrackingService.instance.nextMutationId(keyspaceName, dk.getToken());
+                SimpleBuilders.MutationBuilder builder = new SimpleBuilders.MutationBuilder(id, keyspaceName, dk);
                 PartitionUpdate.SimpleBuilder tableBuilder = builder.update(metadata);
                 tableBuilder.row(bytes(1)).add("v", 1);
                 Mutation mutation = builder.build();
@@ -154,6 +157,7 @@ public class MutationTrackingPendingReadTest
                 }
 
                 // check that the summary does contain the unapplied mutation
+                // FIXME: should NOT and does not include unapplied mutations
                 Assert.assertEquals(2, summary.unreconciledIds());
                 Assert.assertTrue(summary.contains(secondId));
 
@@ -215,7 +219,8 @@ public class MutationTrackingPendingReadTest
                     Assert.assertTrue(pendingRead.mutationIds().isEmpty());
 
                     // create and apply a mutation
-                    SimpleBuilders.MutationBuilder builder = new SimpleBuilders.MutationBuilder(MutationId.none(), keyspaceName, dk);
+                    MutationId id = MutationTrackingService.instance.nextMutationId(keyspaceName, dk.getToken());
+                    SimpleBuilders.MutationBuilder builder = new SimpleBuilders.MutationBuilder(id, keyspaceName, dk);
                     PartitionUpdate.SimpleBuilder tableBuilder = builder.update(metadata);
                     tableBuilder.row(bytes(1)).add("v", 1);
                     Mutation mutation = builder.build();
