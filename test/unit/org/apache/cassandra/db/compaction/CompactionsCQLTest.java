@@ -921,7 +921,7 @@ public class CompactionsCQLTest extends CQLTester
             File tableDir = new File(ksDir, cfs.name);
             Assert.assertTrue("The table directory " + tableDir + " was not found", tableDir.isDirectory());
             for (File file : tableDir.tryList())
-                LegacySSTableTest.copyFile(cfDir, file);
+                LegacySSTableTest.copyFileToDir(file, cfDir);
         }
         cfs.loadNewSSTables();
     }
