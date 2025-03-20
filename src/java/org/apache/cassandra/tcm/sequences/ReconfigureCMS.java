@@ -33,9 +33,6 @@ import com.google.common.collect.ImmutableSet;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.dht.Range;
-import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.gms.FailureDetector;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
@@ -74,9 +71,18 @@ import org.apache.cassandra.tcm.transformations.cms.PrepareCMSReconfiguration;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.concurrent.Future;
 
-import static org.apache.cassandra.streaming.StreamOperation.RESTORE_REPLICA_COUNT;
 import static org.apache.cassandra.locator.MetaStrategy.entireRange;
+import static org.apache.cassandra.streaming.StreamOperation.RESTORE_REPLICA_COUNT;
 
+/**
+ * This class is slightly different from most other MultiStepOperations in that it doesn't reify every component
+ * transformation when it is constructed (see how {@link BootstrapAndJoin} encloses its StartJoin/MidJoin/FinishJoin
+ * transforms for a counter example). Instead, each instance includes a single transformation with kind {@link
+ * Transformation.Kind#ADVANCE_CMS_RECONFIGURATION}, representing the _next_ step to be executed. That transformation
+ * instance holds all the state necessary to generate the subsequent ADVANCE_CMS_RECONFIGURATION step. As each of these
+ * transformations is applied, they logically progress the multi-step operation by installing a new ReconfigureCMS
+ * instance with the idx pointer bumped and the next step encoded.
+ */
 public class ReconfigureCMS extends MultiStepOperation<AdvanceCMSReconfiguration>
 {
     public static final Serializer serializer = new Serializer();
@@ -119,6 +125,7 @@ public class ReconfigureCMS extends MultiStepOperation<AdvanceCMSReconfiguration
     {
         return MultiStepOperation.Kind.RECONFIGURE_CMS;
     }
+
     @Override
     protected SequenceKey sequenceKey()
     {
@@ -176,6 +183,13 @@ public class ReconfigureCMS extends MultiStepOperation<AdvanceCMSReconfiguration
                 Replica replica = new Replica(endpoint, entireRange, true);
                 streamRanges(replica, activeTransition.streamCandidates);
             }
+            else
+            {
+                // Run a paxos repair before starting either the addition or removal of a CMS member, where in both
+                // cases there is no active transition.
+                repairPaxosForCMSTopologyChange();
+            }
+
             // Commit the next step in the sequence
             ClusterMetadataService.instance().commit(transitionCMS.next);
             return SequenceState.continuable();
@@ -298,17 +312,42 @@ public class ReconfigureCMS extends MultiStepOperation<AdvanceCMSReconfiguration
                '}';
     }
 
-    static void repairPaxosTopology()
+    static void repairPaxosForCMSTopologyChange()
     {
-        Retry.Backoff retry = new Retry.Backoff(TCMMetrics.instance.repairPaxosTopologyRetries);
+        // This *should* be redundant, primarily because the state machine which manages a node's cluster metadata
+        // doesn't rely on the distributed metadata log table directly but is driven by metadata replication messages
+        // which distribute log entries around the cluster.
+        //
+        // However, it is still worthwhile to guard against a failure to sync paxos accept/commit operations by a subset
+        // of replicas, in this case the CMS members. Paxos repair is designed to ensure that any operation witnessed by
+        // at least one replica prior to a topology change is witnessed by a majority of the replica set after the
+        // topology change. Essentially ensuring that the pre- and post- change quorums overlap.
+        //
+        // The way that CMS reconfiguration proceeds is to first expand the membership to the maximal state by adding all
+        // new members and then to shrink back down to the desired size by pruning out the leaving members. Each step
+        // only modifies the membership group by adding or removing a single member and unlike operations on other
+        // keyspaces, there are no changes to the ranges involved. As all CMS members replicate the entire token
+        // range for that keyspace, these ownership changes are relatively simple.
+        //
+        // For example, if the CMS membership is currently {1, 2, 3} and we want to transition it to {4, 5, 6} the
+        // reconfiguration goes through these steps:
+        // * {1, 2, 3}
+        // * {1, 2, 3, 4}
+        // * {1, 2, 3, 4, 5}
+        // * {1, 2, 3, 4, 5, 6}
+        // * {2, 3, 4, 5, 6}
+        // * {3, 4, 5, 6}
+        // * {4, 5, 6}
+        // When adding a member, the new member streams data in from an existing member, analogous to bootstrapping.
+        // When removing, there is no need for streaming as the existing members' ownership is not changing. Running a
+        // paxos repair at the beginning of each step, before streaming where applicable, will ensure that the
+        // overlapping quorums invariant holds.
 
-        // The system.paxos table is what we're actually repairing and that uses the system configured partitioner
-        // so although we use MetaStrategy.entireRange for streaming between CMS members, we don't use it here
-        Range<Token> entirePaxosRange = new Range<>(DatabaseDescriptor.getPartitioner().getMinimumToken(),
-                                                    DatabaseDescriptor.getPartitioner().getMinimumToken());
-        List<Supplier<Future<?>>> remaining = ActiveRepairService.instance().repairPaxosForTopologyChangeAsync(SchemaConstants.METADATA_KEYSPACE_NAME,
-                                                                                                               Collections.singletonList(entirePaxosRange),
-                                                                                                               "bootstrap");
+        Retry.Backoff retry = new Retry.Backoff(TCMMetrics.instance.repairPaxosTopologyRetries);
+        List<Supplier<Future<?>>> remaining = ActiveRepairService.instance()
+                                                                 .repairPaxosForTopologyChangeAsync(SchemaConstants.METADATA_KEYSPACE_NAME,
+                                                                                                    Collections.singletonList(entireRange),
+                                                                                                    "CMS reconfiguration");
 
         while (!retry.reachedMax())
         {
@@ -316,7 +355,6 @@ public class ReconfigureCMS extends MultiStepOperation<AdvanceCMSReconfiguration
             for (Supplier<Future<?>> supplier : remaining)
                 tasks.put(supplier, supplier.get());
             remaining.clear();
-            logger.info("Performing paxos topology repair on: {}", remaining);
 
             for (Map.Entry<Supplier<Future<?>>, Future<?>> e : tasks.entrySet())
             {
@@ -331,6 +369,7 @@ public class ReconfigureCMS extends MultiStepOperation<AdvanceCMSReconfiguration
                 }
                 catch (InterruptedException t)
                 {
+                    logger.info("Interrupted while repairing paxos topology, aborting.", t);
                     return;
                 }
             }

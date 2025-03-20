@@ -19,8 +19,10 @@
 package org.apache.cassandra.distributed.test.log;
 
 import java.io.IOException;
+import java.nio.ByteBuffer;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Random;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
@@ -40,6 +42,8 @@ import org.apache.cassandra.locator.MetaStrategy;
 import org.apache.cassandra.schema.DistributedMetadataLogKeyspace;
 import org.apache.cassandra.schema.ReplicationParams;
 import org.apache.cassandra.schema.SchemaConstants;
+import org.apache.cassandra.service.paxos.Ballot;
+import org.apache.cassandra.service.paxos.PaxosRepairHistory;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.ClusterMetadataService;
 import org.apache.cassandra.tcm.ownership.DataPlacement;
@@ -255,6 +259,66 @@ public class ReconfigureCMSTest extends FuzzTestBase
             Set<String> notRackDiverse = expectedCMS(cluster, 1, 4, 3);
             cluster.forEach(inst -> assertEquals(notRackDiverse, ClusterUtils.getCMSMembers(inst)));
         }
+    }
+
+    @Test
+    public void cmsTopologyChangePaxosTest() throws Throwable
+    {
+        // Use a 4 node cluster so we have room to decommission one node while still maintaining RF
+        try (Cluster cluster = builder().withNodes(4)
+                                        .withConfig(c -> c.with(Feature.NETWORK))
+                                        .withoutVNodes()
+                                        .start())
+        {
+            IInvokableInstance node1 = cluster.get(1);
+            IInvokableInstance node2 = cluster.get(2);
+            IInvokableInstance node3 = cluster.get(3);
+            IInvokableInstance node4 = cluster.get(4);
+
+            // no paxos repair history initially
+            PaxosRepairHistory empty = PaxosRepairHistory.empty(MetaStrategy.partitioner);
+            cluster.forEach(i -> assertEquals(empty, paxosRepairHistory(i)));
+
+            node1.nodetoolResult("cms", "reconfigure", "2").asserts().success();
+            // Nodes 3 & 4 are not involved in the first cms reconfiguration, so should still have no paxos repair
+            // history for the metadata log table
+            assertEquals(empty, paxosRepairHistory(node3));
+            assertEquals(empty, paxosRepairHistory(node4));
+            // Node 1 & 2 should have completed a paxos repair. For this keyspace, that is always over the entire
+            // range, so there is only ever a single entry in the repair history which equates to prh.size() == 0
+            PaxosRepairHistory node1History = paxosRepairHistory(node1);
+            assertEquals(0, node1History.size());
+            assertEquals(node1History, paxosRepairHistory(node2));
+
+            // node 1 leaving should cause a cms reconfiguration which runs a paxos repair which involves nodes 2 & 3
+            // does participate in while node 4 remains uninvolved.
+            node1.nodetoolResult("decommission").asserts().success();
+            assertEquals(empty, paxosRepairHistory(node4));
+
+            PaxosRepairHistory node3History = paxosRepairHistory(node3);
+            assertEquals(0, node3History.size());
+            assertEquals(node3History, paxosRepairHistory(node2));
+            // verify that the ballot for this second repair is > the one for the first
+            Ballot node3Ballot = node3History.ballotForToken(MetaStrategy.partitioner.getMinimumToken());
+            Ballot node1Ballot = node1History.ballotForToken(MetaStrategy.partitioner.getMinimumToken());
+            assertTrue(node3Ballot.unixMicros() > node1Ballot.unixMicros());
+        }
+    }
+
+    private PaxosRepairHistory paxosRepairHistory(IInvokableInstance instance)
+    {
+        Object[][] rows = instance.executeInternal("select points from system.paxos_repair_history " +
+                                                   "where keyspace_name = ? " +
+                                                   "and table_name = ?",
+                                                   SchemaConstants.METADATA_KEYSPACE_NAME,
+                                                   DistributedMetadataLogKeyspace.TABLE_NAME);
+
+        if (rows.length == 0)
+            return PaxosRepairHistory.empty(SchemaConstants.METADATA_KEYSPACE_NAME, DistributedMetadataLogKeyspace.TABLE_NAME);
+        assertEquals(1, rows.length);
+        //noinspection unchecked
+        List<ByteBuffer> points = (List<ByteBuffer>)rows[0][0];
+        return PaxosRepairHistory.fromTupleBufferList(MetaStrategy.partitioner, points);
     }
 
     // We can't assume that nodeId matches endpoint (ie node3 = 127.0.0.3 etc)

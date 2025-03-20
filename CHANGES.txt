@@ -1,4 +1,5 @@
 5.1
+ * Repair Paxos for the distributed metadata log when CMS membership changes (CASSANDRA-20467)
  * Reintroduce CASSANDRA-17411 in trunk (CASSANDRA-19346)
  * Add min/max/mean/percentiles to timer metrics vtable (CASSANDRA-20466)
  * Add support for time, date, timestamp types in scalar constraint (CASSANDRA-20274)
