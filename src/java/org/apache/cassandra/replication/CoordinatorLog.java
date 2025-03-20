@@ -212,7 +212,7 @@ public abstract class CoordinatorLog
 
     public static class CoordinatorLogPrimary extends CoordinatorLog
     {
-        AtomicLong sequenceId = new AtomicLong(0);
+        AtomicLong sequenceId = new AtomicLong(-1);
 
         CoordinatorLogPrimary(int localHostId, CoordinatorLogId logId, Participants participants)
         {
@@ -233,7 +233,7 @@ public abstract class CoordinatorLog
                 int prevTimestamp = MutationId.timestamp(prev);
 
                 int nextOffset = prevOffset + 1;
-                int nextTimestamp = Math.max(prevTimestamp, (int) currentTimeMillis() / 1000);
+                int nextTimestamp = Math.max(prevTimestamp + 1, (int) (currentTimeMillis() / 1000L));
                 long next = MutationId.sequenceId(nextOffset, nextTimestamp);
 
                 if (sequenceId.compareAndSet(prev, next))
