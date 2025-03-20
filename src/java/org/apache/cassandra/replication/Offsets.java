@@ -655,7 +655,11 @@ public class Offsets
      */
     public static Offsets difference(Offsets a, Offsets b)
     {
-        Preconditions.checkArgument(a.logId.equals(b.logId));
+        Preconditions.checkArgument(a != null);
+        if (b == null)
+            return a.copy();
+
+        Preconditions.checkArgument(b == null || a.logId.equals(b.logId));
         CoordinatorLogId logId = a.logId;
         int aNumRanges = a.rangeCount();
         int bNumRanges = b.rangeCount();

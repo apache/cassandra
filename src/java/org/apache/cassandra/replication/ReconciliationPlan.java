@@ -187,23 +187,23 @@ public class ReconciliationPlan
         {
             // remove reconciled ids
             Offsets allIds = Offsets.difference(unreconciled, reconciled);
-            for (Map.Entry<InetAddressAndPort, Offsets> receiver : unreconciledNodes.entrySet())
+            for (InetAddressAndPort receiver : plan.keySet())
             {
-                Offsets missing = Offsets.difference(allIds, receiver.getValue());
+                Offsets missing = Offsets.difference(allIds, unreconciledNodes.get(receiver));
                 if (missing.isEmpty())
                     continue;
 
                 // TODO: look into more intelligent ways to distribute mutation requests
                 for (Map.Entry<InetAddressAndPort, Offsets> sender : unreconciledNodes.entrySet())
                 {
-                    if (sender.getKey().equals(receiver.getKey()))
+                    if (sender.getKey().equals(receiver))
                         continue;
 
                     Offsets senderIds = sender.getValue();
                     PlanBuilder senderPlan = plan.get(sender.getKey());
 
                     Offsets requestedIds = Offsets.intersection(missing, senderIds);
-                    senderPlan.send(receiver.getKey(), logId, requestedIds);
+                    senderPlan.send(receiver, logId, requestedIds);
 
                     missing = Offsets.difference(missing, requestedIds);
                     if (missing.rangeCount() == 0)
