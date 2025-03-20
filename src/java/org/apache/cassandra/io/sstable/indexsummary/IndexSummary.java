@@ -454,6 +454,18 @@ public class IndexSummary extends WrappedSharedCloseable
                 entries.free();
                 throw ioe;
             }
+
+            // Before 5.0 offsets were written using Native Endian, now they are stored as Little Endian,
+            // so we apply a heuristic here to detect
+            // if the loading index summary was created on a Big Endian machine using Native Endian format
+            if (offsets.size() > 0)
+            {
+                int offset = offsets.getInt(0);
+                int offsetReversed = Integer.reverseBytes(offset);
+                if (offsetReversed > 0 && offset > offsetReversed || offset - offsets.size() < 0)
+                    throw new IOException(String.format("Rebuilding index summary because offset value (%d) at position: %d " +
+                                                        "is Big Endian while Little Endian is expected", offset, 0));
+            }
             // our on-disk representation treats the offsets and the summary data as one contiguous structure,
             // in which the offsets are based from the start of the structure. i.e., if the offsets occupy
             // X bytes, the value of the first offset will be X. In memory we split the two regions up, so that

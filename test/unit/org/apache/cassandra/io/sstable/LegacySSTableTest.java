@@ -32,8 +32,10 @@ import com.google.common.collect.Lists;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.BeforeClass;
+import org.junit.ClassRule;
 import org.junit.Ignore;
 import org.junit.Test;
+import org.junit.rules.TemporaryFolder;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -88,6 +90,9 @@ import static org.junit.Assert.fail;
 public class LegacySSTableTest
 {
     private static final Logger logger = LoggerFactory.getLogger(LegacySSTableTest.class);
+
+    @ClassRule
+    public static TemporaryFolder tempFolder = new TemporaryFolder();
 
     public static File LEGACY_SSTABLE_ROOT;
 
@@ -163,11 +168,11 @@ public class LegacySSTableTest
     /**
      * Get a descriptor for the legacy sstable at the given version.
      */
-    protected Descriptor getDescriptor(String legacyVersion, String table) throws IOException
+    protected Descriptor getDescriptor(File dir) throws IOException
     {
-        Path file = Files.list(getTableDir(legacyVersion, table).toPath())
+        Path file = Files.list(dir.toPath())
                 .findFirst()
-                .orElseThrow(() -> new RuntimeException(String.format("No files for verion=%s and table=%s", legacyVersion, table)));
+                .orElseThrow(() -> new RuntimeException(String.format("No files for path=%s", dir.absolutePath())));
 
         return Descriptor.fromFile(new File(file));
     }
@@ -493,15 +498,19 @@ public class LegacySSTableTest
         streamLegacyTable("legacy_%s_clust", legacyVersion);
         streamLegacyTable("legacy_%s_clust_counter", legacyVersion);
         streamLegacyTable("legacy_%s_tuple", legacyVersion);
+        streamLegacyTable("legacy_%s_clust_be_index_summary", legacyVersion);
     }
 
     private void streamLegacyTable(String tablePattern, String legacyVersion) throws Exception
     {
         String table = String.format(tablePattern, legacyVersion);
-        Descriptor descriptor = getDescriptor(legacyVersion, table);
+        // streaming can mutate test data (rewrite IndexSummary, so we have to copy them)
+        File testDataDir = new File(tempFolder.newFolder(LEGACY_TABLES_KEYSPACE, table));
+        copySstablesToTestData(legacyVersion, table, testDataDir);
+        Descriptor descriptor = getDescriptor(testDataDir);
         if (null != descriptor)
         {
-            SSTableReader sstable = SSTableReader.open(null, getDescriptor(legacyVersion, table));
+            SSTableReader sstable = SSTableReader.open(null, descriptor);
             IPartitioner p = sstable.getPartitioner();
             List<Range<Token>> ranges = new ArrayList<>();
             ranges.add(new Range<>(p.getMinimumToken(), p.getToken(ByteBufferUtil.bytes("100"))));
@@ -525,6 +534,7 @@ public class LegacySSTableTest
         Keyspace.open(LEGACY_TABLES_KEYSPACE).getColumnFamilyStore(String.format("legacy_%s_clust", legacyVersion)).truncateBlocking();
         Keyspace.open(LEGACY_TABLES_KEYSPACE).getColumnFamilyStore(String.format("legacy_%s_clust_counter", legacyVersion)).truncateBlocking();
         Keyspace.open(LEGACY_TABLES_KEYSPACE).getColumnFamilyStore(String.format("legacy_%s_tuple", legacyVersion)).truncateBlocking();
+        Keyspace.open(LEGACY_TABLES_KEYSPACE).getColumnFamilyStore(String.format("legacy_%s_clust_be_index_summary", legacyVersion)).truncateBlocking();
         CacheService.instance.invalidateCounterCache();
         CacheService.instance.invalidateKeyCache();
     }
@@ -537,6 +547,7 @@ public class LegacySSTableTest
         Keyspace.open(LEGACY_TABLES_KEYSPACE).getColumnFamilyStore(String.format("legacy_%s_clust", legacyVersion)).forceMajorCompaction();
         Keyspace.open(LEGACY_TABLES_KEYSPACE).getColumnFamilyStore(String.format("legacy_%s_clust_counter", legacyVersion)).forceMajorCompaction();
         Keyspace.open(LEGACY_TABLES_KEYSPACE).getColumnFamilyStore(String.format("legacy_%s_tuple", legacyVersion)).forceMajorCompaction();
+        Keyspace.open(LEGACY_TABLES_KEYSPACE).getColumnFamilyStore(String.format("legacy_%s_clust_be_index_summary", legacyVersion)).forceMajorCompaction();
     }
 
     public static void loadLegacyTables(String legacyVersion) throws Exception
@@ -547,6 +558,7 @@ public class LegacySSTableTest
         loadLegacyTable(legacyVersion, "clust");
         loadLegacyTable(legacyVersion, "clust_counter");
         loadLegacyTable(legacyVersion, "tuple");
+        loadLegacyTable(legacyVersion, "clust_be_index_summary");
     }
 
     private static void verifyCache(String legacyVersion, long startCount) throws InterruptedException, java.util.concurrent.ExecutionException
@@ -584,7 +596,8 @@ public class LegacySSTableTest
                     readSimpleCounterTable(legacyVersion, pkValue);
                 }
 
-                readClusteringTable(legacyVersion, ck, ckValue, pkValue);
+                readClusteringTable("legacy_%s_clust", legacyVersion, ck, ckValue, pkValue);
+                readClusteringTable("legacy_%s_clust_be_index_summary", legacyVersion, ck, ckValue, pkValue);
                 readClusteringCounterTable(legacyVersion, ckValue, pkValue);
             }
         }
@@ -600,16 +613,16 @@ public class LegacySSTableTest
         Assert.assertEquals(1L, rs.one().getLong("val"));
     }
 
-    private static void readClusteringTable(String legacyVersion, int ck, String ckValue, String pkValue)
+    private static void readClusteringTable(String tableName, String legacyVersion, int ck, String ckValue, String pkValue)
     {
         logger.debug("Read legacy_{}_clust", legacyVersion);
         UntypedResultSet rs;
-        rs = QueryProcessor.executeInternal(String.format("SELECT val FROM legacy_tables.legacy_%s_clust WHERE pk=? AND ck=?", legacyVersion), pkValue, ckValue);
+        rs = QueryProcessor.executeInternal(String.format("SELECT val FROM legacy_tables." + tableName + " WHERE pk=? AND ck=?", legacyVersion), pkValue, ckValue);
         assertLegacyClustRows(1, rs);
 
         String ckValue2 = Integer.toString(ck < 10 ? 40 : ck - 1) + longString;
         String ckValue3 = Integer.toString(ck > 39 ? 10 : ck + 1) + longString;
-        rs = QueryProcessor.executeInternal(String.format("SELECT val FROM legacy_tables.legacy_%s_clust WHERE pk=? AND ck IN (?, ?, ?)", legacyVersion), pkValue, ckValue, ckValue2, ckValue3);
+        rs = QueryProcessor.executeInternal(String.format("SELECT val FROM legacy_tables." + tableName + " WHERE pk=? AND ck IN (?, ?, ?)", legacyVersion), pkValue, ckValue, ckValue2, ckValue3);
         assertLegacyClustRows(3, rs);
     }
 
@@ -644,7 +657,7 @@ public class LegacySSTableTest
         QueryProcessor.executeInternal(String.format("CREATE TABLE legacy_tables.legacy_%s_simple_counter (pk text PRIMARY KEY, val counter)", legacyVersion));
         QueryProcessor.executeInternal(String.format("CREATE TABLE legacy_tables.legacy_%s_clust (pk text, ck text, val text, PRIMARY KEY (pk, ck))", legacyVersion));
         QueryProcessor.executeInternal(String.format("CREATE TABLE legacy_tables.legacy_%s_clust_counter (pk text, ck text, val counter, PRIMARY KEY (pk, ck))", legacyVersion));
-
+        QueryProcessor.executeInternal(String.format("CREATE TABLE legacy_tables.legacy_%s_clust_be_index_summary (pk text, ck text, val text, PRIMARY KEY (pk, ck))", legacyVersion));
 
         QueryProcessor.executeInternal(String.format("CREATE TYPE legacy_tables.legacy_%s_tuple_udt (name tuple<text,text>)", legacyVersion));
 
@@ -667,6 +680,7 @@ public class LegacySSTableTest
         QueryProcessor.executeInternal(String.format("TRUNCATE legacy_tables.legacy_%s_simple_counter", legacyVersion));
         QueryProcessor.executeInternal(String.format("TRUNCATE legacy_tables.legacy_%s_clust", legacyVersion));
         QueryProcessor.executeInternal(String.format("TRUNCATE legacy_tables.legacy_%s_clust_counter", legacyVersion));
+        QueryProcessor.executeInternal(String.format("TRUNCATE legacy_tables.legacy_%s_clust_be_index_summary", legacyVersion));
         CacheService.instance.invalidateCounterCache();
         CacheService.instance.invalidateKeyCache();
     }
@@ -746,6 +760,13 @@ public class LegacySSTableTest
 
                 QueryProcessor.executeInternal(String.format("UPDATE legacy_tables.legacy_%s_clust_counter SET val = val + 1 WHERE pk = '%s' AND ck='%s'",
                                                              format.getLatestVersion(), valPk, valCk + longString));
+
+                // note: to emulate BE for offsets in Summary you can comment temporary the following line:
+                // offset = Integer.reverseBytes(offset);
+                // in org.apache.cassandra.io.sstable.indexsummary.IndexSummary.IndexSummarySerializer.serialize
+                QueryProcessor.executeInternal(String.format("INSERT INTO legacy_tables.legacy_%s_clust_be_index_summary (pk, ck, val) VALUES ('%s', '%s', '%s')",
+                                                             format.getLatestVersion(), valPk, valCk + longString, randomString));
+
             }
         }
 
@@ -758,6 +779,7 @@ public class LegacySSTableTest
         copySstablesFromTestData(format.getLatestVersion(), "legacy_%s_clust", ksDir);
         copySstablesFromTestData(format.getLatestVersion(), "legacy_%s_clust_counter", ksDir);
         copySstablesFromTestData(format.getLatestVersion(), "legacy_%s_tuple", ksDir);
+        copySstablesFromTestData(format.getLatestVersion(), "legacy_%s_clust_be_index_summary", ksDir);
     }
 
     public static void copySstablesFromTestData(Version legacyVersion, String tablePattern, File ksDir) throws IOException
@@ -773,42 +795,47 @@ public class LegacySSTableTest
 
         for (File srcDir : Keyspace.open(ks).getColumnFamilyStore(table).getDirectories().getCFDirectories())
         {
-            for (File file : srcDir.tryList())
+            for (File sourceFile : srcDir.tryList())
             {
                 // Sequence IDs represent the C* version used when creating the SSTable, i.e. with #testGenerateSstables() (if not uuid based)
                 String newSeqId = FBUtilities.getReleaseVersionString().split("-")[0].replaceAll("[^0-9]", "");
-                File target = new File(cfDir, file.name().replace(legacyVersion + "-1-", legacyVersion + "-" + newSeqId + "-"));
-                copyFile(cfDir, file, target);
+                File target = new File(cfDir, sourceFile.name().replace(legacyVersion + "-1-", legacyVersion + "-" + newSeqId + "-"));
+                copyFile(sourceFile, target);
             }
         }
     }
 
-    private static void copySstablesToTestData(String legacyVersion, String table, File cfDir) throws IOException
+    private static void copySstablesToTestData(String legacyVersion, String table, File targetDir) throws IOException
     {
-        File tableDir = getTableDir(legacyVersion, table);
-        Assert.assertTrue("The table directory " + tableDir + " was not found", tableDir.isDirectory());
-        for (File file : tableDir.tryList())
-            copyFile(cfDir, file);
+        File testDataTableDir = getTestDataTableDir(legacyVersion, table);
+        Assert.assertTrue("The table directory " + testDataTableDir + " was not found", testDataTableDir.isDirectory());
+        for (File sourceTestFile : testDataTableDir.tryList())
+            copyFileToDir(sourceTestFile, targetDir);
     }
 
-    private static File getTableDir(String legacyVersion, String table)
+    private static File getTestDataTableDir(File parentDir, String legacyVersion, String table)
     {
-        return new File(LEGACY_SSTABLE_ROOT, String.format("%s/legacy_tables/%s", legacyVersion, table));
+        return new File(parentDir, String.format("%s/legacy_tables/%s", legacyVersion, table));
     }
 
-    public static void copyFile(File cfDir, File file) throws IOException
+    private static File getTestDataTableDir(String legacyVersion, String table)
     {
-        copyFile(cfDir, file,  new File(cfDir, file.name()));
+        return getTestDataTableDir(LEGACY_SSTABLE_ROOT, legacyVersion, table);
     }
 
-    public static void copyFile(File cfDir, File file, File target) throws IOException
+    public static void copyFileToDir(File sourceFile, File targetDir) throws IOException
+    {
+        copyFile(sourceFile,  new File(targetDir, sourceFile.name()));
+    }
+
+    public static void copyFile(File sourceFile, File targetFile) throws IOException
     {
         byte[] buf = new byte[65536];
-        if (file.isFile())
+        if (sourceFile.isFile())
         {
             int rd;
-            try (FileInputStreamPlus is = new FileInputStreamPlus(file);
-                 FileOutputStreamPlus os = new FileOutputStreamPlus(target);)
+            try (FileInputStreamPlus is = new FileInputStreamPlus(sourceFile);
+                 FileOutputStreamPlus os = new FileOutputStreamPlus(targetFile);)
             {
                 while ((rd = is.read(buf)) >= 0)
                     os.write(buf, 0, rd);

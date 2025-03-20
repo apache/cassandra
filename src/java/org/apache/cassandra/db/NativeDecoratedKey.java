@@ -26,6 +26,7 @@ import org.apache.cassandra.utils.bytecomparable.ByteSource;
 import org.apache.cassandra.utils.concurrent.OpOrder;
 import org.apache.cassandra.utils.memory.MemoryUtil;
 import org.apache.cassandra.utils.memory.NativeAllocator;
+import org.apache.cassandra.utils.memory.NativeEndianMemoryUtil;
 
 public class NativeDecoratedKey extends DecoratedKey
 {
@@ -39,7 +40,7 @@ public class NativeDecoratedKey extends DecoratedKey
 
         int size = key.remaining();
         this.peer = allocator.allocate(4 + size, writeOp);
-        MemoryUtil.setInt(peer, size);
+        NativeEndianMemoryUtil.setInt(peer, size);
         MemoryUtil.setBytes(peer + 4, key);
     }
 
@@ -50,14 +51,14 @@ public class NativeDecoratedKey extends DecoratedKey
 
         int size = keyBytes.length;
         this.peer = allocator.allocate(4 + size, writeOp);
-        MemoryUtil.setInt(peer, size);
+        NativeEndianMemoryUtil.setInt(peer, size);
         MemoryUtil.setBytes(peer + 4, keyBytes, 0, size);
     }
 
     @Inline
     int length()
     {
-        return MemoryUtil.getInt(peer);
+        return NativeEndianMemoryUtil.getInt(peer);
     }
 
     @Inline
@@ -75,7 +76,7 @@ public class NativeDecoratedKey extends DecoratedKey
     @Override
     public int getKeyLength()
     {
-        return MemoryUtil.getInt(peer);
+        return NativeEndianMemoryUtil.getInt(peer);
     }
 
     @Override
