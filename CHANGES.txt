@@ -1,4 +1,5 @@
 5.1
+ * Add min/max/mean/percentiles to timer metrics vtable (CASSANDRA-20466)
  * Add support for time, date, timestamp types in scalar constraint (CASSANDRA-20274)
  * Add regular expression constraint (CASSANDRA-20275)
  * Improve constraints autocompletion (CASSANDRA-20341)
