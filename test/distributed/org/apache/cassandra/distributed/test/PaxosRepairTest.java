@@ -34,7 +34,6 @@ import com.google.common.collect.Iterators;
 import com.google.common.collect.Sets;
 import com.google.common.util.concurrent.Uninterruptibles;
 import org.junit.Assert;
-import org.junit.Ignore;
 import org.junit.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -49,6 +48,7 @@ import org.apache.cassandra.db.marshal.Int32Type;
 import org.apache.cassandra.db.partitions.PartitionIterator;
 import org.apache.cassandra.db.rows.*;
 import org.apache.cassandra.distributed.Cluster;
+import org.apache.cassandra.distributed.Constants;
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
 import org.apache.cassandra.distributed.api.Feature;
 import org.apache.cassandra.distributed.api.ICluster;
@@ -57,6 +57,8 @@ import org.apache.cassandra.distributed.api.IInstanceConfig;
 import org.apache.cassandra.distributed.api.IInvokableInstance;
 import org.apache.cassandra.distributed.api.IMessageFilters;
 import org.apache.cassandra.gms.FailureDetector;
+import org.apache.cassandra.distributed.api.TokenSupplier;
+import org.apache.cassandra.distributed.shared.NetworkTopology;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.repair.RepairParallelism;
 import org.apache.cassandra.repair.SharedContext;
@@ -304,16 +306,17 @@ public class PaxosRepairTest extends TestBaseImpl
     }
 
 
-    @Ignore
     @Test
     public void topologyChangePaxosTest() throws Throwable
     {
         // TODO: fails with vnode enabled
-        try (Cluster cluster = Cluster.build(4).withConfig(WITH_NETWORK).withoutVNodes().createWithoutStarting())
+        try (Cluster cluster = builder().withNodes(3)
+                                        .withTokenSupplier(TokenSupplier.evenlyDistributedTokens(4))
+                                        .withNodeIdTopology(NetworkTopology.singleDcNetworkTopology(4, "dc0", "rack0"))
+                                        .withConfig(WITH_NETWORK)
+                                        .withoutVNodes()
+                                        .start())
         {
-            for (int i=1; i<=3; i++)
-                cluster.get(i).startup();
-
             init(cluster);
             cluster.schemaChange("CREATE TABLE " + KEYSPACE + '.' + TABLE + " (pk int, ck int, v int, PRIMARY KEY (pk, ck))");
             cluster.coordinator(1).execute("INSERT INTO " + KEYSPACE + '.' + TABLE + " (pk, ck, v) VALUES (1, 1, 1) IF NOT EXISTS", ConsistencyLevel.QUORUM);
@@ -333,7 +336,11 @@ public class PaxosRepairTest extends TestBaseImpl
             cluster.filters().reset();
 
             // node 4 starting should repair paxos and inform the other nodes of its gossip state
-            cluster.get(4).startup();
+            IInstanceConfig config = cluster.newInstanceConfig()
+                                            .set("auto_bootstrap", true)
+                                            .set(Constants.KEY_DTEST_FULL_STARTUP, true);
+            IInvokableInstance node4 = cluster.bootstrap(config);
+            node4.startup();
             Assert.assertFalse(hasUncommittedQuorum(cluster, KEYSPACE, TABLE));
         }
     }
