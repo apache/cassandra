@@ -994,7 +994,6 @@ public class ASTSingleTableModel
             assert offset >= 0;
             ByteBuffer b = values[offset];
             if (b == null) return "null";
-            if (ByteBufferUtil.UNSET_BYTE_BUFFER == b) return "<unset>";
             if (ByteBufferUtil.EMPTY_BYTE_BUFFER.equals(b)) return "<empty>";
             return symbol.type().asCQL3Type().toCQLLiteral(b);
         }
