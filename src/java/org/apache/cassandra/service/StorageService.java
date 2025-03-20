@@ -6855,7 +6855,8 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
     @Override
     public void enableSampledQueryEventLogger(double querySuccessRate, double queryFailureRate, double batchSuccessRate, double batchFailureRate, 
-                                             double executeSuccessRate, double executeFailureRate, double prepareSuccessRate, double prepareFailureRate) throws IllegalStateException {
+                                             double executeSuccessRate, double executeFailureRate, double prepareSuccessRate, double prepareFailureRate, 
+                                             double authSuccessRate, double authFailureRate) throws IllegalStateException {
         // build from existing options, and override
         SampledQueryEventLoggerOptions.Builder optionsBuilder = new SampledQueryEventLoggerOptions.Builder(DatabaseDescriptor.getSampledQueryEventLoggingOptions());
         
@@ -6882,6 +6883,12 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         }
         if (prepareFailureRate != SampledQueryEventLoggerOptions.INVALID_UNSET_SAMPLE_RATE) {
             optionsBuilder.withPrepareFailureSampleRate(prepareFailureRate);
+        }
+        if (authSuccessRate != SampledQueryEventLoggerOptions.INVALID_UNSET_SAMPLE_RATE) {
+            optionsBuilder.withAuthSuccessSampleRate(authSuccessRate);
+        }
+        if (authFailureRate != SampledQueryEventLoggerOptions.INVALID_UNSET_SAMPLE_RATE) {
+            optionsBuilder.withAuthFailureSampleRate(authFailureRate);
         }
 
         if (optionsBuilder.shouldEnable()) 

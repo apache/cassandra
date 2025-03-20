@@ -30,6 +30,7 @@ import org.slf4j.LoggerFactory;
 
 import com.google.common.collect.ImmutableList;
 
+import org.apache.cassandra.auth.AuthEvents;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.CQLStatement;
 import org.apache.cassandra.cql3.QueryEvents;
@@ -54,7 +55,7 @@ import org.apache.cassandra.utils.ObjectSizes;
 import org.apache.cassandra.audit.AuditLogEntry;
 import org.apache.cassandra.audit.AuditLogEntryType;
 
-public class SampledQueryEventLogger implements QueryEvents.Listener {
+public class SampledQueryEventLogger implements QueryEvents.Listener, AuthEvents.Listener {
     
     protected static final Logger logger = LoggerFactory.getLogger(SampledQueryEventLogger.class);
     private volatile SampledQueryEventLoggerOptions sampledQueryEventLoggerOptions;
@@ -68,11 +69,13 @@ public class SampledQueryEventLogger implements QueryEvents.Listener {
     private void registerAsListener()
     {
         QueryEvents.instance.registerListener(this);
+        AuthEvents.instance.registerListener(this);
     }
 
     private void unregisterAsListener()
     {
         QueryEvents.instance.unregisterListener(this);
+        AuthEvents.instance.unregisterListener(this);
     }
 
     private String obfuscatePasswordInformation(Exception e, List<String> queries)
@@ -295,7 +298,25 @@ public class SampledQueryEventLogger implements QueryEvents.Listener {
              AuditLogEntry entry = new AuditLogEntry.Builder(queryState).setOperation(query)
                                                                 .setType(AuditLogEntryType.PREPARE_STATEMENT)
                                                                 .build();
-            this.log(entry, cause);
+            log(entry, cause);
+        }
+    }
+
+    public void authSuccess(QueryState state) {
+        if(shouldLog(sampledQueryEventLoggerOptions.auth_success_sample_rate)) {
+            AuditLogEntry entry = new AuditLogEntry.Builder(state).setOperation("LOGIN SUCCESS")
+                                                                .setType(AuditLogEntryType.LOGIN_SUCCESS)
+                                                                .build();
+           log(entry);
+        }
+    }
+
+    public void authFailure(QueryState state, Exception cause) {
+        if(shouldLog(sampledQueryEventLoggerOptions.auth_failure_sample_rate)) {
+            AuditLogEntry entry = new AuditLogEntry.Builder(state).setOperation("LOGIN FAILURE")
+                                                                .setType(AuditLogEntryType.LOGIN_ERROR)
+                                                                .build();
+            log(entry, cause);
         }
     }
 

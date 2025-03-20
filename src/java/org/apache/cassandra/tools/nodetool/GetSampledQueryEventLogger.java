@@ -44,6 +44,8 @@ public class GetSampledQueryEventLogger extends NodeToolCmd
         tableBuilder.add("execute_failure_sample_rate", Double.toString(options.execute_failure_sample_rate));
         tableBuilder.add("prepare_success_sample_rate", Double.toString(options.prepare_success_sample_rate));
         tableBuilder.add("prepare_failure_sample_rate", Double.toString(options.prepare_failure_sample_rate));
+        tableBuilder.add("auth_success_sample_rate", Double.toString(options.auth_success_sample_rate));
+        tableBuilder.add("auth_failure_sample_rate", Double.toString(options.auth_failure_sample_rate));
 
         tableBuilder.printTo(probe.output().out);
     }

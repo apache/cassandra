@@ -985,7 +985,8 @@ public interface StorageServiceMBean extends NotificationEmitter
     CompositeData getSampledQueryEventLoggerOptions();
     public void disableSampledQueryEventLogger();
     public void enableSampledQueryEventLogger(double querySuccessRate, double queryFailureRate, double batchSuccessRate, double batchFailureRate,
-                                             double executeSuccessRate, double executeFailureRate, double prepareSuccessRate, double prepareFailureRate) throws IllegalStateException;
+                                             double executeSuccessRate, double executeFailureRate, double prepareSuccessRate, double prepareFailureRate,
+                                             double authSuccessRate, double authFailureRate) throws IllegalStateException;
     public boolean isSampledQueryEventLoggerEnabled();
     public String getCorruptedTombstoneStrategy();
     public void setCorruptedTombstoneStrategy(String strategy);

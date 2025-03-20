@@ -175,6 +175,7 @@ Merged from 3.0:
  * Fix CQLSH online help topic link (CASSANDRA-17534)
  * Remove unused suppressions (CASSANDRA-18724)
 Unreleased
+ * [SO-41656] Extend the SampledQueryEventLogger to capture Auth Events
  * Update hdrhistogram to 2.1.12 (CASSANDRA-18893)
  * [SO-40995] Add metric to capture events when the Index Summary is not fully sampled
  * [SO-41503] Add the client IP and port and the CLIENT_ prefix to the context data

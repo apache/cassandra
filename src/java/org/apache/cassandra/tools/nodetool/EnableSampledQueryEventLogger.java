@@ -50,10 +50,16 @@ public class EnableSampledQueryEventLogger extends NodeTool.NodeToolCmd
 
     @Option(title = "prepare_failure_rate", name = {"--prepare-failure-rate"}, description = "Sampling rate for failed prepare statements.")
     private double prepareFailureRate = SampledQueryEventLoggerOptions.INVALID_UNSET_SAMPLE_RATE;
+
+    @Option(title = "auth_success_rate", name = {"--auth-success-rate"}, description = "Sampling rate for successful auth statements.")
+    private double authSuccessRate = SampledQueryEventLoggerOptions.INVALID_UNSET_SAMPLE_RATE;
+
+    @Option(title = "auth_failure_rate", name = {"--auth-failure-rate"}, description = "Sampling rate for failed auth statements.")
+    private double authFailureRate = SampledQueryEventLoggerOptions.INVALID_UNSET_SAMPLE_RATE;
     
     @Override
     public void execute(NodeProbe probe)
     {
-        probe.getStorageService().enableSampledQueryEventLogger(querySuccessRate, queryFailureRate, batchSuccessRate, batchFailureRate, executeSuccessRate, executeFailureRate, prepareSuccessRate, prepareFailureRate);
+        probe.getStorageService().enableSampledQueryEventLogger(querySuccessRate, queryFailureRate, batchSuccessRate, batchFailureRate, executeSuccessRate, executeFailureRate, prepareSuccessRate, prepareFailureRate, authSuccessRate, authFailureRate);
     }
 }

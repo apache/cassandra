@@ -65,7 +65,9 @@ public class GetSampledQueryEventLoggerTest extends CQLTester
                                     "--execute-success-rate","1.0",
                                     "--execute-failure-rate","1.0",
                                     "--prepare-success-rate","1.0",
-                                    "--prepare-failure-rate","1.0")
+                                    "--prepare-failure-rate","1.0",
+                                    "--auth-success-rate","1.0",
+                                    "--auth-failure-rate","1.0")
                 .assertOnCleanExit();
     }
 
@@ -79,7 +81,9 @@ public class GetSampledQueryEventLoggerTest extends CQLTester
                                     "--execute-success-rate","0.0",
                                     "--execute-failure-rate","0.0",
                                     "--prepare-success-rate","0.0",
-                                    "--prepare-failure-rate","0.0")
+                                    "--prepare-failure-rate","0.0",
+                                    "--auth-success-rate","0.0",
+                                    "--auth-failure-rate","0.0")
                 .assertOnCleanExit();
     }
 
@@ -97,6 +101,8 @@ public class GetSampledQueryEventLoggerTest extends CQLTester
         assertThat(output).contains("execute_failure_sample_rate " + options.execute_failure_sample_rate);
         assertThat(output).contains("prepare_success_sample_rate " + options.prepare_success_sample_rate);
         assertThat(output).contains("prepare_failure_sample_rate " + options.prepare_failure_sample_rate);
+        assertThat(output).contains("auth_success_sample_rate " + options.auth_success_sample_rate);
+        assertThat(output).contains("auth_failure_sample_rate " + options.auth_failure_sample_rate);
     }
 
     @Test
@@ -118,6 +124,8 @@ public class GetSampledQueryEventLoggerTest extends CQLTester
             .withExecuteFailureSampleRate(1.0)
             .withPrepareSuccessSampleRate(1.0)
             .withPrepareFailureSampleRate(1.0)
+            .withAuthSuccessSampleRate(1.0)
+            .withAuthFailureSampleRate(1.0)
             .build();
         enableSampledQueryEventLogger();
         testOutput(getSampledQueryEventLogger(), options);
@@ -136,6 +144,8 @@ public class GetSampledQueryEventLoggerTest extends CQLTester
             .withExecuteFailureSampleRate(1.0)
             .withPrepareSuccessSampleRate(1.0)
             .withPrepareFailureSampleRate(1.0)
+            .withAuthSuccessSampleRate(1.0)
+            .withAuthFailureSampleRate(1.0)
             .build();
         enableSampledQueryEventLogger();
         testOutput(getSampledQueryEventLogger(), options);

@@ -47,6 +47,8 @@ public class SampledQueryEventLoggerOptionsCompositeData
         public static final String EXECUTE_FAILURE_SAMPLE_RATE = "execute_failure_sample_rate";
         public static final String PREPARE_SUCCESS_SAMPLE_RATE = "prepare_success_sample_rate";
         public static final String PREPARE_FAILURE_SAMPLE_RATE = "prepare_failure_sample_rate";
+        public static final String AUTH_SUCCESS_SAMPLE_RATE = "auth_success_sample_rate";
+        public static final String AUTH_FAILURE_SAMPLE_RATE = "auth_failure_sample_rate";
 
         private final String name;
         private final String description;
@@ -125,6 +127,18 @@ public class SampledQueryEventLoggerOptionsCompositeData
             SimpleType.DOUBLE,
             (SampledQueryEventLoggerOptions o) -> o.prepare_failure_sample_rate,
             (SampledQueryEventLoggerOptions o, Object v) -> o.prepare_failure_sample_rate = (double) v
+        ),
+        option(SampledQueryEventLoggerOption.AUTH_SUCCESS_SAMPLE_RATE,
+            "The rate at which to log successful auth requests",
+            SimpleType.DOUBLE,
+            (SampledQueryEventLoggerOptions o) -> o.auth_success_sample_rate,
+            (SampledQueryEventLoggerOptions o, Object v) -> o.auth_success_sample_rate = (double) v
+        ),
+        option(SampledQueryEventLoggerOption.AUTH_FAILURE_SAMPLE_RATE,
+            "The rate at which to log failed auth requests",
+            SimpleType.DOUBLE,
+            (SampledQueryEventLoggerOptions o) -> o.auth_failure_sample_rate,
+            (SampledQueryEventLoggerOptions o, Object v) -> o.auth_failure_sample_rate = (double) v
         ),
         option(SampledQueryEventLoggerOption.ENABLED,
             "Whether the logger is enabled",

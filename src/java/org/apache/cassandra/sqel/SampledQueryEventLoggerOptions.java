@@ -34,6 +34,8 @@ public class SampledQueryEventLoggerOptions
     public double execute_failure_sample_rate = 0.0;
     public double prepare_success_sample_rate = 0.0;
     public double prepare_failure_sample_rate = 0.0;
+    public double auth_success_sample_rate = 0.0;
+    public double auth_failure_sample_rate = 0.0;
 
     public static final double INVALID_UNSET_SAMPLE_RATE = 0.424242424242;
 
@@ -48,6 +50,8 @@ public class SampledQueryEventLoggerOptions
         validateRate(options.execute_failure_sample_rate);
         validateRate(options.prepare_success_sample_rate);
         validateRate(options.prepare_failure_sample_rate);
+        validateRate(options.auth_success_sample_rate);
+        validateRate(options.auth_failure_sample_rate);
 
         return options;
     }
@@ -69,6 +73,8 @@ public class SampledQueryEventLoggerOptions
         private double execute_failure_sample_rate;
         private double prepare_success_sample_rate;
         private double prepare_failure_sample_rate;
+        private double auth_success_sample_rate;
+        private double auth_failure_sample_rate;
 
         public Builder() 
         {
@@ -86,6 +92,8 @@ public class SampledQueryEventLoggerOptions
             this.execute_failure_sample_rate = opts.execute_failure_sample_rate;
             this.prepare_success_sample_rate = opts.prepare_success_sample_rate;
             this.prepare_failure_sample_rate = opts.prepare_failure_sample_rate;
+            this.auth_success_sample_rate = opts.auth_success_sample_rate;
+            this.auth_failure_sample_rate = opts.auth_failure_sample_rate;
         }
 
         public Builder withEnabled(boolean isEnabled) 
@@ -142,6 +150,18 @@ public class SampledQueryEventLoggerOptions
             return this;
         }
 
+        public Builder withAuthSuccessSampleRate(final double sampleRate) 
+        {
+            this.auth_success_sample_rate = sampleRate;
+            return this;
+        }
+
+        public Builder withAuthFailureSampleRate(final double sampleRate) 
+        {
+            this.auth_failure_sample_rate = sampleRate;
+            return this;
+        }
+
         public boolean shouldEnable() {
             return this.query_success_sample_rate != 0.0 ||
                 this.query_failure_sample_rate != 0.0 ||
@@ -150,7 +170,9 @@ public class SampledQueryEventLoggerOptions
                 this.execute_success_sample_rate != 0.0 ||
                 this.execute_failure_sample_rate != 0.0 ||
                 this.prepare_success_sample_rate != 0.0 ||
-                this.prepare_failure_sample_rate != 0.0;
+                this.prepare_failure_sample_rate != 0.0 ||
+                this.auth_success_sample_rate != 0.0 ||
+                this.auth_failure_sample_rate != 0.0;
     }
 
         public SampledQueryEventLoggerOptions build()
@@ -165,6 +187,8 @@ public class SampledQueryEventLoggerOptions
             opts.execute_failure_sample_rate = this.execute_failure_sample_rate;
             opts.prepare_success_sample_rate = this.prepare_success_sample_rate;
             opts.prepare_failure_sample_rate = this.prepare_failure_sample_rate;
+            opts.auth_success_sample_rate = this.auth_success_sample_rate;
+            opts.auth_failure_sample_rate = this.auth_failure_sample_rate;
 
             SampledQueryEventLoggerOptions.validate(opts);
 
@@ -183,6 +207,8 @@ public class SampledQueryEventLoggerOptions
             ", execute_failure_sample_rate=" + execute_failure_sample_rate + '\'' +
             ", prepare_success_sample_rate=" + prepare_success_sample_rate + '\'' +
             ", prepare_failure_sample_rate=" + prepare_failure_sample_rate + '\'' +
+            ", auth_success_sample_rate=" + auth_success_sample_rate + '\'' +
+            ", auth_failure_sample_rate=" + auth_failure_sample_rate + '\'' +
         '}';
     }
 }

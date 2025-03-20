@@ -42,6 +42,8 @@ public class SampledQueryEventLoggerOptionsTest
         double executeFailureRate = random.nextDouble();
         double prepareSuccessRate = random.nextDouble();
         double prepareFailureRate = random.nextDouble();
+        double authSuccessRate = random.nextDouble();
+        double authFailureRate = random.nextDouble();
         
         // Create options using builder
         SampledQueryEventLoggerOptions options = new SampledQueryEventLoggerOptions.Builder()
@@ -54,6 +56,8 @@ public class SampledQueryEventLoggerOptionsTest
             .withExecuteFailureSampleRate(executeFailureRate)
             .withPrepareSuccessSampleRate(prepareSuccessRate)
             .withPrepareFailureSampleRate(prepareFailureRate)
+            .withAuthSuccessSampleRate(authSuccessRate)
+            .withAuthFailureSampleRate(authFailureRate)
             .build();
             
         // Verify all rates were set correctly
@@ -66,6 +70,8 @@ public class SampledQueryEventLoggerOptionsTest
         Assert.assertEquals(executeFailureRate, options.execute_failure_sample_rate, 0.000001);
         Assert.assertEquals(prepareSuccessRate, options.prepare_success_sample_rate, 0.000001);
         Assert.assertEquals(prepareFailureRate, options.prepare_failure_sample_rate, 0.000001);
+        Assert.assertEquals(authSuccessRate, options.auth_success_sample_rate, 0.000001);
+        Assert.assertEquals(authFailureRate, options.auth_failure_sample_rate, 0.000001);
         
         // Verify validation works
         SampledQueryEventLoggerOptions validated = SampledQueryEventLoggerOptions.validate(options);
@@ -130,6 +136,14 @@ public class SampledQueryEventLoggerOptionsTest
             Assertions.assertThatExceptionOfType(ConfigurationException.class).isThrownBy(() -> 
                 new SampledQueryEventLoggerOptions.Builder()
                     .withPrepareFailureSampleRate(invalidRate)
+                    .build());
+            Assertions.assertThatExceptionOfType(ConfigurationException.class).isThrownBy(() -> 
+                new SampledQueryEventLoggerOptions.Builder()
+                    .withAuthSuccessSampleRate(invalidRate)
+                    .build());
+            Assertions.assertThatExceptionOfType(ConfigurationException.class).isThrownBy(() ->
+                new SampledQueryEventLoggerOptions.Builder()
+                    .withAuthFailureSampleRate(invalidRate)
                     .build());
         }
     }

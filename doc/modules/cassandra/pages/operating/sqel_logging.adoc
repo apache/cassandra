@@ -24,6 +24,8 @@ nodetool [(-h <host> | --host <host>)] [(-p <port> | --port <port>)]
     [--execute-failure-rate <rate>]
     [--prepare-success-rate <rate>]
     [--prepare-failure-rate <rate>]
+    [--auth-success-rate <rate>]
+    [--auth-failure-rate <rate>]
 
 OPTIONS
         --query-success-rate <rate>
@@ -49,6 +51,12 @@ OPTIONS
 
         --prepare-failure-rate <rate>
             Sampling rate for failed PREPARE statements. If not set, the default or cassandra.yaml rate is used.
+
+        --auth-success-rate <rate>
+            Sample rate for successful auth interactions. If not set, the default or cassandra.yaml rate is used.
+
+        --auth-failure-rate <rate>
+            Sample rate for failed auth interaction. If not set, the default or cassandra.yaml rate is used.
         
         -p <port>, --port <port>
             Remote jmx agent port number

@@ -1689,6 +1689,8 @@ audit_logging_options:
   # execute_failure_sample_rate: 0.0
   # prepare_success_sample_rate: 0.0
   # prepare_failure_sample_rate: 0.0
+  # auth_success_sample_rate: 0.0
+  # auth_failure_sample_rate: 0.0
 
 # default options for full query logging - these can be overridden from command line when executing
 # nodetool enablefullquerylog
