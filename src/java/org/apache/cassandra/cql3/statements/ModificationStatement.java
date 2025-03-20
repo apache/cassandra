@@ -22,6 +22,8 @@ import java.util.*;
 
 import com.google.common.collect.HashMultiset;
 import com.google.common.collect.Iterables;
+import org.apache.cassandra.replication.MutationId;
+import org.apache.cassandra.replication.MutationTrackingService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -690,8 +692,28 @@ public abstract class ModificationStatement implements CQLStatement.SingleKeyspa
     {
         long timestamp = options.getTimestamp(queryState);
         long nowInSeconds = options.getNowInSeconds(queryState);
-        for (IMutation mutation : getMutations(queryState.getClientState(), options, true, timestamp, nowInSeconds, requestTime))
+        List<? extends IMutation> mutations = getMutations(queryState.getClientState(), options, true, timestamp, nowInSeconds, requestTime);
+        boolean isTracked = Schema.instance.getKeyspaceMetadata(mutations.get(0).getKeyspaceName()).params.replicationType.isTracked();
+        if (isTracked)
+        {
+            if (mutations.stream().anyMatch(m -> m instanceof CounterMutation))
+                throw new InvalidRequestException("Mutation tracking is currently unsupported with counters");
+            if (mutations.size() > 1)
+                throw new InvalidRequestException("Mutation tracking is currently unsupported with unlogged batches");
+
+            Mutation mutation = (Mutation) mutations.get(0);
+
+            String keyspaceName = mutation.getKeyspaceName();
+            Token token = mutation.key().getToken();
+            MutationId id = MutationTrackingService.instance.nextMutationId(keyspaceName, token);
+            mutation = mutation.withMutationId(id);
             mutation.apply();
+        }
+        else
+        {
+            for (IMutation mutation : mutations)
+                mutation.apply();
+        }
         return null;
     }
 

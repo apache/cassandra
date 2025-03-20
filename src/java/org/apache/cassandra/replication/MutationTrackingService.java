@@ -77,7 +77,7 @@ public class MutationTrackingService
         return reconciliations;
     }
 
-    MutationId nextMutationId(String keyspace, Token token)
+    public MutationId nextMutationId(String keyspace, Token token)
     {
         return getOrCreate(keyspace).nextMutationId(token);
     }
