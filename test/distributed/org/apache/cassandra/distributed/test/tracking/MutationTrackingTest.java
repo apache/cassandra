@@ -21,7 +21,9 @@ package org.apache.cassandra.distributed.test.tracking;
 import java.util.UUID;
 import java.util.concurrent.TimeoutException;
 
+import org.apache.cassandra.replication.CoordinatorLogId;
 import org.apache.cassandra.replication.MutationSummary;
+import org.apache.cassandra.replication.Offsets;
 import org.junit.Assert;
 import org.junit.Test;
 import org.slf4j.Logger;
@@ -46,6 +48,9 @@ import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.ClusterMetadataService;
 import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.utils.ByteBufferUtil;
+
+import static org.apache.cassandra.distributed.test.tracking.MutationTrackingUtils.getOnlyLogId;
+import static org.apache.cassandra.distributed.test.tracking.MutationTrackingUtils.summaryIdSpace;
 
 public class MutationTrackingTest extends TestBaseImpl
 {
@@ -80,7 +85,9 @@ public class MutationTrackingTest extends TestBaseImpl
                 TableMetadata table = Schema.instance.getTableMetadata(keyspaceName, "tbl");
                 DecoratedKey dk = Murmur3Partitioner.instance.decorateKey(ByteBufferUtil.bytes(1));
                 MutationSummary summary = MutationTrackingService.instance.summaryForKey(table.id, dk);
-                Assert.assertEquals(1, summary.unreconciledIds());
+                CoordinatorLogId logId = getOnlyLogId(summary);
+                Offsets summaryIds = summaryIdSpace(summary.get(logId));
+                Assert.assertEquals(1, summaryIds.offsetCount());
             });
         }
     }

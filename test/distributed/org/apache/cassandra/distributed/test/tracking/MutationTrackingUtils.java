@@ -292,4 +292,10 @@ public class MutationTrackingUtils
     {
         Assume.assumeFalse(replicationType.isTracked());
     }
+
+    public static CoordinatorLogId getOnlyLogId(MutationSummary summary)
+    {
+        Assert.assertEquals(1, summary.size());
+        return summary.get(0).logId();
+    }
 }
