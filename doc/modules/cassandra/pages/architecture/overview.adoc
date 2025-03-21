@@ -8,7 +8,7 @@ It implements a partitioned wide-column storage model with eventually consistent
 This initial design implemented a combination of Amazon's https://www.cs.cornell.edu/courses/cs5414/2017fa/papers/dynamo.pdf[Dynamo] distributed storage and replication techniques and Google's https://static.googleusercontent.com/media/research.google.com/en//archive/bigtable-osdi06.pdf[Bigtable] data and storage engine model. 
 Dynamo and Bigtable were both developed to meet emerging requirements for scalable, reliable and highly available storage systems, but each had areas that could be improved.
 
-{product} was designed as a best-in-class combination of both systems to meet emerging largescale, both in data footprint and query volume, storage requirements. 
+{product} was designed as a best-in-class combination of both systems to meet emerging large scale, both in data footprint and query volume, storage requirements.
 As applications began to require full global replication and always available low-latency reads and writes, a new kind of database model was required to meet these new requirements.
 Relational database systems at that time struggled to meet the requirements.
 
@@ -28,9 +28,9 @@ Relational database systems at that time struggled to meet the requirements.
 language, to create, modify, and delete database schema, as well as access data. 
 CQL allows users to organize data within a cluster of {cassandra} nodes using:
 
-* Keyspace: Defines how a dataset is replicated, per datacenter.
-Replication is the number of copies saved per cluster.
-Keyspaces contain tables.
+* Keyspace: Specifies the replication strategy for a dataset across different datacenters.
+Replication refers to the number of copies stored within a cluster.
+Keyspaces serve as containers for tables.
 * Table: Tables are composed of rows and columns.
 Columns define the typed schema for a single datum in a table.
 Tables are partitioned based on the columns provided in the partition key.
