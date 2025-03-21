@@ -96,10 +96,12 @@ public class ScalarColumnConstraint extends AbstractFunctionConstraint<ScalarCol
     }
 
     private ByteBuffer value;
+    private AbstractType<?> returnType;
 
-    private ScalarColumnConstraint(ColumnIdentifier param, Operator relationType, String term)
+    private ScalarColumnConstraint(ColumnIdentifier columnName, Operator relationType, String term)
     {
-        super(param, relationType, term);
+        super(relationType, term);
+        setColumnName(columnName);
     }
 
     @Override
@@ -125,11 +127,13 @@ public class ScalarColumnConstraint extends AbstractFunctionConstraint<ScalarCol
     @Override
     public void validate(ColumnMetadata columnMetadata) throws InvalidConstraintDefinitionException
     {
+        returnType = columnMetadata.type;
+
         validateTypes(columnMetadata);
 
         try
         {
-            value = columnMetadata.type.fromString(ParseUtils.unquote(term));
+            value = returnType.fromString(ParseUtils.unquote(term));
         }
         catch (Throwable t)
         {
@@ -180,9 +184,9 @@ public class ScalarColumnConstraint extends AbstractFunctionConstraint<ScalarCol
         @Override
         public ScalarColumnConstraint deserialize(DataInputPlus in, Version version) throws IOException
         {
-            ColumnIdentifier param = new ColumnIdentifier(in.readUTF(), true);
+            ColumnIdentifier columnName = new ColumnIdentifier(in.readUTF(), true);
             Operator relationType = Operator.readFrom(in);
-            return new ScalarColumnConstraint(param, relationType, in.readUTF());
+            return new ScalarColumnConstraint(columnName, relationType, in.readUTF());
         }
 
         @Override

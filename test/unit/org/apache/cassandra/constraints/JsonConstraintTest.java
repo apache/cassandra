@@ -42,16 +42,18 @@ public class JsonConstraintTest
     private static final ColumnMetadata regularStringColumn = getColumnOfType(UTF8Type.instance);
     private static final ColumnMetadata regularAsciiColumn = getColumnOfType(AsciiType.instance);
 
-    private static final ColumnConstraints json = new ColumnConstraints(of(new Raw(jsonFunctionIdentifier, columnIdentifier).prepare()));
+    private final ColumnConstraints json = new ColumnConstraints(of(new Raw(jsonFunctionIdentifier).prepare()));
 
     @Test
     public void testJsonConstraint() throws Throwable
     {
+        json.setColumnName(columnIdentifier);
         run("{}");
         run("{\"a\": 5, \"b\": \"1\", \"c\": [1,2,3]}");
         run("nonsense", "Value for column 'a_column' violated JSON constraint as it is not a valid JSON.");
         run("", "Value for column 'a_column' violated JSON constraint as it is not a valid JSON.");
     }
+
 
     @Test
     public void testInvalidTypes()

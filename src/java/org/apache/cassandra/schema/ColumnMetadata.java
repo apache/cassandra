@@ -269,6 +269,7 @@ public final class ColumnMetadata extends ColumnSpecification implements Selecta
         this.comparisonOrder = comparisonOrder(kind, isComplex(), Math.max(0, position), name);
         this.mask = mask;
         this.columnConstraints = columnConstraints;
+        this.columnConstraints.setColumnName(name);
     }
 
     private static Comparator<CellPath> makeCellPathComparator(Kind kind, AbstractType<?> type)

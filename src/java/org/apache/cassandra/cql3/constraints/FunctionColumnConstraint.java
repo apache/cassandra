@@ -20,6 +20,7 @@ package org.apache.cassandra.cql3.constraints;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Function;
 
@@ -45,21 +46,21 @@ public class FunctionColumnConstraint extends AbstractFunctionConstraint<Functio
     public final static class Raw
     {
         public final ConstraintFunction function;
-        public final ColumnIdentifier columnName;
         public final Operator relationType;
         public final String term;
 
-        public Raw(ColumnIdentifier functionName, ColumnIdentifier columnName, Operator relationType, String term)
+        public Raw(ColumnIdentifier functionName, List<String> arguments, Operator relationType, String term)
         {
             this.relationType = relationType;
-            this.columnName = columnName;
             this.term = term;
-            function = createConstraintFunction(functionName.toCQLString(), columnName);
+            if (arguments == null)
+                arguments = new ArrayList<>();
+            function = createConstraintFunction(functionName.toCQLString(), arguments);
         }
 
         public FunctionColumnConstraint prepare()
         {
-            return new FunctionColumnConstraint(function, columnName, relationType, term);
+            return new FunctionColumnConstraint(function, relationType, term);
         }
     }
 
@@ -81,23 +82,31 @@ public class FunctionColumnConstraint extends AbstractFunctionConstraint<Functio
         OCTET_LENGTH(OctetLengthConstraint::new),
         REGEXP(RegexpConstraint::new);
 
-        private final Function<ColumnIdentifier, ConstraintFunction> functionCreator;
+        private final Function<List<String>, ConstraintFunction> functionCreator;
 
-        Functions(Function<ColumnIdentifier, ConstraintFunction> functionCreator)
+        Functions(Function<List<String>, ConstraintFunction> functionCreator)
         {
             this.functionCreator = functionCreator;
         }
     }
 
-    private static ConstraintFunction createConstraintFunction(String functionName, ColumnIdentifier columnName)
+    private static ConstraintFunction createConstraintFunction(String functionName, List<String> args)
     {
-        return getEnum(Functions.class, functionName).functionCreator.apply(columnName);
+        return getEnum(Functions.class, functionName).functionCreator.apply(args);
     }
 
-    private FunctionColumnConstraint(ConstraintFunction function, ColumnIdentifier columnName, Operator relationType, String term)
+    private FunctionColumnConstraint(ConstraintFunction function, Operator relationType, String term)
     {
-        super(columnName, relationType, term);
+        super(relationType, term);
         this.function = function;
+        this.columnName = function.columnName;
+    }
+
+    @Override
+    public void setColumnName(ColumnIdentifier columnName)
+    {
+        this.columnName = columnName;
+        this.function.columnName = columnName;
     }
 
     public ConstraintFunction function()
@@ -156,7 +165,6 @@ public class FunctionColumnConstraint extends AbstractFunctionConstraint<Functio
     @Override
     public void validate(ColumnMetadata columnMetadata)
     {
-        validateArgs(columnMetadata);
         validateTypes(columnMetadata);
         function.validate(columnMetadata, term);
     }
@@ -167,18 +175,11 @@ public class FunctionColumnConstraint extends AbstractFunctionConstraint<Functio
         return ConstraintType.FUNCTION;
     }
 
-    void validateArgs(ColumnMetadata columnMetadata)
-    {
-        if (!columnMetadata.name.equals(columnName))
-            throw new InvalidConstraintDefinitionException(String.format("Parameter of %s constraint should be the column name (%s)",
-                                                                         name(),
-                                                                         columnMetadata.name));
-    }
-
     @Override
     public String toString()
     {
-        return function.name + "(" + columnName + ") " + relationType + " " + term;
+        String arguments = String.join(",", function.rawArgs);
+        return function.name + '(' + arguments + ") " + relationType + ' ' + term;
     }
 
     public static class Serializer implements MetadataSerializer<FunctionColumnConstraint>
@@ -187,7 +188,12 @@ public class FunctionColumnConstraint extends AbstractFunctionConstraint<Functio
         public void serialize(FunctionColumnConstraint columnConstraint, DataOutputPlus out, Version version) throws IOException
         {
             out.writeUTF(columnConstraint.function.name);
-            out.writeUTF(columnConstraint.columnName.toCQLString());
+
+            int argsSize = columnConstraint.function.args.size();
+            out.writeInt(argsSize);
+            for (int i = 0; i < argsSize; i++)
+                out.writeUTF(columnConstraint.function.args.get(i));
+
             columnConstraint.relationType.writeTo(out);
             out.writeUTF(columnConstraint.term);
         }
@@ -196,12 +202,16 @@ public class FunctionColumnConstraint extends AbstractFunctionConstraint<Functio
         public FunctionColumnConstraint deserialize(DataInputPlus in, Version version) throws IOException
         {
             String functionName = in.readUTF();
+
+            List<String> args = new ArrayList<>();
+            int argsSize = in.readInt();
+            for (int i = 0; i < argsSize; i++)
+                args.add(in.readUTF());
+
             ConstraintFunction function;
-            String columnNameString = in.readUTF();
-            ColumnIdentifier columnName = new ColumnIdentifier(columnNameString, true);
             try
             {
-                function = createConstraintFunction(functionName, columnName);
+                function = createConstraintFunction(functionName, args);
             }
             catch (Exception e)
             {
@@ -209,14 +219,19 @@ public class FunctionColumnConstraint extends AbstractFunctionConstraint<Functio
             }
             Operator relationType = Operator.readFrom(in);
             final String term = in.readUTF();
-            return new FunctionColumnConstraint(function, columnName, relationType, term);
+            return new FunctionColumnConstraint(function, relationType, term);
         }
 
         @Override
         public long serializedSize(FunctionColumnConstraint columnConstraint, Version version)
         {
+            int argsSizes = 0;
+            for (String arg : columnConstraint.function.args)
+                argsSizes += TypeSizes.sizeof(arg);
+
             return TypeSizes.sizeof(columnConstraint.function.getClass().getName())
-                   + TypeSizes.sizeof(columnConstraint.columnName.toCQLString())
+                   + TypeSizes.sizeof(columnConstraint.function.args.size())
+                   + argsSizes
                    + TypeSizes.sizeof(columnConstraint.term)
                    + Operator.serializedSize();
         }

@@ -53,7 +53,7 @@ public class CreateTableWithColumnOctetLengthConstraintValidationTest extends Cq
     @Test
     public void testCreateTableWithColumnWithClusteringColumnSerializedSizeEqualToConstraint() throws Throwable
     {
-        createTable("CREATE TABLE %s (pk int, ck1 text CHECK OCTET_LENGTH(ck1) = 4, ck2 int, v int, PRIMARY KEY ((pk), ck1, ck2)) WITH CLUSTERING ORDER BY (ck1 " + order + ");");
+        createTable("CREATE TABLE %s (pk int, ck1 text CHECK OCTET_LENGTH() = 4, ck2 int, v int, PRIMARY KEY ((pk), ck1, ck2)) WITH CLUSTERING ORDER BY (ck1 " + order + ");");
 
         // Valid
         execute("INSERT INTO %s (pk, ck1, ck2, v) VALUES (1, 'fooo', 2, 3)");
@@ -69,7 +69,7 @@ public class CreateTableWithColumnOctetLengthConstraintValidationTest extends Cq
     @Test
     public void testCreateTableWithColumnWithClusteringColumnSerializedSizeDifferentThanConstraint() throws Throwable
     {
-        createTable("CREATE TABLE %s (pk int, ck1 text CHECK OCTET_LENGTH(ck1) != 4, ck2 int, v int, PRIMARY KEY ((pk),ck1, ck2)) WITH CLUSTERING ORDER BY (ck1 " + order + ");");
+        createTable("CREATE TABLE %s (pk int, ck1 text CHECK OCTET_LENGTH() != 4, ck2 int, v int, PRIMARY KEY ((pk),ck1, ck2)) WITH CLUSTERING ORDER BY (ck1 " + order + ");");
 
         final String expectedErrorMessage = "Column value does not satisfy value constraint for column 'ck1'. It has a length of";
         // Valid
@@ -83,7 +83,7 @@ public class CreateTableWithColumnOctetLengthConstraintValidationTest extends Cq
     @Test
     public void testCreateTableWithColumnWithClusteringColumnSerializedSizeBiggerThanConstraint() throws Throwable
     {
-        createTable("CREATE TABLE %s (pk int, ck1 text CHECK OCTET_LENGTH(ck1) > 4, ck2 int, v int, PRIMARY KEY ((pk),ck1, ck2)) WITH CLUSTERING ORDER BY (ck1 " + order + ");");
+        createTable("CREATE TABLE %s (pk int, ck1 text CHECK OCTET_LENGTH() > 4, ck2 int, v int, PRIMARY KEY ((pk),ck1, ck2)) WITH CLUSTERING ORDER BY (ck1 " + order + ");");
 
         // Valid
         execute("INSERT INTO %s (pk, ck1, ck2, v) VALUES (1, 'fñoo', 2, 3)");
@@ -97,7 +97,7 @@ public class CreateTableWithColumnOctetLengthConstraintValidationTest extends Cq
     @Test
     public void testCreateTableWithColumnWithClusteringColumnSerializedSizeBiggerOrEqualThanConstraint() throws Throwable
     {
-        createTable("CREATE TABLE %s (pk int, ck1 text CHECK OCTET_LENGTH(ck1) >= 4, ck2 int, v int, PRIMARY KEY ((pk),ck1, ck2)) WITH CLUSTERING ORDER BY (ck1 " + order + ");");
+        createTable("CREATE TABLE %s (pk int, ck1 text CHECK OCTET_LENGTH() >= 4, ck2 int, v int, PRIMARY KEY ((pk),ck1, ck2)) WITH CLUSTERING ORDER BY (ck1 " + order + ");");
 
         // Valid
         execute("INSERT INTO %s (pk, ck1, ck2, v) VALUES (1, 'fñoo', 2, 3)");
@@ -111,7 +111,7 @@ public class CreateTableWithColumnOctetLengthConstraintValidationTest extends Cq
     @Test
     public void testCreateTableWithColumnWithClusteringColumnSerializedSizeSmallerThanConstraint() throws Throwable
     {
-        createTable("CREATE TABLE %s (pk int, ck1 text CHECK OCTET_LENGTH(ck1) < 4, ck2 int, v int, PRIMARY KEY ((pk),ck1, ck2)) WITH CLUSTERING ORDER BY (ck1 " + order + ");");
+        createTable("CREATE TABLE %s (pk int, ck1 text CHECK OCTET_LENGTH() < 4, ck2 int, v int, PRIMARY KEY ((pk),ck1, ck2)) WITH CLUSTERING ORDER BY (ck1 " + order + ");");
 
         // Valid
         execute("INSERT INTO %s (pk, ck1, ck2, v) VALUES (1, 'fñ', 2, 3)");
@@ -125,7 +125,7 @@ public class CreateTableWithColumnOctetLengthConstraintValidationTest extends Cq
     @Test
     public void testCreateTableWithColumnWithClusteringColumnSerializedSizeSmallerOrEqualThanConstraint() throws Throwable
     {
-        createTable("CREATE TABLE %s (pk int, ck1 text CHECK OCTET_LENGTH(ck1) <= 4, ck2 int, v int, PRIMARY KEY ((pk),ck1, ck2)) WITH CLUSTERING ORDER BY (ck1 " + order + ");");
+        createTable("CREATE TABLE %s (pk int, ck1 text CHECK OCTET_LENGTH() <= 4, ck2 int, v int, PRIMARY KEY ((pk),ck1, ck2)) WITH CLUSTERING ORDER BY (ck1 " + order + ");");
 
         // Valid
         execute("INSERT INTO %s (pk, ck1, ck2, v) VALUES (1, 'fñ', 2, 3)");
@@ -139,7 +139,7 @@ public class CreateTableWithColumnOctetLengthConstraintValidationTest extends Cq
     @Test
     public void testCreateTableWithColumnWithClusteringBlobColumnSerializedSizeEqualToConstraint() throws Throwable
     {
-        createTable("CREATE TABLE %s (pk int, ck1 blob CHECK OCTET_LENGTH(ck1) = 4, ck2 int, v int, PRIMARY KEY ((pk),ck1, ck2)) WITH CLUSTERING ORDER BY (ck1 " + order + ");");
+        createTable("CREATE TABLE %s (pk int, ck1 blob CHECK OCTET_LENGTH() = 4, ck2 int, v int, PRIMARY KEY ((pk),ck1, ck2)) WITH CLUSTERING ORDER BY (ck1 " + order + ");");
 
         // Valid
         execute("INSERT INTO %s (pk, ck1, ck2, v) VALUES (1, textAsBlob('fño'), 2, 3)");
@@ -153,7 +153,7 @@ public class CreateTableWithColumnOctetLengthConstraintValidationTest extends Cq
     @Test
     public void testCreateTableWithColumnWithClusteringBlobColumnSerializedSizeDifferentThanConstraint() throws Throwable
     {
-        createTable("CREATE TABLE %s (pk int, ck1 blob CHECK OCTET_LENGTH(ck1) != 4, ck2 int, v int, PRIMARY KEY ((pk),ck1, ck2)) WITH CLUSTERING ORDER BY (ck1 " + order + ");");
+        createTable("CREATE TABLE %s (pk int, ck1 blob CHECK OCTET_LENGTH() != 4, ck2 int, v int, PRIMARY KEY ((pk),ck1, ck2)) WITH CLUSTERING ORDER BY (ck1 " + order + ");");
 
         // Valid
         execute("INSERT INTO %s (pk, ck1, ck2, v) VALUES (1, textAsBlob('fñ'), 2, 3)");
@@ -167,7 +167,7 @@ public class CreateTableWithColumnOctetLengthConstraintValidationTest extends Cq
     @Test
     public void testCreateTableWithColumnWithClusteringBlobColumnSerializedSizeBiggerThanConstraint() throws Throwable
     {
-        createTable("CREATE TABLE %s (pk int, ck1 blob CHECK OCTET_LENGTH(ck1) > 4, ck2 int, v int, PRIMARY KEY ((pk),ck1, ck2)) WITH CLUSTERING ORDER BY (ck1 " + order + ");");
+        createTable("CREATE TABLE %s (pk int, ck1 blob CHECK OCTET_LENGTH() > 4, ck2 int, v int, PRIMARY KEY ((pk),ck1, ck2)) WITH CLUSTERING ORDER BY (ck1 " + order + ");");
 
         // Valid
         execute("INSERT INTO %s (pk, ck1, ck2, v) VALUES (1, textAsBlob('fñoo'), 2, 3)");
@@ -181,7 +181,7 @@ public class CreateTableWithColumnOctetLengthConstraintValidationTest extends Cq
     @Test
     public void testCreateTableWithColumnWithClusteringBlobColumnSerializedSizeBiggerOrEqualThanConstraint() throws Throwable
     {
-        createTable("CREATE TABLE %s (pk int, ck1 blob CHECK OCTET_LENGTH(ck1) >= 4, ck2 int, v int, PRIMARY KEY ((pk),ck1, ck2)) WITH CLUSTERING ORDER BY (ck1 " + order + ");");
+        createTable("CREATE TABLE %s (pk int, ck1 blob CHECK OCTET_LENGTH() >= 4, ck2 int, v int, PRIMARY KEY ((pk),ck1, ck2)) WITH CLUSTERING ORDER BY (ck1 " + order + ");");
 
         // Valid
         execute("INSERT INTO %s (pk, ck1, ck2, v) VALUES (1, textAsBlob('fñoo'), 2, 3)");
@@ -195,7 +195,7 @@ public class CreateTableWithColumnOctetLengthConstraintValidationTest extends Cq
     @Test
     public void testCreateTableWithColumnWithClusteringBlobColumnSerializedSizeSmallerThanConstraint() throws Throwable
     {
-        createTable("CREATE TABLE %s (pk int, ck1 blob CHECK OCTET_LENGTH(ck1) < 4, ck2 int, v int, PRIMARY KEY ((pk),ck1, ck2)) WITH CLUSTERING ORDER BY (ck1 " + order + ");");
+        createTable("CREATE TABLE %s (pk int, ck1 blob CHECK OCTET_LENGTH() < 4, ck2 int, v int, PRIMARY KEY ((pk),ck1, ck2)) WITH CLUSTERING ORDER BY (ck1 " + order + ");");
 
         // Valid
         execute("INSERT INTO %s (pk, ck1, ck2, v) VALUES (1, textAsBlob('fñ'), 2, 3)");
@@ -209,7 +209,7 @@ public class CreateTableWithColumnOctetLengthConstraintValidationTest extends Cq
     @Test
     public void testCreateTableWithColumnWithClusteringBlobColumnSerializedSizeSmallerOrEqualThanConstraint() throws Throwable
     {
-        createTable("CREATE TABLE %s (pk int, ck1 blob CHECK OCTET_LENGTH(ck1) <= 4, ck2 int, v int, PRIMARY KEY ((pk),ck1, ck2)) WITH CLUSTERING ORDER BY (ck1 " + order + ");");
+        createTable("CREATE TABLE %s (pk int, ck1 blob CHECK OCTET_LENGTH() <= 4, ck2 int, v int, PRIMARY KEY ((pk),ck1, ck2)) WITH CLUSTERING ORDER BY (ck1 " + order + ");");
 
         // Valid
         execute("INSERT INTO %s (pk, ck1, ck2, v) VALUES (1, textAsBlob('fñ'), 2, 3)");
@@ -224,7 +224,7 @@ public class CreateTableWithColumnOctetLengthConstraintValidationTest extends Cq
     @Test
     public void testCreateTableWithColumnWithPkColumnSerializedSizeEqualToConstraint() throws Throwable
     {
-        createTable("CREATE TABLE %s (pk text CHECK OCTET_LENGTH(pk) = 4, ck1 int, ck2 int, v int, PRIMARY KEY ((pk),ck1, ck2)) WITH CLUSTERING ORDER BY (ck1 " + order + ");");
+        createTable("CREATE TABLE %s (pk text CHECK OCTET_LENGTH() = 4, ck1 int, ck2 int, v int, PRIMARY KEY ((pk),ck1, ck2)) WITH CLUSTERING ORDER BY (ck1 " + order + ");");
 
         // Valid
         execute("INSERT INTO %s (pk, ck1, ck2, v) VALUES ('fño', 1, 2, 3)");
@@ -238,7 +238,7 @@ public class CreateTableWithColumnOctetLengthConstraintValidationTest extends Cq
     @Test
     public void testCreateTableWithColumnWithPkColumnSerializedSizeDifferentThanConstraint() throws Throwable
     {
-        createTable("CREATE TABLE %s (pk text CHECK OCTET_LENGTH(pk) != 4, ck1 int, ck2 int, v int, PRIMARY KEY ((pk),ck1, ck2)) WITH CLUSTERING ORDER BY (ck1 " + order + ");");
+        createTable("CREATE TABLE %s (pk text CHECK OCTET_LENGTH() != 4, ck1 int, ck2 int, v int, PRIMARY KEY ((pk),ck1, ck2)) WITH CLUSTERING ORDER BY (ck1 " + order + ");");
 
         // Valid
         execute("INSERT INTO %s (pk, ck1, ck2, v) VALUES ('fñ', 1, 2, 3)");
@@ -252,7 +252,7 @@ public class CreateTableWithColumnOctetLengthConstraintValidationTest extends Cq
     @Test
     public void testCreateTableWithColumnWithPkColumnSerializedSizeBiggerThanConstraint() throws Throwable
     {
-        createTable("CREATE TABLE %s (pk text CHECK OCTET_LENGTH(pk) > 4, ck1 int, ck2 int, v int, PRIMARY KEY ((pk),ck1, ck2)) WITH CLUSTERING ORDER BY (ck1 " + order + ");");
+        createTable("CREATE TABLE %s (pk text CHECK OCTET_LENGTH() > 4, ck1 int, ck2 int, v int, PRIMARY KEY ((pk),ck1, ck2)) WITH CLUSTERING ORDER BY (ck1 " + order + ");");
 
         // Valid
         execute("INSERT INTO %s (pk, ck1, ck2, v) VALUES ('fñoo', 1, 2, 3)");
@@ -266,7 +266,7 @@ public class CreateTableWithColumnOctetLengthConstraintValidationTest extends Cq
     @Test
     public void testCreateTableWithColumnWithPkColumnSerializedSizeBiggerOrEqualThanConstraint() throws Throwable
     {
-        createTable("CREATE TABLE %s (pk text CHECK OCTET_LENGTH(pk) >= 4, ck1 int, ck2 int, v int, PRIMARY KEY ((pk),ck1, ck2)) WITH CLUSTERING ORDER BY (ck1 " + order + ");");
+        createTable("CREATE TABLE %s (pk text CHECK OCTET_LENGTH() >= 4, ck1 int, ck2 int, v int, PRIMARY KEY ((pk),ck1, ck2)) WITH CLUSTERING ORDER BY (ck1 " + order + ");");
 
         // Valid
         execute("INSERT INTO %s (pk, ck1, ck2, v) VALUES ('fñoo', 1, 2, 3)");
@@ -280,7 +280,7 @@ public class CreateTableWithColumnOctetLengthConstraintValidationTest extends Cq
     @Test
     public void testCreateTableWithColumnWithPkColumnSerializedSizeSmallerThanConstraint() throws Throwable
     {
-        createTable("CREATE TABLE %s (pk text CHECK OCTET_LENGTH(pk) < 4, ck1 int, ck2 int, v int, PRIMARY KEY ((pk),ck1, ck2)) WITH CLUSTERING ORDER BY (ck1 " + order + ");");
+        createTable("CREATE TABLE %s (pk text CHECK OCTET_LENGTH() < 4, ck1 int, ck2 int, v int, PRIMARY KEY ((pk),ck1, ck2)) WITH CLUSTERING ORDER BY (ck1 " + order + ");");
 
         // Valid
         execute("INSERT INTO %s (pk, ck1, ck2, v) VALUES ('fñ', 1, 2, 3)");
@@ -294,7 +294,7 @@ public class CreateTableWithColumnOctetLengthConstraintValidationTest extends Cq
     @Test
     public void testCreateTableWithColumnWithPkColumnSerializedSizeSmallerOrEqualThanConstraint() throws Throwable
     {
-        createTable("CREATE TABLE %s (pk text CHECK OCTET_LENGTH(pk) <= 4, ck1 int, ck2 int, v int, PRIMARY KEY ((pk),ck1, ck2)) WITH CLUSTERING ORDER BY (ck1 " + order + ");");
+        createTable("CREATE TABLE %s (pk text CHECK OCTET_LENGTH() <= 4, ck1 int, ck2 int, v int, PRIMARY KEY ((pk),ck1, ck2)) WITH CLUSTERING ORDER BY (ck1 " + order + ");");
 
         // Valid
         execute("INSERT INTO %s (pk, ck1, ck2, v) VALUES ('fñ', 1, 2, 3)");
@@ -309,7 +309,7 @@ public class CreateTableWithColumnOctetLengthConstraintValidationTest extends Cq
     @Test
     public void testCreateTableWithColumnWithRegularColumnSerializedSizeEqualToConstraint() throws Throwable
     {
-        createTable("CREATE TABLE %s (pk int, ck1 int, ck2 int, v text CHECK OCTET_LENGTH(v) = 4, PRIMARY KEY ((pk),ck1, ck2)) WITH CLUSTERING ORDER BY (ck1 " + order + ");");
+        createTable("CREATE TABLE %s (pk int, ck1 int, ck2 int, v text CHECK OCTET_LENGTH() = 4, PRIMARY KEY ((pk),ck1, ck2)) WITH CLUSTERING ORDER BY (ck1 " + order + ");");
 
         // Valid
         execute("INSERT INTO %s (pk, ck1, ck2, v) VALUES (1, 2, 3, 'fño')");
@@ -323,7 +323,7 @@ public class CreateTableWithColumnOctetLengthConstraintValidationTest extends Cq
     @Test
     public void testCreateTableWithColumnWithRegularColumnSerializedSizeDifferentThanConstraint() throws Throwable
     {
-        createTable("CREATE TABLE %s (pk int, ck1 int, ck2 int, v text CHECK OCTET_LENGTH(v) != 4, PRIMARY KEY ((pk),ck1, ck2)) WITH CLUSTERING ORDER BY (ck1 " + order + ");");
+        createTable("CREATE TABLE %s (pk int, ck1 int, ck2 int, v text CHECK OCTET_LENGTH() != 4, PRIMARY KEY ((pk),ck1, ck2)) WITH CLUSTERING ORDER BY (ck1 " + order + ");");
 
         // Valid
         execute("INSERT INTO %s (pk, ck1, ck2, v) VALUES (1, 2, 3, 'fñ')");
@@ -337,7 +337,7 @@ public class CreateTableWithColumnOctetLengthConstraintValidationTest extends Cq
     @Test
     public void testCreateTableWithColumnWithRegularColumnSerializedSizeBiggerThanConstraint() throws Throwable
     {
-        createTable("CREATE TABLE %s (pk int, ck1 int, ck2 int, v text CHECK OCTET_LENGTH(v) > 4, PRIMARY KEY ((pk),ck1, ck2)) WITH CLUSTERING ORDER BY (ck1 " + order + ");");
+        createTable("CREATE TABLE %s (pk int, ck1 int, ck2 int, v text CHECK OCTET_LENGTH() > 4, PRIMARY KEY ((pk),ck1, ck2)) WITH CLUSTERING ORDER BY (ck1 " + order + ");");
 
         // Valid
         execute("INSERT INTO %s (pk, ck1, ck2, v) VALUES (1, 2, 3, 'fñoo')");
@@ -351,7 +351,7 @@ public class CreateTableWithColumnOctetLengthConstraintValidationTest extends Cq
     @Test
     public void testCreateTableWithColumnWithRegularColumnSerializedSizeBiggerOrEqualThanConstraint() throws Throwable
     {
-        createTable("CREATE TABLE %s (pk int, ck1 int, ck2 int, v text CHECK OCTET_LENGTH(v) >= 4, PRIMARY KEY ((pk),ck1, ck2)) WITH CLUSTERING ORDER BY (ck1 " + order + ");");
+        createTable("CREATE TABLE %s (pk int, ck1 int, ck2 int, v text CHECK OCTET_LENGTH() >= 4, PRIMARY KEY ((pk),ck1, ck2)) WITH CLUSTERING ORDER BY (ck1 " + order + ");");
 
         // Valid
         execute("INSERT INTO %s (pk, ck1, ck2, v) VALUES (1, 2, 3, 'fñoo')");
@@ -365,7 +365,7 @@ public class CreateTableWithColumnOctetLengthConstraintValidationTest extends Cq
     @Test
     public void testCreateTableWithColumnWithRegularColumnSerializedSizeSmallerThanConstraint() throws Throwable
     {
-        createTable("CREATE TABLE %s (pk int, ck1 int, ck2 int, v text CHECK OCTET_LENGTH(v) < 4, PRIMARY KEY ((pk),ck1, ck2)) WITH CLUSTERING ORDER BY (ck1 " + order + ");");
+        createTable("CREATE TABLE %s (pk int, ck1 int, ck2 int, v text CHECK OCTET_LENGTH() < 4, PRIMARY KEY ((pk),ck1, ck2)) WITH CLUSTERING ORDER BY (ck1 " + order + ");");
 
         // Valid
         execute("INSERT INTO %s (pk, ck1, ck2, v) VALUES (1, 2, 3, 'fñ')");
@@ -379,7 +379,7 @@ public class CreateTableWithColumnOctetLengthConstraintValidationTest extends Cq
     @Test
     public void testCreateTableWithColumnWithRegularColumnSerializedSizeSmallerOrEqualThanConstraint() throws Throwable
     {
-        createTable("CREATE TABLE %s (pk int, ck1 int, ck2 int, v text CHECK OCTET_LENGTH(v) <= 4, PRIMARY KEY ((pk),ck1, ck2)) WITH CLUSTERING ORDER BY (ck1 " + order + ");");
+        createTable("CREATE TABLE %s (pk int, ck1 int, ck2 int, v text CHECK OCTET_LENGTH() <= 4, PRIMARY KEY ((pk),ck1, ck2)) WITH CLUSTERING ORDER BY (ck1 " + order + ");");
 
         // Valid
         execute("INSERT INTO %s (pk, ck1, ck2, v) VALUES (1, 2, 3, 'fñ')");
@@ -393,7 +393,7 @@ public class CreateTableWithColumnOctetLengthConstraintValidationTest extends Cq
     @Test
     public void testCreateTableWithColumnWithRegularColumnSerializedSizeCheckNullTextConstraint() throws Throwable
     {
-        createTable("CREATE TABLE %s (pk int, ck1 int, ck2 int, v text CHECK OCTET_LENGTH(v) <= 4, PRIMARY KEY ((pk),ck1, ck2)) WITH CLUSTERING ORDER BY (ck1 " + order + ");");
+        createTable("CREATE TABLE %s (pk int, ck1 int, ck2 int, v text CHECK OCTET_LENGTH() <= 4, PRIMARY KEY ((pk),ck1, ck2)) WITH CLUSTERING ORDER BY (ck1 " + order + ");");
         final String expectedErrorMessage = "Column value does not satisfy value constraint for column 'v' as it is null.";
         assertInvalidThrowMessage(expectedErrorMessage, InvalidRequestException.class, "INSERT INTO %s (pk, ck1, ck2, v) VALUES (1, 2, 3, null)");
     }
@@ -401,7 +401,7 @@ public class CreateTableWithColumnOctetLengthConstraintValidationTest extends Cq
     @Test
     public void testCreateTableWithColumnWithRegularColumnSerializedSizeCheckNullVarcharConstraint() throws Throwable
     {
-        createTable("CREATE TABLE %s (pk int, ck1 int, ck2 int, v varchar CHECK OCTET_LENGTH(v) <= 4, PRIMARY KEY ((pk),ck1, ck2)) WITH CLUSTERING ORDER BY (ck1 " + order + ");");
+        createTable("CREATE TABLE %s (pk int, ck1 int, ck2 int, v varchar CHECK OCTET_LENGTH() <= 4, PRIMARY KEY ((pk),ck1, ck2)) WITH CLUSTERING ORDER BY (ck1 " + order + ");");
         final String expectedErrorMessage = "Column value does not satisfy value constraint for column 'v' as it is null.";
         assertInvalidThrowMessage(expectedErrorMessage, InvalidRequestException.class, "INSERT INTO %s (pk, ck1, ck2, v) VALUES (1, 2, 3, null)");
     }
@@ -409,7 +409,7 @@ public class CreateTableWithColumnOctetLengthConstraintValidationTest extends Cq
     @Test
     public void testCreateTableWithColumnWithRegularColumnSerializedSizeCheckNullAsciiConstraint() throws Throwable
     {
-        createTable("CREATE TABLE %s (pk int, ck1 int, ck2 int, v ascii CHECK OCTET_LENGTH(v) <= 4, PRIMARY KEY ((pk),ck1, ck2)) WITH CLUSTERING ORDER BY (ck1 " + order + ");");
+        createTable("CREATE TABLE %s (pk int, ck1 int, ck2 int, v ascii CHECK OCTET_LENGTH() <= 4, PRIMARY KEY ((pk),ck1, ck2)) WITH CLUSTERING ORDER BY (ck1 " + order + ");");
         final String expectedErrorMessage = "Column value does not satisfy value constraint for column 'v' as it is null.";
         assertInvalidThrowMessage(expectedErrorMessage, InvalidRequestException.class, "INSERT INTO %s (pk, ck1, ck2, v) VALUES (1, 2, 3, null)");
     }
@@ -417,7 +417,7 @@ public class CreateTableWithColumnOctetLengthConstraintValidationTest extends Cq
     @Test
     public void testCreateTableWithColumnWithRegularColumnSerializedSizeCheckNullBlobConstraint() throws Throwable
     {
-        createTable("CREATE TABLE %s (pk int, ck1 int, ck2 int, v blob CHECK OCTET_LENGTH(v) <= 4, PRIMARY KEY ((pk),ck1, ck2)) WITH CLUSTERING ORDER BY (ck1 " + order + ");");
+        createTable("CREATE TABLE %s (pk int, ck1 int, ck2 int, v blob CHECK OCTET_LENGTH() <= 4, PRIMARY KEY ((pk),ck1, ck2)) WITH CLUSTERING ORDER BY (ck1 " + order + ");");
         final String expectedErrorMessage = "Column value does not satisfy value constraint for column 'v' as it is null.";
         assertInvalidThrowMessage(expectedErrorMessage, InvalidRequestException.class, "INSERT INTO %s (pk, ck1, ck2, v) VALUES (1, 2, 3, null)");
     }
@@ -425,7 +425,7 @@ public class CreateTableWithColumnOctetLengthConstraintValidationTest extends Cq
     @Test
     public void testCreateTableWithColumnMixedColumnsSerializedSizeConstraint() throws Throwable
     {
-        createTable("CREATE TABLE %s (pk text CHECK OCTET_LENGTH(pk) = 4, ck1 int, ck2 int, v text CHECK OCTET_LENGTH(v) = 4, PRIMARY KEY ((pk),ck1, ck2)) WITH CLUSTERING ORDER BY (ck1 " + order + ");");
+        createTable("CREATE TABLE %s (pk text CHECK OCTET_LENGTH() = 4, ck1 int, ck2 int, v text CHECK OCTET_LENGTH() = 4, PRIMARY KEY ((pk),ck1, ck2)) WITH CLUSTERING ORDER BY (ck1 " + order + ");");
 
         // Valid
         execute("INSERT INTO %s (pk, ck1, ck2, v) VALUES ('fño', 2, 3, 'fño')");
@@ -446,7 +446,7 @@ public class CreateTableWithColumnOctetLengthConstraintValidationTest extends Cq
     {
         try
         {
-            createTable("CREATE TABLE %s (pk text, ck1 int CHECK OCTET_LENGTH(pk) = 4, ck2 int, v int, PRIMARY KEY ((pk),ck1, ck2)) WITH CLUSTERING ORDER BY (ck1 " + order + ");");
+            createTable("CREATE TABLE %s (pk text, ck1 int CHECK OCTET_LENGTH() = 4, ck2 int, v int, PRIMARY KEY ((pk),ck1, ck2)) WITH CLUSTERING ORDER BY (ck1 " + order + ");");
             fail();
         }
         catch (InvalidRequestException e)
@@ -461,7 +461,7 @@ public class CreateTableWithColumnOctetLengthConstraintValidationTest extends Cq
     {
         try
         {
-            createTable("CREATE TABLE %s (pk text, ck1 int CHECK OCTET_LENGTH(pk) = 4 AND ck1 < 4, ck2 int, v int, PRIMARY KEY ((pk),ck1, ck2)) WITH CLUSTERING ORDER BY (ck1 " + order + ");");
+            createTable("CREATE TABLE %s (pk text, ck1 int CHECK OCTET_LENGTH() = 4 AND ck1 < 4, ck2 int, v int, PRIMARY KEY ((pk),ck1, ck2)) WITH CLUSTERING ORDER BY (ck1 " + order + ");");
             fail();
         }
         catch (InvalidRequestException e)
@@ -476,7 +476,7 @@ public class CreateTableWithColumnOctetLengthConstraintValidationTest extends Cq
     {
         try
         {
-            createTable("CREATE TABLE %s (pk int, ck1 int CHECK OCTET_LENGTH(ck1) = 4, ck2 int, v int, PRIMARY KEY ((pk),ck1, ck2)) WITH CLUSTERING ORDER BY (ck1 " + order + ");");
+            createTable("CREATE TABLE %s (pk int, ck1 int CHECK OCTET_LENGTH() = 4, ck2 int, v int, PRIMARY KEY ((pk),ck1, ck2)) WITH CLUSTERING ORDER BY (ck1 " + order + ");");
             fail();
         }
         catch (InvalidRequestException e)
@@ -507,7 +507,7 @@ public class CreateTableWithColumnOctetLengthConstraintValidationTest extends Cq
     {
         try
         {
-            createTable("CREATE TABLE %s (pk text CHECK not_a_function(pk) = 4, ck1 int, ck2 int, PRIMARY KEY ((pk),ck1, ck2)) WITH CLUSTERING ORDER BY (ck1 " + order + ");");
+            createTable("CREATE TABLE %s (pk text CHECK not_a_function() = 4, ck1 int, ck2 int, PRIMARY KEY ((pk),ck1, ck2)) WITH CLUSTERING ORDER BY (ck1 " + order + ");");
             fail();
         }
         catch (InvalidRequestException e)
@@ -521,7 +521,7 @@ public class CreateTableWithColumnOctetLengthConstraintValidationTest extends Cq
     public void testCreateTableWithPKConstraintsAndCDCEnabled() throws Throwable
     {
         // It works
-        createTable("CREATE TABLE %s (pk text CHECK length(pk) = 4, ck1 int, ck2 int, PRIMARY KEY ((pk), ck1, ck2)) WITH cdc = true;");
+        createTable("CREATE TABLE %s (pk text CHECK length() = 4, ck1 int, ck2 int, PRIMARY KEY ((pk), ck1, ck2)) WITH cdc = true;");
     }
 
     @Test

@@ -967,8 +967,8 @@ tableDefinition[CreateTableStatement.Raw stmt]
     ;
 
 tableColumns[CreateTableStatement.Raw stmt]
-    @init { boolean isStatic = false; }
-    : k=ident v=comparatorType (K_STATIC { isStatic = true; })? (mask=columnMask)? (constraints=columnConstraints)? { $stmt.addColumn(k, v, isStatic, mask, constraints); }
+    @init { boolean isStatic = false; boolean isNotNull = false; }
+    : k=ident v=comparatorType (K_STATIC { isStatic = true; })? (K_NOT K_NULL { isNotNull = true; })? (mask=columnMask)? (constraints=columnConstraints)? { $stmt.addColumn(k, v, isStatic, isNotNull, mask, constraints); }
         (K_PRIMARY K_KEY { $stmt.setPartitionKeyColumn(k); })?
     | K_PRIMARY K_KEY '(' tablePartitionKey[stmt] (',' c=ident { $stmt.markClusteringColumn(c); } )* ')'
     ;
@@ -982,9 +982,30 @@ columnConstraints returns [ColumnConstraints.Raw constraints]
     ;
 
 columnConstraint returns [ColumnConstraint columnConstraint]
-    : funcName=ident '(' k=ident ')' op=relationType t=value { $columnConstraint = new FunctionColumnConstraint.Raw(funcName, k, op, t.getText()).prepare(); }
-    | funcName=ident '(' k=ident ')' { $columnConstraint = new UnaryFunctionColumnConstraint.Raw(funcName, k).prepare(); }
-    | k=ident op=relationType t=value { $columnConstraint = new ScalarColumnConstraint.Raw(k, op, t.getText()).prepare(); }
+    @init { List<String> arguments = new ArrayList<>(); }
+    : K_NOT K_NULL
+    {
+        $columnConstraint = new UnaryFunctionColumnConstraint.Raw("NOT_NULL").prepare();
+    }
+    | funcName=ident columnConstraintsArguments[arguments] (op=relationType t=value)?
+    {
+        if (op != null && t != null)
+        {
+            $columnConstraint = new FunctionColumnConstraint.Raw(funcName, arguments, op, t.getText()).prepare();
+        }
+        else
+        {
+            $columnConstraint = new UnaryFunctionColumnConstraint.Raw(funcName, arguments).prepare();
+        }
+    }
+    | k=ident op=relationType t=value
+    {
+        $columnConstraint = new ScalarColumnConstraint.Raw(k, op, t.getText()).prepare();
+    }
+    | funcName=ident
+    {
+         $columnConstraint = new UnaryFunctionColumnConstraint.Raw(funcName).prepare();
+    }
     ;
 
 columnMask returns [ColumnMask.Raw mask]
@@ -995,6 +1016,12 @@ columnMask returns [ColumnMask.Raw mask]
 
 columnMaskArguments[List<Term.Raw> arguments]
     : '('  ')' | '(' c=term { arguments.add(c); } (',' cn=term { arguments.add(cn); })* ')'
+    ;
+
+columnConstraintsArguments[List<String> arguments]
+    : '('  ')'
+    | '(' c=term { try { arguments.add(c.toString()); } catch (Throwable t) { throw new SyntaxException("Constraint function parameters need to be strings."); }; } (',' cn=term { try { arguments.add(cn.toString()); } catch (Throwable t) { throw new SyntaxException("Constraint function parameters need to be strings."); }; })* ')'
+    | '(' ci=ident { throw new SyntaxException("Constraint function parameters need to be strings."); } (',' cni=ident)* ')'
     ;
 
 tablePartitionKey[CreateTableStatement.Raw stmt]

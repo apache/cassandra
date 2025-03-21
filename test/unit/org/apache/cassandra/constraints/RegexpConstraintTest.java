@@ -18,6 +18,8 @@
 
 package org.apache.cassandra.constraints;
 
+import java.util.List;
+
 import org.junit.Test;
 
 import org.apache.cassandra.cql3.ColumnIdentifier;
@@ -44,8 +46,8 @@ public class RegexpConstraintTest
     private static final ColumnMetadata regularStringColumn = getColumnOfType(UTF8Type.instance);
     private static final ColumnMetadata regularAsciiColumn = getColumnOfType(AsciiType.instance);
 
-    private static final ColumnConstraints regexp = new ColumnConstraints(of(new Raw(regexpFunctionIdentifier, columnIdentifier, Operator.EQ, "'a..b'").prepare()));
-    private static final ColumnConstraints negatedRegexp = new ColumnConstraints(of(new Raw(regexpFunctionIdentifier, columnIdentifier, Operator.NEQ, "'a..b'").prepare()));
+    private static final ColumnConstraints regexp = new ColumnConstraints(of(new Raw(regexpFunctionIdentifier, List.of(), Operator.EQ, "'a..b'").prepare()));
+    private static final ColumnConstraints negatedRegexp = new ColumnConstraints(of(new Raw(regexpFunctionIdentifier, List.of(), Operator.NEQ, "'a..b'").prepare()));
 
     @Test
     public void testRegexpConstraint() throws Throwable
@@ -59,7 +61,7 @@ public class RegexpConstraintTest
     @Test
     public void testInvalidPattern()
     {
-        ColumnConstraints invalid = new ColumnConstraints(of(new Raw(regexpFunctionIdentifier, columnIdentifier, Operator.EQ, "'*abc'").prepare()));
+        ColumnConstraints invalid = new ColumnConstraints(of(new Raw(regexpFunctionIdentifier, List.of(), Operator.EQ, "'*abc'").prepare()));
         assertThatThrownBy(() -> invalid.validate(regularStringColumn))
         .hasMessage("String '*abc' is not a valid regular expression")
         .isInstanceOf(InvalidConstraintDefinitionException.class);

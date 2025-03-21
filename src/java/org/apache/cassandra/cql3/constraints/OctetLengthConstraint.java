@@ -21,7 +21,6 @@ package org.apache.cassandra.cql3.constraints;
 import java.nio.ByteBuffer;
 import java.util.List;
 
-import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.cql3.Operator;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.AsciiType;
@@ -34,9 +33,9 @@ public class OctetLengthConstraint extends ConstraintFunction
 {
     private static final List<AbstractType<?>> SUPPORTED_TYPES = List.of(BytesType.instance, UTF8Type.instance, AsciiType.instance);
 
-    public OctetLengthConstraint(ColumnIdentifier columnName)
+    public OctetLengthConstraint(List<String> args)
     {
-        super(columnName, "OCTET_LENGTH");
+        super("OCTET_LENGTH", args);
     }
 
     @Override

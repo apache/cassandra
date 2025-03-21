@@ -20,7 +20,6 @@ package org.apache.cassandra.cql3.constraints;
 
 import java.util.List;
 
-import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.cql3.CqlBuilder;
 import org.apache.cassandra.cql3.Operator;
 import org.apache.cassandra.utils.LocalizeString;
@@ -30,9 +29,8 @@ public abstract class AbstractFunctionConstraint<T> extends ColumnConstraint<T>
     protected final Operator relationType;
     protected final String term;
 
-    public AbstractFunctionConstraint(ColumnIdentifier columnName, Operator relationType, String term)
+    public AbstractFunctionConstraint(Operator relationType, String term)
     {
-        super(columnName);
         this.relationType = relationType;
         this.term = term;
     }

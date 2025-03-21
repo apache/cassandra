@@ -20,14 +20,13 @@ package org.apache.cassandra.cql3.constraints;
 
 import java.util.List;
 
-import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.cql3.Operator;
 
 public abstract class UnaryConstraintFunction extends ConstraintFunction
 {
-    public UnaryConstraintFunction(ColumnIdentifier columnName, String name)
+    public UnaryConstraintFunction(String name, List<String> args)
     {
-        super(columnName, name);
+        super(name, args);
     }
 
     public List<Operator> getSupportedOperators()

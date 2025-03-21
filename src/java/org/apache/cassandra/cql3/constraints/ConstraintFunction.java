@@ -19,14 +19,17 @@
 package org.apache.cassandra.cql3.constraints;
 
 import java.nio.ByteBuffer;
+import java.util.ArrayList;
 import java.util.List;
 
 import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.cql3.Operator;
+import org.apache.cassandra.cql3.functions.types.ParseUtils;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
+import static java.lang.String.format;
 import static org.apache.cassandra.cql3.Operator.EQ;
 import static org.apache.cassandra.cql3.Operator.GT;
 import static org.apache.cassandra.cql3.Operator.GTE;
@@ -41,13 +44,22 @@ public abstract class ConstraintFunction
 {
     public static final List<Operator> DEFAULT_FUNCTION_OPERATORS = List.of(EQ, NEQ, GTE, GT, LTE, LT);
 
-    protected final ColumnIdentifier columnName;
+    protected ColumnIdentifier columnName;
     protected final String name;
+    protected final List<String> args;
+    // args as propagated from cql
+    protected final List<String> rawArgs;
 
-    public ConstraintFunction(ColumnIdentifier columnName, String name)
+    public ConstraintFunction(String name, List<String> args)
     {
-        this.columnName = columnName;
         this.name = name;
+        this.rawArgs = args;
+        this.args = unquote(args);
+    }
+
+    public List<String> arguments()
+    {
+        return args;
     }
 
     /**
@@ -84,6 +96,7 @@ public abstract class ConstraintFunction
      */
     public void validate(ColumnMetadata columnMetadata, String term) throws InvalidConstraintDefinitionException
     {
+        maybeThrowOnNonEmptyArguments(name);
     }
 
     /**
@@ -100,4 +113,44 @@ public abstract class ConstraintFunction
      * @return supported types for given constraint
      */
     public abstract List<AbstractType<?>> getSupportedTypes();
+
+    /**
+     * Tells whether implementation supports specifying arguments on its function.
+     * <br>
+     * In this case, this function will return "true"
+     * <pre>
+     *     val int check length() < 1024
+     * </pre>
+     *
+     * In this case, this function will return "false"
+     * <pre>
+     *     val int check someconstraint('abc', 'def')
+     * </pre>
+     * @return true if this constraint does not accept any parameters, false otherwise.
+     */
+    public boolean isParameterless() { return true; }
+
+    @Override
+    public String toString()
+    {
+        return name;
+    }
+
+    protected void maybeThrowOnNonEmptyArguments(String constraintName)
+    {
+        if (!isParameterless())
+            return;
+
+        if (args != null && !args.isEmpty())
+            throw new InvalidConstraintDefinitionException(format("Constraint %s does not accept any arguments.", constraintName));
+    }
+
+    private List<String> unquote(List<String> quotedArgs)
+    {
+        List<String> unquotedArgs = new ArrayList<>();
+        for (String quotedArg : quotedArgs)
+            unquotedArgs.add(ParseUtils.unquote(quotedArg));
+
+        return unquotedArgs;
+    }
 }
