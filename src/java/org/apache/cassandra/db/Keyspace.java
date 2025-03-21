@@ -34,7 +34,6 @@ import java.util.stream.Stream;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.Iterables;
-import org.apache.cassandra.replication.MutationTrackingService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -624,8 +623,6 @@ public class Keyspace
                 cfs.getWriteHandler().write(upd, ctx, true);
             }
         }
-
-        MutationTrackingService.instance.witnessedLocalMutation(mutation.getKeyspaceName(), mutation.key().getToken(), mutation.id());
 
         if (future != null)
             future.trySuccess(null);

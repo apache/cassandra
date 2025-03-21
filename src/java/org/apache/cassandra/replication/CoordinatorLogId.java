@@ -23,9 +23,10 @@ import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 
 import java.io.IOException;
+import java.io.Serializable;
 import java.util.Comparator;
 
-public class CoordinatorLogId
+public class CoordinatorLogId implements Serializable
 {
     /** TCM host ID */
     protected final int hostId;

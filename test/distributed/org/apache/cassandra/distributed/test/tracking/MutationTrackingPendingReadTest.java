@@ -22,23 +22,14 @@ import java.util.Collections;
 import java.util.Set;
 
 import com.google.common.collect.Iterables;
-import org.apache.cassandra.replication.MutationSummary;
-import org.apache.cassandra.replication.MutationTrackingService.PendingWrite;
+import org.apache.cassandra.db.*;
+import org.apache.cassandra.replication.*;
 import org.junit.Assert;
 import org.junit.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.Util;
-import org.apache.cassandra.db.Clustering;
-import org.apache.cassandra.db.ColumnFamilyStore;
-import org.apache.cassandra.db.DecoratedKey;
-import org.apache.cassandra.db.Keyspace;
-import org.apache.cassandra.db.Mutation;
-import org.apache.cassandra.replication.MutationId;
-import org.apache.cassandra.db.ReadExecutionController;
-import org.apache.cassandra.db.SimpleBuilders;
-import org.apache.cassandra.db.SinglePartitionReadCommand;
 import org.apache.cassandra.db.lifecycle.SSTableSet;
 import org.apache.cassandra.db.lifecycle.View;
 import org.apache.cassandra.db.partitions.ImmutableBTreePartition;
@@ -50,7 +41,6 @@ import org.apache.cassandra.db.rows.UnfilteredRowIterator;
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
 import org.apache.cassandra.distributed.api.Feature;
-import org.apache.cassandra.replication.MutationTrackingService;
 import org.apache.cassandra.replication.MutationTrackingService.ListeningPendingRead;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableMetadata;
@@ -107,9 +97,11 @@ public class MutationTrackingPendingReadTest
             cluster.coordinator(1).execute(format("INSERT INTO %s.%s (k, c, v) VALUES (1, 0, 0)", keyspaceName, tableName), ConsistencyLevel.ALL);
 
             MutationSummary firstSummary = summaryForKey(cluster.get(1), keyspaceName, "tbl", 1);
-            Assert.assertEquals(1, firstSummary.unreconciledIds());
+            CoordinatorLogId logId = firstSummary.get(0).logId();
+            Offsets firstIds = summaryIdSpace(firstSummary.get(logId));
+            Assert.assertEquals(1, firstIds.offsetCount());
 
-            cluster.forEach(node -> assertMatchingSummaryForKey(node, keyspaceName, "tbl", 1, firstSummary));
+            cluster.forEach(node -> assertMatchingSummaryIdSpaceForKey(node, keyspaceName, "tbl", 1, firstSummary));
 
             cluster.get(1).runOnInstance(() -> {
 
@@ -117,9 +109,8 @@ public class MutationTrackingPendingReadTest
                 DecoratedKey dk = metadata.partitioner.decorateKey(bytes(1));
 
                 MutationSummary secondSummary = summaryForKey(keyspaceName, tableName, dk);
-
-                // FIXME: on 1 all will be seen as reconciled because of remote response triggering a witness
-                Assert.assertEquals(1, secondSummary.unreconciledIds());
+                Offsets secondIds = summaryIdSpace(secondSummary.get(logId));
+                Assert.assertEquals(1, secondIds.offsetCount());
 
                 // create a mutation
                 MutationId id = MutationTrackingService.instance.nextMutationId(keyspaceName, dk.getToken());
@@ -135,7 +126,8 @@ public class MutationTrackingPendingReadTest
                 TrackedReadResponse response;
                 MutationSummary summary;
                 SinglePartitionReadCommand command = SinglePartitionReadCommand.fullPartitionRead(metadata, nowInSeconds, dk);
-                try (PendingWrite pendingWrite = MutationTrackingService.instance.startWrite(mutation))
+                TrackedKeyspaceWriteHandler trackedWriteHandler = new TrackedKeyspaceWriteHandler(Keyspace.open(keyspaceName));
+                try (WriteContext ctx = trackedWriteHandler.beginWrite(mutation, true))
                 {
                     try (ReadExecutionController controller = command.executionController(false);
                          UnfilteredPartitionIterator iterator = command.executeLocally(controller))
@@ -156,10 +148,10 @@ public class MutationTrackingPendingReadTest
                     assertNoKcvRow(partition, 1);
                 }
 
-                // check that the summary does contain the unapplied mutation
-                // FIXME: should NOT and does not include unapplied mutations
-                Assert.assertEquals(2, summary.unreconciledIds());
-                Assert.assertTrue(summary.contains(secondId));
+                // check that the summary is aware of the unapplied mutation
+                Offsets summaryIds = summaryIdSpace(summary.get(logId));
+                Assert.assertEquals(2, summaryIds.offsetCount());
+                Assert.assertTrue(summaryIds.contains(secondId.offset()));
 
                 // check that the returned data contains the unapplied mutation
                 try (UnfilteredPartitionIterator partitions = response.makeIterator(command))
@@ -228,7 +220,6 @@ public class MutationTrackingPendingReadTest
 
                     // the in flight read should be aware of the racing write
                     Assert.assertEquals(Set.of(mutation.id()), pendingRead.mutationIds());
-
                 }
             });
         }

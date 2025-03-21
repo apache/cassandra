@@ -47,6 +47,7 @@ public class TrackedKeyspaceWriteHandler implements KeyspaceWriteHandler
             // write the mutation to the commitlog and memtables
             Tracing.trace("Appending to mutation journal");
             CommitLogPosition position = MutationJournal.instance.write(mutation.id(), mutation);
+            MutationTrackingService.instance.witnessedLocalMutation(mutation.getKeyspaceName(), mutation.key().getToken(), mutation.id());
             return new CassandraWriteContext(group, position, pendingWrite);
         }
         catch (Throwable t)
