@@ -21,7 +21,6 @@ package org.apache.cassandra.cql3.constraints;
 import java.nio.ByteBuffer;
 import java.util.List;
 
-import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.cql3.Operator;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.schema.ColumnMetadata;
@@ -32,9 +31,9 @@ public class NotNullConstraint extends UnaryConstraintFunction
 {
     public static final String FUNCTION_NAME = "NOT_NULL";
 
-    public NotNullConstraint(ColumnIdentifier columnName)
+    public NotNullConstraint(List<String> args)
     {
-        super(columnName, FUNCTION_NAME);
+        super(FUNCTION_NAME, args);
     }
 
     @Override
@@ -57,6 +56,12 @@ public class NotNullConstraint extends UnaryConstraintFunction
     public List<AbstractType<?>> getSupportedTypes()
     {
         return null;
+    }
+
+    @Override
+    public String toString()
+    {
+        return "NOT NULL";
     }
 
     @Override

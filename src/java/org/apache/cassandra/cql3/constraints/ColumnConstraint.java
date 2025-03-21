@@ -40,11 +40,15 @@ import static java.lang.String.format;
  */
 public abstract class ColumnConstraint<T>
 {
-    protected final ColumnIdentifier columnName;
+    protected ColumnIdentifier columnName;
 
-    public ColumnConstraint(ColumnIdentifier columnName)
+    public void setColumnName(ColumnIdentifier columnName)
     {
         this.columnName = columnName;
+    }
+
+    public ColumnConstraint()
+    {
     }
 
     // Enum containing all the possible constraint serializers to help with serialization/deserialization

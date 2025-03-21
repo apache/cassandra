@@ -42,7 +42,7 @@ public class JsonConstraintTest
     private static final ColumnMetadata regularStringColumn = getColumnOfType(UTF8Type.instance);
     private static final ColumnMetadata regularAsciiColumn = getColumnOfType(AsciiType.instance);
 
-    private static final ColumnConstraints json = new ColumnConstraints(of(new Raw(jsonFunctionIdentifier, columnIdentifier).prepare()));
+    private static final ColumnConstraints json = new ColumnConstraints(of(new Raw(jsonFunctionIdentifier).prepare()));
 
     @Test
     public void testJsonConstraint() throws Throwable

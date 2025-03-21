@@ -20,6 +20,7 @@ package org.apache.cassandra.cql3.constraints;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Function;
 
@@ -45,17 +46,28 @@ public class UnaryFunctionColumnConstraint extends AbstractFunctionConstraint<Un
     public final static class Raw
     {
         public final ConstraintFunction function;
-        public final ColumnIdentifier columnName;
+        public final List<String> arguments;
 
-        public Raw(ColumnIdentifier functionName, ColumnIdentifier columnName)
+        public Raw(String name)
         {
-            this.columnName = columnName;
-            function = createConstraintFunction(functionName.toCQLString(), columnName);
+            this(new ColumnIdentifier(name, true));
+        }
+
+        public Raw(ColumnIdentifier functionName, List<String> arguments)
+        {
+            this.arguments = arguments;
+            function = createConstraintFunction(functionName.toString(), this.arguments);
+        }
+
+        public Raw(ColumnIdentifier functionName)
+        {
+            arguments = List.of();
+            function = createConstraintFunction(functionName.toString(), arguments);
         }
 
         public UnaryFunctionColumnConstraint prepare()
         {
-            return new UnaryFunctionColumnConstraint(function, columnName);
+            return new UnaryFunctionColumnConstraint(function);
         }
     }
 
@@ -64,23 +76,31 @@ public class UnaryFunctionColumnConstraint extends AbstractFunctionConstraint<Un
         NOT_NULL(NotNullConstraint::new),
         JSON(JsonConstraint::new);
 
-        private final Function<ColumnIdentifier, ConstraintFunction> functionCreator;
+        private final Function<List<String>, ConstraintFunction> functionCreator;
 
-        Functions(Function<ColumnIdentifier, ConstraintFunction> functionCreator)
+        Functions(Function<List<String>, ConstraintFunction> functionCreator)
         {
             this.functionCreator = functionCreator;
         }
     }
 
-    private static ConstraintFunction createConstraintFunction(String functionName, ColumnIdentifier columnName)
+    private static ConstraintFunction createConstraintFunction(String functionName, List<String> arguments)
     {
-        return getEnum(Functions.class, functionName).functionCreator.apply(columnName);
+        return getEnum(Functions.class, functionName).functionCreator.apply(arguments);
     }
 
-    private UnaryFunctionColumnConstraint(ConstraintFunction function, ColumnIdentifier columnName)
+    private UnaryFunctionColumnConstraint(ConstraintFunction function)
     {
-        super(columnName, null, null);
+        super(null, null);
         this.function = function;
+        this.columnName = function.columnName;
+    }
+
+    @Override
+    public void setColumnName(ColumnIdentifier columnName)
+    {
+        this.columnName = columnName;
+        this.function.columnName = columnName;
     }
 
     @Override
@@ -122,7 +142,6 @@ public class UnaryFunctionColumnConstraint extends AbstractFunctionConstraint<Un
     @Override
     public void validate(ColumnMetadata columnMetadata) throws InvalidConstraintDefinitionException
     {
-        validateArgs(columnMetadata);
         validateTypes(columnMetadata);
         function.validate(columnMetadata, term);
     }
@@ -133,18 +152,10 @@ public class UnaryFunctionColumnConstraint extends AbstractFunctionConstraint<Un
         return UNARY_FUNCTION;
     }
 
-    void validateArgs(ColumnMetadata columnMetadata)
-    {
-        if (!columnMetadata.name.equals(columnName))
-            throw new InvalidConstraintDefinitionException(String.format("Parameter of %s constraint should be the column name (%s)",
-                                                                         name(),
-                                                                         columnMetadata.name));
-    }
-
     @Override
     public String toString()
     {
-        return function.name + "(" + columnName + ")";
+        return function.toString();
     }
 
     public static class Serializer implements MetadataSerializer<UnaryFunctionColumnConstraint>
@@ -154,25 +165,38 @@ public class UnaryFunctionColumnConstraint extends AbstractFunctionConstraint<Un
         {
             out.writeUTF(columnConstraint.function.name);
             out.writeUTF(columnConstraint.columnName.toCQLString());
+
+            int argsSize = columnConstraint.function.args.size();
+            out.writeInt(argsSize);
+            for (int i = 0; i < argsSize; i++)
+                out.writeUTF(columnConstraint.function.args.get(i));
         }
 
         @Override
         public UnaryFunctionColumnConstraint deserialize(DataInputPlus in, Version version) throws IOException
         {
             String functionName = in.readUTF();
+
             ConstraintFunction function;
             String columnNameString = in.readUTF();
             ColumnIdentifier columnName = new ColumnIdentifier(columnNameString, true);
+
+            List<String> args = new ArrayList<>();
+            int argsSize = in.readInt();
+            for (int i = 0; i < argsSize; i++)
+                args.add(in.readUTF());
+
             try
             {
-                function = createConstraintFunction(functionName, columnName);
+                function = createConstraintFunction(functionName, args);
+                function.columnName = columnName;
             }
             catch (Exception e)
             {
                 throw new IOException(e);
             }
 
-            return new UnaryFunctionColumnConstraint(function, columnName);
+            return new UnaryFunctionColumnConstraint(function);
         }
 
         @Override

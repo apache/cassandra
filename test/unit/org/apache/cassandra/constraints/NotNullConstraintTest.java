@@ -54,9 +54,9 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 public class NotNullConstraintTest
 {
     private static final ColumnIdentifier columnIdentifier = new ColumnIdentifier("a_column", false);
-    private static final ColumnConstraints unaryConstraint = new ColumnConstraints(of(new UnaryFunctionColumnConstraint.Raw(new ColumnIdentifier(NotNullConstraint.FUNCTION_NAME, false), columnIdentifier).prepare()));
+    private static final ColumnConstraints unaryConstraint = new ColumnConstraints(of(new UnaryFunctionColumnConstraint.Raw(new ColumnIdentifier(NotNullConstraint.FUNCTION_NAME, false), List.of()).prepare()));
     private static final ColumnConstraints scalarConstraint = new ColumnConstraints(of(new ScalarColumnConstraint.Raw(columnIdentifier, GT, "5").prepare()));
-    private static final ColumnConstraints functionConstraint = new ColumnConstraints(of(new FunctionColumnConstraint.Raw(new ColumnIdentifier("LENGTH", false), columnIdentifier, GT, "5").prepare()));
+    private static final ColumnConstraints functionConstraint = new ColumnConstraints(of(new FunctionColumnConstraint.Raw(new ColumnIdentifier("LENGTH", false), List.of(), GT, "5").prepare()));
 
     @Test
     public void testNotNullConstraintValidation()

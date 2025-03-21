@@ -27,6 +27,7 @@ import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
+import static java.lang.String.format;
 import static org.apache.cassandra.cql3.Operator.EQ;
 import static org.apache.cassandra.cql3.Operator.GT;
 import static org.apache.cassandra.cql3.Operator.GTE;
@@ -41,13 +42,24 @@ public abstract class ConstraintFunction
 {
     public static final List<Operator> DEFAULT_FUNCTION_OPERATORS = List.of(EQ, NEQ, GTE, GT, LTE, LT);
 
-    protected final ColumnIdentifier columnName;
+    protected ColumnIdentifier columnName;
     protected final String name;
+    protected final List<String> args;
 
-    public ConstraintFunction(ColumnIdentifier columnName, String name)
+    public ConstraintFunction(String name)
     {
-        this.columnName = columnName;
+        this(name, List.of());
+    }
+
+    public ConstraintFunction(String name, List<String> args)
+    {
         this.name = name;
+        this.args = args;
+    }
+
+    public List<String> arguments()
+    {
+        return args;
     }
 
     /**
@@ -84,6 +96,7 @@ public abstract class ConstraintFunction
      */
     public void validate(ColumnMetadata columnMetadata, String term) throws InvalidConstraintDefinitionException
     {
+        maybeThrowOnNontEmptyArguments(name);
     }
 
     /**
@@ -100,4 +113,21 @@ public abstract class ConstraintFunction
      * @return supported types for given constraint
      */
     public abstract List<AbstractType<?>> getSupportedTypes();
+
+    public boolean isParameterless() { return true; }
+
+    @Override
+    public String toString()
+    {
+        return name;
+    }
+
+    protected void maybeThrowOnNontEmptyArguments(String constraintName)
+    {
+        if (!isParameterless())
+            return;
+
+        if (args != null && !args.isEmpty())
+            throw new InvalidConstraintDefinitionException(format("Constraint %s does not accept any arguments.", constraintName));
+    }
 }

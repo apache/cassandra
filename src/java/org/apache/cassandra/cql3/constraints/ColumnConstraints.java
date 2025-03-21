@@ -49,7 +49,6 @@ public class ColumnConstraints extends ColumnConstraint<ColumnConstraints>
 
     public ColumnConstraints(List<ColumnConstraint<?>> constraints)
     {
-        super(null);
         this.constraints = constraints;
     }
 
@@ -132,6 +131,7 @@ public class ColumnConstraints extends ColumnConstraint<ColumnConstraints>
         // checking if combinations of a particular constraint make sense (duplicities, satisfiability etc.).
         for (SatisfiabilityChecker satisfiabilityChecker : ConstraintType.getSatisfiabilityCheckers())
             satisfiabilityChecker.checkSatisfiability(constraints, columnMetadata);
+
 
         // this validation will check whether it makes sense to execute such constraint on a given column
         for (ColumnConstraint<?> constraint : constraints)
@@ -221,15 +221,18 @@ public class ColumnConstraints extends ColumnConstraint<ColumnConstraints>
                 if (constraint.columnName != null && !column.equals(constraint.columnName))
                     throw new InvalidConstraintDefinitionException(format("Constraint %s was not specified on a column it operates on: %s but on: %s",
                                                                           constraint, column.toCQLString(), constraint.columnName));
+                else
+                    constraint.setColumnName(column);
             }
 
-            return new ColumnConstraints(constraints);
+            ColumnConstraints columnConstraints = new ColumnConstraints(constraints);
+            columnConstraints.setColumnName(column);
+            return columnConstraints;
         }
     }
 
     public static class Serializer implements MetadataSerializer<ColumnConstraints>
     {
-
         @Override
         public void serialize(ColumnConstraints columnConstraint, DataOutputPlus out, Version version) throws IOException
         {
@@ -255,6 +258,7 @@ public class ColumnConstraints extends ColumnConstraint<ColumnConstraints>
                                                                        .deserialize(in, version);
                 columnConstraints.add(constraint);
             }
+
             return new ColumnConstraints(columnConstraints);
         }
 
