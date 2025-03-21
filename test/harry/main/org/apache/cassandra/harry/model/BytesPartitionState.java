@@ -449,6 +449,7 @@ public class BytesPartitionState
         public final TableMetadata metadata;
         public final ImmutableUniqueList<Symbol> partitionColumns;
         public final ImmutableUniqueList<Symbol> clusteringColumns;
+        public final ImmutableUniqueList<Symbol> primaryColumns;
         public final ImmutableUniqueList<Symbol> staticColumns;
         public final ImmutableUniqueList<Symbol> regularColumns;
         public final ImmutableUniqueList<Symbol> selectionOrder, regularAndStaticColumns;
@@ -471,6 +472,13 @@ public class BytesPartitionState
             for (ColumnMetadata pk : metadata.clusteringColumns())
                 symbolListBuilder.add(Symbol.from(pk));
             clusteringColumns = symbolListBuilder.buildAndClear();
+            if (clusteringColumns.isEmpty()) primaryColumns = partitionColumns;
+            else
+            {
+                symbolListBuilder.addAll(partitionColumns);
+                symbolListBuilder.addAll(clusteringColumns);
+                primaryColumns = symbolListBuilder.buildAndClear();
+            }
             for (ColumnMetadata pk : metadata.staticColumns())
                 symbolListBuilder.add(Symbol.from(pk));
             staticColumns = symbolListBuilder.buildAndClear();

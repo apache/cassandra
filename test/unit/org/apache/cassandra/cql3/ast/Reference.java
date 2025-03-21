@@ -48,6 +48,11 @@ public class Reference implements ReferenceExpression
         return new Reference(Collections.singletonList(Objects.requireNonNull(top)));
     }
 
+    public static Reference of(ReferenceExpression top, ReferenceExpression next)
+    {
+        return new Reference(List.of(top, next));
+    }
+
     @Override
     public AbstractType<?> type()
     {

@@ -72,6 +72,21 @@ public interface Conditional extends Expression
             {
                 this.value = value;
             }
+
+            public boolean test(AbstractType<?> type, ByteBuffer a, ByteBuffer b)
+            {
+                int rc = type.compare(a, b);
+                switch (this)
+                {
+                    case EQUAL: return rc == 0;
+                    case NOT_EQUAL: return rc != 0;
+                    case GREATER_THAN: return rc > 0;
+                    case GREATER_THAN_EQ: return rc >=0;
+                    case LESS_THAN: return rc < 0;
+                    case LESS_THAN_EQ: return rc <=0;
+                    default: throw new UnsupportedOperationException(this.name());
+                }
+            }
         }
 
         public final Inequality kind;

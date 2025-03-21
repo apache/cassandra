@@ -333,11 +333,18 @@ public class StatefulASTBase extends TestBaseImpl
         {
             var inst = selectInstance(rs);
             String postfix = "on " + inst;
+            if (mutation.isCas())
+            {
+                postfix += ", would apply " + model.shouldApply(mutation);
+                // CAS doesn't allow timestamps
+                mutation = mutation.withoutTimestamp();
+            }
             if (annotate == null) annotate = postfix;
             else                  annotate += ", " + postfix;
+            Mutation finalMutation = mutation;
             return new Property.SimpleCommand<>(humanReadable(mutation, annotate), s -> {
-                s.executeQuery(inst, Integer.MAX_VALUE, s.mutationCl(), mutation);
-                s.model.update(mutation);
+                s.executeQuery(inst, Integer.MAX_VALUE, s.mutationCl(), finalMutation);
+                s.model.update(finalMutation);
                 s.mutation();
             });
         }
@@ -399,7 +406,19 @@ public class StatefulASTBase extends TestBaseImpl
                 SimpleStatement ss = new SimpleStatement(stmt.toCQL(), (Object[]) stmt.bindsEncoded());
                 if (fetchSize != Integer.MAX_VALUE)
                     ss.setFetchSize(fetchSize);
-                ss.setConsistencyLevel(toDriverCL(cl));
+                switch (cl)
+                {
+                    case SERIAL:
+                        ss.setSerialConsistencyLevel(toDriverCL(cl));
+                        ss.setConsistencyLevel(com.datastax.driver.core.ConsistencyLevel.QUORUM);
+                        break;
+                    case LOCAL_SERIAL:
+                        ss.setSerialConsistencyLevel(toDriverCL(cl));
+                        ss.setConsistencyLevel(com.datastax.driver.core.ConsistencyLevel.LOCAL_QUORUM);
+                        break;
+                    default:
+                        ss.setConsistencyLevel(toDriverCL(cl));
+                }
 
                 InetSocketAddress broadcastAddress = instance.config().broadcastAddress();
                 var host = client.getMetadata().getAllHosts().stream()

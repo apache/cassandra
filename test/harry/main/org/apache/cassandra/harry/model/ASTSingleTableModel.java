@@ -45,6 +45,7 @@ import com.google.common.collect.Sets;
 
 import accord.utils.Invariants;
 import org.apache.cassandra.cql3.ast.AssignmentOperator;
+import org.apache.cassandra.cql3.ast.CasCondition;
 import org.apache.cassandra.cql3.ast.Conditional;
 import org.apache.cassandra.cql3.ast.Conditional.Where.Inequality;
 import org.apache.cassandra.cql3.ast.Element;
@@ -54,10 +55,13 @@ import org.apache.cassandra.cql3.ast.FunctionCall;
 import org.apache.cassandra.cql3.ast.Literal;
 import org.apache.cassandra.cql3.ast.Mutation;
 import org.apache.cassandra.cql3.ast.Operator;
+import org.apache.cassandra.cql3.ast.Reference;
+import org.apache.cassandra.cql3.ast.ReferenceExpression;
 import org.apache.cassandra.cql3.ast.Select;
 import org.apache.cassandra.cql3.ast.StandardVisitors;
 import org.apache.cassandra.cql3.ast.Symbol;
 import org.apache.cassandra.cql3.ast.Value;
+import org.apache.cassandra.cql3.ast.Visitor;
 import org.apache.cassandra.db.BufferClustering;
 import org.apache.cassandra.db.Clustering;
 import org.apache.cassandra.db.marshal.AbstractType;
@@ -184,6 +188,7 @@ public class ASTSingleTableModel
 
     public void update(Mutation mutation)
     {
+        if (!shouldApply(mutation)) return;
         switch (mutation.kind)
         {
             case INSERT:
@@ -200,7 +205,7 @@ public class ASTSingleTableModel
         }
     }
 
-    public void update(Mutation.Insert insert)
+    private void update(Mutation.Insert insert)
     {
         Clustering<ByteBuffer> pd = pd(insert);
         BytesPartitionState partition = partitions.get(factory.createRef(pd));
@@ -229,7 +234,7 @@ public class ASTSingleTableModel
                              true);
     }
 
-    public void update(Mutation.Update update)
+    private void update(Mutation.Update update)
     {
         var split = splitOnPartition(update.where.simplify());
         List<Clustering<ByteBuffer>> pks = split.left;
@@ -274,7 +279,7 @@ public class ASTSingleTableModel
     private enum DeleteKind
     {PARTITION, ROW, COLUMN}
 
-    public void update(Mutation.Delete delete)
+    private void update(Mutation.Delete delete)
     {
         //TODO (coverage): range deletes
         var split = splitOnPartition(delete.where.simplify());
@@ -325,6 +330,217 @@ public class ASTSingleTableModel
                 default:
                     throw new UnsupportedOperationException();
             }
+        }
+    }
+
+    public boolean shouldApply(Mutation mutation)
+    {
+        if (!mutation.isCas()) return true;
+        // find partition from mutation
+        Select select = selectPartitionOrRowForCAS(mutation);
+        // Select partition
+        SelectResult current = getRowsAsByteBuffer(select);
+        return shouldApply(mutation, current);
+    }
+
+    private Select selectPartitionOrRowForCAS(Mutation mutation)
+    {
+        var builder = Select.builder(factory.metadata);
+        switch (mutation.kind)
+        {
+            case INSERT:
+            {
+                var insert = (Mutation.Insert) mutation;
+                for (Symbol symbol : factory.primaryColumns)
+                {
+                    var s = insert.values.get(symbol);
+                    if (s == null) continue;
+                    builder.value(symbol, s);
+                }
+            }
+            break;
+            case UPDATE:
+            {
+                var update = (Mutation.Update) mutation;
+                selectPartitionOrRowForCAS(builder, update.where.simplify());
+            }
+            break;
+            case DELETE:
+            {
+                var delete = (Mutation.Delete) mutation;
+                selectPartitionOrRowForCAS(builder, delete.where.simplify());
+            }
+            break;
+            default:
+                throw new UnsupportedOperationException(mutation.kind.name());
+        }
+        return builder.build();
+    }
+
+    private void selectPartitionOrRowForCAS(Select.TableBasedBuilder builder, List<Conditional> conditionals)
+    {
+        var split = splitOnPartition(conditionals);
+        Preconditions.checkArgument(split.left.size() == 1, "Expected single partition but found %s", split.left.size());
+        var pd = split.left.get(0);
+        for (int i = 0; i < factory.partitionColumns.size(); i++)
+            builder.value(factory.partitionColumns.get(i), pd.bufferAt(i));
+        if (!split.right.isEmpty())
+        {
+            var splitClustering = splitOnClustering(split.right);
+            switch (splitClustering.left.size())
+            {
+                case 0:
+                    break;
+                case 1:
+                {
+                    Clustering<ByteBuffer> cd = splitClustering.left.get(0);
+                    for (int i = 0; i < factory.clusteringColumns.size(); i++)
+                        builder.value(factory.clusteringColumns.get(i), cd.bufferAt(i));
+                }
+                break;
+                default:
+                    throw new IllegalArgumentException(String.format("Expected partition or row update but found multiple clustering keys! found %d", splitClustering.left.size()));
+            }
+        }
+    }
+
+    private boolean shouldApply(Mutation mutation, SelectResult current)
+    {
+        Preconditions.checkArgument(mutation.isCas());
+        // process condition
+        CasCondition condition;
+        switch (mutation.kind)
+        {
+            case INSERT:
+                condition = CasCondition.Simple.NotExists;
+                break;
+            case UPDATE:
+                condition = ((Mutation.Update) mutation).casCondition.get();
+                break;
+            case DELETE:
+                condition = ((Mutation.Delete) mutation).casCondition.get();
+                break;
+            default:
+                throw new UnsupportedOperationException(mutation.kind.name());
+        }
+        if (condition instanceof CasCondition.Simple)
+        {
+            var simple = (CasCondition.Simple) condition;
+            switch (simple)
+            {
+                case Exists:
+                    return current.rows.length > 0;
+                case NotExists:
+                    return current.rows.length == 0;
+                default:
+                    throw new UnsupportedOperationException(simple.name());
+            }
+        }
+        var ifCondition = (CasCondition.IfCondition) condition;
+        String letRow = "row";
+        Symbol rowSymbol = Symbol.unknownType(letRow);
+        Map<String, SelectResult> lets = Map.of(letRow, current);
+        // point the columns to be row.column that way it matches LET clause in BEGIN TRANSACTION, allowing better reuse
+        var updatedCondition = ifCondition.conditional.visit(new Visitor()
+        {
+            @Override
+            public ReferenceExpression visit(ReferenceExpression r)
+            {
+                Preconditions.checkArgument(!(r instanceof Reference), "Unexpected reference detected: %s", r);
+                return Reference.of(rowSymbol, r);
+            }
+        });
+        return process(updatedCondition, lets);
+    }
+
+    private boolean process(Conditional condition, Map<String, SelectResult> lets)
+    {
+        if (condition.getClass() == Conditional.Is.class)
+        {
+            var is = (Conditional.Is) condition;
+            Object result = extract(is.reference, lets);
+            return result == null
+                   ? is.kind == Conditional.Is.Kind.Null
+                   : is.kind == Conditional.Is.Kind.NotNull;
+        }
+        else if (condition.getClass() == Conditional.Where.class)
+        {
+            var where = (Conditional.Where) (condition);
+            if (!where.lhs.type().equals(where.rhs.type()))
+                throw new UnsupportedOperationException("For now where clause must always have matching types: given " + where.lhs.type() + ' ' + where.rhs.type());
+            ByteBuffer lhs = where.lhs instanceof ReferenceExpression
+                             ? (ByteBuffer) extract((ReferenceExpression) where.lhs, lets)
+                             : eval(where.lhs);
+            ByteBuffer rhs = where.rhs instanceof ReferenceExpression
+                             ? (ByteBuffer) extract((ReferenceExpression) where.rhs, lets)
+                             : eval(where.rhs);
+            // null = null == false, r0.v0 = null == false
+            if (lhs == null || rhs == null)
+                return false;
+            return where.kind.test(where.lhs.type(), lhs, rhs);
+        }
+        else if (condition.getClass() == Conditional.And.class)
+        {
+            var conditions = condition.simplify();
+            for (var c : conditions)
+            {
+                if (!process(c, lets))
+                    return false;
+            }
+            return true;
+        }
+        else
+        {
+            throw new UnsupportedOperationException("Unsupported condition type: " + condition.getClass() + "; " + condition.toCQL());
+        }
+    }
+
+    // Either ByteBuffer (cell) or ByteBuffer[] (row)
+    private static Object extract(ReferenceExpression expr, Map<String, SelectResult> lets)
+    {
+        Object result = extract0(expr, lets);
+        if (result instanceof SelectResult)
+        {
+            var rows = ((SelectResult) result).rows;
+            result = rows.length == 0 ? null : rows[0];
+        }
+        return result;
+    }
+
+    // o can be Map<String, SelectResult> (lets), SelectResult (row), ByteBuffer (cell)
+    private static Object extract0(ReferenceExpression expr, @Nullable Object o)
+    {
+        if (o == null) return null;
+        if (expr instanceof Reference)
+        {
+            Reference ref = (Reference) expr;
+            for (var symbol : ref.path)
+                o = extract0(symbol, o);
+            return o;
+        }
+        else if (expr instanceof Symbol)
+        {
+            var symbol = (Symbol) expr;
+            if (o instanceof Map)
+            {
+                Map<String, SelectResult> lets = (Map<String, SelectResult>) o;
+                return lets.get(symbol.symbol);
+            }
+            else if (o instanceof SelectResult)
+            {
+                SelectResult result = (SelectResult) o;
+                if (result.rows.length == 0)
+                    return null;
+                return result.rows[0][result.columns.indexOf(symbol)];
+            }
+            else
+            {
+                throw new UnsupportedOperationException("Unexpected object type: " + o.getClass());
+            }
+        }
+        else
+        {
+            throw new UnsupportedOperationException("Unsupported ref type: " + expr.getClass() + "; " + expr.toCQL());
         }
     }
 
@@ -422,9 +638,42 @@ public class ASTSingleTableModel
         return Collections.singletonList(BufferClustering.make(bbs));
     }
 
+    private Clustering<ByteBuffer> pd(Mutation mutation)
+    {
+        switch (mutation.kind)
+        {
+            case INSERT:
+                return pd((Mutation.Insert) mutation);
+            case UPDATE:
+                return pd((Mutation.Update) mutation);
+            case DELETE:
+                return pd((Mutation.Delete) mutation);
+            default:
+                throw new UnsupportedOperationException(mutation.kind.name());
+        }
+    }
+
     private Clustering<ByteBuffer> pd(Mutation.Insert mutation)
     {
         return key(mutation.values, factory.partitionColumns);
+    }
+
+    private Clustering<ByteBuffer> pd(Mutation.Update mutation)
+    {
+        return pd("Update", mutation.where.simplify());
+    }
+
+    private Clustering<ByteBuffer> pd(Mutation.Delete mutation)
+    {
+        return pd("Delete", mutation.where.simplify());
+    }
+
+    private Clustering<ByteBuffer> pd(String type, List<Conditional> conditionals)
+    {
+        var split = splitOnPartition(conditionals);
+        List<Clustering<ByteBuffer>> pks = split.left;
+        Preconditions.checkArgument(pks.size() == 1, "%s had more than 1 partition key!  expected 1 but was %s", type, pks.size());
+        return pks.get(0);
     }
 
     public BytesPartitionState get(BytesPartitionState.Ref ref)
@@ -611,20 +860,39 @@ public class ASTSingleTableModel
 
     private static class SelectResult
     {
+        private final ImmutableUniqueList<Symbol> columns;
         private final ByteBuffer[][] rows;
         private final boolean unordered;
 
-        private SelectResult(ByteBuffer[][] rows, boolean unordered)
+        private SelectResult(ImmutableUniqueList<Symbol> columns, ByteBuffer[][] rows, boolean unordered)
         {
+            this.columns = columns;
             this.rows = rows;
             this.unordered = unordered;
         }
+
+        private static SelectResult ordered(ImmutableUniqueList<Symbol> columns, ByteBuffer[][] rows)
+        {
+            return new SelectResult(columns, rows, false);
+        }
+
+        private static SelectResult unordered(ImmutableUniqueList<Symbol> columns, ByteBuffer[][] rows)
+        {
+            return new SelectResult(columns, rows, true);
+        }
+    }
+
+    public ImmutableUniqueList<Symbol> columns(Select select)
+    {
+        if (select.selections.isEmpty()) return factory.selectionOrder;
+        throw new UnsupportedOperationException("Getting columns from select other than SELECT * is currently not supported");
     }
 
     private SelectResult getRowsAsByteBuffer(Select select)
     {
+        ImmutableUniqueList<Symbol> columns = columns(select);
         if (select.where.isEmpty())
-            return new SelectResult(getRowsAsByteBuffer(applyLimits(all(), select.perPartitionLimit, select.limit)), false);
+            return SelectResult.ordered(columns, getRowsAsByteBuffer(applyLimits(all(), select.perPartitionLimit, select.limit)));
         LookupContext ctx = context(select);
         List<PrimaryKey> primaryKeys;
         if (ctx.unmatchable)
@@ -652,7 +920,7 @@ public class ASTSingleTableModel
         }
         primaryKeys = applyLimits(primaryKeys, select.perPartitionLimit, select.limit);
         //TODO (correctness): now that we have the rows we need to handle the selections/aggregation/limit/group-by/etc.
-        return new SelectResult(getRowsAsByteBuffer(primaryKeys), ctx.unordered);
+        return new SelectResult(columns, getRowsAsByteBuffer(primaryKeys), ctx.unordered);
     }
 
     private List<PrimaryKey> applyLimits(List<PrimaryKey> primaryKeys, Optional<Value> perPartitionLimitOpt, Optional<Value> limitOpt)

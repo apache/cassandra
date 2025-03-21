@@ -43,7 +43,7 @@ public interface CasCondition extends Element
 
     class IfCondition implements CasCondition
     {
-        private final Conditional conditional;
+        public final Conditional conditional;
 
         public IfCondition(Conditional conditional)
         {

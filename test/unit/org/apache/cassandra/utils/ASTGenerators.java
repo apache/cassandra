@@ -432,7 +432,7 @@ public class ASTGenerators
 
         public MutationGenBuilder withCasGen(Gen<Boolean> withCasGen)
         {
-            withCasGen = Objects.requireNonNull(withCasGen);
+            this.withCasGen = Objects.requireNonNull(withCasGen);
             return this;
         }
 

@@ -526,17 +526,37 @@ public abstract class Constants
 
         public void execute(DecoratedKey partitionKey, UpdateParameters params) throws InvalidRequestException
         {
-            ByteBuffer bytes = t.bindAndGet(params.options);
-            if (bytes == null)
-                throw new InvalidRequestException("Invalid null value for counter increment");
-            if (bytes == ByteBufferUtil.UNSET_BYTE_BUFFER)
-                return;
+            if (column.type instanceof CounterColumnType)
+            {
+                ByteBuffer bytes = t.bindAndGet(params.options);
+                if (bytes == null)
+                    throw new InvalidRequestException("Invalid null value for counter increment");
+                if (bytes == ByteBufferUtil.UNSET_BYTE_BUFFER)
+                    return;
 
-            long increment = ByteBufferUtil.toLong(bytes);
-            if (increment == Long.MIN_VALUE)
-                throw new InvalidRequestException("The negation of " + increment + " overflows supported counter precision (signed 8 bytes integer)");
+                long increment = ByteBufferUtil.toLong(bytes);
+                if (increment == Long.MIN_VALUE)
+                    throw new InvalidRequestException("The negation of " + increment + " overflows supported counter precision (signed 8 bytes integer)");
 
-            params.addCounter(column, -increment);
+                params.addCounter(column, -increment);
+            }
+            else if (column.type instanceof NumberType<?>)
+            {
+                @SuppressWarnings("unchecked") NumberType<Number> type = (NumberType<Number>) column.type;
+                ByteBuffer increment = t.bindAndGet(params.options);
+                ByteBuffer current = getCurrentCellBuffer(partitionKey, params);
+                if (current == null)
+                    return;
+                ByteBuffer newValue = type.substract(type.compose(current), type.compose(increment));
+                params.addCell(column, newValue);
+            }
+        }
+
+        private ByteBuffer getCurrentCellBuffer(DecoratedKey key, UpdateParameters params)
+        {
+            Row currentRow = params.getPrefetchedRow(key, column.isStatic() ? Clustering.STATIC_CLUSTERING : params.currentClustering());
+            Cell<?> currentCell = currentRow == null ? null : currentRow.getCell(column);
+            return currentCell == null ? null : currentCell.buffer();
         }
     }
 

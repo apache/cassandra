@@ -59,6 +59,7 @@ import org.apache.cassandra.db.marshal.InetAddressType;
 import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.distributed.Cluster;
+import org.apache.cassandra.distributed.api.ConsistencyLevel;
 import org.apache.cassandra.distributed.test.sai.SAIUtil;
 import org.apache.cassandra.harry.model.BytesPartitionState;
 import org.apache.cassandra.schema.ColumnMetadata;
@@ -98,6 +99,8 @@ public class SingleNodeTableWalkTest extends StatefulASTBase
         // Example: builder.withSeed(42L);
         // CQL operations may have opertors such as +, -, and / (example 4 + 4), to "apply" them to get a constant value
         // CQL_DEBUG_APPLY_OPERATOR = true;
+
+//        builder.withSeed(3448035473658306695L).withExamples(1); //Fixed: -= support for ints
     }
 
     protected TypeGenBuilder supportedTypes(RandomSource rs)
@@ -419,6 +422,7 @@ public class SingleNodeTableWalkTest extends StatefulASTBase
         private final List<Symbol> searchableNonPartitionColumns;
         private final List<Symbol> searchableColumns;
         private final List<Symbol> nonPkIndexedColumns;
+        private final boolean isCas;
 
         public State(RandomSource rs, Cluster cluster)
         {
@@ -443,10 +447,13 @@ public class SingleNodeTableWalkTest extends StatefulASTBase
                 }).uniqueBestEffort().ofSize(unique).next(rs);
             }
 
+            this.isCas = true;
+
             ASTGenerators.MutationGenBuilder mutationGenBuilder = new ASTGenerators.MutationGenBuilder(metadata)
                                                                   .withoutTransaction()
                                                                   .withoutTtl()
                                                                   .withoutTimestamp()
+                                                                  .withCasGen(i -> isCas)
                                                                   .withPartitions(Generators.fromGen(Gens.mixedDistribution(uniquePartitions).next(rs)))
                                                                   .withColumnExpressions(e -> e.withOperators(Generators.fromGen(BOOLEAN_DISTRIBUTION.next(rs))));
             if (IGNORED_ISSUES.contains(KnownIssue.SAI_EMPTY_TYPE))
@@ -460,7 +467,15 @@ public class SingleNodeTableWalkTest extends StatefulASTBase
             {
                 model.factory.regularAndStaticColumns.forEach(mutationGenBuilder::allowEmpty);
             }
-            this.mutationGen = toGen(mutationGenBuilder.build());
+            if (isCas)
+            {
+                // generator might not always generate a cas statement... should fix generator!
+                this.mutationGen = toGen(mutationGenBuilder.build()).filter(Mutation::isCas);
+            }
+            else
+            {
+                this.mutationGen = toGen(mutationGenBuilder.build());
+            }
 
             var nonPartitionColumns = ImmutableList.<Symbol>builder()
                                                    .addAll(model.factory.clusteringColumns)
@@ -478,6 +493,18 @@ public class SingleNodeTableWalkTest extends StatefulASTBase
                                 .stream()
                                 .filter(this::isSearchable)
                                 .collect(Collectors.toList());
+        }
+
+        @Override
+        protected ConsistencyLevel selectCl()
+        {
+            return isCas ? ConsistencyLevel.SERIAL : super.selectCl();
+        }
+
+        @Override
+        protected ConsistencyLevel mutationCl()
+        {
+            return isCas ? ConsistencyLevel.SERIAL : super.mutationCl();
         }
 
         private boolean isSearchable(Symbol symbol)

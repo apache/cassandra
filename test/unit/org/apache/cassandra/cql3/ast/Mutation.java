@@ -52,6 +52,8 @@ public abstract class Mutation implements Statement
 
     public abstract boolean isCas();
 
+    public abstract Mutation withoutTimestamp();
+
     public Mutation withTimestamp(long timestamp)
     {
         return withTimestamp(new Timestamp(new Literal(timestamp, LongType.instance)));
@@ -170,6 +172,11 @@ public abstract class Mutation implements Statement
         {
             this.ttl = ttl;
             this.timestamp = timestamp;
+        }
+
+        public Using withoutTimestamp()
+        {
+            return new Using(ttl, Optional.empty());
         }
 
         public Using withTimestamp(Timestamp timestamp)
@@ -300,6 +307,14 @@ public abstract class Mutation implements Statement
         }
 
         @Override
+        public Mutation withoutTimestamp()
+        {
+            return new Insert(table, values, ifNotExists, using.isEmpty()
+                                                          ? using
+                                                          : using.map(u -> u.withoutTimestamp()));
+        }
+
+        @Override
         public Insert withTimestamp(Timestamp timestamp)
         {
             return new Insert(table, values, ifNotExists, using.isEmpty()
@@ -416,6 +431,12 @@ public abstract class Mutation implements Statement
         }
 
         @Override
+        public Mutation withoutTimestamp()
+        {
+            return new Update(table, using.isEmpty() ? using : using.map(u -> u.withoutTimestamp()), set, where, casCondition);
+        }
+
+        @Override
         public Update withTimestamp(Timestamp timestamp)
         {
             var updated = using.isEmpty()
@@ -529,6 +550,12 @@ WHERE PK_column_conditions
         public boolean isCas()
         {
             return casCondition.isPresent();
+        }
+
+        @Override
+        public Mutation withoutTimestamp()
+        {
+            return new Delete(columns, table, Optional.empty(), where, casCondition);
         }
 
         @Override
