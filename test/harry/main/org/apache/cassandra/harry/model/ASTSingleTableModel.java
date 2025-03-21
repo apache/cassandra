@@ -255,7 +255,9 @@ public class ASTSingleTableModel
                 for (Symbol col : Sets.intersection(factory.staticColumns.asSet(), set.keySet()))
                 {
                     ByteBuffer current = partition.staticRow().get(col);
-                    write.put(col, eval(col, current, set.get(col)));
+                    EvalResult result = eval(col, current, set.get(col));
+                    if (result.kind == EvalResult.Kind.SKIP) continue;
+                    write.put(col, result.value);
                 }
                 partition.setStaticColumns(write);
             }
@@ -268,7 +270,9 @@ public class ASTSingleTableModel
                 for (Symbol col : Sets.intersection(factory.regularColumns.asSet(), set.keySet()))
                 {
                     ByteBuffer current = partition.get(cd, col);
-                    write.put(col, eval(col, current, set.get(col)));
+                    EvalResult result = eval(col, current, set.get(col));
+                    if (result.kind == EvalResult.Kind.SKIP) continue;
+                    write.put(col, result.value);
                 }
 
                 partition.setColumns(cd, write, false);
@@ -1210,26 +1214,52 @@ public class ASTSingleTableModel
         return current.stream().map(BufferClustering::new).collect(Collectors.toList());
     }
 
-    private static ByteBuffer eval(Symbol col, @Nullable ByteBuffer current, Expression e)
+    private static class EvalResult
     {
-        if (!(e instanceof AssignmentOperator)) return eval(e);
+        private static final EvalResult SKIP = new EvalResult(Kind.SKIP, null);
+
+        private enum Kind { SKIP, ACCEPT }
+
+        private final Kind kind;
+        private final @Nullable ByteBuffer value;
+
+        private EvalResult(Kind kind, @Nullable ByteBuffer value)
+        {
+            this.kind = kind;
+            this.value = value;
+        }
+
+        private static EvalResult accept(@Nullable ByteBuffer bb)
+        {
+            return new EvalResult(Kind.ACCEPT, bb);
+        }
+    }
+
+    private static EvalResult eval(Symbol col, @Nullable ByteBuffer current, Expression e)
+    {
+        if (!(e instanceof AssignmentOperator)) return EvalResult.accept(eval(e));
+        current = col.type().sanitize(current);
         // multi cell collections have the property that they do update even if the current value is null
         boolean isFancy = col.type().isCollection() && col.type().isMultiCell();
-        if (current == null && !isFancy) return null; // null + ? == null
+        if (current == null && !isFancy) return EvalResult.SKIP; // null + ? == null
         var assignment = (AssignmentOperator) e;
         if (isFancy && current == null)
         {
             return assignment.kind == AssignmentOperator.Kind.SUBTRACT
                    // if it doesn't exist, then there is nothing to subtract
-                   ? null
-                   : eval(assignment.right);
+                   ? EvalResult.SKIP
+                   : EvalResult.accept(eval(assignment.right));
         }
+        // validate your inputs...
+        ByteBuffer rhs = col.type().sanitize(eval(assignment.right));
+        if (rhs == null)
+            return EvalResult.SKIP;
         switch (assignment.kind)
         {
             case ADD:
-                return eval(new Operator(Operator.Kind.ADD, new Literal(current, e.type()), assignment.right));
+                return EvalResult.accept(eval(new Operator(Operator.Kind.ADD, new Literal(current, e.type()), assignment.right)));
             case SUBTRACT:
-                return eval(new Operator(Operator.Kind.SUBTRACT, new Literal(current, e.type()), assignment.right));
+                return EvalResult.accept(eval(new Operator(Operator.Kind.SUBTRACT, new Literal(current, e.type()), assignment.right)));
             default:
                 throw new UnsupportedOperationException(assignment.kind + ": " + assignment.toCQL());
         }

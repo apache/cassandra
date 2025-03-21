@@ -489,8 +489,10 @@ public abstract class Constants
             else if (column.type instanceof NumberType<?>)
             {
                 @SuppressWarnings("unchecked") NumberType<Number> type = (NumberType<Number>) column.type;
-                ByteBuffer increment = t.bindAndGet(params.options);
-                ByteBuffer current = getCurrentCellBuffer(partitionKey, params);
+                ByteBuffer increment = type.sanitize(t.bindAndGet(params.options));
+                if (increment == null)
+                    return;
+                ByteBuffer current = type.sanitize(getCurrentCellBuffer(partitionKey, params));
                 if (current == null)
                     return;
                 ByteBuffer newValue = type.add(type.compose(current), type.compose(increment));
@@ -549,8 +551,10 @@ public abstract class Constants
             else if (column.type instanceof NumberType<?>)
             {
                 @SuppressWarnings("unchecked") NumberType<Number> type = (NumberType<Number>) column.type;
-                ByteBuffer increment = t.bindAndGet(params.options);
-                ByteBuffer current = getCurrentCellBuffer(partitionKey, params);
+                ByteBuffer increment = type.sanitize(t.bindAndGet(params.options));
+                if (increment == null)
+                    return;
+                ByteBuffer current = type.sanitize(getCurrentCellBuffer(partitionKey, params));
                 if (current == null)
                     return;
                 ByteBuffer newValue = type.substract(type.compose(current), type.compose(increment));
