@@ -554,6 +554,7 @@ public abstract class Constants
 
         private ByteBuffer getCurrentCellBuffer(DecoratedKey key, UpdateParameters params)
         {
+            //TODO (now): refactor as this is copy/paste from +=
             Row currentRow = params.getPrefetchedRow(key, column.isStatic() ? Clustering.STATIC_CLUSTERING : params.currentClustering());
             Cell<?> currentCell = currentRow == null ? null : currentRow.getCell(column);
             return currentCell == null ? null : currentCell.buffer();
