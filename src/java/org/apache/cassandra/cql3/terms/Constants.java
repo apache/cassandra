@@ -524,6 +524,12 @@ public abstract class Constants
             super(column, t);
         }
 
+        @Override
+        public boolean requiresRead()
+        {
+            return !column.type.isCounter();
+        }
+
         public void execute(DecoratedKey partitionKey, UpdateParameters params) throws InvalidRequestException
         {
             if (column.type instanceof CounterColumnType)
