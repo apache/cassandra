@@ -57,12 +57,16 @@ public class InitialConnectionHandler extends ByteToMessageDecoder
 {
     private static final Logger logger = LoggerFactory.getLogger(InitialConnectionHandler.class);
 
-    private static final String TIER = "TIER";
-    private static final String SERVICE = "SERVICE";
     private static final String CLIENT_IP_PORT = "CLIENT_IP_PORT";
-    private static final String  HOST_NAME = "HOST_NAME";
-    private static final String  REQUEST_TENANCY = "REQUEST_TENANCY";
     private static final String CLIENT_PREFIX = "CLIENT_";
+    private static final String DRIVER_NAME = "DRIVER_NAME";
+    private static final String HOST_NAME = "HOST_NAME";
+    private static final String IS_AUTHENTICATED = "IS_AUTHENTICATED";
+    private static final String LANGUAGE = "LANGUAGE";
+    private static final String REQUEST_TENANCY = "REQUEST_TENANCY";
+    private static final String SERVICE = "SERVICE";
+    private static final String TIER = "TIER";
+    private static final String UNDEFINED = "undefined";
 
     final Envelope.Decoder decoder;
     final Connection.Factory factory;
@@ -177,11 +181,17 @@ public class InitialConnectionHandler extends ByteToMessageDecoder
                     String key = startup.options.getOrDefault(SERVICE, "") + "," + startup.options.getOrDefault(HOST_NAME, "");
                     // Logging the client context data with NoSpamLogger
                     NoSpamLogger.log(logger, NoSpamLogger.Level.INFO, key, 15, TimeUnit.MINUTES, "Client context data: {}", optionsWithClientPrefix);
+                    // fetch the language field, if it exists
+                    String language = startup.options.getOrDefault(LANGUAGE, UNDEFINED);
+                    // fetch the driver name if it exists. If it does not, use the value in the "LANGUAGE" field
+                    String driverName = startup.options.getOrDefault(DRIVER_NAME, language).toLowerCase().replaceAll("[^a-z0-9]+", "-");
                     // Send the client session metric
                     ClientMetricsManager.getSessionMetrics(
                         startup.options.getOrDefault(SERVICE, ""),
                         startup.options.getOrDefault(REQUEST_TENANCY, ""),
-                        startup.options.getOrDefault(TIER, "empty")).sessions.mark();
+                        startup.options.getOrDefault(TIER, "empty"),
+                        driverName,
+                        startup.options.getOrDefault(IS_AUTHENTICATED, "false")).sessions.mark();
                     // Check for service vs cassandra tier mismatch
                     BadQuery.checkForTierMismatch(
                         startup.options.getOrDefault(TIER, "-1"),

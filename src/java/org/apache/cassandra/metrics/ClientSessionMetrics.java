@@ -26,8 +26,8 @@ public class ClientSessionMetrics
 {
     public Meter sessions;
 
-    public ClientSessionMetrics(String clientService, String tenancy, String tier) {
-        MetricNameFactory factory = new ClientSessionsMetricsFactory(clientService, tenancy, tier);
+    public ClientSessionMetrics(String clientService, String tenancy, String tier, String driverName, String authState) {
+        MetricNameFactory factory = new ClientSessionsMetricsFactory(clientService, tenancy, tier, driverName, authState);
         sessions = Metrics.meter(factory.createMetricName("ClientSessions"));
     }
 
@@ -37,11 +37,15 @@ public class ClientSessionMetrics
         private String clientService;
         private String tenancy;
         private String tier;
+        private String driverName;
+        private String isAuthenticated;
 
-        protected ClientSessionsMetricsFactory(String clientService, String tenancy, String tier) {
+        protected ClientSessionsMetricsFactory(String clientService, String tenancy, String tier, String driverName, String isAuthenticated) {
             this.clientService = clientService;
             this.tenancy = tenancy;
             this.tier = tier;
+            this.driverName = driverName;
+            this.isAuthenticated = isAuthenticated;
         }
 
         @Override
@@ -56,11 +60,16 @@ public class ClientSessionMetrics
             mbeanName.append(",clientService=").append(clientService);
             mbeanName.append(",tenancy=").append(tenancy);
             mbeanName.append(",tier=").append(tier);
+            mbeanName.append(",driverName=").append(driverName);
+            mbeanName.append(",isAuthenticated=").append(isAuthenticated);
 
             StringBuilder scope = new StringBuilder();
             scope.append("clientService=").append(clientService);
             scope.append(",tenancy=").append(tenancy);
             scope.append(",tier=").append(tier);
+            scope.append(",driverName=").append(driverName);
+            scope.append(",isAuthenticated=").append(isAuthenticated);
+
 
             return new CassandraMetricsRegistry.MetricName(groupName, TYPE, metricName, scope.toString(), mbeanName.toString());
         }

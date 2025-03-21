@@ -29,9 +29,11 @@ public class ClientMetricsTest
         String serviceName = "service";
         String tenancy = "staging";
         String tier = "4";
-        long beforeCount = ClientMetricsManager.getSessionMetrics(serviceName, tenancy, tier).sessions.getCount();
-        ClientMetricsManager.getSessionMetrics(serviceName, tenancy, tier).sessions.mark();
-        long curCount = ClientMetricsManager.getSessionMetrics(serviceName, tenancy, tier).sessions.getCount();
+        String driverName = "Java";
+        String isAuthenticated = "true";
+        long beforeCount = ClientMetricsManager.getSessionMetrics(serviceName, tenancy, tier, driverName, isAuthenticated).sessions.getCount();
+        ClientMetricsManager.getSessionMetrics(serviceName, tenancy, tier, driverName, isAuthenticated).sessions.mark();
+        long curCount = ClientMetricsManager.getSessionMetrics(serviceName, tenancy, tier, driverName, isAuthenticated).sessions.getCount();
         assertEquals(beforeCount+1, curCount);
     }
 
