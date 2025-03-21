@@ -142,11 +142,11 @@ import org.apache.cassandra.locator.EndpointsForToken;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.LocalStrategy;
 import org.apache.cassandra.locator.MetaStrategy;
+import org.apache.cassandra.locator.NodeProximity;
 import org.apache.cassandra.locator.RangesAtEndpoint;
 import org.apache.cassandra.locator.RangesByEndpoint;
 import org.apache.cassandra.locator.Replica;
 import org.apache.cassandra.locator.Replicas;
-import org.apache.cassandra.locator.NodeProximity;
 import org.apache.cassandra.locator.SnitchAdapter;
 import org.apache.cassandra.locator.SystemReplicas;
 import org.apache.cassandra.metrics.Sampler;
@@ -5540,5 +5540,17 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     public void setPrioritizeSAIOverLegacyIndex(boolean value)
     {
         DatabaseDescriptor.setPrioritizeSAIOverLegacyIndex(value);
+    }
+
+    @Override
+    public void setPaxosRepairRaceWait(boolean paxosRepairRaceWait)
+    {
+        DatabaseDescriptor.setPaxosRepairRaceWait(paxosRepairRaceWait);
+    }
+
+    @Override
+    public boolean getPaxosRepairRaceWait()
+    {
+        return DatabaseDescriptor.getPaxosRepairRaceWait();
     }
 }

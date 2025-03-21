@@ -61,7 +61,6 @@ import com.google.common.collect.Sets;
 import com.google.common.primitives.Ints;
 import com.google.common.primitives.Longs;
 import com.google.common.util.concurrent.RateLimiter;
-
 import org.apache.commons.lang3.ArrayUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
@@ -105,13 +104,13 @@ import org.apache.cassandra.locator.DynamicEndpointSnitch;
 import org.apache.cassandra.locator.EndpointSnitchInfo;
 import org.apache.cassandra.locator.IEndpointSnitch;
 import org.apache.cassandra.locator.InetAddressAndPort;
-import org.apache.cassandra.locator.Locator;
-import org.apache.cassandra.locator.LocationInfo;
 import org.apache.cassandra.locator.InitialLocationProvider;
+import org.apache.cassandra.locator.LocationInfo;
+import org.apache.cassandra.locator.Locator;
 import org.apache.cassandra.locator.NodeAddressConfig;
+import org.apache.cassandra.locator.NodeProximity;
 import org.apache.cassandra.locator.ReconnectableSnitchHelper;
 import org.apache.cassandra.locator.SeedProvider;
-import org.apache.cassandra.locator.NodeProximity;
 import org.apache.cassandra.locator.SnitchAdapter;
 import org.apache.cassandra.security.AbstractCryptoProvider;
 import org.apache.cassandra.security.EncryptionContext;
@@ -129,8 +128,8 @@ import org.apache.cassandra.utils.StorageCompatibilityMode;
 import static org.apache.cassandra.config.CassandraRelevantProperties.ALLOCATE_TOKENS_FOR_KEYSPACE;
 import static org.apache.cassandra.config.CassandraRelevantProperties.ALLOW_UNLIMITED_CONCURRENT_VALIDATIONS;
 import static org.apache.cassandra.config.CassandraRelevantProperties.AUTO_BOOTSTRAP;
-import static org.apache.cassandra.config.CassandraRelevantProperties.CONFIG_LOADER;
 import static org.apache.cassandra.config.CassandraRelevantProperties.CHRONICLE_ANALYTICS_DISABLE;
+import static org.apache.cassandra.config.CassandraRelevantProperties.CONFIG_LOADER;
 import static org.apache.cassandra.config.CassandraRelevantProperties.DISABLE_STCS_IN_L0;
 import static org.apache.cassandra.config.CassandraRelevantProperties.INITIAL_TOKEN;
 import static org.apache.cassandra.config.CassandraRelevantProperties.IO_NETTY_TRANSPORT_ESTIMATE_SIZE_ON_SUBMIT;
@@ -5573,5 +5572,16 @@ public class DatabaseDescriptor
     public static void setPurgeableTobmstonesMetricGranularity(Config.TombstonesMetricGranularity granularity)
     {
         conf.tombstone_read_purgeable_metric_granularity = granularity;
+    }
+
+    public static boolean getPaxosRepairRaceWait()
+    {
+        return conf.paxos_repair_race_wait;
+    }
+
+    @VisibleForTesting
+    public static void setPaxosRepairRaceWait(boolean paxosRepairRaceWait)
+    {
+        conf.paxos_repair_race_wait = paxosRepairRaceWait;
     }
 }
