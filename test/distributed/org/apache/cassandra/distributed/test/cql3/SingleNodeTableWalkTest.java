@@ -81,15 +81,15 @@ public class SingleNodeTableWalkTest extends StatefulASTBase
 {
     private static final Gen<Gen<Boolean>> BOOLEAN_DISTRIBUTION = Gens.bools().mixedDistribution();
     //TODO (coverage): COMPOSITE, DYNAMIC_COMPOSITE
-    private static Gen<Gen<TypeKind>> TYPE_KIND_DISTRIBUTION = Gens.mixedDistribution(TypeKind.PRIMITIVE,
-                                                                                      TypeKind.SET, TypeKind.LIST, TypeKind.MAP,
-                                                                                      TypeKind.TUPLE, TypeKind.UDT,
-                                                                                      TypeKind.VECTOR
+    private static final Gen<Gen<TypeKind>> TYPE_KIND_DISTRIBUTION = Gens.mixedDistribution(TypeKind.PRIMITIVE,
+                                                                                            TypeKind.SET, TypeKind.LIST, TypeKind.MAP,
+                                                                                            TypeKind.TUPLE, TypeKind.UDT,
+                                                                                            TypeKind.VECTOR
     );
-    private static Gen<Gen<AbstractType<?>>> PRIMITIVE_DISTRIBUTION = Gens.mixedDistribution(AbstractTypeGenerators.knownPrimitiveTypes()
-                                                                                                                   .stream()
-                                                                                                                   .filter(t -> !AbstractTypeGenerators.isUnsafeEquality(t))
-                                                                                                                   .collect(Collectors.toList()));
+    private static final Gen<Gen<AbstractType<?>>> PRIMITIVE_DISTRIBUTION = Gens.mixedDistribution(AbstractTypeGenerators.knownPrimitiveTypes()
+                                                                                                                         .stream()
+                                                                                                                         .filter(t -> !AbstractTypeGenerators.isUnsafeEquality(t))
+                                                                                                                         .collect(Collectors.toList()));
     private static final Logger logger = LoggerFactory.getLogger(SingleNodeTableWalkTest.class);
 
     protected void preCheck(Cluster cluster, Property.StatefulBuilder builder)
