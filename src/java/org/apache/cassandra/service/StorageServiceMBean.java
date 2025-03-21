@@ -1224,4 +1224,8 @@ public interface StorageServiceMBean extends NotificationEmitter
 
     /* Set clear_snapshot_files_log_enabled */
     void setClearSnapshotFilesLogEnabled(boolean enabled);
+    
+    void setPaxosRepairRaceWait(boolean paxosRepairCoordinatorWait);
+
+    boolean getPaxosRepairRaceWait();
 }

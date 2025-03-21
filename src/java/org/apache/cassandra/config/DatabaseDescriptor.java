@@ -5360,4 +5360,15 @@ public class DatabaseDescriptor
     {
         conf.shadow_rows_tracking_enabled = enabled;
     }
+
+    public static boolean getPaxosRepairRaceWait()
+    {
+        return conf.paxos_repair_race_wait;
+    }
+
+    @VisibleForTesting
+    public static void setPaxosRepairRaceWait(boolean paxosRepairRaceWait)
+    {
+        conf.paxos_repair_race_wait = paxosRepairRaceWait;
+    }
 }
