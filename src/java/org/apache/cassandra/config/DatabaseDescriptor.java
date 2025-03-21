@@ -4638,4 +4638,15 @@ public class DatabaseDescriptor
     {
         conf.reject_out_of_token_range_requests = enabled;
     }
+
+    public static boolean getPaxosRepairRaceWait()
+    {
+        return conf.paxos_repair_race_wait;
+    }
+
+    @VisibleForTesting
+    public static void setPaxosRepairRaceWait(boolean paxosRepairRaceWait)
+    {
+        conf.paxos_repair_race_wait = paxosRepairRaceWait;
+    }
 }
