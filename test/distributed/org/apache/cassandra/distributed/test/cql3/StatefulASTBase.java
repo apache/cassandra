@@ -406,18 +406,25 @@ public class StatefulASTBase extends TestBaseImpl
                 SimpleStatement ss = new SimpleStatement(stmt.toCQL(), (Object[]) stmt.bindsEncoded());
                 if (fetchSize != Integer.MAX_VALUE)
                     ss.setFetchSize(fetchSize);
-                switch (cl)
+                if (stmt instanceof Mutation)
                 {
-                    case SERIAL:
-                        ss.setSerialConsistencyLevel(toDriverCL(cl));
-                        ss.setConsistencyLevel(com.datastax.driver.core.ConsistencyLevel.QUORUM);
-                        break;
-                    case LOCAL_SERIAL:
-                        ss.setSerialConsistencyLevel(toDriverCL(cl));
-                        ss.setConsistencyLevel(com.datastax.driver.core.ConsistencyLevel.LOCAL_QUORUM);
-                        break;
-                    default:
-                        ss.setConsistencyLevel(toDriverCL(cl));
+                    switch (cl)
+                    {
+                        case SERIAL:
+                            ss.setSerialConsistencyLevel(toDriverCL(cl));
+                            ss.setConsistencyLevel(com.datastax.driver.core.ConsistencyLevel.QUORUM);
+                            break;
+                        case LOCAL_SERIAL:
+                            ss.setSerialConsistencyLevel(toDriverCL(cl));
+                            ss.setConsistencyLevel(com.datastax.driver.core.ConsistencyLevel.LOCAL_QUORUM);
+                            break;
+                        default:
+                            ss.setConsistencyLevel(toDriverCL(cl));
+                    }
+                }
+                else
+                {
+                    ss.setConsistencyLevel(toDriverCL(cl));
                 }
 
                 InetSocketAddress broadcastAddress = instance.config().broadcastAddress();
