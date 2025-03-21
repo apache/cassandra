@@ -198,7 +198,7 @@ public class Journal<K, V> implements Shutdownable
     public void start()
     {
         Invariants.checkState(state.compareAndSet(State.UNINITIALIZED, State.INITIALIZING),
-                              "Unexpected journal state during initialization", state);
+                              "Unexpected journal state during initialization: %s", state);
         metrics.register(flusher);
 
         deleteTmpFiles();
@@ -269,7 +269,7 @@ public class Journal<K, V> implements Shutdownable
             releaser.awaitTermination(1, TimeUnit.MINUTES);
             metrics.deregister();
             Invariants.checkState(state.compareAndSet(State.SHUTDOWN, State.TERMINATED),
-                                  "Unexpected journal state while trying to shut down", state);
+                                  "Unexpected journal state while trying to shut down %s", state);
         }
         catch (InterruptedException e)
         {
