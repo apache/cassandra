@@ -988,14 +988,14 @@ alterTableStatement returns [AlterTableStatement.Raw stmt]
 
       | K_ALTER ( K_IF K_EXISTS { $stmt.ifColumnExists(true); } )? id=cident
               ( mask=columnMask { $stmt.mask(id, mask); }
+              | constraints=columnConstraints { $stmt.constraint(id, constraints); }
               | K_DROP K_MASKED { $stmt.mask(id, null); }
-              | K_DROP K_CHECK { $stmt.constraint(id, null); }
-              | (constraints=columnConstraints) { $stmt.constraint(id, constraints); })
+              | K_DROP K_CHECK { $stmt.constraint(id, null); })
 
       | K_ADD ( K_IF K_NOT K_EXISTS { $stmt.ifColumnNotExists(true); } )?
-              (        id=ident  v=comparatorType  b=isStaticColumn (m=columnMask)? { $stmt.add(id,  v,  b, m);  }
-               | ('('  id1=ident v1=comparatorType b1=isStaticColumn (m1=columnMask)? { $stmt.add(id1, v1, b1, m1); }
-                 ( ',' idn=ident vn=comparatorType bn=isStaticColumn (mn=columnMask)? { $stmt.add(idn, vn, bn, mn); mn=null; } )* ')') )
+              (        id=ident  v=comparatorType  b=isStaticColumn (m=columnMask)? (c=columnConstraints)? { $stmt.add(id,  v,  b, m, c);  }
+               | ('('  id1=ident v1=comparatorType b1=isStaticColumn (m1=columnMask)? (c=columnConstraints)? { $stmt.add(id1, v1, b1, m1, c); }
+                 ( ',' idn=ident vn=comparatorType bn=isStaticColumn (mn=columnMask)? (c=columnConstraints)? { $stmt.add(idn, vn, bn, mn, c); mn=null; c=null;} )* ')') )
 
       | K_DROP ( K_IF K_EXISTS { $stmt.ifColumnExists(true); } )?
                (       id=ident { $stmt.drop(id);  }
