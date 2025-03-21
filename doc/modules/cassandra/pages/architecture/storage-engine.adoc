@@ -1,6 +1,6 @@
 = Storage Engine
 
-The {Cassandra} storage engine is optimized for high performance, write-oriented workloads.  The  architecture is based on Log Structured Merge (LSM) trees, which utilize an append-only approach instead of the traditional relational database design with B-trees. This creates a write path free of read lookups and bottlenecks.
+The Cassandra storage engine is optimized for high performance, write-oriented workloads.  The  architecture is based on Log Structured Merge (LSM) trees, which utilize an append-only approach instead of the traditional relational database design with B-trees. This creates a write path free of read lookups and bottlenecks.
 
 While the write path is highly optimized, it comes with tradeoffs in terms of read performance and write amplification. To enhance read operations, Cassandra uses Bloom filters when accessing data from stables. Bloom filters are remarkably efficient, leading to generally well-balanced performance for both  reads and writes.
 
@@ -18,8 +18,8 @@ The sequence of the steps in the write path:
 [[commit-log]]
 == Logging writes to commit logs
 
-When a write operation takes place, {cassandra} records the data in a local append-only https://cassandra.apache.org/_/glossary.html#commit-log[commit log] on disk.
-This action provides xref:cassandra:managing/configuration/cass_yaml_file.adoc[configurable durability] by logging every write made to a {cassandra} node.
+When a write operation takes place, Cassandra records the data in a local append-only https://cassandra.apache.org/_/glossary.html#commit-log[commit log] on disk.
+This action provides xref:cassandra:managing/configuration/cass_yaml_file.adoc[configurable durability] by logging every write made to a Cassandra node.
 If an unexpected shutdown occurs, the commit log provides permanent durable writes of the data.
 On startup, any mutations in the commit log will be applied to https://cassandra.apache.org/_/glossary.html#memtable[memtables].
 The commit log is shared among tables.
@@ -29,8 +29,8 @@ Commit log segments are limited by the xref:cassandra:managing/configuration/cas
 Once the defined size is reached, a new commit log segment is created. 
 Commit log segments can be archived, deleted, or recycled once all the data is flushed to
 https://cassandra.apache.org/_/glossary.html#sstable[SSTables].
-Commit log segments are truncated when {cassandra} has written data older than a certain point to the SSTables. 
-Running xref:managing:tools/nodetool/drain.adoc[`nodetool drain`] before stopping {cassandra} will write everything in the memtables
+Commit log segments are truncated when Cassandra has written data older than a certain point to the SSTables.
+Running xref:managing:tools/nodetool/drain.adoc[`nodetool drain`] before stopping Cassandra will write everything in the memtables
 to SSTables and remove the need to sync with the commit logs on startup.
 
 * xref:cassandra:managing/configuration/cass_yaml_file.adoc#commitlog_segment_size [`commitlog_segment_size`]: The default size is 32MiB, which is almost always fine, but if you are archiving commitlog segments (see commitlog_archiving.properties), then you probably want a finer granularity of archiving; 8 or 16 MiB is reasonable.
@@ -42,7 +42,7 @@ If `max_mutation_size` is set explicitly then `commitlog_segment_size` must be s
 ====
 
 * xref:cassandra:managing/configuration/cass_yaml_file.adoc#commitlog_sync[`commitlog_sync`]: may be either _periodic_ or _batch_.
-** `batch`: In batch mode, {cassandra} won't acknowledge writes until the commit log has been fsynced to disk.
+** `batch`: In batch mode, Cassandra won't acknowledge writes until the commit log has been fsynced to disk.
 +
 ** `periodic`: In periodic mode, writes are immediately acknowledged, and the commit log is simply synced every "commitlog_sync_period" milliseconds.
 +
@@ -53,7 +53,7 @@ _Default Value:_ periodic
 
 [NOTE]
 ====
-In the event of an unexpected shutdown, {cassandra} can lose up to the sync period or more if the sync is delayed. 
+In the event of an unexpected shutdown, Cassandra can lose up to the sync period or more if the sync is delayed.
 If using `batch` mode, it is recommended to store commit logs in a separate, dedicated device.
 ====
 
@@ -77,7 +77,7 @@ _Default Value:_
 
 * xref:cassandra:managing/configuration/cass_yaml_file.adoc#commitlog_total_space[`commitlog_total_space`]: Total space to use for commit logs on disk.
 This option is commented out by default.
-If space gets above this value, {cassandra} will flush every dirty table in the oldest segment and remove it. 
+If space gets above this value, Cassandra will flush every dirty table in the oldest segment and remove it.
 So a small total commit log space will tend to cause more flush activity on less-active tables.
 The default value is the smallest between 8192 and 1/4 of the total space of the commitlog volume.
 
@@ -85,11 +85,12 @@ _Default Value:_ 8192MiB
 
 == Memtables
 
-During a write operation, {cassandra} additionally stores the data in a memtable.
-Memtables are in-memory structures where {cassandra} buffers writes.
-In general, there is one active memtable per table.
-The memtable is a write-back cache of data partitions that {cassandra} looks up by key. 
-Memtables may be stored entirely on-heap or partially off-heap, depending on xref:cassandra:managing/configuration/cass_yaml_file.adoc#memtable_allocation_type[`memtable_allocation_type`].
+When Cassandra accepts new write requests, it saves the data in two places: an in-memory write-back cache called a memtable and the CommitLog.
+The memtable buffers writes and allows serving reads without accessing the disk, while the CommitLog ensures durability by appending new mutations.
+Typically, there is one active memtable per table, acting as a cache for data partitions that Cassandra accesses by key.
+
+Depending on the xref:cassandra:managing/configuration/cass_yaml_file.adoc#memtable_allocation_type[`memtable_allocation_type`], memtables can be stored entirely on-heap or partially off-heap.
+If Cassandra crashes before flushing the memtable, it can restore acknowledged writes by replaying the commitLog.
 
 The memtable stores writes in sorted order until reaching a configurable limit.
 When the limit is reached, memtables are flushed onto disk and become immutable xref:#sstables[SSTables].
@@ -103,7 +104,7 @@ Flushing writes the data to disk, in the memtable-sorted order.
 A partition index is also created on the disk that maps the tokens to a location on disk.  
 
 The queue can be configured with either the xref:cassandra:managing/configuration/cass_yaml_file.adoc#memtable_heap_space[`memtable_heap_space`] or xref:cassandra:managing/configuration/cass_yaml_file.adoc#memtable_offheap_space[`memtable_offheap_space`] setting in the `cassandra.yaml` file.
-If the data to be flushed exceeds the `memtable_cleanup_threshold`, {cassandra} blocks writes until the next flush succeeds. 
+If the data to be flushed exceeds the `memtable_cleanup_threshold`, Cassandra blocks writes until the next flush succeeds.
 You can manually flush a table using xref:managing:tools/nodetool/flush.adoc[`nodetool flush`] or `nodetool drain` (flushes memtables without listening for connections to other nodes). 
 To reduce the commit log replay time, the recommended best practice is to flush the memtable before you restart the nodes. 
 If a node stops working, replaying the commit log restores writes to the memtable that were there before it stopped.
@@ -112,7 +113,7 @@ Data in the commit log is purged after its corresponding data in the memtable is
 
 == SSTables
 
-https://cassandra.apache.org/_/glossary.html#sstable[SSTables] are the immutable data files that {cassandra} uses for persisting data on disk.
+https://cassandra.apache.org/_/glossary.html#sstable[SSTables] are the immutable data files that Cassandra uses for persisting data on disk.
 SSTables are maintained per table.
 SSTables are immutable, and never written to again after the memtable is flushed. 
 Thus, a partition is typically stored across multiple SSTable files, as data is added or modified.
@@ -157,7 +158,7 @@ Within a partition, rows are stored in the order of their clustering keys.
 
 SSTables can be optionally compressed using block-based compression.
 
-As SSTables are flushed to disk from `memtables` or are streamed from other nodes, {cassandra} triggers compactions which combine multiple SSTables into one. 
+As SSTables are flushed to disk from `memtables` or are streamed from other nodes, Cassandra triggers compactions which combine multiple SSTables into one.
 Once the new SSTable has been written, the old SSTables can be removed.
 
 == SSTable Versions
