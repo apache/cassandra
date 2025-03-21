@@ -18,6 +18,8 @@
 
 package org.apache.cassandra.constraints;
 
+import java.util.List;
+
 import org.junit.Test;
 
 import org.apache.cassandra.cql3.ColumnIdentifier;
@@ -101,6 +103,13 @@ public class ConstraintsSatisfiabilityTest
                 {
                     check(op1, 50, op2, 100, quadFunction, null, columnMetadata);
                 }
+                else if ((op1 == GT && op2 == LTE) ||
+                         (op1 == GT && op2 == LT) ||
+                         (op1 == GTE && op2 == LTE) ||
+                         (op1 == GTE && op2 == LT))
+                {
+                    check(op1, 0, op2, 100, quadFunction, null, columnMetadata);
+                }
                 else if (!(op1 == NEQ || op2 == NEQ))
                 {
                     check(op1, 50, op2, 100, quadFunction, null, columnMetadata);
@@ -174,7 +183,7 @@ public class ConstraintsSatisfiabilityTest
     private FunctionColumnConstraint length(Operator operator, Integer term)
     {
         return new FunctionColumnConstraint.Raw(lengthFunctionIdentifier,
-                                                columnIdentifier,
+                                                List.of(),
                                                 operator,
                                                 term.toString()).prepare();
     }

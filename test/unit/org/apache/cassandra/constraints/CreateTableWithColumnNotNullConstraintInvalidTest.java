@@ -59,7 +59,7 @@ public class CreateTableWithColumnNotNullConstraintInvalidTest extends CqlConstr
     @Test
     public void testCreateTableWithColumnNotNullCheckNonExisting() throws Throwable
     {
-        createTable("CREATE TABLE %s (pk int, ck1 " + typeString + " CHECK NOT_NULL(ck1), ck2 int, v int, PRIMARY KEY (pk));");
+        createTable("CREATE TABLE %s (pk int, ck1 " + typeString + " CHECK NOT NULL, ck2 int, v int, PRIMARY KEY (pk));");
 
         // Invalid
         assertInvalidThrowMessage("Column 'ck1' has to be specified as part of this query.", InvalidRequestException.class, "INSERT INTO %s (pk, ck2, v) VALUES (1, 2, 3)");
@@ -71,12 +71,12 @@ public class CreateTableWithColumnNotNullConstraintInvalidTest extends CqlConstr
     @Test
     public void testInvalidSpecificationOfNotNullConstraintOnPrimaryKeys() throws Throwable
     {
-        assertThatThrownBy(() -> createTable("CREATE TABLE %s (pk " + typeString + " CHECK NOT_NULL(pk) PRIMARY KEY)"))
+        assertThatThrownBy(() -> createTable("CREATE TABLE %s (pk " + typeString + " CHECK NOT NULL PRIMARY KEY)"))
         .isInstanceOf(InvalidRequestException.class)
         .hasRootCauseInstanceOf(InvalidConstraintDefinitionException.class)
         .hasRootCauseMessage("NOT_NULL constraint can not be specified on a partition key column 'pk'");
 
-        assertThatThrownBy(() -> createTable("CREATE TABLE %s (pk int, cl " + typeString + " CHECK NOT_NULL(cl), PRIMARY KEY (pk, cl))"))
+        assertThatThrownBy(() -> createTable("CREATE TABLE %s (pk int, cl " + typeString + " CHECK NOT NULL, PRIMARY KEY (pk, cl))"))
         .isInstanceOf(InvalidRequestException.class)
         .hasRootCauseInstanceOf(InvalidConstraintDefinitionException.class)
         .hasRootCauseMessage("NOT_NULL constraint can not be specified on a clustering key column 'cl'");

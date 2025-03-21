@@ -21,7 +21,6 @@ package org.apache.cassandra.cql3.constraints;
 import java.nio.ByteBuffer;
 import java.util.List;
 
-import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.cql3.Operator;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.AsciiType;
@@ -35,9 +34,9 @@ public class LengthConstraint extends ConstraintFunction
     private static final String NAME = "LENGTH";
     private static final List<AbstractType<?>> SUPPORTED_TYPES = List.of(BytesType.instance, UTF8Type.instance, AsciiType.instance);
 
-    public LengthConstraint(ColumnIdentifier columnName)
+    public LengthConstraint(List<String> args)
     {
-        super(columnName, NAME);
+        super(NAME, args);
     }
 
     @Override

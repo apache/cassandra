@@ -39,6 +39,7 @@ import org.apache.cassandra.auth.DataResource;
 import org.apache.cassandra.auth.IResource;
 import org.apache.cassandra.auth.Permission;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.cql3.constraints.ColumnConstraint;
 import org.apache.cassandra.cql3.constraints.ColumnConstraints;
 import org.apache.cassandra.cql3.CQL3Type;
 import org.apache.cassandra.cql3.CQLFragmentParser;
@@ -46,6 +47,8 @@ import org.apache.cassandra.cql3.CQLStatement;
 import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.cql3.CqlParser;
 import org.apache.cassandra.cql3.QualifiedName;
+import org.apache.cassandra.cql3.constraints.NotNullConstraint;
+import org.apache.cassandra.cql3.constraints.UnaryFunctionColumnConstraint;
 import org.apache.cassandra.cql3.functions.masking.ColumnMask;
 import org.apache.cassandra.db.guardrails.Guardrails;
 import org.apache.cassandra.db.marshal.AbstractType;
@@ -606,17 +609,33 @@ public final class CreateTableStatement extends AlterSchemaStatement
             return name.getName();
         }
 
-        public void addColumn(ColumnIdentifier column, CQL3Type.Raw type, boolean isStatic, ColumnMask.Raw mask, ColumnConstraints.Raw constraints)
+        public void addColumn(ColumnIdentifier column, CQL3Type.Raw type, boolean isStatic, boolean isNotNull, ColumnMask.Raw mask, ColumnConstraints.Raw constraints)
         {
             if (null != rawColumns.put(column, new ColumnProperties.Raw(type, mask)))
                 throw ire("Duplicate column '%s' declaration for table '%s'", column, name);
 
             if (isStatic)
                 staticColumns.add(column);
-            if (null == constraints)
-                columnConstraints.put(column, ColumnConstraints.NO_OP);
-            else
-                columnConstraints.put(column, constraints.prepare(column));
+
+            ColumnConstraints preparedConstraints = constraints == null ? ColumnConstraints.NO_OP : constraints.prepare(column);
+
+            if (isNotNull)
+            {
+                 if (preparedConstraints.containsNotNullConstraint())
+                     throw ire("Duplicate definition of NOT NULL constraint");
+
+                List<ColumnConstraint<?>> checkConstraints = new ArrayList<>(preparedConstraints.getConstraints());
+                checkConstraints.add(new UnaryFunctionColumnConstraint(new NotNullConstraint()));
+                preparedConstraints = new ColumnConstraints(checkConstraints);
+                preparedConstraints.setColumnName(column);
+            }
+
+            columnConstraints.put(column, preparedConstraints);
+        }
+
+        public void addColumn(ColumnIdentifier column, CQL3Type.Raw type, boolean isStatic, ColumnMask.Raw mask, ColumnConstraints.Raw constraints)
+        {
+            addColumn(column, type, isStatic, false, mask, constraints);
         }
 
         public void setCompactStorage()

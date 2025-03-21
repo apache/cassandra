@@ -40,8 +40,8 @@ public class ColumnSpecificationTest extends CQLTester
     @Test
     public void testCreateTableWithColumnHavingMaskBeforeCheck()
     {
-        createTable("CREATE TABLE %s (pk text primary key, name text MASKED WITH system.mask_default() CHECK NOT_NULL(name) AND LENGTH(name) > 1);");
-        verifyColumnSpec("name text MASKED WITH system.mask_default() CHECK NOT_NULL(name) AND LENGTH(name) > 1");
+        createTable("CREATE TABLE %s (pk text primary key, name text MASKED WITH system.mask_default() CHECK NOT NULL AND LENGTH() > 1);");
+        verifyColumnSpec("name text MASKED WITH system.mask_default() CHECK NOT NULL AND LENGTH() > 1");
     }
 
     @Test
@@ -49,8 +49,8 @@ public class ColumnSpecificationTest extends CQLTester
     {
         createTable("CREATE TABLE %s (pk text, name text, primary key (pk));");
         execute("ALTER TABLE %s ALTER name MASKED WITH system.mask_default()");
-        execute("ALTER TABLE %s ALTER name CHECK NOT_NULL(name) AND LENGTH(name) > 1;");
-        verifyColumnSpec("name text MASKED WITH system.mask_default() CHECK NOT_NULL(name) AND LENGTH(name) > 1");
+        execute("ALTER TABLE %s ALTER name CHECK NOT NULL AND LENGTH() > 1;");
+        verifyColumnSpec("name text MASKED WITH system.mask_default() CHECK NOT NULL AND LENGTH() > 1");
     }
 
     @Test
@@ -65,30 +65,30 @@ public class ColumnSpecificationTest extends CQLTester
     public void testAlterTableAlterColumnWithCheck()
     {
         createTable("CREATE TABLE %s (pk text, name text, primary key (pk));");
-        execute("ALTER TABLE %s ALTER name CHECK NOT_NULL(name) AND LENGTH(name) > 1;");
-        verifyColumnSpec("name text CHECK NOT_NULL(name) AND LENGTH(name) > 1");
+        execute("ALTER TABLE %s ALTER name CHECK NOT NULL AND LENGTH() > 1;");
+        verifyColumnSpec("name text CHECK NOT NULL AND LENGTH() > 1");
     }
 
     @Test
     public void testAddingCheckToColumnWithMask()
     {
         createTable("CREATE TABLE %s (pk text primary key, name text MASKED WITH system.mask_default());");
-        execute("ALTER TABLE %s ALTER name CHECK NOT_NULL(name) AND LENGTH(name) > 1");
-        verifyColumnSpec("name text MASKED WITH system.mask_default() CHECK NOT_NULL(name) AND LENGTH(name) > 1");
+        execute("ALTER TABLE %s ALTER name CHECK NOT NULL AND LENGTH() > 1");
+        verifyColumnSpec("name text MASKED WITH system.mask_default() CHECK NOT NULL AND LENGTH() > 1");
     }
 
     @Test
     public void testAddingMaskToColumnWithCheck()
     {
-        createTable("CREATE TABLE %s (pk text primary key, name text CHECK NOT_NULL(name) AND LENGTH(name) > 1);");
+        createTable("CREATE TABLE %s (pk text primary key, name text CHECK NOT NULL AND LENGTH() > 1);");
         execute("ALTER TABLE %s ALTER name MASKED WITH system.mask_default()");
-        verifyColumnSpec("name text MASKED WITH system.mask_default() CHECK NOT_NULL(name) AND LENGTH(name) > 1");
+        verifyColumnSpec("name text MASKED WITH system.mask_default() CHECK NOT NULL AND LENGTH() > 1");
     }
 
     @Test
     public void testDroppingCheckKeepsMask()
     {
-        createTable("CREATE TABLE %s (pk text primary key, name text MASKED WITH system.mask_default() CHECK NOT_NULL(name) AND LENGTH(name) > 1);");
+        createTable("CREATE TABLE %s (pk text primary key, name text MASKED WITH system.mask_default() CHECK NOT NULL AND LENGTH() > 1);");
         execute("ALTER TABLE %s ALTER name DROP CHECK");
         verifyColumnSpec("name text MASKED WITH system.mask_default()");
     }
@@ -96,17 +96,17 @@ public class ColumnSpecificationTest extends CQLTester
     @Test
     public void droppingMaskKeepsCheck()
     {
-        createTable("CREATE TABLE %s (pk text primary key, name text MASKED WITH system.mask_default() CHECK NOT_NULL(name) AND LENGTH(name) > 1);");
+        createTable("CREATE TABLE %s (pk text primary key, name text MASKED WITH system.mask_default() CHECK NOT NULL AND LENGTH() > 1);");
         execute("ALTER TABLE %s ALTER name DROP MASKED");
-        verifyColumnSpec("name text CHECK NOT_NULL(name) AND LENGTH(name) > 1");
+        verifyColumnSpec("name text CHECK NOT NULL AND LENGTH() > 1");
     }
 
     @Test
     public void testAlterTableAddColumnWithCheck()
     {
         createTable("CREATE TABLE %s (pk text primary key);");
-        execute("ALTER TABLE %s ADD name text CHECK NOT_NULL(name) AND LENGTH(name) > 1");
-        verifyColumnSpec("name text CHECK NOT_NULL(name) AND LENGTH(name) > 1");
+        execute("ALTER TABLE %s ADD name text CHECK NOT NULL AND LENGTH() > 1");
+        verifyColumnSpec("name text CHECK NOT NULL AND LENGTH() > 1");
     }
 
     @Test
@@ -121,16 +121,16 @@ public class ColumnSpecificationTest extends CQLTester
     public void testAlterTableAddColumnWithMaskAndCheck()
     {
         createTable("CREATE TABLE %s (pk text primary key);");
-        execute("ALTER TABLE %s ADD name text MASKED WITH system.mask_default() CHECK NOT_NULL(name)");
-        verifyColumnSpec("name text MASKED WITH system.mask_default() CHECK NOT_NULL(name)");
+        execute("ALTER TABLE %s ADD name text MASKED WITH system.mask_default() CHECK NOT NULL");
+        verifyColumnSpec("name text MASKED WITH system.mask_default() CHECK NOT NULL");
     }
 
     @Test
     public void testAlterTableAddColumnWithMaskAndMultipleChecks()
     {
         createTable("CREATE TABLE %s (pk text primary key);");
-        execute("ALTER TABLE %s ADD name text MASKED WITH system.mask_default() CHECK NOT_NULL(name) AND LENGTH(name) > 1");
-        verifyColumnSpec("name text MASKED WITH system.mask_default() CHECK NOT_NULL(name) AND LENGTH(name) > 1");
+        execute("ALTER TABLE %s ADD name text MASKED WITH system.mask_default() CHECK NOT NULL AND LENGTH() > 1");
+        verifyColumnSpec("name text MASKED WITH system.mask_default() CHECK NOT NULL AND LENGTH() > 1");
     }
 
     /**
@@ -139,7 +139,7 @@ public class ColumnSpecificationTest extends CQLTester
     @Test(expected = RuntimeException.class)
     public void testFailingCreateTableWithColumnHavingMaskAfterCheck()
     {
-        createTable("CREATE TABLE %s (pk text primary key, name text CHECK NOT_NULL(name) AND LENGTH(name) > 1 MASKED WITH system.mask_default());");
+        createTable("CREATE TABLE %s (pk text primary key, name text CHECK NOT NULL AND LENGTH() > 1 MASKED WITH system.mask_default());");
     }
 
     /**
@@ -149,8 +149,8 @@ public class ColumnSpecificationTest extends CQLTester
     public void testFailingAlterTableAlterColumnWithCheckAndMask()
     {
         createTable("CREATE TABLE %s (pk text, name text, primary key (pk));");
-        execute("ALTER TABLE %s ALTER name CHECK NOT_NULL(name) AND LENGTH(name) > 1 MASKED WITH system.mask_default();");
-        verifyColumnSpec("name text MASKED WITH system.mask_default() CHECK NOT_NULL(name) AND LENGTH(name) > 1");
+        execute("ALTER TABLE %s ALTER name CHECK NOT NULL AND LENGTH() > 1 MASKED WITH system.mask_default();");
+        verifyColumnSpec("name text MASKED WITH system.mask_default() CHECK NOT NULL AND LENGTH() > 1");
     }
 
     /**
@@ -160,8 +160,8 @@ public class ColumnSpecificationTest extends CQLTester
     public void testFailingAlterTableAlterColumnWithMaskAndCheck()
     {
         createTable("CREATE TABLE %s (pk text, name text, primary key (pk));");
-        execute("ALTER TABLE %s ALTER name MASKED WITH system.mask_default() CHECK NOT_NULL(name) AND LENGTH(name) > 1");
-        verifyColumnSpec("name text MASKED WITH system.mask_default() CHECK NOT_NULL(name) AND LENGTH(name) > 1");
+        execute("ALTER TABLE %s ALTER name MASKED WITH system.mask_default() CHECK NOT NULL AND LENGTH() > 1");
+        verifyColumnSpec("name text MASKED WITH system.mask_default() CHECK NOT NULL AND LENGTH() > 1");
     }
 
     private void verifyColumnSpec(String modifiedColumn)
@@ -184,7 +184,7 @@ public class ColumnSpecificationTest extends CQLTester
                "    AND caching = {'keys': 'ALL', 'rows_per_partition': 'NONE'}\n" +
                "    AND cdc = false\n" +
                "    AND comment = ''\n" +
-               "    AND compaction = " + cqlQuoted(CompactionParams.DEFAULT.asMap()) + "\n" +
+               "    AND compaction = " + cqlQuoted(CompactionParams.DEFAULT.asMap()) + '\n' +
                "    AND compression = {'chunk_length_in_kb': '16', 'class': 'org.apache.cassandra.io.compress.LZ4Compressor'}\n" +
                "    AND memtable = 'default'\n" +
                "    AND crc_check_chance = 1.0\n" +

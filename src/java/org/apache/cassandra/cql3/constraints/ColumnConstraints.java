@@ -27,6 +27,8 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.TreeSet;
 
+import com.google.common.annotations.VisibleForTesting;
+
 import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.cql3.CqlBuilder;
 import org.apache.cassandra.db.TypeSizes;
@@ -49,8 +51,15 @@ public class ColumnConstraints extends ColumnConstraint<ColumnConstraints>
 
     public ColumnConstraints(List<ColumnConstraint<?>> constraints)
     {
-        super(null);
         this.constraints = constraints;
+    }
+
+    @Override
+    public void setColumnName(ColumnIdentifier columnName)
+    {
+        this.columnName = columnName;
+        for (ColumnConstraint<?> constraint : constraints)
+            constraint.setColumnName(columnName);
     }
 
     @Override
@@ -114,6 +123,17 @@ public class ColumnConstraints extends ColumnConstraint<ColumnConstraints>
             if (c != ColumnConstraints.NO_OP)
                 return true;
         }
+        return false;
+    }
+
+    public boolean containsNotNullConstraint()
+    {
+        for (ColumnConstraint<?> c : constraints)
+        {
+            if (c.toString().equals(NotNullConstraint.CQL_FUNCTION_NAME))
+                return true;
+        }
+
         return false;
     }
 
@@ -218,18 +238,26 @@ public class ColumnConstraints extends ColumnConstraint<ColumnConstraints>
 
             for (ColumnConstraint<?> constraint : constraints)
             {
-                if (constraint.columnName != null && !column.equals(constraint.columnName))
-                    throw new InvalidConstraintDefinitionException(format("Constraint %s was not specified on a column it operates on: %s but on: %s",
-                                                                          constraint, column.toCQLString(), constraint.columnName));
+                // We only check scalar constraints column name, as the rest of the constraints
+                // imply the name from the column they are defined at
+                if (constraint.getConstraintType() == ConstraintType.SCALAR)
+                {
+                    if (!column.equals(constraint.columnName))
+                    {
+                        throw new InvalidConstraintDefinitionException(format("Constraint %s was not specified on a column it operates on: %s but on: %s",
+                                                                              constraint, column.toCQLString(), constraint.columnName));
+                    }
+                }
             }
 
-            return new ColumnConstraints(constraints);
+            ColumnConstraints columnConstraints = new ColumnConstraints(constraints);
+            columnConstraints.setColumnName(column);
+            return columnConstraints;
         }
     }
 
     public static class Serializer implements MetadataSerializer<ColumnConstraints>
     {
-
         @Override
         public void serialize(ColumnConstraints columnConstraint, DataOutputPlus out, Version version) throws IOException
         {
@@ -248,13 +276,11 @@ public class ColumnConstraints extends ColumnConstraint<ColumnConstraints>
             List<ColumnConstraint<?>> columnConstraints = new ArrayList<>();
             int numberOfConstraints = in.readInt();
             for (int i = 0; i < numberOfConstraints; i++)
-            {
-                int serializerPosition = in.readShort();
-                ColumnConstraint<?> constraint = (ColumnConstraint<?>) ConstraintType
-                                                                       .getSerializer(serializerPosition)
-                                                                       .deserialize(in, version);
-                columnConstraints.add(constraint);
-            }
+                columnConstraints.add(deserializeConstraint(in, in.readShort(), version));
+
+            // we are not setting column name here on purpose
+            // that is deffered in ColumnMetadata's constructor,
+            // we do not have the access to a column name here anyway
             return new ColumnConstraints(columnConstraints);
         }
 
@@ -268,6 +294,14 @@ public class ColumnConstraints extends ColumnConstraint<ColumnConstraints>
                 constraintsSize += constraint.serializer().serializedSize(constraint, version);
             }
             return constraintsSize;
+        }
+
+        @VisibleForTesting
+        public ColumnConstraint<?> deserializeConstraint(DataInputPlus in, int serializerPosition, Version version) throws IOException
+        {
+            return (ColumnConstraint<?>) ConstraintType
+                                         .getSerializer(serializerPosition)
+                                         .deserialize(in, version);
         }
     }
 

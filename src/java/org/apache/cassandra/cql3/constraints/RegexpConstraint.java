@@ -23,7 +23,6 @@ import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.cql3.Operator;
 import org.apache.cassandra.cql3.functions.types.ParseUtils;
 import org.apache.cassandra.db.marshal.AbstractType;
@@ -43,9 +42,9 @@ public class RegexpConstraint extends ConstraintFunction
 
     private Pattern pattern;
 
-    public RegexpConstraint(ColumnIdentifier columnName)
+    public RegexpConstraint(List<String> args)
     {
-        super(columnName, FUNCTION_NAME);
+        super(FUNCTION_NAME, args);
     }
 
     @Override
@@ -84,6 +83,7 @@ public class RegexpConstraint extends ConstraintFunction
     @Override
     public void validate(ColumnMetadata columnMetadata, String regexp) throws InvalidConstraintDefinitionException
     {
+        super.validate(columnMetadata, regexp);
         try
         {
             // compilation of a regexp every single time upon evaluation is not performance friendly

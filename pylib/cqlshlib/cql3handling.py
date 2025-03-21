@@ -327,9 +327,10 @@ JUNK ::= /([ \t\r\f\v]+|(--|[/][/])[^\n\r]*([\n\r]|$)|[/][*].*?[*][/])/ ;
 <constraintsExpr> ::= "CHECK" <constraint> ( "AND" <constraint> )*
                     ;
 
-<constraint> ::= <cident> <cmp> <term>
+<constraint> ::= "NOT" "NULL"
+               | <constraintStandaloneFunction>
                | <constraintComparableFunction> <functionArguments> <cmp> <term>
-               | <constraintStandaloneFunction> <functionArguments>
+               | <cident> <cmp> <term>
                ;
 
 <constraintComparableFunction> ::= "LENGTH"
@@ -338,7 +339,6 @@ JUNK ::= /([ \t\r\f\v]+|(--|[/][/])[^\n\r]*([\n\r]|$)|[/][*].*?[*][/])/ ;
                                  ;
 
 <constraintStandaloneFunction> ::= "JSON"
-                                 | "NOT_NULL"
                                  ;
 
 <column_mask> ::= "MASKED" "WITH" ( "DEFAULT" | <functionName> <selectionFunctionArguments> );

@@ -278,6 +278,8 @@ public abstract class AlterTableStatement extends AlterSchemaStatement
                 this.type = type;
                 this.isStatic = isStatic;
                 this.mask = mask;
+                if (constraints != null)
+                    constraints.prepare(name);
                 this.constraints = constraints;
             }
         }
@@ -931,6 +933,8 @@ public abstract class AlterTableStatement extends AlterSchemaStatement
         {
             kind = Kind.ALTER_CONSTRAINTS;
             this.constraintName = name;
+            if (rawConstraints != null)
+                rawConstraints.prepare(constraintName);
             this.constraints = rawConstraints;
         }
 

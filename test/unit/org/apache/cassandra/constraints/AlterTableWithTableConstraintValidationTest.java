@@ -116,12 +116,12 @@ public class AlterTableWithTableConstraintValidationTest extends CqlConstraintVa
                           table,
                           tableCreateStatement));
 
-        execute("ALTER TABLE %s ALTER ck2 CHECK LENGTH(ck2) = 4");
+        execute("ALTER TABLE %s ALTER ck2 CHECK LENGTH() = 4");
 
         tableCreateStatement = "CREATE TABLE " + KEYSPACE + "." + table + " (\n" +
                                "    pk int,\n" +
                                "    ck1 int CHECK ck1 < 100,\n" +
-                               "    ck2 text CHECK LENGTH(ck2) = 4,\n" +
+                               "    ck2 text CHECK LENGTH() = 4,\n" +
                                "    v int,\n" +
                                "    PRIMARY KEY (pk, ck1, ck2)\n" +
                                ") WITH CLUSTERING ORDER BY (ck1 ASC, ck2 ASC)\n" +
@@ -133,13 +133,13 @@ public class AlterTableWithTableConstraintValidationTest extends CqlConstraintVa
                           table,
                           tableCreateStatement));
 
-        execute("ALTER TABLE %s ALTER v CHECK NOT_NULL(v)");
+        execute("ALTER TABLE %s ALTER v CHECK NOT NULL");
 
         tableCreateStatement = "CREATE TABLE " + KEYSPACE + "." + table + " (\n" +
                                "    pk int,\n" +
                                "    ck1 int CHECK ck1 < 100,\n" +
-                               "    ck2 text CHECK LENGTH(ck2) = 4,\n" +
-                               "    v int CHECK NOT_NULL(v),\n" +
+                               "    ck2 text CHECK LENGTH() = 4,\n" +
+                               "    v int CHECK NOT NULL,\n" +
                                "    PRIMARY KEY (pk, ck1, ck2)\n" +
                                ") WITH CLUSTERING ORDER BY (ck1 ASC, ck2 ASC)\n" +
                                "    AND " + tableParametersCql();
@@ -202,7 +202,7 @@ public class AlterTableWithTableConstraintValidationTest extends CqlConstraintVa
     @Test
     public void testAlterWithCdcAndPKConstraintsEnabled() throws Throwable
     {
-        createTable("CREATE TABLE %s (pk text CHECK length(pk) = 100, ck1 int, ck2 int, PRIMARY KEY ((pk), ck1, ck2));");
+        createTable("CREATE TABLE %s (pk text CHECK length() = 100, ck1 int, ck2 int, PRIMARY KEY ((pk), ck1, ck2));");
         // It works
         execute("ALTER TABLE %s WITH cdc = true");
     }
@@ -245,12 +245,6 @@ public class AlterTableWithTableConstraintValidationTest extends CqlConstraintVa
         assertInvalidThrowMessage("Constraint ck3 < 100 was not specified on a column it operates on: ck1 but on: ck3",
                                   InvalidRequestException.class,
                                   "ALTER TABLE %s ALTER ck1 CHECK ck3 < 100");
-        assertInvalidThrowMessage("Constraint NOT_NULL(ck3) was not specified on a column it operates on: ck1 but on: ck3",
-                                  InvalidRequestException.class,
-                                  "ALTER TABLE %s ALTER ck1 CHECK NOT_NULL(ck3)");
-        assertInvalidThrowMessage("Constraint LENGTH(ck3) > 10 was not specified on a column it operates on: ck1 but on: ck3",
-                                  InvalidRequestException.class,
-                                  "ALTER TABLE %s ALTER ck1 CHECK LENGTH(ck3) > 10");
     }
 
     @Test
@@ -261,14 +255,6 @@ public class AlterTableWithTableConstraintValidationTest extends CqlConstraintVa
         assertInvalidThrowMessage("Constraint v3 < 100 was not specified on a column it operates on: v2 but on: v3",
                                   InvalidRequestException.class,
                                   "ALTER TABLE %s ADD v2 int CHECK v3 < 100");
-
-        assertInvalidThrowMessage("Constraint NOT_NULL(v3) was not specified on a column it operates on: v2 but on: v3",
-                                  InvalidRequestException.class,
-                                  "ALTER TABLE %s ADD v2 int CHECK NOT_NULL(v3)");
-
-        assertInvalidThrowMessage("Constraint LENGTH(v3) > 10 was not specified on a column it operates on: v2 but on: v3",
-                                  InvalidRequestException.class,
-                                  "ALTER TABLE %s ADD v2 int CHECK LENGTH(v3) > 10");
     }
 
     @Test
@@ -276,5 +262,19 @@ public class AlterTableWithTableConstraintValidationTest extends CqlConstraintVa
     {
         createTable("CREATE TABLE %s (pk text, col1 int, primary key (pk));");
         execute("ALTER TABLE %s ADD col2 int CHECK col2 > 0");
+    }
+
+    @Test
+    public void testNotNullSyntax() throws Throwable
+    {
+        createTable("CREATE TABLE %s (pk text, col1 int NOT NULL, primary key (pk));");
+        createTable("CREATE TABLE %s (pk text, col1 int CHECK NOT NULL, primary key (pk));");
+        createTable("CREATE TABLE %s (pk text, col1 int NOT NULL CHECK col1 > 0, primary key (pk));");
+        execute("ALTER TABLE %s ALTER col1 CHECK col1 > 100");
+        execute("ALTER TABLE %s ALTER col1 CHECK NOT NULL AND col1 > 100");
+
+        assertInvalidThrowMessage("Duplicate definition of NOT NULL constraint",
+                                  InvalidRequestException.class,
+                                  "CREATE TABLE %s (pk text, col1 int NOT NULL CHECK NOT NULL, primary key (pk));");
     }
 }

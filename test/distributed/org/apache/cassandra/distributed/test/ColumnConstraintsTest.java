@@ -58,7 +58,7 @@ public class ColumnConstraintsTest extends TestBaseImpl
                                                    "org.apache.cassandra.db.marshal.IntegerType, org.apache.cassandra.db.marshal.LongType, " +
                                                    "org.apache.cassandra.db.marshal.ShortType] but it was class org.apache.cassandra.db.marshal.UTF8Type");
 
-            assertThrowsInvalidConstraintException(cluster, String.format("CREATE TABLE %s (pk int, ck1 int CHECK LENGTH(ck1) < 100, ck2 int, v int, " +
+            assertThrowsInvalidConstraintException(cluster, String.format("CREATE TABLE %s (pk int, ck1 int CHECK LENGTH() < 100, ck2 int, v int, " +
                                                                           "PRIMARY KEY ((pk), ck1, ck2));", tableName),
                                                    "Column should be of type class org.apache.cassandra.db.marshal.UTF8Type or " +
                                                    "class org.apache.cassandra.db.marshal.AsciiType but got class org.apache.cassandra.db.marshal.Int32Type");
@@ -213,7 +213,7 @@ public class ColumnConstraintsTest extends TestBaseImpl
                 for (Map.Entry<String, String> relation : RELATIONS_MAP.entrySet())
                 {
                     String tableName = String.format(KEYSPACE + ".%s_tbl1_%s", type, relation.getKey());
-                    String createTableStatementSmallerThan = "CREATE TABLE " + tableName + " (pk " + type + " CHECK LENGTH(pk) " + relation.getValue() + " 4, ck1 int, ck2 int, v int, PRIMARY KEY ((pk), ck1, ck2));";
+                    String createTableStatementSmallerThan = "CREATE TABLE " + tableName + " (pk " + type + " CHECK LENGTH() " + relation.getValue() + " 4, ck1 int, ck2 int, v int, PRIMARY KEY ((pk), ck1, ck2));";
                     cluster.schemaChange(createTableStatementSmallerThan);
                 }
             }
@@ -299,7 +299,7 @@ public class ColumnConstraintsTest extends TestBaseImpl
             try (Cluster cluster = init(Cluster.build(1).start()))
             {
                 String tableName = String.format(KEYSPACE + ".%s_tbl1_%s", type, "st");
-                String createTableNotNullValue = "CREATE TABLE " + tableName + " (pk int, value int CHECK NOT_NULL(value), PRIMARY KEY (pk));";
+                String createTableNotNullValue = "CREATE TABLE " + tableName + " (pk int, value int CHECK NOT NULL, PRIMARY KEY (pk));";
                 cluster.schemaChange(createTableNotNullValue);
 
                 Assertions.assertThatThrownBy(() -> cluster.coordinator(1).execute(String.format("INSERT INTO " + tableName + " (pk, value) VALUES (1, null)"), ConsistencyLevel.ALL))

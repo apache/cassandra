@@ -55,7 +55,7 @@ public class CreateTableWithColumnNotNullConstraintValidTest extends CqlConstrai
     @Test
     public void testCreateTableWithColumnNotNullCheckValid() throws Throwable
     {
-        createTable("CREATE TABLE %s (pk int, ck1 " + typeString + " CHECK NOT_NULL(ck1), ck2 int, v int, PRIMARY KEY (pk));");
+        createTable("CREATE TABLE %s (pk int, ck1 " + typeString + " CHECK NOT NULL, ck2 int, v int, PRIMARY KEY (pk));");
 
         // Valid
         execute("INSERT INTO %s (pk, ck1, ck2, v) VALUES (1, " + value + ", 2, 3)");
