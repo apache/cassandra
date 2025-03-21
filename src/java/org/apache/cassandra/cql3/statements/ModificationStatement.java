@@ -693,7 +693,7 @@ public abstract class ModificationStatement implements CQLStatement.SingleKeyspa
         long timestamp = options.getTimestamp(queryState);
         long nowInSeconds = options.getNowInSeconds(queryState);
         List<? extends IMutation> mutations = getMutations(queryState.getClientState(), options, true, timestamp, nowInSeconds, requestTime);
-        boolean isTracked = Schema.instance.getKeyspaceMetadata(mutations.get(0).getKeyspaceName()).params.replicationType.isTracked();
+        boolean isTracked = !mutations.isEmpty() && Schema.instance.getKeyspaceMetadata(mutations.get(0).getKeyspaceName()).params.replicationType.isTracked();
         if (isTracked)
         {
             if (mutations.stream().anyMatch(m -> m instanceof CounterMutation))
