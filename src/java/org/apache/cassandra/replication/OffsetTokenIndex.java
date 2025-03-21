@@ -65,27 +65,21 @@ class OffsetTokenIndex
         tokenToOffsets.add(new Entry(token, offset));
     }
 
-    boolean lookUp(Token token, Offsets into)
-    {
-        boolean found = false;
-        SortedSet<Entry> subset = tokenToOffsets.subSet(new Entry(token, 0), new Entry(token, Integer.MAX_VALUE));
-        for (Entry entry : subset)
-        {
-            into.append(entry.offset);
-            found = true;
-        }
-        return found;
-    }
-
     private boolean addSubset(SortedSet<Entry> subset, Offsets into)
     {
         boolean found = false;
-        for (Entry entry : tokenToOffsets)
+        for (Entry entry : subset)
         {
             into.add(entry.offset);
             found = true;
         }
         return found;
+    }
+
+    boolean lookUp(Token token, Offsets into)
+    {
+        SortedSet<Entry> subset = tokenToOffsets.subSet(new Entry(token, 0), new Entry(token, Integer.MAX_VALUE));
+        return addSubset(subset, into);
     }
 
     private boolean lookUp(Entry start, Entry end, Offsets into)
@@ -112,13 +106,13 @@ class OffsetTokenIndex
 
     boolean lookUp(Range<Token> range, Offsets into)
     {
-        return lookUp(new Entry(range.left, 0), new Entry(range.right, Integer.MAX_VALUE), into);
+        return lookUp(new Entry(range.left, Integer.MAX_VALUE), new Entry(range.right, Integer.MAX_VALUE), into);
     }
 
     boolean lookUp(AbstractBounds<PartitionPosition> range, Offsets into)
     {
-        Entry start = new Entry(range.left.getToken(), range.inclusiveLeft() ? 0 : Integer.MAX_VALUE);
-        Entry end = new Entry(range.right.getToken(), range.inclusiveRight() ? Integer.MAX_VALUE : 0);
+        Entry start = new Entry(range.left.getToken(), range.left.kind() != PartitionPosition.Kind.MAX_BOUND ? 0 : Integer.MAX_VALUE);
+        Entry end = new Entry(range.right.getToken(), range.right.kind() != PartitionPosition.Kind.MIN_BOUND ? Integer.MAX_VALUE : 0);
         return lookUp(start, end, into);
     }
 
