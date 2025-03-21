@@ -71,6 +71,11 @@ public interface Visitor
 
     default Value visit(Value v) { return v; }
 
+    default CasCondition visit(CasCondition s)
+    {
+        return s;
+    }
+
     class CompositeVisitor implements Visitor
     {
         private final List<Visitor> visitors;

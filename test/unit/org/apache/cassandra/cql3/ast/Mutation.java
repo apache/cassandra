@@ -419,9 +419,20 @@ public abstract class Mutation implements Statement
             Conditional copiedWhere = where.visit(v);
             if (where != copiedWhere)
                 updated = true;
+            Optional<? extends CasCondition> updatedCasCondition = casCondition;
+            if (casCondition.isPresent())
+            {
+                CasCondition original = casCondition.get();
+                var casCopy = original.visit(v);
+                if (casCopy != original)
+                {
+                    updatedCasCondition = Optional.ofNullable(casCopy);
+                    updated = true;
+                }
+            }
 
             if (!updated) return this;
-            return new Update(table, using, copied, copiedWhere, casCondition);
+            return new Update(table, using, copied, copiedWhere, updatedCasCondition);
         }
 
         @Override
@@ -541,9 +552,20 @@ WHERE PK_column_conditions
             var copiedWhere = where.visit(v);
             if (copiedWhere != where)
                 updated = true;
+            Optional<? extends CasCondition> updatedCasCondition = casCondition;
+            if (casCondition.isPresent())
+            {
+                CasCondition original = casCondition.get();
+                var casCopy = original.visit(v);
+                if (casCopy != original)
+                {
+                    updatedCasCondition = Optional.ofNullable(casCopy);
+                    updated = true;
+                }
+            }
 
             if (!updated) return this;
-            return new Delete(copiedColumns, table, timestamp, copiedWhere, casCondition);
+            return new Delete(copiedColumns, table, timestamp, copiedWhere, updatedCasCondition);
         }
 
         @Override
