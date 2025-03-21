@@ -24,6 +24,7 @@ import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
 import com.google.common.base.Preconditions;
+import com.google.common.util.concurrent.Uninterruptibles;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -40,9 +41,15 @@ import org.apache.cassandra.service.paxos.AbstractPaxosRepair;
 import org.apache.cassandra.service.paxos.PaxosRepair;
 import org.apache.cassandra.service.paxos.PaxosState;
 import org.apache.cassandra.service.paxos.uncommitted.UncommittedPaxosKey;
+import org.apache.cassandra.utils.Clock;
 import org.apache.cassandra.utils.CloseableIterator;
 import org.apache.cassandra.utils.concurrent.AsyncFuture;
 
+import static java.util.concurrent.TimeUnit.MICROSECONDS;
+import static java.util.concurrent.TimeUnit.MILLISECONDS;
+import static java.util.concurrent.TimeUnit.SECONDS;
+import static org.apache.cassandra.config.DatabaseDescriptor.getCasContentionTimeout;
+import static org.apache.cassandra.config.DatabaseDescriptor.getWriteRpcTimeout;
 import static org.apache.cassandra.service.paxos.cleanup.PaxosCleanupSession.TIMEOUT_NANOS;
 
 public class PaxosCleanupLocalCoordinator extends AsyncFuture<PaxosCleanupResponse>
@@ -126,8 +133,10 @@ public class PaxosCleanupLocalCoordinator extends AsyncFuture<PaxosCleanupRespon
                 return;
             }
 
+            long txnTimeoutMicros = Math.max(getCasContentionTimeout(MICROSECONDS), getWriteRpcTimeout(MICROSECONDS));
+            boolean waitForCoordinator = DatabaseDescriptor.getPaxosRepairRaceWait();
             while (inflight.size() < parallelism && uncommittedIter.hasNext())
-                repairKey(uncommittedIter.next());
+                repairKey(uncommittedIter.next(), txnTimeoutMicros, waitForCoordinator);
 
         }
 
@@ -135,7 +144,7 @@ public class PaxosCleanupLocalCoordinator extends AsyncFuture<PaxosCleanupRespon
             finish();
     }
 
-    private boolean repairKey(UncommittedPaxosKey uncommitted)
+    private boolean repairKey(UncommittedPaxosKey uncommitted, long txnTimeoutMicros, boolean waitForCoordinator)
     {
         logger.trace("repairing {}", uncommitted);
         Preconditions.checkState(!inflight.containsKey(uncommitted.getKey()));
@@ -146,6 +155,9 @@ public class PaxosCleanupLocalCoordinator extends AsyncFuture<PaxosCleanupRespon
         if (consistency == null)
             return false;
 
+        if (waitForCoordinator)
+            maybeWaitForOriginalCoordinator(uncommitted, txnTimeoutMicros);
+
         inflight.put(uncommitted.getKey(), tableRepairs.startOrGetOrQueue(uncommitted.getKey(), uncommitted.ballot(), uncommitted.getConsistencyLevel(), table, result -> {
             if (result.wasSuccessful())
                 onKeyFinish(uncommitted.getKey());
@@ -153,6 +165,24 @@ public class PaxosCleanupLocalCoordinator extends AsyncFuture<PaxosCleanupRespon
                 onKeyFailure(result.toString());
         }));
         return true;
+    }
+
+    /**
+     * Wait to repair things that are still potentially executing at the original coordinator to avoid
+     * causing timeouts. This should only have to happen at most a few times when the repair starts
+     */
+    private static void maybeWaitForOriginalCoordinator(UncommittedPaxosKey uncommitted, long txnTimeoutMicros)
+    {
+        long nowMicros = MILLISECONDS.toMicros(Clock.Global.currentTimeMillis());
+        long ballotElapsedMicros = nowMicros - uncommitted.ballot().unixMicros();
+        if (ballotElapsedMicros < 0 && Math.abs(ballotElapsedMicros) > SECONDS.toMicros(1))
+            logger.warn("Encountered ballot that is more than 1 second in the future, is there a clock sync issue? {}", uncommitted.ballot());
+        if (ballotElapsedMicros < txnTimeoutMicros)
+        {
+            long sleepMicros = txnTimeoutMicros - ballotElapsedMicros;
+            logger.info("Paxos auto repair encountered a potentially in progress ballot, sleeping {}us to allow the in flight operation to finish", sleepMicros);
+            Uninterruptibles.sleepUninterruptibly(sleepMicros, MICROSECONDS);
+        }
     }
 
     private synchronized void onKeyFinish(DecoratedKey key)
