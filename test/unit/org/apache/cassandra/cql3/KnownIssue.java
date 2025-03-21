@@ -39,6 +39,8 @@ public enum KnownIssue
                    "Some types allow empty bytes, but define them as meaningless.  AF can be used to query them using <, <=, and =; but SAI can not"),
     AF_MULTI_NODE_MULTI_COLUMN_AND_NODE_LOCAL_WRITES("https://issues.apache.org/jira/browse/CASSANDRA-19007",
                                                      "When doing multi node/multi column queries, AF can miss data when the nodes are not in-sync"),
+    SAI_AND_VECTOR_COLUMNS("https://issues.apache.org/jira/browse/CASSANDRA-20464",
+                           "When doing an SAI query, if the where clause also contains a vector column bad results can be produced")
     ;
 
     KnownIssue(String url, String description)

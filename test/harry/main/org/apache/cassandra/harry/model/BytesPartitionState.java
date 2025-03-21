@@ -125,6 +125,12 @@ public class BytesPartitionState
         long cd = factory.clusteringCache.deflate(clustering);
         long[] vds = toDescriptor(factory.regularColumns, values);
         state.writeRegular(cd, vds, MagicConstants.NO_TIMESTAMP, writePrimaryKeyLiveness);
+
+        // UDT's have the ability to "update" that triggers a delete; this allows creating an "empty" row.
+        // When an empty row exists without liveness info, then purge the row
+        var row = state.rows.get(cd);
+        if (row.isEmpty() && !row.hasPrimaryKeyLivenessInfo)
+            state.delete(cd, MagicConstants.NO_TIMESTAMP);
     }
 
     private long[] toDescriptor(ImmutableUniqueList<Symbol> positions, Map<Symbol, ByteBuffer> values)
@@ -135,8 +141,14 @@ public class BytesPartitionState
             Symbol column = positions.get(i);
             if (values.containsKey(column))
             {
-                long vd = factory.valueCache.deflate(new Value(column.type(), values.get(column)));
-                vds[i] = vd;
+                ByteBuffer value = values.get(column);
+                // user type is the only multi cell type that allows <empty> so this check should be fine; can expand if we find more cases
+                if (value == null || !value.hasRemaining() && (column.type().isUDT() && column.type().isMultiCell()))
+                {
+                    vds[i] = MagicConstants.NIL_DESCR;
+                    continue;
+                }
+                vds[i] = factory.valueCache.deflate(new Value(column.type(), value));
             }
             else
             {
@@ -195,6 +207,13 @@ public class BytesPartitionState
         if (rowState == null)
             return null;
         return toRow(rowState);
+    }
+
+    @Nullable
+    public ByteBuffer get(Clustering<ByteBuffer> clustering, Symbol column)
+    {
+        Row row = get(clustering);
+        return row == null ? null : row.get(column);
     }
 
     private Row toRow(PartitionState.RowState rowState)
@@ -548,8 +567,8 @@ public class BytesPartitionState
 
         private Value(AbstractType<?> type, ByteBuffer value)
         {
-            this.type = type;
-            this.value = value;
+            this.type = Objects.requireNonNull(type);
+            this.value = Objects.requireNonNull(value);
         }
 
         @Override

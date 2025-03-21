@@ -720,6 +720,12 @@ WHERE PK_column_conditions
             return set(new Symbol(column, Int32Type.instance), Bind.of(value));
         }
 
+        public UpdateBuilder set(String column, Expression expression)
+        {
+            Symbol symbol = new Symbol(metadata.getColumn(new ColumnIdentifier(column, true)));
+            return set(symbol, expression);
+        }
+
         public UpdateBuilder set(String column, String value)
         {
             Symbol symbol = new Symbol(metadata.getColumn(new ColumnIdentifier(column, true)));

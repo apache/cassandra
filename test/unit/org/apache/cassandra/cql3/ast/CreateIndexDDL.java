@@ -141,7 +141,7 @@ public class CreateIndexDDL implements Element
         public EnumSet<QueryType> supportedQueries(AbstractType<?> type)
         {
             type = type.unwrap();
-            if (IndexTermType.isEqOnlyType(type))
+            if (IndexTermType.isEqOnlyType(type) || type.isCollection() || type.isUDT() || type.isTuple())
                 return EnumSet.of(QueryType.Eq);
             return EnumSet.allOf(QueryType.class);
         }

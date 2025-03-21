@@ -35,6 +35,7 @@ import java.util.Set;
 import java.util.TreeMap;
 import java.util.concurrent.TimeUnit;
 import java.util.function.BiFunction;
+import java.util.function.Consumer;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import javax.annotation.Nullable;
@@ -98,7 +99,7 @@ public class ASTGenerators
         throw new AssertionError("Unsupported map type: " + map.getClass());
     }
 
-    public static Gen<AssignmentOperator> assignmentOperatorGen(EnumSet<AssignmentOperator.Kind> allowed, Expression right)
+    private static Gen<AssignmentOperator> assignmentOperatorGen(EnumSet<AssignmentOperator.Kind> allowed, Expression right)
     {
         if (allowed.isEmpty())
             throw new IllegalArgumentException("Unable to create a operator gen for empty set of allowed operators");
@@ -184,6 +185,12 @@ public class ASTGenerators
         public ExpressionBuilder withOperators()
         {
             useOperator = i -> true;
+            return this;
+        }
+
+        public ExpressionBuilder withOperators(Gen<Boolean> useOperator)
+        {
+            this.useOperator = Objects.requireNonNull(useOperator);
             return this;
         }
 
@@ -373,6 +380,13 @@ public class ASTGenerators
 
             for (Symbol symbol : allColumns)
                 columnExpressions.put(symbol, new ExpressionBuilder(symbol.type()));
+        }
+
+        public MutationGenBuilder withColumnExpressions(Consumer<ExpressionBuilder> fn)
+        {
+            for (Symbol symbol : allColumns)
+                fn.accept(columnExpressions.get(symbol));
+            return this;
         }
 
         public MutationGenBuilder allowEmpty(Symbol symbol)
@@ -770,12 +784,12 @@ public class ASTGenerators
                     }
                 }
             }
-            if (kind == Mutation.Kind.UPDATE && isTransaction)
+            if (kind == Mutation.Kind.UPDATE)
             {
                 for (Symbol c : new ArrayList<>(columnsToGenerate))
                 {
                     var useOperator = columnExpressions.get(c).useOperator;
-                    EnumSet<AssignmentOperator.Kind> additionOperatorAllowed = AssignmentOperator.supportsOperators(c.type());
+                    EnumSet<AssignmentOperator.Kind> additionOperatorAllowed = AssignmentOperator.supportsOperators(c.type(), isTransaction);
                     if (!additionOperatorAllowed.isEmpty() && useOperator.generate(rnd))
                     {
                         Expression expression = columnExpressions.get(c).build().generate(rnd);

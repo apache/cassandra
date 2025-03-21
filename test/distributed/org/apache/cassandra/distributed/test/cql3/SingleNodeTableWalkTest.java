@@ -66,10 +66,11 @@ import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.utils.ASTGenerators;
 import org.apache.cassandra.utils.AbstractTypeGenerators;
 import org.apache.cassandra.utils.AbstractTypeGenerators.TypeGenBuilder;
+import org.apache.cassandra.utils.AbstractTypeGenerators.TypeKind;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.CassandraGenerators.TableMetadataBuilder;
+import org.apache.cassandra.utils.Generators;
 import org.apache.cassandra.utils.ImmutableUniqueList;
-import org.quicktheories.generators.SourceDSL;
 
 import static accord.utils.Property.commands;
 import static accord.utils.Property.stateful;
@@ -78,6 +79,17 @@ import static org.apache.cassandra.utils.Generators.toGen;
 
 public class SingleNodeTableWalkTest extends StatefulASTBase
 {
+    private static final Gen<Gen<Boolean>> BOOLEAN_DISTRIBUTION = Gens.bools().mixedDistribution();
+    //TODO (coverage): COMPOSITE, DYNAMIC_COMPOSITE
+    private static final Gen<Gen<TypeKind>> TYPE_KIND_DISTRIBUTION = Gens.mixedDistribution(TypeKind.PRIMITIVE,
+                                                                                            TypeKind.SET, TypeKind.LIST, TypeKind.MAP,
+                                                                                            TypeKind.TUPLE, TypeKind.UDT,
+                                                                                            TypeKind.VECTOR
+    );
+    private static final Gen<Gen<AbstractType<?>>> PRIMITIVE_DISTRIBUTION = Gens.mixedDistribution(AbstractTypeGenerators.knownPrimitiveTypes()
+                                                                                                                         .stream()
+                                                                                                                         .filter(t -> !AbstractTypeGenerators.isUnsafeEquality(t))
+                                                                                                                         .collect(Collectors.toList()));
     private static final Logger logger = LoggerFactory.getLogger(SingleNodeTableWalkTest.class);
 
     protected void preCheck(Cluster cluster, Property.StatefulBuilder builder)
@@ -88,10 +100,20 @@ public class SingleNodeTableWalkTest extends StatefulASTBase
         // CQL_DEBUG_APPLY_OPERATOR = true;
     }
 
-    protected TypeGenBuilder supportedTypes()
+    protected TypeGenBuilder supportedTypes(RandomSource rs)
     {
-        return AbstractTypeGenerators.withoutUnsafeEquality(AbstractTypeGenerators.builder()
-                                                                                  .withTypeKinds(AbstractTypeGenerators.TypeKind.PRIMITIVE));
+        return AbstractTypeGenerators.builder()
+                                     .withTypeKinds(Generators.fromGen(TYPE_KIND_DISTRIBUTION.next(rs)))
+                                     .withPrimitives(Generators.fromGen(PRIMITIVE_DISTRIBUTION.next(rs)))
+                                     .withUserTypeFields(AbstractTypeGenerators.UserTypeFieldsGen.simpleNames())
+                                     .withMaxDepth(1);
+    }
+
+    protected TypeGenBuilder supportedPrimaryColumnTypes(RandomSource rs)
+    {
+        return AbstractTypeGenerators.builder()
+                                     .withTypeKinds(TypeKind.PRIMITIVE)
+                                     .withPrimitives(Generators.fromGen(PRIMITIVE_DISTRIBUTION.next(rs)));
     }
 
     protected List<CreateIndexDDL.Indexer> supportedIndexers()
@@ -206,7 +228,7 @@ public class SingleNodeTableWalkTest extends StatefulASTBase
             builder.value(pk, key.bufferAt(pks.indexOf(pk)));
 
 
-        List<Symbol> searchableColumns = state.nonPartitionColumns;
+        List<Symbol> searchableColumns = state.searchableNonPartitionColumns;
         Symbol symbol = rs.pick(searchableColumns);
 
         TreeMap<ByteBuffer, List<BytesPartitionState.PrimaryKey>> universe = state.model.index(ref, symbol);
@@ -363,7 +385,8 @@ public class SingleNodeTableWalkTest extends StatefulASTBase
                                        .withCompression())
                      .withKeyspaceName(ks).withTableName("tbl")
                      .withSimpleColumnNames()
-                     .withDefaultTypeGen(supportedTypes())
+                     .withDefaultTypeGen(supportedTypes(rs))
+                     .withPrimaryColumnTypeGen(supportedPrimaryColumnTypes(rs))
                      .withPartitioner(Murmur3Partitioner.instance)
                      .build())
                .next(rs);
@@ -393,7 +416,7 @@ public class SingleNodeTableWalkTest extends StatefulASTBase
     {
         protected final LinkedHashMap<Symbol, IndexedColumn> indexes;
         private final Gen<Mutation> mutationGen;
-        private final List<Symbol> nonPartitionColumns;
+        private final List<Symbol> searchableNonPartitionColumns;
         private final List<Symbol> searchableColumns;
         private final List<Symbol> nonPkIndexedColumns;
 
@@ -424,7 +447,8 @@ public class SingleNodeTableWalkTest extends StatefulASTBase
                                                                   .withoutTransaction()
                                                                   .withoutTtl()
                                                                   .withoutTimestamp()
-                                                                  .withPartitions(SourceDSL.arbitrary().pick(uniquePartitions));
+                                                                  .withPartitions(Generators.fromGen(Gens.mixedDistribution(uniquePartitions).next(rs)))
+                                                                  .withColumnExpressions(e -> e.withOperators(Generators.fromGen(BOOLEAN_DISTRIBUTION.next(rs))));
             if (IGNORED_ISSUES.contains(KnownIssue.SAI_EMPTY_TYPE))
             {
                 model.factory.regularAndStaticColumns.stream()
@@ -438,16 +462,30 @@ public class SingleNodeTableWalkTest extends StatefulASTBase
             }
             this.mutationGen = toGen(mutationGenBuilder.build());
 
-            nonPartitionColumns = ImmutableList.<Symbol>builder()
-                                               .addAll(model.factory.clusteringColumns)
-                                               .addAll(model.factory.staticColumns)
-                                               .addAll(model.factory.regularColumns)
-                                               .build();
+            var nonPartitionColumns = ImmutableList.<Symbol>builder()
+                                                   .addAll(model.factory.clusteringColumns)
+                                                   .addAll(model.factory.staticColumns)
+                                                   .addAll(model.factory.regularColumns)
+                                                   .build();
+            searchableNonPartitionColumns = nonPartitionColumns.stream()
+                                                               .filter(this::isSearchable)
+                                                               .collect(Collectors.toList());
             nonPkIndexedColumns = nonPartitionColumns.stream()
                                                      .filter(indexes::containsKey)
                                                      .collect(Collectors.toList());
 
-            searchableColumns = metadata.partitionKeyColumns().size() > 1 ?  model.factory.selectionOrder : nonPartitionColumns;
+            searchableColumns = (metadata.partitionKeyColumns().size() > 1 ? model.factory.selectionOrder : nonPartitionColumns)
+                                .stream()
+                                .filter(this::isSearchable)
+                                .collect(Collectors.toList());
+        }
+
+        private boolean isSearchable(Symbol symbol)
+        {
+            // See org.apache.cassandra.cql3.Operator.validateFor
+            // multi cell collections can only be searched if you search their elements, not the collection as a whole
+            //TODO (coverage): can you query for UDT fields?  its a single cell so you "should"?
+            return !(symbol.type().isMultiCell() && (symbol.type().isCollection() || symbol.type().isUDT()));
         }
 
         @Override
@@ -523,6 +561,8 @@ public class SingleNodeTableWalkTest extends StatefulASTBase
             List<Symbol> allowedColumns = searchableColumns;
             if (hasMultiNodeMultiColumnAllowFilteringWithLocalWritesIssue())
                 allowedColumns = nonPkIndexedColumns;
+            if (IGNORED_ISSUES.contains(KnownIssue.SAI_AND_VECTOR_COLUMNS) && !indexes.isEmpty())
+                allowedColumns = allowedColumns.stream().filter(s -> !s.type().isVector()).collect(Collectors.toList());
             return allowedColumns;
         }
 
@@ -533,7 +573,7 @@ public class SingleNodeTableWalkTest extends StatefulASTBase
 
         public boolean allowPartitionQuery()
         {
-            return !(model.isEmpty() || nonPartitionColumns.isEmpty());
+            return !(model.isEmpty() || searchableNonPartitionColumns.isEmpty());
         }
 
         @Override

@@ -21,107 +21,139 @@ package org.apache.cassandra.cql3.ast;
 import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.nio.ByteBuffer;
-import java.util.Optional;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+
+import javax.annotation.Nullable;
 
 import org.apache.cassandra.db.marshal.AbstractType;
 
-import static java.util.Optional.of;
-
 public class ExpressionEvaluator
 {
-    public static Optional<Object> tryEval(Expression e)
+    @Nullable
+    public static Object eval(Expression e)
     {
         if (e instanceof Value)
-            return of(((Value) e).value());
+            return ((Value) e).value();
         if (e instanceof TypeHint)
-            return tryEval(((TypeHint) e).e);
+            return eval(((TypeHint) e).e);
         if (e instanceof Operator)
-            return tryEval((Operator) e);
-        return Optional.empty();
+            return eval((Operator) e);
+        throw new UnsupportedOperationException("Unexpected expression type " + e.getClass() + ": " + e.toCQL());
     }
 
-    public static Optional<Object> tryEval(Operator e)
+    @Nullable
+    public static Object eval(Operator e)
     {
+        Object lhs = eval(e.left);
+        if (lhs instanceof ByteBuffer)
+            lhs = e.left.type().compose((ByteBuffer) lhs);
+        Object rhs = eval(e.right);
+        if (rhs instanceof ByteBuffer)
+            rhs = e.right.type().compose((ByteBuffer) rhs);
         switch (e.kind)
         {
             case ADD:
             {
-                var lhsOpt = tryEval(e.left);
-                var rhsOpt = tryEval(e.right);
-                if (lhsOpt.isEmpty() || rhsOpt.isEmpty())
-                    return Optional.empty();
-                Object lhs = lhsOpt.get();
-                Object rhs = rhsOpt.get();
                 if (lhs instanceof Byte)
-                    return of((byte) (((Byte) lhs) + ((Byte) rhs)));
+                    return (byte) (((Byte) lhs) + ((Byte) rhs));
                 if (lhs instanceof Short)
-                    return of((short) (((Short) lhs) + ((Short) rhs)));
+                    return (short) (((Short) lhs) + ((Short) rhs));
                 if (lhs instanceof Integer)
-                    return of((int) (((Integer) lhs) + ((Integer) rhs)));
+                    return (int) (((Integer) lhs) + ((Integer) rhs));
                 if (lhs instanceof Long)
-                    return of((long) (((Long) lhs) + ((Long) rhs)));
+                    return (long) (((Long) lhs) + ((Long) rhs));
                 if (lhs instanceof Float)
-                    return of((float) (((Float) lhs) + ((Float) rhs)));
+                    return (float) (((Float) lhs) + ((Float) rhs));
                 if (lhs instanceof Double)
-                    return of((double) (((Double) lhs) + ((Double) rhs)));
+                    return (double) (((Double) lhs) + ((Double) rhs));
                 if (lhs instanceof BigInteger)
-                    return of(((BigInteger) lhs).add((BigInteger) rhs));
+                    return ((BigInteger) lhs).add((BigInteger) rhs);
                 if (lhs instanceof BigDecimal)
-                    return of(((BigDecimal) lhs).add((BigDecimal) rhs));
+                    return ((BigDecimal) lhs).add((BigDecimal) rhs);
                 if (lhs instanceof String)
-                    return of(lhs.toString() + rhs.toString());
+                    return lhs.toString() + rhs.toString();
+                if (lhs instanceof Set)
+                {
+                    Set<Object> accum = new HashSet<>((Set<Object>) lhs);
+                    accum.addAll((Set<Object>) rhs);
+                    return accum;
+                }
+                if (lhs instanceof List)
+                {
+                    List<Object> accum = new ArrayList<>((List<Object>) lhs);
+                    accum.addAll((List<Object>) rhs);
+                    return accum;
+                }
+                if (lhs instanceof Map)
+                {
+                    Map<Object, Object> accum = new HashMap<>((Map<Object, Object>) lhs);
+                    accum.putAll((Map<Object, Object>) rhs);
+                    return accum;
+                }
                 throw new UnsupportedOperationException("Unexpected type: " + lhs.getClass());
             }
             case SUBTRACT:
             {
-                var lhsOpt = tryEval(e.left);
-                var rhsOpt = tryEval(e.right);
-                if (lhsOpt.isEmpty() || rhsOpt.isEmpty())
-                    return Optional.empty();
-                Object lhs = lhsOpt.get();
-                Object rhs = rhsOpt.get();
                 if (lhs instanceof Byte)
-                    return of((byte) (((Byte) lhs) - ((Byte) rhs)));
+                    return (byte) (((Byte) lhs) - ((Byte) rhs));
                 if (lhs instanceof Short)
-                    return of((short) (((Short) lhs) - ((Short) rhs)));
+                    return (short) (((Short) lhs) - ((Short) rhs));
                 if (lhs instanceof Integer)
-                    return of((int) (((Integer) lhs) - ((Integer) rhs)));
+                    return (int) (((Integer) lhs) - ((Integer) rhs));
                 if (lhs instanceof Long)
-                    return of((long) (((Long) lhs) - ((Long) rhs)));
+                    return (long) (((Long) lhs) - ((Long) rhs));
                 if (lhs instanceof Float)
-                    return of((float) (((Float) lhs) - ((Float) rhs)));
+                    return (float) (((Float) lhs) - ((Float) rhs));
                 if (lhs instanceof Double)
-                    return of((double) (((Double) lhs) - ((Double) rhs)));
+                    return (double) (((Double) lhs) - ((Double) rhs));
                 if (lhs instanceof BigInteger)
-                    return of(((BigInteger) lhs).subtract((BigInteger) rhs));
+                    return ((BigInteger) lhs).subtract((BigInteger) rhs);
                 if (lhs instanceof BigDecimal)
-                    return of(((BigDecimal) lhs).subtract((BigDecimal) rhs));
+                    return ((BigDecimal) lhs).subtract((BigDecimal) rhs);
+                if (lhs instanceof Set)
+                {
+                    Set<Object> accum = new HashSet<>((Set<Object>) lhs);
+                    accum.removeAll((Set<Object>) rhs);
+                    return accum.isEmpty() ? null : accum;
+                }
+                if (lhs instanceof List)
+                {
+                    List<Object> accum = new ArrayList<>((List<Object>) lhs);
+                    accum.removeAll((List<Object>) rhs);
+                    return accum.isEmpty() ? null : accum;
+                }
+                if (lhs instanceof Map)
+                {
+                    // rhs is a Set<Object> as CQL doesn't allow removing if the key and value both match
+                    Map<Object, Object> accum = new HashMap<>((Map<Object, Object>) lhs);
+                    ((Set<Object>) rhs).forEach(accum::remove);
+                    return accum.isEmpty() ? null : accum;
+                }
                 throw new UnsupportedOperationException("Unexpected type: " + lhs.getClass());
             }
             case MULTIPLY:
             {
-                var lhsOpt = tryEval(e.left);
-                var rhsOpt = tryEval(e.right);
-                if (lhsOpt.isEmpty() || rhsOpt.isEmpty())
-                    return Optional.empty();
-                Object lhs = lhsOpt.get();
-                Object rhs = rhsOpt.get();
                 if (lhs instanceof Byte)
-                    return of((byte) (((Byte) lhs) * ((Byte) rhs)));
+                    return (byte) (((Byte) lhs) * ((Byte) rhs));
                 if (lhs instanceof Short)
-                    return of((short) (((Short) lhs) * ((Short) rhs)));
+                    return (short) (((Short) lhs) * ((Short) rhs));
                 if (lhs instanceof Integer)
-                    return of((int) (((Integer) lhs) * ((Integer) rhs)));
+                    return (int) (((Integer) lhs) * ((Integer) rhs));
                 if (lhs instanceof Long)
-                    return of((long) (((Long) lhs) * ((Long) rhs)));
+                    return (long) (((Long) lhs) * ((Long) rhs));
                 if (lhs instanceof Float)
-                    return of((float) (((Float) lhs) * ((Float) rhs)));
+                    return (float) (((Float) lhs) * ((Float) rhs));
                 if (lhs instanceof Double)
-                    return of((double) ((Double) lhs) * ((Double) rhs));
+                    return (double) ((Double) lhs) * ((Double) rhs);
                 if (lhs instanceof BigInteger)
-                    return of(((BigInteger) lhs).multiply((BigInteger) rhs));
+                    return ((BigInteger) lhs).multiply((BigInteger) rhs);
                 if (lhs instanceof BigDecimal)
-                    return of(((BigDecimal) lhs).multiply((BigDecimal) rhs));
+                    return ((BigDecimal) lhs).multiply((BigDecimal) rhs);
                 throw new UnsupportedOperationException("Unexpected type: " + lhs.getClass());
             }
             default:
@@ -129,18 +161,12 @@ public class ExpressionEvaluator
         }
     }
 
-    public static Optional<ByteBuffer> tryEvalEncoded(Expression e)
+    @Nullable
+    public static ByteBuffer evalEncoded(Expression e)
     {
-        return tryEval(e).map(v -> {
-            if (v instanceof ByteBuffer) return (ByteBuffer) v;
-            try
-            {
-                return ((AbstractType) e.type()).decompose(v);
-            }
-            catch (Throwable t)
-            {
-                throw t;
-            }
-        });
+        Object v = eval(e);
+        if (v == null) return null;
+        if (v instanceof ByteBuffer) return (ByteBuffer) v;
+        return ((AbstractType) e.type()).decompose(v);
     }
 }

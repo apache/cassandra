@@ -21,6 +21,7 @@ package org.apache.cassandra.harry.model;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.BitSet;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
@@ -43,13 +44,16 @@ import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
 
 import accord.utils.Invariants;
+import org.apache.cassandra.cql3.ast.AssignmentOperator;
 import org.apache.cassandra.cql3.ast.Conditional;
 import org.apache.cassandra.cql3.ast.Conditional.Where.Inequality;
 import org.apache.cassandra.cql3.ast.Element;
 import org.apache.cassandra.cql3.ast.Expression;
 import org.apache.cassandra.cql3.ast.ExpressionEvaluator;
 import org.apache.cassandra.cql3.ast.FunctionCall;
+import org.apache.cassandra.cql3.ast.Literal;
 import org.apache.cassandra.cql3.ast.Mutation;
+import org.apache.cassandra.cql3.ast.Operator;
 import org.apache.cassandra.cql3.ast.Select;
 import org.apache.cassandra.cql3.ast.StandardVisitors;
 import org.apache.cassandra.cql3.ast.Symbol;
@@ -244,7 +248,10 @@ public class ASTSingleTableModel
                 // static columns to add in.  If we are doing something like += to a row that doesn't exist, we still update statics...
                 Map<Symbol, ByteBuffer> write = new HashMap<>();
                 for (Symbol col : Sets.intersection(factory.staticColumns.asSet(), set.keySet()))
-                    write.put(col, eval(set.get(col)));
+                {
+                    ByteBuffer current = partition.staticRow().get(col);
+                    write.put(col, eval(col, current, set.get(col)));
+                }
                 partition.setStaticColumns(write);
             }
             // table has clustering but non are in the write, so only pk/static can be updated
@@ -254,7 +261,10 @@ public class ASTSingleTableModel
             {
                 Map<Symbol, ByteBuffer> write = new HashMap<>();
                 for (Symbol col : Sets.intersection(factory.regularColumns.asSet(), set.keySet()))
-                    write.put(col, eval(set.get(col)));
+                {
+                    ByteBuffer current = partition.get(cd, col);
+                    write.put(col, eval(col, current, set.get(col)));
+                }
 
                 partition.setColumns(cd, write, false);
             }
@@ -492,6 +502,45 @@ public class ASTSingleTableModel
             }
             if (actual.isEmpty()) sb.append("No rows returned");
             else sb.append("Missing rows:\n").append(table(columns, missing));
+        }
+        if (!unexpected.isEmpty() && unexpected.size() == missing.size())
+        {
+            // good chance a column differs
+            StringBuilder finalSb = sb;
+            Runnable runOnce = new Runnable()
+            {
+                boolean ran = false;
+                @Override
+                public void run()
+                {
+                    if (ran) return;
+                    finalSb.append("\nPossible column conflicts:");
+                    ran = true;
+                }
+            };
+            for (var e : missing)
+            {
+                Row smallest = null;
+                BitSet smallestDiff = null;
+                for (var a : unexpected)
+                {
+                    BitSet diff = e.diff(a);
+                    if (smallestDiff == null || diff.cardinality() < smallestDiff.cardinality())
+                    {
+                        smallest = a;
+                        smallestDiff = diff;
+                    }
+                }
+                // if every column differs then ignore
+                if (smallestDiff.cardinality() == e.values.length)
+                    continue;
+                runOnce.run();
+                sb.append("\n\tExpected: ").append(e);
+                sb.append("\n\tDiff (expected over actual):\n");
+                Row eSmall = e.select(smallestDiff);
+                Row aSmall = smallest.select(smallestDiff);
+                sb.append(table(eSmall.columns, Arrays.asList(eSmall, aSmall)));
+            }
         }
         if (sb != null)
         {
@@ -731,7 +780,7 @@ public class ASTSingleTableModel
         for (Expression e : conditions)
         {
             ByteBuffer expected = eval(e);
-            if (expected.equals(value))
+            if (expected != null && expected.equals(value))
                 return true;
         }
         return false;
@@ -893,13 +942,41 @@ public class ASTSingleTableModel
         return current.stream().map(BufferClustering::new).collect(Collectors.toList());
     }
 
+    private static ByteBuffer eval(Symbol col, @Nullable ByteBuffer current, Expression e)
+    {
+        if (!(e instanceof AssignmentOperator)) return eval(e);
+        // multi cell collections have the property that they do update even if the current value is null
+        boolean isFancy = col.type().isCollection() && col.type().isMultiCell();
+        if (current == null && !isFancy) return null; // null + ? == null
+        var assignment = (AssignmentOperator) e;
+        if (isFancy && current == null)
+        {
+            return assignment.kind == AssignmentOperator.Kind.SUBTRACT
+                   // if it doesn't exist, then there is nothing to subtract
+                   ? null
+                   : eval(assignment.right);
+        }
+        switch (assignment.kind)
+        {
+            case ADD:
+                return eval(new Operator(Operator.Kind.ADD, new Literal(current, e.type()), assignment.right));
+            case SUBTRACT:
+                return eval(new Operator(Operator.Kind.SUBTRACT, new Literal(current, e.type()), assignment.right));
+            default:
+                throw new UnsupportedOperationException(assignment.kind + ": " + assignment.toCQL());
+        }
+    }
+
+    @Nullable
     private static ByteBuffer eval(Expression e)
     {
-        return ExpressionEvaluator.tryEvalEncoded(e).get();
+        return ExpressionEvaluator.evalEncoded(e);
     }
 
     private static class Row
     {
+        private static final Row EMPTY = new Row(ImmutableUniqueList.empty(), ByteBufferUtil.EMPTY_ARRAY);
+
         private final ImmutableUniqueList<Symbol> columns;
         private final ByteBuffer[] values;
 
@@ -907,6 +984,8 @@ public class ASTSingleTableModel
         {
             this.columns = columns;
             this.values = values;
+            if (columns.size() != values.length)
+                throw new IllegalArgumentException("Columns " + columns + " should have the same size as values, but had " + values.length);
         }
 
         public String asCQL(Symbol symbol)
@@ -914,7 +993,9 @@ public class ASTSingleTableModel
             int offset = columns.indexOf(symbol);
             assert offset >= 0;
             ByteBuffer b = values[offset];
-            return (b == null || ByteBufferUtil.EMPTY_BYTE_BUFFER.equals(b)) ? "null" : symbol.type().asCQL3Type().toCQLLiteral(b);
+            if (b == null) return "null";
+            if (ByteBufferUtil.EMPTY_BYTE_BUFFER.equals(b)) return "<empty>";
+            return symbol.type().asCQL3Type().toCQLLiteral(b);
         }
 
         public List<String> asCQL()
@@ -923,6 +1004,40 @@ public class ASTSingleTableModel
             for (int i = 0; i < values.length; i++)
                 human.add(asCQL(columns.get(i)));
             return human;
+        }
+
+        public BitSet diff(Row other)
+        {
+            if (!columns.equals(other.columns))
+                throw new UnsupportedOperationException("Columns do not match: expected " + columns + " but given " + other.columns);
+            int maxLength = Math.max(values.length, other.values.length);
+            int minLength = Math.min(values.length, other.values.length);
+            BitSet set = new BitSet(maxLength);
+            for (int i = 0; i < minLength; i++)
+            {
+                ByteBuffer a = values[i];
+                ByteBuffer b = other.values[i];
+                if (!Objects.equals(a, b))
+                    set.set(i);
+            }
+            for (int i = minLength; i < maxLength; i++)
+                set.set(i);
+            return set;
+        }
+
+        public Row select(BitSet selection)
+        {
+            if (selection.isEmpty()) return EMPTY;
+            var names = ImmutableUniqueList.<Symbol>builder(selection.cardinality());
+            ByteBuffer[] copy = new ByteBuffer[selection.cardinality()];
+            int offset = 0;
+            for (int i = 0; i < this.values.length; i++)
+            {
+                if (!selection.get(i)) continue;
+                names.add(this.columns.get(i));
+                copy[offset++] = this.values[i];
+            }
+            return new Row(names.build(), copy);
         }
 
         @Override

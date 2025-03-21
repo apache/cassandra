@@ -23,6 +23,8 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.EnumSet;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.TreeMap;
 import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
@@ -34,9 +36,11 @@ import java.util.stream.Stream;
 import com.google.common.collect.ImmutableList;
 import org.junit.Test;
 
+import org.apache.cassandra.cql3.ast.AssignmentOperator;
 import org.apache.cassandra.cql3.ast.Bind;
 import org.apache.cassandra.cql3.ast.Conditional.Where.Inequality;
 import org.apache.cassandra.cql3.ast.FunctionCall;
+import org.apache.cassandra.cql3.ast.Literal;
 import org.apache.cassandra.cql3.ast.Mutation;
 import org.apache.cassandra.cql3.ast.Select;
 import org.apache.cassandra.cql3.ast.Symbol;
@@ -48,7 +52,10 @@ import org.apache.cassandra.db.marshal.BytesType;
 import org.apache.cassandra.db.marshal.InetAddressType;
 import org.apache.cassandra.db.marshal.Int32Type;
 import org.apache.cassandra.db.marshal.LexicalUUIDType;
+import org.apache.cassandra.db.marshal.ListType;
+import org.apache.cassandra.db.marshal.MapType;
 import org.apache.cassandra.db.marshal.ReversedType;
+import org.apache.cassandra.db.marshal.SetType;
 import org.apache.cassandra.db.marshal.ShortType;
 import org.apache.cassandra.db.marshal.TimestampType;
 import org.apache.cassandra.dht.Murmur3Partitioner;
@@ -67,6 +74,9 @@ public class ASTSingleTableModelTest
 
     private static final EnumSet<Inequality> RANGE_INEQUALITY = EnumSet.of(Inequality.LESS_THAN, Inequality.LESS_THAN_EQ,
                                                                            Inequality.GREATER_THAN, Inequality.GREATER_THAN_EQ);
+    public static final ListType<Integer> LIST_INT = ListType.getInstance(Int32Type.instance, true);
+    public static final SetType<Integer> SET_INT = SetType.getInstance(Int32Type.instance, true);
+    public static final MapType<Integer, Integer> MAP_INT = MapType.getInstance(Int32Type.instance, Int32Type.instance, true);
 
     @Test
     public void singlePartition()
@@ -296,12 +306,12 @@ public class ASTSingleTableModelTest
         String pk0 = "'e44b:bdaf:aeb:f68b:1cff:ecbd:8b54:2295'";
         ByteBuffer pk0BB = InetAddressType.instance.asCQL3Type().fromCQLLiteral(pk0);
 
-        Short row1 = Short.valueOf((short) -14407);
+        Short row1 = (short) -14407;
         ByteBuffer row1BB = ShortType.instance.decompose(row1);
         String row1V1 = "0x00000000000049008a00000000000000";
         ByteBuffer row1V1BB = LexicalUUIDType.instance.asCQL3Type().fromCQLLiteral(row1V1);
 
-        Short row2 = Short.valueOf((short) ((short) 18175 - (short) 23847));
+        Short row2 = (short) ((short) 18175 - (short) 23847);
         ByteBuffer row2BB = ShortType.instance.decompose(row2);
         String row2V0 = "'1989-01-11T15:00:30.950Z'";
         ByteBuffer row2V0BB = TimestampType.instance.asCQL3Type().fromCQLLiteral(row2V0);
@@ -324,7 +334,7 @@ public class ASTSingleTableModelTest
                              .build());
 
         model.validate(new ByteBuffer[][]{ new ByteBuffer[]{ pk0BB, row1BB, null, row1V1BB } }, selectPk);
-        model.validate(new ByteBuffer[0][], selectColumn);
+        model.validate(EMPTY, selectColumn);
 
 
         model.update(Mutation.insert(metadata)
@@ -339,7 +349,7 @@ public class ASTSingleTableModelTest
         new ByteBuffer[]{ pk0BB, row1BB, null, row1V1BB },
         }, selectPk);
 
-        model.validate(new ByteBuffer[0][], selectColumn);
+        model.validate(EMPTY, selectColumn);
     }
 
     @Test
@@ -563,6 +573,116 @@ public class ASTSingleTableModelTest
                                            Inequality.EQUAL,
                                            FunctionCall.tokenByValue(new Bind(false, BooleanType.instance)))
                                     .build());
+    }
+
+    @Test
+    public void assignmentOperator()
+    {
+        // not testing if assignment / operators are "corrrect", other tests can cover that
+        // the goal of this test is to test the plumbing and null handling within the model
+        TableMetadata metadata = defaultTable()
+                                 .addPartitionKeyColumn("pk", Int32Type.instance)
+                                 .addStaticColumn("s", Int32Type.instance)
+                                 .addRegularColumn("r", Int32Type.instance)
+                                 .build();
+        ASTSingleTableModel model = new ASTSingleTableModel(metadata);
+
+        // pk=0 doesn't exist, so s/r are null; so the operation should end with a null... this shouldn't create the partition
+        model.update(Mutation.update(metadata)
+                             .value("pk", 0)
+                             .set("s", subtract(42))
+                             .set("r", subtract(42))
+                             .build());
+
+        model.validate(EMPTY, Select.builder(metadata).build());
+
+        model.update(Mutation.insert(metadata).value("pk", 0).value("s", 40).value("r", 40).build());
+        model.update(Mutation.update(metadata)
+                             .value("pk", 0)
+                             .set("s", subtract(42))
+                             .set("r", subtract(42))
+                             .build());
+
+        model.validate(rows(row(metadata, 0, -2, -2)), Select.builder(metadata).build());
+    }
+
+    @Test
+    public void assignmentOperatorMultiCellCollections()
+    {
+        // not testing if assignment / operators are "corrrect", other tests can cover that
+        // the goal of this test is to test the plumbing and null handling within the model
+        TableMetadata metadata = defaultTable()
+                                 .addPartitionKeyColumn("pk", Int32Type.instance)
+                                 .addStaticColumn("s0", LIST_INT)
+                                 .addStaticColumn("r0", LIST_INT)
+                                 .addStaticColumn("s1", SET_INT)
+                                 .addStaticColumn("r1", SET_INT)
+                                 .addStaticColumn("s2", MAP_INT)
+                                 .addStaticColumn("r2", MAP_INT)
+                                 .build();
+        ASTSingleTableModel model = new ASTSingleTableModel(metadata);
+
+        // pk=0 doesn't exist, so s/r are null; but these are multi cell collections, so the update happens!
+        model.update(Mutation.update(metadata)
+                             .value("pk", 0)
+                             .set("s0", add(List.of(42)))
+                             .set("r0", add(List.of(42)))
+                             .set("s1", add(Set.of(42)))
+                             .set("r1", add(Set.of(42)))
+                             .set("s2", add(Map.of(42, 42)))
+                             .set("r2", add(Map.of(42, 42)))
+                             .build());
+
+        // Expected:
+        //pk | r0   | r1   | r2       | s0   | s1   | s2
+        //0  | [42] | {42} | {42: 42} | [42] | {42} | {42: 42}
+        model.validate(rows(row(metadata, 0, List.of(42), Set.of(42), Map.of(42, 42), List.of(42), Set.of(42), Map.of(42, 42))), Select.builder(metadata).build());
+
+        // add to existing
+        model.update(Mutation.update(metadata)
+                             .value("pk", 0)
+                             .set("s0", add(List.of(42)))
+                             .set("r0", add(List.of(42)))
+                             .set("s1", add(Set.of(0)))
+                             .set("r1", add(Set.of(0)))
+                             .set("s2", add(Map.of(42, 0)))
+                             .set("r2", add(Map.of(42, 0)))
+                             .build());
+        model.validate(rows(row(metadata, 0, List.of(42, 42), Set.of(0, 42), Map.of(42, 0), List.of(42, 42), Set.of(0, 42), Map.of(42, 0))), Select.builder(metadata).build());
+    }
+
+    private static ByteBuffer[][] rows(ByteBuffer[]... rows)
+    {
+        return rows;
+    }
+
+    private static ByteBuffer[] row(TableMetadata metadata, Object... values)
+    {
+        ByteBuffer[] row = new ByteBuffer[values.length];
+        var it = metadata.allColumnsInSelectOrder();
+        for (int i = 0; i < values.length && it.hasNext(); i++)
+            row[i] = it.next().type.decomposeUntyped(values[i]);
+        return row;
+    }
+
+    private static AssignmentOperator subtract(int value)
+    {
+        return new AssignmentOperator(AssignmentOperator.Kind.SUBTRACT, Literal.of(value));
+    }
+
+    private static AssignmentOperator add(List<Integer> value)
+    {
+        return new AssignmentOperator(AssignmentOperator.Kind.ADD, new Literal(value, LIST_INT));
+    }
+
+    private static AssignmentOperator add(Set<Integer> value)
+    {
+        return new AssignmentOperator(AssignmentOperator.Kind.ADD, new Literal(value, SET_INT));
+    }
+
+    private static AssignmentOperator add(Map<Integer, Integer> value)
+    {
+        return new AssignmentOperator(AssignmentOperator.Kind.ADD, new Literal(value, MAP_INT));
     }
 
     private static TableMetadata.Builder defaultTable()
