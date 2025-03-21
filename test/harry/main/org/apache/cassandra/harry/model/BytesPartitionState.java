@@ -142,6 +142,7 @@ public class BytesPartitionState
             if (values.containsKey(column))
             {
                 ByteBuffer value = values.get(column);
+                // user type is the only multi cell type that allows <empty> so this check should be fine; can expand if we find more cases
                 if (value == null || !value.hasRemaining() && (column.type().isUDT() && column.type().isMultiCell()))
                 {
                     vds[i] = MagicConstants.NIL_DESCR;
