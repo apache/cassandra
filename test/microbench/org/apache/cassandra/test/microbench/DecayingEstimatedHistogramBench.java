@@ -36,19 +36,19 @@ import org.openjdk.jmh.annotations.Setup;
 import org.openjdk.jmh.annotations.State;
 import org.openjdk.jmh.annotations.Threads;
 import org.openjdk.jmh.annotations.Warmup;
+import org.openjdk.jmh.infra.Blackhole;
 import org.openjdk.jmh.runner.Runner;
 import org.openjdk.jmh.runner.RunnerException;
 import org.openjdk.jmh.runner.options.Options;
 import org.openjdk.jmh.runner.options.OptionsBuilder;
 
 import static org.apache.cassandra.metrics.DecayingEstimatedHistogramReservoir.DEFAULT_BUCKET_COUNT;
-import static org.apache.cassandra.metrics.DecayingEstimatedHistogramReservoir.DEFAULT_STRIPE_COUNT;
 import static org.apache.cassandra.metrics.DecayingEstimatedHistogramReservoir.DEFAULT_ZERO_CONSIDERATION;
 
 @BenchmarkMode(Mode.Throughput)
 @OutputTimeUnit(TimeUnit.MILLISECONDS)
-@Warmup(iterations = 2, time = 1, timeUnit = TimeUnit.SECONDS)
-@Measurement(iterations = 4, time = 2, timeUnit = TimeUnit.SECONDS)
+@Warmup(iterations = 1, time = 1, timeUnit = TimeUnit.SECONDS)
+@Measurement(iterations = 3, time = 2, timeUnit = TimeUnit.SECONDS)
 @Threads(4)
 @Fork(value = 3)
 @State(Scope.Benchmark)
@@ -64,7 +64,6 @@ public class DecayingEstimatedHistogramBench
     {
         reservoir = new DecayingEstimatedHistogramReservoir(DEFAULT_ZERO_CONSIDERATION,
                                                             DEFAULT_BUCKET_COUNT,
-                                                            DEFAULT_STRIPE_COUNT,
                                                             MonotonicClock.Global.approxTime,
                                                             landmarkResetIntervalNs);
     }
@@ -85,6 +84,12 @@ public class DecayingEstimatedHistogramBench
     public void update(HistogramUpdateState state)
     {
         reservoir.update(state.update);
+    }
+
+    @Benchmark
+    public void get(Blackhole blackhole)
+    {
+        blackhole.consume(reservoir.getSnapshot());
     }
 
     public static void main(String[] args) throws RunnerException

@@ -21,12 +21,29 @@ package org.apache.cassandra.metrics;
 import java.io.OutputStream;
 import java.io.OutputStreamWriter;
 import java.io.PrintWriter;
+import java.lang.ref.PhantomReference;
+import java.lang.ref.ReferenceQueue;
+import java.lang.ref.WeakReference;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
+import java.util.Iterator;
+import java.util.List;
 import java.util.Objects;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicLongArray;
-import java.util.concurrent.atomic.AtomicReferenceFieldUpdater;
+import java.util.concurrent.TimeoutException;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.concurrent.locks.LockSupport;
+import java.util.concurrent.locks.ReadWriteLock;
+import java.util.concurrent.locks.ReentrantLock;
+import java.util.concurrent.locks.ReentrantReadWriteLock;
+import java.util.function.LongBinaryOperator;
+import java.util.function.Supplier;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.primitives.Ints;
@@ -36,13 +53,18 @@ import org.slf4j.LoggerFactory;
 import com.codahale.metrics.ExponentiallyDecayingReservoir;
 import com.codahale.metrics.Reservoir;
 import com.codahale.metrics.Snapshot;
+import io.netty.util.concurrent.FastThreadLocal;
+import org.apache.cassandra.concurrent.Interruptible;
 import org.apache.cassandra.utils.EstimatedHistogram;
+import org.apache.cassandra.utils.ExecutorUtils;
 import org.apache.cassandra.utils.MonotonicClock;
 import org.apache.cassandra.utils.NoSpamLogger;
 
+import static com.google.common.collect.ImmutableList.of;
 import static java.lang.Math.max;
 import static java.lang.Math.min;
-import static org.apache.cassandra.config.CassandraRelevantProperties.DECAYING_ESTIMATED_HISTOGRAM_RESERVOIR_STRIPE_COUNT;
+import static org.apache.cassandra.concurrent.ExecutorFactory.Global.executorFactory;
+import static org.apache.cassandra.concurrent.InfiniteLoopExecutor.SimulatorSafe.UNSAFE;
 
 /**
  * A decaying histogram reservoir where values collected during each minute will be twice as significant as the values
@@ -93,11 +115,8 @@ public class DecayingEstimatedHistogramReservoir implements SnapshottingReservoi
      */
     public static final int DEFAULT_BUCKET_COUNT = 164;
     public static final int LOW_BUCKET_COUNT = 127;
-    public static final int DEFAULT_STRIPE_COUNT = DECAYING_ESTIMATED_HISTOGRAM_RESERVOIR_STRIPE_COUNT.getInt();
     public static final int MAX_BUCKET_COUNT = 237;
     public static final boolean DEFAULT_ZERO_CONSIDERATION = false;
-
-    private static final int[] DISTRIBUTION_PRIMES = new int[] { 17, 19, 23, 29 };
 
     // The offsets used with a default sized bucket array without a separate bucket for zero values.
     public static final long[] DEFAULT_WITHOUT_ZERO_BUCKET_OFFSETS = EstimatedHistogram.newOffsets(DEFAULT_BUCKET_COUNT, false);
@@ -145,21 +164,87 @@ public class DecayingEstimatedHistogramReservoir implements SnapshottingReservoi
         return Float.intBitsToFloat((127 << 23) | (i << (23 - bits)));
     }
 
-    // Represents the bucket offset as created by {@link EstimatedHistogram#newOffsets()}
-    private final int nStripes;
     private final long[] bucketOffsets;
-    private final int distributionPrime;
 
-    private static final AtomicReferenceFieldUpdater<DecayingEstimatedHistogramReservoir, DecayingBuckets> decayingBucketsUpdater =
-        AtomicReferenceFieldUpdater.newUpdater(DecayingEstimatedHistogramReservoir.class, DecayingBuckets.class, "decayingBuckets");
-
-    // decayingBuckets and buckets are one element longer than bucketOffsets -- the last element is values greater than the last offset
-    private volatile DecayingBuckets decayingBuckets;
-    private final AtomicLongArray buckets;
-
+    /**
+     * This constant defines the half-life of the data in the histogram. This is the exponential decay model, and the half-life is
+     * the period over which the weight (or influence) of a data point decreases by 50%. This parameter controls the rate at which
+     * older observations lose significance.
+     */
     public static final long HALF_TIME_IN_S = 60L;
+    /**
+     * Given {@code HALF_TIME_IN_S} is {@code 60} seconds, the mean lifetime calculates to approximately 86.6 seconds.
+     * This value provides an average duration over which a data point meaningfully affects the histogram before
+     * its weight diminishes substantially.
+     */
     public static final double MEAN_LIFETIME_IN_S = HALF_TIME_IN_S / Math.log(2.0);
+    /**
+     * The rescaling of decaying buckets every 30 minutes serves several key purposes:
+     * <ul>
+     *     <li>Prevent overflow of the decaying buckets</li>
+     *     <li>Prevent loss of precision in the decaying buckets</li>
+     *     <li>Maintain a consistent forward decay landmark</li>
+     *     <li>Efficient decay computation</li>
+     * </ul>
+     */
     public static final long LANDMARK_RESET_INTERVAL_IN_NS = TimeUnit.MINUTES.toNanos(30L);
+
+    private static final ReferenceQueue<Object> retirementPhantomRefsQueue = new ReferenceQueue<>();
+    private static final Set<PhantomReference<Object>> phantomReferences = Collections.newSetFromMap(new ConcurrentHashMap<>());
+    public static final Interruptible releaseThread = executorFactory().infiniteLoop("DecayingBuckets-Releaser",
+                                                                                     () -> {
+                                                                                         Object ref = retirementPhantomRefsQueue.remove(100);
+                                                                                         if (ref instanceof MetricCleaner)
+                                                                                         {
+                                                                                             ((MetricCleaner) ref).clean();
+                                                                                             phantomReferences.remove(ref);
+                                                                                         }
+                                                                                     },
+                                                                                     UNSAFE);
+
+    // Set of all decaying buckets thread locals, used to release the thread local when the thread is dead or to get the values.
+    private static final Set<WeakReference<DecayingEstimatedHistogramReservoir>> allReservoirRefs = Collections.newSetFromMap(new ConcurrentHashMap<>());
+    public static final Interruptible rescalerThread = executorFactory().infiniteLoop("DecayingBuckets-Rescaler",
+                                                                                      () -> {
+                                                                                          Iterator<WeakReference<DecayingEstimatedHistogramReservoir>> iterator =
+                                                                                              allReservoirRefs.iterator();
+                                                                                          while (iterator.hasNext())
+                                                                                          {
+                                                                                              WeakReference<DecayingEstimatedHistogramReservoir> ref = iterator.next();
+                                                                                              DecayingEstimatedHistogramReservoir reservoir = ref.get();
+                                                                                              if (reservoir == null)
+                                                                                              {
+                                                                                                  iterator.remove();
+                                                                                                  continue;
+                                                                                              }
+                                                                                              reservoir.rescaleReservoir();
+                                                                                          }
+                                                                                          Thread.sleep(100);
+                                                                                      },
+                                                                                      UNSAFE);
+
+    private final EstimatedBuckets estimatedBuckets;
+    private final DecayingBuckets decayingBuckets;
+
+    private final Set<BucketsThreadLocal> threadLocals = Collections.newSetFromMap(new ConcurrentHashMap<>());
+    private final FastThreadLocal<BucketsThreadLocal> bucketsThreadLocal = new FastThreadLocal<>()
+    {
+        @Override
+        protected BucketsThreadLocal initialValue()
+        {
+            BucketsThreadLocal holder = new BucketsThreadLocal(DecayingEstimatedHistogramReservoir.this.size());
+            threadLocals.add(holder);
+            phantomReferences.add(new BucketsPhantomReference(retirementPhantomRefsQueue, holder::release));
+            return holder;
+        }
+
+        @Override
+        protected void onRemoval(BucketsThreadLocal hodler)
+        {
+            hodler.release();
+        }
+    };
+
     // Wrapper around System.nanoTime() to simplify unit testing.
     private final MonotonicClock clock;
     /** Interval in minutes to reset the forward decay landmark for the decaying histograms. Default {@code 30 mins}. */
@@ -170,7 +255,7 @@ public class DecayingEstimatedHistogramReservoir implements SnapshottingReservoi
      */
     public DecayingEstimatedHistogramReservoir()
     {
-        this(DEFAULT_ZERO_CONSIDERATION, DEFAULT_BUCKET_COUNT, DEFAULT_STRIPE_COUNT, MonotonicClock.Global.approxTime);
+        this(DEFAULT_ZERO_CONSIDERATION, DEFAULT_BUCKET_COUNT, MonotonicClock.Global.approxTime);
     }
 
     /**
@@ -181,7 +266,7 @@ public class DecayingEstimatedHistogramReservoir implements SnapshottingReservoi
      */
     public DecayingEstimatedHistogramReservoir(boolean considerZeroes)
     {
-        this(considerZeroes, DEFAULT_BUCKET_COUNT, DEFAULT_STRIPE_COUNT, MonotonicClock.Global.approxTime);
+        this(considerZeroes, DEFAULT_BUCKET_COUNT, MonotonicClock.Global.approxTime);
     }
 
     /**
@@ -191,27 +276,26 @@ public class DecayingEstimatedHistogramReservoir implements SnapshottingReservoi
      *                       same bucket as 1-value measurements
      * @param bucketCount number of buckets used to collect measured values
      */
-    public DecayingEstimatedHistogramReservoir(boolean considerZeroes, int bucketCount, int stripes)
+    public DecayingEstimatedHistogramReservoir(boolean considerZeroes, int bucketCount)
     {
-        this(considerZeroes, bucketCount, stripes, MonotonicClock.Global.approxTime);
+        this(considerZeroes, bucketCount, MonotonicClock.Global.approxTime);
     }
 
     @VisibleForTesting
     public DecayingEstimatedHistogramReservoir(MonotonicClock clock)
     {
-        this(DEFAULT_ZERO_CONSIDERATION, DEFAULT_BUCKET_COUNT, DEFAULT_STRIPE_COUNT, clock);
+        this(DEFAULT_ZERO_CONSIDERATION, DEFAULT_BUCKET_COUNT, clock);
     }
 
     @VisibleForTesting
-    DecayingEstimatedHistogramReservoir(boolean considerZeroes, int bucketCount, int stripes, MonotonicClock clock)
+    DecayingEstimatedHistogramReservoir(boolean considerZeroes, int bucketCount, MonotonicClock clock)
     {
-        this(considerZeroes, bucketCount, stripes, clock, LANDMARK_RESET_INTERVAL_IN_NS);
+        this(considerZeroes, bucketCount, clock, LANDMARK_RESET_INTERVAL_IN_NS);
     }
 
     @VisibleForTesting
     public DecayingEstimatedHistogramReservoir(boolean considerZeroes,
                                                int bucketCount,
-                                               int stripes,
                                                MonotonicClock clock,
                                                long landmarkResetIntervalInNs)
     {
@@ -219,7 +303,7 @@ public class DecayingEstimatedHistogramReservoir implements SnapshottingReservoi
 
         if (bucketCount == DEFAULT_BUCKET_COUNT)
         {
-            if (considerZeroes == true)
+            if (considerZeroes)
             {
                 bucketOffsets = DEFAULT_WITH_ZERO_BUCKET_OFFSETS;
             }
@@ -233,21 +317,11 @@ public class DecayingEstimatedHistogramReservoir implements SnapshottingReservoi
             bucketOffsets = EstimatedHistogram.newOffsets(bucketCount, considerZeroes);
         }
 
-        nStripes = stripes;
         this.clock = clock;
-        buckets = new AtomicLongArray((bucketOffsets.length + 1) * nStripes);
-        decayingBuckets = new DecayingBuckets(clock.now());
         this.landmarkResetIntervalInNs = landmarkResetIntervalInNs;
-        int distributionPrime = 1;
-        for (int prime : DISTRIBUTION_PRIMES)
-        {
-            if (buckets.length() % prime != 0)
-            {
-                distributionPrime = prime;
-                break;
-            }
-        }
-        this.distributionPrime = distributionPrime;
+        this.decayingBuckets = new DecayingBuckets(size(), clock.now());
+        this.estimatedBuckets = new EstimatedBuckets(size());
+        allReservoirRefs.add(new WeakReference<>(this));
     }
 
     /**
@@ -257,24 +331,8 @@ public class DecayingEstimatedHistogramReservoir implements SnapshottingReservoi
      */
     public void update(long value)
     {
-        long now = clock.now();
-        DecayingBuckets rescaledDecayingBuckets = rescaleIfNeeded(now);
-
         int index = findIndex(bucketOffsets, value);
-
-        rescaledDecayingBuckets.update(index, now);
-        updateBucket(buckets, index, 1);
-    }
-
-    public void updateBucket(AtomicLongArray buckets, int index, long value)
-    {
-        int stripe = (int) (Thread.currentThread().getId() & (nStripes - 1));
-        buckets.addAndGet(stripedIndex(index, stripe), value);
-    }
-
-    public int stripedIndex(int offsetIndex, int stripe)
-    {
-        return (((offsetIndex * nStripes + stripe) * distributionPrime) % buckets.length());
+        bucketsThreadLocal.get().update(index, clock.now());
     }
 
     @VisibleForTesting
@@ -300,6 +358,61 @@ public class DecayingEstimatedHistogramReservoir implements SnapshottingReservoi
         return value <= bucketOffsets[firstCandidate] ? firstCandidate : firstCandidate + 1;
     }
 
+    private static long forwardDecayWeight(long decayLandmark, long now)
+    {
+        return Math.round(Math.exp(TimeUnit.NANOSECONDS.toSeconds(now - decayLandmark) / MEAN_LIFETIME_IN_S));
+    }
+
+    private static void decay(long[] array, long decayLandmark, long now)
+    {
+        for (int i = 0; i < array.length; i++)
+            array[i] = Math.round((float) array[i] / forwardDecayWeight(decayLandmark, now));
+    }
+
+    private static void merge(long[] target, long[] source)
+    {
+        for (int i = 0; i < target.length; i++)
+            target[i] += source[i];
+    }
+
+    private static <T> T getOrSet(AtomicReference<T> ref, Supplier<T> sup)
+    {
+        T current = ref.get();
+        if (current != null)
+            return current;
+        T newValue;
+        return ref.compareAndSet(null, newValue = sup.get()) ? newValue : ref.get();
+    }
+
+    private void rescaleReservoir()
+    {
+        long now = clock.now();
+        if (now - decayingBuckets.decayLandmark > landmarkResetIntervalInNs)
+            decayingBuckets.rescale(() -> threadLocals, now);
+    }
+
+    /**
+     * @return the estimated buckets.
+     */
+    public long[] snapshotEstimatedBuckets()
+    {
+        return estimatedBuckets.snapshot(threadLocals);
+    }
+
+    /**
+     * @return the decaying buckets with the forward decay applied.
+     */
+    public DecayingArray snapshotDecayingBuckets()
+    {
+        return decayingBuckets.snapshot(threadLocals);
+    }
+
+    @VisibleForTesting
+    protected Set<BucketsThreadLocal> getThreadLocals()
+    {
+        return threadLocals;
+    }
+
     /**
      * Returns the logical number of buckets where recorded values are stored. The actual number of physical buckets
      * is size() * stripeCount()
@@ -307,18 +420,12 @@ public class DecayingEstimatedHistogramReservoir implements SnapshottingReservoi
      * This method does not return the number of recorded values as suggested by the {@link Reservoir} interface.
      *
      * @return the number of buckets
-     * @see #stripeCount()
      */
     public int size()
     {
         return bucketOffsets.length + 1;
     }
 
-
-    public int stripeCount()
-    {
-        return nStripes;
-    }
     /**
      * Returns a snapshot of the decaying values in this reservoir.
      *
@@ -338,60 +445,20 @@ public class DecayingEstimatedHistogramReservoir implements SnapshottingReservoi
         return new DecayingBucketsOnlySnapshot(this);
     }
 
-    private DecayingBuckets getDecayingBuckets()
-    {
-        return rescaleIfNeeded(clock.now());
-    }
-
     /**
      * @return true if this histogram has overflowed -- that is, a value larger than our largest bucket could bound was added
      */
     @VisibleForTesting
     boolean isOverflowed()
     {
-        return bucketValue(bucketOffsets.length, getDecayingBuckets().decayBuckets) > 0;
-    }
-
-    private long bucketValue(int index, AtomicLongArray buckets)
-    {
-        long val = 0;
-        for (int stripe = 0; stripe < nStripes; stripe++)
-            val += buckets.get(stripedIndex(index, stripe));
-
-        return val;
-    }
-
-    @VisibleForTesting
-    long stripedBucketValue(int i, boolean withDecay)
-    {
-        return withDecay ? getDecayingBuckets().decayBuckets.get(i) : buckets.get(i);
-    }
-
-    private DecayingBuckets rescaleIfNeeded(long now)
-    {
-        DecayingBuckets buckets = decayingBuckets;
-        while (now - buckets.decayLandmark > landmarkResetIntervalInNs)
-        {
-            double rescaleFactor = buckets.forwardDecayWeight(now);
-            DecayingBuckets newBuckets = new DecayingBuckets(now);
-            for (int i = 0; i < buckets.decayBuckets.length(); i++)
-                newBuckets.decayBuckets.set(i, Math.round(buckets.decayBuckets.get(i) / rescaleFactor));
-
-            boolean success = decayingBucketsUpdater.compareAndSet(this, buckets, newBuckets);
-            if (success)
-                return newBuckets;
-            buckets = decayingBuckets;
-        }
-        return buckets;
+        return snapshotDecayingBuckets().data[bucketOffsets.length] > 0;
     }
 
     @VisibleForTesting
     public void clear()
     {
-        for (int i = 0; i < buckets.length(); i++)
-            buckets.set(i, 0L);
-
-        decayingBucketsUpdater.set(this, new DecayingBuckets(clock.now()));
+        estimatedBuckets.reset((index, value) -> 0);
+        decayingBuckets.reset((index, value) -> 0, clock.now());
     }
 
     /**
@@ -415,66 +482,29 @@ public class DecayingEstimatedHistogramReservoir implements SnapshottingReservoi
             }
         }
 
-        DecayingBuckets newDecayingBuckets = new DecayingBuckets(snapshot.snapshotLandmark);
-        for (int i = 0; i < size(); i++)
-        {
-            // set rebased values in the first stripe and clear out all other data
-            newDecayingBuckets.decayBuckets.set(stripedIndex(i, 0), snapshot.decayingBuckets[i]);
-            buckets.set(stripedIndex(i, 0), snapshot.values[i]);
-            for (int stripe = 1; stripe < nStripes; stripe++)
-            {
-                newDecayingBuckets.decayBuckets.set(stripedIndex(i, stripe), 0);
-                buckets.set(stripedIndex(i, stripe), 0);
-            }
-        }
-        decayingBucketsUpdater.set(this, newDecayingBuckets);
+        decayingBuckets.reset((index, value) -> snapshot.decayingBuckets[(int) index], snapshot.snapshotLandmark);
+        estimatedBuckets.reset((index, value) -> snapshot.estimatedBuckets[(int) index]);
     }
 
-    /**
-     * The DecayingBuckets class provides a facility to prevent destruction of the reservoir internal state from
-     * occurring. The root cause of CASSANDRA-19365 is lack of synchronization between udpates and rescaling.
-     * This class lets us retain lack of synchronization (for performance reasons) while changing the race condition
-     * effect from destructive to benign.
-     * <p>
-     * DecayingBuckets class encapsulates the decaying buckets and the decay landmark together. The decay landmark is
-     * immutable and so the values in the buckets are consistent with the landmark at any given time. In particular,
-     * every update is always given a weight that's consistent with weights given to other updates of the same buckets.
-     * <p>
-     * Additionally, the class allows creating snapshots of the reservoir without risking that the snapshot uses data
-     * from a half-rescaled reservoir.
-     */
-    private class DecayingBuckets
+    @VisibleForTesting
+    public static void shutdownAndWait(long timeout, TimeUnit unit) throws InterruptedException, TimeoutException
     {
-        private final long decayLandmark;
-        private final AtomicLongArray decayBuckets;
-
-        public DecayingBuckets(long decayLandmark)
-        {
-            this.decayLandmark = decayLandmark;
-            this.decayBuckets = new AtomicLongArray((bucketOffsets.length + 1) * nStripes);
-        }
-
-        public void update(int index, long now)
-        {
-            updateBucket(decayBuckets, index, forwardDecayWeight(now));
-        }
-
-        private long forwardDecayWeight(long now)
-        {
-            return Math.round(Math.exp(TimeUnit.NANOSECONDS.toSeconds(now - decayLandmark) / MEAN_LIFETIME_IN_S));
-        }
+        ExecutorUtils.shutdownAndWait(timeout, unit, of(releaseThread, rescalerThread));
     }
 
     private static abstract class AbstractSnapshot extends Snapshot
     {
         protected final long[] decayingBuckets;
+        protected long snapshotLandmark;
         protected final long[] bucketOffsets;
 
         AbstractSnapshot(DecayingEstimatedHistogramReservoir reservoir)
         {
-            int length = reservoir.size();
-            this.decayingBuckets = new long[length];
-            this.bucketOffsets = reservoir.bucketOffsets; // No need to copy, these are immutable
+            DecayingArray snapshot = reservoir.snapshotDecayingBuckets();
+            this.decayingBuckets = snapshot.data;
+            this.snapshotLandmark = snapshot.decayLandmark;
+            decay(decayingBuckets, reservoir.decayingBuckets.decayLandmark, reservoir.clock.now());
+            this.bucketOffsets = reservoir.bucketOffsets;
         }
 
         /**
@@ -659,29 +689,14 @@ public class DecayingEstimatedHistogramReservoir implements SnapshottingReservoi
      */
     static class EstimatedHistogramReservoirSnapshot extends AbstractSnapshot
     {
-        private final long[] values;
         private long count;
-        private long snapshotLandmark;
+        private final long[] estimatedBuckets;
         private final DecayingEstimatedHistogramReservoir reservoir;
 
         public EstimatedHistogramReservoirSnapshot(DecayingEstimatedHistogramReservoir reservoir)
         {
             super(reservoir);
-            
-            int length = reservoir.size();
-            this.values = new long[length];
-
-            DecayingBuckets decayingBucketsRef = reservoir.getDecayingBuckets();
-
-            this.snapshotLandmark = decayingBucketsRef.decayLandmark;
-            double rescaleFactor = decayingBucketsRef.forwardDecayWeight(reservoir.clock.now());
-
-            for (int i = 0; i < length; i++)
-            {
-                this.decayingBuckets[i] = Math.round(reservoir.bucketValue(i, decayingBucketsRef.decayBuckets) / rescaleFactor);
-                this.values[i] = reservoir.bucketValue(i, reservoir.buckets);
-            }
-
+            this.estimatedBuckets = reservoir.snapshotEstimatedBuckets();
             this.count = count();
             this.reservoir = reservoir;
         }
@@ -696,7 +711,7 @@ public class DecayingEstimatedHistogramReservoir implements SnapshottingReservoi
          */
         public long[] getValues()
         {
-            return values;
+            return estimatedBuckets;
         }
 
         @Override
@@ -763,7 +778,7 @@ public class DecayingEstimatedHistogramReservoir implements SnapshottingReservoi
             for (int i = 0; i < snapshot.decayingBuckets.length; i++)
             {
                 decayingBuckets[i] += snapshot.decayingBuckets[i];
-                values[i] += snapshot.values[i];
+                estimatedBuckets[i] += snapshot.estimatedBuckets[i];
             }
 
             this.count += snapshot.count;
@@ -786,9 +801,9 @@ public class DecayingEstimatedHistogramReservoir implements SnapshottingReservoi
 
     /**
      * Like {@link EstimatedHistogramReservoirSnapshot}, represents a snapshot of a given histogram reservoir.
-     * 
+     * <p>
      * Unlike {@link EstimatedHistogramReservoirSnapshot}, this only copies and supports operations based on the
-     * decaying buckets from the source reservoir. (ex. percentiles, min, max) It also does not support snapshot 
+     * decaying buckets from the source reservoir. (ex. percentiles, min, max) It also does not support snapshot
      * merging or rebasing on the source reservoir.
      */
     private static class DecayingBucketsOnlySnapshot extends AbstractSnapshot
@@ -798,23 +813,13 @@ public class DecayingEstimatedHistogramReservoir implements SnapshottingReservoi
         public DecayingBucketsOnlySnapshot(DecayingEstimatedHistogramReservoir reservoir)
         {
             super(reservoir);
-
-            int length = reservoir.size();
-            DecayingBuckets decayingBucketsRef = reservoir.getDecayingBuckets();
-            double rescaleFactor = decayingBucketsRef.forwardDecayWeight(reservoir.clock.now());
-
-            for (int i = 0; i < length; i++)
-            {
-                this.decayingBuckets[i] = Math.round(reservoir.bucketValue(i, decayingBucketsRef.decayBuckets) / rescaleFactor);
-            }
-
             this.count = count();
         }
 
         @Override
         public long[] getValues()
         {
-            throw new UnsupportedOperationException();
+            return decayingBuckets;
         }
 
         @Override
@@ -853,6 +858,339 @@ public class DecayingEstimatedHistogramReservoir implements SnapshottingReservoi
         public String toString()
         {
             return "[" + min + ',' + max + ']';
+        }
+    }
+
+    interface MetricCleaner
+    {
+        void clean();
+    }
+
+    private static class BucketsPhantomReference extends PhantomReference<Object> implements MetricCleaner
+    {
+        private final MetricCleaner cleaner;
+
+        public BucketsPhantomReference(ReferenceQueue<? super Object> q, MetricCleaner cleaner)
+        {
+            super(Thread.currentThread(), q);
+            this.cleaner = cleaner;
+        }
+
+        public void clean()
+        {
+            cleaner.clean();
+        }
+    }
+
+    /**
+     * Writes are exclusive to the thread-local buckets, so we can use a single updater for all threads.
+     * Readers will see a consistent view of the buckets and could be blocked for a while.
+     * <p>
+     * The class is aslso being tracked by a phantom reference queue to release the accumulated buckets when the thread is dead.
+     */
+    protected class BucketsThreadLocal
+    {
+        private final AtomicInteger inUse = new AtomicInteger();
+        private final int size;
+        // try to use int[] instead of long[] to reduce memory usage, and move to the sum array when overflow
+        private final AtomicReference<DecayingArray> decayingRef;
+        private final AtomicReference<long[]> estimatedRef;
+
+        public BucketsThreadLocal(int size)
+        {
+            this.size = size;
+            this.decayingRef = new AtomicReference<>();
+            this.estimatedRef = new AtomicReference<>();
+        }
+
+        public void update(int index, long now)
+        {
+            // This is only called by the thread that owns the thread local, so we don't need to worry about contention.
+            inUse.incrementAndGet();
+            try
+            {
+                DecayingArray decaying = getOrSet(decayingRef, () -> new DecayingArray(size, decayingBuckets.decayLandmark));
+                decaying.update(index, now);
+
+                long[] estimated = getOrSet(estimatedRef, () -> new long[size]);
+                estimated[index]++;
+
+                if (decaying.decayLandmark == decayingBuckets.decayLandmark)
+                    return;
+                decayingBuckets.flush(this, decaying);
+            }
+            finally
+            {
+                inUse.decrementAndGet();
+            }
+        }
+
+        public void release()
+        {
+            // The release method could be called by the FastThreadLocal#onRemoval or by the PhantomReference queue.
+            // We need to make sure we transfer the values to the decayingBuckets only once.
+            // There is also no need for the BucketsThreadLocal#inUse check since the thread is dead and no one will update the values.
+            if (threadLocals.remove(this))
+            {
+                decayingBuckets.flush(this, getOrSet(decayingRef, () -> new DecayingArray(size, decayingBuckets.decayLandmark)));
+                estimatedBuckets.release(estimatedRef);
+            }
+        }
+    }
+
+    private static class EstimatedBuckets
+    {
+        private final ReadWriteLock rwLock = new ReentrantReadWriteLock();
+        private final long[] buckets;
+
+        public EstimatedBuckets(int size)
+        {
+            this.buckets = new long[size];
+        }
+
+        public void release(AtomicReference<long[]> estimatedRef)
+        {
+            long[] values = estimatedRef.get();
+            if (values == null)
+                return;
+            // The estimated values are merged to the buckets, since the thread is dead and no one will update the values.
+            rwLock.writeLock().lock();
+            try
+            {
+                merge(this.buckets, values);
+                estimatedRef.set(null);
+            }
+            finally
+            {
+                rwLock.writeLock().unlock();
+            }
+        }
+
+        public void reset(LongBinaryOperator op)
+        {
+            rwLock.writeLock().lock();
+            try
+            {
+                for (int i = 0; i < buckets.length; i++)
+                    buckets[i] = op.applyAsLong(i, buckets[i]);
+            }
+            finally
+            {
+                rwLock.writeLock().unlock();
+            }
+        }
+
+        public long[] snapshot(Set<BucketsThreadLocal> locals)
+        {
+            long[] result = new long[buckets.length];
+            rwLock.readLock().lock();
+            try
+            {
+                merge(result, buckets);
+                for (BucketsThreadLocal local : locals)
+                {
+                    long[] estimated = local.estimatedRef.get();
+                    if (estimated == null)
+                        continue;
+                    merge(result, estimated);
+                }
+                return result;
+            }
+            finally
+            {
+                rwLock.readLock().unlock();
+            }
+        }
+    }
+
+    private static class DecayingBuckets
+    {
+        private final ReentrantLock lock = new ReentrantLock();
+        private final ConcurrentLinkedQueue<DecayingArray> decayingPending = new ConcurrentLinkedQueue<>();
+        private final long[] buckets;
+        private final AtomicInteger updateStartEpoch = new AtomicInteger();
+        private final AtomicInteger updateEndEpoch = new AtomicInteger();
+        private final AtomicInteger rescaleStartEpoch = new AtomicInteger();
+        private final AtomicInteger rescaleEndEpoch = new AtomicInteger();
+        private volatile long decayLandmark;
+
+        public DecayingBuckets(int size, long now)
+        {
+            this.buckets = new long[size];
+            this.decayLandmark = now;
+        }
+
+        public void rescale(Supplier<Set<BucketsThreadLocal>> localsSupp, long now)
+        {
+            assert rescaleStartEpoch.get() == rescaleEndEpoch.get();
+            if (now - decayLandmark <= LANDMARK_RESET_INTERVAL_IN_NS)
+                return;
+            lock.lock();
+            try
+            {
+                rescaleStartEpoch.incrementAndGet();
+                long previousDecayLandmark = decayLandmark;
+                decayLandmark = now;
+
+                // The list of thread locals should be fetched after the lock is taken and decayLandmark is updated.
+                for (BucketsThreadLocal local : localsSupp.get())
+                {
+                    while (true)
+                    {
+                        DecayingArray prev = local.decayingRef.get();
+                        // Skip the thread local if it was created after the decayLandmark was updated.
+                        if (prev == null || prev.decayLandmark == now)
+                            break;
+                        if (local.decayingRef.compareAndSet(prev, new DecayingArray(local.size, now)))
+                        {
+                            // We successfully switched the thread local to the new decayLandmark, wait for the thread to finish updating.
+                            while (local.inUse.get() > 0)
+                                LockSupport.parkNanos(50);
+                            decayingPending.offer(prev);
+                            break;
+                        }
+                    }
+                }
+
+                // Flush only the pending values that were created before the decayLandmark was updated.
+                DecayingArray data;
+                List<DecayingArray> toReturn = new ArrayList<>();
+                while ((data = decayingPending.poll()) != null)
+                {
+                    if (data.decayLandmark == previousDecayLandmark)
+                        merge(buckets, data.data);
+                    else
+                        toReturn.add(data);
+                }
+                DecayingEstimatedHistogramReservoir.decay(buckets, previousDecayLandmark, now);
+                decayingPending.addAll(toReturn);
+                flushPendingInternal();
+            }
+            finally
+            {
+                rescaleEndEpoch.incrementAndGet();
+                lock.unlock();
+            }
+        }
+
+        public void reset(LongBinaryOperator reset, long decayLandmark)
+        {
+            lock.lock();
+            try
+            {
+                this.decayLandmark = decayLandmark;
+                for (int i = 0; i < buckets.length; i++)
+                    buckets[i] = reset.applyAsLong(i, buckets[i]);
+                decayingPending.clear();
+            }
+            finally
+            {
+                lock.unlock();
+            }
+        }
+
+        /**
+         * Used only by a thread-local writer to flush the values to the buffer.
+         */
+        public void flush(BucketsThreadLocal local, DecayingArray decaying)
+        {
+            if (lock.tryLock())
+            {
+                try
+                {
+                    assert decayLandmark == decaying.decayLandmark;
+                    local.decayingRef.set(new DecayingArray(decaying.data.length, decaying.decayLandmark));
+                    decayingPending.offer(decaying);
+                    flushPendingInternal();
+                }
+                finally
+                {
+                    lock.unlock();
+                }
+            }
+            else
+            {
+                boolean success = local.decayingRef.compareAndSet(decaying, new DecayingArray(decaying.data.length, decaying.decayLandmark));
+                // If the CAS failed, the thread local was updated by the rescale thread and all the values were already flushed.
+                if (success)
+                    decayingPending.offer(decaying);
+            }
+        }
+
+        public DecayingArray snapshot(Set<BucketsThreadLocal> locals)
+        {
+            DecayingArray result;
+            int updateEpoch, rescaleEpoch = -1;
+            do
+            {
+                if (rescaleEpoch >= 0)
+                    LockSupport.parkNanos(this, 100);
+                // There are two concurrent threads that we need to be aware of: the rescale thread and the release thread.
+                // These threads can produce new pending values or release the thread locals.
+                rescaleEpoch = rescaleStartEpoch.get();
+                result = new DecayingArray(buckets.length, decayLandmark);
+                if (lock.tryLock())
+                {
+                    try
+                    {
+                        flushPendingInternal();
+                    }
+                    finally
+                    {
+                        lock.unlock();
+                    }
+                }
+                // The bucketsUpdateEpoch is used to ensure that the values are consistent.
+                updateEpoch = updateStartEpoch.get();
+                merge(result.data, buckets);
+                for (BucketsThreadLocal local : locals)
+                {
+                    DecayingArray decaying = local.decayingRef.get();
+                    if (decaying == null)
+                        continue;
+                    merge(result.data, decaying.data);
+                }
+            } while (!(rescaleEpoch == rescaleStartEpoch.get()
+                       && rescaleEpoch == rescaleEndEpoch.get()
+                       && updateEpoch == updateStartEpoch.get()
+                       && updateEpoch == updateEndEpoch.get()));
+
+            return result;
+        }
+
+        private void flushPendingInternal()
+        {
+            DecayingArray first = null;
+            DecayingArray arr;
+            assert lock.isHeldByCurrentThread();
+            assert updateStartEpoch.get() == updateEndEpoch.get();
+            updateStartEpoch.incrementAndGet();
+            while ((arr = decayingPending.poll()) != null)
+            {
+                if (first == null)
+                    first = arr;
+                assert arr.decayLandmark == first.decayLandmark : "Mixing decay landmarks in the same flush are forbidden";
+                merge(buckets, arr.data);
+            }
+            updateEndEpoch.incrementAndGet();
+        }
+    }
+
+    public static class DecayingArray
+    {
+        private final long[] data;
+        private final long decayLandmark;
+
+        public DecayingArray(int size, long decayLandmark)
+        {
+            this.data = new long[size];
+            this.decayLandmark = decayLandmark;
+        }
+
+        public void update(int index, long now)
+        {
+            // Add forward decay weight to the value.
+            data[index] += forwardDecayWeight(decayLandmark, now);
         }
     }
 }
