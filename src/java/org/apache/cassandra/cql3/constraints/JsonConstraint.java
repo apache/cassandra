@@ -31,7 +31,7 @@ import org.apache.cassandra.utils.JsonUtils;
 
 import static java.lang.String.format;
 
-public class JsonConstraint extends ConstraintFunction
+public class JsonConstraint extends UnaryConstraintFunction
 {
     private static final List<AbstractType<?>> SUPPORTED_TYPES = List.of(UTF8Type.instance, AsciiType.instance);
 
@@ -39,12 +39,7 @@ public class JsonConstraint extends ConstraintFunction
 
     public JsonConstraint(ColumnIdentifier columnName)
     {
-        this(columnName, FUNCTION_NAME);
-    }
-
-    public JsonConstraint(ColumnIdentifier columnName, String name)
-    {
-        super(columnName, name);
+        super(columnName, FUNCTION_NAME);
     }
 
     @Override

@@ -211,20 +211,12 @@ public abstract class AbstractType<T> implements Comparator<ByteBuffer>, Assignm
 
     public void checkConstraints(ByteBuffer bytes, ColumnConstraints constraints) throws ConstraintViolationException
     {
-        if (constraints.isEmpty())
-            return;
-
-        T value = getSerializer().deserialize(bytes);
-        constraints.evaluate(this, bytes);
+        checkConstraints(bytes, constraints.getConstraints());
     }
 
-    public void checkConstraints(ByteBuffer bytes, List<ColumnConstraint> constraints) throws ConstraintViolationException
+    public void checkConstraints(ByteBuffer bytes, List<ColumnConstraint<?>> constraints) throws ConstraintViolationException
     {
-        if (constraints.isEmpty())
-            return;
-
-        T value = getSerializer().deserialize(bytes);
-        for (ColumnConstraint constraint : constraints)
+        for (ColumnConstraint<?> constraint : constraints)
             constraint.evaluate(this, bytes);
     }
 

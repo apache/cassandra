@@ -25,6 +25,7 @@ import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.cql3.Operator;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.schema.ColumnMetadata;
+import org.apache.cassandra.utils.ByteBufferUtil;
 
 import static org.apache.cassandra.cql3.Operator.EQ;
 import static org.apache.cassandra.cql3.Operator.GT;
@@ -55,8 +56,10 @@ public abstract class ConstraintFunction
      */
     public void evaluate(AbstractType<?> valueType, Operator relationType, String term, ByteBuffer columnValue) throws ConstraintViolationException
     {
-        if (columnValue.capacity() == 0)
+        if (columnValue == ByteBufferUtil.EMPTY_BYTE_BUFFER)
             throw new ConstraintViolationException("Column value does not satisfy value constraint for column '" + columnName + "' as it is null.");
+        else if (valueType.isEmptyValueMeaningless() && columnValue.capacity() == 0)
+            throw new ConstraintViolationException("Column value does not satisfy value constraint for column '" + columnName + "' as it is empty.");
 
         internalEvaluate(valueType, relationType, term, columnValue);
     }
@@ -88,10 +91,7 @@ public abstract class ConstraintFunction
      *
      * @return list of operators this function is allowed to have.
      */
-    public List<Operator> getSupportedOperators()
-    {
-        return List.of();
-    }
+    public abstract List<Operator> getSupportedOperators();
 
     /**
      * Tells what types of columns are supported by this constraint.

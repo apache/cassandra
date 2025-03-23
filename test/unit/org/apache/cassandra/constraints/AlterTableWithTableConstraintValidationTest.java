@@ -22,10 +22,8 @@ import org.junit.Test;
 
 import org.apache.cassandra.exceptions.InvalidRequestException;
 
-
 public class AlterTableWithTableConstraintValidationTest extends CqlConstraintValidationTester
 {
-
     @Test
     public void testCreateTableWithColumnNamedConstraintDescribeTableNonFunction() throws Throwable
     {
@@ -238,5 +236,45 @@ public class AlterTableWithTableConstraintValidationTest extends CqlConstraintVa
         createTable("CREATE TABLE %s (pk int, ck1 int, ck2 int, v int, PRIMARY KEY ((pk),ck1, ck2)) WITH CLUSTERING ORDER BY (ck1 ASC);");
         String expectedErrorMessage = "Column 'foo' doesn't exist";
         assertInvalidThrowMessage(expectedErrorMessage, InvalidRequestException.class, "ALTER TABLE %s ALTER foo CHECK foo < 100");
+    }
+
+    @Test
+    public void testAlterTableAlterExistingColumnWithCheckOnNonExistingColumn() throws Throwable
+    {
+        createTable("CREATE TABLE %s (pk int, ck1 text, ck2 text, v int, PRIMARY KEY ((pk),ck1, ck2));");
+        assertInvalidThrowMessage("Constraint ck3 < 100 was not specified on a column it operates on: ck1 but on: ck3",
+                                  InvalidRequestException.class,
+                                  "ALTER TABLE %s ALTER ck1 CHECK ck3 < 100");
+        assertInvalidThrowMessage("Constraint NOT_NULL(ck3) was not specified on a column it operates on: ck1 but on: ck3",
+                                  InvalidRequestException.class,
+                                  "ALTER TABLE %s ALTER ck1 CHECK NOT_NULL(ck3)");
+        assertInvalidThrowMessage("Constraint LENGTH(ck3) > 10 was not specified on a column it operates on: ck1 but on: ck3",
+                                  InvalidRequestException.class,
+                                  "ALTER TABLE %s ALTER ck1 CHECK LENGTH(ck3) > 10");
+    }
+
+    @Test
+    public void testAlterTableAddNewColumnWithCheckOnNonExistingColumn() throws Throwable
+    {
+        createTable("CREATE TABLE %s (pk int, ck1 text, ck2 text, v int, PRIMARY KEY ((pk),ck1, ck2));");
+
+        assertInvalidThrowMessage("Constraint v3 < 100 was not specified on a column it operates on: v2 but on: v3",
+                                  InvalidRequestException.class,
+                                  "ALTER TABLE %s ADD v2 int CHECK v3 < 100");
+
+        assertInvalidThrowMessage("Constraint NOT_NULL(v3) was not specified on a column it operates on: v2 but on: v3",
+                                  InvalidRequestException.class,
+                                  "ALTER TABLE %s ADD v2 int CHECK NOT_NULL(v3)");
+
+        assertInvalidThrowMessage("Constraint LENGTH(v3) > 10 was not specified on a column it operates on: v2 but on: v3",
+                                  InvalidRequestException.class,
+                                  "ALTER TABLE %s ADD v2 int CHECK LENGTH(v3) > 10");
+    }
+
+    @Test
+    public void testAlterTableAddColumnWithCheck()
+    {
+        createTable("CREATE TABLE %s (pk text, col1 int, primary key (pk));");
+        execute("ALTER TABLE %s ADD col2 int CHECK col2 > 0");
     }
 }

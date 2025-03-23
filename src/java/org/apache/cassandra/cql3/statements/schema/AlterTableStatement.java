@@ -257,13 +257,16 @@ public abstract class AlterTableStatement extends AlterSchemaStatement
             private final boolean isStatic;
             @Nullable
             private final ColumnMask.Raw mask;
+            @Nullable
+            private final ColumnConstraints.Raw constraints;
 
-            Column(ColumnIdentifier name, CQL3Type.Raw type, boolean isStatic, @Nullable ColumnMask.Raw mask)
+            Column(ColumnIdentifier name, CQL3Type.Raw type, boolean isStatic, @Nullable ColumnMask.Raw mask, @Nullable ColumnConstraints.Raw constraints)
             {
                 this.name = name;
                 this.type = type;
                 this.isStatic = isStatic;
                 this.mask = mask;
+                this.constraints = constraints;
             }
         }
 
@@ -311,6 +314,7 @@ public abstract class AlterTableStatement extends AlterSchemaStatement
             AbstractType<?> type = column.type.prepare(keyspaceName, keyspace.types).getType();
             boolean isStatic = column.isStatic;
             ColumnMask mask = column.mask == null ? null : column.mask.prepare(keyspaceName, tableName, name, type, keyspace.userFunctions);
+            ColumnConstraints columnConstraints = column.constraints == null ? ColumnConstraints.NO_OP : column.constraints.prepare(name);
 
             if (null != tableBuilder.getColumn(name)) {
                 if (!ifColumnNotExists)
@@ -361,9 +365,9 @@ public abstract class AlterTableStatement extends AlterSchemaStatement
             }
 
             if (isStatic)
-                tableBuilder.addStaticColumn(name, type, mask);
+                tableBuilder.addStaticColumn(name, type, mask, columnConstraints);
             else
-                tableBuilder.addRegularColumn(name, type, mask);
+                tableBuilder.addRegularColumn(name, type, mask, columnConstraints);
 
             if (!isStatic)
             {
@@ -372,7 +376,8 @@ public abstract class AlterTableStatement extends AlterSchemaStatement
                     if (view.includeAllColumns)
                     {
                         ColumnMetadata viewColumn = ColumnMetadata.regularColumn(view.metadata, name.bytes, type)
-                                                                  .withNewMask(mask);
+                                                                  .withNewMask(mask)
+                                                                  .withNewColumnConstraints(columnConstraints);
                         viewsBuilder.put(viewsBuilder.get(view.name()).withAddedRegularColumn(viewColumn));
                     }
                 }
@@ -732,7 +737,7 @@ public abstract class AlterTableStatement extends AlterSchemaStatement
             if (column != null)
             {
                 ColumnConstraints oldConstraints = column.getColumnConstraints();
-                ColumnConstraints newConstraints = constraints == null ? ColumnConstraints.NO_OP : constraints.prepare();
+                ColumnConstraints newConstraints = constraints == null ? ColumnConstraints.NO_OP : constraints.prepare(columnName);
                 if (Objects.equals(oldConstraints, newConstraints))
                     return keyspace;
                 newConstraints.validate(column);
@@ -837,10 +842,10 @@ public abstract class AlterTableStatement extends AlterSchemaStatement
             rawMask = mask;
         }
 
-        public void add(ColumnIdentifier name, CQL3Type.Raw type, boolean isStatic, @Nullable ColumnMask.Raw mask)
+        public void add(ColumnIdentifier name, CQL3Type.Raw type, boolean isStatic, @Nullable ColumnMask.Raw mask, @Nullable ColumnConstraints.Raw constraints)
         {
             kind = Kind.ADD_COLUMNS;
-            addedColumns.add(new AddColumns.Column(name, type, isStatic, mask));
+            addedColumns.add(new AddColumns.Column(name, type, isStatic, mask, constraints));
         }
 
         public void drop(ColumnIdentifier name)

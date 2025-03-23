@@ -27,6 +27,7 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.TreeSet;
 
+import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.cql3.CqlBuilder;
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.db.marshal.AbstractType;
@@ -108,7 +109,7 @@ public class ColumnConstraints extends ColumnConstraint<ColumnConstraints>
     // Checks if there is at least one constraint that will perform checks
     public boolean hasRelevantConstraints()
     {
-        for (ColumnConstraint c : constraints)
+        for (ColumnConstraint<?> c : constraints)
         {
             if (c != ColumnConstraints.NO_OP)
                 return true;
@@ -120,9 +121,12 @@ public class ColumnConstraints extends ColumnConstraint<ColumnConstraints>
     public void validate(ColumnMetadata columnMetadata) throws InvalidConstraintDefinitionException
     {
         if (!columnMetadata.type.isConstrainable())
+        {
             throw new InvalidConstraintDefinitionException("Constraint cannot be defined on the column "
                                                            + columnMetadata.name + " of type " + columnMetadata.type.asCQL3Type()
-                                                           + " for the table " + columnMetadata.ksName + "." + columnMetadata.cfName);
+                                                           + " for the table " + columnMetadata.ksName + '.' + columnMetadata.cfName + '.' +
+                                                           (columnMetadata.type.isCollection() ? " When using collections, constraints can be used only of frozen collections." : ""));
+        }
 
         // this will look at constraints as a whole,
         // checking if combinations of a particular constraint make sense (duplicities, satisfiability etc.).
@@ -207,10 +211,18 @@ public class ColumnConstraints extends ColumnConstraint<ColumnConstraints>
             this.constraints = Collections.emptyList();
         }
 
-        public ColumnConstraints prepare()
+        public ColumnConstraints prepare(ColumnIdentifier column)
         {
             if (constraints.isEmpty())
                 return NO_OP;
+
+            for (ColumnConstraint<?> constraint : constraints)
+            {
+                if (constraint.columnName != null && !column.equals(constraint.columnName))
+                    throw new InvalidConstraintDefinitionException(format("Constraint %s was not specified on a column it operates on: %s but on: %s",
+                                                                          constraint, column.toCQLString(), constraint.columnName));
+            }
+
             return new ColumnConstraints(constraints);
         }
     }

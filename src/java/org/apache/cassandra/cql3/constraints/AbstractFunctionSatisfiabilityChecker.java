@@ -26,6 +26,8 @@ import java.util.TreeSet;
 
 import org.apache.cassandra.cql3.Operator;
 import org.apache.cassandra.cql3.functions.types.ParseUtils;
+import org.apache.cassandra.db.marshal.AbstractType;
+import org.apache.cassandra.db.marshal.Int32Type;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.utils.Pair;
 
@@ -69,6 +71,8 @@ public abstract class AbstractFunctionSatisfiabilityChecker<CONSTRAINT_TYPE exte
      * @return pair of categorized constraints
      */
     abstract Pair<List<CONSTRAINT_TYPE>, List<CONSTRAINT_TYPE>> categorizeConstraints(List<ColumnConstraint<?>> constraints, String functionName);
+
+    abstract AbstractType<?> returnType(ColumnMetadata columnMetadata);
 
     private void checkSupportedOperators(List<CONSTRAINT_TYPE> allConstraints, String functionName)
     {
@@ -147,11 +151,12 @@ public abstract class AbstractFunctionSatisfiabilityChecker<CONSTRAINT_TYPE exte
         }
         else
         {
-            ByteBuffer firstTermBuffer = columnMetadata.type.fromString(ParseUtils.unquote(firstTerm));
-            ByteBuffer secondTermBuffer = columnMetadata.type.fromString(ParseUtils.unquote(secondTerm));
+            AbstractType<?> returnType = returnType(columnMetadata);
+            ByteBuffer firstTermBuffer = returnType.fromString(ParseUtils.unquote(firstTerm));
+            ByteBuffer secondTermBuffer = returnType.fromString(ParseUtils.unquote(secondTerm));
 
-            boolean firstSatisfaction = firstRelation.isSatisfiedBy(columnMetadata.type, secondTermBuffer, firstTermBuffer);
-            boolean secondSatisfaction = secondRelation.isSatisfiedBy(columnMetadata.type, firstTermBuffer, secondTermBuffer);
+            boolean firstSatisfaction = firstRelation.isSatisfiedBy(returnType, secondTermBuffer, firstTermBuffer);
+            boolean secondSatisfaction = secondRelation.isSatisfiedBy(returnType, firstTermBuffer, secondTermBuffer);
 
             if (!firstSatisfaction || !secondSatisfaction)
                 throw new InvalidConstraintDefinitionException(format("Constraints of %s are not satisfiable: %s %s %s, %s %s %s",
@@ -186,6 +191,14 @@ public abstract class AbstractFunctionSatisfiabilityChecker<CONSTRAINT_TYPE exte
 
             return Pair.create(scalars, notEqualScalars);
         }
+
+        @Override
+        AbstractType<?> returnType(ColumnMetadata metadata)
+        {
+            // function constraints will always have terms of int32 type
+            // unlike scalar constraints where it will be a type of column
+            return metadata.type;
+        }
     };
 
     public static final AbstractFunctionSatisfiabilityChecker<FunctionColumnConstraint> FUNCTION_SATISFIABILITY_CHECKER = new AbstractFunctionSatisfiabilityChecker<>()
@@ -214,6 +227,12 @@ public abstract class AbstractFunctionSatisfiabilityChecker<CONSTRAINT_TYPE exte
             }
 
             return Pair.create(funnctionColumnConstraints, notEqualConstraints);
+        }
+
+        @Override
+        AbstractType<?> returnType(ColumnMetadata columnMetadata)
+        {
+            return Int32Type.instance;
         }
     };
 }
