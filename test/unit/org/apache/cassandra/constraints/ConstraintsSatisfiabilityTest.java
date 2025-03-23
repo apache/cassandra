@@ -71,13 +71,13 @@ public class ConstraintsSatisfiabilityTest
                     if (op1 == NEQ)
                     {
                         // a_column != 0 and a_column != 10 -> valid
-                        check(op1, 0, op2, 100, quadFunction, null, columnMetadata);
+                        check(op1, 50, op2, 100, quadFunction, null, columnMetadata);
                         // does not make sense to check twice
                         // check a_column != 0 and a_column != 0
                         check(op1, 0, op2, 0, quadFunction, "There are duplicate constraint definitions on column", columnMetadata);
                     }
                     else
-                        check(op1, 0, op2, 100, quadFunction, "There are duplicate constraint definitions on column", columnMetadata);
+                        check(op1, 50, op2, 100, quadFunction, "There are duplicate constraint definitions on column", columnMetadata);
                 }
                 else if ((op1 == GT && op2 == GTE) ||
                          (op1 == GTE && op2 == GT) ||
@@ -85,18 +85,25 @@ public class ConstraintsSatisfiabilityTest
                          (op1 == LTE && op2 == LT) ||
                          (op1 == EQ || op2 == EQ))
                 {
-                    check(op1, 0, op2, 100, quadFunction, "not supported", columnMetadata);
+                    check(op1, 50, op2, 100, quadFunction, "not supported", columnMetadata);
                 }
                 else if ((op1 == LTE && op2 == GT) ||
                          (op1 == LT && op2 == GT) ||
                          (op1 == LTE && op2 == GTE) ||
                          (op1 == LT && op2 == GTE))
                 {
-                    check(op1, 0, op2, 100, quadFunction, "are not satisfiable", columnMetadata);
+                    check(op1, 50, op2, 100, quadFunction, "are not satisfiable", columnMetadata);
+                }
+                else if ((op1 == GT && op2 == LTE) ||
+                         (op1 == GT && op2 == LT) ||
+                         (op1 == GTE && op2 == LTE) ||
+                         (op1 == GTE && op2 == LT))
+                {
+                    check(op1, 50, op2, 100, quadFunction, null, columnMetadata);
                 }
                 else if (!(op1 == NEQ || op2 == NEQ))
                 {
-                    check(op1, 0, op2, 100, quadFunction, null, columnMetadata);
+                    check(op1, 50, op2, 100, quadFunction, null, columnMetadata);
                 }
                 else
                 {

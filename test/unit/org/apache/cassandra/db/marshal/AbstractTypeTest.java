@@ -263,10 +263,15 @@ public class AbstractTypeTest
     public void isConstrainedTest()
     {
         qt().forAll(genBuilder().build()).checkAssert(type -> {
-            if (type instanceof MapType || type instanceof TupleType || type instanceof AbstractCompositeType)
+            if (type instanceof TupleType || type instanceof AbstractCompositeType)
                 assertThat(type.isConstrainable()).isEqualTo(false);
             else
-                assertThat(type.isConstrainable()).isEqualTo(true);
+            {
+                if (type.isCollection() && !type.isFrozenCollection())
+                    assertThat(type.isConstrainable()).isEqualTo(false);
+                else
+                    assertThat(type.isConstrainable()).isEqualTo(true);
+            }
         });
 
     }

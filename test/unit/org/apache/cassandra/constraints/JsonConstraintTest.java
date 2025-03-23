@@ -50,7 +50,7 @@ public class JsonConstraintTest
         run("{}");
         run("{\"a\": 5, \"b\": \"1\", \"c\": [1,2,3]}");
         run("nonsense", "Value for column 'a_column' violated JSON constraint as it is not a valid JSON.");
-        run("", "Column value does not satisfy value constraint for column 'a_column' as it is null.");
+        run("", "Value for column 'a_column' violated JSON constraint as it is not a valid JSON.");
     }
 
     @Test

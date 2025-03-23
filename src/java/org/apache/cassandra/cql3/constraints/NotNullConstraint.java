@@ -28,18 +28,13 @@ import org.apache.cassandra.schema.ColumnMetadata;
 
 import static java.lang.String.format;
 
-public class NotNullConstraint extends ConstraintFunction
+public class NotNullConstraint extends UnaryConstraintFunction
 {
     public static final String FUNCTION_NAME = "NOT_NULL";
 
     public NotNullConstraint(ColumnIdentifier columnName)
     {
-        this(columnName, FUNCTION_NAME);
-    }
-
-    public NotNullConstraint(ColumnIdentifier columnName, String name)
-    {
-        super(columnName, name);
+        super(columnName, FUNCTION_NAME);
     }
 
     @Override

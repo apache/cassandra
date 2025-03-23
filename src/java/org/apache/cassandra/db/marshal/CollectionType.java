@@ -171,6 +171,12 @@ public abstract class CollectionType<T> extends MultiElementType<T>
         return true;
     }
 
+    @Override
+    public boolean isConstrainable()
+    {
+        return isFrozenCollection();
+    }
+
     public ByteBuffer serializeForNativeProtocol(Iterator<Cell<?>> cells)
     {
         assert isMultiCell();

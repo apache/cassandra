@@ -108,7 +108,7 @@ public class ColumnConstraints extends ColumnConstraint<ColumnConstraints>
     // Checks if there is at least one constraint that will perform checks
     public boolean hasRelevantConstraints()
     {
-        for (ColumnConstraint c : constraints)
+        for (ColumnConstraint<?> c : constraints)
         {
             if (c != ColumnConstraints.NO_OP)
                 return true;
@@ -120,9 +120,12 @@ public class ColumnConstraints extends ColumnConstraint<ColumnConstraints>
     public void validate(ColumnMetadata columnMetadata) throws InvalidConstraintDefinitionException
     {
         if (!columnMetadata.type.isConstrainable())
+        {
             throw new InvalidConstraintDefinitionException("Constraint cannot be defined on the column "
                                                            + columnMetadata.name + " of type " + columnMetadata.type.asCQL3Type()
-                                                           + " for the table " + columnMetadata.ksName + "." + columnMetadata.cfName);
+                                                           + " for the table " + columnMetadata.ksName + '.' + columnMetadata.cfName + '.' +
+                                                           (columnMetadata.type.isCollection() ? " When using collections, constraints can be used only of frozen collections." : ""));
+        }
 
         // this will look at constraints as a whole,
         // checking if combinations of a particular constraint make sense (duplicities, satisfiability etc.).

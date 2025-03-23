@@ -204,7 +204,7 @@ public class TableMetadata implements SchemaElement
     // We cache the columns with constraints to avoid iterations over columns
     // Partition keys columns are evaluated separately, so we keep the two of them in
     // two different variables.
-    public final List<ColumnConstraint> partitionKeyConstraints;
+    public final List<ColumnConstraint<?>> partitionKeyConstraints;
     public final List<ColumnMetadata> columnsWithConstraints;
     public final List<ColumnMetadata> notNullColumns;
 
@@ -248,7 +248,7 @@ public class TableMetadata implements SchemaElement
         else
             ref = TableMetadataRef.withInitialReference(new TableMetadataRef(Schema.instance, keyspace, name, id), this);
 
-        List<ColumnConstraint> pkConstraints = new ArrayList<>(this.partitionKeyColumns.size());
+        List<ColumnConstraint<?>> pkConstraints = new ArrayList<>(this.partitionKeyColumns.size());
         for (ColumnMetadata column : this.partitionKeyColumns)
         {
             if (column.hasConstraint())

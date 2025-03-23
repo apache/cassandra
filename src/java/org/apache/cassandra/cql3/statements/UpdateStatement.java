@@ -371,9 +371,7 @@ public class UpdateStatement extends ModificationStatement
 
     public static void evaluateConstraint(ColumnMetadata columnMetadata, ByteBuffer cellData)
     {
-        for (ColumnConstraint constraint : columnMetadata.getColumnConstraints().getConstraints())
-        {
+        for (ColumnConstraint<?> constraint : columnMetadata.getColumnConstraints().getConstraints())
             constraint.evaluate(columnMetadata.type, cellData);
-        }
     }
 }

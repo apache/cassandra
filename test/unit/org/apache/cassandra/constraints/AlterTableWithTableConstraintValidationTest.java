@@ -22,10 +22,8 @@ import org.junit.Test;
 
 import org.apache.cassandra.exceptions.InvalidRequestException;
 
-
 public class AlterTableWithTableConstraintValidationTest extends CqlConstraintValidationTester
 {
-
     @Test
     public void testCreateTableWithColumnNamedConstraintDescribeTableNonFunction() throws Throwable
     {
@@ -238,5 +236,12 @@ public class AlterTableWithTableConstraintValidationTest extends CqlConstraintVa
         createTable("CREATE TABLE %s (pk int, ck1 int, ck2 int, v int, PRIMARY KEY ((pk),ck1, ck2)) WITH CLUSTERING ORDER BY (ck1 ASC);");
         String expectedErrorMessage = "Column 'foo' doesn't exist";
         assertInvalidThrowMessage(expectedErrorMessage, InvalidRequestException.class, "ALTER TABLE %s ALTER foo CHECK foo < 100");
+    }
+
+    @Test
+    public void testAlterTableAddColumnWithCheck()
+    {
+        createTable("CREATE TABLE %s (pk text, col1 int, primary key (pk));");
+        execute("ALTER TABLE %s ADD col2 int CHECK col2 > 0");
     }
 }
