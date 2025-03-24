@@ -35,6 +35,7 @@ import org.apache.cassandra.schema.ReplicationParams;
 import org.apache.cassandra.tcm.membership.NodeId;
 import org.apache.cassandra.tcm.membership.NodeState;
 import org.apache.cassandra.tcm.membership.NodeVersion;
+import org.apache.cassandra.tcm.migration.Election;
 import org.apache.cassandra.tcm.sequences.CancelCMSReconfiguration;
 import org.apache.cassandra.tcm.sequences.InProgressSequences;
 import org.apache.cassandra.tcm.sequences.ReconfigureCMS;
@@ -78,6 +79,11 @@ public class CMSOperations implements CMSOperationsMBean
     public void initializeCMS(List<String> ignoredEndpoints)
     {
         cms.upgradeFromGossip(ignoredEndpoints);
+    }
+
+    public void abortInitialization(String initiator)
+    {
+        Election.instance.abortInitialization(initiator);
     }
 
     @Override
