@@ -480,9 +480,11 @@ public class ASTSingleTableModel
             ByteBuffer rhs = where.rhs instanceof ReferenceExpression
                              ? (ByteBuffer) extract((ReferenceExpression) where.rhs, lets)
                              : eval(where.rhs);
-            // null = null == false, r0.v0 = null == false
+            // If anything is null avoid doing the test, but there is a special case where this returns true... both sides are null!
+            // This logic isn't consistent with other parts of the database and is local to CAS IF clause
+            // see ML@Inconsistent null handling between WHERE and IF clauses
             if (lhs == null || rhs == null)
-                return false;
+                return lhs == rhs;
             return where.kind.test(where.lhs.type(), lhs, rhs);
         }
         else if (condition.getClass() == Conditional.And.class)
