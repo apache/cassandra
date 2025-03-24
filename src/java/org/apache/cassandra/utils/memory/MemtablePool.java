@@ -152,14 +152,23 @@ public abstract class MemtablePool
 
         boolean tryAllocate(long size)
         {
-            while (true)
-            {
-                long cur;
-                if ((cur = allocated) + size > limit)
-                    return false;
-                if (allocatedUpdater.compareAndSet(this, cur, cur + size))
-                    return true;
+            long result = allocatedUpdater.addAndGet(this, size);
+            if (result > limit) {
+                // We have switched from CAS loop and a strict limit check
+                // to addAndGet with a possible post-correction for perf reasons.
+                // Why this is OK:
+                // - We may temporarily exceed the limit here, but that also happens in case of blocking op order.
+                // - We decrease the allocated value, but that was also possible as part of the adjustment logic.
+                //
+                // We don’t call released() here because it triggers hasRoom.signalAll(), which would
+                //   immediately wake up the current thread before memory is reclaimed and cause a busy loop.
+                // In a rare case, an unsuccessful attempt of a larger allocation near a limit by one thread
+                // may temporarily block progress on a smaller concurrent allocation by another thread,
+                // but both threads will be signaled and be able to proceed once memory is reclaimed.
+                allocatedUpdater.addAndGet(this, -size);
+                return false;
             }
+            return true;
         }
 
         /**
@@ -168,12 +177,7 @@ public abstract class MemtablePool
          */
         private void adjustAllocated(long size)
         {
-            while (true)
-            {
-                long cur = allocated;
-                if (allocatedUpdater.compareAndSet(this, cur, cur + size))
-                    return;
-            }
+            allocatedUpdater.addAndGet(this, size);
         }
 
         void allocated(long size)

@@ -260,6 +260,11 @@ public class ComplexColumnData extends ColumnData implements Iterable<Cell<?>>
         return transform(c -> cloner.clone(c));
     }
 
+    public int estimateCloneSize(Cloner cloner)
+    {
+        return (int) accumulate((c, v) -> v + cloner.estimateCloneSize(c), 0);
+    }
+
     public ComplexColumnData updateAllTimestamp(long newTimestamp)
     {
         DeletionTime newDeletion = complexDeletion.isLive() ? complexDeletion : DeletionTime.build(newTimestamp - 1, complexDeletion.localDeletionTime());

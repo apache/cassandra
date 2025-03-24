@@ -280,6 +280,9 @@ public abstract class ColumnData implements IMeasurableMemory
 
     public abstract ColumnData clone(Cloner cloner);
 
+    public abstract int estimateCloneSize(Cloner cloner);
+
+
     /**
      * Returns a copy of the data where all timestamps for live data have replaced by {@code newTimestamp} and
      * all deletion timestamp by {@code newTimestamp - 1}.

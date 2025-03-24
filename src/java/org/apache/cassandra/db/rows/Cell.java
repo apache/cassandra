@@ -201,6 +201,11 @@ public abstract class Cell<V> extends ColumnData
         return cloner.clone(this);
     }
 
+    public int estimateCloneSize(Cloner cloner)
+    {
+        return cloner.estimateCloneSize(this);
+    }
+
     public abstract Cell<?> clone(ByteBufferCloner cloner);
 
     @Override

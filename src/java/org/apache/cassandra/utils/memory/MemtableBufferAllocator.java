@@ -18,6 +18,7 @@
 package org.apache.cassandra.utils.memory;
 
 import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 
 import org.apache.cassandra.utils.concurrent.OpOrder;
 
@@ -32,13 +33,77 @@ public abstract class MemtableBufferAllocator extends MemtableAllocator
 
     protected Cloner allocator(OpOrder.Group opGroup)
     {
-        return new ByteBufferCloner()
+        return new MemtableByteBufferCloner(this, opGroup);
+    }
+
+    private static class MemtableByteBufferCloner extends ByteBufferCloner
+    {
+        private final MemtableBufferAllocator allocator;
+        private final OpOrder.Group opGroup;
+        private final ByteBuffer contextSlab;
+
+        private MemtableByteBufferCloner(MemtableBufferAllocator allocator, OpOrder.Group opGroup)
+        {
+            this(allocator, opGroup, null);
+        }
+
+        private MemtableByteBufferCloner(MemtableBufferAllocator allocator, OpOrder.Group opGroup, ByteBuffer contextSlab)
+        {
+            this.allocator = allocator;
+            this.opGroup = opGroup;
+            this.contextSlab = contextSlab;
+        }
+
+        @Override
+        public ByteBuffer allocate(int size)
+        {
+            if (contextSlab == null || contextSlab.remaining() < size)
+                return allocator.allocate(size, opGroup);
+
+            ByteBuffer result;
+            int currentPosition = contextSlab.position();
+            if (contextSlab.isDirect())
             {
-                @Override
-                public ByteBuffer allocate(int size)
-                {
-                    return MemtableBufferAllocator.this.allocate(size, opGroup);
-                }
-            };
+                // we do not want to keep contextSlab as an attachment for our allocated buffers
+                // it would increase a memory pressure by keeping contextSlab instances while a memtable is alive,
+                // so we have to imitate that the allocated direct byte buffer is a child of the original parent region
+                result = MemoryUtil.getHollowDirectByteBuffer(ByteOrder.BIG_ENDIAN);
+                MemoryUtil.duplicateDirectByteBuffer(contextSlab, result);
+                MemoryUtil.setAttachment(result, MemoryUtil.getAttachment(contextSlab));
+            }
+            else
+            {
+                result = contextSlab.duplicate();
+            }
+            result.limit(currentPosition + size);
+            contextSlab.position(currentPosition + size);
+            return result;
+        }
+
+        @Override
+        public boolean isContextAwareCloningSupported()
+        {
+            return true;
+        }
+
+        @Override
+        public Cloner createContextAwareCloner(int estimatedCloneSize)
+        {
+           return new MemtableByteBufferCloner(allocator, opGroup, allocator.allocate(estimatedCloneSize, opGroup));
+        }
+
+        @Override
+        public void adjustUnused()
+        {
+            if (contextSlab != null && contextSlab.remaining() >= 0)
+            {
+                int remaining = contextSlab.remaining();
+                if (contextSlab.isDirect())
+                    allocator.offHeap().adjust(-remaining, opGroup);
+                else
+                    allocator.onHeap().adjust(-remaining, opGroup);
+                contextSlab.position(contextSlab.position() + remaining);
+            }
+        }
     }
 }

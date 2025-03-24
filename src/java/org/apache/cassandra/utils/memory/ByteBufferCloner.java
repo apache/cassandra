@@ -26,6 +26,7 @@ import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.marshal.ByteArrayAccessor;
 import org.apache.cassandra.db.marshal.ByteBufferAccessor;
 import org.apache.cassandra.db.marshal.ValueAccessor;
+import org.apache.cassandra.db.rows.AbstractCell;
 import org.apache.cassandra.db.rows.Cell;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
@@ -52,10 +53,32 @@ public abstract class ByteBufferCloner implements Cloner
         return clustering.clone(this);
     }
 
+    public int estimateCloneSize(Clustering<?> clustering)
+    {
+        return clustering.dataSize();
+    }
+
     @Override
     public Cell<?> clone(Cell<?> cell)
     {
         return cell.clone(this);
+    }
+
+    public int estimateCloneSize(Cell<?> cell)
+    {
+        return AbstractCell.estimateAllocationSize(cell);
+    }
+
+    @Override
+    public Cloner createContextAwareCloner(int estimatedCloneSize)
+    {
+        return this;
+    }
+
+    @Override
+    public void adjustUnused()
+    {
+        // nothing to do by default
     }
 
     public final ByteBuffer clone(ByteBuffer buffer)
