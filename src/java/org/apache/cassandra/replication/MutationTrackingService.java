@@ -49,6 +49,7 @@ import org.apache.cassandra.tcm.ClusterMetadata;
 // TODO (expected): handle topology changes
 public class MutationTrackingService
 {
+    private volatile boolean started = false;
     private final ReadReconciliations reconciliations = new ReadReconciliations();
     private final ConcurrentHashMap<String, KeyspaceShards> shards = new ConcurrentHashMap<>();
 
@@ -57,12 +58,10 @@ public class MutationTrackingService
     private MutationTrackingService() {}
 
     // TODO (expected): implement a TCM ChangeListener
-    public synchronized void start()
+    public synchronized void start(ClusterMetadata metadata)
     {
         if (started)
             return;
-        // if we need to grab it earliier, go to tcm.Startup and add afterReplay() callbacks
-        ClusterMetadata metadata = ClusterMetadata.current();
 
         for (KeyspaceMetadata keyspace : metadata.schema.getKeyspaces())
             if (keyspace.useMutationTracking())

@@ -755,7 +755,6 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
                                 registerInboundFilter(cluster);
                                 registerOutboundFilter(cluster);
         });
-        MutationTrackingService.instance.start();
         CassandraDaemon.disableAutoCompaction(Schema.instance.distributedKeyspaces().names());
         QueryProcessor.registerStatementInvalidatingListener();
         TestChangeListener.register();
