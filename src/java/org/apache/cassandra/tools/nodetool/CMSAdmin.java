@@ -194,4 +194,17 @@ public abstract class CMSAdmin extends NodeTool.NodeToolCmd
             probe.getCMSOperationsProxy().unregisterLeftNodes(nodeIds);
         }
     }
+
+    @Command(name = "abortinitialization", description = "Abort an incomplete initialization")
+    public static class AbortInitialization extends NodeTool.NodeToolCmd
+    {
+        @Option(required = true, name = "--initiator", title = "Initiator", description = "The address of the node where `cms initialize` was run.")
+        public String initiator;
+
+        @Override
+        protected void execute(NodeProbe probe)
+        {
+            probe.getCMSOperationsProxy().abortInitialization(initiator);
+        }
+    }
 }

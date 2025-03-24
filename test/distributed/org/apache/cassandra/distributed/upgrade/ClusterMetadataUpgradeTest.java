@@ -113,6 +113,5 @@ public class ClusterMetadataUpgradeTest extends UpgradeTestBase
             cluster.get(1).nodetoolResult("cms", "initialize", "--ignore", "127.0.0.3").asserts().success();
             cluster.schemaChange(withKeyspace("create table %s.tbl2 (id int primary key)"));
         }).run();
-        }
-
+    }
 }
