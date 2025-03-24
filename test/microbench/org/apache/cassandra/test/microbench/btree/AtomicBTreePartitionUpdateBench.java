@@ -339,6 +339,12 @@ public class AtomicBTreePartitionUpdateBench
                     return new ByteBufferCloner()
                     {
                         @Override
+                        public boolean isContextAwareCloningSupported()
+                        {
+                            return false;
+                        }
+
+                        @Override
                         public ByteBuffer allocate(int size)
                         {
                             if (invalidateOn > 0 && --invalidateOn == 0)
