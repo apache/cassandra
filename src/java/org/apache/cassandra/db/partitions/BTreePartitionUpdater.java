@@ -40,7 +40,9 @@ public class BTreePartitionUpdater implements UpdateFunction<Row, Row>, ColumnDa
 {
     final MemtableAllocator allocator;
     final OpOrder.Group writeOp;
+
     final Cloner cloner;
+    Cloner contextCloner;
     final UpdateTransaction indexer;
     public long dataSize;
 
@@ -84,6 +86,34 @@ public class BTreePartitionUpdater implements UpdateFunction<Row, Row>, ColumnDa
 
     protected BTreePartitionData makeMergedPartition(BTreePartitionData current, PartitionUpdate update)
     {
+        if (cloner.isContextAwareCloningSupported()) // to avoid an estimation cost if context aware cloning is not supported
+        {
+            int estimitedCloneSize = 0;
+            // a typical case when all values in the update are used in the result of the merge
+            // clustering key cloning is needed when we have an insert but not needed when we have an update,
+            // so we may allocate a bit more than needed sometimes
+            for (Row row : update)
+            {
+                estimitedCloneSize += (int) row.accumulate((cd, v) -> v + cd.estimateCloneSize(cloner), 0);
+                estimitedCloneSize += cloner.estimateCloneSize(row.clustering());
+            }
+
+            Row staticRow = update.staticRow();
+            if (!staticRow.isEmpty())
+            {
+                estimitedCloneSize += (int) staticRow.accumulate((cd, v) -> v + cd.estimateCloneSize(cloner), 0);
+                // there are no clustering keys for static rows
+            }
+
+            if (contextCloner != null && contextCloner != cloner)
+                contextCloner.adjustUnused();
+            contextCloner = cloner.createContextAwareCloner(estimitedCloneSize);
+        }
+        else
+        {
+            contextCloner = cloner;
+        }
+
         DeletionInfo newDeletionInfo = merge(current.deletionInfo, update.deletionInfo());
 
         RegularAndStaticColumns columns = current.columns;
@@ -130,7 +160,7 @@ public class BTreePartitionUpdater implements UpdateFunction<Row, Row>, ColumnDa
     @Override
     public Row insert(Row insert)
     {
-        Row data = insert.clone(cloner);
+        Row data = insert.clone(contextCloner);
         indexer.onInserted(insert);
 
         dataSize += data.dataSize();
@@ -154,8 +184,8 @@ public class BTreePartitionUpdater implements UpdateFunction<Row, Row>, ColumnDa
         long timeDelta = Math.abs(insert.timestamp() - previous.timestamp());
         if (timeDelta < colUpdateTimeDelta)
             colUpdateTimeDelta = timeDelta;
-        if (cloner != null)
-            insert = cloner.clone(insert);
+        if (contextCloner != null)
+            insert = contextCloner.clone(insert);
         dataSize += insert.dataSize() - previous.dataSize();
         heapSize += insert.unsharedHeapSizeExcludingData() - previous.unsharedHeapSizeExcludingData();
         return insert;
@@ -163,8 +193,8 @@ public class BTreePartitionUpdater implements UpdateFunction<Row, Row>, ColumnDa
 
     public ColumnData insert(ColumnData insert)
     {
-        if (cloner != null)
-            insert = insert.clone(cloner);
+        if (contextCloner != null)
+            insert = insert.clone(contextCloner);
         dataSize += insert.dataSize();
         heapSize += insert.unsharedHeapSizeExcludingData();
         return insert;
@@ -185,5 +215,7 @@ public class BTreePartitionUpdater implements UpdateFunction<Row, Row>, ColumnDa
     public void reportAllocatedMemory()
     {
         allocator.onHeap().adjust(heapSize, writeOp);
+        if (contextCloner != null && contextCloner != cloner)
+            contextCloner.adjustUnused();
     }
 }

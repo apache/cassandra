@@ -28,8 +28,8 @@ import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.ObjectSizes;
 import org.apache.cassandra.utils.concurrent.OpOrder;
+import org.apache.cassandra.utils.memory.AddressBasedAllocator;
 import org.apache.cassandra.utils.memory.MemoryUtil;
-import org.apache.cassandra.utils.memory.NativeAllocator;
 import org.apache.cassandra.utils.memory.NativeEndianMemoryUtil;
 
 public class NativeCell extends AbstractCell<NativeData> implements NativeData
@@ -45,13 +45,28 @@ public class NativeCell extends AbstractCell<NativeData> implements NativeData
 
     private final long peer;
 
+    public static int estimateAllocationSize(Cell<?> cell)
+    {
+        long size = offHeapSizeWithoutPath(cell.valueSize());
+        CellPath path = cell.path();
+        if (path != null)
+        {
+            assert path.size() == 1 : String.format("Expected path size to be 1 but was not; %s", path);
+            size += 4 + path.get(0).remaining();
+        }
+
+        if (size > Integer.MAX_VALUE)
+            throw new IllegalStateException();
+        return (int) size;
+    }
+
     private NativeCell()
     {
         super(null);
         this.peer = 0;
     }
 
-    public NativeCell(NativeAllocator allocator,
+    public NativeCell(AddressBasedAllocator allocator,
                       OpOrder.Group writeOp,
                       Cell<?> cell)
     {
@@ -67,7 +82,7 @@ public class NativeCell extends AbstractCell<NativeData> implements NativeData
 
     // Please keep both int/long overloaded ctros public. Otherwise silent casts will mess timestamps when one is not
     // available.
-    public NativeCell(NativeAllocator allocator,
+    public NativeCell(AddressBasedAllocator allocator,
                       OpOrder.Group writeOp,
                       ColumnMetadata column,
                       long timestamp,
@@ -79,7 +94,7 @@ public class NativeCell extends AbstractCell<NativeData> implements NativeData
         this(allocator, writeOp, column, timestamp, ttl, deletionTimeLongToUnsignedInteger(localDeletionTime), value, path);
     }
 
-    public NativeCell(NativeAllocator allocator,
+    public NativeCell(AddressBasedAllocator allocator,
                       OpOrder.Group writeOp,
                       ColumnMetadata column,
                       long timestamp,

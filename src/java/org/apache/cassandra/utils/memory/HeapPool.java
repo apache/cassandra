@@ -49,6 +49,24 @@ public class HeapPool extends MemtablePool
             super(pool.onHeap.newAllocator(), pool.offHeap.newAllocator());
         }
 
+        protected Cloner allocator(OpOrder.Group opGroup)
+        {
+            return new ByteBufferCloner()
+            {
+                @Override
+                public boolean isContextAwareCloningSupported()
+                {
+                    return false;
+                }
+
+                @Override
+                public ByteBuffer allocate(int size)
+                {
+                    return Allocator.this.allocate(size, opGroup);
+                }
+            };
+        }
+
         public ByteBuffer allocate(int size, OpOrder.Group opGroup)
         {
             super.onHeap().allocate(size, opGroup);
@@ -127,7 +145,20 @@ public class HeapPool extends MemtablePool
 
             public Cloner cloner(OpOrder.Group opGroup)
             {
-                return allocator(opGroup);
+                return new ByteBufferCloner()
+                {
+                    @Override
+                    public boolean isContextAwareCloningSupported()
+                    {
+                        return false;
+                    }
+
+                    @Override
+                    public ByteBuffer allocate(int size)
+                    {
+                        return Logged.Allocator.this.allocate(size, opGroup);
+                    }
+                };
             }
         }
 

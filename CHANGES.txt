@@ -1,4 +1,5 @@
 5.1
+ * Reduce contention in MemtableAllocator.allocate (CASSANDRA-20226)
  * Add export, list, import sub-commands for nodetool compressiondictionary (CASSANDRA-20941)
  * Add support in the binary protocol to allow transactions to have multiple conditions (CASSANDRA-20883)
  * Enable CQLSSTableWriter to create SSTables compressed with a dictionary (CASSANDRA-20938)
