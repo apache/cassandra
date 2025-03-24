@@ -54,6 +54,7 @@ import static org.apache.cassandra.gms.VersionedValue.*;
 import static org.apache.cassandra.locator.InetAddressAndPort.getByName;
 import static org.apache.cassandra.tcm.compatibility.GossipHelper.fromEndpointStates;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
@@ -146,6 +147,33 @@ public class GossipHelperTest
         verifyPlacements(endpoints, metadata);
     }
 
+    @Test
+    public void duplicateHostIdTest() throws UnknownHostException
+    {
+        int nodes = 10;
+        Keyspaces kss = Keyspaces.NONE.with(KSM_NTS);
+        DistributedSchema schema = new DistributedSchema(kss);
+
+        Map<InetAddressAndPort, EndpointState> epstates = new HashMap<>();
+        UUID toDupe = UUID.randomUUID();
+        for (int i = 1; i < nodes; i++)
+        {
+            long t = i * 1000L;
+            InetAddressAndPort endpoint = getByName("127.0.0."+i);
+            Token token = t(t);
+            UUID hostId = i == 1 ? toDupe : UUID.randomUUID();
+            EndpointState endpointState = epstate(100, endpoint, endpoint, token, hostId, i % 2 == 1 ? "dc1" : "dc2");
+            epstates.put(endpoint, endpointState);
+        }
+
+        InetAddressAndPort oldDuplicate = getByName("127.0.0." + nodes);
+        epstates.put(oldDuplicate, epstate(50, oldDuplicate, oldDuplicate, t(nodes), toDupe, "dc2"));
+
+        ClusterMetadata metadata = fromEndpointStates(epstates, Murmur3Partitioner.instance, schema);
+        assertEquals(epstates.size() - 1, metadata.directory.addresses.size());
+        assertNull(metadata.directory.peerId(oldDuplicate));
+    }
+
     private static void verifyPlacements(Map<Integer, Token> endpoints, ClusterMetadata metadata) throws UnknownHostException
     {
         // quick check to make sure cm.placements is populated
@@ -185,8 +213,11 @@ public class GossipHelperTest
             assertTrue("endpoint "+ep+" should be in " + eps, eps.contains(ep));
         }
     }
-
     private static EndpointState epstate(InetAddressAndPort internalAddress, InetAddressAndPort nativeAddress, Token token, UUID hostId, String dc)
+    {
+        return epstate(1, internalAddress, nativeAddress, token, hostId, dc);
+    }
+    private static EndpointState epstate(int generation, InetAddressAndPort internalAddress, InetAddressAndPort nativeAddress, Token token, UUID hostId, String dc)
     {
         Map<ApplicationState, VersionedValue> versionedValues = new EnumMap<>(ApplicationState.class);
         versionedValues.put(STATUS_WITH_PORT, vvf.normal(Collections.singleton(token)));
@@ -197,7 +228,7 @@ public class GossipHelperTest
         versionedValues.put(RELEASE_VERSION, vvf.releaseVersion("3.0.24"));
         versionedValues.put(NATIVE_ADDRESS_AND_PORT, vvf.nativeaddressAndPort(nativeAddress));
         versionedValues.put(INTERNAL_ADDRESS_AND_PORT, vvf.internalAddressAndPort(internalAddress));
-        return new EndpointState(new HeartBeatState(1, 1), versionedValues);
+        return new EndpointState(new HeartBeatState(generation, 1), versionedValues);
     }
 
     private EndpointState withState(String status) throws UnknownHostException

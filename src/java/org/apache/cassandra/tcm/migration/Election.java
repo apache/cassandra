@@ -21,6 +21,7 @@ package org.apache.cassandra.tcm.migration;
 import java.io.IOException;
 import java.util.Collection;
 import java.util.HashSet;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
@@ -38,6 +39,8 @@ import org.apache.cassandra.schema.SchemaKeyspace;
 import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.tcm.Startup;
 import org.apache.cassandra.tcm.membership.Directory;
+import org.apache.cassandra.tcm.membership.NodeId;
+import org.apache.cassandra.tcm.membership.NodeState;
 import org.apache.cassandra.tcm.ownership.TokenMap;
 import org.apache.cassandra.tcm.transformations.Register;
 import org.apache.cassandra.net.MessageDelivery;
@@ -49,6 +52,8 @@ import org.apache.cassandra.schema.DistributedMetadataLogKeyspace;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Pair;
+
+import static org.apache.cassandra.tcm.membership.NodeState.LEFT;
 
 /**
  * Election process establishes initial CMS leader, from which you can further evolve cluster metadata.
@@ -180,10 +185,12 @@ public class Election
         CMSInitializationRequest.Initiator currentInitiator = initiator.get();
         if (currentInitiator != null && Objects.equals(currentInitiator.initiator, expectedInitiator) && initiator.compareAndSet(currentInitiator, null))
         {
-            for (InetAddressAndPort ep : ClusterMetadata.current().directory.allJoinedEndpoints())
+            ClusterMetadata metadata = ClusterMetadata.current();
+            for (Map.Entry<NodeId, NodeState> entry : metadata.directory.states.entrySet())
             {
-                if (!ep.equals(FBUtilities.getBroadcastAddressAndPort()))
-                    messaging.send(Message.out(Verb.TCM_ABORT_MIG, currentInitiator), ep);
+                NodeId nodeId = entry.getKey();
+                if (!Objects.equals(metadata.myNodeId(), nodeId) && entry.getValue() != LEFT)
+                    messaging.send(Message.out(Verb.TCM_ABORT_MIG, currentInitiator), metadata.directory.endpoint(nodeId));
             }
         }
         else

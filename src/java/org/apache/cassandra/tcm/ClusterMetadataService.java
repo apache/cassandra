@@ -318,6 +318,13 @@ public class ClusterMetadataService
         }
 
         ClusterMetadata metadata = metadata();
+        if (metadata.myNodeState() != NodeState.JOINED)
+        {
+            String msg = String.format("Initial CMS node needs to be fully joined, not: %s", metadata.myNodeState());
+            logger.error(msg);
+            throw new IllegalStateException(msg);
+        }
+
         Set<InetAddressAndPort> existingMembers = metadata.fullCMSMembers();
 
         if (!metadata.directory.allAddresses().containsAll(ignored))

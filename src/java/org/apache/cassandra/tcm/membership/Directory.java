@@ -157,7 +157,7 @@ public class Directory implements MetadataValue<Directory>
     {
         NodeId id = new NodeId(nextId);
         Directory updated = with(addresses, id, hostId, location, version).withNodeState(id, state);
-        if (state != NodeState.LEFT)
+        if (state == NodeState.JOINED)
             updated = updated.withRackAndDC(id);
         return updated;
     }

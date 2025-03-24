@@ -87,6 +87,7 @@ import static org.apache.cassandra.gms.ApplicationState.RELEASE_VERSION;
 import static org.apache.cassandra.gms.ApplicationState.RPC_ADDRESS;
 import static org.apache.cassandra.gms.ApplicationState.STATUS_WITH_PORT;
 import static org.apache.cassandra.gms.ApplicationState.TOKENS;
+import static org.apache.cassandra.gms.Gossiper.isHibernate;
 import static org.apache.cassandra.gms.Gossiper.isShutdown;
 import static org.apache.cassandra.locator.InetAddressAndPort.getByName;
 import static org.apache.cassandra.locator.InetAddressAndPort.getByNameOverrideDefaults;
@@ -123,6 +124,8 @@ public class GossipHelper
             case JOINED:
                 if (isShutdown(oldValue))
                     status = valueFactory.shutdown(true);
+                else if (isHibernate(oldValue))
+                    status = valueFactory.hibernate(true);
                 else
                     status = valueFactory.normal(tokens);
                 break;
@@ -224,10 +227,13 @@ public class GossipHelper
 
         String status = epState.getStatus();
         if (status.equals(VersionedValue.STATUS_NORMAL) ||
-            status.equals(VersionedValue.SHUTDOWN))
+            status.equals(VersionedValue.SHUTDOWN) ||
+            status.equals(VersionedValue.HIBERNATE))
             return NodeState.JOINED;
         if (status.equals(VersionedValue.STATUS_LEFT))
             return NodeState.LEFT;
+        if (status.isEmpty())
+            return NodeState.REGISTERED;
         throw new IllegalStateException("Can't upgrade the first node when STATUS = " + status + " for node " + endpoint);
     }
 
@@ -332,6 +338,12 @@ public class GossipHelper
     {
         Directory directory = new Directory().withLastModified(Epoch.UPGRADE_GOSSIP);
         TokenMap tokenMap = new TokenMap(partitioner).withLastModified(Epoch.UPGRADE_GOSSIP);
+
+        // gossip can contain old hosts with duplicate host ids during upgrades from pre-TCM versions. We need to clean
+        // those up during upgrades since TCM is more strict. Here we simply keep the host with the newest gossip
+        // generation if there is a duplicate hostid.
+        if (containsDuplicateHostIds(epStates))
+            epStates = cleanupDuplicateHostIds(epStates);
         List<InetAddressAndPort> sortedEps = Lists.newArrayList(epStates.keySet());
         Collections.sort(sortedEps);
         Map<ExtensionKey<?, ?>, ExtensionValue<?>> extensions = new HashMap<>();
@@ -344,14 +356,20 @@ public class GossipHelper
             NodeAddresses nodeAddresses = getAddressesFromEndpointState(endpoint, epState);
             NodeVersion nodeVersion = getVersionFromEndpointState(endpoint, epState);
             assert hostIdString != null;
-            NodeState nodeState = toNodeState(endpoint, epState);
+            // some clusters have old, removed hibernating endpoints in gossip, ignore these if they don't exist in our system.peers_v2 table
+            if (!endpoint.equals(FBUtilities.getBroadcastAddressAndPort()) && Gossiper.isHibernate(epState) && !SystemKeyspace.loadTokens().containsKey(endpoint))
+            {
+                logger.info("Ignoring endpoint {} with endpoint states {} since it is missing from system.peers_v2", endpoint, epState);
+                continue;
+            }
 
+            NodeState nodeState = toNodeState(endpoint, epState);
             directory = directory.withNonUpgradedNode(nodeAddresses,
                                                       new Location(dc, rack),
                                                       nodeVersion,
                                                       nodeState,
                                                       UUID.fromString(hostIdString));
-            if (nodeState != NodeState.LEFT)
+            if (nodeState == NodeState.JOINED)
             {
                 NodeId nodeId = directory.peerId(endpoint);
                 tokenMap = tokenMap.assignTokens(nodeId, getTokensIn(partitioner, epState));
@@ -385,7 +403,7 @@ public class GossipHelper
     {
         if (epstates.isEmpty())
             return false;
-        EnumSet<ApplicationState> requiredStates = EnumSet.of(DC, RACK, HOST_ID, TOKENS, RELEASE_VERSION);
+        EnumSet<ApplicationState> requiredStates = EnumSet.of(DC, RACK, HOST_ID, RELEASE_VERSION);
         for (Map.Entry<InetAddressAndPort, EndpointState> entry : epstates.entrySet())
         {
             EndpointState epstate = entry.getValue();
@@ -397,5 +415,51 @@ public class GossipHelper
                 }
         }
         return true;
+    }
+
+    private static boolean containsDuplicateHostIds(Map<InetAddressAndPort, EndpointState> epstates)
+    {
+        Set<String> hostIds = new HashSet<>();
+        for (EndpointState epstate : epstates.values())
+        {
+            String hostIdString = epstate.getApplicationState(HOST_ID).value;
+            if (hostIds.contains(hostIdString))
+                return true;
+            hostIds.add(hostIdString);
+        }
+        return false;
+    }
+
+    private static Map<InetAddressAndPort, EndpointState> cleanupDuplicateHostIds(Map<InetAddressAndPort, EndpointState> epstates)
+    {
+        Map<InetAddressAndPort, EndpointState> cleanEpstates = new HashMap<>();
+        Map<String, InetAddressAndPort> seenHostIds = new HashMap<>();
+        for (Map.Entry<InetAddressAndPort, EndpointState> entry : epstates.entrySet())
+        {
+            InetAddressAndPort endpoint = entry.getKey();
+            EndpointState epstate = entry.getValue();
+            String hostIdString = epstate.getApplicationState(HOST_ID).value;
+            if (seenHostIds.containsKey(hostIdString))
+            {
+                int thisGeneration = epstate.getHeartBeatState().getGeneration();
+
+                InetAddressAndPort seenHost = seenHostIds.get(hostIdString);
+                int seenGeneration = epstates.get(seenHost).getHeartBeatState().getGeneration();
+                logger.warn("Duplicate host id {} found: {} with generation {} and {} with generation {}, keeping the one with the newest generation",
+                            hostIdString, seenHost, seenGeneration, endpoint, thisGeneration);
+                if (thisGeneration > seenGeneration)
+                {
+                    cleanEpstates.remove(seenHost);
+                    cleanEpstates.put(endpoint, epstate);
+                    seenHostIds.put(hostIdString, endpoint);
+                }
+            }
+            else
+            {
+                seenHostIds.put(hostIdString, endpoint);
+                cleanEpstates.put(endpoint, epstate);
+            }
+        }
+        return cleanEpstates;
     }
 }

@@ -43,24 +43,31 @@ public class ClusterMetadataUpgradeAssassinateTest extends UpgradeTestBase
             cluster.get(1).nodetoolResult("assassinate", "127.0.0.3").asserts().success();
         })
         .runAfterClusterUpgrade((cluster) -> {
-            checkPlacements(cluster.get(1));
-            checkPlacements(cluster.get(2));
+            checkPlacements(cluster.get(1), false);
+            checkPlacements(cluster.get(2), false);
             cluster.get(1).nodetoolResult("cms", "initialize").asserts().success();
-            checkPlacements(cluster.get(1));
-            checkPlacements(cluster.get(2));
+            checkPlacements(cluster.get(1), false);
+            checkPlacements(cluster.get(2), false);
         }).run();
     }
-
-    private void checkPlacements(IUpgradeableInstance i)
+    static void checkPlacements(IUpgradeableInstance i, boolean shouldExist)
+    {
+        checkPlacements(i, "127.0.0.3", shouldExist);
+    }
+    static void checkPlacements(IUpgradeableInstance i, String host, boolean shouldExist)
     {
         ((IInvokableInstance) i).runOnInstance(() -> {
             ClusterMetadata metadata = ClusterMetadata.current();
-            InetAddressAndPort ep = InetAddressAndPort.getByNameUnchecked("127.0.0.3");
+            InetAddressAndPort ep = InetAddressAndPort.getByNameUnchecked(host);
             metadata.placements.asMap().forEach((key, value) -> {
-                if (Streams.concat(value.reads.endpoints.stream(),
-                                   value.writes.endpoints.stream())
-                           .anyMatch(fr -> fr.endpoints().contains(ep)))
-                    throw new IllegalStateException(ep + " should not be in placements " + metadata.placements);
+                if (key.isMeta())
+                    return;
+                boolean existsInPlacements = Streams.concat(value.reads.endpoints.stream(),
+                                                            value.writes.endpoints.stream())
+                                                    .anyMatch(fr -> fr.endpoints().contains(ep));
+                if (shouldExist != existsInPlacements)
+                    throw new IllegalStateException(ep + " should" + (shouldExist ? "" : " not")+ " be in placements " + key + " : " + value);
+
             });
         });
     }

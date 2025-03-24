@@ -2084,8 +2084,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         // normal STATUS.
         if (state == ApplicationState.STATUS_WITH_PORT)
         {
-            String[] pieces = splitValue(value);
-            if (pieces[0].equals(VersionedValue.HIBERNATE))
+            if (Gossiper.isHibernate(value))
             {
                 logger.info("Node {} state jump to hibernate", endpoint);
                 Gossiper.runInGossipStageBlocking(() -> {

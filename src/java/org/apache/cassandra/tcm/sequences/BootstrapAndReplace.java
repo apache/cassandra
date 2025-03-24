@@ -20,6 +20,7 @@ package org.apache.cassandra.tcm.sequences;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
@@ -440,6 +441,17 @@ public class BootstrapAndReplace extends MultiStepOperation<Epoch>
         states.add(Pair.create(ApplicationState.TOKENS, valueFactory.tokens(metadata.tokenMap.tokens(nodeId))));
         states.add(Pair.create(ApplicationState.STATUS_WITH_PORT, valueFactory.hibernate(true)));
         states.add(Pair.create(ApplicationState.STATUS, valueFactory.hibernate(true)));
+        Gossiper.instance.addLocalApplicationStates(states);
+    }
+
+    public static void gossipStateToNormal(ClusterMetadata metadata, NodeId nodeId)
+    {
+        List<Pair<ApplicationState, VersionedValue>> states = new ArrayList<>();
+        VersionedValue.VersionedValueFactory valueFactory = StorageService.instance.valueFactory;
+        Collection<Token> tokens = metadata.tokenMap.tokens(nodeId);
+        states.add(Pair.create(ApplicationState.TOKENS, valueFactory.tokens(tokens)));
+        states.add(Pair.create(ApplicationState.STATUS_WITH_PORT, valueFactory.normal(tokens)));
+        states.add(Pair.create(ApplicationState.STATUS, valueFactory.normal(tokens)));
         Gossiper.instance.addLocalApplicationStates(states);
     }
 
