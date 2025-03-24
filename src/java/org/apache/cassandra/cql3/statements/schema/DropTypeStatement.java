@@ -23,6 +23,7 @@ import org.apache.cassandra.audit.AuditLogContext;
 import org.apache.cassandra.audit.AuditLogEntryType;
 import org.apache.cassandra.auth.Permission;
 import org.apache.cassandra.cql3.CQLStatement;
+import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.cql3.UTName;
 import org.apache.cassandra.cql3.functions.Function;
 import org.apache.cassandra.db.guardrails.Guardrails;
@@ -124,6 +125,7 @@ public final class DropTypeStatement extends AlterSchemaStatement
 
     public void authorize(ClientState client)
     {
+        QueryProcessor.metrics.dropTypeStatementCount.inc();
         client.ensureAllTablesPermission(keyspaceName, Permission.DROP);
     }
 

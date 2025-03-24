@@ -21,6 +21,7 @@ import org.apache.cassandra.audit.AuditLogContext;
 import org.apache.cassandra.audit.AuditLogEntryType;
 import org.apache.cassandra.cql3.CQLStatement;
 import org.apache.cassandra.cql3.QualifiedName;
+import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.db.guardrails.Guardrails;
 import org.apache.cassandra.schema.*;
 import org.apache.cassandra.schema.Keyspaces.KeyspacesDiff;
@@ -77,6 +78,7 @@ public final class DropTriggerStatement extends AlterSchemaStatement
 
     public void authorize(ClientState client)
     {
+        QueryProcessor.metrics.dropTriggerStatementCount.inc();
         client.ensureIsSuperuser("Only superusers are allowed to perfrom DROP TRIGGER queries");
     }
 

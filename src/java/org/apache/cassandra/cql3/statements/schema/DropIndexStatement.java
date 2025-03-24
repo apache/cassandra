@@ -22,6 +22,7 @@ import org.apache.cassandra.audit.AuditLogEntryType;
 import org.apache.cassandra.auth.Permission;
 import org.apache.cassandra.cql3.CQLStatement;
 import org.apache.cassandra.cql3.QualifiedName;
+import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.db.guardrails.Guardrails;
 import org.apache.cassandra.schema.*;
 import org.apache.cassandra.schema.KeyspaceMetadata.KeyspaceDiff;
@@ -79,6 +80,7 @@ public final class DropIndexStatement extends AlterSchemaStatement
 
     public void authorize(ClientState client)
     {
+        QueryProcessor.metrics.dropIndexStatementCount.inc();
         KeyspaceMetadata keyspace = Schema.instance.getKeyspaceMetadata(keyspaceName);
         if (null == keyspace)
             return;

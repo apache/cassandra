@@ -28,6 +28,7 @@ import org.apache.cassandra.auth.FunctionResource;
 import org.apache.cassandra.auth.Permission;
 import org.apache.cassandra.cql3.CQL3Type;
 import org.apache.cassandra.cql3.CQLStatement;
+import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.cql3.functions.Function;
 import org.apache.cassandra.cql3.functions.FunctionName;
 import org.apache.cassandra.cql3.functions.UDAggregate;
@@ -126,6 +127,7 @@ public final class DropAggregateStatement extends AlterSchemaStatement
 
     public void authorize(ClientState client)
     {
+        QueryProcessor.metrics.dropAggregateStatementCount.inc();
         KeyspaceMetadata keyspace = Schema.instance.getKeyspaceMetadata(keyspaceName);
         if (null == keyspace)
             return;

@@ -182,6 +182,7 @@ Unreleased
  * [SO-38673] support copyAndAddIntervals in IntervalTree for faster replaceFlushed View update (CASSANDRA-20164)
  * Reduce info logging from automatic paxos repair (CASSANDRA-19445)
  * [SO-40416] Guardrail: maximum_replication_factor
+ * [SO-41542] Add metrics to DROP and TRUNCATE queries to monitor their usage
 4.1.3.20
  * [SO-40691] Implement additional metrics on repair failures
  * [SO-40802] Fix on BadQueriesInTable reporting on large partition

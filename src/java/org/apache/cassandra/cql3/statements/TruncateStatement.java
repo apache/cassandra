@@ -53,6 +53,7 @@ public class TruncateStatement extends QualifiedStatement implements CQLStatemen
 
     public void authorize(ClientState state) throws InvalidRequestException, UnauthorizedException
     {
+        QueryProcessor.metrics.truncateStatementCount.inc();
         state.ensureTablePermission(keyspace(), name(), Permission.MODIFY);
     }
 

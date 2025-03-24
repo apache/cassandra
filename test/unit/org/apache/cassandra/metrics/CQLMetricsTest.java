@@ -19,6 +19,7 @@
 package org.apache.cassandra.metrics;
 
 import java.io.IOException;
+import java.util.Collection;
 
 import org.junit.AfterClass;
 import org.junit.Assert;
@@ -33,8 +34,11 @@ import org.apache.cassandra.ServerTestUtils;
 import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.QueryProcessor;
+import org.apache.cassandra.db.Mutation;
+import org.apache.cassandra.db.partitions.Partition;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.service.EmbeddedCassandraService;
+import org.apache.cassandra.triggers.ITrigger;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
@@ -262,6 +266,194 @@ public class CQLMetricsTest
         // alter on other option is not counted
         session.execute("ALTER TABLE junit.altertest2 WITH comment='test text';");
         assertEquals(3, QueryProcessor.metrics.alterStatementWithCompactionSpecifiedCount.getCount());
+    }
+
+    @Test
+    public void testDropTableStatementCount() {
+        clearMetrics();
+        session.execute("CREATE TABLE IF NOT EXISTS junit.droptest (id uuid PRIMARY KEY, content text);");
+        session.execute("DROP TABLE junit.droptest;");
+        assertEquals(1, QueryProcessor.metrics.dropTableStatementCount.getCount());
+
+        // invalid DROP statement is also counted
+        try {
+            session.execute("DROP TABLE junit.nonexisting;");
+        }
+        catch (InvalidQueryException e) {
+            assertEquals(2, QueryProcessor.metrics.dropTableStatementCount.getCount());
+        }
+        catch (Exception e) {
+            fail(String.format("Unexpected exception: %s", e.getMessage()));
+        }
+    }
+
+    @Test
+    public void testDropKeyspaceStatementCount()
+    {
+        clearMetrics();
+        session.execute("CREATE KEYSPACE IF NOT EXISTS junit2 WITH replication = { 'class' : 'SimpleStrategy', 'replication_factor' : 1 };");
+        session.execute("DROP KEYSPACE junit2;");
+        assertEquals(1, QueryProcessor.metrics.dropKeyspaceStatementCount.getCount());
+
+        // invalid DROP statement is also counted
+        try {
+            session.execute("DROP KEYSPACE junit2;");
+        }
+        catch (InvalidQueryException e) {
+            assertEquals(2, QueryProcessor.metrics.dropKeyspaceStatementCount.getCount());
+        }
+        catch (Exception e) {
+            fail(String.format("Unexpected exception: %s", e.getMessage()));
+        }
+    }
+
+    @Test
+    public void testDropIndexStatementCount()
+    {
+        clearMetrics();
+        session.execute("CREATE INDEX IF NOT EXISTS idx ON junit.metricstest (val);");
+        session.execute("DROP INDEX junit.idx;");
+        assertEquals(1, QueryProcessor.metrics.dropIndexStatementCount.getCount());
+
+        // invalid DROP statement is also counted
+        try {
+            session.execute("DROP INDEX junit.idx;");
+        }
+        catch (InvalidQueryException e) {
+            assertEquals(2, QueryProcessor.metrics.dropIndexStatementCount.getCount());
+        }
+        catch (Exception e) {
+            fail(String.format("Unexpected exception: %s", e.getMessage()));
+        }
+    }
+
+    @Test
+    public void testDropAggregateStatementCount()
+    {
+        clearMetrics();
+        session.execute("CREATE OR REPLACE FUNCTION junit.tester(state int, val int) RETURNS NULL ON NULL INPUT RETURNS int LANGUAGE javascript AS '\"string\";';");
+        session.execute("CREATE OR REPLACE AGGREGATE junit.agg(int) SFUNC tester STYPE int INITCOND 0;");
+        session.execute("DROP AGGREGATE junit.agg;");
+        assertEquals(1, QueryProcessor.metrics.dropAggregateStatementCount.getCount());
+
+        // invalid DROP statement is also counted
+        try {
+            session.execute("DROP AGGREGATE junit.agg;");
+        }
+        catch (InvalidQueryException e) {
+            assertEquals(2, QueryProcessor.metrics.dropAggregateStatementCount.getCount());
+        }
+        catch (Exception e) {
+            fail(String.format("Unexpected exception: %s", e.getMessage()));
+        }
+    }
+
+    @Test
+    public void testDropViewStatementCount()
+    {
+        clearMetrics();
+        session.execute("CREATE MATERIALIZED VIEW junit.viewtest AS SELECT * FROM junit.metricstest WHERE id IS NOT NULL PRIMARY KEY (id);");
+        session.execute("DROP MATERIALIZED VIEW junit.viewtest;");
+        assertEquals(1, QueryProcessor.metrics.dropViewStatementCount.getCount());
+
+        // invalid DROP statement is also counted
+        try {
+            session.execute("DROP MATERIALIZED VIEW junit.viewtest;");
+        }
+        catch (InvalidQueryException e) {
+            assertEquals(2, QueryProcessor.metrics.dropViewStatementCount.getCount());
+        }
+        catch (Exception e) {
+            fail(String.format("Unexpected exception: %s", e.getMessage()));
+        }
+    }
+
+    public static class NoOpTrigger implements ITrigger
+    {
+        public Collection<Mutation> augment(Partition partition)
+        {
+            return null;
+        }
+    }
+
+    @Test
+    public void testDropTriggerStatementCount()
+    {
+        clearMetrics();
+        session.execute(String.format("CREATE TRIGGER IF NOT EXISTS new_trigger ON junit.metricstest USING '%s';", NoOpTrigger.class.getName()));
+        session.execute("DROP TRIGGER new_trigger ON junit.metricstest;");
+        assertEquals(1, QueryProcessor.metrics.dropTriggerStatementCount.getCount());
+
+        // invalid DROP statement is also counted
+        try {
+            session.execute("DROP TRIGGER new_trigger ON junit.metricstest;");
+        }
+        catch (InvalidQueryException e) {
+            assertEquals(2, QueryProcessor.metrics.dropTriggerStatementCount.getCount());
+        }
+        catch (Exception e) {
+            fail(String.format("Unexpected exception: %s", e.getMessage()));
+        }
+    }
+
+    @Test
+    public void testDropTypeStatementCount()
+    {
+        clearMetrics();
+        session.execute("CREATE TYPE junit.type (id uuid, content text);");
+        session.execute("DROP TYPE junit.type;");
+        assertEquals(1, QueryProcessor.metrics.dropTypeStatementCount.getCount());
+
+        // invalid DROP statement is also counted
+        try {
+            session.execute("DROP TYPE junit.type;");
+        }
+        catch (InvalidQueryException e) {
+            assertEquals(2, QueryProcessor.metrics.dropTypeStatementCount.getCount());
+        }
+        catch (Exception e) {
+            fail(String.format("Unexpected exception: %s", e.getMessage()));
+        }
+    }
+
+    @Test
+    public void testDropFunctionStatementCount()
+    {
+        clearMetrics();
+        session.execute("CREATE OR REPLACE FUNCTION junit.func (input int) RETURNS NULL ON NULL INPUT RETURNS int LANGUAGE java AS 'return 1;';");
+        session.execute("DROP FUNCTION junit.func;");
+        assertEquals(1, QueryProcessor.metrics.dropFunctionStatementCount.getCount());
+
+        // invalid DROP statement is also counted
+        try {
+            session.execute("DROP FUNCTION junit.func;");
+        }
+        catch (InvalidQueryException e) {
+            assertEquals(2, QueryProcessor.metrics.dropFunctionStatementCount.getCount());
+        }
+        catch (Exception e) {
+            fail(String.format("Unexpected exception: %s", e.getMessage()));
+        }
+    }
+
+    @Test
+    public void testTruncateStatementCount()
+    {
+        clearMetrics();
+        session.execute("CREATE TABLE IF NOT EXISTS junit.truncatetest (id uuid PRIMARY KEY, content text);");
+        session.execute("TRUNCATE junit.truncatetest;");
+        assertEquals(1, QueryProcessor.metrics.truncateStatementCount.getCount());
+
+        // invalid TRUNCATE statement is also counted
+        try {
+            session.execute("TRUNCATE junit.nonexisting;");
+        }
+        catch (InvalidQueryException e) {
+            assertEquals(2, QueryProcessor.metrics.truncateStatementCount.getCount());
+        }
+        catch (Exception e) {
+            fail(String.format("Unexpected exception: %s", e.getMessage()));
+        }
     }
 
     private void clearMetrics()

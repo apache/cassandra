@@ -45,6 +45,17 @@ public class CQLMetrics
     public final Counter alterStatementCount;
     public final Counter alterStatementWithCompactionSpecifiedCount;
 
+    public final Counter truncateStatementCount;
+
+    public final Counter dropTableStatementCount;
+    public final Counter dropKeyspaceStatementCount;
+    public final Counter dropIndexStatementCount;
+    public final Counter dropAggregateStatementCount;
+    public final Counter dropViewStatementCount;
+    public final Counter dropTriggerStatementCount;
+    public final Counter dropTypeStatementCount;
+    public final Counter dropFunctionStatementCount;
+
     public CQLMetrics()
     {
         regularStatementsExecuted = Metrics.counter(factory.createMetricName("RegularStatementsExecuted"));
@@ -78,5 +89,16 @@ public class CQLMetrics
         createStatementWithCompactionSpecifiedCount = Metrics.counter(factory.createMetricName("CreateStatementWithCompactionSpecifiedCount"));
         alterStatementCount = Metrics.counter(factory.createMetricName("AlterStatementCount"));
         alterStatementWithCompactionSpecifiedCount = Metrics.counter(factory.createMetricName("AlterStatementWithCompactionSpecifiedCount"));
+
+        truncateStatementCount = Metrics.counter(factory.createMetricName("TruncateStatementCount"));
+
+        dropTableStatementCount = Metrics.counter(factory.createMetricName("DropTableStatementCount"));
+        dropKeyspaceStatementCount = Metrics.counter(factory.createMetricName("DropKeyspaceStatementCount"));
+        dropIndexStatementCount = Metrics.counter(factory.createMetricName("DropIndexStatementCount"));
+        dropAggregateStatementCount = Metrics.counter(factory.createMetricName("DropAggregateStatementCount"));
+        dropViewStatementCount = Metrics.counter(factory.createMetricName("DropViewStatementCount"));
+        dropTriggerStatementCount = Metrics.counter(factory.createMetricName("DropTriggerStatementCount"));
+        dropTypeStatementCount = Metrics.counter(factory.createMetricName("DropTypeStatementCount"));
+        dropFunctionStatementCount = Metrics.counter(factory.createMetricName("DropFunctionStatementCount"));
     }
 }
