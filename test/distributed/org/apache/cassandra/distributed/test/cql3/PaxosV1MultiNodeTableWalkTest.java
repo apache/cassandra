@@ -36,12 +36,5 @@ public class PaxosV1MultiNodeTableWalkTest extends CasMultiNodeTableWalkBase
         // Example: builder.withSeed(42L);
         // CQL operations may have opertors such as +, -, and / (example 4 + 4), to "apply" them to get a constant value
         // CQL_DEBUG_APPLY_OPERATOR = true;
-
-        builder.withExamples(Integer.MAX_VALUE);
-//        builder.withSeed(3448035473658306695L).withExamples(1); //Fixed: -= support for ints
-//        builder.withSeed(-6448811881977560183L).withExamples(1); //Fixed: -= didn't document that it needed to read data for numeric columns
-//        builder.withSeed(-802335058805597584L).withExamples(1); //Fixed: reference expression visit didn't call the visitor
-//        builder.withSeed(4532751787677853981L).withExamples(1); //Fixed: NPE doing numeric add
-//        builder.withSeed(2837435086451390021L).withExamples(1); //Partial Fix (if the row doesn't exist all column conditions return false now, if the column is null you will hit the same issue with UDTs): if v0 = <empty> applied in paxos
     }
 }
