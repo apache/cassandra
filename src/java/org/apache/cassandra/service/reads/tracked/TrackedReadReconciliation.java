@@ -376,7 +376,6 @@ public class TrackedReadReconciliation<E extends Endpoints<E>, P extends Replica
         if (plans.isEmpty())
         {
             Data data = new Data(0, command, dataNode, dataResponse, Collections.emptySet(), resultConsumer);
-            data.maybeComplete();
             Preconditions.checkState(data.isComplete());
             state = new State.Complete(data);
             return;
