@@ -259,7 +259,8 @@ public class ASTSingleTableModel
                     if (result.kind == EvalResult.Kind.SKIP) continue;
                     write.put(col, result.value);
                 }
-                partition.setStaticColumns(write);
+                if (!write.isEmpty())
+                    partition.setStaticColumns(write);
             }
             // table has clustering but non are in the write, so only pk/static can be updated
             if (!factory.clusteringColumns.isEmpty() && remaining.isEmpty())
@@ -275,7 +276,8 @@ public class ASTSingleTableModel
                     write.put(col, result.value);
                 }
 
-                partition.setColumns(cd, write, false);
+                if (!write.isEmpty())
+                    partition.setColumns(cd, write, false);
             }
         }
     }
