@@ -44,6 +44,14 @@ import org.apache.cassandra.utils.FastByteOperations;
  */
 public abstract class Constants
 {
+
+    private static ByteBuffer getCurrentCellBuffer(ColumnMetadata column, DecoratedKey key, UpdateParameters params)
+    {
+        Row currentRow = params.getPrefetchedRow(key, column.isStatic() ? Clustering.STATIC_CLUSTERING : params.currentClustering());
+        Cell<?> currentCell = currentRow == null ? null : currentRow.getCell(column);
+        return currentCell == null ? null : currentCell.buffer();
+    }
+
     public enum Type
     {
         STRING
@@ -492,7 +500,7 @@ public abstract class Constants
                 ByteBuffer increment = type.sanitize(t.bindAndGet(params.options));
                 if (increment == null)
                     return;
-                ByteBuffer current = type.sanitize(getCurrentCellBuffer(partitionKey, params));
+                ByteBuffer current = type.sanitize(getCurrentCellBuffer(column, partitionKey, params));
                 if (current == null)
                     return;
                 ByteBuffer newValue = type.add(type.compose(current), type.compose(increment));
@@ -501,7 +509,7 @@ public abstract class Constants
             else if (column.type instanceof StringType)
             {
                 ByteBuffer append = t.bindAndGet(params.options);
-                ByteBuffer current = getCurrentCellBuffer(partitionKey, params);
+                ByteBuffer current = getCurrentCellBuffer(column, partitionKey, params);
                 if (current == null)
                     return;
                 ByteBuffer newValue = ByteBuffer.allocate(current.remaining() + append.remaining());
@@ -509,13 +517,6 @@ public abstract class Constants
                 FastByteOperations.copy(append, append.position(), newValue, newValue.position() + current.remaining(), append.remaining());
                 params.addCell(column, newValue);
             }
-        }
-
-        private ByteBuffer getCurrentCellBuffer(DecoratedKey key, UpdateParameters params)
-        {
-            Row currentRow = params.getPrefetchedRow(key, column.isStatic() ? Clustering.STATIC_CLUSTERING : params.currentClustering());
-            Cell<?> currentCell = currentRow == null ? null : currentRow.getCell(column);
-            return currentCell == null ? null : currentCell.buffer();
         }
     }
 
@@ -554,20 +555,12 @@ public abstract class Constants
                 ByteBuffer increment = type.sanitize(t.bindAndGet(params.options));
                 if (increment == null)
                     return;
-                ByteBuffer current = type.sanitize(getCurrentCellBuffer(partitionKey, params));
+                ByteBuffer current = type.sanitize(getCurrentCellBuffer(column, partitionKey, params));
                 if (current == null)
                     return;
                 ByteBuffer newValue = type.substract(type.compose(current), type.compose(increment));
                 params.addCell(column, newValue);
             }
-        }
-
-        private ByteBuffer getCurrentCellBuffer(DecoratedKey key, UpdateParameters params)
-        {
-            //TODO (now): refactor as this is copy/paste from +=
-            Row currentRow = params.getPrefetchedRow(key, column.isStatic() ? Clustering.STATIC_CLUSTERING : params.currentClustering());
-            Cell<?> currentCell = currentRow == null ? null : currentRow.getCell(column);
-            return currentCell == null ? null : currentCell.buffer();
         }
     }
 
