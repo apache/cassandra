@@ -25,11 +25,9 @@ import java.lang.ref.PhantomReference;
 import java.lang.ref.ReferenceQueue;
 import java.lang.ref.WeakReference;
 import java.nio.charset.StandardCharsets;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Iterator;
-import java.util.List;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
@@ -44,6 +42,8 @@ import java.util.concurrent.locks.ReentrantLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.function.LongBinaryOperator;
 import java.util.function.Supplier;
+
+import javax.annotation.Nullable;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.primitives.Ints;
@@ -906,18 +906,18 @@ public class DecayingEstimatedHistogramReservoir implements SnapshottingReservoi
         public void update(int index, long now)
         {
             // This is only called by the thread that owns the thread local, so we don't need to worry about contention.
+            // Once the rescaling has occurred, we need to flush the values to the decayingBucket and report that the values are no longer in use.
             inUse.incrementAndGet();
             try
             {
-                DecayingArray decaying = getOrSet(decayingRef, () -> new DecayingArray(size, decayingBuckets.decayLandmark));
-                decaying.update(index, now);
+                DecayingArray decaying = decayingRef.get();
+                if (decaying == null || decaying.decayLandmark != decayingBuckets.decayLandmark)
+                    decayingBuckets.flush(this, decaying);
+
+                decayingRef.get().update(index, now);
 
                 long[] estimated = getOrSet(estimatedRef, () -> new long[size]);
                 estimated[index]++;
-
-                if (decaying.decayLandmark == decayingBuckets.decayLandmark)
-                    return;
-                decayingBuckets.flush(this, decaying);
             }
             finally
             {
@@ -932,7 +932,7 @@ public class DecayingEstimatedHistogramReservoir implements SnapshottingReservoi
             // There is also no need for the BucketsThreadLocal#inUse check since the thread is dead and no one will update the values.
             if (threadLocals.remove(this))
             {
-                decayingBuckets.flush(this, getOrSet(decayingRef, () -> new DecayingArray(size, decayingBuckets.decayLandmark)));
+                decayingBuckets.flush(this, decayingRef.get());
                 estimatedBuckets.release(estimatedRef);
             }
         }
@@ -1041,7 +1041,7 @@ public class DecayingEstimatedHistogramReservoir implements SnapshottingReservoi
                         // Skip the thread local if it was created after the decayLandmark was updated.
                         if (prev == null || prev.decayLandmark == now)
                             break;
-                        if (local.decayingRef.compareAndSet(prev, new DecayingArray(local.size, now)))
+                        if (local.decayingRef.compareAndSet(prev, new DecayingArray(buckets.length, now)))
                         {
                             // We successfully switched the thread local to the new decayLandmark, wait for the thread to finish updating.
                             while (local.inUse.get() > 0)
@@ -1051,20 +1051,8 @@ public class DecayingEstimatedHistogramReservoir implements SnapshottingReservoi
                         }
                     }
                 }
-
-                // Flush only the pending values that were created before the decayLandmark was updated.
-                DecayingArray data;
-                List<DecayingArray> toReturn = new ArrayList<>();
-                while ((data = decayingPending.poll()) != null)
-                {
-                    if (data.decayLandmark == previousDecayLandmark)
-                        merge(buckets, data.data);
-                    else
-                        toReturn.add(data);
-                }
-                DecayingEstimatedHistogramReservoir.decay(buckets, previousDecayLandmark, now);
-                decayingPending.addAll(toReturn);
                 flushPendingInternal();
+                DecayingEstimatedHistogramReservoir.decay(buckets, previousDecayLandmark, now);
             }
             finally
             {
@@ -1092,15 +1080,16 @@ public class DecayingEstimatedHistogramReservoir implements SnapshottingReservoi
         /**
          * Used only by a thread-local writer to flush the values to the buffer.
          */
-        public void flush(BucketsThreadLocal local, DecayingArray decaying)
+        public void flush(BucketsThreadLocal local, @Nullable DecayingArray decaying)
         {
             if (lock.tryLock())
             {
                 try
                 {
-                    assert decayLandmark == decaying.decayLandmark;
-                    local.decayingRef.set(new DecayingArray(decaying.data.length, decaying.decayLandmark));
-                    decayingPending.offer(decaying);
+                    boolean success = local.decayingRef.compareAndSet(decaying, new DecayingArray(buckets.length, decayLandmark));
+                    assert success : "The thread local was updated by another thread";
+                    if (decaying != null)
+                        decayingPending.offer(decaying);
                     flushPendingInternal();
                 }
                 finally
@@ -1110,9 +1099,9 @@ public class DecayingEstimatedHistogramReservoir implements SnapshottingReservoi
             }
             else
             {
-                boolean success = local.decayingRef.compareAndSet(decaying, new DecayingArray(decaying.data.length, decaying.decayLandmark));
+                boolean success = local.decayingRef.compareAndSet(decaying, new DecayingArray(buckets.length, decayLandmark));
                 // If the CAS failed, the thread local was updated by the rescale thread and all the values were already flushed.
-                if (success)
+                if (success && decaying != null)
                     decayingPending.offer(decaying);
             }
         }
@@ -1160,18 +1149,13 @@ public class DecayingEstimatedHistogramReservoir implements SnapshottingReservoi
 
         private void flushPendingInternal()
         {
-            DecayingArray first = null;
-            DecayingArray arr;
             assert lock.isHeldByCurrentThread();
             assert updateStartEpoch.get() == updateEndEpoch.get();
+
+            DecayingArray arr;
             updateStartEpoch.incrementAndGet();
             while ((arr = decayingPending.poll()) != null)
-            {
-                if (first == null)
-                    first = arr;
-                assert arr.decayLandmark == first.decayLandmark : "Mixing decay landmarks in the same flush are forbidden";
                 merge(buckets, arr.data);
-            }
             updateEndEpoch.incrementAndGet();
         }
     }
