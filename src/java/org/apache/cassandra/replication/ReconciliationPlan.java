@@ -136,6 +136,11 @@ public class ReconciliationPlan
         return txPlan.get(node).ids();
     }
 
+    public boolean isEmpty()
+    {
+        return txPlan.isEmpty();
+    }
+
     private static class PlanBuilder
     {
         final InetAddressAndPort node;
@@ -234,7 +239,11 @@ public class ReconciliationPlan
         coordinatorReconciliations.values().forEach(planBuilder -> planBuilder.createPlan(planBuilders));
 
         Map<InetAddressAndPort, ReconciliationPlan> plans = new HashMap<>();
-        planBuilders.forEach((node, planBuilder) -> plans.put(node, planBuilder.build()));
+        planBuilders.forEach((node, planBuilder) -> {
+            ReconciliationPlan plan = planBuilder.build();
+            if (!plan.isEmpty())
+                plans.put(node, plan);
+        });
         return plans;
     }
 

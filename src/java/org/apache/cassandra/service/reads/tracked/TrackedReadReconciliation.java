@@ -347,9 +347,6 @@ public class TrackedReadReconciliation<E extends Endpoints<E>, P extends Replica
     @Override
     public void startRepair(ResponseResolver<E, P> resolver, Consumer<PartitionIterator> resultConsumer)
     {
-        ReadRepairMetrics.logReconcile.mark();
-        ColumnFamilyStore.metricsFor(command.metadata().id).readRepairRequests.mark();
-
         if (!state.isInitialized())
         {
             throw new IllegalStateException("State is " + state.name() + ", not Initialized");
@@ -370,11 +367,23 @@ public class TrackedReadReconciliation<E extends Endpoints<E>, P extends Replica
                 dataResponse = response.asDataResponse();
             }
         }
+        Preconditions.checkState(dataNode != null);
+        Preconditions.checkState(dataResponse != null);
 
         Map<InetAddressAndPort, ReconciliationPlan> plans = ReconciliationPlan.calculateReconciliation(summaries);
 
-        Preconditions.checkState(dataNode != null);
-        Preconditions.checkState(dataResponse != null);
+        // the summaries were different, but after looking at the union of reconciled ids, there is nothing to do
+        if (plans.isEmpty())
+        {
+            Data data = new Data(0, command, dataNode, dataResponse, Collections.emptySet(), resultConsumer);
+            data.maybeComplete();
+            Preconditions.checkState(data.isComplete());
+            state = new State.Complete(data);
+            return;
+        }
+
+        ReadRepairMetrics.logReconcile.mark();
+        ColumnFamilyStore.metricsFor(command.metadata().id).readRepairRequests.mark();
 
         long expiresAt = requestTime.computeDeadline(command.getTimeout(TimeUnit.NANOSECONDS));
         long reconciliationId = MutationTrackingService.instance.reconciliations().newReconciliation(this, expiresAt);
