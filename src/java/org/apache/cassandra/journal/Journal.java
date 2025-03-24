@@ -197,6 +197,9 @@ public class Journal<K, V> implements Shutdownable
 
     public void start()
     {
+        if (state.get() == State.NORMAL)
+            return;
+
         Invariants.checkState(state.compareAndSet(State.UNINITIALIZED, State.INITIALIZING),
                               "Unexpected journal state during initialization: %s", state);
         metrics.register(flusher);

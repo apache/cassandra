@@ -57,14 +57,22 @@ public class MutationTrackingService
     private MutationTrackingService() {}
 
     // TODO (expected): implement a TCM ChangeListener
-    public void start()
+    public synchronized void start()
     {
+        if (started)
+            return;
         // if we need to grab it earliier, go to tcm.Startup and add afterReplay() callbacks
         ClusterMetadata metadata = ClusterMetadata.current();
 
         for (KeyspaceMetadata keyspace : metadata.schema.getKeyspaces())
             if (keyspace.useMutationTracking())
                 shards.put(keyspace.name, KeyspaceShards.make(keyspace, metadata, this::nextHostLogId));
+        started = true;
+    }
+
+    public synchronized boolean isStarted()
+    {
+        return started;
     }
 
     public void shutdownBlocking() throws InterruptedException
