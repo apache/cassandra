@@ -74,6 +74,7 @@ import static org.apache.cassandra.tcm.ClusterMetadataService.State.LOCAL;
 import static org.apache.cassandra.tcm.compatibility.GossipHelper.emptyWithSchemaFromSystemTables;
 import static org.apache.cassandra.tcm.compatibility.GossipHelper.fromEndpointStates;
 import static org.apache.cassandra.tcm.membership.NodeState.JOINED;
+import static org.apache.cassandra.tcm.membership.NodeState.LEFT;
 import static org.apache.cassandra.utils.FBUtilities.getBroadcastAddressAndPort;
 
  /**
@@ -313,18 +314,26 @@ import static org.apache.cassandra.utils.FBUtilities.getBroadcastAddressAndPort;
         logger.debug("Created initial ClusterMetadata {}", initial);
         ClusterMetadataService.instance().setFromGossip(initial);
         Gossiper.instance.clearUnsafe();
-        if (switchIp != null)
-        {
-            // quarantine the old ip to make sure it doesn't get re-added via gossip
-            InetAddressAndPort removeEp = switchIp;
-            Gossiper.runInGossipStageBlocking(() -> Gossiper.instance.removeEndpoint(removeEp));
-        }
+
+        // find any endpoints that were ignored on upgrade and make sure they don't get re-added in gossip
+        InetAddressAndPort removeEp = switchIp;
+        Gossiper.runInGossipStageBlocking(() -> {
+            if (removeEp != null)
+                Gossiper.instance.removeEndpoint(removeEp);
+            for (InetAddressAndPort ep : epStates.keySet())
+            {
+                if (initial.directory.peerId(ep) == null)
+                    Gossiper.instance.removeEndpoint(ep); // just quarantines the ep - endpoint states should be empty
+                                                          // here (this is run before Gossiper is started)
+            }
+        });
+
         Gossiper.instance.maybeInitializeLocalState(SystemKeyspace.incrementAndGetGeneration());
         for (Map.Entry<NodeId, NodeState> entry : initial.directory.states.entrySet())
         {
             InetAddressAndPort ep = initial.directory.addresses.get(entry.getKey()).broadcastAddress;
-            if (entry.getValue() != NodeState.LEFT)
-                Gossiper.instance.mergeNodeToGossip(entry.getKey(), initial);
+            if (entry.getValue() != LEFT)
+                Gossiper.instance.mergeNodeToGossip(entry.getKey(), initial, Gossiper.isHibernate(epStates.get(ep)));
             else
                 Gossiper.runInGossipStageBlocking(() -> Gossiper.instance.endpointStateMap.put(ep, epStates.get(ep)));
         }

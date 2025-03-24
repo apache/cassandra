@@ -1,4 +1,5 @@
 5.1
+ * Various gossip to TCM upgrade fixes (CASSANDRA-20483)
  * Add nodetool command to abort failed nodetool cms initialize (CASSANDRA-20482)
  * Repair Paxos for the distributed metadata log when CMS membership changes (CASSANDRA-20467)
  * Reintroduce CASSANDRA-17411 in trunk (CASSANDRA-19346)

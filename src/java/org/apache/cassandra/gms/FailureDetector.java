@@ -47,12 +47,13 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.FSWriteError;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.Replica;
 import org.apache.cassandra.tcm.ClusterMetadata;
+import org.apache.cassandra.tcm.MultiStepOperation;
 import org.apache.cassandra.tcm.membership.NodeId;
+import org.apache.cassandra.tcm.sequences.BootstrapAndReplace;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.MBeanWrapper;
 
@@ -150,7 +151,7 @@ public class FailureDetector implements IFailureDetector, FailureDetectorMBean
         for (Map.Entry<InetAddressAndPort, EndpointState> entry : Gossiper.instance.endpointStateMap.entrySet())
         {
             sb.append(resolveIp ? entry.getKey().getHostName(withPort) : entry.getKey().toString(withPort)).append("\n");
-            appendEndpointState(sb, entry.getValue());
+            appendEndpointState(sb, entry.getKey(), entry.getValue());
         }
         return sb.toString();
     }
@@ -242,12 +243,13 @@ public class FailureDetector implements IFailureDetector, FailureDetectorMBean
     public String getEndpointState(String address) throws UnknownHostException
     {
         StringBuilder sb = new StringBuilder();
-        EndpointState endpointState = Gossiper.instance.getEndpointStateForEndpoint(InetAddressAndPort.getByName(address));
-        appendEndpointState(sb, endpointState);
+        InetAddressAndPort endpoint = InetAddressAndPort.getByName(address);
+        EndpointState endpointState = Gossiper.instance.getEndpointStateForEndpoint(endpoint);
+        appendEndpointState(sb, endpoint, endpointState);
         return sb.toString();
     }
 
-    private void appendEndpointState(StringBuilder sb, EndpointState endpointState)
+    private void appendEndpointState(StringBuilder sb, InetAddressAndPort endpoint, EndpointState endpointState)
     {
         sb.append("  generation:").append(endpointState.getHeartBeatState().getGeneration()).append("\n");
         sb.append("  heartbeat:").append(endpointState.getHeartBeatState().getHeartBeatVersion()).append("\n");
@@ -258,9 +260,20 @@ public class FailureDetector implements IFailureDetector, FailureDetectorMBean
             sb.append("  ").append(state.getKey()).append(":").append(state.getValue().version).append(":").append(state.getValue().value).append("\n");
         }
         ClusterMetadata metadata = ClusterMetadata.current();
-        NodeId nodeId = metadata.directory.peerId(FBUtilities.getBroadcastAddressAndPort());
-        List<Token> tokens = metadata.tokenMap.tokens(nodeId);
-        if (tokens != null && !tokens.isEmpty())
+        NodeId nodeId = metadata.directory.peerId(endpoint);
+        boolean foundTokens = false;
+        if (nodeId != null)
+        {
+            foundTokens = !metadata.tokenMap.tokens(nodeId).isEmpty();
+            if (!foundTokens)
+            {
+                MultiStepOperation<?> mso = metadata.inProgressSequences.get(nodeId);
+                if (mso instanceof BootstrapAndReplace)
+                    foundTokens = true;
+            }
+        }
+
+        if (foundTokens)
             sb.append("  TOKENS:").append(metadata.epoch.getEpoch()).append(":<hidden>\n");
         else
             sb.append("  TOKENS: not present\n");

@@ -454,6 +454,26 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean, 
         return state.equals(VersionedValue.SHUTDOWN);
     }
 
+    public static boolean isHibernate(EndpointState epState)
+    {
+        VersionedValue versionedValue = epState.getApplicationState(ApplicationState.STATUS_WITH_PORT);
+        if (versionedValue == null)
+            versionedValue = epState.getApplicationState(ApplicationState.STATUS);
+        return isHibernate(versionedValue);
+    }
+
+    public static boolean isHibernate(VersionedValue vv)
+    {
+        if (vv == null)
+            return false;
+
+        String value = vv.value;
+        String[] pieces = value.split(VersionedValue.DELIMITER_STR, -1);
+        assert (pieces.length > 0);
+        String state = pieces[0];
+        return state.equals(VersionedValue.HIBERNATE);
+    }
+
     public static void runInGossipStageBlocking(Runnable runnable)
     {
         // run immediately if we're already in the gossip stage
@@ -2106,10 +2126,18 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean, 
      */
     public void mergeNodeToGossip(NodeId nodeId, ClusterMetadata metadata)
     {
-        mergeNodeToGossip(nodeId, metadata, metadata.tokenMap.tokens(nodeId));
+        mergeNodeToGossip(nodeId, metadata, metadata.tokenMap.tokens(nodeId), false);
+    }
+    public void mergeNodeToGossip(NodeId nodeId, ClusterMetadata metadata, boolean forceHibernate)
+    {
+        mergeNodeToGossip(nodeId, metadata, metadata.tokenMap.tokens(nodeId), forceHibernate);
+    }
+    public void mergeNodeToGossip(NodeId nodeId, ClusterMetadata metadata, Collection<Token> tokens)
+    {
+        mergeNodeToGossip(nodeId, metadata, tokens, false);
     }
 
-    public void mergeNodeToGossip(NodeId nodeId, ClusterMetadata metadata, Collection<Token> tokens)
+    private void mergeNodeToGossip(NodeId nodeId, ClusterMetadata metadata, Collection<Token> tokens, boolean forceHibernate)
     {
         taskLock.lock();
         try
@@ -2156,7 +2184,7 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean, 
                             newValue = valueFactory.hostId(uuid);
                             break;
                         case TOKENS:
-                            if (tokens != null)
+                            if (tokens != null && !tokens.isEmpty())
                                 newValue = valueFactory.tokens(tokens);
                             break;
                         case INTERNAL_ADDRESS_AND_PORT:
@@ -2175,6 +2203,14 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean, 
                             // In this case, the app state will be set to `hibernate` by StorageService, so
                             // don't set it here as nodeStateToStatus only considers persistent states (e.g.
                             // ones stored in ClusterMetadata), it isn't aware of transient states like hibernate.
+                            // forceHibernate can be true when upgrading from pre-tcm versions - if a node is hibernating
+                            // we have no state for this in cluster metadata, so we need to explicitly keep that from
+                            // the pre-upgrade gossip states
+                            if (forceHibernate)
+                            {
+                                newValue = valueFactory.hibernate(true);
+                                break;
+                            }
                             if (isLocal && !StorageService.instance.shouldJoinRing())
                                 break;
                             newValue = GossipHelper.nodeStateToStatus(nodeId, metadata, tokens, valueFactory, oldValue);

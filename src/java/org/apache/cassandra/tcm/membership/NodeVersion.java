@@ -36,7 +36,7 @@ public class NodeVersion implements Comparable<NodeVersion>
     public static final Serializer serializer = new Serializer();
     public static final Version CURRENT_METADATA_VERSION = Version.V6;
     public static final NodeVersion CURRENT = new NodeVersion(new CassandraVersion(FBUtilities.getReleaseVersionString()), CURRENT_METADATA_VERSION);
-    private static final CassandraVersion SINCE_VERSION = CassandraVersion.CASSANDRA_5_0;
+    private static final CassandraVersion SINCE_VERSION = CassandraVersion.CASSANDRA_5_1;
 
     public final CassandraVersion cassandraVersion;
     public final int serializationVersion;

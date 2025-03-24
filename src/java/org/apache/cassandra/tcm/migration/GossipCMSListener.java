@@ -54,6 +54,9 @@ public class GossipCMSListener implements IEndpointStateChangeSubscriber
         if (nodeId == null)
         {
             VersionedValue hostIdValue = epState.getApplicationState(ApplicationState.HOST_ID);
+            if (Gossiper.isHibernate(epState))
+                return;
+
             if (hostIdValue != null)
             {
                 UUID hostId = UUID.fromString(hostIdValue.value);

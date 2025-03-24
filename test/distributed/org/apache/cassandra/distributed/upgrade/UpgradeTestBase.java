@@ -24,6 +24,7 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.NavigableSet;
 import java.util.Objects;
 import java.util.Set;
@@ -44,7 +45,9 @@ import org.apache.cassandra.distributed.UpgradeableCluster;
 import org.apache.cassandra.distributed.api.Feature;
 import org.apache.cassandra.distributed.api.ICluster;
 import org.apache.cassandra.distributed.api.IInstanceConfig;
+import org.apache.cassandra.distributed.api.TokenSupplier;
 import org.apache.cassandra.distributed.shared.DistributedTestBase;
+import org.apache.cassandra.distributed.shared.NetworkTopology;
 import org.apache.cassandra.distributed.shared.ThrowingRunnable;
 import org.apache.cassandra.distributed.shared.Versions;
 import org.apache.cassandra.utils.ByteBufferUtil;
@@ -159,6 +162,8 @@ public class UpgradeTestBase extends DistributedTestBase
         private final Set<Integer> nodesToUpgrade = new LinkedHashSet<>();
         private Consumer<IInstanceConfig> configConsumer;
         private Consumer<UpgradeableCluster.Builder> builderConsumer;
+        private TokenSupplier tokenSupplier;
+        private Map<Integer, NetworkTopology.DcAndRack> nodeIdTopology;
         private UpgradeListener upgradeListener = new UpgradeListener()
         {
             @Override
@@ -334,6 +339,18 @@ public class UpgradeTestBase extends DistributedTestBase
             return this;
         }
 
+        public TestCase withTokenSupplier(TokenSupplier tokenSupplier)
+        {
+            this.tokenSupplier = tokenSupplier;
+            return this;
+        }
+
+        public TestCase withNodeIdTopology(Map<Integer, NetworkTopology.DcAndRack> nodeIdTopology)
+        {
+            this.nodeIdTopology = nodeIdTopology;
+            return this;
+        }
+
         public void run() throws Throwable
         {
             if (setup == null)
@@ -358,7 +375,7 @@ public class UpgradeTestBase extends DistributedTestBase
             for (TestVersions upgrade : this.upgrade)
             {
                 logger.info("testing upgrade from {} to {}", upgrade.initial.version, upgrade.upgradeVersions);
-                try (UpgradeableCluster cluster = init(UpgradeableCluster.create(nodeCount, upgrade.initial, configConsumer, builderConsumer)))
+                try (UpgradeableCluster cluster = init(UpgradeableCluster.create(nodeCount, upgrade.initial, configConsumer, builderConsumer, tokenSupplier, nodeIdTopology)))
                 {
                     setup.run(cluster);
 
