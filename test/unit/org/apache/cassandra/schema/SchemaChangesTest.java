@@ -341,7 +341,7 @@ public class SchemaChangesTest
 
         KeyspaceMetadata newFetchedKs = Schema.instance.getKeyspaceMetadata(newKs.name);
         assertEquals(newFetchedKs.params.replication.klass, newKs.params.replication.klass);
-        assertFalse(newFetchedKs.params.replication.klass.equals(oldKs.params.replication.klass));
+        assertNotEquals(newFetchedKs.params.replication.klass, oldKs.params.replication.klass);
     }
 
     /*
@@ -492,26 +492,26 @@ public class SchemaChangesTest
     }
 
     @Test
-    public void testValidateCompatibilityIDMismatch() throws Exception
+    public void testValidateCompatibilityIDMismatch()
     {
         TableMetadata.Builder builder = TableMetadata.builder(KEYSPACE1, TABLE1).addPartitionKeyColumn("partitionKey", BytesType.instance);
 
         TableMetadata table1 = builder.build();
         TableMetadata table2 = table1.unbuild().id(TableId.generate()).build();
         thrown.expect(ConfigurationException.class);
-        thrown.expectMessage(KEYSPACE1 + "." + TABLE1 + ": Table ID mismatch");
+        thrown.expectMessage(KEYSPACE1 + '.' + TABLE1 + ": Table ID mismatch");
         table1.validateCompatibility(table2);
     }
 
     @Test
-    public void testValidateCompatibilityNameMismatch() throws Exception
+    public void testValidateCompatibilityNameMismatch()
     {
         TableMetadata.Builder builder1 = TableMetadata.builder(KEYSPACE1, TABLE1).addPartitionKeyColumn("partitionKey", BytesType.instance);
         TableMetadata.Builder builder2 = TableMetadata.builder(KEYSPACE1, TABLE2).addPartitionKeyColumn("partitionKey", BytesType.instance);
         TableMetadata table1 = builder1.build();
         TableMetadata table2 = builder2.build();
         thrown.expect(ConfigurationException.class);
-        thrown.expectMessage(KEYSPACE1 + "." + TABLE1 + ": Table mismatch");
+        thrown.expectMessage(KEYSPACE1 + '.' + TABLE1 + ": Table mismatch");
         table1.validateCompatibility(table2);
     }
 

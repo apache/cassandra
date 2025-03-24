@@ -813,7 +813,7 @@ public class TableMetadata implements SchemaElement
 
     protected void except(String format, Object... args)
     {
-        throw new ConfigurationException(keyspace + "." + name + ": " + format(format, args));
+        throw new ConfigurationException(keyspace + '.' + name + ": " + format(format, args));
     }
 
     @Override
@@ -1799,7 +1799,7 @@ public class TableMetadata implements SchemaElement
             literals[i++] = asCQLLiteral(clusteringColumns().get(j).type, clustering.bufferAt(j));
         }
 
-        return i == 1 ? literals[0] : "(" + String.join(", ", literals) + ")";
+        return i == 1 ? literals[0] : '(' + String.join(", ", literals) + ')';
     }
 
     private static String asCQLLiteral(AbstractType<?> type, ByteBuffer value)

@@ -214,7 +214,7 @@ public final class KeyspaceMetadata implements SchemaElement
     }
 
     /**
-     * find an avaiable index name based on the indexes in target keyspace and indexes collections
+     * find an available index name based on the indexes in target keyspace and indexes collections
      * @param baseName the base name of index
      * @param indexes find out whether there is any conflict with baseName in the indexes
      * @param keyspaceMetadata find out whether there is any conflict with baseName in keyspaceMetadata
