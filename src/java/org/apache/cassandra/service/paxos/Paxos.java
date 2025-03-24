@@ -1111,7 +1111,12 @@ public class Paxos
                     PaxosPrepare.Success success = prepare.success();
 
                     Supplier<Participants> plan = () -> success.participants;
-                    DataResolver<?, ?> resolver = new DataResolver<>(query, plan, NoopReadRepair.instance, new Dispatcher.RequestTime(query.creationTimeNanos()));
+                    long createdAtNanos = query.creationTimeNanos();
+                    // When created is -1 it implies org.apache.cassandra.db.monitoring.MonitorableImpl.setMonitoringTime has not been called yet!
+                    // This breaks RequestTime as it can no longer compute a deadline, so leverage the queries time
+                    if (createdAtNanos == -1)
+                        createdAtNanos = SECONDS.toNanos(query.nowInSec());
+                    DataResolver<?, ?> resolver = new DataResolver<>(query, plan, NoopReadRepair.instance, new Dispatcher.RequestTime(createdAtNanos));
                     for (int i = 0 ; i < success.responses.size() ; ++i)
                         resolver.preprocess(success.responses.get(i));
 

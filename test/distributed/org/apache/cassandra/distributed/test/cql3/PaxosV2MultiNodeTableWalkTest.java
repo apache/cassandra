@@ -39,6 +39,6 @@ public class PaxosV2MultiNodeTableWalkTest extends CasMultiNodeTableWalkBase
 
         builder.withExamples(Integer.MAX_VALUE);
 
-        builder.withSeed(3447797022180264394L).withExamples(1); // Short Read Protection timeout in 14 microseconds.
+//        builder.withSeed(3447797022180264394L).withExamples(1); //Fixed: Short Read Protection timeout in 14 microseconds.
     }
 }
