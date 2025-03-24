@@ -129,6 +129,7 @@ public class ReadReconcileSend
         @Override
         public void doVerb(Message<ReadReconcileSend> message)
         {
+            logger.trace("Received {} from {}", message.payload, message.from());
             // TODO: check epoch and tokens?
             ReadReconcileSend payload = message.payload;
             for (PeerSync sync : message.payload.syncTasks)
@@ -151,12 +152,14 @@ public class ReadReconcileSend
 
                 {
                     ReadReconcileReceive receive = new ReadReconcileReceive(payload.reconcileId, sync.syncId, message.from(), kind, mutations);
+                    logger.info("Sending {} to replica {}", receive, sync.to);
                     MessagingService.instance().send(Message.out(Verb.READ_RECONCILE_RCV, receive), sync.to);
                 }
 
                 if (mirrorToCoordinator)
                 {
                     ReadReconcileReceive receive = new ReadReconcileReceive(payload.reconcileId, sync.syncId, message.from(), ReadReconcileReceive.Kind.COORDINATOR, mutations);
+                    logger.info("Sending {} to coordinator {}", receive, message.from());
                     MessagingService.instance().send(Message.out(Verb.READ_RECONCILE_RCV, receive), message.from());
                 }
             }

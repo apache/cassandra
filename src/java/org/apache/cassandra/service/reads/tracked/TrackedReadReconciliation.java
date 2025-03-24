@@ -17,12 +17,7 @@
  */
 package org.apache.cassandra.service.reads.tracked;
 
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
@@ -67,6 +62,7 @@ public class TrackedReadReconciliation<E extends Endpoints<E>, P extends Replica
 
     private static class Data extends AsyncFuture<Void>
     {
+        final long reconciliationId;
         final ReadCommand command;
         final private InetAddressAndPort dataNode;
         final private TrackedReadResponse.Data dataResponse;
@@ -75,12 +71,13 @@ public class TrackedReadReconciliation<E extends Endpoints<E>, P extends Replica
         final Consumer<PartitionIterator> resultConsumer;
         final Map<ShortMutationId, Mutation> mutations = new HashMap<>();
 
-        public Data(ReadCommand command,
+        public Data(long reconciliationId, ReadCommand command,
                     InetAddressAndPort dataNode,
                     TrackedReadResponse.Data dataResponse,
                     Set<ShortMutationId> outstandingMutations,
                     Consumer<PartitionIterator> resultConsumer)
         {
+            this.reconciliationId = reconciliationId;
             this.command = command;
             this.dataNode = dataNode;
             this.dataResponse = dataResponse;
@@ -114,6 +111,7 @@ public class TrackedReadReconciliation<E extends Endpoints<E>, P extends Replica
         {
             if (outstandingMutations.isEmpty())
             {
+                logger.trace("Data reconciliation complete for {}", reconciliationId);
                 resultConsumer.accept(partitionIterator());
                 trySuccess(null);
             }
@@ -130,7 +128,7 @@ public class TrackedReadReconciliation<E extends Endpoints<E>, P extends Replica
             {
                 mutations.put(mutation.id(), mutation);
                 outstandingMutations.remove(mutation.id());
-                logger.info("Received outstanding mutation {}", mutation.id());
+                logger.trace("Received outstanding mutation {} for reconciliation {}", mutation.id(), reconciliationId);
                 maybeComplete();
             }
             else
@@ -211,7 +209,7 @@ public class TrackedReadReconciliation<E extends Endpoints<E>, P extends Replica
                 }
 
                 this.blockFor = syncs;
-                this.data = new Data(command, dataNode, dataResponse, outstandingMutations, resultConsumer);
+                this.data = new Data(reconciliationId, command, dataNode, dataResponse, outstandingMutations, resultConsumer);
             }
 
             @Override
@@ -242,6 +240,7 @@ public class TrackedReadReconciliation<E extends Endpoints<E>, P extends Replica
                 for (Map.Entry<InetAddressAndPort, List<ReadReconcileSend.PeerSync>> entry : peerSync.entrySet())
                 {
                     Message<ReadReconcileSend> message = Message.out(Verb.READ_RECONCILE_SEND, new ReadReconcileSend(reconciliationId, entry.getValue()));
+                    logger.trace("Sending read reconciliation {} to {}", message.payload, entry.getKey());
                     MessagingService.instance().send(message, entry.getKey());
                 }
             }
@@ -255,6 +254,7 @@ public class TrackedReadReconciliation<E extends Endpoints<E>, P extends Replica
             {
                 if (isComplete())
                 {
+                    logger.trace("Reconciliation completed: {}", reconciliationId);
                     future.trySuccess(null);
                     return new Complete(data);
                 }
@@ -263,6 +263,7 @@ public class TrackedReadReconciliation<E extends Endpoints<E>, P extends Replica
 
             public State acknowledgeSync(int syncId)
             {
+                logger.trace("Reconciliation sync {} received for {}", syncId, reconciliationId);
                 pendingSync.remove(syncId);
                 return maybeComplete();
             }

@@ -63,6 +63,7 @@ public class ReadReconcileNotify
         public void doVerb(Message<ReadReconcileNotify> message) throws IOException
         {
             ReadReconcileNotify notify = message.payload;
+            logger.trace("Received read reconcile notify {} from {}", notify, message.from());
             MutationTrackingService.instance.reconciliations().acknowledgeSync(notify.reconciliationId, notify.syncId);
         }
     };
