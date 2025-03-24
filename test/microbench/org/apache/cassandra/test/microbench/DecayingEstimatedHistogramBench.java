@@ -50,7 +50,7 @@ import static org.apache.cassandra.metrics.DecayingEstimatedHistogramReservoir.D
 @Warmup(iterations = 1, time = 1, timeUnit = TimeUnit.SECONDS)
 @Measurement(iterations = 3, time = 2, timeUnit = TimeUnit.SECONDS)
 @Threads(4)
-@Fork(value = 3)
+@Fork(value = 3, jvmArgsAppend = { "-Djmh.executor=CUSTOM", "-Djmh.executor.class=org.apache.cassandra.test.microbench.FastThreadExecutor" })
 @State(Scope.Benchmark)
 public class DecayingEstimatedHistogramBench
 {
