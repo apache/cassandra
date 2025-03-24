@@ -18,6 +18,8 @@
 package org.apache.cassandra.db;
 
 import java.util.*;
+import java.util.stream.Stream;
+import java.util.stream.StreamSupport;
 
 import com.google.common.collect.Iterators;
 
@@ -56,6 +58,11 @@ public class RegularAndStaticColumns implements Iterable<ColumnMetadata>
     {
         return new RegularAndStaticColumns(column.isStatic() ? statics.without(column) : statics,
                                            column.isStatic() ? regulars : regulars.without(column));
+    }
+
+    public Stream<ColumnMetadata> stream()
+    {
+        return StreamSupport.stream(spliterator(), false);
     }
 
     public RegularAndStaticColumns mergeTo(RegularAndStaticColumns that)

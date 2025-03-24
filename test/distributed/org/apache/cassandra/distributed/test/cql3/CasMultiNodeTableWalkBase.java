@@ -21,7 +21,11 @@ package org.apache.cassandra.distributed.test.cql3;
 import accord.utils.Gen;
 import accord.utils.RandomSource;
 import org.apache.cassandra.config.Config;
+import org.apache.cassandra.cql3.KnownIssue;
+import org.apache.cassandra.cql3.ast.CasCondition;
+import org.apache.cassandra.cql3.ast.Conditional;
 import org.apache.cassandra.cql3.ast.Mutation;
+import org.apache.cassandra.cql3.ast.Value;
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
 import org.apache.cassandra.distributed.api.IInstanceConfig;
@@ -58,6 +62,12 @@ public abstract class CasMultiNodeTableWalkBase extends MultiNodeTableWalkBase
         return new State(rs, cluster);
     }
 
+    private static boolean isValueUDTSafe(Value value)
+    {
+        var bb = value.valueEncoded();
+        return bb == null ? true : bb.hasRemaining();
+    }
+
     protected class State extends MultiNodeState
     {
         private State(RandomSource rs, Cluster cluster)
@@ -70,7 +80,38 @@ public abstract class CasMultiNodeTableWalkBase extends MultiNodeTableWalkBase
         {
             mutationGenBuilder.withCasGen(i -> true);
             // generator might not always generate a cas statement... should fix generator!
-            return toGen(mutationGenBuilder.build()).filter(Mutation::isCas);
+            Gen<Mutation> gen = toGen(mutationGenBuilder.build()).filter(Mutation::isCas);
+            if (metadata.regularAndStaticColumns().stream().anyMatch(c -> c.type.isUDT())
+                && IGNORED_ISSUES.contains(KnownIssue.CAS_CONDITION_ON_UDT_W_EMPTY_BYTES))
+            {
+                gen = gen.filter(m -> {
+                    CasCondition condition;
+                    switch (m.kind)
+                    {
+                        case INSERT:
+                            return true;
+                        case DELETE:
+                            condition = ((Mutation.Delete) m).casCondition.get();
+                            break;
+                        case UPDATE:
+                            condition = ((Mutation.Update) m).casCondition.get();
+                            break;
+                        default:
+                            throw new UnsupportedOperationException(m.kind.name());
+                    }
+                    return !condition.streamRecursive(true).anyMatch(e -> {
+                        if (!(e instanceof Conditional.Where)) return false;
+                        var where = (Conditional.Where) e;
+                        if (!where.lhs.type().isUDT()) return false;
+                        if (where.lhs instanceof Value && !isValueUDTSafe((Value) where.lhs))
+                            return true;
+                        if (where.rhs instanceof Value && !isValueUDTSafe((Value) where.rhs))
+                            return true;
+                        return false;
+                    });
+                });
+            }
+            return gen;
         }
 
         @Override
