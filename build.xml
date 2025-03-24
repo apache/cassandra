@@ -1385,6 +1385,28 @@
     </antcall>
   </target>
 
+  <!--
+    ant test-iteration -Dtest.name=org.apache.cassandra.service.StorageServiceServerTest -Dtest.iters=5
+    ant test-iteration -Dtest.name=org.apache.cassandra.cache.AutoSavingCacheTest -Dtest.iters=1
+    ant test-iteration -Dtest.name=org.apache.cassandra.cache.AutoSavingCacheTest -Dtest.methods=testSerializeAndLoadKeyCache -Dtest.iters=2
+    Notice: it cannot work since JDK15
+  -->
+  <target name="test-iteration" depends="maybe-build-test" description="Execute specific unit tests multiple times">
+    <script language="javascript"><![CDATA[
+      var iters = project.getProperty("test.iters") || "1";
+      iters = parseInt(iters);
+      for (var i = 1; i <= iters; i++) {
+        self.log("Unit Test iteration: " + i);
+        var antcall = project.createTask("antcall");
+        antcall.setTarget("testsome");
+        antcall.setInheritAll(true);
+        antcall.execute();
+      }
+      self.log("All test iterations completed.");
+      ]]>
+    </script>
+  </target>
+
   <!-- Use this with an FQDN for test class, and an optional csv list of methods like this:
     ant testsome -Dtest.name=org.apache.cassandra.service.StorageServiceServerTest
     ant testsome -Dtest.name=org.apache.cassandra.service.StorageServiceServerTest -Dtest.methods=testRegularMode,testGetAllRangesEmpty
