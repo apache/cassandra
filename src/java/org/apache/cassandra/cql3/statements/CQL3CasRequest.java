@@ -388,6 +388,7 @@ public class CQL3CasRequest implements CASRequest
         public boolean appliesTo(FilteredPartition current) throws InvalidRequestException
         {
             Row row = current.getRow(clustering);
+            if (row == null) return false;
             for (ColumnCondition.Bound condition : conditions)
             {
                 if (!condition.appliesTo(row))
