@@ -54,6 +54,7 @@ public class Bind implements Value
     @Override
     public ByteBuffer valueEncoded()
     {
+        if (value == null) return null;
         return value instanceof ByteBuffer ? (ByteBuffer) value : ((AbstractType) type).decompose(value);
     }
 
