@@ -60,6 +60,7 @@ import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
+import org.apache.cassandra.distributed.api.IInstanceConfig;
 import org.apache.cassandra.distributed.test.sai.SAIUtil;
 import org.apache.cassandra.harry.model.BytesPartitionState;
 import org.apache.cassandra.schema.ColumnMetadata;
@@ -99,13 +100,6 @@ public class SingleNodeTableWalkTest extends StatefulASTBase
         // Example: builder.withSeed(42L);
         // CQL operations may have opertors such as +, -, and / (example 4 + 4), to "apply" them to get a constant value
         // CQL_DEBUG_APPLY_OPERATOR = true;
-
-        builder.withExamples(Integer.MAX_VALUE);
-//        builder.withSeed(3448035473658306695L).withExamples(1); //Fixed: -= support for ints
-//        builder.withSeed(-6448811881977560183L).withExamples(1); //Fixed: -= didn't document that it needed to read data for numeric columns
-//        builder.withSeed(-802335058805597584L).withExamples(1); //Fixed: reference expression visit didn't call the visitor
-//        builder.withSeed(4532751787677853981L).withExamples(1); //Fixed: NPE doing numeric add
-//        builder.withSeed(2837435086451390021L).withExamples(1); //Partial Fix (if the row doesn't exist all column conditions return false now, if the column is null you will hit the same issue with UDTs): if v0 = <empty> applied in paxos
     }
 
     protected TypeGenBuilder supportedTypes(RandomSource rs)
@@ -353,7 +347,12 @@ public class SingleNodeTableWalkTest extends StatefulASTBase
 
     protected Cluster createCluster() throws IOException
     {
-        return createCluster(1, i -> {});
+        return createCluster(1, this::clusterConfig);
+    }
+
+    protected void clusterConfig(IInstanceConfig config)
+    {
+
     }
 
     @Test
@@ -427,7 +426,6 @@ public class SingleNodeTableWalkTest extends StatefulASTBase
         private final List<Symbol> searchableNonPartitionColumns;
         private final List<Symbol> searchableColumns;
         private final List<Symbol> nonPkIndexedColumns;
-        private final boolean isCas;
 
         public State(RandomSource rs, Cluster cluster)
         {
@@ -452,13 +450,10 @@ public class SingleNodeTableWalkTest extends StatefulASTBase
                 }).uniqueBestEffort().ofSize(unique).next(rs);
             }
 
-            this.isCas = true;
-
             ASTGenerators.MutationGenBuilder mutationGenBuilder = new ASTGenerators.MutationGenBuilder(metadata)
                                                                   .withoutTransaction()
                                                                   .withoutTtl()
                                                                   .withoutTimestamp()
-                                                                  .withCasGen(i -> isCas)
                                                                   .withPartitions(Generators.fromGen(Gens.mixedDistribution(uniquePartitions).next(rs)))
                                                                   .withColumnExpressions(e -> e.withOperators(Generators.fromGen(BOOLEAN_DISTRIBUTION.next(rs))));
             if (IGNORED_ISSUES.contains(KnownIssue.SAI_EMPTY_TYPE))
@@ -472,15 +467,7 @@ public class SingleNodeTableWalkTest extends StatefulASTBase
             {
                 model.factory.regularAndStaticColumns.forEach(mutationGenBuilder::allowEmpty);
             }
-            if (isCas)
-            {
-                // generator might not always generate a cas statement... should fix generator!
-                this.mutationGen = toGen(mutationGenBuilder.build()).filter(Mutation::isCas);
-            }
-            else
-            {
-                this.mutationGen = toGen(mutationGenBuilder.build());
-            }
+            this.mutationGen = toMutationGen(mutationGenBuilder);
 
             var nonPartitionColumns = ImmutableList.<Symbol>builder()
                                                    .addAll(model.factory.clusteringColumns)
@@ -500,16 +487,9 @@ public class SingleNodeTableWalkTest extends StatefulASTBase
                                 .collect(Collectors.toList());
         }
 
-        @Override
-        protected ConsistencyLevel selectCl()
+        protected Gen<Mutation> toMutationGen(ASTGenerators.MutationGenBuilder mutationGenBuilder)
         {
-            return isCas ? ConsistencyLevel.SERIAL : super.selectCl();
-        }
-
-        @Override
-        protected ConsistencyLevel mutationCl()
-        {
-            return isCas ? ConsistencyLevel.SERIAL : super.mutationCl();
+            return toGen(mutationGenBuilder.build());
         }
 
         private boolean isSearchable(Symbol symbol)
