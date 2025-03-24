@@ -268,7 +268,8 @@ public class NodeTool
                .withCommand(CMSAdmin.InitializeCMS.class)
                .withCommand(CMSAdmin.ReconfigureCMS.class)
                .withCommand(CMSAdmin.Snapshot.class)
-               .withCommand(CMSAdmin.Unregister.class);
+               .withCommand(CMSAdmin.Unregister.class)
+               .withCommand(CMSAdmin.AbortInitialization.class);
 
         Cli<NodeToolCmdRunnable> parser = builder.build();
 
