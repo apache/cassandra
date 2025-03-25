@@ -41,7 +41,8 @@ import org.apache.cassandra.db.rows.UnfilteredRowIterator;
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
 import org.apache.cassandra.distributed.api.Feature;
-import org.apache.cassandra.replication.MutationTrackingService.ListeningPendingRead;
+import org.apache.cassandra.replication.MutationTrackingService;
+import org.apache.cassandra.replication.ListeningPendingRead;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.reads.tracked.TrackedReadResponse;
@@ -206,7 +207,7 @@ public class MutationTrackingPendingReadTest
 
                 int nowInSeconds = (int) FBUtilities.nowInSeconds();
                 SinglePartitionReadCommand command = SinglePartitionReadCommand.fullPartitionRead(metadata, nowInSeconds, dk);
-                try (ListeningPendingRead pendingRead = (ListeningPendingRead) MutationTrackingService.instance.startRead(command))
+                try (ListeningPendingRead pendingRead = (ListeningPendingRead) MutationTrackingService.instance.startReading(command))
                 {
                     Assert.assertTrue(pendingRead.mutationIds().isEmpty());
 

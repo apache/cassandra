@@ -17,9 +17,7 @@
  */
 package org.apache.cassandra.replication;
 
-import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
@@ -49,11 +47,12 @@ import org.apache.cassandra.tcm.ClusterMetadata;
 // TODO (expected): handle topology changes
 public class MutationTrackingService
 {
-    private volatile boolean started = false;
+    public static final MutationTrackingService instance = new MutationTrackingService();
+
     private final ReadReconciliations reconciliations = new ReadReconciliations();
     private final ConcurrentHashMap<String, KeyspaceShards> shards = new ConcurrentHashMap<>();
 
-    public static final MutationTrackingService instance = new MutationTrackingService();
+    private volatile boolean started = false;
 
     private MutationTrackingService() {}
 
@@ -89,28 +88,23 @@ public class MutationTrackingService
         return getOrCreate(keyspace).nextMutationId(token);
     }
 
-    public void witnessedLocalMutation(String keyspace, Token token, MutationId mutationId)
-    {
-        getOrCreate(keyspace).witnessedLocalMutation(token, mutationId);
-    }
-
     public void witnessedRemoteMutation(String keyspace, Token token, MutationId mutationId, InetAddressAndPort onHost)
     {
         getOrCreate(keyspace).witnessedRemoteMutation(token, mutationId, onHost);
     }
 
-    public PendingWrite startWrite(Mutation mutation)
+    public PendingWrite startWriting(Mutation mutation)
     {
         if (mutation.id().isNone())
             return PendingWrite.NOOP;
-        return getOrCreate(mutation.getKeyspaceName()).startWrite(mutation);
+        return getOrCreate(mutation.getKeyspaceName()).startWriting(mutation);
     }
 
-    public PendingRead startRead(ReadCommand command)
+    public PendingRead startReading(ReadCommand command)
     {
         if (!command.responseType().isTracked())
             return PendingRead.NOOP;
-        return getOrCreate(command.metadata().keyspace).startRead(command);
+        return getOrCreate(command.metadata().keyspace).startReading(command);
     }
 
     public MutationSummary summaryForKey(TableId tableId, DecoratedKey key)
@@ -190,24 +184,28 @@ public class MutationTrackingService
             return lookUp(token).nextId();
         }
 
-        void witnessedLocalMutation(Token token, MutationId mutationId)
-        {
-            lookUp(token).witnessedLocalMutation(mutationId, token);
-        }
-
         void witnessedRemoteMutation(Token token, MutationId mutationId, InetAddressAndPort onHost)
         {
             lookUp(token).witnessedRemoteMutation(mutationId, onHost);
         }
 
-        PendingWrite startWrite(Mutation mutation)
+        // TODO (eventually): callbacks for failing to write to LSM?
+        PendingWrite startWriting(Mutation mutation)
         {
             pendingMutations.put(mutation.id(), mutation);
+            // TODO (consider): an indexed lookup structure for relevant commands (interval-tree-like)
             pendingReads.forEach(read -> read.onNewWrite(mutation));
-            return () -> pendingMutations.remove(mutation.id());
+            return () -> finishWriting(mutation);
         }
 
-        PendingRead startRead(ReadCommand command)
+        void finishWriting(Mutation mutation)
+        {
+            pendingMutations.remove(mutation.id());
+            Shard shard = lookUp(mutation);
+            shard.finishWriting(mutation);
+        }
+
+        PendingRead startReading(ReadCommand command)
         {
             ListeningPendingRead pendingRead = new ListeningPendingRead(command, pendingReads);
             pendingReads.add(pendingRead);
@@ -238,6 +236,16 @@ public class MutationTrackingService
                 if (bounds.contains(range.right) || range.intersects(bounds))
                     consumer.accept(shard);
             });
+        }
+
+        Shard lookUp(Mutation mutation)
+        {
+            return lookUp(mutation.key());
+        }
+
+        Shard lookUp(DecoratedKey key)
+        {
+            return lookUp(key.getToken());
         }
 
         Shard lookUp(Token token)
@@ -271,50 +279,5 @@ public class MutationTrackingService
          * applied to the memtable when it was read.
          */
         UnfilteredPartitionIterator augmentResponseWithPendingWrites(UnfilteredPartitionIterator iterator, MutationSummary summary);
-    }
-
-    public static class ListeningPendingRead implements PendingRead
-    {
-        private final ReadCommand command;
-        private final Set<ListeningPendingRead> pendingReads;
-
-        // TODO: do not hold onto mutation objects - extract the relevant fields, or fetch from journal if needed
-        private final Map<MutationId, Mutation> pendingWrites = new ConcurrentHashMap<>();
-
-        private ListeningPendingRead(ReadCommand command, Set<ListeningPendingRead> pendingReads)
-        {
-            this.command = command;
-            this.pendingReads = pendingReads;
-        }
-
-        public void onNewWrite(Mutation mutation)
-        {
-            if (command.readsMutationContents(mutation))
-                pendingWrites.put(mutation.id(), mutation);
-        }
-
-        @Override
-        public void close()
-        {
-            pendingReads.remove(this);
-        }
-
-        public Set<MutationId> mutationIds()
-        {
-            return pendingWrites.keySet();
-        }
-
-        @Override
-        public UnfilteredPartitionIterator augmentResponseWithPendingWrites(UnfilteredPartitionIterator iterator, MutationSummary summary)
-        {
-            if (pendingWrites.isEmpty() || summary.isEmpty())
-                return iterator;
-
-            List<Mutation> augmentingMutations = new ArrayList<>(pendingWrites.size());
-            for (Mutation mutation : pendingWrites.values())
-                if (summary.contains(mutation.id()))
-                    augmentingMutations.add(mutation);
-            return command.augmentResultWithMutations(iterator, augmentingMutations);
-        }
     }
 }

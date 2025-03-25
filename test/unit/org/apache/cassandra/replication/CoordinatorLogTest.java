@@ -17,14 +17,25 @@
  */
 package org.apache.cassandra.replication;
 
+import java.io.IOException;
 import java.util.List;
 
 import org.junit.Assert;
+import org.junit.BeforeClass;
 import org.junit.Test;
 
-import org.apache.cassandra.dht.Murmur3Partitioner;
+import org.apache.cassandra.SchemaLoader;
+import org.apache.cassandra.db.Mutation;
+import org.apache.cassandra.db.RowUpdateBuilder;
+import org.apache.cassandra.db.marshal.UTF8Type;
+import org.apache.cassandra.dht.ByteOrderedPartitioner;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.replication.CoordinatorLog.CoordinatorLogPrimary;
+import org.apache.cassandra.schema.KeyspaceParams;
+import org.apache.cassandra.schema.Schema;
+import org.apache.cassandra.schema.TableId;
+import org.apache.cassandra.schema.TableMetadata;
+import org.apache.cassandra.utils.ByteBufferUtil;
 
 public class CoordinatorLogTest
 {
@@ -32,9 +43,24 @@ public class CoordinatorLogTest
     private static final CoordinatorLogId LOG_ID = new CoordinatorLogId(LOCAL_HOST_ID, 1);
     private static final Participants PARTICIPANTS = new Participants(List.of(LOCAL_HOST_ID, 2, 3));
 
-    private static Token tk(long t)
+    private static final String KEYSPACE = "cltks";
+    private static final String TABLE = "cltt";
+
+    @BeforeClass
+    public static void setUp() throws IOException
     {
-        return new Murmur3Partitioner.LongToken(t);
+        SchemaLoader.prepareServer();
+        SchemaLoader.createKeyspace(KEYSPACE, KeyspaceParams.simple(3),
+                                    TableMetadata.builder(KEYSPACE, TABLE)
+                                                 .addPartitionKeyColumn("pk", UTF8Type.instance)
+                                                 .addClusteringColumn("ck", UTF8Type.instance)
+                                                 .addRegularColumn("value", UTF8Type.instance)
+                                                 .build());
+    }
+
+    private static Token tk(String key)
+    {
+        return new ByteOrderedPartitioner.BytesToken(ByteBufferUtil.bytes(key));
     }
 
     private static Offsets toOffsets(MutationId... ids)
@@ -47,9 +73,10 @@ public class CoordinatorLogTest
 
     private static void assertUnreconciled(Token token, CoordinatorLog log, Offsets expectedReconciled, MutationId... expectedIds)
     {
+        TableId tableId = TableId.generate();
         Offsets reconciled = new Offsets(LOG_ID);
         Offsets unreconciled = new Offsets(LOG_ID);
-        log.lookUpUnreconciled(token, unreconciled, reconciled);
+        log.collectOffsetsFor(token, tableId, unreconciled, reconciled);
 
         for (MutationId mid : expectedIds)
             Assert.assertTrue(unreconciled.contains(mid.offset()));
@@ -61,16 +88,20 @@ public class CoordinatorLogTest
     @Test
     public void remoteReconciliationTest()
     {
-        Token tk = tk(1);
+        Token tk = tk("key");
         CoordinatorLogPrimary log = new CoordinatorLogPrimary(LOCAL_HOST_ID, LOG_ID, PARTICIPANTS);
-        MutationId[] ids = new MutationId[] {
-                log.nextId(),
-                log.nextId(),
-                log.nextId(),
-        };
+        MutationId[] ids = new MutationId[] { log.nextId(), log.nextId(), log.nextId(), };
 
         for (MutationId id : ids)
-            log.witnessedLocalMutation(id, tk);
+        {
+            Mutation mutation =
+                new RowUpdateBuilder(Schema.instance.getTableMetadata(KEYSPACE, TABLE), 0, "key")
+                .clustering("ck")
+                .add("value", "value")
+                .build()
+                .withMutationId(id);
+            log.finishWriting(mutation);
+        }
 
         Offsets reconciled = new Offsets(LOG_ID);
         assertUnreconciled(tk, log, reconciled, ids);

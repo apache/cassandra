@@ -20,6 +20,8 @@ package org.apache.cassandra.replication;
 import java.util.function.IntSupplier;
 
 import com.google.common.base.Preconditions;
+
+import org.apache.cassandra.db.Mutation;
 import org.apache.cassandra.db.PartitionPosition;
 import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.dht.Range;
@@ -57,43 +59,38 @@ public class Shard
         return currentLocalLog.nextId();
     }
 
-    public void witnessedLocalMutation(MutationId mutationId, Token token)
-    {
-        get(mutationId).witnessedLocalMutation(mutationId, token);
-    }
-
     public void witnessedRemoteMutation(MutationId mutationId, InetAddressAndPort onHost)
     {
         int onHostId = ClusterMetadata.current().directory.peerId(onHost).id();
         get(mutationId).witnessedRemoteMutation(mutationId, onHostId);
     }
 
-    public void witnessedRemoteMutations(long logId, Offsets ranges, int onHostId)
+    void finishWriting(Mutation mutation)
     {
-        get(logId).witnessedRemoteMutations(ranges, onHostId);
+        get(mutation.id()).finishWriting(mutation);
     }
 
     public void addSummaryForKey(MutationSummary.Builder builder, Token token)
     {
-        logs.forEach((key, log) -> {
+        logs.forEach((id, log) -> {
             MutationSummary.CoordinatorSummary.Builder summaryBuilder = builder.builderForLog(log.logId);
-            log.lookUpUnreconciled(token, summaryBuilder.unreconciled, summaryBuilder.reconciled);
+            log.collectOffsetsFor(token, builder.tableId, summaryBuilder.unreconciled, summaryBuilder.reconciled);
         });
     }
 
     public void addSummaryForRange(MutationSummary.Builder builder, Range<Token> range)
     {
-        logs.forEach((key, log) -> {
+        logs.forEach((id, log) -> {
             MutationSummary.CoordinatorSummary.Builder summaryBuilder = builder.builderForLog(log.logId);
-            log.lookUpUnreconciled(range, summaryBuilder.unreconciled, summaryBuilder.reconciled);
+            log.collectOffsetsFor(range, builder.tableId, summaryBuilder.unreconciled, summaryBuilder.reconciled);
         });
     }
 
     public void addSummaryForRange(MutationSummary.Builder builder, AbstractBounds<PartitionPosition> range)
     {
-        logs.forEach((key, log) -> {
+        logs.forEach((id, log) -> {
             MutationSummary.CoordinatorSummary.Builder summaryBuilder = builder.builderForLog(log.logId);
-            log.lookUpUnreconciled(range, summaryBuilder.unreconciled, summaryBuilder.reconciled);
+            log.collectOffsetsFor(range, builder.tableId, summaryBuilder.unreconciled, summaryBuilder.reconciled);
         });
     }
 

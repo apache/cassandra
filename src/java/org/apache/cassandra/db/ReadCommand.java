@@ -462,8 +462,6 @@ public abstract class ReadCommand extends AbstractReadQuery
 
     /**
      * Used by tracked reads, determines if the contents of the given mutation would be read by this read command
-     * @param mutation
-     * @return
      */
     public abstract boolean readsMutationContents(Mutation mutation);
 

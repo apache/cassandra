@@ -42,12 +42,14 @@ public class TrackedKeyspaceWriteHandler implements KeyspaceWriteHandler
         try
         {
             group = Keyspace.writeOrder.start();
-            pendingWrite = MutationTrackingService.instance.startWrite(mutation);
 
             // write the mutation to the commitlog and memtables
             Tracing.trace("Appending to mutation journal");
             CommitLogPosition position = MutationJournal.instance.write(mutation.id(), mutation);
-            MutationTrackingService.instance.witnessedLocalMutation(mutation.getKeyspaceName(), mutation.key().getToken(), mutation.id());
+
+            // mark as pending once in the journal, but before written to a memtable,
+            // so that it can be looked up from the journal by mutation id once known
+            pendingWrite = MutationTrackingService.instance.startWriting(mutation);
             return new CassandraWriteContext(group, position, pendingWrite);
         }
         catch (Throwable t)

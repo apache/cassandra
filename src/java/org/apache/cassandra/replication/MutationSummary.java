@@ -229,7 +229,7 @@ public class MutationSummary
         return digest.digest();
     }
 
-    public boolean contains(MutationId id)
+    public boolean contains(ShortMutationId id)
     {
         CoordinatorSummary summary = coordinatorSummaryMap.get(id.logId());
         return summary != null && summary.contains(id.offset());

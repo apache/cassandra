@@ -848,9 +848,7 @@ public class SinglePartitionReadCommand extends ReadCommand implements SinglePar
     @Override
     public boolean readsMutationContents(Mutation mutation)
     {
-        if (!partitionKey().equals(mutation.key()))
-            return false;
-        return mutation.getPartitionUpdate(metadata()) != null;
+        return partitionKey().equals(mutation.key()) && mutation.getPartitionUpdate(metadata()) != null;
     }
 
     @Override
