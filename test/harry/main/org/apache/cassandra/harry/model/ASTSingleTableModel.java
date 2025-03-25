@@ -79,6 +79,8 @@ import static org.apache.cassandra.harry.model.BytesPartitionState.asCQL;
 
 public class ASTSingleTableModel
 {
+    private static final ByteBuffer[][] NO_ROWS = new ByteBuffer[0][];
+
     public final BytesPartitionState.Factory factory;
     private final TreeMap<BytesPartitionState.Ref, BytesPartitionState> partitions = new TreeMap<>();
 
@@ -342,72 +344,18 @@ public class ASTSingleTableModel
     public boolean shouldApply(Mutation mutation)
     {
         if (!mutation.isCas()) return true;
-        // find partition from mutation
-        Select select = selectPartitionOrRowForCAS(mutation);
-        // Select partition
-        SelectResult current = getRowsAsByteBuffer(select);
-        return shouldApply(mutation, current);
+        return shouldApply(mutation, selectPartitionForCAS(mutation));
     }
 
-    private Select selectPartitionOrRowForCAS(Mutation mutation)
+    private SelectResult selectPartitionForCAS(Mutation mutation)
     {
-        var builder = Select.builder(factory.metadata);
-        switch (mutation.kind)
-        {
-            case INSERT:
-            {
-                var insert = (Mutation.Insert) mutation;
-                for (Symbol symbol : factory.primaryColumns)
-                {
-                    var s = insert.values.get(symbol);
-                    if (s == null) continue;
-                    builder.value(symbol, s);
-                }
-            }
-            break;
-            case UPDATE:
-            {
-                var update = (Mutation.Update) mutation;
-                selectPartitionOrRowForCAS(builder, update.where.simplify());
-            }
-            break;
-            case DELETE:
-            {
-                var delete = (Mutation.Delete) mutation;
-                selectPartitionOrRowForCAS(builder, delete.where.simplify());
-            }
-            break;
-            default:
-                throw new UnsupportedOperationException(mutation.kind.name());
-        }
-        return builder.build();
-    }
+        var partition = partitions.get(factory.createRef(pd(mutation)));
+        if (partition == null) return SelectResult.ordered(factory.selectionOrder, NO_ROWS);
 
-    private void selectPartitionOrRowForCAS(Select.TableBasedBuilder builder, List<Conditional> conditionals)
-    {
-        var split = splitOnPartition(conditionals);
-        Preconditions.checkArgument(split.left.size() == 1, "Expected single partition but found %s", split.left.size());
-        var pd = split.left.get(0);
-        for (int i = 0; i < factory.partitionColumns.size(); i++)
-            builder.value(factory.partitionColumns.get(i), pd.bufferAt(i));
-        if (!split.right.isEmpty())
-        {
-            var splitClustering = splitOnClustering(split.right);
-            switch (splitClustering.left.size())
-            {
-                case 0:
-                    break;
-                case 1:
-                {
-                    Clustering<ByteBuffer> cd = splitClustering.left.get(0);
-                    for (int i = 0; i < factory.clusteringColumns.size(); i++)
-                        builder.value(factory.clusteringColumns.get(i), cd.bufferAt(i));
-                }
-                break;
-                default:
-                    throw new IllegalArgumentException(String.format("Expected partition or row update but found multiple clustering keys! found %d", splitClustering.left.size()));
-            }
-        }
+        var cd = cdOrNull(mutation);
+        var row = cd == null ? null : partition.get(cd);
+        ImmutableUniqueList<Symbol> columns = cd != null ? factory.selectionOrder : factory.partitionAndStaticColumns;
+        return SelectResult.ordered(columns, new ByteBuffer[][] { getRowAsByteBuffer(columns, partition, row)});
     }
 
     private boolean shouldApply(Mutation mutation, SelectResult current)
@@ -431,13 +379,16 @@ public class ASTSingleTableModel
         }
         if (condition instanceof CasCondition.Simple)
         {
+            boolean hasPartition = current.rows.length > 0;
+            boolean partitionOrRow = current.columns.equals(factory.partitionAndStaticColumns);
+            boolean hasRow = partitionOrRow ? hasPartition : current.isAllDefined(factory.clusteringColumns);
             var simple = (CasCondition.Simple) condition;
             switch (simple)
             {
                 case Exists:
-                    return current.rows.length > 0;
+                    return hasRow;
                 case NotExists:
-                    return current.rows.length == 0;
+                    return !hasRow;
                 default:
                     throw new UnsupportedOperationException(simple.name());
             }
@@ -684,6 +635,36 @@ public class ASTSingleTableModel
         return pks.get(0);
     }
 
+    @Nullable
+    private Clustering<ByteBuffer> cdOrNull(Mutation mutation)
+    {
+        if (factory.clusteringColumns.isEmpty()) return Clustering.EMPTY;
+        if (mutation.kind == Mutation.Kind.INSERT)
+        {
+            var insert = (Mutation.Insert) mutation;
+            return !insert.values.keySet().containsAll(factory.clusteringColumns)
+                   ? null
+                   : key(insert.values, factory.clusteringColumns);
+        }
+        Conditional where;
+        switch (mutation.kind)
+        {
+            case UPDATE:
+                where = ((Mutation.Update) mutation).where;
+                break;
+            case DELETE:
+                where = ((Mutation.Delete) mutation).where;
+            break;
+            default:
+                throw new UnsupportedOperationException("Unexpected mutation: " + mutation.kind);
+        }
+        var partitions = splitOnPartition(where.simplify());
+        if (partitions.right.isEmpty()) return null;
+        var matches = clustering(partitions.right);
+        Preconditions.checkArgument(matches.size() == 1);
+        return matches.get(0);
+    }
+
     public BytesPartitionState get(BytesPartitionState.Ref ref)
     {
         return partitions.get(ref);
@@ -888,6 +869,20 @@ public class ASTSingleTableModel
         {
             return new SelectResult(columns, rows, true);
         }
+
+        public boolean isAllDefined(ImmutableUniqueList<Symbol> selectColumns)
+        {
+            if (rows.length == 0) return false;
+            for (var row : rows)
+            {
+                for (var col : selectColumns)
+                {
+                    if (row[columns.indexOf(col)] == null)
+                        return false;
+                }
+            }
+            return true;
+        }
     }
 
     public ImmutableUniqueList<Symbol> columns(Select select)
@@ -986,19 +981,36 @@ public class ASTSingleTableModel
 
     private ByteBuffer[] getRowAsByteBuffer(BytesPartitionState partition, @Nullable BytesPartitionState.Row row)
     {
+        return getRowAsByteBuffer(factory.selectionOrder, partition, row);
+    }
+
+    private ByteBuffer[] getRowAsByteBuffer(ImmutableUniqueList<Symbol> columns, BytesPartitionState partition, @Nullable BytesPartitionState.Row row)
+    {
         Clustering<ByteBuffer> pd = partition.key;
         BytesPartitionState.Row staticRow = partition.staticRow();
-        ByteBuffer[] bbs = new ByteBuffer[factory.selectionOrder.size()];
+        ByteBuffer[] bbs = new ByteBuffer[columns.size()];
         for (Symbol col : factory.partitionColumns)
-            bbs[factory.selectionOrder.indexOf(col)] = pd.bufferAt(factory.partitionColumns.indexOf(col));
+        {
+            if (!columns.contains(col)) continue;
+            bbs[columns.indexOf(col)] = pd.bufferAt(factory.partitionColumns.indexOf(col));
+        }
         for (Symbol col : factory.staticColumns)
-            bbs[factory.selectionOrder.indexOf(col)] = staticRow.get(col);
+        {
+            if (!columns.contains(col)) continue;
+            bbs[columns.indexOf(col)] = staticRow.get(col);
+        }
         if (row != null)
         {
             for (Symbol col : factory.clusteringColumns)
-                bbs[factory.selectionOrder.indexOf(col)] = row.clustering.bufferAt(factory.clusteringColumns.indexOf(col));
+            {
+                if (!columns.contains(col)) continue;
+                bbs[columns.indexOf(col)] = row.clustering.bufferAt(factory.clusteringColumns.indexOf(col));
+            }
             for (Symbol col : factory.regularColumns)
-                bbs[factory.selectionOrder.indexOf(col)] = row.get(col);
+            {
+                if (!columns.contains(col)) continue;
+                bbs[columns.indexOf(col)] = row.get(col);
+            }
         }
         return bbs;
     }
