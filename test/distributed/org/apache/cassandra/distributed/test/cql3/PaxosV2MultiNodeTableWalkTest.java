@@ -36,9 +36,5 @@ public class PaxosV2MultiNodeTableWalkTest extends CasMultiNodeTableWalkBase
         // Example: builder.withSeed(42L);
         // CQL operations may have opertors such as +, -, and / (example 4 + 4), to "apply" them to get a constant value
         // CQL_DEBUG_APPLY_OPERATOR = true;
-        builder.withExamples(Integer.MAX_VALUE);
-
-//        builder.withSeed(-5095822806328600258L).withExamples(1); // Fixed: token range mismatch
-        builder.withSeed(4978353240298001980L).withExamples(1); // jdk17 failure
     }
 }
