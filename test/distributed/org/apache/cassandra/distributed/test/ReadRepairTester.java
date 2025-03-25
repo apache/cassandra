@@ -58,7 +58,6 @@ public abstract class ReadRepairTester<T extends ReadRepairTester<T>>
 
     // logged replication test support
     protected int lastMutatedNode = -1;
-    protected int unrepairedMutations = 0;
 
     ReadRepairTester(Cluster cluster, ReadRepairStrategy strategy, int coordinator, boolean flush, boolean paging, boolean reverse, ReplicationType replicationType)
     {
@@ -111,7 +110,6 @@ public abstract class ReadRepairTester<T extends ReadRepairTester<T>>
     T mutate(int node, String... queries)
     {
         lastMutatedNode = node;
-        unrepairedMutations += queries.length;
         // run the write queries only on one node
         for (String query : queries)
             cluster.get(node).executeInternal(String.format(query, qualifiedTableName));

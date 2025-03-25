@@ -180,8 +180,9 @@ public abstract class ReadRepairQueryTester extends TestBaseImpl
 
             if (replicationType.isTracked())
             {
-                // for logged replication, entire mutations will be replicated, so unlike legacy read repair we'd expect the
-                // node that missed writes to be completely up to date with the node that was last written to. So here we
+                // for tracked replication, entire mutations will be replicated, so unlike untracked read repair we'd
+                // expect the node that missed writes to be completely up to date with the node that was last written to.
+                // So here we adjust expected rows for tracked replication
                 switch (lastMutatedNode)
                 {
                     case 1:
@@ -302,8 +303,9 @@ public abstract class ReadRepairQueryTester extends TestBaseImpl
         {
             if (replicationType.isTracked() && !expectUnrepaired)
             {
-                // for logged replication, entire mutations will be replicated, so unlike legacy read repair we'd expect the
-                // node that missed writes to be completely up to date with the node that was last written to. So here we
+                // for tracked replication, entire mutations will be replicated, so unlike untracked read repair we'd
+                // expect the node that missed writes to be completely up to date with the node that was last written to.
+                // So here we adjust expected rows for tracked replication
                 switch (lastMutatedNode)
                 {
                     case 1:

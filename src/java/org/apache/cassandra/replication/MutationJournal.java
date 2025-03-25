@@ -74,6 +74,7 @@ public class MutationJournal
 
     public CommitLogPosition write(ShortMutationId id, Mutation mutation)
     {
+        // TODO (preferred): update journal to return CommitLogPosition or otherwise remove requirement to allocate second object here
         RecordPointer rp = journal.blockingWrite(id, mutation);
         return new CommitLogPosition(rp.segment, rp.position);
     }

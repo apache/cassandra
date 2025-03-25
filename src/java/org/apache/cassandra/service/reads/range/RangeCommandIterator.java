@@ -182,7 +182,7 @@ public class RangeCommandIterator extends AbstractIterator<RowIterator> implemen
     }
 
 
-    private SingleRangeResponse queryLegacy(PartitionRangeReadCommand rangeCommand, ReplicaPlan.ForRangeRead replicaPlan, boolean isFirst)
+    private SingleRangeResponse queryUntracked(PartitionRangeReadCommand rangeCommand, ReplicaPlan.ForRangeRead replicaPlan, boolean isFirst)
     {
         // If enabled, request repaired data tracking info from full replicas, but
         // only if there are multiple full replicas to compare results from.
@@ -214,7 +214,7 @@ public class RangeCommandIterator extends AbstractIterator<RowIterator> implemen
         return new SingleRangeResponse.Untracked(resolver, handler, readRepair);
     }
 
-    private SingleRangeResponse queryLogged(PartitionRangeReadCommand rangeCommand, ReplicaPlan.ForRangeRead replicaPlan, boolean isFirst)
+    private SingleRangeResponse queryTracked(PartitionRangeReadCommand rangeCommand, ReplicaPlan.ForRangeRead replicaPlan, boolean isFirst)
     {
         ReplicaPlan.SharedForRangeRead sharedReplicaPlan = ReplicaPlan.shared(replicaPlan);
         TrackedReadReconciliation<EndpointsForRange, ReplicaPlan.ForRangeRead> reconciliation = TrackedReadReconciliation.create(command, sharedReplicaPlan, requestTime);
@@ -267,11 +267,11 @@ public class RangeCommandIterator extends AbstractIterator<RowIterator> implemen
 
         if (command.responseType().isTracked())
         {
-            return queryLogged(rangeCommand, replicaPlan, isFirst);
+            return queryTracked(rangeCommand, replicaPlan, isFirst);
         }
         else
         {
-            return queryLegacy(rangeCommand, replicaPlan, isFirst);
+            return queryUntracked(rangeCommand, replicaPlan, isFirst);
         }
     }
 

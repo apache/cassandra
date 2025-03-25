@@ -381,7 +381,7 @@ public class TrackedReadReconciliation<E extends Endpoints<E>, P extends Replica
             return;
         }
 
-        ReadRepairMetrics.logReconcile.mark();
+        ReadRepairMetrics.trackedReconcile.mark();
         ColumnFamilyStore.metricsFor(command.metadata().id).readRepairRequests.mark();
 
         long expiresAt = requestTime.computeDeadline(command.getTimeout(TimeUnit.NANOSECONDS));

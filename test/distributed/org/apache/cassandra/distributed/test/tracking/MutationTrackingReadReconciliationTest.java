@@ -72,7 +72,7 @@ public class MutationTrackingReadReconciliationTest extends TestBaseImpl
 
             cluster.schemaChange(format("CREATE TABLE %s.%s (k int, c int, v int, primary key (k, c));", keyspaceName, tableName));
 
-            // insert a row at all, confirm it's present on all nodes
+            // insert a row at ALL, confirm it's present on all nodes
             cluster.coordinator(1).execute(format("INSERT INTO %s.%s (k, c, v) VALUES (1, 0, 0)", keyspaceName, tableName), ConsistencyLevel.ALL);
 
             MutationSummary firstSummary = summaryForKey(cluster.get(1), keyspaceName, "tbl", 1);

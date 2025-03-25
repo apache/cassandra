@@ -275,7 +275,7 @@ public class MutationTrackingUtils
 
     public static long numLogReconciliations(IInvokableInstance node)
     {
-        return node.callOnInstance(() -> ReadRepairMetrics.logReconcile.getCount());
+        return node.callOnInstance(() -> ReadRepairMetrics.trackedReconcile.getCount());
     }
 
     public static Object[] row(Object... objs)
