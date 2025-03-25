@@ -509,6 +509,8 @@ public abstract class Constants
             else if (column.type instanceof StringType)
             {
                 ByteBuffer append = t.bindAndGet(params.options);
+                if (append == null)
+                    return;
                 ByteBuffer current = getCurrentCellBuffer(column, partitionKey, params);
                 if (current == null)
                     return;
