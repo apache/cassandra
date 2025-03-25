@@ -23,9 +23,13 @@ import org.apache.cassandra.exceptions.WriteFailureException;
 import org.apache.cassandra.exceptions.WriteTimeoutException;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.net.Message;
+import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.net.NoPayload;
+import org.apache.cassandra.net.Verb;
+import org.apache.cassandra.replication.ForwardedWriteRequest;
 import org.apache.cassandra.replication.MutationId;
 import org.apache.cassandra.replication.MutationTrackingService;
+import org.apache.cassandra.utils.FBUtilities;
 
 public class TrackedWriteResponseHandler extends AbstractWriteResponseHandler<NoPayload>
 {
@@ -34,21 +38,23 @@ public class TrackedWriteResponseHandler extends AbstractWriteResponseHandler<No
     private final String keyspace;
     private final Token token;
     private final MutationId mutationId;
+    private final ForwardedWriteRequest.DirectAcknowledge ackTo;
 
     private TrackedWriteResponseHandler(
-        AbstractWriteResponseHandler<NoPayload> wrapped, String keyspace, Token token, MutationId mutationId)
+    AbstractWriteResponseHandler<NoPayload> wrapped, String keyspace, Token token, MutationId mutationId, ForwardedWriteRequest.DirectAcknowledge ackTo)
     {
         super(wrapped.replicaPlan, wrapped.callback, wrapped.writeType, null, wrapped.getRequestTime());
         this.wrapped = wrapped;
         this.keyspace = keyspace;
         this.token = token;
         this.mutationId = mutationId;
+        this.ackTo = ackTo;
     }
 
     public static TrackedWriteResponseHandler wrap(
-        AbstractWriteResponseHandler<NoPayload> handler, String keyspace, Token token, MutationId mutationId)
+        AbstractWriteResponseHandler<NoPayload> handler, String keyspace, Token token, MutationId mutationId, ForwardedWriteRequest.DirectAcknowledge ackTo)
     {
-        return new TrackedWriteResponseHandler(handler, keyspace, token, mutationId);
+        return new TrackedWriteResponseHandler(handler, keyspace, token, mutationId, ackTo);
     }
 
     @Override
@@ -57,6 +63,16 @@ public class TrackedWriteResponseHandler extends AbstractWriteResponseHandler<No
         /* local mutations are witnessed from Keyspace.applyInternalTracked */
         if (msg != null)
             MutationTrackingService.instance.witnessedRemoteMutation(keyspace, token, mutationId, msg.from());
+
+        // Local write needs to be ack'd to client-coordinator
+        if (msg == null && ackTo != null)
+        {
+            Message<NoPayload> message = Message.builder(Verb.MUTATION_RSP, NoPayload.noPayload)
+                                         .from(FBUtilities.getBroadcastAddressAndPort())
+                                         .withId(ackTo.id)
+                                         .build();
+            MessagingService.instance().send(message, ackTo.coordinator);
+        }
 
         wrapped.onResponse(msg);
     }

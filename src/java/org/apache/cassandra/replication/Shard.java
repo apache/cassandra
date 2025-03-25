@@ -52,7 +52,10 @@ public class Shard
         this.sinceEpoch = sinceEpoch;
         this.logs = new NonBlockingHashMapLong<>();
         this.currentLocalLog = startNewLog(localHostId, logIdProvider.getAsInt(), participants);
-        logs.put(currentLocalLog.logId.asLong(), currentLocalLog);
+        long logId = currentLocalLog.logId.asLong();
+        // We should never create a Shard for MutationId.none(), right?
+        assert logId != MutationId.none().logId();
+        logs.put(logId, currentLocalLog);
     }
 
     MutationId nextId()

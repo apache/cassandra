@@ -17,9 +17,13 @@
  */
 package org.apache.cassandra.db;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import org.apache.cassandra.exceptions.WriteTimeoutException;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.net.*;
+import org.apache.cassandra.replication.ForwardedWriteRequest;
 import org.apache.cassandra.tracing.Tracing;
 
 import static java.util.concurrent.TimeUnit.NANOSECONDS;
@@ -28,12 +32,24 @@ import static org.apache.cassandra.utils.MonotonicClock.Global.approxTime;
 
 public class MutationVerbHandler extends AbstractMutationVerbHandler<Mutation>
 {
+    private static final Logger logger = LoggerFactory.getLogger(MutationVerbHandler.class);
+
     public static final MutationVerbHandler instance = new MutationVerbHandler();
 
-    private void respond(Message<?> respondTo, InetAddressAndPort respondToAddress)
+    private void respond(Message<?> incoming, InetAddressAndPort respondToAddress)
     {
+        // Local tracked writes respond in TrackedWriteResponseHandler
+        Message<NoPayload> response = incoming.emptyResponse();
         Tracing.trace("Enqueuing response to {}", respondToAddress);
-        MessagingService.instance().send(respondTo.emptyResponse(), respondToAddress);
+        logger.debug("Enqueuing response to {}", respondToAddress);
+        MessagingService.instance().send(response, respondToAddress);
+
+        ForwardedWriteRequest.DirectAcknowledge ackTo = (ForwardedWriteRequest.DirectAcknowledge) incoming.header.params().get(ParamType.TRACKED_MUTATION_FORWARDING);
+        if (ackTo != null)
+        {
+            logger.debug("Enqueuing response for direct acknowledgement of forwarded tracked mutation to coordinator {}", ackTo.coordinator);
+            MessagingService.instance().send(response, ackTo.coordinator);
+        }
     }
 
     private void failed()

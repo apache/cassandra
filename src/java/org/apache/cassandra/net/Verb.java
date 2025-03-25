@@ -71,6 +71,7 @@ import org.apache.cassandra.repair.messages.SyncResponse;
 import org.apache.cassandra.repair.messages.SyncRequest;
 import org.apache.cassandra.repair.messages.ValidationResponse;
 import org.apache.cassandra.repair.messages.ValidationRequest;
+import org.apache.cassandra.replication.ForwardedWriteRequest;
 import org.apache.cassandra.schema.SchemaMutationsSerializer;
 import org.apache.cassandra.schema.SchemaPullVerbHandler;
 import org.apache.cassandra.schema.SchemaPushVerbHandler;
@@ -249,6 +250,7 @@ public enum Verb
     READ_RECONCILE_SEND    (901, P0, rpcTimeout,      READ,                 () -> ReadReconcileSend.serializer,                 () -> ReadReconcileSend.verbHandler),
     READ_RECONCILE_RCV     (902, P0, rpcTimeout,      MUTATION,             () -> ReadReconcileReceive.serializer,              () -> ReadReconcileReceive.verbHandler),
     READ_RECONCILE_NOTIFY  (903, P0, rpcTimeout,      REQUEST_RESPONSE,     () -> ReadReconcileNotify.serializer,               () -> ReadReconcileNotify.verbHandler),
+    FORWARDING_WRITE       (904, P3, writeTimeout,    MUTATION,             () -> ForwardedWriteRequest.serializer,             () -> ForwardedWriteRequest.verbHandler),
 
     INITIATE_DATA_MOVEMENTS_RSP (814, P1, rpcTimeout, MISC, () -> NoPayload.serializer,             () -> ResponseVerbHandler.instance                                  ),
     INITIATE_DATA_MOVEMENTS_REQ (815, P1, rpcTimeout, MISC, () -> DataMovement.serializer,          () -> DataMovementVerbHandler.instance, INITIATE_DATA_MOVEMENTS_RSP ),

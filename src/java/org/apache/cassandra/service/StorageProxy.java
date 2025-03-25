@@ -879,7 +879,7 @@ public class StorageProxy implements StorageProxyMBean
     {
         try
         {
-            TrackedWriteRequest.perform(mutation, consistencyLevel, requestTime).get();
+            new TrackedWriteRequest().perform(mutation, consistencyLevel, requestTime).get();
         }
         catch (WriteTimeoutException|WriteFailureException ex)
         {

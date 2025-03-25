@@ -43,6 +43,7 @@ import org.apache.cassandra.exceptions.RequestFailureReason;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.Replica;
 import org.apache.cassandra.metrics.MessagingMetrics;
+import org.apache.cassandra.replication.ForwardedWriteHandler;
 import org.apache.cassandra.service.AbstractWriteResponseHandler;
 import org.apache.cassandra.utils.ExecutorUtils;
 import org.apache.cassandra.utils.FBUtilities;
@@ -449,6 +450,14 @@ public class MessagingService extends MessagingServiceMBeanImpl implements Messa
         send(message, to.endpoint(), null);
     }
 
+    public void sendForwardedWriteWithCallback(Message message, Replica to, ForwardedWriteHandler.Leader handler)
+    {
+        assert message.verb() == Verb.MUTATION_REQ;
+        assert message.callBackOnFailure();
+        callbacks.addWithExpiration(handler, message, to.endpoint());
+        send(message, to.endpoint(), null);
+    }
+
     /**
      * Send a message to a given endpoint. This method adheres to the fire and forget
      * style messaging.
@@ -512,9 +521,9 @@ public class MessagingService extends MessagingServiceMBeanImpl implements Messa
             return;
         }
 
-        if (logger.isTraceEnabled())
+        if (logger.isDebugEnabled())
         {
-            logger.trace("{} sending {} to {}@{}", FBUtilities.getBroadcastAddressAndPort(), message.verb(), message.id(), to);
+            logger.debug("{} sending {} to {}@{}", FBUtilities.getBroadcastAddressAndPort(), message.verb(), message.id(), to);
 
             if (to.equals(FBUtilities.getBroadcastAddressAndPort()))
                 logger.trace("Message-to-self {} going over MessagingService", message);
