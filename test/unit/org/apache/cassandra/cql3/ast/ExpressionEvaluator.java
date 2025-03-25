@@ -59,7 +59,7 @@ public class ExpressionEvaluator
         // 42 + null = null
         // if anything is null, everything is null!
         if (lhs == null || rhs == null)
-            return lhs;
+            return null;
         switch (e.kind)
         {
             case ADD:
