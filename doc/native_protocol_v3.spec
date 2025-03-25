@@ -228,7 +228,7 @@ Table of Contents
                    representing the port.
     [consistency]  A consistency level specification. This is a [short]
                    representing a consistency level with the following
-                   correspondance:
+                   correspondence:
                      0x0000    ANY
                      0x0001    ONE
                      0x0002    TWO
@@ -267,7 +267,7 @@ Table of Contents
 
   The body is a [string map] of options. Possible options are:
     - "CQL_VERSION": the version of CQL to use. This option is mandatory and
-      currenty, the only version supported is "3.0.0". Note that this is
+      currently, the only version supported is "3.0.0". Note that this is
       different from the protocol version.
     - "COMPRESSION": the compression algorithm to use for frames (See section 5).
       This is optional, if not specified no compression will be used.
@@ -316,8 +316,8 @@ Table of Contents
               values are provided. Those value are used for bound variables in
               the query. Optionally, if the 0x40 flag is present, each value
               will be preceded by a [string] name, representing the name of
-              the marker the value must be binded to. This is optional, and
-              if not present, values will be binded by position.
+              the marker the value must be bound to. This is optional, and
+              if not present, values will be bound by position.
         0x02: Skip_metadata. If present, the Result Set returned as a response
               to that query (if any) will have the NO_METADATA flag (see
               Section 4.2.5.2).
@@ -332,8 +332,8 @@ Table of Contents
               started (See Section 8 for more details).
         0x10: With serial consistency. If present, <serial_consistency> should be
               present. <serial_consistency> is the [consistency] level for the
-              serial phase of conditional updates. That consitency can only be
-              either SERIAL or LOCAL_SERIAL and if not present, it defaults to
+              serial phase of conditional updates. Consistency can be
+              either SERIAL or LOCAL_SERIAL, if not present, it defaults to
               SERIAL. This option will be ignored for anything else that a
               conditional update/insert.
         0x20: With default timestamp. If present, <timestamp> should be present.
@@ -400,8 +400,8 @@ Table of Contents
       flags are, given there mask:
         0x10: With serial consistency. If present, <serial_consistency> should be
               present. <serial_consistency> is the [consistency] level for the
-              serial phase of conditional updates. That consitency can only be
-              either SERIAL or LOCAL_SERIAL and if not present, it defaults to
+              serial phase of conditional updates. Consistency can be
+              either SERIAL or LOCAL_SERIAL, if not present, it defaults to
               SERIAL. This option will be ignored for anything else that a
               conditional update/insert.
         0x20: With default timestamp. If present, <timestamp> should be present.
@@ -435,8 +435,8 @@ Table of Contents
     - <consistency> is the [consistency] level for the operation.
     - <serial_consistency> is only present if the 0x10 flag is set. In that case,
       <serial_consistency> is the [consistency] level for the serial phase of
-      conditional updates. That consitency can only be either SERIAL or
-      LOCAL_SERIAL and if not present will defaults to SERIAL. This option will
+      conditional updates. Consistency can be either SERIAL or
+      LOCAL_SERIAL, if not present, it defaults to SERIAL. This option will
       be ignored for anything else that a conditional update/insert.
 
   The server will respond with a RESULT message.
@@ -461,7 +461,7 @@ Table of Contents
 
   This section describes the content of the frame body for the different
   responses. Please note that to make room for future evolution, clients should
-  support extra informations (that they should simply discard) to the one
+  support extra information (that they should simply discard) to the one
   described in this document at the end of the frame body.
 
 4.2.1. ERROR
@@ -488,7 +488,7 @@ Table of Contents
 
   The authentication is SASL based and thus consists on a number of server
   challenges (AUTH_CHALLENGE, Section 4.2.7) followed by client responses
-  (AUTH_RESPONSE, Section 4.1.2). The Initial exchange is however boostrapped
+  (AUTH_RESPONSE, Section 4.1.2). The Initial exchange is however bootstrapped
   by an initial client response. The details of that exchange (including how
   much challenge-response pair are required) are specific to the authenticator
   in use. The exchange ends when the server sends an AUTH_SUCCESS message or
@@ -541,7 +541,7 @@ Table of Contents
         <flags><columns_count>[<paging_state>][<global_table_spec>?<col_spec_1>...<col_spec_n>]
       where:
         - <flags> is an [int]. The bits of <flags> provides information on the
-          formatting of the remaining informations. A flag is set if the bit
+          formatting of the remaining information. A flag is set if the bit
           corresponding to its `mask` is set. Supported flags are, given there
           mask:
             0x0001    Global_tables_spec: if set, only one table spec (keyspace
@@ -555,7 +555,7 @@ Table of Contents
                       this query (See Section 8 for more details).
             0x0004    No_metadata: if set, the <metadata> is only composed of
                       these <flags>, the <column_count> and optionally the
-                      <paging_state> (depending on the Has_more_pages flage) but
+                      <paging_state> (depending on the Has_more_pages flag) but
                       no other information (so no <global_table_spec> nor <col_spec_i>).
                       This will only ever be the case if this was requested
                       during the query (see QUERY and RESULT messages).
@@ -567,8 +567,8 @@ Table of Contents
           (unique) keyspace name and table name the columns return are of.
         - <col_spec_i> specifies the columns returned in the query. There is
           <column_count> such column specifications that are composed of:
-            (<ksname><tablename>)?<name><type>
-          The initial <ksname> and <tablename> are two [string] are only present
+            (<ks_name><table_name>)?<name><type>
+          The initial <ks_name> and <table_name> are two [string] are only present
           if the Global_tables_spec flag is not set. The <column_name> is a
           [string] and <type> is an [option] that correspond to the description
           (what this description is depends a bit on the context: in results to
@@ -608,7 +608,7 @@ Table of Contents
                               - <ks> is a [string] representing the keyspace name this
                                 UDT is part of.
                               - <udt_name> is a [string] representing the UDT name.
-                              - <n> is a [short] reprensenting the number of fields of
+                              - <n> is a [short] representing the number of fields of
                                 the UDT, and thus the number of <name_i><type_i> pair
                                 following
                               - <name_i> is a [string] representing the name of the
@@ -657,7 +657,7 @@ Table of Contents
 
   Note that prepared query ID return is global to the node on which the query
   has been prepared. It can be used on any connection to that node and this
-  until the node is restarted (after which the query must be reprepared).
+  until the node is restarted (after which the query must be re-prepared).
 
 4.2.5.5. Schema_change
 
@@ -759,7 +759,7 @@ Table of Contents
       bytes).
     - snappy (https://code.google.com/p/snappy/). This compression might not be
       available as it depends on a native lib (server-side) that might not be
-      avaivable on some installation.
+      available on some installation.
 
 
 6. Data Type Serialization Formats
@@ -981,7 +981,7 @@ Table of Contents
                 <blockfor> is an [int] representing the number of replica whose
                            acknowledgement is required to achieve <cl>.
                 <writeType> is a [string] that describe the type of the write
-                            that timeouted. The value of that string can be one
+                            that timed out. The value of that string can be one
                             of:
                              - "SIMPLE": the write was a non-batched
                                non-counter write.
@@ -993,10 +993,10 @@ Table of Contents
                                batch. Not batch log write has been attempted.
                              - "COUNTER": the write was a counter write
                                (batched or not).
-                             - "BATCH_LOG": the timeout occured during the
+                             - "BATCH_LOG": the timeout occurred during the
                                write to the batch log when a (logged) batch
                                write was requested.
-                             - "CAS": the timeout occured during the Compare And Set write/update.
+                             - "CAS": the timeout occurred during the Compare And Set write/update.
     0x1200    Read_timeout: Timeout exception during a read request. The rest
               of the ERROR message body will be
                 <cl><received><blockfor><data_present>
