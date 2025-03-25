@@ -29,6 +29,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.base.Preconditions;
 import com.google.common.collect.Lists;
 
 import org.slf4j.Logger;
@@ -43,6 +44,7 @@ import org.apache.cassandra.exceptions.RequestFailureReason;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.Replica;
 import org.apache.cassandra.metrics.MessagingMetrics;
+import org.apache.cassandra.replication.ForwardedWrite;
 import org.apache.cassandra.service.AbstractWriteResponseHandler;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.utils.ExecutorUtils;
@@ -451,6 +453,14 @@ public class MessagingService extends MessagingServiceMBeanImpl implements Messa
     {
         assert message.callBackOnFailure();
         callbacks.addWithExpiration(handler, message, to);
+        send(message, to.endpoint(), null);
+    }
+
+    public void sendForwardedWriteWithCallback(Message message, Replica to, ForwardedWrite.LeaderCallback handler)
+    {
+        Preconditions.checkArgument(message.verb() == Verb.MUTATION_REQ);
+        Preconditions.checkArgument(message.callBackOnFailure());
+        callbacks.addWithExpiration(handler, message, to.endpoint());
         send(message, to.endpoint(), null);
     }
 

@@ -21,6 +21,8 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 
+import com.google.common.base.Preconditions;
+
 import org.apache.cassandra.db.Mutation;
 import org.apache.cassandra.db.PartitionPosition;
 import org.apache.cassandra.dht.AbstractBounds;
@@ -72,6 +74,7 @@ public abstract class CoordinatorLog
 
     void witnessedRemoteMutation(MutationId mutationId, int onHostId)
     {
+        Preconditions.checkArgument(!mutationId.isNone());
         logger.trace("witnessed remote mutation {} from {}", mutationId, onHostId);
         lock.writeLock().lock();
         try

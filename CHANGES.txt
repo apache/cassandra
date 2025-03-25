@@ -1,4 +1,5 @@
 cep-45-mutation-tracking
+ * CEP-45: Query forwarding (CASSANDRA-20309)
  * Fix mutation tracking startup (CASSANDRA-20540)
  * Mutation tracking journal integration, read, and write path (CASSANDRA-20304, CASSANDRA-20305, CASSANDRA-20308)
  * Introduce MutationJournal for coordinator logs (CASSANDRA-20353)

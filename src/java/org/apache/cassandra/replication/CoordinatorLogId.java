@@ -28,6 +28,8 @@ import java.util.Comparator;
 
 public class CoordinatorLogId implements Serializable
 {
+    private static final CoordinatorLogId NONE = new CoordinatorLogId(Integer.MIN_VALUE, Integer.MIN_VALUE);
+
     /** TCM host ID */
     protected final int hostId;
 
@@ -79,6 +81,21 @@ public class CoordinatorLogId implements Serializable
         return (int) coordinatorLogId;
     }
 
+    public static CoordinatorLogId none()
+    {
+        return NONE;
+    }
+
+    static boolean isNone(int hostId, int hostLogId)
+    {
+        return hostId == NONE.hostId && hostLogId == NONE.hostLogId;
+    }
+
+    public boolean isNone()
+    {
+        return this == NONE || isNone(hostId, hostLogId);
+    }
+
     @Override
     public String toString()
     {
@@ -115,6 +132,8 @@ public class CoordinatorLogId implements Serializable
         {
             int hostId = in.readInt();
             int hostLogId = in.readInt();
+            if (isNone(hostId, hostLogId))
+                return none();
             return new CoordinatorLogId(hostId, hostLogId);
         }
 

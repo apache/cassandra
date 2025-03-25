@@ -124,6 +124,7 @@ class LocalMutationStates
 
     void finishWriting(Mutation mutation)
     {
+        Preconditions.checkArgument(!mutation.id().isNone());
         Entry entry = statesMap.get(mutation.id().offset());
         Preconditions.checkNotNull(entry);
         entry.visibility = Visibility.VISIBLE;

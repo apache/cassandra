@@ -784,6 +784,13 @@ public class Message<T> implements ResponseContext
             return this;
         }
 
+        public Builder<T> withRequestTime(Dispatcher.RequestTime requestTime)
+        {
+            this.createdAtNanos = requestTime.startedAtNanos();
+            this.expiresAtNanos = requestTime.computeDeadline(verb.expiresAfterNanos());
+            return this;
+        }
+
         public Message<T> build()
         {
             if (verb == null)
