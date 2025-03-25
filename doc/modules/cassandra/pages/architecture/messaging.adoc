@@ -110,7 +110,7 @@ internode_application_receive_queue_reserve_global_capacity: 512MiB
 == Virtual Tables for Messaging Metrics
 
 Metrics is improved by keeping metrics using virtual tables for
-inter-node inbound and outbound messaging
+internode inbound and outbound messaging
 (https://issues.apache.org/jira/browse/CASSANDRA-15066[CASSANDRA-15066]).
 For inbound messaging a virtual table (`internode_inbound`) has been
 added to keep metrics for:
@@ -122,10 +122,10 @@ due to an error
 * Bytes and count of messages successfully received
 * Nanos and count of messages throttled
 * Bytes and count of messages expired
-* Corrupt frames recovered and unrecovered
+* Corrupt frames recovered and un-recovered
 
 A separate virtual table (`internode_outbound`) has been added for
-outbound inter-node messaging. The outbound virtual table keeps metrics
+outbound internode messaging. The outbound virtual table keeps metrics
 for:
 
 * Bytes and count of messages pending
@@ -216,7 +216,7 @@ The Unprotected option is still available.
 For resilience, all frames are written with a separate CRC protected
 header, of 8 and 6 bytes respectively. If corruption occurs in this
 header, the connection must be reset, as before. If corruption occurs
-anywhere outside of the header, the corrupt frame will be skipped,
+outside the header, the corrupt frame will be skipped,
 leaving the connection intact and avoiding the loss of any messages
 unnecessarily.
 
@@ -255,7 +255,7 @@ expired at the time when a message is encountered the message is just
 skipped in the byte stream altogether. And if a message fails to be
 deserialized while still on the receiving side - say, because of table
 id or column being unknown - bytes are skipped, without dropping the
-entire connection and losing all the buffered messages. An immediately
+entire connection and losing all the buffered messages. An immediate
 reply back is sent to the coordinator node with the failure reason,
 rather than waiting for the coordinator callback to expire. This logic
 is extended to a corrupted frame; a corrupted frame is safely skipped
@@ -342,7 +342,7 @@ sent.
 == Added a Message size limit
 
 Cassandra pre-4.0 doesn't protect the server from allocating huge
-buffers for the inter-node Message objects. Adding a message size limit
+buffers for the internode Message objects. Adding a message size limit
 would be good to deal with issues such as a malfunctioning cluster
 participant. Version 4.0 introduced max message size config param, akin
 to max mutation size - set to endpoint reserve capacity by default.
@@ -356,5 +356,5 @@ message from another node. Pre-4.0, we close the connection and
 reconnect, which can cause other concurrent queries to fail. Version 4.0
 fixes the issue by wrapping message in-stream with
 `TrackedDataInputPlus`, catching `UnknownCFException`, and skipping the
-remaining bytes in this message. TCP won't be closed and it will remain
+remaining bytes in this message. TCP won't be closed, and it will remain
 connected for other messages.
