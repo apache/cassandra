@@ -25,6 +25,7 @@ import java.util.UUID;
 import com.google.common.primitives.Ints;
 
 import org.apache.cassandra.db.TypeSizes;
+import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.tcm.MultiStepOperation;
@@ -123,4 +124,25 @@ public class NodeId implements Comparable<NodeId>, MultiStepOperation.SequenceKe
             return TypeSizes.sizeofUnsignedVInt(t.id);
         }
     }
+
+    public static final IVersionedSerializer<NodeId> messagingSerializer = new IVersionedSerializer<NodeId>()
+    {
+        @Override
+        public void serialize(NodeId n, DataOutputPlus out, int version) throws IOException
+        {
+            out.writeUnsignedVInt32(n.id);
+        }
+
+        @Override
+        public NodeId deserialize(DataInputPlus in, int version) throws IOException
+        {
+            return new NodeId(in.readUnsignedVInt32());
+        }
+
+        @Override
+        public long serializedSize(NodeId n, int version)
+        {
+            return TypeSizes.sizeofUnsignedVInt(n.id);
+        }
+    };
 }

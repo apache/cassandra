@@ -20,6 +20,7 @@ package org.apache.cassandra.net;
 import javax.annotation.Nullable;
 
 import org.apache.cassandra.io.IVersionedSerializer;
+import org.apache.cassandra.replication.ForwardedWrite;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.utils.Int32Serializer;
 import org.apache.cassandra.utils.Int64Serializer;
@@ -54,7 +55,9 @@ public enum ParamType
     ROW_INDEX_READ_SIZE_WARN         (13, Int64Serializer.serializer),
     CUSTOM_MAP                       (14, CustomParamsSerializer.serializer),
     TOO_MANY_REFERENCED_INDEXES_WARN (16, Int32Serializer.serializer),
-    TOO_MANY_REFERENCED_INDEXES_FAIL (17, Int32Serializer.serializer);
+    TOO_MANY_REFERENCED_INDEXES_FAIL (17, Int32Serializer.serializer),
+    // Different from RESPOND_TO because it's an additional recipient of the acknowledgement
+    COORDINATOR_ACK_INFO             (18, ForwardedWrite.CoordinatorAckInfo.serializer);
 
     final int id;
     final IVersionedSerializer serializer;

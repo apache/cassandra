@@ -54,10 +54,9 @@ public class TrackedWriteResponseHandler extends AbstractWriteResponseHandler<No
     @Override
     public void onResponse(Message<NoPayload> msg)
     {
-        /* local mutations are witnessed from Keyspace.applyInternalTracked */
+        // Local mutations are witnessed from Keyspace.applyInternalTracked
         if (msg != null)
             MutationTrackingService.instance.witnessedRemoteMutation(keyspace, token, mutationId, msg.from());
-
         wrapped.onResponse(msg);
     }
 

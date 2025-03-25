@@ -17,12 +17,17 @@
  */
 package org.apache.cassandra.db;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import org.apache.cassandra.exceptions.WriteTimeoutException;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.net.ForwardingInfo;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
+import org.apache.cassandra.net.NoPayload;
 import org.apache.cassandra.net.ParamType;
+import org.apache.cassandra.replication.ForwardedWrite;
 import org.apache.cassandra.tracing.Tracing;
 
 import static java.util.concurrent.TimeUnit.NANOSECONDS;
@@ -31,12 +36,24 @@ import static org.apache.cassandra.utils.MonotonicClock.Global.approxTime;
 
 public class MutationVerbHandler extends AbstractMutationVerbHandler<Mutation>
 {
+    private static final Logger logger = LoggerFactory.getLogger(MutationVerbHandler.class);
+
     public static final MutationVerbHandler instance = new MutationVerbHandler();
 
-    private void respond(Message<?> respondTo, InetAddressAndPort respondToAddress)
+    private void respond(Message<?> incoming, InetAddressAndPort respondToAddress)
     {
+        // Local tracked writes respond in TrackedWriteResponseHandler
+        Message<NoPayload> response = incoming.emptyResponse();
         Tracing.trace("Enqueuing response to {}", respondToAddress);
-        MessagingService.instance().send(respondTo.emptyResponse(), respondToAddress);
+        logger.trace("Enqueuing response to {}", respondToAddress);
+        MessagingService.instance().send(response, respondToAddress);
+
+        ForwardedWrite.CoordinatorAckInfo ackTo = (ForwardedWrite.CoordinatorAckInfo) incoming.header.params().get(ParamType.COORDINATOR_ACK_INFO);
+        if (ackTo != null)
+        {
+            logger.trace("Enqueuing response for direct acknowledgement of forwarded tracked mutation to coordinator {}", ackTo.coordinator);
+            MessagingService.instance().send(response, ackTo.coordinator);
+        }
     }
 
     private void failed()

@@ -49,14 +49,17 @@ import org.apache.cassandra.net.ForwardingInfo;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessageFlag;
 import org.apache.cassandra.net.MessagingService;
+import org.apache.cassandra.net.NoPayload;
+import org.apache.cassandra.net.ParamType;
+import org.apache.cassandra.net.RequestCallback;
 import org.apache.cassandra.net.Verb;
+import org.apache.cassandra.service.AbstractWriteResponseHandler;
 import org.apache.cassandra.service.TrackedWriteResponseHandler;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.transport.Dispatcher;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.MonotonicClock;
 
-import static java.util.Collections.singletonList;
 import static java.util.concurrent.TimeUnit.NANOSECONDS;
 import static org.apache.cassandra.metrics.ClientRequestsMetricsHolder.writeMetrics;
 import static org.apache.cassandra.net.Verb.MUTATION_REQ;
@@ -72,34 +75,37 @@ public class TrackedWriteRequest
      * @param consistencyLevel the consistency level for the write operation
      * @param requestTime object holding times when request got enqueued and started execution
      */
-    public static TrackedWriteResponseHandler perform(
+    public static AbstractWriteResponseHandler<?> perform(
         Mutation mutation, ConsistencyLevel consistencyLevel, Dispatcher.RequestTime requestTime)
     {
         Tracing.trace("Determining replicas for mutation");
 
+        Preconditions.checkArgument(mutation.id().isNone());
         String keyspaceName = mutation.getKeyspaceName();
         Keyspace keyspace = Keyspace.open(keyspaceName);
         Token token = mutation.key().getToken();
 
-        MutationId id = MutationTrackingService.instance.nextMutationId(keyspaceName, token);
-        mutation = mutation.withMutationId(id);
-
         ReplicaPlan.ForWrite plan = ReplicaPlans.forWrite(keyspace, consistencyLevel, token, ReplicaPlans.writeNormal);
-
-        if (plan.lookup(FBUtilities.getBroadcastAddressAndPort()) != null)
-            writeMetrics.localRequests.mark();
-        else
-            writeMetrics.remoteRequests.mark();
-
         AbstractReplicationStrategy rs = plan.replicationStrategy();
 
-        TrackedWriteResponseHandler handler =
-            TrackedWriteResponseHandler.wrap(rs.getWriteResponseHandler(plan, null, WriteType.SIMPLE, null, requestTime),
-                                             keyspaceName,
-                                             mutation.key().getToken(),
-                                             id);
-        applyLocallyAndSendToReplicas(mutation, plan, handler);
+        if (plan.lookup(FBUtilities.getBroadcastAddressAndPort()) == null)
+        {
+            if (logger.isTraceEnabled())
+                logger.trace("Remote tracked request {} {}", mutation, plan);
+            writeMetrics.remoteRequests.mark();
+            return ForwardedWrite.forwardMutation(mutation, plan, rs, requestTime);
+        }
 
+        if (logger.isTraceEnabled())
+            logger.trace("Local tracked request {} {}", mutation, plan);
+        writeMetrics.localRequests.mark();
+        MutationId id = MutationTrackingService.instance.nextMutationId(keyspaceName, token);
+        mutation = mutation.withMutationId(id);
+        TrackedWriteResponseHandler handler = TrackedWriteResponseHandler.wrap(rs.getWriteResponseHandler(plan, null, WriteType.SIMPLE, null, requestTime),
+                                         keyspaceName,
+                                         mutation.key().getToken(),
+                                         id);
+        applyLocallyAndSendToReplicas(mutation, plan, handler);
         return handler;
     }
 
@@ -142,7 +148,12 @@ public class TrackedWriteRequest
             }
 
             if (message == null)
-                message = Message.outWithFlags(MUTATION_REQ, mutation, handler.getRequestTime(), singletonList(MessageFlag.CALL_BACK_ON_FAILURE));
+            {
+                Message.Builder<Mutation> builder = Message.builder(MUTATION_REQ, mutation)
+                                 .withRequestTime(handler.getRequestTime())
+                                 .withFlag(MessageFlag.CALL_BACK_ON_FAILURE);
+                message = builder.build();
+            }
 
             String dc = DatabaseDescriptor.getLocator().location(destination.endpoint()).datacenter;
 
@@ -175,31 +186,42 @@ public class TrackedWriteRequest
         {
             // for each datacenter, send the message to one node to relay the write to other replicas
             for (List<Replica> dcReplicas : remoteDCReplicas.values())
-                sendMessagesToRemoteDC(message, EndpointsForToken.copyOf(mutation.key().getToken(), dcReplicas), handler);
+                sendMessagesToRemoteDC(message, EndpointsForToken.copyOf(mutation.key().getToken(), dcReplicas), handler, null);
         }
     }
 
-    private static void applyMutationLocally(Mutation mutation, TrackedWriteResponseHandler handler)
+    static void applyMutationLocally(Mutation mutation, RequestCallback<NoPayload> handler)
     {
+        Preconditions.checkArgument(handler instanceof TrackedWriteResponseHandler || handler instanceof ForwardedWrite.LeaderCallback);
         Stage.MUTATION.maybeExecuteImmediately(new LocalMutationRunnable(mutation, handler));
     }
 
     private static class LocalMutationRunnable implements DebuggableTask.RunnableDebuggableTask
     {
         private final Mutation mutation;
-        private final TrackedWriteResponseHandler handler;
+        private final RequestCallback<NoPayload> handler;
 
-        LocalMutationRunnable(Mutation mutation, TrackedWriteResponseHandler handler)
+        LocalMutationRunnable(Mutation mutation, RequestCallback<NoPayload> handler)
         {
+            Preconditions.checkArgument(handler instanceof TrackedWriteResponseHandler || handler instanceof ForwardedWrite.LeaderCallback);
             this.mutation = mutation;
             this.handler = handler;
+        }
+
+        private Dispatcher.RequestTime getRequestTime()
+        {
+            if (handler instanceof TrackedWriteResponseHandler)
+                return ((TrackedWriteResponseHandler) handler).getRequestTime();
+            if (handler instanceof ForwardedWrite.LeaderCallback)
+                return ((ForwardedWrite.LeaderCallback) handler).getRequestTime();
+            throw new IllegalStateException();
         }
 
         @Override
         public final void run()
         {
             long now = MonotonicClock.Global.approxTime.now();
-            long deadline = handler.getRequestTime().computeDeadline(MUTATION_REQ.expiresAfterNanos());
+            long deadline = getRequestTime().computeDeadline(MUTATION_REQ.expiresAfterNanos());
 
             if (now > deadline)
             {
@@ -224,13 +246,13 @@ public class TrackedWriteRequest
         @Override
         public long creationTimeNanos()
         {
-            return handler.getRequestTime().enqueuedAtNanos();
+            return getRequestTime().enqueuedAtNanos();
         }
 
         @Override
         public long startTimeNanos()
         {
-            return handler.getRequestTime().startedAtNanos();
+            return getRequestTime().startedAtNanos();
         }
 
         @Override
@@ -245,9 +267,10 @@ public class TrackedWriteRequest
     /*
      * Send the message to the first replica of targets, and have it forward the message to others in its DC
      */
-    private static void sendMessagesToRemoteDC(Message<? extends IMutation> message,
-                                               EndpointsForToken targets,
-                                               TrackedWriteResponseHandler handler)
+    static void sendMessagesToRemoteDC(Message<? extends IMutation> message,
+                                        EndpointsForToken targets,
+                                        RequestCallback<NoPayload> handler,
+                                        ForwardedWrite.CoordinatorAckInfo ackTo)
     {
         final Replica target;
 
@@ -258,7 +281,7 @@ public class TrackedWriteRequest
 
             for (Replica replica : forwardToReplicas)
             {
-                MessagingService.instance().callbacks.addWithExpiration(handler, message, replica);
+                MessagingService.instance().callbacks.addWithExpiration(handler, message, replica.endpoint());
                 logger.trace("Adding FWD message to {}@{}", message.id(), replica);
             }
 
@@ -272,9 +295,14 @@ public class TrackedWriteRequest
         {
             target = targets.get(0);
         }
+        if (ackTo != null)
+            message = message.withParam(ParamType.COORDINATOR_ACK_INFO, ackTo);
 
         Tracing.trace("Sending mutation to remote replica {}", target);
-        MessagingService.instance().sendWriteWithCallback(message, target, handler);
+        if (handler instanceof ForwardedWrite.LeaderCallback)
+            MessagingService.instance().sendForwardedWriteWithCallback(message, target, (ForwardedWrite.LeaderCallback) handler);
+        else
+            MessagingService.instance().sendWriteWithCallback(message, target, (AbstractWriteResponseHandler<?>) handler);
         logger.trace("Sending message to {}@{}", message.id(), target);
     }
 

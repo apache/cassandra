@@ -24,6 +24,8 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 import java.util.function.IntSupplier;
 
+import com.google.common.base.Preconditions;
+
 import org.agrona.collections.IntArrayList;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.Mutation;
@@ -92,16 +94,19 @@ public class MutationTrackingService
 
     public void witnessedRemoteMutation(String keyspace, Token token, MutationId mutationId, InetAddressAndPort onHost)
     {
+        Preconditions.checkArgument(!mutationId.isNone());
         getOrCreate(keyspace).witnessedRemoteMutation(token, mutationId, onHost);
     }
 
     public void startWriting(Mutation mutation)
     {
+        Preconditions.checkArgument(!mutation.id().isNone());
         getOrCreate(mutation.getKeyspaceName()).startWriting(mutation);
     }
 
     public void finishWriting(Mutation mutation)
     {
+        Preconditions.checkArgument(!mutation.id().isNone());
         getOrCreate(mutation.getKeyspaceName()).finishWriting(mutation);
     }
 
@@ -153,6 +158,7 @@ public class MutationTrackingService
 
         static KeyspaceShards make(KeyspaceMetadata keyspace, ClusterMetadata cluster, IntSupplier logIdProvider)
         {
+            Preconditions.checkArgument(keyspace.params.replicationType.isTracked());
             Map<Range<Token>, Shard> shards = new HashMap<>();
             cluster.placements.get(keyspace.params.replication).writes.forEach((tokenRange, forRange) -> {
                IntArrayList participants = new IntArrayList(forRange.size(), IntArrayList.DEFAULT_NULL_VALUE);
