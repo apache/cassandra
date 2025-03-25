@@ -442,8 +442,7 @@ public class Property
         @SuppressWarnings("rawtypes")
         public <State, SystemUnderTest> void check(Commands<State, SystemUnderTest> commands)
         {
-//            RandomSource rs = new DefaultRandom(seed);
-            RandomSource rs = new LoggingRandomSource(new File("/tmp/test2.log"), new DefaultRandom(seed));
+            RandomSource rs = new DefaultRandom(seed);
             for (int i = 0; i < examples; i++)
             {
                 State state = null;
