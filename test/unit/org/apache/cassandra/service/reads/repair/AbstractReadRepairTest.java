@@ -357,6 +357,7 @@ public abstract  class AbstractReadRepairTest
                                             ReplicaUtils.FULL_BOUNDS,
                                             replicas,
                                             targets,
+                                            replicas,
                                             1,
                                             null,
                                             (self, token) -> forReadRepair(self, ClusterMetadata.current(), keyspace, consistencyLevel, token, (r) -> true),

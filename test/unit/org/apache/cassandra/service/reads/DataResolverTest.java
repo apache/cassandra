@@ -1331,7 +1331,7 @@ public class DataResolverTest extends AbstractReadResponseTest
                                                                ks.getReplicationStrategy(),
                                                                consistencyLevel,
                                                                ReplicaUtils.FULL_BOUNDS,
-                                                               replicas, replicas,
+                                                               replicas, replicas, replicas,
                                                                1, null,
                                                                repairPlan,
                                                                Epoch.EMPTY));

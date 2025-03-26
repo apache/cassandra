@@ -380,7 +380,7 @@ public class RepairDigestTrackingTest extends TestBaseImpl
      * local reads triggered by read repair (after speculative reads) execute at roughly the same time.
      *
      * This test depends on whether node1 gets a data or a digest request first, we force it to be a digest request
-     * in the forTokenReadLiveSorted ByteBuddy rule below.
+     * in the forTokenReadSorted ByteBuddy rule below.
      */
     @Test
     public void testLocalDataAndRemoteRequestConcurrency() throws Exception
@@ -440,7 +440,7 @@ public class RepairDigestTrackingTest extends TestBaseImpl
                                .load(classLoader, ClassLoadingStrategy.Default.INJECTION);
 
                 new ByteBuddy().rebase(ReplicaLayout.class)
-                               .method(named("forTokenReadLiveSorted").and(takesArguments(ClusterMetadata.class, Keyspace.class, AbstractReplicationStrategy.class, Token.class)))
+                               .method(named("forTokenReadSorted").and(takesArguments(ClusterMetadata.class, Keyspace.class, AbstractReplicationStrategy.class, Token.class)))
                                .intercept(MethodDelegation.to(BBHelper.class))
                                .make()
                                .load(classLoader, ClassLoadingStrategy.Default.INJECTION);
@@ -475,7 +475,7 @@ public class RepairDigestTrackingTest extends TestBaseImpl
         }
 
         @SuppressWarnings({ "unused" })
-        public static ReplicaLayout.ForTokenRead forTokenReadLiveSorted(ClusterMetadata metadata, Keyspace keyspace, AbstractReplicationStrategy replicationStrategy, Token token)
+        public static ReplicaLayout.ForTokenRead forTokenReadSorted(ClusterMetadata metadata, Keyspace keyspace, AbstractReplicationStrategy replicationStrategy, Token token)
         {
             try
             {
