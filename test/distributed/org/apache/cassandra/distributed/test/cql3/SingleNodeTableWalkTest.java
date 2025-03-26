@@ -93,12 +93,16 @@ public class SingleNodeTableWalkTest extends StatefulASTBase
                                                                                                                          .collect(Collectors.toList()));
     private static final Logger logger = LoggerFactory.getLogger(SingleNodeTableWalkTest.class);
 
+    protected static boolean READ_AFTER_WRITE = false;
+
     protected void preCheck(Cluster cluster, Property.StatefulBuilder builder)
     {
         // if a failing seed is detected, populate here
         // Example: builder.withSeed(42L);
         // CQL operations may have opertors such as +, -, and / (example 4 + 4), to "apply" them to get a constant value
         // CQL_DEBUG_APPLY_OPERATOR = true;
+        // When mutations look to be lost as seen by more complex SELECTs, it can be useful to just SELECT the partition/row right after to write to see if it was safe at the time.
+        // READ_AFTER_WRITE = true;
     }
 
     protected TypeGenBuilder supportedTypes(RandomSource rs)
@@ -485,6 +489,12 @@ public class SingleNodeTableWalkTest extends StatefulASTBase
                                 .stream()
                                 .filter(this::isSearchable)
                                 .collect(Collectors.toList());
+        }
+
+        @Override
+        protected boolean readAfterWrite()
+        {
+            return READ_AFTER_WRITE;
         }
 
         protected Gen<Mutation> toMutationGen(ASTGenerators.MutationGenBuilder mutationGenBuilder)

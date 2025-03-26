@@ -81,6 +81,7 @@ import org.apache.cassandra.utils.FastByteOperations;
 import org.apache.cassandra.utils.Generators;
 import org.quicktheories.generators.SourceDSL;
 
+import static accord.utils.Property.multistep;
 import static org.apache.cassandra.distributed.test.JavaDriverUtils.toDriverCL;
 import static org.apache.cassandra.utils.AbstractTypeGenerators.overridePrimitiveTypeSupport;
 import static org.apache.cassandra.utils.AbstractTypeGenerators.stringComparator;
@@ -179,7 +180,35 @@ public class StatefulASTBase extends TestBaseImpl
     protected static <S extends CommonState> Property.Command<S, Void, ?> insert(RandomSource rs, S state)
     {
         int timestamp = ++state.operations;
-        return state.command(rs, state.mutationGen().next(rs).withTimestamp(timestamp));
+        Mutation mutation = state.mutationGen().next(rs).withTimestamp(timestamp);
+
+        if (!state.readAfterWrite())
+            return state.command(rs, mutation);
+
+        return multistep(state.command(rs, mutation),
+                         state.commandSafeRandomHistory(selectForMutation(state, mutation), "Select for Mutation Validation"));
+    }
+
+    private static <S extends CommonState> Select selectForMutation(S state, Mutation mutation)
+    {
+        var select = Select.builder(state.metadata).allowFiltering();
+        switch (mutation.kind)
+        {
+            case INSERT:
+            {
+                var insert = (Mutation.Insert) mutation;
+                for (var c : state.model.factory.partitionColumns)
+                    select.value(c, insert.values.get(c));
+            }
+            break;
+            default:
+            {
+                select.where(mutation.kind == Mutation.Kind.UPDATE
+                             ? ((Mutation.Update) mutation).where
+                             : ((Mutation.Delete) mutation).where);
+            }
+        }
+        return select.build();
     }
 
     protected static <S extends BaseState> Property.Command<S, Void, ?> fullTableScan(RandomSource rs, S state)
@@ -242,6 +271,11 @@ public class StatefulASTBase extends TestBaseImpl
             this.tableRef = TableReference.from(metadata);
             this.model = new ASTSingleTableModel(metadata);
             createTable(metadata);
+        }
+
+        protected boolean readAfterWrite()
+        {
+            return false;
         }
 
         protected boolean isMultiNode()
@@ -311,6 +345,17 @@ public class StatefulASTBase extends TestBaseImpl
             Select finalSelect = select;
             return new Property.SimpleCommand<>(humanReadable(select, annotate), s -> {
                 s.model.validate(s.executeQuery(inst, fetchSize, s.selectCl(), finalSelect), finalSelect);
+            });
+        }
+
+        protected <S extends BaseState> Property.Command<S, Void, ?> commandSafeRandomHistory(Select select, @Nullable String annotate)
+        {
+            var inst = cluster.firstAlive();
+            String postfix = "on " + inst;
+            if (annotate == null) annotate = postfix;
+            else                  annotate += ", " + postfix;
+            return new Property.SimpleCommand<>(humanReadable(select, annotate), s -> {
+                s.model.validate(s.executeQuery(inst, Integer.MAX_VALUE, s.selectCl(), select), select);
             });
         }
 
