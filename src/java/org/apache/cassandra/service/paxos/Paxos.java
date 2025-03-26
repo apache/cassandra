@@ -416,6 +416,12 @@ public class Paxos
         }
 
         @Override
+        public EndpointsForToken liveAndDown()
+        {
+            return all;
+        }
+
+        @Override
         public boolean stillAppliesTo(ClusterMetadata newMetadata)
         {
             if (newMetadata.epoch.equals(epoch))

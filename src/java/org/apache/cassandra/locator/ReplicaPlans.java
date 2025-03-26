@@ -839,13 +839,9 @@ public class ReplicaPlans
 
     private static ReplicaPlan.ForTokenRead forSingleReplicaRead(ClusterMetadata metadata, Keyspace keyspace, Token token, Replica replica)
     {
-        // todo; replica does not always contain token, figure out why
-//        if (!metadata.placements.get(keyspace.getMetadata().params.replication).reads.forToken(token).contains(replica))
-//            throw UnavailableException.create(ConsistencyLevel.ONE, 1, 1, 0, 0);
-
         EndpointsForToken one = EndpointsForToken.of(token, replica);
 
-        return new ReplicaPlan.ForTokenRead(keyspace, keyspace.getReplicationStrategy(), ConsistencyLevel.ONE, one, one,
+        return new ReplicaPlan.ForTokenRead(keyspace, keyspace.getReplicationStrategy(), ConsistencyLevel.ONE, one, one, one,
                                             (newClusterMetadata) -> forSingleReplicaRead(newClusterMetadata, keyspace, token, replica),
                                             (self) -> {
                                                 throw new IllegalStateException("Read repair is not supported for short read/replica filtering protection.");
@@ -866,7 +862,7 @@ public class ReplicaPlans
         // TODO: this is unsafe, as one.range() may be inconsistent with our supplied range; should refactor Range/AbstractBounds to single class
         EndpointsForRange one = EndpointsForRange.of(replica);
 
-        return new ReplicaPlan.ForRangeRead(keyspace, keyspace.getReplicationStrategy(), ConsistencyLevel.ONE, range, one, one, vnodeCount,
+        return new ReplicaPlan.ForRangeRead(keyspace, keyspace.getReplicationStrategy(), ConsistencyLevel.ONE, range, one, one, one, vnodeCount,
                                             (newClusterMetadata) -> forSingleReplicaRead(metadata, keyspace, range, replica, vnodeCount),
                                             (self, token) -> {
                                                 throw new IllegalStateException("Read repair is not supported for short read/replica filtering protection.");
@@ -901,17 +897,24 @@ public class ReplicaPlans
         return forRead(metadata, keyspace, token, indexQueryPlan, consistencyLevel, retry, true);
     }
 
-    private static ReplicaPlan.ForTokenRead forRead(ClusterMetadata metadata, Keyspace keyspace, Token token, @Nullable Index.QueryPlan indexQueryPlan, ConsistencyLevel consistencyLevel, SpeculativeRetryPolicy retry,  boolean throwOnInsufficientLiveReplicas)
+    private static ReplicaPlan.ForTokenRead forRead(ClusterMetadata metadata,
+                                                    Keyspace keyspace,
+                                                    Token token,
+                                                    @Nullable Index.QueryPlan indexQueryPlan,
+                                                    ConsistencyLevel consistencyLevel,
+                                                    SpeculativeRetryPolicy retry,
+                                                    boolean throwOnInsufficientLiveReplicas)
     {
         AbstractReplicationStrategy replicationStrategy = keyspace.getReplicationStrategy();
-        ReplicaLayout.ForTokenRead forTokenRead = ReplicaLayout.forTokenReadLiveSorted(metadata, keyspace, replicationStrategy, token);
-        EndpointsForToken candidates = candidatesForRead(keyspace, indexQueryPlan, consistencyLevel, forTokenRead.natural());
+        ReplicaLayout.ForTokenRead forTokenReadLiveAndDown = ReplicaLayout.forTokenReadSorted(metadata, keyspace, replicationStrategy, token);
+        ReplicaLayout.ForTokenRead forTokenReadLive = forTokenReadLiveAndDown.filter(FailureDetector.isReplicaAlive);
+        EndpointsForToken candidates = candidatesForRead(keyspace, indexQueryPlan, consistencyLevel, forTokenReadLive.all());
         EndpointsForToken contacts = contactForRead(metadata.locator, replicationStrategy, consistencyLevel, retry.equals(AlwaysSpeculativeRetryPolicy.INSTANCE), candidates);
 
         if (throwOnInsufficientLiveReplicas)
             assureSufficientLiveReplicasForRead(metadata.locator, replicationStrategy, consistencyLevel, contacts);
 
-        return new ReplicaPlan.ForTokenRead(keyspace, replicationStrategy, consistencyLevel, candidates, contacts,
+        return new ReplicaPlan.ForTokenRead(keyspace, replicationStrategy, consistencyLevel, candidates, contacts, forTokenReadLiveAndDown.all(),
                                             (newClusterMetadata) -> forRead(newClusterMetadata, keyspace, token, indexQueryPlan, consistencyLevel, retry, false),
                                             (self) -> forReadRepair(self, metadata, keyspace, consistencyLevel, token, FailureDetector.isReplicaAlive),
                                             metadata.epoch);
@@ -942,8 +945,9 @@ public class ReplicaPlans
                                                         boolean throwOnInsufficientLiveReplicas)
     {
         AbstractReplicationStrategy replicationStrategy = keyspace.getReplicationStrategy();
-        ReplicaLayout.ForRangeRead forRangeRead = ReplicaLayout.forRangeReadLiveSorted(metadata, keyspace, replicationStrategy, range);
-        EndpointsForRange candidates = candidatesForRead(keyspace, indexQueryPlan, consistencyLevel, forRangeRead.natural());
+        ReplicaLayout.ForRangeRead forRangeReadLiveAndDown = ReplicaLayout.forRangeReadSorted(metadata, keyspace, replicationStrategy, range);
+        ReplicaLayout.ForRangeRead forRangeReadLive = forRangeReadLiveAndDown.filter(FailureDetector.isReplicaAlive);
+        EndpointsForRange candidates = candidatesForRead(keyspace, indexQueryPlan, consistencyLevel, forRangeReadLive.natural());
         EndpointsForRange contacts = contactForRead(metadata.locator, replicationStrategy, consistencyLevel, false, candidates);
 
         if (throwOnInsufficientLiveReplicas)
@@ -955,6 +959,7 @@ public class ReplicaPlans
                                             range,
                                             candidates,
                                             contacts,
+                                            forRangeReadLiveAndDown.all(),
                                             vnodeCount,
                                             (newClusterMetadata) -> forRangeRead(newClusterMetadata, keyspace, indexQueryPlan, consistencyLevel, range, vnodeCount, false),
                                             (self, token) -> forReadRepair(self, metadata, keyspace, consistencyLevel, token, FailureDetector.isReplicaAlive),
@@ -983,7 +988,7 @@ public class ReplicaPlans
         EndpointsForRange contacts = builder.build();
 
         ClusterMetadata metadata = ClusterMetadata.current();
-        return new ReplicaPlan.ForFullRangeRead(keyspace, replicationStrategy, consistencyLevel, range, contacts, contacts, vnodeCount, metadata.epoch);
+        return new ReplicaPlan.ForFullRangeRead(keyspace, replicationStrategy, consistencyLevel, range, contacts, contacts, contacts, vnodeCount, metadata.epoch);
     }
 
     /**
@@ -1000,6 +1005,7 @@ public class ReplicaPlans
         if (!left.epoch.equals(right.epoch))
             return null;
 
+        EndpointsForRange mergedLiveAndDown = left.liveAndDown().keep(right.liveAndDown().endpoints());
         EndpointsForRange mergedCandidates = left.readCandidates().keep(right.readCandidates().endpoints());
         AbstractReplicationStrategy replicationStrategy = keyspace.getReplicationStrategy();
         EndpointsForRange contacts = contactForRead(metadata.locator, replicationStrategy, consistencyLevel, false, mergedCandidates);
@@ -1023,6 +1029,7 @@ public class ReplicaPlans
                                             newRange,
                                             mergedCandidates,
                                             contacts,
+                                            mergedLiveAndDown,
                                             newVnodeCount,
                                             (newClusterMetadata) -> forRangeRead(newClusterMetadata,
                                                                                  keyspace,

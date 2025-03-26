@@ -278,6 +278,6 @@ public class ReadExecutorTest
 
     private ReplicaPlan.ForTokenRead plan(ConsistencyLevel consistencyLevel, EndpointsForToken natural, EndpointsForToken selected)
     {
-        return new ReplicaPlan.ForTokenRead(ks, ks.getReplicationStrategy(), consistencyLevel, natural, selected, (cm) -> null, (self) -> null, Epoch.EMPTY);
+        return new ReplicaPlan.ForTokenRead(ks, ks.getReplicationStrategy(), consistencyLevel, natural, selected, natural, (cm) -> null, (self) -> null, Epoch.EMPTY);
     }
 }
