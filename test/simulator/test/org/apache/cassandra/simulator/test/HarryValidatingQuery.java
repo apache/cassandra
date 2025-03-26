@@ -25,7 +25,9 @@ import org.slf4j.LoggerFactory;
 
 import accord.utils.Invariants;
 import org.apache.cassandra.distributed.Cluster;
+import org.apache.cassandra.distributed.api.ConsistencyLevel;
 import org.apache.cassandra.distributed.api.IInstance;
+import org.apache.cassandra.harry.gen.EntropySource;
 import org.apache.cassandra.harry.op.Visit;
 import org.apache.cassandra.harry.op.Operations;
 import org.apache.cassandra.harry.execution.CompiledStatement;
@@ -39,6 +41,8 @@ import org.apache.cassandra.simulator.systems.InterceptedExecution;
 import org.apache.cassandra.simulator.systems.InterceptingExecutor;
 import org.apache.cassandra.simulator.systems.SimulatedAction;
 
+import static org.apache.cassandra.simulator.SimulatorUtils.failWithOOM;
+
 public class HarryValidatingQuery extends SimulatedAction
 {
     private static final Logger logger = LoggerFactory.getLogger(HarryValidatingQuery.class);
@@ -51,13 +55,17 @@ public class HarryValidatingQuery extends SimulatedAction
     private final HarrySimulatorTest.HarrySimulation simulation;
     private final Visit visit;
     private final QueryBuildingVisitExecutor queryBuilder;
+    private final ConsistencyLevel consistencyLevel;
+    private final EntropySource rng;
 
     public HarryValidatingQuery(HarrySimulatorTest.HarrySimulation simulation,
                                 Cluster cluster,
                                 TokenPlacementModel.ReplicationFactor rf,
                                 List<TokenPlacementModel.Node> owernship,
                                 Visit visit,
-                                QueryBuildingVisitExecutor queryBuilder)
+                                QueryBuildingVisitExecutor queryBuilder,
+                                ConsistencyLevel consistencyLevel,
+                                EntropySource rng)
     {
         super(visit, Modifiers.RELIABLE_NO_TIMEOUTS, Modifiers.RELIABLE_NO_TIMEOUTS, null, simulation.simulated);
         this.rf = rf;
@@ -67,7 +75,8 @@ public class HarryValidatingQuery extends SimulatedAction
         this.visit = visit;
         this.queryBuilder = queryBuilder;
         this.simulation = simulation;
-
+        this.consistencyLevel = consistencyLevel;
+        this.rng = rng;
     }
 
     protected InterceptedExecution task()
@@ -78,14 +87,25 @@ public class HarryValidatingQuery extends SimulatedAction
             {
                 try
                 {
-                    TokenPlacementModel.ReplicatedRanges ring = rf.replicate(owernship);
-                    Invariants.require(visit.operations.length == 1);
-                    Invariants.require(visit.operations[0] instanceof Operations.SelectStatement);
-                    Operations.SelectStatement select = (Operations.SelectStatement) visit.operations[0];
-                    for (TokenPlacementModel.Replica replica : ring.replicasFor(token(select.pd)))
+                    if (consistencyLevel == ConsistencyLevel.NODE_LOCAL)
                     {
+                        TokenPlacementModel.ReplicatedRanges ring = rf.replicate(owernship);
+                        Invariants.require(visit.operations.length == 1);
+                        Invariants.require(visit.operations[0] instanceof Operations.SelectStatement);
+                        Operations.SelectStatement select = (Operations.SelectStatement) visit.operations[0];
+                        for (TokenPlacementModel.Replica replica : ring.replicasFor(token(select.pd)))
+                        {
+                            CompiledStatement compiled = queryBuilder.compile(visit);
+                            Object[][] objects = executeNodeLocal(compiled.cql(), replica.node(), compiled.bindings());
+                            List<ResultSetRow> actualRows = InJvmDTestVisitExecutor.rowsToResultSet(simulation.schema, select, objects);
+                            simulation.model.validate(select, actualRows);
+                        }
+                    }
+                    else
+                    {
+                        Operations.SelectStatement select = (Operations.SelectStatement) visit.operations[0];
                         CompiledStatement compiled = queryBuilder.compile(visit);
-                        Object[][] objects = executeNodeLocal(compiled.cql(), replica.node(), compiled.bindings());
+                        Object[][] objects = execute(compiled.cql(),   rng.nextInt(cluster.size()) + 1, compiled.bindings());
                         List<ResultSetRow> actualRows = InJvmDTestVisitExecutor.rowsToResultSet(simulation.schema, select, objects);
                         simulation.model.validate(select, actualRows);
                     }
@@ -93,6 +113,7 @@ public class HarryValidatingQuery extends SimulatedAction
                 catch (Throwable t)
                 {
                     logger.error("Caught an exception while validating", t);
+                    failWithOOM();
                     throw t;
                 }
             }
@@ -112,5 +133,11 @@ public class HarryValidatingQuery extends SimulatedAction
                              .findFirst()
                              .get();
         return instance.executeInternal(statement, bindings);
+    }
+
+    protected Object[][] execute(String statement, int id, Object... bindings)
+    {
+        IInstance instance = cluster.get(id);
+        return instance.coordinator().execute(statement, consistencyLevel, bindings);
     }
 }

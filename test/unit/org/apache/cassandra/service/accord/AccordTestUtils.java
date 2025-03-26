@@ -450,7 +450,7 @@ public class AccordTestUtils
     {
         Journal.CommandUpdate diff = new Journal.CommandUpdate(before, after);
         Condition condition = Condition.newOneTimeCondition();
-        commandStore.appendCommands(Collections.singletonList(diff), condition::signal);
+        commandStore.appendCommands(Collections.singletonList(diff), Journal.OnDone.fromRunnable(condition::signal));
         condition.awaitUninterruptibly(30, TimeUnit.SECONDS);
     }
 }

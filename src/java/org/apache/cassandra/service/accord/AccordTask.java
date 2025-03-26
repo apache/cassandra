@@ -36,7 +36,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.slf4j.MDC;
 
-import accord.api.Journal;
 import accord.api.RoutingKey;
 import accord.local.Command;
 import accord.local.CommandStore;
@@ -64,6 +63,8 @@ import org.apache.cassandra.service.accord.api.TokenKey;
 import org.apache.cassandra.utils.NoSpamLogger;
 import org.apache.cassandra.utils.concurrent.Condition;
 
+import static accord.api.Journal.CommandUpdate;
+import static accord.api.Journal.OnDone;
 import static accord.primitives.Routable.Domain.Key;
 import static accord.primitives.Txn.Kind.EphemeralRead;
 import static accord.utils.Invariants.illegalState;
@@ -610,23 +611,36 @@ public abstract class AccordTask<R> extends Task implements Runnable, Function<S
         }
     }
 
-    private void save(List<Journal.CommandUpdate> diffs, Runnable onFlush)
+    private void save(List<CommandUpdate> diffs, OnDone onDone)
     {
         if (sanityCheck != null)
         {
             Invariants.require(SANITY_CHECK);
             Condition condition = Condition.newOneTimeCondition();
-            this.commandStore.appendCommands(diffs, condition::signal);
+            this.commandStore.appendCommands(diffs, new OnDone()
+            {
+                @Override
+                public void success()
+                {
+                    condition.signal();
+                }
+
+                @Override
+                public void failure(Throwable t)
+                {
+                    throw new RuntimeException(t);
+                }
+            });
             condition.awaitUninterruptibly();
 
             for (Command check : sanityCheck)
                 this.commandStore.sanityCheckCommand(commandStore.unsafeGetRedundantBefore(), check);
 
-            if (onFlush != null) onFlush.run();
+            if (onDone != null) onDone.success();
         }
         else
         {
-            this.commandStore.appendCommands(diffs, onFlush);
+            this.commandStore.appendCommands(diffs, onDone);
         }
     }
 
@@ -660,7 +674,7 @@ public abstract class AccordTask<R> extends Task implements Runnable, Function<S
             R result = apply(safeStore);
 
             // TODO (required): currently, we are not very efficient about ensuring that we persist the absolute minimum amount of state. Improve that.
-            List<Journal.CommandUpdate> changes = null;
+            List<CommandUpdate> changes = null;
             if (commands != null)
             {
                 for (AccordSafeCommand safeCommand : commands.values())
@@ -668,7 +682,7 @@ public abstract class AccordTask<R> extends Task implements Runnable, Function<S
                     if (safeCommand.txnId().is(EphemeralRead))
                         continue;
 
-                    Journal.CommandUpdate diff = safeCommand.update();
+                    CommandUpdate diff = safeCommand.update();
                     if (diff == null)
                         continue;
 
@@ -684,7 +698,20 @@ public abstract class AccordTask<R> extends Task implements Runnable, Function<S
             if (flush)
             {
                 state(PERSISTING);
-                Runnable onFlush = () -> finish(result, null);
+                OnDone onFlush = new OnDone()
+                {
+                    @Override
+                    public void success()
+                    {
+                        finish(result, null);
+                    }
+
+                    @Override
+                    public void failure(Throwable t)
+                    {
+                        finish(null, t);
+                    }
+                };
                 safeStore.persistFieldUpdatesInternal(changes == null ? onFlush : null);
                 if (changes != null) save(changes, onFlush);
             }

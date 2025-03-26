@@ -190,28 +190,28 @@ public class AccordJournalBurnTest extends BurnTestBase
                              }
 
                              @Override
-                             public void saveCommand(int store, CommandUpdate update, @Nullable Runnable onFlush)
+                             public void saveCommand(int store, CommandUpdate update, @Nullable OnDone onDone)
                              {
                                  // For the purpose of this test, we do not have to wait for flush, since we do not test durability and are using mmap
-                                 super.saveCommand(store, update, () -> {});
-                                 if (onFlush != null)
-                                     onFlush.run();
+                                 super.saveCommand(store, update, OnDone.fromRunnable(() -> {}));
+                                 if (onDone != null)
+                                     onDone.success();
                              }
 
                              @Override
-                             public void saveStoreState(int store, FieldUpdates fieldUpdates, @Nullable Runnable onFlush)
+                             public void saveStoreState(int store, FieldUpdates fieldUpdates, OnDone onDone)
                              {
-                                 super.saveStoreState(store, fieldUpdates, () -> {});
-                                 if (onFlush != null)
-                                     onFlush.run();
+                                 super.saveStoreState(store, fieldUpdates, OnDone.fromRunnable(() -> {}));
+                                 if (onDone != null)
+                                     onDone.success();
                              }
 
                              @Override
-                             public void saveTopology(TopologyUpdate topologyUpdate, Runnable onFlush)
+                             public void saveTopology(TopologyUpdate topologyUpdate, OnDone onDone)
                              {
-                                 super.saveTopology(topologyUpdate, () -> {});
-                                 if (onFlush != null)
-                                     onFlush.run();
+                                 super.saveTopology(topologyUpdate, OnDone.fromRunnable(() -> {}));
+                                 if (onDone != null)
+                                     onDone.success();
                              }
 
                              @Override

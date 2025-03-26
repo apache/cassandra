@@ -26,13 +26,14 @@ import java.util.concurrent.atomic.AtomicIntegerFieldUpdater;
 import java.util.concurrent.atomic.AtomicLongFieldUpdater;
 import java.util.concurrent.locks.LockSupport;
 
-import com.codahale.metrics.Timer;
 import org.apache.cassandra.db.TypeSizes;
-import org.apache.cassandra.io.util.*;
-import org.apache.cassandra.utils.*;
+import org.apache.cassandra.io.util.FileUtils;
+import org.apache.cassandra.utils.Clock;
+import org.apache.cassandra.utils.Simulate;
+import org.apache.cassandra.utils.SyncUtil;
+import org.apache.cassandra.utils.concurrent.AsyncPromise;
 import org.apache.cassandra.utils.concurrent.OpOrder;
 import org.apache.cassandra.utils.concurrent.Ref;
-import org.apache.cassandra.utils.concurrent.WaitQueue;
 
 import static org.apache.cassandra.utils.Simulate.With.MONITORS;
 
@@ -49,12 +50,9 @@ public final class ActiveSegment<K, V> extends Segment<K, V>
     private static final AtomicLongFieldUpdater<ActiveSegment> allocateOffsetUpdater = AtomicLongFieldUpdater.newUpdater(ActiveSegment.class, "allocateOffset");
 
     /*
-     * Everything before this offset has been written and flushed.
+     * Allocation started at fsyncedTo or any earlier offset are guaranteed to be both written and flushed.
      */
-    private volatile int writtenTo = 0;
     private volatile int fsyncedTo = 0;
-    @SuppressWarnings("rawtypes")
-    private static final AtomicIntegerFieldUpdater<ActiveSegment> writtenToUpdater = AtomicIntegerFieldUpdater.newUpdater(ActiveSegment.class, "writtenTo");
     @SuppressWarnings("rawtypes")
     private static final AtomicIntegerFieldUpdater<ActiveSegment> fsyncedToUpdater = AtomicIntegerFieldUpdater.newUpdater(ActiveSegment.class, "fsyncedTo");
 
@@ -65,18 +63,16 @@ public final class ActiveSegment<K, V> extends Segment<K, V>
      */
     private int endOfBuffer;
 
-    // a signal that writers can wait on to be notified of a completed flush in BATCH and GROUP FlushMode
-    private final WaitQueue flushComplete = WaitQueue.newWaitQueue();
-
     private final Ref<Segment<K, V>> selfRef;
 
-    final InMemoryIndex<K> index;
-
-    private ActiveSegment(
-        Descriptor descriptor, Params params, InMemoryIndex<K> index, Metadata metadata, KeySupport<K> keySupport)
+    private final InMemoryIndex<K> index;
+    private Params.FlushMode flushMode;
+    private ActiveSegment(Descriptor descriptor, Params params, InMemoryIndex<K> index, Metadata metadata, KeySupport<K> keySupport)
     {
         super(descriptor, metadata, keySupport);
         this.index = index;
+        this.flushMode = params.flushMode();
+
         try
         {
             channel = FileChannel.open(file.toPath(), StandardOpenOption.WRITE, StandardOpenOption.READ, StandardOpenOption.CREATE);
@@ -161,7 +157,6 @@ public final class ActiveSegment<K, V> extends Segment<K, V>
         boolean isEmpty = discardUnusedTail();
         if (!isEmpty)
         {
-            updateWrittenTo();
             fsync();
             if (persistComponents) persistComponents();
         }
@@ -253,53 +248,27 @@ public final class ActiveSegment<K, V> extends Segment<K, V>
         }
     }
 
-    public boolean isFlushed(long position)
+    public boolean fullyFlushed()
     {
-        return writtenTo >= position;
+        return fsyncedTo == allocateOffset;
     }
 
-    public int writtenToAtLeast()
+    /**
+     * We are _always_ flushing upon full write, which is why we are tracking only lower allocation bounds.
+     */
+    void fsync(int upTo)
     {
-        return writtenTo;
+        fsyncInternal();
+        fsyncedToUpdater.accumulateAndGet(this, upTo, Math::max);
     }
 
-    public int fsyncedTo()
-    {
-        return fsyncedTo;
-    }
-
-    public int updateWrittenTo()
-    {
-        int allocatedTo = (int)allocateOffset;
-        if (writtenTo >= allocatedTo)
-            return writtenTo;
-
-        waitForModifications();
-        return writtenToUpdater.accumulateAndGet(this, allocatedTo, Math::max);
-    }
-
-    // provides no ordering guarantees
     void fsync()
     {
-        int writtenTo = this.writtenTo;
-        if (fsyncedTo >= writtenTo)
+        if (fullyFlushed())
             return;
 
+        waitForModifications();
         fsyncInternal();
-        fsyncedToUpdater.accumulateAndGet(this, writtenTo, Math::max);
-        flushComplete.signalAll();
-    }
-
-    private void waitForFlush(int position)
-    {
-        while (fsyncedTo < position)
-        {
-            WaitQueue.Signal signal = flushComplete.register();
-            if (fsyncedTo < position)
-                signal.awaitThrowUncheckedOnInterrupt();
-            else
-                signal.cancel();
-        }
     }
 
     /**
@@ -423,12 +392,29 @@ public final class ActiveSegment<K, V> extends Segment<K, V>
         }
     }
 
-    final class Allocation
+    public interface RecordPointer
+    {
+        long segment();
+        int start();
+        void awaitUninterruptibly();
+        void onFlush(OnFlush onFlush);
+    }
+
+    public interface OnFlush
+    {
+        void success();
+        void failure(Throwable t);
+    }
+
+    final class Allocation implements RecordPointer, Comparable<Allocation>
     {
         private final OpOrder.Group appendOp;
         private final ByteBuffer buffer;
         private final int start;
         private final int length;
+        private final AsyncPromise<Void> future;
+
+        public final long writtenAtNanos; // only set for periodic mode
 
         Allocation(OpOrder.Group appendOp, ByteBuffer buffer, int length)
         {
@@ -436,6 +422,30 @@ public final class ActiveSegment<K, V> extends Segment<K, V>
             this.buffer = buffer;
             this.start = buffer.position();
             this.length = length;
+            this.future = new AsyncPromise<>();
+            this.writtenAtNanos = Clock.Global.nanoTime();
+        }
+
+        void flushed()
+        {
+            // in PERIODIC, we notify about persistence after successful write to memory buffer, which means we may call this method twice
+            if (flushMode == Params.FlushMode.PERIODIC)
+                future.trySuccess(null);
+            else
+                future.setSuccess(null);
+        }
+
+        void flushFailed(Throwable t)
+        {
+            if (flushMode == Params.FlushMode.PERIODIC)
+                future.tryFailure(t);
+            else
+                future.setFailure(t);
+        }
+
+        ActiveSegment<?, ?> holder()
+        {
+            return ActiveSegment.this;
         }
 
         void write(K id, ByteBuffer record)
@@ -456,46 +466,50 @@ public final class ActiveSegment<K, V> extends Segment<K, V>
             }
         }
 
-        // Variant of write that does not allocate/return a record pointer
-        void writeInternal(K id, ByteBuffer record)
-        {
-            try
-            {
-                EntrySerializer.write(id, record, keySupport, buffer, descriptor.userVersion);
-                index.update(id, start, length);
-                metadata.update();
-            }
-            catch (IOException e)
-            {
-                throw new JournalWriteError(descriptor, file, e);
-            }
-            finally
-            {
-                appendOp.close();
-            }
-        }
-
-        void awaitDurable(Timer waitingOnFlush)
-        {
-            try (Timer.Context ignored = waitingOnFlush.time())
-            {
-                waitForFlush(start);
-            }
-        }
-
-        boolean isFsynced()
-        {
-            return fsyncedTo >= start + length;
-        }
-
-        Descriptor descriptor()
-        {
-            return descriptor;
-        }
-
-        int start()
+        @Override
+        public int start()
         {
             return start;
+        }
+
+        @Override
+        public void awaitUninterruptibly()
+        {
+            future.awaitUninterruptibly();
+        }
+
+        @Override
+        public void onFlush(OnFlush onFlush)
+        {
+            future.addCallback((ignore_) -> onFlush.success(), onFlush::failure);
+        }
+
+        int end()
+        {
+            return start + length;
+        }
+
+        public long segment()
+        {
+            return descriptor.timestamp;
+        }
+
+        @Override
+        public int compareTo(Allocation o)
+        {
+            int cmp = Long.compare(segment(), o.segment());
+            if (cmp != 0)
+                return cmp;
+            return Integer.compare(start, o.start);
+        }
+
+        public String toString()
+        {
+            return "Allocation{" +
+                   "segment=" + segment() +
+                   ", start=" + start +
+                   ", end=" + end() +
+                   '}';
         }
     }
 
@@ -518,5 +532,12 @@ public final class ActiveSegment<K, V> extends Segment<K, V>
         while (result < 0)
             result = maybeCompleteInProgress();
         return result;
+    }
+
+    public String toString()
+    {
+        return "ActiveSegment{" +
+               "descriptor=" + descriptor.timestamp +
+               '}';
     }
 }

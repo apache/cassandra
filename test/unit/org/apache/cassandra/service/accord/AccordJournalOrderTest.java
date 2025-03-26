@@ -90,7 +90,20 @@ public class AccordJournalOrderTest
             Command command = Command.NotDefined.notDefined(txnId, SaveStatus.NotDefined, Status.Durability.NotDurable, StoreParticipants.create(null, participants, null, null, participants, participants), Ballot.ZERO);
             accordJournal.saveCommand(key.commandStoreId,
                                       new Journal.CommandUpdate(null, command),
-                                      () -> {});
+                                      new Journal.OnDone()
+                                      {
+                                          @Override
+                                          public void success()
+                                          {
+
+                                          }
+
+                                          @Override
+                                          public void failure(Throwable t)
+                                          {
+                                              throw new RuntimeException(t);
+                                          }
+                                      });
         }
 
         Runnable check = () -> {

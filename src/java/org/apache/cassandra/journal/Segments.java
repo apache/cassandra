@@ -122,7 +122,7 @@ class Segments<K, V>
     boolean isSwitched(ActiveSegment<K, V> active)
     {
         for (Segment<K, V> segment : segments.values())
-            if (!segment.isActive() && active.descriptor.equals(segment.descriptor))
+            if (segment.isStatic() && active.descriptor.equals(segment.descriptor))
                 return true;
 
         return false;

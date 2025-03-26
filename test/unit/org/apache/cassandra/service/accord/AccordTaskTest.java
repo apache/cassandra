@@ -31,6 +31,7 @@ import java.util.concurrent.locks.LockSupport;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 
+import accord.api.Journal;
 import accord.local.StoreParticipants;
 import accord.primitives.Participants;
 import accord.primitives.Route;
@@ -236,7 +237,20 @@ public class AccordTaskTest
     {
         return (before, after) -> {
             Condition condition = Condition.newOneTimeCondition();
-            commandStore.appendToLog(before, after, condition::signal);
+            commandStore.appendToLog(before, after, new Journal.OnDone()
+            {
+                @Override
+                public void success()
+                {
+                    condition.signal();
+                }
+
+                @Override
+                public void failure(Throwable t)
+                {
+                    throw new RuntimeException();
+                }
+            });
             condition.awaitUninterruptibly();
         };
     }

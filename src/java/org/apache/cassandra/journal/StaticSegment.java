@@ -211,12 +211,6 @@ public final class StaticSegment<K, V> extends Segment<K, V>
     }
 
     @Override
-    boolean isFlushed(long position)
-    {
-        return true;
-    }
-
-    @Override
     ActiveSegment<K, V> asActive()
     {
         throw new UnsupportedOperationException();

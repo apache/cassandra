@@ -43,6 +43,7 @@ import accord.primitives.Unseekables;
 import org.apache.cassandra.service.accord.AccordCommandStore.ExclusiveCaches;
 import org.apache.cassandra.service.accord.AccordCommandStore.SafeRedundantBefore;
 
+import static accord.api.Journal.OnDone;
 import static accord.utils.Invariants.illegalState;
 
 public class AccordSafeCommandStore extends AbstractSafeCommandStore<AccordSafeCommand, AccordSafeCommandsForKey, AccordCommandStore.ExclusiveCaches>
@@ -123,7 +124,7 @@ public class AccordSafeCommandStore extends AbstractSafeCommandStore<AccordSafeC
         super.persistFieldUpdates();
     }
 
-    protected void persistFieldUpdatesInternal(Runnable onDone)
+    protected void persistFieldUpdatesInternal(OnDone onDone)
     {
         FieldUpdates updates = fieldUpdates();
         if (updates == null)
@@ -133,13 +134,36 @@ public class AccordSafeCommandStore extends AbstractSafeCommandStore<AccordSafeC
         {
             long ticket = AccordCommandStore.nextSafeRedundantBeforeTicket.incrementAndGet();
             SafeRedundantBefore update = new SafeRedundantBefore(ticket, updates.newRedundantBefore);
-            Runnable reportRedundantBefore = () -> {
-                AccordCommandStore.safeRedundantBeforeUpdater.accumulateAndGet((AccordCommandStore)commandStore, update, SafeRedundantBefore::max);
+            OnDone reportRedundantBefore = new OnDone()
+            {
+                @Override
+                public void success()
+                {
+                    AccordCommandStore.safeRedundantBeforeUpdater.accumulateAndGet(commandStore, update, SafeRedundantBefore::max);
+                }
+
+                @Override
+                public void failure(Throwable t)
+                {
+                    throw new RuntimeException(t);
+                }
             };
-            Runnable prevOnDone = onDone;
-            onDone = prevOnDone == null ? reportRedundantBefore : () -> {
-                try { reportRedundantBefore.run(); }
-                finally { prevOnDone.run(); }
+
+            OnDone prevOnDone = onDone;
+            onDone = prevOnDone == null ? reportRedundantBefore : new OnDone()
+            {
+                @Override
+                public void success()
+                {
+                    try { reportRedundantBefore.success(); }
+                    finally { prevOnDone.success(); }
+                }
+
+                @Override
+                public void failure(Throwable t)
+                {
+                    prevOnDone.failure(t);
+                }
             };
         }
         commandStore.persistFieldUpdates(updates, onDone);

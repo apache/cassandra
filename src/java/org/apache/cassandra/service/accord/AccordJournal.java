@@ -62,7 +62,6 @@ import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.journal.Compactor;
 import org.apache.cassandra.journal.Journal;
 import org.apache.cassandra.journal.Params;
-import org.apache.cassandra.journal.RecordPointer;
 import org.apache.cassandra.journal.SegmentCompactor;
 import org.apache.cassandra.journal.StaticSegment;
 import org.apache.cassandra.journal.ValueSerializer;
@@ -92,6 +91,7 @@ import static accord.impl.CommandChange.toIterableSetFields;
 import static accord.impl.CommandChange.unsetIterable;
 import static accord.impl.CommandChange.validateFlags;
 import static accord.local.Cleanup.Input.FULL;
+import static org.apache.cassandra.journal.ActiveSegment.*;
 import static org.apache.cassandra.service.accord.AccordJournalValueSerializers.DurableBeforeAccumulator;
 
 public class AccordJournal implements accord.api.Journal, RangeSearcher.Supplier, Shutdownable
@@ -282,26 +282,38 @@ public class AccordJournal implements accord.api.Journal, RangeSearcher.Supplier
     }
 
     @Override
-    public void saveCommand(int commandStoreId, CommandUpdate update, @Nullable Runnable onFlush)
+    public void saveCommand(int commandStoreId, CommandUpdate update, OnDone onDone)
     {
         Writer diff = Writer.make(update.before, update.after);
+        // TODO (required): we should not allow empty writes here
         if (diff == null)
         {
-            if (onFlush != null)
-                onFlush.run();
+            if (onDone != null)
+                onDone.success();
             return;
         }
 
         JournalKey key = new JournalKey(update.txnId, JournalKey.Type.COMMAND_DIFF, commandStoreId);
         RecordPointer pointer = journal.asyncWrite(key, diff);
-        if (journalTable.shouldIndex(key)
-            && diff.hasParticipants()
-            && diff.after.route() != null)
-            journal.onDurable(pointer, () ->
-                                       journalTable.safeNotify(index ->
-                                                               index.update(pointer.segment, key.commandStoreId, key.id, diff.after.route())));
-        if (onFlush != null)
-            journal.onDurable(pointer, onFlush);
+        pointer.onFlush(new OnFlush()
+        {
+            @Override
+            public void success()
+            {
+                if (journalTable.shouldIndex(key)
+                    && diff.hasParticipants()
+                    && diff.after.route() != null)
+                    journalTable.safeNotify(index -> index.update(pointer.segment(), key.commandStoreId, key.id, diff.after.route()));
+                if (onDone != null)
+                    journalTable.safeNotify(index -> onDone.success());
+            }
+
+            @Override
+            public void failure(Throwable t)
+            {
+                onDone.failure(t);
+            }
+        });
     }
 
     @Override
@@ -313,11 +325,24 @@ public class AccordJournal implements accord.api.Journal, RangeSearcher.Supplier
 
     private static final JournalKey TopologyUpdateKey = new JournalKey(TxnId.NONE, JournalKey.Type.TOPOLOGY_UPDATE, 0);
     @Override
-    public void saveTopology(TopologyUpdate topologyUpdate, Runnable onFlush)
+    public void saveTopology(TopologyUpdate topologyUpdate, OnDone onDone)
     {
         RecordPointer pointer = appendInternal(TopologyUpdateKey, AccordTopologyUpdate.newTopology(topologyUpdate));
-        if (onFlush != null)
-            journal.onDurable(pointer, onFlush);
+        if (onDone != null)
+            pointer.onFlush(new OnFlush()
+            {
+                @Override
+                public void success()
+                {
+                    onDone.success();
+                }
+
+                @Override
+                public void failure(Throwable t)
+                {
+                    onDone.failure(t);
+                }
+            });
     }
 
     @Override
@@ -331,8 +356,11 @@ public class AccordJournal implements accord.api.Journal, RangeSearcher.Supplier
                 AsyncResult.Settable<Void> result = AsyncResults.settable();
                 JournalKey key = new JournalKey(TxnId.NONE, JournalKey.Type.DURABLE_BEFORE, 0);
                 RecordPointer pointer = appendInternal(key, addDurableBefore);
-                // TODO (required): what happens on failure?
-                journal.onDurable(pointer, () -> result.setSuccess(null));
+                pointer.onFlush(new OnFlush()
+                {
+                    @Override public void success() { result.setSuccess(null); }
+                    @Override public void failure(Throwable t) { result.setFailure(t); }
+                });
                 return result;
             }
 
@@ -346,10 +374,10 @@ public class AccordJournal implements accord.api.Journal, RangeSearcher.Supplier
     }
 
     @Override
-    public void saveStoreState(int commandStoreId, FieldUpdates fieldUpdates, Runnable onFlush)
+    public void saveStoreState(int commandStoreId, FieldUpdates fieldUpdates, OnDone onDone)
     {
         RecordPointer pointer = null;
-        // TODO: avoid allocating keys
+        // TODO (required): avoid allocating keys
         if (fieldUpdates.newRedundantBefore != null)
             pointer = appendInternal(new JournalKey(TxnId.NONE, JournalKey.Type.REDUNDANT_BEFORE, commandStoreId), fieldUpdates.newRedundantBefore);
         if (fieldUpdates.newBootstrapBeganAt != null)
@@ -359,13 +387,28 @@ public class AccordJournal implements accord.api.Journal, RangeSearcher.Supplier
         if (fieldUpdates.newRangesForEpoch != null)
             pointer = appendInternal(new JournalKey(TxnId.NONE, JournalKey.Type.RANGES_FOR_EPOCH, commandStoreId), fieldUpdates.newRangesForEpoch);
 
-        if (onFlush == null)
+        if (onDone == null)
             return;
 
         if (pointer != null)
-            journal.onDurable(pointer, onFlush);
+        {
+            pointer.onFlush(new OnFlush()
+            {
+                @Override
+                public void success()
+                {
+                    onDone.success();
+                }
+
+                @Override
+                public void failure(Throwable t)
+                {
+                    onDone.failure(t);
+                }
+            });
+        }
         else
-            onFlush.run();
+            onDone.success();
     }
 
     private Builder loadDiffs(int commandStoreId, TxnId txnId, Load load)

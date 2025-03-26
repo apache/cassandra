@@ -54,7 +54,7 @@ public final class Metrics<K, V>
         this.factory = new DefaultNameFactory(TYPE_NAME, name);
     }
 
-    void register(Flusher<K, V> flusher)
+    void register(Flusher flusher)
     {
         waitingOnFlush = CassandraMetricsRegistry.Metrics.timer(createName(WAITING_ON_FLUSH));
         waitingOnSegmentAllocation = CassandraMetricsRegistry.Metrics.timer(createName(WAITING_ON_ALLOCATION));

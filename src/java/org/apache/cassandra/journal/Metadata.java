@@ -35,6 +35,7 @@ import static org.apache.cassandra.utils.FBUtilities.updateChecksumInt;
  */
 final class Metadata
 {
+    // TODO: why is this unused?
     private int fsyncLimit;
 
     private volatile int recordsCount;

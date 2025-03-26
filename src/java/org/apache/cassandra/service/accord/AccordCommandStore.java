@@ -38,6 +38,7 @@ import com.google.common.annotations.VisibleForTesting;
 import accord.api.Agent;
 import accord.api.DataStore;
 import accord.api.Journal;
+import accord.api.Journal.OnDone;
 import accord.api.LocalListeners;
 import accord.api.ProgressLog;
 import accord.api.RoutingKey;
@@ -282,16 +283,15 @@ public class AccordCommandStore extends CommandStore
         return caches;
     }
 
-    public void persistFieldUpdates(FieldUpdates fieldUpdates, Runnable onFlush)
+    public void persistFieldUpdates(FieldUpdates fieldUpdates, OnDone onDone)
     {
-        journal.saveStoreState(id, fieldUpdates, onFlush);
+        journal.saveStoreState(id, fieldUpdates, onDone);
     }
 
-    @Nullable
     @VisibleForTesting
-    public void appendToLog(Command before, Command after, Runnable onFlush)
+    public void appendToLog(Command before, Command after, OnDone onDone)
     {
-        journal.saveCommand(id, new CommandUpdate(before, after), onFlush);
+        journal.saveCommand(id, new CommandUpdate(before, after), onDone);
     }
 
     boolean validateCommand(TxnId txnId, Command evicting)
@@ -459,13 +459,13 @@ public class AccordCommandStore extends CommandStore
         }
     }
 
-    public void appendCommands(List<CommandUpdate> diffs, Runnable onFlush)
+    public void appendCommands(List<CommandUpdate> diffs, OnDone onDone)
     {
         for (int i = 0; i < diffs.size(); i++)
         {
             boolean isLast = i == diffs.size() - 1;
             CommandUpdate change = diffs.get(i);
-            journal.saveCommand(id, change, isLast ? onFlush : null);
+            journal.saveCommand(id, change, isLast ? onDone : null);
         }
     }
 

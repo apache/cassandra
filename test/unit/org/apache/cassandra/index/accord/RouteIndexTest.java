@@ -591,7 +591,7 @@ public class RouteIndexTest extends CQLTester.InMemory
             AccordGenerators.CommandBuilder builder = new AccordGenerators.CommandBuilder(txnId, txn, txnId, txn.slice(participants.owns().toRanges(), true), PartialDeps.NONE, Ballot.ZERO, Ballot.ZERO, accord.local.Command.WaitingOn.none(txnId.domain(), Deps.NONE));
             var cmd = builder.build(saveStatus);
             CountDownLatch latch = CountDownLatch.newCountDownLatch(1);
-            journal.get().saveCommand(storeId, new Journal.CommandUpdate(null, cmd), () -> latch.decrement());
+            journal.get().saveCommand(storeId, new Journal.CommandUpdate(null, cmd), Journal.OnDone.fromRunnable(latch::decrement));
             latch.awaitThrowUncheckedOnInterrupt();
         }
 

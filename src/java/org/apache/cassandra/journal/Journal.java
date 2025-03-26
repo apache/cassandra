@@ -18,6 +18,7 @@
 package org.apache.cassandra.journal;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.nio.channels.ClosedByInterruptException;
 import java.nio.file.FileStore;
 import java.util.ArrayList;
@@ -29,7 +30,6 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.locks.LockSupport;
-import java.util.function.BooleanSupplier;
 import java.util.function.Function;
 import java.util.function.LongConsumer;
 import java.util.function.Predicate;
@@ -40,8 +40,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import accord.utils.Invariants;
-import com.codahale.metrics.Timer.Context;
-import org.apache.cassandra.concurrent.Interruptible;
 import org.apache.cassandra.concurrent.Interruptible.TerminateException;
 import org.apache.cassandra.concurrent.SequentialExecutorPlus;
 import org.apache.cassandra.concurrent.Shutdownable;
@@ -58,20 +56,17 @@ import org.apache.cassandra.utils.JVMStabilityInspector;
 import org.apache.cassandra.utils.LazyToString;
 import org.apache.cassandra.utils.MergeIterator;
 import org.apache.cassandra.utils.Simulate;
+import org.apache.cassandra.utils.concurrent.AsyncPromise;
 import org.apache.cassandra.utils.concurrent.OpOrder;
-import org.apache.cassandra.utils.concurrent.WaitQueue;
-import org.jctools.queues.MpscUnboundedArrayQueue;
+import org.apache.cassandra.utils.concurrent.Promise;
+import org.apache.cassandra.utils.concurrent.UncheckedInterruptedException;
 
 import static java.lang.String.format;
 import static org.apache.cassandra.concurrent.ExecutorFactory.Global.executorFactory;
-import static org.apache.cassandra.concurrent.InfiniteLoopExecutor.Daemon.NON_DAEMON;
-import static org.apache.cassandra.concurrent.InfiniteLoopExecutor.Interrupts.SYNCHRONIZED;
-import static org.apache.cassandra.concurrent.InfiniteLoopExecutor.SimulatorSafe.SAFE;
-import static org.apache.cassandra.concurrent.Interruptible.State.NORMAL;
-import static org.apache.cassandra.concurrent.Interruptible.State.SHUTTING_DOWN;
+import static org.apache.cassandra.journal.ActiveSegment.RecordPointer;
+import static org.apache.cassandra.journal.ActiveSegment.create;
 import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
 import static org.apache.cassandra.utils.Simulate.With.MONITORS;
-import static org.apache.cassandra.utils.concurrent.WaitQueue.newWaitQueue;
 
 /**
  * A generic append-only journal with some special features:
@@ -79,6 +74,29 @@ import static org.apache.cassandra.utils.concurrent.WaitQueue.newWaitQueue;
  * <li>Records can be looked up by key
  * <li>Invalidated records get purged during segment compaction
  * </ul><p>
+ *
+ * Segment lifecycle:
+ *
+ * ... --+------------------------/--------------------/------ ...
+ *       |  fsynced allocation  / current allocation /
+ * ... --+--------------------/--------------------/---------- ...
+ *                                     |
+ *                                     |
+ *                         +-----------+-----------+
+ *                         |    WriteAllocation    |   <-- Owned by writer thread
+ *                         +-----------+-----------+
+ *                                     |
+ *                                     | <-- When fully written, notify Flusher about this allocation
+ *                                     |
+ *                         +-----------+-----------+
+ *                         |        Flusher        |  <-- Collects consecutive write allocations and fsyncs file channel
+ *                         +-----------+-----------+
+ *                                     |
+ *                                     | <-- When fsynced, notify writer thread about persistence
+ *                                     |
+ *                         +-----------+-----------+
+ *                         |     Writer Thread     |  <-- Executes write callbacks
+ *                         +-----------+-----------+
  *
  * Type parameters:
  * @param <V> the type of records stored in the journal
@@ -99,80 +117,25 @@ public class Journal<K, V> implements Shutdownable
 
     final Metrics<K, V> metrics;
 
-    final Flusher<K, V> flusher;
     final Compactor<K, V> compactor;
-    Interruptible allocator;
-    SequentialExecutorPlus closer, releaser;
 
-    volatile long replayLimit;
     final AtomicLong nextSegmentId = new AtomicLong();
 
     private volatile ActiveSegment<K, V> currentSegment = null;
+    private volatile Promise<ActiveSegment<K, V>> availableSegment = null;
 
     // segment that is ready to be used; allocator thread fills this and blocks until consumed
-    private volatile ActiveSegment<K, V> availableSegment = null;
+    private final Allocator allocator = new Allocator();
 
     private final AtomicReference<Segments<K, V>> segments = new AtomicReference<>();
 
     final AtomicReference<State> state = new AtomicReference<>(State.UNINITIALIZED);
 
-    // TODO (required): we do not need wait queues here, we can just wait on a signal on a segment while its byte buffer is being allocated
-    private final WaitQueue segmentPrepared = newWaitQueue();
-    private final WaitQueue allocatorThreadWaitQueue = newWaitQueue();
-    private final BooleanSupplier allocatorThreadWaitCondition = () -> (availableSegment == null);
-
-    private final FlusherCallbacks flusherCallbacks;
+    private final Flusher flusher;
+    final SequentialExecutorPlus maintenance;
+    final SequentialExecutorPlus tidy;
 
     final OpOrder readOrder = new OpOrder();
-
-    private class FlusherCallbacks implements Flusher.Callbacks
-    {
-        private final MpscUnboundedArrayQueue<WaitingFor> waitingFor = new MpscUnboundedArrayQueue<>(256);
-        private List<WaitingFor> drained = new ArrayList<>();
-
-        @Override
-        public void onFsync()
-        {
-            waitingFor.drain(drained::add);
-            List<WaitingFor> remaining = new ArrayList<>();
-            for (WaitingFor wait : drained)
-            {
-                if (flusher.isDurable(wait)) wait.run();
-                else remaining.add(wait);
-            }
-            drained = remaining;
-        }
-
-        @Override
-        public void onFlushFailed(Throwable cause)
-        {
-            // TODO (required): panic
-        }
-
-        private void submit(RecordPointer pointer, Runnable runnable)
-        {
-            if (flusher.isDurable(pointer))
-                runnable.run();
-            else
-                waitingFor.add(new WaitingFor(pointer, runnable));
-        }
-    }
-
-    private static class WaitingFor extends RecordPointer implements Runnable
-    {
-        private final Runnable onFlush;
-
-        public WaitingFor(RecordPointer pointer, Runnable onFlush)
-        {
-            super(pointer);
-            this.onFlush = onFlush;
-        }
-
-        public void run()
-        {
-            onFlush.run();
-        }
-    }
 
     public Journal(String name,
                    File directory,
@@ -189,14 +152,10 @@ public class Journal<K, V> implements Shutdownable
         this.valueSerializer = valueSerializer;
 
         this.metrics = new Metrics<>(name);
-        this.flusherCallbacks = new FlusherCallbacks();
-        this.flusher = new Flusher<>(this, flusherCallbacks);
         this.compactor = new Compactor<>(this, segmentCompactor);
-    }
-
-    public void onDurable(RecordPointer recordPointer, Runnable runnable)
-    {
-        flusherCallbacks.submit(recordPointer, runnable);
+        this.maintenance = executorFactory().sequential(name + "-maintenance");
+        this.tidy = executorFactory().sequential(name + "-tidy");
+        this.flusher = new Flusher(name, params, this);
     }
 
     public void start()
@@ -213,16 +172,13 @@ public class Journal<K, V> implements Shutdownable
         long maxTimestamp = descriptors.isEmpty()
                           ? Long.MIN_VALUE
                           : descriptors.get(descriptors.size() - 1).timestamp;
-        nextSegmentId.set(replayLimit = Math.max(currentTimeMillis(), maxTimestamp + 1));
-
+        nextSegmentId.set(Math.max(currentTimeMillis(), maxTimestamp + 1));
         segments.set(Segments.of(StaticSegment.open(descriptors, keySupport)));
-        closer = executorFactory().sequential(name + "-closer");
-        releaser = executorFactory().sequential(name + "-releaser");
-        allocator = executorFactory().infiniteLoop(name + "-allocator", new AllocateRunnable(), SAFE, NON_DAEMON, SYNCHRONIZED);
+
+        requestSegmentAllocation();
         advanceSegment(null);
         Invariants.require(state.compareAndSet(State.INITIALIZING, State.NORMAL),
                               "Unexpected journal state after initialization", state);
-        flusher.start();
         compactor.start();
     }
 
@@ -254,31 +210,15 @@ public class Journal<K, V> implements Shutdownable
 
     public void shutdown()
     {
-        try
-        {
-            Invariants.require(state.compareAndSet(State.NORMAL, State.SHUTDOWN),
-                                  "Unexpected journal state while trying to shut down", state);
-            allocator.shutdown();
-            wakeAllocator(); // Wake allocator to force it into shutdown
-            // TODO (expected): why are we awaitingTermination here when we have a separate method for it?
-            allocator.awaitTermination(1, TimeUnit.MINUTES);
-            segmentPrepared.signalAll(); // Wake up all threads waiting on the new segment
-            compactor.shutdown();
-            compactor.awaitTermination(1, TimeUnit.MINUTES);
-            flusher.shutdown();
-            closeAllSegments();
-            releaser.shutdown();
-            closer.shutdown();
-            closer.awaitTermination(1, TimeUnit.MINUTES);
-            releaser.awaitTermination(1, TimeUnit.MINUTES);
-            metrics.deregister();
-            Invariants.require(state.compareAndSet(State.SHUTDOWN, State.TERMINATED),
-                                  "Unexpected journal state while trying to shut down", state);
-        }
-        catch (InterruptedException e)
-        {
-            logger.error("Could not shutdown journal", e);
-        }
+        Invariants.require(state.compareAndSet(State.NORMAL, State.SHUTDOWN),
+                           "Unexpected journal state while trying to shut down", state);
+        compactor.shutdown();
+        flusher.shutdown();
+        metrics.deregister();
+        maintenance.shutdown();
+        allocator.shutdown();
+        Invariants.require(state.compareAndSet(State.SHUTDOWN, State.TERMINATED),
+                           "Unexpected journal state while trying to shut down", state);
     }
 
     @Override
@@ -292,9 +232,15 @@ public class Journal<K, V> implements Shutdownable
     public boolean awaitTermination(long timeout, TimeUnit units) throws InterruptedException
     {
         boolean r = true;
-        r &= allocator.awaitTermination(timeout, units);
-        r &= closer.awaitTermination(timeout, units);
-        r &= releaser.awaitTermination(timeout, units);
+        r &= compactor.awaitTermination(1, TimeUnit.MINUTES);
+        r &= flusher.awaitTermination(timeout, units);
+        flusher.requestExtraFlush();
+        r &= maintenance.awaitTermination(timeout, units);
+
+        // We can only close segments after we have fully shut down maintenance thread, and we can not shut down tidy earlier since closing requires tidy pool
+        closeAllSegments();
+        tidy.shutdown();
+        r &= tidy.awaitTermination(timeout, units);
         return r;
     }
 
@@ -454,18 +400,7 @@ public class Journal<K, V> implements Shutdownable
      */
     public void blockingWrite(K id, V record)
     {
-        try (DataOutputBuffer dob = DataOutputBuffer.scratchBuffer.get())
-        {
-            valueSerializer.serialize(id, record, dob, params.userVersion());
-            ActiveSegment<K, V>.Allocation alloc = allocate(dob.getLength());
-            alloc.writeInternal(id, dob.unsafeGetBufferAndFlip());
-            flusher.flushAndAwaitDurable(alloc);
-        }
-        catch (IOException e)
-        {
-            // exception during record serialization into the scratch buffer
-            throw new RuntimeException(e);
-        }
+        asyncWrite(id, record).awaitUninterruptibly();
     }
 
     /**
@@ -484,17 +419,23 @@ public class Journal<K, V> implements Shutdownable
 
     public RecordPointer asyncWrite(K id, Writer writer)
     {
+        return writeInternal(id, writer);
+    }
+
+    private ActiveSegment<K, V>.Allocation writeInternal(K id, Writer writer)
+    {
         try (DataOutputBuffer dob = DataOutputBuffer.scratchBuffer.get())
         {
             writer.write(dob, params.userVersion());
             ActiveSegment<K, V>.Allocation alloc = allocate(dob.getLength());
             alloc.write(id, dob.unsafeGetBufferAndFlip());
-            return flusher.flush(alloc);
+            flusher.flush(alloc);
+            return alloc;
         }
         catch (IOException e)
         {
             // exception during record serialization into the scratch buffer
-            throw new RuntimeException(e);
+            throw new UncheckedIOException(e);
         }
     }
 
@@ -518,10 +459,28 @@ public class Journal<K, V> implements Shutdownable
      * Segment allocation logic.
      */
 
+    private void requestSegmentAllocation()
+    {
+        Promise<ActiveSegment<K, V>> promise = new AsyncPromise<>();
+        synchronized (this)
+        {
+            if (availableSegment == null)
+            {
+                availableSegment = promise;
+                promise = null;
+            }
+        }
+        if (promise == null)
+            maintenance.execute(allocator);
+        else
+            promise.cancel(true);
+    }
+
     private void advanceSegment(ActiveSegment<K, V> oldSegment)
     {
         while (true)
         {
+            Promise<ActiveSegment<K, V>> waitOn = null;
             synchronized (this)
             {
                 // do this in a critical section, so we can maintain the order of
@@ -532,69 +491,78 @@ public class Journal<K, V> implements Shutdownable
                 // if a segment is ready, take it now, otherwise wait for the allocator thread to construct it
                 if (availableSegment != null)
                 {
-                    // success - change allocatingFrom and activeSegments (which must be kept in order) before leaving the critical section
-                    addNewActiveSegment(currentSegment = availableSegment);
-                    availableSegment = null;
-                    break;
+                    if (availableSegment.isDone())
+                    {
+                        Invariants.require(availableSegment.isSuccess());
+                        // success - first add the next segment to segments, and only then make it available for writes
+                        ActiveSegment<K, V> nextActive = availableSegment.getNow();
+                        availableSegment = null;
+                        addNewActiveSegment(nextActive);
+                        currentSegment = nextActive;
+                        break;
+                    }
+                    else
+                    {
+                        waitOn = availableSegment;
+                    }
                 }
             }
 
-            awaitAvailableSegment(oldSegment);
+            if (waitOn != null)
+                waitOn.awaitThrowUncheckedOnInterrupt();
         }
 
         // signal the allocator thread to prepare a new segment
-        wakeAllocator();
+        requestSegmentAllocation();
 
         // request that the journal be flushed out-of-band, as we've finished a segment
         flusher.requestExtraFlush();
     }
 
-    private void awaitAvailableSegment(ActiveSegment<K, V> currentActiveSegment)
-    {
-        do
-        {
-            WaitQueue.Signal prepared = segmentPrepared.register(metrics.waitingOnSegmentAllocation.time(), Context::stop);
-            if (availableSegment == null && currentSegment == currentActiveSegment)
-            {
-                prepared.awaitThrowUncheckedOnInterrupt();
-
-                // In case we woke up due to shutdown signal or interrupt, check mode
-                State state = this.state.get();
-                if (state.ordinal() > State.NORMAL.ordinal())
-                    throw new IllegalStateException("Can not obtain allocated segment due to shutdown " + state);
-            }
-            else
-                prepared.cancel();
-        }
-        while (availableSegment == null && currentSegment == currentActiveSegment);
-    }
-
-    private void wakeAllocator()
-    {
-        allocatorThreadWaitQueue.signalAll();
-    }
-
     private void discardAvailableSegment()
     {
-        ActiveSegment<K, V> next;
+        Promise<ActiveSegment<K, V>> next;
         synchronized (this)
         {
             next = availableSegment;
             availableSegment = null;
         }
+
         if (next != null)
-            next.closeAndDiscard(this);
+        {
+            ActiveSegment<K, V> segment = next.awaitThrowUncheckedOnInterrupt().getNow();
+            if (segment != null) // can be null during shutdown
+                segment.closeAndDiscard(this);
+        }
     }
 
-    private class AllocateRunnable implements Interruptible.Task
+    private class Allocator implements Runnable
     {
         @Override
-        public void run(Interruptible.State state) throws InterruptedException
+        public void run()
         {
-            if (state == NORMAL)
-                runNormal();
-            else if (state == SHUTTING_DOWN)
-                shutDown();
+            try
+            {
+                State state = Journal.this.state.get();
+                switch (state)
+                {
+                    case UNINITIALIZED:
+                        throw new IllegalStateException("Should not be in uninitialized state");
+                    case INITIALIZING:
+                    case NORMAL:
+                        runNormal();
+                        break;
+                    case SHUTDOWN:
+                    case TERMINATED:
+                        shutdown();
+                        break;
+                }
+            }
+            catch (InterruptedException e)
+            {
+                discardAvailableSegment();
+                throw new UncheckedInterruptedException();
+            }
         }
 
         private void runNormal() throws InterruptedException
@@ -602,19 +570,19 @@ public class Journal<K, V> implements Shutdownable
             boolean interrupted = false;
             try
             {
-                if (availableSegment != null)
-                    throw new IllegalStateException("availableSegment is not null");
+                Invariants.require(availableSegment != null);
+                Invariants.require(!availableSegment.isDone());
 
                 // synchronized to prevent thread interrupts while performing IO operations and also
                 // clear interrupted status to prevent ClosedByInterruptException in createSegment()
                 synchronized (this)
                 {
                     interrupted = Thread.interrupted();
-                    availableSegment = createSegment();
-
-                    segmentPrepared.signalAll();
-                    Thread.yield();
+                    availableSegment.setSuccess(createSegment());
                 }
+
+                while (availableSegment != null && Thread.interrupted())
+                    LockSupport.parkNanos(100);
             }
             catch (JournalWriteError e)
             {
@@ -623,7 +591,7 @@ public class Journal<K, V> implements Shutdownable
             }
             catch (Throwable t)
             {
-                if (!handleError("Failed allocating journal segments", t))
+                if (!handleError("Failed allocating a journal segment", t))
                 {
                     discardAvailableSegment();
                     throw new TerminateException();
@@ -631,41 +599,28 @@ public class Journal<K, V> implements Shutdownable
                 TimeUnit.SECONDS.sleep(1L); // sleep for a second to avoid log spam
             }
 
-            interrupted = interrupted || Thread.interrupted();
-            if (!interrupted)
-            {
-                try
-                {
-                    // If we offered a segment, wait for it to be taken before reentering the loop.
-                    // There could be a new segment in next not offered, but only on failure to discard it while
-                    // shutting down-- nothing more can or needs to be done in that case.
-                    WaitQueue.waitOnCondition(allocatorThreadWaitCondition, allocatorThreadWaitQueue);
-                }
-                catch (InterruptedException e)
-                {
-                    interrupted = true;
-                }
-            }
-
-            if (interrupted)
+            if (interrupted || Thread.interrupted())
             {
                 discardAvailableSegment();
                 throw new InterruptedException();
             }
         }
 
-        private void shutDown() throws InterruptedException
+        private void shutdown()
         {
-            try
+            Promise<ActiveSegment<K, V>> next;
+            synchronized (this)
             {
-                // if shutdown() started and finished during segment creation, we'll be left with a
-                // segment that no one will consume; discard it
-                discardAvailableSegment();
+                next = availableSegment;
+                availableSegment = null;
             }
-            catch (Throwable t)
+
+            if (next != null)
             {
-                handleError("Failed shutting down segment allocator", t);
-                throw new TerminateException();
+                if (next.isDone())
+                    next.getNow().closeAndDiscard(Journal.this);
+                else
+                    next.cancel(true);
             }
         }
     }
@@ -673,13 +628,12 @@ public class Journal<K, V> implements Shutdownable
     private ActiveSegment<K, V> createSegment()
     {
         Descriptor descriptor = Descriptor.create(directory, nextSegmentId.getAndIncrement(), params.userVersion());
-        return ActiveSegment.create(descriptor, params, keySupport);
+        return create(descriptor, params, keySupport);
     }
 
     private void closeAllSegments()
     {
         Segments<K, V> segments = swapSegments(ignore -> Segments.none());
-
         for (Segment<K, V> segment : segments.all())
         {
             if (segment.isActive())
@@ -737,56 +691,9 @@ public class Journal<K, V> implements Shutdownable
         swapSegments(current -> current.withCompactedSegments(oldSegments, compactedSegments));
     }
 
-    void selectSegmentToFlush(Collection<ActiveSegment<K, V>> into)
-    {
-        segments().selectActive(currentSegment.descriptor.timestamp, into);
-    }
-
-    ActiveSegment<K, V> oldestActiveSegment()
-    {
-        ActiveSegment<K, V> current = currentSegment;
-        if (current == null)
-            return null;
-
-        ActiveSegment<K, V> oldest = segments().oldestActive();
-        if (oldest == null || oldest.descriptor.timestamp > current.descriptor.timestamp)
-            return current;
-
-        return oldest;
-    }
-
     public ActiveSegment<K, V> currentActiveSegment()
     {
         return currentSegment;
-    }
-
-    ActiveSegment<K, V> getActiveSegment(long timestamp)
-    {
-        // we can race with segment addition to the segments() collection, with a new segment appearing in currentSegment first
-        // since we are most likely to be requesting the currentSegment anyway, we resolve this case by checking currentSegment first
-        // and resort to the segments() collection only if we do not match
-        ActiveSegment<K, V> currentSegment = this.currentSegment;
-        if (currentSegment == null)
-            throw new IllegalArgumentException("Requested an active segment with timestamp " + timestamp + " but there is no currently active segment");
-        long currentSegmentTimestamp = currentSegment.descriptor.timestamp;
-        if (timestamp == currentSegmentTimestamp)
-        {
-            return currentSegment;
-        }
-        else if (timestamp > currentSegmentTimestamp)
-        {
-            throw new IllegalArgumentException("Requested a newer timestamp " + timestamp + " than the current active segment " + currentSegmentTimestamp);
-        }
-        else
-        {
-            Segment<K, V> segment = segments().get(timestamp);
-            Invariants.require(segment != null, "Segment %d expected to be found, but neither current segment %d nor in active segments", timestamp, currentSegmentTimestamp);
-            if (segment == null)
-                throw new IllegalArgumentException("Request the active segment " + timestamp + " but this segment does not exist");
-            if (!segment.isActive())
-                throw new IllegalArgumentException(String.format("Request the active segment %d but this segment is not active: %s", timestamp, segment));
-            return segment.asActive();
-        }
     }
 
     /**
@@ -800,22 +707,21 @@ public class Journal<K, V> implements Shutdownable
      */
     private class CloseActiveSegmentRunnable implements Runnable
     {
-        private final ActiveSegment<K, V> activeSegment;
+        private final ActiveSegment<K, V> completedSegment;
 
         CloseActiveSegmentRunnable(ActiveSegment<K, V> activeSegment)
         {
-            this.activeSegment = activeSegment;
+            this.completedSegment = activeSegment;
         }
 
         @Override
         public void run()
         {
-            activeSegment.discardUnusedTail();
-            activeSegment.updateWrittenTo();
-            activeSegment.fsync();
-            activeSegment.persistComponents();
-            replaceCompletedSegment(activeSegment, StaticSegment.open(activeSegment.descriptor, keySupport));
-            activeSegment.release(Journal.this);
+            completedSegment.discardUnusedTail();
+            completedSegment.fsync();
+            completedSegment.persistComponents();
+            replaceCompletedSegment(completedSegment, StaticSegment.open(completedSegment.descriptor, keySupport));
+            completedSegment.release(Journal.this);
         }
     }
 
@@ -828,7 +734,7 @@ public class Journal<K, V> implements Shutdownable
             return;
         }
 
-        closer.execute(new CloseActiveSegmentRunnable(activeSegment));
+        maintenance.execute(new CloseActiveSegmentRunnable(activeSegment));
     }
 
     @VisibleForTesting

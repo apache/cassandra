@@ -65,7 +65,7 @@ public abstract class Segment<K, V> implements SelfRefCounted<Segment<K, V>>, Co
     abstract Index<K> index();
 
     abstract boolean isActive();
-    abstract boolean isFlushed(long position);
+
     boolean isStatic() { return !isActive(); }
 
     abstract ActiveSegment<K, V> asActive();
@@ -141,7 +141,7 @@ public abstract class Segment<K, V> implements SelfRefCounted<Segment<K, V>>, Co
             // permitted to be null ONLY for tests
             tidier.await = journal.readOrder.newBarrier();
             tidier.await.issue();
-            tidier.executor = journal.releaser;
+            tidier.executor = journal.tidy;
         }
         selfRef.release();
     }
