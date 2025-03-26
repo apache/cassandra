@@ -60,6 +60,7 @@ public enum RequestFailureReason
 
     private static final Map<Integer, RequestFailureReason> codeToReasonMap = new HashMap<>();
     private static final Map<Class<? extends Throwable>, RequestFailureReason> exceptionToReasonMap = new HashMap<>();
+    private static final int REASONS_WITHOUT_EXCEPTIONS = 3; // UNKNOWN, NODE_DOWN, and READ_TOO_MANY_INDEXES
 
     static
     {
@@ -81,7 +82,7 @@ public enum RequestFailureReason
         exceptionToReasonMap.put(CoordinatorBehindException.class, COORDINATOR_BEHIND);
         exceptionToReasonMap.put(IndexBuildInProgressException.class, INDEX_BUILD_IN_PROGRESS);
 
-        if (exceptionToReasonMap.size() != reasons.length-3)
+        if (exceptionToReasonMap.size() != reasons.length - REASONS_WITHOUT_EXCEPTIONS)
             throw new RuntimeException("A new RequestFailureReasons was probably added and you may need to update the exceptionToReasonMap");
     }
 
