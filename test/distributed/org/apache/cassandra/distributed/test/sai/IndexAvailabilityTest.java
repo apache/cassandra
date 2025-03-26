@@ -27,13 +27,13 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 
 import com.google.common.base.Objects;
-import org.apache.cassandra.distributed.api.ConsistencyLevel;
 import org.junit.Test;
 
 import net.bytebuddy.ByteBuddy;
 import net.bytebuddy.dynamic.loading.ClassLoadingStrategy;
 import net.bytebuddy.implementation.MethodDelegation;
 import org.apache.cassandra.distributed.Cluster;
+import org.apache.cassandra.distributed.api.ConsistencyLevel;
 import org.apache.cassandra.distributed.api.IInvokableInstance;
 import org.apache.cassandra.distributed.test.TestBaseImpl;
 import org.apache.cassandra.index.Index;
@@ -207,27 +207,18 @@ public class IndexAvailabilityTest extends TestBaseImpl
             cluster.schemaChange(String.format(CREATE_KEYSPACE, ks2, 2));
             cluster.schemaChange("CREATE TABLE " + ks2 + '.' + cf1 + " (pk int PRIMARY KEY, v1 int, v2 int)");
             executeOnAllCoordinators(cluster,
-                    "SELECT pk FROM " + ks2 + '.' + cf1 + " WHERE v1=0 AND v2=0 ALLOW FILTERING"
-            );
+                              "SELECT pk FROM " + ks2 + '.' + cf1 + " WHERE v1=0 AND v2=0 ALLOW FILTERING");
             executeOnAllCoordinators(cluster,
-                    "SELECT pk FROM " + ks2 + '.' + cf1 + " WHERE v2=0 ALLOW FILTERING"
-            );
+                               "SELECT pk FROM " + ks2 + '.' + cf1 + " WHERE v2=0 ALLOW FILTERING");
             executeOnAllCoordinators(cluster,
-                    "SELECT pk FROM " + ks2 + '.' + cf1 + " WHERE v1=0 ALLOW FILTERING"
-            );
+                               "SELECT pk FROM " + ks2 + '.' + cf1 + " WHERE v1=0 ALLOW FILTERING");
 
             cluster.schemaChange(String.format(CREATE_INDEX, index1, ks2, cf1, "v1"));
             cluster.schemaChange(String.format(CREATE_INDEX, index2, ks2, cf1, "v2"));
             cluster.forEach(node -> expectedNodeIndexQueryability.put(NodeIndex.create(ks2, index1, node), Index.Status.BUILD_SUCCEEDED));
-            waitForIndexingStatus(cluster.get(2), ks2, index1, cluster.get(1), Index.Status.BUILD_SUCCEEDED);
-            waitForIndexingStatus(cluster.get(2), ks2, index1, cluster.get(2), Index.Status.BUILD_SUCCEEDED);
-            waitForIndexingStatus(cluster.get(2), ks2, index1, cluster.get(3), Index.Status.BUILD_SUCCEEDED);
-            waitForIndexingStatus(cluster.get(1), ks2, index1, cluster.get(1), Index.Status.BUILD_SUCCEEDED);
-            waitForIndexingStatus(cluster.get(1), ks2, index1, cluster.get(2), Index.Status.BUILD_SUCCEEDED);
-            waitForIndexingStatus(cluster.get(1), ks2, index1, cluster.get(3), Index.Status.BUILD_SUCCEEDED);
-            waitForIndexingStatus(cluster.get(3), ks2, index1, cluster.get(1), Index.Status.BUILD_SUCCEEDED);
-            waitForIndexingStatus(cluster.get(3), ks2, index1, cluster.get(2), Index.Status.BUILD_SUCCEEDED);
-            waitForIndexingStatus(cluster.get(3), ks2, index1, cluster.get(3), Index.Status.BUILD_SUCCEEDED);
+            for (IInvokableInstance node : cluster.get(2, 1, 3))
+                for (IInvokableInstance replica : cluster.get(1, 2, 3))
+                    waitForIndexingStatus(node, ks2, index1, replica, Index.Status.BUILD_SUCCEEDED);
 
             // Mark only index2 as building on node3, leave index1 in BUILD_SUCCEEDED state
             markIndexBuilding(cluster.get(3), ks2, cf1, index2);
@@ -238,8 +229,7 @@ public class IndexAvailabilityTest extends TestBaseImpl
 
             assertThatThrownBy(() ->
                     executeOnAllCoordinators(cluster,
-                            "SELECT pk FROM " + ks2 + '.' + cf1 + " WHERE v1=0 AND v2=0"
-                    ))
+                                       "SELECT pk FROM " + ks2 + '.' + cf1 + " WHERE v1=0 AND v2=0"))
                     .hasMessageContaining("Operation failed - received 1 responses and 1 failures: INDEX_BUILD_IN_PROGRESS");
 
             // Mark only index2 as failing on node2, leave index1 in BUILD_SUCCEEDED state
@@ -248,8 +238,7 @@ public class IndexAvailabilityTest extends TestBaseImpl
 
             assertThatThrownBy(() ->
                     executeOnAllCoordinators(cluster,
-                            "SELECT pk FROM " + ks2 + '.' + cf1 + " WHERE v1=0 AND v2=0"
-                    ))
+                                      "SELECT pk FROM " + ks2 + '.' + cf1 + " WHERE v1=0 AND v2=0"))
                     .hasMessageContaining("Operation failed - received 1 responses and 1 failures: INDEX_BUILD_IN_PROGRESS");
 
             // Mark only index2 as failing on node1, leave index1 in BUILD_SUCCEEDED state
@@ -261,8 +250,7 @@ public class IndexAvailabilityTest extends TestBaseImpl
 
             assertThatThrownBy(() ->
                     executeOnAllCoordinators(cluster,
-                            "SELECT pk FROM " + ks2 + '.' + cf1 + " WHERE v1=0 AND v2=0"
-                    ))
+                                       "SELECT pk FROM " + ks2 + '.' + cf1 + " WHERE v1=0 AND v2=0"))
                     .hasMessageMatching("^Operation failed - received 0 responses and 2 failures: INDEX_NOT_AVAILABLE from .+, INDEX_BUILD_IN_PROGRESS from .+$");
         }
     }

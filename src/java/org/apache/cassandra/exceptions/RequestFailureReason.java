@@ -47,8 +47,7 @@ public enum RequestFailureReason
     NOT_CMS                  (8),
     INVALID_ROUTING          (9),
     COORDINATOR_BEHIND       (10),
-    // below code is intentionally higher, coming as a back port from a fork. It was created that high to prevent
-    // any conflicts with Apache Cassandra code.
+    // The following codes have been ported from an external fork, where they were offset explicitly to avoid conflicts.
     INDEX_BUILD_IN_PROGRESS  (503);
     public static final Serializer serializer = new Serializer();
 

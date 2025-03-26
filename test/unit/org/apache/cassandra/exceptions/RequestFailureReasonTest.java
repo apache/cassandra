@@ -62,18 +62,12 @@ public class RequestFailureReasonTest
     public void testFromCode()
     {
         // Test valid codes
-        assertEquals(RequestFailureReason.UNKNOWN, RequestFailureReason.fromCode(0));
-        assertEquals(RequestFailureReason.READ_TOO_MANY_TOMBSTONES, RequestFailureReason.fromCode(1));
-        assertEquals(RequestFailureReason.TIMEOUT, RequestFailureReason.fromCode(2));
-        assertEquals(RequestFailureReason.INCOMPATIBLE_SCHEMA, RequestFailureReason.fromCode(3));
-        assertEquals(RequestFailureReason.READ_SIZE, RequestFailureReason.fromCode(4));
-        assertEquals(RequestFailureReason.NODE_DOWN, RequestFailureReason.fromCode(5));
-        assertEquals(RequestFailureReason.INDEX_NOT_AVAILABLE, RequestFailureReason.fromCode(6));
-        assertEquals(RequestFailureReason.READ_TOO_MANY_INDEXES, RequestFailureReason.fromCode(7));
-        assertEquals(RequestFailureReason.NOT_CMS, RequestFailureReason.fromCode(8));
-        assertEquals(RequestFailureReason.INVALID_ROUTING, RequestFailureReason.fromCode(9));
-        assertEquals(RequestFailureReason.COORDINATOR_BEHIND, RequestFailureReason.fromCode(10));
-        assertEquals(RequestFailureReason.INDEX_BUILD_IN_PROGRESS, RequestFailureReason.fromCode(503));
+        for (Object[] expected : EXPECTED_VALUES)
+        {
+            int code = (Integer) expected[0];
+            String name = (String) expected[1];
+            assertEquals(RequestFailureReason.valueOf(name), RequestFailureReason.fromCode(code));
+        }
 
         // Test invalid codes
         assertEquals(RequestFailureReason.UNKNOWN, RequestFailureReason.fromCode(200));

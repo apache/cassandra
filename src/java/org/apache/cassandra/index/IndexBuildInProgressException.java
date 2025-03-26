@@ -23,12 +23,14 @@ package org.apache.cassandra.index;
  */
 public final class IndexBuildInProgressException extends RuntimeException
 {
+    public static final String INDEX_BUILD_IN_PROGRESS_ERROR = "The secondary index '%s' is not yet available as it is building";
+
     /**
      * Creates a new <code>IndexIsBuildingException</code> for the specified index.
      * @param index the index
      */
     public IndexBuildInProgressException(Index index)
     {
-        super(String.format("The secondary index '%s' is not yet available as it is building", index.getIndexMetadata().name));
+        super(String.format(INDEX_BUILD_IN_PROGRESS_ERROR, index.getIndexMetadata().name));
     }
 }

@@ -26,11 +26,11 @@ import java.util.concurrent.CountDownLatch;
 
 import com.google.common.collect.ImmutableSet;
 
-import org.apache.cassandra.index.IndexBuildInProgressException;
 import org.apache.commons.lang3.StringUtils;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
+import org.apache.cassandra.index.IndexBuildInProgressException;
 import org.apache.cassandra.index.internal.CassandraIndex;
 import org.apache.cassandra.index.sai.StorageAttachedIndex;
 import org.apache.cassandra.schema.ColumnMetadata;
