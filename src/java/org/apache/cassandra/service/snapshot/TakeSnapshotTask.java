@@ -48,6 +48,7 @@ import org.apache.cassandra.io.sstable.format.SSTableFormat;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.util.FileOutputStreamPlus;
+import org.apache.cassandra.io.util.FileUtils.DuplicateHardlinkException;
 import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.Clock;
@@ -163,7 +164,15 @@ public class TakeSnapshotTask extends AbstractSnapshotTask<List<TableSnapshot>>
                 for (SSTableReader ssTable : currentView.sstables)
                 {
                     File snapshotDirectory = Directories.getSnapshotDirectory(ssTable.descriptor, snapshotName);
-                    ssTable.createLinks(snapshotDirectory.path(), options.rateLimiter); // hard links
+                    try
+                    {
+                        ssTable.createLinks(snapshotDirectory.path(), options.rateLimiter); // hard links
+                    }
+                    catch (DuplicateHardlinkException ex)
+                    {
+                        if (!options.force)
+                            throw ex;
+                    }
                     if (logger.isTraceEnabled())
                         logger.trace("Snapshot for {} keyspace data file {} created in {}", cfs.keyspace, ssTable.getFilename(), snapshotDirectory);
                     sstables.add(ssTable);
@@ -268,12 +277,40 @@ public class TakeSnapshotTask extends AbstractSnapshotTask<List<TableSnapshot>>
     }
 
 
+    private SnapshotManifest createSnapshotManifest(SnapshotManifest manifest, File manifestFile)
+    {
+        SnapshotManifest oldManifest = null;
+        if (manifestFile.exists())
+        {
+            try
+            {
+                oldManifest = SnapshotManifest.deserializeFromJsonFile(manifestFile);
+            }
+            catch (Throwable t)
+            {
+                logger.warn("Unable to read the content of old manifest {}", manifestFile);
+            }
+        }
+
+        if (oldManifest != null)
+        {
+            Set<String> deduplicates = new HashSet<>(); // set to deduplicate
+            deduplicates.addAll(oldManifest.getFiles());
+            deduplicates.addAll(manifest.files);
+
+            return new SnapshotManifest(new ArrayList<>(deduplicates), options.ttl, creationTime, options.ephemeral);
+        }
+
+        return manifest;
+    }
+
     private void writeSnapshotManifest(SnapshotManifest manifest, File manifestFile)
     {
         try
         {
+            SnapshotManifest toCreate = createSnapshotManifest(manifest, manifestFile);
             manifestFile.parent().tryCreateDirectories();
-            manifest.serializeToJsonFile(manifestFile);
+            toCreate.serializeToJsonFile(manifestFile);
         }
         catch (IOException e)
         {

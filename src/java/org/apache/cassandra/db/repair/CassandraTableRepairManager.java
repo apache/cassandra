@@ -87,7 +87,10 @@ public class CassandraTableRepairManager implements TableRepairManager
                                                                     !sstable.metadata().isIndex() && // exclude SSTables from 2i
                                                                     new Bounds<>(sstable.getFirst().getToken(), sstable.getLast().getToken()).intersects(ranges);
 
-                    SnapshotOptions options = SnapshotOptions.systemSnapshot(name, SnapshotType.REPAIR, predicate, cfs.getKeyspaceTableName()).ephemeral().build();
+                    SnapshotOptions options = SnapshotOptions.systemSnapshot(name, SnapshotType.REPAIR, predicate, cfs.getKeyspaceTableName())
+                                                             .ephemeral()
+                                                             .force(force)
+                                                             .build();
                     SnapshotManager.instance.takeSnapshot(options);
                 }
             }).get();

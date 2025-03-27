@@ -45,32 +45,25 @@ public class SnapshotOptions
     public final Instant creationTime;
     public final boolean skipFlush;
     public final boolean ephemeral;
+    public final boolean force;
     public final String[] entities;
     public final RateLimiter rateLimiter;
     public final Predicate<SSTableReader> sstableFilter;
     public final ColumnFamilyStore cfs;
 
-    private SnapshotOptions(SnapshotType type,
-                            String tag,
-                            DurationSpec.IntSecondsBound ttl,
-                            Instant creationTime,
-                            boolean skipFlush,
-                            boolean ephemeral,
-                            String[] entities,
-                            RateLimiter rateLimiter,
-                            Predicate<SSTableReader> sstableFilter,
-                            ColumnFamilyStore cfs)
+    private SnapshotOptions(Builder builder)
     {
-        this.type = type;
-        this.tag = tag;
-        this.ttl = ttl;
-        this.creationTime = creationTime;
-        this.skipFlush = skipFlush;
-        this.ephemeral = ephemeral;
-        this.entities = entities;
-        this.rateLimiter = rateLimiter;
-        this.sstableFilter = sstableFilter;
-        this.cfs = cfs;
+        this.type = builder.type;
+        this.tag = builder.tag;
+        this.ttl = builder.ttl;
+        this.creationTime = builder.creationTime;
+        this.skipFlush = builder.skipFlush;
+        this.ephemeral = builder.ephemeral;
+        this.force = builder.force;
+        this.entities = builder.entities;
+        this.rateLimiter = builder.rateLimiter;
+        this.sstableFilter = builder.sstableFilter;
+        this.cfs = builder.cfs;
     }
 
     public static Builder systemSnapshot(String tag, SnapshotType type, String... entities)
@@ -117,6 +110,7 @@ public class SnapshotOptions
         private Instant creationTime;
         private boolean skipFlush = false;
         private boolean ephemeral = false;
+        private boolean force = false;
         private ColumnFamilyStore cfs;
         private final Predicate<SSTableReader> sstableFilter;
         private final SnapshotType type;
@@ -184,6 +178,12 @@ public class SnapshotOptions
             return this;
         }
 
+        public Builder force(boolean force)
+        {
+            this.force = force;
+            return this;
+        }
+
         public Builder cfs(ColumnFamilyStore cfs)
         {
             this.cfs = cfs;
@@ -214,8 +214,7 @@ public class SnapshotOptions
             if (rateLimiter == null)
                 rateLimiter = DatabaseDescriptor.getSnapshotRateLimiter();
 
-            return new SnapshotOptions(type, tag, ttl, creationTime, skipFlush, ephemeral, entities, rateLimiter,
-                                       sstableFilter, cfs);
+            return new SnapshotOptions(this);
         }
     }
 
@@ -229,6 +228,7 @@ public class SnapshotOptions
                ", creationTime=" + creationTime +
                ", skipFlush=" + skipFlush +
                ", ephemeral=" + ephemeral +
+               ", force=" + force +
                ", entities=" + Arrays.toString(entities) +
                '}';
     }
