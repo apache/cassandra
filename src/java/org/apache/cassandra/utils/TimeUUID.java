@@ -79,7 +79,7 @@ public class TimeUUID implements Serializable, Comparable<TimeUUID>
      * I don't think that has any practical consequence and is more robust in
      * case someone provides a UUID with a broken variant.
      */
-    private static final long MIN_CLOCK_SEQ_AND_NODE = 0x8080808080808080L;
+    public static final long MIN_CLOCK_SEQ_AND_NODE = 0x8080808080808080L;
     private static final long MAX_CLOCK_SEQ_AND_NODE = 0x7f7f7f7f7f7f7f7fL;
 
 

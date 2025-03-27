@@ -1,4 +1,5 @@
 4.1.9
+ * Fix paxos mixed mode infinite loop (CASSANDRA-20493)
  * Optionally skip exception logging on invalid legacy protocol magic exception (CASSANDRA-19483)
  * Fix SimpleClient ability to release acquired capacity (CASSANDRA-20202)
  * Fix WaitQueue.Signal.awaitUninterruptibly may block forever if invoking thread is interrupted (CASSANDRA-20084)
