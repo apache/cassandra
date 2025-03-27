@@ -44,6 +44,7 @@ public class StartupMessage extends Message.Request
     public static final String DRIVER_NAME = "DRIVER_NAME";
     public static final String DRIVER_VERSION = "DRIVER_VERSION";
     public static final String THROW_ON_OVERLOAD = "THROW_ON_OVERLOAD";
+    public static final String DRIVER_LOCAL_DC = "DRIVER_LOCAL_DC";
 
     public static final Message.Codec<StartupMessage> codec = new Message.Codec<StartupMessage>()
     {
@@ -123,6 +124,9 @@ public class StartupMessage extends Message.Request
             clientState.setDriverName(driverName);
             clientState.setDriverVersion(options.get(DRIVER_VERSION));
         }
+        String localDc = options.get(DRIVER_LOCAL_DC);
+        if (null != localDc)
+            clientState.setDriverLocalDc(localDc);
 
         IAuthenticator authenticator = DatabaseDescriptor.getAuthenticator();
         if (authenticator.requireAuthentication())

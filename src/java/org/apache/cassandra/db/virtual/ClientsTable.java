@@ -45,6 +45,7 @@ final class ClientsTable extends AbstractVirtualTable
     private static final String CLIENT_OPTIONS = "client_options";
     private static final String DRIVER_NAME = "driver_name";
     private static final String DRIVER_VERSION = "driver_version";
+    private static final String DRIVER_LOCAL_DC = "driver_local_dc";
     private static final String REQUEST_COUNT = "request_count";
     private static final String SSL_ENABLED = "ssl_enabled";
     private static final String SSL_PROTOCOL = "ssl_protocol";
@@ -68,6 +69,7 @@ final class ClientsTable extends AbstractVirtualTable
                            .addRegularColumn(CLIENT_OPTIONS, MapType.getInstance(UTF8Type.instance, UTF8Type.instance, false))
                            .addRegularColumn(DRIVER_NAME, UTF8Type.instance)
                            .addRegularColumn(DRIVER_VERSION, UTF8Type.instance)
+                           .addRegularColumn(DRIVER_LOCAL_DC, UTF8Type.instance)
                            .addRegularColumn(REQUEST_COUNT, LongType.instance)
                            .addRegularColumn(SSL_ENABLED, BooleanType.instance)
                            .addRegularColumn(SSL_PROTOCOL, UTF8Type.instance)
@@ -95,6 +97,7 @@ final class ClientsTable extends AbstractVirtualTable
                   .column(CLIENT_OPTIONS, client.clientOptions().orElse(null))
                   .column(DRIVER_NAME, client.driverName().orElse(null))
                   .column(DRIVER_VERSION, client.driverVersion().orElse(null))
+                  .column(DRIVER_LOCAL_DC, client.driverLocalDc().orElse(null))
                   .column(REQUEST_COUNT, client.requestCount())
                   .column(SSL_ENABLED, client.sslEnabled())
                   .column(SSL_PROTOCOL, client.sslProtocol().orElse(null))

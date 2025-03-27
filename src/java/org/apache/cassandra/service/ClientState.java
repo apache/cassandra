@@ -142,6 +142,7 @@ public class ClientState
     // Driver String for the client
     private volatile String driverName;
     private volatile String driverVersion;
+    private volatile String driverLocalDc;
     
     // Options provided by the client
     private volatile Map<String,String> clientOptions;
@@ -206,6 +207,7 @@ public class ClientState
         this.keyspace = source.keyspace;
         this.driverName = source.driverName;
         this.driverVersion = source.driverVersion;
+        this.driverLocalDc = source.driverLocalDc;
         this.clientOptions = source.clientOptions;
     }
 
@@ -337,6 +339,11 @@ public class ClientState
         return Optional.ofNullable(driverVersion);
     }
 
+    public Optional<String> getDriverLocalDc()
+    {
+        return Optional.ofNullable(driverLocalDc);
+    }
+
     public Optional<Map<String,String>> getClientOptions()
     {
         return Optional.ofNullable(clientOptions);
@@ -351,7 +358,12 @@ public class ClientState
     {
         this.driverVersion = driverVersion;
     }
-    
+
+    public void setDriverLocalDc(String driverLocalDc)
+    {
+        this.driverLocalDc = driverLocalDc;
+    }
+
     public void setClientOptions(Map<String,String> clientOptions)
     {
         this.clientOptions = ImmutableMap.copyOf(clientOptions);

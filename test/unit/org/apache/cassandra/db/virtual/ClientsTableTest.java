@@ -81,7 +81,8 @@ public class ClientsTableTest extends CQLTester
             Assert.assertEquals("localhost", r.getString("hostname"));
             Assertions.assertThat(r.getMap("client_options", String.class, String.class))
                       .hasEntrySatisfying("DRIVER_VERSION", value -> assertThat(value.contains(r.getString("driver_name"))))
-                      .hasEntrySatisfying("DRIVER_VERSION", value -> assertThat(value.contains(r.getString("driver_version"))));
+                      .hasEntrySatisfying("DRIVER_VERSION", value -> assertThat(value.contains(r.getString("driver_version"))))
+                      .hasEntrySatisfying("DRIVER_LOCAL_DC", value -> {});
             Assert.assertTrue(r.getBool("ssl_enabled"));
             Assert.assertTrue(r.getString("ssl_protocol").startsWith("TLS"));
             Assert.assertNotNull(r.getString("ssl_cipher_suite"));

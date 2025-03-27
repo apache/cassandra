@@ -99,13 +99,14 @@ public class ClientStats extends NodeToolCmd
             ImmutableList.Builder<String> tableHeaderBuilder = ImmutableList.<String>builder()
                                                                             .add("Address", "SSL", "Cipher", "Protocol", "Version",
                                                                                  "User", "Keyspace", "Requests", "Driver-Name",
-                                                                                 "Driver-Version");
+                                                                                 "Driver-Version", "Driver-Local-Dc");
             ImmutableList.Builder<String> tableFieldsBuilder = ImmutableList.<String>builder()
                                                                             .add(ConnectedClient.ADDRESS, ConnectedClient.SSL,
                                                                                  ConnectedClient.CIPHER, ConnectedClient.PROTOCOL,
                                                                                  ConnectedClient.VERSION, ConnectedClient.USER,
                                                                                  ConnectedClient.KEYSPACE, ConnectedClient.REQUESTS,
-                                                                                 ConnectedClient.DRIVER_NAME, ConnectedClient.DRIVER_VERSION);
+                                                                                 ConnectedClient.DRIVER_NAME, ConnectedClient.DRIVER_VERSION,
+                                                                                 ConnectedClient.DRIVER_LOCAL_DC);
             if (clientOptions || verbose)
             {
                 tableHeaderBuilder.add("Client-Options");

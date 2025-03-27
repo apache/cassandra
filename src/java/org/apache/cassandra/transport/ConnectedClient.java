@@ -40,6 +40,7 @@ public final class ConnectedClient
     public static final String CLIENT_OPTIONS = "clientOptions";
     public static final String DRIVER_NAME = "driverName";
     public static final String DRIVER_VERSION = "driverVersion";
+    public static final String DRIVER_LOCAL_DC = "driverLocalDc";
     public static final String REQUESTS = "requests";
     public static final String KEYSPACE = "keyspace";
     public static final String SSL = "ssl";
@@ -89,6 +90,11 @@ public final class ConnectedClient
     public Optional<String> driverVersion()
     {
         return state().getDriverVersion();
+    }
+
+    public Optional<String> driverLocalDc()
+    {
+        return state().getDriverLocalDc();
     }
 
     public Optional<Map<String,String>> clientOptions()
@@ -168,6 +174,7 @@ public final class ConnectedClient
                                                       .join(clientOptions().orElse(Collections.emptyMap())))
                            .put(DRIVER_NAME, driverName().orElse(UNDEFINED))
                            .put(DRIVER_VERSION, driverVersion().orElse(UNDEFINED))
+                           .put(DRIVER_LOCAL_DC, driverLocalDc().orElse(UNDEFINED))
                            .put(REQUESTS, String.valueOf(requestCount()))
                            .put(KEYSPACE, keyspace().orElse(""))
                            .put(SSL, Boolean.toString(sslEnabled()))
