@@ -285,9 +285,7 @@ public class FastByteOperations
                 srcOffset = BYTE_ARRAY_BASE_OFFSET;
 
                 if (src == null)
-                {
                     throw new IllegalArgumentException("Unsupported ByteBuffer type: No backing array and not direct.");
-                }
             }
             // Direct ByteBuffer
             else
