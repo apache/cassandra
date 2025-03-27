@@ -196,7 +196,6 @@ public class FastByteOperations
             {
                 BYTE_ARRAY_BASE_OFFSET = theUnsafe.arrayBaseOffset(byte[].class);
                 DIRECT_BUFFER_ADDRESS_OFFSET = theUnsafe.objectFieldOffset(Buffer.class.getDeclaredField("address"));
-
                 HEAP_HB_FIELD = theUnsafe.objectFieldOffset(ByteBuffer.class.getDeclaredField("hb"));
             }
             catch (Exception e)
@@ -276,8 +275,8 @@ public class FastByteOperations
             // Heap ByteBuffer (Mutable)
             if (srcBuf.hasArray() && !srcBuf.isReadOnly())
             {
-                src = theUnsafe.getObject(srcBuf, HEAP_HB_FIELD);
-                srcOffset = BYTE_ARRAY_BASE_OFFSET;
+                src = srcBuf.array();
+                srcOffset = BYTE_ARRAY_BASE_OFFSET + srcBuf.arrayOffset();
             }
             // Read-Only Heap ByteBuffer (Still has hb but read-only)
             else if (srcBuf.isReadOnly() && !srcBuf.isDirect())
