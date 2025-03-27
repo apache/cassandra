@@ -59,10 +59,15 @@ public class AssignmentOperator implements Expression
         EnumSet<Kind> result = EnumSet.noneOf(Kind.class);
         if (type instanceof CollectionType && type.isMultiCell())
         {
-            if (type instanceof SetType || type instanceof ListType)
+            if (type instanceof SetType)
                 return EnumSet.of(Kind.ADD, Kind.SUBTRACT);
+            if (type instanceof ListType)
+                return isTransaction
+                       ? EnumSet.of(Kind.ADD, Kind.SUBTRACT)
+                       : EnumSet.of(Kind.ADD);
             if (type instanceof MapType)
             {
+                //TODO (coverage): include SUBTRACT support
                 // map supports subtract, but not map - map; only map - set!
                 // since this is annoying to support, for now dropping -
                 return EnumSet.of(Kind.ADD);
