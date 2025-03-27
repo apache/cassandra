@@ -200,9 +200,9 @@ public class MutationTrackingService
 
         void finishWriting(Mutation mutation)
         {
-            pendingMutations.remove(mutation.id());
             Shard shard = lookUp(mutation);
             shard.finishWriting(mutation);
+            pendingMutations.remove(mutation.id());
         }
 
         PendingRead startReading(ReadCommand command)

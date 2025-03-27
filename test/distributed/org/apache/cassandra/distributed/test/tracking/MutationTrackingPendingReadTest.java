@@ -70,7 +70,6 @@ public class MutationTrackingPendingReadTest
         Assert.assertNull(row);
     }
 
-
     /**
      * Tests that pending writes are included in read responses
      */
