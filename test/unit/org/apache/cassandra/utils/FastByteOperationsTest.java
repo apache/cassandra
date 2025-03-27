@@ -50,6 +50,22 @@ public class FastByteOperationsTest
         testCopy(bytes1, wrap1(bytes1, false), wrap2(empty, false), UO);
     }
 
+    @Test
+    public void testFastByteCopyReadOnly()
+    {
+        byte[] bytes1 = new byte[128];
+        byte[] empty = new byte[128];
+        rand.nextBytes(bytes1);
+        testCopy(bytes1, wrap1(bytes1, true).asReadOnlyBuffer(), wrap2(empty, true), PJO);
+        testCopy(bytes1, wrap1(bytes1, true).asReadOnlyBuffer(), wrap2(empty, false), PJO);
+        testCopy(bytes1, wrap1(bytes1, false).asReadOnlyBuffer(), wrap2(empty, true), PJO);
+        testCopy(bytes1, wrap1(bytes1, false).asReadOnlyBuffer(), wrap2(empty, false), PJO);
+        testCopy(bytes1, wrap1(bytes1, true).asReadOnlyBuffer(), wrap2(empty, true), UO);
+        testCopy(bytes1, wrap1(bytes1, true).asReadOnlyBuffer(), wrap2(empty, false), UO);
+        testCopy(bytes1, wrap1(bytes1, false).asReadOnlyBuffer(), wrap2(empty, true), UO);
+        testCopy(bytes1, wrap1(bytes1, false).asReadOnlyBuffer(), wrap2(empty, false), UO);
+    }
+
     private void testCopy(byte[] canon, ByteBuffer src, ByteBuffer trg, FastByteOperations.ByteOperations ops)
     {
         byte[] result = new byte[src.remaining()];
