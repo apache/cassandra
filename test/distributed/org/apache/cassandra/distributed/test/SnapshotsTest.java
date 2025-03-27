@@ -24,6 +24,7 @@ import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.UUID;
 import java.util.regex.Pattern;
 
 import org.junit.After;
@@ -43,6 +44,9 @@ import org.apache.cassandra.distributed.api.NodeToolResult;
 import org.apache.cassandra.distributed.shared.WithProperties;
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.service.snapshot.SnapshotManager;
+import org.apache.cassandra.service.snapshot.SnapshotManifest;
+import org.apache.cassandra.service.snapshot.SnapshotOptions;
+import org.apache.cassandra.service.snapshot.SnapshotType;
 import org.apache.cassandra.utils.Clock;
 import org.apache.cassandra.utils.FBUtilities;
 
@@ -199,7 +203,7 @@ public class SnapshotsTest extends TestBaseImpl
         cluster.get(1).shutdown(true);
 
         // remove manifest only in the first data dir
-        removeAllManifests(new String[] {dataDirs[0]}, paths);
+        removeAllManifests(new String[]{ dataDirs[0]}, paths);
 
         // they will be still created for that first dir
         cluster.get(1).startup();
@@ -553,6 +557,90 @@ public class SnapshotsTest extends TestBaseImpl
         List<String> snapshots = extractSnapshots(nodeToolResult.getStdout());
         assertEquals(1, snapshots.size());
         assertTrue(snapshots.get(0).contains("tagks1tbl"));
+    }
+
+    @Test
+    public void testForcedSnapshot() throws Throwable
+    {
+        try (Cluster cluster = init(Cluster.build(1)
+                                           .withDataDirCount(3) // 3 dirs to disperse SSTables among different dirs
+                                           .start()))
+        {
+            cluster.schemaChange("CREATE TABLE " + KEYSPACE + ".tbl (pk uuid primary key)");
+
+            cluster.get(1).runOnInstance((IIsolatedExecutor.SerializableRunnable) () -> {
+                Keyspace.open("distributed_test_keyspace").getColumnFamilyStore("tbl").disableAutoCompaction();
+            });
+
+            for (int i = 0; i < 10; i++)
+            {
+                cluster.get(1).executeInternal("INSERT INTO " + KEYSPACE + ".tbl (pk) values (?)", UUID.randomUUID());
+                cluster.get(1).flush(KEYSPACE);
+            }
+
+            takeEphemeralSnapshotWithSameName(cluster);
+            List<File> manifests1 = getManifests(cluster);
+            List<String> ssTablesFromManifest1 = getSSTablesFromManifest(manifests1.get(0));
+
+            for (int i = 0; i < 10; i++)
+            {
+                cluster.get(1).executeInternal("INSERT INTO " + KEYSPACE + ".tbl (pk) values (?)", UUID.randomUUID());
+                cluster.get(1).flush(KEYSPACE);
+            }
+            takeEphemeralSnapshotWithSameName(cluster);
+            List<File> manifests2 = getManifests(cluster);
+            List<String> ssTablesFromManifest2 = getSSTablesFromManifest(manifests2.get(0));
+
+            assertEquals(manifests1, manifests2);
+            assertTrue(ssTablesFromManifest1.size() < ssTablesFromManifest2.size());
+            assertTrue(ssTablesFromManifest2.containsAll(ssTablesFromManifest1));
+        }
+    }
+
+    private List<String> getSSTablesFromManifest(File manifest) throws Throwable
+    {
+        SnapshotManifest snapshotManifest = SnapshotManifest.deserializeFromJsonFile(manifest);
+        return snapshotManifest.getFiles();
+    }
+
+    private List<File> getManifests(Cluster cluster)
+    {
+        List<String> manifestsPaths = cluster.get(1).callOnInstance((SerializableCallable<List<String>>) () -> {
+            ColumnFamilyStore cfs = Keyspace.open("distributed_test_keyspace").getColumnFamilyStore("tbl");
+
+            List<String> allManifests = new ArrayList<>();
+            for (File file : cfs.getDirectories().getSnapshotDirsWithoutCreation("a_snapshot"))
+            {
+                File maybeManifest = new File(file, "manifest.json");
+                if (maybeManifest.exists())
+                    allManifests.add(maybeManifest.absolutePath());
+            }
+
+            assertEquals(3, allManifests.size()); // 3 because 3 data dirs
+            return allManifests;
+        });
+
+        List<File> manifests = new ArrayList<>();
+        for (String manifest : manifestsPaths)
+            manifests.add(new File(manifest));
+
+        return manifests;
+    }
+
+    private void takeEphemeralSnapshotWithSameName(Cluster cluster)
+    {
+        cluster.get(1).runOnInstance((IIsolatedExecutor.SerializableRunnable) () -> {
+            try
+            {
+                SnapshotManager.instance.takeSnapshot(SnapshotOptions.systemSnapshot("a_snapshot", SnapshotType.REPAIR, (r) -> true, "distributed_test_keyspace.tbl")
+                                                                     .ephemeral()
+                                                                     .build());
+            }
+            catch (Throwable t)
+            {
+                throw new RuntimeException(t);
+            }
+        });
     }
 
     private void populate(Cluster cluster)

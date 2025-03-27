@@ -92,6 +92,7 @@ import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.util.FileDataInput;
 import org.apache.cassandra.io.util.FileHandle;
 import org.apache.cassandra.io.util.FileUtils;
+import org.apache.cassandra.io.util.FileUtils.DuplicateHardlinkException;
 import org.apache.cassandra.io.util.RandomAccessReader;
 import org.apache.cassandra.metrics.RestorableMeter;
 import org.apache.cassandra.schema.SchemaConstants;
@@ -1127,15 +1128,29 @@ public abstract class SSTableReader extends SSTable implements UnfilteredSource,
 
     public void createLinks(String snapshotDirectoryPath, RateLimiter rateLimiter)
     {
-        createLinks(descriptor, components, snapshotDirectoryPath, rateLimiter);
+        createLinks(snapshotDirectoryPath, rateLimiter, false);
+    }
+
+    public void createLinks(String snapshotDirectoryPath, RateLimiter rateLimiter, boolean ephemeralSnapshot)
+    {
+        createLinks(descriptor, components, snapshotDirectoryPath, rateLimiter, ephemeralSnapshot);
     }
 
     public static void createLinks(Descriptor descriptor, Set<Component> components, String snapshotDirectoryPath)
     {
-        createLinks(descriptor, components, snapshotDirectoryPath, null);
+        createLinks(descriptor, components, snapshotDirectoryPath, null, false);
     }
 
-    public static void createLinks(Descriptor descriptor, Set<Component> components, String snapshotDirectoryPath, RateLimiter limiter)
+    /**
+     * Create hardlinks for given set of components
+     *
+     * @param descriptor descriptor to use
+     * @param components components to create links for
+     * @param snapshotDirectoryPath directory path for snapshot
+     * @param limiter rate limiter to use
+     * @param force if true, if target link file exists, do not fail, otherwise throw RTE
+     */
+    public static void createLinks(Descriptor descriptor, Set<Component> components, String snapshotDirectoryPath, RateLimiter limiter, boolean force)
     {
         for (Component component : components)
         {
@@ -1145,7 +1160,15 @@ public abstract class SSTableReader extends SSTable implements UnfilteredSource,
             if (null != limiter)
                 limiter.acquire();
             File targetLink = new File(snapshotDirectoryPath, sourceFile.name());
-            FileUtils.createHardLink(sourceFile, targetLink);
+            try
+            {
+                FileUtils.createHardLink(sourceFile, targetLink);
+            }
+            catch (DuplicateHardlinkException ex)
+            {
+                if (!force)
+                    throw new RuntimeException(ex.getMessage());
+            }
         }
     }
 

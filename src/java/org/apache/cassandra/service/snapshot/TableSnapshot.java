@@ -208,9 +208,20 @@ public class TableSnapshot
 
     public long computeSizeOnDiskBytes()
     {
+        return computeSizeOnDiskBytes(false);
+    }
+
+    /**
+     *
+     * @param refresh true if a caller wants to recompute otherwise cached size
+     * @return on disk bytes
+     */
+    public long computeSizeOnDiskBytes(boolean refresh)
+    {
         long sum = sizeOnDisk;
-        if (sum == 0)
+        if (sum == 0 || refresh)
         {
+            sum = 0;
             for (File snapshotDir : snapshotDirs)
                 sum += FileUtils.folderSize(snapshotDir);
 

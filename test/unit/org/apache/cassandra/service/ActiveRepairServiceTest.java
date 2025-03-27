@@ -36,7 +36,6 @@ import java.util.concurrent.TimeUnit;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Sets;
-
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.BeforeClass;
@@ -63,6 +62,7 @@ import org.apache.cassandra.locator.Replica;
 import org.apache.cassandra.repair.messages.RepairOption;
 import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.service.disk.usage.DiskUsageMonitor;
+import org.apache.cassandra.service.snapshot.SnapshotManager;
 import org.apache.cassandra.service.snapshot.TableSnapshot;
 import org.apache.cassandra.streaming.PreviewKind;
 import org.apache.cassandra.tcm.ClusterMetadata;
@@ -76,7 +76,7 @@ import org.apache.cassandra.utils.concurrent.Condition;
 import org.apache.cassandra.utils.concurrent.Refs;
 import org.mockito.Mock;
 
-import static org.apache.cassandra.ServerTestUtils.*;
+import static org.apache.cassandra.ServerTestUtils.resetCMS;
 import static org.apache.cassandra.config.CassandraRelevantProperties.ORG_APACHE_CASSANDRA_DISABLE_MBEAN_REGISTRATION;
 import static org.apache.cassandra.repair.messages.RepairOption.DATACENTERS_KEY;
 import static org.apache.cassandra.repair.messages.RepairOption.FORCE_REPAIR_KEY;
@@ -307,6 +307,26 @@ public class ActiveRepairServiceTest
         }
     }
 
+    @Test
+    public void testForcedSnapshot() throws Throwable
+    {
+        ColumnFamilyStore store = prepareColumnFamilyStore();
+        TimeUUID prsId = nextTimeUUID();
+        Collection<Range<Token>> ranges = Collections.singleton(new Range<>(store.getPartitioner().getMinimumToken(), store.getPartitioner().getMinimumToken()));
+        ActiveRepairService.instance().registerParentRepairSession(prsId, FBUtilities.getBroadcastAddressAndPort(), Collections.singletonList(store),
+                                                                   ranges, true, System.currentTimeMillis(), false, PreviewKind.NONE);
+
+        // snapshot twice, would not be possible before CASSANDRA-20490
+        store.getRepairManager().snapshot(prsId.toString(), ranges, true);
+        store.getRepairManager().snapshot(prsId.toString(), ranges, true);
+
+        List<TableSnapshot> snapshots = SnapshotManager.instance.getSnapshots(p -> p.getKeyspaceName().equals(store.getKeyspaceName()) && p.getTableName().equals(store.getTableName()));
+        Assert.assertEquals(1, snapshots.size());
+        TableSnapshot snapshot = snapshots.get(0);
+        Assert.assertTrue(snapshot.isEphemeral());
+        Assert.assertEquals(prsId.toString(), snapshot.getTag());
+    }
+
     private ColumnFamilyStore prepareColumnFamilyStore()
     {
         Keyspace keyspace = Keyspace.open(KEYSPACE5);
@@ -314,6 +334,7 @@ public class ActiveRepairServiceTest
         store.truncateBlocking();
         store.disableAutoCompaction();
         createSSTables(store, 10);
+        SnapshotManager.instance.clearAllSnapshots();
         return store;
     }
 

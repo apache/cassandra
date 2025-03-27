@@ -19,6 +19,8 @@ package org.apache.cassandra.service.snapshot;
 
 import java.io.IOException;
 import java.time.Instant;
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -568,18 +570,33 @@ public class SnapshotManager implements SnapshotManagerMBean, INotificationConsu
     private synchronized void prePopulateSnapshots(TakeSnapshotTask task)
     {
         Map<ColumnFamilyStore, TableSnapshot> snapshotsToCreate = task.getSnapshotsToCreate();
-        for (Map.Entry<ColumnFamilyStore, TableSnapshot> toCreateEntry : snapshotsToCreate.entrySet())
+        Map<ColumnFamilyStore, TableSnapshot> snapshotsToOverwrite = new HashMap<>();
+        List<TableSnapshot> toCreate = new ArrayList<>(snapshotsToCreate.values());
+
+        for (TableSnapshot existingSnapshot : snapshots)
         {
-            if (snapshots.contains(toCreateEntry.getValue()))
+            for (Map.Entry<ColumnFamilyStore, TableSnapshot> toCreateEntry : snapshotsToCreate.entrySet())
             {
-                throw new RuntimeException(format("Snapshot %s for %s.%s already exists.",
-                                                  toCreateEntry.getValue().getTag(),
-                                                  toCreateEntry.getValue().getKeyspaceName(),
-                                                  toCreateEntry.getValue().getTableName()));
+                TableSnapshot snapshotToCreate = toCreateEntry.getValue();
+                if (existingSnapshot.equals(toCreateEntry.getValue()))
+                {
+                    if (!task.options.ephemeral)
+                    {
+                        throw new RuntimeException(format("Snapshot %s for %s.%s already exists.",
+                                                          snapshotToCreate.getTag(),
+                                                          snapshotToCreate.getKeyspaceName(),
+                                                          snapshotToCreate.getTableName()));
+                    }
+
+                    toCreate.remove(toCreateEntry.getValue());
+                    snapshotsToOverwrite.put(toCreateEntry.getKey(), existingSnapshot);
+                }
             }
         }
 
-        snapshots.addAll(snapshotsToCreate.values());
+        snapshotsToCreate.putAll(snapshotsToOverwrite);
+
+        snapshots.addAll(toCreate);
     }
 
     private static ScheduledExecutorPlus createSnapshotCleanupExecutor()

@@ -81,7 +81,10 @@ public class SnapshotDetailsTabularData
     {
         try
         {
-            String totalSize = FileUtils.stringifyFileSize(details.computeSizeOnDiskBytes());
+            // in case of forcibly taken snapshots, ephemeral snapshot might get more sstables
+            // which would inflate sizes which are otherwise cached,
+            // hence, refresh sizes, but for ephemeral snapshots only
+            String totalSize = FileUtils.stringifyFileSize(details.computeSizeOnDiskBytes(details.isEphemeral()));
             long trueSizeBytes = details.computeTrueSizeBytes(files);
             String liveSize =  FileUtils.stringifyFileSize(trueSizeBytes);
             String createdAt = safeToString(details.getCreatedAt());

@@ -166,7 +166,7 @@ public final class FileUtils
     public static void createHardLink(File from, File to)
     {
         if (to.exists())
-            throw new RuntimeException("Tried to create duplicate hard link to " + to);
+            throw new DuplicateHardlinkException("Tried to create duplicate hard link from " + from + " to " + to);
         if (!from.exists())
             throw new RuntimeException("Tried to hard link to file that does not exist " + from);
 
@@ -194,6 +194,10 @@ public final class FileUtils
         catch (FSWriteError ex)
         {
             throw ex;
+        }
+        catch (DuplicateHardlinkException ex)
+        {
+            throw new RuntimeException(ex.getMessage());
         }
         catch (Throwable t)
         {
@@ -816,6 +820,14 @@ public final class FileUtils
         finally
         {
             f.tryDelete();
+        }
+    }
+
+    public static class DuplicateHardlinkException extends RuntimeException
+    {
+        public DuplicateHardlinkException(String message)
+        {
+            super(message);
         }
     }
 }

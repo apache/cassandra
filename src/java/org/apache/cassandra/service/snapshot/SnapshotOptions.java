@@ -50,27 +50,18 @@ public class SnapshotOptions
     public final Predicate<SSTableReader> sstableFilter;
     public final ColumnFamilyStore cfs;
 
-    private SnapshotOptions(SnapshotType type,
-                            String tag,
-                            DurationSpec.IntSecondsBound ttl,
-                            Instant creationTime,
-                            boolean skipFlush,
-                            boolean ephemeral,
-                            String[] entities,
-                            RateLimiter rateLimiter,
-                            Predicate<SSTableReader> sstableFilter,
-                            ColumnFamilyStore cfs)
+    private SnapshotOptions(Builder builder)
     {
-        this.type = type;
-        this.tag = tag;
-        this.ttl = ttl;
-        this.creationTime = creationTime;
-        this.skipFlush = skipFlush;
-        this.ephemeral = ephemeral;
-        this.entities = entities;
-        this.rateLimiter = rateLimiter;
-        this.sstableFilter = sstableFilter;
-        this.cfs = cfs;
+        this.type = builder.type;
+        this.tag = builder.tag;
+        this.ttl = builder.ttl;
+        this.creationTime = builder.creationTime;
+        this.skipFlush = builder.skipFlush;
+        this.ephemeral = builder.ephemeral;
+        this.entities = builder.entities;
+        this.rateLimiter = builder.rateLimiter;
+        this.sstableFilter = builder.sstableFilter;
+        this.cfs = builder.cfs;
     }
 
     public static Builder systemSnapshot(String tag, SnapshotType type, String... entities)
@@ -214,8 +205,7 @@ public class SnapshotOptions
             if (rateLimiter == null)
                 rateLimiter = DatabaseDescriptor.getSnapshotRateLimiter();
 
-            return new SnapshotOptions(type, tag, ttl, creationTime, skipFlush, ephemeral, entities, rateLimiter,
-                                       sstableFilter, cfs);
+            return new SnapshotOptions(this);
         }
     }
 
