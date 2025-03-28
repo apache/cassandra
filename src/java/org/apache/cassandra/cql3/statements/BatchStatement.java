@@ -468,7 +468,7 @@ public class BatchStatement implements CQLStatement
 
     private ResultMessage executeWithConditions(BatchQueryOptions options, QueryState state, Dispatcher.RequestTime requestTime)
     {
-        Pair<CQL3CasRequest, Set<ColumnMetadata>> p = makeCasRequest(options, state);
+        Pair<CQL3CasRequest, Set<ColumnMetadata>> p = makeCasRequest(options, state, requestTime);
         CQL3CasRequest casRequest = p.left;
         Set<ColumnMetadata> columnsWithConditions = p.right;
 
@@ -495,7 +495,7 @@ public class BatchStatement implements CQLStatement
         }
     }
 
-    private Pair<CQL3CasRequest,Set<ColumnMetadata>> makeCasRequest(BatchQueryOptions options, QueryState state)
+    private Pair<CQL3CasRequest,Set<ColumnMetadata>> makeCasRequest(BatchQueryOptions options, QueryState state, Dispatcher.RequestTime requestTime)
     {
         long batchTimestamp = options.getTimestamp(state);
         long nowInSeconds = options.getNowInSeconds(state);
@@ -514,7 +514,7 @@ public class BatchStatement implements CQLStatement
             if (key == null)
             {
                 key = statement.metadata().partitioner.decorateKey(pks.get(0));
-                casRequest = new CQL3CasRequest(statement.metadata(), key, conditionColumns, updatesRegularRows, updatesStaticRow);
+                casRequest = new CQL3CasRequest(statement.metadata(), key, conditionColumns, updatesRegularRows, updatesStaticRow, requestTime);
             }
             else if (!key.getKey().equals(pks.get(0)))
             {
@@ -570,7 +570,7 @@ public class BatchStatement implements CQLStatement
         BatchQueryOptions batchOptions = BatchQueryOptions.withoutPerStatementVariables(options);
 
         if (hasConditions)
-            return executeInternalWithConditions(batchOptions, queryState);
+            return executeInternalWithConditions(batchOptions, queryState, Dispatcher.RequestTime.forImmediateExecution());
 
         executeInternalWithoutCondition(queryState, batchOptions, Dispatcher.RequestTime.forImmediateExecution());
         return new ResultMessage.Void();
@@ -586,9 +586,9 @@ public class BatchStatement implements CQLStatement
         return null;
     }
 
-    private ResultMessage executeInternalWithConditions(BatchQueryOptions options, QueryState state)
+    private ResultMessage executeInternalWithConditions(BatchQueryOptions options, QueryState state, Dispatcher.RequestTime requestTime)
     {
-        Pair<CQL3CasRequest, Set<ColumnMetadata>> p = makeCasRequest(options, state);
+        Pair<CQL3CasRequest, Set<ColumnMetadata>> p = makeCasRequest(options, state, requestTime);
         CQL3CasRequest request = p.left;
         Set<ColumnMetadata> columnsWithConditions = p.right;
 

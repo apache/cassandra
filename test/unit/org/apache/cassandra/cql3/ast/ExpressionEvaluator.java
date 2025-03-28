@@ -55,6 +55,11 @@ public class ExpressionEvaluator
         Object rhs = eval(e.right);
         if (rhs instanceof ByteBuffer)
             rhs = e.right.type().compose((ByteBuffer) rhs);
+        // null + 42 = null
+        // 42 + null = null
+        // if anything is null, everything is null!
+        if (lhs == null || rhs == null)
+            return null;
         switch (e.kind)
         {
             case ADD:

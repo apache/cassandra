@@ -19,14 +19,14 @@
 package org.apache.cassandra.distributed.test.cql3;
 
 import accord.utils.Property;
+import org.apache.cassandra.config.Config;
 import org.apache.cassandra.distributed.Cluster;
-import org.apache.cassandra.service.reads.repair.ReadRepairStrategy;
 
-public class MultiNodeTableWalkWithoutReadRepairTest extends MultiNodeTableWalkBase
+public class PaxosV2MultiNodeTableWalkTest extends CasMultiNodeTableWalkBase
 {
-    public MultiNodeTableWalkWithoutReadRepairTest()
+    public PaxosV2MultiNodeTableWalkTest()
     {
-        super(ReadRepairStrategy.NONE);
+        super(Config.PaxosVariant.v2);
     }
 
     @Override

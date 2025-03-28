@@ -28,6 +28,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
+import javax.annotation.Nullable;
+
 import org.apache.cassandra.cql3.AssignmentTestable;
 import org.apache.cassandra.cql3.CQL3Type;
 import org.apache.cassandra.cql3.ColumnSpecification;
@@ -475,14 +477,6 @@ public abstract class AbstractType<T> implements Comparator<ByteBuffer>, Assignm
     }
 
     /**
-     * Returns {@code true} for types where empty should be handled like {@code null} like {@link Int32Type}.
-     */
-    public boolean isEmptyValueMeaningless()
-    {
-        return false;
-    }
-
-    /**
      * @param ignoreFreezing if true, the type string will not be wrapped with FrozenType(...), even if this type is frozen.
      */
     public String toString(boolean ignoreFreezing)
@@ -535,6 +529,22 @@ public abstract class AbstractType<T> implements Comparator<ByteBuffer>, Assignm
     public boolean allowsEmpty()
     {
         return false;
+    }
+
+    /**
+     * Returns {@code true} for types where empty should be handled like {@code null} like {@link Int32Type}.
+     */
+    public boolean isEmptyValueMeaningless()
+    {
+        return false;
+    }
+
+    @Nullable
+    public ByteBuffer sanitize(@Nullable ByteBuffer bb)
+    {
+        if (bb == null) return null;
+        // not checking allowsEmpty as this method assumes that the bb has already passed validation for the type
+        return bb.remaining() == 0 && isEmptyValueMeaningless() ? null : bb;
     }
 
     public boolean isNull(ByteBuffer bb)

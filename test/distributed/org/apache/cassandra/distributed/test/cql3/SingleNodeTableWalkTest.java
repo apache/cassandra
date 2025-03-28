@@ -59,6 +59,7 @@ import org.apache.cassandra.db.marshal.InetAddressType;
 import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.distributed.Cluster;
+import org.apache.cassandra.distributed.api.IInstanceConfig;
 import org.apache.cassandra.distributed.test.sai.SAIUtil;
 import org.apache.cassandra.harry.model.BytesPartitionState;
 import org.apache.cassandra.schema.ColumnMetadata;
@@ -92,12 +93,16 @@ public class SingleNodeTableWalkTest extends StatefulASTBase
                                                                                                                          .collect(Collectors.toList()));
     private static final Logger logger = LoggerFactory.getLogger(SingleNodeTableWalkTest.class);
 
+    protected static boolean READ_AFTER_WRITE = false;
+
     protected void preCheck(Cluster cluster, Property.StatefulBuilder builder)
     {
         // if a failing seed is detected, populate here
         // Example: builder.withSeed(42L);
         // CQL operations may have opertors such as +, -, and / (example 4 + 4), to "apply" them to get a constant value
         // CQL_DEBUG_APPLY_OPERATOR = true;
+        // When mutations look to be lost as seen by more complex SELECTs, it can be useful to just SELECT the partition/row right after to write to see if it was safe at the time.
+        // READ_AFTER_WRITE = true;
     }
 
     protected TypeGenBuilder supportedTypes(RandomSource rs)
@@ -345,7 +350,12 @@ public class SingleNodeTableWalkTest extends StatefulASTBase
 
     protected Cluster createCluster() throws IOException
     {
-        return createCluster(1, i -> {});
+        return createCluster(1, this::clusterConfig);
+    }
+
+    protected void clusterConfig(IInstanceConfig config)
+    {
+
     }
 
     @Test
@@ -460,7 +470,8 @@ public class SingleNodeTableWalkTest extends StatefulASTBase
             {
                 model.factory.regularAndStaticColumns.forEach(mutationGenBuilder::allowEmpty);
             }
-            this.mutationGen = toGen(mutationGenBuilder.build());
+            model.factory.regularAndStaticColumns.forEach(mutationGenBuilder::allowNull);
+            this.mutationGen = toMutationGen(mutationGenBuilder);
 
             var nonPartitionColumns = ImmutableList.<Symbol>builder()
                                                    .addAll(model.factory.clusteringColumns)
@@ -478,6 +489,17 @@ public class SingleNodeTableWalkTest extends StatefulASTBase
                                 .stream()
                                 .filter(this::isSearchable)
                                 .collect(Collectors.toList());
+        }
+
+        @Override
+        protected boolean readAfterWrite()
+        {
+            return READ_AFTER_WRITE;
+        }
+
+        protected Gen<Mutation> toMutationGen(ASTGenerators.MutationGenBuilder mutationGenBuilder)
+        {
+            return toGen(mutationGenBuilder.build());
         }
 
         private boolean isSearchable(Symbol symbol)

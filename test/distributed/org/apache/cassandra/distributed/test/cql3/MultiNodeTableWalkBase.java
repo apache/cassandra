@@ -23,6 +23,7 @@ import java.io.IOException;
 import accord.utils.RandomSource;
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
+import org.apache.cassandra.distributed.api.IInstanceConfig;
 import org.apache.cassandra.distributed.api.IInvokableInstance;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.reads.repair.ReadRepairStrategy;
@@ -52,13 +53,17 @@ public abstract class MultiNodeTableWalkBase extends SingleNodeTableWalkTest
     @Override
     protected Cluster createCluster() throws IOException
     {
-        return createCluster(mockMultiNode ? 1 : 3, c -> {
-            c.set("range_request_timeout", "180s")
-             .set("read_request_timeout", "180s")
-             .set("write_request_timeout", "180s")
-             .set("native_transport_timeout", "180s")
-             .set("slow_query_log_timeout", "180s");
-        });
+        return createCluster(mockMultiNode ? 1 : 3, this::clusterConfig);
+    }
+
+    @Override
+    protected void clusterConfig(IInstanceConfig c)
+    {
+        c.set("range_request_timeout", "180s")
+         .set("read_request_timeout", "180s")
+         .set("write_request_timeout", "180s")
+         .set("native_transport_timeout", "180s")
+         .set("slow_query_log_timeout", "180s");
     }
 
     @Override
@@ -67,7 +72,7 @@ public abstract class MultiNodeTableWalkBase extends SingleNodeTableWalkTest
         return new MultiNodeState(rs, cluster);
     }
 
-    private class MultiNodeState extends State
+    protected class MultiNodeState extends State
     {
         public MultiNodeState(RandomSource rs, Cluster cluster)
         {

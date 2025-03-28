@@ -81,6 +81,7 @@ import org.apache.cassandra.utils.FastByteOperations;
 import org.apache.cassandra.utils.Generators;
 import org.quicktheories.generators.SourceDSL;
 
+import static accord.utils.Property.multistep;
 import static org.apache.cassandra.distributed.test.JavaDriverUtils.toDriverCL;
 import static org.apache.cassandra.utils.AbstractTypeGenerators.overridePrimitiveTypeSupport;
 import static org.apache.cassandra.utils.AbstractTypeGenerators.stringComparator;
@@ -179,7 +180,35 @@ public class StatefulASTBase extends TestBaseImpl
     protected static <S extends CommonState> Property.Command<S, Void, ?> insert(RandomSource rs, S state)
     {
         int timestamp = ++state.operations;
-        return state.command(rs, state.mutationGen().next(rs).withTimestamp(timestamp));
+        Mutation mutation = state.mutationGen().next(rs).withTimestamp(timestamp);
+
+        if (!state.readAfterWrite())
+            return state.command(rs, mutation);
+
+        return multistep(state.command(rs, mutation),
+                         state.commandSafeRandomHistory(selectForMutation(state, mutation), "Select for Mutation Validation"));
+    }
+
+    private static <S extends CommonState> Select selectForMutation(S state, Mutation mutation)
+    {
+        var select = Select.builder(state.metadata).allowFiltering();
+        switch (mutation.kind)
+        {
+            case INSERT:
+            {
+                var insert = (Mutation.Insert) mutation;
+                for (var c : state.model.factory.partitionColumns)
+                    select.value(c, insert.values.get(c));
+            }
+            break;
+            default:
+            {
+                select.where(mutation.kind == Mutation.Kind.UPDATE
+                             ? ((Mutation.Update) mutation).where
+                             : ((Mutation.Delete) mutation).where);
+            }
+        }
+        return select.build();
     }
 
     protected static <S extends BaseState> Property.Command<S, Void, ?> fullTableScan(RandomSource rs, S state)
@@ -242,6 +271,11 @@ public class StatefulASTBase extends TestBaseImpl
             this.tableRef = TableReference.from(metadata);
             this.model = new ASTSingleTableModel(metadata);
             createTable(metadata);
+        }
+
+        protected boolean readAfterWrite()
+        {
+            return false;
         }
 
         protected boolean isMultiNode()
@@ -314,6 +348,17 @@ public class StatefulASTBase extends TestBaseImpl
             });
         }
 
+        protected <S extends BaseState> Property.Command<S, Void, ?> commandSafeRandomHistory(Select select, @Nullable String annotate)
+        {
+            var inst = cluster.firstAlive();
+            String postfix = "on " + inst;
+            if (annotate == null) annotate = postfix;
+            else                  annotate += ", " + postfix;
+            return new Property.SimpleCommand<>(humanReadable(select, annotate), s -> {
+                s.model.validate(s.executeQuery(inst, Integer.MAX_VALUE, s.selectCl(), select), select);
+            });
+        }
+
         protected ConsistencyLevel selectCl()
         {
             return ConsistencyLevel.LOCAL_QUORUM;
@@ -333,11 +378,18 @@ public class StatefulASTBase extends TestBaseImpl
         {
             var inst = selectInstance(rs);
             String postfix = "on " + inst;
+            if (mutation.isCas())
+            {
+                postfix += ", would apply " + model.shouldApply(mutation);
+                // CAS doesn't allow timestamps
+                mutation = mutation.withoutTimestamp();
+            }
             if (annotate == null) annotate = postfix;
             else                  annotate += ", " + postfix;
+            Mutation finalMutation = mutation;
             return new Property.SimpleCommand<>(humanReadable(mutation, annotate), s -> {
-                s.executeQuery(inst, Integer.MAX_VALUE, s.mutationCl(), mutation);
-                s.model.update(mutation);
+                s.executeQuery(inst, Integer.MAX_VALUE, s.mutationCl(), finalMutation);
+                s.model.update(finalMutation);
                 s.mutation();
             });
         }
@@ -399,7 +451,26 @@ public class StatefulASTBase extends TestBaseImpl
                 SimpleStatement ss = new SimpleStatement(stmt.toCQL(), (Object[]) stmt.bindsEncoded());
                 if (fetchSize != Integer.MAX_VALUE)
                     ss.setFetchSize(fetchSize);
-                ss.setConsistencyLevel(toDriverCL(cl));
+                if (stmt instanceof Mutation)
+                {
+                    switch (cl)
+                    {
+                        case SERIAL:
+                            ss.setSerialConsistencyLevel(toDriverCL(cl));
+                            ss.setConsistencyLevel(com.datastax.driver.core.ConsistencyLevel.QUORUM);
+                            break;
+                        case LOCAL_SERIAL:
+                            ss.setSerialConsistencyLevel(toDriverCL(cl));
+                            ss.setConsistencyLevel(com.datastax.driver.core.ConsistencyLevel.LOCAL_QUORUM);
+                            break;
+                        default:
+                            ss.setConsistencyLevel(toDriverCL(cl));
+                    }
+                }
+                else
+                {
+                    ss.setConsistencyLevel(toDriverCL(cl));
+                }
 
                 InetSocketAddress broadcastAddress = instance.config().broadcastAddress();
                 var host = client.getMetadata().getAllHosts().stream()

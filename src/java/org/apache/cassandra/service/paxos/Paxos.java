@@ -737,7 +737,7 @@ public class Paxos
                 Tracing.trace("Reading existing values for CAS precondition");
 
                 BeginResult begin = begin(proposeDeadline, readCommand, consistencyForConsensus,
-                        true, minimumBallot, failedAttemptsDueToContention);
+                        true, minimumBallot, failedAttemptsDueToContention, request.requestTime());
                 Ballot ballot = begin.ballot;
                 Participants participants = begin.participants;
                 failedAttemptsDueToContention = begin.failedAttemptsDueToContention;
@@ -914,7 +914,7 @@ public class Paxos
             while (true)
             {
                 // does the work of applying in-progress writes; throws UAE or timeout if it can't
-                final BeginResult begin = begin(deadline, read, consistencyForConsensus, false, minimumBallot, failedAttemptsDueToContention);
+                final BeginResult begin = begin(deadline, read, consistencyForConsensus, false, minimumBallot, failedAttemptsDueToContention, requestTime);
                 failedAttemptsDueToContention = begin.failedAttemptsDueToContention;
 
                 switch (PAXOS_VARIANT)
@@ -1034,7 +1034,8 @@ public class Paxos
                                      ConsistencyLevel consistencyForConsensus,
                                      final boolean isWrite,
                                      Ballot minimumBallot,
-                                     int failedAttemptsDueToContention)
+                                     int failedAttemptsDueToContention,
+                                     Dispatcher.RequestTime requestTime)
             throws WriteTimeoutException, WriteFailureException, ReadTimeoutException, ReadFailureException
     {
         boolean acceptEarlyReadPermission = !isWrite; // if we're reading, begin by assuming a read permission is sufficient
@@ -1111,7 +1112,7 @@ public class Paxos
                     PaxosPrepare.Success success = prepare.success();
 
                     Supplier<Participants> plan = () -> success.participants;
-                    DataResolver<?, ?> resolver = new DataResolver<>(query, plan, NoopReadRepair.instance, new Dispatcher.RequestTime(query.creationTimeNanos()));
+                    DataResolver<?, ?> resolver = new DataResolver<>(query, plan, NoopReadRepair.instance, requestTime);
                     for (int i = 0 ; i < success.responses.size() ; ++i)
                         resolver.preprocess(success.responses.get(i));
 

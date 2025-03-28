@@ -44,6 +44,14 @@ import org.apache.cassandra.utils.FastByteOperations;
  */
 public abstract class Constants
 {
+
+    private static ByteBuffer getCurrentCellBuffer(ColumnMetadata column, DecoratedKey key, UpdateParameters params)
+    {
+        Row currentRow = params.getPrefetchedRow(key, column.isStatic() ? Clustering.STATIC_CLUSTERING : params.currentClustering());
+        Cell<?> currentCell = currentRow == null ? null : currentRow.getCell(column);
+        return currentCell == null ? null : currentCell.buffer();
+    }
+
     public enum Type
     {
         STRING
@@ -489,8 +497,10 @@ public abstract class Constants
             else if (column.type instanceof NumberType<?>)
             {
                 @SuppressWarnings("unchecked") NumberType<Number> type = (NumberType<Number>) column.type;
-                ByteBuffer increment = t.bindAndGet(params.options);
-                ByteBuffer current = getCurrentCellBuffer(partitionKey, params);
+                ByteBuffer increment = type.sanitize(t.bindAndGet(params.options));
+                if (increment == null)
+                    return;
+                ByteBuffer current = type.sanitize(getCurrentCellBuffer(column, partitionKey, params));
                 if (current == null)
                     return;
                 ByteBuffer newValue = type.add(type.compose(current), type.compose(increment));
@@ -499,7 +509,9 @@ public abstract class Constants
             else if (column.type instanceof StringType)
             {
                 ByteBuffer append = t.bindAndGet(params.options);
-                ByteBuffer current = getCurrentCellBuffer(partitionKey, params);
+                if (append == null)
+                    return;
+                ByteBuffer current = getCurrentCellBuffer(column, partitionKey, params);
                 if (current == null)
                     return;
                 ByteBuffer newValue = ByteBuffer.allocate(current.remaining() + append.remaining());
@@ -507,13 +519,6 @@ public abstract class Constants
                 FastByteOperations.copy(append, append.position(), newValue, newValue.position() + current.remaining(), append.remaining());
                 params.addCell(column, newValue);
             }
-        }
-
-        private ByteBuffer getCurrentCellBuffer(DecoratedKey key, UpdateParameters params)
-        {
-            Row currentRow = params.getPrefetchedRow(key, column.isStatic() ? Clustering.STATIC_CLUSTERING : params.currentClustering());
-            Cell<?> currentCell = currentRow == null ? null : currentRow.getCell(column);
-            return currentCell == null ? null : currentCell.buffer();
         }
     }
 
@@ -524,19 +529,40 @@ public abstract class Constants
             super(column, t);
         }
 
+        @Override
+        public boolean requiresRead()
+        {
+            return !column.type.isCounter();
+        }
+
         public void execute(DecoratedKey partitionKey, UpdateParameters params) throws InvalidRequestException
         {
-            ByteBuffer bytes = t.bindAndGet(params.options);
-            if (bytes == null)
-                throw new InvalidRequestException("Invalid null value for counter increment");
-            if (bytes == ByteBufferUtil.UNSET_BYTE_BUFFER)
-                return;
+            if (column.type instanceof CounterColumnType)
+            {
+                ByteBuffer bytes = t.bindAndGet(params.options);
+                if (bytes == null)
+                    throw new InvalidRequestException("Invalid null value for counter increment");
+                if (bytes == ByteBufferUtil.UNSET_BYTE_BUFFER)
+                    return;
 
-            long increment = ByteBufferUtil.toLong(bytes);
-            if (increment == Long.MIN_VALUE)
-                throw new InvalidRequestException("The negation of " + increment + " overflows supported counter precision (signed 8 bytes integer)");
+                long increment = ByteBufferUtil.toLong(bytes);
+                if (increment == Long.MIN_VALUE)
+                    throw new InvalidRequestException("The negation of " + increment + " overflows supported counter precision (signed 8 bytes integer)");
 
-            params.addCounter(column, -increment);
+                params.addCounter(column, -increment);
+            }
+            else if (column.type instanceof NumberType<?>)
+            {
+                @SuppressWarnings("unchecked") NumberType<Number> type = (NumberType<Number>) column.type;
+                ByteBuffer increment = type.sanitize(t.bindAndGet(params.options));
+                if (increment == null)
+                    return;
+                ByteBuffer current = type.sanitize(getCurrentCellBuffer(column, partitionKey, params));
+                if (current == null)
+                    return;
+                ByteBuffer newValue = type.substract(type.compose(current), type.compose(increment));
+                params.addCell(column, newValue);
+            }
         }
     }
 

@@ -56,6 +56,7 @@ public class Literal implements Value
     @Override
     public ByteBuffer valueEncoded()
     {
+        if (value == null) return null;
         return value instanceof ByteBuffer ? (ByteBuffer) value : ((AbstractType) type).decompose(value);
     }
 
@@ -69,6 +70,11 @@ public class Literal implements Value
     public void toCQL(StringBuilder sb, CQLFormatter formatter)
     {
         ByteBuffer bytes = valueEncoded();
+        if (bytes == null)
+        {
+            sb.append("null");
+            return;
+        }
         if (bytes.remaining() == 0 && !actuallySupportsEmpty(type))
         {
             sb.append("<empty bytes>");

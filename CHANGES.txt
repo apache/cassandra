@@ -1,4 +1,5 @@
 5.1
+ * Add support in CAS for -= on numeric types, and fixed improper handling of empty bytes which lead to NPE (CASSANDRA-20477)
  * Do not fail to start a node with materialized views after they are turned off in config (CASSANDRA-20452)
  * Fix nodetool gcstats output, support human-readable units and more output formats (CASSANDRA-19022)
  * Various gossip to TCM upgrade fixes (CASSANDRA-20483)

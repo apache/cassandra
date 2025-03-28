@@ -22,6 +22,8 @@ import java.util.stream.Stream;
 
 public interface CasCondition extends Element
 {
+    CasCondition visit(Visitor v);
+
     enum Simple implements CasCondition
     {
         NotExists("IF NOT EXISTS"),
@@ -39,11 +41,17 @@ public interface CasCondition extends Element
         {
             sb.append(cql);
         }
+
+        @Override
+        public CasCondition visit(Visitor v)
+        {
+            return v.visit(this);
+        }
     }
 
     class IfCondition implements CasCondition
     {
-        private final Conditional conditional;
+        public final Conditional conditional;
 
         public IfCondition(Conditional conditional)
         {
@@ -61,6 +69,16 @@ public interface CasCondition extends Element
         public Stream<? extends Element> stream()
         {
             return Stream.of(conditional);
+        }
+
+        @Override
+        public CasCondition visit(Visitor v)
+        {
+            var u = v.visit(this);
+            if (u != this) return u;
+            var c = conditional.visit(v);
+            if (c == conditional) return this;
+            return new IfCondition(c);
         }
     }
 }

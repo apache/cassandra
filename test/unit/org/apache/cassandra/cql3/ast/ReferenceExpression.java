@@ -26,6 +26,6 @@ public interface ReferenceExpression extends Expression
     @Override
     default ReferenceExpression visit(Visitor v)
     {
-        return this;
+        return v.visit(this);
     }
 }

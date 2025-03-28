@@ -166,6 +166,7 @@ public class ASTGenerators
         private Gen<?> valueGen;
         private Gen<Boolean> useOperator = SourceDSL.booleans().all();
         private Gen<Boolean> useEmpty = SourceDSL.arbitrary().constant(false);
+        private Gen<Boolean> useNull = SourceDSL.arbitrary().constant(false);
         private BiFunction<Object, AbstractType<?>, Gen<Value>> literalOrBindGen = ASTGenerators::valueGen;
 
         public ExpressionBuilder(AbstractType<?> type)
@@ -179,6 +180,12 @@ public class ASTGenerators
         {
             if (!type.allowsEmpty()) return this;
             useEmpty = SourceDSL.integers().between(1, 100).map(i -> i < 10);
+            return this;
+        }
+
+        public ExpressionBuilder allowNull()
+        {
+            useNull = SourceDSL.integers().between(1, 100).map(i -> i < 10);
             return this;
         }
 
@@ -217,6 +224,8 @@ public class ASTGenerators
             //TODO (coverage): rather than single level operators, allow nested (a + b + c + d)
             Gen<Value> leaf = rs -> literalOrBindGen.apply(valueGen.generate(rs), type).generate(rs);
             return rs -> {
+                if (useNull.generate(rs))
+                    return new Bind(null, type);
                 if (useEmpty.generate(rs))
                     return new Bind(ByteBufferUtil.EMPTY_BYTE_BUFFER, type);
                 Expression e = leaf.generate(rs);
@@ -395,6 +404,12 @@ public class ASTGenerators
             return this;
         }
 
+        public MutationGenBuilder allowNull(Symbol symbol)
+        {
+            columnExpressions.get(symbol).allowNull();
+            return this;
+        }
+
         public MutationGenBuilder withDeletionKind(Gen<DeleteKind> deleteKindGen)
         {
             this.deleteKindGen = deleteKindGen;
@@ -432,7 +447,7 @@ public class ASTGenerators
 
         public MutationGenBuilder withCasGen(Gen<Boolean> withCasGen)
         {
-            withCasGen = Objects.requireNonNull(withCasGen);
+            this.withCasGen = Objects.requireNonNull(withCasGen);
             return this;
         }
 
