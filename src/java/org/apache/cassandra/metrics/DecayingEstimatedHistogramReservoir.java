@@ -375,15 +375,6 @@ public class DecayingEstimatedHistogramReservoir implements SnapshottingReservoi
             target[i] += source[i];
     }
 
-    private static <T> T getOrSet(AtomicReference<T> ref, Supplier<T> sup)
-    {
-        T current = ref.get();
-        if (current != null)
-            return current;
-        T newValue;
-        return ref.compareAndSet(null, newValue = sup.get()) ? newValue : ref.get();
-    }
-
     private void rescaleReservoir()
     {
         long now = clock.now();
@@ -900,7 +891,7 @@ public class DecayingEstimatedHistogramReservoir implements SnapshottingReservoi
         {
             this.size = size;
             this.decayingRef = new AtomicReference<>();
-            this.estimatedRef = new AtomicReference<>();
+            this.estimatedRef = new AtomicReference<>(new long[size]);
         }
 
         public void update(int index, long now)
@@ -916,7 +907,7 @@ public class DecayingEstimatedHistogramReservoir implements SnapshottingReservoi
 
                 decayingRef.get().update(index, now);
 
-                long[] estimated = getOrSet(estimatedRef, () -> new long[size]);
+                long[] estimated = estimatedRef.get();
                 estimated[index]++;
             }
             finally
